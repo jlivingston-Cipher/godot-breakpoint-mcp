@@ -72,6 +72,28 @@ function unsupportedWorkspaceSymbols() {
   };
 }
 
+/**
+ * Returned by gd_code_action when the connected Godot build's GDScript language
+ * server doesn't offer code actions. Godot advertises `codeActionProvider: false`
+ * on current builds (confirmed in CI against 4.3-stable) and replies -32601 to a
+ * `textDocument/codeAction` request. Same graceful-degradation contract as
+ * gd_workspace_symbols: a clear message, not a raw JSON-RPC error.
+ */
+function unsupportedCodeAction() {
+  return {
+    isError: true as const,
+    content: [{
+      type: "text" as const,
+      text:
+        "gd_code_action is unsupported by the connected Godot build: its GDScript " +
+        "language server does not offer code actions (advertises codeActionProvider:false " +
+        "and replies -32601 Method not found; observed on Godot 4.3). This is an engine " +
+        "limitation, not a host error. Use gd_diagnostics to surface issues and " +
+        "gd_completion / gd_rename to make edits.",
+    }],
+  };
+}
+
 function normalizeLocations(result: unknown): Array<{ uri: string; line: number; character: number }> {
   if (!result) return [];
   const arr = Array.isArray(result) ? result : [result];
@@ -361,6 +383,13 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
     },
     async ({ path, start_line, start_character, end_line, end_character, only }) => {
       try {
+        // Feature-detect: Godot's GDScript LSP advertises codeActionProvider:false
+        // on current builds (confirmed in CI on 4.3-stable) and replies -32601 to
+        // the request. Skip the call and return a clear message rather than leaking
+        // a raw JSON-RPC error, mirroring gd_workspace_symbols.
+        const caps = await lsp.getServerCapabilities();
+        if (!caps.codeActionProvider) return unsupportedCodeAction();
+
         const uri = await openAndPos(path);
         const range = {
           start: { line: start_line, character: start_character },
@@ -376,7 +405,13 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
           return { title: act.title ?? "", kind: act.kind ?? "", has_edit: act.edit !== undefined, command };
         });
         return ok({ actions });
-      } catch (err) { return fail(err); }
+      } catch (err) {
+        // Belt-and-suspenders: a build that advertises the capability but still
+        // answers -32601 gets the same graceful "unsupported" treatment.
+        const e = err as { code?: number | string; message?: string };
+        if (e.code === -32601 || /method not found/i.test(e.message ?? "")) return unsupportedCodeAction();
+        return fail(err);
+      }
     },
   );
 }

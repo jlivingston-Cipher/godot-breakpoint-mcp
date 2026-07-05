@@ -233,6 +233,7 @@ test("gd_code_action lists actions, flags which carry an edit, normalizes CodeAc
   const projectPath = tmpProject({ "player.gd": "var x = 1\n" });
   let sent: LspMsg | undefined;
   const { srv } = await startLsp({
+    capabilities: { codeActionProvider: true },
     onRequest: (msg, s) => {
       if (msg.method === "textDocument/codeAction") {
         sent = msg;
@@ -256,6 +257,18 @@ test("gd_code_action lists actions, flags which carry an edit, normalizes CodeAc
   assert.deepEqual(params.range.start, { line: 0, character: 0 });
   assert.deepEqual(params.range.end, { line: 0, character: 0 });
   assert.deepEqual(params.context.only, ["quickfix"]);
+  lsp.close();
+  await srv.close();
+});
+
+test("gd_code_action returns 'unsupported' WITHOUT sending textDocument/codeAction when codeActionProvider is falsy (Godot 4.3 behavior)", async () => {
+  const projectPath = tmpProject({ "player.gd": "var x = 1\n" });
+  const { srv, received } = await startLsp({ capabilities: { codeActionProvider: false } });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const res = (await rec.handler("gd_code_action")({ path: "player.gd", start_line: 0, start_character: 0 })) as ToolResultLike;
+  assert.equal(res.isError, true);
+  assert.match(res.content![0].text!, /unsupported/i);
+  assert.ok(!received.some((m) => m.method === "textDocument/codeAction"), "must NOT send codeAction when the capability is absent");
   lsp.close();
   await srv.close();
 });

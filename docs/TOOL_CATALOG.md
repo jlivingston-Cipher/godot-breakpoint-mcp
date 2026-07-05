@@ -447,7 +447,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 - **Output** `{ "type": "object", "required": ["symbols"], "properties": { "symbols": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "kind": { "type": "string" }, "line": { "type": "integer" } } } } } }`
 
 ### `gd_workspace_symbols` ⚠️ · unsupported by Godot ≤ 4.7 (handled gracefully)
-> **Engine limitation (found in live validation):** Godot 4.7's GDScript language server replies `-32601 Method not found` to `workspace/symbol`. The gap is in the engine, not the host — the input/output contract below is correct and the tool is retained for forward compatibility (it will start returning results on a Godot build that implements the method). **As of v0.4.5** the host feature-detects this: it checks the server's advertised `workspaceSymbolProvider` capability (and still catches a `-32601` from builds that advertise it but don't honour it), returning an explicit `isError` "unsupported by the connected Godot build — use gd_document_symbols instead" message rather than leaking a raw JSON-RPC error. On the success path (a future capable build) the `symbols` output shape below is unchanged.
+> **Engine limitation (found in live validation):** Godot 4.7's GDScript language server replies `-32601 Method not found` to `workspace/symbol` (re-confirmed in CI on 4.3-stable: the server advertises `workspaceSymbolProvider: true` yet still replies `-32601` to every query — exactly why the tool keeps a belt-and-suspenders `-32601` catch). The gap is in the engine, not the host — the input/output contract below is correct and the tool is retained for forward compatibility (it will start returning results on a Godot build that implements the method). **As of v0.4.5** the host feature-detects this: it checks the server's advertised `workspaceSymbolProvider` capability (and still catches a `-32601` from builds that advertise it but don't honour it), returning an explicit `isError` "unsupported by the connected Godot build — use gd_document_symbols instead" message rather than leaking a raw JSON-RPC error. On the success path (a future capable build) the `symbols` output shape below is unchanged.
 - **Input** `{ "type": "object", "required": ["query"], "properties": { "query": { "type": "string" } } }`
 - **Output** same `symbols` shape as `gd_document_symbols`, each with an added `uri`.
 
@@ -471,15 +471,15 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ```
 
 ### `gd_signature_help` ✅
-Call-signature hints (the parameter popup shown inside a call) at a position. Godot's GDScript language server advertises `signatureHelpProvider`.
+Call-signature hints (the parameter popup shown inside a call) at a position. Godot's GDScript language server advertises `signatureHelpProvider`; **confirmed returning signatures live in CI on 4.3-stable.**
 - **Input** same `{ path, line, character }` as `gd_completion`.
 - **Output**
 ```json
 { "type": "object", "required": ["signatures", "active_signature", "active_parameter"], "properties": { "signatures": { "type": "array", "items": { "type": "object", "properties": { "label": { "type": "string" }, "documentation": { "type": "string" }, "parameters": { "type": "array", "items": { "type": "object", "properties": { "label": { "type": "string" }, "documentation": { "type": "string" } } } } } } }, "active_signature": { "type": "integer" }, "active_parameter": { "type": "integer" } } }
 ```
 
-### `gd_code_action` ✅
-List the code actions (quick fixes / refactors) the language server offers for a range — the lightbulb menu. Read-only: returns the available actions without applying any (`has_edit` flags those carrying a `WorkspaceEdit`; `command` names any attached command; both a CodeAction and a bare Command are normalized). Godot advertises `codeActionProvider`.
+### `gd_code_action` ⚠️ · engine-dependent (handled)
+List the code actions (quick fixes / refactors) the language server offers for a range — the lightbulb menu. Read-only: returns the available actions without applying any (`has_edit` flags those carrying a `WorkspaceEdit`; `command` names any attached command; both a CodeAction and a bare Command are normalized). **Engine-gated:** Godot's GDScript LSP advertises `codeActionProvider: false` on current builds (confirmed in CI on 4.3-stable) and replies `-32601`, so on those builds the tool feature-detects and returns a clear "unsupported" message (same contract as `gd_workspace_symbols`); it will return results unchanged on a build that implements code actions.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "start_line", "start_character"], "properties": { "path": { "type": "string" }, "start_line": { "type": "integer", "minimum": 0 }, "start_character": { "type": "integer", "minimum": 0 }, "end_line": { "type": "integer", "minimum": 0, "description": "default = start_line" }, "end_character": { "type": "integer", "minimum": 0, "description": "default = start_character" }, "only": { "type": "array", "items": { "type": "string" }, "description": "Restrict to these CodeActionKind prefixes, e.g. 'quickfix', 'refactor'" } } }
@@ -722,7 +722,7 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 | `gd_workspace_symbols` | D / LSP | ⚠️ engine-missing (handled) | – |
 | `gd_diagnostics` | D / LSP | ✅ | – |
 | `gd_signature_help` | D / LSP | ✅ | – |
-| `gd_code_action` | D / LSP | ✅ | – |
+| `gd_code_action` | D / LSP | ⚠️ engine-dependent (handled) | – |
 | `dbg_launch` | D / DAP | ✅ | runs code |
 | `dbg_attach` | D / DAP | ✅ | – |
 | `dbg_set_breakpoints` | D / DAP | ✅ | – |
