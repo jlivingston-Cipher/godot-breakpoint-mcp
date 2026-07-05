@@ -4,6 +4,23 @@ All notable changes to the Godot–Claude Bridge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.7] — 2026-07-05
+
+### Changed
+- **Asset Library layout (D5, option A).** Moved the canonical addon from the
+  nested `addon/addons/claude_bridge/` to **`addons/claude_bridge/`** at the repo
+  root (`git mv addon/addons addons`; the empty `addon/` was removed). This is the
+  layout the Godot Asset Library installer expects, so an AssetLib "install" now
+  drops `addons/claude_bridge/` into a user's `res://addons/` with no manual step.
+  Every path reference was updated to match: `scripts/contract_check.py`,
+  `scripts/validate.sh`, `README.md` (layout + setup), and `docs/DISTRIBUTION.md`
+  (which now records option A as resolved). `contract_check.py` stays green
+  (54 tools, 47/47 catalog JSON) and the real SDK build + `npm pack --dry-run`
+  (37-file tarball) are unaffected. The `example/addons/claude_bridge/` vendored
+  copy is unchanged in place.
+- Version realigned to **0.4.7** across `host/package.json` (+ lockfile), both
+  `plugin.cfg`s, and both `ADDON_VERSION`s (canonical + `example/` vendored copy).
+
 ## [0.4.6] — 2026-07-05
 
 ### Changed

@@ -1,6 +1,6 @@
 # Godot–Claude Bridge
 
-> **Status: v0.4.5 — live-validated and hardened.** All four capability planes were
+> **Status: v0.4.7 — live-validated and hardened.** All four capability planes were
 > exercised end-to-end against a real Godot 4.7 editor and a real npm-installed
 > `@modelcontextprotocol/sdk@1.29.0`; the Go/No-Go checklist is GO (see
 > `LIVE_VALIDATION_SIGNOFF.md`). Output schemas are enforced (B1), the SDK floor is
@@ -34,7 +34,7 @@ Together these turn Claude from a scaffolder into a co-developer that can author
 ## Layout
 
 ```
-addon/addons/claude_bridge/   # drop into your Godot project (or symlink)
+addons/claude_bridge/         # drop into your Godot project (or symlink)
   plugin.cfg  plugin.gd        # plugin registers the editor server + runtime autoload
   bridge_server.gd  operations.gd   # Plane A: editor-side server + handlers
   runtime_bridge.gd             # Plane C: in-game autoload server + handlers
@@ -57,7 +57,7 @@ scripts/contract_check.py     # static host<->addon<->catalog consistency check
 ## Setup
 
 ### 1. Install the editor addon
-Copy `addon/addons/claude_bridge/` into your project's `addons/` folder, then enable **Project → Project Settings → Plugins → Claude Bridge**. On enable it listens on `127.0.0.1:9080` (override with the `CLAUDE_BRIDGE_PORT` environment variable before launching Godot). Requires **Godot 4.2+** (4.4+ recommended).
+Copy `addons/claude_bridge/` into your project's `addons/` folder, then enable **Project → Project Settings → Plugins → Claude Bridge**. On enable it listens on `127.0.0.1:9080` (override with the `CLAUDE_BRIDGE_PORT` environment variable before launching Godot). Requires **Godot 4.2+** (4.4+ recommended).
 
 Godot's **language server** (LSP, port 6005) and **debug adapter** (DAP, port 6006) are built in and enabled by default while the editor is open — the `gd_*` and `dbg_*` tools use them directly, no addon required. Ports are configurable under **Editor → Editor Settings → Network → Language Server / Debug Adapter** (and via `GODOT_LSP_PORT` / `GODOT_DAP_PORT` on the host).
 

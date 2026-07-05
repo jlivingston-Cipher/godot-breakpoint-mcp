@@ -10,7 +10,7 @@ The project ships **two** independently-installable things:
 | Artifact | Where it goes | What it is |
 |---|---|---|
 | **Host** (`host/`) | **npm** | The TypeScript MCP server Claude talks to over stdio. |
-| **Addon** (`addon/addons/claude_bridge/`) | **Godot Asset Library** | The GDScript `EditorPlugin` + in-game autoload the host connects to. |
+| **Addon** (`addons/claude_bridge/`) | **Godot Asset Library** | The GDScript `EditorPlugin` + in-game autoload the host connects to. |
 
 They are useless apart: the host with no addon can only reach Plane B (headless
 CLI); the addon with no host has nothing driving it. A user installs the host
@@ -24,9 +24,11 @@ One repo version, moved together, tagged repo-wide (`v0.4.3`, `v0.4.4`,
 `v0.4.5`, …). At each tag **all three** version stamps must agree:
 
 - `host/package.json` → `version`
-- `addon/addons/claude_bridge/plugin.cfg` → `version`
-- `addon/addons/claude_bridge/operations.gd` → `ADDON_VERSION` (surfaced by
+- `addons/claude_bridge/plugin.cfg` → `version`
+- `addons/claude_bridge/operations.gd` → `ADDON_VERSION` (surfaced by
   `editor_ping.addon_version`, so it must match what `plugin.cfg` advertises)
+- `example/addons/claude_bridge/plugin.cfg` + `operations.gd` → the vendored copy
+  the example project loads; keep it equal to the canonical copy above.
 
 > These drifted before v0.4.5 (`plugin.cfg` was still `0.1.0` while `ADDON_VERSION`
 > was `0.4.3`). v0.4.5 realigned all three. Keep them in lockstep on every bump.
@@ -116,36 +118,33 @@ claude mcp add godot -- npx -y godot-claude-bridge
 The Asset Library entry points at **this Git repo at a specific tag**; the AssetLib
 installer copies the repo's `addons/` tree into the user's project.
 
-### ⚠ Repo layout decision (resolve before first submission)
+### ✅ Repo layout (resolved in v0.4.7 — option A)
 
-The addon currently lives at **`addon/addons/claude_bridge/`**, i.e. the `addons/`
-directory is nested one level under `addon/`, not at the repo root. The AssetLib
-installer expects to find `addons/…` so it can drop `addons/claude_bridge/` into
-`res://addons/`. Pick one:
+The canonical addon now lives at **`addons/claude_bridge/`** at the repo root. In
+v0.4.7 it was moved out of the old nested `addon/addons/…` location
+(`git mv addon/addons addons`) and every path reference — `README.md`, `docs/*`,
+`scripts/contract_check.py`, and `scripts/validate.sh` — was updated to match.
+The AssetLib installer expects `addons/…` at the repo root, so an Asset Library
+"install" now drops `addons/claude_bridge/` into the user's `res://addons/` with
+**no manual step**. This is the conventional layout AssetLib users expect.
 
-- **(A, recommended) Move `addons/` to the repo root** — `git mv addon/addons addons`
-  (and delete the now-empty `addon/`). Update the paths in `README.md`,
-  `docs/*`, `scripts/contract_check.py`, and the validation harness. Then the
-  Asset Library "install" places `addons/claude_bridge/` correctly with no manual
-  step. *This is the conventional layout AssetLib users expect.*
-- **(B) Keep the nested layout and document manual install** — tell users to copy
-  `addon/addons/claude_bridge/` into their project's `addons/`. Simpler diff now,
-  worse out-of-box AssetLib experience.
+> The alternative (keep the nested layout + document a manual copy) was rejected:
+> simpler diff at the time, but a worse out-of-box AssetLib experience.
 
-Whichever you choose, the example project already vendors the addon and is the
-reference for "installed correctly."
+The example project vendors its own copy at `example/addons/claude_bridge/` and is
+the reference for "installed correctly."
 
 ### Submission fields (assetlib.godotengine.org → Submit Asset)
 
 - **Repository / commit:** this repo URL + the `vX.Y.Z` **tag** commit.
-- **Version string:** match the tag (`0.4.5`). The Asset Library version is
+- **Version string:** match the tag (`0.4.7`). The Asset Library version is
   independent of `plugin.cfg`, but keep them equal to avoid confusion.
 - **Godot version:** minimum **4.2** (addon README notes 4.2+; the LSP/DAP planes
   were live-validated on 4.7). Set the compatible-version field accordingly.
 - **Category:** *Tools* (editor tooling).
 - **License:** MIT (repo `LICENSE`).
 - **Icon:** a 128×128 PNG (AssetLib requires an icon URL). None ships yet — add
-  one (e.g. `addon/addons/claude_bridge/icon.png`) before submitting.
+  one (e.g. `addons/claude_bridge/icon.png`) before submitting.
 - **Description:** reuse the `plugin.cfg` description; mention it needs the
   `godot-claude-bridge` MCP host to do anything.
 

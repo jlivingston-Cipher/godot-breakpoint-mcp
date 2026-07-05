@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ADDON = ROOT / "addon/addons/claude_bridge"
+ADDON = ROOT / "addons/claude_bridge"
 TOOLS = ROOT / "host/src/tools"
 CATALOG = ROOT / "docs/TOOL_CATALOG.md"
 

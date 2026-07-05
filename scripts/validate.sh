@@ -11,7 +11,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GODOT="${GODOT_BIN:-godot}"
 EXAMPLE="$ROOT/example"
-ADDON_SRC="$ROOT/addon/addons/claude_bridge"
+ADDON_SRC="$ROOT/addons/claude_bridge"
 ADDON_DST="$EXAMPLE/addons/claude_bridge"
 fail=0
 
