@@ -66,7 +66,7 @@ jobs:
       - name: Install Godot + Xvfb
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb
+          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -81,12 +81,18 @@ jobs:
         working-directory: host
         env:
           GODOT_PROJECT: ${{ github.workspace }}/example
+          # A CI runner has no GPU, so Godot's default Vulkan backend segfaults on
+          # init before the LSP can start. Force software OpenGL (Mesa llvmpipe).
+          LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
           set -eux
-          xvfb-run -a "$GODOT_BIN" --editor --path "$GODOT_PROJECT" >/tmp/godot-editor.log 2>&1 &
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            "$GODOT_BIN" --editor --path "$GODOT_PROJECT" \
+            --rendering-driver opengl3 --audio-driver Dummy \
+            >/tmp/godot-editor.log 2>&1 &
           GODOT_PID=$!
-          # Wait (up to ~60s) for the language server port to accept a connection.
-          for i in $(seq 1 30); do
+          # Software-rendered editor boot is slow — wait up to ~120s for the LSP port.
+          for i in $(seq 1 60); do
             if node -e "require('net').connect(6005,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
               echo "LSP port open"; break
             fi
