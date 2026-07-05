@@ -284,3 +284,95 @@ test("dbg_set_breakpoints forwards conditions, hit conditions, and log messages 
   dap.close();
   await srv.close();
 });
+
+// ---- dbg_set_exception_breakpoints ----------------------------------------
+
+test("dbg_set_exception_breakpoints forwards filters and reports the adapter's advertised available_filters", async () => {
+  let bpReq: DapMsg | undefined;
+  const { srv } = await startDap((m, s) => {
+    if (m.command === "initialize") {
+      dapResponse(s, m, { supportsConfigurationDoneRequest: true, exceptionBreakpointFilters: [
+        { filter: "raise", label: "Runtime errors" }, { filter: "assert", label: "Assertion failures" },
+      ] });
+      dapEvent(s, "initialized", {});
+      return;
+    }
+    if (m.command === "launch" || m.command === "configurationDone") { dapResponse(s, m, {}); return; }
+    if (m.command === "setExceptionBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ verified: true }] }); }
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_set_exception_breakpoints")({ filters: ["raise"] })) as ToolResultLike;
+  assert.deepEqual(res.structuredContent, {
+    filters: ["raise"],
+    available_filters: [{ filter: "raise", label: "Runtime errors" }, { filter: "assert", label: "Assertion failures" }],
+    breakpoints: [{ verified: true }],
+  });
+  assert.deepEqual((bpReq!.arguments as { filters: string[] }).filters, ["raise"]);
+  dap.close();
+  await srv.close();
+});
+
+test("dbg_set_exception_breakpoints with no filters clears them and reports no available_filters when the adapter advertises none", async () => {
+  let bpReq: DapMsg | undefined;
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setExceptionBreakpoints") { bpReq = m; dapResponse(s, m, {}); }
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_set_exception_breakpoints")({})) as ToolResultLike;
+  assert.deepEqual(res.structuredContent, { filters: [], available_filters: [], breakpoints: [] });
+  assert.deepEqual((bpReq!.arguments as { filters: string[] }).filters, []);
+  dap.close();
+  await srv.close();
+});
+
+// ---- dbg_set_variable (gated) ---------------------------------------------
+
+test("dbg_set_variable proceeds with confirm:true and returns the adapter's updated value", async () => {
+  const { srv, received } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setVariable") dapResponse(s, m, { value: "5", type: "int", variablesReference: 0 });
+  });
+  const { dap, rec } = dapHarness(srv.port, async () => ({ action: "decline" }));
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_set_variable")({ variables_ref: 1001, name: "hp", value: "5", confirm: true })) as ToolResultLike;
+  assert.deepEqual(res.structuredContent, { name: "hp", value: "5", type: "int", variables_ref: 0 });
+  const sv = received.find((m) => m.command === "setVariable");
+  assert.deepEqual(sv!.arguments, { variablesReference: 1001, name: "hp", value: "5" });
+  dap.close();
+  await srv.close();
+});
+
+test("dbg_set_variable is blocked (and sends no setVariable) when the user declines confirmation", async () => {
+  const { srv, received } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setVariable") dapResponse(s, m, { value: "should-not-happen" });
+  });
+  const { dap, rec } = dapHarness(srv.port, async () => ({ action: "decline" }));
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_set_variable")({ variables_ref: 1001, name: "hp", value: "0" })) as ToolResultLike;
+  assert.equal(res.isError, true);
+  assert.ok(!received.some((m) => m.command === "setVariable"), "a declined setVariable must never reach the adapter");
+  dap.close();
+  await srv.close();
+});
+
+test("dbg_set_variable returns 'unsupported' WITHOUT prompting when the adapter advertises supportsSetVariable:false", async () => {
+  let elicited = 0;
+  const { srv, received } = await startDap((m, s) => {
+    if (m.command === "initialize") { dapResponse(s, m, { supportsConfigurationDoneRequest: true, supportsSetVariable: false }); dapEvent(s, "initialized", {}); return; }
+    if (m.command === "launch" || m.command === "configurationDone") { dapResponse(s, m, {}); return; }
+    if (m.command === "setVariable") dapResponse(s, m, { value: "nope" });
+  });
+  const { dap, rec } = dapHarness(srv.port, async () => { elicited++; return { action: "accept", content: { proceed: true } }; });
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_set_variable")({ variables_ref: 1, name: "hp", value: "5" })) as ToolResultLike;
+  assert.equal(res.isError, true);
+  assert.match(res.content![0].text!, /unsupported/i);
+  assert.equal(elicited, 0, "must not prompt when the capability is unsupported");
+  assert.ok(!received.some((m) => m.command === "setVariable"));
+  dap.close();
+  await srv.close();
+});

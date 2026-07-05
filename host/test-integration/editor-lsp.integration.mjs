@@ -1,26 +1,78 @@
 // Editor/LSP-plane integration smoke (EXPERIMENTAL) — connects to a REAL running
-// Godot editor's built-in GDScript language server (LSP, :6005) and verifies the
-// initialize handshake succeeds. Requires the editor to be up (booted under Xvfb
-// by the workflow) with GODOT_PROJECT set.
+// Godot editor's built-in GDScript language server (LSP, :6005). It (1) verifies
+// the initialize handshake succeeds — the gate — then (2) runs a best-effort probe
+// bank that live-exercises the newer LSP tools and answers backlog item D7: does
+// this Godot build actually RETURN results from workspace/symbol, or does it only
+// advertise the capability and then reply -32601? Probe output is logged with
+// grep-able markers (D7_CAPS / D7_WS_RAW / D7_WS_TOOL / PROBE …); probe failures
+// are never fatal — only an unreachable language server fails the job.
 //
-// This is the harder half of the integration story (it needs a live editor GUI),
-// so the workflow runs it under `continue-on-error` while the GUI-boot timing is
-// tuned on real runners. Exits non-zero if it cannot reach the language server.
+// Requires the editor up (booted under Xvfb by the workflow) with GODOT_PROJECT set.
 import { LspClient } from "../dist/lsp.js";
 import { loadConfig } from "../dist/config.js";
+import { registerLspTools } from "../dist/tools/lsp.js";
 
 const cfg = loadConfig();
 console.log(`LSP target ${cfg.lspHost}:${cfg.lspPort}  project=${cfg.projectPath}`);
 
 const lsp = new LspClient(cfg.lspHost, cfg.lspPort, cfg.projectUri, 20000);
+
+// A tiny recording server so we can pull tool handlers out and call them directly
+// (the same code path a real MCP client hits), without standing up a transport.
+const tools = new Map();
+const rec = {
+  registerTool: (name, _config, handler) => tools.set(name, handler),
+  registerResource: () => {},
+  server: { elicitInput: async () => ({ action: "decline" }) },
+};
+registerLspTools(rec, lsp, cfg);
+const call = (name, args) => tools.get(name)(args, {});
+
+let reached = false;
 try {
   const caps = await lsp.getServerCapabilities();
   console.log("initialize OK — server capabilities:", Object.keys(caps).sort().join(", ") || "(none advertised)");
-  // A build with a language server should at least advertise text-doc sync.
+  console.log(`D7_CAPS: workspaceSymbolProvider=${!!caps.workspaceSymbolProvider} signatureHelpProvider=${!!caps.signatureHelpProvider} codeActionProvider=${!!caps.codeActionProvider}`);
   console.log("✔ editor/LSP-plane reached the live language server");
+  reached = true;
 } catch (err) {
   console.error("✘ could not reach the language server:", err?.message ?? String(err));
   process.exitCode = 1;
-} finally {
-  lsp.close();
 }
+
+// ---- Best-effort probes (log-only; skipped if the server was unreachable) --
+if (reached) {
+  // D7 ground truth: raw workspace/symbol tells us results-vs-(-32601); the tool
+  // wrapper tells us the user-facing behavior this build produces.
+  for (const query of ["_ready", "take_damage", ""]) {
+    try {
+      const raw = await lsp.request("workspace/symbol", { query });
+      const n = Array.isArray(raw) ? raw.length : raw == null ? 0 : 1;
+      console.log(`D7_WS_RAW: query=${JSON.stringify(query)} -> results=${n}`);
+    } catch (err) {
+      console.log(`D7_WS_RAW: query=${JSON.stringify(query)} -> error code=${err?.code ?? "?"} msg=${err?.message ?? String(err)}`);
+    }
+  }
+  try {
+    const res = await call("gd_workspace_symbols", { query: "_ready" });
+    console.log(`D7_WS_TOOL: isError=${!!res.isError} ${res.isError ? JSON.stringify(res.content?.[0]?.text ?? "") : "symbols=" + (res.structuredContent?.symbols?.length ?? 0)}`);
+  } catch (err) {
+    console.log("D7_WS_TOOL: threw", err?.message ?? String(err));
+  }
+
+  // Live-smoke the two new LSP-depth tools against the real server.
+  try {
+    const res = await call("gd_signature_help", { path: "res://player.gd", line: 13, character: 32 });
+    console.log(`PROBE gd_signature_help: isError=${!!res.isError} signatures=${res.structuredContent?.signatures?.length ?? "-"}`);
+  } catch (err) {
+    console.log("PROBE gd_signature_help threw", err?.message ?? String(err));
+  }
+  try {
+    const res = await call("gd_code_action", { path: "res://player.gd", start_line: 25, start_character: 0, end_line: 25, end_character: 18 });
+    console.log(`PROBE gd_code_action: isError=${!!res.isError} actions=${res.structuredContent?.actions?.length ?? "-"}`);
+  } catch (err) {
+    console.log("PROBE gd_code_action threw", err?.message ?? String(err));
+  }
+}
+
+lsp.close();

@@ -234,4 +234,67 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       } catch (err) { return fail(err); }
     },
   );
+
+  server.registerTool(
+    "dbg_set_exception_breakpoints",
+    {
+      title: "Set exception breakpoints",
+      description:
+        "Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching error/exception is thrown " +
+        "(DAP setExceptionBreakpoints). Pass the filter IDs to enable; call with no filters (or []) to clear them. The result echoes the " +
+        "active filters and lists `available_filters` — the exception filters the connected adapter actually advertises (empty if it advertises none). " +
+        "Requires a running debug session. Not gated (it only configures the debugger).",
+      inputSchema: {
+        filters: z.array(z.string()).optional().describe("Exception filter IDs to enable (default none = clear). Choose from available_filters in the result."),
+      },
+    },
+    async ({ filters }) => {
+      try {
+        const active = filters ?? [];
+        const body = await dap.request("setExceptionBreakpoints", { filters: active });
+        const advertised = dap.capabilities?.["exceptionBreakpointFilters"];
+        const available_filters = Array.isArray(advertised)
+          ? (advertised as Array<{ filter?: string; label?: string }>).map((f) => ({ filter: f.filter ?? "", label: f.label ?? "" }))
+          : [];
+        const breakpoints = Array.isArray(body["breakpoints"])
+          ? (body["breakpoints"] as Array<{ verified?: boolean }>).map((b) => ({ verified: Boolean(b.verified) }))
+          : [];
+        return ok({ filters: active, available_filters, breakpoints });
+      } catch (err) { return fail(err); }
+    },
+  );
+
+  server.registerTool(
+    "dbg_set_variable",
+    {
+      title: "Set variable value",
+      description:
+        "Change a variable's value in a stopped frame (DAP setVariable). DESTRUCTIVE: mutates live program state — confirm with the user and keep this gated. " +
+        "`variables_ref` is the container's variablesReference (from dbg_scopes, or a complex entry in dbg_variables), `name` is the variable's name within it, " +
+        "and `value` is the new value as a GDScript literal/expression. Only meaningful while stopped at a breakpoint.",
+      inputSchema: {
+        variables_ref: z.number().int().describe("variablesReference of the containing scope/variable (from dbg_scopes or dbg_variables)"),
+        name: z.string().describe("Variable name within that container"),
+        value: z.string().describe("New value as a GDScript literal/expression"),
+        confirm: z.boolean().optional().describe("Auto-approve this mutation (skip the confirmation prompt)"),
+      },
+    },
+    async ({ variables_ref, name, value, confirm }) => {
+      try {
+        // Feature-detect: some debug adapters don't implement setVariable. If the
+        // adapter explicitly advertised it as unsupported, say so plainly instead
+        // of prompting for a confirmation and then failing.
+        if (dap.capabilities && dap.capabilities["supportsSetVariable"] === false) {
+          return {
+            isError: true as const,
+            content: [{ type: "text" as const, text: "dbg_set_variable is unsupported by the connected Godot build's debug adapter (it does not advertise supportsSetVariable). Read-only inspection (dbg_variables) still works." }],
+          };
+        }
+        const blocked = await gate(server, confirm, `Set variable ${name} = ${value} in the running game`);
+        if (blocked) return blocked;
+        const body = await dap.request("setVariable", { variablesReference: variables_ref, name, value });
+        return ok({ name, value: String(body["value"] ?? value), type: String(body["type"] ?? ""), variables_ref: (body["variablesReference"] as number) ?? 0 });
+      } catch (err) { return fail(err); }
+    },
+  );
 }

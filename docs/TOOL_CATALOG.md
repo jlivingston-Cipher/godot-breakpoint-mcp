@@ -1,6 +1,6 @@
 # Godot–Claude Bridge — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **54 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **59 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -447,7 +447,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 - **Output** `{ "type": "object", "required": ["symbols"], "properties": { "symbols": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "kind": { "type": "string" }, "line": { "type": "integer" } } } } } }`
 
 ### `gd_workspace_symbols` ⚠️ · unsupported by Godot ≤ 4.7 (handled gracefully)
-> **Engine limitation (found in live validation):** Godot 4.7's GDScript language server replies `-32601 Method not found` to `workspace/symbol`. The gap is in the engine, not the host — the input/output contract below is correct and the tool is retained for forward compatibility (it will start returning results on a Godot build that implements the method). **As of v0.4.5** the host feature-detects this: it checks the server's advertised `workspaceSymbolProvider` capability (and still catches a `-32601` from builds that advertise it but don't honour it), returning an explicit `isError` "unsupported by the connected Godot build — use gd_document_symbols instead" message rather than leaking a raw JSON-RPC error. On the success path (a future capable build) the `symbols` output shape below is unchanged.
+> **Engine limitation (found in live validation):** Godot 4.7's GDScript language server replies `-32601 Method not found` to `workspace/symbol` (re-confirmed in CI on 4.3-stable: the server advertises `workspaceSymbolProvider: true` yet still replies `-32601` to every query — exactly why the tool keeps a belt-and-suspenders `-32601` catch). The gap is in the engine, not the host — the input/output contract below is correct and the tool is retained for forward compatibility (it will start returning results on a Godot build that implements the method). **As of v0.4.5** the host feature-detects this: it checks the server's advertised `workspaceSymbolProvider` capability (and still catches a `-32601` from builds that advertise it but don't honour it), returning an explicit `isError` "unsupported by the connected Godot build — use gd_document_symbols instead" message rather than leaking a raw JSON-RPC error. On the success path (a future capable build) the `symbols` output shape below is unchanged.
 - **Input** `{ "type": "object", "required": ["query"], "properties": { "query": { "type": "string" } } }`
 - **Output** same `symbols` shape as `gd_document_symbols`, each with an added `uri`.
 
@@ -468,6 +468,25 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
       "type": "object", "properties": {
         "severity": { "enum": ["error","warning","info","hint"] },
         "message": { "type": "string" }, "line": { "type": "integer" }, "character": { "type": "integer" } } } } } }
+```
+
+### `gd_signature_help` ✅
+Call-signature hints (the parameter popup shown inside a call) at a position. Godot's GDScript language server advertises `signatureHelpProvider`; **confirmed returning signatures live in CI on 4.3-stable.**
+- **Input** same `{ path, line, character }` as `gd_completion`.
+- **Output**
+```json
+{ "type": "object", "required": ["signatures", "active_signature", "active_parameter"], "properties": { "signatures": { "type": "array", "items": { "type": "object", "properties": { "label": { "type": "string" }, "documentation": { "type": "string" }, "parameters": { "type": "array", "items": { "type": "object", "properties": { "label": { "type": "string" }, "documentation": { "type": "string" } } } } } } }, "active_signature": { "type": "integer" }, "active_parameter": { "type": "integer" } } }
+```
+
+### `gd_code_action` ⚠️ · engine-dependent (handled)
+List the code actions (quick fixes / refactors) the language server offers for a range — the lightbulb menu. Read-only: returns the available actions without applying any (`has_edit` flags those carrying a `WorkspaceEdit`; `command` names any attached command; both a CodeAction and a bare Command are normalized). **Engine-gated:** Godot's GDScript LSP advertises `codeActionProvider: false` on current builds (confirmed in CI on 4.3-stable) and replies `-32601`, so on those builds the tool feature-detects and returns a clear "unsupported" message (same contract as `gd_workspace_symbols`); it will return results unchanged on a build that implements code actions.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path", "start_line", "start_character"], "properties": { "path": { "type": "string" }, "start_line": { "type": "integer", "minimum": 0 }, "start_character": { "type": "integer", "minimum": 0 }, "end_line": { "type": "integer", "minimum": 0, "description": "default = start_line" }, "end_character": { "type": "integer", "minimum": 0, "description": "default = start_character" }, "only": { "type": "array", "items": { "type": "string" }, "description": "Restrict to these CodeActionKind prefixes, e.g. 'quickfix', 'refactor'" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["actions"], "properties": { "actions": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, "kind": { "type": "string" }, "has_edit": { "type": "boolean" }, "command": { "type": ["string", "null"] } } } } } }
 ```
 
 ---
@@ -528,6 +547,19 @@ Manage a persistent set of watch expressions and re-evaluate them in the current
     "frame_id": { "type": "integer", "description": "Frame id from dbg_stack_trace; omit for the top frame" } } }
 ```
 - **Output** `{ "type": "object", "required": ["watches"], "properties": { "watches": { "type": "array", "items": { "type": "object", "required": ["expression", "value", "type", "error"], "properties": { "expression": { "type": "string" }, "value": { "type": "string" }, "type": { "type": "string" }, "error": { "type": ["string", "null"] } } } } } }`
+
+### `dbg_set_exception_breakpoints` ✅
+Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching error is thrown (DAP `setExceptionBreakpoints`). Pass filter IDs to enable; call with no filters (or `[]`) to clear. The result echoes the active `filters` and reports `available_filters` — the exception filters the connected adapter advertises (empty if it advertises none). Requires a running session; **not** gated (it only configures the debugger).
+- **Input** `{ "type": "object", "properties": { "filters": { "type": "array", "items": { "type": "string" }, "description": "Exception filter IDs to enable (default none = clear); choose from available_filters" } } }`
+- **Output**
+```json
+{ "type": "object", "required": ["filters", "available_filters", "breakpoints"], "properties": { "filters": { "type": "array", "items": { "type": "string" } }, "available_filters": { "type": "array", "items": { "type": "object", "properties": { "filter": { "type": "string" }, "label": { "type": "string" } } } }, "breakpoints": { "type": "array", "items": { "type": "object", "properties": { "verified": { "type": "boolean" } } } } } }
+```
+
+### `dbg_set_variable` ✅ · destructive (mutates live program state — gate hard)
+Change a variable's value in a stopped frame (DAP `setVariable`). `variables_ref` is the container's `variablesReference` (from `dbg_scopes`, or a complex `dbg_variables` entry), `name` is the variable within it, `value` is a GDScript literal/expression. Feature-detected: on an adapter that advertises `supportsSetVariable: false` it returns a clear "unsupported" message **without prompting**.
+- **Input** `{ "type": "object", "required": ["variables_ref", "name", "value"], "properties": { "variables_ref": { "type": "integer" }, "name": { "type": "string" }, "value": { "type": "string" }, "confirm": { "type": "boolean", "description": "Auto-approve this mutation (skip the elicitation prompt)" } } }`
+- **Output** `{ "type": "object", "required": ["name", "value", "variables_ref"], "properties": { "name": { "type": "string" }, "value": { "type": "string" }, "type": { "type": "string" }, "variables_ref": { "type": "integer" } } }`
 
 ---
 
@@ -590,7 +622,7 @@ Manage a persistent set of watch expressions and re-evaluate them in the current
 
 ## Destructive-action gating (elicitation) — Phase 4
 
-Every tool flagged **destructive** accepts an optional `confirm: boolean`. When it is omitted, the host issues an MCP **elicitation** (a client-side confirmation prompt) before executing: on *accept* it proceeds; on *decline/cancel* it returns a non-error "cancelled" result. If the client does not support elicitation, the tool blocks and instructs the caller to re-invoke with `confirm: true` — so a destructive op is never executed silently. Gated tools: `node_delete`, `project_set_setting`, `scene_new`, `gd_rename` (when `apply=true`), `dbg_evaluate`, `runtime_set_property`, `runtime_call_method`, `runtime_emit_signal`, `runtime_inject_input`.
+Every tool flagged **destructive** accepts an optional `confirm: boolean`. When it is omitted, the host issues an MCP **elicitation** (a client-side confirmation prompt) before executing: on *accept* it proceeds; on *decline/cancel* it returns a non-error "cancelled" result. If the client does not support elicitation, the tool blocks and instructs the caller to re-invoke with `confirm: true` — so a destructive op is never executed silently. Gated tools: `node_delete`, `project_set_setting`, `scene_new`, `gd_rename` (when `apply=true`), `dbg_evaluate`, `dbg_set_variable`, `runtime_set_property`, `runtime_call_method`, `runtime_emit_signal`, `runtime_inject_input`.
 
 The long-running tools (`godot_export`, `godot_import`, `godot_run_headless_script`) emit `notifications/progress` while running whenever the caller supplies a `progressToken`.
 
@@ -689,6 +721,8 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 | `gd_document_symbols` | D / LSP | ✅ | – |
 | `gd_workspace_symbols` | D / LSP | ⚠️ engine-missing (handled) | – |
 | `gd_diagnostics` | D / LSP | ✅ | – |
+| `gd_signature_help` | D / LSP | ✅ | – |
+| `gd_code_action` | D / LSP | ⚠️ engine-dependent (handled) | – |
 | `dbg_launch` | D / DAP | ✅ | runs code |
 | `dbg_attach` | D / DAP | ✅ | – |
 | `dbg_set_breakpoints` | D / DAP | ✅ | – |
@@ -699,6 +733,8 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 | `dbg_variables` | D / DAP | ✅ | – |
 | `dbg_evaluate` | D / DAP | ✅ | ✔ arbitrary code |
 | `dbg_watch` | D / DAP | ✅ | – |
+| `dbg_set_exception_breakpoints` | D / DAP | ✅ | – |
+| `dbg_set_variable` | D / DAP | ✅ | ✔ mutates state |
 | `runtime_get_tree` | C / Runtime | ✅ | – |
 | `runtime_get_property` | C / Runtime | ✅ | – |
 | `runtime_set_property` | C / Runtime | ✅ | ✔ |
@@ -713,4 +749,4 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 | `godot_output` | B / Process | ✅ | – |
 | `godot_stop` | B / Process | ✅ | – |
 
-**54 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 8 LSP, 9 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
+**59 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 10 LSP, 12 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
