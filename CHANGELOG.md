@@ -4,6 +4,17 @@ All notable changes to the Godot–Claude Bridge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.4] — 2026-07-05
+
+### Changed
+- **D1 — pinned the SDK floor.** Raised `@modelcontextprotocol/sdk` from
+  `^1.10.0` to `^1.17.0` so a lockfile-less `npm install` can no longer resolve a
+  pre-elicitation SDK. The confirmation gate needs `server.server.elicitInput`
+  and the tools need `registerTool({ inputSchema, outputSchema })`; verified that
+  1.17.0 exposes both. The committed lockfile still pins the live-validated
+  **1.29.0**, so `npm ci` (and CI) resolve exactly as before — this only tightens
+  the floor for fresh, lockfile-less installs.
+
 ## [0.4.3] — 2026-07-05
 
 First live-validated **and** hardened build. Exercised end-to-end against a real
@@ -82,6 +93,7 @@ Pre-live scaffold with two fixes later confirmed working during the live run.
   the real resulting state, instead of returning an instant `running` reply that
   the caller had to poll.
 
+[0.4.4]: #044--2026-07-05
 [0.4.3]: #043--2026-07-05
 [0.4.2]: #042--2026-07-05
 [0.4.1]: #041--2026-07-04
