@@ -4,6 +4,26 @@ All notable changes to the Godot–Claude Bridge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.6] — 2026-07-05
+
+### Changed
+- **npm publish-prep for the host.** Renamed the package
+  `godot-claude-bridge-host` → **`godot-claude-bridge`** (the `bin` command was
+  already `godot-claude-bridge`; the name was confirmed free on npm), added
+  `license`/`repository`/`homepage`/`bugs`/`keywords`/`author` metadata, a
+  `prepublishOnly: npm run build` guard so a publish can never ship stale `dist/`,
+  and bundled `LICENSE` + a package `README.md` (`files` now lists them). Verified
+  with `npm pack --dry-run`. The `npm publish` itself is intentionally left to the
+  maintainer (needs npm auth).
+- **Root README freshness pass.** Dropped the "Phases 0–4" title and the stale
+  "0.4.1 pre-live-run / reference scaffold / not exercised in CI / validated by
+  inspection" framing — the project is live-validated with CI running the real
+  build. Reworked the Verification, Validating, and Status sections accordingly,
+  documented the `gd_workspace_symbols` engine gap, and pointed install at the
+  npm package.
+- Version realigned to **0.4.6** across `host/package.json`, both `plugin.cfg`s,
+  and both `ADDON_VERSION`s (canonical + `example/` vendored copy).
+
 ## [0.4.5] — 2026-07-05
 
 ### Changed

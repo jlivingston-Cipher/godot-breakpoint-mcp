@@ -1,10 +1,11 @@
-# Godot–Claude Bridge (Phases 0–4)
+# Godot–Claude Bridge
 
-> **0.4.1 (pre-live-run hardening).** Two fixes targeting the failures most likely to surface on the first live run, ahead of the go/no-go pass in `docs/GO_NO_GO_CHECKLIST.md`:
-> - **`gd_diagnostics` URI matching** — diagnostics are now cached under a project-relative key (`player.gd`) instead of the exact `file://` URI string, so a published-diagnostics URI matches the opened document even when the language server echoes an un-encoded `file://` path or a bare `res://` URI. Previously this could silently return empty on any project whose path needed percent-encoding.
-> - **`dbg_step` / `dbg_continue` now await the next stop** — they wait for the program to settle (next breakpoint / step landing / termination) and return the real resulting state and stop reason, instead of returning immediately with a stale state.
->
-> Still validated by typecheck + inspection only — see `docs/VALIDATION_REPORT.md`.
+> **Status: v0.4.5 — live-validated and hardened.** All four capability planes were
+> exercised end-to-end against a real Godot 4.7 editor and a real npm-installed
+> `@modelcontextprotocol/sdk@1.29.0`; the Go/No-Go checklist is GO (see
+> `LIVE_VALIDATION_SIGNOFF.md`). Output schemas are enforced (B1), the SDK floor is
+> pinned to `^1.17.0` (D1), and CI runs the real build on Node 18/20/22. Full history
+> in `CHANGELOG.md`; publishing steps and the remote caveat in `docs/DISTRIBUTION.md`.
 
 Brings Godot into the Claude development ecosystem via MCP. It ships **all four** capability planes from the design evaluation plus the Phase 4 safety/UX polish (**54 tools + 5 MCP resources**):
 
@@ -15,7 +16,7 @@ Brings Godot into the Claude development ecosystem via MCP. It ships **all four*
 
 Together these turn Claude from a scaffolder into a co-developer that can author scenes, write type-checked GDScript, run it, watch it, debug it, and drive the live game.
 
-**Phase 4 polish (all implemented):** destructive tools are **elicitation-gated** (a client-side confirmation prompt, with a `confirm: true` override and a safe block when the client can't prompt); long jobs (`godot_export`/`godot_import`/`godot_run_headless_script`) stream **progress notifications**; `godot_run_managed` + `godot_output` capture the game's full `print()`/error console host-side; and five **MCP resources** (`godot://scene-tree`, `godot://editor-state`, `godot://runtime/tree`, `godot://runtime/log`, `godot://class/{name}`) expose pull-on-demand context.
+**Safety & UX polish (all implemented):** destructive tools are **elicitation-gated** (a client-side confirmation prompt, with a `confirm: true` override and a safe block when the client can't prompt); long jobs (`godot_export`/`godot_import`/`godot_run_headless_script`) stream **progress notifications**; `godot_run_managed` + `godot_output` capture the game's full `print()`/error console host-side; and five **MCP resources** (`godot://scene-tree`, `godot://editor-state`, `godot://runtime/tree`, `godot://runtime/log`, `godot://class/{name}`) expose pull-on-demand context.
 
 ```
 ┌───────────────────── Claude (Code / Desktop) ─────────────────────┐
@@ -62,7 +63,10 @@ Godot's **language server** (LSP, port 6005) and **debug adapter** (DAP, port 60
 
 Enabling the plugin also auto-registers the **runtime autoload** (`ClaudeRuntimeBridge`), so the `runtime_*` tools work as soon as the project runs — it listens on `127.0.0.1:9081` inside the game (override via `CLAUDE_RUNTIME_PORT`). No manual autoload setup needed.
 
-### 2. Build the host
+### 2. Get the host
+The host is packaged for npm as **`godot-claude-bridge`** (see
+[`host/README.md`](host/README.md)); once published you can run it with
+`npx godot-claude-bridge`. To build from source:
 ```bash
 cd host
 npm install      # needs registry access; see "SDK version" note below
@@ -122,21 +126,20 @@ claude mcp add godot -- node /abs/path/to/host/dist/index.js
 ## Safety model (built in)
 - Every edit-time mutation is wrapped in `EditorUndoRedoManager` — **Ctrl-Z reverts anything Claude did.**
 - The bridge binds to **loopback only**.
-- Handlers run on the editor **main thread** (polled from `_process`), so no threading hazards in this scaffold.
+- Handlers run on the editor **main thread** (polled from `_process`), so no threading hazards.
 - Destructive tools are **elicitation-gated**: the host prompts for confirmation before executing (`node_delete`, `project_set_setting`, `scene_new`, `gd_rename` with apply, `dbg_evaluate`, and the four `runtime_*` mutators). Pass `confirm: true` to auto-approve; if the client can't prompt, the tool blocks rather than acting silently.
 - Mutations go through the editor API (preserving UIDs/refs), not raw file writes.
 
-## Verification done
-- `host/` **typechecks clean** under TypeScript against the SDK-1.x `registerTool` contract and `@types/node` (`npm run typecheck`, and an offline variant `tsconfig.typecheck.json` used where the registry is unreachable).
-- The GDScript targets the stable Godot 4.x editor API (`EditorInterface`, `EditorUndoRedoManager`, `ClassDB`, `TCPServer`). It requires a running editor to execute and so is validated by inspection here, not by CI.
-- The LSP/DAP clients use raw-TCP `Content-Length` framing (Godot moved its language server off WebSockets to TCP; the debug adapter is TCP too). The protocol handshakes follow the LSP/DAP specs and Godot's documented behavior; they require a running editor to exercise and so are validated by inspection + typecheck, not by CI.
-- The runtime autoload reuses the editor bridge's exact wire protocol, so the host reuses `BridgeClient` for it. It requires the game to be running to exercise and is validated by inspection.
+## Verification
+- **Live-validated end to end.** All four planes were exercised against a real Godot 4.7 editor and a real npm-installed `@modelcontextprotocol/sdk@1.29.0`; the Go/No-Go checklist is GO (`LIVE_VALIDATION_SIGNOFF.md`). B1's enforced output schemas were exercised live with zero mismatches.
+- **CI runs the real build** on every change — `npm ci && npm run build && npm run typecheck` against the published SDK on Node 18/20/22, plus `contract_check.py` host↔addon↔catalog parity (`.github/workflows/ci.yml`). This is the one gate static authoring can't do; it caught the `ToolResult` defect at v0.4.2.
+- **Known engine gap:** `gd_workspace_symbols` — Godot's GDScript LSP (through 4.7) has no `workspace/symbol` method, so the tool feature-detects and returns a clear "unsupported" message pointing at `gd_document_symbols` (see `CHANGELOG.md` / `docs/TOOL_CATALOG.md`).
 
 ## Validating it
-Static checks run anywhere (no Godot/registry needed):
+Static checks (what CI runs; the parity check needs no Godot or registry):
 ```bash
-cd host && npx tsc -p tsconfig.typecheck.json   # host typechecks clean
-cd .. && python3 scripts/contract_check.py       # host<->addon<->catalog agree
+python3 scripts/contract_check.py               # host<->addon<->catalog agree
+cd host && npm ci && npm run build && npm run typecheck   # real SDK build, 0 errors
 ```
 For the full end-to-end run against the bundled `example/` project, use `scripts/validate.sh` (automated setup) then follow the per-plane checklist in `docs/RUNBOOK.md`. What is and isn't covered by static checks is spelled out in `docs/VALIDATION_REPORT.md`.
 
@@ -150,8 +153,8 @@ server.registerTool(name, { title, description, inputSchema /* zod raw shape */ 
 If you install the newer **SDK v2** (`@modelcontextprotocol/server`, `import * as z from "zod/v4"`, `inputSchema: z.object({...})`), adjust the three import lines and wrap each `inputSchema` shape in `z.object(...)`. The tool logic is unchanged. See the SDK's server guide for the exact v2 surface.
 
 ## Status & what's next
-All four capability planes plus the Phase 4 polish are implemented: elicitation gating, progress streaming, host-side console capture (`godot_run_managed`/`godot_output`, which sidesteps the GDScript "can't hook `print()`" limit — `ClaudeRuntimeBridge.push_log` remains available for in-game structured logging), and MCP resources.
+All four capability planes plus the safety/UX polish are implemented and live-validated: elicitation gating, progress streaming, host-side console capture (`godot_run_managed`/`godot_output`, which sidesteps the GDScript "can't hook `print()`" limit — `ClaudeRuntimeBridge.push_log` remains available for in-game structured logging), enforced output schemas, and MCP resources.
 
-Genuinely future work (not yet done): moving progress onto the formal MCP **task** execution model (vs. progress notifications); resource **subscriptions** with live `notifications/resources/updated` pushes; C#/.NET debugging via the OmniSharp path; and a small GDExtension logger if you want zero-config in-process capture without a managed parent process. This remains a **reference scaffold** — validated by typecheck and inspection, not yet exercised against a live editor in CI.
+Backlog (see `BACKLOG.md`): moving progress onto the formal MCP **task** execution model (vs. progress notifications, D2); resource **subscriptions** with live `notifications/resources/updated` pushes (D3); C#/.NET debugging via the OmniSharp path (D4); and an optional GDExtension logger for zero-config in-process capture without a managed parent process (D6). D2/D3 are best implemented and validated together on a live-Godot dev machine.
 
 MIT licensed.
