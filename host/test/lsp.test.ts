@@ -196,6 +196,70 @@ test("gd_rename apply=true writes the edited text to disk (applyTextEdits/offset
   await srv.close();
 });
 
+test("gd_signature_help maps signatures, resolves [start,end] parameter labels, and reports active indices", async () => {
+  const projectPath = tmpProject({ "player.gd": "func hit(dmg):\n\thit()\n" });
+  const { srv } = await startLsp({
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/signatureHelp") {
+        writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: {
+          signatures: [{
+            label: "hit(dmg: int) -> int",
+            documentation: { kind: "markdown", value: "Apply damage." },
+            parameters: [{ label: [4, 12], documentation: "the amount" }],
+          }],
+          activeSignature: 0,
+          activeParameter: 0,
+        } });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const res = (await rec.handler("gd_signature_help")({ path: "player.gd", line: 1, character: 5 })) as ToolResultLike;
+  assert.equal(res.isError, undefined);
+  assert.deepEqual(res.structuredContent, {
+    signatures: [{
+      label: "hit(dmg: int) -> int",
+      documentation: "Apply damage.",
+      parameters: [{ label: "dmg: int", documentation: "the amount" }],
+    }],
+    active_signature: 0,
+    active_parameter: 0,
+  });
+  lsp.close();
+  await srv.close();
+});
+
+test("gd_code_action lists actions, flags which carry an edit, normalizes CodeAction+Command, and forwards range/only", async () => {
+  const projectPath = tmpProject({ "player.gd": "var x = 1\n" });
+  let sent: LspMsg | undefined;
+  const { srv } = await startLsp({
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/codeAction") {
+        sent = msg;
+        writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [
+          { title: "Add type hint", kind: "quickfix", edit: { changes: {} } },
+          { title: "Organize", kind: "source.organizeImports", command: { title: "Organize", command: "gdscript.organize" } },
+          { title: "Run", command: "gdscript.run" },
+        ] });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const res = (await rec.handler("gd_code_action")({ path: "player.gd", start_line: 0, start_character: 0, only: ["quickfix"] })) as ToolResultLike;
+  assert.deepEqual(res.structuredContent, { actions: [
+    { title: "Add type hint", kind: "quickfix", has_edit: true, command: null },
+    { title: "Organize", kind: "source.organizeImports", has_edit: false, command: "gdscript.organize" },
+    { title: "Run", kind: "", has_edit: false, command: "gdscript.run" },
+  ] });
+  // end defaults to start (a caret, not a selection); `only` is forwarded in the context.
+  const params = sent!.params as { range: { start: unknown; end: unknown }; context: { only?: string[] } };
+  assert.deepEqual(params.range.start, { line: 0, character: 0 });
+  assert.deepEqual(params.range.end, { line: 0, character: 0 });
+  assert.deepEqual(params.context.only, ["quickfix"]);
+  lsp.close();
+  await srv.close();
+});
+
 // ---- Direct LspClient protocol behavior -----------------------------------
 
 test("getServerCapabilities reflects the initialize handshake result", async () => {

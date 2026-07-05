@@ -7,11 +7,11 @@
 > pinned to `^1.17.0` (D1), and CI runs the real build on Node 18/20/22. Full history
 > in `CHANGELOG.md`; publishing steps and the remote caveat in `docs/DISTRIBUTION.md`.
 
-Brings Godot into the Claude development ecosystem via MCP. It ships **all four** capability planes from the design evaluation plus the Phase 4 safety/UX polish (**55 tools + 5 MCP resources**):
+Brings Godot into the Claude development ecosystem via MCP. It ships **all four** capability planes from the design evaluation plus the Phase 4 safety/UX polish (**59 tools + 5 MCP resources**):
 
 - **Plane B — Headless CLI** (`godot_*` tools): launch the editor, run the project, export, import, run headless scripts/tests. Works with no editor open.
 - **Plane A — Live Editor Bridge** (`editor_*`, `scene_*`, `node_*`, … tools): a Godot `EditorPlugin` opens a loopback TCP/JSON server that the MCP host drives — scene/node/resource CRUD **with full undo/redo**, project settings, `ClassDB` introspection, selection, and editor-viewport screenshots.
-- **Plane D — Semantic & Debugging** (`gd_*`, `dbg_*` tools): the host connects as a client to Godot's **built-in GDScript language server (LSP, 6005)** and **Debug Adapter (DAP, 6006)** — type-aware completion, hover, definition/references, rename, symbols, and **diagnostics**; plus real debugging: conditional/hit-count/logpoint breakpoints, stepping, stack/scopes/variables, **watch expressions**, and expression evaluation. Reuses Godot's own protocol servers rather than reimplementing them.
+- **Plane D — Semantic & Debugging** (`gd_*`, `dbg_*` tools): the host connects as a client to Godot's **built-in GDScript language server (LSP, 6005)** and **Debug Adapter (DAP, 6006)** — type-aware completion, hover, definition/references, rename, symbols, **signature help**, **code actions**, and **diagnostics**; plus real debugging: conditional/hit-count/logpoint **and exception** breakpoints, stepping, stack/scopes/variables, **watch expressions**, **set-variable**, and expression evaluation. Reuses Godot's own protocol servers rather than reimplementing them.
 - **Plane C — Runtime Bridge** (`runtime_*` tools): an autoload (`ClaudeRuntimeBridge`) the plugin auto-registers into every run opens a loopback TCP server inside the **running game** — live SceneTree, runtime property get/set, method calls, signal emission, input injection for play-testing, Performance monitors (incl. audio), and in-game frame capture.
 
 Together these turn Claude from a scaffolder into a co-developer that can author scenes, write type-checked GDScript, run it, watch it, debug it, and drive the live game.

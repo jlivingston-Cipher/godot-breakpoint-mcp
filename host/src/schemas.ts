@@ -130,6 +130,18 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     uri: z.string(),
     diagnostics: z.array(z.object({ severity: z.string(), message: z.string(), line: z.number(), character: z.number() })),
   },
+  gd_signature_help: {
+    signatures: z.array(z.object({
+      label: z.string(),
+      documentation: z.string(),
+      parameters: z.array(z.object({ label: z.string(), documentation: z.string() })),
+    })),
+    active_signature: z.number(),
+    active_parameter: z.number(),
+  },
+  gd_code_action: {
+    actions: z.array(z.object({ title: z.string(), kind: z.string(), has_edit: z.boolean(), command: z.string().nullable() })),
+  },
 
   // ---- Plane D: debugging / DAP (tools/dap.ts) ----
   dbg_launch: { session_id: z.string(), state: z.string(), scene: z.string() },
@@ -144,6 +156,12 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   dbg_watch: {
     watches: z.array(z.object({ expression: z.string(), value: z.string(), type: z.string(), error: z.string().nullable() })),
   },
+  dbg_set_exception_breakpoints: {
+    filters: z.array(z.string()),
+    available_filters: z.array(z.object({ filter: z.string(), label: z.string() })),
+    breakpoints: z.array(z.object({ verified: z.boolean() })),
+  },
+  dbg_set_variable: { name: z.string(), value: z.string(), type: z.string(), variables_ref: z.number() },
 
   // ---- Plane C: runtime bridge (tools/runtime.ts -> runtime_bridge.gd) ----
   runtime_get_tree: {

@@ -39,6 +39,18 @@ function fail(err: unknown) {
 }
 
 /**
+ * Normalize an LSP documentation / MarkupContent field (a plain string, a
+ * `{ kind, value }` MarkupContent, or an array of either) down to a single
+ * string. Used by hover-style and signature-help results.
+ */
+function markupToString(c: unknown): string {
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) return c.map((x) => (typeof x === "string" ? x : (x as { value?: string })?.value ?? "")).join("\n");
+  if (c && typeof c === "object") return (c as { value?: string }).value ?? "";
+  return "";
+}
+
+/**
  * Returned by gd_workspace_symbols when the connected Godot build's GDScript
  * language server has no `workspace/symbol` method. This is an engine limitation
  * (observed through Godot 4.7, which replies -32601 Method not found), not a host
@@ -294,6 +306,76 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
           message: d.message, line: d.line, character: d.character,
         }));
         return ok({ uri, diagnostics: named });
+      } catch (err) { return fail(err); }
+    },
+  );
+
+  server.registerTool(
+    "gd_signature_help",
+    {
+      title: "GDScript signature help",
+      description:
+        "Show the call signature(s) and active parameter at a position (the parameter hints an IDE pops up inside a call). " +
+        "Godot's GDScript language server advertises signatureHelpProvider.",
+      inputSchema: posSchema,
+    },
+    async ({ path, line, character }) => {
+      try {
+        const uri = await openAndPos(path);
+        const result = (await lsp.request("textDocument/signatureHelp", { textDocument: { uri }, position: { line, character } })) as
+          { signatures?: unknown[]; activeSignature?: number; activeParameter?: number } | null;
+        const signatures = (result?.signatures ?? []).map((s) => {
+          const sig = s as { label?: string; documentation?: unknown; parameters?: unknown[] };
+          const sigLabel = sig.label ?? "";
+          const parameters = (sig.parameters ?? []).map((p) => {
+            const par = p as { label?: unknown; documentation?: unknown };
+            let plabel = "";
+            if (typeof par.label === "string") plabel = par.label;
+            // Per LSP, a parameter label may be a [start,end] offset pair into the signature label.
+            else if (Array.isArray(par.label) && par.label.length === 2) plabel = sigLabel.slice(Number(par.label[0]), Number(par.label[1]));
+            return { label: plabel, documentation: markupToString(par.documentation) };
+          });
+          return { label: sigLabel, documentation: markupToString(sig.documentation), parameters };
+        });
+        return ok({ signatures, active_signature: result?.activeSignature ?? 0, active_parameter: result?.activeParameter ?? 0 });
+      } catch (err) { return fail(err); }
+    },
+  );
+
+  server.registerTool(
+    "gd_code_action",
+    {
+      title: "GDScript code actions",
+      description:
+        "List the code actions (quick fixes / refactors) the language server offers for a range — the lightbulb menu. " +
+        "Read-only: returns the available actions (title, kind, whether each carries a WorkspaceEdit or a Command) without applying any. " +
+        "end_line/end_character default to the start position (a caret, not a selection).",
+      inputSchema: {
+        path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
+        start_line: z.number().int().describe("0-based start line"),
+        start_character: z.number().int().describe("0-based start character"),
+        end_line: z.number().int().optional().describe("0-based end line (default = start_line)"),
+        end_character: z.number().int().optional().describe("0-based end character (default = start_character)"),
+        only: z.array(z.string()).optional().describe("Restrict to these CodeActionKind prefixes, e.g. 'quickfix', 'refactor', 'source'"),
+      },
+    },
+    async ({ path, start_line, start_character, end_line, end_character, only }) => {
+      try {
+        const uri = await openAndPos(path);
+        const range = {
+          start: { line: start_line, character: start_character },
+          end: { line: end_line ?? start_line, character: end_character ?? start_character },
+        };
+        const context: Record<string, unknown> = { diagnostics: [] };
+        if (only && only.length) context.only = only;
+        const result = (await lsp.request("textDocument/codeAction", { textDocument: { uri }, range, context })) as unknown[] | null;
+        const actions = (result ?? []).map((a) => {
+          const act = a as { title?: string; kind?: string; edit?: unknown; command?: unknown };
+          // A bare Command has `command` as a string; a CodeAction nests a Command object under `command`.
+          const command = typeof act.command === "string" ? act.command : (act.command as { command?: string } | undefined)?.command ?? null;
+          return { title: act.title ?? "", kind: act.kind ?? "", has_edit: act.edit !== undefined, command };
+        });
+        return ok({ actions });
       } catch (err) { return fail(err); }
     },
   );
