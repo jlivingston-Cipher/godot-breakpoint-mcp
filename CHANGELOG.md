@@ -22,6 +22,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
   a required check while live-adapter timing is new. No tool/schema/version change —
   surface stays **70 tools / 104 tests**; `contract_check.py` parity unchanged (70 ↔ 70).
 
+### Confirmed live — first DAP ground truth (Godot 4.3-stable, from the new plane)
+- The job's first run dumped the adapter's advertised capabilities:
+  **`supportsRestartRequest=true`** (so `dbg_restart` uses the native DAP `restart`
+  path rather than the terminate+relaunch fallback) and **`supportsSetVariable=true`**
+  (`dbg_set_variable` is usable live), while **`supportsGotoTargetsRequest=false`** and
+  **`supportsDataBreakpoints=false`** — so `dbg_goto` and `dbg_data_breakpoints`
+  correctly degrade to "unsupported" on 4.3, exactly the advertised-vs-implemented
+  discipline they were built with.
+- Exception breakpoints are effectively unavailable on 4.3: the adapter advertises
+  **`exceptionBreakpointFilters=[]`** and does **not respond to `setExceptionBreakpoints`**
+  (the request times out). `dbg_set_exception_breakpoints` therefore has no filters to
+  offer and currently blocks until timeout on this build — a candidate for a
+  short-circuit feature-detect (advertise-none → return "unsupported" without sending).
+- The best-effort launch→breakpoint scenario did **not** settle under CI software
+  rendering (`D_DAP_STOP: breakpoint_hit=false`), so live stack/scopes/variables remain
+  unproven; the capability dump is the confirmed result. Getting the launched game to
+  reliably reach a breakpoint under Xvfb is the next increment.
+
 ## [0.4.12] — 2026-07-06
 
 ### Added — DAP debugger-depth track (three tools)
