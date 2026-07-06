@@ -1,10 +1,10 @@
 # Godot–Claude Bridge
 
-> **Status: v0.4.9 — live-validated and hardened.** All four capability planes were
+> **Status: v0.4.10 — live-validated and hardened.** All four capability planes were
 > exercised end-to-end against a real Godot 4.7 editor and a real npm-installed
 > `@modelcontextprotocol/sdk@1.29.0`; the Go/No-Go checklist is GO (see
 > `LIVE_VALIDATION_SIGNOFF.md`). Output schemas are enforced (B1), the SDK floor is
-> pinned to `^1.17.0` (D1), and CI runs the real build **plus an 80-test host suite
+> pinned to `^1.17.0` (D1), and CI runs the real build **plus a 91-test host suite
 > and a real-Godot integration smoke** on Node 18/20/22. Full history in
 > `CHANGELOG.md`; publishing steps and the remote caveat in `docs/DISTRIBUTION.md`.
 

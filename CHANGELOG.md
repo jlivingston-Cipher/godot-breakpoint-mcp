@@ -4,6 +4,43 @@ All notable changes to the Godot–Claude Bridge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.10] — 2026-07-06
+
+### Added
+- **Phase 1 LSP-depth — seven read-only navigation/inspection tools.** Each wraps
+  a provider Godot's GDScript language server lists in its `initialize`
+  capabilities, feature-detecting the capability and keeping a `-32601`
+  belt-and-suspenders so an advertised-but-unimplemented provider degrades to a
+  clear "unsupported" message instead of a raw JSON-RPC error:
+  - `gd_document_highlight` — occurrences of the symbol at a position within one
+    file, tagged read / write / text (`textDocument/documentHighlight`).
+  - `gd_type_definition` — the type of the symbol at a position
+    (`textDocument/typeDefinition`).
+  - `gd_implementation` — implementation location(s) (`textDocument/implementation`).
+  - `gd_declaration` — declaration location(s) (`textDocument/declaration`).
+  - `gd_folding_ranges` — foldable regions of a script (`textDocument/foldingRange`).
+  - `gd_document_link` — links embedded in a script with targets
+    (`textDocument/documentLink`).
+  - `gd_formatting` — a **read-only** whole-file format *preview*: returns the
+    formatted text, never writes to disk (`textDocument/formatting`).
+- Surface **59 → 66 tools** (LSP 10 → 17). Frozen output schemas (B1), the
+  registration meta-test (→ 66), `docs/TOOL_CATALOG.md` (entries + index + summary)
+  and `README.md` updated in lockstep. **+11 loopback mock-server tests → 91 total.**
+  `contract_check.py` green (66 ↔ 66, 56 catalog JSON blocks).
+
+### Validated (live editor CI — the D7 probe, extended to the new tools)
+- Against real **Godot 4.3-stable**: `gd_declaration` returns a location and
+  `gd_document_link` is implemented (empty list for a link-free file). The other
+  five — `gd_document_highlight`, `gd_type_definition`, `gd_implementation`,
+  `gd_folding_ranges`, `gd_formatting` — are advertised **`false`** on 4.3 and
+  correctly return "unsupported", validating the feature-detect + `-32601` design
+  end-to-end. The probe logs `D7_CAPS2` / `PROBE …` markers so a future Godot's
+  real behavior is captured in CI.
+
+### Note
+- The **addon (GDScript) is unchanged** since v0.4.8; this is a host-only release.
+  npm publish of the host still needs the maintainer's 2FA.
+
 ## [0.4.9] — 2026-07-05
 
 ### Added
