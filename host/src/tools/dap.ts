@@ -297,4 +297,140 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       } catch (err) { return fail(err); }
     },
   );
+
+  server.registerTool(
+    "dbg_restart",
+    {
+      title: "Restart debug session",
+      description:
+        "Restart the current debug session. Uses the DAP `restart` request when the adapter advertises `supportsRestartRequest`, " +
+        "otherwise falls back to terminate + relaunch — so it works on every adapter. Reuses the last dbg_launch/dbg_attach parameters; " +
+        "pass `scene` / `stop_on_entry` to override them for a launched session. `method` in the result reports which path ran " +
+        "('restart' = native DAP restart, 'relaunch' = terminate + fresh handshake). Requires a session started with dbg_launch/dbg_attach.",
+      inputSchema: {
+        scene: z.string().optional().describe("Override the scene for a launched session: 'main', 'current', or res://scene.tscn"),
+        stop_on_entry: z.boolean().optional().describe("Override stop-at-entry for the restart (launched sessions)"),
+      },
+    },
+    async ({ scene, stop_on_entry }) => {
+      try {
+        const override: Record<string, unknown> = {};
+        if (scene !== undefined) override.scene = scene;
+        if (stop_on_entry !== undefined) override.stopOnEntry = stop_on_entry;
+        const r = await dap.restart(override);
+        return ok({ session_id: "godot", method: r.method, state: r.state, scene: r.scene });
+      } catch (err) { return fail(err); }
+    },
+  );
+
+  server.registerTool(
+    "dbg_goto",
+    {
+      title: "Go to line (set next statement)",
+      description:
+        "Move the program counter within the current stopped frame — 'set next statement' (DAP gotoTargets + goto). Call with `path` + `line` to " +
+        "list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. " +
+        "DESTRUCTIVE: skips or repeats code by moving execution — confirm with the user and keep this gated. " +
+        "Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear \"unsupported\" message WITHOUT prompting. " +
+        "Only meaningful while stopped at a breakpoint.",
+      inputSchema: {
+        path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
+        line: z.number().int().positive().describe("1-based target line"),
+        target_id: z.number().int().optional().describe("A specific target id from a prior dbg_goto listing; omit to auto-pick when the line has a single target"),
+        confirm: z.boolean().optional().describe("Auto-approve the jump (skip the confirmation prompt)"),
+      },
+    },
+    async ({ path, line, target_id, confirm }) => {
+      try {
+        if (!dap.capabilities || dap.capabilities["supportsGotoTargetsRequest"] !== true) {
+          return {
+            isError: true as const,
+            content: [{ type: "text" as const, text: "dbg_goto is unsupported by the connected Godot build's debug adapter (it does not advertise supportsGotoTargetsRequest)." }],
+          };
+        }
+        const fsPath = toFsPath(path, cfg.projectPath);
+        const body = await dap.request("gotoTargets", { source: { path: fsPath }, line });
+        const targets = Array.isArray(body["targets"])
+          ? (body["targets"] as Array<{ id?: number; label?: string; line?: number }>).map((t) => ({ id: t.id ?? 0, label: t.label ?? "", line: t.line ?? 0 }))
+          : [];
+        const chosen = target_id !== undefined
+          ? targets.find((t) => t.id === target_id)
+          : targets.length === 1 ? targets[0] : undefined;
+        if (!chosen) {
+          if (target_id !== undefined) {
+            return {
+              isError: true as const,
+              content: [{ type: "text" as const, text: `No goto target with id ${target_id} on ${fsPath}:${line}. Call dbg_goto with just path+line to list the valid targets.` }],
+            };
+          }
+          // Zero or multiple targets: report them and jump nowhere.
+          return ok({ targets, jumped: false, target_id: null });
+        }
+        const blocked = await gate(server, confirm, `Move execution to ${fsPath}:${chosen.line} (${chosen.label}) in the running game`);
+        if (blocked) return blocked;
+        await dap.request("goto", { threadId: dap.threadId(), targetId: chosen.id });
+        return ok({ targets: [chosen], jumped: true, target_id: chosen.id });
+      } catch (err) { return fail(err); }
+    },
+  );
+
+  server.registerTool(
+    "dbg_data_breakpoints",
+    {
+      title: "Set data breakpoints (watchpoints)",
+      description:
+        "Set (replace) data breakpoints — 'watchpoints' that halt when a variable's value changes (DAP dataBreakpointInfo + setDataBreakpoints). " +
+        "Pass `watch` as a list of { name, variables_ref?, access_type? }: each name is resolved to a dataId via dataBreakpointInfo, then every " +
+        "resolvable id is armed in one setDataBreakpoints call. Call with no `watch` (or []) to clear all data breakpoints. The result reports the " +
+        "armed `breakpoints` (each with its resolved data_id and verified flag) and any `unresolved` variables the adapter cannot watch. " +
+        "Requires a running session; NOT gated (it only configures the debugger). Feature-detected: on an adapter that does not advertise " +
+        "`supportsDataBreakpoints` it returns a clear \"unsupported\" message without sending any request.",
+      inputSchema: {
+        watch: z.array(z.object({
+          name: z.string().describe("Variable name to watch"),
+          variables_ref: z.number().int().optional().describe("variablesReference of the containing scope/variable (from dbg_scopes / dbg_variables); omit for a global/expression name"),
+          access_type: z.enum(["read", "write", "readWrite"]).optional().describe("When to break (default the adapter's default, usually write)"),
+        })).optional().describe("Variables to watch; omit or [] to clear all data breakpoints"),
+      },
+    },
+    async ({ watch }) => {
+      try {
+        if (!dap.capabilities || dap.capabilities["supportsDataBreakpoints"] !== true) {
+          return {
+            isError: true as const,
+            content: [{ type: "text" as const, text: "dbg_data_breakpoints is unsupported by the connected Godot build's debug adapter (it does not advertise supportsDataBreakpoints)." }],
+          };
+        }
+        const requested = watch ?? [];
+        const resolved: Array<{ name: string; dataId: string; accessType?: string }> = [];
+        const unresolved: Array<{ name: string; reason: string }> = [];
+        for (const w of requested) {
+          try {
+            const info = await dap.request("dataBreakpointInfo", { name: w.name, variablesReference: w.variables_ref });
+            const dataId = info["dataId"];
+            if (typeof dataId === "string" && dataId.length > 0) {
+              resolved.push({ name: w.name, dataId, accessType: w.access_type });
+            } else {
+              unresolved.push({ name: w.name, reason: String(info["description"] ?? "adapter returned no dataId for this variable") });
+            }
+          } catch (err) {
+            const e = err as { message?: string };
+            unresolved.push({ name: w.name, reason: e.message ?? String(err) });
+          }
+        }
+        const body = await dap.request("setDataBreakpoints", {
+          breakpoints: resolved.map((r) => {
+            const b: { dataId: string; accessType?: string } = { dataId: r.dataId };
+            if (r.accessType) b.accessType = r.accessType;
+            return b;
+          }),
+        });
+        const verified = Array.isArray(body["breakpoints"])
+          ? (body["breakpoints"] as Array<{ verified?: boolean }>).map((b) => Boolean(b.verified))
+          : [];
+        const breakpoints = resolved.map((r, i) => ({ name: r.name, data_id: r.dataId, verified: verified[i] ?? false }));
+        return ok({ breakpoints, unresolved });
+      } catch (err) { return fail(err); }
+    },
+  );
 }
