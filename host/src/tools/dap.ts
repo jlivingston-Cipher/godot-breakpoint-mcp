@@ -242,20 +242,32 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       description:
         "Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching error/exception is thrown " +
         "(DAP setExceptionBreakpoints). Pass the filter IDs to enable; call with no filters (or []) to clear them. The result echoes the " +
-        "active filters and lists `available_filters` — the exception filters the connected adapter actually advertises (empty if it advertises none). " +
-        "Requires a running debug session. Not gated (it only configures the debugger).",
+        "active filters and lists `available_filters` — the exception filters the connected adapter actually advertises. " +
+        "Requires a running debug session. Not gated (it only configures the debugger). " +
+        "Feature-detected: on an adapter that advertises no exceptionBreakpointFilters (e.g. Godot 4.3, which also does not answer " +
+        "the request — it would otherwise time out) it returns a clear \"unsupported\" message WITHOUT sending anything.",
       inputSchema: {
         filters: z.array(z.string()).optional().describe("Exception filter IDs to enable (default none = clear). Choose from available_filters in the result."),
       },
     },
     async ({ filters }) => {
       try {
-        const active = filters ?? [];
-        const body = await dap.request("setExceptionBreakpoints", { filters: active });
+        // Per the DAP spec a client should only send setExceptionBreakpoints when the
+        // adapter advertised at least one exception filter. Godot 4.3 advertises none and
+        // does not answer the request (it would time out), so short-circuit with a clear
+        // "unsupported" message instead of hanging until that timeout.
         const advertised = dap.capabilities?.["exceptionBreakpointFilters"];
         const available_filters = Array.isArray(advertised)
           ? (advertised as Array<{ filter?: string; label?: string }>).map((f) => ({ filter: f.filter ?? "", label: f.label ?? "" }))
           : [];
+        if (available_filters.length === 0) {
+          return {
+            isError: true as const,
+            content: [{ type: "text" as const, text: "dbg_set_exception_breakpoints is unsupported by the connected Godot build's debug adapter (it advertises no exceptionBreakpointFilters). There are no exception filters to enable on this build." }],
+          };
+        }
+        const active = filters ?? [];
+        const body = await dap.request("setExceptionBreakpoints", { filters: active });
         const breakpoints = Array.isArray(body["breakpoints"])
           ? (body["breakpoints"] as Array<{ verified?: boolean }>).map((b) => ({ verified: Boolean(b.verified) }))
           : [];

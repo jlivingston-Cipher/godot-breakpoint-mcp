@@ -313,16 +313,45 @@ test("dbg_set_exception_breakpoints forwards filters and reports the adapter's a
   await srv.close();
 });
 
-test("dbg_set_exception_breakpoints with no filters clears them and reports no available_filters when the adapter advertises none", async () => {
+test("dbg_set_exception_breakpoints returns 'unsupported' without sending the request when the adapter advertises no filters", async () => {
+  // The default handshake advertises NO exceptionBreakpointFilters (like Godot 4.3,
+  // which also never answers setExceptionBreakpoints — it would time out). The tool
+  // must short-circuit to a clear message instead of sending a request that hangs.
+  const { srv, received } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setExceptionBreakpoints") dapResponse(s, m, {});
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_set_exception_breakpoints")({ filters: ["raise"] })) as ToolResultLike;
+  assert.equal(res.isError, true);
+  assert.match(res.content![0].text!, /unsupported/i);
+  assert.ok(!received.some((m) => m.command === "setExceptionBreakpoints"), "must not send setExceptionBreakpoints when no filters are advertised");
+  dap.close();
+  await srv.close();
+});
+
+test("dbg_set_exception_breakpoints clears filters (filters: []) when the adapter advertises some", async () => {
   let bpReq: DapMsg | undefined;
   const { srv } = await startDap((m, s) => {
-    if (handshake(m, s)) return;
-    if (m.command === "setExceptionBreakpoints") { bpReq = m; dapResponse(s, m, {}); }
+    if (m.command === "initialize") {
+      dapResponse(s, m, { supportsConfigurationDoneRequest: true, exceptionBreakpointFilters: [
+        { filter: "raise", label: "Runtime errors" },
+      ] });
+      dapEvent(s, "initialized", {});
+      return;
+    }
+    if (m.command === "launch" || m.command === "configurationDone") { dapResponse(s, m, {}); return; }
+    if (m.command === "setExceptionBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_launch")({ scene: "main" });
   const res = (await rec.handler("dbg_set_exception_breakpoints")({})) as ToolResultLike;
-  assert.deepEqual(res.structuredContent, { filters: [], available_filters: [], breakpoints: [] });
+  assert.deepEqual(res.structuredContent, {
+    filters: [],
+    available_filters: [{ filter: "raise", label: "Runtime errors" }],
+    breakpoints: [],
+  });
   assert.deepEqual((bpReq!.arguments as { filters: string[] }).filters, []);
   dap.close();
   await srv.close();
