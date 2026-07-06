@@ -19,8 +19,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   light up live vs. degrade to "unsupported". A best-effort scenario launches the
   example scene to a breakpoint in `_ready()` and reads stack / scopes / variables.
 - Mirrors the LSP `editor-plane`: `continue-on-error` (never blocks a merge) and **not**
-  a required check while live-adapter timing is new. No tool/schema/version change —
-  surface stays **70 tools / 104 tests**; `contract_check.py` parity unchanged (70 ↔ 70).
+  a required check while live-adapter timing is new. No tool/schema change —
+  surface stays **70 tools**; `contract_check.py` parity unchanged (70 ↔ 70).
 
 ### Confirmed live — first DAP ground truth (Godot 4.3-stable, from the new plane)
 - The job's first run dumped the adapter's advertised capabilities:
@@ -39,6 +39,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
   rendering (`D_DAP_STOP: breakpoint_hit=false`), so live stack/scopes/variables remain
   unproven; the capability dump is the confirmed result. Getting the launched game to
   reliably reach a breakpoint under Xvfb is the next increment.
+
+### Fixed — `dbg_set_exception_breakpoints` short-circuit (motivated by the live probe)
+- `dbg_set_exception_breakpoints` now **feature-detects**: when the connected adapter
+  advertises no `exceptionBreakpointFilters`, it returns a clear "unsupported" message
+  **without** sending `setExceptionBreakpoints`. On Godot 4.3 that request is never
+  answered (it timed out after 20 s in the DAP-plane probe), so the tool previously
+  hung until timeout — it now returns instantly. Matches the advertised-vs-implemented
+  discipline already used by `dbg_goto` / `dbg_data_breakpoints` / `dbg_set_variable`.
+  No output-schema change; **+1 loopback test (104 → 105)**; `contract_check` still 70 ↔ 70.
 
 ## [0.4.12] — 2026-07-06
 
