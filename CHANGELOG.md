@@ -4,6 +4,24 @@ All notable changes to the Godot–Claude Bridge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added — DAP-plane CI smoke (infra, no tool change)
+- New **experimental `dap-plane` integration job** (`.github/workflows/integration.yml`)
+  and probe (`host/test-integration/editor-dap.integration.mjs`) that boots the real
+  Godot editor under Xvfb and connects to its built-in **Debug Adapter (DAP, :6006)** —
+  the first time any of the 15 `dbg_*` tools run against a live adapter. It runs the
+  `initialize` handshake (the gate), then dumps the adapter's advertised capabilities
+  (grep-able `D_DAP_CAPS` / `D_DAP_FILTERS` markers) so we finally learn which of
+  `supportsRestartRequest` / `supportsGotoTargetsRequest` / `supportsDataBreakpoints` /
+  `supportsSetVariable` / `exceptionBreakpointFilters` Godot 4.3 actually advertises —
+  i.e. which of `dbg_restart` / `dbg_goto` / `dbg_data_breakpoints` / `dbg_set_variable`
+  light up live vs. degrade to "unsupported". A best-effort scenario launches the
+  example scene to a breakpoint in `_ready()` and reads stack / scopes / variables.
+- Mirrors the LSP `editor-plane`: `continue-on-error` (never blocks a merge) and **not**
+  a required check while live-adapter timing is new. No tool/schema/version change —
+  surface stays **70 tools / 104 tests**; `contract_check.py` parity unchanged (70 ↔ 70).
+
 ## [0.4.12] — 2026-07-06
 
 ### Added — DAP debugger-depth track (three tools)
