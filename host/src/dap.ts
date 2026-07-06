@@ -51,6 +51,9 @@ export class DapClient extends EventEmitter {
   private configured = false;
   /** Persistent watch expressions, re-evaluated at each stop (see evaluateWatches). */
   private watches: string[] = [];
+  /** The mode + args of the last start(), so restart() can reuse/override them. */
+  private lastStartMode: "launch" | "attach" | null = null;
+  private lastStartArgs: Record<string, unknown> | null = null;
 
   capabilities: Record<string, unknown> | null = null;
   state: DapState = "disconnected";
@@ -261,6 +264,9 @@ export class DapClient extends EventEmitter {
 
   /** Full handshake: initialize → launch/attach → (breakpoints) → configurationDone. */
   async start(mode: "launch" | "attach", args: Record<string, unknown>): Promise<void> {
+    // Remember how we started so restart() can reuse (or override) these params.
+    this.lastStartMode = mode;
+    this.lastStartArgs = args;
     // Listen for `initialized` before we ask, so we cannot miss it.
     const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
     this.capabilities = await this.request("initialize", {
@@ -326,6 +332,64 @@ export class DapClient extends EventEmitter {
     this.state = "running";
     await this.request(command, args);
     return settled;
+  }
+
+  /**
+   * Resolve when the program next settles (a `stopped` or `terminated` event) or
+   * `waitMs` elapses, whichever comes first — the shared wait used after a resume
+   * or a restart. Listeners are armed by the caller BEFORE the triggering request
+   * is sent so a fast settle can't be missed.
+   */
+  private settle(waitMs: number): Promise<{ state: DapState; reason: string | null }> {
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timer);
+        this.removeListener("stopped", onStop);
+        this.removeListener("terminated", onTerm);
+        resolve({ state: this.state, reason: this.lastStoppedReason });
+      };
+      const onStop = () => finish();
+      const onTerm = () => finish();
+      const timer = setTimeout(() => {
+        this.removeListener("stopped", onStop);
+        this.removeListener("terminated", onTerm);
+        resolve({ state: this.state, reason: this.lastStoppedReason });
+      }, waitMs);
+      this.once("stopped", onStop);
+      this.once("terminated", onTerm);
+    });
+  }
+
+  /**
+   * Restart the debug session. If the adapter advertises `supportsRestartRequest`,
+   * issue a single DAP `restart` (carrying the launch/attach args); otherwise fall
+   * back to `terminate` + a fresh handshake, so restart works on every adapter.
+   * Reuses the last dbg_launch/dbg_attach params; `overrideArgs` (e.g. a new scene
+   * or stopOnEntry) are merged over them. `method` tells the caller which path ran.
+   */
+  async restart(
+    overrideArgs: Record<string, unknown> = {},
+    waitMs = 15000,
+  ): Promise<{ method: "restart" | "relaunch"; state: DapState; reason: string | null; scene: string | null }> {
+    if (!this.lastStartMode || !this.lastStartArgs) {
+      throw new DapError("restart", "no debug session to restart — call dbg_launch or dbg_attach first");
+    }
+    const args = { ...this.lastStartArgs, ...overrideArgs };
+    const scene = typeof args["scene"] === "string" ? (args["scene"] as string) : null;
+    if (this.capabilities?.["supportsRestartRequest"] === true) {
+      // Arm the settle listener before issuing restart so a fast stop isn't missed.
+      const settled = this.settle(waitMs);
+      this.state = "running";
+      await this.request("restart", { arguments: args });
+      this.lastStartArgs = args;
+      const r = await settled;
+      return { method: "restart", state: r.state, reason: r.reason, scene };
+    }
+    // Fallback: ask the debuggee to terminate (best-effort), then re-run the full
+    // initialize → launch/attach → configurationDone handshake with the same args.
+    await this.request("terminate", {}).catch(() => undefined);
+    await this.start(this.lastStartMode, args);
+    return { method: "relaunch", state: this.state, reason: this.lastStoppedReason, scene };
   }
 
   close(): void {

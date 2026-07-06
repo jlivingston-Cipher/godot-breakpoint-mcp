@@ -4,6 +4,38 @@ All notable changes to the Godot–Claude Bridge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added — DAP debugger-depth track (three tools)
+- **`dbg_restart`** — restart the current debug session. Uses the DAP `restart`
+  request when the adapter advertises `supportsRestartRequest`, otherwise falls
+  back to `terminate` + a fresh launch/attach handshake, so it works on **every**
+  adapter regardless of the advertised capability. Reuses the last
+  `dbg_launch`/`dbg_attach` parameters; `scene` / `stop_on_entry` override them for
+  a launched session. The result's `method` reports which path ran
+  (`restart` vs `relaunch`).
+- **`dbg_goto`** — 'set next statement': move the program counter within the
+  current stopped frame (DAP `gotoTargets` + `goto`). Called with `path` + `line`
+  it lists the valid goto targets; with a single target (or an explicit
+  `target_id`) it jumps. **Destructive** (skips/repeats code) → elicitation-gated.
+  Feature-detected on `supportsGotoTargetsRequest`: an adapter that does not
+  advertise it gets a clear "unsupported" message **without prompting**.
+- **`dbg_data_breakpoints`** — set (replace) data breakpoints / watchpoints that
+  halt when a variable's value changes (DAP `dataBreakpointInfo` +
+  `setDataBreakpoints`). Resolves each requested variable to a `dataId`, arms all
+  resolvable ones in one call, and reports the armed `breakpoints` plus any
+  `unresolved` variables. Not gated (it only configures the debugger).
+  Feature-detected on `supportsDataBreakpoints`.
+- Surface **67 → 70 tools** (DAP 12 → 15). Frozen output schemas (B1), the
+  registration meta-test (→ 70), `docs/TOOL_CATALOG.md` (entries + index + summary)
+  and `README.md` updated in lockstep. **+10 loopback mock-server tests → 104
+  total.** `contract_check.py` green (70 ↔ 70).
+- Same **advertised ≠ implemented** discipline as the LSP-depth tools: `dbg_goto`
+  and `dbg_data_breakpoints` degrade to "unsupported" where Godot's adapter does
+  not advertise the capability (not live-probed this session — DAP-plane CI smoke
+  is still pending), while `dbg_restart` is useful on every adapter via its
+  terminate+relaunch fallback.
+
 ## [0.4.11] — 2026-07-06
 
 ### Added

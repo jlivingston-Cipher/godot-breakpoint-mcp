@@ -179,6 +179,16 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     breakpoints: z.array(z.object({ verified: z.boolean() })),
   },
   dbg_set_variable: { name: z.string(), value: z.string(), type: z.string(), variables_ref: z.number() },
+  dbg_restart: { session_id: z.string(), method: z.string(), state: z.string(), scene: z.string().nullable() },
+  dbg_goto: {
+    targets: z.array(z.object({ id: z.number(), label: z.string(), line: z.number() })),
+    jumped: z.boolean(),
+    target_id: z.number().nullable(),
+  },
+  dbg_data_breakpoints: {
+    breakpoints: z.array(z.object({ name: z.string(), data_id: z.string(), verified: z.boolean() })),
+    unresolved: z.array(z.object({ name: z.string(), reason: z.string() })),
+  },
 
   // ---- Plane C: runtime bridge (tools/runtime.ts -> runtime_bridge.gd) ----
   runtime_get_tree: {

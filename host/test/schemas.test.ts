@@ -21,6 +21,9 @@ test("representative success shapes validate against their schema", () => {
   schemaOf("project_get_setting").parse({ name: "application/config/name", value: "My Game" });
   schemaOf("dbg_scopes").parse({ scopes: [{ name: "Locals", variables_ref: 1001 }] });
   schemaOf("dbg_evaluate").parse({ result: "42", type: "int", variables_ref: 0 });
+  schemaOf("dbg_restart").parse({ session_id: "godot", method: "relaunch", state: "running", scene: null });
+  schemaOf("dbg_goto").parse({ targets: [{ id: 1, label: "line 12", line: 12 }], jumped: true, target_id: 1 });
+  schemaOf("dbg_data_breakpoints").parse({ breakpoints: [{ name: "hp", data_id: "hp@1", verified: true }], unresolved: [] });
   schemaOf("gd_rename").parse({ changed_files: ["res://player.gd"], edit_count: 3, applied: true, written: ["/abs/player.gd"] });
   schemaOf("runtime_get_monitors").parse({ monitors: { "time/fps": 60, "memory/static": 1234 } });
   schemaOf("godot_output").parse({
