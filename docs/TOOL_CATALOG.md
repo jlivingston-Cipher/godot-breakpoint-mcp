@@ -549,6 +549,19 @@ Compute how the language server would reformat a whole script and return the for
 ```
 - **Output** `{ "type": "object", "required": ["edit_count", "formatted"], "properties": { "edit_count": { "type": "integer" }, "formatted": { "type": "string" } } }`
 
+### `gd_document_color` ⚠️ · advertised `false` on Godot 4.3-stable (handled)
+List the color literals the language server recognizes in a script — the `Color(...)` values an editor draws an inline swatch for — with each one's source range, its RGBA components (floats 0..1) and a convenience `#RRGGBBAA` hex (Godot's `Color.to_html()` ordering). Read-only. Godot 4.3-stable lists `colorProvider` among its `initialize` capability keys but with the value **`false`** (confirmed live in CI: `D7_CAPS2 … color=false`, tool returns "unsupported"), so it joins `document-highlight`/`type-definition`/`implementation`/`folding-ranges`/`formatting` in the advertised-but-not-honoured group; the tool feature-detects and returns a clear "unsupported" message there, and keeps a `-32601` belt-and-suspenders for a future build that implements it (the D7 lesson: advertised ≠ implemented).
+- **Input** `{ "type": "object", "required": ["path"], "properties": { "path": { "type": "string" } } }`
+- **Output**
+```json
+{ "type": "object", "required": ["colors"], "properties": { "colors": { "type": "array", "items": {
+  "type": "object", "properties": {
+    "line": { "type": "integer" }, "character": { "type": "integer" },
+    "end_line": { "type": "integer" }, "end_character": { "type": "integer" },
+    "red": { "type": "number" }, "green": { "type": "number" }, "blue": { "type": "number" }, "alpha": { "type": "number" },
+    "hex": { "type": "string" } } } } } }
+```
+
 ---
 
 # Plane D — Debugging (DAP)  (✅ implemented — Phase 2; raw TCP + DAP `Content-Length` framing to Godot's debug adapter, default `127.0.0.1:6006`)
@@ -790,6 +803,7 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 | `gd_folding_ranges` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
 | `gd_document_link` | D / LSP | ✅ confirmed live (4.3) | – |
 | `gd_formatting` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_document_color` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
 | `dbg_launch` | D / DAP | ✅ | runs code |
 | `dbg_attach` | D / DAP | ✅ | – |
 | `dbg_set_breakpoints` | D / DAP | ✅ | – |
@@ -816,4 +830,4 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 | `godot_output` | B / Process | ✅ | – |
 | `godot_stop` | B / Process | ✅ | – |
 
-**66 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 17 LSP, 12 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
+**67 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 18 LSP, 12 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
