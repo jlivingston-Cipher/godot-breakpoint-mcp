@@ -133,15 +133,45 @@ if (reached) {
         // Read variables from EVERY scope and hunt for `counter` — a concrete proof that
         // live variable inspection returns real values (player.gd `var counter = 100`).
         let counterVal = null;
+        let counterRef = null; // variablesReference of the scope that holds `counter`
         for (const s of scopes) {
           if (!s.variables_ref) continue;
           const vars = await call("dbg_variables", { variables_ref: s.variables_ref });
           const list = vars.structuredContent?.variables ?? [];
           console.log(`PROBE dbg_variables[${s.name}]: count=${list.length} sample=[${list.slice(0, 6).map((v) => v.name).join(", ")}]`);
           const hit = list.find((v) => v.name === "counter");
-          if (hit) counterVal = hit.value;
+          if (hit) { counterVal = hit.value; counterRef = s.variables_ref; }
         }
         console.log(`D_DAP_VAR: counter=${counterVal ?? "(not found)"}`);
+        // ---- FIRST live run of the GATED / DESTRUCTIVE DAP tools against a stopped game ----
+        // These handlers are gated (they prompt for confirmation); the recording server's
+        // elicit stub auto-declines, so we pass confirm:true to drive them end-to-end. All
+        // log-only — an unsupported / oddly-behaving adapter surfaces isError, never a throw.
+        // dbg_evaluate: an ARBITRARY expression (not just a var read) proves live REPL eval —
+        // `counter + 1` should be 101 while counter is 100.
+        try {
+          const ev = await call("dbg_evaluate", { expression: "counter + 1", frame_id: top.id, confirm: true });
+          const detail = ev.isError
+            ? `err: ${JSON.stringify(ev.content?.[0]?.text ?? "").slice(0, 120)}`
+            : JSON.stringify(ev.structuredContent ?? {});
+          console.log(`D_DAP_EVAL: isError=${!!ev.isError} ${detail}`);
+        } catch (e) { console.log("D_DAP_EVAL threw:", e?.message ?? String(e)); }
+        // dbg_set_variable: MUTATE counter in its own scope (4.3 advertises supportsSetVariable),
+        // then read it back from the same container to prove the write actually stuck.
+        if (counterRef) {
+          try {
+            const sv = await call("dbg_set_variable", { variables_ref: counterRef, name: "counter", value: "4242", confirm: true });
+            const svDetail = sv.isError
+              ? `err: ${JSON.stringify(sv.content?.[0]?.text ?? "").slice(0, 120)}`
+              : JSON.stringify(sv.structuredContent ?? {});
+            console.log(`D_DAP_SETVAR: isError=${!!sv.isError} ${svDetail}`);
+            const after = await call("dbg_variables", { variables_ref: counterRef });
+            const readBack = (after.structuredContent?.variables ?? []).find((v) => v.name === "counter");
+            console.log(`D_DAP_SETVAR_READBACK: counter=${readBack?.value ?? "(not found)"}`);
+          } catch (e) { console.log("D_DAP_SETVAR threw:", e?.message ?? String(e)); }
+        } else {
+          console.log("D_DAP_SETVAR: skipped — no scope ref for `counter` captured");
+        }
         // Live control-flow proofs (all log-only, each independently guarded): evaluate a
         // watch, single-step, then continue (which should re-hit the per-frame _process bp).
         try {
@@ -184,6 +214,25 @@ if (reached) {
       console.log(`PROBE ${name} threw:`, err?.message ?? String(err));
     }
   }
+
+  // ---- dbg_restart live: the last unproven DAP tool against a running session ----------
+  // Godot 4.3 advertises supportsRestartRequest=true, so dbg_restart should take the NATIVE
+  // restart path (method="restart"), re-run the scene, and re-hit a buffered breakpoint.
+  // The tool's internal settle is 15s; a software-rendered relaunch can be slower, so we arm
+  // our own wider stop watcher BEFORE calling it to catch a late re-hit independently — both
+  // listeners observe the same 'stopped' emit, so neither steals it from the other. Log-only.
+  const restartStop = waitForStop(STOP_WAIT_MS);
+  try {
+    const rs = await call("dbg_restart", {});
+    const detail = rs.isError
+      ? `err: ${JSON.stringify(rs.content?.[0]?.text ?? "").slice(0, 120)}`
+      : JSON.stringify(rs.structuredContent ?? {});
+    console.log(`D_DAP_RESTART: isError=${!!rs.isError} ${detail}`);
+  } catch (err) {
+    console.log("D_DAP_RESTART threw:", err?.message ?? String(err));
+  }
+  const rehit = await restartStop;
+  console.log(`D_DAP_RESTART_REHIT: breakpoint_hit=${rehit} reason=${dap.lastStoppedReason ?? "-"}`);
 
   // Best-effort teardown so the launched game process doesn't linger.
   try { await dap.request("terminate", {}, 3000); } catch { /* ignore */ }
