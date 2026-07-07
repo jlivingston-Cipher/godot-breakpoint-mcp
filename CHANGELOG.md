@@ -41,6 +41,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
   branch-protection required checks. **No host/addon code, tool, resource, or version changes** —
   CI + test-only (tool count still **70**, host suite still **124**).
 
+### Added — D4 C#/.NET plane scaffold (C1, experimental)
+- First chunk of the **D4 C#/.NET language plane** (`DEFERRED_TRACKS_PLAN.md` Group C). New
+  `example-csharp/` fixture — a minimal C# Godot project mirroring `example/` (`Player.cs` with
+  `Counter` / `_Ready` / `_Process` / `TakeDamage`; `Godot.NET.Sdk/4.7.0`, `net8.0`). No
+  `claude_bridge` addon by design (the C# plane uses OmniSharp / the Mono debugger, and it avoids a
+  third `ADDON_VERSION` copy under `contract_check.py`).
+- New experimental **`csharp-plane`** job in `integration.yml` (`continue-on-error`, never blocks a
+  merge, like editor/dap-plane): downloads a Mono/.NET Godot build + the .NET 8 SDK, `dotnet build`s
+  the fixture, imports + `--build-solutions`, and boots it headless asserting the C# `_Ready()` ran
+  (`C#_PLANE_BOOT_OK`; markers `C#_PLANE_*`). Validated live on macOS **and** green on a real Linux
+  CI runner (PR #24).
+- Companion plan `docs/D4_CSHARP_PLAN.md` — chunked **C1 → C2** (OmniSharp `cs_*` LSP tools) **→ C3**
+  (netcoredbg DAP), with version-alignment rules and a `gd_*`→`cs_*` mirror table. **Additive only —
+  no host/tool/resource/version change** (still **70 tools**, **124 host tests**; contract check green).
+
 ## [0.6.0] — 2026-07-06
 
 ### Added — D6: zero-config console capture in the runtime bridge (Godot 4.5+)
