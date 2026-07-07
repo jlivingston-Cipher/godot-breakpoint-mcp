@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.16] — 2026-07-06
+
 ### Changed — `dbg_watch` bounds its watch evaluate so a stalling watch fails fast
 - `dbg_watch` re-evaluates its whole watch set at every stop via `DapClient.evaluateWatches`,
   which previously sent each `evaluate` with the full 20 s `dapTimeoutMs`. A single watch
