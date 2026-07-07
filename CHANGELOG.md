@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-07
+
+Releases the D4 C3 **C# debugging plane** (`cs_dbg_*` via netcoredbg), completing the C#/.NET half of
+Plane D — C1 fixture/CI + C2 semantic (`cs_*` via OmniSharp) + C3 debugging. C3 adds new tool surface
+(78 → 88 tools), so this is a minor bump per `docs/D4_CSHARP_PLAN.md`. Every version stamp
+(`host/package.json` + lockfile, `index.ts` serverInfo, both `plugin.cfg`, both `operations.gd`
+`ADDON_VERSION`) is now **0.8.0**. No functional code change since the C3 merge; contract check green
+(88 tools), 160 host tests.
+
 ### Added — D4 C3: the C# debugging plane (`cs_dbg_*` via netcoredbg)
 - The C#/.NET debugging plane — the debugger analogue of the C2 semantic plane, and the mirror of the
   GDScript `dbg_*` DAP plane. **Ten read/inspect `cs_dbg_*` tools** driven by **netcoredbg** (Samsung,
@@ -46,8 +55,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   best-effort, **log-only** launch-to-breakpoint flow over the `example-csharp` fixture. The
   netcoredbg + Godot native-host attach story under headless CI is the least-certain piece of D4
   (see `docs/D4_CSHARP_PLAN.md`), so only the gate is fatal — proven end-to-end by the mock unit suite.
-- **No release cut** — per the D4 plan, a version is cut when a chunk lands new surface; that will fold
-  the C3 tools into the next minor. Versions stay unified at **0.7.0**; npm still 0.4.8 (unpublished).
+- **Released in 0.8.0** — per the D4 plan, a version is cut when a chunk lands new surface; this cut
+  folds the C3 tools into a minor. Versions unified at **0.8.0**; npm still 0.4.8 (publish pending).
 
 ## [0.7.0] — 2026-07-07
 

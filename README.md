@@ -1,6 +1,6 @@
 # Godot–Claude Bridge
 
-> **Status: v0.7.0 — live-validated and hardened.** All four capability planes were
+> **Status: v0.8.0 — live-validated and hardened.** All four capability planes were
 > exercised end-to-end against a real Godot 4.7 editor and a real npm-installed
 > `@modelcontextprotocol/sdk@1.29.0`; the Go/No-Go checklist is GO (see
 > `LIVE_VALIDATION_SIGNOFF.md`). Output schemas are enforced (B1), the SDK floor is
@@ -12,7 +12,7 @@
 > answer it (Godot 4.3's `setVariable`), instead of hanging the full 20 s DAP timeout. **The
 > experimental C#/.NET plane** now spans both halves of Plane D: a **C# semantic plane** (`cs_*` via
 > OmniSharp, D4 C2 — live-validated in CI against a real OmniSharp over the `example-csharp` fixture)
-> and, **new since 0.7.0**, a **C# debugging plane** (`cs_dbg_*` via netcoredbg, D4 C3 — the mock unit
+> and, **new in 0.8.0**, a **C# debugging plane** (`cs_dbg_*` via netcoredbg, D4 C3 — the mock unit
 > suite proves the breakpoint→stack→variables→evaluate flow and the gated, fail-fast mutators, with a
 > live `continue-on-error` netcoredbg probe). Full history in `CHANGELOG.md`; publishing steps and the
 > remote caveat in `docs/DISTRIBUTION.md`.
