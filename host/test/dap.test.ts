@@ -481,6 +481,32 @@ test("dbg_evaluate fails fast with a clear message when the adapter never answer
   await srv.close();
 });
 
+// dbg_watch re-evaluates its whole watch set at every stop. A single watch expression the
+// adapter never answers must fail fast on THAT entry (bounded by dapEvaluateTimeoutMs) rather
+// than hanging the full dapTimeoutMs each stop — and must not fail the rest of the call.
+test("dbg_watch fails fast per expression (bounded by dapEvaluateTimeoutMs) when the adapter never answers a watch evaluate", async () => {
+  const { srv, received } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    // evaluate: deliberately never respond (a watch expression the adapter stalls on)
+  });
+  process.env.GODOT_DAP_EVALUATE_TIMEOUT_MS = "200";
+  const { dap, rec } = dapHarness(srv.port);
+  delete process.env.GODOT_DAP_EVALUATE_TIMEOUT_MS;
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const res = (await rec.handler("dbg_watch")({ add: ["hp"] })) as ToolResultLike;
+  // A stalling watch does NOT error the whole call — it surfaces as a per-entry error…
+  assert.notEqual(res.isError, true);
+  const sc = res.structuredContent as { watches: Array<{ expression: string; value: string; type: string; error: string | null }> };
+  assert.equal(sc.watches.length, 1);
+  assert.equal(sc.watches[0].expression, "hp");
+  // …and that error is the bounded 200 ms deadline, not the full 3 s client timeout.
+  assert.match(sc.watches[0].error ?? "", /timed out after 200ms/i);
+  // The watch evaluate must actually be sent (in watch context) before the bounded deadline fires.
+  assert.ok(received.some((m) => m.command === "evaluate"), "dbg_watch must send the watch evaluate before failing fast");
+  dap.close();
+  await srv.close();
+});
+
 // ---- dbg_restart -----------------------------------------------------------
 
 test("dbg_restart uses the DAP restart request when the adapter advertises supportsRestartRequest", async () => {

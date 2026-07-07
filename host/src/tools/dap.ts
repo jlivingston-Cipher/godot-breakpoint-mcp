@@ -314,7 +314,10 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         if (clear) dap.clearWatches();
         if (remove && remove.length) dap.removeWatches(remove);
         if (add && add.length) dap.addWatches(add);
-        const watches = await dap.evaluateWatches(frame_id);
+        // Bound each watch's evaluate to the short deadline (mirrors dbg_evaluate): a watch
+        // expression the adapter never answers fails fast on that entry instead of hanging the
+        // full dapTimeoutMs (20 s) at every stop, while other watches still resolve normally.
+        const watches = await dap.evaluateWatches(frame_id, cfg.dapEvaluateTimeoutMs);
         return ok({ watches });
       } catch (err) { return fail(err); }
     },
