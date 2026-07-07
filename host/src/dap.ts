@@ -236,12 +236,17 @@ export class DapClient extends EventEmitter {
    * the results. Each expression is evaluated with DAP `context: "watch"` (the
    * side-effect-free evaluation context IDEs use for watch panels). A single bad
    * expression yields an `error` on that entry instead of failing the whole call.
+   *
+   * `timeoutMs` bounds each individual `evaluate` request (defaults to the client's full
+   * `timeoutMs`). Callers pass the shorter `dapEvaluateTimeoutMs` so a watch expression the
+   * adapter never answers fails fast on that entry — mirroring `dbg_evaluate` — instead of
+   * hanging the full 20 s DAP timeout per stalling expression at every stop.
    */
-  async evaluateWatches(frameId?: number): Promise<WatchResult[]> {
+  async evaluateWatches(frameId?: number, timeoutMs = this.timeoutMs): Promise<WatchResult[]> {
     const results: WatchResult[] = [];
     for (const expression of this.watches) {
       try {
-        const body = await this.request("evaluate", { expression, frameId, context: "watch" });
+        const body = await this.request("evaluate", { expression, frameId, context: "watch" }, timeoutMs);
         results.push({
           expression,
           value: String(body["result"] ?? ""),
