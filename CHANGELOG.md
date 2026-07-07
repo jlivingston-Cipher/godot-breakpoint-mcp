@@ -36,10 +36,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   (`runtime_get_log` / `runtime_call_method`) against the live game — the CLI-plane pattern, extended
   to Plane C — reads the `capture` flag, and is version-aware, asserting the correct behavior on each
   side of the 4.5 boundary. (The 4.3 arm depends on the runtime-bridge fix above.)
-- Headless and deterministic (no Xvfb / GPU, unlike the editor/dap planes); introduced as
-  `continue-on-error` until proven green on real runners, then a strong candidate to promote to a
-  required gate. **No host/addon code, tool, resource, or version changes** — CI + test-only (tool
-  count still **70**, host suite still **124**).
+- Headless and deterministic (no Xvfb / GPU, unlike the editor/dap planes); a **required gate** like
+  cli-plane — all three arms (4.3/4.5/4.7) must pass, and the three contexts are added to `main`'s
+  branch-protection required checks. **No host/addon code, tool, resource, or version changes** —
+  CI + test-only (tool count still **70**, host suite still **124**).
 
 ## [0.6.0] — 2026-07-06
 

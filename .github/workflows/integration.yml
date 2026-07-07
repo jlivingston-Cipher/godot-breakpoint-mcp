@@ -12,9 +12,8 @@ name: integration
 #                     the scriptable Logger. MATRIX across 4.3 (below the 4.5 floor — capture is a
 #                     documented no-op: bridge loads, print() absent, push_log still served), 4.5
 #                     (the floor where OS.add_logger was introduced) and 4.7 (newest stable) — on
-#                     4.5/4.7 the print() must be captured. Headless like cli-plane (no Xvfb/GPU),
-#                     but introduced as continue-on-error until proven green on real runners —
-#                     then a candidate to promote to a gate.
+#                     4.5/4.7 the print() must be captured. Headless & deterministic like cli-plane
+#                     (no Xvfb/GPU), and — like cli-plane — a REQUIRED gate: all three arms must pass.
 #   * editor-plane — boots the editor GUI under Xvfb and hits the built-in LSP. Runs as a
 #                    MATRIX across the 4.3 baseline and the newest stable (4.7): the D7_CAPS /
 #                    D7_WS_RAW markers answer whether workspace/symbol and the other
@@ -77,8 +76,8 @@ jobs:
   runtime-plane:
     name: runtime plane vs real game (headless)
     runs-on: ubuntu-latest
-    continue-on-error: true   # first live runtime-plane job; headless & deterministic, so a
-                              # candidate to promote to a required gate once proven green on runners
+    # A required gate, like cli-plane: headless & deterministic (no Xvfb/GPU), so a live-engine flake
+    # can't hide a real regression. All three matrix arms must pass; added to branch protection.
     strategy:
       fail-fast: false        # the 4.3 (no-op), 4.5 (capture floor) and 4.7 (newest) arms are independent
       matrix:
