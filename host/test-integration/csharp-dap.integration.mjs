@@ -121,3 +121,9 @@ if (reached) {
   }
   dap.close();
 }
+
+// The game launched under netcoredbg is a grandchild that can inherit the adapter's stdio pipe
+// and keep this process alive after the probe is done — so node would otherwise linger until the
+// step's outer `timeout` kills it (exit 124), a false failure even though every marker above
+// passed. Exit explicitly; the gate already set exitCode=1 if netcoredbg was unreachable.
+process.exit(process.exitCode ?? 0);
