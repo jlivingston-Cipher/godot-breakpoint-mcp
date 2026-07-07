@@ -6,10 +6,11 @@ heaviest new environment, most isolated, so it lands after all shared host infra
 stable. Chunked exactly the way Plane D was originally built: **fixture → semantic (LSP) → debugging
 (DAP)**.
 
-> **Status:** C1 is **partially scaffolded** on branch `feat/d4-csharp-scaffold` (this doc's branch):
-> the `example-csharp/` fixture and an experimental, non-blocking `csharp-plane` CI job exist but the
-> Mono toolchain has **not** been installed or validated on a real machine/runner yet. C2 and C3 are
-> design-only here. Nothing on `main` changes until a chunk is merged.
+> **Status:** C1 is **scaffolded and locally validated** on branch `feat/d4-csharp-scaffold`: the
+> `example-csharp/` fixture builds and boots C# live on a real Mono Godot build (see
+> §"C1 local validation"). The experimental, non-blocking `csharp-plane` CI job exists; running it
+> green on a real **Linux CI runner** (via a PR) is the one remaining C1 acceptance item. C2 and C3
+> are design-only here. Nothing on `main` changes until a chunk is merged.
 
 ## Why last, and why it shares nothing
 D4 mirrors Plane D for a *different language runtime*. It needs a **Mono/.NET Godot** build (not the
@@ -62,16 +63,29 @@ to what that engine expects (Godot 4.4+ forces `net8.0`). When bumping the CI Go
   (OmniSharp-readiness) → `--import --build-solutions` → boot headless and assert
   `C#_PLANE_BOOT_OK` (the `[example-csharp] player ready` marker).
 
-**Remaining to close C1 (needs a real machine/runner — deliberately NOT done in this cloud scaffold):**
-- Install the .NET 8 SDK + a Mono Godot build locally and/or let the CI job run in a PR; confirm the
-  exact mono binary name and the `--build-solutions` / `--quit-after` behavior on the pinned version.
-- Verify `dotnet build` resolves `Godot.NET.Sdk` 4.7.0 + `GodotSharp` from NuGet with no editor
-  present (this is the path OmniSharp will drive in C2).
-- Once green on real runners, keep it `continue-on-error` for a few runs, then consider promotion the
-  way `runtime-plane` was promoted (§CHANGELOG note in `HANDOFF_SESSION20.md`).
+### C1 local validation — DONE ✅
+Validated live on the maintainer's Apple-Silicon Mac (macOS 15.7, arm64):
+- **.NET SDK 8.0.422** (installed to `~/.dotnet` via the official installer) and the **Mono Godot
+  4.7-stable** macOS build (`Godot_v4.7-stable_mono_macos.universal.zip`).
+- `dotnet restore` + `dotnet build -c Debug` → **Build succeeded, 0 warnings, 0 errors**; emits
+  `.godot/mono/temp/bin/Debug/ExampleCsharp.dll`. Confirms the project resolves `Godot.NET.Sdk`
+  4.7.0 + `GodotSharp` from NuGet **with no editor present** — the exact path OmniSharp drives in C2.
+- `Godot_mono --headless --path example-csharp --import --build-solutions --quit-after 300` →
+  `dotnet_build_project … [ DONE ]` (Godot builds the C# solution itself).
+- `Godot_mono --headless --path example-csharp --quit-after 300` → prints
+  `[example-csharp] player ready` → **`C#_PLANE_BOOT_OK`**. The C# `_Ready()` runs under the engine.
+- Fixture needed **no corrections** — it built and booted first try. Only Godot's generated
+  `Player.cs.uid` (a stable script UID, committed like the GDScript example's `*.uid`) was added.
 
-**Acceptance.** `csharp-plane` prints `C#_PLANE_BOOT_OK` on a real runner; `dotnet build` is green;
-absent the mono toolchain, every other plane and required check is unaffected (new job is additive).
+**Remaining to fully close C1:**
+- Run `csharp-plane` green on a real **Linux** CI runner (open a PR — the job only runs on PR /
+  push-to-`main`). The Linux mono asset name is API-confirmed and the binary is resolved via `find`.
+- Then keep it `continue-on-error` for a few runs before considering promotion to a required check,
+  the way `runtime-plane` was promoted (§CHANGELOG note in `HANDOFF_SESSION20.md`).
+
+**Acceptance.** `csharp-plane` prints `C#_PLANE_BOOT_OK` on a real runner (✅ locally on macOS;
+Linux CI pending a PR); `dotnet build` green (✅); absent the mono toolchain, every other plane and
+required check is unaffected (new job is additive).
 
 ---
 
