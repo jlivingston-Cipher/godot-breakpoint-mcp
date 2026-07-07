@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-06
+
 ### Added — D6: zero-config console capture in the runtime bridge (Godot 4.5+)
 - The in-game runtime autoload (`runtime_bridge.gd`) now registers a scriptable `Logger`
   (`OS.add_logger`, Godot 4.5+) that funnels every `print()`, `push_warning`, `push_error`, and
