@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-07-08
+
 ### Added — Group D (batch 2): TileMapLayer + cell painting (5 tools, 148 → 153)
 - Completes **Group D (TileMap/TileSet)** from the breadth-superset plan. Five D/Editor tools that author a
   `TileMapLayer` node in the edited scene and paint its cells — the in-scene counterpart to batch 1's disk-backed
