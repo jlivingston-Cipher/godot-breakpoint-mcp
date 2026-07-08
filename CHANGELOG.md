@@ -6,6 +6,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-07-08
+
+Lands **Group B of the breadth-superset plan** — the Resources & FileSystem layer that unblocks Groups
+C–F (animation, tilesets, shaders, and audio are all Resources). Two families since 0.10.0: `resource_*`
+(#35) and `filesystem_*` (#36). Tool count **118 → 130** (new `resource_*` family of 8, new `filesystem_*`
+family of 4); host tests **173**; `scripts/contract_check.py` green at **130**. Every file-writing op is
+elicitation-gated — matching the `scene_pack`/`scene_save_as` precedent for disk mutations that fall
+outside `EditorUndoRedoManager` — while reads stay ungated; the import tools feature-detect the `.import`
+sidecar. Every version stamp (`host/package.json` + lockfile, `index.ts` serverInfo, both `plugin.cfg`,
+both `operations.gd` `ADDON_VERSION`) is now **0.11.0** — a minor bump (new tool surface, no breaking
+changes). The live `authoring-plane` CI probe for the Group A/B mutators remains a tracked follow-up.
+
 ### Added — Group B (batch 2): filesystem (4 tools, 126 → 130)
 - Completes **Group B (Resources & FileSystem)** with the `filesystem_*` family. Four A/Editor tools,
   schema-enforced, in lockstep with `scripts/contract_check.py` (130), `registration.test.ts`
