@@ -49,6 +49,18 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _node_set_property(params)
 		"node.get_property":
 			return _node_get_property(params)
+		"node.duplicate":
+			return _node_duplicate(params)
+		"node.get_children":
+			return _node_get_children(params)
+		"node.find":
+			return _node_find(params)
+		"node.list_groups":
+			return _node_list_groups(params)
+		"node.add_to_group":
+			return _node_add_to_group(params)
+		"node.remove_from_group":
+			return _node_remove_from_group(params)
 		"selection.get":
 			return _ok(_selection_get())
 		"selection.set":
@@ -408,3 +420,126 @@ func _screenshot(params: Dictionary) -> Dictionary:
 		"height": img.get_height(),
 		"viewport": which,
 	})
+
+
+# ------------------------------------------------- Group A: node depth -------
+
+func _descendants(node: Node) -> Array:
+	var out: Array = []
+	for c in node.get_children():
+		out.append(c)
+		out.append_array(_descendants(c))
+	return out
+
+
+func _node_duplicate(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	if node == root:
+		return _err("refused", "Cannot duplicate the scene root")
+	var parent := node.get_parent()
+	var dup: Node = node.duplicate()
+	if params.has("name"):
+		dup.name = String(params.get("name"))
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: duplicate %s" % node.name)
+	ur.add_do_method(parent, "add_child", dup)
+	ur.add_do_method(dup, "set_owner", root)
+	for d in _descendants(dup):
+		ur.add_do_method(d, "set_owner", root)
+	ur.add_do_reference(dup)
+	ur.add_undo_method(parent, "remove_child", dup)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, dup), "name": String(dup.name), "type": dup.get_class()})
+
+
+func _node_get_children(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var children: Array = []
+	for c in node.get_children():
+		children.append({"name": String(c.name), "type": c.get_class(), "path": _path_of(root, c)})
+	return _ok({"path": _path_of(root, node), "children": children})
+
+
+func _node_find(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var start := _resolve(root, String(params.get("root_path", ".")))
+	if start == null:
+		return _err("bad_path", "Search root not found: %s" % params.get("root_path", "."))
+	var want_type := String(params.get("type", ""))
+	var name_has := String(params.get("name_contains", ""))
+	var limit := int(params.get("limit", 200))
+	var matches: Array = []
+	for n in _descendants(start):
+		if want_type != "" and not n.is_class(want_type):
+			continue
+		if name_has != "" and String(n.name).findn(name_has) == -1:
+			continue
+		matches.append({"name": String(n.name), "type": n.get_class(), "path": _path_of(root, n)})
+		if matches.size() >= limit:
+			break
+	return _ok({"matches": matches, "count": matches.size()})
+
+
+func _node_list_groups(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var groups: Array = []
+	for g in node.get_groups():
+		groups.append(String(g))
+	return _ok({"path": _path_of(root, node), "groups": groups})
+
+
+func _node_add_to_group(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var group := String(params.get("group", ""))
+	if group == "":
+		return _err("bad_params", "Missing 'group'")
+	if node.is_in_group(group):
+		return _ok({"path": _path_of(root, node), "group": group, "added": false})
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: add %s to group %s" % [node.name, group])
+	ur.add_do_method(node, "add_to_group", group, true)
+	ur.add_undo_method(node, "remove_from_group", group)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "group": group, "added": true})
+
+
+func _node_remove_from_group(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var group := String(params.get("group", ""))
+	if group == "":
+		return _err("bad_params", "Missing 'group'")
+	if not node.is_in_group(group):
+		return _ok({"path": _path_of(root, node), "group": group, "removed": false})
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: remove %s from group %s" % [node.name, group])
+	ur.add_do_method(node, "remove_from_group", group)
+	ur.add_undo_method(node, "add_to_group", group, true)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "group": group, "removed": true})

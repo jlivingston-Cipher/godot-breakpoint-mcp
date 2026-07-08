@@ -107,6 +107,12 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   node_reparent: { path: z.string() },
   node_set_property: { path: z.string(), property: z.string(), value: encodedValue },
   node_get_property: { path: z.string(), property: z.string(), value: encodedValue },
+  node_duplicate: { path: z.string(), name: z.string(), type: z.string() },
+  node_get_children: { path: z.string(), children: z.array(z.object({ name: z.string(), type: z.string(), path: z.string() })) },
+  node_find: { matches: z.array(z.object({ name: z.string(), type: z.string(), path: z.string() })), count: z.number() },
+  node_list_groups: { path: z.string(), groups: z.array(z.string()) },
+  node_add_to_group: { path: z.string(), group: z.string(), added: z.boolean() },
+  node_remove_from_group: { path: z.string(), group: z.string(), removed: z.boolean() },
   selection_get: { selection: z.array(z.string()) },
   selection_set: { selection: z.array(z.string()) },
   classdb_get_class: {
