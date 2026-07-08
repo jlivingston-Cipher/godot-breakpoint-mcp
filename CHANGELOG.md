@@ -6,6 +6,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Group A (batch 1): node-graph authoring depth (6 tools, 93 → 99)
+- First installment of the breadth-superset plan (Group A). Six A/Editor authoring tools, all
+  schema-enforced and — where they mutate — undoable via `EditorUndoRedoManager`, in lockstep with
+  `scripts/contract_check.py` (99), `registration.test.ts` (`EXPECTED_TOOL_COUNT` 93 → 99), and
+  `docs/TOOL_CATALOG.md`:
+  - **`node_duplicate`** — duplicate a node and its subtree under the same parent (undoable; child owners re-set so the copy persists on save).
+  - **`node_get_children`** / **`node_find`** — list a node's direct children, or search descendants by class (`is_class`) and/or a case-insensitive name substring.
+  - **`node_list_groups`** / **`node_add_to_group`** / **`node_remove_from_group`** — read and edit a node's group membership (add/remove undoable, persistent; no-op when already/not a member).
+- Handlers added to both `addons/claude_bridge/operations.gd` copies (dispatch + `_node_*`); host registrations in `host/src/tools/editor.ts`; output schemas in `host/src/schemas.ts`. No release cut; a live `authoring-plane` CI probe for the new mutators is tracked as a follow-up.
+
 ### Changed — `csharp-plane` pins OmniSharp / netcoredbg to known-good releases (CI hardening, no tool change)
 - The required `csharp-plane` gate installed OmniSharp and netcoredbg from `releases/latest/download/…`.
   As a **required** gate that left the job hostage to upstream: an asset rename — or a bad `latest` —

@@ -338,6 +338,30 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 - **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "property"], "properties": { "path": { "type": "string" }, "property": { "type": "string" } } }`
 - **Output** identical shape to `node_set_property` output.
 
+### `node_duplicate` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" } } }`
+
+### `node_get_children` ✅
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "children"], "properties": { "path": { "type": "string" }, "children": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "type": { "type": "string" }, "path": { "type": "string" } } } } } }`
+
+### `node_find` ✅
+- **Input** `{ "type": "object", "additionalProperties": false, "properties": { "root_path": { "type": "string" }, "type": { "type": "string" }, "name_contains": { "type": "string" }, "limit": { "type": "integer" } } }`
+- **Output** `{ "type": "object", "required": ["matches", "count"], "properties": { "matches": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "type": { "type": "string" }, "path": { "type": "string" } } } }, "count": { "type": "integer" } } }`
+
+### `node_list_groups` ✅
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "groups"], "properties": { "path": { "type": "string" }, "groups": { "type": "array", "items": { "type": "string" } } } }`
+
+### `node_add_to_group` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "group"], "properties": { "path": { "type": "string" }, "group": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "group", "added"], "properties": { "path": { "type": "string" }, "group": { "type": "string" }, "added": { "type": "boolean" } } }`
+
+### `node_remove_from_group` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "group"], "properties": { "path": { "type": "string" }, "group": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "group", "removed"], "properties": { "path": { "type": "string" }, "group": { "type": "string" }, "removed": { "type": "boolean" } } }`
+
 ### `selection_get` ✅
 - **Input** `{ "type": "object", "properties": {} }`
 - **Output** `{ "type": "object", "required": ["selection"], "properties": { "selection": { "type": "array", "items": { "type": "string" } } } }`
@@ -970,6 +994,12 @@ via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one tr
 | `node_reparent` | A / Editor | ✅ | undoable |
 | `node_set_property` | A / Editor | ✅ | undoable |
 | `node_get_property` | A / Editor | ✅ | – |
+| `node_duplicate` | A / Editor | ✅ | undoable |
+| `node_get_children` | A / Editor | ✅ | – |
+| `node_find` | A / Editor | ✅ | – |
+| `node_list_groups` | A / Editor | ✅ | – |
+| `node_add_to_group` | A / Editor | ✅ | undoable |
+| `node_remove_from_group` | A / Editor | ✅ | undoable |
 | `selection_get` | A / Editor | ✅ | – |
 | `selection_set` | A / Editor | ✅ | – |
 | `classdb_get_class` | A / Editor | ✅ | – |

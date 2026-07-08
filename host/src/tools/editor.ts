@@ -218,6 +218,86 @@ export function registerEditorTools(server: McpServer, bridge: BridgeClient): vo
   );
 
   server.registerTool(
+    "node_duplicate",
+    {
+      title: "Duplicate node",
+      description: "Duplicate a node and its children under the same parent (undoable). Returns the new node's path.",
+      inputSchema: {
+        path: z.string().describe("Node path relative to the scene root"),
+        name: z.string().optional().describe("Name for the duplicate (defaults to Godot's auto-numbered name)"),
+      },
+    },
+    async ({ path, name }) => call("node.duplicate", name !== undefined ? { path, name } : { path }),
+  );
+
+  server.registerTool(
+    "node_get_children",
+    {
+      title: "Get node children",
+      description: "List the direct children of a node (name, type, path). Read-only.",
+      inputSchema: { path: z.string().describe("Node path relative to the scene root; \".\" for the root") },
+    },
+    async ({ path }) => call("node.get_children", { path }),
+  );
+
+  server.registerTool(
+    "node_find",
+    {
+      title: "Find nodes",
+      description: "Search a node's descendants by class and/or name substring (case-insensitive). Read-only.",
+      inputSchema: {
+        root_path: z.string().optional().describe("Where to search from; \".\" or omitted for the scene root"),
+        type: z.string().optional().describe("Only match nodes of this class (is_class), e.g. Sprite2D"),
+        name_contains: z.string().optional().describe("Only match nodes whose name contains this substring"),
+        limit: z.number().int().positive().optional().describe("Max matches to return (default 200)"),
+      },
+    },
+    async ({ root_path, type, name_contains, limit }) =>
+      call("node.find", {
+        root_path: root_path ?? ".",
+        type: type ?? "",
+        name_contains: name_contains ?? "",
+        limit: limit ?? 200,
+      }),
+  );
+
+  server.registerTool(
+    "node_list_groups",
+    {
+      title: "List node groups",
+      description: "List the groups a node belongs to. Read-only.",
+      inputSchema: { path: z.string().describe("Node path relative to the scene root") },
+    },
+    async ({ path }) => call("node.list_groups", { path }),
+  );
+
+  server.registerTool(
+    "node_add_to_group",
+    {
+      title: "Add node to group",
+      description: "Add a node to a group (persistent, undoable). No-op if already a member.",
+      inputSchema: {
+        path: z.string().describe("Node path relative to the scene root"),
+        group: z.string().describe("Group name"),
+      },
+    },
+    async ({ path, group }) => call("node.add_to_group", { path, group }),
+  );
+
+  server.registerTool(
+    "node_remove_from_group",
+    {
+      title: "Remove node from group",
+      description: "Remove a node from a group (undoable). No-op if not a member.",
+      inputSchema: {
+        path: z.string().describe("Node path relative to the scene root"),
+        group: z.string().describe("Group name"),
+      },
+    },
+    async ({ path, group }) => call("node.remove_from_group", { path, group }),
+  );
+
+  server.registerTool(
     "selection_get",
     { title: "Get selection", description: "Return the paths of the nodes currently selected in the editor.", inputSchema: {} },
     async () => call("selection.get"),
