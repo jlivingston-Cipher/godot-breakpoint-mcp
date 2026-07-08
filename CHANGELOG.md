@@ -6,6 +6,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-07-08
+
+Lands **Group A of the breadth-superset plan** — the full scene-graph authoring foundation, the biggest
+single authoring jump in the project. Four batches of A/Editor tools since 0.9.0: node-graph depth
+(#31), node-depth authoring (#32), scene depth (#33), and signals (#34), plus the session-26
+`csharp-plane` release-pinning hardening (#30). Tool count **93 → 118** (`node_*` 6 → 13, `scene_*`
+4 → 10, new `signal_*` family of 6); host tests **173**; `scripts/contract_check.py` green at **118**.
+Every mutator is undoable via `EditorUndoRedoManager` and every destructive op elicitation-gated, holding
+the rigor bar the breadth-only servers can't. Every version stamp (`host/package.json` + lockfile,
+`index.ts` serverInfo, both `plugin.cfg`, both `operations.gd` `ADDON_VERSION`) is now **0.10.0** — a
+minor bump (new tool surface, no breaking changes). The live `authoring-plane` CI probe for the Group A
+mutators remains a tracked follow-up.
+
 ### Added — Group A (batch 4): signals (6 tools, 112 → 118)
 - New `signal_*` family from the breadth-superset plan — completing Group A's authoring surface. Six
   A/Editor tools, schema-enforced and (where they mutate) undoable via `EditorUndoRedoManager`, in
