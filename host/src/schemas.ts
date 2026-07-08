@@ -167,6 +167,12 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   resource_get_import_settings: { path: z.string(), imported: z.boolean(), importer: z.string(), settings: z.record(encodedValue) },
   resource_set_import_settings: { path: z.string(), reimported: z.boolean(), settings: z.array(z.string()) },
 
+  // ---- Group B: filesystem (tools/editor.ts -> operations.gd _filesystem_*) ----
+  filesystem_list: { path: z.string(), dirs: z.array(z.string()), files: z.array(z.string()) },
+  filesystem_scan: { scanning: z.boolean() },
+  filesystem_move: { moved: z.string(), from: z.string(), moved_import: z.boolean() },
+  filesystem_create_dir: { created: z.string(), existed: z.boolean() },
+
   // ---- Plane D: semantic / LSP (tools/lsp.ts) ----
   gd_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })) },
   gd_hover: { contents: z.string() },

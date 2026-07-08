@@ -6,6 +6,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Group B (batch 2): filesystem (4 tools, 126 → 130)
+- Completes **Group B (Resources & FileSystem)** with the `filesystem_*` family. Four A/Editor tools,
+  schema-enforced, in lockstep with `scripts/contract_check.py` (130), `registration.test.ts`
+  (`EXPECTED_TOOL_COUNT` 126 → 130), and `docs/TOOL_CATALOG.md`:
+  - **`filesystem_list`** — list a project directory's subdirectories and files (hidden entries like `.godot` skipped). Read-only.
+  - **`filesystem_scan`** — trigger an editor rescan so newly added or externally-changed files are picked up.
+  - **`filesystem_move`** — move or rename a file/directory (carrying its `.import` sidecar) and rescan; **destructive** (moves on disk; does not remap references in other resources), elicitation-gated.
+  - **`filesystem_create_dir`** — create a directory recursively and rescan; no-op if it already exists.
+- Handlers in both `addons/claude_bridge/operations.gd` copies (dispatch + `_filesystem_*`), statically parse-checked against local Godot 4.7; host registrations in `host/src/tools/editor.ts`; output schemas in `host/src/schemas.ts`. Built on `DirAccess`, `FileAccess`, and `EditorInterface.get_resource_filesystem()`. Lands Group B; a minor release cut follows.
+
 ### Added — Group B (batch 1): resources (8 tools, 118 → 126)
 - First family of **Group B (Resources & FileSystem)** from the breadth-superset plan — the layer that
   unblocks Groups C–F (animation/tileset/shader/audio are all Resources). Eight A/Editor tools,
