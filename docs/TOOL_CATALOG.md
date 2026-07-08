@@ -512,6 +512,22 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 - **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "settings"], "properties": { "path": { "type": "string" }, "settings": { "type": "object" }, "reimport": { "type": "boolean" }, "confirm": { "type": "boolean" } } }`
 - **Output** `{ "type": "object", "required": ["path", "reimported", "settings"], "properties": { "path": { "type": "string" }, "reimported": { "type": "boolean" }, "settings": { "type": "array", "items": { "type": "string" } } } }`
 
+### `filesystem_list` ✅
+- **Input** `{ "type": "object", "additionalProperties": false, "properties": { "path": { "type": "string", "description": "default res://" } } }`
+- **Output** `{ "type": "object", "required": ["path", "dirs", "files"], "properties": { "path": { "type": "string" }, "dirs": { "type": "array", "items": { "type": "string" } }, "files": { "type": "array", "items": { "type": "string" } } } }`
+
+### `filesystem_scan` ✅
+- **Input** `{ "type": "object", "additionalProperties": false, "properties": {} }`
+- **Output** `{ "type": "object", "required": ["scanning"], "properties": { "scanning": { "type": "boolean" } } }`
+
+### `filesystem_move` ✅ · destructive (moves on disk; no reference remap)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["from_path", "to_path"], "properties": { "from_path": { "type": "string", "pattern": "^res://" }, "to_path": { "type": "string", "pattern": "^res://" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["moved", "from", "moved_import"], "properties": { "moved": { "type": "string" }, "from": { "type": "string" }, "moved_import": { "type": "boolean" } } }`
+
+### `filesystem_create_dir` ✅
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "pattern": "^res://" } } }`
+- **Output** `{ "type": "object", "required": ["created", "existed"], "properties": { "created": { "type": "string" }, "existed": { "type": "boolean" } } }`
+
 ---
 
 # Plane D — Semantic (LSP)  (✅ implemented — Phase 2; raw TCP + LSP `Content-Length` framing to Godot's GDScript language server, default `127.0.0.1:6005`)
@@ -1139,6 +1155,10 @@ via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one tr
 | `resource_set_property` | A / Editor | ✅ | ✔ writes file |
 | `resource_get_import_settings` | A / Editor | ✅ | – |
 | `resource_set_import_settings` | A / Editor | ✅ | ✔ reimports |
+| `filesystem_list` | A / Editor | ✅ | – |
+| `filesystem_scan` | A / Editor | ✅ | – |
+| `filesystem_move` | A / Editor | ✅ | ✔ moves file |
+| `filesystem_create_dir` | A / Editor | ✅ | writes dir |
 | `gd_completion` | D / LSP | ✅ | – |
 | `gd_hover` | D / LSP | ✅ | – |
 | `gd_definition` | D / LSP | ✅ | – |

@@ -115,6 +115,14 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _resource_get_import_settings(params)
 		"resource.set_import_settings":
 			return _resource_set_import_settings(params)
+		"filesystem.list":
+			return _filesystem_list(params)
+		"filesystem.scan":
+			return _filesystem_scan(params)
+		"filesystem.move":
+			return _filesystem_move(params)
+		"filesystem.create_dir":
+			return _filesystem_create_dir(params)
 		"selection.get":
 			return _ok(_selection_get())
 		"selection.set":
@@ -1205,3 +1213,64 @@ func _resource_set_import_settings(params: Dictionary) -> Dictionary:
 		var efs := EditorInterface.get_resource_filesystem()
 		efs.reimport_files(PackedStringArray([path]))
 	return _ok({"path": path, "reimported": reimport, "settings": applied})
+
+
+# ----------------------------------------------- Group B: filesystem --------
+
+func _filesystem_list(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", "res://"))
+	if path == "":
+		path = "res://"
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return _err("not_found", "Directory not found: %s" % path)
+	var dirs: Array = []
+	for d in dir.get_directories():
+		dirs.append(String(d))
+	var files: Array = []
+	for f in dir.get_files():
+		files.append(String(f))
+	return _ok({"path": path, "dirs": dirs, "files": files})
+
+
+func _filesystem_scan(_params: Dictionary) -> Dictionary:
+	EditorInterface.get_resource_filesystem().scan()
+	return _ok({"scanning": true})
+
+
+func _filesystem_move(params: Dictionary) -> Dictionary:
+	var from_path := String(params.get("from_path", ""))
+	var to_path := String(params.get("to_path", ""))
+	if not from_path.begins_with("res://") or not to_path.begins_with("res://"):
+		return _err("bad_params", "'from_path' and 'to_path' must be res:// paths")
+	var is_file := FileAccess.file_exists(from_path)
+	var is_dir := DirAccess.dir_exists_absolute(from_path)
+	if not is_file and not is_dir:
+		return _err("not_found", "Source not found: %s" % from_path)
+	if FileAccess.file_exists(to_path) or DirAccess.dir_exists_absolute(to_path):
+		return _err("exists", "Destination already exists: %s" % to_path)
+	var dir := DirAccess.open("res://")
+	if dir == null:
+		return _err("fs_error", "Could not open res://")
+	var e := dir.rename(from_path, to_path)
+	if e != OK:
+		return _err("move_failed", "rename() returned %d" % e)
+	var moved_import := false
+	if is_file and FileAccess.file_exists(from_path + ".import"):
+		dir.rename(from_path + ".import", to_path + ".import")
+		moved_import = true
+	EditorInterface.get_resource_filesystem().scan()
+	return _ok({"moved": to_path, "from": from_path, "moved_import": moved_import})
+
+
+func _filesystem_create_dir(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", ""))
+	if not path.begins_with("res://"):
+		return _err("bad_params", "'path' must be a res:// path")
+	if DirAccess.dir_exists_absolute(path):
+		return _ok({"created": path, "existed": true})
+	var e := DirAccess.make_dir_recursive_absolute(path)
+	if e != OK:
+		return _err("mkdir_failed", "make_dir_recursive_absolute() returned %d" % e)
+	EditorInterface.get_resource_filesystem().scan()
+	return _ok({"created": path, "existed": false})
