@@ -226,6 +226,13 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   particles_set_emitting: { path: z.string(), emitting: z.boolean() },
   particles_set_texture: { path: z.string(), texture_path: z.string() },
 
+  // ---- Group F batch 2: shaders (tools/editor.ts -> operations.gd _shader_* / _shadermaterial_*) ----
+  shader_create: { created: z.string(), type: z.string(), code_length: z.number() },
+  shader_set_code: { path: z.string(), code_length: z.number() },
+  shadermaterial_create: { path: z.string(), target_property: z.string(), type: z.string(), shader_path: z.string() },
+  shadermaterial_set_shader: { path: z.string(), shader_path: z.string() },
+  shadermaterial_set_param: { path: z.string(), param: z.string(), value: encodedValue },
+
   // ---- Plane D: semantic / LSP (tools/lsp.ts) ----
   gd_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })) },
   gd_hover: { contents: z.string() },
