@@ -1,18 +1,20 @@
 # Breakpoint MCP
 
 > A [Model Context Protocol](https://modelcontextprotocol.io) server that brings the
-> **Godot game engine** into Claude's development loop — authoring scenes, writing
-> type-checked GDScript, running the project, and debugging the live game.
+> **Godot game engine** into an AI assistant's development loop — authoring scenes,
+> writing type-checked GDScript, running the project, and debugging the live game.
+> Developed and tested with **Claude**; MCP is an open protocol, so other clients can
+> connect too (see [Compatibility](#compatibility)).
 >
 > **v0.17.0 · 242 tools + 5 MCP resources · MIT.** The host builds against the stable
 > `@modelcontextprotocol/sdk` 1.x API and is exercised by a 223-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
-Breakpoint MCP connects Claude (Claude Code or Claude Desktop) to a running Godot
-editor and game. Instead of only scaffolding files, the assistant can open a scene,
-add and wire nodes with full undo/redo, write GDScript with type-aware completion and
-diagnostics, set a breakpoint and step through a failure from real program state, and
-then drive the running game — the same inner loop a human developer uses.
+Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
+game. Instead of only scaffolding files, the assistant can open a scene, add and wire
+nodes with full undo/redo, write GDScript with type-aware completion and diagnostics,
+set a breakpoint and step through a failure from real program state, and then drive the
+running game — the same inner loop a human developer uses.
 
 It speaks Godot's **own** protocols — the editor plugin's loopback bridge, and Godot's
 built-in **language server (LSP)** and **debug adapter (DAP)** — rather than
@@ -122,9 +124,9 @@ npm install
 npm run build   # tsc -> dist/
 ```
 
-### 3. Register with Claude
+### 3. Register with your MCP client
 
-**Claude Code:**
+Claude is the primary, tested client. **Claude Code:**
 
 ```bash
 claude mcp add godot -- npx -y breakpoint-mcp
@@ -147,6 +149,10 @@ claude mcp add godot -- npx -y breakpoint-mcp
 }
 ```
 
+Using a different MCP client (Cursor, VS Code, Windsurf, …)? See
+[Compatibility](#compatibility) below — the command is the same, only the config file
+and wrapper key differ.
+
 ## Configuration (environment variables)
 
 | Var | Default | Meaning |
@@ -163,6 +169,52 @@ claude mcp add godot -- npx -y breakpoint-mcp
 | `CLAUDE_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout |
 
 The full, annotated configuration reference is in the [User Guide](docs/USER_GUIDE.md).
+
+## Compatibility
+
+Breakpoint MCP is a standard MCP server that talks over stdio, so in principle it works
+with **any MCP-compatible client**. It is developed and tested with **Claude** (Claude
+Code and Claude Desktop) — that's the supported path today. Other clients such as
+Cursor, VS Code (Copilot agent mode), and Windsurf should work with the same command and
+environment variables, but they are **not yet tested** with this server. If you try
+Breakpoint MCP with another client — or a different model behind it — we'd genuinely love
+to hear how it goes: please [open an issue](https://github.com/jlivingston-Cipher/godot-claude-bridge/issues)
+describing your client and what worked or didn't.
+
+Every client launches the host the same way: the command `npx -y breakpoint-mcp` with the
+environment variables from the table above. Only the config file location and the wrapper
+key differ.
+
+| Client | Config file | Wrapper key | Notes |
+|---|---|---|---|
+| **Claude Code** | — | — | `claude mcp add godot -- npx -y breakpoint-mcp` |
+| **Claude Desktop** | `claude_desktop_config.json` | `mcpServers` | see example above |
+| **Cursor** | `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project) | `mcpServers` | same shape as Claude Desktop |
+| **VS Code** (Copilot agent mode) | `.vscode/mcp.json` | `servers` | each entry also needs `"type": "stdio"` |
+| **Windsurf** (Cascade) | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` | same shape as Claude Desktop |
+| **Any other MCP client** | per its docs | — | point it at `npx -y breakpoint-mcp` as a stdio server + pass the env vars |
+
+VS Code uses a slightly different shape (`servers`, with an explicit transport `type`):
+
+```json
+{
+  "servers": {
+    "godot": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "breakpoint-mcp"],
+      "env": {
+        "GODOT_BIN": "/abs/path/to/Godot",
+        "GODOT_PROJECT": "/abs/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+Because the tool descriptions were tuned with Claude, another model may drive the tools
+differently; if you notice rough edges with a particular client or model, an issue with
+details helps us improve the experience for everyone.
 
 ## A typical session
 

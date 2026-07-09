@@ -2,9 +2,11 @@
 
 The MCP **host** for [Breakpoint MCP](https://github.com/jlivingston-Cipher/godot-claude-bridge) —
 a [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the
-Godot game engine to Claude across four planes: headless CLI, the live editor, Godot's
-own LSP + DAP, and a runtime bridge inside the running game. **242 tools + 5 MCP
-resources**, built against the stable `@modelcontextprotocol/sdk` 1.x API.
+Godot game engine to AI coding assistants across four planes: headless CLI, the live
+editor, Godot's own LSP + DAP, and a runtime bridge inside the running game. **242 tools
++ 5 MCP resources**, built against the stable `@modelcontextprotocol/sdk` 1.x API.
+Developed and tested with **Claude**; because MCP is an open protocol, other clients can
+connect too (currently untested — reports welcome).
 
 This package is the TypeScript host that Claude talks to over stdio. It needs the
 companion **Godot editor addon** (`breakpoint_mcp`) installed in your project to reach
@@ -22,9 +24,9 @@ npm i -g breakpoint-mcp     # install the `breakpoint-mcp` command
 Requires **Node ≥ 18**. The host targets the `@modelcontextprotocol/sdk` `1.x` line
 (the `registerTool({ inputSchema, outputSchema })` + elicitation surface).
 
-## Register with Claude
+## Register with your MCP client
 
-**Claude Code:**
+Claude is the primary, tested client. **Claude Code:**
 
 ```bash
 claude mcp add godot -- npx -y breakpoint-mcp
@@ -51,6 +53,10 @@ Set `GODOT_BIN` if `godot` isn't on your `PATH`. The full environment-variable t
 (bridge / LSP / DAP / runtime hosts, ports, and timeouts) and a complete walkthrough are
 in the [repository README](https://github.com/jlivingston-Cipher/godot-claude-bridge#configuration-environment-variables)
 and the [User Guide](https://github.com/jlivingston-Cipher/godot-claude-bridge/blob/main/docs/USER_GUIDE.md).
+
+Using Cursor, VS Code, Windsurf, or another MCP client? The command is identical — see
+the [Compatibility](https://github.com/jlivingston-Cipher/godot-claude-bridge#compatibility)
+section for each client's config file and format.
 
 ## The addon (required for the editor / runtime planes)
 

@@ -1,7 +1,7 @@
 # Breakpoint MCP — User Guide
 
 Welcome. This guide walks you, start to finish, through installing and using
-**Breakpoint MCP** — a bridge that lets Claude work inside the Godot game engine.
+**Breakpoint MCP** — a bridge that lets an AI assistant work inside the Godot game engine.
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
@@ -17,7 +17,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 1. [Introduction — what it is and who it's for](#1-introduction)
 2. [Requirements](#2-requirements)
 3. [Installation](#3-installation)
-4. [Registering with Claude](#4-registering-with-claude)
+4. [Registering with an MCP client](#4-registering-with-an-mcp-client)
 5. [Configuration (environment variables)](#5-configuration)
 6. [Concepts: the four planes, the addon vs. the host, and MCP resources](#6-concepts)
 7. [Quick start: your first end-to-end session](#7-quick-start)
@@ -32,16 +32,21 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 ## 1. Introduction
 
-Breakpoint MCP is a **Model Context Protocol (MCP) server** that connects Claude —
-whether you use Claude Code or Claude Desktop — to a live Godot project. With it,
-Claude can move past writing snippets you paste by hand and instead work the way you
-do: author scenes, write type-checked GDScript, run the project, inspect and debug it,
-and drive the running game directly.
+Breakpoint MCP is a **Model Context Protocol (MCP) server** that connects an
+MCP-compatible AI assistant to a live Godot project. With it, your assistant can move
+past writing snippets you paste by hand and instead work the way you do: author scenes,
+write type-checked GDScript, run the project, inspect and debug it, and drive the running
+game directly.
+
+It is developed and tested with **Claude** (Claude Code or Claude Desktop), which is the
+primary supported client. Because MCP is an open protocol, other clients — such as Cursor,
+VS Code, and Windsurf — can connect too; those combinations are not yet tested. Section 4
+covers how to configure each one, and we'd love for you to report how it goes.
 
 It has two pieces that work together:
 
-- A **TypeScript host** (the npm package `breakpoint-mcp`). Claude launches this and
-  talks to it over stdio. The host is the MCP server; it holds all the tool
+- A **TypeScript host** (the npm package `breakpoint-mcp`). Your MCP client launches this
+  and talks to it over stdio. The host is the MCP server; it holds all the tool
   definitions and speaks to Godot on your behalf.
 - A **Godot editor addon** (`addons/breakpoint_mcp/`) that you drop into your project.
   When enabled, it opens small local servers that the host connects to — one inside the
@@ -61,7 +66,7 @@ edit the AI makes in the editor goes through Godot's own undo system, so a singl
 - Anyone who prefers a **local-only, undoable, confirmation-gated** setup where the AI
   asks before doing anything destructive.
 
-### What Claude can do with it
+### What it can do
 
 - Read and edit scenes and nodes with full undo/redo.
 - Write GDScript with completion, hover, go-to-definition, references, rename, and
@@ -80,7 +85,7 @@ edit the AI makes in the editor goes through Godot's own undo system, so a singl
 | **Node.js ≥ 18** | Runs the host. Node 18, 20, and 22 are all exercised in CI. |
 | **Godot 4.2+** | Minimum supported editor. **4.4+ is recommended** — several editor tools use APIs added in 4.4. |
 | **A desktop with a display / GPU** | The editor bridge, viewport screenshots, and the running game need a real display. This is a developer-machine tool, not a headless-server tool. |
-| **Claude Code or Claude Desktop** | Either MCP client works. |
+| **An MCP client** | Claude Code or Claude Desktop are the tested clients; other MCP clients can also connect. |
 
 A few capabilities are **version-gated** and light up only on newer Godot builds. These
 degrade gracefully — if your Godot build does not support one, the tool returns a clear
@@ -102,7 +107,7 @@ launched lazily — if you do not use the C# tools, nothing is spawned and you p
 ## 3. Installation
 
 There are two halves to install: the **editor addon** into your Godot project, and the
-**host** that Claude runs.
+**host** that your MCP client runs.
 
 ### 3.1 Install the editor addon into your project
 
@@ -159,14 +164,18 @@ npm install      # needs npm registry access
 npm run build    # compiles TypeScript to dist/
 ```
 
-That produces `host/dist/index.js`, the entry point Claude runs.
+That produces `host/dist/index.js`, the entry point your MCP client runs.
 
 ---
 
-## 4. Registering with Claude
+## 4. Registering with an MCP client
 
 Point your MCP client at the host. You can name the server anything; the examples use
-`godot`.
+`godot`. **Claude (Claude Code and Claude Desktop) is the primary, tested client.** MCP is
+an open protocol, so the other clients below should work with the same command and
+environment variables — but they are not yet tested with this server, and we'd welcome a
+report of how it goes. Every client runs the host the same way (`npx breakpoint-mcp`, or
+`node …/dist/index.js` for a local build); only the config file and the wrapper key differ.
 
 ### Claude Code
 
@@ -214,7 +223,62 @@ Add an entry to `claude_desktop_config.json`:
 If you built from source, use `"command": "node"` and
 `"args": ["/abs/path/to/host/dist/index.js"]` instead.
 
-Restart or refresh the client so it picks up the new server. Claude should then see the
+### Other MCP clients
+
+These are untested with Breakpoint MCP but use the same host command. The configuration
+formats below follow each client's own documentation (as of mid-2026); if something has
+moved, check your client's current MCP docs.
+
+**Cursor** — add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project root),
+using the same shape as Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "godot": {
+      "command": "npx",
+      "args": ["breakpoint-mcp"],
+      "env": {
+        "GODOT_BIN": "/abs/path/to/Godot",
+        "GODOT_PROJECT": "/abs/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+**VS Code** (Copilot agent mode) — add to `.vscode/mcp.json`. Note the top-level key is
+`servers` (not `mcpServers`), and each entry declares its transport `type`:
+
+```json
+{
+  "servers": {
+    "godot": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["breakpoint-mcp"],
+      "env": {
+        "GODOT_BIN": "/abs/path/to/Godot",
+        "GODOT_PROJECT": "/abs/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+**Windsurf** (Cascade) — add to `~/.codeium/windsurf/mcp_config.json`, using the same
+`mcpServers` shape as Cursor / Claude Desktop.
+
+**Any other MCP client** — configure a local **stdio** server whose command is
+`npx breakpoint-mcp` (or `node /abs/path/to/host/dist/index.js`) and pass the environment
+variables from [Configuration](#5-configuration). Consult your client's MCP docs for the
+exact file location and JSON shape.
+
+Because the tool descriptions were written and tuned with Claude, a different model may
+choose or sequence the tools differently. If you hit rough edges with a specific client or
+model, an issue with the details helps us make it better for everyone.
+
+Restart or refresh the client so it picks up the new server. The client should then see the
 `godot_*`, `editor_*`, `scene_*`, `node_*`, `gd_*`, `dbg_*`, `runtime_*` (and other) tools
 plus the `godot://…` resources.
 
@@ -320,7 +384,7 @@ way of reaching into Godot. Understanding them makes it clear which tools work w
 
 ### The host and the addon
 
-- The **host** is the MCP server Claude runs. It owns every tool and speaks four
+- The **host** is the MCP server your client runs. It owns every tool and speaks four
   different protocols out to Godot.
 - The **addon** is a Godot `EditorPlugin` in your project. When enabled, it opens the
   editor bridge (in the editor) and registers the runtime bridge (in the running game).
@@ -329,7 +393,7 @@ Some planes need only the host and the Godot binary (they shell out to Godot on 
 command line). Others need the editor open with the addon enabled, or the game running.
 
 ```
-┌───────────────── Claude (Claude Code / Claude Desktop) ─────────────────┐
+┌───────────────── MCP client (Claude Code / Desktop, …) ─────────────────┐
 │                            MCP over stdio                                │
 └──────────────────────────────────┬──────────────────────────────────────┘
                           host (TypeScript MCP server)
@@ -346,7 +410,7 @@ command line). Others need the editor open with the addon enabled, or the game r
 Runs the Godot binary on the command line. **Works with no editor open.** Use it to check
 the version, launch the editor, run the project, export or import, and run headless
 scripts or test suites. It also includes **managed-process capture**
-(`godot_run_managed` / `godot_output` / `godot_stop`) so Claude can read the game's full
+(`godot_run_managed` / `godot_output` / `godot_stop`) so the assistant can read the game's full
 `print()` / error console.
 
 Long-running jobs — `godot_export`, `godot_import`, and `godot_run_headless_script` — run
@@ -383,14 +447,14 @@ build and per adapter; where a capability is not implemented, the tool returns a
 ### Plane C — Runtime Bridge (`runtime_*`, 9 tools)
 
 An autoload (`BreakpointRuntimeBridge`) that lives inside the **running game** and listens
-on `127.0.0.1:9081`. Through it, Claude can read the live SceneTree, get and set runtime
+on `127.0.0.1:9081`. Through it, the assistant can read the live SceneTree, get and set runtime
 properties, call methods, emit signals, inject input for play-testing, read performance
 monitors, and capture in-game frames. On **Godot 4.5+** it additionally captures the
 game's console (`print()`, warnings, errors) with zero configuration.
 
 ### The 5 MCP resources
 
-Alongside tools, the host exposes five **resources** — read-mostly context Claude can pull
+Alongside tools, the host exposes five **resources** — read-mostly context the assistant can pull
 on demand:
 
 | URI | Source |
@@ -412,7 +476,7 @@ loses, or renames a node. Rapid changes are coalesced per URI (see
 
 ## 7. Quick start
 
-This is a first end-to-end session that touches every plane. Ask Claude to perform these
+This is a first end-to-end session that touches every plane. Ask your assistant to perform these
 steps in order; the tool names show what happens under the hood. It assumes you have the
 addon enabled and the host registered (Sections 3–4).
 
@@ -443,7 +507,7 @@ addon enabled and the host registered (Sections 3–4).
 **5. Run the project and see it.**
 
 - `godot_run_project` (or `godot_run_managed` to also capture console output).
-- `screenshot_editor` → let Claude see the editor viewport.
+- `screenshot_editor` → let the assistant see the editor viewport.
 
 **6. Debug a live bug from real state.**
 
@@ -630,7 +694,7 @@ gated, and should only be pointed at code you trust:
 
 ## 10. Typical workflows
 
-A few worked recipes. Each is something you can ask Claude to do; the tool names show the
+A few worked recipes. Each is something you can ask your assistant to do; the tool names show the
 underlying steps.
 
 ### A. Scene authoring
@@ -640,7 +704,7 @@ underlying steps.
 3. `node_add`, then `node_set_property` for each field (Variant values like `Vector2` /
    `Color` are tagged — see `docs/TOOL_CATALOG.md`).
 4. `node_instantiate_scene` to drop in prefabs; `signal_connect` to wire behavior.
-5. `screenshot_editor` so Claude can see the result, then adjust.
+5. `screenshot_editor` so the assistant can see the result, then adjust.
 6. `scene_save`. Anything you dislike reverts with **Ctrl-Z** or `editor_undo`.
 
 ### B. Debugging a bug
