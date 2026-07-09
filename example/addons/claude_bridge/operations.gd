@@ -23,6 +23,10 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _ok(_ping())
 		"editor.get_state":
 			return _ok(_editor_get_state())
+		"edit.undo":
+			return _edit_undo(params)
+		"edit.redo":
+			return _edit_redo(params)
 		"project.get_info":
 			return _ok(_project_get_info())
 		"project.get_setting":
@@ -295,6 +299,61 @@ func _editor_get_state() -> Dictionary:
 		"selection": selection,
 		"godot": Engine.get_version_info().get("string", ""),
 	}
+
+
+func _edit_undo(params: Dictionary) -> Dictionary:
+	return _edit_history_step(params, true)
+
+
+func _edit_redo(params: Dictionary) -> Dictionary:
+	return _edit_history_step(params, false)
+
+
+## Drive the editor's undo/redo history. `is_undo` picks the direction.
+## `scope` selects which history: "scene" (default) resolves the edited scene's
+## history via EditorUndoRedoManager.get_object_history_id(root) — the same
+## routing the node_* mutators commit into — while "global" targets the
+## editor-wide GLOBAL_HISTORY. The concrete UndoRedo is fetched with
+## get_history_undo_redo(id) and stepped directly; that is the only
+## scripting-exposed route to a programmatic Ctrl-Z (validated on Godot 4.7).
+func _edit_history_step(params: Dictionary, is_undo: bool) -> Dictionary:
+	var ur := _plugin.get_undo_redo()
+	var scope := String(params.get("scope", "scene"))
+	var hid := _history_id_for_scope(ur, scope)
+	if hid == EditorUndoRedoManager.INVALID_HISTORY:
+		return _err("no_history", "No undo/redo history for scope '%s'" % scope)
+	var hist := ur.get_history_undo_redo(hid)
+	if hist == null:
+		return _err("no_history", "No UndoRedo for history %d (scope '%s')" % [hid, scope])
+	var performed := false
+	var action_name := ""
+	if is_undo:
+		if hist.has_undo():
+			action_name = hist.get_current_action_name()
+			performed = hist.undo()
+	else:
+		if hist.has_redo():
+			performed = hist.redo()
+			action_name = hist.get_current_action_name()
+	return _ok({
+		"performed": performed,
+		"direction": ("undo" if is_undo else "redo"),
+		"action": (action_name if performed else ""),
+		"has_undo": hist.has_undo(),
+		"has_redo": hist.has_redo(),
+		"history_id": hid,
+		"scope": scope,
+	})
+
+
+## Resolve the target undo-history id for a scope string.
+func _history_id_for_scope(ur: EditorUndoRedoManager, scope: String) -> int:
+	if scope == "global":
+		return EditorUndoRedoManager.GLOBAL_HISTORY
+	var root := _edited_root()
+	if root != null:
+		return ur.get_object_history_id(root)
+	return EditorUndoRedoManager.GLOBAL_HISTORY
 
 
 func _project_get_info() -> Dictionary:
