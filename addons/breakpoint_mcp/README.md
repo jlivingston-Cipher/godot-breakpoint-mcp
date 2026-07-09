@@ -1,11 +1,11 @@
 # Breakpoint MCP (Godot editor addon)
 
-Loopback TCP/JSON bridge that exposes the live Godot editor (and, via the runtime autoload, the running game) to an MCP host so Claude can drive it. Part of [breakpoint-mcp](../../../README.md) — the live-validated v0.4.x build.
+Loopback TCP/JSON bridge that exposes the live Godot editor (and, via the runtime autoload, the running game) to an MCP host so an AI assistant can drive it. Part of [breakpoint-mcp](../../../README.md).
 
 ## Install
 1. Copy this `breakpoint_mcp/` folder into your project's `addons/` directory so the path is `res://addons/breakpoint_mcp/`.
 2. Enable it under **Project → Project Settings → Plugins → Breakpoint MCP**.
-3. On enable it listens on `127.0.0.1:9080`. Override the port by setting the `CLAUDE_BRIDGE_PORT` environment variable *before* launching Godot.
+3. On enable it listens on `127.0.0.1:9080`. Override the port by setting the `BREAKPOINT_BRIDGE_PORT` environment variable *before* launching Godot (the legacy `CLAUDE_BRIDGE_PORT` still works for now, with a deprecation warning).
 
 Requires **Godot 4.2+** (uses the `EditorInterface` singleton; 4.4+ recommended).
 

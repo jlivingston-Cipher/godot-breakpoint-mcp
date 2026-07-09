@@ -104,7 +104,7 @@ Ask Claude to run each; mark pass/fail.
 - `claude mcp remove godot` if desired.
 
 ## Troubleshooting
-- **`editor_ping` fails** — plugin not enabled, or port 9080 taken (set `CLAUDE_BRIDGE_PORT` before launching Godot **and** `CLAUDE_BRIDGE_PORT` in the host env).
+- **`editor_ping` fails** — plugin not enabled, or port 9080 taken (set `BREAKPOINT_BRIDGE_PORT` before launching Godot **and** `BREAKPOINT_BRIDGE_PORT` in the host env).
 - **`gd_*` fail** — LSP not running or wrong port; check Editor Settings → Network → Language Server, set `GODOT_LSP_PORT`.
 - **`dbg_*` fail** — Debug Adapter disabled or port mismatch; set `GODOT_DAP_PORT`. `stepOut` may be unsupported on older Godot.
 - **`runtime_*` fail** — game not running, or the autoload didn't register (re-enable the plugin, confirm `BreakpointRuntimeBridge listening on 127.0.0.1:9081` in the game's Output).

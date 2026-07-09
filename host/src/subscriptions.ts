@@ -18,7 +18,7 @@ import { log } from "./logger.js";
 
 /**
  * Default trailing window (ms) for coalescing rapid resource.changed events into
- * fewer notifications/resources/updated. Override via CLAUDE_RESOURCE_COALESCE_MS.
+ * fewer notifications/resources/updated. Override via BREAKPOINT_RESOURCE_COALESCE_MS.
  * Multiple `updated` are spec-harmless (the client just re-reads), so this only
  * trims volume; 0 disables coalescing entirely.
  */

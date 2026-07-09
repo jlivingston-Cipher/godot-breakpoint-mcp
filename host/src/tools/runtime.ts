@@ -137,7 +137,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
     "runtime_screenshot",
     {
       title: "Runtime screenshot",
-      description: "Capture the current game frame as a PNG and return it as image content so Claude can see the running game.",
+      description: "Capture the current game frame as a PNG and return it as image content so the assistant can see the running game.",
       inputSchema: {},
     },
     async () => {

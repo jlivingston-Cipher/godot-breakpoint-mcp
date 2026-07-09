@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig } from "./config.js";
+import { envCompat, loadConfig } from "./config.js";
 import { BridgeClient } from "./bridge.js";
 import { LspClient } from "./lsp.js";
 import { CsLspClient } from "./cslsp.js";
@@ -114,10 +114,9 @@ async function main(): Promise<void> {
   // D3: resource subscriptions — push notifications/resources/updated when a
   // subscribed godot://… resource changes (editor selection / edited scene, or
   // the running game's live SceneTree). Rapid changes are coalesced per-URI; the
-  // trailing window is overridable via CLAUDE_RESOURCE_COALESCE_MS.
-  const coalesceMs = process.env.CLAUDE_RESOURCE_COALESCE_MS
-    ? Number.parseInt(process.env.CLAUDE_RESOURCE_COALESCE_MS, 10)
-    : undefined;
+  // trailing window is overridable via BREAKPOINT_RESOURCE_COALESCE_MS.
+  const coalesceRaw = envCompat("BREAKPOINT_RESOURCE_COALESCE_MS", "CLAUDE_RESOURCE_COALESCE_MS");
+  const coalesceMs = coalesceRaw ? Number.parseInt(coalesceRaw, 10) : undefined;
   registerResourceSubscriptions(server, bridge, runtime, undefined, { coalesceMs });
 
   const transport = new StdioServerTransport();

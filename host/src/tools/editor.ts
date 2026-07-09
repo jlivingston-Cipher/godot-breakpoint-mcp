@@ -696,7 +696,7 @@ export function registerEditorTools(server: McpServer, bridge: BridgeClient): vo
     {
       title: "Screenshot editor viewport",
       description:
-        "Capture the 2D or 3D editor viewport as a PNG and return it as image content so Claude can see the scene. " +
+        "Capture the 2D or 3D editor viewport as a PNG and return it as image content so the assistant can see the scene. " +
         "Requires the matching editor tab (2D/3D) to be active and rendered.",
       inputSchema: { viewport: z.enum(["2d", "3d"]).optional().describe("Which viewport (default 3d)") },
     },

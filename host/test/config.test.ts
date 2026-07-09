@@ -3,12 +3,16 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { loadConfig } from "../src/config.js";
 
-/** Keys loadConfig reads, so each test can restore the environment cleanly. */
+/** Keys loadConfig reads, so each test can restore the environment cleanly.
+ *  Both the current BREAKPOINT_* names and the deprecated CLAUDE_* fallbacks are
+ *  listed so withEnv() clears any that leaked in from the ambient environment. */
 const ENV_KEYS = [
   "GODOT_PROJECT", "GODOT_BIN",
+  "BREAKPOINT_BRIDGE_HOST", "BREAKPOINT_BRIDGE_PORT", "BREAKPOINT_BRIDGE_TIMEOUT_MS",
   "CLAUDE_BRIDGE_HOST", "CLAUDE_BRIDGE_PORT", "CLAUDE_BRIDGE_TIMEOUT_MS",
   "GODOT_LSP_HOST", "GODOT_LSP_PORT", "GODOT_LSP_TIMEOUT_MS",
   "GODOT_DAP_HOST", "GODOT_DAP_PORT", "GODOT_DAP_TIMEOUT_MS",
+  "BREAKPOINT_RUNTIME_HOST", "BREAKPOINT_RUNTIME_PORT", "BREAKPOINT_RUNTIME_TIMEOUT_MS",
   "CLAUDE_RUNTIME_HOST", "CLAUDE_RUNTIME_PORT", "CLAUDE_RUNTIME_TIMEOUT_MS",
 ];
 
@@ -63,12 +67,12 @@ test("ports and timeouts are parsed as integers from the environment", () => {
     {
       GODOT_PROJECT: "/tmp/proj",
       GODOT_BIN: "/opt/homebrew/bin/godot",
-      CLAUDE_BRIDGE_HOST: "0.0.0.0",
-      CLAUDE_BRIDGE_PORT: "19080",
-      CLAUDE_BRIDGE_TIMEOUT_MS: "5000",
+      BREAKPOINT_BRIDGE_HOST: "0.0.0.0",
+      BREAKPOINT_BRIDGE_PORT: "19080",
+      BREAKPOINT_BRIDGE_TIMEOUT_MS: "5000",
       GODOT_LSP_PORT: "16005",
       GODOT_DAP_PORT: "16006",
-      CLAUDE_RUNTIME_PORT: "19081",
+      BREAKPOINT_RUNTIME_PORT: "19081",
     },
     () => {
       const c = loadConfig();
@@ -80,6 +84,46 @@ test("ports and timeouts are parsed as integers from the environment", () => {
       assert.equal(c.lspPort, 16005);
       assert.equal(c.dapPort, 16006);
       assert.equal(c.runtimePort, 19081);
+    },
+  );
+});
+
+test("deprecated CLAUDE_* env vars still apply when the BREAKPOINT_* name is unset", () => {
+  withEnv(
+    {
+      GODOT_PROJECT: "/tmp/proj",
+      CLAUDE_BRIDGE_HOST: "10.0.0.1",
+      CLAUDE_BRIDGE_PORT: "18080",
+      CLAUDE_BRIDGE_TIMEOUT_MS: "4000",
+      CLAUDE_RUNTIME_HOST: "10.0.0.2",
+      CLAUDE_RUNTIME_PORT: "18081",
+      CLAUDE_RUNTIME_TIMEOUT_MS: "4200",
+    },
+    () => {
+      const c = loadConfig();
+      assert.equal(c.bridgeHost, "10.0.0.1");
+      assert.equal(c.bridgePort, 18080);
+      assert.equal(c.bridgeTimeoutMs, 4000);
+      assert.equal(c.runtimeHost, "10.0.0.2");
+      assert.equal(c.runtimePort, 18081);
+      assert.equal(c.runtimeTimeoutMs, 4200);
+    },
+  );
+});
+
+test("BREAKPOINT_* takes precedence over a deprecated CLAUDE_* of the same var", () => {
+  withEnv(
+    {
+      GODOT_PROJECT: "/tmp/proj",
+      BREAKPOINT_BRIDGE_PORT: "20080",
+      CLAUDE_BRIDGE_PORT: "19080",
+      BREAKPOINT_RUNTIME_HOST: "192.168.0.5",
+      CLAUDE_RUNTIME_HOST: "10.0.0.9",
+    },
+    () => {
+      const c = loadConfig();
+      assert.equal(c.bridgePort, 20080);
+      assert.equal(c.runtimeHost, "192.168.0.5");
     },
   );
 });

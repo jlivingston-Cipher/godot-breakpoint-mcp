@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Every handler returns a plain Dictionary that becomes the JSON-RPC `result`.
 ## Errors are raised via `_err(code, message)`. All edit-time mutations are
-## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything Claude did.
+## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything the assistant did.
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const ADDON_VERSION := "0.17.0"
@@ -548,7 +548,7 @@ func _node_add(params: Dictionary) -> Dictionary:
 	var node: Node = ClassDB.instantiate(type)
 	node.name = String(params.get("name", type))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -569,7 +569,7 @@ func _node_delete(params: Dictionary) -> Dictionary:
 	var parent := node.get_parent()
 	var index := node.get_index()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: delete %s" % node.name)
+	ur.create_action("Breakpoint: delete %s" % node.name)
 	ur.add_do_method(parent, "remove_child", node)
 	ur.add_undo_method(parent, "add_child", node)
 	ur.add_undo_method(parent, "move_child", node, index)
@@ -591,7 +591,7 @@ func _node_rename(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "Missing 'new_name'")
 	var old_name := String(node.name)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: rename %s -> %s" % [old_name, new_name])
+	ur.create_action("Breakpoint: rename %s -> %s" % [old_name, new_name])
 	ur.add_do_property(node, "name", new_name)
 	ur.add_undo_property(node, "name", old_name)
 	ur.commit_action()
@@ -614,7 +614,7 @@ func _node_reparent(params: Dictionary) -> Dictionary:
 	var old_parent := node.get_parent()
 	var old_index := node.get_index()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: reparent %s" % node.name)
+	ur.create_action("Breakpoint: reparent %s" % node.name)
 	ur.add_do_method(node, "reparent", new_parent, keep)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_undo_method(node, "reparent", old_parent, keep)
@@ -637,7 +637,7 @@ func _node_set_property(params: Dictionary) -> Dictionary:
 	var old_value: Variant = node.get(prop)
 	var new_value: Variant = Codec.decode(params.get("value"))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s.%s" % [node.name, prop])
+	ur.create_action("Breakpoint: set %s.%s" % [node.name, prop])
 	ur.add_do_property(node, prop, new_value)
 	ur.add_undo_property(node, prop, old_value)
 	ur.commit_action()
@@ -912,7 +912,7 @@ func _node_duplicate(params: Dictionary) -> Dictionary:
 	if params.has("name"):
 		dup.name = String(params.get("name"))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: duplicate %s" % node.name)
+	ur.create_action("Breakpoint: duplicate %s" % node.name)
 	ur.add_do_method(parent, "add_child", dup)
 	ur.add_do_method(dup, "set_owner", root)
 	for d in _descendants(dup):
@@ -984,7 +984,7 @@ func _node_add_to_group(params: Dictionary) -> Dictionary:
 	if node.is_in_group(group):
 		return _ok({"path": _path_of(root, node), "group": group, "added": false})
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s to group %s" % [node.name, group])
+	ur.create_action("Breakpoint: add %s to group %s" % [node.name, group])
 	ur.add_do_method(node, "add_to_group", group, true)
 	ur.add_undo_method(node, "remove_from_group", group)
 	ur.commit_action()
@@ -1004,7 +1004,7 @@ func _node_remove_from_group(params: Dictionary) -> Dictionary:
 	if not node.is_in_group(group):
 		return _ok({"path": _path_of(root, node), "group": group, "removed": false})
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: remove %s from group %s" % [node.name, group])
+	ur.create_action("Breakpoint: remove %s from group %s" % [node.name, group])
 	ur.add_do_method(node, "remove_from_group", group)
 	ur.add_undo_method(node, "add_to_group", group, true)
 	ur.commit_action()
@@ -1032,7 +1032,7 @@ func _node_instantiate_scene(params: Dictionary) -> Dictionary:
 	if params.has("name"):
 		inst.name = String(params.get("name"))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: instance scene %s" % scene_path)
+	ur.create_action("Breakpoint: instance scene %s" % scene_path)
 	ur.add_do_method(parent, "add_child", inst)
 	ur.add_do_method(inst, "set_owner", root)
 	ur.add_do_reference(inst)
@@ -1059,7 +1059,7 @@ func _node_move_child(params: Dictionary) -> Dictionary:
 		return _err("bad_index", "to_index out of range 0..%d" % (count - 1))
 	var old_index := node.get_index()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: move %s to %d" % [node.name, to_index])
+	ur.create_action("Breakpoint: move %s to %d" % [node.name, to_index])
 	ur.add_do_method(parent, "move_child", node, to_index)
 	ur.add_undo_method(parent, "move_child", node, old_index)
 	ur.commit_action()
@@ -1094,7 +1094,7 @@ func _node_change_type(params: Dictionary) -> Dictionary:
 			continue
 		replacement.set(pname, node.get(pname))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: change type %s -> %s" % [node.name, type])
+	ur.create_action("Breakpoint: change type %s -> %s" % [node.name, type])
 	ur.add_do_method(node, "replace_by", replacement, true)
 	ur.add_do_method(replacement, "set_owner", root)
 	ur.add_do_reference(replacement)
@@ -1121,7 +1121,7 @@ func _node_set_owner(params: Dictionary) -> Dictionary:
 			return _err("bad_path", "Owner not found: %s" % params.get("owner_path", ""))
 	var old_owner := node.owner
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set owner of %s" % node.name)
+	ur.create_action("Breakpoint: set owner of %s" % node.name)
 	ur.add_do_method(node, "set_owner", owner_node)
 	ur.add_undo_method(node, "set_owner", old_owner)
 	ur.commit_action()
@@ -1375,7 +1375,7 @@ func _signal_connect(params: Dictionary) -> Dictionary:
 	if node.is_connected(sig, cb):
 		return _ok({"signal": sig, "source": _path_of(root, node), "target": _path_of(root, target), "method": method, "flags": flags, "connected": false})
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: connect %s.%s -> %s.%s" % [node.name, sig, target.name, method])
+	ur.create_action("Breakpoint: connect %s.%s -> %s.%s" % [node.name, sig, target.name, method])
 	ur.add_do_method(node, "connect", sig, cb, flags)
 	ur.add_undo_method(node, "disconnect", sig, cb)
 	ur.commit_action()
@@ -1406,7 +1406,7 @@ func _signal_disconnect(params: Dictionary) -> Dictionary:
 			flags = int(c.get("flags", 2))
 			break
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: disconnect %s.%s -> %s.%s" % [node.name, sig, target.name, method])
+	ur.create_action("Breakpoint: disconnect %s.%s -> %s.%s" % [node.name, sig, target.name, method])
 	ur.add_do_method(node, "disconnect", sig, cb)
 	ur.add_undo_method(node, "connect", sig, cb, flags)
 	ur.commit_action()
@@ -1432,7 +1432,7 @@ func _signal_add_user_signal(params: Dictionary) -> Dictionary:
 		else:
 			arguments.append({"name": String(a), "type": TYPE_NIL})
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add user signal %s.%s" % [node.name, sig])
+	ur.create_action("Breakpoint: add user signal %s.%s" % [node.name, sig])
 	ur.add_do_method(node, "add_user_signal", sig, arguments)
 	ur.add_undo_method(node, "remove_user_signal", sig)
 	ur.commit_action()
@@ -1941,7 +1941,7 @@ func _anim_player_create(params: Dictionary) -> Dictionary:
 	node.name = String(params.get("name", "AnimationPlayer"))
 	node.add_animation_library("", AnimationLibrary.new())
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add AnimationPlayer %s" % node.name)
+	ur.create_action("Breakpoint: add AnimationPlayer %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -1965,7 +1965,7 @@ func _anim_create(params: Dictionary) -> Dictionary:
 		return _err("exists", "Animation already exists: %s" % anim_name)
 	var anim := Animation.new()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: create animation %s" % anim_name)
+	ur.create_action("Breakpoint: create animation %s" % anim_name)
 	var lib: AnimationLibrary
 	if player.has_animation_library(lib_name):
 		lib = player.get_animation_library(lib_name)
@@ -1995,7 +1995,7 @@ func _anim_delete(params: Dictionary) -> Dictionary:
 		return _err("not_found", "Animation not found: %s" % anim_name)
 	var lib := player.get_animation_library(lib_name)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: delete animation %s" % anim_name)
+	ur.create_action("Breakpoint: delete animation %s" % anim_name)
 	ur.add_do_method(lib, "remove_animation", anim_name)
 	ur.add_undo_method(lib, "add_animation", anim_name, anim)
 	ur.add_undo_reference(anim)
@@ -2021,7 +2021,7 @@ func _anim_add_track(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "Missing track 'path' (node or node:property the track drives)")
 	var idx := anim.get_track_count()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s track" % _anim_track_type_name(ttype))
+	ur.create_action("Breakpoint: add %s track" % _anim_track_type_name(ttype))
 	ur.add_do_method(anim, "add_track", ttype, -1)
 	ur.add_do_method(anim, "track_set_path", idx, NodePath(track_path))
 	ur.add_undo_method(anim, "remove_track", idx)
@@ -2048,7 +2048,7 @@ func _anim_insert_key(params: Dictionary) -> Dictionary:
 	var value: Variant = Codec.decode(params.get("value"))
 	var transition := float(params.get("transition", 1.0))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: insert key @ %s" % time)
+	ur.create_action("Breakpoint: insert key @ %s" % time)
 	ur.add_do_method(anim, "track_insert_key", track, time, value, transition)
 	ur.add_undo_method(anim, "track_remove_key_at_time", track, time)
 	ur.commit_action()
@@ -2075,7 +2075,7 @@ func _anim_remove_key(params: Dictionary) -> Dictionary:
 	var value: Variant = anim.track_get_key_value(track, key)
 	var transition := anim.track_get_key_transition(track, key)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: remove key %d" % key)
+	ur.create_action("Breakpoint: remove key %d" % key)
 	ur.add_do_method(anim, "track_remove_key", track, key)
 	ur.add_undo_method(anim, "track_insert_key", track, time, value, transition)
 	ur.commit_action()
@@ -2097,7 +2097,7 @@ func _anim_set_length(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "'length' must be greater than 0")
 	var old := anim.length
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set animation length")
+	ur.create_action("Breakpoint: set animation length")
 	ur.add_do_property(anim, "length", length)
 	ur.add_undo_property(anim, "length", old)
 	ur.commit_action()
@@ -2119,7 +2119,7 @@ func _anim_set_loop(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "'mode' must be one of: none, linear, pingpong")
 	var old := anim.loop_mode
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set animation loop mode")
+	ur.create_action("Breakpoint: set animation loop mode")
 	ur.add_do_property(anim, "loop_mode", mode)
 	ur.add_undo_property(anim, "loop_mode", old)
 	ur.commit_action()
@@ -2266,7 +2266,7 @@ func _anim_tree_create(params: Dictionary) -> Dictionary:
 		node.set("anim_player", NodePath(anim_player_path))
 	node.set("active", bool(params.get("active", false)))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add AnimationTree %s" % node.name)
+	ur.create_action("Breakpoint: add AnimationTree %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -2298,7 +2298,7 @@ func _anim_tree_add_node(params: Dictionary) -> Dictionary:
 		sub.set("animation", StringName(String(params.get("animation"))))
 	var pos := _to_vec2(params.get("position", null))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add anim node %s" % node_name)
+	ur.create_action("Breakpoint: add anim node %s" % node_name)
 	ur.add_do_method(rootnode, "add_node", node_name, sub, pos)
 	ur.add_do_reference(sub)
 	ur.add_undo_method(rootnode, "remove_node", node_name)
@@ -2331,7 +2331,7 @@ func _anim_statemachine_add_state(params: Dictionary) -> Dictionary:
 		state.set("animation", StringName(anim_name))
 	var pos := _to_vec2(params.get("position", null))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add state %s" % state_name)
+	ur.create_action("Breakpoint: add state %s" % state_name)
 	ur.add_do_method(sm, "add_node", state_name, state, pos)
 	ur.add_do_reference(state)
 	ur.add_undo_method(sm, "remove_node", state_name)
@@ -2377,7 +2377,7 @@ func _anim_statemachine_add_transition(params: Dictionary) -> Dictionary:
 	if params.has("priority"):
 		tr.set("priority", int(params.get("priority")))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add transition %s -> %s" % [from_state, to_state])
+	ur.create_action("Breakpoint: add transition %s -> %s" % [from_state, to_state])
 	ur.add_do_method(sm, "add_transition", from_state, to_state, tr)
 	ur.add_do_reference(tr)
 	ur.add_undo_method(sm, "remove_transition", from_state, to_state)
@@ -2545,7 +2545,7 @@ func _tilemaplayer_create(params: Dictionary) -> Dictionary:
 			return _err("not_found", "TileSet not found: %s" % tileset_path)
 		layer.tile_set = ts
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add TileMapLayer %s" % layer.name)
+	ur.create_action("Breakpoint: add TileMapLayer %s" % layer.name)
 	ur.add_do_method(parent, "add_child", layer)
 	ur.add_do_method(layer, "set_owner", root)
 	ur.add_do_reference(layer)
@@ -2571,7 +2571,7 @@ func _tilemap_set_cell(params: Dictionary) -> Dictionary:
 	var old_atlas := layer.get_cell_atlas_coords(coords)
 	var old_alt := layer.get_cell_alternative_tile(coords)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set cell %s" % str(coords))
+	ur.create_action("Breakpoint: set cell %s" % str(coords))
 	ur.add_do_method(layer, "set_cell", coords, source_id, atlas, alternative)
 	ur.add_undo_method(layer, "set_cell", coords, old_src, old_atlas, old_alt)
 	ur.commit_action()
@@ -2603,7 +2603,7 @@ func _tilemap_set_cells_rect(params: Dictionary) -> Dictionary:
 		atlas = _to_vec2i(params.get("atlas_coords"))
 	var alternative := int(params.get("alternative", 0))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set cells rect %d,%d %dx%d" % [rx, ry, rw, rh])
+	ur.create_action("Breakpoint: set cells rect %d,%d %dx%d" % [rx, ry, rw, rh])
 	for dy in range(rh):
 		for dx in range(rw):
 			var c := Vector2i(rx + dx, ry + dy)
@@ -2639,7 +2639,7 @@ func _tilemap_clear(params: Dictionary) -> Dictionary:
 		return _err("bad_path", "TileMapLayer not found: %s" % params.get("path", ""))
 	var used := layer.get_used_cells()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: clear TileMapLayer %s" % layer.name)
+	ur.create_action("Breakpoint: clear TileMapLayer %s" % layer.name)
 	ur.add_do_method(layer, "clear")
 	for c in used:
 		var os := layer.get_cell_source_id(c)
@@ -2700,7 +2700,7 @@ func _body_create(params: Dictionary) -> Dictionary:
 	var node: Node = ClassDB.instantiate(cls)
 	node.name = String(params.get("name", cls))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -2777,7 +2777,7 @@ func _collisionshape_add(params: Dictionary) -> Dictionary:
 		node = cs2
 	node.name = String(params.get("name", node.get_class()))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -2810,7 +2810,7 @@ func _body_set_collision_field(params: Dictionary, field: String, key: String) -
 		return _err("bad_params", "'%s' must be a non-negative bitmask" % key)
 	var old_value: int = node.get(field)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s.%s" % [node.name, field])
+	ur.create_action("Breakpoint: set %s.%s" % [node.name, field])
 	ur.add_do_property(node, field, new_value)
 	ur.add_undo_property(node, field, old_value)
 	ur.commit_action()
@@ -2837,7 +2837,7 @@ func _area_set_monitoring(params: Dictionary) -> Dictionary:
 	if not (params.has("monitoring") or params.has("monitorable")):
 		return _err("bad_params", "Provide 'monitoring' and/or 'monitorable'")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s monitoring" % node.name)
+	ur.create_action("Breakpoint: set %s monitoring" % node.name)
 	if params.has("monitoring"):
 		ur.add_do_property(node, "monitoring", bool(params.get("monitoring")))
 		ur.add_undo_property(node, "monitoring", node.get("monitoring"))
@@ -2878,7 +2878,7 @@ func _area_set_gravity(params: Dictionary) -> Dictionary:
 			return _err("bad_params", "Unknown space_override '%s'" % params.get("space_override"))
 	var dim3 := node is Area3D
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s gravity" % node.name)
+	ur.create_action("Breakpoint: set %s gravity" % node.name)
 	if params.has("space_override"):
 		ur.add_do_property(node, "gravity_space_override", so)
 		ur.add_undo_property(node, "gravity_space_override", node.get("gravity_space_override"))
@@ -2941,7 +2941,7 @@ func _joint_create(params: Dictionary) -> Dictionary:
 	if params.has("node_b"):
 		node.set("node_b", NodePath(String(params.get("node_b"))))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -2962,7 +2962,7 @@ func _joint_set_bodies(params: Dictionary) -> Dictionary:
 	if not (params.has("node_a") or params.has("node_b")):
 		return _err("bad_params", "Provide 'node_a' and/or 'node_b'")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s bodies" % node.name)
+	ur.create_action("Breakpoint: set %s bodies" % node.name)
 	if params.has("node_a"):
 		ur.add_do_property(node, "node_a", NodePath(String(params.get("node_a"))))
 		ur.add_undo_property(node, "node_a", node.get("node_a"))
@@ -3000,7 +3000,7 @@ func _collisionpolygon_add(params: Dictionary) -> Dictionary:
 		node = c2
 	node.name = String(params.get("name", node.get_class()))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3027,7 +3027,7 @@ func _rigidbody_set_properties(params: Dictionary) -> Dictionary:
 	if params.has("mass") and float(params.get("mass")) <= 0.0:
 		return _err("bad_params", "'mass' must be > 0")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s physics props" % node.name)
+	ur.create_action("Breakpoint: set %s physics props" % node.name)
 	for f in provided:
 		ur.add_do_property(node, f, float(params.get(f)))
 		ur.add_undo_property(node, f, node.get(f))
@@ -3050,7 +3050,7 @@ func _body_set_physics_material(params: Dictionary) -> Dictionary:
 	mat.rough = bool(params.get("rough", false))
 	mat.absorbent = bool(params.get("absorbent", false))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s physics material" % node.name)
+	ur.create_action("Breakpoint: set %s physics material" % node.name)
 	ur.add_do_property(node, "physics_material_override", mat)
 	ur.add_undo_property(node, "physics_material_override", node.get("physics_material_override"))
 	ur.add_do_reference(mat)
@@ -3120,7 +3120,7 @@ func _particles_create(params: Dictionary) -> Dictionary:
 	if params.has("emitting"):
 		node.set("emitting", bool(params.get("emitting")))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3156,7 +3156,7 @@ func _particles_set_process_material(params: Dictionary) -> Dictionary:
 	if params.has("color"):
 		mat.color = _to_color(params.get("color"))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s process material" % node.name)
+	ur.create_action("Breakpoint: set %s process material" % node.name)
 	ur.add_do_property(node, "process_material", mat)
 	ur.add_undo_property(node, "process_material", node.get("process_material"))
 	ur.add_do_reference(mat)
@@ -3182,7 +3182,7 @@ func _particles_set_amount(params: Dictionary) -> Dictionary:
 	if v <= 0:
 		return _err("bad_params", "'amount' must be > 0")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s amount" % node.name)
+	ur.create_action("Breakpoint: set %s amount" % node.name)
 	ur.add_do_property(node, "amount", v)
 	ur.add_undo_property(node, "amount", node.get("amount"))
 	ur.commit_action()
@@ -3204,7 +3204,7 @@ func _particles_set_lifetime(params: Dictionary) -> Dictionary:
 	if v <= 0.0:
 		return _err("bad_params", "'lifetime' must be > 0")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s lifetime" % node.name)
+	ur.create_action("Breakpoint: set %s lifetime" % node.name)
 	ur.add_do_property(node, "lifetime", v)
 	ur.add_undo_property(node, "lifetime", node.get("lifetime"))
 	ur.commit_action()
@@ -3224,7 +3224,7 @@ func _particles_set_emitting(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "Missing 'emitting'")
 	var v := bool(params.get("emitting"))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s emitting" % node.name)
+	ur.create_action("Breakpoint: set %s emitting" % node.name)
 	ur.add_do_property(node, "emitting", v)
 	ur.add_undo_property(node, "emitting", node.get("emitting"))
 	ur.commit_action()
@@ -3248,7 +3248,7 @@ func _particles_set_texture(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "%s is not a Texture2D" % tex_path)
 	var tex := res as Texture2D
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s texture" % node.name)
+	ur.create_action("Breakpoint: set %s texture" % node.name)
 	ur.add_do_property(node, "texture", tex)
 	ur.add_undo_property(node, "texture", node.get("texture"))
 	ur.commit_action()
@@ -3322,7 +3322,7 @@ func _shadermaterial_create(params: Dictionary) -> Dictionary:
 			return _err("bad_type", "%s is not a Shader" % shader_path)
 		mat.shader = sres as Shader
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s shader material" % node.name)
+	ur.create_action("Breakpoint: set %s shader material" % node.name)
 	ur.add_do_property(node, prop, mat)
 	ur.add_undo_property(node, prop, node.get(prop))
 	ur.add_do_reference(mat)
@@ -3351,7 +3351,7 @@ func _shadermaterial_set_shader(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "%s is not a Shader" % shader_path)
 	var mat := cur as ShaderMaterial
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s shader" % node.name)
+	ur.create_action("Breakpoint: set %s shader" % node.name)
 	ur.add_do_property(mat, "shader", sres as Shader)
 	ur.add_undo_property(mat, "shader", mat.shader)
 	ur.commit_action()
@@ -3379,7 +3379,7 @@ func _shadermaterial_set_param(params: Dictionary) -> Dictionary:
 	var key := "shader_parameter/" + pname
 	var old_value = mat.get(key)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s shader param %s" % [node.name, pname])
+	ur.create_action("Breakpoint: set %s shader param %s" % [node.name, pname])
 	ur.add_do_property(mat, key, value)
 	ur.add_undo_property(mat, key, old_value)
 	ur.commit_action()
@@ -3428,7 +3428,7 @@ func _audio_player_create(params: Dictionary) -> Dictionary:
 			return _err("bad_type", "%s is not an AudioStream" % stream_path)
 		node.set("stream", sres as AudioStream)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3454,7 +3454,7 @@ func _audio_set_stream(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "%s is not an AudioStream" % stream_path)
 	var stream := res as AudioStream
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s stream" % node.name)
+	ur.create_action("Breakpoint: set %s stream" % node.name)
 	ur.add_do_property(node, "stream", stream)
 	ur.add_undo_property(node, "stream", node.get("stream"))
 	ur.commit_action()
@@ -3535,7 +3535,7 @@ func _control_create(params: Dictionary) -> Dictionary:
 	if params.has("text") and _has_property(node, "text"):
 		node.set("text", String(params.get("text")))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3561,7 +3561,7 @@ func _container_add_child(params: Dictionary) -> Dictionary:
 	var node: Node = ClassDB.instantiate(type)
 	node.name = String(params.get("name", type))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s to container" % node.name)
+	ur.create_action("Breakpoint: add %s to container" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3591,7 +3591,7 @@ func _control_set_anchors(params: Dictionary) -> Dictionary:
 	for k in changed:
 		olds[k] = ctrl.get(sides[k])
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s anchors" % ctrl.name)
+	ur.create_action("Breakpoint: set %s anchors" % ctrl.name)
 	for k in changed:
 		var prop: String = sides[k]
 		ur.add_do_property(ctrl, prop, float(params.get(k)))
@@ -3628,7 +3628,7 @@ func _control_set_layout_preset(params: Dictionary) -> Dictionary:
 	for p in props:
 		olds[p] = ctrl.get(p)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: layout preset on %s" % ctrl.name)
+	ur.create_action("Breakpoint: layout preset on %s" % ctrl.name)
 	ur.add_do_method(ctrl, "set_anchors_and_offsets_preset", preset, resize_mode, margin)
 	for p in props:
 		ur.add_undo_property(ctrl, p, olds[p])
@@ -3649,7 +3649,7 @@ func _control_set_size_flags(params: Dictionary) -> Dictionary:
 	if not (params.has("horizontal") or params.has("vertical") or params.has("stretch_ratio")):
 		return _err("bad_params", "Provide at least one of horizontal/vertical/stretch_ratio")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s size flags" % ctrl.name)
+	ur.create_action("Breakpoint: set %s size flags" % ctrl.name)
 	if params.has("horizontal"):
 		var h_old := ctrl.size_flags_horizontal
 		ur.add_do_property(ctrl, "size_flags_horizontal", int(params.get("horizontal")))
@@ -3687,7 +3687,7 @@ func _control_set_theme(params: Dictionary) -> Dictionary:
 		theme_res = res as Theme
 	var old_theme = ctrl.get("theme")
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s theme" % ctrl.name)
+	ur.create_action("Breakpoint: set %s theme" % ctrl.name)
 	ur.add_do_property(ctrl, "theme", theme_res)
 	ur.add_undo_property(ctrl, "theme", old_theme)
 	if theme_res != null:
@@ -3875,7 +3875,7 @@ func _meshinstance_create(params: Dictionary) -> Dictionary:
 	if mesh_res != null:
 		node.mesh = mesh_res
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3909,7 +3909,7 @@ func _mesh_set_surface_material(params: Dictionary) -> Dictionary:
 		if surface >= count:
 			return _err("bad_params", "surface %d out of range (0..%d)" % [surface, count - 1])
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set %s material" % mi.name)
+	ur.create_action("Breakpoint: set %s material" % mi.name)
 	if surface < 0:
 		var old_mat = mi.material_override
 		ur.add_do_property(mi, "material_override", mat)
@@ -3956,7 +3956,7 @@ func _light_create(params: Dictionary) -> Dictionary:
 	var node: Node = ClassDB.instantiate(cls)
 	node.name = String(params.get("name", cls))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -3977,7 +3977,7 @@ func _camera_create(params: Dictionary) -> Dictionary:
 	if bool(params.get("current", false)):
 		node.current = true
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -4048,7 +4048,7 @@ func _csg_create(params: Dictionary) -> Dictionary:
 	var node: Node = ClassDB.instantiate(cls)
 	node.name = String(params.get("name", cls))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -4069,7 +4069,7 @@ func _navregion_create(params: Dictionary) -> Dictionary:
 	if bool(params.get("with_navmesh", true)):
 		node.navigation_mesh = NavigationMesh.new()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -4100,7 +4100,7 @@ func _navagent_configure(params: Dictionary) -> Dictionary:
 	if params.has("avoidance_enabled"):
 		node.avoidance_enabled = bool(params.get("avoidance_enabled"))
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % node.name)
+	ur.create_action("Breakpoint: add %s" % node.name)
 	ur.add_do_method(parent, "add_child", node)
 	ur.add_do_method(node, "set_owner", root)
 	ur.add_do_reference(node)
@@ -4416,7 +4416,7 @@ func _mp_add_spawner(params: Dictionary) -> Dictionary:
 			spawner.add_spawnable_scene(sp)
 			added_scenes.append(sp)
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % spawner.name)
+	ur.create_action("Breakpoint: add %s" % spawner.name)
 	ur.add_do_method(parent, "add_child", spawner)
 	ur.add_do_method(spawner, "set_owner", root)
 	ur.add_do_reference(spawner)
@@ -4460,7 +4460,7 @@ func _mp_add_synchronizer(params: Dictionary) -> Dictionary:
 			added_props.append(String(p))
 		sync.replication_config = cfg
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: add %s" % sync.name)
+	ur.create_action("Breakpoint: add %s" % sync.name)
 	ur.add_do_method(parent, "add_child", sync)
 	ur.add_do_method(sync, "set_owner", root)
 	ur.add_do_reference(sync)
@@ -4486,7 +4486,7 @@ func _mp_set_authority(params: Dictionary) -> Dictionary:
 	var recursive := bool(params.get("recursive", true))
 	var previous := node.get_multiplayer_authority()
 	var ur := _plugin.get_undo_redo()
-	ur.create_action("Claude: set authority %s -> %d" % [node.name, peer_id])
+	ur.create_action("Breakpoint: set authority %s -> %d" % [node.name, peer_id])
 	ur.add_do_method(node, "set_multiplayer_authority", peer_id, recursive)
 	ur.add_undo_method(node, "set_multiplayer_authority", previous, recursive)
 	ur.commit_action()

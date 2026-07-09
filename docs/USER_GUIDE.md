@@ -213,7 +213,7 @@ Add an entry to `claude_desktop_config.json`:
       "env": {
         "GODOT_BIN": "/abs/path/to/Godot",
         "GODOT_PROJECT": "/abs/path/to/your/project",
-        "CLAUDE_BRIDGE_PORT": "9080"
+        "BREAKPOINT_BRIDGE_PORT": "9080"
       }
     }
   }
@@ -302,9 +302,9 @@ needs `GODOT_BIN` and `GODOT_PROJECT`. These names come straight from the host's
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CLAUDE_BRIDGE_HOST` | `127.0.0.1` | Editor-bridge host. |
-| `CLAUDE_BRIDGE_PORT` | `9080` | Editor-bridge port. Must match the addon. |
-| `CLAUDE_BRIDGE_TIMEOUT_MS` | `15000` | Per-request timeout for editor tools. |
+| `BREAKPOINT_BRIDGE_HOST` | `127.0.0.1` | Editor-bridge host. |
+| `BREAKPOINT_BRIDGE_PORT` | `9080` | Editor-bridge port. Must match the addon. |
+| `BREAKPOINT_BRIDGE_TIMEOUT_MS` | `15000` | Per-request timeout for editor tools. |
 
 ### GDScript language server + debug adapter (Plane D — GDScript)
 
@@ -342,9 +342,9 @@ Both launch lazily on first use.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CLAUDE_RUNTIME_HOST` | `127.0.0.1` | In-game runtime-bridge host. |
-| `CLAUDE_RUNTIME_PORT` | `9081` | In-game runtime-bridge port. Must match the autoload. |
-| `CLAUDE_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout. |
+| `BREAKPOINT_RUNTIME_HOST` | `127.0.0.1` | In-game runtime-bridge host. |
+| `BREAKPOINT_RUNTIME_PORT` | `9081` | In-game runtime-bridge port. Must match the autoload. |
+| `BREAKPOINT_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout. |
 
 ### AI asset generation (opt-in)
 
@@ -363,12 +363,13 @@ Asset generation is **off by default**. See
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CLAUDE_RESOURCE_COALESCE_MS` | `50` | Coalescing window for pushed resource updates. `0` disables coalescing. |
+| `BREAKPOINT_RESOURCE_COALESCE_MS` | `50` | Coalescing window for pushed resource updates. `0` disables coalescing. |
 
-> **A note on variable names:** the `CLAUDE_*`-prefixed variables (`CLAUDE_BRIDGE_*`,
-> `CLAUDE_RUNTIME_*`, `CLAUDE_RESOURCE_COALESCE_MS`) are the current names. There is a plan
-> to rename them in a future release; when that happens it will be called out in the
-> changelog. For now, use the names above.
+> **Renamed from `CLAUDE_*`:** the `BREAKPOINT_*`-prefixed variables (`BREAKPOINT_BRIDGE_*`,
+> `BREAKPOINT_RUNTIME_*`, `BREAKPOINT_RESOURCE_COALESCE_MS`) were previously named `CLAUDE_*`.
+> The old `CLAUDE_*` names still work for one deprecation cycle — both the host and the addon
+> fall back to them and emit a one-time deprecation warning — but migrate to the `BREAKPOINT_*`
+> names above. `GODOT_*` variables are unaffected.
 
 **Ports at a glance:** `9080` editor bridge · `9081` runtime bridge · `6005` GDScript
 language server · `6006` debug adapter. If any is already in use, override the matching
@@ -469,7 +470,7 @@ Clients can **subscribe** (`resources/subscribe`) and be pushed a
 `notifications/resources/updated` when a subscribed resource changes — for example when the
 editor selection or edited scene changes, or when the running game's SceneTree gains,
 loses, or renames a node. Rapid changes are coalesced per URI (see
-`CLAUDE_RESOURCE_COALESCE_MS`). Each resource degrades to
+`BREAKPOINT_RESOURCE_COALESCE_MS`). Each resource degrades to
 `{ "available": false, "note": "..." }` when the editor or game is not reachable.
 
 ---
@@ -750,7 +751,7 @@ plane you are using.
 - The editor may not be open, or the plugin not enabled. Enable it under
   **Project → Project Settings → Plugins → Breakpoint MCP** and confirm the Output line
   `[breakpoint_mcp] listening on 127.0.0.1:9080`.
-- Port `9080` may be taken. Set `CLAUDE_BRIDGE_PORT` **both** in the host env **and**
+- Port `9080` may be taken. Set `BREAKPOINT_BRIDGE_PORT` **both** in the host env **and**
   before launching Godot, so the addon binds the same port.
 
 ### `gd_*` (GDScript intelligence) fail
@@ -772,7 +773,7 @@ plane you are using.
 
 - The game may not be running, or the autoload did not register. Re-enable the plugin and
   confirm the game's Output shows `BreakpointRuntimeBridge listening on 127.0.0.1:9081`.
-- Port `9081` may be taken; set `CLAUDE_RUNTIME_PORT` (host and addon must agree).
+- Port `9081` may be taken; set `BREAKPOINT_RUNTIME_PORT` (host and addon must agree).
 - Zero-config console capture (`runtime_get_log`) needs **Godot 4.5+**. On 4.3 the bridge
   still loads and serves any explicit log entries, but automatic capture is a documented
   no-op. For captured console output on older builds, use `godot_run_managed` +

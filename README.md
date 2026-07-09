@@ -95,7 +95,7 @@ editor selection, edited scene, or the live SceneTree changes.
 
 Copy `addons/breakpoint_mcp/` into your project's `addons/` folder, then enable it under
 **Project → Project Settings → Plugins → Breakpoint MCP**. On enable it listens on
-`127.0.0.1:9080` (override with `CLAUDE_BRIDGE_PORT` before launching Godot).
+`127.0.0.1:9080` (override with `BREAKPOINT_BRIDGE_PORT` before launching Godot).
 
 Enabling the plugin also auto-registers the **runtime autoload**
 (`BreakpointRuntimeBridge`), so the `runtime_*` tools work as soon as the project runs
@@ -159,14 +159,16 @@ and wrapper key differ.
 |---|---|---|
 | `GODOT_BIN` | `godot` | Path to the Godot editor binary |
 | `GODOT_PROJECT` | cwd | Project directory (contains `project.godot`) |
-| `CLAUDE_BRIDGE_HOST` | `127.0.0.1` | Editor-bridge host |
-| `CLAUDE_BRIDGE_PORT` | `9080` | Editor-bridge port (must match the addon) |
-| `CLAUDE_BRIDGE_TIMEOUT_MS` | `15000` | Per-request timeout for editor tools |
+| `BREAKPOINT_BRIDGE_HOST` | `127.0.0.1` | Editor-bridge host |
+| `BREAKPOINT_BRIDGE_PORT` | `9080` | Editor-bridge port (must match the addon) |
+| `BREAKPOINT_BRIDGE_TIMEOUT_MS` | `15000` | Per-request timeout for editor tools |
 | `GODOT_LSP_HOST` / `GODOT_LSP_PORT` | `127.0.0.1` / `6005` | GDScript language server |
 | `GODOT_DAP_HOST` / `GODOT_DAP_PORT` | `127.0.0.1` / `6006` | Debug adapter |
 | `GODOT_LSP_TIMEOUT_MS` / `GODOT_DAP_TIMEOUT_MS` | `15000` / `20000` | LSP / DAP timeouts |
-| `CLAUDE_RUNTIME_HOST` / `CLAUDE_RUNTIME_PORT` | `127.0.0.1` / `9081` | In-game runtime bridge (must match the autoload) |
-| `CLAUDE_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout |
+| `BREAKPOINT_RUNTIME_HOST` / `BREAKPOINT_RUNTIME_PORT` | `127.0.0.1` / `9081` | In-game runtime bridge (must match the autoload) |
+| `BREAKPOINT_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout |
+
+> **Renamed in this release:** the `BREAKPOINT_*` variables above (plus `BREAKPOINT_RESOURCE_COALESCE_MS`) were previously named `CLAUDE_*`. The old `CLAUDE_*` names still work for one deprecation cycle — the host and addon fall back to them and print a one-time deprecation warning — but you should migrate to the `BREAKPOINT_*` names. `GODOT_*` variables are unchanged.
 
 The full, annotated configuration reference is in the [User Guide](docs/USER_GUIDE.md).
 
