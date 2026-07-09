@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-07-09
+
 ### Added — Group J: AI asset generation (7 tools, 223 → 230)
 - Adds the asset-generation family — the one axis only Ziva advertises — carrying the count to **230** and making the surface a strict superset. **MCP-native framing: the server never bundles or calls a model.** Each generator writes an asset to a `res://` path, imports it through the editor bridge, and returns a schema'd result; where the bytes come from is delegated.
   - **`asset_gen_configure`** (Plane B / host) selects the session backend — the feature flag: **`none`** (default) makes the generators **degrade** to a clear "no generation backend configured" result carrying a `request` spec the connected multimodal client can fulfil (no file written, not an error); **`placeholder`** writes deterministic, in-engine procedural stand-ins; **`command`** delegates to a configured local command (argv template with `{kind} {prompt} {output} {width} {height} {format}` tokens substituted per-argument, no shell — the command writes the file, the host imports it). Env-seeded via `BREAKPOINT_ASSETGEN_BACKEND` / `_CMD` / `_PROVIDER` / `_TIMEOUT_MS`; off by default.
