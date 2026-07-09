@@ -39,10 +39,13 @@
 // reports the tally and the process exits non-zero if any assertion failed. The
 // reachability check is the gate (exit 1 if the addon is unreachable).
 //
-// NOT asserted here: undo/redo. The mutators register EditorUndoRedoManager actions,
-// but there is no bridge action to TRIGGER an editor undo, so the undo stack cannot
-// be exercised over :9080 without a new editor_undo capability. Undo-stack assertion
-// is deferred to that follow-up; this probe proves the forward mutation only.
+// Undo/redo IS asserted (the AUTH_UNDO family). editor_undo / editor_redo drive the
+// edited scene's EditorUndoRedoManager history (resolved via get_object_history_id on
+// the edited root), so the probe rounds-trips each undo archetype on a throwaway node:
+// node creators (add_do_reference), scalar property setters (add_do_property), and
+// resource assignments — mutate -> undo -> revert -> redo -> restore — plus a 3-deep
+// LIFO stack test and a redo no-op guard. Each cycle only touches the action(s) it just
+// pushed (the top of the scene history), so it never disturbs the forward families above.
 //
 // Side effects (harmless in the ephemeral CI runner; clean up after a local run):
 //   * unsaved in-memory edits to res://main.tscn (never saved -> vanish on close);
@@ -273,8 +276,73 @@ async function main() {
       ? pass("AUTH_AUDIO_SET_BUS_LAYOUT", BUS_LAYOUT) : fail("AUTH_AUDIO_SET_BUS_LAYOUT", BUS_LAYOUT);
   });
 
+  // ---------------------------------------------------------------- undo / redo ----
+  // editor_undo / editor_redo drive the edited scene's EditorUndoRedoManager history.
+  // Round-trip each undo archetype on a throwaway node, then a 3-deep LIFO stack test
+  // and a redo no-op guard. Only touches actions pushed here (the top of the stack).
+  await family("AUTH_UNDO", async () => {
+    const undo = () => call("editor_undo");
+    const redo = () => call("editor_redo");
+
+    // (1) creator (add_do_reference): body_create -> undo removes the node -> redo restores it.
+    const ub = (await call("body_create", { parent_path: ".", type: "static", dim: "2d", name: "AuthUndoBody" })).path;
+    const made = await hasChild(".", ub, "StaticBody2D");
+    const u1 = await undo();
+    const gone = !(await hasChild(".", ub, "StaticBody2D"));
+    (made && u1.performed === true && u1.scope === "scene" && u1.history_id >= 0 && gone)
+      ? pass("AUTH_UNDO_CREATE_REVERT", `action=${JSON.stringify(u1.action)} hid=${u1.history_id}`)
+      : fail("AUTH_UNDO_CREATE_REVERT", `made=${made} performed=${u1.performed} hid=${u1.history_id} gone=${gone}`);
+    const r1 = await redo();
+    (r1.performed === true && (await hasChild(".", ub, "StaticBody2D")))
+      ? pass("AUTH_REDO_CREATE_RESTORE") : fail("AUTH_REDO_CREATE_RESTORE", `performed=${r1.performed}`);
+
+    // (2) scalar property (add_do_property): set collision_layer -> undo reverts to prior value -> redo re-applies.
+    const layer0 = await propVal(ub, "collision_layer");
+    await call("body_set_collision_layer", { path: ub, layer: 7 });
+    const layerSet = await propVal(ub, "collision_layer");
+    const u2 = await undo();
+    const layerBack = await propVal(ub, "collision_layer");
+    (layerSet === 7 && u2.performed === true && layerBack === layer0)
+      ? pass("AUTH_UNDO_PROPERTY_REVERT", `set=${layerSet} back=${layerBack}`)
+      : fail("AUTH_UNDO_PROPERTY_REVERT", `set=${layerSet} performed=${u2.performed} back=${layerBack} want=${layer0}`);
+    await redo();
+    (await propVal(ub, "collision_layer")) === 7
+      ? pass("AUTH_REDO_PROPERTY_RESTORE") : fail("AUTH_REDO_PROPERTY_RESTORE", `got ${await propVal(ub, "collision_layer")}`);
+
+    // (3) resource assignment: body_set_physics_material -> undo drops the override -> redo re-adds it.
+    await call("body_set_physics_material", { path: ub, friction: 0.4, bounce: 0.6 });
+    const matSet = await propResClass(ub, "physics_material_override");
+    const u3 = await undo();
+    const matBack = await propResClass(ub, "physics_material_override");
+    (matSet === "PhysicsMaterial" && u3.performed === true && !matBack)
+      ? pass("AUTH_UNDO_RESOURCE_REVERT", `set=${matSet} back=${matBack}`)
+      : fail("AUTH_UNDO_RESOURCE_REVERT", `set=${matSet} performed=${u3.performed} back=${matBack}`);
+    await redo();
+    (await propResClass(ub, "physics_material_override")) === "PhysicsMaterial"
+      ? pass("AUTH_REDO_RESOURCE_RESTORE") : fail("AUTH_REDO_RESOURCE_RESTORE");
+
+    // (4) LIFO depth: 3 stacked edits (add child + 2 props) undo x3 -> full revert, redo x3 -> restore.
+    const cs = (await call("collisionshape_add", { parent_path: ub, shape: "circle", dim: "2d", radius: 12 })).path;
+    await call("body_set_collision_mask", { path: ub, mask: 6 });
+    await call("body_set_collision_layer", { path: ub, layer: 9 });
+    const stacked = (await hasChild(ub, cs, "CollisionShape2D")) && (await propVal(ub, "collision_mask")) === 6 && (await propVal(ub, "collision_layer")) === 9;
+    const dz = await undo(), dy = await undo(), dx = await undo();
+    const reverted = !(await hasChild(ub, cs, "CollisionShape2D")) && (await propVal(ub, "collision_mask")) !== 6 && (await propVal(ub, "collision_layer")) === 7;
+    (stacked && dz.performed && dy.performed && dx.performed && reverted)
+      ? pass("AUTH_UNDO_DEPTH3_REVERT") : fail("AUTH_UNDO_DEPTH3_REVERT", `stacked=${stacked} reverted=${reverted}`);
+    await redo(); await redo(); await redo();
+    ((await hasChild(ub, cs, "CollisionShape2D")) && (await propVal(ub, "collision_mask")) === 6 && (await propVal(ub, "collision_layer")) === 9)
+      ? pass("AUTH_REDO_DEPTH3_RESTORE") : fail("AUTH_REDO_DEPTH3_RESTORE");
+
+    // (5) no-op guard: with the head fully redone, another editor_redo is a graceful no-op (not an error).
+    const noop = await redo();
+    (noop.performed === false && noop.has_redo === false)
+      ? pass("AUTH_UNDO_NOOP_GUARD", `performed=${noop.performed} has_redo=${noop.has_redo}`)
+      : fail("AUTH_UNDO_NOOP_GUARD", `performed=${noop.performed} has_redo=${noop.has_redo}`);
+  });
+
   // ---------------------------------------------------------------- summary ----
-  console.log("AUTH_UNDO_DEFERRED note=undo-stack assertion needs an editor_undo bridge action (see header)");
+  console.log("AUTH_UNDO_ASSERTED note=undo/redo round-tripped via editor_undo/editor_redo (see AUTH_UNDO_* / AUTH_REDO_* markers)");
   const total = results.pass.length + results.fail.length;
   console.log(`\nAUTH_SUMMARY pass=${results.pass.length}/${total} fail=${results.fail.length}${results.fail.length ? " -> " + results.fail.join(", ") : ""}`);
   await client.close();

@@ -50,6 +50,38 @@ export function registerEditorTools(server: McpServer, bridge: BridgeClient): vo
   );
 
   server.registerTool(
+    "editor_undo",
+    {
+      title: "Undo last edit",
+      description:
+        "Undo the most recent edit in the editor's undo history (like Ctrl-Z). Defaults to the edited scene's history; pass scope='global' for the editor-wide history. Returns whether an action was undone, its name, and the remaining undo/redo depth.",
+      inputSchema: {
+        scope: z
+          .enum(["scene", "global"])
+          .optional()
+          .describe("Which history to step: 'scene' (default, the edited scene) or 'global' (editor-wide)"),
+      },
+    },
+    async ({ scope }) => call("edit.undo", scope ? { scope } : {}),
+  );
+
+  server.registerTool(
+    "editor_redo",
+    {
+      title: "Redo last undone edit",
+      description:
+        "Re-apply the most recently undone edit in the editor's undo history (like Ctrl-Shift-Z). Defaults to the edited scene's history; pass scope='global' for the editor-wide history.",
+      inputSchema: {
+        scope: z
+          .enum(["scene", "global"])
+          .optional()
+          .describe("Which history to step: 'scene' (default, the edited scene) or 'global' (editor-wide)"),
+      },
+    },
+    async ({ scope }) => call("edit.redo", scope ? { scope } : {}),
+  );
+
+  server.registerTool(
     "project_get_info",
     { title: "Project info", description: "Return project name, main scene, project root path, Godot version, and feature tags.", inputSchema: {} },
     async () => call("project.get_info"),

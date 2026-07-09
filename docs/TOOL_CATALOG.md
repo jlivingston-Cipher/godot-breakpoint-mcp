@@ -195,6 +195,48 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
   } }
 ```
 
+### `editor_undo` ✅  (steps the undo history)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": { "scope": { "type": "string", "enum": ["scene", "global"], "default": "scene" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["performed", "direction", "has_undo", "has_redo", "history_id", "scope"],
+  "properties": {
+    "performed": { "type": "boolean" },
+    "direction": { "type": "string" },
+    "action": { "type": "string" },
+    "has_undo": { "type": "boolean" },
+    "has_redo": { "type": "boolean" },
+    "history_id": { "type": "integer" },
+    "scope": { "type": "string" }
+  } }
+```
+- Programmatic Ctrl-Z. Steps the editor's undo history one action back via `EditorUndoRedoManager.get_history_undo_redo(get_object_history_id(edited_root)).undo()` — the same history the `node_*` mutators commit into. `scope: "global"` targets `GLOBAL_HISTORY` instead of the edited scene. Ungated (the `node_*` model). `performed` is `false` when the history is already at its oldest state; `action` is the name of the undone action (empty when nothing was undone).
+
+### `editor_redo` ✅  (steps the undo history)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": { "scope": { "type": "string", "enum": ["scene", "global"], "default": "scene" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["performed", "direction", "has_undo", "has_redo", "history_id", "scope"],
+  "properties": {
+    "performed": { "type": "boolean" },
+    "direction": { "type": "string" },
+    "action": { "type": "string" },
+    "has_undo": { "type": "boolean" },
+    "has_redo": { "type": "boolean" },
+    "history_id": { "type": "integer" },
+    "scope": { "type": "string" }
+  } }
+```
+- Programmatic Ctrl-Shift-Z. Re-applies the most recently undone action on the same history. `performed` is `false` when there is nothing to redo.
+
 ### `project_get_info` ✅
 - **Input** `{ "type": "object", "properties": {} }`
 - **Output**
@@ -1335,6 +1377,8 @@ via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one tr
 | `godot_run_headless_script` | B / CLI | ✅ | runs code |
 | `editor_ping` | A / Editor | ✅ | – |
 | `editor_get_state` | A / Editor | ✅ | – |
+| `editor_undo` | A / Editor | ✅ | – |
+| `editor_redo` | A / Editor | ✅ | – |
 | `project_get_info` | A / Editor | ✅ | – |
 | `project_get_setting` | A / Editor | ✅ | – |
 | `project_set_setting` | A / Editor | ✅ | ✔ |
