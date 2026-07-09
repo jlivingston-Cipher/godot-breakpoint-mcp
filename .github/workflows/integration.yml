@@ -42,13 +42,13 @@ name: integration
 #                     probe and the netcoredbg initialize gate must pass — the launch-to-breakpoint
 #                     flow past C#_DAP_REACHED stays log-only. Promoted from experimental the way
 #                     runtime-plane was in session 20. See docs/D4_CSHARP_PLAN.md.
-#   * authoring-plane — boots the editor GUI under Xvfb (like editor-plane) and drives the Groups A-F
+#   * authoring-plane — boots the editor GUI under Xvfb (like editor-plane) and drives the Groups A-G
 #                     authoring mutators against the addon bridge (:9080), asserting each mutation by
 #                     reading the live edited scene back through separate read tools — plus forward +
 #                     undo/redo round-trips wherever the mutation is scene-undoable (markers AUTH_NODE_* /
 #                     AUTH_SCENE_* / AUTH_SIGNAL_* / AUTH_RESOURCE_* / AUTH_ANIM_* / AUTH_TILESET_* /
-#                     AUTH_TILEMAP_* / AUTH_PHYS_* / AUTH_VFX_* / AUTH_AUDIO_* / AUTH_UNDO_* / AUTH_REDO_*;
-#                     AUTH_SUMMARY pass=99/99). Single newest-stable arm — the A-F authoring surface is
+#                     AUTH_TILEMAP_* / AUTH_PHYS_* / AUTH_VFX_* / AUTH_AUDIO_* / AUTH_UNDO_* / AUTH_REDO_* / AUTH_UI_*;
+#                     AUTH_SUMMARY pass=112/112). Single newest-stable arm — the A-G authoring surface is
 #                     version-stable, unlike the LSP/DAP planes that matrix 4.3/4.7 for capability
 #                     divergence. A REQUIRED gate as of session 42 (promoted the runtime-plane /
 #                     csharp-plane way once green across a few runs); disk-backed resource_* / filesystem_* /
@@ -430,16 +430,16 @@ jobs:
         run: tail -n 80 /tmp/godot-csharp.log || true
 
   authoring-plane:
-    name: authoring plane / A-F mutators vs real editor
+    name: authoring plane / A-G mutators vs real editor
     runs-on: ubuntu-latest
-    # A REQUIRED gate as of session 42: the A-F authoring probe (99/99 forward + undo/redo assertions,
+    # A REQUIRED gate as of session 42: the A-G authoring probe (112/112 forward + undo/redo assertions,
     # covering Group A nodes/scenes/signals, B resources/filesystem, C animation, D tileset/tilemap,
-    # E physics/collision and F VFX/audio) is green across #47, two main pushes, #48 and #49 — so a
+    # E physics/collision, F VFX/audio and G UI/controls/theming) is green across #47, two main pushes, #48 and #49 — so a
     # live-engine regression in the authoring plane now blocks a merge, the way runtime-plane was
     # promoted in session 20 and csharp-plane in session 25. Added to branch protection as the context
-    # "authoring plane / A-F mutators vs real editor".
+    # "authoring plane / A-G mutators vs real editor".
     env:
-      # The Groups A-F authoring mutators are version-stable engine features, so a single newest-stable
+      # The Groups A-G authoring mutators are version-stable engine features, so a single newest-stable
       # arm is enough — unlike the LSP/DAP planes, which matrix 4.3/4.7 to reveal capability divergence.
       # Overrides the workflow-level GODOT_VERSION for this job only.
       GODOT_VERSION: "4.7-stable"
@@ -464,7 +464,7 @@ jobs:
         run: npm ci && npm run build
       - name: Import the example project (headless)
         run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
-      - name: Boot the editor under Xvfb and run the authoring (A-F) mutator probe
+      - name: Boot the editor under Xvfb and run the authoring (A-G) mutator probe
         working-directory: host
         env:
           GODOT_PROJECT: ${{ github.workspace }}/example
