@@ -63,7 +63,8 @@
 // knowledge & search: read-only host-side + ClassDB) / AUTH_ASSETGEN_* (Group J asset generation:
 // placeholder mint+import, degrade, command backend) / AUTH_MP_* (Group M netcode scaffolding: spawner /
 // synchronizer / authority node authoring + undo/redo, enet/lobby codegen, @rpc wiring, WebRTC feature-detect) /
-// AUTH_UNDO_* / AUTH_REDO_*. Every marker prints
+// AUTH_BACKEND_* (Group M backend-SDK scaffolding: detect, unsupported_feature + sdk_missing degrades, and the
+// real write path via an in-memory autoload simulating an installed SDK) / AUTH_UNDO_* / AUTH_REDO_*. Every marker prints
 // "OK" or "FAIL"; a trailing AUTH_SUMMARY line reports the tally and the process exits
 // non-zero if any assertion failed. The reachability check is the gate (exit 1 if the
 // addon is unreachable).
@@ -85,8 +86,10 @@
 //     cmd .tres native resources, sfx.tres) plus their .uid siblings, and a fixture generator script
 //     under the OS temp dir. asset_gen_configure state is restored to the default "none" backend at the end.
 //   * Group M: written GDScript files res://_auth_probe_enet.gd (also mutated by mp_wire_rpc),
-//     _auth_probe_lobby.gd, and (only where the WebRTC module is present) _auth_probe_webrtc.gd, plus
-//     their .uid siblings — all covered by the _auth_probe_* cleanup glob below.
+//     _auth_probe_lobby.gd, and (only where the WebRTC module is present) _auth_probe_webrtc.gd; the
+//     backend half writes res://_auth_probe_backend_{config,leaderboard,save,auth}.gd (and adds/removes an
+//     in-memory "SilentWolf" autoload, save:false) — plus their .uid siblings, all covered by the
+//     _auth_probe_* cleanup glob below.
 //   Local cleanup (narrow — do NOT `rm example/*.uid`, that deletes tracked sidecars):
 //     rm -rf example/_auth_probe_* example/default_bus_layout.tres example/export_presets.cfg
 //     git checkout -- example/project.godot
@@ -132,6 +135,8 @@ const GATED = new Set([
   "asset_gen_audio_sfx", "asset_gen_model",
   // Group M netcode codegen writers (the three node authoring tools are ungated/undoable):
   "mp_setup_enet_peer", "mp_setup_webrtc_peer", "mp_wire_rpc", "mp_scaffold_lobby",
+  // Group M backend-SDK codegen writers (backend_detect is read-only, ungated):
+  "backend_configure", "leaderboard_scaffold", "cloudsave_scaffold", "auth_scaffold",
 ]);
 
 const results = { pass: [], fail: [] };
@@ -1051,6 +1056,67 @@ async function main() {
     (lobby.status === "written" && (await call("resource_load", { path: LOBBY })).type === "GDScript")
       ? pass("AUTH_MP_SCAFFOLD_LOBBY", `path=${lobby.path}`)
       : fail("AUTH_MP_SCAFFOLD_LOBBY", JSON.stringify(lobby).slice(0, 160));
+  });
+
+  // ---------------------------------------------------------------- backend ----
+  // Group M second half: backend-SDK scaffolding. The example ships no SDK, so the codegen
+  // tools first prove BOTH degrades — unsupported_feature (Photon has no leaderboard) and
+  // sdk_missing (nothing installed) — writing nothing. Then an in-memory autoload (save:false)
+  // simulates an installed SilentWolf so the real write path runs against a real editor; the
+  // autoload is removed afterward. Written files res://_auth_probe_backend_* hit the cleanup glob.
+  await family("AUTH_BACKEND", async () => {
+    const CFG = "res://_auth_probe_backend_config.gd";
+    const LB = "res://_auth_probe_backend_leaderboard.gd";
+    const SAVE = "res://_auth_probe_backend_save.gd";
+    const AUTHF = "res://_auth_probe_backend_auth.gd";
+    const loadsAsGd = async (p) => (await call("resource_load", { path: p })).type === "GDScript";
+
+    // backend_detect over the clean example: all four known SDKs listed, SilentWolf not installed.
+    const det0 = await call("backend_detect", {});
+    const sw0 = (det0.backends || []).find((b) => b.sdk === "silentwolf");
+    (Array.isArray(det0.backends) && det0.backends.length === 4 && sw0 && sw0.installed === false)
+      ? pass("AUTH_BACKEND_DETECT", `backends=${det0.backends.length} detected=${JSON.stringify(det0.detected)}`)
+      : fail("AUTH_BACKEND_DETECT", JSON.stringify(det0).slice(0, 160));
+
+    // Degrade (1) — unsupported_feature: Photon has no leaderboard API; nothing written.
+    const unsupported = await call("leaderboard_scaffold", { sdk: "photon", to_path: LB, overwrite: true });
+    (unsupported.status === "unsupported_feature" && unsupported.path === null)
+      ? pass("AUTH_BACKEND_UNSUPPORTED", `msg=${String(unsupported.message).slice(0, 48)}`)
+      : fail("AUTH_BACKEND_UNSUPPORTED", JSON.stringify(unsupported).slice(0, 160));
+
+    // Degrade (2) — sdk_missing: SilentWolf not installed yet; nothing written.
+    const missing = await call("leaderboard_scaffold", { sdk: "silentwolf", to_path: LB, overwrite: true });
+    (missing.status === "sdk_missing" && missing.path === null)
+      ? pass("AUTH_BACKEND_SDK_MISSING", `msg=${String(missing.message).slice(0, 48)}`)
+      : fail("AUTH_BACKEND_SDK_MISSING", JSON.stringify(missing).slice(0, 160));
+
+    // Simulate an installed SilentWolf via an in-memory autoload (save:false — no disk write).
+    await call("project_add_autoload", { name: "SilentWolf", path: "res://gcb_smoke.gd", save: false });
+    const det1 = await call("backend_detect", { sdk: "silentwolf" });
+    const sw1 = (det1.backends || []).find((b) => b.sdk === "silentwolf");
+    (det1.detected.includes("silentwolf") && sw1 && sw1.installed === true && sw1.method === "autoload")
+      ? pass("AUTH_BACKEND_DETECT_AUTOLOAD", `method=${sw1 && sw1.method}`)
+      : fail("AUTH_BACKEND_DETECT_AUTOLOAD", JSON.stringify(det1).slice(0, 160));
+
+    // Written path — now capable + installed. Each writer lands a loadable GDScript.
+    const cfg = await call("backend_configure", { sdk: "silentwolf", api_key: "K", game_id: "G", to_path: CFG, overwrite: true });
+    (cfg.status === "written" && (await loadsAsGd(CFG)))
+      ? pass("AUTH_BACKEND_CONFIGURE", `path=${cfg.path}`) : fail("AUTH_BACKEND_CONFIGURE", JSON.stringify(cfg).slice(0, 160));
+
+    const lb = await call("leaderboard_scaffold", { sdk: "silentwolf", leaderboard_name: "weekly", to_path: LB, overwrite: true });
+    (lb.status === "written" && (await loadsAsGd(LB)))
+      ? pass("AUTH_BACKEND_LEADERBOARD", `path=${lb.path}`) : fail("AUTH_BACKEND_LEADERBOARD", JSON.stringify(lb).slice(0, 160));
+
+    const save = await call("cloudsave_scaffold", { sdk: "silentwolf", to_path: SAVE, overwrite: true });
+    (save.status === "written" && (await loadsAsGd(SAVE)))
+      ? pass("AUTH_BACKEND_CLOUDSAVE", `path=${save.path}`) : fail("AUTH_BACKEND_CLOUDSAVE", JSON.stringify(save).slice(0, 160));
+
+    const auth = await call("auth_scaffold", { sdk: "silentwolf", to_path: AUTHF, overwrite: true });
+    (auth.status === "written" && (await loadsAsGd(AUTHF)))
+      ? pass("AUTH_BACKEND_AUTH", `path=${auth.path}`) : fail("AUTH_BACKEND_AUTH", JSON.stringify(auth).slice(0, 160));
+
+    // Remove the simulated autoload (in-memory; save:false).
+    await call("project_remove_autoload", { name: "SilentWolf", save: false });
   });
 
   // ---------------------------------------------------------------- undo / redo ----

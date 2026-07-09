@@ -19,6 +19,7 @@ import { registerProcessTools } from "./tools/processes.js";
 import { registerKnowledgeTools } from "./tools/knowledge.js";
 import { registerAssetGenTools } from "./tools/assetgen.js";
 import { registerNetcodeTools } from "./tools/netcode.js";
+import { registerBackendTools } from "./tools/backend.js";
 import { registerResources } from "./tools/resources.js";
 import { applyOutputSchemas } from "./schemas.js";
 import { taskStore, TASK_CAPABILITIES } from "./tasks.js";
@@ -104,6 +105,10 @@ async function main(): Promise<void> {
   // undoable node ops (spawner/synchronizer/authority) + gated GDScript codegen
   // (enet/webrtc peer, @rpc wiring, lobby). Hosts nothing; scaffolds everything.
   registerNetcodeTools(server, bridge, config);
+  // Group M (second half): backend-SDK integration scaffolding (backend_* / *_scaffold).
+  // Detects the installed SDK (SilentWolf/Nakama/PlayFab/Photon) and generates gated
+  // GDScript against it; degrades cleanly when the SDK is absent or lacks the feature.
+  registerBackendTools(server, bridge, config);
   // Phase 4: MCP resources (scene tree, editor state, runtime tree/log, ClassDB docs).
   registerResources(server, bridge, runtime);
   // D3: resource subscriptions — push notifications/resources/updated when a

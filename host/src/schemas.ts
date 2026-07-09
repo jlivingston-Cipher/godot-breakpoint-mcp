@@ -568,6 +568,39 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       mp_scaffold_lobby: netcodeScaffold,
     };
   })(),
+
+  // ---- Group M (second half): backend-SDK integration scaffolding (tools/backend.ts) ----
+  // backend_detect reports which SDKs are installed (read-only).
+  backend_detect: {
+    detected: z.array(z.string()),
+    backends: z.array(z.object({
+      sdk: z.string(),
+      installed: z.boolean(),
+      method: z.string().nullable(),
+      autoload: z.string().nullable(),
+      addon_dir: z.string().nullable(),
+      class_name: z.string().nullable(),
+    })),
+    message: z.string(),
+  },
+  // The four scaffolders share one envelope validating all three outcomes:
+  // "written", "sdk_missing" (degrade — SDK absent) and "unsupported_feature"
+  // (this SDK has no such API). path nullable; bytes/created optional (non-strict).
+  ...(() => {
+    const backendScaffold: z.ZodRawShape = {
+      status: z.string(),
+      sdk: z.string(),
+      kind: z.string(),
+      path: z.string().nullable(),
+      message: z.string(),
+    };
+    return {
+      backend_configure: backendScaffold,
+      leaderboard_scaffold: backendScaffold,
+      cloudsave_scaffold: backendScaffold,
+      auth_scaffold: backendScaffold,
+    };
+  })(),
 };
 
 /**

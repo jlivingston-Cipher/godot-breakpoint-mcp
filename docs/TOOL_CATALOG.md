@@ -1841,6 +1841,84 @@ Generate a lobby controller GDScript: ENet host/join plus `peer_connected` / `pe
 ```
 - **Output** — the shared codegen envelope above (`status: "written"`).
 
+The **second half** of Group M is backend-SDK integration scaffolding (`backend_detect` + the four `*_scaffold` codegen tools). Same "host nothing, scaffold everything" stance: we never run a leaderboard DB, save-store or auth service — we generate the integration against the game's *installed* SDK (SilentWolf / Nakama / PlayFab / Photon). Every codegen tool is **feature-detected twice, and never a dead call**: if the SDK provides no such API (Photon is realtime transport, so it has no leaderboard/cloud-save/auth), it degrades to `status: "unsupported_feature"`; if the SDK is not installed in the project, it degrades to `status: "sdk_missing"` ("install <SDK> first"). Detection (via `backend_detect` → the `backend.detect` bridge method) keys off an enabled autoload, an addon directory under `res://addons`, or a global `class_name`. Only a capable + installed SDK reaches the (gated) writer; the generated GDScript is built host-side and written through the shared `mp.write_script` bridge method. Markers `AUTH_BACKEND_*` in the authoring-plane probe.
+
+### `backend_detect` ✅  (Plane A / Editor)  · read-only
+Report which known backend SDKs (SilentWolf / Nakama / PlayFab / Photon) are installed in the project and how each was found (an enabled autoload, an addon directory, or a global `class_name`). Read-only — nothing is written.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "sdk": { "enum": ["silentwolf", "nakama", "playfab", "photon"] }
+  } }
+```
+- **Output** `{ "type": "object", "required": ["detected", "backends", "message"], "properties": { "detected": { "type": "array", "items": { "type": "string" } }, "backends": { "type": "array", "items": { "type": "object", "required": ["sdk", "installed"], "properties": { "sdk": { "type": "string" }, "installed": { "type": "boolean" }, "method": { "type": ["string", "null"] }, "autoload": { "type": ["string", "null"] }, "addon_dir": { "type": ["string", "null"] }, "class_name": { "type": ["string", "null"] } } } }, "message": { "type": "string" } } }`
+
+### `backend_configure` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+Generate a config/bootstrap GDScript for a backend SDK — constants (API key / game id / host / title id / app id) plus a `configure()` you register as an autoload. If the SDK is not installed, degrades to `status: "sdk_missing"` and writes nothing.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["sdk"],
+  "properties": {
+    "sdk": { "enum": ["silentwolf", "nakama", "playfab", "photon"] },
+    "to_path": { "type": "string" },
+    "api_key": { "type": "string" },
+    "game_id": { "type": "string" },
+    "title_id": { "type": "string" },
+    "app_id": { "type": "string" },
+    "host": { "type": "string" },
+    "port": { "type": "integer", "minimum": 1 },
+    "server_key": { "type": "string" },
+    "region": { "type": "string" },
+    "overwrite": { "type": "boolean" },
+    "confirm": { "type": "boolean" }
+  } }
+```
+- **Output** — the shared backend scaffold envelope: `status` (`"written"` / `"sdk_missing"` / `"unsupported_feature"`), `sdk`, `kind`, `path` (nullable), `message`.
+
+### `leaderboard_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+Generate submit/fetch leaderboard helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no leaderboard API) or `sdk_missing` (not installed); neither writes.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["sdk"],
+  "properties": {
+    "sdk": { "enum": ["silentwolf", "nakama", "playfab", "photon"] },
+    "to_path": { "type": "string" },
+    "leaderboard_name": { "type": "string" },
+    "overwrite": { "type": "boolean" },
+    "confirm": { "type": "boolean" }
+  } }
+```
+- **Output** — the shared backend scaffold envelope above.
+
+### `cloudsave_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+Generate save/load cloud-save helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no cloud-save API) or `sdk_missing` (not installed); neither writes.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["sdk"],
+  "properties": {
+    "sdk": { "enum": ["silentwolf", "nakama", "playfab", "photon"] },
+    "to_path": { "type": "string" },
+    "overwrite": { "type": "boolean" },
+    "confirm": { "type": "boolean" }
+  } }
+```
+- **Output** — the shared backend scaffold envelope above.
+
+### `auth_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+Generate login/register/logout helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no auth API) or `sdk_missing` (not installed); neither writes.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["sdk"],
+  "properties": {
+    "sdk": { "enum": ["silentwolf", "nakama", "playfab", "photon"] },
+    "to_path": { "type": "string" },
+    "overwrite": { "type": "boolean" },
+    "confirm": { "type": "boolean" }
+  } }
+```
+- **Output** — the shared backend scaffold envelope above.
+
 ---
 
 ## Destructive-action gating (elicitation) — Phase 4
@@ -2171,5 +2249,10 @@ via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one tr
 | `mp_setup_webrtc_peer` | M / Editor | ✅ | ✔ writes file |
 | `mp_wire_rpc` | M / Editor | ✅ | ✔ writes file |
 | `mp_scaffold_lobby` | M / Editor | ✅ | ✔ writes file |
+| `backend_detect` | M / Editor | ✅ | – |
+| `backend_configure` | M / Editor | ✅ | ✔ writes file |
+| `leaderboard_scaffold` | M / Editor | ✅ | ✔ writes file |
+| `cloudsave_scaffold` | M / Editor | ✅ | ✔ writes file |
+| `auth_scaffold` | M / Editor | ✅ | ✔ writes file |
 
 **70 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 18 LSP, 15 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
