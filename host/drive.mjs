@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// gcb-drive — minimal MCP stdio client to exercise the godot-claude-bridge host.
+// gcb-drive — minimal MCP stdio client to exercise the breakpoint-mcp host.
 //
 // Usage (run from the host/ directory):
 //   node drive.mjs list                          # list tool names + resource URIs

@@ -10,7 +10,7 @@ The project ships **two** independently-installable things:
 | Artifact | Where it goes | What it is |
 |---|---|---|
 | **Host** (`host/`) | **npm** | The TypeScript MCP server Claude talks to over stdio. |
-| **Addon** (`addons/claude_bridge/`) | **Godot Asset Library** | The GDScript `EditorPlugin` + in-game autoload the host connects to. |
+| **Addon** (`addons/breakpoint_mcp/`) | **Godot Asset Library** | The GDScript `EditorPlugin` + in-game autoload the host connects to. |
 
 They are useless apart: the host with no addon can only reach Plane B (headless
 CLI); the addon with no host has nothing driving it. A user installs the host
@@ -24,10 +24,10 @@ One repo version, moved together, tagged repo-wide (`v0.4.3`, `v0.4.4`,
 `v0.4.5`, …). At each tag **all three** version stamps must agree:
 
 - `host/package.json` → `version`
-- `addons/claude_bridge/plugin.cfg` → `version`
-- `addons/claude_bridge/operations.gd` → `ADDON_VERSION` (surfaced by
+- `addons/breakpoint_mcp/plugin.cfg` → `version`
+- `addons/breakpoint_mcp/operations.gd` → `ADDON_VERSION` (surfaced by
   `editor_ping.addon_version`, so it must match what `plugin.cfg` advertises)
-- `example/addons/claude_bridge/plugin.cfg` + `operations.gd` → the vendored copy
+- `example/addons/breakpoint_mcp/plugin.cfg` + `operations.gd` → the vendored copy
   the example project loads; keep it equal to the canonical copy above.
 
 > These drifted before v0.4.5 (`plugin.cfg` was still `0.1.0` while `ADDON_VERSION`
@@ -52,12 +52,12 @@ One repo version, moved together, tagged repo-wide (`v0.4.3`, `v0.4.4`,
 
 ### One-time decisions (maintainer)
 
-- **Package name.** Current `package.json` name is `godot-claude-bridge-host`.
+- **Package name.** Current `package.json` name is `breakpoint-mcp-host`.
   Options:
-  - **Unscoped** `godot-claude-bridge` — cleanest to type (`npx godot-claude-bridge`)
-    if the name is free on npm. **Check:** `npm view godot-claude-bridge` (a 404
+  - **Unscoped** `breakpoint-mcp` — cleanest to type (`npx breakpoint-mcp`)
+    if the name is free on npm. **Check:** `npm view breakpoint-mcp` (a 404
     means it's available). *Recommended if free.*
-  - **Scoped** `@jlivingston-cipher/godot-claude-bridge` — always available under
+  - **Scoped** `@jlivingston-cipher/breakpoint-mcp` — always available under
     your own scope; requires `--access public` on first publish. Good fallback.
   - Keep `-host` suffix only if you want the npm name to mirror the folder; it
     reads slightly awkwardly to consumers.
@@ -75,7 +75,7 @@ One repo version, moved together, tagged repo-wide (`v0.4.3`, `v0.4.4`,
   // host/package.json → scripts
   "prepublishOnly": "npm run build"
   ```
-- **`bin` is already set** (`"godot-claude-bridge": "dist/index.js"`), so
+- **`bin` is already set** (`"breakpoint-mcp": "dist/index.js"`), so
   `npx <name>` and a global install both expose the command. Confirm
   `dist/index.js` keeps its `#!/usr/bin/env node` shebang (tsc preserves a leading
   shebang in the entry source — verify it's present in `src/index.ts`).
@@ -106,8 +106,8 @@ the `vX.Y.Z` tag, so the published bits are exactly what CI built).
 ### How a consumer then wires it up
 
 ```bash
-npx godot-claude-bridge           # or: npm i -g godot-claude-bridge
-claude mcp add godot -- npx -y godot-claude-bridge
+npx breakpoint-mcp           # or: npm i -g breakpoint-mcp
+claude mcp add godot -- npx -y breakpoint-mcp
 # set GODOT_BIN if `godot` isn't on PATH (see README env table)
 ```
 
@@ -120,18 +120,18 @@ installer copies the repo's `addons/` tree into the user's project.
 
 ### ✅ Repo layout (resolved in v0.4.7 — option A)
 
-The canonical addon now lives at **`addons/claude_bridge/`** at the repo root. In
+The canonical addon now lives at **`addons/breakpoint_mcp/`** at the repo root. In
 v0.4.7 it was moved out of the old nested `addon/addons/…` location
 (`git mv addon/addons addons`) and every path reference — `README.md`, `docs/*`,
 `scripts/contract_check.py`, and `scripts/validate.sh` — was updated to match.
 The AssetLib installer expects `addons/…` at the repo root, so an Asset Library
-"install" now drops `addons/claude_bridge/` into the user's `res://addons/` with
+"install" now drops `addons/breakpoint_mcp/` into the user's `res://addons/` with
 **no manual step**. This is the conventional layout AssetLib users expect.
 
 > The alternative (keep the nested layout + document a manual copy) was rejected:
 > simpler diff at the time, but a worse out-of-box AssetLib experience.
 
-The example project vendors its own copy at `example/addons/claude_bridge/` and is
+The example project vendors its own copy at `example/addons/breakpoint_mcp/` and is
 the reference for "installed correctly."
 
 ### Submission fields (assetlib.godotengine.org → Submit Asset)
@@ -144,9 +144,9 @@ the reference for "installed correctly."
 - **Category:** *Tools* (editor tooling).
 - **License:** MIT (repo `LICENSE`).
 - **Icon:** a 128×128 PNG (AssetLib requires an icon URL). None ships yet — add
-  one (e.g. `addons/claude_bridge/icon.png`) before submitting.
+  one (e.g. `addons/breakpoint_mcp/icon.png`) before submitting.
 - **Description:** reuse the `plugin.cfg` description; mention it needs the
-  `godot-claude-bridge` MCP host to do anything.
+  `breakpoint-mcp` MCP host to do anything.
 
 ### Update flow
 

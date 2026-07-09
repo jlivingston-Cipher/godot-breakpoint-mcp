@@ -1,12 +1,12 @@
 @tool
 extends RefCounted
-## Request handlers for the Claude Bridge.
+## Request handlers for the Breakpoint MCP.
 ##
 ## Every handler returns a plain Dictionary that becomes the JSON-RPC `result`.
 ## Errors are raised via `_err(code, message)`. All edit-time mutations are
 ## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything Claude did.
 
-const Codec := preload("res://addons/claude_bridge/variant_json.gd")
+const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const ADDON_VERSION := "0.14.0"
 
 var _plugin: EditorPlugin

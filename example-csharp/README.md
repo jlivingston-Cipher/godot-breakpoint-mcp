@@ -12,8 +12,8 @@ minimal C# project to exercise, exactly the way `../example` exercises the GDScr
 - `project.godot` — `[dotnet] project/assembly_name="ExampleCsharp"`, `gl_compatibility` renderer
   (CI has no GPU).
 
-## Deliberately no claude_bridge addon
-Unlike `../example`, this project does **not** bundle the GDScript `claude_bridge` addon. The C#
+## Deliberately no breakpoint_mcp addon
+Unlike `../example`, this project does **not** bundle the GDScript `breakpoint_mcp` addon. The C#
 plane is served by OmniSharp and the Mono debugger, which are independent of the GDScript
 editor/runtime bridge — and leaving the addon out avoids adding a third `ADDON_VERSION` copy that
 `scripts/contract_check.py` would have to track.

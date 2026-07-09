@@ -172,7 +172,7 @@ export class CsLspClient {
             workspace: { symbol: {}, workspaceFolders: true },
           },
           workspaceFolders: [{ uri: this.rootUri, name: "csharp-project" }],
-          clientInfo: { name: "godot-claude-bridge", version: "0.2.0" },
+          clientInfo: { name: "breakpoint-mcp", version: "0.2.0" },
         })) as { capabilities?: Record<string, unknown> } | null;
         this.serverCapabilities = result?.capabilities ?? {};
         await this.notify("initialized", {});

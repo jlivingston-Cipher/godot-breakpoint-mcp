@@ -2,7 +2,7 @@
 // graph: nodes, scenes, signals), Group B (resources & filesystem), Group C
 // (animation), Group D (TileSet / TileMapLayer), Group E (physics & collision),
 // and Group F (VFX & audio) authoring mutators against a REAL running Godot
-// editor's Claude Bridge addon (:9080) and asserts each mutation INDEPENDENTLY by
+// editor's Breakpoint MCP addon (:9080) and asserts each mutation INDEPENDENTLY by
 // reading the live edited scene / project filesystem back through separate read
 // tools. This is the one thing the mocked-bridge unit suite cannot do: prove the
 // mutator actually changes the edited scene (or writes the resource) inside a real

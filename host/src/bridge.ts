@@ -21,7 +21,7 @@ export class BridgeError extends Error {
 }
 
 /**
- * TCP client for the in-editor Claude Bridge addon. Speaks newline-delimited
+ * TCP client for the in-editor Breakpoint MCP addon. Speaks newline-delimited
  * JSON. Requests are correlated to responses by `id`. Connects lazily and
  * transparently reconnects on the next request after a drop.
  *
@@ -46,7 +46,7 @@ export class BridgeClient {
     private readonly port: number,
     private readonly defaultTimeoutMs: number,
     private readonly label = "editor bridge",
-    private readonly hint = 'Is the editor open with the "Claude Bridge" plugin enabled?',
+    private readonly hint = 'Is the editor open with the "Breakpoint MCP" plugin enabled?',
   ) {}
 
   /** Register a listener for addon-pushed resource-change events. */

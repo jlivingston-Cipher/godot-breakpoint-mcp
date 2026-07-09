@@ -2,7 +2,7 @@ extends Node
 ## Claude Runtime Bridge — runs INSIDE the running game as an autoload.
 ##
 ## The editor plugin auto-registers this as an autoload singleton
-## ("ClaudeRuntimeBridge"), so it is present whenever the project runs. It opens
+## ("BreakpointRuntimeBridge"), so it is present whenever the project runs. It opens
 ## a loopback TCP server on 127.0.0.1:9081 (override CLAUDE_RUNTIME_PORT) speaking
 ## the SAME newline-delimited JSON protocol as the editor bridge, and exposes the
 ## live SceneTree: read/write properties, call methods, emit signals, inject
@@ -11,7 +11,7 @@ extends Node
 ## NOTE: this script is intentionally NOT @tool — it must run in the game, not
 ## the editor. All handlers run on the main thread (socket polled from _process).
 
-const Codec := preload("res://addons/claude_bridge/variant_json.gd")
+const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const DEFAULT_PORT := 9081
 const LOG_CAP := 1000
 # D6: source for the runtime-compiled Logger subclass (Godot 4.5+). Kept as a
@@ -67,7 +67,7 @@ func _ready() -> void:
 	if err != OK:
 		push_error("[claude_runtime] could not listen on 127.0.0.1:%d (error %d)" % [_port, err])
 	else:
-		push_log("info", "ClaudeRuntimeBridge listening on 127.0.0.1:%d" % _port)
+		push_log("info", "BreakpointRuntimeBridge listening on 127.0.0.1:%d" % _port)
 	# D3 follow-up: re-emit godot://runtime/tree when the live SceneTree structure
 	# changes so subscribers re-read it. Collapsed to one push per frame via
 	# _tree_dirty (see _process) so a burst of node adds/removes is a single event.

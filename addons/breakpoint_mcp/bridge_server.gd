@@ -11,7 +11,7 @@ extends Node
 ## (default 9080). The socket is polled from `_process`, so all request handlers
 ## run on the editor's main thread.
 
-const Operations := preload("res://addons/claude_bridge/operations.gd")
+const Operations := preload("res://addons/breakpoint_mcp/operations.gd")
 const DEFAULT_PORT := 9080
 
 var _server: TCPServer
@@ -32,9 +32,9 @@ func _ready() -> void:
 	_server = TCPServer.new()
 	var err := _server.listen(_port, "127.0.0.1")
 	if err != OK:
-		push_error("[claude_bridge] could not listen on 127.0.0.1:%d (error %d)" % [_port, err])
+		push_error("[breakpoint_mcp] could not listen on 127.0.0.1:%d (error %d)" % [_port, err])
 	else:
-		print("[claude_bridge] listening on 127.0.0.1:%d" % _port)
+		print("[breakpoint_mcp] listening on 127.0.0.1:%d" % _port)
 
 
 func shutdown() -> void:

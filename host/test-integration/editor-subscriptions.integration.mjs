@@ -1,5 +1,5 @@
 // Editor-plane resource-subscription probe (EXPERIMENTAL, D3) — connects to a
-// REAL running Godot editor's Claude Bridge addon (:9080) and proves the LIVE
+// REAL running Godot editor's Breakpoint MCP addon (:9080) and proves the LIVE
 // addon PUSHES an unsolicited "resource.changed" event when the editor context
 // moves — the one thing the mocked-bridge unit suite deliberately cannot do.
 //

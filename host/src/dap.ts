@@ -275,8 +275,8 @@ export class DapClient extends EventEmitter {
     // Listen for `initialized` before we ask, so we cannot miss it.
     const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
     this.capabilities = await this.request("initialize", {
-      clientID: "godot-claude-bridge",
-      clientName: "Godot Claude Bridge",
+      clientID: "breakpoint-mcp",
+      clientName: "Godot Breakpoint MCP",
       adapterID: "godot",
       pathFormat: "path",
       linesStartAt1: true,

@@ -1,5 +1,5 @@
 // Runtime-plane integration probe (D6) — connects to the REAL example GAME
-// (booted headless by the workflow) via its in-game ClaudeRuntimeBridge autoload
+// (booted headless by the workflow) via its in-game BreakpointRuntimeBridge autoload
 // on :9081, and proves the one thing no unit test can: a live engine's print()
 // is captured into runtime_get_log through the scriptable Logger (Godot 4.5+).
 //

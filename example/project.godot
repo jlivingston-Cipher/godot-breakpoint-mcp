@@ -14,17 +14,17 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Claude Bridge Example"
+config/name="Breakpoint MCP Example"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7")
 
 [autoload]
 
-ClaudeRuntimeBridge="*res://addons/claude_bridge/runtime_bridge.gd"
+BreakpointRuntimeBridge="*res://addons/breakpoint_mcp/runtime_bridge.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/claude_bridge/plugin.cfg")
+enabled=PackedStringArray("res://addons/breakpoint_mcp/plugin.cfg")
 
 [rendering]
 

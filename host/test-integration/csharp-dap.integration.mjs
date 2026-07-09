@@ -37,8 +37,8 @@ let reached = false;
   const gate = new CsDapClient(newChannel(), 30000);
   try {
     const caps = await gate.request("initialize", {
-      clientID: "godot-claude-bridge",
-      clientName: "Godot Claude Bridge",
+      clientID: "breakpoint-mcp",
+      clientName: "Godot Breakpoint MCP",
       adapterID: "coreclr",
       pathFormat: "path",
       linesStartAt1: true,

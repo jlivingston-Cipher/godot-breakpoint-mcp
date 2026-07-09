@@ -1,4 +1,4 @@
-# Go / No-Go Checklist — Godot–Claude Bridge
+# Go / No-Go Checklist — Godot–Breakpoint MCP
 
 A tight acceptance gate for the first live run. Each gate has **one action**, **one pass criterion**, and **what to check first if it fails**. Stop at the first NO-GO, fix it, then re-run that gate. Full step detail lives in `RUNBOOK.md`; this is the pass/fail scorecard.
 
@@ -45,7 +45,7 @@ Mark each: **GO** / **NO-GO**.
 
 ## Gate 2 — Plane A · Editor bridge  *(editor open, plugin enabled)*
 
-Enable **Project → Project Settings → Plugins → Claude Bridge**; confirm `[claude_bridge] listening on 127.0.0.1:9080` in Output.
+Enable **Project → Project Settings → Plugins → Breakpoint MCP**; confirm `[breakpoint_mcp] listening on 127.0.0.1:9080` in Output.
 
 | # | Action | Pass criterion | ▢ |
 |---|---|---|---|
@@ -100,7 +100,7 @@ Enable **Project → Project Settings → Plugins → Claude Bridge**; confirm `
 | 5.6 | `runtime_screenshot` | game frame image | ▢ |
 | 5.7 | `runtime_get_log` | includes the `push_log` entries | ▢ |
 
-**NO-GO first checks:** runtime tools unreachable → autoload didn't register (re-enable the plugin; confirm `[claude_runtime] listening` in the game's Output) or port 9081 taken (`CLAUDE_RUNTIME_PORT`). **Note:** `runtime_get_log` only surfaces `ClaudeRuntimeBridge.push_log(...)` entries — plain `print()` shows up via `godot_output` (5.2), not here. Empty `runtime_get_log` is only a failure if the example's `push_log` calls ran.
+**NO-GO first checks:** runtime tools unreachable → autoload didn't register (re-enable the plugin; confirm `[claude_runtime] listening` in the game's Output) or port 9081 taken (`CLAUDE_RUNTIME_PORT`). **Note:** `runtime_get_log` only surfaces `BreakpointRuntimeBridge.push_log(...)` entries — plain `print()` shows up via `godot_output` (5.2), not here. Empty `runtime_get_log` is only a failure if the example's `push_log` calls ran.
 
 ---
 

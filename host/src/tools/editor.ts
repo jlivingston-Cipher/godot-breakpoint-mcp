@@ -39,7 +39,7 @@ export function registerEditorTools(server: McpServer, bridge: BridgeClient): vo
 
   server.registerTool(
     "editor_ping",
-    { title: "Ping editor bridge", description: "Check that the editor is running with the Claude Bridge plugin enabled.", inputSchema: {} },
+    { title: "Ping editor bridge", description: "Check that the editor is running with the Breakpoint MCP plugin enabled.", inputSchema: {} },
     async () => call("ping"),
   );
 
