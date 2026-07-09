@@ -2001,7 +2001,7 @@ with a request/response); only URIs a client has actually subscribed to are forw
 
 The host also **coalesces** rapid updates per URI with a leading-edge + trailing-flush throttle: the
 first change pushes immediately, then further changes inside a short window (default 50 ms, override
-via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one trailing push. Multiple
+via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one trailing push. Multiple
 `updated` notifications are spec-harmless — the client just re-reads — so this only trims volume.
 
 ## Tool Index

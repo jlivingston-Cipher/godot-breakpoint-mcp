@@ -2,7 +2,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import type { BridgeClient } from "../bridge.js";
 
 /**
- * MCP resources — read-mostly context Claude can pull on demand (and clients can
+ * MCP resources — read-mostly context the assistant can pull on demand (and clients can
  * subscribe to). Each wraps a bridge call and degrades to an informative JSON
  * note when the source (editor/game) isn't currently reachable, rather than
  * failing the read.
