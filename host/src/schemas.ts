@@ -258,6 +258,22 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   audio_bus_set_volume: { bus: z.string(), bus_index: z.number(), volume_db: z.number() },
   audio_set_bus_layout: { saved: z.string(), bus_count: z.number() },
 
+  // ---- Group G: UI / Control / theming (tools/editor.ts -> operations.gd _control_* / _container_* / _theme_*) ----
+  control_create: { path: z.string(), name: z.string(), type: z.string() },
+  container_add_child: { path: z.string(), name: z.string(), type: z.string(), container: z.string() },
+  control_set_anchors: {
+    path: z.string(),
+    anchors: z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() }),
+  },
+  control_set_layout_preset: { path: z.string(), preset: z.number(), preset_name: z.string() },
+  control_set_size_flags: { path: z.string(), horizontal: z.number(), vertical: z.number(), stretch_ratio: z.number() },
+  control_set_theme: { path: z.string(), theme_path: z.string() },
+  theme_create: { created: z.string(), type: z.string() },
+  theme_set_color: { path: z.string(), name: z.string(), theme_type: z.string(), color: z.array(z.number()) },
+  theme_set_font: { path: z.string(), name: z.string(), theme_type: z.string(), font_path: z.string() },
+  theme_set_stylebox: { path: z.string(), name: z.string(), theme_type: z.string(), stylebox_path: z.string() },
+  theme_set_constant: { path: z.string(), name: z.string(), theme_type: z.string(), value: z.number() },
+
   // ---- Plane D: semantic / LSP (tools/lsp.ts) ----
   gd_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })) },
   gd_hover: { contents: z.string() },

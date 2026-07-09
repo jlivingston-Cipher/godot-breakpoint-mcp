@@ -800,6 +800,54 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 - **Input** `{ "type": "object", "additionalProperties": false, "required": [], "properties": { "to_path": { "type": "string" }, "confirm": { "type": "boolean" } } }`
 - **Output** `{ "type": "object", "required": ["saved", "bus_count"], "properties": { "saved": { "type": "string" }, "bus_count": { "type": "number" } } }`
 
+## Group G — UI / Control / theming (Plane A / Editor)
+
+The user-interface authoring surface (now **195**), reaching the breadth superset. `control_create` and `container_add_child` add a **Control**-derived node (Button / Label / Panel / any `Container` / TextureRect / …) to the **edited scene** — both refuse a non-Control class, and `container_add_child` additionally refuses a non-`Container` parent so the child lands in a real layout container; `control_create` also seeds `text` on controls that expose it. `control_set_anchors` sets any of the four anchors (`left`/`top`/`right`/`bottom`, 0..1) directly; `control_set_layout_preset` applies a `LayoutPreset` (by name — `full_rect`, `center`, `top_left`, `hcenter_wide`, … — or the 0..15 integer) via `set_anchors_and_offsets_preset`, capturing all eight anchor/offset properties for a clean undo; `control_set_size_flags` sets the container `size_flags_horizontal` / `size_flags_vertical` bitmasks and/or `size_flags_stretch_ratio`; `control_set_theme` assigns (or clears) a `Theme` on a Control's `theme` property. All six mutate the edited scene and are **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` model. The five `theme_*` tools author a **`Theme` resource on disk**: `theme_create` writes a new empty Theme, and `theme_set_color` / `theme_set_font` / `theme_set_stylebox` / `theme_set_constant` load a Theme, set one typed item (a `Color`, a `Font`/`StyleBox` loaded from a `res://` path, or an integer constant) for a given theme type, and re-save — so, like the `resource_*` / `shader_create` writers, they are **gated** by confirmation (not scene-undoable). The Control anchor / preset / size-flag / `theme` API and `Theme.set_color` / `set_font` / `set_stylebox` / `set_constant` were probed live on Godot 4.7 before design, and a `Button` carrying anchors + a `Theme` override survives a `.tscn` save + fresh reload.
+
+### `control_create` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["parent_path", "type"], "properties": { "parent_path": { "type": "string" }, "type": { "type": "string" }, "name": { "type": "string" }, "text": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" } } }`
+
+### `container_add_child` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["container_path", "type"], "properties": { "container_path": { "type": "string" }, "type": { "type": "string" }, "name": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "type", "container"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "container": { "type": "string" } } }`
+
+### `control_set_anchors` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "left": { "type": "number" }, "top": { "type": "number" }, "right": { "type": "number" }, "bottom": { "type": "number" } } }`
+- **Output** `{ "type": "object", "required": ["path", "anchors"], "properties": { "path": { "type": "string" }, "anchors": { "type": "object", "required": ["left", "top", "right", "bottom"], "properties": { "left": { "type": "number" }, "top": { "type": "number" }, "right": { "type": "number" }, "bottom": { "type": "number" } } } } }`
+
+### `control_set_layout_preset` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "preset"], "properties": { "path": { "type": "string" }, "preset": { "type": ["string", "integer"] }, "resize_mode": { "type": "integer" }, "margin": { "type": "integer" } } }`
+- **Output** `{ "type": "object", "required": ["path", "preset", "preset_name"], "properties": { "path": { "type": "string" }, "preset": { "type": "number" }, "preset_name": { "type": "string" } } }`
+
+### `control_set_size_flags` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "horizontal": { "type": "integer" }, "vertical": { "type": "integer" }, "stretch_ratio": { "type": "number" } } }`
+- **Output** `{ "type": "object", "required": ["path", "horizontal", "vertical", "stretch_ratio"], "properties": { "path": { "type": "string" }, "horizontal": { "type": "number" }, "vertical": { "type": "number" }, "stretch_ratio": { "type": "number" } } }`
+
+### `control_set_theme` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "theme_path"], "properties": { "path": { "type": "string" }, "theme_path": { "type": "string", "description": "Theme res:// path, or \"\" to clear" } } }`
+- **Output** `{ "type": "object", "required": ["path", "theme_path"], "properties": { "path": { "type": "string" }, "theme_path": { "type": "string" } } }`
+
+### `theme_create` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["created", "type"], "properties": { "created": { "type": "string" }, "type": { "type": "string" } } }`
+
+### `theme_set_color` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "color"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "color": { "type": "array", "items": { "type": "number" } }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "theme_type", "color"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "color": { "type": "array", "items": { "type": "number" } } } }`
+
+### `theme_set_font` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "font_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "font_path": { "type": "string" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "theme_type", "font_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "font_path": { "type": "string" } } }`
+
+### `theme_set_stylebox` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "stylebox_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "stylebox_path": { "type": "string" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "theme_type", "stylebox_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "stylebox_path": { "type": "string" } } }`
+
+### `theme_set_constant` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "value"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "value": { "type": "integer" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["path", "name", "theme_type", "value"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "value": { "type": "number" } } }`
+
 ---
 
 # Plane D — Semantic (LSP)  (✅ implemented — Phase 2; raw TCP + LSP `Content-Length` framing to Godot's GDScript language server, default `127.0.0.1:6005`)
@@ -1485,6 +1533,17 @@ via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one tr
 | `audio_bus_add_effect` | F / Editor | ✅ | ✔ project-wide |
 | `audio_bus_set_volume` | F / Editor | ✅ | ✔ project-wide |
 | `audio_set_bus_layout` | F / Editor | ✅ | ✔ writes file |
+| `control_create` | G / Editor | ✅ | undoable |
+| `container_add_child` | G / Editor | ✅ | undoable |
+| `control_set_anchors` | G / Editor | ✅ | undoable |
+| `control_set_layout_preset` | G / Editor | ✅ | undoable |
+| `control_set_size_flags` | G / Editor | ✅ | undoable |
+| `control_set_theme` | G / Editor | ✅ | undoable |
+| `theme_create` | G / Editor | ✅ | ✔ writes file |
+| `theme_set_color` | G / Editor | ✅ | ✔ writes file |
+| `theme_set_font` | G / Editor | ✅ | ✔ writes file |
+| `theme_set_stylebox` | G / Editor | ✅ | ✔ writes file |
+| `theme_set_constant` | G / Editor | ✅ | ✔ writes file |
 | `gd_completion` | D / LSP | ✅ | – |
 | `gd_hover` | D / LSP | ✅ | – |
 | `gd_definition` | D / LSP | ✅ | – |
