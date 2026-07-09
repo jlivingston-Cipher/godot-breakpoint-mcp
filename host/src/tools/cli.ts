@@ -5,6 +5,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { log } from "../logger.js";
 import { registerTaskTool } from "../tasks.js";
+import { ok } from "./lsp-common.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,13 +59,6 @@ function tail(s: string, max = 8000): string {
   return "…(truncated)…\n" + s.slice(s.length - max);
 }
 
-function textResult(obj: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(obj, null, 2) }],
-    structuredContent: obj as Record<string, unknown>,
-  };
-}
-
 export function registerCliTools(server: McpServer, cfg: Config): void {
   server.registerTool(
     "godot_version",
@@ -75,7 +69,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
     },
     async () => {
       const r = await runCaptured(cfg, ["--version"], 15000);
-      return textResult({ version: r.stdout.trim() || r.stderr.trim(), raw: r });
+      return ok({ version: r.stdout.trim() || r.stderr.trim(), raw: r });
     },
   );
 
@@ -90,7 +84,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
     async () => {
       const pid = launchDetached(cfg, ["-e", "--path", cfg.projectPath]);
       log(`launched editor pid=${pid}`);
-      return textResult({ launched: true, pid, project: cfg.projectPath });
+      return ok({ launched: true, pid, project: cfg.projectPath });
     },
   );
 
@@ -108,7 +102,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       const args = ["--path", cfg.projectPath];
       if (scene) args.push(scene);
       const pid = launchDetached(cfg, args);
-      return textResult({ running: true, pid, scene: scene ?? null });
+      return ok({ running: true, pid, scene: scene ?? null });
     },
   );
 
@@ -135,7 +129,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms ?? 600000,
         signal,
       );
-      return textResult({
+      return ok({
         preset,
         output_path,
         exit_code: r.code,
@@ -165,7 +159,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms ?? 600000,
         signal,
       );
-      return textResult({ exit_code: r.code, timed_out: r.timedOut, stdout: tail(r.stdout), stderr: tail(r.stderr) });
+      return ok({ exit_code: r.code, timed_out: r.timedOut, stdout: tail(r.stdout), stderr: tail(r.stderr) });
     },
   );
 
@@ -191,7 +185,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms ?? 600000,
         signal,
       );
-      return textResult({
+      return ok({
         script_path,
         exit_code: r.code,
         timed_out: r.timedOut,

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
 import { gate } from "../confirm.js";
+import { ok } from "./lsp-common.js";
 
 /**
  * Editor-bridge tools. Each forwards to a method on the in-editor addon over
@@ -9,13 +10,6 @@ import { gate } from "../confirm.js";
  * A friendly, actionable message is returned (isError) when the editor/bridge
  * is not reachable, instead of throwing an opaque protocol error.
  */
-
-function ok(obj: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(obj, null, 2) }],
-    structuredContent: obj as Record<string, unknown>,
-  };
-}
 
 function fail(err: unknown) {
   const be = err as Partial<BridgeError> & { message?: string };

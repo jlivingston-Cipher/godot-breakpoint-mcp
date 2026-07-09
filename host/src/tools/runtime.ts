@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
 import { gate } from "../confirm.js";
+import { ok } from "./lsp-common.js";
 
 const confirmField = {
   confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
@@ -12,12 +13,6 @@ const confirmField = {
  * (BreakpointRuntimeBridge) over TCP. These only work while the project is running.
  */
 
-function ok(obj: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(obj, null, 2) }],
-    structuredContent: obj as Record<string, unknown>,
-  };
-}
 function fail(err: unknown) {
   const be = err as Partial<BridgeError> & { message?: string };
   return {
