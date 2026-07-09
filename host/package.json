@@ -1,10 +1,13 @@
 {
   "name": "breakpoint-mcp",
   "version": "0.17.0",
-  "description": "MCP host exposing Godot to Claude across four planes (CLI, live editor, LSP+DAP, runtime) with elicitation-gated destructive tools, long jobs on the formal MCP task model, captured console output, and MCP resources.",
+  "description": "MCP server exposing Godot to AI coding assistants over the Model Context Protocol — developed and tested with Claude — across four planes (CLI, live editor, LSP+DAP, runtime) with elicitation-gated destructive tools, long jobs on the formal MCP task model, captured console output, and MCP resources.",
   "type": "module",
   "license": "MIT",
-  "author": "jlivingston-Cipher",
+  "author": {
+    "name": "James Livingston",
+    "url": "https://github.com/jlivingston-Cipher"
+  },
   "homepage": "https://github.com/jlivingston-Cipher/godot-claude-bridge#readme",
   "repository": {
     "type": "git",
@@ -28,7 +31,7 @@
     "breakpoint-mcp": "dist/index.js"
   },
   "files": [
-    "dist",
+    "dist/**/*.js",
     "README.md",
     "LICENSE"
   ],
