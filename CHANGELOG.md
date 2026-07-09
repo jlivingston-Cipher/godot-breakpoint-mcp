@@ -9,6 +9,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ### Changed
 - Documentation and repository-readiness pass for the first public release. Rewrote the README with a self-focused overview and no third-party comparisons; added a full **User Guide** (`docs/USER_GUIDE.md`), a **SECURITY.md** trust model with a private disclosure channel, **CONTRIBUTING.md**, **CODE_OF_CONDUCT.md**, GitHub issue/PR templates, and a **Trademarks** notice. Reconciled tool counts and version references across both READMEs, fixed broken links, scrubbed internal shorthand from shipped text, narrowed the npm `files` glob to drop source maps, hardened `.gitignore`, and removed stale internal planning docs. No tool, schema, or version change (still 242 tools at 0.17.0).
 - Trimmed the public `docs/` to what users and contributors need: removed the internal `docs/D4_CSHARP_PLAN.md` (design plan) and `docs/DISTRIBUTION.md` (maintainer publishing steps), leaving the User Guide, Tool Catalog, and validation Runbook. Added `.gitignore` rules so internal design/development artifacts (handoffs, plans, backlogs) can't be committed.
+- Internal code hygiene (no behaviour, tool, schema, or version change): de-duplicated the MCP success-envelope helper. Six tool modules that each re-declared an identical `ok()` (`editor`, `csdap`, `dap`, `runtime`) or identically bodied `textResult()` (`processes`, `cli`) now import the single exported `ok()` from `host/src/tools/lsp-common.ts`. Still 242 tools at 0.17.0; host tests 223/223.
 
 ## [0.17.0] — 2026-07-09
 
