@@ -1,58 +1,80 @@
-// Authoring-plane integration probe (EXPERIMENTAL) — drives the Group E (physics
-// & collision) and Group F (VFX & audio) authoring mutators against a REAL running
-// Godot editor's Claude Bridge addon (:9080) and asserts each mutation INDEPENDENTLY
-// by reading the live edited scene back through separate read tools. This is the one
-// thing the mocked-bridge unit suite cannot do: prove the mutator actually changes
-// the edited scene inside a real editor, not just that the host emits the right
-// bridge request.
+// Authoring-plane integration probe (EXPERIMENTAL) — drives the Group A (scene
+// graph: nodes, scenes, signals), Group B (resources & filesystem), Group C
+// (animation), Group D (TileSet / TileMapLayer), Group E (physics & collision),
+// and Group F (VFX & audio) authoring mutators against a REAL running Godot
+// editor's Claude Bridge addon (:9080) and asserts each mutation INDEPENDENTLY by
+// reading the live edited scene / project filesystem back through separate read
+// tools. This is the one thing the mocked-bridge unit suite cannot do: prove the
+// mutator actually changes the edited scene (or writes the resource) inside a real
+// editor, not just that the host emits the right bridge request.
 //
-// Coverage — all 29 tools shipped in v0.13.0 across Groups E+F:
-//   Physics/collision (12): body_create, collisionshape_add, collisionpolygon_add,
-//     body_set_collision_layer, body_set_collision_mask, area_set_monitoring,
-//     area_set_gravity, rigidbody_set_properties, body_set_physics_material,
-//     joint_create, joint_set_bodies, physics_set_gravity.
-//   Particles (6): particles_create, particles_set_amount, particles_set_lifetime,
-//     particles_set_emitting, particles_set_process_material, particles_set_texture.
-//   Shaders (5): shader_create, shader_set_code, shadermaterial_create,
-//     shadermaterial_set_shader, shadermaterial_set_param.
-//   Audio (6): audio_player_create, audio_set_stream, audio_bus_add,
-//     audio_bus_add_effect, audio_bus_set_volume, audio_set_bus_layout.
+// Coverage — the authoring surface across Groups A–F:
+//   A · scene graph (nodes): node_add, node_duplicate, node_add_to_group,
+//       node_remove_from_group, node_move_child, node_change_type, node_set_owner,
+//       node_find, node_get_path, node_list_properties, node_list_groups.
+//   A · scenes: scene_pack, node_instantiate_scene, scene_list_open,
+//       scene_get_dependencies.
+//   A · signals: signal_connect, signal_disconnect, signal_add_user_signal,
+//       signal_list, signal_list_connections, signal_emit.
+//   B · resources/filesystem: resource_create, resource_load, resource_save,
+//       resource_duplicate, resource_set_property, resource_get_property,
+//       resource_get_import_settings, filesystem_create_dir, filesystem_list,
+//       filesystem_scan, filesystem_move.
+//   C · animation: anim_player_create, anim_create, anim_set_length, anim_set_loop,
+//       anim_add_track, anim_insert_key, anim_get_track_keys, anim_remove_key,
+//       anim_list, anim_tree_create, anim_tree_add_node, anim_statemachine_add_state,
+//       anim_statemachine_add_transition, anim_delete.
+//   D · tiles: tileset_create, tileset_add_source, tileset_add_tile,
+//       tileset_set_tile_collision, tilemaplayer_create, tilemap_set_cell,
+//       tilemap_set_cells_rect, tilemap_get_cell, tilemap_clear.
+//   E · physics/collision (12) and F · particles/shaders/audio (17) — see markers.
 //
 // How it asserts (independent read-back, not just the mutator's own echo):
 //   * node creators  -> node_get_children(parent) shows the new node at the returned
 //                       path with the expected class.
-//   * scalar setters -> node_get_property(path, prop) re-reads the applied value
-//                       (Codec passes int/float/bool/String through unchanged).
-//   * resource setters-> node_get_property(path, prop) comes back Codec-tagged
-//                       {__type__:"Resource", class:...}; we assert the class.
+//   * scalar setters -> node_get_property(path, prop) re-reads the applied value.
+//   * resource setters-> node_get_property/resource_get_property comes back Codec-tagged.
+//   * groups/signals -> node_list_groups / signal_list(_connections) re-read the state.
+//   * anim mutators  -> anim_list / anim_get_track_keys re-read the library/tracks.
+//   * tile mutators  -> tilemap_get_cell re-reads a painted cell; resource_load reopens
+//                       the written TileSet/.tres.
+//   * disk writers   -> resource_load / filesystem_list re-open / re-list what was written.
 //   * project gravity -> project_get_setting re-reads the ProjectSettings value.
-//   * file writers    -> resource_load re-opens the written .gdshader/.tres.
 //   * global bus tools-> AudioServer has no editor read tool; we assert the live
 //                       values the mutator read back from AudioServer post-commit.
 //
+// Undo/redo IS asserted per plane. editor_undo / editor_redo drive the edited scene's
+// EditorUndoRedoManager history (resolved via get_object_history_id on the edited
+// root), so every in-scene family round-trips a representative undoable archetype
+// (creator / property / connection / cell paint): mutate -> undo -> revert -> redo ->
+// restore. The dedicated AUTH_UNDO family additionally proves the mechanism across
+// the creator / property / resource archetypes, a 3-deep LIFO stack, and a redo
+// no-op guard. Disk-backed writers (Group B, TileSet .tres writers, project gravity,
+// the global AudioServer tools) are NOT scene-undoable and are asserted forward only.
+//
 // Assets: the example project ships no texture/audio, so the probe MINTS its own
-// (PlaceholderTexture2D, AudioStreamWAV via resource_create; two .gdshader files via
-// shader_create) — no committed binary fixtures.
+// (PlaceholderTexture2D, AudioStreamWAV, StyleBoxFlat via resource_create; two
+// .gdshader files via shader_create; a PackedScene via scene_pack; a TileSet via
+// tileset_create) — no committed binary fixtures.
 //
-// Markers (grep-able): AUTH_PHYS_* / AUTH_VFX_PARTICLES_* / AUTH_VFX_SHADER_* /
-// AUTH_AUDIO_*. Every marker prints "OK" or "FAIL"; a trailing AUTH_SUMMARY line
-// reports the tally and the process exits non-zero if any assertion failed. The
-// reachability check is the gate (exit 1 if the addon is unreachable).
-//
-// Undo/redo IS asserted (the AUTH_UNDO family). editor_undo / editor_redo drive the
-// edited scene's EditorUndoRedoManager history (resolved via get_object_history_id on
-// the edited root), so the probe rounds-trips each undo archetype on a throwaway node:
-// node creators (add_do_reference), scalar property setters (add_do_property), and
-// resource assignments — mutate -> undo -> revert -> redo -> restore — plus a 3-deep
-// LIFO stack test and a redo no-op guard. Each cycle only touches the action(s) it just
-// pushed (the top of the scene history), so it never disturbs the forward families above.
+// Markers (grep-able): AUTH_NODE_* / AUTH_SCENE_* / AUTH_SIGNAL_* / AUTH_RESOURCE_* /
+// AUTH_ANIM_* / AUTH_TILESET_* / AUTH_TILEMAP_* / AUTH_PHYS_* / AUTH_VFX_PARTICLES_* /
+// AUTH_VFX_SHADER_* / AUTH_AUDIO_* / AUTH_UNDO_* / AUTH_REDO_*. Every marker prints
+// "OK" or "FAIL"; a trailing AUTH_SUMMARY line reports the tally and the process exits
+// non-zero if any assertion failed. The reachability check is the gate (exit 1 if the
+// addon is unreachable).
 //
 // Side effects (harmless in the ephemeral CI runner; clean up after a local run):
 //   * unsaved in-memory edits to res://main.tscn (never saved -> vanish on close);
-//   * written files res://_auth_probe_tex.tres, _auth_probe_audio.tres,
-//     _auth_probe_a.gdshader, _auth_probe_b.gdshader, _auth_probe_bus_layout.tres
-//     (+ their .import siblings);
+//   * written files under res://_auth_probe_* : _auth_probe_tex.tres,
+//     _auth_probe_audio.tres, _auth_probe_a.gdshader, _auth_probe_b.gdshader,
+//     _auth_probe_bus_layout.tres, _auth_probe_branch.tscn, _auth_probe_style*.tres,
+//     _auth_probe_tiletex.tres, _auth_probe_tileset.tres, and the _auth_probe_dir/
+//     directory (with moved.tres) — plus their .uid/.import siblings;
 //   * two extra AudioServer buses on the running editor (global, reset on restart).
+//   Local cleanup (narrow — do NOT `rm example/*.uid`, that deletes tracked sidecars):
+//     rm -rf example/_auth_probe_* example/default_bus_layout.tres
+//     git checkout -- example/project.godot
 //
 // Requires the editor up (booted under Xvfb by the workflow) with GODOT_PROJECT set.
 // Run from host/:  node test-integration/authoring-plane.integration.mjs
@@ -75,6 +97,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const GATED = new Set([
   "physics_set_gravity", "shader_create", "shader_set_code", "resource_create",
   "audio_bus_add", "audio_bus_add_effect", "audio_bus_set_volume", "audio_set_bus_layout",
+  // Group A/B/C/D destructive writers exercised below:
+  "scene_pack", "signal_emit", "resource_save", "resource_duplicate",
+  "resource_set_property", "filesystem_move", "anim_delete",
+  "tileset_create", "tileset_add_source", "tileset_add_tile", "tileset_set_tile_collision",
 ]);
 
 const results = { pass: [], fail: [] };
@@ -109,6 +135,11 @@ async function main() {
   const propResClass = async (p, property) => { const v = await propVal(p, property); return v && typeof v === "object" ? v.class : undefined; };
   const propNodePath = async (p, property) => { const v = await propVal(p, property); return v && typeof v === "object" ? v.path : v; };
   const settingVal = async (name) => (await call("project_get_setting", { name })).value;
+  const groupsOf = async (p) => (await call("node_list_groups", { path: p })).groups || [];
+  const connsOf = async (p, signal) => (await call("signal_list_connections", signal ? { path: p, signal } : { path: p })).connections || [];
+  const sigNames = async (p) => ((await call("signal_list", { path: p })).signals || []).map((s) => s.name);
+  const animOf = async (pl, nm) => ((await call("anim_list", { player_path: pl })).animations || []).find((a) => a.name === nm);
+  const nodeIndex = async (p) => (await call("node_get_path", { path: p })).index;
 
   // Run one family; a throw inside marks a fail but never aborts the other families.
   async function family(label, fn) {
@@ -158,6 +189,310 @@ async function main() {
     const okShader = (await call("resource_load", { path: SHADER_A })).type;
     if (okTex && okAudio && okShader === "Shader") pass("AUTH_FIXTURES_MINTED", `tex=${okTex} audio=${okAudio} shader=${okShader}`);
     else fail("AUTH_FIXTURES_MINTED", `tex=${okTex} audio=${okAudio} shader=${okShader}`);
+  });
+
+  // ---------------------------------------------------------------- Group A: node depth ----
+  await family("AUTH_NODE", async () => {
+    const rootc = (await call("node_add", { parent_path: ".", type: "Node2D", name: "AuthNodeRoot" })).path;
+    (await hasChild(".", rootc, "Node2D")) ? pass("AUTH_NODE_ADD_CONTAINER", rootc) : fail("AUTH_NODE_ADD_CONTAINER", rootc);
+
+    const child = (await call("node_add", { parent_path: rootc, type: "Sprite2D", name: "AuthChild" })).path;
+    (await hasChild(rootc, child, "Sprite2D")) ? pass("AUTH_NODE_ADD_CHILD", child) : fail("AUTH_NODE_ADD_CHILD", child);
+
+    // node_duplicate (undoable) — forward + undo + redo
+    const dup = (await call("node_duplicate", { path: child })).path;
+    const dupMade = await hasChild(rootc, dup, "Sprite2D");
+    const du = await call("editor_undo");
+    const dupGone = !(await hasChild(rootc, dup, "Sprite2D"));
+    (dupMade && du.performed === true && dupGone)
+      ? pass("AUTH_NODE_DUPLICATE", `dup=${dup}`) : fail("AUTH_NODE_DUPLICATE", `made=${dupMade} performed=${du.performed} gone=${dupGone}`);
+    const dr = await call("editor_redo");
+    (dr.performed === true && (await hasChild(rootc, dup, "Sprite2D")))
+      ? pass("AUTH_NODE_DUPLICATE_REDO") : fail("AUTH_NODE_DUPLICATE_REDO", `performed=${dr.performed}`);
+
+    // node_add_to_group / node_list_groups (undoable) — forward + undo + redo
+    await call("node_add_to_group", { path: child, group: "auth_group" });
+    const inGrp = (await groupsOf(child)).includes("auth_group");
+    const gu = await call("editor_undo");
+    const outGrp = !(await groupsOf(child)).includes("auth_group");
+    (inGrp && gu.performed === true && outGrp)
+      ? pass("AUTH_NODE_ADD_TO_GROUP") : fail("AUTH_NODE_ADD_TO_GROUP", `in=${inGrp} performed=${gu.performed} out=${outGrp}`);
+    await call("editor_redo");
+    (await groupsOf(child)).includes("auth_group")
+      ? pass("AUTH_NODE_ADD_TO_GROUP_REDO") : fail("AUTH_NODE_ADD_TO_GROUP_REDO");
+
+    // node_remove_from_group (undoable) — forward
+    await call("node_remove_from_group", { path: child, group: "auth_group" });
+    !(await groupsOf(child)).includes("auth_group")
+      ? pass("AUTH_NODE_REMOVE_FROM_GROUP") : fail("AUTH_NODE_REMOVE_FROM_GROUP");
+
+    // node_move_child (undoable) — reorder AuthChild to the last sibling index
+    await call("node_add", { parent_path: rootc, type: "Node2D", name: "AuthSibling" });
+    await call("node_move_child", { path: child, to_index: -1 });
+    const sibCount = (await childList(rootc)).length;
+    (await nodeIndex(child)) === sibCount - 1
+      ? pass("AUTH_NODE_MOVE_CHILD", `index=${await nodeIndex(child)}/${sibCount}`) : fail("AUTH_NODE_MOVE_CHILD", `index=${await nodeIndex(child)} of ${sibCount}`);
+
+    // node_change_type (undoable) — Node2D -> Sprite2D, carrying name/children
+    const morph = (await call("node_add", { parent_path: rootc, type: "Node2D", name: "AuthMorph" })).path;
+    const ct = await call("node_change_type", { path: morph, type: "Sprite2D" });
+    ((await call("node_get_path", { path: morph })).type === "Sprite2D" && ct.old_type === "Node2D")
+      ? pass("AUTH_NODE_CHANGE_TYPE", `old=${ct.old_type}`) : fail("AUTH_NODE_CHANGE_TYPE", `type=${(await call("node_get_path", { path: morph })).type} old=${ct.old_type}`);
+
+    // node_set_owner (undoable) — reassert AuthChild's owner to the scene root
+    const so = await call("node_set_owner", { path: child, owner_path: "." });
+    so.path === child ? pass("AUTH_NODE_SET_OWNER", `owner=${JSON.stringify(so.owner)}`) : fail("AUTH_NODE_SET_OWNER", JSON.stringify(so));
+
+    // node_find (read) — Sprite2D descendants of the container
+    const found = await call("node_find", { root_path: rootc, type: "Sprite2D" });
+    (found.count >= 1 && found.matches.some((m) => m.path === child))
+      ? pass("AUTH_NODE_FIND", `count=${found.count}`) : fail("AUTH_NODE_FIND", `count=${found.count}`);
+
+    // node_get_path (read)
+    const gp = await call("node_get_path", { path: child });
+    (gp.parent === rootc && typeof gp.index === "number" && typeof gp.child_count === "number")
+      ? pass("AUTH_NODE_GET_PATH", `parent=${gp.parent} idx=${gp.index}`) : fail("AUTH_NODE_GET_PATH", JSON.stringify(gp));
+
+    // node_list_properties (read) — a Sprite2D exposes "position"
+    const lp = await call("node_list_properties", { path: child });
+    lp.properties.some((p) => p.name === "position")
+      ? pass("AUTH_NODE_LIST_PROPERTIES", `n=${lp.properties.length}`) : fail("AUTH_NODE_LIST_PROPERTIES", `n=${lp.properties.length}`);
+  });
+
+  // ---------------------------------------------------------------- Group A: scenes ----
+  await family("AUTH_SCENE", async () => {
+    const BRANCH = "res://_auth_probe_branch.tscn";
+    // scene_pack: save an owned node as a PackedScene (disk-backed, gated), then load it back.
+    const packSrc = (await call("node_add", { parent_path: ".", type: "Node2D", name: "AuthPackMe" })).path;
+    const packed = await call("scene_pack", { path: packSrc, to_path: BRANCH });
+    (packed.packed === BRANCH && (await call("resource_load", { path: BRANCH })).type === "PackedScene")
+      ? pass("AUTH_SCENE_PACK", BRANCH) : fail("AUTH_SCENE_PACK", `packed=${packed.packed}`);
+
+    // node_instantiate_scene (undoable): instance the just-packed scene under the root.
+    const inst = await call("node_instantiate_scene", { parent_path: ".", scene_path: BRANCH, name: "AuthInstanced" });
+    ((await hasChild(".", inst.path)) && inst.scene === BRANCH)
+      ? pass("AUTH_SCENE_INSTANTIATE", inst.path) : fail("AUTH_SCENE_INSTANTIATE", JSON.stringify(inst).slice(0, 120));
+
+    // scene_list_open (read) — main.tscn is open
+    const open = await call("scene_list_open");
+    (Array.isArray(open.scenes) && open.scenes.includes("res://main.tscn"))
+      ? pass("AUTH_SCENE_LIST_OPEN", `current=${open.current}`) : fail("AUTH_SCENE_LIST_OPEN", JSON.stringify(open.scenes).slice(0, 120));
+
+    // scene_get_dependencies (read) — main.tscn references player.gd
+    const deps = await call("scene_get_dependencies", { path: "res://main.tscn" });
+    Array.isArray(deps.dependencies)
+      ? pass("AUTH_SCENE_DEPENDENCIES", `n=${deps.dependencies.length}`) : fail("AUTH_SCENE_DEPENDENCIES", JSON.stringify(deps));
+  });
+
+  // ---------------------------------------------------------------- Group A: signals ----
+  await family("AUTH_SIGNAL", async () => {
+    const a = (await call("node_add", { parent_path: ".", type: "Node2D", name: "AuthSigA" })).path;
+    const b = (await call("node_add", { parent_path: ".", type: "Node2D", name: "AuthSigB" })).path;
+
+    // signal_connect (undoable): AuthSigA.visibility_changed -> AuthSigB.queue_free
+    await call("signal_connect", { path: a, signal: "visibility_changed", target_path: b, method: "queue_free" });
+    const wired = (await connsOf(a, "visibility_changed")).some((c) => c.method === "queue_free");
+    const su = await call("editor_undo");
+    const unwired = !(await connsOf(a, "visibility_changed")).some((c) => c.method === "queue_free");
+    (wired && su.performed === true && unwired)
+      ? pass("AUTH_SIGNAL_CONNECT") : fail("AUTH_SIGNAL_CONNECT", `wired=${wired} performed=${su.performed} unwired=${unwired}`);
+    await call("editor_redo");
+    (await connsOf(a, "visibility_changed")).some((c) => c.method === "queue_free")
+      ? pass("AUTH_SIGNAL_CONNECT_REDO") : fail("AUTH_SIGNAL_CONNECT_REDO");
+
+    // signal_disconnect (undoable) — forward
+    await call("signal_disconnect", { path: a, signal: "visibility_changed", target_path: b, method: "queue_free" });
+    !(await connsOf(a, "visibility_changed")).some((c) => c.method === "queue_free")
+      ? pass("AUTH_SIGNAL_DISCONNECT") : fail("AUTH_SIGNAL_DISCONNECT");
+
+    // signal_add_user_signal (undoable) — forward + undo + redo
+    await call("signal_add_user_signal", { path: a, signal: "auth_evt", args: [{ name: "amount", type: 2 }] });
+    const declared = (await sigNames(a)).includes("auth_evt");
+    const uu = await call("editor_undo");
+    const undeclared = !(await sigNames(a)).includes("auth_evt");
+    (declared && uu.performed === true && undeclared)
+      ? pass("AUTH_SIGNAL_ADD_USER_SIGNAL") : fail("AUTH_SIGNAL_ADD_USER_SIGNAL", `declared=${declared} performed=${uu.performed} undeclared=${undeclared}`);
+    await call("editor_redo");
+    (await sigNames(a)).includes("auth_evt")
+      ? pass("AUTH_SIGNAL_ADD_USER_SIGNAL_REDO") : fail("AUTH_SIGNAL_ADD_USER_SIGNAL_REDO");
+
+    // signal_list (read) — a Sprite2D... here Node2D... exposes built-in visibility_changed
+    (await sigNames(a)).includes("visibility_changed")
+      ? pass("AUTH_SIGNAL_LIST") : fail("AUTH_SIGNAL_LIST");
+
+    // signal_emit (gated, edit-time) — fires now, returns emitted:true (no connections left)
+    const em = await call("signal_emit", { path: a, signal: "auth_evt", args: [7] });
+    em.emitted === true ? pass("AUTH_SIGNAL_EMIT") : fail("AUTH_SIGNAL_EMIT", JSON.stringify(em));
+  });
+
+  // ---------------------------------------------------------------- Group B: resources & filesystem ----
+  // Disk-backed (ResourceSaver / DirAccess), NOT scene-undoable — asserted forward only,
+  // like physics_set_gravity and the global AudioServer bus tools.
+  await family("AUTH_RESOURCE", async () => {
+    const RES = "res://_auth_probe_style.tres";
+    const RES_SAVED = "res://_auth_probe_style_saved.tres";
+    const RES_DUP = "res://_auth_probe_style_dup.tres";
+    const DIR = "res://_auth_probe_dir";
+
+    await call("resource_create", { class_name: "StyleBoxFlat", to_path: RES });
+    (await call("resource_load", { path: RES })).type === "StyleBoxFlat"
+      ? pass("AUTH_RESOURCE_CREATE", RES) : fail("AUTH_RESOURCE_CREATE", RES);
+
+    await call("resource_set_property", { path: RES, property: "content_margin_left", value: 12 });
+    near((await call("resource_get_property", { path: RES, property: "content_margin_left" })).value, 12)
+      ? pass("AUTH_RESOURCE_SET_GET_PROPERTY") : fail("AUTH_RESOURCE_SET_GET_PROPERTY", `got ${(await call("resource_get_property", { path: RES, property: "content_margin_left" })).value}`);
+
+    const sv = await call("resource_save", { from_path: RES, to_path: RES_SAVED });
+    (sv.saved === RES_SAVED && (await call("resource_load", { path: RES_SAVED })).type === "StyleBoxFlat")
+      ? pass("AUTH_RESOURCE_SAVE", RES_SAVED) : fail("AUTH_RESOURCE_SAVE", JSON.stringify(sv));
+
+    const dp = await call("resource_duplicate", { path: RES, to_path: RES_DUP, deep: true });
+    (dp.deep === true && (await call("resource_load", { path: RES_DUP })).type === "StyleBoxFlat")
+      ? pass("AUTH_RESOURCE_DUPLICATE", RES_DUP) : fail("AUTH_RESOURCE_DUPLICATE", JSON.stringify(dp));
+
+    // resource_get_import_settings — a .tres is not an imported asset (degrade path -> imported:false)
+    const imp = await call("resource_get_import_settings", { path: RES });
+    (typeof imp.imported === "boolean")
+      ? pass("AUTH_RESOURCE_IMPORT_SETTINGS", `imported=${imp.imported}`) : fail("AUTH_RESOURCE_IMPORT_SETTINGS", JSON.stringify(imp));
+
+    // filesystem_create_dir + filesystem_list (dirs/files are bare names)
+    const cd = await call("filesystem_create_dir", { path: DIR });
+    const listRoot = await call("filesystem_list", { path: "res://" });
+    (cd.created && listRoot.dirs.some((d) => d === "_auth_probe_dir"))
+      ? pass("AUTH_RESOURCE_CREATE_DIR", DIR) : fail("AUTH_RESOURCE_CREATE_DIR", `dirs=${JSON.stringify(listRoot.dirs).slice(0, 120)}`);
+
+    // filesystem_scan
+    (await call("filesystem_scan")).scanning === true
+      ? pass("AUTH_RESOURCE_FS_SCAN") : fail("AUTH_RESOURCE_FS_SCAN");
+
+    // filesystem_move (gated): move the duplicate into the new dir
+    const MOVED = DIR + "/moved.tres";
+    const mv = await call("filesystem_move", { from_path: RES_DUP, to_path: MOVED });
+    const listDir = await call("filesystem_list", { path: DIR });
+    (mv.moved === MOVED && listDir.files.some((f) => f === "moved.tres"))
+      ? pass("AUTH_RESOURCE_FS_MOVE", MOVED) : fail("AUTH_RESOURCE_FS_MOVE", `files=${JSON.stringify(listDir.files).slice(0, 120)}`);
+  });
+
+  // ---------------------------------------------------------------- Group C: animation ----
+  await family("AUTH_ANIM", async () => {
+    const player = (await call("anim_player_create", { parent_path: ".", name: "AuthAnimPlayer" })).path;
+    (await hasChild(".", player, "AnimationPlayer")) ? pass("AUTH_ANIM_PLAYER_CREATE", player) : fail("AUTH_ANIM_PLAYER_CREATE", player);
+
+    await call("anim_create", { player_path: player, name: "walk" });
+    (await animOf(player, "walk")) ? pass("AUTH_ANIM_CREATE") : fail("AUTH_ANIM_CREATE");
+
+    const sl = await call("anim_set_length", { player_path: player, name: "walk", length: 2.5 });
+    near((await animOf(player, "walk"))?.length, 2.5)
+      ? pass("AUTH_ANIM_SET_LENGTH", `prev=${sl.previous}`) : fail("AUTH_ANIM_SET_LENGTH", `got ${(await animOf(player, "walk"))?.length}`);
+
+    const lo = await call("anim_set_loop", { player_path: player, name: "walk", mode: "linear" });
+    ((await animOf(player, "walk"))?.loop_mode === "linear")
+      ? pass("AUTH_ANIM_SET_LOOP", `prev=${lo.previous}`) : fail("AUTH_ANIM_SET_LOOP", `got ${(await animOf(player, "walk"))?.loop_mode}`);
+
+    const tr = await call("anim_add_track", { player_path: player, name: "walk", path: "Sprite2D:rotation", type: "value" });
+    const trackIdx = tr.track;
+    (typeof trackIdx === "number" && tr.type === "value")
+      ? pass("AUTH_ANIM_ADD_TRACK", `track=${trackIdx}`) : fail("AUTH_ANIM_ADD_TRACK", JSON.stringify(tr));
+
+    const ik = await call("anim_insert_key", { player_path: player, name: "walk", track: trackIdx, time: 0.5, value: 1.5 });
+    ik.key_count >= 1 ? pass("AUTH_ANIM_INSERT_KEY", `keys=${ik.key_count}`) : fail("AUTH_ANIM_INSERT_KEY", JSON.stringify(ik));
+
+    const keys = await call("anim_get_track_keys", { player_path: player, name: "walk", track: trackIdx });
+    (keys.keys.length >= 1 && near(keys.keys[0].time, 0.5))
+      ? pass("AUTH_ANIM_GET_TRACK_KEYS", `n=${keys.keys.length}`) : fail("AUTH_ANIM_GET_TRACK_KEYS", JSON.stringify(keys.keys).slice(0, 120));
+
+    await call("anim_remove_key", { player_path: player, name: "walk", track: trackIdx, key: 0 });
+    (await call("anim_get_track_keys", { player_path: player, name: "walk", track: trackIdx })).keys.length === 0
+      ? pass("AUTH_ANIM_REMOVE_KEY") : fail("AUTH_ANIM_REMOVE_KEY");
+
+    // anim_list (read) — track_count reflects the added track
+    ((await animOf(player, "walk"))?.track_count >= 1)
+      ? pass("AUTH_ANIM_LIST") : fail("AUTH_ANIM_LIST", `track_count=${(await animOf(player, "walk"))?.track_count}`);
+
+    // AnimationTree + blend-tree graph node (undoable in-scene)
+    const bt = (await call("anim_tree_create", { parent_path: ".", name: "AuthBlendTree", root_type: "blend_tree" })).path;
+    (await hasChild(".", bt, "AnimationTree")) ? pass("AUTH_ANIM_TREE_CREATE", bt) : fail("AUTH_ANIM_TREE_CREATE", bt);
+
+    const an = await call("anim_tree_add_node", { tree_path: bt, node_name: "clipA", node_type: "AnimationNodeAnimation", animation: "walk" });
+    an.node_name === "clipA" ? pass("AUTH_ANIM_TREE_ADD_NODE") : fail("AUTH_ANIM_TREE_ADD_NODE", JSON.stringify(an));
+
+    // AnimationTree state machine + states + transition
+    const sm = (await call("anim_tree_create", { parent_path: ".", name: "AuthStateMachine", root_type: "state_machine" })).path;
+    await call("anim_statemachine_add_state", { tree_path: sm, state_name: "idle", animation: "walk" });
+    const st2 = await call("anim_statemachine_add_state", { tree_path: sm, state_name: "run", animation: "walk" });
+    st2.state_name === "run" ? pass("AUTH_ANIM_SM_ADD_STATE") : fail("AUTH_ANIM_SM_ADD_STATE", JSON.stringify(st2));
+
+    const trn = await call("anim_statemachine_add_transition", { tree_path: sm, from_state: "idle", to_state: "run" });
+    trn.transition_count >= 1 ? pass("AUTH_ANIM_SM_ADD_TRANSITION", `n=${trn.transition_count}`) : fail("AUTH_ANIM_SM_ADD_TRANSITION", JSON.stringify(trn));
+
+    // anim_delete (gated): remove "walk"
+    await call("anim_delete", { player_path: player, name: "walk" });
+    !(await animOf(player, "walk")) ? pass("AUTH_ANIM_DELETE") : fail("AUTH_ANIM_DELETE");
+
+    // undo/redo round-trip on a throwaway player (creator archetype -> scene history)
+    const up = (await call("anim_player_create", { parent_path: ".", name: "AuthAnimUndoP" })).path;
+    const made = await hasChild(".", up, "AnimationPlayer");
+    const au = await call("editor_undo");
+    const gone = !(await hasChild(".", up, "AnimationPlayer"));
+    (made && au.performed === true && gone)
+      ? pass("AUTH_ANIM_UNDO_CREATE") : fail("AUTH_ANIM_UNDO_CREATE", `made=${made} performed=${au.performed} gone=${gone}`);
+    await call("editor_redo");
+    (await hasChild(".", up, "AnimationPlayer")) ? pass("AUTH_ANIM_REDO_CREATE") : fail("AUTH_ANIM_REDO_CREATE");
+  });
+
+  // ---------------------------------------------------------------- Group D: TileSet / TileMapLayer ----
+  await family("AUTH_TILEMAP", async () => {
+    const TILETEX = "res://_auth_probe_tiletex.tres";
+    const TILESET = "res://_auth_probe_tileset.tres";
+
+    // atlas texture minted with a real 64x64 size so 16x16 tiles fit the grid
+    await call("resource_create", { class_name: "PlaceholderTexture2D", to_path: TILETEX, properties: { size: { __type__: "Vector2", x: 64, y: 64 } } });
+
+    // TileSet writers (disk-backed .tres, gated) — forward only
+    const tc = await call("tileset_create", { to_path: TILESET, tile_size: [16, 16] });
+    (tc.created === TILESET && (await call("resource_load", { path: TILESET })).type === "TileSet")
+      ? pass("AUTH_TILESET_CREATE", TILESET) : fail("AUTH_TILESET_CREATE", JSON.stringify(tc));
+
+    const src = await call("tileset_add_source", { tileset_path: TILESET, texture_path: TILETEX, texture_region_size: [16, 16] });
+    const sourceId = src.source_id;
+    (src.source_count >= 1 && typeof sourceId === "number")
+      ? pass("AUTH_TILESET_ADD_SOURCE", `id=${sourceId}`) : fail("AUTH_TILESET_ADD_SOURCE", JSON.stringify(src));
+
+    const at = await call("tileset_add_tile", { tileset_path: TILESET, source_id: sourceId, atlas_coords: [0, 0] });
+    at.tiles_count >= 1 ? pass("AUTH_TILESET_ADD_TILE", `tiles=${at.tiles_count}`) : fail("AUTH_TILESET_ADD_TILE", JSON.stringify(at));
+
+    const col = await call("tileset_set_tile_collision", { tileset_path: TILESET, source_id: sourceId, atlas_coords: [0, 0], polygon: [[-8, -8], [8, -8], [8, 8], [-8, 8]], physics_layer: 0 });
+    (col.points >= 3 && col.physics_layer === 0)
+      ? pass("AUTH_TILESET_SET_TILE_COLLISION", `points=${col.points}`) : fail("AUTH_TILESET_SET_TILE_COLLISION", JSON.stringify(col));
+
+    // TileMapLayer (in-scene, undoable)
+    const layer = (await call("tilemaplayer_create", { parent_path: ".", name: "AuthTileLayer", tileset_path: TILESET })).path;
+    (await hasChild(".", layer, "TileMapLayer")) ? pass("AUTH_TILEMAP_LAYER_CREATE", layer) : fail("AUTH_TILEMAP_LAYER_CREATE", layer);
+
+    // tilemap_set_cell (undoable) — forward + undo + redo
+    await call("tilemap_set_cell", { path: layer, coords: [3, 3], source_id: sourceId, atlas_coords: [0, 0] });
+    const painted = !(await call("tilemap_get_cell", { path: layer, coords: [3, 3] })).empty;
+    const tu = await call("editor_undo");
+    const cleared = (await call("tilemap_get_cell", { path: layer, coords: [3, 3] })).empty;
+    (painted && tu.performed === true && cleared)
+      ? pass("AUTH_TILEMAP_SET_CELL") : fail("AUTH_TILEMAP_SET_CELL", `painted=${painted} performed=${tu.performed} cleared=${cleared}`);
+    await call("editor_redo");
+    !(await call("tilemap_get_cell", { path: layer, coords: [3, 3] })).empty
+      ? pass("AUTH_TILEMAP_SET_CELL_REDO") : fail("AUTH_TILEMAP_SET_CELL_REDO");
+
+    // tilemap_set_cells_rect (undoable) — forward
+    const rc = await call("tilemap_set_cells_rect", { path: layer, rect: [0, 0, 2, 2], source_id: sourceId, atlas_coords: [0, 0] });
+    (rc.cells === 4 && !(await call("tilemap_get_cell", { path: layer, coords: [0, 0] })).empty)
+      ? pass("AUTH_TILEMAP_SET_CELLS_RECT", `cells=${rc.cells}`) : fail("AUTH_TILEMAP_SET_CELLS_RECT", JSON.stringify(rc));
+
+    // tilemap_get_cell (read) — the [3,3] cell reports the painted source
+    ((await call("tilemap_get_cell", { path: layer, coords: [3, 3] })).source_id === sourceId)
+      ? pass("AUTH_TILEMAP_GET_CELL") : fail("AUTH_TILEMAP_GET_CELL");
+
+    // tilemap_clear (undoable) — forward
+    const cl = await call("tilemap_clear", { path: layer });
+    (cl.cleared_cells >= 1 && (await call("tilemap_get_cell", { path: layer, coords: [3, 3] })).empty)
+      ? pass("AUTH_TILEMAP_CLEAR", `cleared=${cl.cleared_cells}`) : fail("AUTH_TILEMAP_CLEAR", JSON.stringify(cl));
   });
 
   // ---------------------------------------------------------------- Group E ----
