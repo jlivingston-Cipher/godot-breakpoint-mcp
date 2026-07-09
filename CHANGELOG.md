@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-07-09
+
 ### Added — Group F (batch 3): Audio (6 tools, 176 → 182)
 - Completes **Group F (VFX & audio)** with the **audio** subgroup, carrying the tool count to **182**. Six tools split across the two established models:
   - **`audio_player_create`** — add an `AudioStreamPlayer` / `AudioStreamPlayer2D` / `AudioStreamPlayer3D` node under a parent in the edited scene (`dim` selects `none` default / `2d` / `3d`), optionally seeding `stream_path` (a `res://` `AudioStream`), `autoplay`, `volume_db`, `bus`. Undoable via `EditorUndoRedoManager` and **ungated** (the `node_*` model); the node rides `add_do_reference`, the stream is a persisted disk resource (no inline reference).
