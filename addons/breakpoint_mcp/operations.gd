@@ -139,6 +139,8 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _mp_set_authority(params)
 		"mp.write_script":
 			return _mp_write_script(params)
+		"backend.detect":
+			return _backend_detect(params)
 		"anim.player_create":
 			return _anim_player_create(params)
 		"anim.create":
@@ -4519,3 +4521,58 @@ func _mp_write_script(params: Dictionary) -> Dictionary:
 	efs.update_file(to_path)
 	efs.scan()
 	return _ok({"status": "written", "path": to_path, "bytes": content.to_utf8_buffer().size(), "created": not existed})
+
+
+## Detect which known game-backend SDKs are installed in this project. Each is
+## matched by any of: an autoload of a known name, a known addon directory under
+## res://addons, or a known global class_name. Read-only — the backend_* / *_scaffold
+## codegen tools feature-detect off this so they degrade ("install <SDK> first")
+## instead of generating a dead call. We host nothing; we only wire the installed SDK.
+func _backend_detect(_params: Dictionary) -> Dictionary:
+	# sdk id -> { autoloads: [names], addon: res://path, classes: [class_names] }
+	var known := {
+		"silentwolf": {"autoloads": ["SilentWolf"], "addon": "res://addons/silent_wolf", "classes": []},
+		"nakama": {"autoloads": ["Nakama"], "addon": "res://addons/com.heroiclabs.nakama", "classes": ["Nakama"]},
+		"playfab": {"autoloads": ["PlayFab", "PlayFabManager"], "addon": "res://addons/godot-playfab", "classes": ["PlayFabManager"]},
+		"photon": {"autoloads": ["Photon"], "addon": "res://addons/photon", "classes": []},
+	}
+	# Gather the project's registered global class names (guarded — older builds).
+	var global_classes := {}
+	if ProjectSettings.has_method("get_global_class_list"):
+		for gc in ProjectSettings.get_global_class_list():
+			global_classes[String(gc.get("class", ""))] = true
+	var backends: Array = []
+	var detected: Array = []
+	for sdk in known.keys():
+		var sig: Dictionary = known[sdk]
+		var found_autoload := ""
+		for a in sig["autoloads"]:
+			if ProjectSettings.has_setting("autoload/" + String(a)):
+				found_autoload = String(a)
+				break
+		var addon_dir := String(sig["addon"])
+		var has_addon := DirAccess.dir_exists_absolute(addon_dir)
+		var found_class := ""
+		for c in sig["classes"]:
+			if global_classes.has(String(c)):
+				found_class = String(c)
+				break
+		var method := ""
+		if found_autoload != "":
+			method = "autoload"
+		elif has_addon:
+			method = "addon"
+		elif found_class != "":
+			method = "class"
+		var installed := method != ""
+		if installed:
+			detected.append(String(sdk))
+		backends.append({
+			"sdk": String(sdk),
+			"installed": installed,
+			"method": (method if method != "" else null),
+			"autoload": (found_autoload if found_autoload != "" else null),
+			"addon_dir": (addon_dir if has_addon else null),
+			"class_name": (found_class if found_class != "" else null),
+		})
+	return _ok({"backends": backends, "detected": detected})
