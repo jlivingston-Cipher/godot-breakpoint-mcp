@@ -1,4 +1,4 @@
-# Godot–Claude Bridge — MCP Tool-Schema Catalog
+# Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
 Complete tool contract for the bridge — **59 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
@@ -1368,7 +1368,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 
 ---
 
-# Plane C — Runtime Bridge  (✅ implemented — Phase 3; in-game autoload `ClaudeRuntimeBridge` over loopback TCP :9081, same JSON protocol as the editor bridge)
+# Plane C — Runtime Bridge  (✅ implemented — Phase 3; in-game autoload `BreakpointRuntimeBridge` over loopback TCP :9081, same JSON protocol as the editor bridge)
 
 ### `runtime_get_tree` ✅
 - **Input** `{ "type": "object", "properties": { "max_depth": { "type": "integer", "default": 64 } } }`
@@ -1420,7 +1420,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_get_log` ✅  (also a subscribable `godot://runtime/log` resource)
 - **Input** `{ "type": "object", "properties": { "since_seq": { "type": "integer", "default": 0 }, "levels": { "type": "array", "items": { "enum": ["info", "warning", "error"] } } } }`
 - **Output** `{ "type": "object", "required": ["entries", "latest_seq"], "properties": { "entries": { "type": "array", "items": { "type": "object", "properties": { "seq": { "type": "integer" }, "level": { "type": "string" }, "message": { "type": "string" } } } }, "latest_seq": { "type": "integer" }, "capture": { "type": "boolean" } } }`
-- **D6 zero-config capture (Godot 4.5+):** on 4.5 and newer the runtime bridge auto-registers a scriptable `Logger` (`OS.add_logger`) that funnels every `print()` / `push_warning` / `push_error` and engine message into this ring buffer — so the host reads the game's console with **no managed parent process**. Levels are `info` / `warning` / `error`. `capture` reports whether that hook is active; on Godot < 4.5 it is `false` and only explicit `ClaudeRuntimeBridge.push_log(...)` entries appear (unchanged behavior). Changes to the buffer push `godot://runtime/log` to subscribers (coalesced, one per frame).
+- **D6 zero-config capture (Godot 4.5+):** on 4.5 and newer the runtime bridge auto-registers a scriptable `Logger` (`OS.add_logger`) that funnels every `print()` / `push_warning` / `push_error` and engine message into this ring buffer — so the host reads the game's console with **no managed parent process**. Levels are `info` / `warning` / `error`. `capture` reports whether that hook is active; on Godot < 4.5 it is `false` and only explicit `BreakpointRuntimeBridge.push_log(...)` entries appear (unchanged behavior). Changes to the buffer push `godot://runtime/log` to subscribers (coalesced, one per frame).
 
 ---
 

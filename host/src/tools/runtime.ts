@@ -9,7 +9,7 @@ const confirmField = {
 
 /**
  * Runtime-bridge tools (Plane C). Each forwards to the in-game autoload
- * (ClaudeRuntimeBridge) over TCP. These only work while the project is running.
+ * (BreakpointRuntimeBridge) over TCP. These only work while the project is running.
  */
 
 function ok(obj: unknown) {
@@ -165,7 +165,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
     {
       title: "Runtime log",
       description:
-        "Read the runtime log ring buffer (entries game code pushed via ClaudeRuntimeBridge.push_log). " +
+        "Read the runtime log ring buffer (entries game code pushed via BreakpointRuntimeBridge.push_log). " +
         "Use since_seq for incremental reads.",
       inputSchema: {
         since_seq: z.number().int().optional().describe("Return only entries with seq greater than this (default 0)"),

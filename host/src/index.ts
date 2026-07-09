@@ -32,7 +32,7 @@ async function main(): Promise<void> {
     config.runtimePort,
     config.runtimeTimeoutMs,
     "runtime bridge",
-    "Is the project running? Launch it (godot_run_project or dbg_launch) with the Claude Bridge plugin enabled — it auto-registers the runtime autoload.",
+    "Is the project running? Launch it (godot_run_project or dbg_launch) with the Breakpoint MCP plugin enabled — it auto-registers the runtime autoload.",
   );
   const lsp = new LspClient(config.lspHost, config.lspPort, config.projectUri, config.lspTimeoutMs);
   // D4 C2: the C# semantic plane. OmniSharp is spawned over stdio (lazily, on the
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   // D3: also advertise resources.subscribe so clients can subscribe to
   // godot://… resources and receive notifications/resources/updated.
   const server = new McpServer(
-    { name: "godot-claude-bridge", version: "0.14.0" },
+    { name: "breakpoint-mcp", version: "0.14.0" },
     { capabilities: { ...TASK_CAPABILITIES, ...RESOURCE_CAPABILITIES }, taskStore },
   );
 
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
 
   // Plane B (headless CLI): works without the editor running.
   registerCliTools(server, config);
-  // Plane A (live editor): requires the editor open with the Claude Bridge plugin.
+  // Plane A (live editor): requires the editor open with the Breakpoint MCP plugin.
   registerEditorTools(server, bridge);
   // Plane D (semantic): connects to Godot's GDScript language server (LSP, 6005).
   registerLspTools(server, lsp, config);

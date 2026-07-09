@@ -1,10 +1,18 @@
 # Changelog
 
-All notable changes to the Godot–Claude Bridge are documented here.
+All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+### Changed — Renamed to Breakpoint MCP
+- Rebrands the project from "godot-claude-bridge" / "Claude Bridge" to **Breakpoint MCP** (tagline: *Now Godot waits for you.*) across the host, the addon, and the docs. **No behaviour change** — every tool, schema, bridge method and CI probe is byte-for-byte the same; the surface stays at **223** tools and the version stamps stay `0.14.0` (rename PR, not a release).
+  - **Host / npm:** package name `godot-claude-bridge` → `breakpoint-mcp` (+ the `bin` name), MCP `serverInfo.name` → `breakpoint-mcp`, the LSP/DAP `clientInfo`/`clientID` and the stderr log tag `[godot-claude-bridge]` → `[breakpoint-mcp]`.
+  - **Addon:** directory `addons/claude_bridge/` → `addons/breakpoint_mcp/` (both the root and the bundled `example/` copy), plugin display name `Claude Bridge` → **Breakpoint MCP**, editor log prefix `[claude_bridge]` → `[breakpoint_mcp]`, internal server node `ClaudeBridgeServer` → `BreakpointBridgeServer`, and the new mark applied to `icon.png`.
+  - **Runtime autoload:** `ClaudeRuntimeBridge` → `BreakpointRuntimeBridge` (the `/root/…` singleton the `runtime_*` tools and game code reach); the example `project.godot` autoload + enabled-plugin path and `player.gd`'s lookup were updated to match, so the runtime plane stays wired end-to-end.
+  - **Docs:** README (root + host), `TOOL_CATALOG`, `DISTRIBUTION`, `RUNBOOK`, `contract_check.py` and `validate.sh` rebranded; `contract_check`'s addon path follows the move.
+- The GitHub repository slug (`jlivingston-Cipher/godot-claude-bridge`) is intentionally **kept** this pass, so every `repository` / `homepage` / `bugs` URL is unchanged; a repo rename can follow as a separate deliberate step. Historical changelog entries below are left as written (they name the paths/identifiers accurate at the time).
 
 ### Added — Group K: knowledge & search (6 tools, 217 → 223)
 - Adds the read-only "where / what / how" family — the docs-lookup + code-index surface the breadth rivals advertise — carrying the count to **223**.

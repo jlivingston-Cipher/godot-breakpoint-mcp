@@ -1,6 +1,6 @@
 @tool
 extends EditorPlugin
-## Claude Bridge — EditorPlugin entry point.
+## Breakpoint MCP — EditorPlugin entry point.
 ##
 ## Spins up a loopback TCP server (bridge_server.gd) when the plugin is enabled
 ## and tears it down when disabled. All engine interaction happens on the main
@@ -11,9 +11,9 @@ extends EditorPlugin
 ## bridge server to push a "resource.changed" event when either moves, so a
 ## subscribed MCP host can emit notifications/resources/updated.
 
-const BridgeServer := preload("res://addons/claude_bridge/bridge_server.gd")
-const RUNTIME_AUTOLOAD := "ClaudeRuntimeBridge"
-const RUNTIME_SCRIPT := "res://addons/claude_bridge/runtime_bridge.gd"
+const BridgeServer := preload("res://addons/breakpoint_mcp/bridge_server.gd")
+const RUNTIME_AUTOLOAD := "BreakpointRuntimeBridge"
+const RUNTIME_SCRIPT := "res://addons/breakpoint_mcp/runtime_bridge.gd"
 
 var _server: Node = null
 var _selection: EditorSelection = null
@@ -21,7 +21,7 @@ var _selection: EditorSelection = null
 
 func _enter_tree() -> void:
 	_server = BridgeServer.new()
-	_server.name = "ClaudeBridgeServer"
+	_server.name = "BreakpointBridgeServer"
 	_server.setup(self)
 	add_child(_server)
 	# Inject the runtime bridge into every run of the project so the runtime_*
@@ -34,7 +34,7 @@ func _enter_tree() -> void:
 		_selection.selection_changed.connect(_on_selection_changed)
 	if not scene_changed.is_connected(_on_scene_changed):
 		scene_changed.connect(_on_scene_changed)
-	print("[claude_bridge] plugin enabled")
+	print("[breakpoint_mcp] plugin enabled")
 
 
 func _exit_tree() -> void:
@@ -48,7 +48,7 @@ func _exit_tree() -> void:
 		_server.shutdown()
 		_server.queue_free()
 		_server = null
-	print("[claude_bridge] plugin disabled")
+	print("[breakpoint_mcp] plugin disabled")
 
 
 ## D3: the editor selection changed — godot://editor-state reflects the selection.

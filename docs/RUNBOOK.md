@@ -19,8 +19,8 @@ This runs the static contract check, copies the addon into `example/addons/`, bu
 
 ## 2. Start the editor + bridge
 1. Open the `example/` project in the Godot editor.
-2. **Project → Project Settings → Plugins →** enable **Claude Bridge**.
-3. In the **Output** panel confirm: `[claude_bridge] listening on 127.0.0.1:9080`.
+2. **Project → Project Settings → Plugins →** enable **Breakpoint MCP**.
+3. In the **Output** panel confirm: `[breakpoint_mcp] listening on 127.0.0.1:9080`.
 4. Confirm the language server and debug adapter are on under **Editor → Editor Settings → Network → Language Server** (6005) and **Debug Adapter** (6006). They're on by default.
 
 ## 3. Register the MCP host with Claude

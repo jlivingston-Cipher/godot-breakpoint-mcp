@@ -58,7 +58,7 @@ to what that engine expects (Godot 4.4+ forces `net8.0`). When bumping the CI Go
 - `example-csharp/` — `Player.cs` (mirrors `example/player.gd`: `Counter`, `_Ready`/`_Process`,
   `TakeDamage(int)`), `Main.tscn` (root **Main** running `Player.cs`), `ExampleCsharp.csproj`/`.sln`
   (`Godot.NET.Sdk/4.7.0`, `net8.0`), `project.godot` (`[dotnet]` assembly, `gl_compatibility`
-  renderer), `.gitignore` (`bin/`,`obj/`,`.mono/`), `README.md`. **No** `claude_bridge` addon — the
+  renderer), `.gitignore` (`bin/`,`obj/`,`.mono/`), `README.md`. **No** `breakpoint_mcp` addon — the
   C# plane doesn't use the GDScript bridge, and omitting it avoids a third `ADDON_VERSION` copy that
   `contract_check.py` would track.
 - `csharp-plane` job in `.github/workflows/integration.yml` — `continue-on-error` (never blocks):

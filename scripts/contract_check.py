@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contract check for godot-claude-bridge.
+"""Static contract check for breakpoint-mcp.
 
 Verifies, without running Godot or Node, that the three layers agree:
   1. every bridge method the host calls exists in a GDScript dispatcher
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ADDON = ROOT / "addons/claude_bridge"
+ADDON = ROOT / "addons/breakpoint_mcp"
 TOOLS = ROOT / "host/src/tools"
 CATALOG = ROOT / "docs/TOOL_CATALOG.md"
 
@@ -121,7 +121,7 @@ for i, block in enumerate(catalog_json_blocks()):
         errors.append(f"Invalid JSON block #{i+1} in catalog: {e}")
 
 # --- report -----------------------------------------------------------------
-print("=== godot-claude-bridge static contract check ===")
+print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
 print(f"GDScript runtime methods: {len(runtime_methods)}")
 print(f"Host bridge calls       : {len(host_calls)}")

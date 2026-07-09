@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# godot-claude-bridge — smoke/validation helper.
+# breakpoint-mcp — smoke/validation helper.
 # Automates the parts of validation that don't need a GUI editor or Claude.
 # The interactive planes (editor bridge, LSP, DAP, runtime) are driven from
 # Claude per docs/RUNBOOK.md after this script sets things up.
@@ -11,8 +11,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GODOT="${GODOT_BIN:-godot}"
 EXAMPLE="$ROOT/example"
-ADDON_SRC="$ROOT/addons/claude_bridge"
-ADDON_DST="$EXAMPLE/addons/claude_bridge"
+ADDON_SRC="$ROOT/addons/breakpoint_mcp"
+ADDON_DST="$EXAMPLE/addons/breakpoint_mcp"
 fail=0
 
 echo "== 1. Godot version =="
@@ -49,9 +49,9 @@ else
   echo "Some automated steps failed (see above). After fixing, do the interactive validation:"
 fi
 cat <<'EOF'
-  1. Open the example project in the Godot editor and enable the Claude Bridge
+  1. Open the example project in the Godot editor and enable the Breakpoint MCP
      plugin (Project > Project Settings > Plugins). Watch the Output panel for
-     "[claude_bridge] listening on 127.0.0.1:9080".
+     "[breakpoint_mcp] listening on 127.0.0.1:9080".
   2. Register the host with Claude Code, pointing at the example project:
        claude mcp add godot -- node "REPO/host/dist/index.js"
      with env GODOT_BIN, GODOT_PROJECT="REPO/example".

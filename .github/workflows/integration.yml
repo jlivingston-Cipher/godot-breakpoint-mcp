@@ -7,7 +7,7 @@ name: integration
 #
 #   * cli-plane     — headless, deterministic, expected to pass. This is the gate.
 #   * runtime-plane — boots the example GAME headless (no editor, no GUI) and drives Plane C
-#                     against its in-game ClaudeRuntimeBridge autoload (:9081). Asserts D6
+#                     against its in-game BreakpointRuntimeBridge autoload (:9081). Asserts D6
 #                     zero-config console capture: a live print() reaches runtime_get_log via
 #                     the scriptable Logger. MATRIX across 4.3 (below the 4.5 floor — capture is a
 #                     documented no-op: bridge loads, print() absent, push_log still served), 4.5
@@ -211,7 +211,7 @@ jobs:
             sleep 2
           done
           node test-integration/editor-lsp.integration.mjs
-          # D3: the Claude Bridge addon (:9080) comes up as the editor enables the
+          # D3: the Breakpoint MCP addon (:9080) comes up as the editor enables the
           # plugin. Wait for it, then probe the live resource-subscription push path
           # (subscribe -> live selection change -> resources/updated; D3_SUB_* markers).
           for i in $(seq 1 30); do
@@ -478,7 +478,7 @@ jobs:
             --rendering-driver opengl3 --audio-driver Dummy \
             >/tmp/godot-editor-authoring.log 2>&1 &
           GODOT_PID=$!
-          # The Claude Bridge addon opens :9080 once the editor enables the plugin. Software-rendered
+          # The Breakpoint MCP addon opens :9080 once the editor enables the plugin. Software-rendered
           # editor boot is slow — wait up to ~120s for the bridge port before driving the mutators.
           for i in $(seq 1 60); do
             if node -e "require('net').connect(9080,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
