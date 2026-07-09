@@ -205,6 +205,16 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _particles_set_emitting(params)
 		"particles.set_texture":
 			return _particles_set_texture(params)
+		"shader.create":
+			return _shader_create(params)
+		"shader.set_code":
+			return _shader_set_code(params)
+		"shadermaterial.create":
+			return _shadermaterial_create(params)
+		"shadermaterial.set_shader":
+			return _shadermaterial_set_shader(params)
+		"shadermaterial.set_param":
+			return _shadermaterial_set_param(params)
 		"selection.get":
 			return _ok(_selection_get())
 		"selection.set":
@@ -2747,3 +2757,134 @@ func _particles_set_texture(params: Dictionary) -> Dictionary:
 	ur.add_undo_property(node, "texture", node.get("texture"))
 	ur.commit_action()
 	return _ok({"path": _path_of(root, node), "texture_path": tex_path})
+
+
+# -------------------------------------------------------------- shaders ------
+# VFX: shaders. shader_create / shader_set_code write .gdshader resources to disk
+# (host-gated, file-writing). shadermaterial_* mutate the edited scene's node
+# material (undoable, ungated, node_* model). ShaderMaterial targets
+# CanvasItem.material (2D / Control) or GeometryInstance3D.material_override (3D);
+# other nodes degrade to a clear unsupported. Shader / ShaderMaterial /
+# set_shader_parameter + the shader_parameter/<name> property path probed live on
+# Godot 4.7.
+
+func _material_prop(node) -> String:
+	if node is CanvasItem:
+		return "material"
+	if node is GeometryInstance3D:
+		return "material_override"
+	return ""
+
+
+func _shader_create(params: Dictionary) -> Dictionary:
+	var to_path := String(params.get("to_path", ""))
+	if not to_path.begins_with("res://"):
+		return _err("bad_params", "'to_path' must be a res:// path")
+	var sh := Shader.new()
+	if params.has("code"):
+		sh.code = String(params.get("code"))
+	var e := ResourceSaver.save(sh, to_path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"created": to_path, "type": "Shader", "code_length": sh.code.length()})
+
+
+func _shader_set_code(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", ""))
+	if not ResourceLoader.exists(path):
+		return _err("not_found", "Shader not found: %s" % path)
+	if not params.has("code"):
+		return _err("bad_params", "Missing 'code'")
+	var res = ResourceLoader.load(path)
+	if not (res is Shader):
+		return _err("bad_type", "%s is not a Shader" % path)
+	var sh := res as Shader
+	sh.code = String(params.get("code"))
+	var e := ResourceSaver.save(sh, path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"path": path, "code_length": sh.code.length()})
+
+
+func _shadermaterial_create(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var prop := _material_prop(node)
+	if prop == "":
+		return _err("unsupported", "%s has no material slot (needs CanvasItem.material or GeometryInstance3D.material_override)" % node.name)
+	var mat := ShaderMaterial.new()
+	var shader_path := String(params.get("shader_path", ""))
+	if shader_path != "":
+		if not ResourceLoader.exists(shader_path):
+			return _err("not_found", "Shader not found: %s" % shader_path)
+		var sres = ResourceLoader.load(shader_path)
+		if not (sres is Shader):
+			return _err("bad_type", "%s is not a Shader" % shader_path)
+		mat.shader = sres as Shader
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: set %s shader material" % node.name)
+	ur.add_do_property(node, prop, mat)
+	ur.add_undo_property(node, prop, node.get(prop))
+	ur.add_do_reference(mat)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "target_property": prop, "type": node.get_class(), "shader_path": shader_path})
+
+
+func _shadermaterial_set_shader(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var prop := _material_prop(node)
+	if prop == "":
+		return _err("unsupported", "%s has no material slot" % node.name)
+	var cur = node.get(prop)
+	if not (cur is ShaderMaterial):
+		return _err("bad_type", "%s has no ShaderMaterial (create one first)" % node.name)
+	var shader_path := String(params.get("shader_path", ""))
+	if not ResourceLoader.exists(shader_path):
+		return _err("not_found", "Shader not found: %s" % shader_path)
+	var sres = ResourceLoader.load(shader_path)
+	if not (sres is Shader):
+		return _err("bad_type", "%s is not a Shader" % shader_path)
+	var mat := cur as ShaderMaterial
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: set %s shader" % node.name)
+	ur.add_do_property(mat, "shader", sres as Shader)
+	ur.add_undo_property(mat, "shader", mat.shader)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "shader_path": shader_path})
+
+
+func _shadermaterial_set_param(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var prop := _material_prop(node)
+	if prop == "":
+		return _err("unsupported", "%s has no material slot" % node.name)
+	var cur = node.get(prop)
+	if not (cur is ShaderMaterial):
+		return _err("bad_type", "%s has no ShaderMaterial (create one first)" % node.name)
+	var pname := String(params.get("param", ""))
+	if pname == "":
+		return _err("bad_params", "Missing 'param'")
+	var mat := cur as ShaderMaterial
+	var value: Variant = Codec.decode(params.get("value"))
+	var key := "shader_parameter/" + pname
+	var old_value = mat.get(key)
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: set %s shader param %s" % [node.name, pname])
+	ur.add_do_property(mat, key, value)
+	ur.add_undo_property(mat, key, old_value)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "param": pname, "value": Codec.encode(mat.get(key))})

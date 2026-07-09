@@ -688,7 +688,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 
 ## Group F — VFX & audio (Plane A / Editor)
 
-In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` model. Batch 1 covers **GPU particles**: `particles_create` adds a `GPUParticles2D`/`GPUParticles3D` (`dim` selects 2D default or 3D), optionally seeding `amount`/`lifetime`/`emitting`; `particles_set_process_material` creates a `ParticleProcessMaterial` and assigns it as `process_material` (GPU particles need one to emit), exposing `gravity`/`direction` (Vector3), `spread`, `initial_velocity_min`/`_max`, `scale_min`/`_max`, and `color`; `particles_set_amount` / `particles_set_lifetime` / `particles_set_emitting` tune the headline knobs individually; `particles_set_texture` loads a `Texture2D` from a `res://` path onto a `GPUParticles2D` — GPUParticles3D draws meshes and has no texture, so it degrades to a clear `unsupported`. The particle + `ParticleProcessMaterial` API surface (properties present per dim, the 2D-only `texture`) was probed live on Godot 4.7 before design. Shaders and audio land in later Group F batches.
+In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` model. Batch 1 covers **GPU particles**: `particles_create` adds a `GPUParticles2D`/`GPUParticles3D` (`dim` selects 2D default or 3D), optionally seeding `amount`/`lifetime`/`emitting`; `particles_set_process_material` creates a `ParticleProcessMaterial` and assigns it as `process_material` (GPU particles need one to emit), exposing `gravity`/`direction` (Vector3), `spread`, `initial_velocity_min`/`_max`, `scale_min`/`_max`, and `color`; `particles_set_amount` / `particles_set_lifetime` / `particles_set_emitting` tune the headline knobs individually; `particles_set_texture` loads a `Texture2D` from a `res://` path onto a `GPUParticles2D` — GPUParticles3D draws meshes and has no texture, so it degrades to a clear `unsupported`. The particle + `ParticleProcessMaterial` API surface (properties present per dim, the 2D-only `texture`) was probed live on Godot 4.7 before design. **Batch 2 adds shaders** (now **176**): `shader_create` and `shader_set_code` author a `Shader` (`.gdshader`) resource on disk — initial or replacement GDShader source — and, because they write files, are **gated** by confirmation like the `resource_*` / `tileset_*` writers (not the in-scene model); `shadermaterial_create` creates a `ShaderMaterial` and assigns it to a node's material slot — `CanvasItem.material` (2D / Control) or `GeometryInstance3D.material_override` (3D), degrading to a clear `unsupported` for a node with neither — optionally binding a `Shader` loaded from a `res://` path; `shadermaterial_set_shader` swaps the shader on an existing `ShaderMaterial`; `shadermaterial_set_param` sets a uniform through the `shader_parameter/<name>` property path (values use the tagged-Variant convention). The three `shadermaterial_*` tools mutate the edited scene and are **undoable** and **ungated**. `Shader` / `ShaderMaterial` / `set_shader_parameter` and the `shader_parameter/<name>` property-path form were probed live on Godot 4.7, and a `Sprite2D` carrying a `ShaderMaterial` (external `.gdshader` + a `shader_parameter` override) survives a `.tscn` save + fresh reload. Audio lands in a later Group F batch.
 
 ### `particles_create` ✅  (undoable)
 - **Input** `{ "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "dim": { "type": "string", "enum": ["2d", "3d"] }, "name": { "type": "string" }, "amount": { "type": "number" }, "lifetime": { "type": "number" }, "emitting": { "type": "boolean" } } }`
@@ -713,6 +713,26 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 ### `particles_set_texture` ✅  (undoable)
 - **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "texture_path"], "properties": { "path": { "type": "string" }, "texture_path": { "type": "string" } } }`
 - **Output** `{ "type": "object", "required": ["path", "texture_path"], "properties": { "path": { "type": "string" }, "texture_path": { "type": "string" } } }`
+
+### `shader_create` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "code": { "type": "string" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["created", "type", "code_length"], "properties": { "created": { "type": "string" }, "type": { "type": "string" }, "code_length": { "type": "number" } } }`
+
+### `shader_set_code` ✅ · destructive (writes a file)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "code"], "properties": { "path": { "type": "string" }, "code": { "type": "string" }, "confirm": { "type": "boolean" } } }`
+- **Output** `{ "type": "object", "required": ["path", "code_length"], "properties": { "path": { "type": "string" }, "code_length": { "type": "number" } } }`
+
+### `shadermaterial_create` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "shader_path": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "target_property", "type", "shader_path"], "properties": { "path": { "type": "string" }, "target_property": { "type": "string" }, "type": { "type": "string" }, "shader_path": { "type": "string" } } }`
+
+### `shadermaterial_set_shader` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "shader_path"], "properties": { "path": { "type": "string" }, "shader_path": { "type": "string" } } }`
+- **Output** `{ "type": "object", "required": ["path", "shader_path"], "properties": { "path": { "type": "string" }, "shader_path": { "type": "string" } } }`
+
+### `shadermaterial_set_param` ✅  (undoable)
+- **Input** `{ "type": "object", "additionalProperties": false, "required": ["path", "param", "value"], "properties": { "path": { "type": "string" }, "param": { "type": "string" }, "value": {} } }`
+- **Output** `{ "type": "object", "required": ["path", "param", "value"], "properties": { "path": { "type": "string" }, "param": { "type": "string" }, "value": {} } }`
 
 ---
 
@@ -1386,6 +1406,11 @@ via `CLAUDE_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most one tr
 | `particles_set_lifetime` | F / Editor | ✅ | undoable |
 | `particles_set_emitting` | F / Editor | ✅ | undoable |
 | `particles_set_texture` | F / Editor | ✅ | undoable |
+| `shader_create` | F / Editor | ✅ | ✔ writes file |
+| `shader_set_code` | F / Editor | ✅ | ✔ writes file |
+| `shadermaterial_create` | F / Editor | ✅ | undoable |
+| `shadermaterial_set_shader` | F / Editor | ✅ | undoable |
+| `shadermaterial_set_param` | F / Editor | ✅ | undoable |
 | `gd_completion` | D / LSP | ✅ | – |
 | `gd_hover` | D / LSP | ✅ | – |
 | `gd_definition` | D / LSP | ✅ | – |

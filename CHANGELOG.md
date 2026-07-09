@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Group F (batch 2): Shaders (5 tools, 171 → 176)
+- Continues **Group F (VFX & audio)** with the **shaders** subgroup. Five tools split across the two established models:
+  - **`shader_create`** — create a `Shader` with optional initial GDShader `code` and save it as a `.gdshader` resource at a `res://` path. Writes a file, so **gated** by confirmation (the `resource_*` / `tileset_*` model), not the in-scene model.
+  - **`shader_set_code`** — replace the source of an existing `.gdshader` and re-save. **Gated** (writes a file); feature-checks that the target loads as a `Shader`.
+  - **`shadermaterial_create`** — create a `ShaderMaterial` and assign it to a node's material slot in the edited scene, undoable via `EditorUndoRedoManager` and **ungated**. Feature-detects the slot: `CanvasItem.material` (2D / Control) vs `GeometryInstance3D.material_override` (3D); a node with neither degrades to a clear `unsupported`. Optionally binds a `Shader` loaded from a `res://` path (rides `add_do_property` + `add_do_reference`).
+  - **`shadermaterial_set_shader`** — load a `Shader` from a `res://` path and assign it to an existing `ShaderMaterial` on the node's slot (undoable). No `add_do_reference` — the shader is a persisted disk resource (the `particles_set_texture` pattern).
+  - **`shadermaterial_set_param`** — set a shader uniform through the `shader_parameter/<name>` property path (undoable via `add_do_property` / `add_undo_property`); the value uses the tagged-Variant convention (`Codec.decode` in, `Codec.encode` out).
+- Rigor bar held: `Shader` / `ShaderMaterial` / `set_shader_parameter` and the `shader_parameter/<name>` property-path form were probed live on Godot 4.7 (set + read-back on typed locals — no `get_property_list` / RefCounted `.free()`), and a `Sprite2D` carrying a `ShaderMaterial` (external `.gdshader` + a `shader_parameter` override) survives a `.tscn` save + fresh reload. Handlers in both `addons/claude_bridge/operations.gd` copies (dispatch + `_shader_create` / `_shader_set_code` / `_shadermaterial_create` / `_shadermaterial_set_shader` / `_shadermaterial_set_param`, plus the `_material_prop` helper), statically parse-checked against local Godot 4.7; host registrations in `host/src/tools/editor.ts` (the two `shader_*` writers reuse the `gate` confirm pattern); output schemas in `host/src/schemas.ts`; `registration.test.ts` `EXPECTED_TOOL_COUNT` 171 → 176; `docs/TOOL_CATALOG.md` (Group F header + detail + index). No version bump — the E+F release cut re-stamps all five version stamps together.
+
 ### Added — Group F (batch 1): GPU particles (6 tools, 165 → 171)
 - Starts **Group F (VFX & audio)** from the breadth-superset plan with the **GPU particles** subgroup. Six A/Editor
   tools, all mutating the edited scene, undoable via `EditorUndoRedoManager`, and **ungated** (the `node_*` model):
