@@ -101,6 +101,8 @@ const GATED = new Set([
   "scene_pack", "signal_emit", "resource_save", "resource_duplicate",
   "resource_set_property", "filesystem_move", "anim_delete",
   "tileset_create", "tileset_add_source", "tileset_add_tile", "tileset_set_tile_collision",
+  // Group G theme file-writers (Theme .tres on disk):
+  "theme_create", "theme_set_color", "theme_set_font", "theme_set_stylebox", "theme_set_constant",
 ]);
 
 const results = { pass: [], fail: [] };
@@ -609,6 +611,71 @@ async function main() {
     await call("audio_set_bus_layout", { to_path: BUS_LAYOUT });
     (await call("resource_load", { path: BUS_LAYOUT })).type === "AudioBusLayout"
       ? pass("AUTH_AUDIO_SET_BUS_LAYOUT", BUS_LAYOUT) : fail("AUTH_AUDIO_SET_BUS_LAYOUT", BUS_LAYOUT);
+  });
+
+  // ---------------------------------------------------------------- Group G: UI / control / theming ----
+  // control_* + container_add_child mutate the edited scene (undoable, ungated); theme_* write a
+  // Theme .tres on disk (gated, asserted forward via the mutator echo + an independent Theme reload).
+  const THEME = "res://_auth_probe.theme.tres";
+  const SBOX = "res://_auth_probe_sbox.tres";
+  const FONT = "res://_auth_probe_font.tres";
+  await family("AUTH_UI", async () => {
+    const uiroot = (await call("control_create", { parent_path: ".", type: "Control", name: "AuthUIRoot" })).path;
+    const btn = (await call("control_create", { parent_path: uiroot, type: "Button", name: "AuthButton", text: "Hi" })).path;
+    ((await hasChild(uiroot, btn, "Button")) && (await propVal(btn, "text")) === "Hi")
+      ? pass("AUTH_UI_CONTROL_CREATE", `${btn} text=${await propVal(btn, "text")}`)
+      : fail("AUTH_UI_CONTROL_CREATE", `${btn} text=${await propVal(btn, "text")}`);
+
+    const vbox = (await call("control_create", { parent_path: uiroot, type: "VBoxContainer", name: "AuthVBox" })).path;
+    const lbl = (await call("container_add_child", { container_path: vbox, type: "Label", name: "AuthLabel" })).path;
+    (await hasChild(vbox, lbl, "Label"))
+      ? pass("AUTH_UI_CONTAINER_ADD_CHILD", lbl) : fail("AUTH_UI_CONTAINER_ADD_CHILD", lbl);
+
+    await call("control_set_anchors", { path: btn, right: 1, bottom: 1 });
+    (near(await propVal(btn, "anchor_right"), 1) && near(await propVal(btn, "anchor_bottom"), 1))
+      ? pass("AUTH_UI_SET_ANCHORS") : fail("AUTH_UI_SET_ANCHORS", `r=${await propVal(btn, "anchor_right")} b=${await propVal(btn, "anchor_bottom")}`);
+
+    const lp = await call("control_set_layout_preset", { path: btn, preset: "full_rect" });
+    (lp.preset_name === "full_rect" && near(await propVal(btn, "anchor_left"), 0) && near(await propVal(btn, "anchor_right"), 1))
+      ? pass("AUTH_UI_SET_LAYOUT_PRESET", `preset=${lp.preset}`) : fail("AUTH_UI_SET_LAYOUT_PRESET", JSON.stringify(lp));
+
+    await call("control_set_size_flags", { path: btn, horizontal: 3 });
+    (await propVal(btn, "size_flags_horizontal")) === 3
+      ? pass("AUTH_UI_SET_SIZE_FLAGS") : fail("AUTH_UI_SET_SIZE_FLAGS", `got ${await propVal(btn, "size_flags_horizontal")}`);
+
+    await call("theme_create", { to_path: THEME });
+    (await call("resource_load", { path: THEME })).type === "Theme"
+      ? pass("AUTH_UI_THEME_CREATE", THEME) : fail("AUTH_UI_THEME_CREATE", THEME);
+
+    const tcol = await call("theme_set_color", { path: THEME, name: "font_color", theme_type: "Button", color: [1, 0, 0, 1] });
+    (tcol.color[0] === 1 && (await call("resource_load", { path: THEME })).type === "Theme")
+      ? pass("AUTH_UI_THEME_SET_COLOR") : fail("AUTH_UI_THEME_SET_COLOR", JSON.stringify(tcol));
+
+    const tconst = await call("theme_set_constant", { path: THEME, name: "h_separation", theme_type: "HBoxContainer", value: 7 });
+    tconst.value === 7 ? pass("AUTH_UI_THEME_SET_CONSTANT") : fail("AUTH_UI_THEME_SET_CONSTANT", JSON.stringify(tconst));
+
+    await call("resource_create", { class_name: "StyleBoxFlat", to_path: SBOX });
+    const tsb = await call("theme_set_stylebox", { path: THEME, name: "normal", theme_type: "Button", stylebox_path: SBOX });
+    tsb.stylebox_path === SBOX ? pass("AUTH_UI_THEME_SET_STYLEBOX") : fail("AUTH_UI_THEME_SET_STYLEBOX", JSON.stringify(tsb));
+
+    await call("resource_create", { class_name: "SystemFont", to_path: FONT });
+    const tfont = await call("theme_set_font", { path: THEME, name: "font", theme_type: "Label", font_path: FONT });
+    tfont.font_path === FONT ? pass("AUTH_UI_THEME_SET_FONT") : fail("AUTH_UI_THEME_SET_FONT", JSON.stringify(tfont));
+
+    await call("control_set_theme", { path: btn, theme_path: THEME });
+    (await propResClass(btn, "theme")) === "Theme"
+      ? pass("AUTH_UI_SET_THEME") : fail("AUTH_UI_SET_THEME", `class=${await propResClass(btn, "theme")}`);
+
+    // Undo round-trip proves the control mutators push a reversible EditorUndoRedoManager action.
+    const panel = (await call("control_create", { parent_path: uiroot, type: "Panel", name: "AuthUndoPanel" })).path;
+    const pmade = await hasChild(uiroot, panel, "Panel");
+    const pu = await call("editor_undo");
+    const pgone = !(await hasChild(uiroot, panel, "Panel"));
+    (pmade && pu.performed === true && pgone)
+      ? pass("AUTH_UI_UNDO_CREATE", `action=${JSON.stringify(pu.action)}`) : fail("AUTH_UI_UNDO_CREATE", `made=${pmade} performed=${pu.performed} gone=${pgone}`);
+    const pr = await call("editor_redo");
+    (pr.performed === true && (await hasChild(uiroot, panel, "Panel")))
+      ? pass("AUTH_UI_REDO_CREATE") : fail("AUTH_UI_REDO_CREATE", `performed=${pr.performed}`);
   });
 
   // ---------------------------------------------------------------- undo / redo ----

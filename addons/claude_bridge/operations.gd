@@ -231,6 +231,28 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _audio_bus_set_volume(params)
 		"audio.set_bus_layout":
 			return _audio_set_bus_layout(params)
+		"control.create":
+			return _control_create(params)
+		"container.add_child":
+			return _container_add_child(params)
+		"control.set_anchors":
+			return _control_set_anchors(params)
+		"control.set_layout_preset":
+			return _control_set_layout_preset(params)
+		"control.set_size_flags":
+			return _control_set_size_flags(params)
+		"control.set_theme":
+			return _control_set_theme(params)
+		"theme.create":
+			return _theme_create(params)
+		"theme.set_color":
+			return _theme_set_color(params)
+		"theme.set_font":
+			return _theme_set_font(params)
+		"theme.set_stylebox":
+			return _theme_set_stylebox(params)
+		"theme.set_constant":
+			return _theme_set_constant(params)
 		"selection.get":
 			return _ok(_selection_get())
 		"selection.set":
@@ -3084,3 +3106,339 @@ func _audio_set_bus_layout(params: Dictionary) -> Dictionary:
 	if e != OK:
 		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
 	return _ok({"saved": to_path, "bus_count": AudioServer.get_bus_count()})
+
+
+# ---------------------------------------------------------------- Group G: UI / control / theming ----
+# control_* + container_add_child mutate the edited scene (Control nodes), undoable via
+# EditorUndoRedoManager and ungated (the node_* model). theme_* author a Theme resource (or its
+# entries) on disk via ResourceSaver and are host-gated file-writers like resource_* / shader_create.
+# Control anchors / set_anchors_and_offsets_preset / size flags / theme and Theme.set_color /
+# set_font / set_stylebox / set_constant were probed live on Godot 4.7 before design.
+
+func _control_create(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var parent := _resolve(root, String(params.get("parent_path", "")))
+	if parent == null:
+		return _err("bad_path", "Parent not found: %s" % params.get("parent_path", ""))
+	var type := String(params.get("type", "Control"))
+	if not ClassDB.can_instantiate(type):
+		return _err("bad_type", "Cannot instantiate class: %s" % type)
+	if not ClassDB.is_parent_class(type, "Control"):
+		return _err("bad_type", "%s is not a Control subclass" % type)
+	var node: Node = ClassDB.instantiate(type)
+	node.name = String(params.get("name", type))
+	if params.has("text") and _has_property(node, "text"):
+		node.set("text", String(params.get("text")))
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: add %s" % node.name)
+	ur.add_do_method(parent, "add_child", node)
+	ur.add_do_method(node, "set_owner", root)
+	ur.add_do_reference(node)
+	ur.add_undo_method(parent, "remove_child", node)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": type})
+
+
+func _container_add_child(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var parent := _resolve(root, String(params.get("container_path", "")))
+	if parent == null:
+		return _err("bad_path", "Container not found: %s" % params.get("container_path", ""))
+	if not (parent is Container):
+		return _err("bad_type", "%s is not a Container" % parent.name)
+	var type := String(params.get("type", "Control"))
+	if not ClassDB.can_instantiate(type):
+		return _err("bad_type", "Cannot instantiate class: %s" % type)
+	if not ClassDB.is_parent_class(type, "Control"):
+		return _err("bad_type", "%s is not a Control subclass" % type)
+	var node: Node = ClassDB.instantiate(type)
+	node.name = String(params.get("name", type))
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: add %s to container" % node.name)
+	ur.add_do_method(parent, "add_child", node)
+	ur.add_do_method(node, "set_owner", root)
+	ur.add_do_reference(node)
+	ur.add_undo_method(parent, "remove_child", node)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": type, "container": _path_of(root, parent)})
+
+
+func _control_set_anchors(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	if not (node is Control):
+		return _err("bad_type", "%s is not a Control" % node.name)
+	var ctrl := node as Control
+	var sides := {"left": "anchor_left", "top": "anchor_top", "right": "anchor_right", "bottom": "anchor_bottom"}
+	var changed := []
+	for k in sides:
+		if params.has(k):
+			changed.append(k)
+	if changed.is_empty():
+		return _err("bad_params", "Provide at least one of left/top/right/bottom")
+	var olds := {}
+	for k in changed:
+		olds[k] = ctrl.get(sides[k])
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: set %s anchors" % ctrl.name)
+	for k in changed:
+		var prop: String = sides[k]
+		ur.add_do_property(ctrl, prop, float(params.get(k)))
+		ur.add_undo_property(ctrl, prop, olds[k])
+	ur.commit_action()
+	return _ok({
+		"path": _path_of(root, ctrl),
+		"anchors": {
+			"left": ctrl.anchor_left,
+			"top": ctrl.anchor_top,
+			"right": ctrl.anchor_right,
+			"bottom": ctrl.anchor_bottom,
+		},
+	})
+
+
+func _control_set_layout_preset(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	if not (node is Control):
+		return _err("bad_type", "%s is not a Control" % node.name)
+	var ctrl := node as Control
+	var preset := _layout_preset(params.get("preset"))
+	if preset < 0:
+		return _err("bad_params", "Unknown layout preset: %s" % params.get("preset"))
+	var resize_mode := int(params.get("resize_mode", 0))
+	var margin := int(params.get("margin", 0))
+	var props := ["anchor_left", "anchor_top", "anchor_right", "anchor_bottom", "offset_left", "offset_top", "offset_right", "offset_bottom"]
+	var olds := {}
+	for p in props:
+		olds[p] = ctrl.get(p)
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: layout preset on %s" % ctrl.name)
+	ur.add_do_method(ctrl, "set_anchors_and_offsets_preset", preset, resize_mode, margin)
+	for p in props:
+		ur.add_undo_property(ctrl, p, olds[p])
+	ur.commit_action()
+	return _ok({"path": _path_of(root, ctrl), "preset": preset, "preset_name": _layout_preset_name(preset)})
+
+
+func _control_set_size_flags(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	if not (node is Control):
+		return _err("bad_type", "%s is not a Control" % node.name)
+	var ctrl := node as Control
+	if not (params.has("horizontal") or params.has("vertical") or params.has("stretch_ratio")):
+		return _err("bad_params", "Provide at least one of horizontal/vertical/stretch_ratio")
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: set %s size flags" % ctrl.name)
+	if params.has("horizontal"):
+		var h_old := ctrl.size_flags_horizontal
+		ur.add_do_property(ctrl, "size_flags_horizontal", int(params.get("horizontal")))
+		ur.add_undo_property(ctrl, "size_flags_horizontal", h_old)
+	if params.has("vertical"):
+		var v_old := ctrl.size_flags_vertical
+		ur.add_do_property(ctrl, "size_flags_vertical", int(params.get("vertical")))
+		ur.add_undo_property(ctrl, "size_flags_vertical", v_old)
+	if params.has("stretch_ratio"):
+		var r_old := ctrl.size_flags_stretch_ratio
+		ur.add_do_property(ctrl, "size_flags_stretch_ratio", float(params.get("stretch_ratio")))
+		ur.add_undo_property(ctrl, "size_flags_stretch_ratio", r_old)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, ctrl), "horizontal": ctrl.size_flags_horizontal, "vertical": ctrl.size_flags_vertical, "stretch_ratio": ctrl.size_flags_stretch_ratio})
+
+
+func _control_set_theme(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	if not (node is Control):
+		return _err("bad_type", "%s is not a Control" % node.name)
+	var ctrl := node as Control
+	var theme_path := String(params.get("theme_path", ""))
+	var theme_res: Theme = null
+	if theme_path != "":
+		if not ResourceLoader.exists(theme_path):
+			return _err("not_found", "Theme not found: %s" % theme_path)
+		var res = ResourceLoader.load(theme_path)
+		if not (res is Theme):
+			return _err("bad_type", "%s is not a Theme" % theme_path)
+		theme_res = res as Theme
+	var old_theme = ctrl.get("theme")
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Claude: set %s theme" % ctrl.name)
+	ur.add_do_property(ctrl, "theme", theme_res)
+	ur.add_undo_property(ctrl, "theme", old_theme)
+	if theme_res != null:
+		ur.add_do_reference(theme_res)
+	ur.commit_action()
+	return _ok({"path": _path_of(root, ctrl), "theme_path": theme_path})
+
+
+func _theme_create(params: Dictionary) -> Dictionary:
+	var to_path := String(params.get("to_path", ""))
+	if not to_path.begins_with("res://"):
+		return _err("bad_params", "'to_path' must be a res:// path")
+	var theme := Theme.new()
+	var e := ResourceSaver.save(theme, to_path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"created": to_path, "type": "Theme"})
+
+
+func _theme_set_color(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", ""))
+	var theme = _theme_load(path)
+	if theme == null:
+		return _err("not_found", "Theme not found or not a Theme: %s" % path)
+	var iname := String(params.get("name", ""))
+	var ttype := String(params.get("theme_type", ""))
+	if iname == "" or ttype == "":
+		return _err("bad_params", "Missing 'name' or 'theme_type'")
+	var col := _to_color(params.get("color"))
+	theme.set_color(iname, ttype, col)
+	var e := ResourceSaver.save(theme, path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"path": path, "name": iname, "theme_type": ttype, "color": [col.r, col.g, col.b, col.a]})
+
+
+func _theme_set_font(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", ""))
+	var theme = _theme_load(path)
+	if theme == null:
+		return _err("not_found", "Theme not found or not a Theme: %s" % path)
+	var iname := String(params.get("name", ""))
+	var ttype := String(params.get("theme_type", ""))
+	if iname == "" or ttype == "":
+		return _err("bad_params", "Missing 'name' or 'theme_type'")
+	var font_path := String(params.get("font_path", ""))
+	if not ResourceLoader.exists(font_path):
+		return _err("not_found", "Font not found: %s" % font_path)
+	var fres = ResourceLoader.load(font_path)
+	if not (fres is Font):
+		return _err("bad_type", "%s is not a Font" % font_path)
+	theme.set_font(iname, ttype, fres as Font)
+	var e := ResourceSaver.save(theme, path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"path": path, "name": iname, "theme_type": ttype, "font_path": font_path})
+
+
+func _theme_set_stylebox(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", ""))
+	var theme = _theme_load(path)
+	if theme == null:
+		return _err("not_found", "Theme not found or not a Theme: %s" % path)
+	var iname := String(params.get("name", ""))
+	var ttype := String(params.get("theme_type", ""))
+	if iname == "" or ttype == "":
+		return _err("bad_params", "Missing 'name' or 'theme_type'")
+	var sb_path := String(params.get("stylebox_path", ""))
+	if not ResourceLoader.exists(sb_path):
+		return _err("not_found", "StyleBox not found: %s" % sb_path)
+	var sres = ResourceLoader.load(sb_path)
+	if not (sres is StyleBox):
+		return _err("bad_type", "%s is not a StyleBox" % sb_path)
+	theme.set_stylebox(iname, ttype, sres as StyleBox)
+	var e := ResourceSaver.save(theme, path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"path": path, "name": iname, "theme_type": ttype, "stylebox_path": sb_path})
+
+
+func _theme_set_constant(params: Dictionary) -> Dictionary:
+	var path := String(params.get("path", ""))
+	var theme = _theme_load(path)
+	if theme == null:
+		return _err("not_found", "Theme not found or not a Theme: %s" % path)
+	var iname := String(params.get("name", ""))
+	var ttype := String(params.get("theme_type", ""))
+	if iname == "" or ttype == "":
+		return _err("bad_params", "Missing 'name' or 'theme_type'")
+	if not params.has("value"):
+		return _err("bad_params", "Missing 'value'")
+	var val := int(params.get("value"))
+	theme.set_constant(iname, ttype, val)
+	var e := ResourceSaver.save(theme, path)
+	if e != OK:
+		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	return _ok({"path": path, "name": iname, "theme_type": ttype, "value": val})
+
+
+func _theme_load(path: String):
+	if not ResourceLoader.exists(path):
+		return null
+	var res = ResourceLoader.load(path)
+	if res is Theme:
+		return res
+	return null
+
+
+func _has_property(obj: Object, prop: String) -> bool:
+	for p in obj.get_property_list():
+		if String(p.get("name", "")) == prop:
+			return true
+	return false
+
+
+func _layout_preset_names() -> Dictionary:
+	return {
+		"top_left": Control.PRESET_TOP_LEFT,
+		"top_right": Control.PRESET_TOP_RIGHT,
+		"bottom_left": Control.PRESET_BOTTOM_LEFT,
+		"bottom_right": Control.PRESET_BOTTOM_RIGHT,
+		"center_left": Control.PRESET_CENTER_LEFT,
+		"center_top": Control.PRESET_CENTER_TOP,
+		"center_right": Control.PRESET_CENTER_RIGHT,
+		"center_bottom": Control.PRESET_CENTER_BOTTOM,
+		"center": Control.PRESET_CENTER,
+		"left_wide": Control.PRESET_LEFT_WIDE,
+		"top_wide": Control.PRESET_TOP_WIDE,
+		"right_wide": Control.PRESET_RIGHT_WIDE,
+		"bottom_wide": Control.PRESET_BOTTOM_WIDE,
+		"vcenter_wide": Control.PRESET_VCENTER_WIDE,
+		"hcenter_wide": Control.PRESET_HCENTER_WIDE,
+		"full_rect": Control.PRESET_FULL_RECT,
+	}
+
+
+func _layout_preset(v) -> int:
+	if v is String:
+		var names := _layout_preset_names()
+		var key := String(v).to_lower()
+		if names.has(key):
+			return int(names[key])
+		return -1
+	if v is float or v is int:
+		var iv := int(v)
+		if iv >= 0 and iv <= 15:
+			return iv
+		return -1
+	return -1
+
+
+func _layout_preset_name(preset: int) -> String:
+	var names := _layout_preset_names()
+	for k in names:
+		if int(names[k]) == preset:
+			return k
+	return str(preset)
