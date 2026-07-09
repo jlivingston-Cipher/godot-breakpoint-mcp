@@ -2,6 +2,8 @@
 // plane (tools/lsp.ts) and the C#/OmniSharp plane (tools/cslsp.ts) reshape the
 // same standard LSP result types (Location, SymbolKind, CompletionItemKind,
 // MarkupContent), so these live once here rather than being duplicated per plane.
+// The generic MCP success-envelope helper `ok()` is the single shared envelope
+// shape and is imported by the other tool modules too, not only the LSP planes.
 
 export interface Position { line: number; character: number }
 export interface Range { start?: Position; end?: Position }

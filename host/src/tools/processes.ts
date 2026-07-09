@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { log } from "../logger.js";
+import { ok } from "./lsp-common.js";
 
 interface LogLine {
   seq: number;
@@ -73,13 +74,6 @@ export class ProcessRegistry {
   }
 }
 
-function textResult(obj: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(obj, null, 2) }],
-    structuredContent: obj as Record<string, unknown>,
-  };
-}
-
 export function registerProcessTools(server: McpServer, cfg: Config): ProcessRegistry {
   const registry = new ProcessRegistry();
 
@@ -94,7 +88,7 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
     },
     async ({ scene }) => {
       const m = registry.run(cfg, scene ? [scene] : []);
-      return textResult({ id: m.id, pid: m.child.pid ?? null, running: true, scene: scene ?? null });
+      return ok({ id: m.id, pid: m.child.pid ?? null, running: true, scene: scene ?? null });
     },
   );
 
@@ -115,7 +109,7 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       const since = since_seq ?? 0;
       const want = stream ?? "both";
       const lines = m.lines.filter((l) => l.seq > since && (want === "both" || l.stream === want));
-      return textResult({ id, exited: m.exited, exit_code: m.exitCode, latest_seq: m.seq, lines });
+      return ok({ id, exited: m.exited, exit_code: m.exitCode, latest_seq: m.seq, lines });
     },
   );
 
@@ -134,7 +128,7 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       } catch {
         /* ignore */
       }
-      return textResult({ id, stopped: true });
+      return ok({ id, stopped: true });
     },
   );
 

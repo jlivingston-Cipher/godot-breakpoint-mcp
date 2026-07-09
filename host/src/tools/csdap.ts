@@ -5,18 +5,13 @@ import { CsDapClient } from "../csdap.js";
 import { DapError } from "../dap.js";
 import { toFsPath } from "../paths.js";
 import { gate } from "../confirm.js";
+import { ok } from "./lsp-common.js";
 
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
 // the current state — e.g. `continue` with no further breakpoint stays running.
 const RESUME_WAIT_MS = 15000;
 
-function ok(obj: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(obj, null, 2) }],
-    structuredContent: obj as Record<string, unknown>,
-  };
-}
 function fail(err: unknown) {
   const e = err as { command?: string; message?: string };
   return {
