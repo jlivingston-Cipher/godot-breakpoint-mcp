@@ -6,6 +6,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+- Brought the npm-published `host/README.md` to parity with the repository README: it now documents the `breakpoint-mcp init` and `doctor` onboarding commands and notes that the editor addon ships **inside the package** (so users who install from npm do not need the repository to get the addon). Also clarified in the root `README.md` that the by-hand "Install the editor addon (manual)" steps are the from-source route, and that npm users can use `init` instead. No code, tool, schema, or version change (still **242 tools** at 1.2.0). The npm package page reflects this on the next publish, since a version's README is immutable once published.
+
 ## [1.2.0] — 2026-07-10
 
 Onboarding release — a one-command install (`breakpoint-mcp init`) and a health-check (`breakpoint-mcp doctor`), with the editor addon now shipped inside the npm package so `init` works offline. Host + packaging only: the tool surface is unchanged at **242 tools**, and there is no configuration or behaviour change to the server or any existing tool. Version `1.1.0` → `1.2.0`.

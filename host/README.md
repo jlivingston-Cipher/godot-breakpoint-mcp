@@ -15,10 +15,28 @@ architecture.
 
 ## Install
 
+The fastest path — from your Godot project folder, one command installs and enables the
+editor addon (bundled in this package) and prints your MCP-client config:
+
 ```bash
-npx breakpoint-mcp          # run on demand
-# or
-npm i -g breakpoint-mcp     # install the `breakpoint-mcp` command
+npx breakpoint-mcp init
+```
+
+Then open the project in Godot and verify the setup:
+
+```bash
+npx breakpoint-mcp doctor
+```
+
+`init` copies the addon into `addons/breakpoint_mcp/`, enables it in `project.godot`, and
+prints — or, with `--client claude-code|claude-desktop|cursor|windsurf|vscode`, writes —
+the client config. `doctor` checks the Godot binary, the addon, and the four bridges
+(add `--require-live` once the editor is open; `--json` for a machine-readable report).
+
+To install the `breakpoint-mcp` command globally instead of invoking it via `npx`:
+
+```bash
+npm i -g breakpoint-mcp
 ```
 
 Requires **Node ≥ 18**. The host targets the `@modelcontextprotocol/sdk` `1.x` line
@@ -60,10 +78,11 @@ section for each client's config file and format.
 
 ## The addon (required for the editor / runtime planes)
 
-Install the `breakpoint_mcp` editor addon into your Godot project (drop
-`addons/breakpoint_mcp/` in and enable it under Project Settings → Plugins). It opens the
-loopback servers this host connects to and auto-registers the in-game runtime bridge.
-Without it, only the headless-CLI (`godot_*`) plane works.
+`breakpoint-mcp init` installs and enables this for you — the editor addon ships **inside
+this package**, so you don't need the repository to get it. To do it by hand instead, copy
+`addons/breakpoint_mcp/` into your project and enable it under Project Settings → Plugins.
+Either way it opens the loopback servers this host connects to and auto-registers the
+in-game runtime bridge; without it, only the headless-CLI (`godot_*`) plane works.
 
 ## Local-first
 
