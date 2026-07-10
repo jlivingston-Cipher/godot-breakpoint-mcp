@@ -115,6 +115,10 @@ report). The manual steps below do the same thing by hand.
 
 ### 1. Install the editor addon (manual)
 
+These by-hand steps are for working from a checkout of this repository, or if you would
+rather do it yourself. If you installed from npm, `npx breakpoint-mcp init` does all of
+this for you — the addon ships bundled in the package, so you don't need the repository.
+
 Copy `addons/breakpoint_mcp/` into your project's `addons/` folder, then enable it under
 **Project → Project Settings → Plugins → Breakpoint MCP**. On enable it listens on
 `127.0.0.1:9080` (override with `BREAKPOINT_BRIDGE_PORT` before launching Godot).
