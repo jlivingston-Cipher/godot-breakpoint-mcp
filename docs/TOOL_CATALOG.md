@@ -2666,6 +2666,262 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
 
 ---
 
+## Group L — Version control (git) (Plane B / host)
+
+Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, no shell). Host-side (Plane B): they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane. `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; never a hang. Paths accept `res://…` (project-relative) or repo-relative; large patch/file output is head-truncated with a `truncated` flag. Two tiers: **six read-only** tools (`vcs_status`/`log`/`diff`/`show`/`branch_list`/`blame`) that never touch the index or working tree, and **six Tier-A mutating** tools (`vcs_add`/`commit`/`restore`/`stash`/`branch_create`/`switch`) — safe local only, **no network** (push/pull/fetch stay Mac-side). Mutation posture: only ops that lose work or rewrite history are **elicitation-gated** — `vcs_restore` and `vcs_stash op=drop` reuse the `gate()` in `host/src/confirm.ts` (confirm:true bypasses, and a non-eliciting client is blocked, never run silently); the reversible ops (`add`/`commit`/`branch_create`/`switch`) are ungated. Markers `AUTH_L_*` in the authoring-plane probe.
+
+### `vcs_status` ✅  (Plane B / host)
+- **Input**
+```json
+{ "type": "object", "properties": {} }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["branch", "oid", "upstream", "ahead", "behind", "staged", "unstaged", "untracked", "unmerged", "clean"],
+  "properties": {
+    "branch": { "type": ["string", "null"] },
+    "oid": { "type": ["string", "null"] },
+    "upstream": { "type": ["string", "null"] },
+    "ahead": { "type": "integer" },
+    "behind": { "type": "integer" },
+    "staged": { "type": "array", "items": { "type": "object", "required": ["path", "status"], "properties": { "path": { "type": "string" }, "status": { "type": "string" } } } },
+    "unstaged": { "type": "array", "items": { "type": "object", "required": ["path", "status"], "properties": { "path": { "type": "string" }, "status": { "type": "string" } } } },
+    "untracked": { "type": "array", "items": { "type": "string" } },
+    "unmerged": { "type": "array", "items": { "type": "string" } },
+    "clean": { "type": "boolean" }
+  } }
+```
+
+### `vcs_log` ✅  (Plane B / host)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "max_count": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 20 },
+    "path": { "type": "string" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["commits", "count"],
+  "properties": {
+    "commits": { "type": "array", "items": { "type": "object", "required": ["hash", "short", "author", "date", "subject"],
+      "properties": { "hash": { "type": "string" }, "short": { "type": "string" }, "author": { "type": "string" }, "date": { "type": "string" }, "subject": { "type": "string" } } } },
+    "count": { "type": "integer" }
+  } }
+```
+
+### `vcs_diff` ✅  (Plane B / host)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "staged": { "type": "boolean", "default": false },
+    "path": { "type": "string" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["staged", "path", "files", "patch", "truncated"],
+  "properties": {
+    "staged": { "type": "boolean" },
+    "path": { "type": ["string", "null"] },
+    "files": { "type": "array", "items": { "type": "string" } },
+    "patch": { "type": "string" },
+    "truncated": { "type": "boolean" }
+  } }
+```
+
+### `vcs_show` ✅  (Plane B / host)
+Two modes: with no `path`, returns commit metadata + patch; with a `path`, returns that file's content at `<ref>`. Only `ref` and `truncated` are always present; the other fields are populated per mode.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "ref": { "type": "string", "default": "HEAD" },
+    "path": { "type": "string" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["ref", "truncated"],
+  "properties": {
+    "ref": { "type": "string" },
+    "hash": { "type": "string" },
+    "short": { "type": "string" },
+    "author": { "type": "string" },
+    "date": { "type": "string" },
+    "subject": { "type": "string" },
+    "body": { "type": "string" },
+    "patch": { "type": "string" },
+    "path": { "type": "string" },
+    "content": { "type": "string" },
+    "truncated": { "type": "boolean" }
+  } }
+```
+
+### `vcs_branch_list` ✅  (Plane B / host)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "remotes": { "type": "boolean", "default": false }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["current", "branches", "count"],
+  "properties": {
+    "current": { "type": ["string", "null"] },
+    "branches": { "type": "array", "items": { "type": "object", "required": ["name", "short_sha", "current", "remote"],
+      "properties": { "name": { "type": "string" }, "short_sha": { "type": "string" }, "current": { "type": "boolean" }, "remote": { "type": "boolean" } } } },
+    "count": { "type": "integer" }
+  } }
+```
+
+### `vcs_blame` ✅  (Plane B / host)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path"],
+  "properties": {
+    "path": { "type": "string" },
+    "start": { "type": "integer", "minimum": 1 },
+    "end": { "type": "integer", "minimum": 1 }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["path", "lines", "count", "truncated"],
+  "properties": {
+    "path": { "type": "string" },
+    "lines": { "type": "array", "items": { "type": "object", "required": ["line", "commit", "author", "date", "text"],
+      "properties": { "line": { "type": "integer" }, "commit": { "type": "string" }, "author": { "type": "string" }, "date": { "type": "string" }, "text": { "type": "string" } } } },
+    "count": { "type": "integer" },
+    "truncated": { "type": "boolean" }
+  } }
+```
+
+### `vcs_add` ✅  (Plane B / host) — mutating (ungated)
+Stage changes for the next commit. Reversible (`git restore --staged`), so ungated.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "paths": { "type": "array", "items": { "type": "string" }, "description": "Paths to stage; omit to stage all (-A)" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["staged", "count"],
+  "properties": {
+    "staged": { "type": "array", "items": { "type": "object", "required": ["path", "status"], "properties": { "path": { "type": "string" }, "status": { "type": "string" } } } },
+    "count": { "type": "integer" }
+  } }
+```
+
+### `vcs_commit` ✅  (Plane B / host) — mutating (ungated)
+Commit the staged changes. Reversible (`git reset --soft HEAD~1`), loses nothing, so ungated. Commit signing is disabled for the call so it can never block on a passphrase prompt.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["message"],
+  "properties": {
+    "message": { "type": "string", "minLength": 1 }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["committed", "hash", "short", "summary"],
+  "properties": {
+    "committed": { "type": "boolean" },
+    "hash": { "type": "string" },
+    "short": { "type": "string" },
+    "summary": { "type": "string" }
+  } }
+```
+
+### `vcs_restore` ✅  (Plane B / host) — mutating (**gated**)
+Discard uncommitted working-tree changes to the given paths (`git restore -- <paths>`). DESTRUCTIVE — the discarded edits are unrecoverable — so elicitation-gated (`confirm:true` bypasses).
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["paths"],
+  "properties": {
+    "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "confirm": { "type": "boolean", "description": "Skip the confirmation prompt" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["restored", "count"],
+  "properties": {
+    "restored": { "type": "array", "items": { "type": "string" } },
+    "count": { "type": "integer" }
+  } }
+```
+
+### `vcs_stash` ✅  (Plane B / host) — mutating (**drop gated**)
+Manage stashes. `push` saves + reverts working changes; `pop` re-applies the latest; `list` returns the entries; `drop` deletes an entry. Only `drop` is destructive and gated; push/pop/list are not.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["op"],
+  "properties": {
+    "op": { "enum": ["push", "pop", "list", "drop"] },
+    "message": { "type": "string", "description": "Message for op=push" },
+    "ref": { "type": "string", "description": "Stash ref for op=drop/pop, e.g. stash@{1}" },
+    "confirm": { "type": "boolean", "description": "Skip the confirmation prompt (op=drop)" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["op", "message", "stashes"],
+  "properties": {
+    "op": { "type": "string" },
+    "message": { "type": "string" },
+    "stashes": { "type": "array", "items": { "type": "object", "required": ["ref", "description"], "properties": { "ref": { "type": "string" }, "description": { "type": "string" } } } }
+  } }
+```
+
+### `vcs_branch_create` ✅  (Plane B / host) — mutating (ungated)
+Create a branch, optionally from a ref (default HEAD) and optionally switch to it. Reversible (`git branch -d`), so ungated.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["name"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "from": { "type": "string", "description": "Start point (default HEAD)" },
+    "switch": { "type": "boolean", "description": "Switch to the new branch (default false)" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["created", "name", "from", "switched"],
+  "properties": {
+    "created": { "type": "boolean" },
+    "name": { "type": "string" },
+    "from": { "type": ["string", "null"] },
+    "switched": { "type": "boolean" }
+  } }
+```
+
+### `vcs_switch` ✅  (Plane B / host) — mutating (ungated)
+Switch to an existing branch (`git switch <branch>`). No `--force`: git refuses on a dirty conflict and its message is returned unchanged — nothing is clobbered — so ungated.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["branch"],
+  "properties": {
+    "branch": { "type": "string", "minLength": 1 }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["switched", "branch"],
+  "properties": {
+    "switched": { "type": "boolean" },
+    "branch": { "type": "string" }
+  } }
+```
+
+---
+
 ## Group J — AI asset generation
 
 MCP-native asset generation: the server never bundles or calls a model. Each generator writes an asset to a `res://` path, imports it through the editor bridge, and returns a schema'd result — but the pixels / samples are **delegated**. `asset_gen_configure` picks the session backend (the feature flag): **`none`** (default) makes the five typed generators **degrade** to a clear "no generation backend configured" result carrying a `request` spec the connected multimodal client can fulfil (no file written; not an error); **`placeholder`** writes deterministic, in-engine procedural stand-ins as native Godot resources (`.tres`) that load synchronously — a hashed-colour `ImageTexture` (sprite / texture / icon), an `AudioStreamWAV` blip, a `BoxMesh` / primitive; **`command`** delegates to a configured local command (an argv template with `{kind} {prompt} {output} {width} {height} {format}` tokens substituted per-argument, no shell — the command writes the file, in any format, and the host imports it through the editor). `asset_gen_placeholder` always mints a deterministic stand-in regardless of the backend, and any typed generator accepts `placeholder: true` to force one. The file-writing paths are **destructive** (elicitation-gated); the degrade path writes nothing. The five typed generators share one result envelope (below), which validates all three outcomes — `placeholder` / `generated` / `no_backend`. Markers `AUTH_ASSETGEN_*` in the authoring-plane probe.
@@ -3833,6 +4089,19 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `example_snippet` | K / Host | ✅ | – |
 | `class_reference` | K / Editor | ✅ | – |
 | `docs_search` | K / Editor | ✅ | – |
+
+| `vcs_status` | L / Host | ✅ | – |
+| `vcs_log` | L / Host | ✅ | – |
+| `vcs_diff` | L / Host | ✅ | – |
+| `vcs_show` | L / Host | ✅ | – |
+| `vcs_branch_list` | L / Host | ✅ | – |
+| `vcs_blame` | L / Host | ✅ | – |
+| `vcs_add` | L / Host | ✅ | – |
+| `vcs_commit` | L / Host | ✅ | – |
+| `vcs_restore` | L / Host | ✅ | ✔ discards changes |
+| `vcs_stash` | L / Host | ✅ | ✔ drop only |
+| `vcs_branch_create` | L / Host | ✅ | – |
+| `vcs_switch` | L / Host | ✅ | – |
 
 | `asset_gen_configure` | J / Host | ✅ | – |
 | `asset_gen_placeholder` | J / Editor | ✅ | ✔ writes file |

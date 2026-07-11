@@ -6,6 +6,33 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Group L version control (git) (12 tools, 258 → 270)
+- **New host-side tool group `vcs_*` (Plane B).** Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, **no shell**). Host-side: they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane the backlog flagged (`BACKLOG.md` §S74, `HANDOFF_SESSION86.md` §3/§4). `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; large patch/file output is head-truncated with a `truncated` flag; never a hang.
+- **Six read-only tools** (never touch the index or working tree, so none are undoable or gated):
+  - **`vcs_status`** — branch, upstream ahead/behind, and the staged / unstaged / untracked / unmerged file lists (parsed from `status --porcelain=v2 --branch`); `clean=true` when nothing is pending.
+  - **`vcs_log`** — recent commits newest-first (full+short hash, author, ISO date, subject); optional `path` filter and `max_count` (default 20).
+  - **`vcs_diff`** — working-tree (default) or staged (`staged=true`) unified diff, optional `path` scope; returns the patch plus the changed-file list parsed from it.
+  - **`vcs_show`** — a commit's metadata + patch, or (with `path`) a file's content at any `ref` (default HEAD).
+  - **`vcs_branch_list`** — branches with short object name + current-branch flag; `remotes=true` includes remote-tracking branches.
+  - **`vcs_blame`** — per-line last-change attribution (commit, author, ISO date, text) for a file, optional 1-based `[start,end]` range.
+  - **`vcs_status`** — branch, upstream ahead/behind, and the staged / unstaged / untracked / unmerged file lists (`status --porcelain=v2 --branch`); `clean=true` when nothing is pending.
+  - **`vcs_log`** — recent commits newest-first (full+short hash, author, ISO date, subject); optional `path` filter and `max_count` (default 20).
+  - **`vcs_diff`** — working-tree (default) or staged (`staged=true`) unified diff, optional `path` scope; returns the patch plus the changed-file list parsed from it.
+  - **`vcs_show`** — a commit's metadata + patch, or (with `path`) a file's content at any `ref` (default HEAD).
+  - **`vcs_branch_list`** — branches with short object name + current-branch flag; `remotes=true` includes remote-tracking branches.
+  - **`vcs_blame`** — per-line last-change attribution (commit, author, ISO date, text) for a file, optional 1-based `[start,end]` range.
+- **Six Tier-A mutating tools — safe local only, no network** (steered this session: Tier A + gate-destructive-only + exclude network). Only ops that lose work or rewrite history are elicitation-gated via `host/src/confirm.ts` `gate()` (honors `confirm:true`, and **blocks** — never runs silently — on a client that can't elicit):
+  - **`vcs_add`** — stage `paths` (or all with none); reversible, **ungated**.
+  - **`vcs_commit`** — commit the staged changes with a message; reversible (`reset --soft`), **ungated**; signing disabled so it can't block on a passphrase; errors clearly on an empty index.
+  - **`vcs_restore`** — discard uncommitted working-tree changes to `paths`; **gated** (data loss).
+  - **`vcs_stash`** — `push`/`pop`/`list`/`drop`; only `drop` is **gated**.
+  - **`vcs_branch_create`** — create a branch (optional `from`, optional `switch`); reversible, **ungated**.
+  - **`vcs_switch`** — switch to an existing branch; no `--force` (git refuses on a dirty conflict), **ungated**.
+- **Network ops (push / pull / fetch) intentionally excluded** — the cloud can't reach the private origin and push has irreversible remote effects no CI test can exercise; they remain a Mac-side step. Rationale + the deferred alternatives in `GROUP_L_VCS_SPEC.md`.
+- **Paths accept `res://…`** (project-relative) or repo-relative, consistent with the Group K host tools.
+- **Same quality bar:** frozen `outputSchema` entries in `host/src/schemas.ts` for all twelve; `docs/TOOL_CATALOG.md` gains a `## Group L` section (per-tool Input/Output blocks) + twelve index rows (the two gated tools carry the destructive marker); registration meta-test `EXPECTED_TOOL_COUNT` 258 → 270; `host/test/vcs.test.ts` adds 12 cases driving the real `git` binary against throwaway repo fixtures (every tool + the not-a-repo error path + the full gate matrix: blocked-without-elicitation / confirm-bypass / accept / decline for `vcs_restore`, and blocked `vcs_stash drop`). `contract_check.py` parity holds at **270 tools**; host suite **354 → 366**.
+- `npm publish` remains deferred; no version cut here (this is staged `[Unreleased]` work).
+
 ## [1.11.0] — 2026-07-11
 
 Maintenance release — **Group N first-live-dogfood fixes (Findings A–E)**: the first live exercise of the Group N composite-authoring layer against the real Godot 4.7 editor surfaced five concrete defects (session 83); this release fixes all five, each with a regression test. Unlike `1.6.0`–`1.10.0` (host-only), this release also touches the **addon** (the editor-crash guard, D), so both `addons/breakpoint_mcp/` copies change together and the addon version moves `1.4.0` → `1.4.1`. Tool surface unchanged at **258**. Version `1.10.0` → `1.11.0`. `npm publish` remains deferred (registry stays `1.4.1`).

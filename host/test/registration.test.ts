@@ -9,6 +9,7 @@ import { registerCsDapTools } from "../src/tools/csdap.js";
 import { registerRuntimeTools } from "../src/tools/runtime.js";
 import { registerProcessTools } from "../src/tools/processes.js";
 import { registerKnowledgeTools } from "../src/tools/knowledge.js";
+import { registerVcsTools } from "../src/tools/vcs.js";
 import { registerAssetGenTools } from "../src/tools/assetgen.js";
 import { registerNetcodeTools } from "../src/tools/netcode.js";
 import { registerBackendTools } from "../src/tools/backend.js";
@@ -19,7 +20,7 @@ import { loadConfig } from "../src/config.js";
 
 /** Tools that return image content with no structuredContent — deliberately schema-exempt. */
 const IMAGE_TOOLS = ["screenshot_editor", "runtime_screenshot"];
-const EXPECTED_TOOL_COUNT = 258;
+const EXPECTED_TOOL_COUNT = 270;
 const EXPECTED_RESOURCES = ["scene-tree", "editor-state", "runtime-tree", "runtime-log", "class-doc"];
 
 /**
@@ -57,6 +58,7 @@ function registerAll() {
   registerRuntimeTools(mcp, stub);
   registerProcessTools(mcp, cfg);
   registerKnowledgeTools(mcp, cfg);
+  registerVcsTools(mcp, cfg);
   registerAssetGenTools(mcp, stub, cfg);
   registerNetcodeTools(mcp, stub, cfg);
   registerBackendTools(mcp, stub, cfg);

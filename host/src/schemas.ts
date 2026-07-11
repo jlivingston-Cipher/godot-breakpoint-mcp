@@ -512,6 +512,95 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     })),
     available: z.array(z.string()),
   },
+  // Group L — version control (tools/vcs.ts). Read-only git wrappers; shapes frozen
+  // from the host reshaping in vcs.ts (git status --porcelain=v2 / log / diff / show
+  // / branch / blame --line-porcelain).
+  vcs_status: {
+    branch: z.string().nullable(),
+    oid: z.string().nullable(),
+    upstream: z.string().nullable(),
+    ahead: z.number(),
+    behind: z.number(),
+    staged: z.array(z.object({ path: z.string(), status: z.string() })),
+    unstaged: z.array(z.object({ path: z.string(), status: z.string() })),
+    untracked: z.array(z.string()),
+    unmerged: z.array(z.string()),
+    clean: z.boolean(),
+  },
+  vcs_log: {
+    commits: z.array(z.object({
+      hash: z.string(), short: z.string(), author: z.string(), date: z.string(), subject: z.string(),
+    })),
+    count: z.number(),
+  },
+  vcs_diff: {
+    staged: z.boolean(),
+    path: z.string().nullable(),
+    files: z.array(z.string()),
+    patch: z.string(),
+    truncated: z.boolean(),
+  },
+  // vcs_show has two modes (commit vs file-at-ref); only `ref` is always present, the
+  // rest are populated per mode, so all but `ref` are optional.
+  vcs_show: {
+    ref: z.string(),
+    hash: z.string().optional(),
+    short: z.string().optional(),
+    author: z.string().optional(),
+    date: z.string().optional(),
+    subject: z.string().optional(),
+    body: z.string().optional(),
+    patch: z.string().optional(),
+    path: z.string().optional(),
+    content: z.string().optional(),
+    truncated: z.boolean(),
+  },
+  vcs_branch_list: {
+    current: z.string().nullable(),
+    branches: z.array(z.object({
+      name: z.string(), short_sha: z.string(), current: z.boolean(), remote: z.boolean(),
+    })),
+    count: z.number(),
+  },
+  vcs_blame: {
+    path: z.string(),
+    lines: z.array(z.object({
+      line: z.number(), commit: z.string(), author: z.string(), date: z.string(), text: z.string(),
+    })),
+    count: z.number(),
+    truncated: z.boolean(),
+  },
+  // Group L mutating tools (Tier A). Success shapes only; gated tools that are
+  // blocked/declined return isError (exempt from output-schema validation).
+  vcs_add: {
+    staged: z.array(z.object({ path: z.string(), status: z.string() })),
+    count: z.number(),
+  },
+  vcs_commit: {
+    committed: z.boolean(),
+    hash: z.string(),
+    short: z.string(),
+    summary: z.string(),
+  },
+  vcs_restore: {
+    restored: z.array(z.string()),
+    count: z.number(),
+  },
+  vcs_stash: {
+    op: z.string(),
+    message: z.string(),
+    stashes: z.array(z.object({ ref: z.string(), description: z.string() })),
+  },
+  vcs_branch_create: {
+    created: z.boolean(),
+    name: z.string(),
+    from: z.string().nullable(),
+    switched: z.boolean(),
+  },
+  vcs_switch: {
+    switched: z.boolean(),
+    branch: z.string(),
+  },
   // ClassDB-backed reference tools (tools/editor.ts -> operations.gd _classdb_reference / _docs_search).
   class_reference: {
     class: z.string(),

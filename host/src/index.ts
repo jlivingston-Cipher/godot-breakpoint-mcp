@@ -17,6 +17,7 @@ import { registerCsDapTools } from "./tools/csdap.js";
 import { registerRuntimeTools } from "./tools/runtime.js";
 import { registerProcessTools } from "./tools/processes.js";
 import { registerKnowledgeTools } from "./tools/knowledge.js";
+import { registerVcsTools } from "./tools/vcs.js";
 import { registerAssetGenTools } from "./tools/assetgen.js";
 import { registerNetcodeTools } from "./tools/netcode.js";
 import { registerBackendTools } from "./tools/backend.js";
@@ -99,6 +100,11 @@ async function main(): Promise<void> {
   const processes = registerProcessTools(server, config);
   // Group K: host-side knowledge & search (project grep, symbol/usage index, idiom lookup).
   registerKnowledgeTools(server, config);
+  // Group L: host-side version control (vcs_*). Read-only core over the `git` binary
+  // (status/log/diff/show/branches/blame) rooted at the project path — no editor, no
+  // language server, so it answers whenever the project is a git work tree. Mutating
+  // git tools are deferred pending a scope steer and will reuse the elicitation gate.
+  registerVcsTools(server, config);
   // Group J: AI asset generation (delegated backend / connected client; degrades
   // to a request spec when no backend is configured). Writes + imports via the bridge.
   registerAssetGenTools(server, bridge, config);
