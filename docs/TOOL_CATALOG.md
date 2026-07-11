@@ -3011,7 +3011,7 @@ Generate login/register/logout helpers against the installed SDK. Degrades to `u
 
 ## Group N — Card / board / piece authoring composites (Plane A / Editor + host)
 
-Composite authoring **on top of** the existing primitives. Each `card_*` / `board_*` tool is a host-side scripted sequence of already-audited editor-bridge ops (`scene.new`, `control.create`, `node.add`, `node.set_property`, `resource.create`, `theme.*`, `node.instantiate_scene`, `node.call_method`, `node.add_to_group`, `node.reparent`) — it adds **no** addon method, so the host↔addon contract is unchanged. The composites build **structure** (scenes, nodes, a small script-backed `set_data()` / `set_face()`) and bind data a caller passes in; they never invent card values, names, or rules. Increment 1 is the **Card slice** (4 tools); Increment 2 is the **Board slice** (2 tools: `board_create`, `board_place`). `card_template_create` and `board_create` write files and are **destructive** (elicitation-gated); the rest are undoable node authoring in the open scene (ungated, the `node_*` model). Because every op is an existing primitive, the whole surface is unit-tested offline against an injected emit-sink. Everything here is **general-purpose** — the tools carry no game-specific vocabulary; a guardrail test fails CI if any appears.
+Composite authoring **on top of** the existing primitives. Each `card_*` / `board_*` / `piece_*` tool is a host-side scripted sequence of already-audited editor-bridge ops (`scene.new`, `control.create`, `node.add`, `node.set_property`, `resource.create`, `theme.*`, `node.instantiate_scene`, `node.call_method`, `node.add_to_group`, `node.reparent`, `anim.*`) — it adds **no** addon method, so the host↔addon contract is unchanged. The composites build **structure** (scenes, nodes, a small script-backed `set_data()` / `set_face()`) and bind data a caller passes in; they never invent card values, names, or rules. Increment 1 is the **Card slice** (4 tools); Increment 2 is the **Board slice** (2 tools: `board_create`, `board_place`); Increment 3 is the **Piece slice** (3 tools: `piece_template_create`, `piece_instance`, `piece_move`). `card_template_create`, `board_create`, and `piece_template_create` write files and are **destructive** (elicitation-gated); the rest are undoable node authoring in the open scene (ungated, the `node_*` model). `piece_instance` can `place_on` a cell and `piece_move` reparents onto a cell — both reuse `board_place`; `piece_move`'s optional pop is authored from existing Group C `anim_*` primitives, so it stays purely additive. Because every op is an existing primitive, the whole surface is unit-tested offline against an injected emit-sink. Everything here is **general-purpose** — the tools carry no game-specific vocabulary; a guardrail test fails CI if any appears.
 
 ### `card_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
 Build a reusable card `PackedScene` from a slot spec, with a generated script-backed `set_data()` / `set_face()`. Named slots (`label` / `rich_text` / `texture` / `panel` / `badge`) become the card's regions; optional inline theme and a two-sided card back.
@@ -3241,6 +3241,109 @@ Reparent an existing node (a card or piece instance) onto a board cell by id and
     "cell_path": { "type": "string" },
     "node_path": { "type": "string" },
     "align": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+  } }
+```
+
+### `piece_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
+Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite2D` under a `Node2D` root, `TextureRect` under a `Control` root), an optional `Label`, an optional hit area (`Area2D` + `CollisionShape2D` with a `rectangle`/`circle` shape sized from `size`), and an optional two-sided `Back`, plus a generated script-backed `set_data()` / `set_face()`. `set_data` binds the neutral keys `art` (texture) / `color` (Art tint) / `label` (text); `set_face` flips Art+Label vs Back. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `resource.create` → `scene.save`. **Destructive** (writes a scene + script) — elicitation-gated. Returns the scene path + created-node map.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path", "size"],
+  "properties": {
+    "path": { "type": "string", "pattern": "^res://.*\\.tscn$" },
+    "size": { "type": "object", "required": ["width", "height"],
+      "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } } },
+    "root_type": { "enum": ["Node2D", "Control"] },
+    "art": { "type": "string" },
+    "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "label": { "type": "boolean" },
+    "label_text": { "type": "string" },
+    "hit_area": { "type": "object", "properties": { "shape": { "enum": ["rectangle", "circle"] } } },
+    "back": { "type": "object", "properties": {
+      "art": { "type": "string" },
+      "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" } } },
+    "script_path": { "type": "string", "pattern": "^res://.*\\.gd$" },
+    "overwrite": { "type": "boolean" },
+    "confirm": { "type": "boolean" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["scene_path", "nodes", "saved"],
+  "properties": {
+    "scene_path": { "type": "string" },
+    "script_path": { "type": "string" },
+    "root_type": { "type": "string" },
+    "has_label": { "type": "boolean" },
+    "has_hit_area": { "type": "boolean" },
+    "has_back": { "type": "boolean" },
+    "node_count": { "type": "integer" },
+    "saved": { "type": "boolean" },
+    "nodes": { "type": "array", "items": {
+      "type": "object", "required": ["name", "node_path", "type"],
+      "properties": { "name": { "type": "string" }, "node_path": { "type": "string" }, "type": { "type": "string" } } } }
+  } }
+```
+
+### `piece_instance` ✅  (Plane A / Editor)  · undoable
+Instance a piece template into the open scene and bind data (`art` / `color` / `label`) via the template's `set_data()`. Optionally `place_on` a board cell in the same call (reparent + snap via `board_place`). Reports which data keys bound and which had no matching slot.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["template_path", "parent", "data"],
+  "properties": {
+    "template_path": { "type": "string", "pattern": "^res://.*\\.tscn$" },
+    "parent": { "type": "string" },
+    "data": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+    "position": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+    "face_up": { "type": "boolean" },
+    "name": { "type": "string" },
+    "place_on": { "type": "object", "required": ["board", "cell"], "properties": {
+      "board": { "type": "string" },
+      "cell": { "type": "string" },
+      "align": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["instance_path", "face_up", "placed"],
+  "properties": {
+    "instance_path": { "type": "string" },
+    "face_up": { "type": "boolean" },
+    "bound": { "type": "array", "items": { "type": "string" } },
+    "unbound": { "type": "array", "items": { "type": "string" } },
+    "placed": { "type": "boolean" },
+    "cell": { "type": ["string", "null"] }
+  } }
+```
+
+### `piece_move` ✅  (Plane A / Editor)  · undoable
+Move a piece onto a board cell by id (reparent + snap via `board_place`), optionally with a short scale "pop" animation authored from Group C `anim_*` primitives (an `AnimationPlayer` under the piece keying its own `scale` 1 → pop → 1). Purely additive — it emits only existing `node.*` / `anim.*` ops, never a new engine call. Returns the piece's new path.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["board", "node", "to"],
+  "properties": {
+    "board": { "type": "string" },
+    "node": { "type": "string" },
+    "to": { "type": "string" },
+    "from": { "type": "string" },
+    "align": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+    "animate": { "type": "object", "properties": {
+      "duration": { "type": "number", "exclusiveMinimum": 0 },
+      "pop_scale": { "type": "number", "exclusiveMinimum": 0 },
+      "player": { "type": "string" },
+      "anim": { "type": "string" },
+      "transition": { "type": "number" } } }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["moved", "to", "node_path", "animated"],
+  "properties": {
+    "moved": { "type": "boolean" },
+    "from": { "type": ["string", "null"] },
+    "to": { "type": "string" },
+    "node_path": { "type": "string" },
+    "animated": { "type": "boolean" }
   } }
 ```
 
@@ -3593,5 +3696,8 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `card_deck_from_table` | N / Editor | ✅ | – |
 | `board_create` | N / Editor | ✅ | ✔ writes files |
 | `board_place` | N / Editor | ✅ | – |
+| `piece_template_create` | N / Editor | ✅ | ✔ writes files |
+| `piece_instance` | N / Editor | ✅ | – |
+| `piece_move` | N / Editor | ✅ | – |
 
 **70 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 18 LSP, 15 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
