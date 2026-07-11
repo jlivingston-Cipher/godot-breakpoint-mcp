@@ -7,7 +7,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 - **Version:** 1.0.0
 - **License:** MIT
-- **What it exposes:** 258 tools + 5 MCP resources
+- **What it exposes:** 270 tools + 5 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -565,7 +565,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **258 tools** in total. This section summarizes them by family so you know what
+There are **270 tools** in total. This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -625,6 +625,12 @@ undo system unless noted.
 - **Knowledge / lookup (6 tools)** — read-only project and docs search: `project_search`,
   `find_symbol`, `find_usages`, `example_snippet` (host-side), plus `class_reference` and
   `docs_search` (editor-side, `ClassDB`-backed).
+- **Version control (`vcs_*`, 12 tools)** — host-side git, works whenever the project is a
+  git work tree. Read: `vcs_status`, `vcs_log`, `vcs_diff`, `vcs_show`, `vcs_branch_list`,
+  `vcs_blame`. Safe local mutations: `vcs_add`, `vcs_commit`, `vcs_restore`, `vcs_stash`,
+  `vcs_branch_create`, `vcs_switch`. Only ops that lose work or rewrite history are
+  confirmation-gated (`vcs_restore`, `vcs_stash op=drop`); network operations
+  (push/pull/fetch) are intentionally not exposed.
 
 ### Plane B — Headless CLI and managed process (`godot_*`)
 
@@ -862,7 +868,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-258 tools and 5 resources. The exhaustive per-tool schemas are in
+270 tools and 5 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

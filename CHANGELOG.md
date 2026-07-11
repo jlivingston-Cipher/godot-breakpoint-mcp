@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-07-11
+
+Feature release — **Group L version control (`vcs_*`)**: a net-new host-side tool group that reads the project's git repository and performs safe local git actions, taking the surface from **258 to 270 tools**. The `vcs_*` tools are host-only (no addon change) and fully cloud/CI-verifiable end-to-end. This release also fixes the first Asset Library packaging report (#102) — the addon moves `1.4.1` → `1.4.2`. Host version `1.11.0` → `1.12.0`; **`npm breakpoint-mcp@1.12.0` live as `latest`**.
+
 ### Added — Group L version control (git) (12 tools, 258 → 270)
 - **New host-side tool group `vcs_*` (Plane B).** Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, **no shell**). Host-side: they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane the backlog flagged (`BACKLOG.md` §S74, `HANDOFF_SESSION86.md` §3/§4). `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; large patch/file output is head-truncated with a `truncated` flag; never a hang.
 - **Six read-only tools** (never touch the index or working tree, so none are undoable or gated):
@@ -31,7 +35,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **Network ops (push / pull / fetch) intentionally excluded** — the cloud can't reach the private origin and push has irreversible remote effects no CI test can exercise; they remain a Mac-side step. Rationale + the deferred alternatives in `GROUP_L_VCS_SPEC.md`.
 - **Paths accept `res://…`** (project-relative) or repo-relative, consistent with the Group K host tools.
 - **Same quality bar:** frozen `outputSchema` entries in `host/src/schemas.ts` for all twelve; `docs/TOOL_CATALOG.md` gains a `## Group L` section (per-tool Input/Output blocks) + twelve index rows (the two gated tools carry the destructive marker); registration meta-test `EXPECTED_TOOL_COUNT` 258 → 270; `host/test/vcs.test.ts` adds 12 cases driving the real `git` binary against throwaway repo fixtures (every tool + the not-a-repo error path + the full gate matrix: blocked-without-elicitation / confirm-bypass / accept / decline for `vcs_restore`, and blocked `vcs_stash drop`). `contract_check.py` parity holds at **270 tools**; host suite **354 → 366**.
-- `npm publish` remains deferred; no version cut here (this is staged `[Unreleased]` work).
+### Fixed
+- **`godot_version` non-zero-exit test made portable.** `host/test/cli.test.ts` hardcoded `/bin/false`, which exists on Linux but **not on macOS** (it lives at `/usr/bin/false`); on macOS the spawn was an `ENOENT`, so the captured exit code was correctly `null` and the assertion (`=== 1`) failed. Switched the test to `/usr/bin/false` (present on both). `runCaptured` was already correct — **no production behavior changed**. (Surfaced running the host suite on macOS + Node 26 for the first time; CI has always been Linux.)
+
+### Packaging
+- **`.gitattributes` trims the Asset Library download to the addon** (fixes #102, reported by @Gramps). Export-ignore everything by default, re-include `/addons`, normalize line endings to LF — the generated ZIP drops from **169 files (~855 KB) to 10 files (~51 KB)**, shipping only the plugin (not `host/`, `docs/`, `example/`, or CI). Also bundled a copy of the LICENSE inside `addons/breakpoint_mcp/` (the README was already there), per the Godot submission guidelines. Addon `ADDON_VERSION` + both `plugin.cfg` move `1.4.1` → `1.4.2`.
 
 ## [1.11.0] — 2026-07-11
 

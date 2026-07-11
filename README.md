@@ -6,8 +6,8 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **v1.0.0 · 258 tools + 5 MCP resources · MIT.** The host builds against the stable
-> `@modelcontextprotocol/sdk` 1.x API and is exercised by a 223-test suite plus
+> **npm 1.12.0 · addon 1.4.2 · 270 tools + 5 MCP resources · MIT.** The host builds against
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 366-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -22,7 +22,7 @@ reimplementing them, so behavior tracks the engine you already have.
 
 ## What it does
 
-Breakpoint MCP is organized into four capability **planes** (258 tools + 5 resources):
+Breakpoint MCP is organized into four capability **planes** (270 tools + 5 resources):
 
 - **Plane A — Live Editor Bridge** (~145 tools: `editor_*`, `scene_*`, `node_*`,
   `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot `EditorPlugin`
@@ -33,11 +33,15 @@ Breakpoint MCP is organized into four capability **planes** (258 tools + 5 resou
   `cloudsave_scaffold`, `auth_scaffold`), AI asset generation (`asset_*`), and a
   read-only documentation / code-lookup family.
 
-- **Plane B — Headless CLI** (`godot_*`): launch the editor, run the project, export,
-  import, and run headless scripts or tests — no editor window required. Long-running
-  jobs (`godot_export`, `godot_import`, `godot_run_headless_script`) run on the formal
-  MCP **task model** (create → poll → await → cancel), while simpler clients still get a
-  blocking result. `godot_run_managed` / `godot_output` capture the game's full console.
+- **Plane B — Headless CLI & host-side tools** (`godot_*`, `vcs_*`, project search):
+  launch the editor, run the project, export, import, and run headless scripts or tests —
+  no editor window required. Long-running jobs (`godot_export`, `godot_import`,
+  `godot_run_headless_script`) run on the formal MCP **task model** (create → poll → await
+  → cancel), while simpler clients still get a blocking result. `godot_run_managed` /
+  `godot_output` capture the game's full console. **Version control (`vcs_*`)** reads the
+  project's git repository (status, log, diff, show, branches, blame) and performs safe
+  local git actions (stage, commit, restore, stash, branch, switch) — destructive ops are
+  confirmation-gated, and no network operations are exposed (push/pull stay manual).
 
 - **Plane C — Runtime Bridge** (`runtime_*`): an autoload (`BreakpointRuntimeBridge`) the
   plugin registers into every run opens a loopback server **inside the running game** —
