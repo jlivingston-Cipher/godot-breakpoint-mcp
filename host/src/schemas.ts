@@ -648,6 +648,23 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     unmapped_columns: z.array(z.string()),
     instances: z.array(z.object({ row_index: z.number(), instance_path: z.string() })),
   },
+  board_create: {
+    scene_path: z.string(),
+    root_type: z.string(),
+    cell_kind: z.string(),
+    layout_mode: z.string(),
+    cell_count: z.number(),
+    node_count: z.number(),
+    saved: z.boolean(),
+    cells: z.array(z.object({ id: z.string(), node_path: z.string(), x: z.number(), y: z.number() })),
+  },
+  board_place: {
+    placed: z.boolean(),
+    cell: z.string(),
+    cell_path: z.string(),
+    node_path: z.string(),
+    align: z.object({ x: z.number(), y: z.number() }),
+  },
 };
 
 /**

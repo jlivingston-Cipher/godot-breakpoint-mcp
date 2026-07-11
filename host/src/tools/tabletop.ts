@@ -654,6 +654,208 @@ export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: De
   };
 }
 
+// =============================================================================
+// Group N — Increment 2: the Board slice (`board_create`, `board_place`)
+//
+// A board is a spatial frame: a scene whose children are addressable *cells*
+// (named `cell_<id>`, all in the `board_cells` group). `board_create` builds it
+// from one of three general-purpose layouts — a `ring` of ids, a `grid` of
+// rows×cols, or an explicit `cells` list — and `board_place` snaps any existing
+// node (a card or piece instance) onto a cell by id. Like the Card slice these
+// are host-side scripted sequences of already-audited primitives (`scene.new`,
+// `node.add`, `node.set_property`, `node.add_to_group`, `node.reparent`,
+// `scene.save`) emitted through the same injectable sink, so the whole
+// op-sequence is unit-tested offline. Nothing here is game-specific: cells carry
+// only caller-supplied ids and nothing else — no domain concepts baked in.
+// =============================================================================
+
+/** One resolved board cell: an id and its local position under the board root. */
+export interface BoardCell { id: string; x: number; y: number }
+
+type CellKind = "marker" | "control";
+type BoardRoot = "Node2D" | "Control";
+
+const DEFAULT_CELL_SIZE = 96;
+const BOARD_CELLS_GROUP = "board_cells";
+const CELL_KIND_TO_CLASS: Record<CellKind, string> = { marker: "Marker2D", control: "Control" };
+
+/** Degrees → radians. */
+function deg2rad(d: number): number { return (d * Math.PI) / 180; }
+
+/**
+ * Place `ids` evenly around a ring. Pure + deterministic (no engine, no cell
+ * probing) so it is unit-tested directly. Angle 0° points +x (right); +y is down
+ * (Godot 2D), so with the default -90° start the first cell sits at the top and,
+ * clockwise, the rest sweep right → bottom → left. Positions are local offsets in
+ * px relative to `center` (default the board root's origin).
+ */
+export function computeRingCells(
+  ids: string[],
+  opts: { radius?: number; cell_size?: number; start_deg?: number; clockwise?: boolean; center?: { x: number; y: number } } = {},
+): BoardCell[] {
+  const n = ids.length;
+  const cell = opts.cell_size ?? DEFAULT_CELL_SIZE;
+  // Default radius keeps neighbouring cells about `cell_size` apart along the ring.
+  const radius = opts.radius ?? (n <= 1 ? cell : Math.max(cell, (cell * n) / (2 * Math.PI)));
+  const start = deg2rad(opts.start_deg ?? -90);
+  const dir = (opts.clockwise ?? true) ? 1 : -1;
+  const cx = opts.center?.x ?? 0;
+  const cy = opts.center?.y ?? 0;
+  const out: BoardCell[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = start + dir * ((2 * Math.PI * i) / n);
+    out.push({ id: ids[i], x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) });
+  }
+  return out;
+}
+
+/**
+ * Fill a rows×cols grid left-to-right, top-to-bottom. Cell id is `"<row>_<col>"`.
+ * Pure + deterministic; positions are top-left offsets in px from `origin`.
+ */
+export function computeGridCells(
+  rows: number, cols: number, cell_size?: number,
+  opts: { origin?: { x: number; y: number } } = {},
+): BoardCell[] {
+  const cell = cell_size ?? DEFAULT_CELL_SIZE;
+  const ox = opts.origin?.x ?? 0;
+  const oy = opts.origin?.y ?? 0;
+  const out: BoardCell[] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) out.push({ id: `${r}_${c}`, x: ox + c * cell, y: oy + r * cell });
+  }
+  return out;
+}
+
+interface BoardBackground { color?: string; art?: string; size?: { w?: number; h?: number } }
+
+type BoardLayout =
+  | { mode: "ring"; cells: string[]; radius?: number; start_deg?: number; clockwise?: boolean; center?: { x: number; y: number } }
+  | { mode: "grid"; rows: number; cols: number }
+  | { mode: "cells"; cells: Array<{ id: string; x: number; y: number }> };
+
+interface BoardSpec {
+  path: string;
+  layout: BoardLayout;
+  cell_size?: number;
+  cell_kind?: CellKind;
+  root_type?: BoardRoot;
+  background?: BoardBackground;
+  overwrite?: boolean;
+}
+
+/** Resolve a layout spec to the ordered list of cells (pure — no emit). */
+export function resolveBoardCells(layout: BoardLayout, cell_size?: number): BoardCell[] {
+  if (layout.mode === "ring") {
+    if (layout.cells.length === 0) throw new ComposeError("bad_params", "A ring layout needs at least one cell id");
+    return computeRingCells(layout.cells, {
+      radius: layout.radius, cell_size, start_deg: layout.start_deg,
+      clockwise: layout.clockwise, center: layout.center,
+    });
+  }
+  if (layout.mode === "grid") {
+    if (layout.rows < 1 || layout.cols < 1) throw new ComposeError("bad_params", "A grid layout needs rows >= 1 and cols >= 1");
+    return computeGridCells(layout.rows, layout.cols, cell_size);
+  }
+  if (layout.cells.length === 0) throw new ComposeError("bad_params", "An explicit cells layout needs at least one cell");
+  return layout.cells.map((c) => ({ id: c.id, x: c.x, y: c.y }));
+}
+
+/** Node name for a cell id, validated so it can never break a node path. */
+function cellNodeName(id: string): string {
+  const name = `cell_${id}`;
+  assertNodeName(name);
+  return name;
+}
+
+interface BoardResult {
+  scene_path: string; root_type: string; cell_kind: string; layout_mode: string;
+  cell_count: number; node_count: number; saved: boolean;
+  cells: Array<{ id: string; node_path: string; x: number; y: number }>;
+}
+
+/** Emit the full op-sequence that builds + saves a board scene with addressable cells. */
+export async function emitBoardCreate(emit: Emit, spec: BoardSpec): Promise<BoardResult> {
+  const rootType = spec.root_type ?? "Node2D";
+  const cellKind = spec.cell_kind ?? "marker";
+  const cellClass = CELL_KIND_TO_CLASS[cellKind];
+  const rootName = sceneRootName(spec.path);
+  const cells = resolveBoardCells(spec.layout, spec.cell_size);
+
+  // Ids must be unique and must form legal node names.
+  const seen = new Set<string>();
+  for (const c of cells) {
+    cellNodeName(c.id);
+    if (seen.has(c.id)) throw new ComposeError("bad_params", `Duplicate cell id ${JSON.stringify(c.id)}`);
+    seen.add(c.id);
+  }
+
+  // 1. fresh scene rooted at the board node.
+  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName });
+
+  // 2. optional background (emitted first so it draws behind the cells).
+  let backgroundNodes = 0;
+  if (spec.background) {
+    const bg = spec.background;
+    const bgType = bg.art ? (rootType === "Control" ? "TextureRect" : "Sprite2D") : "ColorRect";
+    await emit("node.add", { parent_path: ".", type: bgType, name: "Background" });
+    backgroundNodes = 1;
+    if (bg.art) {
+      if (bg.art.startsWith("res://")) {
+        await emit("node.set_property", { path: "Background", property: "texture", value: resourceVariant("Texture2D", bg.art) });
+      }
+    } else if (bg.color) {
+      await emit("node.set_property", { path: "Background", property: "color", value: colorVariant(bg.color) });
+    }
+    if (bg.size && bgType !== "Sprite2D") {
+      await emit("node.set_property", { path: "Background", property: "size", value: vec2(bg.size.w ?? 0, bg.size.h ?? 0) });
+    }
+  }
+
+  // 3. one anchor node per cell: add → position → join the board_cells group.
+  const outCells: Array<{ id: string; node_path: string; x: number; y: number }> = [];
+  for (const c of cells) {
+    const name = cellNodeName(c.id);
+    await emit("node.add", { parent_path: ".", type: cellClass, name });
+    await emit("node.set_property", { path: name, property: "position", value: vec2(c.x, c.y) });
+    await emit("node.add_to_group", { path: name, group: BOARD_CELLS_GROUP });
+    outCells.push({ id: c.id, node_path: name, x: c.x, y: c.y });
+  }
+
+  // 4. persist.
+  await emit("scene.save", {});
+
+  return {
+    scene_path: spec.path, root_type: rootType, cell_kind: cellKind, layout_mode: spec.layout.mode,
+    cell_count: outCells.length, node_count: 1 + backgroundNodes + outCells.length, saved: true,
+    cells: outCells,
+  };
+}
+
+// ------------------------------------------------------- composite: place ----
+
+interface PlaceArgs { board: string; cell: string; node: string; align?: { x?: number; y?: number } }
+interface PlaceResult { placed: boolean; cell: string; cell_path: string; node_path: string; align: { x: number; y: number } }
+
+/**
+ * Reparent an existing node onto a board cell and snap it to the cell anchor.
+ * The composite computes the destination path itself (cell node name + the moved
+ * node's own name), so the sequence is fully offline-testable. `align` is an
+ * offset from the cell origin (default {0,0} — centred on the anchor).
+ */
+export async function emitBoardPlace(emit: Emit, args: PlaceArgs): Promise<PlaceResult> {
+  if (args.board === "") throw new ComposeError("bad_params", "Missing 'board' (the board root node path)");
+  if (args.node === "") throw new ComposeError("bad_params", "Missing 'node' (the node to place)");
+  const cellPath = joinPath(args.board, cellNodeName(args.cell));
+  const nodeName = args.node.split("/").pop() ?? args.node;
+  const dest = joinPath(cellPath, nodeName);
+  const ax = args.align?.x ?? 0;
+  const ay = args.align?.y ?? 0;
+  await emit("node.reparent", { path: args.node, new_parent_path: cellPath, keep_global_transform: false });
+  await emit("node.set_property", { path: dest, property: "position", value: vec2(ax, ay) });
+  return { placed: true, cell: args.cell, cell_path: cellPath, node_path: dest, align: { x: ax, y: ay } };
+}
+
 // ------------------------------------------------------------- registration ----
 
 export function registerTabletopTools(server: McpServer, bridge: BridgeClient, config: Config): void {
@@ -823,6 +1025,91 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const a = raw as unknown as DeckArgs;
       try {
         return ok(await emitDeckFromTable(emit, readFile, a) as unknown as Record<string, unknown>);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------- board_create ----
+  const boardLayout = z.discriminatedUnion("mode", [
+    z.object({
+      mode: z.literal("ring"),
+      cells: z.array(z.string()).min(1).describe("Cell ids placed evenly around the ring, in order"),
+      radius: z.number().positive().optional().describe("Ring radius in px (default scales with cell_size × cell count)"),
+      start_deg: z.number().optional().describe("Angle of the first cell in degrees (default -90 = top)"),
+      clockwise: z.boolean().optional().describe("Sweep direction (default true)"),
+      center: z.object({ x: z.number(), y: z.number() }).optional().describe("Ring centre offset from the root (default 0,0)"),
+    }),
+    z.object({
+      mode: z.literal("grid"),
+      rows: z.number().int().positive().describe("Grid row count"),
+      cols: z.number().int().positive().describe("Grid column count; cell ids are \"<row>_<col>\""),
+    }),
+    z.object({
+      mode: z.literal("cells"),
+      cells: z.array(z.object({
+        id: z.string().describe("Cell id (becomes node cell_<id>)"),
+        x: z.number(), y: z.number(),
+      })).min(1).describe("Explicit cell ids and local positions"),
+    }),
+  ]);
+
+  server.registerTool(
+    "board_create",
+    {
+      title: "Create board scene",
+      description:
+        "Build a board scene whose children are addressable cells (each a cell_<id> node in the board_cells group) from a ring, grid, or explicit-cells layout. " +
+        "Cells are Marker2D (or Control) anchors positioned by pure layout math; an optional background (color or res:// art) sits behind them. " +
+        "General-purpose — cells carry only caller-supplied ids. DESTRUCTIVE (writes a scene) — gated by confirmation. Returns the cell_id → node_path + position map.",
+      inputSchema: {
+        path: z.string().describe("Where to save the board scene, e.g. res://ui/board/Board.tscn"),
+        layout: boardLayout.describe("ring{cells[]} | grid{rows,cols} | cells{cells[{id,x,y}]}"),
+        cell_size: z.number().positive().optional().describe("Cell pitch in px (drives ring radius / grid spacing; default 96)"),
+        cell_kind: z.enum(["marker", "control"]).optional().describe("marker→Marker2D anchor (default), control→Control anchor"),
+        root_type: z.enum(["Node2D", "Control"]).optional().describe("Board root node type (default Node2D)"),
+        background: z.object({
+          color: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional().describe("Solid ColorRect background"),
+          art: z.string().optional().describe("res:// texture background (Sprite2D under Node2D, TextureRect under Control)"),
+          size: z.object({ w: z.number().optional(), h: z.number().optional() }).optional().describe("Background size in px (ColorRect / TextureRect)"),
+        }).optional().describe("Optional background drawn behind the cells"),
+        overwrite: z.boolean().optional().describe("Overwrite an existing board at `path` (default false)"),
+        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+      },
+    },
+    async (raw) => {
+      const a = raw as unknown as BoardSpec & { confirm?: boolean };
+      if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
+      const blocked = await gate(server, a.confirm, `Create board scene at ${a.path}`);
+      if (blocked) return blocked;
+      try {
+        return ok(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // --------------------------------------------------------------- board_place ----
+  server.registerTool(
+    "board_place",
+    {
+      title: "Place a node on a board cell",
+      description:
+        "Reparent an existing node (a card or piece instance) onto a board cell by id and snap it to the cell anchor. Undoable node authoring. " +
+        "The target cell is <board>/cell_<cell>; `align` offsets the node from the cell origin (default centred). Returns the node's new path.",
+      inputSchema: {
+        board: z.string().describe("Board root node path in the open scene (\".\" if the board is the scene root)"),
+        cell: z.string().describe("Cell id to place onto (resolves to <board>/cell_<cell>)"),
+        node: z.string().describe("Node path of the node to place (a card / piece already in the scene)"),
+        align: z.object({ x: z.number(), y: z.number() }).optional().describe("Offset from the cell origin in px (default 0,0 — centred on the anchor)"),
+      },
+    },
+    async (raw) => {
+      const a = raw as unknown as PlaceArgs;
+      try {
+        return ok(await emitBoardPlace(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(err);
       }
