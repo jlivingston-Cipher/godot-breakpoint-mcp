@@ -10,7 +10,9 @@ name: integration
 #                     round-trips plus the pure operations.gd helpers (envelope, _resolve/_path_of,
 #                     _serialize_node/_descendants, doc-URL/type-name, _ping). No editor / bridge /
 #                     GUI — it complements the authoring-plane, which covers the editor-COUPLED
-#                     handlers. Gates on the OPS_UNIT_SUMMARY / OPS_UNIT_FAIL markers.
+#                     handlers. Also runs the Group N scene-construction smokes (card_build_smoke.gd,
+#                     board_build_smoke.gd) — build → pack → round-trip a card / board PackedScene.
+#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD _SUMMARY / _FAIL markers.
 #   * cli-plane     — headless, deterministic, expected to pass. This is the gate.
 #   * runtime-plane — boots the example GAME headless (no editor, no GUI) and drives Plane C
 #                     against its in-game BreakpointRuntimeBridge autoload (:9081). Asserts D6
@@ -119,6 +121,19 @@ jobs:
           grep -q "CARD_BUILD_SUMMARY" /tmp/card-smoke.log || { echo "::error::card_build_smoke.gd produced no CARD_BUILD_SUMMARY (script error?)"; exit 1; }
           if grep -q "CARD_BUILD_FAIL" /tmp/card-smoke.log; then echo "::error::a card-build smoke assertion failed"; exit 1; fi
           echo "Card-build smoke passed: $(grep -o 'CARD_BUILD_SUMMARY.*' /tmp/card-smoke.log)"
+      - name: Run the Group N board-build smoke
+        run: |
+          set -eu
+          "$GODOT_BIN" --headless --path "${{ github.workspace }}/example" \
+            --script res://tests/board_build_smoke.gd > /tmp/board-smoke.log 2>&1 || true
+          echo "=== board_build_smoke.gd output ==="
+          cat /tmp/board-smoke.log
+          echo "==================================="
+          # BOARD_BUILD_* markers are the source of truth (headless --script exit
+          # codes can be unreliable): require the summary, and fail on any FAIL.
+          grep -q "BOARD_BUILD_SUMMARY" /tmp/board-smoke.log || { echo "::error::board_build_smoke.gd produced no BOARD_BUILD_SUMMARY (script error?)"; exit 1; }
+          if grep -q "BOARD_BUILD_FAIL" /tmp/board-smoke.log; then echo "::error::a board-build smoke assertion failed"; exit 1; fi
+          echo "Board-build smoke passed: $(grep -o 'BOARD_BUILD_SUMMARY.*' /tmp/board-smoke.log)"
 
   cli-plane:
     name: CLI plane vs real Godot (headless)

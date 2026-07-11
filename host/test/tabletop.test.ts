@@ -15,6 +15,11 @@ import {
   sceneRootName,
   joinPath,
   parseHexColor,
+  emitBoardCreate,
+  emitBoardPlace,
+  computeRingCells,
+  computeGridCells,
+  resolveBoardCells,
   type Emit,
 } from "../src/tools/tabletop.js";
 
@@ -340,10 +345,149 @@ test("buildCardScript is valid-looking GDScript with the two setters", () => {
   assert.doesNotMatch(src, /has_node\("Back"\)/); // no back → no Back guard
 });
 
+// ============================================================================
+// Group N — Board slice (Increment 2). Same offline crux as the Card slice: each
+// composite emits the exact ordered sequence of existing primitive ops, and the
+// pure ring/grid math is correct on its own.
+// ============================================================================
+
+test("board_create (explicit cells) emits scene.new → per-cell add/position/group → save, in order", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitBoardCreate(emit, {
+    path: "res://ui/board/Board.tscn",
+    layout: { mode: "cells", cells: [{ id: "a", x: 10, y: 20 }, { id: "b", x: 30, y: 40 }] },
+  });
+
+  assert.deepEqual(methods(calls), [
+    "scene.new",
+    "node.add", "node.set_property", "node.add_to_group", // cell a
+    "node.add", "node.set_property", "node.add_to_group", // cell b
+    "scene.save",
+  ]);
+  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/board/Board.tscn", name: "Board" });
+  assert.deepEqual(calls[1].params, { parent_path: ".", type: "Marker2D", name: "cell_a" });
+  assert.deepEqual(calls[2].params, { path: "cell_a", property: "position", value: { __type__: "Vector2", x: 10, y: 20 } });
+  assert.deepEqual(calls[3].params, { path: "cell_a", group: "board_cells" });
+
+  assert.equal(res.cell_count, 2);
+  assert.equal(res.node_count, 3); // root + 2 cells
+  assert.equal(res.layout_mode, "cells");
+  assert.equal(res.root_type, "Node2D");
+  assert.equal(res.cell_kind, "marker");
+  assert.equal(res.saved, true);
+  assert.deepEqual(res.cells, [
+    { id: "a", node_path: "cell_a", x: 10, y: 20 },
+    { id: "b", node_path: "cell_b", x: 30, y: 40 },
+  ]);
+});
+
+test("board_create grid builds '<r>_<c>' cells at the right pitch", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitBoardCreate(emit, {
+    path: "res://ui/board/Grid.tscn",
+    layout: { mode: "grid", rows: 2, cols: 2 },
+    cell_size: 50,
+  });
+  const added = calls.filter((c) => c.method === "node.add").map((c) => c.params.name);
+  assert.deepEqual(added, ["cell_0_0", "cell_0_1", "cell_1_0", "cell_1_1"]);
+  assert.deepEqual(res.cells.map((c) => [c.x, c.y]), [[0, 0], [50, 0], [0, 50], [50, 50]]);
+});
+
+test("board_create ring: background is emitted first, cells honour cell_kind + root_type", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitBoardCreate(emit, {
+    path: "res://ui/board/Ring.tscn",
+    layout: { mode: "ring", cells: ["top", "right", "bottom", "left"], radius: 100 },
+    root_type: "Control",
+    cell_kind: "control",
+    background: { color: "#101014", size: { w: 400, h: 400 } },
+  });
+  // scene.new → Background add + color + size → then the cells.
+  assert.deepEqual(methods(calls).slice(0, 4), ["scene.new", "node.add", "node.set_property", "node.set_property"]);
+  assert.deepEqual(calls[1].params, { parent_path: ".", type: "ColorRect", name: "Background" });
+  assert.equal(calls[2].params.property, "color");
+  assert.deepEqual(calls[3].params, { path: "Background", property: "size", value: { __type__: "Vector2", x: 400, y: 400 } });
+
+  const cellAdds = calls.filter((c) => c.method === "node.add" && String(c.params.name).startsWith("cell_"));
+  assert.equal(cellAdds.length, 4);
+  assert.ok(cellAdds.every((c) => c.params.type === "Control"));
+  assert.equal(res.root_type, "Control");
+  assert.equal(res.cell_kind, "control");
+  assert.equal(res.node_count, 1 + 1 + 4); // root + background + 4 cells
+  // the ring's first cell sits at the top (0, -radius).
+  assert.ok(Math.abs(res.cells[0].x) < 1e-9 && Math.abs(res.cells[0].y + 100) < 1e-9);
+});
+
+test("board_create art background picks Sprite2D under a Node2D root", async () => {
+  const { calls, emit } = recorder();
+  await emitBoardCreate(emit, {
+    path: "res://ui/board/Art.tscn",
+    layout: { mode: "cells", cells: [{ id: "a", x: 0, y: 0 }] },
+    background: { art: "res://art/board.png" },
+  });
+  assert.equal(calls[1].params.name, "Background");
+  assert.equal(calls[1].params.type, "Sprite2D");
+  assert.equal(calls[2].params.property, "texture");
+});
+
+test("board_create rejects duplicate and malformed cell ids", async () => {
+  const { emit } = recorder();
+  await assert.rejects(emitBoardCreate(emit, {
+    path: "res://b.tscn",
+    layout: { mode: "cells", cells: [{ id: "a", x: 0, y: 0 }, { id: "a", x: 1, y: 1 }] },
+  }), /Duplicate cell id/);
+  await assert.rejects(emitBoardCreate(emit, {
+    path: "res://b.tscn",
+    layout: { mode: "cells", cells: [{ id: "bad id", x: 0, y: 0 }] },
+  }), /Invalid slot\/node name/);
+});
+
+test("board_place reparents onto <board>/cell_<cell> and snaps to the align offset", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitBoardPlace(emit, { board: "Board", cell: "top", node: "Main/Pieces/Token", align: { x: 0, y: -8 } });
+  assert.deepEqual(methods(calls), ["node.reparent", "node.set_property"]);
+  assert.deepEqual(calls[0].params, { path: "Main/Pieces/Token", new_parent_path: "Board/cell_top", keep_global_transform: false });
+  assert.deepEqual(calls[1].params, { path: "Board/cell_top/Token", property: "position", value: { __type__: "Vector2", x: 0, y: -8 } });
+  assert.equal(res.placed, true);
+  assert.equal(res.cell_path, "Board/cell_top");
+  assert.equal(res.node_path, "Board/cell_top/Token");
+  assert.deepEqual(res.align, { x: 0, y: -8 });
+});
+
+test("board_place: a '.' board and default align centre the node on the cell", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitBoardPlace(emit, { board: ".", cell: "a", node: "Token" });
+  assert.equal(calls[0].params.new_parent_path, "cell_a");
+  assert.deepEqual(calls[1].params.value, { __type__: "Vector2", x: 0, y: 0 });
+  assert.equal(res.node_path, "cell_a/Token");
+  assert.deepEqual(res.align, { x: 0, y: 0 });
+});
+
+// -------------------------------------------------------------- board math ----
+
+test("computeGridCells fills rows then columns with '<r>_<c>' ids", () => {
+  const c = computeGridCells(2, 3, 10);
+  assert.deepEqual(c.map((x) => x.id), ["0_0", "0_1", "0_2", "1_0", "1_1", "1_2"]);
+  assert.deepEqual(c.map((x) => [x.x, x.y]), [[0, 0], [10, 0], [20, 0], [0, 10], [10, 10], [20, 10]]);
+});
+
+test("computeRingCells places the first cell at the top and sweeps clockwise", () => {
+  const c = computeRingCells(["a", "b", "c", "d"], { radius: 100 });
+  const near = (v: number, t: number) => Math.abs(v - t) < 1e-9;
+  assert.ok(near(c[0].x, 0) && near(c[0].y, -100)); // top
+  assert.ok(near(c[1].x, 100) && near(c[1].y, 0));  // right (clockwise, y-down)
+  assert.ok(near(c[2].x, 0) && near(c[2].y, 100));  // bottom
+  assert.ok(near(c[3].x, -100) && near(c[3].y, 0)); // left
+});
+
+test("resolveBoardCells rejects an empty grid", () => {
+  assert.throws(() => resolveBoardCells({ mode: "grid", rows: 0, cols: 2 }), /rows >= 1/);
+});
+
 // -------------------------------------------------- game-neutrality guardrail ----
 
-test("the Card tools carry NO game-specific vocabulary (general-purpose only)", () => {
+test("the Card + Board tools carry NO game-specific vocabulary (general-purpose only)", () => {
   const src = fs.readFileSync(path.join(process.cwd(), "src/tools/tabletop.ts"), "utf8");
-  const banned = /\bD!?3\b|\bDDD\b|faang|amari|social[- ]deduction|seat[- ]ring|\brunway\b|\bvaluation\b|\bclout\b|agenda_type|character[- ]catalog/i;
+  const banned = /\bD!?3\b|\bDDD\b|faang|amari|social[- ]deduction|seat[- ]ring|\bseats?\b|\brunway\b|\bvaluation\b|\bclout\b|\bhype\b|\bdebt\b|\bagenda\b|ai[- ]track|agenda_type|character[- ]catalog/i;
   assert.doesNotMatch(src, banned, "tabletop.ts must not reference any specific game");
 });

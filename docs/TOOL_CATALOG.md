@@ -3011,7 +3011,7 @@ Generate login/register/logout helpers against the installed SDK. Degrades to `u
 
 ## Group N — Card / board / piece authoring composites (Plane A / Editor + host)
 
-Composite authoring **on top of** the existing primitives. Each `card_*` tool is a host-side scripted sequence of already-audited editor-bridge ops (`scene.new`, `control.create`, `node.set_property`, `resource.create`, `theme.*`, `node.instantiate_scene`, `node.call_method`) — it adds **no** addon method, so the host↔addon contract is unchanged. The composites build **structure** (scenes, nodes, a small script-backed `set_data()` / `set_face()`) and bind data a caller passes in; they never invent card values, names, or rules. Increment 1 is the **Card slice** (4 tools). `card_template_create` writes files and is **destructive** (elicitation-gated); the other three are undoable node authoring in the open scene (ungated, the `node_*` model). Because every op is an existing primitive, the whole surface is unit-tested offline against an injected emit-sink.
+Composite authoring **on top of** the existing primitives. Each `card_*` / `board_*` tool is a host-side scripted sequence of already-audited editor-bridge ops (`scene.new`, `control.create`, `node.add`, `node.set_property`, `resource.create`, `theme.*`, `node.instantiate_scene`, `node.call_method`, `node.add_to_group`, `node.reparent`) — it adds **no** addon method, so the host↔addon contract is unchanged. The composites build **structure** (scenes, nodes, a small script-backed `set_data()` / `set_face()`) and bind data a caller passes in; they never invent card values, names, or rules. Increment 1 is the **Card slice** (4 tools); Increment 2 is the **Board slice** (2 tools: `board_create`, `board_place`). `card_template_create` and `board_create` write files and are **destructive** (elicitation-gated); the rest are undoable node authoring in the open scene (ungated, the `node_*` model). Because every op is an existing primitive, the whole surface is unit-tested offline against an injected emit-sink. Everything here is **general-purpose** — the tools carry no game-specific vocabulary; a guardrail test fails CI if any appears.
 
 ### `card_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
 Build a reusable card `PackedScene` from a slot spec, with a generated script-backed `set_data()` / `set_face()`. Named slots (`label` / `rich_text` / `texture` / `panel` / `badge`) become the card's regions; optional inline theme and a two-sided card back.
@@ -3164,6 +3164,83 @@ Read a CSV or JSON table and stamp one card per row, binding columns to slots vi
     "instances": { "type": "array", "items": {
       "type": "object", "required": ["row_index", "instance_path"],
       "properties": { "row_index": { "type": "integer" }, "instance_path": { "type": "string" } } } }
+  } }
+```
+
+### `board_create` ✅  (Plane A / Editor + host)  · writes files (gated)
+Build a board scene whose children are addressable **cells** — each a `cell_<id>` node in the `board_cells` group — from one of three general-purpose layouts: a `ring` of ids, a `grid` of `rows`×`cols` (ids `"<row>_<col>"`), or an explicit `cells` list of `{id, x, y}`. Cells are `Marker2D` (or `Control`) anchors positioned by pure ring/grid math; an optional `background` (solid `color` or a `res://` `art` texture) is drawn behind them. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `node.add_to_group` → `scene.save`. **Destructive** (writes a scene) — elicitation-gated. Returns the `cell_id → node_path + position` map. `tile`-backed cells (Group D `TileMapLayer`) are a deferred fast-follow.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path", "layout"],
+  "properties": {
+    "path": { "type": "string", "pattern": "^res://.*\\.tscn$" },
+    "layout": { "oneOf": [
+      { "type": "object", "required": ["mode", "cells"], "properties": {
+        "mode": { "const": "ring" },
+        "cells": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "radius": { "type": "number", "exclusiveMinimum": 0 },
+        "start_deg": { "type": "number" },
+        "clockwise": { "type": "boolean" },
+        "center": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } },
+      { "type": "object", "required": ["mode", "rows", "cols"], "properties": {
+        "mode": { "const": "grid" },
+        "rows": { "type": "integer", "minimum": 1 },
+        "cols": { "type": "integer", "minimum": 1 } } },
+      { "type": "object", "required": ["mode", "cells"], "properties": {
+        "mode": { "const": "cells" },
+        "cells": { "type": "array", "minItems": 1, "items": {
+          "type": "object", "required": ["id", "x", "y"],
+          "properties": { "id": { "type": "string" }, "x": { "type": "number" }, "y": { "type": "number" } } } } } }
+    ] },
+    "cell_size": { "type": "number", "exclusiveMinimum": 0 },
+    "cell_kind": { "enum": ["marker", "control"] },
+    "root_type": { "enum": ["Node2D", "Control"] },
+    "background": { "type": "object", "properties": {
+      "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+      "art": { "type": "string" },
+      "size": { "type": "object", "properties": { "w": { "type": "number" }, "h": { "type": "number" } } } } },
+    "overwrite": { "type": "boolean" },
+    "confirm": { "type": "boolean" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["scene_path", "cells", "saved"],
+  "properties": {
+    "scene_path": { "type": "string" },
+    "root_type": { "type": "string" },
+    "cell_kind": { "type": "string" },
+    "layout_mode": { "type": "string" },
+    "cell_count": { "type": "integer" },
+    "node_count": { "type": "integer" },
+    "saved": { "type": "boolean" },
+    "cells": { "type": "array", "items": {
+      "type": "object", "required": ["id", "node_path", "x", "y"],
+      "properties": { "id": { "type": "string" }, "node_path": { "type": "string" }, "x": { "type": "number" }, "y": { "type": "number" } } } }
+  } }
+```
+
+### `board_place` ✅  (Plane A / Editor)  · undoable
+Reparent an existing node (a card or piece instance) onto a board cell by id and snap it to the cell anchor. The target cell is `<board>/cell_<cell>`; `align` offsets the node from the cell origin (default centred). Decomposes onto `node.reparent` + `node.set_property`. Returns the node's new path.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["board", "cell", "node"],
+  "properties": {
+    "board": { "type": "string" },
+    "cell": { "type": "string" },
+    "node": { "type": "string" },
+    "align": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["placed", "cell", "node_path"],
+  "properties": {
+    "placed": { "type": "boolean" },
+    "cell": { "type": "string" },
+    "cell_path": { "type": "string" },
+    "node_path": { "type": "string" },
+    "align": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
   } }
 ```
 
@@ -3514,5 +3591,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `card_instance` | N / Editor | ✅ | – |
 | `card_hand_layout` | N / Editor | ✅ | – |
 | `card_deck_from_table` | N / Editor | ✅ | – |
+| `board_create` | N / Editor | ✅ | ✔ writes files |
+| `board_place` | N / Editor | ✅ | – |
 
 **70 tools + 5 MCP resources implemented across Phases 0–4: 6 CLI, 3 managed-process, 19 editor, 18 LSP, 15 DAP, 9 runtime. Destructive tools are elicitation-gated; long jobs stream progress. All four planes live.**
