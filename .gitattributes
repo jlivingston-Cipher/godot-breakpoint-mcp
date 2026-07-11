@@ -1,0 +1,10 @@
+# Normalize line endings for all files that Git considers text files.
+* text=auto eol=lf
+
+# Only include the addons folder when downloading from the Asset Library.
+# Everything is export-ignored (stripped from the generated ZIP) by default,
+# then the addon is re-included — so an Asset Library install ships just the
+# plugin, not the host/, docs/, example/ demo, tests, or CI config.
+/**        export-ignore
+/addons    !export-ignore
+/addons/** !export-ignore
