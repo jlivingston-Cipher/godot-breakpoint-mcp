@@ -20,6 +20,10 @@ import {
   computeRingCells,
   computeGridCells,
   resolveBoardCells,
+  emitPieceTemplate,
+  emitPieceInstance,
+  emitPieceMove,
+  buildPieceScript,
   type Emit,
 } from "../src/tools/tabletop.js";
 
@@ -484,10 +488,200 @@ test("resolveBoardCells rejects an empty grid", () => {
   assert.throws(() => resolveBoardCells({ mode: "grid", rows: 0, cols: 2 }), /rows >= 1/);
 });
 
+// ============================================================================
+// Group N — Piece slice (Increment 3). Same offline crux: each composite emits
+// the exact ordered sequence of existing primitive ops. `piece_instance` and
+// `piece_move` compose `board_place`; `piece_move`'s animated path is proven to
+// stay additive (only node.* + anim.* ops — never a new engine call).
+// ============================================================================
+
+test("piece_template_create emits scene.new → Art → Label → script → save, in order", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceTemplate(emit, {
+    path: "res://ui/pieces/Piece.tscn",
+    size: { width: 64, height: 64 },
+  });
+
+  assert.deepEqual(methods(calls), [
+    "scene.new",
+    "node.add", // Art
+    "node.add", // Label
+    "resource.create", // GDScript
+    "node.set_property", // attach script
+    "scene.save",
+  ]);
+  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/pieces/Piece.tscn", name: "Piece" });
+  assert.deepEqual(calls[1].params, { parent_path: ".", type: "Sprite2D", name: "Art" });
+  assert.deepEqual(calls[2].params, { parent_path: ".", type: "Label", name: "Label" });
+  assert.equal(calls[3].params.class_name, "GDScript");
+  const src = (calls[3].params.properties as Record<string, string>).source_code;
+  assert.match(src, /func set_data/);
+  assert.match(src, /func set_face/);
+  assert.deepEqual(calls[4].params.value, { __type__: "Resource", class: "GDScript", path: "res://ui/pieces/Piece.gd" });
+
+  assert.equal(res.scene_path, "res://ui/pieces/Piece.tscn");
+  assert.equal(res.script_path, "res://ui/pieces/Piece.gd");
+  assert.equal(res.root_type, "Node2D");
+  assert.equal(res.has_label, true);
+  assert.equal(res.has_hit_area, false);
+  assert.equal(res.has_back, false);
+  assert.equal(res.node_count, 3); // root + Art + Label
+  assert.equal(res.saved, true);
+  assert.deepEqual(res.nodes, [
+    { name: "Art", node_path: "Art", type: "Sprite2D" },
+    { name: "Label", node_path: "Label", type: "Label" },
+  ]);
+});
+
+test("piece_template_create: Control root + art + color + rectangle hit area + colour back", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceTemplate(emit, {
+    path: "res://ui/pieces/Token.tscn",
+    size: { width: 48, height: 72 },
+    root_type: "Control",
+    art: "res://art/token.png",
+    color: "#00ffaa",
+    hit_area: { shape: "rectangle" },
+    back: { color: "#101014" },
+  });
+
+  // Art is a TextureRect under a Control root; texture + tint + size are set.
+  assert.equal(calls[1].params.type, "TextureRect");
+  const artProps = calls.filter((c) => c.method === "node.set_property" && c.params.path === "Art").map((c) => c.params.property);
+  assert.deepEqual(artProps, ["texture", "self_modulate", "size"]);
+  // Hit area: Area2D → sized RectangleShape2D resource → CollisionShape2D → bind.
+  const shapeRes = calls.find((c) => c.method === "resource.create" && c.params.class_name === "RectangleShape2D")!;
+  assert.deepEqual((shapeRes.params.properties as Record<string, unknown>).size, { __type__: "Vector2", x: 48, y: 72 });
+  assert.ok(calls.some((c) => c.method === "node.add" && c.params.name === "HitArea" && c.params.type === "Area2D"));
+  assert.ok(calls.some((c) => c.method === "node.add" && c.params.name === "Shape" && c.params.type === "CollisionShape2D"));
+  const shapeBind = calls.find((c) => c.method === "node.set_property" && c.params.path === "HitArea/Shape" && c.params.property === "shape")!;
+  assert.deepEqual(shapeBind.params.value, { __type__: "Resource", class: "RectangleShape2D", path: "res://ui/pieces/Token.shape.tres" });
+  // Back is a ColorRect, coloured, and hidden by default.
+  assert.ok(calls.some((c) => c.method === "node.add" && c.params.name === "Back" && c.params.type === "ColorRect"));
+  const backVisible = calls.find((c) => c.method === "node.set_property" && c.params.path === "Back" && c.params.property === "visible")!;
+  assert.equal(backVisible.params.value, false);
+  // The generated script guards Back (two-sided).
+  const src = (calls.find((c) => c.method === "resource.create" && c.params.class_name === "GDScript")!.params.properties as Record<string, string>).source_code;
+  assert.match(src, /has_node\("Back"\)/);
+
+  assert.equal(res.has_hit_area, true);
+  assert.equal(res.has_back, true);
+  assert.equal(res.node_count, 6); // root + Art + Label + HitArea + Shape + Back
+});
+
+test("piece_template_create: a circle hit area builds a CircleShape2D sized to min(w,h)/2", async () => {
+  const { calls, emit } = recorder();
+  await emitPieceTemplate(emit, {
+    path: "res://ui/pieces/Round.tscn",
+    size: { width: 40, height: 60 },
+    label: false,
+    hit_area: { shape: "circle" },
+  });
+  const shapeRes = calls.find((c) => c.method === "resource.create" && c.params.class_name === "CircleShape2D")!;
+  assert.equal((shapeRes.params.properties as Record<string, unknown>).radius, 20); // min(40,60)/2
+  assert.equal(calls.filter((c) => c.method === "node.add" && c.params.name === "Label").length, 0); // label:false
+});
+
+test("piece_instance emits instantiate → set_data → set_face and surfaces the bind split", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceInstance(emit, {
+    template_path: "res://ui/pieces/Piece.tscn",
+    parent: "Main/Pieces",
+    data: { label: "Scout", color: "#ff8800" },
+  });
+  assert.deepEqual(methods(calls), ["node.instantiate_scene", "node.call_method", "node.call_method"]);
+  assert.deepEqual(calls[0].params, { parent_path: "Main/Pieces", scene_path: "res://ui/pieces/Piece.tscn", name: "Piece" });
+  assert.equal(calls[1].params.method, "set_data");
+  assert.deepEqual(calls[1].params.args, [{ label: "Scout", color: "#ff8800" }]);
+  assert.equal(calls[2].params.method, "set_face");
+  assert.equal(res.instance_path, "Main/Pieces/Piece");
+  assert.equal(res.placed, false);
+  assert.equal(res.cell, null);
+  assert.deepEqual(res.bound.sort(), ["color", "label"]);
+});
+
+test("piece_instance place_on reparents onto the cell in the same call and reports it", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceInstance(emit, {
+    template_path: "res://ui/pieces/Piece.tscn",
+    parent: "Main/Pieces",
+    data: { label: "Scout" },
+    place_on: { board: "Board", cell: "n", align: { x: 0, y: -8 } },
+  });
+  assert.deepEqual(methods(calls), [
+    "node.instantiate_scene", "node.call_method", "node.call_method", // instance + bind + face
+    "node.reparent", "node.set_property", // board_place
+  ]);
+  assert.deepEqual(calls[3].params, { path: "Main/Pieces/Piece", new_parent_path: "Board/cell_n", keep_global_transform: false });
+  assert.deepEqual(calls[4].params.value, { __type__: "Vector2", x: 0, y: -8 });
+  assert.equal(res.placed, true);
+  assert.equal(res.cell, "n");
+  assert.equal(res.instance_path, "Board/cell_n/Piece"); // final placed path
+});
+
+test("piece_move (no animation) emits only the board_place ops — additive, final cell correct", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceMove(emit, { board: "Board", node: "Board/cell_n/Piece", to: "e", from: "n" });
+  assert.deepEqual(methods(calls), ["node.reparent", "node.set_property"]);
+  assert.deepEqual(calls[0].params, { path: "Board/cell_n/Piece", new_parent_path: "Board/cell_e", keep_global_transform: false });
+  assert.equal(res.moved, true);
+  assert.equal(res.animated, false);
+  assert.equal(res.from, "n");
+  assert.equal(res.to, "e");
+  assert.equal(res.node_path, "Board/cell_e/Piece");
+});
+
+test("piece_move animated appends a scale pop from Group C anim primitives, still additive", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceMove(emit, {
+    board: ".", node: "cell_n/Token", to: "s",
+    animate: { duration: 0.4, pop_scale: 1.2 },
+  });
+  assert.deepEqual(methods(calls), [
+    "node.reparent", "node.set_property", // board_place
+    "anim.player_create", "anim.create", "anim.add_track",
+    "anim.insert_key", "anim.insert_key", "anim.insert_key", "anim.set_length",
+  ]);
+  // Additivity: every emitted method is an existing node.* / anim.* primitive.
+  const allowed = new Set([
+    "node.reparent", "node.set_property",
+    "anim.player_create", "anim.create", "anim.add_track", "anim.insert_key", "anim.set_length",
+  ]);
+  assert.ok(methods(calls).every((m) => allowed.has(m)), "piece_move must emit no new engine call");
+  // The pop keys the piece's own scale 1 → pop → 1 at 0, dur/2, dur.
+  const player = calls.find((c) => c.method === "anim.player_create")!;
+  assert.deepEqual(player.params, { parent_path: "cell_s/Token", name: "MoveFX" });
+  const track = calls.find((c) => c.method === "anim.add_track")!;
+  assert.equal(track.params.path, ".:scale");
+  const keys = calls.filter((c) => c.method === "anim.insert_key");
+  assert.deepEqual(keys.map((k) => k.params.time), [0, 0.2, 0.4]);
+  assert.deepEqual(keys.map((k) => k.params.value), [
+    { __type__: "Vector2", x: 1, y: 1 },
+    { __type__: "Vector2", x: 1.2, y: 1.2 },
+    { __type__: "Vector2", x: 1, y: 1 },
+  ]);
+  const len = calls.find((c) => c.method === "anim.set_length")!;
+  assert.equal(len.params.length, 0.4);
+  assert.equal(res.animated, true);
+  assert.equal(res.node_path, "cell_s/Token");
+});
+
+test("buildPieceScript is valid-looking GDScript with the two setters; Back guard only when two-sided", () => {
+  const oneSided = buildPieceScript("Node2D", { hasLabel: true, hasBack: false });
+  assert.match(oneSided, /^extends Node2D/);
+  assert.match(oneSided, /func set_data\(data: Dictionary\) -> Dictionary:/);
+  assert.match(oneSided, /func set_face\(face_up: bool\) -> void:/);
+  assert.match(oneSided, /key == "label" and has_node\("Label"\)/);
+  assert.doesNotMatch(oneSided, /has_node\("Back"\)/); // no back → no Back guard
+  const twoSided = buildPieceScript("Control", { hasLabel: false, hasBack: true });
+  assert.match(twoSided, /has_node\("Back"\)/);
+  assert.doesNotMatch(twoSided, /has_node\("Label"\)/); // label:false → no Label branch
+});
+
 // -------------------------------------------------- game-neutrality guardrail ----
 
-test("the Card + Board tools carry NO game-specific vocabulary (general-purpose only)", () => {
+test("the Card + Board + Piece tools carry NO game-specific vocabulary (general-purpose only)", () => {
   const src = fs.readFileSync(path.join(process.cwd(), "src/tools/tabletop.ts"), "utf8");
-  const banned = /\bD!?3\b|\bDDD\b|faang|amari|social[- ]deduction|seat[- ]ring|\bseats?\b|\brunway\b|\bvaluation\b|\bclout\b|\bhype\b|\bdebt\b|\bagenda\b|ai[- ]track|agenda_type|character[- ]catalog/i;
+  const banned = /\bD!?3\b|\bDDD\b|faang|amari|social[- ]deduction|seat[- ]ring|\bseats?\b|\brunway\b|\bvaluation\b|\bclout\b|\bhype\b|\bdebt\b|\bagenda\b|ai[- ]track|agenda_type|character[- ]catalog|\broster\b/i;
   assert.doesNotMatch(src, banned, "tabletop.ts must not reference any specific game");
 });

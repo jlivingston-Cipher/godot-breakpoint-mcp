@@ -665,6 +665,32 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     node_path: z.string(),
     align: z.object({ x: z.number(), y: z.number() }),
   },
+  piece_template_create: {
+    scene_path: z.string(),
+    script_path: z.string(),
+    root_type: z.string(),
+    has_label: z.boolean(),
+    has_hit_area: z.boolean(),
+    has_back: z.boolean(),
+    node_count: z.number(),
+    saved: z.boolean(),
+    nodes: z.array(z.object({ name: z.string(), node_path: z.string(), type: z.string() })),
+  },
+  piece_instance: {
+    instance_path: z.string(),
+    face_up: z.boolean(),
+    bound: z.array(z.string()),
+    unbound: z.array(z.string()),
+    placed: z.boolean(),
+    cell: z.string().nullable(),
+  },
+  piece_move: {
+    moved: z.boolean(),
+    from: z.string().nullable(),
+    to: z.string(),
+    node_path: z.string(),
+    animated: z.boolean(),
+  },
 };
 
 /**
