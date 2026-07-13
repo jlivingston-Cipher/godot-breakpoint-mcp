@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-07-13
+
+Feature release — the `card_instance` **`persist`** save-persistence flag (Finding-A, shipped in `1.13.0`) is extended to the three remaining tabletop composites: **`card_hand_layout`**, **`card_deck_from_table`**, and **`piece_instance`**. Opt-in and default-off — pass `persist: true` to bake bound slot data into the saved scene via Editable Children (reusing the existing `node.set_editable_instance` op) so authored values survive a reload; each result reports a new `persisted` field. Host-only and additive — no addon change, **no new tool (still 271)**, no schema-count change. Host version `1.13.0` → `1.14.0`; addon stays `1.4.2`.
+
 ### Added
 - **`persist` extended to `card_hand_layout`, `card_deck_from_table`, and `piece_instance`** (default `false`), mirroring the `card_instance` Finding-A save-persistence flag. When set, every instanced card / piece gets "Editable Children" enabled (via the existing `node.set_editable_instance` op) so its bound slot data serializes into the saved scene instead of reverting on reload; each result reports a new `persisted` field. Default behavior is unchanged — instances stay runtime-bound via `set_data` unless `persist: true` is passed. Host-only and additive: **no new tool (still 271)**, no addon change, no schema-count change (the op is reused, not added). For `piece_instance` with `place_on`, the toggle is applied to the piece's final resting path after the reparent.
 
