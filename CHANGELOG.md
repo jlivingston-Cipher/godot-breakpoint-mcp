@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`persist` extended to `card_hand_layout`, `card_deck_from_table`, and `piece_instance`** (default `false`), mirroring the `card_instance` Finding-A save-persistence flag. When set, every instanced card / piece gets "Editable Children" enabled (via the existing `node.set_editable_instance` op) so its bound slot data serializes into the saved scene instead of reverting on reload; each result reports a new `persisted` field. Default behavior is unchanged — instances stay runtime-bound via `set_data` unless `persist: true` is passed. Host-only and additive: **no new tool (still 271)**, no addon change, no schema-count change (the op is reused, not added). For `piece_instance` with `place_on`, the toggle is applied to the piece's final resting path after the reparent.
+
+### Tests
+- `tabletop.test.ts` gains four cases (367 → 371): `persist:true` on `card_hand_layout` and `card_deck_from_table` (one editable-children emit per instanced card) and on `piece_instance` (plain + `place_on`, the toggle landing on the final placed path); the existing hand / deck / piece tests gain default `persisted:false` assertions.
+
 ## [1.13.0] — 2026-07-13
 
 Finding-A save-persistence — authored `card_instance` slot data can now be baked into the saved scene. Adds **`node_set_editable_instance`** (270 → **271 tools**): toggles "Editable Children" on an instanced sub-scene so property overrides on its internal nodes serialize on save, instead of reverting on reload (a sealed sub-scene otherwise discards them). `card_instance` gains an opt-in **`persist`** flag (default `false`) that enables editable children on the instance so its bound slot data survives a reload; the result reports a new `persisted` field. Default behavior is unchanged — cards stay runtime-bound via `set_data` unless `persist: true` is passed. Both `addons/breakpoint_mcp/` copies stay byte-identical (the new op is added to the shared `operations.gd`). New headless `editable_instance_smoke.gd` (wired into `integration.yml`) proves a sealed instance reverts its override on reload while an editable instance persists it through a pack → save → reload round-trip; verified live against Godot 4.7. Version `1.12.1` → `1.13.0`; addon stays `1.4.2`.

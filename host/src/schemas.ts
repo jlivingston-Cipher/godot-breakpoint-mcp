@@ -729,6 +729,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     container_path: z.string(),
     mode: z.string(),
     count: z.number(),
+    persisted: z.boolean(),
     instances: z.array(z.object({ index: z.number(), instance_path: z.string() })),
   },
   card_deck_from_table: {
@@ -737,6 +738,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     rows_read: z.number(),
     rows_skipped: z.number(),
     unmapped_columns: z.array(z.string()),
+    persisted: z.boolean(),
     instances: z.array(z.object({ row_index: z.number(), instance_path: z.string() })),
   },
   card_set_face: {
@@ -807,6 +809,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     unbound: z.array(z.string()),
     placed: z.boolean(),
     cell: z.string().nullable(),
+    persisted: z.boolean(),
   },
   piece_move: {
     moved: z.boolean(),

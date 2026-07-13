@@ -587,20 +587,26 @@ export async function emitCardHand(
   args: LayoutKnobs & {
     template_path: string; parent: string;
     cards: Array<{ data: Record<string, unknown>; face_up?: boolean }>;
+    persist?: boolean;
   },
-): Promise<{ container_path: string; mode: string; count: number; instances: Array<{ index: number; instance_path: string }> }> {
+): Promise<{ container_path: string; mode: string; count: number; persisted: boolean; instances: Array<{ index: number; instance_path: string }> }> {
   const container = args.parent === "" ? "." : args.parent;
   const base = sceneRootName(args.template_path);
   const places = computeLayout(args.mode, args.cards.length, args);
+  // Finding-A save-persistence (opt-in), threaded per-card through emitOneCard: when
+  // set, every card in the hand gets Editable Children so its bound slot data serializes
+  // on save instead of reverting on reload. Default off keeps the runtime-bound contract.
+  const persisted = args.persist === true;
   const instances: Array<{ index: number; instance_path: string }> = [];
   for (let i = 0; i < args.cards.length; i++) {
     const { instance_path } = await emitOneCard(emit, {
       template_path: args.template_path, parent: container, data: args.cards[i].data,
       name: `${base}_${i}`, face_up: args.cards[i].face_up ?? true, placement: places[i],
+      persist: args.persist,
     });
     instances.push({ index: i, instance_path });
   }
-  return { container_path: container, mode: args.mode, count: instances.length, instances };
+  return { container_path: container, mode: args.mode, count: instances.length, persisted, instances };
 }
 
 // ----------------------------------------------------- composite: deck/table ----
@@ -611,11 +617,12 @@ interface DeckArgs {
   filter?: { column: string; equals: string | number | boolean };
   art_column?: string; limit?: number; face_up?: boolean;
   layout?: LayoutKnobs;
+  persist?: boolean;
 }
 
 interface DeckResult {
   deck_container: string; count: number; rows_read: number; rows_skipped: number;
-  unmapped_columns: string[]; instances: Array<{ row_index: number; instance_path: string }>;
+  unmapped_columns: string[]; persisted: boolean; instances: Array<{ row_index: number; instance_path: string }>;
 }
 
 export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: DeckArgs): Promise<DeckResult> {
@@ -658,6 +665,7 @@ export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: De
     const { instance_path } = await emitOneCard(emit, {
       template_path: args.template_path, parent: container, data, name, face_up,
       placement: args.layout ? places[i] : undefined,
+      persist: args.persist,
     });
     instances.push({ row_index: allRows.indexOf(row), instance_path });
   }
@@ -665,7 +673,8 @@ export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: De
   const unmapped_columns = [...header].filter((c) => !referenced.has(c)).sort();
   return {
     deck_container: container, count: instances.length, rows_read,
-    rows_skipped: rows_read - instances.length, unmapped_columns, instances,
+    rows_skipped: rows_read - instances.length, unmapped_columns,
+    persisted: args.persist === true, instances,
   };
 }
 
@@ -1292,11 +1301,12 @@ interface PieceInstanceArgs {
   position?: { x: number; y: number };
   face_up?: boolean; name?: string;
   place_on?: { board: string; cell: string; align?: { x?: number; y?: number } };
+  persist?: boolean;
 }
 
 /** Instance one piece + bind + set face, optionally placing it on a board cell. */
 export async function emitPieceInstance(emit: Emit, args: PieceInstanceArgs): Promise<{
-  instance_path: string; face_up: boolean; bound: string[]; unbound: string[]; placed: boolean; cell: string | null;
+  instance_path: string; face_up: boolean; bound: string[]; unbound: string[]; placed: boolean; cell: string | null; persisted: boolean;
 }> {
   const face_up = args.face_up ?? true;
   const name = args.name ?? sceneRootName(args.template_path);
@@ -1308,13 +1318,25 @@ export async function emitPieceInstance(emit: Emit, args: PieceInstanceArgs): Pr
   const res = await emit("node.call_method", { path: instPath, method: "set_data", args: [args.data] });
   await emit("node.call_method", { path: instPath, method: "set_face", args: [face_up] });
   const { bound, unbound } = splitFromCall(res, args.data);
+  // Finding-A save-persistence (opt-in), mirroring card_instance. set_data mutates the
+  // piece's internal Art/Label nodes, but a sealed sub-scene doesn't serialize those
+  // overrides, so they revert on reload. Enabling "Editable Children" bakes them into the
+  // saved scene. Emitted last, on the piece's final resting path (after any place_on
+  // reparent). Default off preserves the lighter runtime-bound contract.
+  const persisted = args.persist === true;
   if (args.place_on) {
     const placed = await emitBoardPlace(emit, {
       board: args.place_on.board, cell: args.place_on.cell, node: instPath, align: args.place_on.align,
     });
-    return { instance_path: placed.node_path, face_up, bound, unbound, placed: true, cell: args.place_on.cell };
+    if (persisted) {
+      await emit("node.set_editable_instance", { path: placed.node_path, editable: true });
+    }
+    return { instance_path: placed.node_path, face_up, bound, unbound, placed: true, cell: args.place_on.cell, persisted };
   }
-  return { instance_path: instPath, face_up, bound, unbound, placed: false, cell: null };
+  if (persisted) {
+    await emit("node.set_editable_instance", { path: instPath, editable: true });
+  }
+  return { instance_path: instPath, face_up, bound, unbound, placed: false, cell: null, persisted };
 }
 
 // --------------------------------------------------------- composite: piece move ----
@@ -1806,6 +1828,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         })).min(1).describe("One entry per card to instance"),
         mode: z.enum(["row", "fan", "stack", "grid"]).describe("Arrangement mode"),
         ...layoutKnobs,
+        persist: z.boolean().optional().describe("Bake each card's bound slot data into the saved scene by enabling Editable Children on every instanced card (default false = runtime-bound only, reverts on reload)"),
       },
     },
     async (raw) => {
@@ -1847,6 +1870,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           align: z.enum(["start", "center", "end"]).optional(),
           origin: z.object({ x: z.number(), y: z.number() }).optional(),
         }).optional().describe("Optional arrangement (same knobs as card_hand_layout); omitted → stacked at origin"),
+        persist: z.boolean().optional().describe("Bake each stamped card's bound slot data into the saved scene by enabling Editable Children on every card (default false = runtime-bound only, reverts on reload)"),
       },
     },
     async (raw) => {
@@ -2101,6 +2125,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           cell: z.string().describe("Cell id to place onto (resolves to <board>/cell_<cell>)"),
           align: z.object({ x: z.number(), y: z.number() }).optional().describe("Offset from the cell origin in px (default centred)"),
         }).optional().describe("Optionally place the new piece on a board cell in the same call"),
+        persist: z.boolean().optional().describe("Bake the bound data into the saved scene by enabling Editable Children on the instance (default false = runtime-bound only, reverts on reload)"),
       },
     },
     async (raw) => {

@@ -247,6 +247,28 @@ test("card_hand_layout stamps one card per entry and positions each", async () =
   const perCard = calls.filter((c) => c.method === "node.instantiate_scene").length;
   assert.equal(perCard, 3);
   assert.equal(calls.filter((c) => c.method === "node.set_property" && c.params.property === "position").length, 3);
+  // Finding-A: runtime-bound by default — no editable-children emit for any card.
+  assert.equal(res.persisted, false);
+  assert.equal(calls.filter((c) => c.method === "node.set_editable_instance").length, 0);
+});
+
+test("card_hand_layout persist:true enables editable children on every card", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitCardHand(emit, {
+    template_path: "res://ui/cards/Card.tscn",
+    parent: "Main/Hand",
+    mode: "row",
+    cards: [{ data: { title: "A" } }, { data: { title: "B" } }],
+    persist: true,
+  });
+  assert.equal(res.persisted, true);
+  // one editable-instance toggle per card, each on that card's instance path.
+  const editables = calls.filter((c) => c.method === "node.set_editable_instance");
+  assert.equal(editables.length, 2);
+  assert.deepEqual(editables.map((c) => c.params), [
+    { path: "Main/Hand/Card_0", editable: true },
+    { path: "Main/Hand/Card_1", editable: true },
+  ]);
 });
 
 // ------------------------------------------------------ card_deck_from_table ----
@@ -277,6 +299,29 @@ test("card_deck_from_table stamps one card per row, composes columns, filters, a
   const firstSetData = calls.find((c) => c.method === "node.call_method" && c.params.method === "set_data")!;
   assert.deepEqual(firstSetData.params.args, [{ title: "Alpha", footer: "Alpha · strike", points: "2" }]);
   assert.deepEqual(res.instances.map((i) => i.row_index), [0, 2]);
+  // Finding-A: runtime-bound by default — no editable-children emit.
+  assert.equal(res.persisted, false);
+  assert.equal(calls.filter((c) => c.method === "node.set_editable_instance").length, 0);
+});
+
+test("card_deck_from_table persist:true bakes each stamped card via editable children", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitDeckFromTable(emit, () => CSV_FIXTURE, {
+    template_path: "res://ui/cards/Card.tscn",
+    parent: "Deck",
+    table_path: "res://data/cards.csv",
+    column_map: { title: "{name}" },
+    filter: { column: "type", equals: "strike" },
+    persist: true,
+  });
+  assert.equal(res.count, 2); // the two "strike" rows
+  assert.equal(res.persisted, true);
+  const editables = calls.filter((c) => c.method === "node.set_editable_instance");
+  assert.equal(editables.length, 2); // one per stamped card
+  assert.deepEqual(editables.map((c) => c.params), [
+    { path: "Deck/Card_0", editable: true },
+    { path: "Deck/Card_1", editable: true },
+  ]);
 });
 
 test("card_deck_from_table: limit caps the stamped rows; art_column binds art", async () => {
@@ -716,6 +761,44 @@ test("piece_instance emits instantiate → set_data → set_face and surfaces th
   assert.equal(res.placed, false);
   assert.equal(res.cell, null);
   assert.deepEqual(res.bound.sort(), ["color", "label"]);
+  // Finding-A: runtime-bound by default — no editable-children emit.
+  assert.equal(res.persisted, false);
+  assert.equal(calls.filter((c) => c.method === "node.set_editable_instance").length, 0);
+});
+
+test("piece_instance persist:true appends an editable-children toggle on the instance", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceInstance(emit, {
+    template_path: "res://ui/pieces/Piece.tscn",
+    parent: "Main/Pieces",
+    data: { label: "Scout" },
+    persist: true,
+  });
+  // toggle appended AFTER the piece is fully configured (instance + bind + face).
+  assert.deepEqual(methods(calls), ["node.instantiate_scene", "node.call_method", "node.call_method", "node.set_editable_instance"]);
+  assert.deepEqual(calls[3].params, { path: "Main/Pieces/Piece", editable: true });
+  assert.equal(res.persisted, true);
+});
+
+test("piece_instance place_on + persist:true toggles editable children on the final placed path", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitPieceInstance(emit, {
+    template_path: "res://ui/pieces/Piece.tscn",
+    parent: "Main/Pieces",
+    data: { label: "Scout" },
+    place_on: { board: "Board", cell: "n" },
+    persist: true,
+  });
+  // the editable toggle comes last and targets the reparented (final) path, not the pre-move one.
+  assert.deepEqual(methods(calls), [
+    "node.instantiate_scene", "node.call_method", "node.call_method", // instance + bind + face
+    "node.reparent", "node.set_property", // board_place
+    "node.set_editable_instance", // persist, on the final resting path
+  ]);
+  assert.deepEqual(calls[5].params, { path: "Board/cell_n/Piece", editable: true });
+  assert.equal(res.instance_path, "Board/cell_n/Piece");
+  assert.equal(res.placed, true);
+  assert.equal(res.persisted, true);
 });
 
 test("piece_instance place_on reparents onto the cell in the same call and reports it", async () => {
@@ -735,6 +818,9 @@ test("piece_instance place_on reparents onto the cell in the same call and repor
   assert.equal(res.placed, true);
   assert.equal(res.cell, "n");
   assert.equal(res.instance_path, "Board/cell_n/Piece"); // final placed path
+  // Finding-A: runtime-bound by default — no editable-children emit.
+  assert.equal(res.persisted, false);
+  assert.equal(calls.filter((c) => c.method === "node.set_editable_instance").length, 0);
 });
 
 test("piece_move (no animation) emits only the board_place ops — additive, final cell correct", async () => {

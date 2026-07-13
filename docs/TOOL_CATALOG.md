@@ -3381,7 +3381,8 @@ Instance N cards under a container and arrange them as a `row`, `fan`, `stack`, 
     "fan_angle": { "type": "number" },
     "columns": { "type": "integer", "minimum": 1 },
     "align": { "enum": ["start", "center", "end"] },
-    "origin": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+    "origin": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+    "persist": { "type": "boolean", "description": "bake each card's bound slot data into the saved scene via Editable Children on every instanced card (default false = runtime-bound, reverts on reload)" }
   } }
 ```
 - **Output**
@@ -3391,6 +3392,7 @@ Instance N cards under a container and arrange them as a `row`, `fan`, `stack`, 
     "container_path": { "type": "string" },
     "mode": { "type": "string" },
     "count": { "type": "integer" },
+    "persisted": { "type": "boolean" },
     "instances": { "type": "array", "items": {
       "type": "object", "required": ["index", "instance_path"],
       "properties": { "index": { "type": "integer" }, "instance_path": { "type": "string" } } } }
@@ -3418,7 +3420,8 @@ Read a CSV or JSON table and stamp one card per row, binding columns to slots vi
       "spacing": { "type": "number" }, "overlap": { "type": "number" }, "fan_angle": { "type": "number" },
       "columns": { "type": "integer", "minimum": 1 },
       "align": { "enum": ["start", "center", "end"] },
-      "origin": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } }
+      "origin": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } },
+    "persist": { "type": "boolean", "description": "bake each stamped card's bound slot data into the saved scene via Editable Children on every card (default false = runtime-bound, reverts on reload)" }
   } }
 ```
 - **Output**
@@ -3430,6 +3433,7 @@ Read a CSV or JSON table and stamp one card per row, binding columns to slots vi
     "rows_read": { "type": "integer" },
     "rows_skipped": { "type": "integer" },
     "unmapped_columns": { "type": "array", "items": { "type": "string" } },
+    "persisted": { "type": "boolean" },
     "instances": { "type": "array", "items": {
       "type": "object", "required": ["row_index", "instance_path"],
       "properties": { "row_index": { "type": "integer" }, "instance_path": { "type": "string" } } } }
@@ -3667,7 +3671,8 @@ Instance a piece template into the open scene and bind data (`art` / `color` / `
     "place_on": { "type": "object", "required": ["board", "cell"], "properties": {
       "board": { "type": "string" },
       "cell": { "type": "string" },
-      "align": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } }
+      "align": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } },
+    "persist": { "type": "boolean", "description": "bake the bound data into the saved scene via Editable Children on the instance (default false = runtime-bound, reverts on reload)" }
   } }
 ```
 - **Output**
@@ -3679,7 +3684,8 @@ Instance a piece template into the open scene and bind data (`art` / `color` / `
     "bound": { "type": "array", "items": { "type": "string" } },
     "unbound": { "type": "array", "items": { "type": "string" } },
     "placed": { "type": "boolean" },
-    "cell": { "type": ["string", "null"] }
+    "cell": { "type": ["string", "null"] },
+    "persisted": { "type": "boolean" }
   } }
 ```
 
