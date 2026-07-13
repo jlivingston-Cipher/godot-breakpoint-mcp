@@ -85,6 +85,8 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _node_change_type(params)
 		"node.set_owner":
 			return _node_set_owner(params)
+		"node.set_editable_instance":
+			return _node_set_editable_instance(params)
 		"node.call_method":
 			return _node_call_method(params)
 		"node.get_path":
@@ -1127,6 +1129,40 @@ func _node_set_owner(params: Dictionary) -> Dictionary:
 	ur.commit_action()
 	var owner_out: Variant = (_path_of(root, node.owner) if node.owner else null)
 	return _ok({"path": _path_of(root, node), "owner": owner_out})
+
+
+## Toggle "Editable Children" on an instanced sub-scene. When enabled, property
+## overrides on the instance's INTERNAL nodes serialize into the owning scene on
+## save (otherwise the sub-scene is sealed and its internals revert on reload).
+## The flag lives on the owning scene's state, so it is set on the instance's
+## owner (the scene root that will save it), which is where is_editable_instance
+## reads it. This is what lets card_instance bake author-time slot data.
+func _node_set_editable_instance(params: Dictionary) -> Dictionary:
+	var root := _edited_root()
+	if root == null:
+		return _err("no_scene", "No scene is open")
+	var node := _resolve(root, String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	if node == root:
+		return _err("refused", "The scene root is not an instance")
+	if node.scene_file_path == "":
+		return _err("refused", "Node is not an instanced sub-scene (no scene_file_path); editable-instance applies only to scene instances")
+	var owner_node: Node = node.owner
+	if owner_node == null:
+		return _err("refused", "Node has no owner; it is not saved into a scene, so editable-instance has nothing to record against")
+	var editable := bool(params.get("editable", true))
+	var old_editable := owner_node.is_editable_instance(node)
+	var ur := _plugin.get_undo_redo()
+	ur.create_action("Breakpoint: set editable-instance of %s" % node.name)
+	ur.add_do_method(owner_node, "set_editable_instance", node, editable)
+	ur.add_undo_method(owner_node, "set_editable_instance", node, old_editable)
+	ur.commit_action()
+	return _ok({
+		"path": _path_of(root, node),
+		"editable": owner_node.is_editable_instance(node),
+		"owner": _path_of(root, owner_node),
+	})
 
 
 func _node_call_method(params: Dictionary) -> Dictionary:

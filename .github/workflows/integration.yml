@@ -14,8 +14,10 @@ name: integration
 #                     board_build_smoke.gd, piece_build_smoke.gd, interact_build_smoke.gd, card_setface_smoke.gd,
 #                     board_tile_smoke.gd) — build → pack → round-trip a card / board / piece / tile-board PackedScene,
 #                     compile + round-trip the interaction behaviour scripts, round-trip + play the card-flip animation,
-#                     and check board_tile_place's coordinate math against the engine's map_to_local.
-#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD / PIECE_BUILD / INTERACT_BUILD / CARD_SETFACE / BOARD_TILE / BRIDGE_REENTRANCY _SUMMARY / _FAIL markers.
+#                     and check board_tile_place's coordinate math against the engine's map_to_local. Also runs
+#                     editable_instance_smoke.gd (Finding-A) — proves a sealed sub-scene reverts overrides on reload
+#                     while an editable-instance persists them (the card_instance persist:true mechanism).
+#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD / PIECE_BUILD / INTERACT_BUILD / CARD_SETFACE / BOARD_TILE / EDITABLE_INSTANCE / BRIDGE_REENTRANCY _SUMMARY / _FAIL markers.
 #   * cli-plane     — headless, deterministic, expected to pass. This is the gate.
 #   * runtime-plane — boots the example GAME headless (no editor, no GUI) and drives Plane C
 #                     against its in-game BreakpointRuntimeBridge autoload (:9081). Asserts D6
@@ -124,6 +126,19 @@ jobs:
           grep -q "CARD_BUILD_SUMMARY" /tmp/card-smoke.log || { echo "::error::card_build_smoke.gd produced no CARD_BUILD_SUMMARY (script error?)"; exit 1; }
           if grep -q "CARD_BUILD_FAIL" /tmp/card-smoke.log; then echo "::error::a card-build smoke assertion failed"; exit 1; fi
           echo "Card-build smoke passed: $(grep -o 'CARD_BUILD_SUMMARY.*' /tmp/card-smoke.log)"
+      - name: Run the editable-instance (Finding-A save-persistence) smoke
+        run: |
+          set -eu
+          "$GODOT_BIN" --headless --path "${{ github.workspace }}/example" \
+            --script res://tests/editable_instance_smoke.gd > /tmp/ei-smoke.log 2>&1 || true
+          echo "=== editable_instance_smoke.gd output ==="
+          cat /tmp/ei-smoke.log
+          echo "========================================="
+          # EDITABLE_INSTANCE_* markers are the source of truth (headless --script
+          # exit codes can be unreliable): require the summary, and fail on any FAIL.
+          grep -q "EDITABLE_INSTANCE_SUMMARY" /tmp/ei-smoke.log || { echo "::error::editable_instance_smoke.gd produced no EDITABLE_INSTANCE_SUMMARY (script error?)"; exit 1; }
+          if grep -q "EDITABLE_INSTANCE_FAIL" /tmp/ei-smoke.log; then echo "::error::an editable-instance smoke assertion failed"; exit 1; fi
+          echo "Editable-instance smoke passed: $(grep -o 'EDITABLE_INSTANCE_SUMMARY.*' /tmp/ei-smoke.log)"
       - name: Run the Group N board-build smoke
         run: |
           set -eu

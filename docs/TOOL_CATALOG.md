@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **270 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **271 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -583,6 +583,17 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 - **Output**
 ```json
 { "type": "object", "required": ["path", "owner"], "properties": { "path": { "type": "string" }, "owner": { "type": ["string", "null"] } } }
+```
+
+### `node_set_editable_instance` ✅  (undoable)
+Toggle "Editable Children" on an instanced sub-scene. When enabled, property overrides on the instance's internal nodes serialize into the saved scene (otherwise the sub-scene is sealed and its internals revert on reload). Lets author-time edits — e.g. `card_instance` slot data — be baked into the `.tscn`.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "editable": { "type": "boolean", "description": "enable (true, default) or disable editable children" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["path", "editable", "owner"], "properties": { "path": { "type": "string" }, "editable": { "type": "boolean" }, "owner": { "type": "string" } } }
 ```
 
 ### `node_call_method` ✅ · destructive (arbitrary invocation, edit-time)
@@ -3335,7 +3346,8 @@ Instance a card template into the open scene and bind data to its slots via the 
     "data": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
     "position": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
     "face_up": { "type": "boolean" },
-    "name": { "type": "string" }
+    "name": { "type": "string" },
+    "persist": { "type": "boolean", "description": "bake the bound slot data into the saved scene via Editable Children (default false = runtime-bound, reverts on reload)" }
   } }
 ```
 - **Output**
@@ -3345,7 +3357,8 @@ Instance a card template into the open scene and bind data to its slots via the 
     "instance_path": { "type": "string" },
     "face_up": { "type": "boolean" },
     "bound": { "type": "array", "items": { "type": "string" } },
-    "unbound": { "type": "array", "items": { "type": "string" } }
+    "unbound": { "type": "array", "items": { "type": "string" } },
+    "persisted": { "type": "boolean" }
   } }
 ```
 
@@ -3901,6 +3914,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `node_move_child` | A / Editor | ✅ | undoable |
 | `node_change_type` | A / Editor | ✅ | undoable |
 | `node_set_owner` | A / Editor | ✅ | undoable |
+| `node_set_editable_instance` | A / Editor | ✅ | undoable |
 | `node_call_method` | A / Editor | ✅ | ✔ |
 | `node_get_path` | A / Editor | ✅ | – |
 | `node_list_properties` | A / Editor | ✅ | – |

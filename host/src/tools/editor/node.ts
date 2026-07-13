@@ -232,6 +232,22 @@ export function registerNodeTools(server: McpServer, call: EditorCall): void {
   );
 
   server.registerTool(
+    "node_set_editable_instance",
+    {
+      title: "Set editable-instance (editable children)",
+      description:
+        "Toggle \"Editable Children\" on an instanced sub-scene (undoable). When enabled, property overrides on the instance's " +
+        "internal nodes serialize into the saved scene; without it the sub-scene is sealed and its internals revert on reload. " +
+        "This is what lets author-time edits (e.g. card_instance slot data) be baked into the .tscn.",
+      inputSchema: {
+        path: z.string().describe("Node path of the instanced sub-scene, relative to the scene root"),
+        editable: z.boolean().optional().describe("Enable (true, default) or disable editable children"),
+      },
+    },
+    async ({ path, editable }) => call("node.set_editable_instance", { path, editable: editable ?? true }),
+  );
+
+  server.registerTool(
     "node_call_method",
     {
       title: "Call node method (edit-time)",

@@ -141,6 +141,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   node_move_child: { path: z.string(), index: z.number() },
   node_change_type: { path: z.string(), name: z.string(), type: z.string(), old_type: z.string() },
   node_set_owner: { path: z.string(), owner: z.string().nullable() },
+  node_set_editable_instance: { path: z.string(), editable: z.boolean(), owner: z.string() },
   node_call_method: { path: z.string(), method: z.string(), result: encodedValue },
   node_get_path: {
     path: z.string(), name: z.string(), type: z.string(),
@@ -722,6 +723,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     face_up: z.boolean(),
     bound: z.array(z.string()),
     unbound: z.array(z.string()),
+    persisted: z.boolean(),
   },
   card_hand_layout: {
     container_path: z.string(),

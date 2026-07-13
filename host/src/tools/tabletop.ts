@@ -535,8 +535,8 @@ function splitFromCall(res: unknown, data: Record<string, unknown>): { bound: st
 /** Instance one card + bind + set face. Returns the instance path + bind split. */
 async function emitOneCard(
   emit: Emit,
-  args: { template_path: string; parent: string; data: Record<string, unknown>; name: string; face_up: boolean; placement?: Placement },
-): Promise<{ instance_path: string; bound: string[]; unbound: string[] }> {
+  args: { template_path: string; parent: string; data: Record<string, unknown>; name: string; face_up: boolean; placement?: Placement; persist?: boolean },
+): Promise<{ instance_path: string; bound: string[]; unbound: string[]; persisted: boolean }> {
   const instPath = joinPath(args.parent, args.name);
   await emit("node.instantiate_scene", { parent_path: args.parent, scene_path: args.template_path, name: args.name });
   if (args.placement) {
@@ -547,20 +547,31 @@ async function emitOneCard(
   }
   const res = await emit("node.call_method", { path: instPath, method: "set_data", args: [args.data] });
   await emit("node.call_method", { path: instPath, method: "set_face", args: [args.face_up] });
-  return { instance_path: instPath, ...splitFromCall(res, args.data) };
+  // Finding-A save-persistence (opt-in). set_data mutates the instance's internal
+  // slot nodes, but a sealed sub-scene doesn't serialize those overrides, so the
+  // data reverts on reload. Enabling "Editable Children" makes the overrides
+  // serialize into the saved scene → authored card data survives a reload.
+  // Default off preserves the lighter runtime-bound contract (cards populated at
+  // load via set_data), which is correct for gameplay decks.
+  const persisted = args.persist === true;
+  if (persisted) {
+    await emit("node.set_editable_instance", { path: instPath, editable: true });
+  }
+  return { instance_path: instPath, ...splitFromCall(res, args.data), persisted };
 }
 
 export async function emitCardInstance(
   emit: Emit,
-  args: { template_path: string; parent: string; data: Record<string, unknown>; position?: { x: number; y: number }; face_up?: boolean; name?: string },
-): Promise<{ instance_path: string; face_up: boolean; bound: string[]; unbound: string[] }> {
+  args: { template_path: string; parent: string; data: Record<string, unknown>; position?: { x: number; y: number }; face_up?: boolean; name?: string; persist?: boolean },
+): Promise<{ instance_path: string; face_up: boolean; bound: string[]; unbound: string[]; persisted: boolean }> {
   const face_up = args.face_up ?? true;
   const name = args.name ?? sceneRootName(args.template_path);
-  const { instance_path, bound, unbound } = await emitOneCard(emit, {
+  const { instance_path, bound, unbound, persisted } = await emitOneCard(emit, {
     template_path: args.template_path, parent: args.parent, data: args.data, name, face_up,
     placement: args.position ? { x: args.position.x, y: args.position.y } : undefined,
+    persist: args.persist,
   });
-  return { instance_path, face_up, bound, unbound };
+  return { instance_path, face_up, bound, unbound, persisted };
 }
 
 // ------------------------------------------------------- composite: layout ----
@@ -1765,6 +1776,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         position: z.object({ x: z.number(), y: z.number() }).optional().describe("Local position of the instance"),
         face_up: z.boolean().optional().describe("Show the face (default true); false shows the back on two-sided cards"),
         name: z.string().optional().describe("Optional node name for the instance"),
+        persist: z.boolean().optional().describe("Bake the bound slot data into the saved scene by enabling Editable Children on the instance (default false = runtime-bound only, reverts on reload)"),
       },
     },
     async (raw) => {

@@ -199,6 +199,22 @@ test("card_instance emits instantiate → set_data → set_face and surfaces the
   assert.equal(res.face_up, true);
   assert.deepEqual(res.bound.sort(), ["cost", "title"]);
   assert.deepEqual(res.unbound, []);
+  assert.equal(res.persisted, false); // Finding-A: runtime-bound by default (no editable-children emit)
+});
+
+test("card_instance persist:true enables editable children so the bound data survives a reload", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitCardInstance(emit, {
+    template_path: "res://ui/cards/Card.tscn",
+    parent: "Main/Hand",
+    data: { title: "Alpha" },
+    persist: true,
+  });
+  // The editable-instance toggle is appended AFTER the card is fully configured.
+  assert.deepEqual(methods(calls), ["node.instantiate_scene", "node.call_method", "node.call_method", "node.set_editable_instance"]);
+  const editable = calls[3];
+  assert.deepEqual(editable.params, { path: "Main/Hand/Card", editable: true });
+  assert.equal(res.persisted, true);
 });
 
 test("card_instance sets position when given and honours an explicit name", async () => {
