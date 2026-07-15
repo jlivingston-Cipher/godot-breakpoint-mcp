@@ -38,7 +38,11 @@ nothing else in the field has:
 
 Everything is **schema-enforced, undo-safe, and confirmation-gated**: every edit goes
 through `EditorUndoRedoManager` (Ctrl-Z reverts anything the assistant did), destructive
-tools ask first, and every tool result is validated against a frozen output schema. It's
+tools ask first, and every tool result is validated against a frozen output schema. The
+assistant can also **check its own work** — a free, read-only verification family asserts
+node state, scene structure, on-screen text, and performance baselines, and diffs
+screenshots against the running game — and because Breakpoint also *debugs*, a failed
+assertion is one step from the reason it failed, not just a red X. It's
 **MIT and free** — the whole surface, no paid tier — and it's the only Godot MCP with a CI
 job that exercises the live editor, LSP, DAP, and runtime bridges against a **real headless
 Godot**.
