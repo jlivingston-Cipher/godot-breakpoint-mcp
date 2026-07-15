@@ -169,4 +169,52 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
     },
     async ({ since_seq, levels }) => call("runtime.get_log", { since_seq: since_seq ?? 0, levels: levels ?? [] }),
   );
+
+  server.registerTool(
+    "runtime_assert_node_state",
+    {
+      title: "Runtime assert node state",
+      description:
+        "Assert that properties of a LIVE node equal expected values (read-only verification). " +
+        "Reports per-property mismatches; supports an optional absolute numeric tolerance.",
+      inputSchema: {
+        path: z.string().describe("Node path (relative to the current scene; '/root/...' absolute allowed)"),
+        expect: z
+          .record(z.any())
+          .describe("Map of property name -> expected value (JSON; use the tagged-Variant form for complex types like Vector2/Color)"),
+        tolerance: z
+          .number()
+          .nonnegative()
+          .optional()
+          .describe("Absolute tolerance for numeric comparisons (default 0 = exact match)"),
+      },
+    },
+    async ({ path, expect, tolerance }) =>
+      call(
+        "runtime.assert_node_state",
+        tolerance !== undefined ? { path, expect, tolerance } : { path, expect },
+      ),
+  );
+
+  server.registerTool(
+    "runtime_assert_scene_structure",
+    {
+      title: "Runtime assert scene structure",
+      description:
+        "Assert the LIVE SceneTree matches structural expectations (read-only). Each entry asserts a node " +
+        "exists at a path (and, if given, is of a class via is_class); set absent:true to assert it is NOT present.",
+      inputSchema: {
+        expect: z
+          .array(
+            z.object({
+              path: z.string(),
+              type: z.string().optional(),
+              absent: z.boolean().optional(),
+            }),
+          )
+          .describe("List of node expectations: {path, type?, absent?}."),
+      },
+    },
+    async ({ expect }) => call("runtime.assert_scene_structure", { expect }),
+  );
 }

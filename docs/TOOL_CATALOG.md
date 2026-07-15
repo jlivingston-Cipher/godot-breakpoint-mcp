@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **271 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **273 tools + 5 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2518,6 +2518,20 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```
 - **D6 zero-config capture (Godot 4.5+):** on 4.5 and newer the runtime bridge auto-registers a scriptable `Logger` (`OS.add_logger`) that funnels every `print()` / `push_warning` / `push_error` and engine message into this ring buffer — so the host reads the game's console with **no managed parent process**. Levels are `info` / `warning` / `error`. `capture` reports whether that hook is active; on Godot < 4.5 it is `false` and only explicit `BreakpointRuntimeBridge.push_log(...)` entries appear (unchanged behavior). Changes to the buffer push `godot://runtime/log` to subscribers (coalesced, one per frame).
 
+### `runtime_assert_node_state` ✅
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path", "expect"], "properties": { "path": { "type": "string" }, "expect": { "type": "object", "description": "property name -> expected value (tagged-Variant JSON for complex types)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 } } }
+```
+- **Output** `{ path, ok, checked, mismatches[] }` — read-only. `ok` is true when every checked property matched (numeric fields within `tolerance`); each mismatch is `{ property, expected, actual }` with values in the tagged-Variant encoding.
+
+### `runtime_assert_scene_structure` ✅
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["expect"], "properties": { "expect": { "type": "array", "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "absent": { "type": "boolean" } } } } } }
+```
+- **Output** `{ ok, checked, failures[] }` — read-only. `ok` is true when every expectation held; each failure is `{ path, reason, expected?, actual? }` where `reason` is one of `missing` / `type_mismatch` / `expected_absent_but_present`.
+
 ---
 
 ---
@@ -4098,6 +4112,8 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_get_monitors` | C / Runtime | ✅ | – |
 | `runtime_screenshot` | C / Runtime | ✅ | – |
 | `runtime_get_log` | C / Runtime | ✅ | – |
+| `runtime_assert_node_state` | C / Runtime | ✅ | – |
+| `runtime_assert_scene_structure` | C / Runtime | ✅ | – |
 
 | `godot_run_managed` | B / Process | ✅ | – |
 | `godot_output` | B / Process | ✅ | – |

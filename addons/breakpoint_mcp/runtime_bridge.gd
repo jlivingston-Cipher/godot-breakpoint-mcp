@@ -255,6 +255,10 @@ func _dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _screenshot()
 		"runtime.get_log":
 			return _get_log(params)
+		"runtime.assert_node_state":
+			return _assert_node_state(params)
+		"runtime.assert_scene_structure":
+			return _assert_scene_structure(params)
 		_:
 			return _err("unknown_method", "No such method: %s" % method)
 
@@ -438,3 +442,96 @@ func _get_log(params: Dictionary) -> Dictionary:
 		if int(e["seq"]) > since and (levels.is_empty() or levels.has(e["level"])):
 			entries.append(e)
 	return _ok({"entries": entries, "latest_seq": _log_seq, "capture": _log_capture != null})
+
+
+func _assert_node_state(params: Dictionary) -> Dictionary:
+	var node := _resolve(String(params.get("path", "")))
+	if node == null:
+		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+	var raw_expect: Variant = params.get("expect", {})
+	var expect: Dictionary = raw_expect if typeof(raw_expect) == TYPE_DICTIONARY else {}
+	var tol := float(params.get("tolerance", 0.0))
+	var mismatches: Array = []
+	for prop in expect.keys():
+		var key := String(prop)
+		var expected: Variant = expect[key]
+		var actual_encoded: Variant = Codec.encode(node.get(key))
+		if not _values_match(expected, actual_encoded, tol):
+			mismatches.append({"property": key, "expected": expected, "actual": actual_encoded})
+	return _ok({
+		"path": _path_of(node),
+		"ok": mismatches.is_empty(),
+		"checked": expect.size(),
+		"mismatches": mismatches,
+	})
+
+
+func _assert_scene_structure(params: Dictionary) -> Dictionary:
+	var raw: Variant = params.get("expect", [])
+	var expect: Array = raw if typeof(raw) == TYPE_ARRAY else []
+	var failures: Array = []
+	for entry_v in expect:
+		if typeof(entry_v) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_v
+		var path := String(entry.get("path", ""))
+		var absent := bool(entry.get("absent", false))
+		var node := _resolve(path)
+		if absent:
+			if node != null:
+				failures.append({"path": path, "reason": "expected_absent_but_present"})
+			continue
+		if node == null:
+			failures.append({"path": path, "reason": "missing"})
+			continue
+		if entry.has("type"):
+			var want_type := String(entry["type"])
+			if not node.is_class(want_type) and node.get_class() != want_type:
+				failures.append({"path": path, "reason": "type_mismatch", "expected": want_type, "actual": node.get_class()})
+	return _ok({
+		"ok": failures.is_empty(),
+		"checked": expect.size(),
+		"failures": failures,
+	})
+
+
+func _values_match(expected: Variant, actual: Variant, tol: float) -> bool:
+	var te := typeof(expected)
+	var ta := typeof(actual)
+	var expected_num := te == TYPE_INT or te == TYPE_FLOAT
+	var actual_num := ta == TYPE_INT or ta == TYPE_FLOAT
+	if expected_num and actual_num:
+		return absf(float(actual) - float(expected)) <= tol
+	return _deep_equal(expected, actual)
+
+
+func _deep_equal(a: Variant, b: Variant) -> bool:
+	var ta := typeof(a)
+	var tb := typeof(b)
+	if ta != tb:
+		var an := ta == TYPE_INT or ta == TYPE_FLOAT
+		var bn := tb == TYPE_INT or tb == TYPE_FLOAT
+		if an and bn:
+			return float(a) == float(b)
+		return false
+	if ta == TYPE_DICTIONARY:
+		var da: Dictionary = a
+		var db: Dictionary = b
+		if da.size() != db.size():
+			return false
+		for k in da.keys():
+			if not db.has(k):
+				return false
+			if not _deep_equal(da[k], db[k]):
+				return false
+		return true
+	if ta == TYPE_ARRAY:
+		var aa: Array = a
+		var ba: Array = b
+		if aa.size() != ba.size():
+			return false
+		for i in aa.size():
+			if not _deep_equal(aa[i], ba[i]):
+				return false
+		return true
+	return a == b

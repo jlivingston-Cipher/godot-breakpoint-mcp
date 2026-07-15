@@ -177,3 +177,35 @@ test("runtime_call_method forwards runtime.call_method with args once confirmed"
   assert.equal(h.calls[0].method, "runtime.call_method");
   assert.deepEqual(h.calls[0].params, { path: "/root/Player", method: "take_damage", args: [5] });
 });
+
+test("runtime_assert_node_state forwards runtime.assert_node_state with path/expect/tolerance", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { path: "/root/Player", ok: true, checked: 1, mismatches: [] });
+  const r = await h.handler("runtime_assert_node_state")({
+    path: "/root/Player",
+    expect: { hp: 100 },
+    tolerance: 0,
+  });
+  assert.notEqual(r.isError, true);
+  assert.deepEqual(r.structuredContent, { path: "/root/Player", ok: true, checked: 1, mismatches: [] });
+  assert.equal(h.calls[0].method, "runtime.assert_node_state");
+  assert.deepEqual(h.calls[0].params, { path: "/root/Player", expect: { hp: 100 }, tolerance: 0 });
+});
+
+test("runtime_assert_node_state omits tolerance when not supplied", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { path: "/root/Player", ok: true, checked: 1, mismatches: [] });
+  await h.handler("runtime_assert_node_state")({ path: "/root/Player", expect: { hp: 100 } });
+  assert.deepEqual(h.calls[0].params, { path: "/root/Player", expect: { hp: 100 } });
+});
+
+test("runtime_assert_scene_structure forwards the expectation list", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { ok: true, checked: 2, failures: [] });
+  const expect = [{ path: "/root/Player" }, { path: "/root/HUD", type: "CanvasLayer" }];
+  const r = await h.handler("runtime_assert_scene_structure")({ expect });
+  assert.notEqual(r.isError, true);
+  assert.deepEqual(r.structuredContent, { ok: true, checked: 2, failures: [] });
+  assert.equal(h.calls[0].method, "runtime.assert_scene_structure");
+  assert.deepEqual(h.calls[0].params, { expect });
+});

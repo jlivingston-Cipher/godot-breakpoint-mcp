@@ -482,6 +482,26 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     // capture, no managed parent). Optional so older addons still validate.
     capture: z.boolean().optional(),
   },
+  runtime_assert_node_state: {
+    path: z.string(),
+    ok: z.boolean(),
+    checked: z.number(),
+    mismatches: z.array(
+      z.object({ property: z.string(), expected: encodedValue, actual: encodedValue }),
+    ),
+  },
+  runtime_assert_scene_structure: {
+    ok: z.boolean(),
+    checked: z.number(),
+    failures: z.array(
+      z.object({
+        path: z.string(),
+        reason: z.string(),
+        expected: encodedValue.optional(),
+        actual: encodedValue.optional(),
+      }),
+    ),
+  },
 
   // ---- Group K: knowledge & search ----
   // Host-side project index (tools/knowledge.ts) — no bridge/LSP; read the project files directly.
