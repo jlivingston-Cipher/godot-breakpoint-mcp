@@ -50,10 +50,17 @@ export function clientInfo(id: string, projectPath: string): ClientInfo | null {
   }
 }
 
-/** The stdio server entry a client config needs. GODOT_BIN is included only when non-default. */
-export function serverEntry(projectPath: string, godotBin: string, needsType: boolean): Record<string, unknown> {
+/** The stdio server entry a client config needs. GODOT_BIN is included only when
+ * non-default; BREAKPOINT_PRIVILEGED_GROUPS only when higher-trust groups are opted in. */
+export function serverEntry(
+  projectPath: string,
+  godotBin: string,
+  needsType: boolean,
+  privilegedGroups?: string,
+): Record<string, unknown> {
   const env: Record<string, string> = { GODOT_PROJECT: projectPath };
   if (godotBin && godotBin !== "godot") env.GODOT_BIN = godotBin;
+  if (privilegedGroups) env.BREAKPOINT_PRIVILEGED_GROUPS = privilegedGroups;
   const base: Record<string, unknown> = { command: "npx", args: ["-y", "breakpoint-mcp"], env };
   return needsType ? { type: "stdio", ...base } : base;
 }

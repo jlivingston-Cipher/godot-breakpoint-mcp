@@ -15,6 +15,31 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "./args.js";
 import { CLIENT_IDS, clientInfo, mergeClientConfig, serverEntry, snippet } from "./clients.js";
 import { DEFAULT_REPO, fetchAddonFromGitHub, type FetchLike } from "./github.js";
+import { CAPABILITY_GROUPS, parsePrivilegedGroups, selectPrivilegedGroups } from "../capabilities.js";
+
+/**
+ * Resolve the guided trust preset into a validated BREAKPOINT_PRIVILEGED_GROUPS
+ * value ("" = the safe default — `code-execution` + `network` off). Accepts either
+ * `--trust safe|full` (friendly presets) or `--privileged-groups <list>`
+ * (`code-execution`, `network`, `all`, comma-separated). Unknown tokens are dropped
+ * with a warning so a typo never silently enables a group.
+ */
+export function resolvePrivilegedGroups(flags: Record<string, string | boolean>): { value: string; warn?: string } {
+  const trustAlias: Record<string, string> = { safe: "", none: "", off: "", full: "all", all: "all" };
+  const raw =
+    typeof flags["privileged-groups"] === "string"
+      ? flags["privileged-groups"]
+      : typeof flags.trust === "string"
+        ? (trustAlias[flags.trust.toLowerCase()] ?? flags.trust)
+        : "";
+  if (!raw) return { value: "" };
+  let warn: string | undefined;
+  const enabled = selectPrivilegedGroups(parsePrivilegedGroups(raw), (unknown) => {
+    warn = `ignoring unknown trust group(s): ${unknown.join(", ")} (valid: ${CAPABILITY_GROUPS.join(", ")}, all)`;
+  });
+  const value = [...enabled].sort().join(",");
+  return warn ? { value, warn } : { value };
+}
 
 const PLUGIN_REL = "addons/breakpoint_mcp";
 const PLUGIN_CFG_RES = "res://addons/breakpoint_mcp/plugin.cfg";
@@ -137,8 +162,9 @@ export function installAddon(addonSource: string, projectPath: string, opts: { f
   return { action: exists ? "overwritten" : "installed", dest };
 }
 
-function claudeCodeCommand(projectPath: string): string {
-  return `claude mcp add godot --env GODOT_PROJECT=${projectPath} -- npx -y breakpoint-mcp`;
+function claudeCodeCommand(projectPath: string, privilegedGroups?: string): string {
+  const groups = privilegedGroups ? ` --env BREAKPOINT_PRIVILEGED_GROUPS=${privilegedGroups}` : "";
+  return `claude mcp add godot --env GODOT_PROJECT=${projectPath}${groups} -- npx -y breakpoint-mcp`;
 }
 
 /** Entry point for `breakpoint-mcp init`. Returns the process exit code. */
@@ -152,6 +178,8 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
   const force = flags.force === true;
   const client = typeof flags.client === "string" ? flags.client : "none";
   const godotBin = process.env.GODOT_BIN ?? "godot";
+  // Guided trust preset → BREAKPOINT_PRIVILEGED_GROUPS ("" = safe default).
+  const { value: privilegedGroups, warn: privilegedWarn } = resolvePrivilegedGroups(flags);
 
   // --from-github [ref]: source the addon from GitHub instead of the bundled copy.
   const fromGitHub = "from-github" in flags;
@@ -241,20 +269,20 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
   say("");
   if (client === "claude-code") {
     say("MCP client (Claude Code) — run:");
-    say(`  ${claudeCodeCommand(projectPath)}`);
+    say(`  ${claudeCodeCommand(projectPath, privilegedGroups)}`);
   } else if (client === "none") {
     say('MCP client — add this to your client config (wrapper key "mcpServers"):');
-    say(snippet("mcpServers", SERVER_NAME, serverEntry(projectPath, godotBin, false)));
+    say(snippet("mcpServers", SERVER_NAME, serverEntry(projectPath, godotBin, false, privilegedGroups)));
     say("");
     say("Claude Code users can instead run:");
-    say(`  ${claudeCodeCommand(projectPath)}`);
+    say(`  ${claudeCodeCommand(projectPath, privilegedGroups)}`);
   } else {
     const info = clientInfo(client, projectPath);
     if (!info || info.configPath === null) {
       process.stderr.write(`init: unknown --client '${client}'. Known: ${CLIENT_IDS.join(", ")}.\n`);
       return 1;
     }
-    const entry = serverEntry(projectPath, godotBin, info.needsType);
+    const entry = serverEntry(projectPath, godotBin, info.needsType, privilegedGroups);
     if (dryRun) {
       say(`MCP client (${info.label}): would write ${info.configPath}`);
     } else {
@@ -273,6 +301,20 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
       say(`MCP client (${info.label}): ${existed ? "updated" : "created"} ${info.configPath}${existed ? " (backup at .bak)" : ""}`);
     }
   }
+
+  // Trust groups — surface the secure default so even a bare `init` teaches it.
+  say("");
+  if (privilegedGroups) {
+    say(`Higher-trust tool groups enabled: ${privilegedGroups} — the full 276-tool surface loads.`);
+  } else {
+    say("Higher-trust tool groups are OFF by default (the secure default). The assistant loads the");
+    say("everyday authoring/debug surface and drops the 14 code-execution + network tools (e.g.");
+    say("godot_run_headless_script, the *_call_method / dbg_evaluate tools, asset-gen, backend_*).");
+    say("Enable them by re-running with `--trust full` (or `--privileged-groups code-execution,network`),");
+    say("or set BREAKPOINT_PRIVILEGED_GROUPS in the server env. The `godot://capabilities` resource and");
+    say("`breakpoint-mcp doctor` list exactly what each group gates.");
+  }
+  if (privilegedWarn) say(`  note: ${privilegedWarn}`);
 
   say("");
   say("Next: open the project in Godot, then run `breakpoint-mcp doctor --require-live` to verify.");

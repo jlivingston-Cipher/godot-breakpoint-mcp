@@ -22,6 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadConfig, type Config } from "../config.js";
+import { CAPABILITY_GROUPS, droppedTools, selectPrivilegedGroups } from "../capabilities.js";
 import { parseArgs } from "./args.js";
 
 export type CheckStatus = "ok" | "fail" | "skip";
@@ -205,8 +206,53 @@ function checkCsharpTool(name: string, cmd: string): Check {
       };
 }
 
+/**
+ * Report the capability-group state (`code-execution` / `network`), how many
+ * higher-trust tools the current setting drops, and how to change it — plus a
+ * signal hint when an asset-gen backend is configured but its group is off (so
+ * the "why won't asset-gen run?" gap the drop model can create is surfaced, not
+ * silent). Informational only — never a required failure.
+ */
+export function checkCapabilities(config: Config): Check[] {
+  const enabled = selectPrivilegedGroups(config.privilegedGroups);
+  const dropped = droppedTools(enabled);
+  const state = CAPABILITY_GROUPS.map((g) => `${g} ${enabled.has(g) ? "on" : "off"}`).join(" · ");
+  const checks: Check[] = [
+    {
+      name: "capability-groups",
+      status: "ok",
+      severity: "info",
+      detail:
+        dropped.length === 0
+          ? `${state} — full 276-tool surface`
+          : `${state} (secure default) — ${dropped.length} higher-trust tool(s) dropped from the surface`,
+      hint:
+        dropped.length === 0
+          ? undefined
+          : "Enable with BREAKPOINT_PRIVILEGED_GROUPS=code-execution,network (or `breakpoint-mcp init --trust full`). See the godot://capabilities resource for the exact tool list.",
+    },
+  ];
+  const assetGenConfigured =
+    (config.assetGenBackend && config.assetGenBackend !== "none") ||
+    Boolean(config.assetGenCommand) ||
+    Boolean(config.assetGenProvider);
+  if (assetGenConfigured && !enabled.has("code-execution") && !enabled.has("network")) {
+    checks.push({
+      name: "capability-assetgen",
+      status: "ok",
+      severity: "info",
+      detail: "asset-gen backend configured, but code-execution and network are both off — the asset_gen_* tools are not loaded",
+      hint: "Enable the matching group: BREAKPOINT_PRIVILEGED_GROUPS=code-execution (command backend) or network (provider backend).",
+    });
+  }
+  return checks;
+}
+
 export async function runDoctorChecks(config: Config, opts: DoctorOptions): Promise<DoctorReport> {
   const checks: Check[] = [];
+
+  // Capability groups — the secure-default surface + how to widen it (info only).
+  checks.push(...checkCapabilities(config));
 
   // Godot binary (give the version probe a floor so a slow cold start isn't a false negative).
   checks.push(checkGodotBinary(config.godotBin, Math.max(opts.timeoutMs, 3000)));
