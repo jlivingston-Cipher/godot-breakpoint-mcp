@@ -22,47 +22,69 @@ reimplementing them, so behavior tracks the engine you already have.
 
 ## Why Breakpoint?
 
-Most Godot MCP servers let an AI *see* and *edit* your game. Breakpoint's bet is the full
-**developer loop** — the same one a human uses in an IDE — built on two capabilities almost
-nothing else in the field has:
+Breakpoint is an MCP server that drives Godot through the engine's *own* interfaces: the
+editor plugin's loopback bridge for scene/node/resource work, a runtime bridge inside the
+running game, the headless CLI, and — the part that sets it apart — Godot's built-in
+**language server (LSP)** and **debug adapter (DAP)**, to which Breakpoint speaks as a real
+client. Most Godot MCP servers stop at the first group: they create and edit scenes and
+scripts, take screenshots, and read the output log. That covers authoring, but it observes a
+running game only from the outside.
 
-- **A real step-debugger, for GDScript *and* C#.** Set a breakpoint, step, read the call
-  stack and real variable values, watch expressions, and evaluate in the paused frame —
-  over Godot's own **Debug Adapter** (and `netcoredbg` for C#). A server that only
-  screenshots the game and reads its live scene tree observes it from the outside;
-  Breakpoint can *stop* execution and look inside. This is the capability that is expensive
-  for anyone to copy.
-- **A real language server, for GDScript *and* C#.** Completion, hover, go-to-definition,
-  references, rename, and diagnostics — over Godot's built-in **LSP** (and OmniSharp for
-  C#) — so the assistant writes type-aware code and catches errors *before* running it.
+Two differentiating capabilities are the reason to reach for Breakpoint:
 
-Everything is **schema-enforced, undo-safe, and confirmation-gated**: every edit goes
+- **A step-debugger for GDScript and C#.** Set a breakpoint, step, read the real call stack
+  and variable values, watch expressions, and evaluate in the paused frame — over Godot's
+  Debug Adapter (and `netcoredbg` for C#). This is the difference between inspecting state
+  and reading logs: the assistant can stop at the failure and look at actual values instead
+  of inferring them from `print()` output and re-runs.
+- **A language-server client for GDScript and C#.** Completion, hover, go-to-definition, find
+  references, rename, and diagnostics — over Godot's LSP (and OmniSharp for C#). Edits are
+  symbol-accurate rather than text-substituted, and type errors surface before the project
+  runs.
+
+Around those, the editing surface is built to be safe to hand to an agent: every edit goes
 through `EditorUndoRedoManager` (Ctrl-Z reverts anything the assistant did), destructive
-tools ask first, and every tool result is validated against a frozen output schema. The
-assistant can also **check its own work** — a free, read-only verification family asserts
-node state, scene structure, on-screen text, and performance baselines, and diffs
-screenshots against the running game — and because Breakpoint also *debugs*, a failed
-assertion is one step from the reason it failed, not just a red X. It's
-**MIT and free** — the whole surface, no paid tier — and it's the only Godot MCP with a CI
-job that exercises the live editor, LSP, DAP, and runtime bridges against a **real headless
-Godot**.
+tools are confirmation-gated, and every tool result is validated against a frozen output
+schema. A read-only verification family (assert node state, scene structure, on-screen text,
+performance baselines, and screenshot diffs) lets the assistant check a running game the way
+a test would — and because the same server also debugs, a failed assertion is one step from
+the state that caused it. The editor, LSP, DAP, and runtime bridges are exercised together
+against a real headless Godot in CI.
 
-### "But it runs a Node process — isn't a single in-editor plugin simpler?"
+### When Breakpoint is the right tool — and when it isn't
 
-A zero-sidecar, GDScript-only plugin is genuinely simpler to install, and if all you need is
-scene and script edits from inside the editor, it's a fine choice. Breakpoint runs a small
-Node host **on purpose**: it is what lets the assistant act as a real **LSP and DAP client**
-(the step-debugging and type-aware editing above), run long jobs on the MCP **task model**,
-and connect the same way from any stdio MCP client. The host is the price of the debugger,
-not incidental plumbing — and the setup cost is one command:
+It earns its keep on work that needs program state or real symbols:
+
+- **Diagnosing a live failure** — a wrong value, a null reference, a crash in a signal
+  handler: breakpoint, step, and read the actual variables in the paused frame instead of
+  instrumenting with prints and re-running.
+- **Refactoring against real symbols** — rename a method or property project-wide, or find
+  every reference, over the LSP, so it's accurate rather than a text search.
+- **Type-aware authoring** — write GDScript or C# with completion and diagnostics, catching
+  type errors before the game runs.
+- **C#/.NET projects** — the LSP and DAP paths cover C# as well as GDScript.
+- **Verifying a running game in a loop** — assert node/scene/screen/performance state after a
+  change, with a failed assertion one step from the debugger.
+
+If you only need scene and script edits from inside the editor — scaffolding a scene,
+generating a script from a prompt, quick one-shot changes — there are other good alternatives
+to Breakpoint available in the Godot Asset Library. Breakpoint's value shows up when you need
+to *step through* a bug, *refactor against real symbols*, or work in *C#*.
+
+### Why a Node host?
+
+Breakpoint runs a small Node process on purpose: it is what lets the server act as a real LSP
+and DAP client (the two capabilities above), run long jobs on the MCP task model, and connect
+from any stdio MCP client. The host is the price of the debugger and the language server, not
+incidental plumbing. Setup is one command to install and one to verify:
 
 ```bash
 npx breakpoint-mcp init     # copies + enables the addon and writes your MCP-client config
 npx breakpoint-mcp doctor   # verifies the Godot binary and all four bridges are live
 ```
 
-If you never need to step through a bug or refactor against real symbols, you may not need
-the host at all. If you do, a zero-sidecar plugin cannot give it to you.
+If you never step through a bug or refactor against real symbols, you may not need the host;
+if you do, that is exactly what it buys.
 
 ## What it does
 
