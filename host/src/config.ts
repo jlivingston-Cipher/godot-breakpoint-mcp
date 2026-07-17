@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { parsePrivilegedGroups } from "./capabilities.js";
 
 /**
  * Runtime configuration, all overridable via environment variables so the same
@@ -94,6 +95,14 @@ export interface Config {
    * only the planes a project needs. See `selectToolsets`.
    */
   toolsets: string[] | null;
+  /**
+   * Capability-group selection (BREAKPOINT_PRIVILEGED_GROUPS). `null`/empty =
+   * no privileged groups (the safe default: `code-execution` and `network`
+   * tools are dropped at registration). A non-empty list enables the named
+   * groups — `code-execution`, `network`, or `all`. A second, risk-based axis
+   * that cuts across the toolset partition. See `selectPrivilegedGroups`.
+   */
+  privilegedGroups: string[] | null;
 }
 
 export function loadConfig(): Config {
@@ -146,6 +155,7 @@ export function loadConfig(): Config {
     assetGenProvider: process.env.BREAKPOINT_ASSETGEN_PROVIDER ?? "",
     assetGenTimeoutMs: Number.parseInt(process.env.BREAKPOINT_ASSETGEN_TIMEOUT_MS ?? "120000", 10),
     toolsets: parseToolsets(process.env.BREAKPOINT_TOOLSETS),
+    privilegedGroups: parsePrivilegedGroups(process.env.BREAKPOINT_PRIVILEGED_GROUPS),
   };
 }
 

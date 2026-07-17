@@ -12,6 +12,12 @@ import { DapClient } from "./dap.js";
 import { buildToolsets } from "./toolsets.js";
 import { registerRecipes } from "./recipes.js";
 import { applyOutputSchemas } from "./schemas.js";
+import {
+  applyCapabilities,
+  droppedTools,
+  registerCapabilitiesResource,
+  selectPrivilegedGroups,
+} from "./capabilities.js";
 import { taskStore, TASK_CAPABILITIES } from "./tasks.js";
 import { RESOURCE_CAPABILITIES, registerResourceSubscriptions } from "./subscriptions.js";
 import { log } from "./logger.js";
@@ -78,6 +84,16 @@ async function main(): Promise<void> {
   // any register*Tools call — it wraps server.registerTool.
   applyOutputSchemas(server);
 
+  // Capability groups — a risk-based axis over the toolsets. Both `code-execution`
+  // and `network` are OFF by default; a disabled group's tools are DROPPED at
+  // registration (omitted from tools/list), so the secure-default surface is
+  // 276 − 14 = 262 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
+  // server.registerTool AFTER applyOutputSchemas (schema wrapper stays innermost).
+  const privilegedGroups = selectPrivilegedGroups(config.privilegedGroups, (unknown) =>
+    log(`ignoring unknown BREAKPOINT_PRIVILEGED_GROUPS token(s): ${unknown.join(", ")}`),
+  );
+  applyCapabilities(server, privilegedGroups);
+
   // The A/B/C/D planes ARE the grouping. Build the ordered toolset registry
   // (the single source of truth, shared with the registration tests) and
   // register only the selected groups. Default (BREAKPOINT_TOOLSETS unset) =
@@ -124,6 +140,16 @@ async function main(): Promise<void> {
   // via prompts/list). Adds NO tools — the 276-tool count is unchanged — and drives
   // the enforced tools above, so it's a skill-pack layer over typed/undoable tools.
   registerRecipes(server);
+
+  // Always-on capability affordance — never behind a toolset or a privileged
+  // group — so the dropped high-trust tools are never a silent gap: an agent can
+  // read godot://capabilities to see what exists-but-is-disabled and how to
+  // enable it. Registered directly (not via the `resources` toolset).
+  registerCapabilitiesResource(server, privilegedGroups);
+  if (config.privilegedGroups) {
+    const on = [...privilegedGroups].sort().join(", ") || "(none)";
+    log(`privileged groups enabled: ${on}; dropped ${droppedTools(privilegedGroups).length} tool(s) from the surface`);
+  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
