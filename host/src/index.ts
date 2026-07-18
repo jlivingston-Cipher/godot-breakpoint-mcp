@@ -20,6 +20,7 @@ import {
 } from "./capabilities.js";
 import { taskStore, TASK_CAPABILITIES } from "./tasks.js";
 import { RESOURCE_CAPABILITIES, registerResourceSubscriptions } from "./subscriptions.js";
+import { pauseLatch, installPauseSignalHandlers } from "./pause.js";
 import { log } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -149,6 +150,14 @@ async function main(): Promise<void> {
   if (config.privilegedGroups) {
     const on = [...privilegedGroups].sort().join(", ") || "(none)";
     log(`privileged groups enabled: ${on}; dropped ${droppedTools(privilegedGroups).length} tool(s) from the surface`);
+  }
+
+  // Track 2 — global-pause latch (prototype). A coarse overlay on the destructive
+  // gate: SIGUSR1 pauses, SIGUSR2 resumes; BREAKPOINT_START_PAUSED starts held.
+  // Per-tool elicitation gating stays the lead control (see src/pause.ts).
+  installPauseSignalHandlers();
+  if (pauseLatch.isPaused()) {
+    log("[pause] started PAUSED (BREAKPOINT_START_PAUSED) — send SIGUSR2 to resume");
   }
 
   const transport = new StdioServerTransport();

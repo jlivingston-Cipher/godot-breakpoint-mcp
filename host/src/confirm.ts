@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { pauseLatch } from "./pause.js";
 
 export interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
@@ -22,6 +23,27 @@ export async function gate(
   confirm: boolean | undefined,
   summary: string,
 ): Promise<ToolResult | null> {
+  // Track 2 — global-pause overlay. Coarser than the per-tool elicitation below
+  // (which stays the lead control): while the operator has the agent paused, hold
+  // ENTRY to this mutating action until they resume or the wait times out — then
+  // block rather than act. In-flight ops and read-only tools are never affected.
+  if (pauseLatch.isPaused()) {
+    const resumed = await pauseLatch.awaitResumed();
+    if (!resumed) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text:
+              `Paused — the agent is currently paused, so "${summary}" was held and NOT executed. ` +
+              `Resume the agent (SIGUSR2), then re-run the tool.`,
+          },
+        ],
+      };
+    }
+  }
+  pauseLatch.record(summary);
   if (confirm === true) return null;
   try {
     const res = await server.server.elicitInput({
