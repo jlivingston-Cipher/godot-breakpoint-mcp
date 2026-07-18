@@ -329,10 +329,9 @@ standard **MCP prompts** (discoverable via `prompts/list`), so a client can pull
 - **`recipe_type_safe_edit`** — edit GDScript with the language server (symbols, references, diagnostics) before running.
 - **`recipe_csharp_fix_and_debug`** — the same inspect → fix → debug loop for C# via OmniSharp + netcoredbg.
 
-A recipe is the same idea as a paid "skill pack", with two differences that matter: it's
-**free** (MIT, shipped in the server) and it sits **over typed, schema-validated, undoable
-tools** — so the contract is executed by the server, not merely described in prose the model
-might misapply. Recipes add **no tools** (the count stays 276) and cost nothing until pulled.
+Recipes are skills which ride on top of typed, schema-validated, undoable tools — so the
+contract is executed by the server, not merely described in prose which a model might
+misapply. Recipes also add no tools (the count stays 276) and cost nothing until pulled.
 
 ## Compatibility
 
