@@ -14,6 +14,8 @@ extends VBoxContainer
 ## thread never stalls. LSP/DAP ports are read from EditorSettings, so the dock
 ## reflects the user's actual configuration, not just the defaults.
 
+const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
+
 const DEFAULT_BRIDGE_PORT := 9080
 const DEFAULT_RUNTIME_PORT := 9081
 const DEFAULT_LSP_PORT := 6005
@@ -25,6 +27,7 @@ const PROBE_DEADLINE_MSEC := 1500
 const COLOR_OK := Color(0.38, 0.85, 0.45)
 const COLOR_FAIL := Color(0.92, 0.47, 0.40)
 const COLOR_PENDING := Color(0.62, 0.62, 0.62)
+const COLOR_PAUSED := Color(0.95, 0.73, 0.30)
 
 const PLANES := [
 	{"key": "editor", "name": "editor-bridge"},
@@ -75,6 +78,8 @@ var _probes := {}              # plane key -> {peer, deadline, port}
 var _config_label: Label = null
 var _copy_feedback: Label = null
 var _timer: Timer = null
+var _pause_toggle: CheckButton = null
+var _pause_state: Label = null
 
 
 ## plugin.gd injects the live bridge server so the editor-bridge plane is read
@@ -131,6 +136,27 @@ func _build_ui() -> void:
 		_rows[p["key"]] = row
 		add_child(row)
 		_set_plane(p["key"], "pending", "…")
+	add_child(HSeparator.new())
+
+	# Control: a one-click "Pause Agent" latch honored by the editor + runtime
+	# bridges (pause_latch.gd). Engaged, those two planes hold new agent commands
+	# until resumed — the visible companion to the host signal latch (whole-surface).
+	var ctrl_hdr := Label.new()
+	ctrl_hdr.text = "Control"
+	ctrl_hdr.modulate = Color(1, 1, 1, 0.75)
+	add_child(ctrl_hdr)
+
+	_pause_toggle = CheckButton.new()
+	_pause_toggle.text = "Pause Agent"
+	_pause_toggle.tooltip_text = "Hold new agent commands on the editor + runtime bridges. In-flight ops finish and a bare ping still answers; resume to continue."
+	_pause_toggle.toggled.connect(_on_pause_toggled)
+	add_child(_pause_toggle)
+
+	_pause_state = Label.new()
+	_pause_state.add_theme_font_size_override("font_size", 12)
+	_pause_state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_pause_state)
+
 	add_child(HSeparator.new())
 
 	var cfg_hdr := Label.new()
@@ -197,6 +223,7 @@ func _refresh() -> void:
 	_start_probe("lsp", _lsp_port())
 	_start_probe("dap", _dap_port())
 	_update_config_line()
+	_update_pause_ui()
 
 
 func _update_editor_plane() -> void:
@@ -225,6 +252,27 @@ func _on_copy_pressed() -> void:
 	DisplayServer.clipboard_set(client_snippet(_project_path()))
 	if _copy_feedback != null:
 		_copy_feedback.text = "Copied the mcpServers snippet to the clipboard."
+
+
+func _on_pause_toggled(pressed: bool) -> void:
+	PauseLatch.set_paused(pressed)
+	_update_pause_ui()
+
+
+## Reflect the latch state in the toggle + label. Called on every refresh so an
+## external change (plugin enable/disable clears it, or the host) shows here too;
+## set_pressed_no_signal avoids re-firing `toggled` back into set_paused.
+func _update_pause_ui() -> void:
+	if _pause_toggle == null or _pause_state == null:
+		return
+	var paused := PauseLatch.is_paused()
+	_pause_toggle.set_pressed_no_signal(paused)
+	if paused:
+		_pause_state.text = "PAUSED — editor + runtime bridges are holding new agent commands."
+		_pause_state.add_theme_color_override("font_color", COLOR_PAUSED)
+	else:
+		_pause_state.text = "Running — agent commands flow normally."
+		_pause_state.add_theme_color_override("font_color", COLOR_OK)
 
 
 # --- ports -----------------------------------------------------------------

@@ -428,6 +428,15 @@ Breakpoint MCP is a **local co-development tool** and is built to keep you in co
   so a disabled tool is discoverable rather than a silent gap. Defense-in-depth and a legible
   least-privilege story over an already typed / undoable / gated surface — not the closing of an
   open hole.
+- **Pause the agent on demand — two layered controls.** In the editor, the Breakpoint status
+  dock has a **"Pause Agent"** toggle: while engaged, the editor and runtime bridges reject new
+  commands on those two planes (an op already running finishes; a bare liveness `ping` still
+  answers), so one click freezes what the assistant can do to your project and the running game.
+  Headless or scripted, the host also honors **`SIGUSR1` (pause) / `SIGUSR2` (resume)** — a finer
+  latch that holds only *mutating* actions but across the **whole** tool surface, with
+  `BREAKPOINT_START_PAUSED=1` to start held. Neither is an "emergency stop": both hold *entry* to
+  a new action and never interrupt one already in flight, and the per-tool confirmation above
+  stays the primary control for destructive ops.
 - **Higher-trust surfaces, stated plainly:** `godot_run_headless_script` and
   `godot_run_managed` execute GDScript, and the optional asset-gen **command**
   backend runs a local command you configure (via `BREAKPOINT_ASSETGEN_CMD` or the tool

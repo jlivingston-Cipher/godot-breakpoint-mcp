@@ -46,6 +46,7 @@ const MONITORS := {
 }
 
 const BridgeSecret := preload("res://addons/breakpoint_mcp/bridge_secret.gd")
+const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 
 var _server: TCPServer
 var _clients: Array = [] # Array of {peer, buf}
@@ -208,6 +209,15 @@ func _handle_line(c: Dictionary, line: String) -> void:
 			_send(peer, {"id": id, "ok": true})
 		else:
 			_deny_unauth(c)
+		return
+	# Pause latch (addon "Pause Agent" control): honor the same editor-set latch the
+	# editor bridge does. While paused, HOLD every new command except a liveness
+	# `ping` — reject without dispatching; the running game is otherwise untouched.
+	# Read cross-process from res://.godot/ (the editor writes it; see pause_latch.gd).
+	if method != "ping" and PauseLatch.is_paused():
+		var held := {"id": id}
+		held.merge(PauseLatch.held_response(method))
+		_send(peer, held)
 		return
 	var result := _dispatch(method, params)
 	var response := {"id": id}

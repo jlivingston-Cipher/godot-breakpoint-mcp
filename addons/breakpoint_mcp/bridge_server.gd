@@ -14,6 +14,7 @@ extends Node
 const Operations := preload("res://addons/breakpoint_mcp/operations.gd")
 const DEFAULT_PORT := 9080
 const BridgeSecret := preload("res://addons/breakpoint_mcp/bridge_secret.gd")
+const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 
 var _server: TCPServer
 var _ops: Operations
@@ -169,6 +170,16 @@ func _handle_line(c: Dictionary, line: String) -> void:
 			_send(peer, {"id": id, "ok": true})
 		else:
 			_deny_unauth(c)
+		return
+	# Pause latch (addon "Pause Agent" control): while a human has the agent paused
+	# from the editor dock, HOLD every new command except a liveness `ping` — reject
+	# without dispatching, so the host re-issues after resume. An op already running
+	# finishes (one line per tick). This is the coarse editor+runtime-plane stop,
+	# distinct from the host signal latch's finer, whole-surface, mutating-only hold.
+	if method != "ping" and PauseLatch.is_paused():
+		var held := {"id": id}
+		held.merge(PauseLatch.held_response(method))
+		_send(peer, held)
 		return
 	var result: Dictionary
 	# Handlers never throw in normal operation; guard anyway.

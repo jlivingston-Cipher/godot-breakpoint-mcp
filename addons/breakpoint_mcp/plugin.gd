@@ -13,6 +13,7 @@ extends EditorPlugin
 
 const BridgeServer := preload("res://addons/breakpoint_mcp/bridge_server.gd")
 const StatusDock := preload("res://addons/breakpoint_mcp/status_dock.gd")
+const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 const RUNTIME_AUTOLOAD := "BreakpointRuntimeBridge"
 const RUNTIME_SCRIPT := "res://addons/breakpoint_mcp/runtime_bridge.gd"
 
@@ -43,6 +44,9 @@ func _enter_tree() -> void:
 		_selection.selection_changed.connect(_on_selection_changed)
 	if not scene_changed.is_connected(_on_scene_changed):
 		scene_changed.connect(_on_scene_changed)
+	# Pause is a session control: clear any flag left over from a prior session so a
+	# fresh editor always starts running (never silently paused by a stale file).
+	PauseLatch.set_paused(false)
 	print("[breakpoint_mcp] plugin enabled")
 
 
@@ -61,6 +65,8 @@ func _exit_tree() -> void:
 		_server.shutdown()
 		_server.queue_free()
 		_server = null
+	# Don't leave the agent latched paused once the plugin (and its dock) are gone.
+	PauseLatch.set_paused(false)
 	print("[breakpoint_mcp] plugin disabled")
 
 

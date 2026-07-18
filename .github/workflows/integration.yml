@@ -237,6 +237,20 @@ jobs:
           if grep -q "BRIDGE_AUTH_FAIL" /tmp/bridge-auth.log; then echo "::error::a bridge-auth handshake assertion failed"; exit 1; fi
           echo "Bridge-auth handshake smoke passed: $(grep -o 'BRIDGE_AUTH_SUMMARY.*' /tmp/bridge-auth.log)"
 
+      - name: Run the Pause Agent latch smoke (addon control surface)
+        run: |
+          set -eu
+          "$GODOT_BIN" --headless --path "${{ github.workspace }}/example" \
+            --script res://tests/pause_latch_smoke.gd > /tmp/pause-latch.log 2>&1 || true
+          echo "=== pause_latch_smoke.gd output ==="
+          cat /tmp/pause-latch.log
+          echo "====================================="
+          # PAUSE_LATCH_* markers are the source of truth (headless --script exit
+          # codes can be unreliable): require the summary, and fail on any FAIL.
+          grep -q "PAUSE_LATCH_SUMMARY" /tmp/pause-latch.log || { echo "::error::pause_latch_smoke.gd produced no PAUSE_LATCH_SUMMARY (script error?)"; exit 1; }
+          if grep -q "PAUSE_LATCH_FAIL" /tmp/pause-latch.log; then echo "::error::a pause-latch assertion failed"; exit 1; fi
+          echo "Pause Agent latch smoke passed: $(grep -o 'PAUSE_LATCH_SUMMARY.*' /tmp/pause-latch.log)"
+
   cli-plane:
     name: CLI plane vs real Godot (headless)
     runs-on: ubuntu-latest
