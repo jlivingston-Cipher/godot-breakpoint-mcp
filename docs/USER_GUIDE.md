@@ -5,9 +5,9 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.17.0 · addon 1.6.0
+- **Version:** host 1.18.0 · addon 1.6.0
 - **License:** MIT
-- **What it exposes:** 276 tools + 5 MCP resources
+- **What it exposes:** full 276 tools (secure-default 262 with the privileged groups off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -374,6 +374,18 @@ Both launch lazily on first use.
 | `BREAKPOINT_RUNTIME_PORT` | `9081` | In-game runtime-bridge port. Must match the autoload. |
 | `BREAKPOINT_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout. |
 
+### Capability groups (least-privilege, opt-in)
+
+Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
+**dropped at registration** (never listed), giving a **secure-default surface of 262 tools**. Opt in
+to load the **full 276**. `breakpoint-mcp init --trust full` sets this for you, and
+`breakpoint-mcp doctor` reports each group's state. See
+[The safety and trust model](#9-the-safety-and-trust-model).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BREAKPOINT_PRIVILEGED_GROUPS` | *(empty → none)* | Comma/space list of groups to enable: `code-execution` (runs GDScript / invokes arbitrary methods / paused-frame `evaluate` / the local asset-gen `command` backend), `network` (egress beyond loopback — the Group M backend SDK), or `all`. |
+
 ### AI asset generation (opt-in)
 
 Asset generation is **off by default**. See
@@ -484,9 +496,9 @@ via netcoredbg). Many capabilities across this plane are **feature-detected** pe
 build and per adapter; where a capability is not implemented, the tool returns a clear
 "unsupported" message instead of hanging or erroring.
 
-### The 5 MCP resources
+### The 6 MCP resources
 
-Alongside tools, the host exposes five **resources** — read-mostly context the assistant can pull
+Alongside tools, the host exposes six **resources** — read-mostly context the assistant can pull
 on demand:
 
 | URI | Source |
@@ -496,6 +508,7 @@ on demand:
 | `godot://runtime/tree` | The running game's live SceneTree (runtime bridge). |
 | `godot://runtime/log` | The running game's log buffer (runtime bridge). |
 | `godot://class/{name}` | `ClassDB` docs for a class (editor bridge; URI template). |
+| `godot://capabilities` | The capability groups, their enabled/disabled state, and the tools each gates (host; **always on** — registered unconditionally, even when the `resources` toolset is filtered out, so a dropped high-trust tool is never a silent gap). |
 
 Clients can **subscribe** (`resources/subscribe`) and be pushed a
 `notifications/resources/updated` when a subscribed resource changes — for example when the
@@ -568,7 +581,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **276 tools** in total. This section summarizes them by family so you know what
+There are **276 tools** in total (the secure-default surface is **262** with the two privileged capability groups off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -874,7 +887,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-276 tools and 5 resources. The exhaustive per-tool schemas are in
+276 tools (secure-default 262) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

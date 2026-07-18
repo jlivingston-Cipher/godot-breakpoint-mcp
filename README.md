@@ -6,8 +6,8 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.17.0 · addon 1.6.0 · 276 tools + 5 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 407-test suite plus
+> **npm 1.18.0 · addon 1.6.0 · full 276 / secure-default 262 tools · 6 MCP resources · MIT.** The host builds against
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 421-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -88,7 +88,7 @@ if you do, that is exactly what it buys.
 
 ## What it does
 
-Breakpoint MCP is organized into four capability **planes** (276 tools + 5 resources):
+Breakpoint MCP is organized into four capability **planes** (full **276 tools**, or **262** with the two privileged capability groups off by default — see [Safety & trust model](#safety--trust-model) — plus **6 resources**):
 
 - **Plane A — Live Editor Bridge** (~145 tools: `editor_*`, `scene_*`, `node_*`,
   `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot `EditorPlugin`
@@ -276,6 +276,7 @@ and wrapper key differ.
 | `BREAKPOINT_RUNTIME_HOST` / `BREAKPOINT_RUNTIME_PORT` | `127.0.0.1` / `9081` | In-game runtime bridge (must match the autoload) |
 | `BREAKPOINT_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout |
 | `BREAKPOINT_TOOLSETS` | *(unset → all)* | Comma/space list of tool groups or planes to enable — see [Toolsets](#toolsets-optional--load-only-the-planes-you-need) |
+| `BREAKPOINT_PRIVILEGED_GROUPS` | *(unset → none)* | Comma/space list of the default-OFF capability groups to enable: `code-execution`, `network`, or `all`. Off → secure-default **262** tools; opting in loads the **full 276** — see [Safety & trust model](#safety--trust-model) |
 
 > **Renamed from `CLAUDE_*`:** the `BREAKPOINT_*` variables above (plus `BREAKPOINT_RESOURCE_COALESCE_MS`) were named `CLAUDE_*` in earlier versions. The legacy `CLAUDE_*` names were honoured with a one-time deprecation warning in `1.0.0` and **removed in `1.1.0`** — use the `BREAKPOINT_*` names. `GODOT_*` variables are unchanged.
 
@@ -409,10 +410,22 @@ Breakpoint MCP is a **local co-development tool** and is built to keep you in co
   with apply, the file/resource/script writers, and the `runtime_*` mutators). Pass
   `confirm: true` to auto-approve; if the client can't prompt, the tool blocks rather
   than acting silently.
+- **Least-privilege by default — capability groups (since 1.18.0).** The higher-blast tools are
+  partitioned into two **default-OFF** groups: `code-execution` (runs GDScript, invokes arbitrary
+  methods, evaluates in a paused frame, or spawns the local asset-gen `command` backend) and
+  `network` (egress beyond loopback — the Group M backend-SDK scaffolding). With both off, those
+  tools are **dropped at registration** and never appear in `tools/list`, so the secure-default
+  surface is **262 tools**; opt in with `BREAKPOINT_PRIVILEGED_GROUPS=code-execution,network` (or
+  `all`, or `breakpoint-mcp init --trust full`) to load the full **276**. The always-on
+  **`godot://capabilities`** resource lists every group, its state, and the exact tools it gates,
+  so a disabled tool is discoverable rather than a silent gap. Defense-in-depth and a legible
+  least-privilege story over an already typed / undoable / gated surface — not the closing of an
+  open hole.
 - **Higher-trust surfaces, stated plainly:** `godot_run_headless_script` and
-  `godot_run_managed` execute GDScript, and the optional `asset_generate` **command**
+  `godot_run_managed` execute GDScript, and the optional asset-gen **command**
   backend runs a local command you configure (via `BREAKPOINT_ASSETGEN_CMD` or the tool
-  argument). These are opt-in and gated — point them only at code you trust.
+  argument). These sit in the default-OFF `code-execution` group above and stay
+  elicitation-gated even once enabled — point them only at code you trust.
 
 Security policy and how to report a vulnerability: see [SECURITY.md](SECURITY.md).
 
