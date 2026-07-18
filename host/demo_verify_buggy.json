@@ -1,0 +1,138 @@
+{
+  "label": "buggy",
+  "steps": [
+    {
+      "step": "run",
+      "tool": "godot_run_managed",
+      "args": {
+        "scene": "res://demo/demo.tscn"
+      },
+      "result": {
+        "id": "godot-1",
+        "pid": 9701,
+        "running": true,
+        "scene": "res://demo/demo.tscn"
+      }
+    },
+    {
+      "step": "final hp",
+      "tool": "runtime_get_property",
+      "args": {
+        "path": ".",
+        "property": "hp"
+      },
+      "result": {
+        "value": 3
+      }
+    },
+    {
+      "step": "final healed_ever",
+      "tool": "runtime_get_property",
+      "args": {
+        "path": ".",
+        "property": "healed_ever"
+      },
+      "result": {
+        "path": ".",
+        "property": "healed_ever",
+        "value": true
+      }
+    },
+    {
+      "step": "assert healed_ever==false",
+      "tool": "runtime_assert_node_state",
+      "args": {
+        "path": ".",
+        "expect": {
+          "healed_ever": false
+        }
+      },
+      "result": {
+        "checked": 1,
+        "mismatches": [
+          {
+            "actual": true,
+            "expected": false,
+            "property": "healed_ever"
+          }
+        ],
+        "ok": false,
+        "path": "."
+      }
+    },
+    {
+      "step": "assert screen \"YOU DIED\"",
+      "tool": "runtime_assert_screen_text",
+      "args": {
+        "text": "YOU DIED"
+      },
+      "result": {
+        "matches": 0,
+        "ok": false,
+        "present": true,
+        "samples": []
+      }
+    },
+    {
+      "step": "captured console",
+      "tool": "godot_output",
+      "args": {
+        "id": "godot-1"
+      },
+      "result": {
+        "id": "godot-1",
+        "exited": false,
+        "exit_code": null,
+        "latest_seq": 7,
+        "lines": [
+          {
+            "seq": 1,
+            "stream": "stdout",
+            "text": "Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org"
+          },
+          {
+            "seq": 2,
+            "stream": "stdout",
+            "text": "OpenGL API 4.1 Metal - 89.4 - Compatibility - Using Device: Apple - Apple M2"
+          },
+          {
+            "seq": 3,
+            "stream": "stdout",
+            "text": "[demo] combat start, hp=100"
+          },
+          {
+            "seq": 4,
+            "stream": "stdout",
+            "text": "[demo] hit for 3 (effective -2), hp now 102"
+          },
+          {
+            "seq": 5,
+            "stream": "stdout",
+            "text": "[demo] hit for 20 (effective 15), hp now 87"
+          },
+          {
+            "seq": 6,
+            "stream": "stdout",
+            "text": "[demo] hit for 4 (effective -1), hp now 88"
+          },
+          {
+            "seq": 7,
+            "stream": "stdout",
+            "text": "[demo] hit for 90 (effective 85), hp now 3"
+          }
+        ]
+      }
+    },
+    {
+      "step": "teardown",
+      "tool": "godot_stop",
+      "args": {
+        "id": "godot-1"
+      },
+      "result": {
+        "id": "godot-1",
+        "stopped": true
+      }
+    }
+  ]
+}

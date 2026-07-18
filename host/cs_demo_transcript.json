@@ -1,0 +1,557 @@
+{
+  "ok": true,
+  "transcript": [
+    {
+      "step": "A",
+      "tool": "cs_dbg_set_breakpoints",
+      "args": {
+        "path": "res://demo/DemoCombat.cs",
+        "lines": [
+          22
+        ]
+      },
+      "result": {
+        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+        "buffered": true,
+        "breakpoints": []
+      }
+    },
+    {
+      "step": "B",
+      "tool": "cs_dbg_launch",
+      "args": {
+        "args": [
+          "--headless",
+          "--path",
+          "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp",
+          "res://demo/demo.tscn"
+        ]
+      },
+      "result": {
+        "session_id": "csharp",
+        "state": "running"
+      }
+    },
+    {
+      "step": "C",
+      "tool": "cs_dbg_stack_trace",
+      "args": {
+        "levels": 10
+      },
+      "result": {
+        "frames": [
+          {
+            "id": 0,
+            "name": "DemoCombat.TakeHit()",
+            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+            "line": 22
+          },
+          {
+            "id": 1,
+            "name": "DemoCombat._Ready()",
+            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+            "line": 15
+          },
+          {
+            "id": 2,
+            "name": "Godot.Node.InvokeGodotClassMethod()",
+            "source": "/root/godot/modules/mono/glue/GodotSharp/GodotSharp/Generated/GodotObjects/Node.cs",
+            "line": 2660
+          },
+          {
+            "id": 3,
+            "name": "Godot.CanvasItem.InvokeGodotClassMethod()",
+            "source": "/root/godot/modules/mono/glue/GodotSharp/GodotSharp/Generated/GodotObjects/CanvasItem.cs",
+            "line": 1845
+          },
+          {
+            "id": 4,
+            "name": "Godot.Node2D.InvokeGodotClassMethod()",
+            "source": "/root/godot/modules/mono/glue/GodotSharp/GodotSharp/Generated/GodotObjects/Node2D.cs",
+            "line": 557
+          },
+          {
+            "id": 5,
+            "name": "DemoCombat.InvokeGodotClassMethod()",
+            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/Godot.SourceGenerators/Godot.SourceGenerators.ScriptMethodsGenerator/DemoCombat_ScriptMethods.generated.cs",
+            "line": 48
+          },
+          {
+            "id": 6,
+            "name": "Godot.Bridge.CSharpInstanceBridge.Call()",
+            "source": "/root/godot/modules/mono/glue/GodotSharp/GodotSharp/Core/Bridge/CSharpInstanceBridge.cs",
+            "line": 24
+          }
+        ]
+      }
+    },
+    {
+      "step": "D",
+      "tool": "cs_dbg_scopes",
+      "args": {
+        "frame_id": 0
+      },
+      "result": {
+        "scopes": [
+          {
+            "name": "Locals",
+            "variables_ref": 1
+          }
+        ],
+        "settled_after_attempts": 1
+      }
+    },
+    {
+      "step": "D:Locals",
+      "tool": "cs_dbg_variables",
+      "args": {
+        "variables_ref": 1
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "this",
+            "value": "{DemoCombat}",
+            "type": "DemoCombat",
+            "variables_ref": 2
+          },
+          {
+            "name": "damage",
+            "value": "3",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "effective",
+            "value": "-2",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "before",
+            "value": "100",
+            "type": "int",
+            "variables_ref": 0
+          }
+        ]
+      }
+    },
+    {
+      "step": "D:this",
+      "tool": "cs_dbg_variables",
+      "args": {
+        "variables_ref": 2
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "_label",
+            "value": "{Godot.Label}",
+            "type": "Godot.Label",
+            "variables_ref": 3
+          },
+          {
+            "name": "Hp",
+            "value": "100",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "Armor",
+            "value": "5",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "HealedEver",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "Position",
+            "value": "{Godot.Vector2}",
+            "type": "Godot.Vector2",
+            "variables_ref": 4
+          },
+          {
+            "name": "Rotation",
+            "value": "0",
+            "type": "float",
+            "variables_ref": 0
+          },
+          {
+            "name": "RotationDegrees",
+            "value": "0",
+            "type": "float",
+            "variables_ref": 0
+          },
+          {
+            "name": "Scale",
+            "value": "{Godot.Vector2}",
+            "type": "Godot.Vector2",
+            "variables_ref": 5
+          },
+          {
+            "name": "Skew",
+            "value": "0",
+            "type": "float",
+            "variables_ref": 0
+          },
+          {
+            "name": "Transform",
+            "value": "{Godot.Transform2D}",
+            "type": "Godot.Transform2D",
+            "variables_ref": 6
+          },
+          {
+            "name": "GlobalPosition",
+            "value": "{Godot.Vector2}",
+            "type": "Godot.Vector2",
+            "variables_ref": 7
+          },
+          {
+            "name": "GlobalRotation",
+            "value": "0",
+            "type": "float",
+            "variables_ref": 0
+          },
+          {
+            "name": "GlobalRotationDegrees",
+            "value": "0",
+            "type": "float",
+            "variables_ref": 0
+          },
+          {
+            "name": "GlobalScale",
+            "value": "{Godot.Vector2}",
+            "type": "Godot.Vector2",
+            "variables_ref": 8
+          },
+          {
+            "name": "GlobalSkew",
+            "value": "0",
+            "type": "float",
+            "variables_ref": 0
+          },
+          {
+            "name": "GlobalTransform",
+            "value": "{Godot.Transform2D}",
+            "type": "Godot.Transform2D",
+            "variables_ref": 9
+          },
+          {
+            "name": "Visible",
+            "value": "true",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "Modulate",
+            "value": "{Godot.Color}",
+            "type": "Godot.Color",
+            "variables_ref": 10
+          },
+          {
+            "name": "SelfModulate",
+            "value": "{Godot.Color}",
+            "type": "Godot.Color",
+            "variables_ref": 11
+          },
+          {
+            "name": "ShowBehindParent",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "TopLevel",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "ClipChildren",
+            "value": "Disabled",
+            "type": "Godot.CanvasItem.ClipChildrenMode",
+            "variables_ref": 12
+          },
+          {
+            "name": "OversamplingWithScale",
+            "value": "ParentNode",
+            "type": "Godot.CanvasItem.OversamplingWithScaleEnum",
+            "variables_ref": 13
+          },
+          {
+            "name": "LightMask",
+            "value": "1",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "VisibilityLayer",
+            "value": "1",
+            "type": "uint",
+            "variables_ref": 0
+          },
+          {
+            "name": "ZIndex",
+            "value": "0",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "ZAsRelative",
+            "value": "true",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "YSortEnabled",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "TextureFilter",
+            "value": "ParentNode",
+            "type": "Godot.CanvasItem.TextureFilterEnum",
+            "variables_ref": 14
+          },
+          {
+            "name": "TextureRepeat",
+            "value": "ParentNode",
+            "type": "Godot.CanvasItem.TextureRepeatEnum",
+            "variables_ref": 15
+          },
+          {
+            "name": "Material",
+            "value": "null",
+            "type": "Godot.Material",
+            "variables_ref": 16
+          },
+          {
+            "name": "UseParentMaterial",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "Name",
+            "value": "{Godot.StringName}",
+            "type": "Godot.StringName",
+            "variables_ref": 17
+          },
+          {
+            "name": "UniqueNameInOwner",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "SceneFilePath",
+            "value": "\"res://demo/demo.tscn\"",
+            "type": "string",
+            "variables_ref": 0
+          },
+          {
+            "name": "Owner",
+            "value": "null",
+            "type": "Godot.Node",
+            "variables_ref": 18
+          },
+          {
+            "name": "Multiplayer",
+            "value": "{Godot.SceneMultiplayer}",
+            "type": "Godot.SceneMultiplayer",
+            "variables_ref": 19
+          },
+          {
+            "name": "ProcessMode",
+            "value": "Inherit",
+            "type": "Godot.Node.ProcessModeEnum",
+            "variables_ref": 20
+          },
+          {
+            "name": "ProcessPriority",
+            "value": "0",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "ProcessPhysicsPriority",
+            "value": "0",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "ProcessThreadGroup",
+            "value": "Inherit",
+            "type": "Godot.Node.ProcessThreadGroupEnum",
+            "variables_ref": 21
+          },
+          {
+            "name": "ProcessThreadGroupOrder",
+            "value": "0",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "ProcessThreadMessages",
+            "value": "0",
+            "type": "Godot.Node.ProcessThreadMessagesEnum",
+            "variables_ref": 22
+          },
+          {
+            "name": "PhysicsInterpolationMode",
+            "value": "Inherit",
+            "type": "Godot.Node.PhysicsInterpolationModeEnum",
+            "variables_ref": 23
+          },
+          {
+            "name": "AutoTranslateMode",
+            "value": "Inherit",
+            "type": "Godot.Node.AutoTranslateModeEnum",
+            "variables_ref": 24
+          },
+          {
+            "name": "EditorDescription",
+            "value": "\"\"",
+            "type": "string",
+            "variables_ref": 0
+          },
+          {
+            "name": "_disposed",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "NativePtr",
+            "value": "1283922960",
+            "type": "IntPtr",
+            "variables_ref": 0
+          },
+          {
+            "name": "_memoryOwn",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          },
+          {
+            "name": "_weakReferenceToSelf",
+            "value": "{System.WeakReference<Godot.GodotObject>}",
+            "type": "System.WeakReference<Godot.GodotObject>",
+            "variables_ref": 25
+          },
+          {
+            "name": "NativeInstance",
+            "value": "1283922960",
+            "type": "IntPtr",
+            "variables_ref": 0
+          },
+          {
+            "name": "Static members",
+            "value": "",
+            "type": "",
+            "variables_ref": 26
+          }
+        ]
+      }
+    },
+    {
+      "step": "E",
+      "tool": "cs_dbg_evaluate",
+      "args": {
+        "expression": "damage - Armor",
+        "frame_id": 0,
+        "confirm": true
+      },
+      "result": {
+        "result": "-2",
+        "type": "int",
+        "variables_ref": 0
+      }
+    },
+    {
+      "step": "E2 (netcoredbg has no funceval — honest delta)",
+      "tool": "cs_dbg_evaluate",
+      "args": {
+        "expression": "Mathf.Max(0, damage - Armor)",
+        "frame_id": 0,
+        "confirm": true
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "C# DAP error [evaluate]: error: 0x80004005"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "step": "F",
+      "tool": "cs_dbg_step",
+      "args": {
+        "kind": "over"
+      },
+      "result": {
+        "state": "stopped",
+        "stopped_reason": "step"
+      }
+    },
+    {
+      "step": "F:this(after step)",
+      "tool": "cs_dbg_variables",
+      "args": {
+        "variables_ref": 2
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "Hp",
+            "value": "102",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "Armor",
+            "value": "5",
+            "type": "int",
+            "variables_ref": 0
+          },
+          {
+            "name": "HealedEver",
+            "value": "false",
+            "type": "bool",
+            "variables_ref": 0
+          }
+        ]
+      }
+    },
+    {
+      "step": "G",
+      "tool": "cs_dbg_set_breakpoints",
+      "args": {
+        "path": "res://demo/DemoCombat.cs",
+        "lines": []
+      },
+      "result": {
+        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+        "buffered": false,
+        "breakpoints": []
+      }
+    },
+    {
+      "step": "G",
+      "tool": "cs_dbg_continue",
+      "args": {},
+      "result": {
+        "state": "running",
+        "stopped_reason": "step"
+      }
+    }
+  ]
+}

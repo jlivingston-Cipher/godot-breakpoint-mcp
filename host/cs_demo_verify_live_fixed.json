@@ -1,0 +1,15 @@
+{
+  "label": "FIXED",
+  "hp": 0,
+  "healed": false,
+  "assert_healed_false": true,
+  "assert_you_died": true,
+  "demo": [
+    "[demo] combat start, hp=100",
+    "[demo] hit for 3 (effective 0), hp now 100",
+    "[demo] hit for 20 (effective 15), hp now 85",
+    "[demo] hit for 4 (effective 0), hp now 85",
+    "[demo] hit for 90 (effective 85), hp now 0",
+    "[demo] YOU DIED"
+  ]
+}

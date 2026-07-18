@@ -1,0 +1,268 @@
+{
+  "ok": true,
+  "transcript": [
+    {
+      "step": "A",
+      "tool": "dbg_set_breakpoints",
+      "args": {
+        "path": "res://demo/demo_combat.gd",
+        "lines": [
+          17
+        ]
+      },
+      "result": {
+        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+        "buffered": true,
+        "breakpoints": []
+      }
+    },
+    {
+      "step": "B",
+      "tool": "dbg_launch",
+      "args": {
+        "scene": "res://demo/demo.tscn"
+      },
+      "result": {
+        "session_id": "godot",
+        "state": "running",
+        "scene": "res://demo/demo.tscn"
+      }
+    },
+    {
+      "step": "C",
+      "tool": "dbg_stack_trace",
+      "args": {
+        "levels": 10
+      },
+      "result": {
+        "frames": [
+          {
+            "id": 0,
+            "name": "take_hit",
+            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+            "line": 17
+          },
+          {
+            "id": 1,
+            "name": "_ready",
+            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+            "line": 12
+          }
+        ]
+      }
+    },
+    {
+      "step": "D",
+      "tool": "dbg_scopes",
+      "args": {
+        "frame_id": 0
+      },
+      "result": {
+        "scopes": [
+          {
+            "name": "Locals",
+            "variables_ref": 1
+          },
+          {
+            "name": "Members",
+            "variables_ref": 2
+          },
+          {
+            "name": "Globals",
+            "variables_ref": 3
+          }
+        ],
+        "settled_after_attempts": 1
+      }
+    },
+    {
+      "step": "D:Locals",
+      "tool": "dbg_variables",
+      "args": {
+        "variables_ref": 1
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "damage",
+            "value": "3",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "effective",
+            "value": "-2",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "before",
+            "value": "100",
+            "type": "",
+            "variables_ref": 0
+          }
+        ]
+      }
+    },
+    {
+      "step": "D:Members",
+      "tool": "dbg_variables",
+      "args": {
+        "variables_ref": 2
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "self",
+            "value": "<EncodedObjectAsID#-9223370351231034224>",
+            "type": "",
+            "variables_ref": 7
+          },
+          {
+            "name": "hp",
+            "value": "100",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "armor",
+            "value": "5",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "healed_ever",
+            "value": "false",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "_label",
+            "value": "<EncodedObjectAsID#-9223370351214257009>",
+            "type": "",
+            "variables_ref": 8
+          }
+        ]
+      }
+    },
+    {
+      "step": "D:Globals",
+      "tool": "dbg_variables",
+      "args": {
+        "variables_ref": 3
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "BreakpointRuntimeBridge",
+            "value": "<EncodedObjectAsID#-9223370348311798664>",
+            "type": "",
+            "variables_ref": 9
+          }
+        ]
+      }
+    },
+    {
+      "step": "E",
+      "tool": "dbg_evaluate",
+      "args": {
+        "expression": "max(0, damage - armor)",
+        "frame_id": 0,
+        "confirm": true
+      },
+      "result": {
+        "result": "0",
+        "type": "",
+        "variables_ref": 0
+      }
+    },
+    {
+      "step": "E'",
+      "tool": "dbg_evaluate",
+      "args": {
+        "expression": "damage - armor",
+        "frame_id": 0,
+        "confirm": true
+      },
+      "result": {
+        "result": "-2",
+        "type": "",
+        "variables_ref": 0
+      }
+    },
+    {
+      "step": "F",
+      "tool": "dbg_step",
+      "args": {
+        "kind": "over"
+      },
+      "result": {
+        "state": "stopped",
+        "stopped_reason": "step"
+      }
+    },
+    {
+      "step": "F:Members(after step)",
+      "tool": "dbg_variables",
+      "args": {
+        "variables_ref": 2
+      },
+      "result": {
+        "variables": [
+          {
+            "name": "self",
+            "value": "<EncodedObjectAsID#-9223370345241568121>",
+            "type": "",
+            "variables_ref": 7
+          },
+          {
+            "name": "hp",
+            "value": "102",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "armor",
+            "value": "5",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "healed_ever",
+            "value": "false",
+            "type": "",
+            "variables_ref": 0
+          },
+          {
+            "name": "_label",
+            "value": "<EncodedObjectAsID#-9223370345224790948>",
+            "type": "",
+            "variables_ref": 8
+          }
+        ]
+      }
+    },
+    {
+      "step": "G",
+      "tool": "dbg_set_breakpoints",
+      "args": {
+        "path": "res://demo/demo_combat.gd",
+        "lines": []
+      },
+      "result": {
+        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+        "buffered": false,
+        "breakpoints": []
+      }
+    },
+    {
+      "step": "G",
+      "tool": "dbg_continue",
+      "args": {},
+      "result": {
+        "state": "running",
+        "stopped_reason": "step"
+      }
+    }
+  ]
+}
