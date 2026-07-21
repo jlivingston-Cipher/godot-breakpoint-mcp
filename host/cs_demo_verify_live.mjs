@@ -6,11 +6,11 @@
 // (GODOT_BIN = Godot_mono, GODOT_PROJECT = example-csharp) and asserts against the
 // LIVE C# node over the runtime bridge — the same two honest checks the GDScript
 // close makes, but on C# state read by its PascalCase names (no [Export] needed):
-//   ASSERT 1  the player NEVER gained HP from a hit   -> HealedEver == false
-//   ASSERT 2  the lose condition fired                -> "YOU DIED" on screen
-// Before the one-line clamp (int effective = damage - Armor) these FAIL
-// (HealedEver == true, no death, final Hp = 3); after it (Mathf.Max(0, ...)) they
-// PASS (HealedEver == false, "YOU DIED", final Hp = 0). Automation proves the fix,
+//   ASSERT 1  the ice NEVER grew on a warm spell       -> GrewEver == false
+//   ASSERT 2  the finish condition fired              -> "ALL MELTED" on screen
+// Before the one-line clamp (int melt = warmth - Shade) these FAIL
+// (GrewEver == true, never emptied, final Ice = 3); after it (Mathf.Max(0, ...)) they
+// PASS (GrewEver == false, "ALL MELTED", final Ice = 0). Automation proves the fix,
 // and the proof is a check that can fail. Rebuild the C# assembly between passes.
 //
 // Usage from host/:  node cs_demo_verify_live.mjs <label>     (label e.g. buggy | fixed)
@@ -24,6 +24,7 @@ import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { fileURLToPath } from "node:url";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
 const HOST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HOST_DIR, "..");
@@ -31,6 +32,16 @@ const DIST = path.join(HOST_DIR, "dist", "index.js");
 const GODOT_PROJECT = process.env.GODOT_PROJECT || path.join(REPO, "example-csharp");
 const GODOT_BIN = process.env.GODOT_BIN || "godot";
 const LABEL = process.argv[2] || "run";
+const HOME = os.homedir();
+function redact(s) {
+  return s
+    .split(GODOT_PROJECT + "/demo/").join("res://demo/")
+    .split(GODOT_PROJECT + "/").join("res://")
+    .split(GODOT_PROJECT).join("<project>")
+    .split(REPO).join("<project>")
+    .split(HOME).join("~");
+}
+
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const S = (res) => (res && res.structuredContent ? res.structuredContent : res);
@@ -38,14 +49,14 @@ const out = { label: LABEL, steps: [] };
 function rec(step, tool, args, result) {
   out.steps.push({ step, tool, args, result });
   console.log(`\n=== [${LABEL}] ${step} — ${tool} ${JSON.stringify(args)} ===`);
-  console.log(JSON.stringify(result, null, 2));
+  console.log(redact(JSON.stringify(result, null, 2)));
 }
 
 async function main() {
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
     env: { ...process.env, GODOT_BIN, GODOT_PROJECT, BREAKPOINT_PRIVILEGED_GROUPS: "code-execution" },
-    stderr: "inherit",
+    stderr: "ignore",
   });
   const client = new Client({ name: "gcb-cs-demo-verify", version: "1.0.0" }, { capabilities: { elicitation: {} } });
   client.setRequestHandler(ElicitRequestSchema, async () => ({ action: "accept", content: { proceed: true } }));
@@ -59,35 +70,35 @@ async function main() {
   if (!id) { console.log("no managed id — aborting"); await client.close(); process.exit(1); }
 
   // wait for the runtime bridge to answer (CLR boot + _Ready loop complete). The C#
-  // property is Hp (PascalCase); the bridge resolves it via node.get("Hp").
-  let hp = null;
+  // property is Ice (PascalCase); the bridge resolves it via node.get("Ice").
+  let ice = null;
   for (let i = 0; i < 45; i++) {
     await sleep(700);
     try {
-      const g = S(await t("runtime_get_property", { path: ".", property: "Hp" }));
-      if (g && g.value !== undefined && g.value !== null && !g.isError) { hp = g.value; break; }
+      const g = S(await t("runtime_get_property", { path: ".", property: "Ice" }));
+      if (g && g.value !== undefined && g.value !== null && !g.isError) { ice = g.value; break; }
     } catch { /* not up yet */ }
   }
-  rec("final Hp", "runtime_get_property", { path: ".", property: "Hp" }, { value: hp });
-  rec("final HealedEver", "runtime_get_property", { path: ".", property: "HealedEver" },
-    S(await t("runtime_get_property", { path: ".", property: "HealedEver" })));
+  rec("final Ice", "runtime_get_property", { path: ".", property: "Ice" }, { value: ice });
+  rec("final GrewEver", "runtime_get_property", { path: ".", property: "GrewEver" },
+    S(await t("runtime_get_property", { path: ".", property: "GrewEver" })));
 
-  // ASSERT 1 — the player NEVER gained HP from a hit (HealedEver stayed false)
-  rec("assert HealedEver==false", "runtime_assert_node_state",
-    { path: ".", expect: { HealedEver: false } },
-    S(await t("runtime_assert_node_state", { path: ".", expect: { HealedEver: false } })));
+  // ASSERT 1 — the ice NEVER grew on a warm spell (GrewEver stayed false)
+  rec("assert GrewEver==false", "runtime_assert_node_state",
+    { path: ".", expect: { GrewEver: false } },
+    S(await t("runtime_assert_node_state", { path: ".", expect: { GrewEver: false } })));
 
-  // ASSERT 2 — the lose condition fires when Hp <= 0
-  rec('assert screen "YOU DIED"', "runtime_assert_screen_text", { text: "YOU DIED" },
-    S(await t("runtime_assert_screen_text", { text: "YOU DIED" })));
+  // ASSERT 2 — the finish condition fires when Ice <= 0
+  rec('assert screen "ALL MELTED"', "runtime_assert_screen_text", { text: "ALL MELTED" },
+    S(await t("runtime_assert_screen_text", { text: "ALL MELTED" })));
 
-  // captured console — the trajectory + (fixed only) the death line
+  // captured console — the trajectory + (fixed only) the ALL MELTED line
   const console_out = S(await t("godot_output", { id }));
   rec("captured console", "godot_output", { id }, console_out);
 
   rec("teardown", "godot_stop", { id }, S(await t("godot_stop", { id })));
 
-  writeFileSync(path.join(HOST_DIR, `cs_demo_verify_${LABEL}.json`), JSON.stringify(out, null, 2));
+  writeFileSync(path.join(HOST_DIR, `cs_demo_verify_${LABEL}.json`), redact(JSON.stringify(out, null, 2)));
   console.log(`\n=== wrote cs_demo_verify_${LABEL}.json ===`);
   await client.close();
   process.exit(0);

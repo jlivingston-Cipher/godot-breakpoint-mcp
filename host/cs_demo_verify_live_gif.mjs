@@ -8,7 +8,7 @@
 //
 // Env (set by the asciinema runner): GODOT_BIN=<Godot_mono .../MacOS/Godot>,
 //   GODOT_PROJECT=<example-csharp abs>, PATH incl dotnet@8/bin, DOTNET_ROOT.
-// Side effects: opens two game windows; edits DemoCombat.cs then git-restores it and
+// Side effects: opens two game windows; edits DemoSnowman.cs then git-restores it and
 // rebuilds (buggy is the teaching artifact) in a finally block. Never pushes anything.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -24,7 +24,7 @@ const REPO = path.resolve(HOST_DIR, "..");
 const DIST = path.join(HOST_DIR, "dist", "index.js");
 const GODOT_PROJECT = process.env.GODOT_PROJECT || path.join(REPO, "example-csharp");
 const GODOT_BIN = process.env.GODOT_BIN || "godot";
-const CS = path.join(GODOT_PROJECT, "demo", "DemoCombat.cs");
+const CS = path.join(GODOT_PROJECT, "demo", "DemoSnowman.cs");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const S = (r) => (r && r.structuredContent ? r.structuredContent : r);
@@ -56,31 +56,31 @@ async function runPass(t, label, color) {
   const id = runRes && runRes.id;
   if (!id) throw new Error(`${label}: godot_run_managed returned no id`);
   console.log(`  ${C.dim}⏳ booting CLR + running _Ready…${C.reset}`);
-  let hp = null;
+  let ice = null;
   for (let i = 0; i < 70; i++) {
     await sleep(800);
     try {
-      const g = S(await t("runtime_get_property", { path: ".", property: "Hp" }));
-      if (g && g.value !== undefined && g.value !== null && !g.isError) { hp = g.value; break; }
+      const g = S(await t("runtime_get_property", { path: ".", property: "Ice" }));
+      if (g && g.value !== undefined && g.value !== null && !g.isError) { ice = g.value; break; }
     } catch { /* not up yet */ }
   }
-  const healed = (S(await t("runtime_get_property", { path: ".", property: "HealedEver" })) || {}).value;
+  const grew = (S(await t("runtime_get_property", { path: ".", property: "GrewEver" })) || {}).value;
   const co = S(await t("godot_output", { id }));
   const lines = ((co && co.lines) || []).map((l) => l.text).filter((x) => x.startsWith("[demo]"));
   for (const l of lines) { console.log(`  ${C.gray}${l}${C.reset}`); await sleep(220); }
-  console.log(`  ${C.dim}live C# node (PascalCase, no [Export]):${C.reset}  Hp = ${C.bold}${hp}${C.reset}   HealedEver = ${C.bold}${healed}${C.reset}`);
-  const a1 = (S(await t("runtime_assert_node_state", { path: ".", expect: { HealedEver: false } })) || {}).ok;
-  const a2 = (S(await t("runtime_assert_screen_text", { text: "YOU DIED" })) || {}).ok;
+  console.log(`  ${C.dim}live C# node (PascalCase, no [Export]):${C.reset}  Ice = ${C.bold}${ice}${C.reset}   GrewEver = ${C.bold}${grew}${C.reset}`);
+  const a1 = (S(await t("runtime_assert_node_state", { path: ".", expect: { GrewEver: false } })) || {}).ok;
+  const a2 = (S(await t("runtime_assert_screen_text", { text: "ALL MELTED" })) || {}).ok;
   await sleep(300);
-  console.log(`  ASSERT 1  HealedEver == false   ${mark(a1)}${a1 ? "" : `  ${C.red}(actual ${healed} — healed on a hit)${C.reset}`}`);
+  console.log(`  ASSERT 1  GrewEver == false   ${mark(a1)}${a1 ? "" : `  ${C.red}(actual ${grew} — grew on a warm moment)${C.reset}`}`);
   await sleep(350);
-  console.log(`  ASSERT 2  screen "YOU DIED"     ${mark(a2)}${a2 ? `  ${C.green}(Label = "YOU DIED")${C.reset}` : `  ${C.red}(never died, final Hp=${hp})${C.reset}`}`);
+  console.log(`  ASSERT 2  screen "ALL MELTED"     ${mark(a2)}${a2 ? `  ${C.green}(Label = "ALL MELTED")${C.reset}` : `  ${C.red}(never emptied, final Ice=${ice})${C.reset}`}`);
   await t("godot_stop", { id });
   pkill();
   writeFileSync(path.join(HOST_DIR, `cs_demo_verify_live_${label.toLowerCase()}.json`),
-    JSON.stringify({ label, hp, healed, assert_healed_false: a1, assert_you_died: a2, demo: lines }, null, 2));
+    JSON.stringify({ label, ice, grew, assert_grew_false: a1, assert_all_melted: a2, demo: lines }, null, 2));
   console.log("");
-  return { hp, healed, a1, a2 };
+  return { ice, grew, a1, a2 };
 }
 
 async function main() {
@@ -101,14 +101,14 @@ async function main() {
   await sleep(800);
 
   try {
-    execSync("git checkout -- example-csharp/demo/DemoCombat.cs", { cwd: REPO, stdio: "ignore" });
+    execSync("git checkout -- example-csharp/demo/DemoSnowman.cs", { cwd: REPO, stdio: "ignore" });
     await runPass(t, "BUGGY", C.red);
 
-    console.log(`${C.yellow}✎ the one-line fix${C.reset}  ${C.dim}DemoCombat.cs${C.reset}   int effective = ${C.red}damage - Armor${C.reset}   →   int effective = ${C.green}Mathf.Max(0, damage - Armor)${C.reset}`);
+    console.log(`${C.yellow}✎ the one-line fix${C.reset}  ${C.dim}DemoSnowman.cs${C.reset}   int melt = ${C.red}warmth - Shade${C.reset}   →   int melt = ${C.green}Mathf.Max(0, warmth - Shade)${C.reset}`);
     console.log("");
     const src = readFileSync(CS, "utf8");
-    const patched = src.replace("int effective = damage - Armor;", "int effective = Mathf.Max(0, damage - Armor);");
-    if (patched === src) throw new Error("fix replacement did not match DemoCombat.cs");
+    const patched = src.replace("int melt = warmth - Shade;", "int melt = Mathf.Max(0, warmth - Shade);");
+    if (patched === src) throw new Error("fix replacement did not match DemoSnowman.cs");
     writeFileSync(CS, patched);
     await sleep(400);
 
@@ -119,7 +119,7 @@ async function main() {
     console.log("");
     await sleep(600);
   } finally {
-    try { execSync("git checkout -- example-csharp/demo/DemoCombat.cs", { cwd: REPO, stdio: "ignore" }); } catch {}
+    try { execSync("git checkout -- example-csharp/demo/DemoSnowman.cs", { cwd: REPO, stdio: "ignore" }); } catch {}
     try { dotnetBuild(); } catch {}
     pkill();
     try { await client.close(); } catch {}

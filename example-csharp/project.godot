@@ -9,9 +9,9 @@
 ; contract_check.py. It DOES bundle just the Plane-C runtime-bridge autoload
 ; (runtime_bridge.gd + its variant_json.gd / bridge_secret.gd deps, registered
 ; below) so the C# runtime-verify close mirrors ../example: run the scene, then
-; assert live C# node state (HealedEver == false, "YOU DIED" on screen) over the
+; assert live C# node state (GrewEver == false, "ALL MELTED" on screen) over the
 ; runtime bridge — checks that FAIL before the clamp fix and PASS after. The
-; bridge reads C# auto-properties by their PascalCase names (Hp/HealedEver) with
+; bridge reads C# auto-properties by their PascalCase names (Ice/GrewEver) with
 ; no [Export] needed.
 
 config_version=5

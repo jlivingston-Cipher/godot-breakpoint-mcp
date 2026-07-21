@@ -5,13 +5,13 @@
       "step": "A",
       "tool": "dbg_set_breakpoints",
       "args": {
-        "path": "res://demo/demo_combat.gd",
+        "path": "res://demo/demo_snowman.gd",
         "lines": [
           17
         ]
       },
       "result": {
-        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+        "path": "res://demo/demo_snowman.gd",
         "buffered": true,
         "breakpoints": []
       }
@@ -38,14 +38,14 @@
         "frames": [
           {
             "id": 0,
-            "name": "take_hit",
-            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+            "name": "apply_warmth",
+            "source": "res://demo/demo_snowman.gd",
             "line": 17
           },
           {
             "id": 1,
             "name": "_ready",
-            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+            "source": "res://demo/demo_snowman.gd",
             "line": 12
           }
         ]
@@ -84,13 +84,13 @@
       "result": {
         "variables": [
           {
-            "name": "damage",
+            "name": "warmth",
             "value": "3",
             "type": "",
             "variables_ref": 0
           },
           {
-            "name": "effective",
+            "name": "melt",
             "value": "-2",
             "type": "",
             "variables_ref": 0
@@ -119,19 +119,19 @@
             "variables_ref": 7
           },
           {
-            "name": "hp",
+            "name": "ice",
             "value": "100",
             "type": "",
             "variables_ref": 0
           },
           {
-            "name": "armor",
+            "name": "shade",
             "value": "5",
             "type": "",
             "variables_ref": 0
           },
           {
-            "name": "healed_ever",
+            "name": "grew_ever",
             "value": "false",
             "type": "",
             "variables_ref": 0
@@ -166,7 +166,7 @@
       "step": "E",
       "tool": "dbg_evaluate",
       "args": {
-        "expression": "max(0, damage - armor)",
+        "expression": "max(0, warmth - shade)",
         "frame_id": 0,
         "confirm": true
       },
@@ -180,7 +180,7 @@
       "step": "E'",
       "tool": "dbg_evaluate",
       "args": {
-        "expression": "damage - armor",
+        "expression": "warmth - shade",
         "frame_id": 0,
         "confirm": true
       },
@@ -216,19 +216,19 @@
             "variables_ref": 7
           },
           {
-            "name": "hp",
+            "name": "ice",
             "value": "102",
             "type": "",
             "variables_ref": 0
           },
           {
-            "name": "armor",
+            "name": "shade",
             "value": "5",
             "type": "",
             "variables_ref": 0
           },
           {
-            "name": "healed_ever",
+            "name": "grew_ever",
             "value": "false",
             "type": "",
             "variables_ref": 0
@@ -246,11 +246,11 @@
       "step": "G",
       "tool": "dbg_set_breakpoints",
       "args": {
-        "path": "res://demo/demo_combat.gd",
+        "path": "res://demo/demo_snowman.gd",
         "lines": []
       },
       "result": {
-        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example/demo/demo_combat.gd",
+        "path": "res://demo/demo_snowman.gd",
         "buffered": false,
         "breakpoints": []
       }

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // cs_demo_verify_replay.mjs — renders a clean, shareable terminal narrative of the
 // C# runtime-verify close from the REAL captured transcripts (cs_demo_verify_
-// {buggy,fixed}.json — the session-115 live run on Godot 4.7 .NET). Every Hp value,
-// HealedEver, console line, and assert verdict shown is READ from those transcripts;
+// {buggy,fixed}.json — the session-115 live run on Godot 4.7 .NET). Every Ice value,
+// GrewEver, console line, and assert verdict shown is READ from those transcripts;
 // this reformats real captured data for a GIF, it does not re-run the game.
 // Record:  asciinema rec cs_demo_verify.cast --command "node cs_demo_verify_replay.mjs" \
 //            --window-size 120x30 --idle-time-limit 2.0 --overwrite
@@ -39,17 +39,17 @@ async function pass(o, label, color) {
   console.log(`${C.cyan}▶ godot_run_managed${C.reset} { scene: "res://demo/demo.tscn" }   ${C.dim}(managed .NET/Mono)${C.reset}`);
   await sleep(650);
   for (const l of demoLines(o)) { console.log(`  ${C.gray}${l}${C.reset}`); await sleep(300); }
-  const hp = stepVal(o, "final Hp");
-  const healed = stepVal(o, "final HealedEver");
+  const ice = stepVal(o, "final Ice");
+  const grew = stepVal(o, "final GrewEver");
   await sleep(350);
-  console.log(`  ${C.dim}live C# node (read by PascalCase, no [Export]):${C.reset}  Hp = ${C.bold}${hp}${C.reset}   HealedEver = ${C.bold}${healed}${C.reset}`);
+  console.log(`  ${C.dim}live C# node (read by PascalCase, no [Export]):${C.reset}  Ice = ${C.bold}${ice}${C.reset}   GrewEver = ${C.bold}${grew}${C.reset}`);
   await sleep(550);
-  const a1 = assertOk(o, "assert HealedEver==false");
-  const a2 = assertOk(o, 'assert screen "YOU DIED"');
+  const a1 = assertOk(o, "assert GrewEver==false");
+  const a2 = assertOk(o, 'assert screen "ALL MELTED"');
   const mark = (ok) => (ok ? `${C.green}✓ PASS${C.reset}` : `${C.red}✗ FAIL${C.reset}`);
-  console.log(`  ASSERT 1  HealedEver == false   ${mark(a1)}${a1 ? "" : `  ${C.red}(actual ${healed} — healed on a hit)${C.reset}`}`);
+  console.log(`  ASSERT 1  GrewEver == false   ${mark(a1)}${a1 ? "" : `  ${C.red}(actual ${grew} — grew on a warm moment)${C.reset}`}`);
   await sleep(400);
-  console.log(`  ASSERT 2  screen "YOU DIED"     ${mark(a2)}${a2 ? `  ${C.green}(Label = "YOU DIED")${C.reset}` : `  ${C.red}(never died, final Hp=${hp})${C.reset}`}`);
+  console.log(`  ASSERT 2  screen "ALL MELTED"     ${mark(a2)}${a2 ? `  ${C.green}(Label = "ALL MELTED")${C.reset}` : `  ${C.red}(never emptied, final Ice=${ice})${C.reset}`}`);
   await sleep(750);
   console.log("");
 }
@@ -62,7 +62,7 @@ async function main() {
   await sleep(900);
   await pass(load("buggy"), "BUGGY", C.red);
   await sleep(300);
-  console.log(`${C.yellow}✎ the one-line fix${C.reset}  ${C.dim}DemoCombat.cs${C.reset}   int effective = ${C.red}damage - Armor${C.reset}   →   int effective = ${C.green}Mathf.Max(0, damage - Armor)${C.reset}`);
+  console.log(`${C.yellow}✎ the one-line fix${C.reset}  ${C.dim}DemoSnowman.cs${C.reset}   int melt = ${C.red}warmth - Shade${C.reset}   →   int melt = ${C.green}Mathf.Max(0, warmth - Shade)${C.reset}`);
   console.log(`${C.dim}   rebuild the C# assembly…${C.reset}`);
   console.log("");
   await sleep(1100);

@@ -6,7 +6,7 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.19.0 · addon 1.7.0 · full 276 / secure-default 262 tools · 6 MCP resources · MIT.** The host builds against
+> **npm 1.19.1 · addon 1.7.0 · full 276 / secure-default 262 tools · 6 MCP resources · MIT.** The host builds against
 > the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 431-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
@@ -37,12 +37,12 @@ Two differentiating capabilities are the reason to reach for Breakpoint:
   Debug Adapter (and `netcoredbg` for C#). This is the difference between inspecting state
   and reading logs: the assistant can stop at the failure and look at actual values instead
   of inferring them from `print()` output and re-runs. A runnable example lives in
-  [`example/demo/`](example/demo/): a buggy heal-on-hit combat scene where the debugger stops
-  on `hp -= effective` and reveals `effective = -2` — a light hit *healing* instead of hurting.
-  The same bug is mirrored in C# at [`example-csharp/demo/`](example-csharp/demo/)
-  (`DemoCombat.TakeHit`), diagnosed the same way over `netcoredbg` — and *verified* the
+  [`example/demo/`](example/demo/): a buggy melting-snowman scene where the debugger stops
+  on `ice -= melt` and reveals `melt = -2` — a mild warm spell *growing* the ice instead of
+  melting it. The same bug is mirrored in C# at [`example-csharp/demo/`](example-csharp/demo/)
+  (`DemoSnowman.ApplyWarmth`), diagnosed the same way over `netcoredbg` — and *verified* the
   same way on both tracks: the read-only assertion family below proves the one-line clamp
-  over the runtime bridge (`HealedEver == false`, `"YOU DIED"` on screen), a check that
+  over the runtime bridge (`GrewEver == false`, `"ALL MELTED"` on screen), a check that
   fails before the fix and passes after.
 - **A language-server client for GDScript and C#.** Completion, hover, go-to-definition, find
   references, rename, and diagnostics — over Godot's LSP (and OmniSharp for C#). Edits are

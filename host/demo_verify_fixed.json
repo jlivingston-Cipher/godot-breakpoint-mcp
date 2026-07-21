@@ -15,36 +15,36 @@
       }
     },
     {
-      "step": "final hp",
+      "step": "final ice",
       "tool": "runtime_get_property",
       "args": {
         "path": ".",
-        "property": "hp"
+        "property": "ice"
       },
       "result": {
         "value": 0
       }
     },
     {
-      "step": "final healed_ever",
+      "step": "final grew_ever",
       "tool": "runtime_get_property",
       "args": {
         "path": ".",
-        "property": "healed_ever"
+        "property": "grew_ever"
       },
       "result": {
         "path": ".",
-        "property": "healed_ever",
+        "property": "grew_ever",
         "value": false
       }
     },
     {
-      "step": "assert healed_ever==false",
+      "step": "assert grew_ever==false",
       "tool": "runtime_assert_node_state",
       "args": {
         "path": ".",
         "expect": {
-          "healed_ever": false
+          "grew_ever": false
         }
       },
       "result": {
@@ -55,10 +55,10 @@
       }
     },
     {
-      "step": "assert screen \"YOU DIED\"",
+      "step": "assert screen \"ALL MELTED\"",
       "tool": "runtime_assert_screen_text",
       "args": {
-        "text": "YOU DIED"
+        "text": "ALL MELTED"
       },
       "result": {
         "matches": 1,
@@ -67,7 +67,7 @@
         "samples": [
           {
             "path": "Label",
-            "text": "YOU DIED"
+            "text": "ALL MELTED"
           }
         ]
       }
@@ -97,32 +97,32 @@
           {
             "seq": 3,
             "stream": "stdout",
-            "text": "[demo] combat start, hp=100"
+            "text": "[demo] sunshine start, ice=100"
           },
           {
             "seq": 4,
             "stream": "stdout",
-            "text": "[demo] hit for 3 (effective 0), hp now 100"
+            "text": "[demo] warmth 3 (melt 0), ice now 100"
           },
           {
             "seq": 5,
             "stream": "stdout",
-            "text": "[demo] hit for 20 (effective 15), hp now 85"
+            "text": "[demo] warmth 20 (melt 15), ice now 85"
           },
           {
             "seq": 6,
             "stream": "stdout",
-            "text": "[demo] hit for 4 (effective 0), hp now 85"
+            "text": "[demo] warmth 4 (melt 0), ice now 85"
           },
           {
             "seq": 7,
             "stream": "stdout",
-            "text": "[demo] hit for 90 (effective 85), hp now 0"
+            "text": "[demo] warmth 90 (melt 85), ice now 0"
           },
           {
             "seq": 8,
             "stream": "stdout",
-            "text": "[demo] YOU DIED"
+            "text": "[demo] ALL MELTED"
           }
         ]
       }

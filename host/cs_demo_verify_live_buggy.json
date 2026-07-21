@@ -1,14 +1,14 @@
 {
   "label": "BUGGY",
-  "hp": 3,
-  "healed": true,
-  "assert_healed_false": false,
-  "assert_you_died": false,
+  "ice": 3,
+  "grew": true,
+  "assert_grew_false": false,
+  "assert_all_melted": false,
   "demo": [
-    "[demo] combat start, hp=100",
-    "[demo] hit for 3 (effective -2), hp now 102",
-    "[demo] hit for 20 (effective 15), hp now 87",
-    "[demo] hit for 4 (effective -1), hp now 88",
-    "[demo] hit for 90 (effective 85), hp now 3"
+    "[demo] sunshine start, ice=100",
+    "[demo] warmth 3 (melt -2), ice now 102",
+    "[demo] warmth 20 (melt 15), ice now 87",
+    "[demo] warmth 4 (melt -1), ice now 88",
+    "[demo] warmth 90 (melt 85), ice now 3"
   ]
 }

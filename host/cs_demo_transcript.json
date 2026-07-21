@@ -5,13 +5,13 @@
       "step": "A",
       "tool": "cs_dbg_set_breakpoints",
       "args": {
-        "path": "res://demo/DemoCombat.cs",
+        "path": "res://demo/DemoSnowman.cs",
         "lines": [
           22
         ]
       },
       "result": {
-        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+        "path": "res://demo/DemoSnowman.cs",
         "buffered": true,
         "breakpoints": []
       }
@@ -23,7 +23,7 @@
         "args": [
           "--headless",
           "--path",
-          "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp",
+          "<project>/example-csharp",
           "res://demo/demo.tscn"
         ]
       },
@@ -42,14 +42,14 @@
         "frames": [
           {
             "id": 0,
-            "name": "DemoCombat.TakeHit()",
-            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+            "name": "DemoSnowman.ApplyWarmth()",
+            "source": "res://demo/DemoSnowman.cs",
             "line": 22
           },
           {
             "id": 1,
-            "name": "DemoCombat._Ready()",
-            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+            "name": "DemoSnowman._Ready()",
+            "source": "res://demo/DemoSnowman.cs",
             "line": 15
           },
           {
@@ -72,8 +72,8 @@
           },
           {
             "id": 5,
-            "name": "DemoCombat.InvokeGodotClassMethod()",
-            "source": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/Godot.SourceGenerators/Godot.SourceGenerators.ScriptMethodsGenerator/DemoCombat_ScriptMethods.generated.cs",
+            "name": "DemoSnowman.InvokeGodotClassMethod()",
+            "source": "res://Godot.SourceGenerators/Godot.SourceGenerators.ScriptMethodsGenerator/DemoSnowman_ScriptMethods.generated.cs",
             "line": 48
           },
           {
@@ -111,18 +111,18 @@
         "variables": [
           {
             "name": "this",
-            "value": "{DemoCombat}",
-            "type": "DemoCombat",
+            "value": "{DemoSnowman}",
+            "type": "DemoSnowman",
             "variables_ref": 2
           },
           {
-            "name": "damage",
+            "name": "warmth",
             "value": "3",
             "type": "int",
             "variables_ref": 0
           },
           {
-            "name": "effective",
+            "name": "melt",
             "value": "-2",
             "type": "int",
             "variables_ref": 0
@@ -151,19 +151,19 @@
             "variables_ref": 3
           },
           {
-            "name": "Hp",
+            "name": "Ice",
             "value": "100",
             "type": "int",
             "variables_ref": 0
           },
           {
-            "name": "Armor",
+            "name": "Shade",
             "value": "5",
             "type": "int",
             "variables_ref": 0
           },
           {
-            "name": "HealedEver",
+            "name": "GrewEver",
             "value": "false",
             "type": "bool",
             "variables_ref": 0
@@ -463,7 +463,7 @@
       "step": "E",
       "tool": "cs_dbg_evaluate",
       "args": {
-        "expression": "damage - Armor",
+        "expression": "warmth - Shade",
         "frame_id": 0,
         "confirm": true
       },
@@ -477,7 +477,7 @@
       "step": "E2 (netcoredbg has no funceval — honest delta)",
       "tool": "cs_dbg_evaluate",
       "args": {
-        "expression": "Mathf.Max(0, damage - Armor)",
+        "expression": "Mathf.Max(0, warmth - Shade)",
         "frame_id": 0,
         "confirm": true
       },
@@ -511,19 +511,19 @@
       "result": {
         "variables": [
           {
-            "name": "Hp",
+            "name": "Ice",
             "value": "102",
             "type": "int",
             "variables_ref": 0
           },
           {
-            "name": "Armor",
+            "name": "Shade",
             "value": "5",
             "type": "int",
             "variables_ref": 0
           },
           {
-            "name": "HealedEver",
+            "name": "GrewEver",
             "value": "false",
             "type": "bool",
             "variables_ref": 0
@@ -535,11 +535,11 @@
       "step": "G",
       "tool": "cs_dbg_set_breakpoints",
       "args": {
-        "path": "res://demo/DemoCombat.cs",
+        "path": "res://demo/DemoSnowman.cs",
         "lines": []
       },
       "result": {
-        "path": "/Users/jamesliv/Downloads/Godot MCP/godot-claude-bridge/example-csharp/demo/DemoCombat.cs",
+        "path": "res://demo/DemoSnowman.cs",
         "buffered": false,
         "breakpoints": []
       }

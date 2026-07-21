@@ -1,15 +1,15 @@
 {
   "label": "FIXED",
-  "hp": 0,
-  "healed": false,
-  "assert_healed_false": true,
-  "assert_you_died": true,
+  "ice": 0,
+  "grew": false,
+  "assert_grew_false": true,
+  "assert_all_melted": true,
   "demo": [
-    "[demo] combat start, hp=100",
-    "[demo] hit for 3 (effective 0), hp now 100",
-    "[demo] hit for 20 (effective 15), hp now 85",
-    "[demo] hit for 4 (effective 0), hp now 85",
-    "[demo] hit for 90 (effective 85), hp now 0",
-    "[demo] YOU DIED"
+    "[demo] sunshine start, ice=100",
+    "[demo] warmth 3 (melt 0), ice now 100",
+    "[demo] warmth 20 (melt 15), ice now 85",
+    "[demo] warmth 4 (melt 0), ice now 85",
+    "[demo] warmth 90 (melt 85), ice now 0",
+    "[demo] ALL MELTED"
   ]
 }
