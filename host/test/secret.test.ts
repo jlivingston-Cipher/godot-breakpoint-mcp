@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { readProjectSecret, resolveBridgeSecret } from "../src/secret.js";
+import { ensureProjectSecret, readProjectSecret, resolveBridgeSecret } from "../src/secret.js";
 
 /** A throwaway project dir, optionally seeded with a minted secret file. */
 function tmpProject(secret?: string): string {
@@ -83,6 +83,49 @@ test("resolveBridgeSecret honors env precedence order (first non-empty wins)", (
   } finally {
     delete process.env[A];
     delete process.env[B];
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --------------------------------------------------- F6: host-side minting ----
+
+test("ensureProjectSecret mints a 64-char hex secret and creates .godot when absent", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-secret-mint-"));
+  try {
+    assert.equal(readProjectSecret(dir), null);
+    const minted = ensureProjectSecret(dir);
+    assert.ok(minted, "should mint");
+    assert.match(minted!, /^[0-9a-f]{64}$/, "must match bridge_secret.gd's format exactly");
+    assert.equal(readProjectSecret(dir), minted, "must be persisted where the addon reads it");
+    assert.ok(fs.existsSync(path.join(dir, ".godot", "breakpoint_mcp.secret")));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ensureProjectSecret NEVER overwrites an existing secret — the editor may have minted it", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-secret-keep-"));
+  try {
+    const preset = "b".repeat(64);
+    fs.mkdirSync(path.join(dir, ".godot"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".godot", "breakpoint_mcp.secret"), preset);
+    assert.equal(ensureProjectSecret(dir), preset);
+    assert.equal(ensureProjectSecret(dir), preset, "and stays stable across calls");
+    assert.equal(readProjectSecret(dir), preset);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ensureProjectSecret returns null rather than throwing when the project is unwritable", () => {
+  // A path that cannot become a directory (its parent is a file). A failed mint
+  // must degrade to "peers mint their own", never brick the spawn.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-secret-ro-"));
+  try {
+    const file = path.join(dir, "not-a-dir");
+    fs.writeFileSync(file, "x");
+    assert.equal(ensureProjectSecret(path.join(file, "project")), null);
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

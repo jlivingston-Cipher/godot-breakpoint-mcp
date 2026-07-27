@@ -5,7 +5,7 @@ import { applyOutputSchemas } from "../src/schemas.js";
 import { loadConfig } from "../src/config.js";
 import { ANNOTATED_TOOLS, annotationsFor, applyAnnotations } from "../src/annotations.js";
 
-const EXPECTED_TOOL_COUNT = 286;
+const EXPECTED_TOOL_COUNT = 289;
 
 /**
  * Register the whole surface against a recorder exactly as index.ts does —

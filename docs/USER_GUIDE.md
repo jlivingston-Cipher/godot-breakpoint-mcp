@@ -7,7 +7,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 - **Version:** host 1.22.0 · addon 1.9.1
 - **License:** MIT
-- **What it exposes:** full 286 tools (secure-default 272 with the privileged groups off) + 6 MCP resources
+- **What it exposes:** full 289 tools (secure-default 274 with the privileged groups off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -377,8 +377,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 272 tools**. Opt in
-to load the **full 286**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 274 tools**. Opt in
+to load the **full 289**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -446,7 +446,7 @@ command line). Others need the editor open with the addon enabled, or the game r
                /undo/redo     live SceneTree  diagnostics   stepping, eval
 ```
 
-### Plane A — Live Editor Bridge (roughly 145 tools)
+### Plane A — Live Editor Bridge (roughly 146 tools)
 
 The largest plane. It drives the editor through the addon's loopback server on
 `127.0.0.1:9080`, so it **requires the editor open with the plugin enabled**. It covers
@@ -470,15 +470,17 @@ on the formal **MCP task model**: a task-aware client creates the job and then p
 awaits its result, or cancels it (`tasks/get` / `tasks/result` / `tasks/cancel`). A plain
 client still gets the blocking result, exactly as before.
 
-### Plane C — Runtime Bridge (`runtime_*`, 14 tools)
+### Plane C — Runtime Bridge (`runtime_*`, 27 tools)
 
 An autoload (`BreakpointRuntimeBridge`) that lives inside the **running game** and listens
 on `127.0.0.1:9081`. Through it, the assistant can read the live SceneTree, get and set runtime
 properties, call methods, emit signals, inject input for play-testing, read performance
 monitors, and capture in-game frames. It also runs a family of **read-only runtime
 assertions** — node state, scene structure, on-screen text, performance baselines, and
-screenshot diffs — for checking a running game the way a test would. On **Godot 4.5+** it
-additionally captures the
+screenshot diffs — for checking a running game the way a test would. It also carries the
+**deterministic playtesting** primitives — freeze time, step an exact number of frames, seed the
+global RNG, and take a stable-ordered state digest — and can point all four at **several headless
+peers at once** (see below). On **Godot 4.5+** it additionally captures the
 game's console (`print()`, warnings, errors) with zero configuration.
 
 ### Plane D — Semantic and Debugging
@@ -581,7 +583,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **286 tools** in total (the secure-default surface is **272** with the two privileged capability groups off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **289 tools** in total (the secure-default surface is **274** with the two privileged capability groups off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -662,7 +664,7 @@ Works without the editor open.
 - **`godot_run_managed`** / **`godot_output`** / **`godot_stop`** — run the game as a
   managed child process with captured stdout/stderr, read that console output, and stop it.
 
-### Plane C — Runtime bridge (`runtime_*`, 14 tools)
+### Plane C — Runtime bridge (`runtime_*`, 27 tools)
 
 Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_set_property` *(destructive)*, `runtime_call_method` *(destructive)*,
@@ -670,7 +672,61 @@ Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_get_monitors`, `runtime_screenshot`, and `runtime_get_log`. Plus a read-only
 verification family: `runtime_assert_node_state`, `runtime_assert_scene_structure`,
 `runtime_assert_perf`, `runtime_assert_screen_text`, and `runtime_screenshot_diff` (all
-non-destructive — they check the running game without changing it).
+non-destructive — they check the running game without changing it), node editing
+(`runtime_node_add` / `runtime_node_remove`), animation control (`runtime_anim_play` /
+`runtime_anim_stop` / `runtime_anim_get_state`), and `runtime_await_condition`.
+
+**Deterministic playtesting.** `runtime_time_scale` freezes the clock, `runtime_step_frames`
+advances an exact number of frames, `runtime_seed_rng` seeds the global RNG, and
+`runtime_state_digest` takes a stable-ordered snapshot of a subtree — so a playtest is
+frame-exact rather than wall-clock.
+
+**Across several processes.** `runtime_spawn_peers` (higher-trust: `code-execution`) starts up to
+four **headless** peers of the project, each on its own loopback port; `runtime_peer_stop` ends
+them; and `runtime_peers_digest` reads the same digest from two or more of them and reports whether
+they **converged**. **Every** runtime tool that talks to the running game takes an optional `peer`
+argument — the rule is "if you can do it to the default game, you can do it to one peer" — so there
+is no subset to memorise. Omit `peer` and you address the default running game exactly as before.
+Each peer gets `BREAKPOINT_PEER_ID`, `BREAKPOINT_PEER_INDEX` and (when you pass `role`)
+`BREAKPOINT_PEER_ROLE` in its environment, so game code can branch on which peer it is with
+`OS.get_environment()`.
+
+This spawns local headless children on loopback for testing — it hosts no relay, lobby or
+signalling server, which stays out of scope deliberately.
+
+#### Making peers actually converge
+
+Convergence is a real claim with real preconditions, all four measured against Godot 4.3 rather
+than reasoned about. They ship in `runtime_peers_digest`'s own tool description too, so an
+assistant reads them at call time; this is the longer version.
+
+1. **Step the fixed physics timestep.** Pass `kind:"physics"` to `runtime_step_frames`. State
+   advanced on the idle lane uses the variable per-frame `delta`, which is real elapsed wall-clock
+   time in that process — no seed makes it reproducible.
+2. **Let the global RNG be consumed only on frames you are stepping.** This is the one that catches
+   people. `runtime_seed_rng` seeds *one* stream shared by the whole project, and freezing does not
+   stop it being drawn: `time_scale 0` zeroes `delta` but `_process` and `_physics_process` still
+   fire, so an unconditional `randf()` burns the stream at wall-clock rate *while frozen* — including
+   in the gap between your seed call and your step call. Idle-frame draws do the same during the
+   step. Guard draws on `delta > 0`, and give idle-frame code its own `RandomNumberGenerator`.
+3. **Freeze first, then equalise.** Peers free-run between spawning and freezing for slightly
+   different durations, so their state differs before you start. Freeze every peer with
+   `runtime_time_scale{scale:0, peer}`, *then* bring them to an identical starting state with
+   `runtime_set_property{peer}`.
+4. **Same machine only.** Peers here share one OS and one engine build. Nothing about this extends
+   to convergence across machines, and Breakpoint does not claim it.
+
+With all four, three peers produce byte-equal digests even with a deliberate stagger between each
+peer's seed and step. With any one violated, they diverge every time. The working order is:
+
+```
+runtime_spawn_peers{count:3}
+  → per peer: runtime_time_scale{scale:0, peer}          # freeze FIRST
+  → per peer: runtime_set_property{peer, ...}            # equalise the starting state
+  → per peer: runtime_seed_rng{seed:12345, peer}         # same seed
+  → per peer: runtime_step_frames{frames:30, kind:"physics", peer}
+  → runtime_peers_digest{root:"./Thing"}                 # converged / diverged_at
+```
 
 ### Plane D — Semantic and debugging
 
@@ -764,6 +820,29 @@ gated, and should only be pointed at code you trust:
   (`BREAKPOINT_ASSETGEN_CMD`). It is **off by default** (`BREAKPOINT_ASSETGEN_BACKEND=none`),
   and the argv template is substituted per-argument with no shell involved. Only enable it
   with a command you trust.
+
+### Extending Breakpoint — recipes, and what is deliberately declined
+
+Breakpoint has no "bring-your-own-tool" API, and that is a design position rather than an
+unfinished feature. The extension shape it does have is the **recipe**: a curated workflow
+exposed as an MCP prompt, which drives tools that already exist and adds none of its own.
+
+The reason the distinction matters is that every safety property described in this section is
+attached to a *tool*: the frozen output schema, the catalog entry, the risk annotation, the
+capability tag, the confirmation gate. A recipe inherits all of them, because it is a saved
+prompt over tools the caller could already have invoked by hand — it is strictly **less**
+privileged than the assistant reading it. It cannot skip a confirmation prompt, cannot reach a
+tool that a disabled capability group dropped, and cannot add a name to `tools/list`.
+
+A tool-injection hatch would invert that. An injected tool arrives with no schema to enforce, no
+annotation for your client to reason about, and no capability group to gate it — and
+`scripts/contract_check.py`, which is what makes the rest of this document checkable rather than
+merely stated, cannot see it at all. The guarantees would not be weakened so much as quietly
+made inapplicable, for precisely the tools with the least provenance.
+
+If you need a workflow Breakpoint doesn't ship, the answer is a recipe (or an issue asking for
+one), not a plugin slot. Loading **user-authored** recipes from a project directory is the one
+extension we would consider building, and it would still add no tools.
 
 ---
 
@@ -907,7 +986,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-286 tools (secure-default 272) and 6 resources. The exhaustive per-tool schemas are in
+289 tools (secure-default 274) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

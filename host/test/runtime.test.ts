@@ -51,7 +51,60 @@ const ARGS: Record<string, Record<string, unknown>> = {
   runtime_step_frames: { frames: 2, kind: "idle" },
   runtime_state_digest: { root: "/root" },
   runtime_seed_rng: { seed: 42 },
+  // F6: multi-peer. The stub registry below reports two live peers and hands
+  // every one of them the same recording bridge.
+  runtime_spawn_peers: { count: 2 },
+  runtime_peer_stop: { all: true },
+  runtime_peers_digest: { root: "/root" },
 };
+
+/**
+ * F6 tools whose failure mode is process-level, not bridge-level: they never
+ * reach the runtime bridge at all, so the "everything degrades to a
+ * bridge_unavailable envelope" invariant below cannot apply to them. Listed
+ * explicitly rather than filtered by prefix so a new tool cannot join them
+ * silently — the whole point of that invariant is that nothing escapes it by
+ * accident. Their own degradation is asserted separately.
+ */
+const NON_BRIDGE_TOOLS = ["runtime_peer_stop", "runtime_spawn_peers"].sort();
+
+/**
+ * Every runtime tool that forwards to the running game takes `peer` — the rule
+ * is "if it talks to the running game, it can talk to a peer", with no subset.
+ *
+ * It was a subset once: F6 shipped `peer` on the seven tools a convergence run
+ * obviously needs. Validating the build against real Godot 4.3 showed that
+ * insufficient in a way only an engine could reveal — peers free-run for
+ * different durations before you freeze them, so equalising their state first is
+ * mandatory, and `runtime_set_property` was not on the list. Any subset has that
+ * shape of hole; this one had it at the exact tool the documented sequence needs.
+ */
+const PEER_AWARE = [
+  "runtime_anim_get_state",
+  "runtime_anim_play",
+  "runtime_anim_stop",
+  "runtime_assert_node_state",
+  "runtime_assert_perf",
+  "runtime_assert_scene_structure",
+  "runtime_assert_screen_text",
+  "runtime_await_condition",
+  "runtime_call_method",
+  "runtime_emit_signal",
+  "runtime_get_log",
+  "runtime_get_monitors",
+  "runtime_get_property",
+  "runtime_get_tree",
+  "runtime_inject_input",
+  "runtime_node_add",
+  "runtime_node_remove",
+  "runtime_screenshot",
+  "runtime_screenshot_diff",
+  "runtime_seed_rng",
+  "runtime_set_property",
+  "runtime_state_digest",
+  "runtime_step_frames",
+  "runtime_time_scale",
+].sort();
 
 interface BridgeCall {
   method: string;
@@ -82,14 +135,39 @@ function makeHarness() {
     elicitReqs.push(req);
     return elicitImpl(req);
   };
+  // Stub peer registry: two live peers, all resolving to the SAME recording
+  // bridge, so a call carrying `peer` is observable in `calls` exactly like a
+  // default-bridge call. Nothing here spawns a process.
+  const peerIds = ["peer-1", "peer-2"];
+  const stopped: string[] = [];
+  const peers = {
+    live: () => peerIds.map((id, i) => ({ id, port: 9082 + i, pid: 900 + i, role: null, ready: true })),
+    all: () => peerIds.map((id, i) => ({ id, port: 9082 + i, pid: 900 + i, role: null, ready: true })),
+    clientFor(id: string) {
+      if (!peerIds.includes(id)) throw new BridgeError("unknown_peer", `No peer with id "${id}".`);
+      return bridge;
+    },
+    async spawn() {
+      throw new BridgeError("peer_not_ready", "stub registry never spawns a process");
+    },
+    stop(id?: string, all = false) {
+      const out = all ? [...peerIds] : id ? [id] : [];
+      stopped.push(...out);
+      return out;
+    },
+    stopAll() {},
+  };
+
   const rec = makeRecordingServer(elicit);
   registerRuntimeTools(
     rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
     bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+    peers as unknown as Parameters<typeof registerRuntimeTools>[2],
   );
 
   return {
     tools: rec.tools,
+    stopped,
     handler: (name: string) => rec.handler(name),
     calls,
     elicitReqs,
@@ -152,11 +230,13 @@ test("confirm:true skips the prompt and forwards each mutator to the runtime bri
 
 // ---------------------------------------------------- bridge-unreachable degrade ----
 
-test("every runtime tool degrades to a friendly isError when the bridge is unreachable (never throws)", async () => {
+test("every bridge-backed runtime tool degrades to a friendly isError when the bridge is unreachable (never throws)", async () => {
   const h = makeHarness();
   h.setBridge("reject");
+  const skip = new Set(NON_BRIDGE_TOOLS);
   let errored = 0;
   for (const [name, t] of h.tools) {
+    if (skip.has(name)) continue;
     let r: ToolResultLike;
     try {
       r = await t.handler({ ...ARGS[name], confirm: true });
@@ -170,7 +250,24 @@ test("every runtime tool degrades to a friendly isError when the bridge is unrea
       assert.match(text(r), /Runtime error \[bridge_unavailable\]/, `${name} should surface the runtime error prefix`);
     }
   }
-  assert.equal(errored, h.tools.size, "all runtime tools forward to the bridge and should error when it is down");
+  assert.equal(
+    errored,
+    h.tools.size - NON_BRIDGE_TOOLS.length,
+    "every runtime tool except the two process-level ones forwards to the bridge and should error when it is down",
+  );
+});
+
+test("the two process-level F6 tools also degrade to an isError envelope, never a throw", async () => {
+  const h = makeHarness();
+  h.setBridge("reject");
+  // spawn: the stub registry rejects, which is the shape a real failed spawn has.
+  const spawn = await h.handler("runtime_spawn_peers")({ count: 2 });
+  assert.equal(spawn.isError, true);
+  assert.match(text(spawn), /Runtime error \[peer_not_ready\]/);
+  // stop: needs a target, and says so rather than silently succeeding.
+  const noTarget = await h.handler("runtime_peer_stop")({});
+  assert.equal(noTarget.isError, true);
+  assert.match(text(noTarget), /Pass a peer `id`, or all:true/);
 });
 
 // ----------------------------------------------------------------- happy path ----
@@ -465,4 +562,186 @@ test("runtime_seed_rng forwards the seed once confirmed", async () => {
   assert.notEqual(r.isError, true);
   assert.equal(h.calls[0].method, "runtime.seed_rng");
   assert.deepEqual(h.calls[0].params, { seed: 42 });
+});
+
+// ------------------------------------------------------------- F6: peers ----
+
+test("every peer-aware tool routes to the peer's bridge and never leaks `peer` into the payload", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { ok: true, value: 1, digest: {}, node_count: 0, base64: "", mime: "image/png", width: 1, height: 1 });
+
+  const seen: string[] = [];
+  for (const [name, t] of h.tools) {
+    const shape = t.config.inputSchema as Record<string, unknown> | undefined;
+    if (!shape || !Object.prototype.hasOwnProperty.call(shape, "peer")) continue;
+    seen.push(name);
+    const before = h.calls.length;
+    const r = await t.handler({ ...ARGS[name], confirm: true, peer: "peer-2" });
+    assert.notEqual(r.isError, true, `${name} should succeed against a live peer`);
+    assert.ok(h.calls.length > before, `${name} should forward to the peer's bridge`);
+    // `peer` is host-side addressing, not a bridge parameter — the addon has no
+    // idea peers exist, which is exactly why F6 needed no protocol change.
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(h.calls[h.calls.length - 1].params, "peer"),
+      `${name} must not forward \`peer\` to the bridge`,
+    );
+  }
+  assert.deepEqual(seen.sort(), PEER_AWARE, `the peer-aware set drifted: ${seen.sort().join(", ")}`);
+});
+
+test("omitting `peer` addresses the default bridge, byte-identically to pre-F6", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { value: 7 });
+  await h.handler("runtime_get_property")({ path: "/root/Player", property: "hp" });
+  assert.equal(h.calls[0].method, "runtime.get_property");
+  assert.deepEqual(h.calls[0].params, { path: "/root/Player", property: "hp" });
+});
+
+test("an unknown peer id fails with a message naming the live peers, not a generic bridge error", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { value: 1 });
+  const r = await h.handler("runtime_get_property")({ path: "/root", property: "x", peer: "peer-9" });
+  assert.equal(r.isError, true);
+  assert.match(text(r), /Runtime error \[unknown_peer\]/);
+  assert.equal(h.calls.length, 0, "an unknown peer must not reach any bridge");
+});
+
+test("runtime_await_condition resolves its peer once, before polling", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { value: 0 });
+  const r = await h.handler("runtime_await_condition")({
+    path: "/root/Player", property: "hp", value: 0, timeout_ms: 30, poll_interval_ms: 5, peer: "peer-1",
+  });
+  assert.notEqual(r.isError, true);
+  assert.equal(h.calls[0].method, "runtime.get_property");
+  assert.deepEqual(h.calls[0].params, { path: "/root/Player", property: "hp" });
+
+  const bad = await h.handler("runtime_await_condition")({
+    path: "/root/Player", property: "hp", value: 0, timeout_ms: 30, poll_interval_ms: 5, peer: "nope",
+  });
+  assert.equal(bad.isError, true);
+  assert.match(text(bad), /Runtime error \[unknown_peer\]/);
+});
+
+test("a gated tool's confirmation prompt names the peer it will drive", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { previous: 1, current: 0 });
+  const prompts: string[] = [];
+  h.setElicit(async (req) => {
+    prompts.push(JSON.stringify(req));
+    return { action: "decline" };
+  });
+  await h.handler("runtime_time_scale")({ scale: 0, peer: "peer-2" });
+  await h.handler("runtime_time_scale")({ scale: 0 });
+  assert.match(prompts[0], /peer peer-2/);
+  assert.match(prompts[1], /the running game/);
+});
+
+test("runtime_peer_stop forwards id / all to the registry", async () => {
+  const h = makeHarness();
+  const one = await h.handler("runtime_peer_stop")({ id: "peer-1" });
+  assert.notEqual(one.isError, true);
+  const all = await h.handler("runtime_peer_stop")({ all: true });
+  assert.notEqual(all.isError, true);
+  assert.deepEqual(h.stopped, ["peer-1", "peer-1", "peer-2"]);
+});
+
+test("runtime_peers_digest converges when peers agree and names the paths when they do not", async () => {
+  const h = makeHarness();
+  // Same digest from both peers (the stub hands out one bridge) -> converged.
+  h.setBridge("resolve", { digest: { ".": { visible: true }, "./Mover": { x: 1 } }, node_count: 2 });
+  const same = await h.handler("runtime_peers_digest")({ root: "/root" });
+  assert.notEqual(same.isError, true);
+  assert.equal(same.structuredContent?.converged, true);
+  assert.equal(same.structuredContent?.diverged_at, null);
+  assert.equal((same.structuredContent?.digests as unknown[]).length, 2);
+  assert.equal(h.calls[0].method, "runtime.state_digest");
+  assert.deepEqual(h.calls[0].params, { root: "/root" });
+});
+
+test("runtime_peers_digest compares by content, not by key order", async () => {
+  let n = 0;
+  const bridge = {
+    async request() {
+      n++;
+      // Same content, keys emitted in a different order per peer.
+      return n === 1
+        ? { digest: { "./A": { x: 1, y: 2 } }, node_count: 1 }
+        : { digest: { "./A": { y: 2, x: 1 } }, node_count: 1 };
+    },
+  };
+  const rec = makeRecordingServer(async () => ({ action: "decline" }));
+  const peers = {
+    live: () => [{ id: "p1" }, { id: "p2" }],
+    clientFor: () => bridge,
+  };
+  registerRuntimeTools(
+    rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
+    bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+    peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+  );
+  const r = (await rec.handler("runtime_peers_digest")({ root: "/root" })) as ToolResultLike;
+  assert.equal(r.structuredContent?.converged, true, "key order must not decide convergence");
+});
+
+test("runtime_peers_digest reports divergence per node path", async () => {
+  let n = 0;
+  const bridge = {
+    async request() {
+      n++;
+      return {
+        digest: { "./Same": { x: 1 }, "./Drifts": { x: n } },
+        node_count: 2,
+      };
+    },
+  };
+  const rec = makeRecordingServer(async () => ({ action: "decline" }));
+  const peers = { live: () => [{ id: "p1" }, { id: "p2" }], clientFor: () => bridge };
+  registerRuntimeTools(
+    rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
+    bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+    peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+  );
+  const r = (await rec.handler("runtime_peers_digest")({ root: "/root" })) as ToolResultLike;
+  assert.equal(r.structuredContent?.converged, false);
+  assert.deepEqual(r.structuredContent?.diverged_at, ["./Drifts"]);
+});
+
+test("runtime_peers_digest refuses a convergence claim over fewer than two peers", async () => {
+  const rec = makeRecordingServer(async () => ({ action: "decline" }));
+  const bridge = { async request() { return { digest: {}, node_count: 0 }; } };
+  const peers = { live: () => [{ id: "only" }], clientFor: () => bridge };
+  registerRuntimeTools(
+    rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
+    bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+    peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+  );
+  const r = (await rec.handler("runtime_peers_digest")({ root: "/root" })) as ToolResultLike;
+  assert.equal(r.isError, true);
+  assert.match(text(r), /at least two peers/i);
+  assert.match(text(r), /runtime_state_digest/, "should point at the single-target tool");
+});
+
+test("runtime_peers_digest states every measured precondition in its own description", async () => {
+  const h = makeHarness();
+  const d = (h.tools.get("runtime_peers_digest")!.config.description as string).toLowerCase();
+  // Each of these was measured against real Godot 4.3, and a run that skips any
+  // one of them diverges. They live in the DESCRIPTION because that is what an
+  // agent reads at call time; the docs repeat them, they do not own them.
+  assert.match(d, /fixed/, "1: scope the claim to the fixed timestep");
+  assert.match(d, /physics/, "1: name the lane the caller has to step");
+  assert.match(d, /idle/, "1+2: say what does NOT converge");
+  assert.match(d, /one stream shared/, "2: the global RNG is one shared stream");
+  assert.match(d, /freezing does not stop/, "2: freezing does not stop it being drawn");
+  assert.match(d, /delta > 0/, "2: name the guard that makes it deterministic");
+  assert.match(d, /freeze first/, "3: freeze before equalising state");
+  assert.match(d, /runtime_set_property/, "3: name the tool that equalises state");
+  assert.match(d, /same machine/, "4: keep the claim to one machine");
+});
+
+test("runtime_seed_rng warns that its stream is shared across both lanes", async () => {
+  const h = makeHarness();
+  const d = (h.tools.get("runtime_seed_rng")!.config.description as string).toLowerCase();
+  assert.match(d, /one stream shared/, "must say the global RNG is one shared stream");
+  assert.match(d, /idle/, "must name the lane that silently consumes it");
 });

@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **286 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **289 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2439,12 +2439,12 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_get_tree` ✅
 - **Input**
 ```json
-{ "type": "object", "properties": { "max_depth": { "type": "integer", "default": 64 } } }
+{ "type": "object", "properties": { "max_depth": { "type": "integer", "default": 64 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** same recursive `SceneNode` shape as `scene_get_tree`, plus live `visible`/`process_mode` fields.
 
 ### `runtime_get_property` / `runtime_set_property` ✅ · (`set` is destructive)
-- **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`).
+- **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
 - **Output** identical `{ path, property, value }` shape.
 
 ### `runtime_call_method` ✅ · destructive (arbitrary invocation)
@@ -2453,7 +2453,8 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 { "type": "object", "additionalProperties": false, "required": ["path", "method"],
   "properties": {
     "path": { "type": "string" }, "method": { "type": "string" },
-    "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } } } }
+    "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } },
+    "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2463,7 +2464,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_emit_signal` ✅ · destructive
 - **Input**
 ```json
-{ "type": "object", "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } } } }
+{ "type": "object", "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2483,7 +2484,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
       "button": { "type": "integer", "description": "mouse button index (kind=mouse_button)" },
       "pressed": { "type": "boolean" },
       "position": { "$ref": "#/$defs/Variant" },
-      "relative": { "$ref": "#/$defs/Variant", "description": "relative motion (kind=mouse_motion)" } } } } }
+      "relative": { "$ref": "#/$defs/Variant", "description": "relative motion (kind=mouse_motion)" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2493,7 +2494,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_get_monitors` ✅
 - **Input**
 ```json
-{ "type": "object", "properties": { "keys": { "type": "array", "items": { "type": "string" }, "description": "e.g. time/fps, render/total_draw_calls_in_frame, audio/*" } } }
+{ "type": "object", "properties": { "keys": { "type": "array", "items": { "type": "string" }, "description": "e.g. time/fps, render/total_draw_calls_in_frame, audio/*" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2503,14 +2504,14 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_screenshot` ✅  (returns MCP image content)
 - **Input**
 ```json
-{ "type": "object", "properties": {} }
+{ "type": "object", "properties": { "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** same PNG bridge payload as `screenshot_editor`.
 
 ### `runtime_get_log` ✅  (also a subscribable `godot://runtime/log` resource)
 - **Input**
 ```json
-{ "type": "object", "properties": { "since_seq": { "type": "integer", "default": 0 }, "levels": { "type": "array", "items": { "enum": ["info", "warning", "error"] } } } }
+{ "type": "object", "properties": { "since_seq": { "type": "integer", "default": 0 }, "levels": { "type": "array", "items": { "enum": ["info", "warning", "error"] } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2521,35 +2522,35 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_assert_node_state` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path", "expect"], "properties": { "path": { "type": "string" }, "expect": { "type": "object", "description": "property name -> expected value (tagged-Variant JSON for complex types)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 } } }
+{ "type": "object", "additionalProperties": false, "required": ["path", "expect"], "properties": { "path": { "type": "string" }, "expect": { "type": "object", "description": "property name -> expected value (tagged-Variant JSON for complex types)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ path, ok, checked, mismatches[] }` — read-only. `ok` is true when every checked property matched (numeric fields within `tolerance`); each mismatch is `{ property, expected, actual }` with values in the tagged-Variant encoding.
 
 ### `runtime_assert_scene_structure` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["expect"], "properties": { "expect": { "type": "array", "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "absent": { "type": "boolean" } } } } } }
+{ "type": "object", "additionalProperties": false, "required": ["expect"], "properties": { "expect": { "type": "array", "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "absent": { "type": "boolean" } } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, checked, failures[] }` — read-only. `ok` is true when every expectation held; each failure is `{ path, reason, expected?, actual? }` where `reason` is one of `missing` / `type_mismatch` / `expected_absent_but_present`.
 
 ### `runtime_assert_perf` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["baseline"], "properties": { "baseline": { "type": "object", "additionalProperties": { "type": "number" }, "description": "monitor key -> baseline value (captured earlier via runtime_get_monitors)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "direction": { "type": "object", "additionalProperties": { "enum": ["higher_better", "lower_better"] } } } }
+{ "type": "object", "additionalProperties": false, "required": ["baseline"], "properties": { "baseline": { "type": "object", "additionalProperties": { "type": "number" }, "description": "monitor key -> baseline value (captured earlier via runtime_get_monitors)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "direction": { "type": "object", "additionalProperties": { "enum": ["higher_better", "lower_better"] } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, checked, regressions[], monitors }` — read-only. `ok` is true when every checked monitor met its baseline within `tolerance`; each regression is `{ key, baseline, current, direction }`, and `monitors` maps every checked key to its current value. Direction defaults to `time/fps` higher-better and every other monitor lower-better, overridable per key. The baseline is supplied **inline** (capture it earlier via `runtime_get_monitors`), so the tool stays stateless and read-only — no in-plugin baseline store, no file writes.
 
 ### `runtime_assert_screen_text` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" }, "present": { "type": "boolean", "default": true }, "regex": { "type": "boolean", "default": false }, "case_sensitive": { "type": "boolean", "default": false }, "min_count": { "type": "integer", "minimum": 1 } } }
+{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" }, "present": { "type": "boolean", "default": true }, "regex": { "type": "boolean", "default": false }, "case_sensitive": { "type": "boolean", "default": false }, "min_count": { "type": "integer", "minimum": 1 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, matches, present, samples[] }` — read-only. Scans visible `Control` text in the live scene tree (no OCR): a node counts as a match when it is `visible_in_tree()` and its `text` property contains `text` (substring by default, or a regular expression when `regex:true`; `case_sensitive` defaults false). `ok` is true when the text is present (`present:true`, default) or absent (`present:false`); if `min_count` is given, `ok` requires at least that many matches. `matches` is the total count; `samples` lists up to 20 matching `{ path, text }`. Sees text on `Label` / `RichTextLabel` / `Button` / `LineEdit` / `TextEdit` / `CheckBox` / `LinkButton` and similar; does **not** see text drawn directly to the canvas or baked into textures.
 
 ### `runtime_screenshot_diff` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["reference"], "properties": { "reference": { "type": "string", "description": "res:// or user:// path to the reference PNG" }, "tolerance": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }, "per_channel_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }, "region": { "type": "object", "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" } } } } }
+{ "type": "object", "additionalProperties": false, "required": ["reference"], "properties": { "reference": { "type": "string", "description": "res:// or user:// path to the reference PNG" }, "tolerance": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }, "per_channel_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }, "region": { "type": "object", "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, diff_ratio, differing_pixels, total_pixels, width, height, reference, reason? }` — read-only, **stats only**. Captures the current frame, loads `reference`, normalizes both to RGBA8, optionally crops both to `region`, then counts pixels whose per-channel delta exceeds `per_channel_threshold`. `diff_ratio` = differing / total; `ok` is true when `diff_ratio <= tolerance`. If the (post-crop) dimensions differ, returns `ok:false` with `reason:"dimension_mismatch"`. The diff is computed **engine-side** (`Image`), so the host stays dependency-free. Establish a reference by capturing `runtime_screenshot` and saving it as a project asset. **Future (gated):** an optional `write_diff` to save a highlighted diff image would be a file write — kept out of v1 to stay read-only.
 
@@ -2563,7 +2564,8 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "value": { "$ref": "#/$defs/Variant", "description": "value to compare against (tagged-Variant form for complex types)" },
     "op": { "enum": ["eq", "ne", "gt", "ge", "lt", "le"], "default": "eq" },
     "timeout_ms": { "type": "integer", "minimum": 1, "default": 5000 },
-    "poll_interval_ms": { "type": "integer", "minimum": 1, "default": 100 } } }
+    "poll_interval_ms": { "type": "integer", "minimum": 1, "default": 100 },
+    "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ met, polls, elapsed_ms, value }` — read-only. Polls `runtime_get_property` on `path`.`property` every `poll_interval_ms` until it satisfies `value` under `op` (`eq`/`ne` are structural; `gt`/`ge`/`lt`/`le` are numeric and false unless both sides are numbers), or `timeout_ms` elapses. `met` is true only if the condition held before timeout; `value` is the last-read value, `polls` the number of reads, `elapsed_ms` the wall-clock wait. Implemented host-side over the runtime bridge, so it works on every engine build the bridge supports; it never mutates the game, so it is **not** gated. Pair it with the `runtime_assert_*` family to wait for a state, then assert it.
 
@@ -2575,7 +2577,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" },
     "animation": { "type": "string", "description": "animation name (default: the current/assigned one)" },
     "custom_speed": { "type": "number", "default": 1.0 },
-    "from_end": { "type": "boolean", "default": false } } }
+    "from_end": { "type": "boolean", "default": false }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ playing, current_animation, speed_scale }` — plays `animation` (or the currently-assigned one when omitted) on the live `AnimationPlayer`. Errors `not_animation_player` when `path` is another class and `no_animation` when the name is unknown.
 
@@ -2585,14 +2587,14 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 { "type": "object", "additionalProperties": false, "required": ["path"],
   "properties": {
     "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" },
-    "keep_state": { "type": "boolean", "default": false, "description": "pause in place instead of stopping" } } }
+    "keep_state": { "type": "boolean", "default": false, "description": "pause in place instead of stopping" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ playing, current_animation, position }` — `keep_state:true` pauses in place (`AnimationPlayer.pause()`), otherwise stops (`stop()`). `pause()`/`stop()` with no arguments are used so the tool is stable across Godot 4.2–4.5.
 
 ### `runtime_anim_get_state` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" } } }
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ playing, current_animation, position, length, speed_scale, animations[] }` — read-only snapshot of a live `AnimationPlayer`; `animations` lists the available animation names.
 
@@ -2604,44 +2606,99 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "parent": { "type": "string", "description": "parent node in the running scene" },
     "type": { "type": "string", "description": "ClassDB class to instantiate (mutually exclusive with scene)" },
     "scene": { "type": "string", "description": "res:// PackedScene to instantiate (mutually exclusive with type)" },
-    "name": { "type": "string" } } }
+    "name": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ added, path, type }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
 
 ### `runtime_node_remove` ✅ · destructive
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" } } }
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ removed, path }` — `queue_free()`s the node. Refuses to remove the current scene root (`cannot_remove_root`).
 
 ### `runtime_time_scale` ✅ · destructive (alters the running game's clock)
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["scale"], "properties": { "scale": { "type": "number", "minimum": 0, "description": "0 = freeze, 1 = normal, N = slow/fast" } } }
+{ "type": "object", "additionalProperties": false, "required": ["scale"], "properties": { "scale": { "type": "number", "minimum": 0, "description": "0 = freeze, 1 = normal, N = slow/fast" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ previous, current }` — sets `Engine.time_scale` (negative clamped to 0) and reports the prior and new values. Freeze with `scale:0`, then `runtime_step_frames` to advance deterministically.
 
 ### `runtime_step_frames` ✅ · destructive (drives the running game)
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["frames"], "properties": { "frames": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["idle", "physics", "both"], "default": "idle" } } }
+{ "type": "object", "additionalProperties": false, "required": ["frames"], "properties": { "frames": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["idle", "physics", "both"], "default": "idle" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ frames_advanced, frame_index }` — advances the game by exactly `frames` frames while otherwise frozen, ticking the idle loop (default), the physics loop, or both each step. Dispatched on the runtime bridge's **async lane** (it awaits engine frame signals; the bridge stays responsive because its autoload is `PROCESS_MODE_ALWAYS`) and restores the caller's prior pause state when done. `frame_index` is `Engine.get_process_frames()` after stepping. Pair with `runtime_time_scale{scale:0}` to freeze, then assert.
 
 ### `runtime_state_digest` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["root"], "properties": { "root": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" } }, "max_depth": { "type": "integer", "minimum": 0, "default": 8 } } }
+{ "type": "object", "additionalProperties": false, "required": ["root"], "properties": { "root": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" } }, "max_depth": { "type": "integer", "minimum": 0, "default": 8 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ digest, node_count }` — read-only. Walks the subtree at `root` (to `max_depth`, default 8) and emits `digest` as a stable-ordered map of node path → `{ field: value }`. Default fields are `position` / `global_position` / `rotation` / `scale` / `visible` / `modulate` (only those present on each node); pass `fields` to capture a specific set. Deterministic ordering makes it ideal for frame-by-frame comparison alongside `runtime_step_frames`.
 
 ### `runtime_seed_rng` ✅ · destructive (changes RNG state)
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["seed"], "properties": { "seed": { "type": "integer" } } }
+{ "type": "object", "additionalProperties": false, "required": ["seed"], "properties": { "seed": { "type": "integer" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ seed }` — seeds the running game's **global** RNG via GDScript `seed()` so a playtest is reproducible. Note: affects only the global RNG (`randi`/`randf`), not per-instance `RandomNumberGenerator`s or physics determinism.
+
+### `runtime_spawn_peers` ✅ · higher-trust (`code-execution`, dropped by default)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["count"],
+  "properties": {
+    "count": { "type": "integer", "minimum": 1, "maximum": 4 },
+    "scene": { "type": "string", "description": "res:// scene each peer runs (default: the project's main scene)" },
+    "args": { "type": "array", "items": { "type": "string" }, "description": "extra command-line arguments passed to every peer" },
+    "role": { "type": "string", "description": "label echoed back per peer and exported as BREAKPOINT_PEER_ROLE" },
+    "timeout_ms": { "type": "integer", "minimum": 1, "default": 15000 } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["peers", "count"],
+  "properties": {
+    "peers": { "type": "array", "items": { "type": "object", "required": ["id", "port", "pid", "role", "ready"],
+      "properties": { "id": { "type": "string" }, "port": { "type": "integer" }, "pid": { "type": ["integer", "null"] },
+                      "role": { "type": ["string", "null"] }, "ready": { "type": "boolean" } } } },
+    "count": { "type": "integer" } } }
+```
+Spawns 1–4 **headless** Godot children of this project, each with `BREAKPOINT_RUNTIME_PORT` set to a free loopback port the host allocated, and **waits until every one answers on its bridge** before returning — a tool that returned early would hand the caller peers its next call cannot reach. The returned `id`s are what the `peer` argument on `runtime_seed_rng` / `runtime_time_scale` / `runtime_step_frames` / `runtime_get_property` / `runtime_call_method` / `runtime_await_condition` / `runtime_get_log` accepts. Each child also receives `BREAKPOINT_PEER_ID` and `BREAKPOINT_PEER_INDEX` (and `BREAKPOINT_PEER_ROLE` when `role` is given), readable in game code via `OS.get_environment()`.
+
+Four live peers is a hard ceiling: four headless instances is already a heavy CI runner, the convergence cases that matter are covered at four, and every extra one multiplies the flake surface of the feature whose whole point is not flaking. The host mints the per-project auth secret **before** the first spawn, so every child takes the read path rather than racing the addon's unlocked mint. This is **local loopback testing** — it hosts no relay, lobby or signalling server. Requires the Breakpoint MCP addon enabled in the project (it registers the runtime autoload).
+
+### `runtime_peer_stop` ✅ · destructive (terminates a child process)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": { "id": { "type": "string" }, "all": { "type": "boolean", "default": false } } }
+```
+- **Output** `{ stopped }` — the ids terminated. Pass `id`, or `all:true` for every peer this server spawned. Stopping an already-stopped peer is a no-op, so repeating the call is safe. Peers are also killed when the server shuts down, so they never outlive it.
+
+### `runtime_peers_digest` ✅
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["root"],
+  "properties": {
+    "root": { "type": "string", "description": "root node path to digest in each peer (the same path on every peer)" },
+    "peers": { "type": "array", "items": { "type": "string" }, "description": "peer ids to compare (default: every live peer; at least two required)" },
+    "fields": { "type": "array", "items": { "type": "string" } },
+    "max_depth": { "type": "integer", "minimum": 0, "default": 8 } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["digests", "converged", "diverged_at"],
+  "properties": {
+    "digests": { "type": "array", "items": { "type": "object", "required": ["id", "digest", "node_count"],
+      "properties": { "id": { "type": "string" }, "digest": { "type": "object" }, "node_count": { "type": "integer" } } } },
+    "converged": { "type": "boolean" },
+    "diverged_at": { "type": ["array", "null"], "items": { "type": "string" } } } }
+```
+Read-only. Takes `runtime_state_digest` on two or more peers over the same root and field set and reports whether they agree. `converged` is true when every peer's digest is byte-equal; otherwise `diverged_at` lists the node paths that disagree. Comparison sorts object keys at every level, so convergence is a property of the content rather than of key ordering. The intended sequence is `runtime_spawn_peers` → `runtime_seed_rng{seed}` on each → `runtime_time_scale{scale:0}` on each → `runtime_step_frames{frames:K, kind:"physics"}` on each → this.
+
+**Two boundaries, both measured, and both stated in the tool's own description rather than only here.** First, convergence is claimed for state advanced on the **fixed physics timestep** only: with `kind:"idle"` the per-frame `delta` is real elapsed wall-clock time in each process, so two peers given the identical seed draw identical random numbers and still diverge — measured across three seeds, physics byte-equal 3/3, idle divergent 3/3. Second, this is a **same-machine** claim: peers share one OS and one engine build here, and nothing about that extends to convergence across machines.
 
 ---
 
@@ -4238,6 +4295,9 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_step_frames` | C / Runtime | ✅ | ✔ |
 | `runtime_state_digest` | C / Runtime | ✅ | – |
 | `runtime_seed_rng` | C / Runtime | ✅ | ✔ |
+| `runtime_spawn_peers` | C / Runtime | ✅ | – *(higher-trust: `code-execution`)* |
+| `runtime_peer_stop` | C / Runtime | ✅ | ✔ |
+| `runtime_peers_digest` | C / Runtime | ✅ | – |
 
 | `godot_run_managed` | B / Process | ✅ | – |
 | `godot_output` | B / Process | ✅ | – |
@@ -4298,4 +4358,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | N / Editor | ✅ | ✔ writes files |
 
-**286 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**289 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

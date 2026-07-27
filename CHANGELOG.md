@@ -4,6 +4,83 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Multi-peer deterministic playtesting (`runtime_spawn_peers` / `runtime_peer_stop` /
+  `runtime_peers_digest`).** Spawn up to **four headless peers** of the project as child processes,
+  each on its own loopback runtime port, and assert that independently-driven peers **converge**.
+  The surface goes **286 → 289** (secure-default **272 → 274**); `runtime_spawn_peers` is
+  `code-execution`-privileged and therefore dropped by default, like `godot_run_managed`.
+
+  This is not a networking suite and is deliberately scoped so it cannot become one: it points the
+  existing determinism primitives at more than one process. Seven existing tools — `runtime_seed_rng`,
+  `runtime_time_scale`, `runtime_step_frames`, `runtime_get_property`, `runtime_call_method`,
+  `runtime_await_condition`, `runtime_get_log` — take an optional `peer` argument instead of the
+  feature minting parallel per-peer tools; omit it and behaviour is byte-identical to before. There is
+  no generic `call_rpc_runtime` (use `runtime_call_method{peer}`) and no `mp_diagnose` aggregate (use
+  `runtime_get_log{peer}`). Spawning local headless children on loopback is *testing*, not hosting, so
+  Group M's "host nothing, scaffold everything" line is unmoved: no relay, lobby, or signalling server.
+
+  **The addon needed no change at all.** The runtime autoload already reads `BREAKPOINT_RUNTIME_PORT`
+  from its environment and is a TCP server the host dials, and the auth secret is minted per *project*
+  rather than per process — so N addressable peers is a per-child env overlay plus a port allocator,
+  with no protocol, transport, or handshake change. Confirmed on real Godot 4.3 headless up to four
+  simultaneous peers before any of this was written.
+
+  **Two measured boundaries ship in the tool descriptions, not just here.** Convergence is claimed for
+  state advanced on the **fixed physics timestep** only — with `kind:"idle"` the per-frame `delta` is
+  real elapsed wall-clock time in each process, so two peers given an identical seed draw identical
+  random numbers and still diverge (measured: physics byte-equal on 3 seeds of 3, idle divergent on
+  3 of 3). And it is a **same-machine** claim; nothing here extends across machines. The host also
+  mints the project secret **before** the first spawn, closing a check-then-write race in the addon's
+  `load_or_mint()` that N simultaneous cold-start children could otherwise lose silently.
+
+  **`peer` is accepted by every runtime tool that talks to the running game** — all 24 of them — so
+  the rule is "if you can do it to the default game, you can do it to one peer", with no subset to
+  memorise. It shipped as a seven-tool subset first; validating the build against real Godot 4.3
+  showed that insufficient in a way only an engine could reveal, because equalising peer state before
+  stepping is mandatory and `runtime_set_property` was not on the list. Any subset has that shape of
+  hole.
+
+  **Four preconditions for convergence, all measured on real Godot 4.3** and all stated in
+  `runtime_peers_digest`'s own description rather than only in the docs: step the fixed physics
+  timestep; let the global RNG be consumed *only* on frames you are stepping; freeze before
+  equalising state; same machine only. The second is the one that surprises: `runtime_seed_rng` seeds
+  one stream shared by the whole project, and freezing does **not** stop it being drawn — `time_scale
+  0` zeroes `delta` but callbacks still fire, so unconditional draws burn the stream at wall-clock
+  rate while frozen. With all four honoured, three peers produce byte-equal digests even with a
+  deliberate stagger between each peer's seed and step; with any one violated they diverge every time.
+
+- **A warning-only tool-family count pass in `contract_check.py` (11b).** Check 11 gates only claims
+  carrying a surface marker, and that stays right — the alternative is an allowlist of bare numbers,
+  and every entry in such a list is a hole in the real check. But the family class drifts silently:
+  three stale counts were found this release, two of them four releases old. 11b resolves the shape
+  the docs actually use — a toolset expression followed by a number — exactly, id by id, and lists
+  every other "N tools" phrase for a human. It never fails the build.
+
+  Worth recording how it got there: the first version filtered family counts against every toolset
+  subset *sum*, and a negative test showed it swallowed both defects that motivated it. It would have
+  reported "0 suspects" while they sat stale. A check that reads as verification and verifies nothing
+  is worse than none, so it was replaced rather than tuned.
+
+- **Extensibility boundary written down.** `README.md` and `docs/USER_GUIDE.md` now state that recipes
+  are the extension point — they compose typed tools and add none — and that a bring-your-own-tool
+  hatch is a deliberate decline rather than an unfinished feature, because an injected tool has no
+  frozen output schema, catalog entry, annotation, or capability tag, and `contract_check.py` cannot
+  parse it to check for any of those.
+
+### Fixed
+- `actions/setup-python@v5` → `@v6`, clearing a Node.js 20 runner-deprecation annotation on the
+  `contract check` job before GitHub turns it into an error.
+- `host/package-lock.json` had said `1.12.0` in both its `version` fields for ten minor releases —
+  the same silent-drift class the two count gates close, but reachable by neither. Nothing read it for
+  the published version, so nothing was broken.
+- Three stale tool-*family* counts in the docs, all predating this release: `BREAKPOINT_TOOLSETS=c`
+  was documented as 14 runtime tools (24 since 1.21.0, 27 now), `editor,runtime,vcs` as 172 (182, now
+  185), and Plane A as ~145 tools when the editor toolset registers 146. The first two were found by
+  hand; the third by the new 11b pass on its first run.
+
 ## [1.22.0] — 2026-07-27
 
 Publishes machine-readable risk annotations on the whole surface, ships a static export of it, and

@@ -14,9 +14,9 @@ import {
   toolAllowed,
 } from "../src/capabilities.js";
 
-const FULL_TOOL_COUNT = 286;
+const FULL_TOOL_COUNT = 289;
 
-// The 14 privileged tools, split by which single group keeps them.
+// The 15 privileged tools, split by which single group keeps them.
 const CODE_EXEC_ONLY = [
   // arbitrary execution / invocation / paused-frame evaluation
   "cs_dbg_evaluate",
@@ -25,6 +25,8 @@ const CODE_EXEC_ONLY = [
   "godot_run_managed",
   "node_call_method",
   "runtime_call_method",
+  // F6: spawns headless Godot children of the project.
+  "runtime_spawn_peers",
   // asset-gen generators — the local command backend is their only privileged
   // path, so they load with code-execution alone (the network tag was dropped
   // because no external provider backend is implemented).
@@ -81,20 +83,20 @@ function registerWith(tokens: string[] | null) {
   return calls.map((c) => c.name);
 }
 
-test("secure default (no groups) drops exactly the 14 privileged tools → 272", () => {
+test("secure default (no groups) drops exactly the 15 privileged tools → 274", () => {
   const names = registerWith(null);
   assert.equal(names.length, FULL_TOOL_COUNT - ALL_PRIVILEGED.length);
-  assert.equal(names.length, 272);
+  assert.equal(names.length, 274);
   const present = new Set(names);
   for (const t of ALL_PRIVILEGED) assert.ok(!present.has(t), `${t} should be dropped by default`);
 });
 
-test("enabling both groups (or 'all') restores the full 286-tool surface", () => {
+test("enabling both groups (or 'all') restores the full 289-tool surface", () => {
   assert.equal(registerWith(["code-execution", "network"]).length, FULL_TOOL_COUNT);
   assert.equal(registerWith(["all"]).length, FULL_TOOL_COUNT);
 });
 
-test("code-execution only keeps everything except the network-only tools (284)", () => {
+test("code-execution only keeps everything except the network-only tools (287)", () => {
   const names = registerWith(["code-execution"]);
   assert.equal(names.length, FULL_TOOL_COUNT - NETWORK_ONLY.length);
   const present = new Set(names);
@@ -102,7 +104,7 @@ test("code-execution only keeps everything except the network-only tools (284)",
   for (const t of CODE_EXEC_ONLY) assert.ok(present.has(t), `${t} should be present`);
 });
 
-test("network only keeps everything except the pure code-execution tools (274)", () => {
+test("network only keeps everything except the pure code-execution tools (276)", () => {
   const names = registerWith(["network"]);
   assert.equal(names.length, FULL_TOOL_COUNT - CODE_EXEC_ONLY.length);
   const present = new Set(names);

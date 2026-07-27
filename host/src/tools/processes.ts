@@ -32,11 +32,23 @@ export class ProcessRegistry {
   private procs = new Map<string, Managed>();
   private counter = 0;
 
-  run(cfg: Config, extraArgs: string[]): Managed {
+  /**
+   * Spawn a managed Godot child. `env` is an OVERLAY on the inherited
+   * environment, not a replacement: omitted (the `godot_run_managed` path) the
+   * child inherits exactly as before, byte-identical to pre-F6 behaviour.
+   *
+   * The overlay is what makes multi-peer work at all — the runtime autoload
+   * reads `BREAKPOINT_RUNTIME_PORT` from its environment
+   * (`runtime_bridge.gd:74`), so N addressable peers is a per-child env
+   * passthrough plus a port allocator, with no protocol, transport or handshake
+   * change. See `peers.ts`.
+   */
+  run(cfg: Config, extraArgs: string[], env?: Record<string, string>): Managed {
     const id = `godot-${++this.counter}`;
     const child = spawn(cfg.godotBin, ["--path", cfg.projectPath, ...extraArgs], {
       cwd: cfg.projectPath,
       stdio: ["ignore", "pipe", "pipe"],
+      ...(env ? { env: { ...process.env, ...env } } : {}),
     });
     const m: Managed = { id, child, lines: [], seq: 0, exited: false, exitCode: null };
     const ingest = (stream: "stdout" | "stderr") => (buf: Buffer | string) => {
@@ -61,6 +73,18 @@ export class ProcessRegistry {
 
   get(id: string): Managed | undefined {
     return this.procs.get(id);
+  }
+
+  /**
+   * The last `n` captured lines for a managed child, newest last. Used to
+   * explain a peer that never bound its port — a project that fails to load
+   * dies with the reason on stderr, and without this the caller only ever sees
+   * "cannot reach the runtime bridge".
+   */
+  tail(id: string, n = 12): string[] {
+    const m = this.procs.get(id);
+    if (!m) return [];
+    return m.lines.slice(-n).map((l) => l.text);
   }
 
   killAll(): void {

@@ -3,16 +3,16 @@
  * toolsets (`BREAKPOINT_TOOLSETS`). Two groups, both OFF by default:
  *
  *   • `code-execution` — tools that run arbitrary GDScript, invoke arbitrary
- *     methods, evaluate an expression in a paused debug frame, or run a local
- *     asset-gen *command* backend.
+ *     methods, evaluate an expression in a paused debug frame, spawn headless
+ *     child processes of the project, or run a local asset-gen *command* backend.
  *   • `network` — tools that egress beyond loopback: the Group M backend SDK.
  *
  * Where toolsets filter whole planes, capability groups tag INDIVIDUAL tools and
  * DROP them at registration when their group isn't enabled — so a default
  * session's advertised surface omits the high-blast tools entirely
  * (least-privilege by construction, mirroring `godot-agent-loop`). The full
- * 286-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
- * groups back in; the secure-default surface is 286 − 14 = 272 tools.
+ * 289-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
+ * groups back in; the secure-default surface is 289 − 15 = 274 tools.
  *
  * A tool with NO capability tag is always registered. Semantics are a UNION: a
  * tool tagged with more than one group is registered when ANY of its groups is
@@ -36,7 +36,7 @@ export const CAPABILITY_GROUPS: readonly CapabilityGroup[] = ["code-execution", 
 /** One-line human description per group (shown by `doctor` and the resource). */
 export const GROUP_DESCRIBE: Record<CapabilityGroup, string> = {
   "code-execution":
-    "Run arbitrary GDScript, invoke arbitrary methods, evaluate an expression in a paused debug frame, or run a local asset-gen command backend.",
+    "Run arbitrary GDScript, invoke arbitrary methods, evaluate an expression in a paused debug frame, spawn headless child processes of the project, or run a local asset-gen command backend.",
   network: "Egress beyond loopback — the Group M backend SDK.",
 };
 
@@ -51,6 +51,10 @@ export const TOOL_CAPABILITIES: Readonly<Record<string, readonly CapabilityGroup
   godot_run_managed: ["code-execution"],
   node_call_method: ["code-execution"],
   runtime_call_method: ["code-execution"],
+  // F6: spawns headless Godot child processes of the project — the same class of
+  // trust as godot_run_managed, which is why it is privileged rather than merely
+  // confirmation-gated.
+  runtime_spawn_peers: ["code-execution"],
   dbg_evaluate: ["code-execution"],
   cs_dbg_evaluate: ["code-execution"],
   // asset generation — the local command backend (code-execution) is the only

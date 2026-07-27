@@ -550,6 +550,27 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_step_frames: { frames_advanced: z.number(), frame_index: z.number() },
   runtime_state_digest: { digest: z.record(z.record(encodedValue)), node_count: z.number() },
   runtime_seed_rng: { seed: z.number() },
+  // F6 additions: multi-peer deterministic playtesting (spawn / stop / converge).
+  runtime_spawn_peers: {
+    peers: z.array(
+      z.object({
+        id: z.string(),
+        port: z.number(),
+        pid: z.number().nullable(),
+        role: z.string().nullable(),
+        ready: z.boolean(),
+      }),
+    ),
+    count: z.number(),
+  },
+  runtime_peer_stop: { stopped: z.array(z.string()) },
+  runtime_peers_digest: {
+    digests: z.array(
+      z.object({ id: z.string(), digest: z.record(z.record(encodedValue)), node_count: z.number() }),
+    ),
+    converged: z.boolean(),
+    diverged_at: z.array(z.string()).nullable(),
+  },
 
   // ---- Group K: knowledge & search ----
   // Host-side project index (tools/knowledge.ts) — no bridge/LSP; read the project files directly.
