@@ -68,9 +68,10 @@ const READ_ONLY: readonly string[] = [
   "resource_load", "runtime_anim_get_state", "runtime_assert_node_state", "runtime_assert_perf",
   "runtime_assert_scene_structure", "runtime_assert_screen_text", "runtime_await_condition", "runtime_get_log",
   "runtime_get_monitors", "runtime_get_property", "runtime_get_tree", "runtime_screenshot",
-  "runtime_screenshot_diff", "runtime_state_digest", "scene_get_dependencies", "scene_get_tree", "scene_list_open",
-  "screenshot_editor", "selection_get", "signal_list", "signal_list_connections", "test_detect", "test_list",
-  "tilemap_get_cell", "vcs_blame", "vcs_branch_list", "vcs_diff", "vcs_log", "vcs_show", "vcs_status",
+  "runtime_peers_digest", "runtime_screenshot_diff", "runtime_state_digest", "scene_get_dependencies",
+  "scene_get_tree", "scene_list_open", "screenshot_editor", "selection_get", "signal_list",
+  "signal_list_connections", "test_detect", "test_list", "tilemap_get_cell", "vcs_blame", "vcs_branch_list",
+  "vcs_diff", "vcs_log", "vcs_show", "vcs_status",
 ];
 
 /** Tools that may overwrite or discard state the caller did not supply. */
@@ -87,8 +88,8 @@ const DESTRUCTIVE: readonly string[] = [
   "project_add_autoload", "project_remove_autoload", "project_set_main_scene", "project_set_setting",
   "resource_create", "resource_duplicate", "resource_save", "resource_set_import_settings",
   "resource_set_property", "runtime_anim_play", "runtime_anim_stop", "runtime_call_method", "runtime_emit_signal",
-  "runtime_inject_input", "runtime_node_remove", "runtime_seed_rng", "runtime_set_property", "runtime_step_frames",
-  "runtime_time_scale", "scene_close", "scene_new", "scene_pack", "scene_reload", "scene_save_as", "shader_create",
+  "runtime_inject_input", "runtime_node_remove", "runtime_peer_stop", "runtime_seed_rng", "runtime_set_property",
+  "runtime_step_frames", "runtime_time_scale", "scene_close", "scene_new", "scene_pack", "scene_reload", "scene_save_as", "shader_create",
   "shader_set_code", "shadermaterial_create", "shadermaterial_set_param", "shadermaterial_set_shader",
   "signal_disconnect", "signal_emit", "theme_create", "theme_set_color", "theme_set_constant", "theme_set_font",
   "theme_set_stylebox", "tilemap_clear", "tilemap_set_cell", "tilemap_set_cells_rect", "tileset_create",
@@ -131,9 +132,9 @@ const IDEMPOTENT: readonly string[] = [
   "resource_set_import_settings", "resource_set_property", "rigidbody_set_properties", "runtime_anim_get_state",
   "runtime_anim_stop", "runtime_assert_node_state", "runtime_assert_perf", "runtime_assert_scene_structure",
   "runtime_assert_screen_text", "runtime_await_condition", "runtime_get_log", "runtime_get_monitors",
-  "runtime_get_property", "runtime_get_tree", "runtime_node_remove", "runtime_screenshot",
-  "runtime_screenshot_diff", "runtime_seed_rng", "runtime_set_property", "runtime_state_digest",
-  "runtime_time_scale", "scene_get_dependencies", "scene_get_tree", "scene_list_open", "scene_new", "scene_open",
+  "runtime_get_property", "runtime_get_tree", "runtime_node_remove", "runtime_peer_stop", "runtime_peers_digest",
+  "runtime_screenshot", "runtime_screenshot_diff", "runtime_seed_rng", "runtime_set_property",
+  "runtime_state_digest", "runtime_time_scale", "scene_get_dependencies", "scene_get_tree", "scene_list_open", "scene_new", "scene_open",
   "scene_pack", "scene_reload", "scene_save", "scene_save_as", "screenshot_editor", "selection_get",
   "selection_set", "shader_create", "shader_set_code", "shadermaterial_create", "shadermaterial_set_param",
   "shadermaterial_set_shader", "signal_add_user_signal", "signal_connect", "signal_disconnect", "signal_list",
@@ -152,7 +153,7 @@ const OPEN_WORLD: readonly string[] = [];
 /**
  * The complete annotated roster — every registered tool, listed explicitly.
  *
- * This CANNOT be derived as the union of the four lists above: 51 tools are
+ * This CANNOT be derived as the union of the four lists above: 52 tools are
  * all-false (mutating, non-destructive, non-idempotent, local — e.g. `node_add`,
  * `dbg_step`, `vcs_commit`), so a derived union would silently omit them and the
  * totality check below would pass while they shipped unannotated. Listing the
@@ -204,9 +205,10 @@ export const ALL_ANNOTATED: readonly string[] = [
   "runtime_anim_play", "runtime_anim_stop", "runtime_assert_node_state", "runtime_assert_perf",
   "runtime_assert_scene_structure", "runtime_assert_screen_text", "runtime_await_condition", "runtime_call_method",
   "runtime_emit_signal", "runtime_get_log", "runtime_get_monitors", "runtime_get_property", "runtime_get_tree",
-  "runtime_inject_input", "runtime_node_add", "runtime_node_remove", "runtime_screenshot",
-  "runtime_screenshot_diff", "runtime_seed_rng", "runtime_set_property", "runtime_state_digest",
-  "runtime_step_frames", "runtime_time_scale", "scene_close", "scene_get_dependencies", "scene_get_tree",
+  "runtime_inject_input", "runtime_node_add", "runtime_node_remove", "runtime_peer_stop", "runtime_peers_digest",
+  "runtime_screenshot", "runtime_screenshot_diff", "runtime_seed_rng", "runtime_set_property",
+  "runtime_spawn_peers", "runtime_state_digest", "runtime_step_frames", "runtime_time_scale", "scene_close",
+  "scene_get_dependencies", "scene_get_tree",
   "scene_list_open", "scene_new", "scene_open", "scene_pack", "scene_reload", "scene_save", "scene_save_as",
   "screenshot_editor", "selection_get", "selection_set", "shader_create", "shader_set_code",
   "shadermaterial_create", "shadermaterial_set_param", "shadermaterial_set_shader", "signal_add_user_signal",

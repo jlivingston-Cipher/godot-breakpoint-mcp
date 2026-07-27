@@ -22,6 +22,7 @@ import { registerDapTools } from "./tools/dap.js";
 import { registerCsDapTools } from "./tools/csdap.js";
 import { registerRuntimeTools } from "./tools/runtime.js";
 import { registerProcessTools } from "./tools/processes.js";
+import { PeerRegistry } from "./peers.js";
 import { registerKnowledgeTools } from "./tools/knowledge.js";
 import { registerVcsTools } from "./tools/vcs.js";
 import { registerAssetGenTools } from "./tools/assetgen.js";
@@ -45,6 +46,8 @@ export interface ToolsetDeps {
   config: Config;
   /** Called with the managed-process handle so the caller can wire shutdown. */
   onProcesses?: (handle: ReturnType<typeof registerProcessTools>) => void;
+  /** Called with the F6 peer registry so the caller can wire shutdown. */
+  onPeers?: (handle: PeerRegistry) => void;
 }
 
 export interface Toolset {
@@ -66,6 +69,11 @@ export function buildToolsets(d: ToolsetDeps): Toolset[] {
   const s = d.server;
   const c = d.config;
   const stub = <T,>(v: unknown) => v as T;
+  // F6: constructed here, not in index.ts, so the registration tests drive the
+  // same wiring the live server does. Construction is inert — nothing is spawned
+  // until runtime_spawn_peers is called.
+  const peers = new PeerRegistry(c);
+  d.onPeers?.(peers);
   return [
     { id: "cli", describe: "Plane B — headless CLI (no editor required)", run: () => registerCliTools(s, c) },
     { id: "editor", describe: "Plane A — live editor authoring (addon bridge)", run: () => registerEditorTools(s, stub<AnyClient>(d.bridge)) },
@@ -73,7 +81,7 @@ export function buildToolsets(d: ToolsetDeps): Toolset[] {
     { id: "cslsp", describe: "Plane D — C# language server (OmniSharp)", run: () => registerCsLspTools(s, stub<AnyClient>(d.csLsp), c) },
     { id: "dap", describe: "Plane D — GDScript debug adapter (DAP)", run: () => registerDapTools(s, stub<AnyClient>(d.dap), c) },
     { id: "csdap", describe: "Plane D — C# debug adapter (netcoredbg)", run: () => registerCsDapTools(s, stub<AnyClient>(d.csDap), c) },
-    { id: "runtime", describe: "Plane C — running-game runtime + verification family", run: () => registerRuntimeTools(s, stub<AnyClient>(d.runtime)) },
+    { id: "runtime", describe: "Plane C — running-game runtime + verification family (incl. F6 multi-peer)", run: () => registerRuntimeTools(s, stub<AnyClient>(d.runtime), peers) },
     { id: "processes", describe: "Managed run + captured console output", run: () => { const h = registerProcessTools(s, c); d.onProcesses?.(h); } },
     { id: "knowledge", describe: "Group K — host-side project grep / symbol & idiom lookup", run: () => registerKnowledgeTools(s, c) },
     { id: "vcs", describe: "Group L — read-only version control (git) over the project", run: () => registerVcsTools(s, c) },

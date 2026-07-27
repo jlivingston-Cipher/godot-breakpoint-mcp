@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **286 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **289 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2444,7 +2444,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 - **Output** same recursive `SceneNode` shape as `scene_get_tree`, plus live `visible`/`process_mode` fields.
 
 ### `runtime_get_property` / `runtime_set_property` ✅ · (`set` is destructive)
-- **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`).
+- **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
 - **Output** identical `{ path, property, value }` shape.
 
 ### `runtime_call_method` ✅ · destructive (arbitrary invocation)
@@ -2453,7 +2453,8 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 { "type": "object", "additionalProperties": false, "required": ["path", "method"],
   "properties": {
     "path": { "type": "string" }, "method": { "type": "string" },
-    "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } } } }
+    "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } },
+    "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2510,7 +2511,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_get_log` ✅  (also a subscribable `godot://runtime/log` resource)
 - **Input**
 ```json
-{ "type": "object", "properties": { "since_seq": { "type": "integer", "default": 0 }, "levels": { "type": "array", "items": { "enum": ["info", "warning", "error"] } } } }
+{ "type": "object", "properties": { "since_seq": { "type": "integer", "default": 0 }, "levels": { "type": "array", "items": { "enum": ["info", "warning", "error"] } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2563,7 +2564,8 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "value": { "$ref": "#/$defs/Variant", "description": "value to compare against (tagged-Variant form for complex types)" },
     "op": { "enum": ["eq", "ne", "gt", "ge", "lt", "le"], "default": "eq" },
     "timeout_ms": { "type": "integer", "minimum": 1, "default": 5000 },
-    "poll_interval_ms": { "type": "integer", "minimum": 1, "default": 100 } } }
+    "poll_interval_ms": { "type": "integer", "minimum": 1, "default": 100 },
+    "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ met, polls, elapsed_ms, value }` — read-only. Polls `runtime_get_property` on `path`.`property` every `poll_interval_ms` until it satisfies `value` under `op` (`eq`/`ne` are structural; `gt`/`ge`/`lt`/`le` are numeric and false unless both sides are numbers), or `timeout_ms` elapses. `met` is true only if the condition held before timeout; `value` is the last-read value, `polls` the number of reads, `elapsed_ms` the wall-clock wait. Implemented host-side over the runtime bridge, so it works on every engine build the bridge supports; it never mutates the game, so it is **not** gated. Pair it with the `runtime_assert_*` family to wait for a state, then assert it.
 
@@ -2618,14 +2620,14 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_time_scale` ✅ · destructive (alters the running game's clock)
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["scale"], "properties": { "scale": { "type": "number", "minimum": 0, "description": "0 = freeze, 1 = normal, N = slow/fast" } } }
+{ "type": "object", "additionalProperties": false, "required": ["scale"], "properties": { "scale": { "type": "number", "minimum": 0, "description": "0 = freeze, 1 = normal, N = slow/fast" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ previous, current }` — sets `Engine.time_scale` (negative clamped to 0) and reports the prior and new values. Freeze with `scale:0`, then `runtime_step_frames` to advance deterministically.
 
 ### `runtime_step_frames` ✅ · destructive (drives the running game)
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["frames"], "properties": { "frames": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["idle", "physics", "both"], "default": "idle" } } }
+{ "type": "object", "additionalProperties": false, "required": ["frames"], "properties": { "frames": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["idle", "physics", "both"], "default": "idle" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ frames_advanced, frame_index }` — advances the game by exactly `frames` frames while otherwise frozen, ticking the idle loop (default), the physics loop, or both each step. Dispatched on the runtime bridge's **async lane** (it awaits engine frame signals; the bridge stays responsive because its autoload is `PROCESS_MODE_ALWAYS`) and restores the caller's prior pause state when done. `frame_index` is `Engine.get_process_frames()` after stepping. Pair with `runtime_time_scale{scale:0}` to freeze, then assert.
 
@@ -2639,9 +2641,64 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_seed_rng` ✅ · destructive (changes RNG state)
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["seed"], "properties": { "seed": { "type": "integer" } } }
+{ "type": "object", "additionalProperties": false, "required": ["seed"], "properties": { "seed": { "type": "integer" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ seed }` — seeds the running game's **global** RNG via GDScript `seed()` so a playtest is reproducible. Note: affects only the global RNG (`randi`/`randf`), not per-instance `RandomNumberGenerator`s or physics determinism.
+
+### `runtime_spawn_peers` ✅ · higher-trust (`code-execution`, dropped by default)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["count"],
+  "properties": {
+    "count": { "type": "integer", "minimum": 1, "maximum": 4 },
+    "scene": { "type": "string", "description": "res:// scene each peer runs (default: the project's main scene)" },
+    "args": { "type": "array", "items": { "type": "string" }, "description": "extra command-line arguments passed to every peer" },
+    "role": { "type": "string", "description": "label echoed back per peer and exported as BREAKPOINT_PEER_ROLE" },
+    "timeout_ms": { "type": "integer", "minimum": 1, "default": 15000 } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["peers", "count"],
+  "properties": {
+    "peers": { "type": "array", "items": { "type": "object", "required": ["id", "port", "pid", "role", "ready"],
+      "properties": { "id": { "type": "string" }, "port": { "type": "integer" }, "pid": { "type": ["integer", "null"] },
+                      "role": { "type": ["string", "null"] }, "ready": { "type": "boolean" } } } },
+    "count": { "type": "integer" } } }
+```
+Spawns 1–4 **headless** Godot children of this project, each with `BREAKPOINT_RUNTIME_PORT` set to a free loopback port the host allocated, and **waits until every one answers on its bridge** before returning — a tool that returned early would hand the caller peers its next call cannot reach. The returned `id`s are what the `peer` argument on `runtime_seed_rng` / `runtime_time_scale` / `runtime_step_frames` / `runtime_get_property` / `runtime_call_method` / `runtime_await_condition` / `runtime_get_log` accepts. Each child also receives `BREAKPOINT_PEER_ID` and `BREAKPOINT_PEER_INDEX` (and `BREAKPOINT_PEER_ROLE` when `role` is given), readable in game code via `OS.get_environment()`.
+
+Four live peers is a hard ceiling: four headless instances is already a heavy CI runner, the convergence cases that matter are covered at four, and every extra one multiplies the flake surface of the feature whose whole point is not flaking. The host mints the per-project auth secret **before** the first spawn, so every child takes the read path rather than racing the addon's unlocked mint. This is **local loopback testing** — it hosts no relay, lobby or signalling server. Requires the Breakpoint MCP addon enabled in the project (it registers the runtime autoload).
+
+### `runtime_peer_stop` ✅ · destructive (terminates a child process)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": { "id": { "type": "string" }, "all": { "type": "boolean", "default": false } } }
+```
+- **Output** `{ stopped }` — the ids terminated. Pass `id`, or `all:true` for every peer this server spawned. Stopping an already-stopped peer is a no-op, so repeating the call is safe. Peers are also killed when the server shuts down, so they never outlive it.
+
+### `runtime_peers_digest` ✅
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["root"],
+  "properties": {
+    "root": { "type": "string", "description": "root node path to digest in each peer (the same path on every peer)" },
+    "peers": { "type": "array", "items": { "type": "string" }, "description": "peer ids to compare (default: every live peer; at least two required)" },
+    "fields": { "type": "array", "items": { "type": "string" } },
+    "max_depth": { "type": "integer", "minimum": 0, "default": 8 } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["digests", "converged", "diverged_at"],
+  "properties": {
+    "digests": { "type": "array", "items": { "type": "object", "required": ["id", "digest", "node_count"],
+      "properties": { "id": { "type": "string" }, "digest": { "type": "object" }, "node_count": { "type": "integer" } } } },
+    "converged": { "type": "boolean" },
+    "diverged_at": { "type": ["array", "null"], "items": { "type": "string" } } } }
+```
+Read-only. Takes `runtime_state_digest` on two or more peers over the same root and field set and reports whether they agree. `converged` is true when every peer's digest is byte-equal; otherwise `diverged_at` lists the node paths that disagree. Comparison sorts object keys at every level, so convergence is a property of the content rather than of key ordering. The intended sequence is `runtime_spawn_peers` → `runtime_seed_rng{seed}` on each → `runtime_time_scale{scale:0}` on each → `runtime_step_frames{frames:K, kind:"physics"}` on each → this.
+
+**Two boundaries, both measured, and both stated in the tool's own description rather than only here.** First, convergence is claimed for state advanced on the **fixed physics timestep** only: with `kind:"idle"` the per-frame `delta` is real elapsed wall-clock time in each process, so two peers given the identical seed draw identical random numbers and still diverge — measured across three seeds, physics byte-equal 3/3, idle divergent 3/3. Second, this is a **same-machine** claim: peers share one OS and one engine build here, and nothing about that extends to convergence across machines.
 
 ---
 
@@ -4238,6 +4295,9 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_step_frames` | C / Runtime | ✅ | ✔ |
 | `runtime_state_digest` | C / Runtime | ✅ | – |
 | `runtime_seed_rng` | C / Runtime | ✅ | ✔ |
+| `runtime_spawn_peers` | C / Runtime | ✅ | – *(higher-trust: `code-execution`)* |
+| `runtime_peer_stop` | C / Runtime | ✅ | ✔ |
+| `runtime_peers_digest` | C / Runtime | ✅ | – |
 
 | `godot_run_managed` | B / Process | ✅ | – |
 | `godot_output` | B / Process | ✅ | – |
@@ -4298,4 +4358,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | N / Editor | ✅ | ✔ writes files |
 
-**286 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**289 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

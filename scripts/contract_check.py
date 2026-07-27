@@ -236,8 +236,8 @@ def _mask_continuations(text: str, suffix: str) -> str:
     exact.
 
     Load-bearing: prose in this repo wraps mid-claim. `recipes.ts` says
-    "(the 286-tool\n * count is unchanged)" and `capabilities.ts` says
-    "The full\n * 286-tool surface". A line-by-line scan sees neither, and an
+    "(the 289-tool\n * count is unchanged)" and `capabilities.ts` says
+    "The full\n * 289-tool surface". A line-by-line scan sees neither, and an
     unmasked file-wide scan is blocked by the `*`.
     """
     marker = r"\*" if suffix == ".ts" else ">"
@@ -256,6 +256,11 @@ def _snip(text: str) -> str:
 
 # Claims about the FULL surface. Each pattern captures the number in group 1.
 # A time-unit lookahead keeps "the full 20 s DAP timeout" out of the count net.
+#
+# The numbers in the comments below are ILLUSTRATIVE examples of each pattern's
+# shape, not claims about the current surface — this file is not in
+# TOOL_COUNT_FILES and gates itself against nothing. Don't chase them on a
+# release; do fix any that quote real source text verbatim.
 TOTAL_CLAIM_RES = [
     # "full 286 tools", "all 286 tools", "full 286-tool", "total 286 MCP tools"
     re.compile(r"\b(?:full|all|entire|total)\s+\**(\d+)\**\s*(?:[-‑–]tool\b|(?:\s+MCP)?\s+tools?\b)"),

@@ -29,13 +29,13 @@ test("serverEntry adds BREAKPOINT_PRIVILEGED_GROUPS only when opted in", () => {
   assert.equal(full.env.BREAKPOINT_PRIVILEGED_GROUPS, "code-execution,network");
 });
 
-test("doctor checkCapabilities reports the secure default (14 dropped) + how-to-enable hint", () => {
+test("doctor checkCapabilities reports the secure default (15 dropped) + how-to-enable hint", () => {
   const cfg = { ...loadConfig(), privilegedGroups: null };
   const main = checkCapabilities(cfg).find((c) => c.name === "capability-groups");
   assert.ok(main);
   assert.equal(main.severity, "info");
   assert.match(main.detail, /code-execution off/);
-  assert.match(main.detail, /14 higher-trust tool/);
+  assert.match(main.detail, /15 higher-trust tool/);
   assert.match(main.hint ?? "", /BREAKPOINT_PRIVILEGED_GROUPS/);
 });
 
@@ -43,7 +43,7 @@ test("doctor checkCapabilities reports the full surface when both groups are on"
   const cfg = { ...loadConfig(), privilegedGroups: ["all"] };
   const main = checkCapabilities(cfg).find((c) => c.name === "capability-groups");
   assert.ok(main);
-  assert.match(main.detail, /full 286-tool surface/);
+  assert.match(main.detail, /full 289-tool surface/);
   assert.equal(main.hint, undefined);
 });
 

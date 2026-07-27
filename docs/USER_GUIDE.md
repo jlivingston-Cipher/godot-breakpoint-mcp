@@ -7,7 +7,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 - **Version:** host 1.22.0 · addon 1.9.1
 - **License:** MIT
-- **What it exposes:** full 286 tools (secure-default 272 with the privileged groups off) + 6 MCP resources
+- **What it exposes:** full 289 tools (secure-default 274 with the privileged groups off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -377,8 +377,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 272 tools**. Opt in
-to load the **full 286**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 274 tools**. Opt in
+to load the **full 289**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -470,15 +470,17 @@ on the formal **MCP task model**: a task-aware client creates the job and then p
 awaits its result, or cancels it (`tasks/get` / `tasks/result` / `tasks/cancel`). A plain
 client still gets the blocking result, exactly as before.
 
-### Plane C — Runtime Bridge (`runtime_*`, 14 tools)
+### Plane C — Runtime Bridge (`runtime_*`, 27 tools)
 
 An autoload (`BreakpointRuntimeBridge`) that lives inside the **running game** and listens
 on `127.0.0.1:9081`. Through it, the assistant can read the live SceneTree, get and set runtime
 properties, call methods, emit signals, inject input for play-testing, read performance
 monitors, and capture in-game frames. It also runs a family of **read-only runtime
 assertions** — node state, scene structure, on-screen text, performance baselines, and
-screenshot diffs — for checking a running game the way a test would. On **Godot 4.5+** it
-additionally captures the
+screenshot diffs — for checking a running game the way a test would. It also carries the
+**deterministic playtesting** primitives — freeze time, step an exact number of frames, seed the
+global RNG, and take a stable-ordered state digest — and can point all four at **several headless
+peers at once** (see below). On **Godot 4.5+** it additionally captures the
 game's console (`print()`, warnings, errors) with zero configuration.
 
 ### Plane D — Semantic and Debugging
@@ -581,7 +583,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **286 tools** in total (the secure-default surface is **272** with the two privileged capability groups off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **289 tools** in total (the secure-default surface is **274** with the two privileged capability groups off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -662,7 +664,7 @@ Works without the editor open.
 - **`godot_run_managed`** / **`godot_output`** / **`godot_stop`** — run the game as a
   managed child process with captured stdout/stderr, read that console output, and stop it.
 
-### Plane C — Runtime bridge (`runtime_*`, 14 tools)
+### Plane C — Runtime bridge (`runtime_*`, 27 tools)
 
 Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_set_property` *(destructive)*, `runtime_call_method` *(destructive)*,
@@ -670,7 +672,32 @@ Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_get_monitors`, `runtime_screenshot`, and `runtime_get_log`. Plus a read-only
 verification family: `runtime_assert_node_state`, `runtime_assert_scene_structure`,
 `runtime_assert_perf`, `runtime_assert_screen_text`, and `runtime_screenshot_diff` (all
-non-destructive — they check the running game without changing it).
+non-destructive — they check the running game without changing it), node editing
+(`runtime_node_add` / `runtime_node_remove`), animation control (`runtime_anim_play` /
+`runtime_anim_stop` / `runtime_anim_get_state`), and `runtime_await_condition`.
+
+**Deterministic playtesting.** `runtime_time_scale` freezes the clock, `runtime_step_frames`
+advances an exact number of frames, `runtime_seed_rng` seeds the global RNG, and
+`runtime_state_digest` takes a stable-ordered snapshot of a subtree — so a playtest is
+frame-exact rather than wall-clock.
+
+**Across several processes.** `runtime_spawn_peers` (higher-trust: `code-execution`) starts up to
+four **headless** peers of the project, each on its own loopback port; `runtime_peer_stop` ends
+them; and `runtime_peers_digest` reads the same digest from two or more of them and reports
+whether they **converged**. The seven tools a multi-process playtest drives — `runtime_seed_rng`,
+`runtime_time_scale`, `runtime_step_frames`, `runtime_get_property`, `runtime_call_method`,
+`runtime_await_condition`, `runtime_get_log` — take an optional `peer` argument; omit it and you
+address the default running game exactly as before. Each peer gets `BREAKPOINT_PEER_ID`,
+`BREAKPOINT_PEER_INDEX` and (when you pass `role`) `BREAKPOINT_PEER_ROLE` in its environment, so
+game code can branch on which peer it is with `OS.get_environment()`.
+
+Two boundaries ship in `runtime_peers_digest`'s own description because they are measured facts,
+not caveats. **Convergence is claimed for the fixed physics timestep only** — step with
+`kind:"physics"`; state advanced on the variable idle-frame `delta` is real elapsed wall-clock
+time in each process and will not converge no matter what you seed. And it is a **same-machine**
+claim: peers here share one OS and one engine build, so nothing about it extends across machines.
+This spawns local headless children on loopback for testing — it hosts no relay, lobby or
+signalling server, which stays out of scope deliberately.
 
 ### Plane D — Semantic and debugging
 
@@ -930,7 +957,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-286 tools (secure-default 272) and 6 resources. The exhaustive per-tool schemas are in
+289 tools (secure-default 274) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

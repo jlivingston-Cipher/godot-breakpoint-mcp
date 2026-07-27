@@ -1,11 +1,25 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
+import { MAX_PEERS, type PeerRegistry } from "../peers.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 
 const confirmField = {
   confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+};
+
+/**
+ * F6: address a spawned headless peer instead of the default running game.
+ * Threaded onto the runtime tools a multi-process playtest actually drives —
+ * seed, freeze, step, read, invoke, await, log — rather than minting a parallel
+ * set of peer-specific tools. Omitting it is byte-identical to pre-F6 behaviour.
+ */
+const peerField = {
+  peer: z
+    .string()
+    .optional()
+    .describe("Target a headless peer by id (from runtime_spawn_peers). Omit to address the default running game."),
 };
 
 /**
@@ -48,10 +62,38 @@ function compareValues(actual: unknown, expected: unknown, op: string): boolean 
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): void {
-  const call = async (method: string, params: Record<string, unknown> = {}) => {
+/**
+ * Stable stringification of a state digest: object keys sorted at every level,
+ * so convergence is a property of the CONTENT and not of key order.
+ *
+ * The addon already emits a stable-ordered digest, and JS preserves string-key
+ * insertion order, so a plain JSON.stringify would compare correctly today.
+ * Sorting anyway costs nothing and means the convergence claim does not quietly
+ * depend on an ordering guarantee made two layers away.
+ */
+function canonical(value: unknown): string {
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      const src = v as Record<string, unknown>;
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(src).sort()) out[k] = walk(src[k]);
+      return out;
+    }
+    return v;
+  };
+  return JSON.stringify(walk(value));
+}
+
+export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, peers: PeerRegistry): void {
+  /** The bridge addressing `peer`, or the default running game when omitted. */
+  const clientFor = (peer?: string): BridgeClient => (peer ? peers.clientFor(peer) : runtime);
+  /** Human label for confirmation prompts, so a gated op names its target process. */
+  const target = (peer?: string) => (peer ? `peer ${peer}` : "the running game");
+
+  const call = async (method: string, params: Record<string, unknown> = {}, peer?: string) => {
     try {
-      return ok(await runtime.request(method, params));
+      return ok(await clientFor(peer).request(method, params));
     } catch (err) {
       return fail(err);
     }
@@ -72,9 +114,9 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
     {
       title: "Runtime get property",
       description: "Read a property from a live node (path relative to the current scene; '/root/...' absolute allowed).",
-      inputSchema: { path: z.string(), property: z.string() },
+      inputSchema: { path: z.string(), property: z.string(), ...peerField },
     },
-    async ({ path, property }) => call("runtime.get_property", { path, property }),
+    async ({ path, property, peer }) => call("runtime.get_property", { path, property }, peer),
   );
 
   server.registerTool(
@@ -96,12 +138,12 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
     {
       title: "Runtime call method",
       description: "Invoke a method on a live node. DESTRUCTIVE (arbitrary invocation) — gated by confirmation. Args use the tagged-Variant convention.",
-      inputSchema: { path: z.string(), method: z.string(), args: z.array(z.any()).optional(), ...confirmField },
+      inputSchema: { path: z.string(), method: z.string(), args: z.array(z.any()).optional(), ...confirmField, ...peerField },
     },
-    async ({ path, method, args, confirm }) => {
-      const blocked = await gate(server, confirm, `Call ${path}.${method}() on the running game`);
+    async ({ path, method, args, confirm, peer }) => {
+      const blocked = await gate(server, confirm, `Call ${path}.${method}() on ${target(peer)}`);
       if (blocked) return blocked;
-      return call("runtime.call_method", { path, method, args: args ?? [] });
+      return call("runtime.call_method", { path, method, args: args ?? [] }, peer);
     },
   );
 
@@ -192,9 +234,11 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
       inputSchema: {
         since_seq: z.number().int().optional().describe("Return only entries with seq greater than this (default 0)"),
         levels: z.array(z.string()).optional().describe("Filter to these levels, e.g. [\"error\",\"warning\"]"),
+        ...peerField,
       },
     },
-    async ({ since_seq, levels }) => call("runtime.get_log", { since_seq: since_seq ?? 0, levels: levels ?? [] }),
+    async ({ since_seq, levels, peer }) =>
+      call("runtime.get_log", { since_seq: since_seq ?? 0, levels: levels ?? [] }, peer),
   );
 
   server.registerTool(
@@ -367,20 +411,27 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
         op: z.enum(["eq", "ne", "gt", "ge", "lt", "le"]).optional().describe("Comparison operator (default eq)"),
         timeout_ms: z.number().int().positive().optional().describe("Maximum time to wait, in ms (default 5000)"),
         poll_interval_ms: z.number().int().positive().optional().describe("Delay between polls, in ms (default 100)"),
+        ...peerField,
       },
     },
-    async ({ path, property, value, op, timeout_ms, poll_interval_ms }) => {
+    async ({ path, property, value, op, timeout_ms, poll_interval_ms, peer }) => {
       const operator = op ?? "eq";
       const interval = poll_interval_ms ?? 100;
       const start = Date.now();
       const deadline = start + (timeout_ms ?? 5000);
       let polls = 0;
       let last: unknown = null;
+      let client: BridgeClient;
+      try {
+        client = clientFor(peer);
+      } catch (err) {
+        return fail(err);
+      }
       for (;;) {
         polls++;
         let res: { value?: unknown };
         try {
-          res = (await runtime.request("runtime.get_property", { path, property })) as { value?: unknown };
+          res = (await client.request("runtime.get_property", { path, property })) as { value?: unknown };
         } catch (err) {
           return fail(err);
         }
@@ -510,12 +561,13 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
       inputSchema: {
         scale: z.number().min(0).describe("0 = freeze, 1 = normal, N = slow/fast (negative is clamped to 0)"),
         ...confirmField,
+        ...peerField,
       },
     },
-    async ({ scale, confirm }) => {
-      const blocked = await gate(server, confirm, `Set time scale to ${scale} on the running game`);
+    async ({ scale, confirm, peer }) => {
+      const blocked = await gate(server, confirm, `Set time scale to ${scale} on ${target(peer)}`);
       if (blocked) return blocked;
-      return call("runtime.time_scale", { scale });
+      return call("runtime.time_scale", { scale }, peer);
     },
   );
 
@@ -531,12 +583,13 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
         frames: z.number().int().positive().describe("Number of frames to advance"),
         kind: z.enum(["idle", "physics", "both"]).optional().describe("Which loop to tick each step (default idle)"),
         ...confirmField,
+        ...peerField,
       },
     },
-    async ({ frames, kind, confirm }) => {
-      const blocked = await gate(server, confirm, `Advance ${frames} frame(s) of the running game`);
+    async ({ frames, kind, confirm, peer }) => {
+      const blocked = await gate(server, confirm, `Advance ${frames} frame(s) of ${target(peer)}`);
       if (blocked) return blocked;
-      return call("runtime.step_frames", { frames, ...(kind !== undefined ? { kind } : {}) });
+      return call("runtime.step_frames", { frames, ...(kind !== undefined ? { kind } : {}) }, peer);
     },
   );
 
@@ -573,12 +626,171 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient): 
         "Seed the running game's GLOBAL random number generator (GDScript seed()) so a playtest is reproducible. " +
         "DESTRUCTIVE (changes RNG state) — gated by confirmation. Note: seeds only the global RNG (randi/randf), not " +
         "per-instance RandomNumberGenerators or physics determinism.",
-      inputSchema: { seed: z.number().int().describe("Seed value for the global RNG"), ...confirmField },
+      inputSchema: { seed: z.number().int().describe("Seed value for the global RNG"), ...confirmField, ...peerField },
     },
-    async ({ seed, confirm }) => {
-      const blocked = await gate(server, confirm, `Seed the running game's global RNG with ${seed}`);
+    async ({ seed, confirm, peer }) => {
+      const blocked = await gate(server, confirm, `Seed the global RNG of ${target(peer)} with ${seed}`);
       if (blocked) return blocked;
-      return call("runtime.seed_rng", { seed });
+      return call("runtime.seed_rng", { seed }, peer);
+    },
+  );
+
+  // F6: multi-peer deterministic playtesting. Three tools, not eight — a `peer`
+  // argument aimed at the existing runtime family beats minting parallel ones,
+  // so there is no `call_rpc_runtime` (use runtime_call_method{peer}) and no
+  // `mp_diagnose` aggregate (use runtime_get_log{peer}).
+  server.registerTool(
+    "runtime_spawn_peers",
+    {
+      title: "Runtime spawn headless peers",
+      description:
+        "Spawn 1-" +
+        MAX_PEERS +
+        " HEADLESS Godot peers of this project as child processes, each on its own loopback runtime port, and " +
+        "wait until every one answers on its bridge. Returns peer ids for the `peer` argument on runtime_step_frames, " +
+        "runtime_time_scale, runtime_seed_rng, runtime_get_property, runtime_call_method, runtime_await_condition and " +
+        "runtime_get_log. Pair with runtime_peers_digest to assert that independently-driven peers converge. Each child " +
+        "gets BREAKPOINT_PEER_ID / BREAKPOINT_PEER_INDEX (and BREAKPOINT_PEER_ROLE when `role` is given) in its " +
+        "environment, so game code can branch on which peer it is via OS.get_environment(). Local loopback testing only: " +
+        "this hosts no relay, lobby or signalling server. Requires the Breakpoint MCP addon enabled in the project.",
+      inputSchema: {
+        count: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_PEERS)
+          .describe(`How many peers to spawn (1-${MAX_PEERS}; ${MAX_PEERS} live peers is the ceiling)`),
+        scene: z.string().optional().describe("Optional res:// scene each peer runs (default: the project's main scene)"),
+        args: z.array(z.string()).optional().describe("Extra command-line arguments passed to every peer"),
+        role: z
+          .string()
+          .optional()
+          .describe("Label echoed back per peer and exported to each child as BREAKPOINT_PEER_ROLE (e.g. \"server\")"),
+        timeout_ms: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("How long to wait for every peer to answer on its bridge, in ms (default 15000)"),
+      },
+    },
+    async ({ count, scene, args, role, timeout_ms }) => {
+      try {
+        const spawned = await peers.spawn({
+          count,
+          ...(scene !== undefined ? { scene } : {}),
+          ...(args !== undefined ? { args } : {}),
+          ...(role !== undefined ? { role } : {}),
+          ...(timeout_ms !== undefined ? { timeoutMs: timeout_ms } : {}),
+        });
+        return ok({ peers: spawned, count: spawned.length });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "runtime_peer_stop",
+    {
+      title: "Runtime stop peer(s)",
+      description:
+        "Terminate a headless peer started by runtime_spawn_peers, or every one with all:true. DESTRUCTIVE (kills a " +
+        "child process). Stopping an already-stopped peer is a no-op, so this is safe to repeat; peers are also killed " +
+        "automatically when the server shuts down.",
+      inputSchema: {
+        id: z.string().optional().describe("Peer id to stop (from runtime_spawn_peers) — omit when using all"),
+        all: z.boolean().optional().describe("Stop every peer this server spawned (default false)"),
+      },
+    },
+    async ({ id, all }) => {
+      if (!all && !id) {
+        return { isError: true as const, content: [{ type: "text" as const, text: "Pass a peer `id`, or all:true." }] };
+      }
+      try {
+        return ok({ stopped: peers.stop(id, all ?? false) });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "runtime_peers_digest",
+    {
+      title: "Runtime peer state digest / convergence",
+      description:
+        "Read runtime_state_digest from two or more peers over the SAME root and field set and report whether they " +
+        "agree (read-only). Converged means every peer's digest is byte-equal; when they differ, diverged_at names the " +
+        "node paths that disagree. The intended sequence is: runtime_spawn_peers, then runtime_seed_rng{seed} on each, " +
+        "runtime_time_scale{scale:0} to freeze each, runtime_step_frames{frames:K,kind:\"physics\"} on each, then this. " +
+        "TWO BOUNDARIES, both measured, neither cosmetic. (1) Convergence is claimed only for state advanced on the " +
+        "FIXED physics timestep. State advanced on the variable idle-frame delta is real elapsed wall-clock time in each " +
+        "process and will NOT converge regardless of seed — step with kind:\"physics\". (2) Same machine only: peers " +
+        "here share one OS and one engine build, so this says nothing about convergence across machines.",
+      inputSchema: {
+        root: z.string().describe("Root node path to digest in each peer (same path on every peer)"),
+        peers: z
+          .array(z.string())
+          .optional()
+          .describe("Peer ids to compare (default: every live peer; at least two are required)"),
+        fields: z
+          .array(z.string())
+          .optional()
+          .describe("Property names to capture per node (default: the runtime_state_digest defaults)"),
+        max_depth: z.number().int().nonnegative().optional().describe("Max recursion depth (default 8)"),
+      },
+    },
+    async ({ root, peers: ids, fields, max_depth }) => {
+      const targets = ids ?? peers.live().map((p) => p.id);
+      if (targets.length < 2) {
+        return {
+          isError: true as const,
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `Convergence needs at least two peers; got ${targets.length}. ` +
+                `Spawn more with runtime_spawn_peers, or use runtime_state_digest for a single target.`,
+            },
+          ],
+        };
+      }
+      const params = {
+        root,
+        ...(fields !== undefined ? { fields } : {}),
+        ...(max_depth !== undefined ? { max_depth } : {}),
+      };
+      let results: Array<{ id: string; digest: Record<string, unknown>; node_count: number }>;
+      try {
+        results = await Promise.all(
+          targets.map(async (id) => {
+            const r = (await peers.clientFor(id).request("runtime.state_digest", params)) as {
+              digest?: Record<string, unknown>;
+              node_count?: number;
+            };
+            return { id, digest: r?.digest ?? {}, node_count: r?.node_count ?? 0 };
+          }),
+        );
+      } catch (err) {
+        return fail(err);
+      }
+
+      const paths = new Set<string>();
+      for (const r of results) for (const k of Object.keys(r.digest)) paths.add(k);
+      const first = results[0];
+      const divergedAt = [...paths]
+        .filter((path) => {
+          const ref = canonical(first.digest[path]);
+          return results.some((r) => canonical(r.digest[path]) !== ref);
+        })
+        .sort();
+
+      return ok({
+        digests: results,
+        converged: divergedAt.length === 0,
+        diverged_at: divergedAt.length ? divergedAt : null,
+      });
     },
   );
 }

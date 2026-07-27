@@ -4,6 +4,56 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Multi-peer deterministic playtesting (`runtime_spawn_peers` / `runtime_peer_stop` /
+  `runtime_peers_digest`).** Spawn up to **four headless peers** of the project as child processes,
+  each on its own loopback runtime port, and assert that independently-driven peers **converge**.
+  The surface goes **286 → 289** (secure-default **272 → 274**); `runtime_spawn_peers` is
+  `code-execution`-privileged and therefore dropped by default, like `godot_run_managed`.
+
+  This is not a networking suite and is deliberately scoped so it cannot become one: it points the
+  existing determinism primitives at more than one process. Seven existing tools — `runtime_seed_rng`,
+  `runtime_time_scale`, `runtime_step_frames`, `runtime_get_property`, `runtime_call_method`,
+  `runtime_await_condition`, `runtime_get_log` — take an optional `peer` argument instead of the
+  feature minting parallel per-peer tools; omit it and behaviour is byte-identical to before. There is
+  no generic `call_rpc_runtime` (use `runtime_call_method{peer}`) and no `mp_diagnose` aggregate (use
+  `runtime_get_log{peer}`). Spawning local headless children on loopback is *testing*, not hosting, so
+  Group M's "host nothing, scaffold everything" line is unmoved: no relay, lobby, or signalling server.
+
+  **The addon needed no change at all.** The runtime autoload already reads `BREAKPOINT_RUNTIME_PORT`
+  from its environment and is a TCP server the host dials, and the auth secret is minted per *project*
+  rather than per process — so N addressable peers is a per-child env overlay plus a port allocator,
+  with no protocol, transport, or handshake change. Confirmed on real Godot 4.3 headless up to four
+  simultaneous peers before any of this was written.
+
+  **Two measured boundaries ship in the tool descriptions, not just here.** Convergence is claimed for
+  state advanced on the **fixed physics timestep** only — with `kind:"idle"` the per-frame `delta` is
+  real elapsed wall-clock time in each process, so two peers given an identical seed draw identical
+  random numbers and still diverge (measured: physics byte-equal on 3 seeds of 3, idle divergent on
+  3 of 3). And it is a **same-machine** claim; nothing here extends across machines. The host also
+  mints the project secret **before** the first spawn, closing a check-then-write race in the addon's
+  `load_or_mint()` that N simultaneous cold-start children could otherwise lose silently.
+
+- **Extensibility boundary written down.** `README.md` and `docs/USER_GUIDE.md` now state that recipes
+  are the extension point — they compose typed tools and add none — and that a bring-your-own-tool
+  hatch is a deliberate decline rather than an unfinished feature, because an injected tool has no
+  frozen output schema, catalog entry, annotation, or capability tag, and `contract_check.py` cannot
+  parse it to check for any of those.
+
+### Fixed
+- `actions/setup-python@v5` → `@v6`, clearing a Node.js 20 runner-deprecation annotation on the
+  `contract check` job before GitHub turns it into an error.
+- `host/package-lock.json` had said `1.12.0` in both its `version` fields for ten minor releases —
+  the same silent-drift class the two count gates close, but reachable by neither. Nothing read it for
+  the published version, so nothing was broken.
+- Two stale tool-*family* counts in the docs, both predating this release: `BREAKPOINT_TOOLSETS=c` was
+  documented as 14 runtime tools (24 since 1.21.0, 27 now) and `editor,runtime,vcs` as 172 (182, now
+  185). Family counts carry no surface marker and are invisible to `contract_check.py` check 11 by
+  design — gating them would need an allowlist of bare numbers, and every entry in such a list is a
+  hole in the real check.
+
 ## [1.22.0] — 2026-07-27
 
 Publishes machine-readable risk annotations on the whole surface, ships a static export of it, and
