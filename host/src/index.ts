@@ -12,6 +12,7 @@ import { DapClient } from "./dap.js";
 import { buildToolsets } from "./toolsets.js";
 import { registerRecipes } from "./recipes.js";
 import { applyOutputSchemas } from "./schemas.js";
+import { applyAnnotations } from "./annotations.js";
 import {
   applyCapabilities,
   droppedTools,
@@ -84,6 +85,13 @@ async function main(): Promise<void> {
   // B1: enforce frozen output schemas on every structured tool. Must run before
   // any register*Tools call — it wraps server.registerTool.
   applyOutputSchemas(server);
+
+  // MCP tool annotations — publish readOnly/destructive/idempotent/openWorld
+  // hints on every tool so clients and policy catalogs read our risk posture
+  // instead of guessing it from tool names. Hints only; the enforcement stays
+  // in applyCapabilities (below) + confirm.ts. Wraps registerTool after the
+  // schema wrapper, before any register*Tools call.
+  applyAnnotations(server);
 
   // Capability groups — a risk-based axis over the toolsets. Both `code-execution`
   // and `network` are OFF by default; a disabled group's tools are DROPPED at
@@ -192,6 +200,7 @@ function printUsage(): void {
       "  breakpoint-mcp             Start the MCP server on stdio (default; how MCP clients launch it).",
       "  breakpoint-mcp init        Install + enable the editor addon in a project and wire the MCP client.",
       "  breakpoint-mcp doctor      Check the Godot binary, the editor addon, and the four bridges.",
+      "  breakpoint-mcp tools       Export the tool surface + risk annotations (for catalogs / reviews).",
       "  breakpoint-mcp --help      Show this help.",
       "",
       "init options:",
@@ -209,6 +218,10 @@ function printUsage(): void {
       "  --timeout <ms>      Per-bridge connect timeout (default 1500).",
       "  --json              Emit the report as JSON.",
       "",
+      "tools options:",
+      "  --surface <which>   full | secure-default (default: secure-default, what an untouched install advertises).",
+      "  --json              Emit the surface as JSON — stable and timestamp-free, so releases can be diffed.",
+      "",
       "All runtime configuration is via environment variables; see the README.",
       "",
     ].join("\n"),
@@ -223,6 +236,10 @@ void (async () => {
   if (sub === "doctor") {
     const { runDoctor } = await import("./cli/doctor.js");
     process.exit(await runDoctor(process.argv.slice(3)));
+  }
+  if (sub === "tools") {
+    const { runTools } = await import("./cli/tools.js");
+    process.exit(await runTools(process.argv.slice(3)));
   }
   if (sub === "init") {
     const { runInit } = await import("./cli/init.js");

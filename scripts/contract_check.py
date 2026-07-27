@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ADDON = ROOT / "addons/breakpoint_mcp"
 TOOLS = ROOT / "host/src/tools"
 SCHEMAS = ROOT / "host/src/schemas.ts"
+ANNOTATIONS = ROOT / "host/src/annotations.ts"
 CATALOG = ROOT / "docs/TOOL_CATALOG.md"
 
 # The universal elicitation-gate bypass param. It is added to every destructive
@@ -81,6 +82,24 @@ def registered_tools() -> list[str]:
         for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z_]+)"', text):
             names.append(m.group(1))
     return names
+
+
+def annotated_tools() -> set[str]:
+    """Tool names on annotations.ts' ALL_ANNOTATED roster.
+
+    The roster is the explicit list of every tool carrying MCP annotations
+    (readOnly/destructive/idempotent/openWorld hints). It is deliberately NOT
+    derived from the four hint lists — ~50 tools are all-false, so a derived
+    union would omit them silently. Parsed here so a newly registered tool
+    cannot ship without hints: without published annotations, consumers infer
+    risk from the tool NAME, which is how `tilemap_clear` (undoable) gets
+    catalogued as irreversible.
+    """
+    text = ANNOTATIONS.read_text()
+    m = re.search(r"export const ALL_ANNOTATED: readonly string\[\] = \[(.*?)\n\];", text, re.S)
+    if not m:
+        return set()
+    return set(re.findall(r'"([a-z0-9_]+)"', m.group(1)))
 
 
 def catalog_index_tools() -> set[str]:
@@ -402,6 +421,22 @@ if missing_output_schema:
         f"runtime): {missing_output_schema}"
     )
 
+# --- 9: MCP annotations are total (every tool publishes risk hints) ---------
+annotated = annotated_tools()
+if not annotated:
+    errors.append("Could not parse ALL_ANNOTATED from host/src/annotations.ts")
+else:
+    unannotated = sorted(tool_set - annotated)
+    if unannotated:
+        errors.append(
+            f"Registered tools missing from annotations.ts ALL_ANNOTATED (they would "
+            f"ship with no MCP risk hints, leaving clients and policy catalogs to guess "
+            f"from the tool name): {unannotated}"
+        )
+    stale_annotations = sorted(annotated - tool_set)
+    if stale_annotations:
+        errors.append(f"annotations.ts annotates non-existent tools: {stale_annotations}")
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -409,6 +444,7 @@ print(f"GDScript runtime methods: {len(runtime_methods)}")
 print(f"Host bridge calls       : {len(host_calls)}")
 print(f"Registered MCP tools    : {len(tools)} (unique: {len(tool_set)})")
 print(f"Catalog index tools     : {len(cat_tools)}")
+print(f"Annotated tools         : {len(annotated)} (readOnly/destructive/idempotent/openWorld hints)")
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
 print(f"Output shapes           : {len(code_outputs)} in schemas.ts · {len(output_comparable)} checked vs catalog")

@@ -27,8 +27,12 @@ editor plugin's loopback bridge for scene/node/resource work, a runtime bridge i
 running game, the headless CLI, and — the part that sets it apart — Godot's built-in
 **language server (LSP)** and **debug adapter (DAP)**, to which Breakpoint speaks as a real
 client. Most Godot MCP servers stop at the first group: they create and edit scenes and
-scripts, take screenshots, and read the output log. That covers authoring, but it observes a
-running game only from the outside.
+scripts, take screenshots, and read the output log. Several now add stepping too — but they
+drive Godot's *internal* editor debugger and present it in "DAP-style" shapes rather than
+speaking the Debug Adapter and language-server protocols as a client. Breakpoint is that
+client, for **GDScript and C#**, and its breakpoints are proven to stop execution by
+integration tests run against real Godot binaries in CI. That is the difference between
+observing a running game from the outside and stopping *inside* it at real program state.
 
 Two differentiating capabilities are the reason to reach for Breakpoint:
 
@@ -58,6 +62,20 @@ a test would — and because the same server also debugs, a failed assertion is 
 the state that caused it. The editor, LSP, DAP, and runtime bridges are exercised together
 against a real headless Godot in CI.
 
+It is also **secure by default**, which is unusual in this field — and the mechanism matters
+more than the label. A per-project shared secret authenticates every bridge (constant-time,
+minted into the git-ignored `res://.godot/`), every socket binds to loopback only, and the
+highest-blast tools — arbitrary code execution and network egress — are **dropped at
+registration**, not merely flagged. They are absent from `tools/list` until you opt in, so the
+default surface is **272 tools an agent can actually call**, not 286 with a warning label on
+14 of them. Destructive operations are confirmation-gated and fail closed on clients that
+cannot prompt. Nothing runs in the cloud and no project data leaves the machine.
+
+Every tool also publishes MCP risk annotations (`readOnlyHint` / `destructiveHint` /
+`idempotentHint` / `openWorldHint`), and `breakpoint-mcp tools --json` exports the whole
+surface — so what the server can do, and how risky each tool is, is checkable without running
+it or guessing from tool names.
+
 ### When Breakpoint is the right tool — and when it isn't
 
 It earns its keep on work that needs program state or real symbols:
@@ -77,6 +95,29 @@ If you only need scene and script edits from inside the editor — scaffolding a
 generating a script from a prompt, quick one-shot changes — there are other good alternatives
 to Breakpoint available in the Godot Asset Library. Breakpoint's value shows up when you need
 to *step through* a bug, *refactor against real symbols*, or work in *C#*.
+
+### How it compares
+
+The field has many capable Godot MCP servers, and it is growing quickly — most cluster on
+authoring. Breakpoint is deliberately different on the axes that need real program state, real
+symbols, and a surface that is safe to hand an agent by default:
+
+| Capability | A typical Godot MCP server | Breakpoint |
+|---|---|---|
+| Author scenes / scripts, screenshots, read logs | ✅ | ✅ |
+| Step-debugger (breakpoints, stack, variables, watch) | Some — via Godot's *internal* editor debugger | ✅ real DAP client; breakpoints proven to stop in CI |
+| C# step-debugging | ✗ | ✅ over `netcoredbg` |
+| Language-server client (completion, rename, references) | Rare | ✅ GDScript **and** C# |
+| Runtime verification (assert node/scene/screen/perf, golden-image diff) | ✗ | ✅ `runtime_assert_*` + `runtime_screenshot_diff` |
+| Deterministic playtesting (freeze time, step exact frames, seed RNG, state digest) | ✗ | ✅ frame-exact, verified on 4.3/4.5/4.7 |
+| Arbitrary code execution in the default surface | Usually present and callable | ✅ **absent** — dropped at registration until opted in |
+| Published risk annotations + machine-readable tool export | ✗ | ✅ all 286 tools, CI-enforced |
+| Undo-safe + schema-frozen results | Rare | ✅ every mutation |
+
+This describes capability classes, not specific projects. Several servers are strong at
+authoring, some are actively adding debuggers, and if authoring is all you need there are good
+alternatives in the Asset Library. The tool *count* is not the axis — ours is 286 because that
+is what a static contract check asserts, and every one is schema-frozen and annotated.
 
 ### Why a Node host?
 

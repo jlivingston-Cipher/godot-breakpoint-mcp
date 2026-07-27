@@ -4,6 +4,49 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **MCP tool annotations on all 286 tools.** Every tool now publishes the spec's
+  `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint` on `tools/list`
+  (`host/src/annotations.ts`, injected by `applyAnnotations` alongside `applyOutputSchemas` and
+  `applyCapabilities`). **91 read-only**, **87 destructive**, **215 idempotent**, **0 open-world** —
+  the last is explicit rather than absent, because every one of the four bridges is loopback-only, the
+  asset-gen `command` backend spawns a local argv, and the `backend_*` scaffolds only *write* GDScript
+  that would later egress. Absence from a hint list is a published `false`, never "unknown".
+
+  Motivation: we previously published **no** annotations, so MCP clients deciding what to auto-approve —
+  and third-party policy catalogs building deny rules — had to infer risk from a tool's *name*. That
+  inference fails in both directions on this surface: `tilemap_clear` and `anim_remove_key` read as
+  irreversible but are undoable through `EditorUndoRedoManager`, while `navagent_configure` reads as a
+  setter and in fact *adds* a node. A public catalog got exactly these wrong in July 2026. Annotations
+  are **hints, not enforcement** — the controls remain the default-OFF capability groups, the
+  elicitation gate, the per-project bridge secret, and Godot's undo stack.
+
+- **`breakpoint-mcp tools` — a machine-readable export of the tool surface.** Emits every tool with its
+  title, description, toolset, capability group, `confirm`-gating, input params, and the four MCP
+  annotations — as text or `--json`. `--surface secure-default` (the default) reports the **272** tools
+  an untouched install advertises; `--surface full` reports all **286**. Both counts appear in the
+  header of either report, so a consumer cannot cite one as the other.
+
+  Same motivation as the annotations: give catalogs, policy gateways, and security reviewers a stable
+  artifact to consume instead of running the server or guessing from names. The registry is built
+  statically against a recorder — **no Godot install, no server start, no handler invoked** — so it
+  works in CI and in a container. Output is deliberately **timestamp-free and name-sorted**, making it
+  a pure function of the source tree: two runs of a build are byte-identical and two releases can be
+  diffed. Version is read from `package.json` at runtime rather than hardcoded, so this does not become
+  another place a release bump can be forgotten.
+
+- **Two drift guards, both verified to fail when broken.** `annotations.test.ts` (8 tests) asserts the
+  table is *total* against the real registry — every registered tool annotated, every entry a live tool,
+  all four hints present and boolean, no tool both read-only and destructive, and no read-only tool
+  carrying the `confirm` gate param. `scripts/contract_check.py` gains a hard check on the same
+  invariant, so an unannotated tool cannot pass CI. The roster (`ALL_ANNOTATED`) is listed explicitly
+  rather than derived from the four hint lists: 51 tools are all-false, so a derived union would have
+  omitted them and made the totality check vacuous.
+
+Host gate **286 / 461 / 0** (443 + 8 annotations + 10 export). No tool-count, version, or behaviour change.
+
 ## [1.21.1] — 2026-07-24
 
 Hardens the **deterministic-playtesting** primitives shipped in 1.21.0, adds their end-to-end
