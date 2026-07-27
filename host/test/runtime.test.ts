@@ -68,13 +68,40 @@ const ARGS: Record<string, Record<string, unknown>> = {
  */
 const NON_BRIDGE_TOOLS = ["runtime_peer_stop", "runtime_spawn_peers"].sort();
 
-/** The seven existing tools that gained an optional `peer` argument. */
+/**
+ * Every runtime tool that forwards to the running game takes `peer` — the rule
+ * is "if it talks to the running game, it can talk to a peer", with no subset.
+ *
+ * It was a subset once: F6 shipped `peer` on the seven tools a convergence run
+ * obviously needs. Validating the build against real Godot 4.3 showed that
+ * insufficient in a way only an engine could reveal — peers free-run for
+ * different durations before you freeze them, so equalising their state first is
+ * mandatory, and `runtime_set_property` was not on the list. Any subset has that
+ * shape of hole; this one had it at the exact tool the documented sequence needs.
+ */
 const PEER_AWARE = [
+  "runtime_anim_get_state",
+  "runtime_anim_play",
+  "runtime_anim_stop",
+  "runtime_assert_node_state",
+  "runtime_assert_perf",
+  "runtime_assert_scene_structure",
+  "runtime_assert_screen_text",
   "runtime_await_condition",
   "runtime_call_method",
+  "runtime_emit_signal",
   "runtime_get_log",
+  "runtime_get_monitors",
   "runtime_get_property",
+  "runtime_get_tree",
+  "runtime_inject_input",
+  "runtime_node_add",
+  "runtime_node_remove",
+  "runtime_screenshot",
+  "runtime_screenshot_diff",
   "runtime_seed_rng",
+  "runtime_set_property",
+  "runtime_state_digest",
   "runtime_step_frames",
   "runtime_time_scale",
 ].sort();
@@ -539,9 +566,9 @@ test("runtime_seed_rng forwards the seed once confirmed", async () => {
 
 // ------------------------------------------------------------- F6: peers ----
 
-test("the seven peer-aware tools route to the peer's bridge and never leak `peer` into the payload", async () => {
+test("every peer-aware tool routes to the peer's bridge and never leaks `peer` into the payload", async () => {
   const h = makeHarness();
-  h.setBridge("resolve", { ok: true, value: 1, digest: {}, node_count: 0 });
+  h.setBridge("resolve", { ok: true, value: 1, digest: {}, node_count: 0, base64: "", mime: "image/png", width: 1, height: 1 });
 
   const seen: string[] = [];
   for (const [name, t] of h.tools) {
@@ -695,14 +722,26 @@ test("runtime_peers_digest refuses a convergence claim over fewer than two peers
   assert.match(text(r), /runtime_state_digest/, "should point at the single-target tool");
 });
 
-test("runtime_peers_digest states BOTH measured boundaries in its own description", async () => {
+test("runtime_peers_digest states every measured precondition in its own description", async () => {
   const h = makeHarness();
   const d = (h.tools.get("runtime_peers_digest")!.config.description as string).toLowerCase();
-  // Constraint 1 from the F6 spike: the scoping doc's convergence definition is
-  // false without this qualifier — idle-frame delta diverged on 3 seeds of 3.
-  assert.match(d, /fixed/, "must scope the claim to the fixed timestep");
-  assert.match(d, /physics/, "must name the physics lane the caller has to step");
-  assert.match(d, /idle/, "must say what does NOT converge");
-  // The boundary the scoping doc already had right.
-  assert.match(d, /same machine/, "must keep the claim to one machine");
+  // Each of these was measured against real Godot 4.3, and a run that skips any
+  // one of them diverges. They live in the DESCRIPTION because that is what an
+  // agent reads at call time; the docs repeat them, they do not own them.
+  assert.match(d, /fixed/, "1: scope the claim to the fixed timestep");
+  assert.match(d, /physics/, "1: name the lane the caller has to step");
+  assert.match(d, /idle/, "1+2: say what does NOT converge");
+  assert.match(d, /one stream shared/, "2: the global RNG is one shared stream");
+  assert.match(d, /freezing does not stop/, "2: freezing does not stop it being drawn");
+  assert.match(d, /delta > 0/, "2: name the guard that makes it deterministic");
+  assert.match(d, /freeze first/, "3: freeze before equalising state");
+  assert.match(d, /runtime_set_property/, "3: name the tool that equalises state");
+  assert.match(d, /same machine/, "4: keep the claim to one machine");
+});
+
+test("runtime_seed_rng warns that its stream is shared across both lanes", async () => {
+  const h = makeHarness();
+  const d = (h.tools.get("runtime_seed_rng")!.config.description as string).toLowerCase();
+  assert.match(d, /one stream shared/, "must say the global RNG is one shared stream");
+  assert.match(d, /idle/, "must name the lane that silently consumes it");
 });

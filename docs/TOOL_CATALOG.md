@@ -2439,7 +2439,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_get_tree` ✅
 - **Input**
 ```json
-{ "type": "object", "properties": { "max_depth": { "type": "integer", "default": 64 } } }
+{ "type": "object", "properties": { "max_depth": { "type": "integer", "default": 64 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** same recursive `SceneNode` shape as `scene_get_tree`, plus live `visible`/`process_mode` fields.
 
@@ -2464,7 +2464,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_emit_signal` ✅ · destructive
 - **Input**
 ```json
-{ "type": "object", "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } } } }
+{ "type": "object", "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2484,7 +2484,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
       "button": { "type": "integer", "description": "mouse button index (kind=mouse_button)" },
       "pressed": { "type": "boolean" },
       "position": { "$ref": "#/$defs/Variant" },
-      "relative": { "$ref": "#/$defs/Variant", "description": "relative motion (kind=mouse_motion)" } } } } }
+      "relative": { "$ref": "#/$defs/Variant", "description": "relative motion (kind=mouse_motion)" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2494,7 +2494,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_get_monitors` ✅
 - **Input**
 ```json
-{ "type": "object", "properties": { "keys": { "type": "array", "items": { "type": "string" }, "description": "e.g. time/fps, render/total_draw_calls_in_frame, audio/*" } } }
+{ "type": "object", "properties": { "keys": { "type": "array", "items": { "type": "string" }, "description": "e.g. time/fps, render/total_draw_calls_in_frame, audio/*" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
@@ -2504,7 +2504,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_screenshot` ✅  (returns MCP image content)
 - **Input**
 ```json
-{ "type": "object", "properties": {} }
+{ "type": "object", "properties": { "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** same PNG bridge payload as `screenshot_editor`.
 
@@ -2522,35 +2522,35 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_assert_node_state` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path", "expect"], "properties": { "path": { "type": "string" }, "expect": { "type": "object", "description": "property name -> expected value (tagged-Variant JSON for complex types)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 } } }
+{ "type": "object", "additionalProperties": false, "required": ["path", "expect"], "properties": { "path": { "type": "string" }, "expect": { "type": "object", "description": "property name -> expected value (tagged-Variant JSON for complex types)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ path, ok, checked, mismatches[] }` — read-only. `ok` is true when every checked property matched (numeric fields within `tolerance`); each mismatch is `{ property, expected, actual }` with values in the tagged-Variant encoding.
 
 ### `runtime_assert_scene_structure` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["expect"], "properties": { "expect": { "type": "array", "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "absent": { "type": "boolean" } } } } } }
+{ "type": "object", "additionalProperties": false, "required": ["expect"], "properties": { "expect": { "type": "array", "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "absent": { "type": "boolean" } } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, checked, failures[] }` — read-only. `ok` is true when every expectation held; each failure is `{ path, reason, expected?, actual? }` where `reason` is one of `missing` / `type_mismatch` / `expected_absent_but_present`.
 
 ### `runtime_assert_perf` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["baseline"], "properties": { "baseline": { "type": "object", "additionalProperties": { "type": "number" }, "description": "monitor key -> baseline value (captured earlier via runtime_get_monitors)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "direction": { "type": "object", "additionalProperties": { "enum": ["higher_better", "lower_better"] } } } }
+{ "type": "object", "additionalProperties": false, "required": ["baseline"], "properties": { "baseline": { "type": "object", "additionalProperties": { "type": "number" }, "description": "monitor key -> baseline value (captured earlier via runtime_get_monitors)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "direction": { "type": "object", "additionalProperties": { "enum": ["higher_better", "lower_better"] } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, checked, regressions[], monitors }` — read-only. `ok` is true when every checked monitor met its baseline within `tolerance`; each regression is `{ key, baseline, current, direction }`, and `monitors` maps every checked key to its current value. Direction defaults to `time/fps` higher-better and every other monitor lower-better, overridable per key. The baseline is supplied **inline** (capture it earlier via `runtime_get_monitors`), so the tool stays stateless and read-only — no in-plugin baseline store, no file writes.
 
 ### `runtime_assert_screen_text` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" }, "present": { "type": "boolean", "default": true }, "regex": { "type": "boolean", "default": false }, "case_sensitive": { "type": "boolean", "default": false }, "min_count": { "type": "integer", "minimum": 1 } } }
+{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" }, "present": { "type": "boolean", "default": true }, "regex": { "type": "boolean", "default": false }, "case_sensitive": { "type": "boolean", "default": false }, "min_count": { "type": "integer", "minimum": 1 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, matches, present, samples[] }` — read-only. Scans visible `Control` text in the live scene tree (no OCR): a node counts as a match when it is `visible_in_tree()` and its `text` property contains `text` (substring by default, or a regular expression when `regex:true`; `case_sensitive` defaults false). `ok` is true when the text is present (`present:true`, default) or absent (`present:false`); if `min_count` is given, `ok` requires at least that many matches. `matches` is the total count; `samples` lists up to 20 matching `{ path, text }`. Sees text on `Label` / `RichTextLabel` / `Button` / `LineEdit` / `TextEdit` / `CheckBox` / `LinkButton` and similar; does **not** see text drawn directly to the canvas or baked into textures.
 
 ### `runtime_screenshot_diff` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["reference"], "properties": { "reference": { "type": "string", "description": "res:// or user:// path to the reference PNG" }, "tolerance": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }, "per_channel_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }, "region": { "type": "object", "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" } } } } }
+{ "type": "object", "additionalProperties": false, "required": ["reference"], "properties": { "reference": { "type": "string", "description": "res:// or user:// path to the reference PNG" }, "tolerance": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }, "per_channel_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }, "region": { "type": "object", "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ ok, diff_ratio, differing_pixels, total_pixels, width, height, reference, reason? }` — read-only, **stats only**. Captures the current frame, loads `reference`, normalizes both to RGBA8, optionally crops both to `region`, then counts pixels whose per-channel delta exceeds `per_channel_threshold`. `diff_ratio` = differing / total; `ok` is true when `diff_ratio <= tolerance`. If the (post-crop) dimensions differ, returns `ok:false` with `reason:"dimension_mismatch"`. The diff is computed **engine-side** (`Image`), so the host stays dependency-free. Establish a reference by capturing `runtime_screenshot` and saving it as a project asset. **Future (gated):** an optional `write_diff` to save a highlighted diff image would be a file write — kept out of v1 to stay read-only.
 
@@ -2577,7 +2577,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" },
     "animation": { "type": "string", "description": "animation name (default: the current/assigned one)" },
     "custom_speed": { "type": "number", "default": 1.0 },
-    "from_end": { "type": "boolean", "default": false } } }
+    "from_end": { "type": "boolean", "default": false }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ playing, current_animation, speed_scale }` — plays `animation` (or the currently-assigned one when omitted) on the live `AnimationPlayer`. Errors `not_animation_player` when `path` is another class and `no_animation` when the name is unknown.
 
@@ -2587,14 +2587,14 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 { "type": "object", "additionalProperties": false, "required": ["path"],
   "properties": {
     "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" },
-    "keep_state": { "type": "boolean", "default": false, "description": "pause in place instead of stopping" } } }
+    "keep_state": { "type": "boolean", "default": false, "description": "pause in place instead of stopping" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ playing, current_animation, position }` — `keep_state:true` pauses in place (`AnimationPlayer.pause()`), otherwise stops (`stop()`). `pause()`/`stop()` with no arguments are used so the tool is stable across Godot 4.2–4.5.
 
 ### `runtime_anim_get_state` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" } } }
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ playing, current_animation, position, length, speed_scale, animations[] }` — read-only snapshot of a live `AnimationPlayer`; `animations` lists the available animation names.
 
@@ -2606,14 +2606,14 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "parent": { "type": "string", "description": "parent node in the running scene" },
     "type": { "type": "string", "description": "ClassDB class to instantiate (mutually exclusive with scene)" },
     "scene": { "type": "string", "description": "res:// PackedScene to instantiate (mutually exclusive with type)" },
-    "name": { "type": "string" } } }
+    "name": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ added, path, type }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
 
 ### `runtime_node_remove` ✅ · destructive
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" } } }
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ removed, path }` — `queue_free()`s the node. Refuses to remove the current scene root (`cannot_remove_root`).
 
@@ -2634,7 +2634,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ### `runtime_state_digest` ✅
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["root"], "properties": { "root": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" } }, "max_depth": { "type": "integer", "minimum": 0, "default": 8 } } }
+{ "type": "object", "additionalProperties": false, "required": ["root"], "properties": { "root": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" } }, "max_depth": { "type": "integer", "minimum": 0, "default": 8 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ digest, node_count }` — read-only. Walks the subtree at `root` (to `max_depth`, default 8) and emits `digest` as a stable-ordered map of node path → `{ field: value }`. Default fields are `position` / `global_position` / `rotation` / `scale` / `visible` / `modulate` (only those present on each node); pass `fields` to capture a specific set. Deterministic ordering makes it ideal for frame-by-frame comparison alongside `runtime_step_frames`.
 

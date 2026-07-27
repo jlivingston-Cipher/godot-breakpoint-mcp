@@ -446,7 +446,7 @@ command line). Others need the editor open with the addon enabled, or the game r
                /undo/redo     live SceneTree  diagnostics   stepping, eval
 ```
 
-### Plane A — Live Editor Bridge (roughly 145 tools)
+### Plane A — Live Editor Bridge (roughly 146 tools)
 
 The largest plane. It drives the editor through the addon's loopback server on
 `127.0.0.1:9080`, so it **requires the editor open with the plugin enabled**. It covers
@@ -683,21 +683,50 @@ frame-exact rather than wall-clock.
 
 **Across several processes.** `runtime_spawn_peers` (higher-trust: `code-execution`) starts up to
 four **headless** peers of the project, each on its own loopback port; `runtime_peer_stop` ends
-them; and `runtime_peers_digest` reads the same digest from two or more of them and reports
-whether they **converged**. The seven tools a multi-process playtest drives — `runtime_seed_rng`,
-`runtime_time_scale`, `runtime_step_frames`, `runtime_get_property`, `runtime_call_method`,
-`runtime_await_condition`, `runtime_get_log` — take an optional `peer` argument; omit it and you
-address the default running game exactly as before. Each peer gets `BREAKPOINT_PEER_ID`,
-`BREAKPOINT_PEER_INDEX` and (when you pass `role`) `BREAKPOINT_PEER_ROLE` in its environment, so
-game code can branch on which peer it is with `OS.get_environment()`.
+them; and `runtime_peers_digest` reads the same digest from two or more of them and reports whether
+they **converged**. **Every** runtime tool that talks to the running game takes an optional `peer`
+argument — the rule is "if you can do it to the default game, you can do it to one peer" — so there
+is no subset to memorise. Omit `peer` and you address the default running game exactly as before.
+Each peer gets `BREAKPOINT_PEER_ID`, `BREAKPOINT_PEER_INDEX` and (when you pass `role`)
+`BREAKPOINT_PEER_ROLE` in its environment, so game code can branch on which peer it is with
+`OS.get_environment()`.
 
-Two boundaries ship in `runtime_peers_digest`'s own description because they are measured facts,
-not caveats. **Convergence is claimed for the fixed physics timestep only** — step with
-`kind:"physics"`; state advanced on the variable idle-frame `delta` is real elapsed wall-clock
-time in each process and will not converge no matter what you seed. And it is a **same-machine**
-claim: peers here share one OS and one engine build, so nothing about it extends across machines.
 This spawns local headless children on loopback for testing — it hosts no relay, lobby or
 signalling server, which stays out of scope deliberately.
+
+#### Making peers actually converge
+
+Convergence is a real claim with real preconditions, all four measured against Godot 4.3 rather
+than reasoned about. They ship in `runtime_peers_digest`'s own tool description too, so an
+assistant reads them at call time; this is the longer version.
+
+1. **Step the fixed physics timestep.** Pass `kind:"physics"` to `runtime_step_frames`. State
+   advanced on the idle lane uses the variable per-frame `delta`, which is real elapsed wall-clock
+   time in that process — no seed makes it reproducible.
+2. **Let the global RNG be consumed only on frames you are stepping.** This is the one that catches
+   people. `runtime_seed_rng` seeds *one* stream shared by the whole project, and freezing does not
+   stop it being drawn: `time_scale 0` zeroes `delta` but `_process` and `_physics_process` still
+   fire, so an unconditional `randf()` burns the stream at wall-clock rate *while frozen* — including
+   in the gap between your seed call and your step call. Idle-frame draws do the same during the
+   step. Guard draws on `delta > 0`, and give idle-frame code its own `RandomNumberGenerator`.
+3. **Freeze first, then equalise.** Peers free-run between spawning and freezing for slightly
+   different durations, so their state differs before you start. Freeze every peer with
+   `runtime_time_scale{scale:0, peer}`, *then* bring them to an identical starting state with
+   `runtime_set_property{peer}`.
+4. **Same machine only.** Peers here share one OS and one engine build. Nothing about this extends
+   to convergence across machines, and Breakpoint does not claim it.
+
+With all four, three peers produce byte-equal digests even with a deliberate stagger between each
+peer's seed and step. With any one violated, they diverge every time. The working order is:
+
+```
+runtime_spawn_peers{count:3}
+  → per peer: runtime_time_scale{scale:0, peer}          # freeze FIRST
+  → per peer: runtime_set_property{peer, ...}            # equalise the starting state
+  → per peer: runtime_seed_rng{seed:12345, peer}         # same seed
+  → per peer: runtime_step_frames{frames:30, kind:"physics", peer}
+  → runtime_peers_digest{root:"./Thing"}                 # converged / diverged_at
+```
 
 ### Plane D — Semantic and debugging
 

@@ -36,6 +36,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
   mints the project secret **before** the first spawn, closing a check-then-write race in the addon's
   `load_or_mint()` that N simultaneous cold-start children could otherwise lose silently.
 
+  **`peer` is accepted by every runtime tool that talks to the running game** — all 24 of them — so
+  the rule is "if you can do it to the default game, you can do it to one peer", with no subset to
+  memorise. It shipped as a seven-tool subset first; validating the build against real Godot 4.3
+  showed that insufficient in a way only an engine could reveal, because equalising peer state before
+  stepping is mandatory and `runtime_set_property` was not on the list. Any subset has that shape of
+  hole.
+
+  **Four preconditions for convergence, all measured on real Godot 4.3** and all stated in
+  `runtime_peers_digest`'s own description rather than only in the docs: step the fixed physics
+  timestep; let the global RNG be consumed *only* on frames you are stepping; freeze before
+  equalising state; same machine only. The second is the one that surprises: `runtime_seed_rng` seeds
+  one stream shared by the whole project, and freezing does **not** stop it being drawn — `time_scale
+  0` zeroes `delta` but callbacks still fire, so unconditional draws burn the stream at wall-clock
+  rate while frozen. With all four honoured, three peers produce byte-equal digests even with a
+  deliberate stagger between each peer's seed and step; with any one violated they diverge every time.
+
+- **A warning-only tool-family count pass in `contract_check.py` (11b).** Check 11 gates only claims
+  carrying a surface marker, and that stays right — the alternative is an allowlist of bare numbers,
+  and every entry in such a list is a hole in the real check. But the family class drifts silently:
+  three stale counts were found this release, two of them four releases old. 11b resolves the shape
+  the docs actually use — a toolset expression followed by a number — exactly, id by id, and lists
+  every other "N tools" phrase for a human. It never fails the build.
+
+  Worth recording how it got there: the first version filtered family counts against every toolset
+  subset *sum*, and a negative test showed it swallowed both defects that motivated it. It would have
+  reported "0 suspects" while they sat stale. A check that reads as verification and verifies nothing
+  is worse than none, so it was replaced rather than tuned.
+
 - **Extensibility boundary written down.** `README.md` and `docs/USER_GUIDE.md` now state that recipes
   are the extension point — they compose typed tools and add none — and that a bring-your-own-tool
   hatch is a deliberate decline rather than an unfinished feature, because an injected tool has no
@@ -48,11 +76,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - `host/package-lock.json` had said `1.12.0` in both its `version` fields for ten minor releases —
   the same silent-drift class the two count gates close, but reachable by neither. Nothing read it for
   the published version, so nothing was broken.
-- Two stale tool-*family* counts in the docs, both predating this release: `BREAKPOINT_TOOLSETS=c` was
-  documented as 14 runtime tools (24 since 1.21.0, 27 now) and `editor,runtime,vcs` as 172 (182, now
-  185). Family counts carry no surface marker and are invisible to `contract_check.py` check 11 by
-  design — gating them would need an allowlist of bare numbers, and every entry in such a list is a
-  hole in the real check.
+- Three stale tool-*family* counts in the docs, all predating this release: `BREAKPOINT_TOOLSETS=c`
+  was documented as 14 runtime tools (24 since 1.21.0, 27 now), `editor,runtime,vcs` as 172 (182, now
+  185), and Plane A as ~145 tools when the editor toolset registers 146. The first two were found by
+  hand; the third by the new 11b pass on its first run.
 
 ## [1.22.0] — 2026-07-27
 

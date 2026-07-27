@@ -267,3 +267,53 @@ test("ceiling: MAX_PEERS live peers is a hard limit, and the error says how to c
     fs.rmSync(f.dir, { recursive: true, force: true });
   }
 });
+
+test("auth: a peer refuses a host whose secret does not match the project file", skipWin, async () => {
+  const f = fixture();
+  const reg = new PeerRegistry(cfgFor(f, basePort()) as never);
+  try {
+    const peers = await reg.spawn({ count: 1, timeoutMs: 8000 });
+    // The peer authenticated against the file. Now rewrite the file so the host's
+    // NEXT connection presents a value the running peer will reject — the shape a
+    // stale or mismatched secret has in the wild.
+    fs.writeFileSync(path.join(f.dir, ".godot", "breakpoint_mcp.secret"), "c".repeat(64));
+    reg.clientFor(peers[0].id).close();
+    await assert.rejects(
+      reg.clientFor(peers[0].id).request("ping", {}, 2500),
+      (e: Error & { code?: string }) => {
+        // The addon closes the socket on a failed handshake, so the host sees the
+        // connection drop or the request time out — either way it does NOT succeed.
+        assert.ok(["bridge_closed", "timeout", "bridge_unavailable"].includes(e.code ?? ""), `unexpected code ${e.code}`);
+        return true;
+      },
+    );
+  } finally {
+    reg.stopAll();
+    fs.rmSync(f.dir, { recursive: true, force: true });
+  }
+});
+
+test("lifecycle: a peer that dies AFTER becoming ready reports peer_exited with its output", skipWin, async () => {
+  const f = fixture();
+  const reg = new PeerRegistry(cfgFor(f, basePort()) as never);
+  try {
+    const peers = await reg.spawn({ count: 1, timeoutMs: 8000 });
+    assert.equal(reg.live().length, 1);
+
+    // Kill the child out from under the registry — a crash, not a runtime_peer_stop.
+    process.kill(peers[0].pid as number, "SIGKILL");
+    for (let i = 0; i < 40 && reg.live().length === 1; i++) await new Promise((r) => setTimeout(r, 50));
+
+    assert.deepEqual(reg.live(), [], "a dead child must drop out of the live set");
+    assert.throws(() => reg.clientFor(peers[0].id), (e: Error & { code?: string }) => {
+      // Not "was stopped" (nobody stopped it) and not a generic bridge error —
+      // the caller needs to know the process died, and ideally why.
+      assert.equal(e.code, "peer_exited");
+      assert.match(e.message, /exited/);
+      return true;
+    });
+  } finally {
+    reg.stopAll();
+    fs.rmSync(f.dir, { recursive: true, force: true });
+  }
+});

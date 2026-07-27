@@ -138,7 +138,7 @@ if you do, that is exactly what it buys.
 
 Breakpoint MCP is organized into four capability **planes** (full **289 tools**, or **274** with the two privileged capability groups off by default — see [Safety & trust model](#safety--trust-model) — plus **6 resources**):
 
-- **Plane A — Live Editor Bridge** (~145 tools: `editor_*`, `scene_*`, `node_*`,
+- **Plane A — Live Editor Bridge** (~146 tools: `editor_*`, `scene_*`, `node_*`,
   `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot `EditorPlugin`
   opens a loopback server the host drives for scene/node/resource CRUD **with full
   undo/redo**, project settings, `ClassDB` introspection, selection, and editor

@@ -355,6 +355,120 @@ def tool_count_claims(files: list[Path]) -> list[tuple[Path, int, str, int, str]
     return claims
 
 
+# --- 11b helpers: tool-FAMILY counts (WARN only) ----------------------------
+# Check 11 gates only claims carrying a surface marker, and that stays right — the
+# alternative is an allowlist of bare numbers, and every entry in such a list is a
+# hole in the real check. But the family class is not harmless: README documented
+# `BREAKPOINT_TOOLSETS=c` as 14 runtime tools for four releases after it became 24,
+# and `editor,runtime,vcs` as 172 when it was 182.
+#
+# The first design here filtered "N tools" phrases against every subset SUM, and a
+# negative test showed it swallowed BOTH of those defects — 14 and 172 are both
+# reachable as sums, so it would have reported "0 suspects" while they sat stale.
+# A check that reads as verification and verifies nothing is worse than none, so
+# that approach was dropped for an exact one:
+#
+#   the docs state family counts in a fixed shape — a toolset expression followed
+#   by an arrow and a number — and THAT can be resolved precisely, id by id.
+#
+# Anything not in that shape is listed for a human, explicitly as an eyeball aid
+# and not as a check.
+
+TOOLSET_CLAIM_RE = re.compile(
+    r"`(?:BREAKPOINT_TOOLSETS=)?([a-z]+(?:\s*,\s*[a-z]+)*)`[^\n]{0,40}?[→>-]\s*\**(\d{1,4})\b"
+)
+ANY_TOOL_COUNT_RE = re.compile(r"\b(\d{2,4})\s*\**\s*[-‑–]?\s*tools?\b", re.I)
+
+
+def toolset_sizes() -> dict[str, int]:
+    """toolset id -> how many tools it registers, resolved through toolsets.ts.
+
+    Each entry maps an id to one `register*Tools` call, and that function is
+    imported from a known file, so the count is that file's registrations. The
+    `editor` group is the one special case: `tools/editor.ts` re-exports the
+    `tools/editor/*.ts` modules, so its size is the directory total.
+    """
+    text = (HOST_SRC / "toolsets.ts").read_text()
+    imports = dict(
+        re.findall(r'import\s*\{\s*(register\w+)\s*\}\s*from\s*"\./([^"]+)\.js"', text)
+    )
+
+    def count_in(path: Path) -> int:
+        if not path.exists():
+            return 0
+        body = path.read_text()
+        return len(re.findall(r'registerTool\(\s*"[a-z_]+"', body)) + len(
+            re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z_]+"', body)
+        )
+
+    sizes: dict[str, int] = {}
+    for tid, fn in re.findall(r'\{\s*id:\s*"([a-z]+)".*?(register\w+Tools)\(', text, re.S):
+        rel = imports.get(fn)
+        if not rel:
+            continue
+        f = HOST_SRC / f"{rel}.ts"
+        n = count_in(f)
+        d = HOST_SRC / rel
+        if d.is_dir():
+            n += sum(count_in(x) for x in sorted(d.rglob("*.ts")))
+        sizes[tid] = n
+    return sizes
+
+
+def toolset_aliases() -> dict[str, list[str]]:
+    """The plane aliases (`a`/`b`/`c`/`d`/`csharp`/`semantic`) from config.ts."""
+    text = (HOST_SRC / "config.ts").read_text()
+    m = re.search(r"export const TOOLSET_ALIASES[^=]*=\s*\{(.*?)\n\};", text, re.S)
+    if not m:
+        return {}
+    out: dict[str, list[str]] = {}
+    for am, ids in re.findall(r'(\w+):\s*\[([^\]]*)\]', m.group(1)):
+        out[am] = re.findall(r'"([a-z]+)"', ids)
+    return out
+
+
+def toolset_claims(files: list[Path]) -> tuple[list[str], list[tuple[Path, int, int, str]]]:
+    """(mismatches, unresolved) — exact check of `<ids>` -> N claims, plus every
+    other "N tools" phrase listed for a human to eyeball."""
+    sizes = toolset_sizes()
+    aliases = toolset_aliases()
+    mismatches: list[str] = []
+    resolved_lines: set[tuple[Path, int]] = set()
+
+    for f in files:
+        if not f.exists():
+            continue
+        text = _mask_continuations(f.read_text(), f.suffix)
+        for m in TOOLSET_CLAIM_RE.finditer(text):
+            toks = [x.strip() for x in m.group(1).split(",")]
+            ids: list[str] = []
+            for tok in toks:
+                ids.extend(aliases.get(tok, [tok]))
+            if not ids or any(i not in sizes for i in ids):
+                continue  # not a toolset expression — e.g. a prose backtick
+            ln = _line_of(text, m.start(2))
+            resolved_lines.add((f, ln))
+            expect = sum(sizes[i] for i in dict.fromkeys(ids))
+            claimed = int(m.group(2))
+            if claimed != expect:
+                mismatches.append(
+                    f"{f.relative_to(ROOT)}:{ln} says `{m.group(1)}` -> {claimed}, "
+                    f"code says {expect} ({' + '.join(f'{i}={sizes[i]}' for i in dict.fromkeys(ids))})"
+                )
+
+    unresolved: list[tuple[Path, int, int, str]] = []
+    for f in files:
+        if not f.exists():
+            continue
+        text = _mask_continuations(f.read_text(), f.suffix)
+        for m in ANY_TOOL_COUNT_RE.finditer(text):
+            ln = _line_of(text, m.start(1))
+            if (f, ln) in resolved_lines:
+                continue
+            unresolved.append((f, ln, int(m.group(1)), _snip(m.group(0))))
+    return mismatches, unresolved
+
+
 def catalog_index_tools() -> set[str]:
     text = CATALOG.read_text()
     tools: set[str] = set()
@@ -784,6 +898,29 @@ if bad_counts:
         "naming it — do not add a number you have not identified."
     )
 
+# --- 11b (WARN only): tool-FAMILY counts ------------------------------------
+# Exact where it can be — a `<toolset ids>` -> N claim resolves id by id — and
+# an explicit eyeball list where it cannot. WARN, never FAIL: check 11 owns the
+# surface counts, and this must not become a second gate with softer semantics.
+family_mismatches, family_unresolved = toolset_claims(TOOL_COUNT_FILES)
+surface_claim_keys = {(f, ln) for f, ln, _k, _n, _s in count_claims}
+family_unresolved = [c for c in family_unresolved if (c[0], c[1]) not in surface_claim_keys]
+
+if family_mismatches:
+    warnings.append(
+        "Toolset-subset count(s) disagree with the code — this class drifts "
+        "silently and check 11 does not gate it:\n      - "
+        + "\n      - ".join(family_mismatches)
+    )
+if family_unresolved:
+    warnings.append(
+        "Tool-FAMILY counts stated in prose (NOT verified — resolve by hand at a "
+        "release; listed so the class is at least visible):\n      - "
+        + "\n      - ".join(
+            f"{f.relative_to(ROOT)}:{ln} “{s}”" for f, ln, _n, s in family_unresolved
+        )
+    )
+
 count_constants = test_count_constants()
 bad_constants = [
     f"{f.relative_to(ROOT)}:{ln} {name} = {v}" for f, ln, name, v in count_constants if v != total_tools
@@ -807,6 +944,10 @@ print(
     f"Tool counts             : full {total_tools} · secure-default {secure_default_tools} "
     f"· privileged {privileged_count} · {len(count_claims)} claim(s) + "
     f"{len(count_constants)} test constant(s) checked"
+)
+print(
+    f"Tool-family counts      : {len(toolset_sizes())} toolset size(s) resolved · "
+    f"{len(family_mismatches)} mismatch(es) · {len(family_unresolved)} unverified prose claim(s) (warn only)"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
