@@ -4,7 +4,11 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.22.0] — 2026-07-27
+
+Publishes machine-readable risk annotations on the whole surface, ships a static export of it, and
+closes the documentation-drift class from both ends. A **minor** release: the annotations and the
+`breakpoint-mcp tools` command are additive functionality, not fixes.
 
 ### Added
 - **MCP tool annotations on all 286 tools.** Every tool now publishes the spec's
@@ -66,8 +70,37 @@ and the project uses [Semantic Versioning](https://semver.org/).
   source trips the roster check. `registration.test.ts`'s assertion was left alone — it is right — and
   only its title reframed to name its scope, with a comment saying why it must not be "fixed" to 6.
 
-Host gate **286 / 465 / 0** (443 + 8 annotations + 10 export + 4 resources). No tool-count, version, or
-behaviour change.
+- **A tool-count gate — the other half of the drift class.** The resource gate above closed one half;
+  the tool half had already bitten. Three stale `276`s survived in `index.ts` comments for two releases
+  after the surface reached 286, with every test green the whole time, and nothing stopped the next one.
+  `scripts/contract_check.py` gains **check 11**, mirroring check 10's shape.
+
+  Both numbers are **derived, never typed**: the full surface is the registered tool set, and the
+  secure-default surface is that set minus the tools `capabilities.ts` tags with a capability group —
+  so no failure here can be silenced by editing a constant to match a stale doc. The check then asserts
+  that every full-surface, secure-default, and privileged-drop count stated in the **live docs**, in
+  **source prose**, and in the **four host-test count constants** agrees with the code: **78 claims and
+  4 constants** across `README.md`, `host/README.md`, `docs/TOOL_CATALOG.md`, `docs/USER_GUIDE.md`,
+  `host/src/**` and `host/test/**`. `CHANGELOG.md` stays exempt, extending check 10's rule rather than
+  inventing a second one.
+
+  Two nets, deliberately different in shape. The pattern net matches a number only where a *surface
+  marker* sits beside it — `full`, `all`, `secure-default`, `N-tool surface`, `(N dropped)`, the
+  `286 − 14 = 272` arithmetic — so tool-*family* counts ("roughly 145 tools", the `runtime_*` plane's
+  14, a rival's "162-tool ceiling") are correctly invisible: a different and far lower-stakes class.
+  The residual net then requires every three-digit integer *sharing a line with a real claim* to itself
+  be a surface number, which is what catches README's "…**272 tools an agent can actually call**, not
+  286 with a warning label" — a number with no marker of its own. Claims that wrap across a line are
+  found by masking JSDoc `*` continuation markers while preserving character offsets, so
+  `recipes.ts`'s "(the 286-tool\n * count is unchanged)" is not invisible to the scan.
+
+  **Verified to fail when broken, five ways**, each reverted byte-exact afterwards: a live doc reverted
+  to a stale 276; an `index.ts` comment reverted to 276 (the exact F12 defect, previously unguarded); a
+  bare "not 276" with no marker of its own, caught only by the residual net; a 15th tool tagged
+  privileged in `capabilities.ts`, which named **27 now-stale sites** across six files from that one
+  code edit; and a test constant edited past the code.
+
+Host gate **286 / 465 / 0** (443 + 8 annotations + 10 export + 4 resources), contract check **286 · annotated 286 · resources 6 · tool-count claims 78**. No tool-count and no behaviour change; version 1.21.1 → 1.22.0.
 
 ## [1.21.1] — 2026-07-24
 

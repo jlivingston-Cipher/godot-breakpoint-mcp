@@ -17,6 +17,9 @@ Verifies, without running Godot or Node, that the three layers agree:
   9. MCP annotations are total: every registered tool is on `ALL_ANNOTATED`
  10. MCP resources: the registered set matches the expected roster, and every
      resource count the LIVE docs state agrees with the code
+ 11. Tool counts: every full-surface / secure-default / privileged-drop count
+     stated in the live docs, in source prose, or in a host-test constant
+     agrees with the code
 
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
@@ -32,6 +35,8 @@ SCHEMAS = ROOT / "host/src/schemas.ts"
 ANNOTATIONS = ROOT / "host/src/annotations.ts"
 CATALOG = ROOT / "docs/TOOL_CATALOG.md"
 HOST_SRC = ROOT / "host/src"
+HOST_TEST = ROOT / "host/test"
+CAPABILITIES = ROOT / "host/src/capabilities.ts"
 
 # Live docs whose prose states the MCP resource count. `CHANGELOG.md` is
 # deliberately EXCLUDED: it is an append-only historical record, and its older
@@ -59,6 +64,18 @@ EXPECTED_RESOURCE_URIS = {
     "godot://class/{name}",
     "godot://capabilities",
 }
+
+# Three-digit counts that legitimately appear ON A LINE that also states a
+# surface count, but are NOT the full or secure-default surface — a plane total,
+# a tool-family size, a rival's ceiling. Deliberately EMPTY today: every
+# claim-bearing line in the tree states only 286 or 272, and the family counts
+# (145 for plane A, 162 for a rival's ceiling, 165 for the physics group) all sit
+# on lines that make no surface claim, so check 11 never looks at them.
+#
+# If a legitimate family count later lands next to a surface count, add it here
+# with a comment naming it — the same deliberate-edit rule EXPECTED_RESOURCE_URIS
+# uses. Do NOT add a number here to silence a failure you have not identified.
+SUBGROUP_COUNTS: set[int] = set()
 
 # The universal elicitation-gate bypass param. It is added to every destructive
 # tool's inputSchema by convention and documented once (not per-tool in the
@@ -171,6 +188,165 @@ def doc_resource_claims() -> list[tuple[Path, int, int]]:
         for lineno, line in enumerate(f.read_text().splitlines(), 1):
             for m in re.finditer(r"(\d+)\s+(?:MCP\s+)?resources\b", line, re.I):
                 claims.append((f, lineno, int(m.group(1))))
+    return claims
+
+
+def privileged_tools() -> set[str]:
+    """Tool names carrying a capability group in `capabilities.ts`
+    `TOOL_CAPABILITIES` — i.e. the tools DROPPED at registration by default.
+
+    This map is the single source of truth for the risk tagging, so the
+    secure-default surface is `len(registered) - len(this)` and never a number
+    typed by hand. Parsed rather than imported because this script must run with
+    no Node and no build.
+    """
+    text = CAPABILITIES.read_text()
+    m = re.search(
+        r"export const TOOL_CAPABILITIES:[^=]*=\s*\{(.*?)\n\};", text, re.S
+    )
+    if not m:
+        return set()
+    return set(re.findall(r"^\s*([a-z0-9_]+)\s*:\s*\[", m.group(1), re.M))
+
+
+def test_count_constants() -> list[tuple[Path, int, str, int]]:
+    """(file, line, const-name, value) for every hardcoded tool-count constant in
+    the host tests — `EXPECTED_TOOL_COUNT` in registration/toolsets/annotations
+    and `FULL_TOOL_COUNT` in capabilities.
+
+    These four are self-gating in the sense that the tests fail if the code and
+    the constant disagree. They are checked here anyway so that ONE run names all
+    four at once with the derived number, instead of four separate assertion
+    failures a reader has to reconcile by hand.
+    """
+    found: list[tuple[Path, int, str, int]] = []
+    for f in sorted(HOST_TEST.rglob("*.ts")):
+        for lineno, line in enumerate(f.read_text().splitlines(), 1):
+            m = re.match(
+                r"\s*const\s+(EXPECTED_TOOL_COUNT|FULL_TOOL_COUNT)\s*=\s*(\d+)", line
+            )
+            if m:
+                found.append((f, lineno, m.group(1), int(m.group(2))))
+    return found
+
+
+def _mask_continuations(text: str, suffix: str) -> str:
+    """Blank the JSDoc `*` (or markdown `>`) line-continuation marker, preserving
+    every character offset so line numbers computed from the masked text stay
+    exact.
+
+    Load-bearing: prose in this repo wraps mid-claim. `recipes.ts` says
+    "(the 286-tool\n * count is unchanged)" and `capabilities.ts` says
+    "The full\n * 286-tool surface". A line-by-line scan sees neither, and an
+    unmasked file-wide scan is blocked by the `*`.
+    """
+    marker = r"\*" if suffix == ".ts" else ">"
+    return re.sub(rf"(?m)^(\s*){marker}", lambda m: m.group(1) + " ", text)
+
+
+def _line_of(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def _snip(text: str) -> str:
+    """Collapse a match to one line — claims wrap mid-phrase, and a raw newline
+    in a FAIL message truncates the quoted evidence at the wrap."""
+    return " ".join(text.split())
+
+
+# Claims about the FULL surface. Each pattern captures the number in group 1.
+# A time-unit lookahead keeps "the full 20 s DAP timeout" out of the count net.
+TOTAL_CLAIM_RES = [
+    # "full 286 tools", "all 286 tools", "full 286-tool", "total 286 MCP tools"
+    re.compile(r"\b(?:full|all|entire|total)\s+\**(\d+)\**\s*(?:[-‑–]tool\b|(?:\s+MCP)?\s+tools?\b)"),
+    # "the full **286**", "never sees all 286 at once" — bare, 3-digit only
+    re.compile(r"\b(?:full|all)\s+\**(\d{3})\b(?!\s*\**\s*(?:ms|s|m|h|MB|KB)\b)"),
+    # "the full surface (286 tools)"
+    re.compile(r"\b(?:full|entire)\s+surface\s*\(\s*\**(\d+)"),
+    # "286-tool surface", "the 286-tool count is unchanged"
+    re.compile(r"\b(\d+)[-‑–]tool\s+(?:surface|count)\b"),
+    # "**286 tools** in total"
+    re.compile(r"\b(\d+)\s+tools?\**[^.\n]{0,24}\bin total\b"),
+    # the catalog/host-README headline: "286 tools + 6 MCP resources"
+    re.compile(r"\b(\d+)\s+tools?\**\s*\+\s*\d+\s*\**\s*MCP\s+resources"),
+]
+
+# Claims about the SECURE-DEFAULT surface (the two privileged groups off).
+# The gap between the marker and the number excludes newlines and `(`: without
+# them, `"secure-default")` in a CLI flag literal reaches across two lines to the
+# `return 2` below it, and "the secure default (14 dropped)" gets read as a
+# secure-default claim of 14 rather than the privileged claim it is.
+SECURE_CLAIM_RES = [
+    re.compile(r"\b(?:secure|safe)[-\s]default(?:\s+surface)?(?:\s+is|\s+of)?[^\d\n(]{0,24}?(\d+)"),
+    re.compile(r"\bdefault\s+surface\s+is\s+\**(\d+)"),
+]
+
+# Claims about how many tools are DROPPED by default.
+PRIVILEGED_CLAIM_RES = [
+    re.compile(r"\((\d+)\s+dropped\)"),
+    re.compile(r"\b(\d+)\s+privileged\b"),
+    # README: "…not 286 with a warning label on 14 of them."
+    re.compile(r"\bon\s+(\d+)\s+of\s+them\b"),
+]
+
+# "286 − 14 = 272 tools" — states all three numbers at once.
+ARITH_CLAIM_RE = re.compile(r"(\d+)\s*[-−–—]\s*(\d+)\s*=\s*(\d+)\s*tools?\b")
+
+
+def tool_count_claims(files: list[Path]) -> list[tuple[Path, int, str, int, str]]:
+    """(file, line, kind, claimed, snippet) for every tool-count claim.
+
+    `kind` is one of `full`, `secure-default`, `privileged`, or `residual`.
+
+    Two nets, deliberately different in shape:
+
+    * The pattern nets above match a number only when a SURFACE MARKER sits next
+      to it — `full`, `all`, `secure-default`, `-tool surface`, `N dropped`, the
+      `A − B = C tools` arithmetic. Family counts ("roughly 145 tools", the
+      `runtime_*` plane's 14, a rival's "162-tool ceiling") carry no such marker
+      and are correctly invisible to this check: they are a different, far lower
+      stakes class than a stale claim about the whole surface.
+    * The `residual` net then says: on any line that ALREADY makes a surface
+      claim, every three-digit integer must itself be a surface number. That is
+      what catches README's "…**272 tools an agent can actually call**, not 286
+      with a warning label", where the second number has no marker of its own and
+      would otherwise drift alone. Three digits, not two, because two-digit
+      matching trips over version strings like `1.21.1`.
+    """
+    claims: list[tuple[Path, int, str, int, str]] = []
+    for f in files:
+        if not f.exists():
+            continue
+        raw = _mask_continuations(f.read_text(), f.suffix)
+        # Arithmetic first, then blank its span (same length, so offsets hold) so
+        # "the secure-default surface is 286 − 14 = 272 tools" cannot be read as a
+        # secure-default claim of 286.
+        text = raw
+        for m in ARITH_CLAIM_RE.finditer(raw):
+            for grp, kind in ((1, "full"), (2, "privileged"), (3, "secure-default")):
+                claims.append(
+                    (f, _line_of(raw, m.start(grp)), kind, int(m.group(grp)), _snip(m.group(0)))
+                )
+            text = text[: m.start()] + " " * (m.end() - m.start()) + text[m.end() :]
+
+        claimed_lines: set[int] = {ln for g, ln, _k, _n, _s in claims if g == f}
+        for res, kind in (
+            (TOTAL_CLAIM_RES, "full"),
+            (SECURE_CLAIM_RES, "secure-default"),
+            (PRIVILEGED_CLAIM_RES, "privileged"),
+        ):
+            for rx in res:
+                for m in rx.finditer(text):
+                    ln = _line_of(text, m.start(1))
+                    claimed_lines.add(ln)
+                    claims.append((f, ln, kind, int(m.group(1)), _snip(m.group(0))))
+
+        # residual net — three-digit integers sharing a line with a real claim
+        for ln, line in enumerate(text.splitlines(), 1):
+            if ln not in claimed_lines:
+                continue
+            for m in re.finditer(r"(?<![\d.])(\d{3})(?![\d.])", line):
+                claims.append((f, ln, "residual", int(m.group(1)), line.strip()[:90]))
     return claims
 
 
@@ -536,6 +712,83 @@ if bad_claims:
         + "; ".join(f"{f.relative_to(ROOT)}:{ln} says {n}" for f, ln, n in bad_claims)
     )
 
+# --- 11: tool count — code <-> live docs, source prose, test constants ------
+# The counterpart to check 10, closing the other half of the same drift class.
+# The resource half was found by a human noticing a wrong number; the tool half
+# had already bitten once — three `276`s survived in `index.ts` comments for two
+# releases after the surface reached 286, with every test green the whole time.
+#
+# Both numbers are DERIVED, never typed: the full surface is the registered tool
+# set, and the secure-default surface is that minus the tools `capabilities.ts`
+# tags with a privileged group. Nothing here can be satisfied by editing a
+# constant to match a stale doc.
+priv_tools = privileged_tools()
+total_tools = len(tool_set)
+privileged_count = len(priv_tools)
+secure_default_tools = total_tools - privileged_count
+
+if not priv_tools:
+    errors.append("Could not parse TOOL_CAPABILITIES from host/src/capabilities.ts")
+stale_privileged = sorted(priv_tools - tool_set)
+if stale_privileged:
+    errors.append(
+        f"capabilities.ts TOOL_CAPABILITIES tags tools that do not exist: {stale_privileged}"
+    )
+
+EXPECTED_BY_KIND = {
+    "full": total_tools,
+    "secure-default": secure_default_tools,
+    "privileged": privileged_count,
+}
+TOOL_COUNT_FILES = [
+    *RESOURCE_DOCS,
+    *sorted(HOST_SRC.rglob("*.ts")),
+    *sorted(HOST_TEST.rglob("*.ts")),
+]
+
+seen_claims: set[tuple[Path, int, str, int]] = set()
+count_claims: list[tuple[Path, int, str, int, str]] = []
+for claim in tool_count_claims(TOOL_COUNT_FILES):
+    key = (claim[0], claim[1], claim[2], claim[3])
+    if key not in seen_claims:  # two patterns can match the same number
+        seen_claims.add(key)
+        count_claims.append(claim)
+
+bad_counts: list[str] = []
+for f, ln, kind, n, snippet in count_claims:
+    if kind == "residual":
+        if n in (total_tools, secure_default_tools) or n in SUBGROUP_COUNTS:
+            continue
+        bad_counts.append(
+            f"{f.relative_to(ROOT)}:{ln} states {n} beside a surface count "
+            f"(neither the full {total_tools} nor the secure-default "
+            f"{secure_default_tools}) — “{snippet}”"
+        )
+    elif n != EXPECTED_BY_KIND[kind]:
+        bad_counts.append(
+            f"{f.relative_to(ROOT)}:{ln} claims {kind} = {n}, code says "
+            f"{EXPECTED_BY_KIND[kind]} — “{snippet}”"
+        )
+if bad_counts:
+    errors.append(
+        "Tool-count drift (code: full "
+        f"{total_tools} · secure-default {secure_default_tools} · privileged "
+        f"{privileged_count}):\n      - " + "\n      - ".join(bad_counts) +
+        "\n      If one of these is a tool-FAMILY count that legitimately shares a "
+        "line with a surface count, add it to SUBGROUP_COUNTS with a comment "
+        "naming it — do not add a number you have not identified."
+    )
+
+count_constants = test_count_constants()
+bad_constants = [
+    f"{f.relative_to(ROOT)}:{ln} {name} = {v}" for f, ln, name, v in count_constants if v != total_tools
+]
+if bad_constants:
+    errors.append(
+        f"Host-test tool-count constants disagree with the {total_tools} registered "
+        f"tools: {bad_constants}"
+    )
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -545,6 +798,11 @@ print(f"Registered MCP tools    : {len(tools)} (unique: {len(tool_set)})")
 print(f"Catalog index tools     : {len(cat_tools)}")
 print(f"Annotated tools         : {len(annotated)} (readOnly/destructive/idempotent/openWorld hints)")
 print(f"MCP resources           : {resource_count} registered · {len(resource_claims)} doc count(s) checked")
+print(
+    f"Tool counts             : full {total_tools} · secure-default {secure_default_tools} "
+    f"· privileged {privileged_count} · {len(count_claims)} claim(s) + "
+    f"{len(count_constants)} test constant(s) checked"
+)
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
 print(f"Output shapes           : {len(code_outputs)} in schemas.ts · {len(output_comparable)} checked vs catalog")
