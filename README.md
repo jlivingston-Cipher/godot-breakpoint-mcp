@@ -374,6 +374,29 @@ Recipes are skills which ride on top of typed, schema-validated, undoable tools 
 contract is executed by the server, not merely described in prose which a model might
 misapply. Recipes also add no tools (the count stays 286) and cost nothing until pulled.
 
+### Recipes are the extension point — and the open hatch is a deliberate decline
+
+A recipe **composes** tools that already exist; it never adds one. That distinction is what
+keeps this server's claims intact rather than nominal. Every tool here is typed, schema-frozen,
+contract-checked, risk-annotated and capability-gated, and a recipe inherits all five for free,
+because a recipe is a saved *prompt* over tools the caller could have typed by hand. It is
+strictly **less** privileged than the agent driving it: it cannot bypass the confirmation gate,
+cannot reach a tool that a disabled capability group dropped, and cannot add a name to
+`tools/list`.
+
+A "bring-your-own-tool" API — a config file or plugin that injects a *new tool* at runtime — is
+therefore a **deliberate decline**, not a gap we haven't got to yet. An injected tool has no
+frozen output schema, no catalog entry, no annotation and no capability tag, and
+`scripts/contract_check.py` cannot parse it to check for any of those. The gates would not be
+weakened so much as rendered inapplicable, silently, for exactly the tools least likely to
+deserve the benefit of the doubt.
+
+So the extension story is the recipe shape and nothing wider. Today that means the curated set
+above; loading **user-authored** recipes from a project directory is the one narrowing we would
+build if people ask for it, and it would still add no tools. If you need a workflow Breakpoint
+doesn't ship, [open an issue](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues) —
+that path costs you nothing and costs the trust model nothing.
+
 ## Compatibility
 
 Breakpoint MCP is a standard MCP server that talks over stdio, so in principle it works

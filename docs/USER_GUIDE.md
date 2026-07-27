@@ -765,6 +765,29 @@ gated, and should only be pointed at code you trust:
   and the argv template is substituted per-argument with no shell involved. Only enable it
   with a command you trust.
 
+### Extending Breakpoint — recipes, and what is deliberately declined
+
+Breakpoint has no "bring-your-own-tool" API, and that is a design position rather than an
+unfinished feature. The extension shape it does have is the **recipe**: a curated workflow
+exposed as an MCP prompt, which drives tools that already exist and adds none of its own.
+
+The reason the distinction matters is that every safety property described in this section is
+attached to a *tool*: the frozen output schema, the catalog entry, the risk annotation, the
+capability tag, the confirmation gate. A recipe inherits all of them, because it is a saved
+prompt over tools the caller could already have invoked by hand — it is strictly **less**
+privileged than the assistant reading it. It cannot skip a confirmation prompt, cannot reach a
+tool that a disabled capability group dropped, and cannot add a name to `tools/list`.
+
+A tool-injection hatch would invert that. An injected tool arrives with no schema to enforce, no
+annotation for your client to reason about, and no capability group to gate it — and
+`scripts/contract_check.py`, which is what makes the rest of this document checkable rather than
+merely stated, cannot see it at all. The guarantees would not be weakened so much as quietly
+made inapplicable, for precisely the tools with the least provenance.
+
+If you need a workflow Breakpoint doesn't ship, the answer is a recipe (or an issue asking for
+one), not a plugin slot. Loading **user-authored** recipes from a project directory is the one
+extension we would consider building, and it would still add no tools.
+
 ---
 
 ## 10. Typical workflows
