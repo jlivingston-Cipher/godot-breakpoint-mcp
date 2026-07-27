@@ -7,7 +7,9 @@ import { loadConfig } from "../src/config.js";
 /** Tools that return image content with no structuredContent — deliberately schema-exempt. */
 const IMAGE_TOOLS = ["screenshot_editor", "runtime_screenshot"];
 const EXPECTED_TOOL_COUNT = 286;
-const EXPECTED_RESOURCES = ["scene-tree", "editor-state", "runtime-tree", "runtime-log", "class-doc"];
+/** The 5 resources the `resources` TOOLSET registers. The wired server exposes a
+ *  6th (`godot://capabilities`, always-on, wired by index.ts) — see resources.test.ts. */
+const TOOLSET_RESOURCES = ["scene-tree", "editor-state", "runtime-tree", "runtime-log", "class-doc"];
 
 /**
  * Register the entire surface exactly as index.ts does — applyOutputSchemas first,
@@ -60,10 +62,18 @@ test("every registered tool name is unique", () => {
   assert.deepEqual(dupes, [], `duplicate tool names: ${dupes.join(", ")}`);
 });
 
-test(`the full surface registers exactly ${EXPECTED_TOOL_COUNT} tools and 5 resources`, () => {
+// NOTE the framing. This harness drives `buildToolsets` ONLY, so it sees the 5
+// toolset resources and NOT the always-on `godot://capabilities`, which index.ts
+// registers separately via registerCapabilitiesResource. The assertion below is
+// correct at that scope — do NOT "fix" it to 6. The wired server's real count is
+// asserted in `resources.test.ts`. This title used to read "the full surface
+// registers … 5 resources", which reads as a claim about the whole runtime
+// surface; `docs/TOOL_CATALOG.md` copied that sentence and understated the
+// resource count for ten days.
+test(`buildToolsets registers exactly ${EXPECTED_TOOL_COUNT} tools and its 5 toolset resources`, () => {
   const { calls, resources } = registerAll();
   assert.equal(calls.length, EXPECTED_TOOL_COUNT);
-  assert.deepEqual(resources.sort(), [...EXPECTED_RESOURCES].sort());
+  assert.deepEqual(resources.sort(), [...TOOLSET_RESOURCES].sort());
 });
 
 test("every tool declares an inputSchema", () => {

@@ -45,7 +45,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
   rather than derived from the four hint lists: 51 tools are all-false, so a derived union would have
   omitted them and made the totality check vacuous.
 
-Host gate **286 / 461 / 0** (443 + 8 annotations + 10 export). No tool-count, version, or behaviour change.
+- **A resource-count gate — the systemic fix for a ten-day documentation drift.** Nothing counted MCP
+  resources at the level the server actually assembles them, so `docs/TOOL_CATALOG.md` said "286 tools +
+  5 MCP resources" for ten days after `godot://capabilities` made it 6. Every test passed the whole
+  time: `registration.test.ts` drives `buildToolsets`, which never wires `applyCapabilities`, so its
+  count of 5 was correct *at its scope* — but its title read as a claim about the full runtime surface,
+  and the catalog copied that sentence.
+
+  Closed from both ends. `scripts/contract_check.py` gains check 10: it counts every
+  `registerResource` in `host/src`, matches the set against an explicit URI roster, and asserts that
+  **every resource count stated in the live docs agrees with the code** — `README.md`, `host/README.md`,
+  `docs/TOOL_CATALOG.md`, `docs/USER_GUIDE.md`, 8 claims in all. `CHANGELOG.md` is deliberately exempt:
+  it is an append-only record and its older "5 MCP resources" lines were correct for the releases they
+  describe. A new `resources.test.ts` (4 tests) asserts the wired count — toolsets *plus* the always-on
+  `godot://capabilities` — is 6, that each resource sits at its documented URI, that names are unique,
+  and that no capability-group combination gates the capabilities resource away.
+
+  Verified to fail when broken, three ways: restoring the catalog's "5" is caught at both sites; a 7th
+  resource added to source without the roster and docs trips both errors; deleting a resource from
+  source trips the roster check. `registration.test.ts`'s assertion was left alone — it is right — and
+  only its title reframed to name its scope, with a comment saying why it must not be "fixed" to 6.
+
+Host gate **286 / 465 / 0** (443 + 8 annotations + 10 export + 4 resources). No tool-count, version, or
+behaviour change.
 
 ## [1.21.1] — 2026-07-24
 

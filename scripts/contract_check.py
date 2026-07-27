@@ -14,6 +14,9 @@ Verifies, without running Godot or Node, that the three layers agree:
   7. every field a tool pins in `host/src/schemas.ts` `outputSchemas` is
      documented in that tool's catalog Output block (return-shape parity)
   8. `outputSchemas` hygiene: no schema entry names a tool that does not exist
+  9. MCP annotations are total: every registered tool is on `ALL_ANNOTATED`
+ 10. MCP resources: the registered set matches the expected roster, and every
+     resource count the LIVE docs state agrees with the code
 
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
@@ -28,6 +31,34 @@ TOOLS = ROOT / "host/src/tools"
 SCHEMAS = ROOT / "host/src/schemas.ts"
 ANNOTATIONS = ROOT / "host/src/annotations.ts"
 CATALOG = ROOT / "docs/TOOL_CATALOG.md"
+HOST_SRC = ROOT / "host/src"
+
+# Live docs whose prose states the MCP resource count. `CHANGELOG.md` is
+# deliberately EXCLUDED: it is an append-only historical record, and its older
+# "5 MCP resources" lines were correct for the releases they describe. Same
+# scoping rule the 276→286 comment fix used — gate the live surface, never the
+# changelog's account of past ones.
+RESOURCE_DOCS = [
+    ROOT / "README.md",
+    ROOT / "host/README.md",
+    ROOT / "docs/TOOL_CATALOG.md",
+    ROOT / "docs/USER_GUIDE.md",
+]
+
+# The MCP resources the WIRED server exposes: five from host/src/tools/resources.ts
+# (the `resources` toolset) plus the always-on `godot://capabilities` from
+# host/src/capabilities.ts, which index.ts registers unconditionally.
+#
+# Held as an explicit roster, not derived, so adding a resource is a deliberate
+# edit here as well as in the source — which is the point of the gate.
+EXPECTED_RESOURCE_URIS = {
+    "godot://scene-tree",
+    "godot://editor-state",
+    "godot://runtime/tree",
+    "godot://runtime/log",
+    "godot://class/{name}",
+    "godot://capabilities",
+}
 
 # The universal elicitation-gate bypass param. It is added to every destructive
 # tool's inputSchema by convention and documented once (not per-tool in the
@@ -100,6 +131,47 @@ def annotated_tools() -> set[str]:
     if not m:
         return set()
     return set(re.findall(r'"([a-z0-9_]+)"', m.group(1)))
+
+
+def registered_resources() -> dict[str, str]:
+    """Resource name -> its `godot://…` URI, over every `server.registerResource`
+    call in `host/src`.
+
+    Both call forms are matched: a bare string URI, and the
+    `new ResourceTemplate("godot://class/{name}", …)` form used by `class-doc`.
+
+    Why this lives here and not in a host test: `registration.test.ts` drives
+    `buildToolsets`, which never wires `applyCapabilities`, so it legitimately
+    sees only the 5 toolset resources. Nothing counted the resources the wired
+    server actually exposes — which is how the catalog said "5 MCP resources"
+    for ten days after the 6th (`godot://capabilities`) landed.
+
+    The `.` prefix is load-bearing: it matches the member call and skips both
+    the `registerResources` function declaration and `registerResourceSubscriptions`
+    (which registers no resources).
+    """
+    found: dict[str, str] = {}
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        for m in re.finditer(
+            r'\.registerResource\(\s*"([a-z0-9-]+)"\s*,\s*(?:new\s+ResourceTemplate\(\s*)?"([^"]+)"',
+            f.read_text(),
+        ):
+            found[m.group(1)] = m.group(2)
+    return found
+
+
+def doc_resource_claims() -> list[tuple[Path, int, int]]:
+    """(file, line-no, claimed-count) for every "N MCP resources" / "N resources"
+    statement in the live docs. Source comments and prose are the one surface no
+    other gate reads, and drift there is silent — every test still passes."""
+    claims: list[tuple[Path, int, int]] = []
+    for f in RESOURCE_DOCS:
+        if not f.exists():
+            continue
+        for lineno, line in enumerate(f.read_text().splitlines(), 1):
+            for m in re.finditer(r"(\d+)\s+(?:MCP\s+)?resources\b", line, re.I):
+                claims.append((f, lineno, int(m.group(1))))
+    return claims
 
 
 def catalog_index_tools() -> set[str]:
@@ -437,6 +509,33 @@ else:
     if stale_annotations:
         errors.append(f"annotations.ts annotates non-existent tools: {stale_annotations}")
 
+# --- 10: MCP resource count — code <-> live docs ----------------------------
+resources_found = registered_resources()
+resource_uris = set(resources_found.values())
+resource_count = len(resource_uris)
+
+missing_resources = sorted(EXPECTED_RESOURCE_URIS - resource_uris)
+if missing_resources:
+    errors.append(
+        f"Expected MCP resources not registered anywhere in host/src: {missing_resources}"
+    )
+unexpected_resources = sorted(resource_uris - EXPECTED_RESOURCE_URIS)
+if unexpected_resources:
+    errors.append(
+        f"host/src registers MCP resources absent from EXPECTED_RESOURCE_URIS: "
+        f"{unexpected_resources}. Adding a resource is a three-part change — the "
+        f"source, this roster, and every resource count in the live docs."
+    )
+
+resource_claims = doc_resource_claims()
+bad_claims = [(f, ln, n) for f, ln, n in resource_claims if n != resource_count]
+if bad_claims:
+    errors.append(
+        f"Live docs state a resource count that disagrees with the code "
+        f"({resource_count} registered): "
+        + "; ".join(f"{f.relative_to(ROOT)}:{ln} says {n}" for f, ln, n in bad_claims)
+    )
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -445,6 +544,7 @@ print(f"Host bridge calls       : {len(host_calls)}")
 print(f"Registered MCP tools    : {len(tools)} (unique: {len(tool_set)})")
 print(f"Catalog index tools     : {len(cat_tools)}")
 print(f"Annotated tools         : {len(annotated)} (readOnly/destructive/idempotent/openWorld hints)")
+print(f"MCP resources           : {resource_count} registered · {len(resource_claims)} doc count(s) checked")
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
 print(f"Output shapes           : {len(code_outputs)} in schemas.ts · {len(output_comparable)} checked vs catalog")
