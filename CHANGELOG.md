@@ -14,10 +14,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   `listen()`, it keeps running bridgeless, and every `runtime_*` call answers from whichever process
   already held the port.
 
-  **The remedy differs, so the message does.** A debugger-launched game is owned by the editor, so
-  `godot_stop` cannot touch it and naming it would be a dead end (there is a test asserting the
-  message does *not* mention it). The refusal points at **`dbg_attach` / `cs_dbg_attach`** — attach
-  to the process that already holds the port instead of starting a second game.
+  **The message lists every remedy with the condition it applies under, and asserts nothing about
+  which is live.** All the probe learns is *that* the port is held — never by what. The holder may be
+  a `godot_run_managed` child (`godot_stop` clears it), a game already under the debugger
+  (`dbg_attach` / `cs_dbg_attach` reaches it), or a window the developer opened themselves. The two
+  planes contend for the *same* port, so a debugger refusal is often about a run-plane holder.
 
   **And the override reads differently here, honestly.** A DAP session is addressed by *session*,
   not by port, so with `allow_port_conflict: true` breakpoints, stepping and variable inspection all
@@ -25,10 +26,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   is a reasonable everyday choice rather than a last resort, and the text says so. Over-warning is
   how a check earns the reputation that gets it disabled.
 
-- **`cs_dbg_launch` is gated only when it is actually launching Godot.** `program` exists so
-  netcoredbg can debug an arbitrary .NET program; such a program has no Breakpoint autoload and no
-  interest in the runtime port. Gating it would be a check firing when nothing is wrong. A test
-  covers the non-Godot path staying ungated.
+- **`cs_dbg_launch` is gated only when this looks like a Godot launch** — the program's filename
+  contains `godot`, or the args carry Godot's `--path` project flag (the default args do). `program`
+  exists so netcoredbg can debug an arbitrary .NET program; such a program has no Breakpoint autoload
+  and no interest in the runtime port, and gating it would be a check firing when nothing is wrong.
+  The gate defaults to *yes* and skips only when the caller has clearly aimed elsewhere.
 
 ### Deliberately not gated (recorded so the class is closed knowingly)
 - **`dbg_attach` / `cs_dbg_attach`** — attaching to the process that already holds the port is the
@@ -44,14 +46,32 @@ and the project uses [Semantic Versioning](https://semver.org/).
   them does hold the port, the gates above catch it from the other side.
 
 ### Tests
-- **Six tests, three verified to fail against a tree with the probe neutralised**, control green
-  either side (68/68 with the guard, 65/68 without). The other three assert the *absence* of a false
-  positive — the non-Godot program launches, the override launches, `dbg_attach` and `dbg_restart`
-  stay ungated — and are green either way by design.
+- **Eight tests, three verified to fail against a tree with the probe neutralised**, control green
+  either side (68/68 with the guard, 65/68 without). Others assert the *absence* of a false
+  positive — a genuinely different .NET program launches, the override launches, `dbg_attach` and
+  `dbg_restart` stay ungated — and are green either way by design.
+- **Two of them exist because an adversarial review found the first version wrong** (see *Fixed
+  during review* below): one pins that an explicitly-named Godot Mono binary is gated, one that
+  `--path` alone is enough.
 - Both DAP harnesses now take an explicit runtime port instead of inheriting the real `9081`.
   Leaving the default in place would have made every launch test depend on whether a game happened
   to be running on the machine — flaky in the direction that teaches people to ignore the suite.
-- Host suite **498 → 504**.
+- Host suite **498 → 506**.
+
+### Fixed during review (defects in the change above, found by refuting it)
+- **The debugger refusal asserted something the probe cannot know.** It read *"a debugger-launched
+  game is owned by the editor, so no tool here can stop it"* and withheld `godot_stop` on that
+  basis — false whenever the holder is a `godot_run_managed` child, which is the commonest case,
+  since both planes contend for the same port. Worse, a test asserted the message did *not* mention
+  `godot_stop`, so the falsehood was pinned. Message rewritten to list every remedy with its
+  condition; the assertion is now inverted to pin the honest text.
+- **`cs_dbg_launch`'s gate tested the wrong thing.** `resolvedProgram === cfg.csDapProgram` is
+  equality against the *default*, not a question about Godot — so explicitly naming the real Mono
+  binary, which `config.ts` documents as the way to point at one, skipped the gate on the exact
+  mainline path this change exists to cover. Replaced with the filename/`--path` signals above.
+- **A control test proved nothing.** It overrode `program` but left `args` at their default, which
+  still carry `--path` — an incoherent combination rather than "debugging another program". It now
+  overrides both.
 
 ## [1.24.0] — 2026-07-28
 

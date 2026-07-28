@@ -588,7 +588,14 @@ test("cs_dbg_launch does NOT gate a non-Godot program — the false positive tha
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port, undefined, port);
   try {
-    const res = (await rec.handler("cs_dbg_launch")({ program: "/usr/bin/some-other-dotnet-app" })) as ToolResultLike;
+    // BOTH program and args: leaving args at their default would still carry
+    // Godot's own `--path` flag, which is one of the two signals the gate reads.
+    // A `program` override alone is not "debugging another program", it is an
+    // incoherent combination, and testing it proved nothing.
+    const res = (await rec.handler("cs_dbg_launch")({
+      program: "/usr/bin/some-other-dotnet-app",
+      args: ["--serve", "--port", "5000"],
+    })) as ToolResultLike;
     assert.notEqual(res.isError, true, "debugging another .NET program must never be port-gated");
     const launch = received.find((m) => m.command === "launch");
     assert.equal((launch?.arguments as Record<string, unknown>)?.program, "/usr/bin/some-other-dotnet-app");
@@ -607,6 +614,52 @@ test("cs_dbg_launch honours allow_port_conflict for the Godot binary", async () 
     const res = (await rec.handler("cs_dbg_launch")({ allow_port_conflict: true })) as ToolResultLike;
     assert.notEqual(res.isError, true);
     assert.equal((res.structuredContent as Record<string, unknown>).state, "running");
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
+});
+
+/**
+ * The defect an adversarial review found in the first version of this gate.
+ *
+ * The condition was `resolvedProgram === cfg.csDapProgram` — equality against the
+ * DEFAULT, not a question about Godot. `cfg.csDapProgram` is
+ * `GODOT_CSHARP_BIN ?? GODOT_BIN ?? "godot"`, and `config.ts` documents the
+ * per-call `program` argument as the way to point at the Mono binary. So the
+ * documented mainline path — explicitly naming the real Godot Mono binary —
+ * skipped the gate entirely, on exactly the launch this change exists to cover.
+ */
+test("cs_dbg_launch gates an EXPLICIT Godot Mono binary, not just the configured default", async () => {
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port, undefined, port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({
+      program: "/usr/local/bin/Godot_v4.3-stable_mono_linux.x86_64",
+    })) as ToolResultLike;
+    assert.equal(res.isError, true, "an explicitly-named Godot binary must still be gated");
+    assert.match(res.content?.[0]?.text ?? "", new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
+});
+
+test("cs_dbg_launch gates on Godot's --path flag even when the program is named oddly", async () => {
+  // The second signal, independent of the binary's name: `--path <project>` is
+  // Godot's own project flag and is what the default args carry.
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port, undefined, port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({
+      program: "/opt/engine/bin/renamed-engine",
+      args: ["--path", "/tmp/proj"],
+    })) as ToolResultLike;
+    assert.equal(res.isError, true, "--path means a Godot project launch regardless of the binary name");
   } finally {
     dap.close();
     srv.close();

@@ -940,8 +940,10 @@ plane you are using.
   whichever process got there first. `ping` reports no pid, so `runtime_*` calls look healthy
   while answering about the wrong game. **Every tool that starts a game now refuses when that port is
   already held** — `godot_run_managed`, `godot_run_project`, `dbg_launch` and `cs_dbg_launch` — each
-  with `allow_port_conflict: true` to proceed anyway. On the debugger path, prefer **`dbg_attach`**
-  onto the game that is already running; and note that with the override, `dbg_*` still works
+  with `allow_port_conflict: true` to proceed anyway. Which remedy clears it depends on what the
+  holder is — `godot_stop` for a `godot_run_managed` child, **`dbg_attach`** if it is already
+  running under the debugger, otherwise quit the window yourself; the refusal lists all of them,
+  because the probe only learns *that* the port is held. Note that with the override, `dbg_*` works
   perfectly (a DAP session is addressed by session, not by port) while `runtime_*` would talk to the
   other process. `dbg_attach` and `dbg_restart` are deliberately not gated — attach is the remedy,
   and at restart time the session's own game still holds the port. **To drive more than one game at

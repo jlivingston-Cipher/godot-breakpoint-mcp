@@ -70,20 +70,30 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
           .optional()
           .describe(
             "Launch even though the runtime bridge port is already bound (default false). Only consulted when " +
-              "launching the configured Godot binary — debugging some other .NET program is never gated. " +
-              "Breakpoints and stepping still work; runtime_* tools would talk to the process holding the port.",
+              "this looks like a Godot launch — the program is named godot, or the args carry Godot's --path " +
+              "project flag. Debugging some other .NET program is never gated. Breakpoints and stepping still " +
+              "work; runtime_* tools would talk to the process holding the port.",
           ),
       },
     },
     async ({ program, args, stop_on_entry, just_my_code, allow_port_conflict }) => {
       const resolvedProgram = program ?? cfg.csDapProgram;
-      // Gate ONLY when this is actually launching Godot. `program` is overridable
-      // precisely so netcoredbg can debug an arbitrary .NET program, and such a
-      // program has no Breakpoint autoload and no interest in the runtime port —
-      // refusing there would be a check firing when nothing is wrong, which is
-      // how checks get disabled.
+      const resolvedArgs = args ?? ["--path", cfg.csDapProjectPath];
+      // Does this launch a Godot game — i.e. one whose autoload wants the runtime
+      // port — or some other .NET program netcoredbg is being pointed at?
+      //
+      // DEFAULT TO YES, and skip the gate only when the caller has clearly aimed
+      // elsewhere. Comparing the resolved program against `cfg.csDapProgram` was
+      // the obvious-looking test and is wrong: that is equality against the
+      // DEFAULT, so passing the real Mono binary explicitly — the way config.ts
+      // documents pointing at it — skipped the gate on the mainline path this
+      // whole change exists to cover. `--path <project>` is Godot's own project
+      // flag and appears in the default args; a program not called godot and not
+      // given --path is the one case we are confident is not a game.
+      const looksLikeGodot =
+        /godot/i.test(resolvedProgram.split(/[\\/]/).pop() ?? "") || resolvedArgs.includes("--path");
       if (
-        resolvedProgram === cfg.csDapProgram &&
+        looksLikeGodot &&
         !allow_port_conflict &&
         !(await portFree(cfg.runtimeHost, cfg.runtimePort))
       ) {
@@ -95,7 +105,7 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
       try {
         await dap.start("launch", {
           program: resolvedProgram,
-          args: args ?? ["--path", cfg.csDapProjectPath],
+          args: resolvedArgs,
           cwd: cfg.csDapProjectPath,
           stopAtEntry: stop_on_entry ?? false,
           justMyCode: just_my_code ?? true,

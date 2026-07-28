@@ -71,8 +71,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "Start the game under the debugger. scene may be 'main', 'current', or a res:// scene path. " +
         "Any breakpoints set beforehand are applied during the handshake. " +
         "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, so " +
-        "runtime_* would address the process already holding the port. dbg_attach onto the running game " +
-        "instead, or pass allow_port_conflict (dbg_* is unaffected either way; only runtime_* is).",
+        "runtime_* would address the process already holding the port. Clear the holder (godot_stop, or quit " +
+        "it), or dbg_attach onto it if it is already under the debugger, or pass allow_port_conflict " +
+        "(dbg_* is unaffected either way; only runtime_* is).",
       inputSchema: {
         scene: z.string().optional().describe("'main' (default), 'current', or res://scene.tscn"),
         stop_on_entry: z.boolean().optional().describe("Break at entry (default false)"),

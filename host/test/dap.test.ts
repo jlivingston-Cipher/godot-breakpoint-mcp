@@ -721,14 +721,25 @@ test("dbg_launch refuses a held runtime port and points at dbg_attach", async ()
     const text = res.content?.[0]?.text ?? "";
     assert.match(text, new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
     assert.match(text, /silently address the process that already holds the port/);
-    // The remedy that actually applies on this plane — NOT godot_stop, which
-    // cannot touch a game the editor owns.
+    // EVERY remedy, each with the condition under which it applies. An earlier
+    // draft named only dbg_attach and asserted "no tool here can stop it" — true
+    // only if the holder is editor-owned, and false in the commonest case of all,
+    // a godot_run_managed child that godot_stop clears. The probe cannot know
+    // which it is, so the message must not pick one.
     assert.match(text, /dbg_attach/);
+    assert.match(text, /godot_stop/);
+    assert.match(text, /quit it in the/);
     assert.match(text, /BREAKPOINT_RUNTIME_PORT/);
     assert.match(text, /allow_port_conflict:true/);
     // And the honest reading of the override: dbg_* is unaffected, runtime_* is not.
     assert.match(text, /addressed by session rather than by port/);
-    assert.doesNotMatch(text, /godot_stop/, "godot_stop cannot touch a game the editor owns — naming it here would be a dead-end remedy");
+    // dbg_attach must not be offered as if it always works.
+    assert.match(text, /only if it is already under the/);
+    assert.doesNotMatch(
+      text,
+      /no tool here can stop it/,
+      "the probe learns only THAT the port is held, never by what — it must not assert the holder is unstoppable",
+    );
   } finally {
     dap.close();
     srv.close();

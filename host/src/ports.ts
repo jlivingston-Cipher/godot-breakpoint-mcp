@@ -68,6 +68,18 @@ export type Launcher = "run" | "debugger";
  * override is therefore a legitimate everyday choice on that plane rather than a
  * last resort, and the text says so instead of over-warning. Over-warning is how
  * a check earns the reputation that gets it disabled.
+ *
+ * What NEITHER variant may do is claim to know WHAT is holding the port. All the
+ * probe learns is that something is. The holder may be a `godot_run_managed`
+ * child (`godot_stop` clears it), a game already under the debugger (`dbg_attach`
+ * reaches it), or a window the developer opened themselves (only they can close
+ * it) — and the two planes contend for the SAME port, so a debugger refusal is
+ * often about a run-plane holder and vice versa. An earlier draft of the
+ * debugger text asserted "a debugger-launched game is owned by the editor, so no
+ * tool here can stop it" and withheld `godot_stop` on that basis; it was wrong
+ * whenever the holder was a managed child, which is the commonest case of all.
+ * Both variants now list every remedy with the condition under which it applies,
+ * and assert nothing about which one is live.
  */
 export function portConflictMessage(host: string, port: number, launcher: Launcher = "run"): string {
   const why =
@@ -78,9 +90,11 @@ export function portConflictMessage(host: string, port: number, launcher: Launch
   if (launcher === "debugger") {
     return (
       why +
-      `Attach to the game that is already running instead of launching a second one (dbg_attach / ` +
-      `cs_dbg_attach), or quit it first — a debugger-launched game is owned by the editor, so no ` +
-      `tool here can stop it. You can also point this server at a free port with ` +
+      `Deal with whatever is already holding it — which remedy applies depends on what it is: ` +
+      `godot_stop if godot_run_managed started it, dbg_attach / cs_dbg_attach to debug the running ` +
+      `game instead of launching a second one (that works only if it is already under the ` +
+      `debugger — a plain godot_run_project or godot_run_managed game is not), or quit it in the ` +
+      `game window or the editor. You can also point this server at a free port with ` +
       `BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to launch anyway: breakpoints, ` +
       `stepping and variable inspection will all work normally, because a DAP session is addressed ` +
       `by session rather than by port — but every runtime_* call would go to the process holding ` +
