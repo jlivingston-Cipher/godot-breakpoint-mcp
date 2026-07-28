@@ -32,7 +32,19 @@ const server = {
   registerResource: () => {},
   server: { elicitInput: async () => ({ action: "decline" }) },
 };
-registerRuntimeTools(server, runtime);
+// F6 gave registerRuntimeTools a third parameter — the PeerRegistry behind runtime_spawn_peers.
+// This probe is single-game by construction (no call below passes `peer`), so it wires a registry
+// that refuses to be reached rather than a real one: an edit that later adds a `peer` call here
+// fails with a sentence naming the cause instead of a TypeError on `undefined`.
+const noPeers = Object.fromEntries(
+  ["clientFor", "spawn", "stop", "stopAll", "live", "all"].map((m) => [
+    m,
+    () => {
+      throw new Error(`this probe is single-game: peers.${m}() must not be reached (no call here passes 'peer')`);
+    },
+  ]),
+);
+registerRuntimeTools(server, runtime, noPeers);
 const call = async (name, args = {}) => {
   const h = tools.get(name);
   if (!h) throw new Error(`tool not registered: ${name}`);

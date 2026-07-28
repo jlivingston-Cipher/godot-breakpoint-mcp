@@ -4,6 +4,15 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **The two single-game integration probes now receive the F6 peer registry.**
+  `runtime-frame-step.integration.mjs` and `runtime-capture.integration.mjs` still called
+  `registerRuntimeTools(server, runtime)` with two arguments after F6 added a third. Harmless while
+  neither probe passes `peer` — and a `TypeError` waiting for whoever first does. Both now pass a
+  registry that throws a named error if a peer path is ever reached from a probe that has no peers.
+
 ## [1.23.0] — 2026-07-28
 
 Ships multi-peer deterministic playtesting, and the CI job that holds its central claim to
