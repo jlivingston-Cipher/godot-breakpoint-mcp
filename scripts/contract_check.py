@@ -69,6 +69,54 @@ EXPECTED_RESOURCE_URIS = {
     "godot://capabilities",
 }
 
+# Docs that MUST state a resource count, whether or not they currently do.
+#
+# Without this the doc half of check 10 is opt-in: `doc_resource_claims()`
+# returns regex hits, so "N doc count(s) checked" is matches FOUND, not sites
+# required. Reword every "6 MCP resources" to "six MCP resources" and the line
+# reads `6 registered · 0 doc count(s) checked` — and the gate still passes,
+# because there is nothing left to disagree with. Ship a 7th resource that way
+# and no doc has to mention it.
+#
+# This mirrors RECIPE_ROSTER_REQUIRED exactly. Check 12 closed this same hole
+# for recipes; check 10 had a code-side roster (EXPECTED_RESOURCE_URIS) and no
+# doc-side counterpart, so the fix already existed in this file, two checks
+# over, and simply was not applied here. Every entry must also appear in
+# RESOURCE_DOCS or it is never scanned; that is asserted at the check rather
+# than left as a comment.
+RESOURCE_COUNT_REQUIRED: set[Path] = {
+    ROOT / "README.md",
+    ROOT / "docs/USER_GUIDE.md",
+}
+
+# Modules that speak to the Godot addon and are therefore scanned by check 1 for
+# bridge methods with no GDScript handler.
+BRIDGE_CALL_SCAN: list[Path] = [
+    *sorted((TOOLS / "editor").glob("*.ts")),
+    TOOLS / "runtime.ts",
+    TOOLS / "resources.ts",
+    TOOLS / "assetgen.ts",
+    TOOLS / "netcode.ts",
+    TOOLS / "backend.ts",
+]
+
+# Modules that use the same `.request("…")` shape but are NOT talking to the
+# Godot bridge: these drive a DapClient over the Debug Adapter Protocol, so
+# "evaluate" / "scopes" / "variables" / "goto" are DAP requests and have no
+# GDScript handler by design. Scanning them would fail the gate on correct code.
+#
+# The exemption is right; what was missing is that nothing asserted the roster
+# stayed complete. A `bridge.call("made.up.method")` added to any of the eleven
+# UNSCANNED modules left `Host bridge calls: 176` unchanged and exited 0 — the
+# same line in a scanned module failed the gate. Check 14 already scans for
+# unlisted copies of the files it gates rather than trusting its roster; check 1
+# now does the same, so a new bridge-speaking module must be filed deliberately
+# into one list or the other instead of being silently invisible.
+BRIDGE_SCAN_EXEMPT: set[Path] = {
+    TOOLS / "dap.ts",
+    TOOLS / "csdap.ts",
+}
+
 # Live docs that may carry the recipe roster. Held as its own list rather than
 # reusing RESOURCE_DOCS: the two are identical today but are free to diverge,
 # and sharing one list would silently widen one gate whenever the other grew.
@@ -989,7 +1037,27 @@ def catalog_shapes() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
 editor_methods = dispatch_methods(ADDON / "operations.gd", ["dispatch"])
 runtime_methods = dispatch_methods(ADDON / "runtime_bridge.gd", ["_dispatch"])
 gd_all = editor_methods | runtime_methods
-host_calls = host_bridge_calls([*sorted((TOOLS / "editor").glob("*.ts")), TOOLS / "runtime.ts", TOOLS / "resources.ts", TOOLS / "assetgen.ts", TOOLS / "netcode.ts", TOOLS / "backend.ts"])
+host_calls = host_bridge_calls(BRIDGE_CALL_SCAN)
+
+# Roster completeness: any module that speaks either wire shape must be filed —
+# scanned, or exempt with a reason. Otherwise a bridge call to a nonexistent
+# GDScript handler ships from an unscanned module and fails at runtime instead
+# of at the gate, with the "Host bridge calls" count reading exactly as before.
+_bridge_shaped = re.compile(r'\bcall\(\s*"[a-z_][a-z0-9_.]*"|\.request\(\s*"[a-z_][a-z0-9_.]*"')
+unfiled_bridge_modules = sorted(
+    str(f.relative_to(ROOT))
+    for f in TOOLS.rglob("*.ts")
+    if f not in set(BRIDGE_CALL_SCAN)
+    and f not in BRIDGE_SCAN_EXEMPT
+    and _bridge_shaped.search(f.read_text())
+)
+if unfiled_bridge_modules:
+    errors.append(
+        f"Module(s) issue bridge-shaped calls but are on neither BRIDGE_CALL_SCAN "
+        f"nor BRIDGE_SCAN_EXEMPT, so check 1 never sees them: "
+        f"{unfiled_bridge_modules}. Add to the scan list, or exempt with the "
+        f"reason it is not the Godot bridge (as dap.ts/csdap.ts are for DAP)."
+    )
 
 missing_in_gd = sorted(c for c in host_calls if c not in gd_all)
 if missing_in_gd:
@@ -1107,6 +1175,29 @@ if unexpected_resources:
     )
 
 resource_claims = doc_resource_claims()
+
+# The doc half of this check is only as good as its trigger. Assert the required
+# sites actually stated a count, so rewording them out of the regex's reach is a
+# failure rather than a quiet reduction to zero comparisons.
+misfiled_resource_required = sorted(RESOURCE_COUNT_REQUIRED - set(RESOURCE_DOCS))
+if misfiled_resource_required:
+    errors.append(
+        f"RESOURCE_COUNT_REQUIRED names files absent from RESOURCE_DOCS, so they "
+        f"are never scanned and the requirement is inert: "
+        f"{[str(p.relative_to(ROOT)) for p in misfiled_resource_required]}"
+    )
+claimed_in = {f for f, _ln, _n in resource_claims}
+silent_required = sorted(RESOURCE_COUNT_REQUIRED - claimed_in)
+if silent_required:
+    errors.append(
+        f"File(s) on RESOURCE_COUNT_REQUIRED state no MCP resource count at all "
+        f"({resource_count} registered): "
+        f"{[str(p.relative_to(ROOT)) for p in silent_required]}. A doc that stops "
+        f"stating the count cannot disagree with the code — which is how the "
+        f"count half of this check reads as green while comparing nothing. Restate "
+        f"it in digits, or move the file to RESOURCE_DOCS-only with a reason."
+    )
+
 bad_claims = [(f, ln, n) for f, ln, n in resource_claims if n != resource_count]
 if bad_claims:
     errors.append(

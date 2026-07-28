@@ -39,7 +39,31 @@ and the project uses [Semantic Versioning](https://semver.org/).
   compares the two sides, so widening one alone would manufacture a false failure).
 
 ### Added
-- **`contract_check.py` — a completeness assertion on the tool-name scanner.** Widening the net
+- **`contract_check.py` — three completeness assertions, one per roster that had none.** Each of
+  these checks printed a reassuring number that counted what it *could* have compared rather than
+  what it did, so each could be reduced to comparing nothing while the gate stayed green. This is
+  the same defect check 14's own review found three times inside that one check; these are the
+  instances elsewhere in the file.
+
+  - **Check 10 — `RESOURCE_COUNT_REQUIRED`.** The doc half was opt-in: `doc_resource_claims()`
+    returns regex hits, so `N doc count(s) checked` was matches *found*, not sites *required*.
+    Rewording every "6 MCP resources" to "six MCP resources" produced
+    `6 registered · 0 doc count(s) checked` and **passed** — meaning a 7th resource could ship with
+    no doc mentioning it. `README.md` and `docs/USER_GUIDE.md` must now state the count in digits.
+    This mirrors `RECIPE_ROSTER_REQUIRED` exactly: check 12 closed this same hole for recipes, and
+    check 10 had a code-side roster (`EXPECTED_RESOURCE_URIS`) with no doc-side counterpart — **the
+    fix already existed in this file, two checks over, and simply had not been applied here.**
+
+  - **Check 1 — `BRIDGE_CALL_SCAN` / `BRIDGE_SCAN_EXEMPT`.** The scan list was a hand-maintained
+    roster of 22 modules with 11 unscanned, and nothing asserted it stayed complete: a
+    `bridge.call("made.up.method")` added to `tools/knowledge.ts` left `Host bridge calls: 176`
+    unchanged and **exited 0**, while the identical line in a scanned module failed the gate. The
+    exclusion itself is correct and stays — `tools/dap.ts` and `tools/csdap.ts` drive a `DapClient`
+    over the Debug Adapter Protocol, so scanning them would fail the gate on correct code — but a
+    new bridge-speaking module must now be filed deliberately into one list or the other instead of
+    being silently invisible.
+
+  - **Check 3 — a completeness assertion on the tool-name scanner.** Widening the net
   fixes today's hole; this is what makes the next one fail loudly instead of silently. The gate now
   re-scans every `registerTool` / `registerTaskTool` site with a deliberately permissive literal net
   and **fails, naming file and line**, on any registration whose name the strict net cannot match —
