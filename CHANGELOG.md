@@ -7,6 +7,37 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **A recipe-roster gate in `contract_check.py` (check 12) — the fourth member of the drift class
+  checks 10 and 11 close, and the one that had already gone wrong in the wild.** `README.md`'s
+  hand-maintained recipe list never listed `recipe_deterministic_playtest`, shipped in **1.21.0**:
+  six bullets for seven recipes, across three releases, with every test green the whole time. The
+  roster existed as a typed constant and the registrations existed in source; nothing compared
+  either against the prose a reader consults first.
+
+  The roster is **derived from the `server.registerPrompt(...)` calls**, never read off
+  `RECIPE_NAMES` — the constant is then checked against it, in membership *and order*, so neither a
+  recipe registered without being listed nor a name listed without being registered can pass, and
+  the gate cannot be satisfied by editing a constant to match a stale doc. Order is compared
+  because `recipes.test.ts` asserts registration order equals `RECIPE_NAMES`, and a gate that
+  disagreed with the suite would be worse than none.
+
+  Strict by default in both directions: a live doc naming **any** recipe must name **every** recipe
+  (the omission that actually happened) and must name no recipe that is not registered (a rename
+  leaving a stale mention). `README.md` is additionally on `RECIPE_ROSTER_REQUIRED`, so dropping the
+  list entirely fails rather than going quiet — the mention-driven rule alone can only compare a
+  list that is still there. Exemptions are an explicit named set, deliberately empty, rather than a
+  threshold like "names two or more, so it must be a roster" that a list one entry short slips
+  straight under; and a `RECIPE_ROSTER_REQUIRED` entry missing from `RECIPE_DOCS` is itself a
+  failure, because a requirement nothing scans is a check that verifies nothing.
+
+  Recipe counts written as digits are gated exactly; counts written as words are **warned** about
+  and left for a human, rather than pattern-matched by a regex that would read as verification while
+  covering a fraction of the ways prose states a count. Same reasoning that replaced 11b's first
+  version. **Verified to fail when broken, eight ways**: a dropped bullet, a renamed mention, the
+  list removed wholesale, a wrong digit count, a name in `RECIPE_NAMES` that is never registered,
+  `RECIPE_NAMES` in the wrong order, a misfiled required-doc path, and a word count staying visible
+  as a warning. Adds no tools and moves no counts — **289 / 274**, host suite **490 / 0**.
+
 - **`recipe_multiplayer_scaffold_and_converge` — an eighth recipe**, pairing the `mp_*` scaffolding
   family with F6 multi-peer convergence: scaffold ENet + spawner / synchronizer / RPC, make the game
   testable (replicated state on the fixed timestep, guarded RNG draws), spawn real headless peers,

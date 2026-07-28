@@ -20,6 +20,8 @@ Verifies, without running Godot or Node, that the three layers agree:
  11. Tool counts: every full-surface / secure-default / privileged-drop count
      stated in the live docs, in source prose, or in a host-test constant
      agrees with the code
+ 12. Recipes: the registered MCP prompts, the `RECIPE_NAMES` constant, and
+     every live doc that names a recipe all agree on the roster
 
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
@@ -37,6 +39,7 @@ CATALOG = ROOT / "docs/TOOL_CATALOG.md"
 HOST_SRC = ROOT / "host/src"
 HOST_TEST = ROOT / "host/test"
 CAPABILITIES = ROOT / "host/src/capabilities.ts"
+RECIPES = ROOT / "host/src/recipes.ts"
 
 # Live docs whose prose states the MCP resource count. `CHANGELOG.md` is
 # deliberately EXCLUDED: it is an append-only historical record, and its older
@@ -63,6 +66,38 @@ EXPECTED_RESOURCE_URIS = {
     "godot://runtime/log",
     "godot://class/{name}",
     "godot://capabilities",
+}
+
+# Live docs that may carry the recipe roster. Held as its own list rather than
+# reusing RESOURCE_DOCS: the two are identical today but are free to diverge,
+# and sharing one list would silently widen one gate whenever the other grew.
+# `CHANGELOG.md` is excluded for the same reason it is excluded from check 10 —
+# it is an append-only record, and its older six-recipe lines were correct for
+# the releases they describe.
+RECIPE_DOCS = [
+    ROOT / "README.md",
+    ROOT / "host/README.md",
+    ROOT / "docs/TOOL_CATALOG.md",
+    ROOT / "docs/USER_GUIDE.md",
+]
+
+# Docs allowed to name SOME recipes without naming all of them. Deliberately
+# EMPTY: strict-by-default is the whole point. A doc that legitimately cites a
+# single recipe as an example belongs here WITH A REASON, so the exemption is a
+# visible edit — rather than the gate carrying a threshold ("names two or more,
+# so it must be a roster") that a list one entry short slips straight under.
+# That is the hole 11b's first version was replaced for having.
+RECIPE_ROSTER_EXEMPT: set[Path] = set()
+
+# Docs that must carry the FULL roster whether or not they currently name a
+# recipe. Without this, a doc that drops its recipe list entirely goes quiet
+# instead of failing — the mention-driven rule can only compare a list that is
+# still there. README is the page a reader meets first and the one that went
+# three releases stale, so it is required rather than merely checked-if-present.
+# Every entry must also appear in RECIPE_DOCS or it is never scanned; that is
+# asserted below rather than left as a comment.
+RECIPE_ROSTER_REQUIRED: set[Path] = {
+    ROOT / "README.md",
 }
 
 # Three-digit counts that legitimately appear ON A LINE that also states a
@@ -189,6 +224,68 @@ def doc_resource_claims() -> list[tuple[Path, int, int]]:
             for m in re.finditer(r"(\d+)\s+(?:MCP\s+)?resources\b", line, re.I):
                 claims.append((f, lineno, int(m.group(1))))
     return claims
+
+
+def registered_recipes() -> list[str]:
+    """Recipe (MCP prompt) names in registration order, read from the
+    `server.registerPrompt("name", …)` calls in `host/src/recipes.ts`.
+
+    Derived from the registrations rather than read off `RECIPE_NAMES`, for the
+    same reason check 11 derives both tool counts from the code: nothing here
+    can be satisfied by editing a constant to match a stale doc.
+    """
+    return re.findall(r'registerPrompt\(\s*"([a-z0-9_]+)"', RECIPES.read_text())
+
+
+def recipe_names_constant() -> list[str]:
+    """The `RECIPE_NAMES` typed constant, in source order.
+
+    `host/test/recipes.test.ts` asserts registration order equals this constant,
+    so it is re-derived here beside the registrations rather than trusted — a
+    gate that only read the constant would agree with the suite and with a stale
+    doc simultaneously, which is exactly the failure being closed.
+    """
+    m = re.search(
+        r"export const RECIPE_NAMES\s*=\s*\[(.*?)\n\]\s*as const;",
+        RECIPES.read_text(),
+        re.S,
+    )
+    return re.findall(r'"([a-z0-9_]+)"', m.group(1)) if m else []
+
+
+def doc_recipe_mentions() -> dict[Path, set[str]]:
+    """file -> every `recipe_*` identifier the file names."""
+    found: dict[Path, set[str]] = {}
+    for f in RECIPE_DOCS:
+        if not f.exists():
+            continue
+        found[f] = set(re.findall(r"\brecipe_[a-z0-9_]+", f.read_text()))
+    return found
+
+
+def doc_recipe_count_claims() -> tuple[
+    list[tuple[Path, int, int]], list[tuple[Path, int, str]]
+]:
+    """("N recipes" claims that resolve, recipe counts written as words).
+
+    Digit claims are gated exactly. Word counts are returned separately and only
+    WARNED about: a regex enumerating number words would read as verification
+    while covering a fraction of the ways prose states a count, and 11b's first
+    version is the standing lesson that a check which reads as verification and
+    verifies nothing is worse than no check at all.
+    """
+    exact: list[tuple[Path, int, int]] = []
+    prose: list[tuple[Path, int, str]] = []
+    words = r"one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve"
+    for f in RECIPE_DOCS:
+        if not f.exists():
+            continue
+        for lineno, line in enumerate(f.read_text().splitlines(), 1):
+            for m in re.finditer(r"(\d+)[\s-]+recipes\b", line, re.I):
+                exact.append((f, lineno, int(m.group(1))))
+            for m in re.finditer(rf"\b(?:{words})[\s-]+recipes\b", line, re.I):
+                prose.append((f, lineno, m.group(0)))
+    return exact, prose
 
 
 def privileged_tools() -> set[str]:
@@ -931,6 +1028,97 @@ if bad_constants:
         f"tools: {bad_constants}"
     )
 
+# --- 12: recipe roster — code <-> live docs ---------------------------------
+# The third instance of checks 10 and 11's drift class, and the one that had
+# already gone wrong in the wild: README's hand-maintained recipe list never
+# listed `recipe_deterministic_playtest`, shipped in 1.21.0 — six bullets for
+# seven recipes, across three releases, with every test green the whole time.
+# The roster existed as a typed constant and the registrations existed in
+# source; nothing compared either against the prose a reader consults first.
+#
+# Strict by default, in both directions: a doc that names ANY recipe must name
+# EVERY recipe (catches the omission that actually happened) and must name no
+# recipe that is not registered (catches a rename leaving a stale mention).
+recipes_registered = registered_recipes()
+recipes_constant = recipe_names_constant()
+recipe_set = set(recipes_registered)
+
+if not recipes_registered:
+    errors.append(
+        "Could not parse any server.registerPrompt(...) recipe from host/src/recipes.ts"
+    )
+if not recipes_constant:
+    errors.append("Could not parse RECIPE_NAMES from host/src/recipes.ts")
+
+if recipes_registered and recipes_constant and recipes_registered != recipes_constant:
+    errors.append(
+        f"host/src/recipes.ts RECIPE_NAMES disagrees with the registered prompts — "
+        f"registered {recipes_registered}, RECIPE_NAMES {recipes_constant}. Order is "
+        f"compared as well as membership, because host/test/recipes.test.ts asserts "
+        f"registration order equals RECIPE_NAMES."
+    )
+
+recipe_dupes = sorted({r for r in recipes_registered if recipes_registered.count(r) > 1})
+if recipe_dupes:
+    errors.append(f"Duplicate registerPrompt recipe names: {recipe_dupes}")
+
+misfiled_required = sorted(RECIPE_ROSTER_REQUIRED - set(RECIPE_DOCS))
+if misfiled_required:
+    errors.append(
+        f"RECIPE_ROSTER_REQUIRED names files absent from RECIPE_DOCS, so they are "
+        f"never scanned and the requirement is vacuous: "
+        f"{[str(p.relative_to(ROOT)) for p in misfiled_required]}"
+    )
+
+recipe_doc_mentions = doc_recipe_mentions()
+recipe_rosters_checked = 0
+for f in RECIPE_DOCS:
+    mentioned = recipe_doc_mentions.get(f, set())
+    required = f in RECIPE_ROSTER_REQUIRED
+    if f in RECIPE_ROSTER_EXEMPT or (not mentioned and not required):
+        continue
+    recipe_rosters_checked += 1
+    unlisted = sorted(recipe_set - mentioned)
+    if unlisted and not mentioned:
+        errors.append(
+            f"{f.relative_to(ROOT)} is on RECIPE_ROSTER_REQUIRED but names no recipe "
+            f"at all — all {len(recipe_set)} are missing. If the roster genuinely moved "
+            f"elsewhere, move the entry; do not let it fall out of both places."
+        )
+    elif unlisted:
+        errors.append(
+            f"{f.relative_to(ROOT)} names recipes but not all {len(recipe_set)} "
+            f"registered ones — missing: {unlisted}. A hand-maintained roster allowed "
+            f"to be partial is not a roster: list every recipe, or add the file to "
+            f"RECIPE_ROSTER_EXEMPT with a reason."
+        )
+    unknown = sorted(mentioned - recipe_set)
+    if unknown:
+        errors.append(
+            f"{f.relative_to(ROOT)} names recipes that are not registered in "
+            f"host/src/recipes.ts: {unknown}"
+        )
+
+recipe_count_claims, recipe_count_prose = doc_recipe_count_claims()
+bad_recipe_counts = [
+    f"{f.relative_to(ROOT)}:{ln} says {n}"
+    for f, ln, n in recipe_count_claims
+    if n != len(recipe_set)
+]
+if bad_recipe_counts:
+    errors.append(
+        f"Live docs state a recipe count that disagrees with the code "
+        f"({len(recipe_set)} registered): " + "; ".join(bad_recipe_counts)
+    )
+if recipe_count_prose:
+    warnings.append(
+        "Recipe count(s) written as words (NOT resolved — check by hand at a release; "
+        "listed so the class is visible rather than silently unchecked):\n      - "
+        + "\n      - ".join(
+            f"{f.relative_to(ROOT)}:{ln} “{s}”" for f, ln, s in recipe_count_prose
+        )
+    )
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -948,6 +1136,10 @@ print(
 print(
     f"Tool-family counts      : {len(toolset_sizes())} toolset size(s) resolved · "
     f"{len(family_mismatches)} mismatch(es) · {len(family_unresolved)} unverified prose claim(s) (warn only)"
+)
+print(
+    f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "
+    f"doc roster(s) checked · {len(recipe_count_claims)} count claim(s) checked"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
