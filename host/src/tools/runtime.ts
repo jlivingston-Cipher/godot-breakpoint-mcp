@@ -777,7 +777,8 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         "node paths that disagree. The sequence that actually converges, in this order: runtime_spawn_peers, then per " +
         "peer runtime_time_scale{scale:0} to FREEZE FIRST, runtime_set_property{peer} to equalise the starting state, " +
         "runtime_seed_rng{seed} with the same seed, runtime_step_frames{frames:K,kind:\"physics\"}, then this. " +
-        "FOUR PRECONDITIONS, every one measured on real Godot 4.3 — a run that skips any of them diverges, and (2) is " +
+        "FOUR PRECONDITIONS, every one measured on real Godot 4.3 (convergence re-measured on 4.7) — a run that " +
+        "skips any of them diverges, and (2) is " +
         "the one that surprises people. (1) Step the FIXED physics timestep: state advanced on the variable idle-frame " +
         "delta is real elapsed wall-clock time in each process and never converges, so pass kind:\"physics\". " +
         "(2) The global RNG must be consumed ONLY on frames you are stepping. runtime_seed_rng seeds one stream shared " +
