@@ -80,11 +80,13 @@ Open the Godot editor for the project (detached). Prerequisite for every `editor
 ```
 
 ### `godot_run_project` ✅
-Run the project (detached), optionally from a specific scene.
+Run the project (detached), optionally from a specific scene. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
-  "properties": { "scene": { "type": "string", "description": "res:// scene to run" } } }
+  "properties": {
+    "scene": { "type": "string", "description": "res:// scene to run" },
+    "allow_port_conflict": { "type": "boolean", "default": false, "description": "start even though the runtime bridge port is bound; the new game's bridge will be unreachable" } } }
 ```
 - **Output**
 ```json
@@ -3981,11 +3983,13 @@ The long-running tools (`godot_export`, `godot_import`, `godot_run_headless_scri
 # Plane B — Managed Process & Console Capture  (✅ implemented — Phase 4; host-side piped stdio for transparent `print()`/error capture)
 
 ### `godot_run_managed` ✅
-Run the project as a managed child process with captured stdout/stderr (unlike `godot_run_project`, whose output is not captured).
+Run the project as a managed child process with captured stdout/stderr (unlike `godot_run_project`, whose output is not captured). **Refuses when the runtime bridge port is already bound**, for the same reason as `godot_run_project` — and note the managed child's own `push_error("could not listen…")` lands in `godot_output`, so the failure is legible after the fact but only if someone reads for it.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
-  "properties": { "scene": { "type": "string", "description": "optional res:// scene" } } }
+  "properties": {
+    "scene": { "type": "string", "description": "optional res:// scene" },
+    "allow_port_conflict": { "type": "boolean", "default": false, "description": "start even though the runtime bridge port is bound; the new game's bridge will be unreachable" } } }
 ```
 - **Output**
 ```json

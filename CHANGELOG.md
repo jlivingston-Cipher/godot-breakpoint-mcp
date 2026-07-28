@@ -6,20 +6,28 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> ⚠️ **Everything in this section is already on npm.** `breakpoint-mcp@1.23.0` was published
-> 2026-07-28 from `main` (`cbe825c`), not from the `v1.23.0` tag (`8ff56fa`), so the published
-> tarball carries two commits the tag does not — `recipe_multiplayer_scaffold_and_converge` and the
-> `runtime_peers_digest` catalog reconcile. **`git checkout v1.23.0 && npm run build` does not
-> reproduce `breakpoint-mcp@1.23.0`; `cbe825c` does.** The tag is deliberately left where it is;
-> `v1.24.0` off `main` ends the drift at one release. Verify:
->
-> ```
-> npm pack breakpoint-mcp@1.23.0 && tar xzf breakpoint-mcp-1.23.0.tgz
-> grep -c recipe_multiplayer_scaffold_and_converge package/dist/recipes.js   # 1
-> ```
->
-> Gate-only work below (checks 12/13, CI, `.gitignore`) is in **no** tarball — `files` ships only
-> `dist/**/*.js`, `addon/**/*`, `README.md`, `LICENSE`.
+Nothing yet.
+
+## [1.24.0] — 2026-07-28
+
+**This release ends the npm/tag drift `1.23.0` opened.** `breakpoint-mcp@1.23.0` was published from
+`main` (`cbe825c`), not from the `v1.23.0` tag (`8ff56fa`), so the published tarball carried two
+commits the tag did not — `recipe_multiplayer_scaffold_and_converge` and the `runtime_peers_digest`
+catalog reconcile. That is documented history and the tag stays where it is; **do not force-push
+`v1.23.0`.** From `v1.24.0` on, `git checkout <tag> && npm run build` reproduces the published
+tarball again. Verify the old state any time with:
+
+```
+npm pack breakpoint-mcp@1.23.0 && tar xzf breakpoint-mcp-1.23.0.tgz
+grep -c recipe_multiplayer_scaffold_and_converge package/dist/recipes.js   # 1 → cut from main
+```
+
+Most of what follows was therefore **already on npm as `1.23.0`** and is recorded here against the
+version whose *tag* first contains it. The genuinely new work in this release is the port-collision
+fix under **Fixed**. Gate-only work (checks 12/13, CI, `.gitignore`) is in **no** tarball — `files`
+ships only `dist/**/*.js`, `addon/**/*`, `README.md`, `LICENSE`.
+
+The addon is unchanged at `1.9.1`; every change here is host-side.
 
 ### Added
 - **A recipe-roster gate in `contract_check.py` (check 12) — the fourth member of the drift class
@@ -60,11 +68,64 @@ and the project uses [Semantic Versioning](https://semver.org/).
   stays **289 / 274** — because a recipe is an MCP prompt over tools that already exist.
 
 ### Fixed
+- **`godot_run_managed` and `godot_run_project` no longer start a game whose runtime bridge cannot
+  bind — the silent wrong-process class.** Both tools launch a game whose autoload binds
+  `BREAKPOINT_RUNTIME_PORT` (`runtime_bridge.gd:74`). When that port was already held — the
+  developer's own game running, or a previous managed child still alive — `listen()` returned
+  non-OK, the autoload `push_error`d, **and the game kept running without a bridge**, while the
+  host's runtime client went on addressing whichever process got there first. Every subsequent
+  `runtime_*` call then answered confidently about the wrong game, and `ping` carries no pid or boot
+  nonce that could tell them apart, so nothing downstream could detect it. The peer allocator was
+  already immune (it seeds `taken` with `runtimePort` and probes every candidate); the default path
+  was not. Both tools now probe the port first and **refuse**, naming the risk and the remedies that
+  can actually apply — `godot_stop` (only if `godot_run_managed` started it; a detached
+  `godot_run_project` game is not stoppable by any tool), quitting the game or ending the debug
+  session, `BREAKPOINT_RUNTIME_PORT`, and `runtime_spawn_peers` for driving several games at once.
+  Stopping *peers* is deliberately **not** offered: `allocatePorts` seeds `taken` with
+  `cfg.runtimePort` and scans from `runtimePort + 1`, so a peer can never be what holds it, and a
+  remedy that cannot work is worse than one fewer suggestion.
+  A per-call `allow_port_conflict: true` starts anyway for the legitimate case (you want the process
+  for its console output or side effects and will not call a `runtime_*` tool against it); it is
+  deliberately not sticky. Refusing rather than warning because a determinism feature returning a
+  correct-looking answer from the wrong process is worse than one that will not start.
+  `godot_launch_editor` is untouched — the editor binds `bridgePort`, so gating it would be a false
+  positive, and a check that fires when nothing is wrong is a check someone disables.
+  `portFree()` moved from `peers.ts` to a new `host/src/ports.ts` so both planes share one probe
+  without closing an import cycle (`peers.ts` already imports `tools/processes.ts`).
+  **Not yet covered: `dbg_launch`**, which starts the game through the debug adapter and binds the
+  same port. Gating it wants its own decision, so it is named here rather than left to look handled.
+- **A port env var that is set but unusable no longer becomes `NaN`.** `?? "9081"` catches only
+  null/undefined, so `BREAKPOINT_RUNTIME_PORT=""` — what a shell produces from an unset variable in
+  a `.env` file or a CI matrix — reached `Number.parseInt` and yielded NaN, which propagated into
+  every dial and bind. Survivable while a bad port merely failed to connect; not survivable once
+  these tools began *refusing* on an unbindable port, since `listen(NaN)` throws
+  `ERR_SOCKET_BAD_PORT` and the probe cannot tell that apart from "held" — it would have refused to
+  start a game that in fact would have worked, citing `127.0.0.1:NaN`. All four ports now fall back
+  to their documented defaults. The check mirrors GDScript's `is_valid_int()` rather than using
+  `Number.parseInt` alone, which stops at the first non-digit and turns `"80a80"` into port 80 —
+  the host would dial 80 while the addon (`runtime_bridge.gd:75`) kept 9081, which is the exact
+  host/addon disagreement the guard exists to prevent. Port `0` is still honoured.
+- **Two recipes dead-ended on the new refusal and now close their own loop.**
+  `recipe_screenshot_regression` ran the game twice and never stopped it, and `recipe_type_safe_edit`
+  left it running at step 4; both would have been refused on their second run. They now use
+  `godot_run_managed` + `godot_stop` and say why.
 - **The two single-game integration probes now receive the F6 peer registry.**
   `runtime-frame-step.integration.mjs` and `runtime-capture.integration.mjs` still called
   `registerRuntimeTools(server, runtime)` with two arguments after F6 added a third. Harmless while
   neither probe passes `peer` — and a `TypeError` waiting for whoever first does. Both now pass a
   registry that throws a named error if a peer path is ever reached from a probe that has no peers.
+
+### Tests
+- **Six tests for the port-collision class, three of them verified to fail against the unfixed
+  tree** (control green either side; the other three assert the *absence* of a false positive and so
+  are green either way, which is the point of having them). The fixtures take the port the kernel
+  hands out and hold it, rather than guessing a number, so the collision is a fact of the test and
+  not an assumption about the machine.
+- **Two tests for the port env guard**, covering `""`, whitespace, non-numeric, `"80a80"`, negative
+  and out-of-range — and one asserting port `0` is still honoured, since it is legal and a guard
+  that swallowed it would be a new bug. The `"80a80"` case was found *by* the test, against the
+  first version of the guard.
+- Host suite **490 → 498**.
 
 ### Documentation
 - **README's recipe list was two entries short.** `recipe_deterministic_playtest` shipped in 1.21.0

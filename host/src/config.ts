@@ -105,6 +105,31 @@ export interface Config {
   privilegedGroups: string[] | null;
 }
 
+/**
+ * A TCP port from the environment, falling back to `fallback` when the variable
+ * is absent, empty, non-numeric or out of range.
+ *
+ * `?? "9081"` alone does not cover this: an env var set to `""` or `"nope"`
+ * reaches `Number.parseInt` and yields `NaN`, which then propagates into every
+ * dial and bind as a port nothing can use. The addon has guarded this since it
+ * shipped — `runtime_bridge.gd:75` requires `is_valid_int()` before overriding
+ * and otherwise keeps the default — and the host simply never matched it. The
+ * mismatch was harmless while a bad port merely failed to connect; it stopped
+ * being harmless once `godot_run_managed` began *refusing* on an unbindable
+ * port, which would have read as "127.0.0.1:NaN is already bound".
+ */
+function port(raw: string | undefined, fallback: number): number {
+  // Deliberately NOT Number.parseInt on its own: it stops at the first
+  // non-digit, so "80a80" parses to 80. The host would then dial port 80 while
+  // the addon — whose `is_valid_int()` rejects the whole string — bound the
+  // default, which is precisely the host/addon disagreement this guard exists
+  // to prevent. The pattern mirrors GDScript's `is_valid_int()`.
+  const t = (raw ?? "").trim();
+  if (!/^[+-]?\d+$/.test(t)) return fallback;
+  const n = Number(t);
+  return Number.isInteger(n) && n >= 0 && n <= 65535 ? n : fallback;
+}
+
 export function loadConfig(): Config {
   const projectPath = process.env.GODOT_PROJECT ?? process.cwd();
   // The C# project defaults to the main project, but is usually pointed at a
@@ -115,13 +140,13 @@ export function loadConfig(): Config {
     projectPath,
     projectUri: pathToFileURL(projectPath).href,
     bridgeHost: process.env.BREAKPOINT_BRIDGE_HOST ?? "127.0.0.1",
-    bridgePort: Number.parseInt(process.env.BREAKPOINT_BRIDGE_PORT ?? "9080", 10),
+    bridgePort: port(process.env.BREAKPOINT_BRIDGE_PORT, 9080),
     bridgeTimeoutMs: Number.parseInt(
       process.env.BREAKPOINT_BRIDGE_TIMEOUT_MS ?? "15000",
       10,
     ),
     lspHost: process.env.GODOT_LSP_HOST ?? "127.0.0.1",
-    lspPort: Number.parseInt(process.env.GODOT_LSP_PORT ?? "6005", 10),
+    lspPort: port(process.env.GODOT_LSP_PORT, 6005),
     lspTimeoutMs: Number.parseInt(process.env.GODOT_LSP_TIMEOUT_MS ?? "15000", 10),
     csLspCmd: process.env.GODOT_CSLSP_CMD ?? "OmniSharp",
     csLspArgs: (process.env.GODOT_CSLSP_ARGS ?? "-lsp").split(/\s+/).filter(Boolean),
@@ -129,7 +154,7 @@ export function loadConfig(): Config {
     csLspProjectUri: pathToFileURL(csLspProjectPath).href,
     csLspTimeoutMs: Number.parseInt(process.env.GODOT_CSLSP_TIMEOUT_MS ?? "30000", 10),
     dapHost: process.env.GODOT_DAP_HOST ?? "127.0.0.1",
-    dapPort: Number.parseInt(process.env.GODOT_DAP_PORT ?? "6006", 10),
+    dapPort: port(process.env.GODOT_DAP_PORT, 6006),
     dapTimeoutMs: Number.parseInt(process.env.GODOT_DAP_TIMEOUT_MS ?? "20000", 10),
     dapSetVarTimeoutMs: Number.parseInt(process.env.GODOT_DAP_SETVAR_TIMEOUT_MS ?? "8000", 10),
     dapEvaluateTimeoutMs: Number.parseInt(process.env.GODOT_DAP_EVALUATE_TIMEOUT_MS ?? "8000", 10),
@@ -144,7 +169,7 @@ export function loadConfig(): Config {
     csDapSetVarTimeoutMs: Number.parseInt(process.env.GODOT_CSDAP_SETVAR_TIMEOUT_MS ?? "8000", 10),
     csDapEvaluateTimeoutMs: Number.parseInt(process.env.GODOT_CSDAP_EVALUATE_TIMEOUT_MS ?? "8000", 10),
     runtimeHost: process.env.BREAKPOINT_RUNTIME_HOST ?? "127.0.0.1",
-    runtimePort: Number.parseInt(process.env.BREAKPOINT_RUNTIME_PORT ?? "9081", 10),
+    runtimePort: port(process.env.BREAKPOINT_RUNTIME_PORT, 9081),
     runtimeTimeoutMs: Number.parseInt(
       process.env.BREAKPOINT_RUNTIME_TIMEOUT_MS ?? "15000",
       10,

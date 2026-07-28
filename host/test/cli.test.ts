@@ -1,6 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { registerCliTools } from "../src/tools/cli.js";
@@ -27,7 +28,7 @@ type Handler = (args: Record<string, unknown>) => Promise<ToolResult>;
  * run_headless_script register via server.experimental.tasks). Task handlers are
  * not plain callables, so we only assert their presence, never invoke them.
  */
-function setup(godotBin: string, projectPath: string) {
+function setup(godotBin: string, projectPath: string, runtimePort?: number) {
   const tools = new Map<string, Handler>();
   const server = {
     registerTool(name: string, _config: unknown, handler: Handler) {
@@ -44,15 +45,30 @@ function setup(godotBin: string, projectPath: string) {
   };
   registerCliTools(
     server as unknown as Parameters<typeof registerCliTools>[0],
-    { godotBin, projectPath } as unknown as Config,
+    {
+      godotBin,
+      projectPath,
+      runtimeHost: "127.0.0.1",
+      runtimePort: runtimePort ?? freeRuntimePort,
+    } as unknown as Config,
   );
   return tools;
 }
 
 let dir: string;
 let fakeGodot: string;
+/** A runtime-bridge port nothing holds, so the no-conflict path stays the default. */
+let freeRuntimePort: number;
 
-before(() => {
+/** Hold an ephemeral loopback port — stands in for a game already running. */
+function squat(): Promise<{ srv: net.Server; port: number }> {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => resolve({ srv, port: (srv.address() as net.AddressInfo).port }));
+  });
+}
+
+before(async () => {
   if (!POSIX) return;
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "gcb-cli-"));
   fakeGodot = path.join(dir, "fakegodot.sh");
@@ -62,6 +78,9 @@ before(() => {
     ['#!/bin/sh', 'if [ "$1" = "--version" ]; then echo "4.7.stable.custom"; fi', "exit 0", ""].join("\n"),
     { mode: 0o755 },
   );
+  const held = await squat();
+  freeRuntimePort = held.port;
+  await new Promise<void>((r) => held.srv.close(() => r()));
 });
 
 after(() => {
@@ -113,5 +132,57 @@ test("the long-running CLI tools register under the task model", { skip: !POSIX 
   const tools = setup(fakeGodot, dir);
   for (const n of ["godot_export", "godot_import", "godot_run_headless_script"]) {
     assert.ok(tools.has(n), `${n} should be registered`);
+  }
+});
+
+/**
+ * `godot_run_project` is detached, so unlike the managed path there is not even a
+ * captured `push_error("could not listen…")` to find afterwards. If the runtime
+ * bridge port is already held, this tool would hand back `running: true` for a
+ * game the host can never address, while `runtime_*` kept answering from the
+ * process that already owned the port. See `host/src/ports.ts`.
+ */
+test("godot_run_project refuses a held runtime port instead of returning running:true", { skip: !POSIX }, async () => {
+  const { srv, port } = await squat();
+  try {
+    const tools = setup(fakeGodot, dir, port);
+    const r = await tools.get("godot_run_project")!({});
+    assert.equal(r.isError, true);
+    const text = r.content?.[0]?.text ?? "";
+    assert.match(text, new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
+    assert.match(text, /silently address the process that already holds the port/);
+    assert.match(text, /runtime_spawn_peers/);
+    assert.equal(r.structuredContent, undefined, "a refusal carries no success payload");
+  } finally {
+    srv.close();
+  }
+});
+
+test("godot_run_project still launches when allow_port_conflict is set", { skip: !POSIX }, async () => {
+  const { srv, port } = await squat();
+  try {
+    const tools = setup(fakeGodot, dir, port);
+    const r = await tools.get("godot_run_project")!({ allow_port_conflict: true });
+    assert.notEqual(r.isError, true);
+    assert.equal(sc(r).running, true);
+    assert.equal(typeof sc(r).pid, "number");
+  } finally {
+    srv.close();
+  }
+});
+
+test("godot_launch_editor is unaffected — the editor binds the bridge port, not the runtime port", { skip: !POSIX }, async () => {
+  // The editor's bridge_server listens on BREAKPOINT_BRIDGE_PORT (9080); the
+  // runtime autoload owns 9081. Gating the editor on a busy runtime port would
+  // be a false positive, and a check that fires when nothing is wrong gets
+  // disabled by the first person it inconveniences.
+  const { srv, port } = await squat();
+  try {
+    const tools = setup(fakeGodot, dir, port);
+    const r = await tools.get("godot_launch_editor")!({});
+    assert.notEqual(r.isError, true);
+    assert.equal(sc(r).launched, true);
+  } finally {
+    srv.close();
   }
 });

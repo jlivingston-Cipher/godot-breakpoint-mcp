@@ -6,6 +6,7 @@ import type { Config } from "../config.js";
 import { log } from "../logger.js";
 import { registerTaskTool } from "../tasks.js";
 import { ok } from "./lsp-common.js";
+import { portFree, portConflictMessage } from "../ports.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -93,12 +94,26 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
     {
       title: "Run project",
       description:
-        "Run the project (detached). Optionally start from a specific scene path (res://...). Returns the process id.",
+        "Run the project (detached). Optionally start from a specific scene path (res://...). Returns the process id. " +
+        "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, and every " +
+        "runtime_* call would address the process already holding the port. Use runtime_spawn_peers to drive more " +
+        "than one game at once.",
       inputSchema: {
         scene: z.string().optional().describe("Optional scene to run, e.g. res://levels/test.tscn"),
+        allow_port_conflict: z
+          .boolean()
+          .optional()
+          .describe(
+            "Start even though the runtime bridge port is already bound (default false). The new game's runtime " +
+              "bridge will NOT be reachable — use only when you want the process for its side effects and will not " +
+              "call any runtime_* tool against it.",
+          ),
       },
     },
-    async ({ scene }) => {
+    async ({ scene, allow_port_conflict }) => {
+      if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
+        return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
+      }
       const args = ["--path", cfg.projectPath];
       if (scene) args.push(scene);
       const pid = launchDetached(cfg, args);

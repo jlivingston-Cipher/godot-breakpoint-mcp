@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { log } from "../logger.js";
 import { ok } from "./lsp-common.js";
+import { portFree, portConflictMessage } from "../ports.js";
 
 interface LogLine {
   seq: number;
@@ -107,10 +108,26 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       title: "Run project (managed, captured output)",
       description:
         "Run the project as a managed child process with captured stdout/stderr, so godot_output can read ALL print()/error output. " +
-        "Returns a process id. Use this instead of godot_run_project when you want the game's console log.",
-      inputSchema: { scene: z.string().optional().describe("Optional res:// scene to run") },
+        "Returns a process id. Use this instead of godot_run_project when you want the game's console log. " +
+        "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, and every " +
+        "runtime_* call would address the process already holding the port. Use runtime_spawn_peers to drive more " +
+        "than one game at once.",
+      inputSchema: {
+        scene: z.string().optional().describe("Optional res:// scene to run"),
+        allow_port_conflict: z
+          .boolean()
+          .optional()
+          .describe(
+            "Start even though the runtime bridge port is already bound (default false). The new game's runtime " +
+              "bridge will NOT be reachable — use only when you want the process for its console output or side " +
+              "effects and will not call any runtime_* tool against it.",
+          ),
+      },
     },
-    async ({ scene }) => {
+    async ({ scene, allow_port_conflict }) => {
+      if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
+        return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
+      }
       const m = registry.run(cfg, scene ? [scene] : []);
       return ok({ id: m.id, pid: m.child.pid ?? null, running: true, scene: scene ?? null });
     },

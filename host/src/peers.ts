@@ -1,9 +1,9 @@
-import net from "node:net";
 import type { Config } from "./config.js";
 import { BridgeClient, BridgeError } from "./bridge.js";
 import { ProcessRegistry } from "./tools/processes.js";
 import { ensureProjectSecret, readProjectSecret } from "./secret.js";
 import { log } from "./logger.js";
+import { portFree } from "./ports.js";
 
 /**
  * F6 narrow — multi-peer deterministic playtesting.
@@ -66,20 +66,6 @@ export const MAX_PEERS = 4;
 /** How far above the default runtime port the allocator will scan. */
 const PORT_SCAN_SPAN = 200;
 
-/** Is `port` bindable on `host` right now? */
-function portFree(host: string, port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const srv = net.createServer();
-    srv.once("error", () => resolve(false));
-    srv.once("listening", () => srv.close(() => resolve(true)));
-    try {
-      srv.listen(port, host);
-    } catch {
-      resolve(false);
-    }
-  });
-}
-
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export class PeerRegistry {
@@ -140,12 +126,13 @@ export class PeerRegistry {
    * runtime port so a peer never collides with a developer's already-running
    * game. Ports held by live peers are skipped even if the probe would pass.
    *
-   * Probe-then-release is a TOCTOU window by construction: another process could
-   * take the port between the probe and the child's bind. Allocation is
+   * The probe is TOCTOU by construction (see `ports.ts`), but allocation is
    * sequential and the window is sub-millisecond, and the failure mode is
    * benign — the child logs "could not listen" and the readiness wait below
    * reports it with that line attached, rather than the peer silently
-   * half-existing.
+   * half-existing. The DEFAULT runtime port has no such readiness wait, which
+   * is why `godot_run_managed` and `godot_run_project` refuse a held port
+   * outright rather than reporting it after the fact.
    */
   private async allocatePorts(count: number): Promise<number[]> {
     const taken = new Set<number>([this.cfg.runtimePort, ...this.live().map((p) => p.port)]);
