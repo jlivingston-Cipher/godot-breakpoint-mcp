@@ -6,7 +6,44 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- **Eleven timeout env vars are hardened the way the four ports already were.** `1.24.0` added
+  `port()` — rejecting `""`, `"nope"` and `"80a80"` rather than letting them reach `Number.parseInt`
+  and become `NaN` — and every timeout kept the `Number.parseInt(x ?? "15000", 10)` pattern that
+  function's own docstring condemns, thirteen lines below it. `??` catches only null/undefined, so
+  an exported-but-empty `GODOT_LSP_TIMEOUT_MS=""` yielded `NaN`.
+
+  **A NaN deadline is worse than a NaN port, because the request is already on the wire.**
+  `setTimeout(cb, NaN)` does not throw — it fires on the next tick, measurably sooner than
+  `setTimeout(cb, 1)`, with no Node warning — while the addon polls its socket from `_process`,
+  once per frame, so it cannot answer inside ~1 ms. The deadline wins *deterministically*: the host
+  reports `timed out after NaNms`, **the addon still executes the mutation**, and the real reply is
+  dropped as an unknown id. An agent that retries a reported failure applies it twice — reproduced
+  end to end as two `Enemy` nodes after two reported timeouts.
+
+  All eleven now use a new `positiveInt()` mirroring `port()`, which also closes two cases `NaN`
+  never covered: `parseInt` stops at the first non-digit, so `"15s"` silently became a 15 ms
+  deadline and `"20_000"` became 20 ms; and past `2^31-1` `setTimeout` warns and uses 1 ms, landing
+  back in the same near-zero failure from the opposite direction. Zero and negatives fall back
+  rather than clamp — a deadline of `0` is not a shorter deadline, it is the `NaN` failure with a
+  different spelling.
+
+- **`contract_check.py` can no longer be blinded by a digit in a tool name.** `registered_tools`,
+  `catalog_index_tools` and `catalog_shapes` netted names with `[a-z_]+` while `annotated_tools`
+  and `output_schema_shapes` used `[a-z0-9_]+`. A tool following the repo's own
+  `recipe_2d_player_controller` convention was therefore **invisible to checks 3, 4, 6 and 11 at
+  once** — no catalog row demanded, no MCP risk annotations demanded, no output schema demanded,
+  and it moved no count, so the gate's output was **byte-identical to a clean run**. The same tool
+  renamed without the digit failed with five separate errors. No shipped tool name contains a
+  digit, so this was latent, not live. The bridge-method nets were widened symmetrically (check 1
+  compares the two sides, so widening one alone would manufacture a false failure).
+
+### Added
+- **`contract_check.py` — a completeness assertion on the tool-name scanner.** Widening the net
+  fixes today's hole; this is what makes the next one fail loudly instead of silently. The gate now
+  re-scans every `registerTool` / `registerTaskTool` site with a deliberately permissive literal net
+  and **fails, naming file and line**, on any registration whose name the strict net cannot match —
+  so it asserts the scanner captured every site rather than trusting the count it produced.
 
 ## [1.26.0] — 2026-07-28
 

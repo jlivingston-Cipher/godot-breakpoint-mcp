@@ -138,7 +138,7 @@ def dispatch_methods(gd_file: Path, func_names: list[str]) -> set[str]:
         nxt = re.search(r"\nfunc ", text[start:])
         body = text[start: start + (nxt.start() if nxt else len(text))]
         # Case labels look like:  "method.name":  on their own line.
-        for lm in re.finditer(r'^\s*"([a-z_][a-z_.]*)":\s*$', body, re.M):
+        for lm in re.finditer(r'^\s*"([a-z_][a-z0-9_.]*)":\s*$', body, re.M):
             methods.add(lm.group(1))
     return methods
 
@@ -148,9 +148,9 @@ def host_bridge_calls(ts_files: list[Path]) -> set[str]:
     calls: set[str] = set()
     for f in ts_files:
         text = f.read_text()
-        for m in re.finditer(r'\bcall\(\s*"([a-z_][a-z_.]*)"', text):
+        for m in re.finditer(r'\bcall\(\s*"([a-z_][a-z0-9_.]*)"', text):
             calls.add(m.group(1))
-        for m in re.finditer(r'\.request\(\s*"([a-z_][a-z_.]*)"', text):
+        for m in re.finditer(r'\.request\(\s*"([a-z_][a-z0-9_.]*)"', text):
             calls.add(m.group(1))
     return calls
 
@@ -160,12 +160,42 @@ def registered_tools() -> list[str]:
     for f in sorted(TOOLS.rglob("*.ts")):
         text = f.read_text()
         # Plain tools: server.registerTool("name", ...)
-        for m in re.finditer(r'registerTool\(\s*"([a-z_]+)"', text):
+        for m in re.finditer(r'registerTool\(\s*"([a-z0-9_]+)"', text):
             names.append(m.group(1))
         # Task-model tools (D2): registerTaskTool(server, "name", ...)
-        for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z_]+)"', text):
+        for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z0-9_]+)"', text):
             names.append(m.group(1))
     return names
+
+
+def uncaptured_tool_registrations() -> list[str]:
+    """Registration sites whose tool name the strict net above does NOT match.
+
+    Checks 3, 4, 6 and 11 all reach the surface through `registered_tools()`, so
+    a name the net misses is not under-reported — it is **absent**. It gets no
+    catalog row demanded, no annotations demanded, no output schema demanded,
+    and it does not move any count, so the gate's output is byte-identical to a
+    clean run. There is no number a reviewer could notice.
+
+    That was live through 1.26.0: this net was `[a-z_]+` while `annotated_tools`
+    and `output_schema_shapes` used `[a-z0-9_]+`, so a tool following the repo's
+    own `recipe_2d_player_controller` convention was invisible to four checks at
+    once. Widening the net closed today's hole; **this function is what makes
+    the next one fail loudly instead of silently.** It re-scans with a
+    deliberately permissive literal net and reports the difference — so the gate
+    asserts the net captured every site, rather than trusting that it did.
+    """
+    missed: list[str] = []
+    for f in sorted(TOOLS.rglob("*.ts")):
+        text = f.read_text()
+        for m in re.finditer(
+            r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([^"\n]*)"', text
+        ):
+            name = m.group(1)
+            if not re.fullmatch(r"[a-z0-9_]+", name):
+                line = text.count("\n", 0, m.start()) + 1
+                missed.append(f"{f.relative_to(ROOT)}:{line} {name!r}")
+    return missed
 
 
 def annotated_tools() -> set[str]:
@@ -495,8 +525,8 @@ def toolset_sizes() -> dict[str, int]:
         if not path.exists():
             return 0
         body = path.read_text()
-        return len(re.findall(r'registerTool\(\s*"[a-z_]+"', body)) + len(
-            re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z_]+"', body)
+        return len(re.findall(r'registerTool\(\s*"[a-z0-9_]+"', body)) + len(
+            re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z0-9_]+"', body)
         )
 
     sizes: dict[str, int] = {}
@@ -717,7 +747,7 @@ def catalog_index_tools() -> set[str]:
     text = CATALOG.read_text()
     tools: set[str] = set()
     # Rows of the form: | `tool_name` | ... | ... | ... |
-    for m in re.finditer(r"^\|\s*`([a-z_]+)`\s*\|", text, re.M):
+    for m in re.finditer(r"^\|\s*`([a-z0-9_]+)`\s*\|", text, re.M):
         tools.add(m.group(1))
     return tools
 
@@ -881,7 +911,7 @@ def input_schema_shapes() -> dict[str, set[str]]:
     for f in sorted(TOOLS.rglob("*.ts")):
         text = f.read_text()
         consts = _file_const_shapes(text)
-        regs = list(re.finditer(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z_]+)"', text))
+        regs = list(re.finditer(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z0-9_]+)"', text))
         for idx, m in enumerate(regs):
             name = m.group(1)
             end = regs[idx + 1].start() if idx + 1 < len(regs) else len(text)
@@ -935,7 +965,7 @@ def catalog_shapes() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     """Per-tool documented Input/Output property names from the catalog's
     `**Input**` / `**Output**` JSON blocks. `confirm` excluded from inputs."""
     text = CATALOG.read_text()
-    parts = re.split(r"^###\s+`([a-z_]+)`", text, flags=re.M)
+    parts = re.split(r"^###\s+`([a-z0-9_]+)`", text, flags=re.M)
     inputs: dict[str, set[str]] = {}
     outputs: dict[str, set[str]] = {}
     for i in range(1, len(parts), 2):
@@ -969,11 +999,21 @@ orphans = sorted(m for m in gd_all if m not in host_calls and m != "ping")
 if orphans:
     warnings.append(f"GDScript dispatch methods never called by host (ok if intentional): {orphans}")
 
-# --- 3: tool-name uniqueness -----------------------------------------------
+# --- 3: tool-name uniqueness + net completeness ----------------------------
 tools = registered_tools()
 dupes = sorted({t for t in tools if tools.count(t) > 1})
 if dupes:
     errors.append(f"Duplicate registerTool names: {dupes}")
+
+# A name the net misses is invisible to checks 3, 4, 6 and 11 at once, and the
+# gate's output is byte-identical to a clean run. Assert the net saw every site
+# rather than trusting the count it produced.
+uncaptured = uncaptured_tool_registrations()
+if uncaptured:
+    errors.append(
+        "Tool registration(s) whose name the scanner cannot match "
+        f"(invisible to the catalog, annotation and count checks): {uncaptured}"
+    )
 
 # --- 4: catalog <-> code ----------------------------------------------------
 tool_set = set(tools)

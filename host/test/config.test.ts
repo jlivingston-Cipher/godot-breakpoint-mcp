@@ -136,6 +136,72 @@ test("port 0 is honoured, not treated as unset", () => {
   });
 });
 
+/**
+ * Every TIMEOUT env var, under the same hostile values the port test above uses.
+ *
+ * The port guard shipped alone: four ports went through `port()` while eleven
+ * timeouts kept `Number.parseInt(x ?? "15000", 10)` — the exact pattern that
+ * function's docstring condemns — thirteen lines below it. The test named
+ * "ports *and timeouts* are parsed as integers from the environment" fed
+ * timeouts nothing but `"5000"`, so the gap read as covered.
+ *
+ * A NaN deadline is worse than a NaN port, because the request is already on
+ * the wire. `setTimeout(cb, NaN)` does not throw — it fires on the next tick,
+ * sooner than `setTimeout(cb, 1)` — while the addon polls its socket once per
+ * frame and cannot answer inside ~1 ms. The host reports "timed out after
+ * NaNms", the addon still executes the mutation, and the real reply is dropped
+ * as an unknown id, so an agent that retries applies the mutation twice.
+ *
+ * Note the values beyond `""`: `parseInt` stops at the first non-digit, so
+ * "15s" silently became 15 ms; and past 2^31-1 setTimeout warns and uses 1 ms,
+ * landing back in the same near-zero failure from the opposite direction.
+ */
+const TIMEOUT_ENV_DEFAULTS: Array<[string, keyof ReturnType<typeof loadConfig>, number]> = [
+  ["BREAKPOINT_BRIDGE_TIMEOUT_MS", "bridgeTimeoutMs", 15000],
+  ["GODOT_LSP_TIMEOUT_MS", "lspTimeoutMs", 15000],
+  ["GODOT_CSLSP_TIMEOUT_MS", "csLspTimeoutMs", 30000],
+  ["GODOT_DAP_TIMEOUT_MS", "dapTimeoutMs", 20000],
+  ["GODOT_DAP_SETVAR_TIMEOUT_MS", "dapSetVarTimeoutMs", 8000],
+  ["GODOT_DAP_EVALUATE_TIMEOUT_MS", "dapEvaluateTimeoutMs", 8000],
+  ["GODOT_CSDAP_TIMEOUT_MS", "csDapTimeoutMs", 20000],
+  ["GODOT_CSDAP_SETVAR_TIMEOUT_MS", "csDapSetVarTimeoutMs", 8000],
+  ["GODOT_CSDAP_EVALUATE_TIMEOUT_MS", "csDapEvaluateTimeoutMs", 8000],
+  ["BREAKPOINT_RUNTIME_TIMEOUT_MS", "runtimeTimeoutMs", 15000],
+  ["BREAKPOINT_ASSETGEN_TIMEOUT_MS", "assetGenTimeoutMs", 120000],
+];
+
+test("a set-but-unusable timeout env var falls back to the default instead of NaN", () => {
+  for (const bad of ["", "   ", "nope", "15s", "20_000", "0x3e8", "1e4", "0", "-1", "3000000000"]) {
+    const env: Record<string, string> = { GODOT_PROJECT: "/tmp/proj" };
+    for (const [name] of TIMEOUT_ENV_DEFAULTS) env[name] = bad;
+    withEnv(env, () => {
+      const c = loadConfig();
+      for (const [name, field, want] of TIMEOUT_ENV_DEFAULTS) {
+        const got = c[field] as number;
+        assert.ok(
+          Number.isSafeInteger(got) && got > 0,
+          `${name} must stay a usable positive integer for ${JSON.stringify(bad)}, got ${got}`,
+        );
+        assert.equal(got, want, `${name} must fall back to ${want} for ${JSON.stringify(bad)}`);
+      }
+    });
+  }
+});
+
+// The other half of the negative control: a VALID value must still be honoured
+// on every one of the eleven, or the guard above would pass by rejecting
+// everything. Deliberately green either way is the point — this half proves the
+// absence of a false positive, and it fails if a field is wired to the wrong
+// env var or the wrong default.
+test("every timeout env var is honoured when it is valid", () => {
+  for (const [i, [name, field]] of TIMEOUT_ENV_DEFAULTS.entries()) {
+    const want = 1234 + i; // distinct per field, so a crossed wire fails
+    withEnv({ GODOT_PROJECT: "/tmp/proj", [name]: String(want) }, () => {
+      assert.equal(loadConfig()[field] as number, want, `${name} must set ${String(field)}`);
+    });
+  }
+});
+
 test("deprecated CLAUDE_* env vars are ignored (compat shim removed in 1.1.0)", () => {
   withEnv(
     {
