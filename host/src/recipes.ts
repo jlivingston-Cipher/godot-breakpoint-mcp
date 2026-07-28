@@ -41,6 +41,7 @@ export const RECIPE_NAMES = [
   "recipe_type_safe_edit",
   "recipe_csharp_fix_and_debug",
   "recipe_deterministic_playtest",
+  "recipe_multiplayer_scaffold_and_converge",
 ] as const;
 
 export function registerRecipes(server: RecipeServer): void {
@@ -259,6 +260,46 @@ export function registerRecipes(server: RecipeServer): void {
           `5. Iterate or thaw: repeat 3–4 to walk frame-by-frame (every step is deterministic), or runtime_time_scale{scale:1} to thaw and resume normal play. godot_stop when done. On a failed assert you are one dbg_set_breakpoints + dbg_launch away from the exact value that diverged.`,
           "",
           "Why this beats run-screenshot-guess: freezing plus fixed-frame stepping converts a timing-dependent check into a frame-exact, reproducible one the runtime_assert_* family can verify — the R tier of the W/R/E model, made deterministic.",
+          "",
+          SAFETY,
+        ].join("\n"),
+      );
+    },
+  );
+
+  // 8 — Multiplayer: scaffold it with mp_*, then prove independent peers converge.
+  server.registerPrompt(
+    "recipe_multiplayer_scaffold_and_converge",
+    {
+      title: "Scaffold multiplayer with mp_*, then prove independent peers converge",
+      description:
+        "Scaffold ENet + spawner / synchronizer / RPC netcode, then spawn real headless peers and assert they reach a byte-equal state — the scaffold verified rather than assumed.",
+      argsSchema: {
+        scene_path: z.string().optional().describe("Scene to scaffold and play-test (default res://main.tscn)"),
+        peer_count: z.string().optional().describe("Headless peers to spawn (1-4; default 3)"),
+        seed: z.string().optional().describe("RNG seed given to every peer (default 12345)"),
+        frames: z.string().optional().describe("Physics frames to step on each peer (default 30)"),
+        root_path: z.string().optional().describe("Node subtree to compare across peers (default '.', the running scene root)"),
+      },
+    },
+    (a: Args) => {
+      const scene = str(a, "scene_path", "res://main.tscn");
+      const count = str(a, "peer_count", "3");
+      const seed = str(a, "seed", "12345");
+      const frames = str(a, "frames", "30");
+      const root = str(a, "root_path", ".");
+      return recipe(
+        "Multiplayer scaffolding with a multi-peer convergence check.",
+        [
+          `Goal: scaffold multiplayer in ${scene} with the mp_* family, then prove ${count} independently-driven peers reach the SAME state.`,
+          "",
+          `1. Scaffold: scene_open ${scene}. mp_setup_enet_peer for the host/join script (mp_setup_webrtc_peer if you need WebRTC); mp_scaffold_lobby for a lobby; mp_add_spawner for nodes created at runtime and mp_add_synchronizer for replicated properties; mp_set_authority on the nodes each peer owns; mp_wire_rpc for the calls that cross the wire. Run gd_diagnostics until clean BEFORE running anything.`,
+          "2. Make it testable, or step 4 will diverge and be right to: keep replicated state on _physics_process (the FIXED timestep), guard every global randf() on `delta > 0`, and give idle-frame code its OWN RandomNumberGenerator. runtime_seed_rng seeds ONE stream for the whole project, and freezing does not stop callbacks firing — an unguarded draw burns that stream at wall-clock rate and desynchronises peers that are otherwise identical.",
+          `3. Spawn: runtime_spawn_peers{count:${count}} — real headless children of this project, each on its own loopback port (ceiling 4). Pass role:"server" to label one and branch on OS.get_environment("BREAKPOINT_PEER_ROLE"). It is code-execution-privileged, so it is absent from the default surface unless you enabled that capability group.`,
+          `4. Converge, IN THIS ORDER: runtime_time_scale{scale:0, peer} to FREEZE every peer first (they free-ran for different durations since spawn, so their state already differs); runtime_set_property{peer} to equalise the starting state; runtime_seed_rng{seed:${seed}, peer} with the SAME seed on each; runtime_step_frames{frames:${frames}, kind:"physics", peer} on each; then runtime_peers_digest{root:"${root}"}.`,
+          `5. Assert, then diagnose: converged:true is the green result. On false, diverged_at names the exact node paths that disagree — start there with runtime_get_property{peer} and runtime_get_log{peer} on the two peers that differ, runtime_assert_node_state for the value you expected, and dbg_set_breakpoints + dbg_launch when you need the frame it went wrong on. Finish with runtime_peer_stop{all:true}.`,
+          "",
+          "Scope, so a green result means what you think it does: peers are local headless children on loopback — this is testing, not hosting, and Breakpoint runs no relay, lobby or signalling server. Convergence is a same-machine claim (one OS, one engine build); it says nothing about two players on two machines.",
           "",
           SAFETY,
         ].join("\n"),

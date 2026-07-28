@@ -6,6 +6,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`recipe_multiplayer_scaffold_and_converge` — an eighth recipe**, pairing the `mp_*` scaffolding
+  family with F6 multi-peer convergence: scaffold ENet + spawner / synchronizer / RPC, make the game
+  testable (replicated state on the fixed timestep, guarded RNG draws), spawn real headless peers,
+  then freeze → equalise → seed → step → `runtime_peers_digest`. Adds **no tools** — the surface
+  stays **289 / 274** — because a recipe is an MCP prompt over tools that already exist.
+
 ### Fixed
 - **The two single-game integration probes now receive the F6 peer registry.**
   `runtime-frame-step.integration.mjs` and `runtime-capture.integration.mjs` still called

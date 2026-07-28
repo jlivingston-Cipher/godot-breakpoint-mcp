@@ -369,6 +369,8 @@ standard **MCP prompts** (discoverable via `prompts/list`), so a client can pull
 - **`recipe_screenshot_regression`** — golden-image check for a scene via `runtime_screenshot_diff`.
 - **`recipe_type_safe_edit`** — edit GDScript with the language server (symbols, references, diagnostics) before running.
 - **`recipe_csharp_fix_and_debug`** — the same inspect → fix → debug loop for C# via OmniSharp + netcoredbg.
+- **`recipe_deterministic_playtest`** — freeze the game, step an exact number of frames, then assert a frame-exact state and a golden frame.
+- **`recipe_multiplayer_scaffold_and_converge`** — scaffold netcode with the `mp_*` family, then spawn real headless peers and prove they converge.
 
 Recipes are skills which ride on top of typed, schema-validated, undoable tools — so the
 contract is executed by the server, not merely described in prose which a model might
