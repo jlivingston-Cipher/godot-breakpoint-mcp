@@ -6,20 +6,28 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> ⚠️ **Everything in this section is already on npm.** `breakpoint-mcp@1.23.0` was published
-> 2026-07-28 from `main` (`cbe825c`), not from the `v1.23.0` tag (`8ff56fa`), so the published
-> tarball carries two commits the tag does not — `recipe_multiplayer_scaffold_and_converge` and the
-> `runtime_peers_digest` catalog reconcile. **`git checkout v1.23.0 && npm run build` does not
-> reproduce `breakpoint-mcp@1.23.0`; `cbe825c` does.** The tag is deliberately left where it is;
-> `v1.24.0` off `main` ends the drift at one release. Verify:
->
-> ```
-> npm pack breakpoint-mcp@1.23.0 && tar xzf breakpoint-mcp-1.23.0.tgz
-> grep -c recipe_multiplayer_scaffold_and_converge package/dist/recipes.js   # 1
-> ```
->
-> Gate-only work below (checks 12/13, CI, `.gitignore`) is in **no** tarball — `files` ships only
-> `dist/**/*.js`, `addon/**/*`, `README.md`, `LICENSE`.
+Nothing yet.
+
+## [1.24.0] — 2026-07-28
+
+**This release ends the npm/tag drift `1.23.0` opened.** `breakpoint-mcp@1.23.0` was published from
+`main` (`cbe825c`), not from the `v1.23.0` tag (`8ff56fa`), so the published tarball carried two
+commits the tag did not — `recipe_multiplayer_scaffold_and_converge` and the `runtime_peers_digest`
+catalog reconcile. That is documented history and the tag stays where it is; **do not force-push
+`v1.23.0`.** From `v1.24.0` on, `git checkout <tag> && npm run build` reproduces the published
+tarball again. Verify the old state any time with:
+
+```
+npm pack breakpoint-mcp@1.23.0 && tar xzf breakpoint-mcp-1.23.0.tgz
+grep -c recipe_multiplayer_scaffold_and_converge package/dist/recipes.js   # 1 → cut from main
+```
+
+Most of what follows was therefore **already on npm as `1.23.0`** and is recorded here against the
+version whose *tag* first contains it. The genuinely new work in this release is the port-collision
+fix under **Fixed**. Gate-only work (checks 12/13, CI, `.gitignore`) is in **no** tarball — `files`
+ships only `dist/**/*.js`, `addon/**/*`, `README.md`, `LICENSE`.
+
+The addon is unchanged at `1.9.1`; every change here is host-side.
 
 ### Added
 - **A recipe-roster gate in `contract_check.py` (check 12) — the fourth member of the drift class
