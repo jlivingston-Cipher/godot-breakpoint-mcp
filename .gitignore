@@ -38,3 +38,9 @@ VALIDATION_REPORT.md
 
 # transient / undeletable-via-bridge scratch (delete manually)
 _to_delete/
+
+# Python bytecode — scripts/contract_check.py is importable (the negative
+# tests and any session that introspects it load it as a module), and the .pyc
+# it leaves behind was committed once by a `git add -A`.
+__pycache__/
+*.py[cod]
