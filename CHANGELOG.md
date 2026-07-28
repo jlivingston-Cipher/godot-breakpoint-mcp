@@ -60,11 +60,37 @@ and the project uses [Semantic Versioning](https://semver.org/).
   stays **289 / 274** — because a recipe is an MCP prompt over tools that already exist.
 
 ### Fixed
+- **`godot_run_managed` and `godot_run_project` no longer start a game whose runtime bridge cannot
+  bind — the silent wrong-process class.** Both tools launch a game whose autoload binds
+  `BREAKPOINT_RUNTIME_PORT` (`runtime_bridge.gd:74`). When that port was already held — the
+  developer's own game running, or a previous managed child still alive — `listen()` returned
+  non-OK, the autoload `push_error`d, **and the game kept running without a bridge**, while the
+  host's runtime client went on addressing whichever process got there first. Every subsequent
+  `runtime_*` call then answered confidently about the wrong game, and `ping` carries no pid or boot
+  nonce that could tell them apart, so nothing downstream could detect it. The peer allocator was
+  already immune (it seeds `taken` with `runtimePort` and probes every candidate); the default path
+  was not. Both tools now probe the port first and **refuse**, naming the risk and every exit —
+  `godot_stop`, `runtime_peer_stop{all:true}`, `BREAKPOINT_RUNTIME_PORT`, `runtime_spawn_peers`.
+  A per-call `allow_port_conflict: true` starts anyway for the legitimate case (you want the process
+  for its console output or side effects and will not call a `runtime_*` tool against it); it is
+  deliberately not sticky. Refusing rather than warning because a determinism feature returning a
+  correct-looking answer from the wrong process is worse than one that will not start.
+  `godot_launch_editor` is untouched — the editor binds `bridgePort`, so gating it would be a false
+  positive, and a check that fires when nothing is wrong is a check someone disables.
+  `portFree()` moved from `peers.ts` to a new `host/src/ports.ts` so both planes share one probe
+  without closing an import cycle (`peers.ts` already imports `tools/processes.ts`).
 - **The two single-game integration probes now receive the F6 peer registry.**
   `runtime-frame-step.integration.mjs` and `runtime-capture.integration.mjs` still called
   `registerRuntimeTools(server, runtime)` with two arguments after F6 added a third. Harmless while
   neither probe passes `peer` — and a `TypeError` waiting for whoever first does. Both now pass a
   registry that throws a named error if a peer path is ever reached from a probe that has no peers.
+
+### Tests
+- **Six tests for the port-collision class, three of them verified to fail against the unfixed
+  tree** (control green either side; the other three assert the *absence* of a false positive and so
+  are green either way, which is the point of having them). The fixtures take the port the kernel
+  hands out and hold it, rather than guessing a number, so the collision is a fact of the test and
+  not an assumption about the machine. Host suite **490 → 496**.
 
 ### Documentation
 - **README's recipe list was two entries short.** `recipe_deterministic_playtest` shipped in 1.21.0
