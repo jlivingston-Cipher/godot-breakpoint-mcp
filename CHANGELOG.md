@@ -6,6 +6,22 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.26.0] — 2026-07-28
+
+**Gates the release ritual itself, and deletes the version literals that gate found.** The host
+version lived in five files and the addon version in five more, nothing compared them, and the
+checklist naming them existed only as prose in session handoffs — so `1.24.0` and `1.25.0` both
+missed `host/package-lock.json`. Check 14 closes the third member of the drift class checks 10–12
+close, and the only one that had already gone wrong twice before anything looked.
+
+It found two stale versions on its way in, one of them shipping since the project's first commit.
+
+The surface is unchanged at **289 / 274 / 15** and the addon at **1.9.1**. A **minor** release: no
+tool, resource or recipe count moves, and the only runtime change is that three version strings are
+now read from `package.json` instead of being wrong.
+
 ### Added
 - **`contract_check.py` check 14 — version parity, the release ritual gated.** The third member of
   the drift class checks 10–12 close, and the one that had already gone wrong **twice in consecutive
