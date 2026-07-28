@@ -77,8 +77,13 @@ The addon is unchanged at `1.9.1`; every change here is host-side.
   `runtime_*` call then answered confidently about the wrong game, and `ping` carries no pid or boot
   nonce that could tell them apart, so nothing downstream could detect it. The peer allocator was
   already immune (it seeds `taken` with `runtimePort` and probes every candidate); the default path
-  was not. Both tools now probe the port first and **refuse**, naming the risk and every exit —
-  `godot_stop`, `runtime_peer_stop{all:true}`, `BREAKPOINT_RUNTIME_PORT`, `runtime_spawn_peers`.
+  was not. Both tools now probe the port first and **refuse**, naming the risk and the remedies that
+  can actually apply — `godot_stop` (only if `godot_run_managed` started it; a detached
+  `godot_run_project` game is not stoppable by any tool), quitting the game or ending the debug
+  session, `BREAKPOINT_RUNTIME_PORT`, and `runtime_spawn_peers` for driving several games at once.
+  Stopping *peers* is deliberately **not** offered: `allocatePorts` seeds `taken` with
+  `cfg.runtimePort` and scans from `runtimePort + 1`, so a peer can never be what holds it, and a
+  remedy that cannot work is worse than one fewer suggestion.
   A per-call `allow_port_conflict: true` starts anyway for the legitimate case (you want the process
   for its console output or side effects and will not call a `runtime_*` tool against it); it is
   deliberately not sticky. Refusing rather than warning because a determinism feature returning a
@@ -87,6 +92,23 @@ The addon is unchanged at `1.9.1`; every change here is host-side.
   positive, and a check that fires when nothing is wrong is a check someone disables.
   `portFree()` moved from `peers.ts` to a new `host/src/ports.ts` so both planes share one probe
   without closing an import cycle (`peers.ts` already imports `tools/processes.ts`).
+  **Not yet covered: `dbg_launch`**, which starts the game through the debug adapter and binds the
+  same port. Gating it wants its own decision, so it is named here rather than left to look handled.
+- **A port env var that is set but unusable no longer becomes `NaN`.** `?? "9081"` catches only
+  null/undefined, so `BREAKPOINT_RUNTIME_PORT=""` — what a shell produces from an unset variable in
+  a `.env` file or a CI matrix — reached `Number.parseInt` and yielded NaN, which propagated into
+  every dial and bind. Survivable while a bad port merely failed to connect; not survivable once
+  these tools began *refusing* on an unbindable port, since `listen(NaN)` throws
+  `ERR_SOCKET_BAD_PORT` and the probe cannot tell that apart from "held" — it would have refused to
+  start a game that in fact would have worked, citing `127.0.0.1:NaN`. All four ports now fall back
+  to their documented defaults. The check mirrors GDScript's `is_valid_int()` rather than using
+  `Number.parseInt` alone, which stops at the first non-digit and turns `"80a80"` into port 80 —
+  the host would dial 80 while the addon (`runtime_bridge.gd:75`) kept 9081, which is the exact
+  host/addon disagreement the guard exists to prevent. Port `0` is still honoured.
+- **Two recipes dead-ended on the new refusal and now close their own loop.**
+  `recipe_screenshot_regression` ran the game twice and never stopped it, and `recipe_type_safe_edit`
+  left it running at step 4; both would have been refused on their second run. They now use
+  `godot_run_managed` + `godot_stop` and say why.
 - **The two single-game integration probes now receive the F6 peer registry.**
   `runtime-frame-step.integration.mjs` and `runtime-capture.integration.mjs` still called
   `registerRuntimeTools(server, runtime)` with two arguments after F6 added a third. Harmless while
@@ -98,7 +120,12 @@ The addon is unchanged at `1.9.1`; every change here is host-side.
   tree** (control green either side; the other three assert the *absence* of a false positive and so
   are green either way, which is the point of having them). The fixtures take the port the kernel
   hands out and hold it, rather than guessing a number, so the collision is a fact of the test and
-  not an assumption about the machine. Host suite **490 → 496**.
+  not an assumption about the machine.
+- **Two tests for the port env guard**, covering `""`, whitespace, non-numeric, `"80a80"`, negative
+  and out-of-range — and one asserting port `0` is still honoured, since it is legal and a guard
+  that swallowed it would be a new bug. The `"80a80"` case was found *by* the test, against the
+  first version of the guard.
+- Host suite **490 → 498**.
 
 ### Documentation
 - **README's recipe list was two entries short.** `recipe_deterministic_playtest` shipped in 1.21.0

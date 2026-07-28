@@ -46,14 +46,23 @@ export function portFree(host: string, port: number): Promise<boolean> {
  * That is why this refuses rather than warns: a determinism feature returning a
  * correct-looking answer from the wrong game is worse than one that will not
  * start.
+ *
+ * Note what is deliberately NOT offered as a remedy: stopping peers. A peer can
+ * never hold this port — `allocatePorts` seeds its `taken` set with
+ * `cfg.runtimePort` and scans from `runtimePort + 1`, so whatever holds it is
+ * something else. `runtime_spawn_peers` is named below as the way to drive
+ * several games at once, which is true; `runtime_peer_stop` as a way to free
+ * THIS port would not be, and a remedy that cannot work is worse than one fewer
+ * suggestion.
  */
 export function portConflictMessage(host: string, port: number): string {
   return (
     `${host}:${port} is already bound, so a game started now could not host the runtime bridge. ` +
     `Its autoload would fail to listen and keep running anyway, and every runtime_* call would ` +
     `silently address the process that already holds the port instead of the one you just started. ` +
-    `Stop the running game first (godot_stop for a managed child, runtime_peer_stop{all:true} for ` +
-    `peers, or quit it in the editor), or point this server at a free port with ` +
+    `Stop the running game first — godot_stop if godot_run_managed started it, otherwise quit it in ` +
+    `the game window or end the debug session that launched it (a detached godot_run_project game is ` +
+    `not stoppable by any tool) — or point this server at a free port with ` +
     `BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to start it anyway — reasonable only if ` +
     `you want the process for its console output or its side effects and will not use any runtime_* ` +
     `tool against it. To drive more than one game at once, use runtime_spawn_peers, which allocates ` +

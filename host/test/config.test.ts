@@ -89,6 +89,53 @@ test("ports and timeouts are parsed as integers from the environment", () => {
   );
 });
 
+/**
+ * A port env var that is set but unusable must fall back to the default, not
+ * become `NaN`.
+ *
+ * `?? "9081"` only catches null/undefined, so `BREAKPOINT_RUNTIME_PORT=""` — the
+ * shape a shell produces from an unset variable in a `.env` file or a CI matrix
+ * — reached `Number.parseInt` and yielded NaN. That was survivable while a bad
+ * port merely failed to connect. It stopped being survivable once
+ * `godot_run_managed` began refusing on an unbindable port: `listen(NaN)` throws
+ * `ERR_SOCKET_BAD_PORT`, the probe cannot distinguish that from "held", and the
+ * tool would refuse to start a game that in fact would have worked — the addon
+ * guards this on its own side (`runtime_bridge.gd:75` requires `is_valid_int()`)
+ * and keeps the default. The host now matches the addon.
+ */
+test("a set-but-unusable port env var falls back to the default instead of NaN", () => {
+  for (const bad of ["", "   ", "nope", "80a80", "-1", "65536", "99999999"]) {
+    withEnv(
+      {
+        GODOT_PROJECT: "/tmp/proj",
+        BREAKPOINT_BRIDGE_PORT: bad,
+        GODOT_LSP_PORT: bad,
+        GODOT_DAP_PORT: bad,
+        BREAKPOINT_RUNTIME_PORT: bad,
+      },
+      () => {
+        const c = loadConfig();
+        for (const [name, got, want] of [
+          ["bridgePort", c.bridgePort, 9080],
+          ["lspPort", c.lspPort, 6005],
+          ["dapPort", c.dapPort, 6006],
+          ["runtimePort", c.runtimePort, 9081],
+        ] as Array<[string, number, number]>) {
+          assert.ok(Number.isInteger(got), `${name} must stay an integer for ${JSON.stringify(bad)}, got ${got}`);
+          assert.equal(got, want, `${name} must fall back to ${want} for ${JSON.stringify(bad)}`);
+        }
+      },
+    );
+  }
+});
+
+// 0 is a legal port number (bind-any), so it must NOT be swallowed by the guard.
+test("port 0 is honoured, not treated as unset", () => {
+  withEnv({ GODOT_PROJECT: "/tmp/proj", BREAKPOINT_RUNTIME_PORT: "0" }, () => {
+    assert.equal(loadConfig().runtimePort, 0);
+  });
+});
+
 test("deprecated CLAUDE_* env vars are ignored (compat shim removed in 1.1.0)", () => {
   withEnv(
     {
