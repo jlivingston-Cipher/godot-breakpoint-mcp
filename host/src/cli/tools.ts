@@ -28,26 +28,9 @@ import { applyOutputSchemas } from "../schemas.js";
 import { applyAnnotations, annotationsFor } from "../annotations.js";
 import { TOOL_CAPABILITIES, CAPABILITY_GROUPS, GROUP_DESCRIBE } from "../capabilities.js";
 import { loadConfig } from "../config.js";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { packageVersion } from "../version.js";
 
-/**
- * Read the version from package.json at runtime rather than hardcoding it.
- * Deliberate: the version already has to be bumped in `package.json`, the
- * `serverInfo` literal, both `plugin.cfg`s, and the doctor/init surface strings
- * — this command must not become a sixth place to forget. package.json ships in
- * the npm tarball, so the read is safe in an installed package; if it ever
- * isn't, an unknown version is better than a stale one.
- */
-function packageVersion(): string {
-  try {
-    const here = dirname(fileURLToPath(import.meta.url));
-    return JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf8")).version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
-}
+
 
 interface ExportedTool {
   name: string;

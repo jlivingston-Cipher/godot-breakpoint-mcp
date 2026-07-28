@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { FramedMessage, JsonRpcChannel } from "./framing.js";
 import { LspError, type Diagnostic } from "./lsp.js";
+import { packageVersion } from "./version.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -172,7 +173,7 @@ export class CsLspClient {
             workspace: { symbol: {}, workspaceFolders: true },
           },
           workspaceFolders: [{ uri: this.rootUri, name: "csharp-project" }],
-          clientInfo: { name: "breakpoint-mcp", version: "0.2.0" },
+          clientInfo: { name: "breakpoint-mcp", version: packageVersion() },
         })) as { capabilities?: Record<string, unknown> } | null;
         this.serverCapabilities = result?.capabilities ?? {};
         await this.notify("initialized", {});

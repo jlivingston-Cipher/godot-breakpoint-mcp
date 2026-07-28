@@ -27,6 +27,7 @@ Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1305,6 +1306,190 @@ if recipe_count_prose:
         )
     )
 
+# --- 14: version parity — the release ritual, gated -------------------------
+# The third member of the drift class checks 10-12 close, and the one that had
+# already gone wrong TWICE in consecutive releases before anything looked.
+#
+# The host version lives in five files (six fields, since package-lock.json
+# carries two) and the addon version in five more. Nothing compared them to each
+# other, and the checklist naming them existed only as prose in session handoffs
+# — so each release re-derived the list from memory. 1.24.0 and 1.25.0 both
+# missed `host/package-lock.json`; 1.24.0's miss was caught by review and
+# 1.25.0's only because someone went looking for it.
+#
+# Found on the first run of this check: `example/addons/breakpoint_mcp/
+# operations.gd` had `ADDON_VERSION := "1.7.0"` while its own plugin.cfg in the
+# same folder said 1.9.1 — two addon releases stale, in a file byte-identical to
+# the canonical copy in every other respect. `example/tests/ops_unit_test.gd`
+# asserts `p["addon_version"] == Ops.ADDON_VERSION`, which compares the value to
+# itself and therefore passes forever: a check that reads as verification and
+# verifies nothing.
+#
+# Both versions are DERIVED, never typed here — the host's from package.json
+# (what npm actually publishes) and the addon's from the canonical plugin.cfg —
+# so no failure can be silenced by editing a constant in this script. The
+# rosters are explicit, so a NEW copy of either file that nobody adds here fails
+# rather than drifting unwatched.
+
+HOST_VERSION_SOURCE = Path("host/package.json")
+ADDON_VERSION_SOURCE = Path("addons/breakpoint_mcp/plugin.cfg")
+
+# Every TRACKED place the addon version is written.
+#
+# `host/addon/` is deliberately absent: it is gitignored build output that
+# `npm run stage-addon` recreates by copying `addons/breakpoint_mcp` verbatim,
+# so it cannot drift independently — and it does not exist on a fresh clone.
+# The CI `contract-check` job is checkout + python with no node and no build, so
+# naming it here made this script raise FileNotFoundError on the very gate it
+# was written to protect. example-csharp carries no copy at all (it enables only
+# the host-side C# planes).
+ADDON_CFG_FILES = [
+    Path("addons/breakpoint_mcp/plugin.cfg"),
+    Path("example/addons/breakpoint_mcp/plugin.cfg"),
+]
+ADDON_OPS_FILES = [
+    Path("addons/breakpoint_mcp/operations.gd"),
+    Path("example/addons/breakpoint_mcp/operations.gd"),
+]
+
+# Directories the roster scan must not walk. Build output and scratch are not
+# "an ungated copy of the addon" — failing on them would make a release gate
+# fire on a developer's own working tree, which is how a gate gets disabled.
+# `_to_delete/` is the bridge-scratch convention; `host/addon/` is generated.
+VERSION_SCAN_SKIP = {
+    ".git", "node_modules", "__pycache__", "dist", "dist-test", "addon", "_to_delete", ".godot",
+}
+
+
+def _text(rel):
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def _one(pattern, rel, what):
+    """Exactly one match, or it is a roster problem rather than a value problem."""
+    path = ROOT / rel
+    if not path.exists():
+        errors.append(
+            f"check 14's roster names {rel}, which does not exist. Every site on the "
+            f"roster must be a TRACKED file — this script runs on a bare checkout with "
+            f"no node and no build."
+        )
+        return None
+    # MULTILINE: several of these anchor with ^ at the start of a LINE, not the file.
+    hits = re.findall(pattern, path.read_text(encoding="utf-8"), re.M)
+    if len(hits) != 1:
+        errors.append(
+            f"{rel}: expected exactly one {what} stamp, found {len(hits)}. "
+            f"Check 14 cannot verify a site it cannot locate — fix the file or the pattern."
+        )
+        return None
+    return hits[0]
+
+
+host_version = json.loads(_text(HOST_VERSION_SOURCE))["version"]
+addon_version = _one(r'^version="([^"]+)"', ADDON_VERSION_SOURCE, "addon version")
+
+# --- host version: two lock fields + three stamps ---------------------------
+lock = json.loads(_text(Path("host/package-lock.json")))
+lock_root = lock.get("version")
+lock_self = lock.get("packages", {}).get("", {}).get("version")
+# Absent is a FAILURE, not a skip. These two fields are the exact ones missed by
+# both 1.24.0 and 1.25.0, and a lockfileVersion-1 file has no `packages` object
+# at all — quietly asserting nothing about them would reproduce the bug this
+# check exists to prevent, while still printing a reassuring site count.
+for label, got in (("`.version`", lock_root), ('`.packages[""].version`', lock_self)):
+    if got is None:
+        errors.append(
+            f"host/package-lock.json has no {label} field, so check 14 cannot verify it. "
+            f"Regenerate the lockfile with a modern npm (lockfileVersion 2+)."
+        )
+
+host_sites = [
+    ("host/package-lock.json .version", lock_root),
+    ('host/package-lock.json .packages[""].version', lock_self),
+    ("host/src/index.ts serverInfo", _one(r'\{ name: "breakpoint-mcp", version: "([^"]+)" \}', Path("host/src/index.ts"), "serverInfo version")),
+    ("README.md badge", _one(r"^> \*\*npm ([0-9]+\.[0-9]+\.[0-9]+) ", Path("README.md"), "npm version")),
+    ("docs/USER_GUIDE.md stamp", _one(r"^- \*\*Version:\*\* host ([0-9]+\.[0-9]+\.[0-9]+) ", Path("docs/USER_GUIDE.md"), "host version")),
+]
+host_compared = [(w, g) for w, g in host_sites if g is not None]
+bad_host = [f"{where} says {got}" for where, got in host_compared if got != host_version]
+if bad_host:
+    errors.append(
+        f"Host version drift — {HOST_VERSION_SOURCE} says {host_version}, but: "
+        + "; ".join(bad_host)
+        + ". A release bump touches FIVE files (package-lock.json carries two fields); "
+        "missing one ships a binary whose serverInfo or docs contradict the tarball."
+    )
+
+# --- addon version: two plugin.cfg + two ADDON_VERSION + two doc stamps -----
+addon_compared = []
+if addon_version is not None:
+    addon_sites = [
+        (f"{f}", _one(r'^version="([^"]+)"', f, "addon version"))
+        for f in ADDON_CFG_FILES
+        if f != ADDON_VERSION_SOURCE
+    ] + [
+        (f"{f} ADDON_VERSION", _one(r'const ADDON_VERSION := "([^"]+)"', f, "ADDON_VERSION"))
+        for f in ADDON_OPS_FILES
+    ] + [
+        ("README.md badge", _one(r"^> \*\*npm [0-9.]+ · addon ([0-9]+\.[0-9]+\.[0-9]+) ", Path("README.md"), "addon version")),
+        ("docs/USER_GUIDE.md stamp", _one(r"^- \*\*Version:\*\* host [0-9.]+ · addon ([0-9]+\.[0-9]+\.[0-9]+)", Path("docs/USER_GUIDE.md"), "addon version")),
+    ]
+    addon_compared = [(w, g) for w, g in addon_sites if g is not None]
+    bad_addon = [f"{where} says {got}" for where, got in addon_compared if got != addon_version]
+    if bad_addon:
+        errors.append(
+            f"Addon version drift — {ADDON_VERSION_SOURCE} says {addon_version}, but: "
+            + "; ".join(bad_addon)
+            + ". The addon copies must stay in lockstep: a stale ADDON_VERSION is what "
+            "`ping` reports to every client, and the example project's own unit test "
+            "compares that value to itself, so it cannot catch this."
+        )
+
+# --- roster completeness: a new TRACKED copy nobody listed must FAIL ---------
+def _scan(name):
+    """Every copy of `name` that would actually SHIP.
+
+    Prefers `git ls-files`, because only tracked files reach a release — and
+    because scanning the working tree makes the gate fire on a developer's own
+    scratch. `breakpoint-mcp init --project ./scratch` inside a checkout writes a
+    real addon copy; failing the release gate on it would be a check going off
+    when nothing is wrong, which is how checks get disabled. The rglob fallback
+    keeps this working from a tarball or an exported tree, where the skip list
+    does the same job less precisely.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-z", "--", f"*/{name}", name],
+            capture_output=True, check=True, timeout=10,
+        ).stdout.decode()
+        return {Path(x) for x in out.split("\0") if x}
+    except Exception:
+        found = set()
+        for path in ROOT.rglob(name):
+            rel = path.relative_to(ROOT)
+            if VERSION_SCAN_SKIP & set(rel.parts):
+                continue
+            found.add(rel)
+        return found
+
+
+for label, found, roster in (
+    ("plugin.cfg", _scan("plugin.cfg"), set(ADDON_CFG_FILES)),
+    ("operations.gd", _scan("operations.gd"), set(ADDON_OPS_FILES)),
+):
+    unlisted = sorted(found - roster)
+    if unlisted:
+        errors.append(
+            f"{label} copies exist that check 14's roster does not name: {unlisted}. "
+            f"Add them (so their version is gated) or delete them — an ungated copy is "
+            f"how the example project's ADDON_VERSION went two releases stale."
+        )
+
+# Comparisons actually performed — NOT the roster length. A site that could not be
+# located raises its own error and must not inflate this number into reassurance.
+version_sites_checked = len(host_compared) + len(addon_compared)
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -1330,6 +1515,10 @@ print(
 print(
     f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "
     f"doc roster(s) checked · {len(recipe_count_claims)} count claim(s) checked"
+)
+print(
+    f"Version parity          : host {host_version} · addon {addon_version} "
+    f"· {version_sites_checked} site(s) checked across 2 rosters"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")

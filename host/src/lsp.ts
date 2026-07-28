@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { FramedConnection, type FramedMessage } from "./framing.js";
+import { packageVersion } from "./version.js";
 
 export class LspError extends Error {
   code: number | string;
@@ -188,7 +189,7 @@ export class LspClient {
             workspace: { symbol: {}, workspaceFolders: true },
           },
           workspaceFolders: [{ uri: this.rootUri, name: "godot-project" }],
-          clientInfo: { name: "breakpoint-mcp", version: "0.2.0" },
+          clientInfo: { name: "breakpoint-mcp", version: packageVersion() },
         })) as { capabilities?: Record<string, unknown> } | null;
         this.serverCapabilities = result?.capabilities ?? {};
         await this.notify("initialized", {});

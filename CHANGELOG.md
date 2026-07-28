@@ -8,6 +8,88 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 Nothing yet.
 
+## [1.26.0] — 2026-07-28
+
+**Gates the release ritual itself, and deletes the version literals that gate found.** The host
+version lived in five files and the addon version in five more, nothing compared them, and the
+checklist naming them existed only as prose in session handoffs — so `1.24.0` and `1.25.0` both
+missed `host/package-lock.json`. Check 14 closes the third member of the drift class checks 10–12
+close, and the only one that had already gone wrong twice before anything looked.
+
+It found two stale versions on its way in, one of them shipping since the project's first commit.
+
+The surface is unchanged at **289 / 274 / 15** and the addon at **1.9.1**. A **minor** release: no
+tool, resource or recipe count moves, and the only runtime change is that three version strings are
+now read from `package.json` instead of being wrong.
+
+### Added
+- **`contract_check.py` check 14 — version parity, the release ritual gated.** The third member of
+  the drift class checks 10–12 close, and the one that had already gone wrong **twice in consecutive
+  releases** before anything looked. The host version lives in five files (six fields —
+  `package-lock.json` carries two) and the addon version in five more, nothing compared them, and
+  the checklist naming them existed only as prose in session handoffs — so each release re-derived
+  the list from memory. `1.24.0` and `1.25.0` both missed `host/package-lock.json`; the first was
+  caught by review, the second only because someone went looking. **A checklist that lives in
+  append-only history is not a checklist.**
+
+  Both versions are **derived, never typed** — the host's from `package.json` (what npm actually
+  publishes), the addon's from the canonical `plugin.cfg` — so no failure can be silenced by editing
+  a constant in the script. The roster is explicit, and scanned via `git ls-files` so it covers what
+  would actually **ship**: a new *tracked* copy nobody lists fails, while a developer's untracked
+  scratch project does not. **Verified to fail 10 ways on values**, one per site, each reverted
+  byte-exact, control green either side — plus an unlisted tracked copy, a lockfile with the fields
+  missing, and a fresh clone with no build output.
+
+### Fixed
+- **`example/addons/breakpoint_mcp/operations.gd` reported `ADDON_VERSION := "1.7.0"` — two addon
+  releases stale.** Found by check 14 on its first clean run. Its own `plugin.cfg`, in the same
+  folder, said `1.9.1`, and the file was byte-identical to the canonical copy in every other
+  respect. `ADDON_VERSION` is what `_ping()` reports to every connected client, so the example
+  project had been introducing itself with the wrong version since `1.8.0`.
+
+  Nothing caught it because the test that looks like it covers this —
+  `example/tests/ops_unit_test.gd`'s `_eq("ping.version", p["addon_version"], Ops.ADDON_VERSION)` —
+  **compares the value to itself** and therefore passes for any value. The assertion is correct at
+  its own scope (it proves `_ping()` surfaces the constant) so it is left alone with a note saying
+  what it can and cannot prove, following the precedent set for `registration.test.ts` in 1.22.0.
+
+- **`lsp.ts` and `cslsp.ts` announced `clientInfo: { version: "0.2.0" }`** to Godot's language server
+  and to OmniSharp — **unchanged since the initial commit**, when the project was 0.4.3. Twenty-odd
+  releases went out telling every LSP server this host was version 0.2.0, and nothing noticed,
+  because a literal nobody compares to anything cannot go stale loudly. Found by the adversarial
+  review of check 14, hunting for version sites the roster missed.
+
+  Fixed by **removing the literals rather than gating them**: a new `host/src/version.ts` exports
+  `packageVersion()`, read at runtime, and `cli/tools.ts`'s private copy of that helper is gone.
+  The best outcome for a version string is not a gated literal but no literal at all —
+  `host/src/index.ts`'s `serverInfo` is now the only one left, and check 14 gates it.
+
+- **`cli/tools.ts` carried a prose release checklist that was wrong**, naming "both `plugin.cfg`s"
+  (there are three tracked), omitting `package-lock.json`'s two fields, the README badge and the
+  USER_GUIDE stamp, and listing the doctor/init strings, which are runtime reads rather than stamps.
+  It was the only copy of the ritual inside the repo and it disagreed with the gate. Removed — the
+  check is the checklist now.
+
+### Fixed during review (defects in the change above, found by refuting it)
+- **Check 14 crashed on a fresh clone — including the CI job that runs it.** The roster named
+  `host/addon/breakpoint_mcp/*`, which is **gitignored build output** that `npm run stage-addon`
+  creates by copying `addons/breakpoint_mcp` verbatim. The `contract-check` workflow is checkout +
+  `python3` with no node and no build, so the check would have raised `FileNotFoundError` on the
+  very gate it was written to protect — and those two sites could never have drifted independently
+  anyway. Dropped from the roster, with `_one()` now reporting a missing roster file as an error
+  instead of raising.
+- **The two `package-lock.json` fields were silently unasserted when absent** — `.get()` returning
+  `None` meant no comparison *and* no error, so a lockfileVersion-1 file (no `packages` object)
+  passed while claiming a site count that included them. Exactly the bug this check exists to
+  prevent, wearing the check's own reassurance. Absent is now a failure.
+- **The printed site count over-claimed**, being a roster length rather than a count of comparisons
+  actually performed — so it read the same whether ten assertions ran or none did. It now counts
+  executed comparisons.
+- **The roster scan walked the whole working tree**, so `_to_delete/` scratch or a
+  `breakpoint-mcp init --project ./scratch` inside a checkout would have failed the release gate,
+  and a checkout under a path containing `node_modules` would have failed with the opposite error.
+  Now scanned via `git ls-files`, with the tree walk kept as a fallback for exported trees.
+
 ## [1.25.0] — 2026-07-28
 
 **Closes the port-collision class on every path that starts a game.** 1.24.0 gated the two
