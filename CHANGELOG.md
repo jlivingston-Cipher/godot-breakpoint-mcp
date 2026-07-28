@@ -4,7 +4,11 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.23.0] — 2026-07-28
+
+Ships multi-peer deterministic playtesting, and the CI job that holds its central claim to
+account. A **minor** release: three additive tools (**286 → 289**, secure-default **272 → 274**),
+a new integration plane, and no behaviour change at all for anyone who never passes `peer`.
 
 ### Added
 - **Multi-peer deterministic playtesting (`runtime_spawn_peers` / `runtime_peer_stop` /
@@ -95,9 +99,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   processes, `runtime_peer_stop` killing a real child, a stopped peer reporting `peer_stopped` rather
   than a generic unreachable-bridge error, and a repeat stop as a no-op.
 
-  **Experimental (`continue-on-error`) on purpose**, matrixed across the 4.3 baseline the convergence
-  result was measured on and the newest stable (4.7), which is genuinely unknown — that arm is the
-  question, not a claim. This is the first job to run three simultaneous headless engines on a shared
+  **Matrixed across 4.3-stable and 4.7-stable, and convergence is measured on both** — three peers
+  byte-equal under the stagger on each — so the claim is not an artefact of the one build it was first
+  established on. It is **experimental (`continue-on-error`) anyway**, and the reason is the runner
+  rather than the engine: this is the first job to run three simultaneous headless engines on a shared
   runner, and the project's rule for live-engine planes has been to promote on evidence (runtime-plane
   s20, csharp-plane s25, authoring-plane s42) rather than to discover a new job's flake surface by
   blocking merges. Adds no tools and moves no counts.

@@ -44,11 +44,13 @@ name: integration
 #                     holds. Uses the DEFAULT-ON auth handshake (no BREAKPOINT_BRIDGE_INSECURE) — the
 #                     host mints the project secret and every child authenticates with it against the
 #                     real bridge_secret.gd, which is the only place that path runs end to end in CI.
-#                     MATRIX across the 4.3 baseline the convergence result was measured on and the
-#                     newest stable (4.7), which is UNVALIDATED — that arm exists to find out.
-#                     EXPERIMENTAL / continue-on-error, the way runtime-plane (session 20), csharp-plane
-#                     (25) and authoring-plane (42) each entered: promote it to a required gate once it
-#                     is green across a few real runs, on evidence rather than speculatively.
+#                     MATRIX across 4.3-stable and 4.7-stable, and convergence is MEASURED on BOTH —
+#                     three peers byte-equal under the stagger on each — so the claim is not a 4.3
+#                     accident. EXPERIMENTAL / continue-on-error anyway, and the reason is the RUNNER
+#                     rather than the engine: it is the first job to run three simultaneous headless
+#                     engines on a shared runner. Promote it the way runtime-plane (session 20),
+#                     csharp-plane (25) and authoring-plane (42) each were — once it is green across a
+#                     few real runs, on evidence rather than speculatively.
 #                     Gates on the F6_PEERS_* markers via the probe's exit status.
 #   * editor-plane — boots the editor GUI under Xvfb and hits the built-in LSP. Runs as a
 #                    MATRIX across the 4.3 baseline and the newest stable (4.7): the D7_CAPS /
@@ -387,21 +389,22 @@ jobs:
   peers-plane:
     name: peers plane / F6 multi-peer convergence (headless)
     runs-on: ubuntu-latest
-    # EXPERIMENTAL for now: this is the first job that runs three simultaneous headless engines on a
-    # shared runner, and the project's own rule for live-engine planes is to promote on evidence
-    # (runtime-plane s20, csharp-plane s25, authoring-plane s42) rather than to declare a new job
-    # required and discover its flake surface by blocking merges. Flip this off — and add the two
-    # contexts to branch protection — once it is green across a few real runs.
+    # EXPERIMENTAL for now, and the open question is the RUNNER rather than the engine: convergence
+    # itself is measured on both matrix arms, but this is the first job to run three simultaneous
+    # headless engines on a shared runner, and the project's own rule for live-engine planes is to
+    # promote on evidence (runtime-plane s20, csharp-plane s25, authoring-plane s42) rather than to
+    # declare a new job required and discover its flake surface by blocking merges. Flip this off —
+    # and add the two contexts to branch protection — once it is green across a few real runs.
     continue-on-error: true
     strategy:
-      fail-fast: false        # the 4.3 (measured) and 4.7 (unvalidated) arms are independent
+      fail-fast: false        # the two arms are independent; neither should cancel the other
       matrix:
         godot: [ "4.3-stable", "4.7-stable" ]
     env:
-      # 4.3-stable is where the convergence result was measured (three peers byte-equal under a
-      # 250 ms stagger; unguarded frozen-frame draws and idle-lane global draws each diverge).
-      # 4.7-stable is the newest stable and is NOT yet known to converge — the arm is the question,
-      # not a claim. Overrides the workflow-level GODOT_VERSION for this job only.
+      # Both arms are measured, not hoped for: three peers byte-equal under the 250 ms stagger on
+      # 4.3-stable (the baseline the result was first established on) and on 4.7-stable (the newest
+      # stable). The two negative controls — unguarded frozen-frame draws, and an idle lane on the
+      # global stream — were measured diverging on 4.3. Overrides GODOT_VERSION for this job only.
       GODOT_VERSION: ${{ matrix.godot }}
     steps:
       - uses: actions/checkout@v6
