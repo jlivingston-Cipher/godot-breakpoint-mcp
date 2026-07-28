@@ -4,7 +4,11 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.23.0] — 2026-07-28
+
+Ships multi-peer deterministic playtesting, and the CI job that holds its central claim to
+account. A **minor** release: three additive tools (**286 → 289**, secure-default **272 → 274**),
+a new integration plane, and no behaviour change at all for anyone who never passes `peer`.
 
 ### Added
 - **Multi-peer deterministic playtesting (`runtime_spawn_peers` / `runtime_peer_stop` /
@@ -69,6 +73,39 @@ and the project uses [Semantic Versioning](https://semver.org/).
   hatch is a deliberate decline rather than an unfinished feature, because an injected tool has no
   frozen output schema, catalog entry, annotation, or capability tag, and `contract_check.py` cannot
   parse it to check for any of those.
+
+- **A CI job that runs the convergence claim on every PR** — `peers-plane` in `integration.yml`,
+  driving a new `host/test-integration/runtime-peers.integration.mjs` against a real engine. It is the
+  only job in that workflow that boots no game for itself and needs no editor: `runtime_spawn_peers`
+  spawns its own three headless children through the shipped `PeerRegistry`, and the probe then
+  freezes, equalises, seeds and steps them and asserts `runtime_peers_digest` reports the three
+  **byte-equal** — under a deliberately adversarial 250 ms stagger between each peer's seed and its
+  step. It is also the only place the **default-on auth handshake** runs end to end in CI: peers are
+  host-launched children, so the host mints the project secret and each child authenticates against
+  the real `bridge_secret.gd`, rather than the probe disabling auth as every other live job does.
+
+  The four preconditions are now expressed as *code a gate can check*, not only as prose in a tool
+  description. The probe scene (`example/tests/peer_converge_probe.tscn`) carries two lanes: a physics
+  lane guarded on `delta > 0` that draws from the seeded global stream, and an idle lane on its own
+  `RandomNumberGenerator` that writes nothing the digest captures. Delete the guard, or move the idle
+  lane onto the global stream, and the job fails — both measured against real Godot 4.3, in both
+  directions, before the job was written. The probe also pins the *mechanism* rather than restating
+  it: across a frozen window `idle_ticks` must climb while `ticks` holds, which is why precondition 2
+  exists at all.
+
+  It carries its own **negative control** — skew one peer at one node, and the digest must report
+  `converged:false` with `diverged_at` naming that node and only that node — because a convergence
+  check that cannot report divergence verifies nothing. Plus the four-peer ceiling against real
+  processes, `runtime_peer_stop` killing a real child, a stopped peer reporting `peer_stopped` rather
+  than a generic unreachable-bridge error, and a repeat stop as a no-op.
+
+  **Matrixed across 4.3-stable and 4.7-stable, and convergence is measured on both** — three peers
+  byte-equal under the stagger on each — so the claim is not an artefact of the one build it was first
+  established on. It is **experimental (`continue-on-error`) anyway**, and the reason is the runner
+  rather than the engine: this is the first job to run three simultaneous headless engines on a shared
+  runner, and the project's rule for live-engine planes has been to promote on evidence (runtime-plane
+  s20, csharp-plane s25, authoring-plane s42) rather than to discover a new job's flake surface by
+  blocking merges. Adds no tools and moves no counts.
 
 ### Fixed
 - `actions/setup-python@v5` → `@v6`, clearing a Node.js 20 runner-deprecation annotation on the
