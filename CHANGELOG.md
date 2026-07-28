@@ -6,6 +6,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.25.0] — 2026-07-28
+
+**Closes the port-collision class on every path that starts a game.** 1.24.0 gated the two
+`godot_run_*` tools and explicitly named the debugger half as still open rather than letting the
+class read as shut; this closes it. Four launch paths are now gated and four more are documented as
+deliberately *not* gated, each with the reason recorded at its call site.
+
+The surface is unchanged at **289 / 274 / 15** and the addon is untouched at **1.9.1** — every
+change here is host-side. A **minor** release: the new `allow_port_conflict` inputs are additive and
+optional, and on a free runtime port behaviour is byte-identical to 1.24.0.
+
+Worth reading the *Fixed during review* section below before the rest. The gate shipped with two
+defects of its own, one of them pinned in place by a test, and both were found by handing the diff
+to a reviewer whose only instruction was to refute it.
+
 ### Fixed
 - **`dbg_launch` and `cs_dbg_launch` now refuse a held runtime bridge port too — the port-collision
   class is closed on every path that starts a game.** 1.24.0 gated `godot_run_managed` and
