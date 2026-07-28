@@ -6,6 +6,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+> ⚠️ **Everything in this section is already on npm.** `breakpoint-mcp@1.23.0` was published
+> 2026-07-28 from `main` (`cbe825c`), not from the `v1.23.0` tag (`8ff56fa`), so the published
+> tarball carries two commits the tag does not — `recipe_multiplayer_scaffold_and_converge` and the
+> `runtime_peers_digest` catalog reconcile. **`git checkout v1.23.0 && npm run build` does not
+> reproduce `breakpoint-mcp@1.23.0`; `cbe825c` does.** The tag is deliberately left where it is;
+> `v1.24.0` off `main` ends the drift at one release. Verify:
+>
+> ```
+> npm pack breakpoint-mcp@1.23.0 && tar xzf breakpoint-mcp-1.23.0.tgz
+> grep -c recipe_multiplayer_scaffold_and_converge package/dist/recipes.js   # 1
+> ```
+>
+> Gate-only work below (checks 12/13, CI, `.gitignore`) is in **no** tarball — `files` ships only
+> `dist/**/*.js`, `addon/**/*`, `README.md`, `LICENSE`.
+
 ### Added
 - **A recipe-roster gate in `contract_check.py` (check 12) — the fourth member of the drift class
   checks 10 and 11 close, and the one that had already gone wrong in the wild.** `README.md`'s
