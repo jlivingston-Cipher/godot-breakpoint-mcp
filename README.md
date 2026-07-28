@@ -138,14 +138,18 @@ if you do, that is exactly what it buys.
 
 Breakpoint MCP is organized into four capability **planes** (full **289 tools**, or **274** with the two privileged capability groups off by default — see [Safety & trust model](#safety--trust-model) — plus **6 resources**):
 
-- **Plane A — Live Editor Bridge** (~146 tools: `editor_*`, `scene_*`, `node_*`,
-  `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot `EditorPlugin`
-  opens a loopback server the host drives for scene/node/resource CRUD **with full
-  undo/redo**, project settings, `ClassDB` introspection, selection, and editor
-  screenshots. This plane also includes native multiplayer authoring (`mp_*`),
-  backend-SDK integration scaffolding (`backend_*`, `leaderboard_scaffold`,
-  `cloudsave_scaffold`, `auth_scaffold`), AI asset generation (`asset_*`), and a
-  read-only documentation / code-lookup family.
+- **Plane A — Live Editor Bridge** (toolset `a` → **146** tools: `editor_*`, `scene_*`,
+  `node_*`, `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot
+  `EditorPlugin` opens a loopback server the host drives for scene/node/resource CRUD
+  **with full undo/redo**, project settings, `ClassDB` introspection, selection, and
+  editor screenshots. A read-only documentation / code-lookup family
+  (`class_reference`, `docs_search`) is part of that 146. Four sibling toolsets ride the
+  same bridge and are counted separately — native multiplayer authoring (`netcode` →
+  **7**), backend-SDK integration scaffolding (`backend` → **5**, including
+  `leaderboard_scaffold`, `cloudsave_scaffold` and `auth_scaffold`), AI asset generation
+  (`assetgen` → **7**), and card/board/piece authoring (`tabletop` → **14**) — so
+  `a,netcode,backend,assetgen,tabletop` → **179** tools require the editor open, not the
+  146 alone.
 
 - **Plane B — Headless CLI & host-side tools** (`godot_*`, `vcs_*`, project search):
   launch the editor, run the project, export, import, and run headless scripts or tests —

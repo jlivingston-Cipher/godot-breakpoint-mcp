@@ -446,7 +446,7 @@ command line). Others need the editor open with the addon enabled, or the game r
                /undo/redo     live SceneTree  diagnostics   stepping, eval
 ```
 
-### Plane A — Live Editor Bridge (roughly 146 tools)
+### Plane A — Live Editor Bridge (toolset `a` → 146 tools)
 
 The largest plane. It drives the editor through the addon's loopback server on
 `127.0.0.1:9080`, so it **requires the editor open with the plugin enabled**. It covers
@@ -456,6 +456,12 @@ families: animation, tilemaps, physics/collision, particles and audio, UI/Contro
 theming, 3D and navigation, the input map, native multiplayer authoring, backend-SDK
 scaffolding, AI asset generation, and read-only knowledge/lookup tools. Every mutation
 here is wrapped in Godot's undo system.
+
+Four sibling toolsets ride the same bridge and are counted separately: `netcode` → 7,
+`backend` → 5, `assetgen` → 7, and `tabletop` → 14 (multiplayer authoring, backend-SDK
+scaffolding, AI asset generation, and card/board/piece authoring). So
+`a,netcode,backend,assetgen,tabletop` → 179 tools require the editor open, not the 146
+above alone.
 
 ### Plane B — Headless CLI (`godot_*`)
 

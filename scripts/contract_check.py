@@ -566,6 +566,152 @@ def toolset_claims(files: list[Path]) -> tuple[list[str], list[tuple[Path, int, 
     return mismatches, unresolved
 
 
+# --- 13 helpers: prefix families, the all-false class, and a rival's ceiling -
+# 11b resolves a `<toolset ids>` -> N claim exactly and lists everything else
+# for a human to eyeball. That list sat at EIGHT entries across three releases
+# and nobody resolved it, which is the failure mode of any warn-only class:
+# visible is not the same as verified, and a warning nobody acts on is a warning
+# that has stopped working.
+#
+# All eight were resolved by hand in session 131. Every one was accurate as a
+# number; one was accurate about the wrong thing (README and the User Guide
+# state Plane A as ~146, the `editor` toolset, while the sentence around the
+# number describes a scope the code puts at 179 — see the plane bullets). The
+# three shapes they fall into are gated below, so the resolving does not have to
+# be done by hand again.
+#
+# Nothing here relaxes 11b — 11b was promoted to a hard failure in the same
+# session, so the two now agree. Each shape is resolved EXACTLY, from code:
+#
+#   1. a tool-name glob — "`runtime_*`, 27 tools" — counted against the
+#      registered roster check 1 already builds. Not a sum over subsets, not an
+#      allowlist of blessed numbers: both were rejected upstream for admitting
+#      the very defects they were meant to catch.
+#   2. `annotations.ts`'s all-false class, derived as ALL_ANNOTATED minus the
+#      four hint lists — the same subtraction the comment claims.
+#   3. numbers that are not claims about this surface at all. Today exactly one:
+#      a RIVAL's tool ceiling. Named individually with a reason in
+#      FAMILY_COUNT_EXEMPT, never pattern-matched — and an exemption that
+#      matches nothing FAILS, because an exemption for a claim that is gone
+#      exempts nothing and hides the next one (check 12's vacuity rule).
+
+PREFIX_FAMILY_RE = re.compile(
+    r"`([a-z][a-z0-9_]*_)\*`[^\n]{0,24}?\**(\d{1,4})\**\s*[-‑–]?\s*tools?\b"
+)
+ALL_FALSE_CLAIM_RE = re.compile(r"(\d{1,4})\s*\**\s*tools?\s+are\s+all-false")
+
+# (path relative to ROOT, exact text that must still be present) -> why no check
+# can own it. Adding an entry is a claim that NOTHING in this tree can derive
+# the number; it is not a way to quiet a claim that is merely inconvenient.
+FAMILY_COUNT_EXEMPT: dict[tuple[str, str], str] = {
+    ("docs/TOOL_CATALOG.md", "162-tool"): (
+        "godot-mcp-pro's ceiling — a rival's surface, quoted to say which group "
+        "crosses it. Nothing in this repo can derive it, and resolving it "
+        "against our own counts would be wrong rather than lenient."
+    ),
+}
+
+
+def prefix_family_claims(
+    files: list[Path], tools: set[str]
+) -> tuple[list[str], set[tuple[Path, int]]]:
+    """(mismatches, resolved lines) — `<prefix>_*` -> N against the roster."""
+    mismatches: list[str] = []
+    resolved: set[tuple[Path, int]] = set()
+    for f in files:
+        if not f.exists():
+            continue
+        text = _mask_continuations(f.read_text(), f.suffix)
+        for m in PREFIX_FAMILY_RE.finditer(text):
+            prefix, claimed = m.group(1), int(m.group(2))
+            actual = sum(1 for t in tools if t.startswith(prefix))
+            ln = _line_of(text, m.start(2))
+            resolved.add((f, ln))
+            if actual == 0:
+                mismatches.append(
+                    f"{f.relative_to(ROOT)}:{ln} names `{prefix}*`, which matches "
+                    f"no registered tool — a renamed family left a stale glob"
+                )
+            elif claimed != actual:
+                mismatches.append(
+                    f"{f.relative_to(ROOT)}:{ln} says `{prefix}*` -> {claimed}, "
+                    f"the roster has {actual}"
+                )
+    return mismatches, resolved
+
+
+def all_false_annotation_claims() -> tuple[list[str], set[tuple[Path, int]]]:
+    """(mismatches, resolved lines) — the all-false count, actually subtracted.
+
+    `annotations.ts` explains that ALL_ANNOTATED cannot be derived as the union
+    of the four hint lists because N tools are all-false. That N is the size of
+    exactly that difference, so it is checkable — and it is the one number in
+    the family class whose drift would quietly weaken the reasoning for the
+    totality check itself.
+    """
+    f = HOST_SRC / "annotations.ts"
+    mismatches: list[str] = []
+    resolved: set[tuple[Path, int]] = set()
+    if not f.exists():
+        return mismatches, resolved
+    raw = f.read_text()
+
+    def names(const: str) -> set[str]:
+        m = re.search(
+            rf"const {const}:\s*readonly string\[\]\s*=\s*\[(.*?)\];", raw, re.S
+        )
+        return set(re.findall(r'"([a-z_0-9]+)"', m.group(1))) if m else set()
+
+    every = names("ALL_ANNOTATED")
+    text = _mask_continuations(raw, f.suffix)
+    claims = list(ALL_FALSE_CLAIM_RE.finditer(text))
+    if not every:
+        if claims:
+            mismatches.append(
+                f"{f.relative_to(ROOT)}: ALL_ANNOTATED could not be parsed, so the "
+                f"all-false count cannot be derived — the check would pass blind"
+            )
+        return mismatches, resolved
+    hinted = (
+        names("READ_ONLY")
+        | names("DESTRUCTIVE")
+        | names("IDEMPOTENT")
+        | names("OPEN_WORLD")
+    )
+    actual = len(every - hinted)
+    for m in claims:
+        ln = _line_of(text, m.start(1))
+        resolved.add((f, ln))
+        if int(m.group(1)) != actual:
+            mismatches.append(
+                f"{f.relative_to(ROOT)}:{ln} says {m.group(1)} tools are all-false; "
+                f"ALL_ANNOTATED minus the four hint lists is {actual}"
+            )
+    return mismatches, resolved
+
+
+def exempt_family_lines() -> tuple[list[str], set[tuple[Path, int]]]:
+    """(errors, resolved lines) — FAMILY_COUNT_EXEMPT, plus its vacuity guard."""
+    errors: list[str] = []
+    resolved: set[tuple[Path, int]] = set()
+    for (rel, needle), why in FAMILY_COUNT_EXEMPT.items():
+        f = ROOT / rel
+        hits = 0
+        if f.exists():
+            for i, line in enumerate(f.read_text().splitlines(), 1):
+                if needle in line:
+                    hits += 1
+                    resolved.add((f, i))
+        if hits == 0:
+            errors.append(
+                f"FAMILY_COUNT_EXEMPT names {rel} “{needle}”, which is no longer "
+                f"there. An exemption for a claim that is gone exempts nothing and "
+                f"hides the next number written on that line — delete the entry. "
+                f"(reason on record: {why})"
+            )
+    return errors, resolved
+
+
 def catalog_index_tools() -> set[str]:
     text = CATALOG.read_text()
     tools: set[str] = set()
@@ -995,20 +1141,60 @@ if bad_counts:
         "naming it — do not add a number you have not identified."
     )
 
-# --- 11b (WARN only): tool-FAMILY counts ------------------------------------
+# --- 11b: tool-FAMILY counts ------------------------------------------------
 # Exact where it can be — a `<toolset ids>` -> N claim resolves id by id — and
-# an explicit eyeball list where it cannot. WARN, never FAIL: check 11 owns the
-# surface counts, and this must not become a second gate with softer semantics.
+# an explicit eyeball list where it cannot.
+#
+# This block was warn-only until session 131, on the rule "check 11 owns the
+# surface counts, and this must not become a second gate with softer semantics."
+# That rule was right about the danger and wrong about which half it applied to.
+# A RESOLVED claim is not soft: `a,netcode,backend,assetgen,tabletop` -> 179 is
+# summed id by id out of toolsets.ts, the same way check 11 reads the roster,
+# and the failure message names every addend. It was also incoherent alongside
+# check 13, which fails hard on `runtime_*` -> 28 — one defect class, two exit
+# codes, chosen by nothing but which shape the doc happened to use.
+#
+# So a resolved mismatch now FAILS. The eyeball list below is still warn-only,
+# and that half of the original rule stands: an UNRESOLVED prose count is not
+# verified, and gating on it would mean guessing which number a sentence meant.
 family_mismatches, family_unresolved = toolset_claims(TOOL_COUNT_FILES)
 surface_claim_keys = {(f, ln) for f, ln, _k, _n, _s in count_claims}
 family_unresolved = [c for c in family_unresolved if (c[0], c[1]) not in surface_claim_keys]
 
 if family_mismatches:
-    warnings.append(
-        "Toolset-subset count(s) disagree with the code — this class drifts "
-        "silently and check 11 does not gate it:\n      - "
+    errors.append(
+        "Toolset-subset count(s) disagree with the code — this is the class that "
+        "shipped `c` documented as 14 runtime tools when it was 24, and "
+        "`editor,runtime,vcs` as 172 when it was 182:\n      - "
         + "\n      - ".join(family_mismatches)
     )
+
+# --- 13: the rest of the family class, gated exactly ------------------------
+# Runs before 11b's leftover list is emitted, because anything resolved here is
+# no longer unresolved. What survives all of it is a genuinely new prose count,
+# which is exactly what the warning is for.
+prefix_mismatches, prefix_lines = prefix_family_claims(TOOL_COUNT_FILES, tool_set)
+allfalse_mismatches, allfalse_lines = all_false_annotation_claims()
+exempt_errors, exempt_lines = exempt_family_lines()
+
+if prefix_mismatches:
+    errors.append(
+        "Tool-name-glob family count(s) disagree with the registered roster:"
+        "\n      - " + "\n      - ".join(prefix_mismatches)
+    )
+if allfalse_mismatches:
+    errors.append(
+        "The all-false annotation count is stale — the reasoning ALL_ANNOTATED "
+        "rests on no longer holds:\n      - " + "\n      - ".join(allfalse_mismatches)
+    )
+if exempt_errors:
+    errors.append("\n      - ".join(exempt_errors))
+
+family_resolved_lines = prefix_lines | allfalse_lines | exempt_lines
+family_unresolved = [
+    c for c in family_unresolved if (c[0], c[1]) not in family_resolved_lines
+]
+
 if family_unresolved:
     warnings.append(
         "Tool-FAMILY counts stated in prose (NOT verified — resolve by hand at a "
@@ -1136,6 +1322,10 @@ print(
 print(
     f"Tool-family counts      : {len(toolset_sizes())} toolset size(s) resolved · "
     f"{len(family_mismatches)} mismatch(es) · {len(family_unresolved)} unverified prose claim(s) (warn only)"
+)
+print(
+    f"Family claims (exact)   : {len(prefix_lines)} tool-name glob(s) · "
+    f"{len(allfalse_lines)} annotation class · {len(FAMILY_COUNT_EXEMPT)} exempt (rival ceiling)"
 )
 print(
     f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "
