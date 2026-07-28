@@ -6,7 +6,33 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **`contract_check.py` check 14 — version parity, the release ritual gated.** The third member of
+  the drift class checks 10–12 close, and the one that had already gone wrong **twice in consecutive
+  releases** before anything looked. The host version lives in five files (six fields —
+  `package-lock.json` carries two) and the addon version in five more, nothing compared them, and
+  the checklist naming them existed only as prose in session handoffs, so each release re-derived
+  the list from memory. `1.24.0` and `1.25.0` both missed `host/package-lock.json`; the first was
+  caught by review, the second only because someone went looking.
+
+  Both versions are **derived, never typed** — the host's from `package.json` (what npm actually
+  publishes), the addon's from the canonical `plugin.cfg` — so no failure can be silenced by editing
+  a constant in the script. The rosters are explicit, so a **new copy of either file that nobody
+  lists fails** rather than drifting unwatched. **Verified to fail thirteen ways**, one per site plus
+  an unlisted new addon copy, each reverted byte-exact, control green either side.
+
+### Fixed
+- **`example/addons/breakpoint_mcp/operations.gd` reported `ADDON_VERSION := "1.7.0"` — two addon
+  releases stale.** Found by check 14 on its first clean run. Its own `plugin.cfg`, in the same
+  folder, said `1.9.1`, and the file was byte-identical to the canonical copy in every other
+  respect. `ADDON_VERSION` is what `_ping()` reports to every connected client, so the example
+  project had been introducing itself with the wrong version since `1.8.0`.
+
+  Nothing caught it because the test that looks like it covers this —
+  `example/tests/ops_unit_test.gd`'s `_eq("ping.version", p["addon_version"], Ops.ADDON_VERSION)` —
+  **compares the value to itself** and therefore passes for any value. The assertion is correct at
+  its own scope (it proves `_ping()` surfaces the constant) so it is left alone with a note saying
+  what it can and cannot prove, following the precedent set for `registration.test.ts` in 1.22.0.
 
 ## [1.25.0] — 2026-07-28
 

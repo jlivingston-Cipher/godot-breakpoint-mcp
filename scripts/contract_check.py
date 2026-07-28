@@ -1305,6 +1305,126 @@ if recipe_count_prose:
         )
     )
 
+# --- 14: version parity — the release ritual, gated -------------------------
+# The third member of the drift class checks 10-12 close, and the one that had
+# already gone wrong TWICE in consecutive releases before anything looked.
+#
+# The host version lives in five files (six fields, since package-lock.json
+# carries two) and the addon version in five more. Nothing compared them to each
+# other, and the checklist naming them existed only as prose in session handoffs
+# — so each release re-derived the list from memory. 1.24.0 and 1.25.0 both
+# missed `host/package-lock.json`; 1.24.0's miss was caught by review and
+# 1.25.0's only because someone went looking for it.
+#
+# Found on the first run of this check: `example/addons/breakpoint_mcp/
+# operations.gd` had `ADDON_VERSION := "1.7.0"` while its own plugin.cfg in the
+# same folder said 1.9.1 — two addon releases stale, in a file byte-identical to
+# the canonical copy in every other respect. `example/tests/ops_unit_test.gd`
+# asserts `p["addon_version"] == Ops.ADDON_VERSION`, which compares the value to
+# itself and therefore passes forever: a check that reads as verification and
+# verifies nothing.
+#
+# Both versions are DERIVED, never typed here — the host's from package.json
+# (what npm actually publishes) and the addon's from the canonical plugin.cfg —
+# so no failure can be silenced by editing a constant in this script. The
+# rosters are explicit, so a NEW copy of either file that nobody adds here fails
+# rather than drifting unwatched.
+
+HOST_VERSION_SOURCE = Path("host/package.json")
+ADDON_VERSION_SOURCE = Path("addons/breakpoint_mcp/plugin.cfg")
+
+# Every place the ADDON version is written. example-csharp deliberately carries
+# no copy (it enables only the host-side C# planes), which is why it is absent.
+ADDON_CFG_FILES = [
+    Path("addons/breakpoint_mcp/plugin.cfg"),
+    Path("host/addon/breakpoint_mcp/plugin.cfg"),
+    Path("example/addons/breakpoint_mcp/plugin.cfg"),
+]
+ADDON_OPS_FILES = [
+    Path("addons/breakpoint_mcp/operations.gd"),
+    Path("host/addon/breakpoint_mcp/operations.gd"),
+    Path("example/addons/breakpoint_mcp/operations.gd"),
+]
+
+
+def _text(rel):
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def _one(pattern, rel, what):
+    """Exactly one match, or it is a roster problem rather than a value problem."""
+    # MULTILINE: several of these anchor with ^ at the start of a LINE, not the file.
+    hits = re.findall(pattern, _text(rel), re.M)
+    if len(hits) != 1:
+        errors.append(
+            f"{rel}: expected exactly one {what} stamp, found {len(hits)}. "
+            f"Check 14 cannot verify a site it cannot locate — fix the file or the pattern."
+        )
+        return None
+    return hits[0]
+
+
+host_version = json.loads(_text(HOST_VERSION_SOURCE))["version"]
+addon_version = _one(r'^version="([^"]+)"', ADDON_VERSION_SOURCE, "addon version")
+
+# --- host version, six fields across five files -----------------------------
+lock = json.loads(_text(Path("host/package-lock.json")))
+host_sites = [
+    ("host/package-lock.json .version", lock.get("version")),
+    ('host/package-lock.json .packages[""].version', lock.get("packages", {}).get("", {}).get("version")),
+    ("host/src/index.ts serverInfo", _one(r'\{ name: "breakpoint-mcp", version: "([^"]+)" \}', Path("host/src/index.ts"), "serverInfo version")),
+    ("README.md badge", _one(r"^> \*\*npm ([0-9]+\.[0-9]+\.[0-9]+) ", Path("README.md"), "npm version")),
+    ("docs/USER_GUIDE.md stamp", _one(r"^- \*\*Version:\*\* host ([0-9]+\.[0-9]+\.[0-9]+) ", Path("docs/USER_GUIDE.md"), "host version")),
+]
+bad_host = [f"{where} says {got}" for where, got in host_sites if got is not None and got != host_version]
+if bad_host:
+    errors.append(
+        f"Host version drift — {HOST_VERSION_SOURCE} says {host_version}, but: "
+        + "; ".join(bad_host)
+        + ". A release bump touches FIVE files (package-lock.json carries two fields); "
+        "missing one ships a binary whose serverInfo or docs contradict the tarball."
+    )
+
+# --- addon version, five fields across five files ---------------------------
+if addon_version is not None:
+    addon_sites = [
+        (f"{f} plugin.cfg", _one(r'^version="([^"]+)"', f, "addon version"))
+        for f in ADDON_CFG_FILES
+        if f != ADDON_VERSION_SOURCE
+    ] + [
+        (f"{f} ADDON_VERSION", _one(r'const ADDON_VERSION := "([^"]+)"', f, "ADDON_VERSION"))
+        for f in ADDON_OPS_FILES
+    ] + [
+        ("README.md badge", _one(r"^> \*\*npm [0-9.]+ · addon ([0-9]+\.[0-9]+\.[0-9]+) ", Path("README.md"), "addon version")),
+        ("docs/USER_GUIDE.md stamp", _one(r"^- \*\*Version:\*\* host [0-9.]+ · addon ([0-9]+\.[0-9]+\.[0-9]+)", Path("docs/USER_GUIDE.md"), "addon version")),
+    ]
+    bad_addon = [f"{where} says {got}" for where, got in addon_sites if got is not None and got != addon_version]
+    if bad_addon:
+        errors.append(
+            f"Addon version drift — {ADDON_VERSION_SOURCE} says {addon_version}, but: "
+            + "; ".join(bad_addon)
+            + ". The addon copies must stay in lockstep: a stale ADDON_VERSION is what "
+            "`ping` reports to every client, and the example project's own unit test "
+            "compares that value to itself, so it cannot catch this."
+        )
+
+# --- roster completeness: a new copy nobody listed must FAIL, not drift ------
+found_cfg = {p.relative_to(ROOT) for p in ROOT.rglob("plugin.cfg") if "node_modules" not in p.parts}
+found_ops = {p.relative_to(ROOT) for p in ROOT.rglob("operations.gd") if "node_modules" not in p.parts}
+for label, found, roster in (("plugin.cfg", found_cfg, set(ADDON_CFG_FILES)), ("operations.gd", found_ops, set(ADDON_OPS_FILES))):
+    unlisted = sorted(found - roster)
+    missing = sorted(roster - found)
+    if unlisted:
+        errors.append(
+            f"{label} copies exist that check 14's roster does not name: {unlisted}. "
+            f"Add them (so their version is gated) or delete them — an ungated copy is "
+            f"how the example project's ADDON_VERSION went two releases stale."
+        )
+    if missing:
+        errors.append(f"check 14's {label} roster names files that do not exist: {missing}")
+
+version_sites_checked = len(host_sites) + (len(addon_sites) if addon_version is not None else 0) + 2
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -1330,6 +1450,10 @@ print(
 print(
     f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "
     f"doc roster(s) checked · {len(recipe_count_claims)} count claim(s) checked"
+)
+print(
+    f"Version parity          : host {host_version} · addon {addon_version} "
+    f"· {version_sites_checked} site(s) checked across 2 rosters"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")

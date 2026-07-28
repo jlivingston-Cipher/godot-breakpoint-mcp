@@ -284,6 +284,11 @@ func _test_doc_helpers(ops) -> void:
 func _test_ping(ops) -> void:
 	var p: Dictionary = ops._ping()
 	_eq("ping.pong", p["pong"], true)
+	# Scope note: this proves _ping() SURFACES the constant, not that the constant
+	# is current — it compares the value to itself and passes for any value. It sat
+	# green while this copy's ADDON_VERSION was two releases stale. Staleness is
+	# gated by contract_check.py check 14; do not "strengthen" this line to a
+	# literal, which would just move the stale string somewhere else.
 	_eq("ping.version", p["addon_version"], Ops.ADDON_VERSION)
 	_check("ping.godot_nonempty", String(p["godot"]) != "")
 
