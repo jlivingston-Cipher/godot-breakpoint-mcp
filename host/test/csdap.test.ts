@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
 import fs from "node:fs";
@@ -60,8 +60,33 @@ function makeConfig(projectPath: string): Config {
 function tmpDir(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "gcb-csdap-")); }
 
 /** Wire a CsDapClient (over a loopback TCP channel) to the cs_dbg_* tools on a recording server. */
-function csDapHarness(port: number, elicit?: ElicitFn) {
-  const cfg = makeConfig(tmpDir());
+
+/**
+ * The runtime bridge port the harness pretends is configured.
+ *
+ * It must be a port nothing holds: `dbg_launch` now probes it, so leaving the
+ * real 9081 in place would make every launch test depend on whether a game
+ * happens to be running on the machine — flaky in exactly the direction that
+ * teaches people to ignore the suite. Taking one the kernel hands out and
+ * releasing it beats guessing a number.
+ */
+let freeRuntimePort: number;
+
+function squat(): Promise<{ srv: net.Server; port: number }> {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => resolve({ srv, port: (srv.address() as net.AddressInfo).port }));
+  });
+}
+
+before(async () => {
+  const held = await squat();
+  freeRuntimePort = held.port;
+  await new Promise<void>((r) => held.srv.close(() => r()));
+});
+
+function csDapHarness(port: number, elicit?: ElicitFn, runtimePort?: number) {
+  const cfg = { ...makeConfig(tmpDir()), runtimeHost: "127.0.0.1", runtimePort: runtimePort ?? freeRuntimePort };
   const channel = new FramedConnection("127.0.0.1", port, "CS-DAP", "test channel");
   const dap = new CsDapClient(channel, 3000);
   const rec = makeRecordingServer(elicit);
@@ -530,4 +555,61 @@ test("StdioChannel surfaces a spawn failure (bad command) as a clear error rathe
   const dap = new CsDapClient(channel, 2000);
   await assert.rejects(dap.start("launch", {}), (e) => /could not spawn/i.test((e as Error).message));
   dap.close();
+});
+
+/**
+ * cs_dbg_launch is gated only when it is actually launching Godot.
+ *
+ * `program` exists so netcoredbg can debug an arbitrary .NET program, and such a
+ * program has no Breakpoint autoload and no interest in the runtime port. A gate
+ * that fired there would be a check going off when nothing is wrong — which is
+ * how a check earns the reputation that gets it disabled.
+ */
+test("cs_dbg_launch refuses a held runtime port when launching the configured Godot binary", async () => {
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port, undefined, port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({})) as ToolResultLike;
+    assert.equal(res.isError, true);
+    const text = res.content?.[0]?.text ?? "";
+    assert.match(text, new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
+    assert.match(text, /cs_dbg_attach/);
+    assert.match(text, /addressed by session rather than by port/);
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
+});
+
+test("cs_dbg_launch does NOT gate a non-Godot program — the false positive that would get the check disabled", async () => {
+  const { srv: held, port } = await squat();
+  const { srv, received } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port, undefined, port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/usr/bin/some-other-dotnet-app" })) as ToolResultLike;
+    assert.notEqual(res.isError, true, "debugging another .NET program must never be port-gated");
+    const launch = received.find((m) => m.command === "launch");
+    assert.equal((launch?.arguments as Record<string, unknown>)?.program, "/usr/bin/some-other-dotnet-app");
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
+});
+
+test("cs_dbg_launch honours allow_port_conflict for the Godot binary", async () => {
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port, undefined, port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ allow_port_conflict: true })) as ToolResultLike;
+    assert.notEqual(res.isError, true);
+    assert.equal((res.structuredContent as Record<string, unknown>).state, "running");
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
 });

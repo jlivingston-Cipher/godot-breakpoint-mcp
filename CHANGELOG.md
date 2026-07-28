@@ -6,7 +6,52 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- **`dbg_launch` and `cs_dbg_launch` now refuse a held runtime bridge port too — the port-collision
+  class is closed on every path that starts a game.** 1.24.0 gated `godot_run_managed` and
+  `godot_run_project` and named this half as still open rather than letting the class look shut. The
+  debugger path has the identical failure: the editor launches the game, its autoload cannot
+  `listen()`, it keeps running bridgeless, and every `runtime_*` call answers from whichever process
+  already held the port.
+
+  **The remedy differs, so the message does.** A debugger-launched game is owned by the editor, so
+  `godot_stop` cannot touch it and naming it would be a dead end (there is a test asserting the
+  message does *not* mention it). The refusal points at **`dbg_attach` / `cs_dbg_attach`** — attach
+  to the process that already holds the port instead of starting a second game.
+
+  **And the override reads differently here, honestly.** A DAP session is addressed by *session*,
+  not by port, so with `allow_port_conflict: true` breakpoints, stepping and variable inspection all
+  work normally against the second game; only `runtime_*` is corrupted. On this plane the override
+  is a reasonable everyday choice rather than a last resort, and the text says so. Over-warning is
+  how a check earns the reputation that gets it disabled.
+
+- **`cs_dbg_launch` is gated only when it is actually launching Godot.** `program` exists so
+  netcoredbg can debug an arbitrary .NET program; such a program has no Breakpoint autoload and no
+  interest in the runtime port. Gating it would be a check firing when nothing is wrong. A test
+  covers the non-Godot path staying ungated.
+
+### Deliberately not gated (recorded so the class is closed knowingly)
+- **`dbg_attach` / `cs_dbg_attach`** — attaching to the process that already holds the port is the
+  *remedy* the refusal points at. Gating it would close the only exit.
+- **`dbg_restart` / `cs_dbg_restart`** — at check time the session's **own** game still holds the
+  port and is about to be terminated, so a probe there would fire on the very process it is
+  replacing: a guaranteed false positive on the happy path, every restart. If some *third* process
+  holds the port the relaunched game lands bridgeless exactly as before; that residue is accepted
+  knowingly rather than traded for a check that cries wolf.
+- **`godot_launch_editor`** — binds `bridgePort`, not `runtimePort` (unchanged from 1.24.0).
+- **`godot_export` / `godot_import` / `godot_run_headless_script`** — run-to-completion tasks that
+  nobody addresses through `runtime_*`, so the wrong-process class does not apply to them. If one of
+  them does hold the port, the gates above catch it from the other side.
+
+### Tests
+- **Six tests, three verified to fail against a tree with the probe neutralised**, control green
+  either side (68/68 with the guard, 65/68 without). The other three assert the *absence* of a false
+  positive — the non-Godot program launches, the override launches, `dbg_attach` and `dbg_restart`
+  stay ungated — and are green either way by design.
+- Both DAP harnesses now take an explicit runtime port instead of inheriting the real `9081`.
+  Leaving the default in place would have made every launch test depend on whether a game happened
+  to be running on the machine — flaky in the direction that teaches people to ignore the suite.
+- Host suite **498 → 504**.
 
 ## [1.24.0] — 2026-07-28
 

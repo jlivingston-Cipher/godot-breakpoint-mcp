@@ -33,15 +33,22 @@ export function portFree(host: string, port: number): Promise<boolean> {
 }
 
 /**
- * The refusal text shared by `godot_run_managed` and `godot_run_project`.
+ * Which tool is asking. The danger is identical on every plane; the remedies and
+ * the honest reading of the override are not, so only those vary.
+ */
+export type Launcher = "run" | "debugger";
+
+/**
+ * The refusal text shared by every tool that starts a game.
  *
- * Both tools start a game whose runtime autoload binds `BREAKPOINT_RUNTIME_PORT`
- * (`runtime_bridge.gd:74`). When that port is already held, the autoload's
- * `listen()` returns non-OK, it `push_error`s, and **the game keeps running
- * without a bridge** — while the host's runtime client, which dials the same
- * fixed port, connects to whichever process got there first. Every subsequent
- * `runtime_*` call then answers confidently about the WRONG process, and `ping`
- * carries no pid or boot nonce that could tell them apart.
+ * All of them launch a project whose runtime autoload binds
+ * `BREAKPOINT_RUNTIME_PORT` (`runtime_bridge.gd:74` reads it, `:79` binds it).
+ * When that port is already held, the autoload's `listen()` returns non-OK, it
+ * `push_error`s, and **the game keeps running without a bridge** — while the
+ * host's runtime client, which dials the same fixed port, connects to whichever
+ * process got there first. Every subsequent `runtime_*` call then answers
+ * confidently about the WRONG process, and `ping` carries no pid or boot nonce
+ * that could tell them apart.
  *
  * That is why this refuses rather than warns: a determinism feature returning a
  * correct-looking answer from the wrong game is worse than one that will not
@@ -54,12 +61,36 @@ export function portFree(host: string, port: number): Promise<boolean> {
  * several games at once, which is true; `runtime_peer_stop` as a way to free
  * THIS port would not be, and a remedy that cannot work is worse than one fewer
  * suggestion.
+ *
+ * The `debugger` variant differs in one way that matters. A DAP session is
+ * addressed by SESSION, not by port, so `dbg_*` keeps working perfectly against
+ * a second game even with the port held — only `runtime_*` is corrupted. The
+ * override is therefore a legitimate everyday choice on that plane rather than a
+ * last resort, and the text says so instead of over-warning. Over-warning is how
+ * a check earns the reputation that gets it disabled.
  */
-export function portConflictMessage(host: string, port: number): string {
-  return (
+export function portConflictMessage(host: string, port: number, launcher: Launcher = "run"): string {
+  const why =
     `${host}:${port} is already bound, so a game started now could not host the runtime bridge. ` +
     `Its autoload would fail to listen and keep running anyway, and every runtime_* call would ` +
-    `silently address the process that already holds the port instead of the one you just started. ` +
+    `silently address the process that already holds the port instead of the one you just started. `;
+
+  if (launcher === "debugger") {
+    return (
+      why +
+      `Attach to the game that is already running instead of launching a second one (dbg_attach / ` +
+      `cs_dbg_attach), or quit it first — a debugger-launched game is owned by the editor, so no ` +
+      `tool here can stop it. You can also point this server at a free port with ` +
+      `BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to launch anyway: breakpoints, ` +
+      `stepping and variable inspection will all work normally, because a DAP session is addressed ` +
+      `by session rather than by port — but every runtime_* call would go to the process holding ` +
+      `the port, not to the game you just launched. To drive more than one game at once, use ` +
+      `runtime_spawn_peers, which allocates a distinct port per peer.`
+    );
+  }
+
+  return (
+    why +
     `Stop the running game first — godot_stop if godot_run_managed started it, otherwise quit it in ` +
     `the game window or end the debug session that launched it (a detached godot_run_project game is ` +
     `not stoppable by any tool) — or point this server at a free port with ` +

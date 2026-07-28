@@ -6,6 +6,7 @@ import { DapError } from "../dap.js";
 import { toFsPath } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
+import { portFree, portConflictMessage } from "../ports.js";
 
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
@@ -64,12 +65,36 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         args: z.array(z.string()).optional().describe("Program arguments (default: ['--path', <C# project>])"),
         stop_on_entry: z.boolean().optional().describe("Break at entry (default false)"),
         just_my_code: z.boolean().optional().describe("Restrict stepping/breakpoints to user code (netcoredbg justMyCode; default true)"),
+        allow_port_conflict: z
+          .boolean()
+          .optional()
+          .describe(
+            "Launch even though the runtime bridge port is already bound (default false). Only consulted when " +
+              "launching the configured Godot binary — debugging some other .NET program is never gated. " +
+              "Breakpoints and stepping still work; runtime_* tools would talk to the process holding the port.",
+          ),
       },
     },
-    async ({ program, args, stop_on_entry, just_my_code }) => {
+    async ({ program, args, stop_on_entry, just_my_code, allow_port_conflict }) => {
+      const resolvedProgram = program ?? cfg.csDapProgram;
+      // Gate ONLY when this is actually launching Godot. `program` is overridable
+      // precisely so netcoredbg can debug an arbitrary .NET program, and such a
+      // program has no Breakpoint autoload and no interest in the runtime port —
+      // refusing there would be a check firing when nothing is wrong, which is
+      // how checks get disabled.
+      if (
+        resolvedProgram === cfg.csDapProgram &&
+        !allow_port_conflict &&
+        !(await portFree(cfg.runtimeHost, cfg.runtimePort))
+      ) {
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger") }],
+        };
+      }
       try {
         await dap.start("launch", {
-          program: program ?? cfg.csDapProgram,
+          program: resolvedProgram,
           args: args ?? ["--path", cfg.csDapProjectPath],
           cwd: cfg.csDapProjectPath,
           stopAtEntry: stop_on_entry ?? false,
@@ -80,6 +105,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
   );
 
+  // NOT port-gated, deliberately — see dbg_attach: attaching to the process that
+  // already holds the port is the remedy, not the problem.
   server.registerTool(
     "cs_dbg_attach",
     {
@@ -378,6 +405,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
   );
 
+  // NOT port-gated, deliberately — see dbg_restart: the session's own game still
+  // holds the port at check time, so a probe here false-positives every restart.
   server.registerTool(
     "cs_dbg_restart",
     {

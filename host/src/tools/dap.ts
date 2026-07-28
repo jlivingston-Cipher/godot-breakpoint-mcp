@@ -5,6 +5,7 @@ import { DapClient, DapError } from "../dap.js";
 import { toFsPath } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
+import { portFree, portConflictMessage } from "../ports.js";
 
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
@@ -68,13 +69,30 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       title: "Launch debug session",
       description:
         "Start the game under the debugger. scene may be 'main', 'current', or a res:// scene path. " +
-        "Any breakpoints set beforehand are applied during the handshake.",
+        "Any breakpoints set beforehand are applied during the handshake. " +
+        "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, so " +
+        "runtime_* would address the process already holding the port. dbg_attach onto the running game " +
+        "instead, or pass allow_port_conflict (dbg_* is unaffected either way; only runtime_* is).",
       inputSchema: {
         scene: z.string().optional().describe("'main' (default), 'current', or res://scene.tscn"),
         stop_on_entry: z.boolean().optional().describe("Break at entry (default false)"),
+        allow_port_conflict: z
+          .boolean()
+          .optional()
+          .describe(
+            "Launch even though the runtime bridge port is already bound (default false). Breakpoints and " +
+              "stepping still work — a DAP session is addressed by session, not by port — but runtime_* " +
+              "tools would talk to the process holding the port, not to this game.",
+          ),
       },
     },
-    async ({ scene, stop_on_entry }) => {
+    async ({ scene, stop_on_entry, allow_port_conflict }) => {
+      if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger") }],
+        };
+      }
       try {
         await dap.start("launch", {
           project: cfg.projectPath,
@@ -86,6 +104,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
   );
 
+  // NOT port-gated, deliberately: attaching to the game that already holds the
+  // port is the REMEDY dbg_launch's refusal points at. Gating it would close the
+  // exit and leave the caller with nowhere to go.
   server.registerTool(
     "dbg_attach",
     {
@@ -408,6 +429,14 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
   );
 
+  // NOT port-gated, deliberately, and this one is a trap worth naming: at the
+  // moment of the check the session's OWN game still holds the runtime port and
+  // is about to be terminated. A probe here would fire on the very process it is
+  // about to replace — a guaranteed false positive on the happy path, every
+  // single time. The relaunch reuses the launch parameters, so if some THIRD
+  // process holds the port the fresh game lands bridgeless exactly as before;
+  // that residue is accepted knowingly rather than traded for a check that cries
+  // wolf on every restart.
   server.registerTool(
     "dbg_restart",
     {
