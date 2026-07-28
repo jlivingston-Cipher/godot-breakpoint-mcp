@@ -389,13 +389,29 @@ jobs:
   peers-plane:
     name: peers plane / F6 multi-peer convergence (headless)
     runs-on: ubuntu-latest
-    # EXPERIMENTAL for now, and the open question is the RUNNER rather than the engine: convergence
-    # itself is measured on both matrix arms, but this is the first job to run three simultaneous
-    # headless engines on a shared runner, and the project's own rule for live-engine planes is to
-    # promote on evidence (runtime-plane s20, csharp-plane s25, authoring-plane s42) rather than to
-    # declare a new job required and discover its flake surface by blocking merges. Flip this off —
-    # and add the two contexts to branch protection — once it is green across a few real runs.
-    continue-on-error: true
+    # REQUIRED since session 131, on the evidence the experimental period was there to gather —
+    # the same rule that promoted runtime-plane (s20), csharp-plane (s25) and authoring-plane (s42).
+    #
+    # The open question was the RUNNER, not the engine: this is the only job that boots three
+    # simultaneous headless engines on a shared runner. It has now been green on real runners across
+    # PRs #116, #118 and #119, on both 4.3-stable and 4.7-stable.
+    #
+    # Green alone was not taken as evidence, because a `continue-on-error` job reports success even
+    # when a step fails — so the run was read rather than trusted. Two checks, both from run
+    # 30327122888 (`3e53d0a`):
+    #
+    #   - the probe cannot pass vacuously. It has no skip path (no `exit(0)` branch, no env guard)
+    #     and ends `process.exit(failed ? 1 : 0)` with `failed` set by a catch around the whole body,
+    #     and the step below carries no `|| true` — the only `|| true` in this job is on the
+    #     --import warm-up, which cannot mask it.
+    #   - both arms actually printed F6_PEERS_RESULT, ~3 s after F6_PEERS_SPAWN, with
+    #     `converged=true` over three peers on distinct ports. Re-checkable at any time:
+    #         gh run view <id> --log | grep -c F6_PEERS_RESULT     # 2 — one per matrix arm
+    #
+    # `fail-fast: false` stays: the arms are independent, and one engine's flake should not hide the
+    # other's result. If this job does turn out to be flaky on shared runners, revert THIS commit
+    # rather than re-adding continue-on-error in place — a job that reports success while failing is
+    # worse than one that is honestly absent.
     strategy:
       fail-fast: false        # the two arms are independent; neither should cancel the other
       matrix:
