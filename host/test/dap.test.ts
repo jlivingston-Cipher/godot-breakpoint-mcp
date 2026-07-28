@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
 import fs from "node:fs";
@@ -56,8 +56,33 @@ function makeConfig(projectPath: string): Config {
 
 function tmpDir(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "gcb-dap-")); }
 
-function dapHarness(port: number, elicit?: Parameters<typeof makeRecordingServer>[0]) {
-  const cfg = makeConfig(tmpDir());
+
+/**
+ * The runtime bridge port the harness pretends is configured.
+ *
+ * It must be a port nothing holds: `dbg_launch` now probes it, so leaving the
+ * real 9081 in place would make every launch test depend on whether a game
+ * happens to be running on the machine — flaky in exactly the direction that
+ * teaches people to ignore the suite. Taking one the kernel hands out and
+ * releasing it beats guessing a number.
+ */
+let freeRuntimePort: number;
+
+function squat(): Promise<{ srv: net.Server; port: number }> {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => resolve({ srv, port: (srv.address() as net.AddressInfo).port }));
+  });
+}
+
+before(async () => {
+  const held = await squat();
+  freeRuntimePort = held.port;
+  await new Promise<void>((r) => held.srv.close(() => r()));
+});
+
+function dapHarness(port: number, elicit?: Parameters<typeof makeRecordingServer>[0], runtimePort?: number) {
+  const cfg = { ...makeConfig(tmpDir()), runtimeHost: "127.0.0.1", runtimePort: runtimePort ?? freeRuntimePort };
   const dap = new DapClient("127.0.0.1", port, 3000);
   const rec = makeRecordingServer(elicit);
   registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg);
@@ -674,4 +699,92 @@ test("dbg_data_breakpoints returns 'unsupported' without sending requests when t
   assert.ok(!received.some((m) => m.command === "dataBreakpointInfo" || m.command === "setDataBreakpoints"), "no DAP requests when unsupported");
   dap.close();
   await srv.close();
+});
+
+/**
+ * The DAP plane's share of the port-collision class (1.24.0 closed the
+ * godot_run_* half and named this one as still open).
+ *
+ * The editor launches the game here, so the failure is the same as on the run
+ * plane — the new game's autoload cannot bind, keeps running bridgeless, and
+ * every runtime_* call answers from whichever process already held the port —
+ * but the remedy is different: attach to that process instead of starting a
+ * second one.
+ */
+test("dbg_launch refuses a held runtime port and points at dbg_attach", async () => {
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = dapHarness(srv.port, undefined, port);
+  try {
+    const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    assert.equal(res.isError, true);
+    const text = res.content?.[0]?.text ?? "";
+    assert.match(text, new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
+    assert.match(text, /silently address the process that already holds the port/);
+    // EVERY remedy, each with the condition under which it applies. An earlier
+    // draft named only dbg_attach and asserted "no tool here can stop it" — true
+    // only if the holder is editor-owned, and false in the commonest case of all,
+    // a godot_run_managed child that godot_stop clears. The probe cannot know
+    // which it is, so the message must not pick one.
+    assert.match(text, /dbg_attach/);
+    assert.match(text, /godot_stop/);
+    assert.match(text, /quit it in the/);
+    assert.match(text, /BREAKPOINT_RUNTIME_PORT/);
+    assert.match(text, /allow_port_conflict:true/);
+    // And the honest reading of the override: dbg_* is unaffected, runtime_* is not.
+    assert.match(text, /addressed by session rather than by port/);
+    // dbg_attach must not be offered as if it always works.
+    assert.match(text, /only if it is already under the/);
+    assert.doesNotMatch(
+      text,
+      /no tool here can stop it/,
+      "the probe learns only THAT the port is held, never by what — it must not assert the holder is unstoppable",
+    );
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
+});
+
+test("dbg_launch honours allow_port_conflict, and the override does not stick", async () => {
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = dapHarness(srv.port, undefined, port);
+  try {
+    const ok = (await rec.handler("dbg_launch")({ scene: "main", allow_port_conflict: true })) as ToolResultLike;
+    assert.notEqual(ok.isError, true, "the override must actually launch");
+    assert.equal((ok.structuredContent as Record<string, unknown>).state, "running");
+
+    const again = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    assert.equal(again.isError, true, "allow_port_conflict must not persist across calls");
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
+});
+
+test("dbg_attach and dbg_restart are NOT port-gated — attach is the remedy, restart would false-positive", async () => {
+  // dbg_attach: gating it would close the exit dbg_launch's own message points at.
+  // dbg_restart: at check time the session's own game still holds the port and is
+  // about to be terminated, so a probe there fires on the process it is replacing —
+  // every restart, on the happy path.
+  const { srv: held, port } = await squat();
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "disconnect" || m.command === "terminate") dapResponse(s, m, {});
+  });
+  const { dap, rec } = dapHarness(srv.port, undefined, port);
+  try {
+    const attached = (await rec.handler("dbg_attach")({})) as ToolResultLike;
+    assert.notEqual(attached.isError, true, "dbg_attach must never be port-gated");
+
+    const restarted = (await rec.handler("dbg_restart")({})) as ToolResultLike;
+    assert.notEqual(restarted.isError, true, "dbg_restart must never be port-gated");
+  } finally {
+    dap.close();
+    srv.close();
+    held.close();
+  }
 });

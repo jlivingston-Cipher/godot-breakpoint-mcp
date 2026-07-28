@@ -8,6 +8,88 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 Nothing yet.
 
+## [1.25.0] — 2026-07-28
+
+**Closes the port-collision class on every path that starts a game.** 1.24.0 gated the two
+`godot_run_*` tools and explicitly named the debugger half as still open rather than letting the
+class read as shut; this closes it. Four launch paths are now gated and four more are documented as
+deliberately *not* gated, each with the reason recorded at its call site.
+
+The surface is unchanged at **289 / 274 / 15** and the addon is untouched at **1.9.1** — every
+change here is host-side. A **minor** release: the new `allow_port_conflict` inputs are additive and
+optional, and on a free runtime port behaviour is byte-identical to 1.24.0.
+
+Worth reading the *Fixed during review* section below before the rest. The gate shipped with two
+defects of its own, one of them pinned in place by a test, and both were found by handing the diff
+to a reviewer whose only instruction was to refute it.
+
+### Fixed
+- **`dbg_launch` and `cs_dbg_launch` now refuse a held runtime bridge port too — the port-collision
+  class is closed on every path that starts a game.** 1.24.0 gated `godot_run_managed` and
+  `godot_run_project` and named this half as still open rather than letting the class look shut. The
+  debugger path has the identical failure: the editor launches the game, its autoload cannot
+  `listen()`, it keeps running bridgeless, and every `runtime_*` call answers from whichever process
+  already held the port.
+
+  **The message lists every remedy with the condition it applies under, and asserts nothing about
+  which is live.** All the probe learns is *that* the port is held — never by what. The holder may be
+  a `godot_run_managed` child (`godot_stop` clears it), a game already under the debugger
+  (`dbg_attach` / `cs_dbg_attach` reaches it), or a window the developer opened themselves. The two
+  planes contend for the *same* port, so a debugger refusal is often about a run-plane holder.
+
+  **And the override reads differently here, honestly.** A DAP session is addressed by *session*,
+  not by port, so with `allow_port_conflict: true` breakpoints, stepping and variable inspection all
+  work normally against the second game; only `runtime_*` is corrupted. On this plane the override
+  is a reasonable everyday choice rather than a last resort, and the text says so. Over-warning is
+  how a check earns the reputation that gets it disabled.
+
+- **`cs_dbg_launch` is gated only when this looks like a Godot launch** — the program's filename
+  contains `godot`, or the args carry Godot's `--path` project flag (the default args do). `program`
+  exists so netcoredbg can debug an arbitrary .NET program; such a program has no Breakpoint autoload
+  and no interest in the runtime port, and gating it would be a check firing when nothing is wrong.
+  The gate defaults to *yes* and skips only when the caller has clearly aimed elsewhere.
+
+### Deliberately not gated (recorded so the class is closed knowingly)
+- **`dbg_attach` / `cs_dbg_attach`** — attaching to the process that already holds the port is the
+  *remedy* the refusal points at. Gating it would close the only exit.
+- **`dbg_restart` / `cs_dbg_restart`** — at check time the session's **own** game still holds the
+  port and is about to be terminated, so a probe there would fire on the very process it is
+  replacing: a guaranteed false positive on the happy path, every restart. If some *third* process
+  holds the port the relaunched game lands bridgeless exactly as before; that residue is accepted
+  knowingly rather than traded for a check that cries wolf.
+- **`godot_launch_editor`** — binds `bridgePort`, not `runtimePort` (unchanged from 1.24.0).
+- **`godot_export` / `godot_import` / `godot_run_headless_script`** — run-to-completion tasks that
+  nobody addresses through `runtime_*`, so the wrong-process class does not apply to them. If one of
+  them does hold the port, the gates above catch it from the other side.
+
+### Tests
+- **Eight tests, three verified to fail against a tree with the probe neutralised**, control green
+  either side (68/68 with the guard, 65/68 without). Others assert the *absence* of a false
+  positive — a genuinely different .NET program launches, the override launches, `dbg_attach` and
+  `dbg_restart` stay ungated — and are green either way by design.
+- **Two of them exist because an adversarial review found the first version wrong** (see *Fixed
+  during review* below): one pins that an explicitly-named Godot Mono binary is gated, one that
+  `--path` alone is enough.
+- Both DAP harnesses now take an explicit runtime port instead of inheriting the real `9081`.
+  Leaving the default in place would have made every launch test depend on whether a game happened
+  to be running on the machine — flaky in the direction that teaches people to ignore the suite.
+- Host suite **498 → 506**.
+
+### Fixed during review (defects in the change above, found by refuting it)
+- **The debugger refusal asserted something the probe cannot know.** It read *"a debugger-launched
+  game is owned by the editor, so no tool here can stop it"* and withheld `godot_stop` on that
+  basis — false whenever the holder is a `godot_run_managed` child, which is the commonest case,
+  since both planes contend for the same port. Worse, a test asserted the message did *not* mention
+  `godot_stop`, so the falsehood was pinned. Message rewritten to list every remedy with its
+  condition; the assertion is now inverted to pin the honest text.
+- **`cs_dbg_launch`'s gate tested the wrong thing.** `resolvedProgram === cfg.csDapProgram` is
+  equality against the *default*, not a question about Godot — so explicitly naming the real Mono
+  binary, which `config.ts` documents as the way to point at one, skipped the gate on the exact
+  mainline path this change exists to cover. Replaced with the filename/`--path` signals above.
+- **A control test proved nothing.** It overrode `program` but left `args` at their default, which
+  still carry `--path` — an incoherent combination rather than "debugging another program". It now
+  overrides both.
+
 ## [1.24.0] — 2026-07-28
 
 **This release ends the npm/tag drift `1.23.0` opened.** `breakpoint-mcp@1.23.0` was published from

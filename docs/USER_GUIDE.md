@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.24.0 · addon 1.9.1
+- **Version:** host 1.25.0 · addon 1.9.1
 - **License:** MIT
 - **What it exposes:** full 289 tools (secure-default 274 with the privileged groups off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -938,10 +938,16 @@ plane you are using.
   `listen()` returns non-OK, it logs `could not listen on 127.0.0.1:9081`, and the game keeps
   running *without a bridge* — while the host, which dials one fixed port, carries on talking to
   whichever process got there first. `ping` reports no pid, so `runtime_*` calls look healthy
-  while answering about the wrong game. `godot_run_managed` and `godot_run_project` now refuse to
-  start when that port is already held; pass `allow_port_conflict: true` if you want the process
-  only for its console output or side effects. **To drive more than one game at once, use
-  `runtime_spawn_peers`** — it allocates a distinct port per peer, and every runtime tool takes a
+  while answering about the wrong game. **Every tool that starts a game now refuses when that port is
+  already held** — `godot_run_managed`, `godot_run_project`, `dbg_launch` and `cs_dbg_launch` — each
+  with `allow_port_conflict: true` to proceed anyway. Which remedy clears it depends on what the
+  holder is — `godot_stop` for a `godot_run_managed` child, **`dbg_attach`** if it is already
+  running under the debugger, otherwise quit the window yourself; the refusal lists all of them,
+  because the probe only learns *that* the port is held. Note that with the override, `dbg_*` works
+  perfectly (a DAP session is addressed by session, not by port) while `runtime_*` would talk to the
+  other process. `dbg_attach` and `dbg_restart` are deliberately not gated — attach is the remedy,
+  and at restart time the session's own game still holds the port. **To drive more than one game at
+  once, use `runtime_spawn_peers`** — it allocates a distinct port per peer, and every runtime tool takes a
   `peer` argument.
 - Zero-config console capture (`runtime_get_log`) needs **Godot 4.5+**. On 4.3 the bridge
   still loads and serves any explicit log entries, but automatic capture is a documented

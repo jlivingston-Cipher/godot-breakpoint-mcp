@@ -6,6 +6,7 @@ import { DapError } from "../dap.js";
 import { toFsPath } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
+import { portFree, portConflictMessage } from "../ports.js";
 
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
@@ -64,13 +65,47 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         args: z.array(z.string()).optional().describe("Program arguments (default: ['--path', <C# project>])"),
         stop_on_entry: z.boolean().optional().describe("Break at entry (default false)"),
         just_my_code: z.boolean().optional().describe("Restrict stepping/breakpoints to user code (netcoredbg justMyCode; default true)"),
+        allow_port_conflict: z
+          .boolean()
+          .optional()
+          .describe(
+            "Launch even though the runtime bridge port is already bound (default false). Only consulted when " +
+              "this looks like a Godot launch — the program is named godot, or the args carry Godot's --path " +
+              "project flag. Debugging some other .NET program is never gated. Breakpoints and stepping still " +
+              "work; runtime_* tools would talk to the process holding the port.",
+          ),
       },
     },
-    async ({ program, args, stop_on_entry, just_my_code }) => {
+    async ({ program, args, stop_on_entry, just_my_code, allow_port_conflict }) => {
+      const resolvedProgram = program ?? cfg.csDapProgram;
+      const resolvedArgs = args ?? ["--path", cfg.csDapProjectPath];
+      // Does this launch a Godot game — i.e. one whose autoload wants the runtime
+      // port — or some other .NET program netcoredbg is being pointed at?
+      //
+      // DEFAULT TO YES, and skip the gate only when the caller has clearly aimed
+      // elsewhere. Comparing the resolved program against `cfg.csDapProgram` was
+      // the obvious-looking test and is wrong: that is equality against the
+      // DEFAULT, so passing the real Mono binary explicitly — the way config.ts
+      // documents pointing at it — skipped the gate on the mainline path this
+      // whole change exists to cover. `--path <project>` is Godot's own project
+      // flag and appears in the default args; a program not called godot and not
+      // given --path is the one case we are confident is not a game.
+      const looksLikeGodot =
+        /godot/i.test(resolvedProgram.split(/[\\/]/).pop() ?? "") || resolvedArgs.includes("--path");
+      if (
+        looksLikeGodot &&
+        !allow_port_conflict &&
+        !(await portFree(cfg.runtimeHost, cfg.runtimePort))
+      ) {
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger") }],
+        };
+      }
       try {
         await dap.start("launch", {
-          program: program ?? cfg.csDapProgram,
-          args: args ?? ["--path", cfg.csDapProjectPath],
+          program: resolvedProgram,
+          args: resolvedArgs,
           cwd: cfg.csDapProjectPath,
           stopAtEntry: stop_on_entry ?? false,
           justMyCode: just_my_code ?? true,
@@ -80,6 +115,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
   );
 
+  // NOT port-gated, deliberately — see dbg_attach: attaching to the process that
+  // already holds the port is the remedy, not the problem.
   server.registerTool(
     "cs_dbg_attach",
     {
@@ -378,6 +415,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
   );
 
+  // NOT port-gated, deliberately — see dbg_restart: the session's own game still
+  // holds the port at check time, so a probe here false-positives every restart.
   server.registerTool(
     "cs_dbg_restart",
     {
