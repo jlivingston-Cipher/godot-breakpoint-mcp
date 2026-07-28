@@ -20,6 +20,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
   neither probe passes `peer` — and a `TypeError` waiting for whoever first does. Both now pass a
   registry that throws a named error if a peer path is ever reached from a probe that has no peers.
 
+### Documentation
+- **README's recipe list was two entries short.** `recipe_deterministic_playtest` shipped in 1.21.0
+  and was never listed; both it and the new recipe are now there.
+- **`docs/TOOL_CATALOG.md` documented the pre-F6 `runtime_peers_digest` sequence** — seed before
+  freeze — which is the order that does *not* converge, and it described two measured boundaries
+  where the tool's own description states four preconditions. Reconciled against the description.
+- `runtime_peers_digest`'s description now records that convergence was **re-measured on Godot
+  4.7-stable**, not only 4.3.
+
 ## [1.23.0] — 2026-07-28
 
 Ships multi-peer deterministic playtesting, and the CI job that holds its central claim to
