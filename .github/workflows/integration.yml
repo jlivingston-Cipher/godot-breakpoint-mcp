@@ -29,6 +29,27 @@ name: integration
 #                     (the floor where OS.add_logger was introduced) and 4.7 (newest stable) — on
 #                     4.5/4.7 the print() must be captured. Headless & deterministic like cli-plane
 #                     (no Xvfb/GPU), and — like cli-plane — a REQUIRED gate: all three arms must pass.
+#   * peers-plane   — F6 multi-peer determinism, headless. The ONLY job here that boots no game for
+#                     itself and needs no editor: runtime_spawn_peers spawns its own headless children
+#                     through the shipped PeerRegistry, each on an allocated loopback port. Freezes,
+#                     equalises, seeds and steps three REAL peers, then asserts runtime_peers_digest
+#                     reports them BYTE-EQUAL under a deliberately adversarial 250 ms stagger between
+#                     each peer's seed and its step — the convergence claim carried in that tool's own
+#                     description, turned from validated-once into run-every-PR. Carries its own
+#                     NEGATIVE control (skew one peer; divergence must be reported AND localised to the
+#                     node that disagrees), because a convergence check that cannot report divergence
+#                     verifies nothing — plus the four-peer ceiling, peer_stop against a real child, and
+#                     idempotent re-stop. Also pins the mechanism behind the preconditions: across a
+#                     frozen window the idle lane keeps firing while the delta-guarded physics lane
+#                     holds. Uses the DEFAULT-ON auth handshake (no BREAKPOINT_BRIDGE_INSECURE) — the
+#                     host mints the project secret and every child authenticates with it against the
+#                     real bridge_secret.gd, which is the only place that path runs end to end in CI.
+#                     MATRIX across the 4.3 baseline the convergence result was measured on and the
+#                     newest stable (4.7), which is UNVALIDATED — that arm exists to find out.
+#                     EXPERIMENTAL / continue-on-error, the way runtime-plane (session 20), csharp-plane
+#                     (25) and authoring-plane (42) each entered: promote it to a required gate once it
+#                     is green across a few real runs, on evidence rather than speculatively.
+#                     Gates on the F6_PEERS_* markers via the probe's exit status.
 #   * editor-plane — boots the editor GUI under Xvfb and hits the built-in LSP. Runs as a
 #                    MATRIX across the 4.3 baseline and the newest stable (4.7): the D7_CAPS /
 #                    D7_WS_RAW markers answer whether workspace/symbol and the other
@@ -362,6 +383,63 @@ jobs:
       - name: Frame-step game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-framestep.log || true
+
+  peers-plane:
+    name: peers plane / F6 multi-peer convergence (headless)
+    runs-on: ubuntu-latest
+    # EXPERIMENTAL for now: this is the first job that runs three simultaneous headless engines on a
+    # shared runner, and the project's own rule for live-engine planes is to promote on evidence
+    # (runtime-plane s20, csharp-plane s25, authoring-plane s42) rather than to declare a new job
+    # required and discover its flake surface by blocking merges. Flip this off — and add the two
+    # contexts to branch protection — once it is green across a few real runs.
+    continue-on-error: true
+    strategy:
+      fail-fast: false        # the 4.3 (measured) and 4.7 (unvalidated) arms are independent
+      matrix:
+        godot: [ "4.3-stable", "4.7-stable" ]
+    env:
+      # 4.3-stable is where the convergence result was measured (three peers byte-equal under a
+      # 250 ms stagger; unguarded frozen-frame draws and idle-lane global draws each diverge).
+      # 4.7-stable is the newest stable and is NOT yet known to converge — the arm is the question,
+      # not a claim. Overrides the workflow-level GODOT_VERSION for this job only.
+      GODOT_VERSION: ${{ matrix.godot }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: host/package-lock.json
+      - name: Install Godot (standard linux build)
+        run: |
+          set -eux
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Build host
+        working-directory: host
+        run: npm ci && npm run build
+      - name: Import the example project (headless)
+        # Load-bearing here, not boilerplate: the peers are three children of the SAME project, so
+        # without a warm .godot/ they would each import on boot and race each other writing it.
+        run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
+      - name: Spawn three real peers and assert convergence (F6_PEERS_* markers)
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          # No BREAKPOINT_BRIDGE_INSECURE, deliberately — unlike every other live probe here. Peers
+          # are host-launched children, so this is the one job that exercises the default-on
+          # handshake for real: the host pre-mints .godot/breakpoint_mcp.secret and each child
+          # authenticates against the real bridge_secret.gd. Disabling auth would skip that.
+        run: |
+          set -eux
+          # runtime_spawn_peers boots the children itself, so there is no game to background first.
+          # Bounded by an outer timeout so a peer that never binds its port cannot hang the runner;
+          # the probe kills every child in a finally block and exits explicitly either way.
+          timeout 300 node test-integration/runtime-peers.integration.mjs
 
   editor-plane:
     name: editor / LSP plane vs real editor (experimental)
