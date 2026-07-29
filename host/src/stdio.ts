@@ -13,7 +13,10 @@ import { log } from "./logger.js";
  * connects lazily — so a host with no C# language server installed pays nothing
  * and never fails at startup; only a cs_* tool call actually launches it. A spawn
  * failure (e.g. the binary isn't on PATH) rejects the send with an actionable
- * hint rather than hanging.
+ * hint rather than hanging, and — like the TCP sibling's dropped connection —
+ * fires `onClose`, so a client caching an initialize handshake drops it: install
+ * the language server afterwards and the next cs_* call picks it up, with no
+ * host restart.
  */
 export class StdioChannel implements JsonRpcChannel {
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -44,12 +47,17 @@ export class StdioChannel implements JsonRpcChannel {
     if (this.child && this.child.exitCode === null && !this.child.killed) return Promise.resolve(this.child);
     if (this.starting) return this.starting;
 
-    this.starting = new Promise<ChildProcessWithoutNullStreams>((resolve, reject) => {
+    let threwSynchronously = false;
+    const starting = new Promise<ChildProcessWithoutNullStreams>((resolve, reject) => {
       let child: ChildProcessWithoutNullStreams;
       try {
         child = spawn(this.command, this.args, { cwd: this.cwd, stdio: ["pipe", "pipe", "pipe"] });
       } catch (err) {
-        this.starting = null;
+        // Nulling `this.starting` here would be undone by the assignment below —
+        // the executor runs synchronously, BEFORE that assignment — so a synchronous
+        // throw (bad spawn options, not a missing binary) would cache the rejected
+        // promise forever. Flag it and let the assignment skip instead.
+        threwSynchronously = true;
         reject(new Error(`${this.label} could not spawn '${this.command}'. ${this.unavailableHint} (${(err as Error).message})`));
         return;
       }
@@ -74,12 +82,33 @@ export class StdioChannel implements JsonRpcChannel {
       });
       child.on("exit", (code, signal) => {
         log(`${this.label} exited (code=${code ?? "null"} signal=${signal ?? "null"})`);
+      });
+      // Reset on `close`, NOT `exit` — the one event name that separated this from
+      // its TCP sibling, which hooks `close` and self-heals. A spawn failure (ENOENT:
+      // no OmniSharp on PATH) emits `error` + `close` and NEVER `exit`, so an
+      // exit-only hook never ran `closeCb()`, and the client's cached `initialized`
+      // promise stayed rejected for the process's lifetime: install the language
+      // server afterwards and every cs_* call still returned the stale spawn error
+      // until the host restarted. `close` is a strict superset — a process that
+      // really ran emits `spawn` -> `exit` -> `close` — so the normal path still
+      // notifies exactly once and nothing double-fires.
+      //
+      // Do NOT move this into the `error` handler to notify a turn sooner. `close`
+      // lands after the microtask that settles the rejected send, and that lateness
+      // is load-bearing: a client's onClose rejects every still-pending request with
+      // its own generic "connection closed", so notifying synchronously would
+      // overwrite the actionable `${this.unavailableHint}` above with it and the
+      // caller would never learn which binary to install. The heal is therefore one
+      // turn behind the rejection the caller sees, which no real second tool call
+      // can observe.
+      child.on("close", () => {
         this.child = null;
         this.decoder.reset();
         this.closeCb();
       });
     });
-    return this.starting;
+    this.starting = threwSynchronously ? null : starting;
+    return starting;
   }
 
   async send(msg: FramedMessage): Promise<void> {

@@ -127,6 +127,32 @@ const ALIGN_TO_ENUM: Record<string, number> = { left: 0, center: 1, right: 2 };
 // ------------------------------------------------------ column expressions ----
 
 /**
+ * The `{placeholder}` scanner, shared by `resolveColumnExpr` and
+ * `columnExprPlaceholders` so the two can never disagree about what counts as a
+ * placeholder. Both drive it through `String.replace`, which resets `lastIndex`
+ * when it finishes, so the shared `/g` instance carries no state between calls.
+ */
+const COLUMN_PLACEHOLDER = /\{([^}]*)\}/g;
+
+/**
+ * The column names an expression references, WITHOUT needing a row to resolve
+ * against. `resolveColumnExpr` reports the same set, but only as a side effect of
+ * resolving a row that exists — so a deck whose filter selected zero rows would
+ * otherwise report every mapped column as unmapped. Malformed placeholders are
+ * skipped here and still raised by `resolveColumnExpr` on the first real row.
+ * Pure — unit-tested.
+ */
+export function columnExprPlaceholders(expr: string): string[] {
+  const columns: string[] = [];
+  expr.replace(COLUMN_PLACEHOLDER, (_full, rawName: string) => {
+    const name = rawName.trim();
+    if (name !== "") columns.push(name);
+    return "";
+  });
+  return columns;
+}
+
+/**
  * Resolve a `card_deck_from_table` column expression against one row. A value is
  * either a bare `{column}` or a composed template like `{name} · {role}`; every
  * `{placeholder}` is replaced by that column's cell. A reference to a column the
@@ -140,7 +166,7 @@ export function resolveColumnExpr(
   row: Record<string, string>,
 ): { value: string; columns: string[] } {
   const columns: string[] = [];
-  const value = expr.replace(/\{([^}]*)\}/g, (_full, rawName: string) => {
+  const value = expr.replace(COLUMN_PLACEHOLDER, (_full, rawName: string) => {
     const name = rawName.trim();
     if (name === "") throw new ComposeError("bad_params", `Empty {} placeholder in column expression ${JSON.stringify(expr)}`);
     if (!Object.prototype.hasOwnProperty.call(row, name)) {
@@ -638,10 +664,18 @@ export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: De
   const header = new Set<string>();
   for (const r of allRows) for (const k of Object.keys(r)) header.add(k);
 
-  // which columns are actually referenced (by a placeholder, art, or filter)?
+  // Which columns are actually referenced (by a placeholder, art, or filter)?
+  // All three come off the ARGUMENTS, never off the selected rows. Reading the
+  // column_map inside the stamping loop below made this asymmetric: art_column and
+  // filter.column counted as referenced whatever the filter matched, while the
+  // mapped slots only counted once a row existed to resolve them against — so a
+  // filter matching zero rows reported every explicitly mapped column as unmapped.
   const referenced = new Set<string>();
   if (args.art_column) referenced.add(args.art_column);
   if (args.filter) referenced.add(args.filter.column);
+  for (const expr of Object.values(args.column_map)) {
+    for (const c of columnExprPlaceholders(expr)) referenced.add(c);
+  }
 
   // select rows: filter → limit.
   let selected = args.filter
@@ -656,8 +690,7 @@ export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: De
     const row = selected[i];
     const data: Record<string, unknown> = {};
     for (const [slot, expr] of Object.entries(args.column_map)) {
-      const { value, columns } = resolveColumnExpr(expr, row);
-      for (const c of columns) referenced.add(c);
+      const { value } = resolveColumnExpr(expr, row);
       data[slot] = value;
     }
     if (args.art_column && row[args.art_column]) data.art = row[args.art_column];

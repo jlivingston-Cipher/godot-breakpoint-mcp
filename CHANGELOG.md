@@ -6,7 +6,104 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- **Eleven timeout env vars are hardened the way the four ports already were.** `1.24.0` added
+  `port()` — rejecting `""`, `"nope"` and `"80a80"` rather than letting them reach `Number.parseInt`
+  and become `NaN` — and every timeout kept the `Number.parseInt(x ?? "15000", 10)` pattern that
+  function's own docstring condemns, thirteen lines below it. `??` catches only null/undefined, so
+  an exported-but-empty `GODOT_LSP_TIMEOUT_MS=""` yielded `NaN`.
+
+  **A NaN deadline is worse than a NaN port, because the request is already on the wire.**
+  `setTimeout(cb, NaN)` does not throw — it fires on the next tick, measurably sooner than
+  `setTimeout(cb, 1)`, with no Node warning — while the addon polls its socket from `_process`,
+  once per frame, so it cannot answer inside ~1 ms. The deadline wins *deterministically*: the host
+  reports `timed out after NaNms`, **the addon still executes the mutation**, and the real reply is
+  dropped as an unknown id. An agent that retries a reported failure applies it twice — reproduced
+  end to end as two `Enemy` nodes after two reported timeouts.
+
+  All eleven now use a new `positiveInt()` mirroring `port()`, which also closes two cases `NaN`
+  never covered: `parseInt` stops at the first non-digit, so `"15s"` silently became a 15 ms
+  deadline and `"20_000"` became 20 ms; and past `2^31-1` `setTimeout` warns and uses 1 ms, landing
+  back in the same near-zero failure from the opposite direction. Zero and negatives fall back
+  rather than clamp — a deadline of `0` is not a shorter deadline, it is the `NaN` failure with a
+  different spelling.
+
+- **A C# language server installed mid-session is now picked up without restarting the host.**
+  `StdioChannel` hooked `exit` to reset itself; a failed spawn emits `error` then `close` and
+  **never `exit`** — measured, not inferred. So `closeCb()` never ran, `CsLspClient` never cleared
+  the rejected `initialized` promise it had cached, and every later `cs_*` call re-returned the
+  original `ENOENT` for the process's whole lifetime: install OmniSharp after the first failed call
+  and the host stayed convinced it was missing. The TCP sibling hooks `close` and has always
+  self-healed from a refused connection; **the entire difference was one event name.**
+
+  The reset moved to `close`, which is a strict superset — a process that really ran emits
+  `spawn` → `exit` → `close`, so the normal path still notifies exactly once. It deliberately did
+  **not** move into the `error` handler, where it would fire a turn sooner: `onClose()` rejects
+  every pending request with a generic "connection closed", which would have replaced the
+  actionable "Install OmniSharp." hint with it. The heal trails the caller's error by one event-loop
+  turn, which no real second tool call can observe, and the lateness is now commented as
+  load-bearing rather than incidental.
+
+  Also closed alongside it: a synchronous `spawn()` throw (bad options rather than a missing binary)
+  nulled `this.starting` **inside the promise executor**, which the assignment on the next line then
+  overwrote with the rejected promise — the same cache-the-failure-forever bug on the one path the
+  `close` hook cannot reach. Latent today, since every call site passes validated config strings.
+
+- **`card_deck_from_table` no longer reports mapped columns as unmapped when a filter selects no
+  rows.** `art_column` and `filter.column` were counted as referenced off the *arguments*, but the
+  `column_map` slots were counted off the *rows*, inside the stamping loop — so a filter matching
+  nothing skipped the loop entirely and `unmapped_columns` came back naming every column the caller
+  had explicitly bound. The asymmetry inside a single output is what made it a bug rather than a
+  defensible semantic: over a `name,cost,type,flavor,unused` table mapping `title←{name}`,
+  `footer←{name} · {type}` and `points←{cost}`, a filter on `type` that matched no row returned
+  `["cost","flavor","name","unused"]` — every mapped column but `type`, which was spared only
+  because `filter.column` seeded it. The same call with a filter that matches returns
+  `["flavor","unused"]`, and now both do.
+  The column-map scan is hoisted out of the loop, and a new pure `columnExprPlaceholders()` reads
+  the `{placeholder}` names straight off the expression with no row to resolve against. Both it and
+  `resolveColumnExpr` drive one shared scanner, so they cannot drift on what counts as a
+  placeholder; malformed placeholders are still raised by `resolveColumnExpr` on the first real row.
+
+- **`contract_check.py` can no longer be blinded by a digit in a tool name.** `registered_tools`,
+  `catalog_index_tools` and `catalog_shapes` netted names with `[a-z_]+` while `annotated_tools`
+  and `output_schema_shapes` used `[a-z0-9_]+`. A tool following the repo's own
+  `recipe_2d_player_controller` convention was therefore **invisible to checks 3, 4, 6 and 11 at
+  once** — no catalog row demanded, no MCP risk annotations demanded, no output schema demanded,
+  and it moved no count, so the gate's output was **byte-identical to a clean run**. The same tool
+  renamed without the digit failed with five separate errors. No shipped tool name contains a
+  digit, so this was latent, not live. The bridge-method nets were widened symmetrically (check 1
+  compares the two sides, so widening one alone would manufacture a false failure).
+
+### Added
+- **`contract_check.py` — three completeness assertions, one per roster that had none.** Each of
+  these checks printed a reassuring number that counted what it *could* have compared rather than
+  what it did, so each could be reduced to comparing nothing while the gate stayed green. This is
+  the same defect check 14's own review found three times inside that one check; these are the
+  instances elsewhere in the file.
+
+  - **Check 10 — `RESOURCE_COUNT_REQUIRED`.** The doc half was opt-in: `doc_resource_claims()`
+    returns regex hits, so `N doc count(s) checked` was matches *found*, not sites *required*.
+    Rewording every "6 MCP resources" to "six MCP resources" produced
+    `6 registered · 0 doc count(s) checked` and **passed** — meaning a 7th resource could ship with
+    no doc mentioning it. `README.md` and `docs/USER_GUIDE.md` must now state the count in digits.
+    This mirrors `RECIPE_ROSTER_REQUIRED` exactly: check 12 closed this same hole for recipes, and
+    check 10 had a code-side roster (`EXPECTED_RESOURCE_URIS`) with no doc-side counterpart — **the
+    fix already existed in this file, two checks over, and simply had not been applied here.**
+
+  - **Check 1 — `BRIDGE_CALL_SCAN` / `BRIDGE_SCAN_EXEMPT`.** The scan list was a hand-maintained
+    roster of 22 modules with 11 unscanned, and nothing asserted it stayed complete: a
+    `bridge.call("made.up.method")` added to `tools/knowledge.ts` left `Host bridge calls: 176`
+    unchanged and **exited 0**, while the identical line in a scanned module failed the gate. The
+    exclusion itself is correct and stays — `tools/dap.ts` and `tools/csdap.ts` drive a `DapClient`
+    over the Debug Adapter Protocol, so scanning them would fail the gate on correct code — but a
+    new bridge-speaking module must now be filed deliberately into one list or the other instead of
+    being silently invisible.
+
+  - **Check 3 — a completeness assertion on the tool-name scanner.** Widening the net
+  fixes today's hole; this is what makes the next one fail loudly instead of silently. The gate now
+  re-scans every `registerTool` / `registerTaskTool` site with a deliberately permissive literal net
+  and **fails, naming file and line**, on any registration whose name the strict net cannot match —
+  so it asserts the scanner captured every site rather than trusting the count it produced.
 
 ## [1.26.0] — 2026-07-28
 

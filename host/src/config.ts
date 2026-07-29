@@ -130,6 +130,46 @@ function port(raw: string | undefined, fallback: number): number {
   return Number.isInteger(n) && n >= 0 && n <= 65535 ? n : fallback;
 }
 
+/**
+ * A millisecond deadline from the environment, falling back to `fallback` when
+ * the variable is absent, empty, non-numeric, or not a usable positive integer.
+ *
+ * This is `port()`'s sibling, and it exists because the two were split for
+ * eleven releases. `port()` was hardened the moment a bad port began *refusing*
+ * a launch; every timeout kept the `Number.parseInt(x ?? "15000", 10)` pattern
+ * the docstring above condemns. `??` catches only null/undefined, so an
+ * exported-but-empty `GODOT_LSP_TIMEOUT_MS=""` — the same shape that motivated
+ * `port()` — reached `parseInt` and yielded `NaN`.
+ *
+ * **`setTimeout(cb, NaN)` does not throw. It fires on the next tick**,
+ * measurably sooner than `setTimeout(cb, 1)`, with no Node warning
+ * (`TimeoutOverflowWarning` covers only `> 2^31-1`). So the failure is worse
+ * than an unusable port, because by then the request is already on the wire:
+ * the addon polls its socket from `_process`, once per frame, and cannot answer
+ * inside ~1 ms. The deadline wins *deterministically*, the host reports
+ * `timed out after NaNms`, the addon still **executes** the mutation, and the
+ * real reply is dropped as an unknown id. An agent that retries a reported
+ * failure applies it twice.
+ *
+ * `parseInt` alone is not the fix here either, for the same reason it was not
+ * the fix for ports: it stops at the first non-digit, so a plausible `"15s"`
+ * silently becomes 15 ms and `"20_000"` becomes 20.
+ */
+function positiveInt(raw: string | undefined, fallback: number): number {
+  // Same shape as port(), mirroring GDScript's `is_valid_int()`: reject the
+  // whole string rather than accept a numeric prefix.
+  //
+  // Zero and negatives are rejected rather than clamped — a deadline of 0 is
+  // not a shorter deadline, it is the NaN failure with a different spelling.
+  // The upper bound is setTimeout's own: past 2^31-1 Node warns and silently
+  // uses 1 ms, so a fat-fingered BREAKPOINT_ASSETGEN_TIMEOUT_MS would land back
+  // in the near-zero failure this guard exists to prevent.
+  const t = (raw ?? "").trim();
+  if (!/^\+?\d+$/.test(t)) return fallback;
+  const n = Number(t);
+  return Number.isSafeInteger(n) && n > 0 && n <= 2_147_483_647 ? n : fallback;
+}
+
 export function loadConfig(): Config {
   const projectPath = process.env.GODOT_PROJECT ?? process.cwd();
   // The C# project defaults to the main project, but is usually pointed at a
@@ -141,23 +181,20 @@ export function loadConfig(): Config {
     projectUri: pathToFileURL(projectPath).href,
     bridgeHost: process.env.BREAKPOINT_BRIDGE_HOST ?? "127.0.0.1",
     bridgePort: port(process.env.BREAKPOINT_BRIDGE_PORT, 9080),
-    bridgeTimeoutMs: Number.parseInt(
-      process.env.BREAKPOINT_BRIDGE_TIMEOUT_MS ?? "15000",
-      10,
-    ),
+    bridgeTimeoutMs: positiveInt(process.env.BREAKPOINT_BRIDGE_TIMEOUT_MS, 15000),
     lspHost: process.env.GODOT_LSP_HOST ?? "127.0.0.1",
     lspPort: port(process.env.GODOT_LSP_PORT, 6005),
-    lspTimeoutMs: Number.parseInt(process.env.GODOT_LSP_TIMEOUT_MS ?? "15000", 10),
+    lspTimeoutMs: positiveInt(process.env.GODOT_LSP_TIMEOUT_MS, 15000),
     csLspCmd: process.env.GODOT_CSLSP_CMD ?? "OmniSharp",
     csLspArgs: (process.env.GODOT_CSLSP_ARGS ?? "-lsp").split(/\s+/).filter(Boolean),
     csLspProjectPath,
     csLspProjectUri: pathToFileURL(csLspProjectPath).href,
-    csLspTimeoutMs: Number.parseInt(process.env.GODOT_CSLSP_TIMEOUT_MS ?? "30000", 10),
+    csLspTimeoutMs: positiveInt(process.env.GODOT_CSLSP_TIMEOUT_MS, 30000),
     dapHost: process.env.GODOT_DAP_HOST ?? "127.0.0.1",
     dapPort: port(process.env.GODOT_DAP_PORT, 6006),
-    dapTimeoutMs: Number.parseInt(process.env.GODOT_DAP_TIMEOUT_MS ?? "20000", 10),
-    dapSetVarTimeoutMs: Number.parseInt(process.env.GODOT_DAP_SETVAR_TIMEOUT_MS ?? "8000", 10),
-    dapEvaluateTimeoutMs: Number.parseInt(process.env.GODOT_DAP_EVALUATE_TIMEOUT_MS ?? "8000", 10),
+    dapTimeoutMs: positiveInt(process.env.GODOT_DAP_TIMEOUT_MS, 20000),
+    dapSetVarTimeoutMs: positiveInt(process.env.GODOT_DAP_SETVAR_TIMEOUT_MS, 8000),
+    dapEvaluateTimeoutMs: positiveInt(process.env.GODOT_DAP_EVALUATE_TIMEOUT_MS, 8000),
     csDapCmd: process.env.GODOT_CSDAP_CMD ?? "netcoredbg",
     csDapArgs: (process.env.GODOT_CSDAP_ARGS ?? "--interpreter=vscode").split(/\s+/).filter(Boolean),
     // The default program cs_dbg_launch launches is the Mono/.NET Godot binary. GODOT_CSHARP_BIN
@@ -165,20 +202,17 @@ export function loadConfig(): Config {
     // caller can also override per-call via cs_dbg_launch's `program` arg.
     csDapProgram: process.env.GODOT_CSHARP_BIN ?? process.env.GODOT_BIN ?? "godot",
     csDapProjectPath: csLspProjectPath,
-    csDapTimeoutMs: Number.parseInt(process.env.GODOT_CSDAP_TIMEOUT_MS ?? "20000", 10),
-    csDapSetVarTimeoutMs: Number.parseInt(process.env.GODOT_CSDAP_SETVAR_TIMEOUT_MS ?? "8000", 10),
-    csDapEvaluateTimeoutMs: Number.parseInt(process.env.GODOT_CSDAP_EVALUATE_TIMEOUT_MS ?? "8000", 10),
+    csDapTimeoutMs: positiveInt(process.env.GODOT_CSDAP_TIMEOUT_MS, 20000),
+    csDapSetVarTimeoutMs: positiveInt(process.env.GODOT_CSDAP_SETVAR_TIMEOUT_MS, 8000),
+    csDapEvaluateTimeoutMs: positiveInt(process.env.GODOT_CSDAP_EVALUATE_TIMEOUT_MS, 8000),
     runtimeHost: process.env.BREAKPOINT_RUNTIME_HOST ?? "127.0.0.1",
     runtimePort: port(process.env.BREAKPOINT_RUNTIME_PORT, 9081),
-    runtimeTimeoutMs: Number.parseInt(
-      process.env.BREAKPOINT_RUNTIME_TIMEOUT_MS ?? "15000",
-      10,
-    ),
+    runtimeTimeoutMs: positiveInt(process.env.BREAKPOINT_RUNTIME_TIMEOUT_MS, 15000),
     // Group J: asset generation is OFF by default (backend "none" → tools degrade).
     assetGenBackend: process.env.BREAKPOINT_ASSETGEN_BACKEND ?? "none",
     assetGenCommand: process.env.BREAKPOINT_ASSETGEN_CMD ?? "",
     assetGenProvider: process.env.BREAKPOINT_ASSETGEN_PROVIDER ?? "",
-    assetGenTimeoutMs: Number.parseInt(process.env.BREAKPOINT_ASSETGEN_TIMEOUT_MS ?? "120000", 10),
+    assetGenTimeoutMs: positiveInt(process.env.BREAKPOINT_ASSETGEN_TIMEOUT_MS, 120000),
     toolsets: parseToolsets(process.env.BREAKPOINT_TOOLSETS),
     privilegedGroups: parsePrivilegedGroups(process.env.BREAKPOINT_PRIVILEGED_GROUPS),
   };

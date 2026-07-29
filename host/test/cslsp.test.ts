@@ -441,8 +441,10 @@ test("request() rejects with an LspError('timeout') when the server never answer
 // Drives CsLspClient through a REAL spawned subprocess speaking LSP over stdio,
 // so the stdio framing/spawn path is exercised in the unit suite, not only in CI.
 
-test("CsLspClient over StdioChannel: initialize round-trips against a spawned stdio server", async () => {
-  const mock = `
+// A minimal LSP server over stdio: decodes Content-Length frames and answers
+// `initialize`. Hoisted so the round-trip test and the spawn-failure recovery test
+// below drive the identical server — one via `node -e`, one via a shebang wrapper.
+const STDIO_LSP_MOCK = `
     let buf = Buffer.alloc(0);
     process.stdin.on("data", (c) => {
       buf = Buffer.concat([buf, c]);
@@ -461,8 +463,10 @@ test("CsLspClient over StdioChannel: initialize round-trips against a spawned st
         }
       }
     });
-  `;
-  const channel = new StdioChannel(process.execPath, ["-e", mock], os.tmpdir(), "CS-LSP-stdio", "test");
+`;
+
+test("CsLspClient over StdioChannel: initialize round-trips against a spawned stdio server", async () => {
+  const channel = new StdioChannel(process.execPath, ["-e", STDIO_LSP_MOCK], os.tmpdir(), "CS-LSP-stdio", "test");
   const cslsp = new CsLspClient(channel, "file:///proj", 4000);
   const caps = await cslsp.getServerCapabilities();
   assert.equal(caps.hoverProvider, true);
@@ -475,4 +479,61 @@ test("StdioChannel surfaces a spawn failure (bad command) as a clear error rathe
   const cslsp = new CsLspClient(channel, "file:///proj", 2000);
   await assert.rejects(cslsp.getServerCapabilities(), (e) => /could not spawn/i.test((e as Error).message));
   cslsp.close();
+});
+
+// The failed spawn emits `error` + `close` and NEVER `exit` — measured, not assumed.
+// StdioChannel hooked only `exit`, so `closeCb()` never fired, so CsLspClient never
+// cleared the rejected `initialized` promise it had cached. These two tests pin the
+// event and the consequence; either one fails on the pre-fix channel.
+
+test("StdioChannel: a failed spawn fires onClose exactly once (`close` fires, `exit` does not)", async () => {
+  const channel = new StdioChannel("gcb-nonexistent-omnisharp-xyz", ["-lsp"], os.tmpdir(), "CS-LSP-stdio", "Install OmniSharp.");
+  let closed = 0;
+  channel.onClose(() => { closed += 1; });
+  await assert.rejects(
+    channel.send({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+    (e) => /could not spawn/i.test((e as Error).message),
+  );
+  await waitFor(() => closed > 0, 2000);
+  assert.equal(closed, 1, "the transport must notify its client once, not zero times and not twice");
+  channel.close();
+});
+
+// The fake server is spawned via its shebang, which POSIX resolves and Windows does
+// not. Every CI runner here is ubuntu-latest; this only skips a local Windows run.
+const skipWinShebang = { skip: process.platform === "win32" ? "shebang spawn is POSIX-only" : false };
+
+test("CsLspClient recovers when the language server appears after a failed spawn — no host restart", skipWinShebang, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gcb-cslsp-install-"));
+  const bin = path.join(dir, "fake-omnisharp");
+  const mockPath = path.join(dir, "mock-lsp.cjs");
+  try {
+    const channel = new StdioChannel(bin, ["-lsp"], dir, "CS-LSP-stdio", "Install OmniSharp.");
+    const cslsp = new CsLspClient(channel, "file:///proj", 4000);
+
+    // 1. Nothing at `bin` yet: ENOENT. ensureInitialized() caches the rejected promise.
+    //    The rejection carries the actionable hint, not a generic transport error.
+    await assert.rejects(cslsp.getServerCapabilities(), (e) => /could not spawn/i.test((e as Error).message));
+
+    // The transport's `close` lands one turn AFTER that rejection, and deliberately
+    // so — onClose() rejects every pending request with its own "connection closed",
+    // which would replace the "Install OmniSharp" hint asserted above if the channel
+    // notified synchronously from its `error` handler. So the heal trails the error
+    // the caller sees by a turn. Any real second tool call is many turns later; a
+    // test calling straight back to back has to yield once.
+    await new Promise((r) => setTimeout(r, 50));
+
+    // 2. "Install OmniSharp" — a real, executable server now sits at the same path.
+    fs.writeFileSync(mockPath, STDIO_LSP_MOCK);
+    fs.writeFileSync(bin, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(mockPath)}\n`);
+    fs.chmodSync(bin, 0o755);
+
+    // 3. Same client object, same channel, no restart. Before the `close` hook this
+    //    returned the cached rejection from step 1 for the process's whole lifetime.
+    const caps = await cslsp.getServerCapabilities();
+    assert.equal(caps.hoverProvider, true, "the second call must reach the newly-installed server");
+    cslsp.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -69,6 +69,54 @@ EXPECTED_RESOURCE_URIS = {
     "godot://capabilities",
 }
 
+# Docs that MUST state a resource count, whether or not they currently do.
+#
+# Without this the doc half of check 10 is opt-in: `doc_resource_claims()`
+# returns regex hits, so "N doc count(s) checked" is matches FOUND, not sites
+# required. Reword every "6 MCP resources" to "six MCP resources" and the line
+# reads `6 registered · 0 doc count(s) checked` — and the gate still passes,
+# because there is nothing left to disagree with. Ship a 7th resource that way
+# and no doc has to mention it.
+#
+# This mirrors RECIPE_ROSTER_REQUIRED exactly. Check 12 closed this same hole
+# for recipes; check 10 had a code-side roster (EXPECTED_RESOURCE_URIS) and no
+# doc-side counterpart, so the fix already existed in this file, two checks
+# over, and simply was not applied here. Every entry must also appear in
+# RESOURCE_DOCS or it is never scanned; that is asserted at the check rather
+# than left as a comment.
+RESOURCE_COUNT_REQUIRED: set[Path] = {
+    ROOT / "README.md",
+    ROOT / "docs/USER_GUIDE.md",
+}
+
+# Modules that speak to the Godot addon and are therefore scanned by check 1 for
+# bridge methods with no GDScript handler.
+BRIDGE_CALL_SCAN: list[Path] = [
+    *sorted((TOOLS / "editor").glob("*.ts")),
+    TOOLS / "runtime.ts",
+    TOOLS / "resources.ts",
+    TOOLS / "assetgen.ts",
+    TOOLS / "netcode.ts",
+    TOOLS / "backend.ts",
+]
+
+# Modules that use the same `.request("…")` shape but are NOT talking to the
+# Godot bridge: these drive a DapClient over the Debug Adapter Protocol, so
+# "evaluate" / "scopes" / "variables" / "goto" are DAP requests and have no
+# GDScript handler by design. Scanning them would fail the gate on correct code.
+#
+# The exemption is right; what was missing is that nothing asserted the roster
+# stayed complete. A `bridge.call("made.up.method")` added to any of the eleven
+# UNSCANNED modules left `Host bridge calls: 176` unchanged and exited 0 — the
+# same line in a scanned module failed the gate. Check 14 already scans for
+# unlisted copies of the files it gates rather than trusting its roster; check 1
+# now does the same, so a new bridge-speaking module must be filed deliberately
+# into one list or the other instead of being silently invisible.
+BRIDGE_SCAN_EXEMPT: set[Path] = {
+    TOOLS / "dap.ts",
+    TOOLS / "csdap.ts",
+}
+
 # Live docs that may carry the recipe roster. Held as its own list rather than
 # reusing RESOURCE_DOCS: the two are identical today but are free to diverge,
 # and sharing one list would silently widen one gate whenever the other grew.
@@ -138,7 +186,7 @@ def dispatch_methods(gd_file: Path, func_names: list[str]) -> set[str]:
         nxt = re.search(r"\nfunc ", text[start:])
         body = text[start: start + (nxt.start() if nxt else len(text))]
         # Case labels look like:  "method.name":  on their own line.
-        for lm in re.finditer(r'^\s*"([a-z_][a-z_.]*)":\s*$', body, re.M):
+        for lm in re.finditer(r'^\s*"([a-z_][a-z0-9_.]*)":\s*$', body, re.M):
             methods.add(lm.group(1))
     return methods
 
@@ -148,9 +196,9 @@ def host_bridge_calls(ts_files: list[Path]) -> set[str]:
     calls: set[str] = set()
     for f in ts_files:
         text = f.read_text()
-        for m in re.finditer(r'\bcall\(\s*"([a-z_][a-z_.]*)"', text):
+        for m in re.finditer(r'\bcall\(\s*"([a-z_][a-z0-9_.]*)"', text):
             calls.add(m.group(1))
-        for m in re.finditer(r'\.request\(\s*"([a-z_][a-z_.]*)"', text):
+        for m in re.finditer(r'\.request\(\s*"([a-z_][a-z0-9_.]*)"', text):
             calls.add(m.group(1))
     return calls
 
@@ -160,12 +208,42 @@ def registered_tools() -> list[str]:
     for f in sorted(TOOLS.rglob("*.ts")):
         text = f.read_text()
         # Plain tools: server.registerTool("name", ...)
-        for m in re.finditer(r'registerTool\(\s*"([a-z_]+)"', text):
+        for m in re.finditer(r'registerTool\(\s*"([a-z0-9_]+)"', text):
             names.append(m.group(1))
         # Task-model tools (D2): registerTaskTool(server, "name", ...)
-        for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z_]+)"', text):
+        for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z0-9_]+)"', text):
             names.append(m.group(1))
     return names
+
+
+def uncaptured_tool_registrations() -> list[str]:
+    """Registration sites whose tool name the strict net above does NOT match.
+
+    Checks 3, 4, 6 and 11 all reach the surface through `registered_tools()`, so
+    a name the net misses is not under-reported — it is **absent**. It gets no
+    catalog row demanded, no annotations demanded, no output schema demanded,
+    and it does not move any count, so the gate's output is byte-identical to a
+    clean run. There is no number a reviewer could notice.
+
+    That was live through 1.26.0: this net was `[a-z_]+` while `annotated_tools`
+    and `output_schema_shapes` used `[a-z0-9_]+`, so a tool following the repo's
+    own `recipe_2d_player_controller` convention was invisible to four checks at
+    once. Widening the net closed today's hole; **this function is what makes
+    the next one fail loudly instead of silently.** It re-scans with a
+    deliberately permissive literal net and reports the difference — so the gate
+    asserts the net captured every site, rather than trusting that it did.
+    """
+    missed: list[str] = []
+    for f in sorted(TOOLS.rglob("*.ts")):
+        text = f.read_text()
+        for m in re.finditer(
+            r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([^"\n]*)"', text
+        ):
+            name = m.group(1)
+            if not re.fullmatch(r"[a-z0-9_]+", name):
+                line = text.count("\n", 0, m.start()) + 1
+                missed.append(f"{f.relative_to(ROOT)}:{line} {name!r}")
+    return missed
 
 
 def annotated_tools() -> set[str]:
@@ -495,8 +573,8 @@ def toolset_sizes() -> dict[str, int]:
         if not path.exists():
             return 0
         body = path.read_text()
-        return len(re.findall(r'registerTool\(\s*"[a-z_]+"', body)) + len(
-            re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z_]+"', body)
+        return len(re.findall(r'registerTool\(\s*"[a-z0-9_]+"', body)) + len(
+            re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z0-9_]+"', body)
         )
 
     sizes: dict[str, int] = {}
@@ -717,7 +795,7 @@ def catalog_index_tools() -> set[str]:
     text = CATALOG.read_text()
     tools: set[str] = set()
     # Rows of the form: | `tool_name` | ... | ... | ... |
-    for m in re.finditer(r"^\|\s*`([a-z_]+)`\s*\|", text, re.M):
+    for m in re.finditer(r"^\|\s*`([a-z0-9_]+)`\s*\|", text, re.M):
         tools.add(m.group(1))
     return tools
 
@@ -881,7 +959,7 @@ def input_schema_shapes() -> dict[str, set[str]]:
     for f in sorted(TOOLS.rglob("*.ts")):
         text = f.read_text()
         consts = _file_const_shapes(text)
-        regs = list(re.finditer(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z_]+)"', text))
+        regs = list(re.finditer(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z0-9_]+)"', text))
         for idx, m in enumerate(regs):
             name = m.group(1)
             end = regs[idx + 1].start() if idx + 1 < len(regs) else len(text)
@@ -935,7 +1013,7 @@ def catalog_shapes() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     """Per-tool documented Input/Output property names from the catalog's
     `**Input**` / `**Output**` JSON blocks. `confirm` excluded from inputs."""
     text = CATALOG.read_text()
-    parts = re.split(r"^###\s+`([a-z_]+)`", text, flags=re.M)
+    parts = re.split(r"^###\s+`([a-z0-9_]+)`", text, flags=re.M)
     inputs: dict[str, set[str]] = {}
     outputs: dict[str, set[str]] = {}
     for i in range(1, len(parts), 2):
@@ -959,7 +1037,27 @@ def catalog_shapes() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
 editor_methods = dispatch_methods(ADDON / "operations.gd", ["dispatch"])
 runtime_methods = dispatch_methods(ADDON / "runtime_bridge.gd", ["_dispatch"])
 gd_all = editor_methods | runtime_methods
-host_calls = host_bridge_calls([*sorted((TOOLS / "editor").glob("*.ts")), TOOLS / "runtime.ts", TOOLS / "resources.ts", TOOLS / "assetgen.ts", TOOLS / "netcode.ts", TOOLS / "backend.ts"])
+host_calls = host_bridge_calls(BRIDGE_CALL_SCAN)
+
+# Roster completeness: any module that speaks either wire shape must be filed —
+# scanned, or exempt with a reason. Otherwise a bridge call to a nonexistent
+# GDScript handler ships from an unscanned module and fails at runtime instead
+# of at the gate, with the "Host bridge calls" count reading exactly as before.
+_bridge_shaped = re.compile(r'\bcall\(\s*"[a-z_][a-z0-9_.]*"|\.request\(\s*"[a-z_][a-z0-9_.]*"')
+unfiled_bridge_modules = sorted(
+    str(f.relative_to(ROOT))
+    for f in TOOLS.rglob("*.ts")
+    if f not in set(BRIDGE_CALL_SCAN)
+    and f not in BRIDGE_SCAN_EXEMPT
+    and _bridge_shaped.search(f.read_text())
+)
+if unfiled_bridge_modules:
+    errors.append(
+        f"Module(s) issue bridge-shaped calls but are on neither BRIDGE_CALL_SCAN "
+        f"nor BRIDGE_SCAN_EXEMPT, so check 1 never sees them: "
+        f"{unfiled_bridge_modules}. Add to the scan list, or exempt with the "
+        f"reason it is not the Godot bridge (as dap.ts/csdap.ts are for DAP)."
+    )
 
 missing_in_gd = sorted(c for c in host_calls if c not in gd_all)
 if missing_in_gd:
@@ -969,11 +1067,21 @@ orphans = sorted(m for m in gd_all if m not in host_calls and m != "ping")
 if orphans:
     warnings.append(f"GDScript dispatch methods never called by host (ok if intentional): {orphans}")
 
-# --- 3: tool-name uniqueness -----------------------------------------------
+# --- 3: tool-name uniqueness + net completeness ----------------------------
 tools = registered_tools()
 dupes = sorted({t for t in tools if tools.count(t) > 1})
 if dupes:
     errors.append(f"Duplicate registerTool names: {dupes}")
+
+# A name the net misses is invisible to checks 3, 4, 6 and 11 at once, and the
+# gate's output is byte-identical to a clean run. Assert the net saw every site
+# rather than trusting the count it produced.
+uncaptured = uncaptured_tool_registrations()
+if uncaptured:
+    errors.append(
+        "Tool registration(s) whose name the scanner cannot match "
+        f"(invisible to the catalog, annotation and count checks): {uncaptured}"
+    )
 
 # --- 4: catalog <-> code ----------------------------------------------------
 tool_set = set(tools)
@@ -1067,6 +1175,29 @@ if unexpected_resources:
     )
 
 resource_claims = doc_resource_claims()
+
+# The doc half of this check is only as good as its trigger. Assert the required
+# sites actually stated a count, so rewording them out of the regex's reach is a
+# failure rather than a quiet reduction to zero comparisons.
+misfiled_resource_required = sorted(RESOURCE_COUNT_REQUIRED - set(RESOURCE_DOCS))
+if misfiled_resource_required:
+    errors.append(
+        f"RESOURCE_COUNT_REQUIRED names files absent from RESOURCE_DOCS, so they "
+        f"are never scanned and the requirement is inert: "
+        f"{[str(p.relative_to(ROOT)) for p in misfiled_resource_required]}"
+    )
+claimed_in = {f for f, _ln, _n in resource_claims}
+silent_required = sorted(RESOURCE_COUNT_REQUIRED - claimed_in)
+if silent_required:
+    errors.append(
+        f"File(s) on RESOURCE_COUNT_REQUIRED state no MCP resource count at all "
+        f"({resource_count} registered): "
+        f"{[str(p.relative_to(ROOT)) for p in silent_required]}. A doc that stops "
+        f"stating the count cannot disagree with the code — which is how the "
+        f"count half of this check reads as green while comparing nothing. Restate "
+        f"it in digits, or move the file to RESOURCE_DOCS-only with a reason."
+    )
+
 bad_claims = [(f, ln, n) for f, ln, n in resource_claims if n != resource_count]
 if bad_claims:
     errors.append(
