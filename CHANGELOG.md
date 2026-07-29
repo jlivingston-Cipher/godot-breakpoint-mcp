@@ -75,6 +75,61 @@ and the project uses [Semantic Versioning](https://semver.org/).
   compares the two sides, so widening one alone would manufacture a false failure).
 
 ### Added
+- **`contract_check.py` check 16 — shape parity gets a floor, and the two checks it guards go from
+  267/240 comparisons to 289/287.** Checks 6 and 7 compared set **intersections**, and an
+  intersection has no floor: a tool the catalog parser could not read dropped out of the comparison
+  with no error and no count anyone asserted. Measured on the tree this shipped from, one
+  find-and-replace of `"properties"` → `"props"` across the catalog's 651 occurrences drove **both
+  checks to `0 checked` while the gate still exited 0** — and the JSON linter, reading the same
+  file, still reported `514 (0 invalid)`. A release in which every documented input and output
+  shape was wrong would have passed green. Deleting one `**Input**` block, or a whole `###` tool
+  section while keeping its index row, passed the same way.
+
+  **The floor is set equality against the registered surface, both directions**: every tool is
+  compared, or exempt with a stated reason. That makes "documented by cross-reference" and
+  "documentation deleted" different observables for the first time — previously they were the
+  same one.
+
+  **The exemption roster ships empty**, because the parser was taught to read the catalog instead
+  of the catalog being rewritten to suit the parser. The catalog states a shape in four ways and
+  all four are now read: a fenced ` ```json ` block (512); a backticked JSON object inline (4); a
+  backticked brace list — `{ ok, checked, failures[] }`, the convention the `runtime_*` assert
+  family uses, where the surrounding prose carries meaning a properties block cannot (35); and a
+  reference, either to another tool (13) or to one of the three shared family envelopes the
+  catalog defines once and refers back to (14). A reference resolves to the **real** shape, so a
+  family whose envelope drifts still fails — it is not an exemption wearing a different hat.
+
+  Three parse bugs surfaced and are fixed rather than rostered around. The heading split took only
+  the first name from a combined heading (`` ### `dbg_continue` / `dbg_step` ``), hiding
+  `dbg_step`, `cs_dbg_step` and `runtime_set_property` entirely — their blocks were written and
+  invisible. A schema naming its root through `$ref` into `$defs` (`scene_get_tree`'s recursive
+  `SceneNode`) reported no properties. And an empty `"properties": {}` — `dbg_continue` genuinely
+  takes no params — was falsy, so a no-param tool read as undocumented; the parser now tests for
+  `None`, never truthiness.
+
+  Two more were found by the check failing on its own first run, which is the argument for it.
+  `runtime_set_property` inherited from `node_get_property` because both are named in one sentence
+  and the first match won — the two differ by exactly the `value` param, so the gate reported a
+  real-looking drift that was purely its own choice; a reference now picks the target sharing the
+  longest trailing name segment. And the "extra fields" clause swallowed backticked **tool** names
+  from the explanation trailing it, reading `runtime_spawn_peers` as a param of
+  `runtime_get_property`.
+
+  Verified by eight mutations, each logging evidence it negated something before the gate ran,
+  bracketed by clean controls. The four from the audit — delete one Input block, delete a whole
+  section keeping its index row, rename `properties` in one block, rename all 651 — every one of
+  which **passed** before, now fail. Four more cover the new surface: breaking a shared envelope
+  definition, repointing a cross-reference at a tool that does not exist, dropping a field from a
+  brace list, and adding an exemption for a tool that is already compared. Three rows of the first
+  run mutated nothing because they named a tool that is not registered; the evidence lines caught
+  it and they were re-run against a real one.
+
+- **`docs/TOOL_CATALOG.md`: the shared backend scaffold envelope is defined in a fenced block**,
+  like the generator and codegen envelopes already were. It was the only one of the three stated
+  as prose on the first tool that used it and referred to by the other three, which is why those
+  four outputs could not be compared to `schemas.ts`. The fields are lifted unchanged from
+  `backendScaffold` there.
+
 - **`contract_check.py` check 15 — file modes. The exec bit is a contract nothing else could
   see.** `1.26.0`'s own release cycle shipped a mode regression and then a fix for it: #125 rewrote
   this script through a mount that reports every file as `0600`, the mode landed as **`100644` in

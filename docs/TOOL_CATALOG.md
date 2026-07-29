@@ -3394,6 +3394,18 @@ Report which known backend SDKs (SilentWolf / Nakama / PlayFab / Photon) are ins
 { "type": "object", "required": ["detected", "backends", "message"], "properties": { "detected": { "type": "array", "items": { "type": "string" } }, "backends": { "type": "array", "items": { "type": "object", "required": ["sdk", "installed"], "properties": { "sdk": { "type": "string" }, "installed": { "type": "boolean" }, "method": { "type": ["string", "null"] }, "autoload": { "type": ["string", "null"] }, "addon_dir": { "type": ["string", "null"] }, "class_name": { "type": ["string", "null"] } } } }, "message": { "type": "string" } } }
 ```
 
+The shared backend scaffold envelope (the four backend tools below; `status` distinguishes a real write from the two degrade paths, and `path` is null on both of them):
+```json
+{ "type": "object", "required": ["status", "sdk", "kind", "path", "message"],
+  "properties": {
+    "status": { "enum": ["written", "sdk_missing", "unsupported_feature"] },
+    "sdk": { "type": "string" },
+    "kind": { "type": "string" },
+    "path": { "type": ["string", "null"] },
+    "message": { "type": "string" }
+  } }
+```
+
 ### `backend_configure` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
 Generate a config/bootstrap GDScript for a backend SDK — constants (API key / game id / host / title id / app id) plus a `configure()` you register as an autoload. If the SDK is not installed, degrades to `status: "sdk_missing"` and writes nothing.
 - **Input**
@@ -3414,7 +3426,7 @@ Generate a config/bootstrap GDScript for a backend SDK — constants (API key / 
     "confirm": { "type": "boolean" }
   } }
 ```
-- **Output** — the shared backend scaffold envelope: `status` (`"written"` / `"sdk_missing"` / `"unsupported_feature"`), `sdk`, `kind`, `path` (nullable), `message`.
+- **Output** — the shared backend scaffold envelope above.
 
 ### `leaderboard_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
 Generate submit/fetch leaderboard helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no leaderboard API) or `sdk_missing` (not installed); neither writes.
