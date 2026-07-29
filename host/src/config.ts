@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { parsePrivilegedGroups } from "./capabilities.js";
+import { log } from "./logger.js";
 
 /**
  * Runtime configuration, all overridable via environment variables so the same
@@ -131,6 +132,54 @@ function port(raw: string | undefined, fallback: number): number {
 }
 
 /**
+ * The floor below which a deadline on a FRAME-POLLED bridge is premature *by
+ * construction* rather than by luck.
+ *
+ * Both addons — `bridge_server.gd` and `runtime_bridge.gd` — poll their socket
+ * from `_process` and dispatch synchronously, so they cannot answer faster than
+ * one frame no matter how trivial the request. Any deadline shorter than a frame
+ * period is guaranteed to fire before a reply is possible. The editor throttles
+ * its main loop when idle or unfocused, so "one frame" is not the 16 ms a running
+ * game would suggest; 250 ms is a frame at any plausible editor framerate, with
+ * headroom.
+ *
+ * Below the floor we FALL BACK to the default rather than clamp up to it,
+ * matching how `positiveInt` already treats `0` and negatives. A silently
+ * adjusted config value is its own small dishonesty: the operator asked for
+ * something unusable, and the honest answer is the documented default, said out
+ * loud.
+ *
+ * **This applies to the two bridge deadlines ONLY, and that boundary is the
+ * whole point.** LSP, DAP and the asset-gen backend are ordinary
+ * request/response over TCP or stdio — nothing frame-polls them, and they answer
+ * in microseconds. A 200 ms DAP deadline is a perfectly reasonable "fail fast",
+ * not a broken one; `csdap.test.ts:301` sets exactly that and is right to. The
+ * justification for this floor is the frame poll, so its scope is the frame poll.
+ *
+ * **And it does not replace late-reply reconciliation in `bridge.ts`, nor can
+ * it.** A *legitimate* 15000 ms deadline fails identically the moment a frame
+ * outlasts it, which `bridge_server.gd:96` documents happening on a `scene.save`
+ * that triggers a rescan/reimport. The floor removes the configured cause; the
+ * ledger catches the consequence whatever the cause.
+ */
+export const MIN_TIMEOUT_MS = 250;
+
+/**
+ * A deadline for a frame-polled bridge: `positiveInt`, then the floor.
+ * Used for `bridgeTimeoutMs` and `runtimeTimeoutMs` — the two values that reach
+ * a `BridgeClient` — and deliberately not for anything else.
+ */
+function bridgeDeadlineMs(raw: string | undefined, fallback: number): number {
+  const n = positiveInt(raw, fallback);
+  if (n >= MIN_TIMEOUT_MS) return n;
+  log(
+    `ignoring a ${n}ms bridge timeout: below the ${MIN_TIMEOUT_MS}ms floor, where the addon cannot answer ` +
+      `within one frame no matter what it is doing. Using the ${fallback}ms default instead.`,
+  );
+  return fallback;
+}
+
+/**
  * A millisecond deadline from the environment, falling back to `fallback` when
  * the variable is absent, empty, non-numeric, or not a usable positive integer.
  *
@@ -181,7 +230,7 @@ export function loadConfig(): Config {
     projectUri: pathToFileURL(projectPath).href,
     bridgeHost: process.env.BREAKPOINT_BRIDGE_HOST ?? "127.0.0.1",
     bridgePort: port(process.env.BREAKPOINT_BRIDGE_PORT, 9080),
-    bridgeTimeoutMs: positiveInt(process.env.BREAKPOINT_BRIDGE_TIMEOUT_MS, 15000),
+    bridgeTimeoutMs: bridgeDeadlineMs(process.env.BREAKPOINT_BRIDGE_TIMEOUT_MS, 15000),
     lspHost: process.env.GODOT_LSP_HOST ?? "127.0.0.1",
     lspPort: port(process.env.GODOT_LSP_PORT, 6005),
     lspTimeoutMs: positiveInt(process.env.GODOT_LSP_TIMEOUT_MS, 15000),
@@ -207,7 +256,7 @@ export function loadConfig(): Config {
     csDapEvaluateTimeoutMs: positiveInt(process.env.GODOT_CSDAP_EVALUATE_TIMEOUT_MS, 8000),
     runtimeHost: process.env.BREAKPOINT_RUNTIME_HOST ?? "127.0.0.1",
     runtimePort: port(process.env.BREAKPOINT_RUNTIME_PORT, 9081),
-    runtimeTimeoutMs: positiveInt(process.env.BREAKPOINT_RUNTIME_TIMEOUT_MS, 15000),
+    runtimeTimeoutMs: bridgeDeadlineMs(process.env.BREAKPOINT_RUNTIME_TIMEOUT_MS, 15000),
     // Group J: asset generation is OFF by default (backend "none" → tools degrade).
     assetGenBackend: process.env.BREAKPOINT_ASSETGEN_BACKEND ?? "none",
     assetGenCommand: process.env.BREAKPOINT_ASSETGEN_CMD ?? "",

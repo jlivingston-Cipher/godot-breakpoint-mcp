@@ -8,6 +8,51 @@ interface Pending {
   timer: NodeJS.Timeout;
 }
 
+/** A request whose deadline has fired, kept only so a later reply can be recognised. */
+interface Overdue {
+  method: string;
+  deadlineMs: number;
+  timedOutAt: number;
+}
+
+/**
+ * A reply that arrived AFTER its deadline had already been reported as a timeout.
+ *
+ * Before this existed the host received one of these — a complete, correct
+ * `{id, ok, result}` — found no pending entry, and dropped it without so much as
+ * a log line. That silence is the whole problem: the addon polls its socket from
+ * `_process`, once per frame, so a deadline shorter than a frame (or a frame
+ * longer than the deadline — a `scene.save` triggering a rescan/reimport can do
+ * it at ANY deadline) reports a failure for work that in fact completed. An agent
+ * that retries a reported failure applies a non-idempotent mutation twice.
+ *
+ * The host cannot prevent that retry — it is a fresh MCP tool call with a fresh
+ * `randomUUID()`, so no id bookkeeping here can recognise it. What it CAN do is
+ * stop throwing away the evidence, and say the overshoot out loud so the operator
+ * has the one number that fixes their configuration.
+ */
+export interface LateReply {
+  /** Bridge method whose reply came back after the deadline. */
+  method: string;
+  /** The deadline that had already been reported, in ms. */
+  deadlineMs: number;
+  /** How long after that deadline the reply actually arrived, in ms. */
+  overshootMs: number;
+  /** Whether the addon reported the call as having succeeded. */
+  ok: boolean;
+}
+
+/**
+ * Bounds on the overdue ledger. Both are belt-and-braces: an id is normally
+ * evicted the moment its late reply lands, so the map is empty in steady state.
+ * These only matter for deadlines whose reply NEVER arrives (editor killed
+ * mid-request), which would otherwise accumulate one small record each.
+ */
+const OVERDUE_MAX = 64;
+const OVERDUE_MAX_AGE_MS = 5 * 60_000;
+/** How many late replies to retain for `recentLateReplies()`. Diagnostics only. */
+const LATE_REPLY_MAX = 32;
+
 /** Notified with the changed resource URI when the addon pushes a change event. */
 export type ResourceChangedListener = (uri: string) => void;
 
@@ -37,6 +82,10 @@ export class BridgeClient {
   private connecting: Promise<net.Socket> | null = null;
   private buffer = "";
   private pending = new Map<string, Pending>();
+  /** Ids whose deadline fired, so a reply arriving later is recognised, not dropped. */
+  private overdue = new Map<string, Overdue>();
+  /** Ring of reconciled late replies, oldest first. Diagnostics; never load-bearing. */
+  private lateReplies: LateReply[] = [];
   private eventListeners = new Set<ResourceChangedListener>();
   private wantConnected = false;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -180,7 +229,15 @@ export class BridgeClient {
       return;
     }
     const id = msg.id;
-    if (!id || !this.pending.has(id)) return;
+    if (!id) return;
+    if (!this.pending.has(id)) {
+      // Not pending: either a reply we already gave up on (reconcile + log it), or
+      // a genuinely unknown id (the addon's auth reply, a stale frame) — ignored
+      // exactly as before. Ids are randomUUID() and never reused, so a late reply
+      // can only ever be its OWN request's; misattribution is impossible here.
+      this.reconcileLate(id, msg.ok === true);
+      return;
+    }
     const p = this.pending.get(id)!;
     this.pending.delete(id);
     clearTimeout(p.timer);
@@ -190,6 +247,55 @@ export class BridgeClient {
       const e = msg.error ?? { code: "unknown", message: "Unknown bridge error" };
       p.reject(new BridgeError(e.code, e.message));
     }
+  }
+
+  /**
+   * Record that `id`'s deadline fired, so a reply arriving afterwards is
+   * recognisable rather than anonymous. Called ONLY from the timeout path —
+   * `write_failed` and `bridge_closed` requests never reached, or can never be
+   * answered by, the addon, so a "late reply" for them is not a thing.
+   */
+  private noteOverdue(id: string, method: string, deadlineMs: number): void {
+    this.overdue.set(id, { method, deadlineMs, timedOutAt: Date.now() });
+    const cutoff = Date.now() - OVERDUE_MAX_AGE_MS;
+    for (const [k, v] of this.overdue) {
+      if (v.timedOutAt < cutoff) this.overdue.delete(k);
+    }
+    // Map iterates in insertion order, so the first key is always the oldest.
+    while (this.overdue.size > OVERDUE_MAX) {
+      const oldest = this.overdue.keys().next();
+      if (oldest.done) break;
+      this.overdue.delete(oldest.value);
+    }
+  }
+
+  /**
+   * A reply landed for an id that is no longer pending. If we timed that id out,
+   * this is the proof the deadline was premature — record it and SAY SO. The
+   * caller's promise is already settled and cannot be un-rejected; the value here
+   * is the overshoot number, which is exactly what the operator needs to fix the
+   * deadline, and which the host previously discarded in silence.
+   */
+  private reconcileLate(id: string, ok: boolean): void {
+    const o = this.overdue.get(id);
+    if (!o) return; // genuinely unknown id — ignored, as it always was
+    this.overdue.delete(id);
+    const overshootMs = Date.now() - o.timedOutAt;
+    this.lateReplies.push({ method: o.method, deadlineMs: o.deadlineMs, overshootMs, ok });
+    if (this.lateReplies.length > LATE_REPLY_MAX) this.lateReplies.shift();
+    log(
+      `late bridge reply: '${o.method}' answered ${overshootMs}ms AFTER its ${o.deadlineMs}ms deadline — ` +
+        `the call ${ok ? "DID complete in the editor" : "reached the editor and failed there"}, ` +
+        `so the reported timeout was premature. Raise BREAKPOINT_BRIDGE_TIMEOUT_MS above ${o.deadlineMs + overshootMs}ms.`,
+    );
+  }
+
+  /**
+   * Snapshot of replies that arrived after their deadline, oldest first.
+   * Diagnostics only — nothing in the request path reads this.
+   */
+  recentLateReplies(): readonly LateReply[] {
+    return [...this.lateReplies];
   }
 
   private onClose(): void {
@@ -216,6 +322,11 @@ export class BridgeClient {
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        // Remember the id BEFORE rejecting, so a reply already in flight is
+        // reconciled rather than dropped as anonymous. The message keeps the
+        // exact `timed out after <n>ms` phrasing — tools/dap.ts:29 and
+        // tools/csdap.ts:31 branch on that substring.
+        this.noteOverdue(id, method, timeoutMs);
         reject(new BridgeError("timeout", `Bridge request '${method}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });

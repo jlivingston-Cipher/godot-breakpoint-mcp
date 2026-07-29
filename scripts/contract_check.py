@@ -708,6 +708,22 @@ PREFIX_FAMILY_RE = re.compile(
 )
 ALL_FALSE_CLAIM_RE = re.compile(r"(\d{1,4})\s*\**\s*tools?\s+are\s+all-false")
 
+#   4. an ANNOTATION CLASS — "`mutating+non-idempotent` 72 tools" — derived from
+#      annotations.ts by the same set arithmetic the claim names. This is shape
+#      2 generalised: the all-false count was one class, and `timeout-caveat.ts`
+#      needs four more, because which caveat a tool's timeout carries IS that
+#      arithmetic. A count that decides user-visible text is exactly the kind
+#      that must not drift silently.
+#
+#      The class token is required in backticks so the claim says WHICH set it
+#      is counting. A bare "72 tools" stays unresolved and warns, deliberately —
+#      the point is not to bless the number 72, it is to tie a number to the
+#      derivation that produces it.
+ANNOTATION_CLASS_RE = re.compile(
+    r"`(read-only|mutating|mutating\+idempotent|mutating\+non-idempotent)`"
+    r"[^\n]{0,16}?\**(\d{1,4})\**\s*[-‑–]?\s*tools?\b"
+)
+
 # (path relative to ROOT, exact text that must still be present) -> why no check
 # can own it. Adding an entry is a claim that NOTHING in this tree can derive
 # the number; it is not a way to quiet a claim that is merely inconvenient.
@@ -748,6 +764,73 @@ def prefix_family_claims(
     return mismatches, resolved
 
 
+def _annotation_names(raw: str):
+    """One reader for annotations.ts's name lists, shared by every check that
+    derives a class size from them.
+
+    Extracted rather than duplicated: two checks that parse the same file with
+    two copies of the same regex can disagree about what a list contains, and
+    then one of them is silently counting something else. Same reasoning as
+    `columnExprPlaceholders` sharing a scanner with `resolveColumnExpr`.
+    """
+    def names(const: str) -> set[str]:
+        m = re.search(
+            rf"const {const}:\s*readonly string\[\]\s*=\s*\[(.*?)\];", raw, re.S
+        )
+        return set(re.findall(r'"([a-z_0-9]+)"', m.group(1))) if m else set()
+
+    return names
+
+
+def annotation_class_claims(files) -> tuple[list[str], set[tuple[Path, int]]]:
+    """(mismatches, resolved lines) — annotation-class sizes, actually derived.
+
+    `timeout-caveat.ts` picks which caveat a bridge timeout carries from a tool's
+    annotations, so its class sizes are load-bearing prose: they are the stated
+    blast radius of a user-visible behaviour. Each is the size of the set its own
+    backticked token names, computed here from `annotations.ts`.
+
+    A class whose token appears with no derivable set is a hard error rather than
+    a skip — the vacuity rule check 12 established. If ALL_ANNOTATED cannot be
+    parsed, every claim would otherwise resolve against an empty set and pass.
+    """
+    src = HOST_SRC / "annotations.ts"
+    mismatches: list[str] = []
+    resolved: set[tuple[Path, int]] = set()
+    if not src.exists():
+        return mismatches, resolved
+    names = _annotation_names(src.read_text())
+    every, read_only, idem = names("ALL_ANNOTATED"), names("READ_ONLY"), names("IDEMPOTENT")
+    mutating = every - read_only
+    sizes = {
+        "read-only": len(read_only),
+        "mutating": len(mutating),
+        "mutating+idempotent": len(mutating & idem),
+        "mutating+non-idempotent": len(mutating - idem),
+    }
+    for f in files:
+        try:
+            text = _mask_continuations(f.read_text(), f.suffix)
+        except OSError:
+            continue
+        for m in ANNOTATION_CLASS_RE.finditer(text):
+            cls, stated = m.group(1), int(m.group(2))
+            ln = _line_of(text, m.start(2))
+            resolved.add((f, ln))
+            if not every:
+                mismatches.append(
+                    f"{f.relative_to(ROOT)}:{ln} claims `{cls}` {stated} tools, but "
+                    f"ALL_ANNOTATED could not be parsed — the claim would resolve "
+                    f"against an empty set and pass blind"
+                )
+            elif stated != sizes[cls]:
+                mismatches.append(
+                    f"{f.relative_to(ROOT)}:{ln} says `{cls}` is {stated} tools; "
+                    f"annotations.ts makes it {sizes[cls]}"
+                )
+    return mismatches, resolved
+
+
 def all_false_annotation_claims() -> tuple[list[str], set[tuple[Path, int]]]:
     """(mismatches, resolved lines) — the all-false count, actually subtracted.
 
@@ -763,12 +846,7 @@ def all_false_annotation_claims() -> tuple[list[str], set[tuple[Path, int]]]:
     if not f.exists():
         return mismatches, resolved
     raw = f.read_text()
-
-    def names(const: str) -> set[str]:
-        m = re.search(
-            rf"const {const}:\s*readonly string\[\]\s*=\s*\[(.*?)\];", raw, re.S
-        )
-        return set(re.findall(r'"([a-z_0-9]+)"', m.group(1))) if m else set()
+    names = _annotation_names(raw)
 
     every = names("ALL_ANNOTATED")
     text = _mask_continuations(raw, f.suffix)
@@ -1574,6 +1652,7 @@ if family_mismatches:
 # which is exactly what the warning is for.
 prefix_mismatches, prefix_lines = prefix_family_claims(TOOL_COUNT_FILES, tool_set)
 allfalse_mismatches, allfalse_lines = all_false_annotation_claims()
+annclass_mismatches, annclass_lines = annotation_class_claims(TOOL_COUNT_FILES)
 exempt_errors, exempt_lines = exempt_family_lines()
 
 if prefix_mismatches:
@@ -1586,10 +1665,16 @@ if allfalse_mismatches:
         "The all-false annotation count is stale — the reasoning ALL_ANNOTATED "
         "rests on no longer holds:\n      - " + "\n      - ".join(allfalse_mismatches)
     )
+if annclass_mismatches:
+    errors.append(
+        "Annotation-class size(s) disagree with annotations.ts — the caveat a "
+        "bridge timeout carries is picked by this arithmetic:"
+        "\n      - " + "\n      - ".join(annclass_mismatches)
+    )
 if exempt_errors:
     errors.append("\n      - ".join(exempt_errors))
 
-family_resolved_lines = prefix_lines | allfalse_lines | exempt_lines
+family_resolved_lines = prefix_lines | allfalse_lines | annclass_lines | exempt_lines
 family_unresolved = [
     c for c in family_unresolved if (c[0], c[1]) not in family_resolved_lines
 ]
@@ -2062,7 +2147,8 @@ print(
 )
 print(
     f"Family claims (exact)   : {len(prefix_lines)} tool-name glob(s) · "
-    f"{len(allfalse_lines)} annotation class · {len(FAMILY_COUNT_EXEMPT)} exempt (rival ceiling)"
+    f"{len(allfalse_lines) + len(annclass_lines)} annotation class · "
+    f"{len(FAMILY_COUNT_EXEMPT)} exempt (rival ceiling)"
 )
 print(
     f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "
