@@ -261,7 +261,12 @@ test("the late-reply ledger is bounded and keeps the most recent entries", async
   t.after(async () => { client.close(); await srv.close(); });
   const sent = Array.from({ length: 40 }, (_, i) => client.request(`m${i}`, {}, 40).catch(() => undefined));
   await Promise.all(sent);
-  await waitFor(() => client.recentLateReplies().length >= 32);
+  // Wait for the LAST reply, not for `length >= 32`: the ring caps at 32, so a
+  // length check is already satisfied by reply 32 and cannot tell 32 landed from
+  // 40 landed. Under load the poll then observed a mid-flight ledger and read
+  // 'm37' as newest — a real intermittent failure, not a wrong implementation.
+  // waitFor throws on timeout, so this still fails loudly if a reply goes missing.
+  await waitFor(() => client.recentLateReplies().some((l) => l.method === "m39"));
   const late = client.recentLateReplies();
   assert.equal(late.length, 32, "the ring caps at 32");
   assert.equal(late[late.length - 1].method, "m39", "the newest entry is retained");
