@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { FramedMessage, JsonRpcChannel } from "./framing.js";
 import { LspError, type Diagnostic } from "./lsp.js";
+import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { packageVersion } from "./version.js";
 
 interface Pending {
@@ -30,6 +31,12 @@ export class CsLspClient {
   private opened = new Set<string>();
   private diagnostics = new Map<string, Diagnostic[]>();
   private diagWaiters = new Map<string, Array<() => void>>();
+  /**
+   * Ids whose deadline fired, so a reply arriving later is recognised, not
+   * dropped. `nextId` is monotonic and is deliberately NOT reset by onClose(),
+   * so an id is never reused and a late reply can only be its own request's.
+   */
+  private readonly ledger = new OverdueLedger<number>("C# LSP", "the language server", "GODOT_CSLSP_TIMEOUT_MS");
   /** Absolute project root path (no trailing slash), used to canonicalize URIs. */
   private readonly rootFsPath: string;
 
@@ -76,7 +83,12 @@ export class CsLspClient {
     // Response to one of our requests.
     if (typeof id === "number" && method === undefined) {
       const p = this.pending.get(id);
-      if (!p) return;
+      if (!p) {
+        // Not pending: either a reply we already gave up on (reconcile + log the
+        // overshoot), or a genuinely unknown id — ignored exactly as before.
+        this.ledger.reconcile(id, msg["error"] === undefined);
+        return;
+      }
       this.pending.delete(id);
       clearTimeout(p.timer);
       if (msg["error"]) {
@@ -132,11 +144,22 @@ export class CsLspClient {
     this.opened.clear();
   }
 
+  /**
+   * Snapshot of replies that arrived after their deadline, oldest first.
+   * Diagnostics only — nothing in the request path reads this.
+   */
+  recentLateReplies(): readonly LateReply[] {
+    return this.ledger.recent();
+  }
+
   private rawRequest<T = unknown>(method: string, params: unknown, timeoutMs = this.timeoutMs): Promise<T> {
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        // Remember the id BEFORE rejecting, so a reply already in flight is
+        // reconciled rather than dropped as anonymous.
+        this.ledger.note(id, method, timeoutMs);
         reject(new LspError("timeout", `C# LSP '${method}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });

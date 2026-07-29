@@ -43,6 +43,11 @@ async function main(): Promise<void> {
     "runtime bridge",
     "Is the project running? Launch it (godot_run_project or dbg_launch) with the Breakpoint MCP plugin enabled — it auto-registers the runtime autoload.",
     () => resolveBridgeSecret(config.projectPath, ["BREAKPOINT_RUNTIME_SECRET", "BREAKPOINT_BRIDGE_SECRET"]),
+    // This instance's deadline comes from BREAKPOINT_RUNTIME_TIMEOUT_MS, not the
+    // editor bridge's variable — a late reply here must name the knob that can
+    // actually move it, and the peer that answered is the running game.
+    "BREAKPOINT_RUNTIME_TIMEOUT_MS",
+    "the running game",
   );
   const lsp = new LspClient(config.lspHost, config.lspPort, config.projectUri, config.lspTimeoutMs);
   // D4 C2: the C# semantic plane. OmniSharp is spawned over stdio (lazily, on the
