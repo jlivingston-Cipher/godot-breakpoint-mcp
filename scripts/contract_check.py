@@ -30,6 +30,9 @@ Verifies, without running Godot or Node, that the three layers agree:
      and no untracked copy of either file exists outside the roster
  15. File modes: the set of tracked files committed 100755 is exactly the exec
      roster, and every roster member carries an interpreter line
+ 16. Shape parity has a FLOOR: checks 6 and 7 compare intersections, so a tool
+     the catalog parser cannot read drops out silently. Every tool must be
+     compared, or exempt with a reason — asserted as set equality both ways
 
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
@@ -177,6 +180,24 @@ IGNORED_PARAMS = {"confirm"}
 # Tools that deliberately return image content with NO structuredContent, so they
 # carry no outputSchema and have no Output block to compare.
 NO_OUTPUT_SCHEMA_OK = {"screenshot_editor", "runtime_screenshot"}
+
+# The catalog documents three tool families by defining ONE result envelope and
+# referring back to it, which keeps the shape in a single place. Each entry
+# locates that definition so the referring tools resolve to a real shape rather
+# than dropping out of the shape comparison. A phrase that stops matching is a
+# hard error, not a silent loss of coverage — see _shared_envelopes.
+ENVELOPE_DEFS = {
+    "generator result envelope": r"The shared generator result envelope[^\n]*:\n```json\n(.*?)```",
+    "codegen envelope": r"codegen tools share one result envelope[^\n]*:\n```json\n(.*?)```",
+    "backend scaffold envelope": r"The shared backend scaffold envelope[^\n]*:\n```json\n(.*?)```",
+}
+
+# Tools whose documented shape the parser is ALLOWED not to find, each with the
+# reason. Deliberately empty: every one of the 289 currently resolves through one
+# of the four documentation forms. A name added here buys silence, so it must
+# come with a reason no reader could mistake for "not documented yet" — and
+# check 16 asserts in BOTH directions, so a stale name here fails the gate.
+SHAPE_COVERAGE_EXEMPT: dict[str, str] = {}
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -1017,28 +1038,221 @@ def output_schema_shapes() -> dict[str, set[str]]:
     return shapes
 
 
-def catalog_shapes() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
-    """Per-tool documented Input/Output property names from the catalog's
-    `**Input**` / `**Output**` JSON blocks. `confirm` excluded from inputs."""
+def _props_from_json(raw: str) -> "set[str] | None":
+    """Property NAMES from a JSON Schema blob, or None if it is not one.
+
+    Returns an empty set for a schema that genuinely declares no properties
+    (`dbg_continue` takes no params) — callers must test `is not None`, never
+    truthiness, or a no-param tool reads as undocumented.
+    """
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    # A schema may name its root through $ref into $defs rather than inlining it
+    # (scene_get_tree's recursive SceneNode), putting properties one hop away.
+    ref = obj.get("$ref")
+    if isinstance(ref, str) and "properties" not in obj:
+        m = re.match(r"#/\$defs/([A-Za-z0-9_]+)$", ref)
+        defs = obj.get("$defs")
+        if m and isinstance(defs, dict) and isinstance(defs.get(m.group(1)), dict):
+            obj = defs[m.group(1)]
+    props = obj.get("properties")
+    return set(props.keys()) if isinstance(props, dict) else None
+
+
+def _props_from_brace_list(raw: str) -> set[str]:
+    """Field names from the catalog's OTHER shape convention: a backticked
+    brace list — `{ ok, checked, failures[] }`, `{ path, line, character }`,
+    `{ "changed_files": [string], "applied": boolean }`. Splits at depth 0 so a
+    nested `[{ ... }]` does not leak its inner field names into the result."""
+    inner = raw.strip()[1:-1]
+    fields, depth, cur = [], 0, ""
+    for ch in inner:
+        if ch in "[{(":
+            depth += 1
+        elif ch in "]})":
+            depth -= 1
+        if ch == "," and depth == 0:
+            fields.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    fields.append(cur)
+    names = set()
+    for f in fields:
+        f = f.strip().split(":")[0].strip().strip('"').strip()
+        f = f.rstrip("?").replace("[]", "").strip().rstrip("?")
+        if re.fullmatch(r"[a-z_][a-z0-9_]*", f):
+            names.add(f)
+    return names
+
+
+def _shared_envelopes(text: str) -> dict[str, set[str]]:
+    """The catalog documents three tool families by defining one result envelope
+    and referring back to it, rather than repeating the schema per tool. Parse
+    each definition once so the referring tools resolve to a REAL shape instead
+    of being exempted — a family whose envelope drifts must still fail."""
+    found: dict[str, set[str]] = {}
+    for phrase, pattern in ENVELOPE_DEFS.items():
+        m = re.search(pattern, text, re.S)
+        if not m:
+            errors.append(
+                f"Catalog no longer defines the shared '{phrase}' in a fenced json "
+                f"block, so every tool referring to it would silently lose its "
+                f"documented output shape. Restore the definition or update "
+                f"ENVELOPE_DEFS."
+            )
+            continue
+        props = _props_from_json(m.group(1))
+        if props is None:
+            errors.append(f"Shared '{phrase}' definition is not a JSON Schema object.")
+            continue
+        found[phrase] = props
+    return found
+
+
+def _extra_fields(line: str, known_tools: set[str]) -> set[str]:
+    """Backticked fields a referring tool adds on top of what it inherits —
+    'plus `function`, `annotation`', 'each with an added `uri`'.
+
+    Tool names are excluded. The clause often keeps explaining after naming the
+    extra field ("plus an optional `peer` string (a peer id from
+    `runtime_spawn_peers`; ...)"), and a backticked TOOL there is a pointer for
+    the reader, not a param — without this, `runtime_spawn_peers` was read as a
+    param of `runtime_get_property` and the gate failed on its own parse.
+    """
+    m = re.search(r"\b(?:plus|added)\b(.*)$", line)
+    if not m:
+        return set()
+    return set(re.findall(r"`([a-z_][a-z0-9_]*)`", m.group(1))) - known_tools
+
+
+def _reference_targets(line: str) -> list[str]:
+    """Every tool named as the source of a referred-to shape. A line may name
+    more than one — 'identical to `node_get_property` / `node_set_property`'
+    documents a getter/setter PAIR in one sentence."""
+    m = re.search(
+        r"(?:same as|identical to|shape as|payload as|as)\s+"
+        r"(`[a-z0-9_]+`(?:\s*/\s*`[a-z0-9_]+`)*)", line
+    )
+    return re.findall(r"`([a-z0-9_]+)`", m.group(1)) if m else []
+
+
+def _best_reference(name: str, targets: list[str]) -> str:
+    """Pick which of a reference line's targets THIS tool inherits from, by
+    longest shared trailing name segment. `runtime_set_property` must take
+    `node_set_property` and not `node_get_property`, which sit in the same
+    sentence and differ by exactly the `value` param — taking the first match
+    made the gate report a real-looking drift that was purely its own choice."""
+    def overlap(target: str) -> int:
+        n = 0
+        for a, b in zip(reversed(name), reversed(target)):
+            if a != b:
+                break
+            n += 1
+        return n
+    return max(targets, key=overlap)
+
+
+def catalog_shapes(known_tools: set[str]) -> "tuple[dict[str, set[str]], dict[str, set[str]], dict[str, str]]":
+    """Per-tool documented Input/Output property names, plus how each was found.
+
+    The catalog states a shape in one of four ways and ALL FOUR are read here,
+    because a shape the parser cannot read is indistinguishable from a shape
+    that was deleted — which is exactly the hole check 16 closes:
+      1. a fenced ```json block             (the majority)
+      2. a backticked JSON object inline    (`dbg_step`)
+      3. a backticked brace list            (the `runtime_*` assert family)
+      4. a reference to another tool or to a shared family envelope
+    `confirm` is excluded from inputs.
+    """
     text = CATALOG.read_text()
-    parts = re.split(r"^###\s+`([a-z0-9_]+)`", text, flags=re.M)
-    inputs: dict[str, set[str]] = {}
-    outputs: dict[str, set[str]] = {}
-    for i in range(1, len(parts), 2):
-        name, body = parts[i], parts[i + 1]
-        for label, bucket in (("Input", inputs), ("Output", outputs)):
-            lm = re.search(rf"\*\*{label}\*\*\s*\n```json\n(.*?)```", body, re.S)
-            if not lm:
-                continue
-            try:
-                props = json.loads(lm.group(1)).get("properties")
-            except json.JSONDecodeError:
-                continue
-            if isinstance(props, dict):
-                bucket[name] = set(props.keys())
+    envelopes = _shared_envelopes(text)
+
+    # Split on the heading, keeping EVERY backticked name in it: the catalog
+    # documents some pairs under one combined heading (`dbg_continue` /
+    # `dbg_step`), and taking only the first name hid the second one entirely.
+    heads = list(re.finditer(r"^###\s+(`[a-z0-9_]+`(?:\s*/\s*`[a-z0-9_]+`)*)", text, re.M))
+    shapes: dict[tuple[str, str], set[str]] = {}
+    pending: dict[tuple[str, str], str] = {}
+    origin: dict[str, str] = {}
+
+    for i, head in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        names = re.findall(r"`([a-z0-9_]+)`", head.group(1))
+        body = text[head.end():end]
+        for name in names:
+            for label, tag in (("Input", "in"), ("Output", "out")):
+                block = None
+                if len(names) > 1:
+                    # Combined heading: prefer the per-name block if there is one.
+                    m = re.search(
+                        rf"- \*\*{label} \(`{re.escape(name)}`\)\*\*[^\n]*(?:\n```json\n.*?```)?",
+                        body, re.S,
+                    )
+                    block = m.group(0) if m else None
+                if block is None:
+                    m = re.search(rf"^- \*\*{label}\*\*[^\n]*(?:\n```json\n.*?```)?",
+                                  body, re.M | re.S)
+                    block = m.group(0) if m else None
+                if block is None:
+                    continue
+                key = (name, tag)
+                fenced = re.search(r"```json\n(.*?)```", block, re.S)
+                if fenced:
+                    props = _props_from_json(fenced.group(1))
+                    if props is not None:
+                        shapes[key], origin[f"{name}.{tag}"] = props, "fenced"
+                        continue
+                inline = re.search(r"`(\{.*?\})`", block, re.S)
+                if inline:
+                    props = _props_from_json(inline.group(1))
+                    kind = "inline-json"
+                    if props is None:
+                        props, kind = _props_from_brace_list(inline.group(1)), "brace-list"
+                    if props is not None:
+                        shapes[key], origin[f"{name}.{tag}"] = props, kind
+                        continue
+                pending[key] = " ".join(block.split())
+
+    # Resolve references. Iterated so a reference to a referring tool still
+    # lands (cs_references -> cs_definition -> gd_definition); bounded so a
+    # circular reference stops rather than spins, and is reported by check 16
+    # as an uncovered tool rather than silently dropped.
+    for _ in range(len(ENVELOPE_DEFS) + 4):
+        if not pending:
+            break
+        progressed = False
+        for key in list(pending):
+            name, tag = key
+            line = pending[key]
+            resolved, how = None, ""
+            for phrase, props in envelopes.items():
+                if phrase in line:
+                    resolved = set(props) | _extra_fields(line, known_tools)
+                    how = "envelope"
+                    break
+            if resolved is None:
+                targets = [t for t in _reference_targets(line) if (t, tag) in shapes]
+                if targets:
+                    src = _best_reference(name, targets)
+                    resolved = set(shapes[(src, tag)]) | _extra_fields(line, known_tools)
+                    how = f"xref:{src}"
+            if resolved is not None:
+                shapes[key], origin[f"{name}.{tag}"] = resolved, how
+                del pending[key]
+                progressed = True
+        if not progressed:
+            break
+
+    inputs = {n: props for (n, tag), props in shapes.items() if tag == "in"}
+    outputs = {n: props for (n, tag), props in shapes.items() if tag == "out"}
     for name in inputs:
-        inputs[name] -= IGNORED_PARAMS
-    return inputs, outputs
+        inputs[name] = inputs[name] - IGNORED_PARAMS
+    return inputs, outputs, origin
 
 
 # --- 1 & 2: GDScript dispatch <-> host calls -------------------------------
@@ -1113,7 +1327,7 @@ for i, block in enumerate(catalog_json_blocks()):
 
 # --- 6: input SHAPE parity (inputSchema params <-> catalog Input) -----------
 code_inputs = input_schema_shapes()
-cat_inputs, cat_outputs = catalog_shapes()
+cat_inputs, cat_outputs, shape_origin = catalog_shapes(tool_set)
 input_comparable = sorted(set(code_inputs) & set(cat_inputs))
 for name in input_comparable:
     code_only = sorted(code_inputs[name] - cat_inputs[name])
@@ -1136,6 +1350,51 @@ for name in output_comparable:
             f"Output shape drift for `{name}`: fields pinned in schemas.ts but "
             f"absent from the catalog Output block={undocumented}"
         )
+
+# --- 16: shape-parity COVERAGE floor ---------------------------------------
+# Checks 6 and 7 compare set INTERSECTIONS. An intersection has no floor: a tool
+# the parser cannot find on the catalog side simply drops out, with no error and
+# no count anyone asserts. So the checks could be driven to zero comparisons and
+# still report PASSED — one find-and-replace of `"properties"` -> `"props"` took
+# both to `0 checked` while the JSON linter still read `514 (0 invalid)`. A
+# release in which every documented shape was wrong passed green.
+#
+# The floor is set equality, both directions, against the registered surface:
+# every tool must be COMPARED, or exempt with a stated reason. "Documented by
+# cross-reference" and "documentation deleted" are then no longer the same
+# observable. Both directions matter — a stale exemption for a deleted tool has
+# to fail too, or the roster rots into a list of names nobody can justify.
+shape_cov_errors = []
+for label, comparable, universe, universe_desc in (
+    ("Input", set(input_comparable), set(code_inputs), "tools with a parsed inputSchema"),
+    ("Output", set(output_comparable), set(code_outputs), "tools with an outputSchema"),
+):
+    exempt = set(SHAPE_COVERAGE_EXEMPT) & universe
+    uncovered = sorted(universe - comparable - exempt)
+    if uncovered:
+        shape_cov_errors.append(
+            f"{label} shape parity covers {len(comparable)} of {len(universe)} "
+            f"{universe_desc}; these are neither compared nor exempt, so a wrong "
+            f"or deleted {label} block for them cannot fail the gate: {uncovered}. "
+            f"Document the shape in the catalog (a fenced block, an inline "
+            f"backticked shape, or a reference to another tool / a shared "
+            f"envelope), or add the tool to SHAPE_COVERAGE_EXEMPT with a reason."
+        )
+    stale = sorted(n for n in SHAPE_COVERAGE_EXEMPT if n in comparable)
+    if stale:
+        shape_cov_errors.append(
+            f"{label}: SHAPE_COVERAGE_EXEMPT names tool(s) that ARE now compared, "
+            f"so the exemption is buying silence it no longer needs: {stale}. "
+            f"Remove them from the roster."
+        )
+errors.extend(shape_cov_errors)
+unknown_exempt = sorted(set(SHAPE_COVERAGE_EXEMPT) - tool_set)
+if unknown_exempt:
+    errors.append(
+        f"SHAPE_COVERAGE_EXEMPT names tool(s) that are not registered at all: "
+        f"{unknown_exempt}. A stale exemption hides the next tool that takes the "
+        f"same name."
+    )
 
 # --- 8: outputSchemas hygiene (no schema for a non-existent tool) -----------
 stale_schemas = sorted(set(code_outputs) - tool_set)
@@ -1818,8 +2077,16 @@ print(
     f"{len(EXEC_ROSTER)} · {shebangs_confirmed} interpreter line(s) confirmed"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
-print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
-print(f"Output shapes           : {len(code_outputs)} in schemas.ts · {len(output_comparable)} checked vs catalog")
+_origin_counts: dict[str, int] = {}
+for _how in shape_origin.values():
+    _key = "xref" if _how.startswith("xref") else _how
+    _origin_counts[_key] = _origin_counts.get(_key, 0) + 1
+_origin_note = " · ".join(f"{v} {k}" for k, v in sorted(_origin_counts.items()))
+print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog "
+      f"· {len(set(code_inputs)) - len(set(input_comparable))} uncovered")
+print(f"Output shapes           : {len(code_outputs)} in schemas.ts · {len(output_comparable)} checked vs catalog "
+      f"· {len(set(code_outputs)) - len(set(output_comparable))} uncovered")
+print(f"Shape sources           : {_origin_note} · {len(SHAPE_COVERAGE_EXEMPT)} exempt")
 print()
 for w in warnings:
     print("WARN:", w)
