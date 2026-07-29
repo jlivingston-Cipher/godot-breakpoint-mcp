@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { FramedMessage, JsonRpcChannel } from "./framing.js";
 import { DapError, type DapState, type WatchResult } from "./dap.js";
+import { OverdueLedger, type LateReply } from "./late-reply.js";
 
 interface Pending {
   command: string;
@@ -42,6 +43,12 @@ export class CsDapClient extends EventEmitter {
   private seq = 1;
   private pending = new Map<number, Pending>();
   private breakpoints = new Map<string, BufferedBreakpoints>();
+  /**
+   * Seqs whose deadline fired, so a response arriving later is recognised, not
+   * dropped. `seq` is monotonic and is never reset, so a seq is never reused and
+   * a late response can only be its own request's.
+   */
+  private readonly ledger = new OverdueLedger<number>("C# DAP", "the debug adapter", "GODOT_CSDAP_TIMEOUT_MS");
   private configured = false;
   /** Persistent watch expressions, re-evaluated at each stop (see evaluateWatches). */
   private watches: string[] = [];
@@ -76,7 +83,12 @@ export class CsDapClient extends EventEmitter {
     if (type === "response") {
       const reqSeq = msg["request_seq"] as number;
       const p = this.pending.get(reqSeq);
-      if (!p) return;
+      if (!p) {
+        // Not pending: either a response we already gave up on (reconcile + log
+        // the overshoot), or a genuinely unknown seq — ignored exactly as before.
+        this.ledger.reconcile(reqSeq, msg["success"] === true);
+        return;
+      }
       this.pending.delete(reqSeq);
       clearTimeout(p.timer);
       if (msg["success"]) {
@@ -125,6 +137,14 @@ export class CsDapClient extends EventEmitter {
     }
   }
 
+  /**
+   * Snapshot of responses that arrived after their deadline, oldest first.
+   * Diagnostics only — nothing in the request path reads this.
+   */
+  recentLateReplies(): readonly LateReply[] {
+    return this.ledger.recent();
+  }
+
   request<T extends Record<string, unknown> = Record<string, unknown>>(
     command: string,
     args: unknown = {},
@@ -134,6 +154,9 @@ export class CsDapClient extends EventEmitter {
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(seq);
+        // Remember the seq BEFORE rejecting, so a response already in flight is
+        // reconciled rather than dropped as anonymous.
+        this.ledger.note(seq, command, timeoutMs);
         reject(new DapError(command, `C# DAP '${command}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       this.pending.set(seq, { command, resolve: resolve as (v: Record<string, unknown>) => void, reject, timer });

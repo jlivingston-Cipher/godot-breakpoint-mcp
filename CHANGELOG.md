@@ -7,6 +7,30 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **The late-reply fix reached one client out of five, and named the wrong knob on one of those.**
+  The ledger shipped in the editor bridge; `lsp.ts`, `cslsp.ts`, `dap.ts` and `csdap.ts` each still
+  carried the identical delete-then-drop shape, where the timeout timer removed the pending entry
+  and the real response then hit `if (!p) return` and vanished with nothing on stderr. The bridge's
+  own justification — the addon polls its socket once per frame, so a frame can outlast any deadline
+  — is bridge-specific, but the **drop** is not: a debug adapter answering `setVariable` or
+  `evaluate` after its deadline mutated debuggee state while the host reported a failure, which is
+  the same duplicate-mutation risk that motivated the original fix. All four now reconcile a late
+  response and log the method, the overshoot, and the deadline that would have worked.
+
+  The ledger moved to `host/src/late-reply.ts` and is **shared by all five clients** rather than
+  copy-pasted four more times; the bridge's existing late-reply tests were left untouched precisely
+  so they serve as the regression proof for the extraction.
+
+  Separately, the deadline knob named in that log line is now per-**instance**. `index.ts` builds two
+  `BridgeClient`s and they read different variables, so a late reply on the runtime bridge advised
+  raising `BREAKPOINT_BRIDGE_TIMEOUT_MS` when only `BREAKPOINT_RUNTIME_TIMEOUT_MS` could move it —
+  advice that cannot work is worse than none. The editor bridge's wording is byte-identical to what
+  shipped.
+
+  Scope is unchanged in both directions: the **250 ms floor stays on the two frame-polled deadlines
+  only** (`config.ts` is not touched — the ledger is constructed with a knob *name*, never a
+  deadline value), and there is no tool-surface change — 289 / 274 / 15 and addon `1.9.1` as before.
+
 - **Eleven timeout env vars are hardened the way the four ports already were.** `1.24.0` added
 - **A bridge timeout claimed nothing happened, while the reply proving otherwise was discarded in
   silence.** When a deadline fired, the timer deleted the pending entry, so the addon's real reply —
