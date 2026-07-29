@@ -144,6 +144,7 @@ test("sends NO auth line when the secret provider yields null (backward-compatib
   await srv.close();
 });
 
+
 // ---- late-reply reconciliation ---------------------------------------------
 //
 // A deadline that fires before the addon can answer used to end the story: the
@@ -156,6 +157,13 @@ test("sends NO auth line when the secret provider yields null (backward-compatib
 // It still cannot un-reject the settled promise, and it cannot stop the agent's
 // retry (a fresh tool call with a fresh randomUUID — nothing here can recognise
 // it). What it can do is keep the evidence and say the overshoot out loud.
+//
+// These tests register cleanup with `t.after` rather than closing at the end of
+// the body, deliberately: a failing assertion returns before a trailing
+// `srv.close()`, which leaks the listening socket and makes `node --test` HANG
+// instead of failing. That turns every mutation run into a 300 s timeout with
+// nothing to read — the harness that is supposed to prove these tests bite
+// cannot bite back. Cleanup that only runs on success is not cleanup.
 
 /** Collect stderr while `fn` runs, so "was it logged?" is asserted, not assumed. */
 async function captureStderr(fn: () => Promise<void>): Promise<string[]> {
@@ -173,12 +181,13 @@ async function captureStderr(fn: () => Promise<void>): Promise<string[]> {
   return lines;
 }
 
-test("a reply arriving after its deadline is reconciled, not dropped, and says so", async () => {
+test("a reply arriving after its deadline is reconciled, not dropped, and says so", async (t) => {
   const srv = await startBridge((req, s) => {
     // The addon polls from _process and cannot answer inside the deadline.
     setTimeout(() => writeLine(s, { id: req.id, ok: true, result: { added: "Enemy" } }), 150);
   });
   const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  t.after(async () => { client.close(); await srv.close(); });
 
   const lines = await captureStderr(async () => {
     await assert.rejects(client.request("node.add", { name: "Enemy" }, 40), isBridgeError("timeout"));
@@ -196,15 +205,14 @@ test("a reply arriving after its deadline is reconciled, not dropped, and says s
     lines.some((l) => /late bridge reply: 'node\.add' answered \d+ms AFTER its 40ms deadline/.test(l)),
     `expected a log line naming the method and the overshoot, got: ${JSON.stringify(lines)}`,
   );
-  client.close();
-  await srv.close();
 });
 
 // The control. Without it, a reconciler that fired on EVERY reply would pass the
 // test above and be badly wrong.
-test("an on-time reply reconciles nothing and logs nothing — the control", async () => {
+test("an on-time reply reconciles nothing and logs nothing — the control", async (t) => {
   const srv = await startBridge((req, s) => writeLine(s, { id: req.id, ok: true, result: { ok: 1 } }));
   const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  t.after(async () => { client.close(); await srv.close(); });
   const lines = await captureStderr(async () => {
     await client.request("node.add", {}, 5000);
   });
@@ -214,46 +222,43 @@ test("an on-time reply reconciles nothing and logs nothing — the control", asy
     0,
     `no late-reply line should be logged, got: ${JSON.stringify(lines)}`,
   );
-  client.close();
-  await srv.close();
 });
 
 // A reply we never asked for stays ignored exactly as before — the reconciler
 // only recognises ids IT timed out. Otherwise the addon's auth reply, or a frame
 // from a previous connection, would be reported as a premature deadline.
-test("a reply for an id we never sent is still ignored and reconciles nothing", async () => {
+test("a reply for an id we never sent is still ignored and reconciles nothing", async (t) => {
   const srv = await startBridge((req, s) => {
     writeLine(s, { id: "11111111-2222-4333-8444-555555555555", ok: true, result: { bogus: true } });
     writeLine(s, { id: req.id, ok: true, result: { real: true } });
   });
   const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  t.after(async () => { client.close(); await srv.close(); });
   assert.deepEqual(await client.request("x"), { real: true }, "the real reply still correlates");
   assert.deepEqual(client.recentLateReplies(), []);
-  client.close();
-  await srv.close();
 });
 
 // tools/dap.ts:29 and tools/csdap.ts:31 branch on /timed out after/, and
 // dap.test.ts asserts /timed out after 200ms/i. The caveat layer APPENDS for
 // exactly this reason; if the sentence is ever rewritten instead, this fails.
-test("the timeout message keeps its exact 'timed out after <n>ms' phrasing", async () => {
+test("the timeout message keeps its exact 'timed out after <n>ms' phrasing", async (t) => {
   const srv = await startBridge(() => { /* never respond */ });
   const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  t.after(async () => { client.close(); await srv.close(); });
   await assert.rejects(
     client.request("hang", {}, 60),
     (e: unknown) => e instanceof BridgeError && /timed out after 60ms/.test(e.message),
   );
-  client.close();
-  await srv.close();
 });
 
 // The ledger is diagnostics, so it must not become a leak. 40 late replies land;
 // the ring keeps the most recent 32 and drops the oldest.
-test("the late-reply ledger is bounded and keeps the most recent entries", async () => {
+test("the late-reply ledger is bounded and keeps the most recent entries", async (t) => {
   const srv = await startBridge((req, s) => {
     setTimeout(() => writeLine(s, { id: req.id, ok: true, result: {} }), 140);
   });
   const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  t.after(async () => { client.close(); await srv.close(); });
   const sent = Array.from({ length: 40 }, (_, i) => client.request(`m${i}`, {}, 40).catch(() => undefined));
   await Promise.all(sent);
   await waitFor(() => client.recentLateReplies().length >= 32);
@@ -261,6 +266,4 @@ test("the late-reply ledger is bounded and keeps the most recent entries", async
   assert.equal(late.length, 32, "the ring caps at 32");
   assert.equal(late[late.length - 1].method, "m39", "the newest entry is retained");
   assert.ok(!late.some((l) => l.method === "m0"), "the oldest entries are evicted, not the newest");
-  client.close();
-  await srv.close();
 });
