@@ -13,6 +13,7 @@ import { buildToolsets } from "./toolsets.js";
 import { registerRecipes } from "./recipes.js";
 import { applyOutputSchemas } from "./schemas.js";
 import { applyAnnotations } from "./annotations.js";
+import { applyTimeoutCaveat } from "./timeout-caveat.js";
 import {
   applyCapabilities,
   droppedTools,
@@ -92,6 +93,16 @@ async function main(): Promise<void> {
   // in applyCapabilities (below) + confirm.ts. Wraps registerTool after the
   // schema wrapper, before any register*Tools call.
   applyAnnotations(server);
+
+  // A bridge timeout does not mean nothing happened: the request is already on
+  // the wire when the deadline fires, and the addon polls once per frame, so the
+  // ordinary outcome is that the editor applies the change and answers late.
+  // Append a caveat scaled by the annotations just injected above — nothing for
+  // the read-only tools, "retrying is safe" for the idempotent ones, and
+  // "retrying may apply it a SECOND time" for those that are neither. Wraps the
+  // HANDLER (not the config), after applyAnnotations so the hints exist, before
+  // applyCapabilities so a dropped tool is never wrapped.
+  applyTimeoutCaveat(server);
 
   // Capability groups — a risk-based axis over the toolsets. Both `code-execution`
   // and `network` are OFF by default; a disabled group's tools are DROPPED at

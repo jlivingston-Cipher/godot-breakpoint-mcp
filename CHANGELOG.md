@@ -8,6 +8,42 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - **Eleven timeout env vars are hardened the way the four ports already were.** `1.24.0` added
+- **A bridge timeout claimed nothing happened, while the reply proving otherwise was discarded in
+  silence.** When a deadline fired, the timer deleted the pending entry, so the addon's real reply —
+  a complete, correct `{id, ok, result}` — arrived, found nothing to correlate to, and was dropped
+  **without so much as a log line**. Measured against the real client: one stderr line in the whole
+  run, and it was `bridge connected`. Meanwhile `bytesWritten=130` on an undestroyed socket at the
+  instant of rejection proves the request *had* been delivered — a genuinely unreachable editor
+  fails earlier and differently, as `bridge_unavailable`. The host held the evidence that its own
+  error was wrong and threw it away.
+
+  The timeout path now records the id before rejecting, so a reply landing afterwards is reconciled
+  and logged with the method, the overshoot, and the deadline that would have worked. It cannot
+  un-reject a settled promise, and it deliberately does not try to suppress the retry: **that retry
+  is the agent's, not the host's** — a fresh MCP tool call with a fresh `randomUUID()`, which no id
+  bookkeeping here can recognise as a retry rather than a legitimate repeat. Serving a cached late
+  result to a params-matching call was considered and rejected for exactly that reason; it would
+  trade a visible duplicate for a silent omission, which is worse.
+
+- **`1.26.0` closed the `NaN` spelling of a too-short deadline, not the class.** `positiveInt`
+  rejects `0` on the reasoning that "a deadline of 0 is not a shorter deadline, it is the `NaN`
+  failure with a different spelling." That is right and it does not stop at zero:
+  `BREAKPOINT_BRIDGE_TIMEOUT_MS=1` was **accepted**, and driven against the real `BridgeClient`
+  reproduces the escalation verbatim — `timed out after 1ms` twice, two `Enemy` nodes.
+
+  Deadlines that reach a frame-polled bridge now have a **250 ms floor**, rejected rather than
+  clamped, matching how the guard already treats `0`. Both addons poll their socket from `_process`
+  and dispatch synchronously, so they cannot answer inside a frame no matter how trivial the
+  request; the editor throttles its main loop when idle, so "one frame" is not the 16 ms a running
+  game suggests. **The floor covers those two deadlines only.** An early cut applied it to all
+  eleven timeouts and broke two `csdap` tests that deliberately set a 200 ms fail-fast — and those
+  tests were right: LSP, DAP and the asset-gen backend are ordinary request/response over TCP or
+  stdio, nothing frame-polls them, and 200 ms is reasonable there. A justification that stops at the
+  frame poll gives a floor that stops at the frame poll. **Input validation guards one cause of a
+  premature deadline; it cannot guard the other** — a legitimate 15000 ms deadline fails identically
+  the moment a frame outlasts it, which `bridge_server.gd` documents happening on a `scene.save`
+  that triggers a rescan/reimport. That is why the ledger above exists as well as this.
+
   `port()` — rejecting `""`, `"nope"` and `"80a80"` rather than letting them reach `Number.parseInt`
   and become `NaN` — and every timeout kept the `Number.parseInt(x ?? "15000", 10)` pattern that
   function's own docstring condemns, thirteen lines below it. `??` catches only null/undefined, so
@@ -187,6 +223,42 @@ and the project uses [Semantic Versioning](https://semver.org/).
   re-scans every `registerTool` / `registerTaskTool` site with a deliberately permissive literal net
   and **fails, naming file and line**, on any registration whose name the strict net cannot match —
   so it asserts the scanner captured every site rather than trusting the count it produced.
+
+
+- **Bridge-timeout errors now carry a caveat scaled by the tool's own annotations.**
+  `Bridge error [timeout]` reads as *the call did not go through*, which is not what the host knows;
+  an agent that believes it retries, and on a mutating, non-idempotent tool that applies the change
+  twice. The tool surface now appends, per `annotationsFor(name)`: **nothing** for the read-only
+  tools — a stale read is not a hazard, and `peers.ts` deliberately runs a 1 s liveness ping whose
+  timeout is routine — *"retrying is safe"* for the mutating-but-idempotent ones, and *"retrying may
+  apply it a SECOND time — verify the editor state before you do"* for those that are neither.
+
+  It **appends and never rewrites**: `tools/dap.ts` and `tools/csdap.ts` branch on the
+  `timed out after` substring, and `dap.test.ts` asserts it, so the existing sentence is
+  load-bearing. It is scoped to the bridge's envelope alone — an LSP or DAP timeout implies no
+  editor-side mutation and is left untouched.
+
+  This is the only layer that *can* target it. `bridge.ts` sees a GDScript method string and never a
+  tool name, and `makeCall` does not take one; the tool name exists at registration, so the caveat
+  rides the same `applyOutputSchemas` → `applyAnnotations` → `applyCapabilities` wrapper idiom,
+  slotted between the last two so a tool dropped by a disabled capability group is never wrapped.
+  Read-only tools are not wrapped-and-inert — they are **not wrapped**, and keep their exact
+  previous handler identity.
+
+- **`contract_check.py` — annotation-class sizes are derived rather than warned about.** The new
+  caveat's blast radius is prose that decides user-visible text, so "72 tools" is exactly the kind
+  of number this gate exists to distrust. Stating them raised the file's unverified-prose-claim
+  count from 0 to 4 — visible, but visible is not verified, and an exemption would have been a lie
+  because the numbers *are* derivable.
+
+  A claim now resolves EXACTLY when it names its class in backticks — `` `read-only` 92 tools ``,
+  `` `mutating+non-idempotent` 72 tools `` — computed from `annotations.ts` by the same set
+  arithmetic the token names. A **bare** count with no class token still warns, deliberately: the
+  point is not to bless the number 72, it is to tie a number to the derivation that produces it. If
+  `ALL_ANNOTATED` cannot be parsed, a claim is a hard error rather than resolving against an empty
+  set and passing blind — check 12's vacuity rule. This is the all-false check generalised, and the
+  two now share **one reader** for `annotations.ts`'s name lists rather than two copies of the same
+  regex that could disagree about what a list contains.
 
 ## [1.26.0] — 2026-07-28
 
