@@ -28,6 +28,42 @@ and the project uses [Semantic Versioning](https://semver.org/).
   rather than clamp — a deadline of `0` is not a shorter deadline, it is the `NaN` failure with a
   different spelling.
 
+- **A C# language server installed mid-session is now picked up without restarting the host.**
+  `StdioChannel` hooked `exit` to reset itself; a failed spawn emits `error` then `close` and
+  **never `exit`** — measured, not inferred. So `closeCb()` never ran, `CsLspClient` never cleared
+  the rejected `initialized` promise it had cached, and every later `cs_*` call re-returned the
+  original `ENOENT` for the process's whole lifetime: install OmniSharp after the first failed call
+  and the host stayed convinced it was missing. The TCP sibling hooks `close` and has always
+  self-healed from a refused connection; **the entire difference was one event name.**
+
+  The reset moved to `close`, which is a strict superset — a process that really ran emits
+  `spawn` → `exit` → `close`, so the normal path still notifies exactly once. It deliberately did
+  **not** move into the `error` handler, where it would fire a turn sooner: `onClose()` rejects
+  every pending request with a generic "connection closed", which would have replaced the
+  actionable "Install OmniSharp." hint with it. The heal trails the caller's error by one event-loop
+  turn, which no real second tool call can observe, and the lateness is now commented as
+  load-bearing rather than incidental.
+
+  Also closed alongside it: a synchronous `spawn()` throw (bad options rather than a missing binary)
+  nulled `this.starting` **inside the promise executor**, which the assignment on the next line then
+  overwrote with the rejected promise — the same cache-the-failure-forever bug on the one path the
+  `close` hook cannot reach. Latent today, since every call site passes validated config strings.
+
+- **`card_deck_from_table` no longer reports mapped columns as unmapped when a filter selects no
+  rows.** `art_column` and `filter.column` were counted as referenced off the *arguments*, but the
+  `column_map` slots were counted off the *rows*, inside the stamping loop — so a filter matching
+  nothing skipped the loop entirely and `unmapped_columns` came back naming every column the caller
+  had explicitly bound. The asymmetry inside a single output is what made it a bug rather than a
+  defensible semantic: over a `name,cost,type,flavor,unused` table mapping `title←{name}`,
+  `footer←{name} · {type}` and `points←{cost}`, a filter on `type` that matched no row returned
+  `["cost","flavor","name","unused"]` — every mapped column but `type`, which was spared only
+  because `filter.column` seeded it. The same call with a filter that matches returns
+  `["flavor","unused"]`, and now both do.
+  The column-map scan is hoisted out of the loop, and a new pure `columnExprPlaceholders()` reads
+  the `{placeholder}` names straight off the expression with no row to resolve against. Both it and
+  `resolveColumnExpr` drive one shared scanner, so they cannot drift on what counts as a
+  placeholder; malformed placeholders are still raised by `resolveColumnExpr` on the first real row.
+
 - **`contract_check.py` can no longer be blinded by a digit in a tool name.** `registered_tools`,
   `catalog_index_tools` and `catalog_shapes` netted names with `[a-z_]+` while `annotated_tools`
   and `output_schema_shapes` used `[a-z0-9_]+`. A tool following the repo's own

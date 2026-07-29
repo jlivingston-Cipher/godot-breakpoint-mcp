@@ -9,6 +9,7 @@ import {
   emitDeckFromTable,
   emitCardSetFace,
   resolveColumnExpr,
+  columnExprPlaceholders,
   computeLayout,
   parseCsv,
   jsonRows,
@@ -353,6 +354,43 @@ test("card_deck_from_table reads a JSON table too", async () => {
 });
 
 // -------------------------------------------------- column-expression resolver ----
+
+test("card_deck_from_table: a filter matching zero rows still reports the mapped columns as mapped", async () => {
+  const { calls, emit } = recorder();
+  const res = await emitDeckFromTable(emit, () => CSV_FIXTURE, {
+    template_path: "res://ui/cards/Card.tscn",
+    parent: "Deck",
+    table_path: "res://data/cards.csv",
+    column_map: { title: "{name}", footer: "{name} · {type}", points: "{cost}" },
+    filter: { column: "type", equals: "no-such-type" },
+  });
+  assert.equal(res.rows_read, 3);
+  assert.equal(res.count, 0);
+  assert.equal(res.rows_skipped, 3);
+  assert.equal(calls.length, 0, "nothing is stamped");
+  // The point of the fix: identical arguments minus the filter VALUE must not change
+  // which columns the caller mapped. `filter.column` and `art_column` were always read
+  // off the arguments; the column_map was read off the rows, so an empty selection used
+  // to report "cost", "name" and "type" — every column the caller explicitly bound — as
+  // unmapped. This is the same list the two-row case above asserts.
+  assert.deepEqual(res.unmapped_columns, ["flavor", "unused"]);
+});
+
+test("columnExprPlaceholders reads the columns off the expression, with no row to resolve against", () => {
+  assert.deepEqual(columnExprPlaceholders("{name}"), ["name"]);
+  assert.deepEqual(columnExprPlaceholders("{name} · {role}"), ["name", "role"]);
+  assert.deepEqual(columnExprPlaceholders("plain text"), []);
+  assert.deepEqual(columnExprPlaceholders("{ spaced }"), ["spaced"]);
+  // A column that is not in the table is still reported here — it can only widen
+  // `referenced`, and resolveColumnExpr raises it on the first real row regardless.
+  assert.deepEqual(columnExprPlaceholders("{missing}"), ["missing"]);
+  // Malformed placeholders are skipped, not thrown on: this scanner runs before any
+  // row exists, and resolveColumnExpr owns the error.
+  assert.deepEqual(columnExprPlaceholders("{}"), []);
+  // The shared /g regex must not carry lastIndex between calls.
+  assert.deepEqual(columnExprPlaceholders("{a}{b}"), ["a", "b"]);
+  assert.deepEqual(columnExprPlaceholders("{a}{b}"), ["a", "b"]);
+});
 
 test("resolveColumnExpr handles bare, composed, and missing columns", () => {
   const row = { name: "Alpha", role: "scout" };
