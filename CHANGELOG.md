@@ -75,6 +75,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
   compares the two sides, so widening one alone would manufacture a false failure).
 
 ### Added
+- **`contract_check.py` check 15 — file modes. The exec bit is a contract nothing else could
+  see.** `1.26.0`'s own release cycle shipped a mode regression and then a fix for it: #125 rewrote
+  this script through a mount that reports every file as `0600`, the mode landed as **`100644` in
+  the commit** on a file that had been `100755` since the project's first commit, and it merged
+  with 20/20 checks green. Every call site spells it `python3 scripts/contract_check.py`, so only
+  `./scripts/contract_check.py` broke — and nothing runs it that way. #126 restored the bit by
+  hand. Nothing in the repo could have caught either the loss or the restore.
+
+  The subject is the **index** mode, not the working tree's: `core.fileMode`, a umask, a network
+  mount or a zip round-trip all change what `ls -l` reports while leaving the committed mode
+  untouched, and the committed mode is the one that ships and the one that regressed.
+
+  The assertion is set **equality**, both directions — `{tracked files at 100755} == EXEC_ROSTER` —
+  which is why it takes a roster and not a heuristic. "Anything with a shebang is executable" is
+  false here: twelve tracked `.mjs`/`.ts` files carry `#!` and are correctly `100644`, because they
+  are invoked as `node drive.mjs`. A roster member falling to `100644` is the regression that
+  already happened; a non-member climbing to `100755` is the same drift arriving from the other
+  side, and is how a data file or a doc ends up executable in a tarball. Roster members must also
+  carry an interpreter line — an exec bit on a file the kernel cannot launch is a mode that means
+  nothing.
+
+  A second, earlier assertion catches the **unstaged** mode change, which is the state #125
+  committed *from*. It asks `git diff --summary` rather than `os.stat` on purpose: git honours
+  `core.fileMode`, so the check stays quiet on filesystems that cannot represent an exec bit rather
+  than failing every run there. **It fired for real while the check was being written** — the editor
+  used to add check 15 rewrote `contract_check.py` and silently dropped it to `0644`, reproducing
+  #125's exact mechanism through a different tool, and the half-finished check caught it.
+
 - **`contract_check.py` — three completeness assertions, one per roster that had none.** Each of
   these checks printed a reassuring number that counted what it *could* have compared rather than
   what it did, so each could be reduced to comparing nothing while the gate stayed green. This is
