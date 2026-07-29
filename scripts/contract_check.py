@@ -22,6 +22,14 @@ Verifies, without running Godot or Node, that the three layers agree:
      agrees with the code
  12. Recipes: the registered MCP prompts, the `RECIPE_NAMES` constant, and
      every live doc that names a recipe all agree on the roster
+ 13. Family claims are exact: every tool-name glob a doc counts, plus the
+     all-annotations-false class, resolves against the code — with an explicit
+     exemption roster rather than a silent skip
+ 14. Version parity: the host version in `host/package.json` and the addon
+     version in the canonical `plugin.cfg` match every tracked copy and stamp,
+     and no untracked copy of either file exists outside the roster
+ 15. File modes: the set of tracked files committed 100755 is exactly the exec
+     roster, and every roster member carries an interpreter line
 
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
@@ -1621,6 +1629,160 @@ for label, found, roster in (
 # located raises its own error and must not inflate this number into reassurance.
 version_sites_checked = len(host_compared) + len(addon_compared)
 
+# --- 15: file modes — the exec bit is a contract nothing else can see -------
+# #125 rewrote `scripts/contract_check.py` through a Cowork mount that forbids
+# `unlink` and reports every file as 0600. The mode landed as **100644 in the
+# commit** on a file that had been 100755 since the project's first commit, and
+# it merged with 20/20 checks green: every call site spells it
+# `python3 scripts/contract_check.py`, so only `./scripts/contract_check.py`
+# broke and nothing runs it that way. #126 restored the bit. Nothing in the
+# repo could see it go — this check is that missing eye.
+#
+# The INDEX mode is the subject, never the working tree's. `core.fileMode=false`,
+# a umask, a network mount or a zip round-trip all change what `ls -l` reports
+# while leaving the committed mode untouched, and the committed mode is the one
+# that ships and the one that regressed. `git ls-files -s` reads the index.
+#
+# The assertion is set EQUALITY, in both directions, which is why it needs a
+# roster and not a heuristic. "Everything with a shebang is executable" is false
+# here: twelve tracked `.mjs`/`.ts` files carry `#!` and are correctly 100644,
+# because they are invoked as `node drive.mjs`. A roster member falling to
+# 100644 is the regression that already happened; a non-member climbing to
+# 100755 is the same drift from the other side, and is how a data file or a doc
+# ends up executable in a tarball.
+EXEC_ROSTER = {
+    Path("scripts/contract_check.py"),
+    Path("scripts/validate.sh"),
+}
+
+
+def _tracked_modes() -> "dict[Path, str] | None":
+    # QUOTED annotation on purpose. `X | None` is PEP 604 and needs 3.10, and a
+    # `def`'s annotations are evaluated at definition time — so the bare form
+    # raises TypeError on import. The bare `dict[...]`/`list[...]` generics used
+    # elsewhere in this file are PEP 585 and are fine on 3.9. macOS still ships
+    # 3.9.6 as `/usr/bin/python3`, which is what this script's own shebang
+    # resolves to on the maintainer's machine; CI pins `python-version: '3.x'`
+    # and would never have shown the break.
+    """path -> index mode for every tracked entry, or None when off-git.
+
+    Same reason check 14's `_scan` prefers `git ls-files`: only tracked content
+    reaches a release. Here it is also the only source that answers the actual
+    question, since the working tree's permission bits are whatever the last
+    checkout, umask or mount decided they were.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-s", "-z"],
+            capture_output=True, check=True, timeout=10,
+        ).stdout.decode()
+    except Exception:
+        return None
+    modes: dict[Path, str] = {}
+    for entry in out.split("\0"):
+        if not entry:
+            continue
+        meta, tab, path = entry.partition("\t")
+        parts = meta.split()
+        if not tab or len(parts) != 3:
+            continue
+        modes[Path(path)] = parts[0]
+    return modes or None
+
+
+tracked_modes = _tracked_modes()
+exec_tracked: set[Path] = set()
+shebangs_confirmed = 0
+
+if tracked_modes is None:
+    # A tarball or an export carries no index, so the contract cannot be
+    # verified here at all. Printing "0 checked" under a PASSED banner is the
+    # exact disease this gate keeps finding in other people's checks, so the
+    # skip is announced rather than absorbed.
+    warnings.append(
+        "check 15 could not read the git index, so no file mode was verified. "
+        "An export or a tarball has no index; run the gate from a checkout if you "
+        "need the exec-bit contract enforced."
+    )
+else:
+    # Only regular files have a meaningful exec bit. 120000 is a symlink and
+    # 160000 a gitlink; neither is a mode this roster governs.
+    exec_tracked = {p for p, m in tracked_modes.items() if m == "100755"}
+
+    unexpected = sorted(exec_tracked - EXEC_ROSTER)
+    if unexpected:
+        errors.append(
+            "tracked file(s) committed 100755 that check 15's exec roster does not name: "
+            + ", ".join(str(p) for p in unexpected)
+            + ". Add them to EXEC_ROSTER if they are meant to be run directly, or commit them "
+            "100644 (`git update-index --chmod=-x <path>`). An unreviewed exec bit is the same "
+            "drift as a missing one, arriving from the other side."
+        )
+
+    for rel in sorted(EXEC_ROSTER - exec_tracked):
+        got = tracked_modes.get(rel)
+        if got is None:
+            errors.append(
+                f"check 15's exec roster names {rel}, which git does not track. Every roster "
+                f"entry must be a TRACKED file — an untracked script's mode ships nowhere."
+            )
+        else:
+            errors.append(
+                f"{rel} is committed as {got}, not 100755. It is meant to be run directly, but "
+                f"every call site invokes it through an interpreter, so neither CI nor this gate "
+                f"can observe the loss any other way — which is precisely how #125 shipped the "
+                f"bit off `scripts/contract_check.py` with 20/20 checks green. "
+                f"Restore it with `git update-index --chmod=+x {rel}`."
+            )
+
+    # A mode the WORKING TREE has already lost but the index has not yet
+    # recorded. The index is what ships, so it is the subject above — but this
+    # is the state #125 committed *from*, and one step earlier is where a gate
+    # earns its keep. It fired for real while this very check was being written:
+    # an editor tool rewrote this file and silently dropped it to 0644.
+    #
+    # Asking git rather than `os.stat` is deliberate — git honours
+    # `core.fileMode`, so this stays quiet on filesystems that cannot represent
+    # an exec bit rather than failing every run there. The `--summary` lines are
+    # reported verbatim rather than parsed: git's quoting of unusual paths is
+    # not worth re-implementing to reword a message.
+    try:
+        _diff = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--summary"],
+            capture_output=True, check=True, timeout=10,
+        ).stdout.decode().splitlines()
+    except Exception:
+        _diff = []
+    mode_drift = [ln.strip() for ln in _diff if ln.strip().startswith("mode change")]
+    if mode_drift:
+        errors.append(
+            "unstaged file mode change(s) in the working tree: "
+            + "; ".join(mode_drift)
+            + ". `git add` records the new mode, so committing from here ships it. If the change "
+            "is wanted, stage it and update EXEC_ROSTER; if it is an editor or a mount dropping "
+            "the bit, restore it with `chmod +x <path>` before committing."
+        )
+
+    for rel in sorted(EXEC_ROSTER):
+        if rel not in tracked_modes:
+            continue  # already reported as untracked above
+        path = ROOT / rel
+        try:
+            head = path.open("rb").read(2)
+        except OSError as exc:
+            errors.append(
+                f"check 15 could not read {rel} to confirm its interpreter line: {exc}."
+            )
+            continue
+        if head != b"#!":
+            errors.append(
+                f"{rel} is on check 15's exec roster but does not begin with `#!`. An exec bit on "
+                f"a file the kernel cannot launch is a mode that means nothing — add the "
+                f"interpreter line, or take the file off the roster."
+            )
+        else:
+            shebangs_confirmed += 1
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -1650,6 +1812,10 @@ print(
 print(
     f"Version parity          : host {host_version} · addon {addon_version} "
     f"· {version_sites_checked} site(s) checked across 2 rosters"
+)
+print(
+    f"File modes              : {len(exec_tracked)} tracked at 100755 · roster of "
+    f"{len(EXEC_ROSTER)} · {shebangs_confirmed} interpreter line(s) confirmed"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_comparable)} checked vs catalog")
