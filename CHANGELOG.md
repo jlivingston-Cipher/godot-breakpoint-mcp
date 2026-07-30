@@ -6,6 +6,39 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the live screenshot test reported coverage it had never performed (no tool change)
+`ops_unit_test.gd`'s `_test_live_screenshot` branched on whether the capture succeeded and scored a
+PASS either way. The suite runs under `--headless`, which selects the dummy rasterizer, so
+`get_image()` always returned null, the `else` branch was the only one that ever executed, and the
+two assertions proving a frame was actually captured — mime type and non-zero dimensions — were dead
+code in every run since they were written. `OPS_UNIT_SUMMARY pass=N/N` was green either way, and the
+green meant "degraded cleanly", not "captured a frame". As a result `runtime_screenshot`,
+`runtime_screenshot_diff` and `screenshot_editor` had no live coverage anywhere: no integration probe
+and no workflow exercised a pixel-producing tool.
+
+The test now reports four distinct outcomes instead of two passing ones — **captured** (assert PNG,
+measured dimensions, payload size), **degraded** (assert it failed cleanly and record an
+`OPS_UNIT_SKIP`, which is not a pass), **demanded** (`BREAKPOINT_TEST_REQUIRE_RENDER=1` turns any
+non-capture into a failure, the same contract as `doctor --require-live`), and **impossible** (a live
+rasterizer that cannot produce a frame is a defect, not an environment). The capture is taken on
+frame 5 rather than frame 1: a viewport has no readable texture until something has been drawn into
+it, and probing too early would report "no image" on a perfectly healthy renderer — the same
+false-negative that hid this in the first place.
+
+### Added — `render-plane` CI job: the capture path against a rasterizer that draws (no tool change)
+Runs the same GDScript suite under Xvfb with Mesa llvmpipe and `--rendering-driver opengl3`, with
+`BREAKPOINT_TEST_REQUIRE_RENDER=1`. **No GPU is needed:** llvmpipe is software but is a genuine
+rasterizer, and the reason the capture never ran in CI was the dummy driver selected by `--headless`,
+not the absent GPU — those are different things, and conflating them is why this went uncovered.
+The job asserts its own premise: it fails if `rb.shot.mime` is missing from the log or if the capture
+was skipped, so it cannot report green while proving nothing.
+
+Verified on an Apple M2 with no `--headless`: the capture path executes for the first time,
+`1152x648` (the logical size — no HiDPI backing-store discrepancy), **182/182, zero skips**. The same
+suite under `--headless` reports **180/180 with the capture skipped**, and under `--headless` with
+`BREAKPOINT_TEST_REQUIRE_RENDER=1` it **fails as designed**. Forward+/Vulkan on real hardware remains
+outside CI by construction; `runtime_screenshot_diff` still has no automated coverage.
+
 ## [1.28.0] — 2026-07-30
 
 ### Removed
