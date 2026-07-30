@@ -75,11 +75,47 @@ after(() => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-/** Start N loopback servers and return them (each just accepts + holds). */
+/**
+ * Start N loopback servers. The first two stand in for the editor and runtime
+ * bridges, which speak OUR line protocol, so they must answer `ping` — doctor
+ * now proves the far end is a Breakpoint bridge rather than merely a listening
+ * socket. The rest (LSP/DAP) just accept and hold, which is all doctor probes.
+ */
 async function startBridges(n: number): Promise<TcpServer[]> {
   const servers: TcpServer[] = [];
-  for (let i = 0; i < n; i++) servers.push(await startTcpServer(() => {}));
+  for (let i = 0; i < n; i++) {
+    servers.push(i < 2 ? await startPingableBridge() : await startTcpServer(() => {}));
+  }
   return servers;
+}
+
+/** A loopback server that answers the bridge `ping` (and ignores the auth line). */
+async function startPingableBridge(): Promise<TcpServer> {
+  return startTcpServer((sock) => {
+    let buf = "";
+    sock.on("data", (chunk) => {
+      buf += chunk.toString("utf8");
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        if (!line.trim()) continue;
+        let req: { id?: string; method?: string };
+        try {
+          req = JSON.parse(line) as { id?: string; method?: string };
+        } catch {
+          continue;
+        }
+        if (!req.id) continue; // the auth frame carries no id
+        sock.write(JSON.stringify({ id: req.id, ok: true, result: {} }) + "\n");
+      }
+    });
+  });
+}
+
+/** A socket that accepts and then says nothing — a foreign process on the port. */
+async function startMuteServer(): Promise<TcpServer> {
+  return startTcpServer(() => {});
 }
 async function closeAll(servers: TcpServer[]): Promise<void> {
   await Promise.all(servers.map((s) => s.close()));
@@ -134,6 +170,50 @@ test("all checks pass against a fully-set-up install", { skip: !POSIX }, async (
     }
   } finally {
     await closeAll(servers);
+    restoreEnv();
+  }
+});
+
+/**
+ * The blind spot this closes: `probeTcp` proves only that SOMETHING accepts on
+ * the port. It never speaks the protocol and never touches the shared secret,
+ * so a foreign process squatting on 9080 — a second Godot, a stale editor, an
+ * unrelated server — reported "editor-bridge reachable" while every real call
+ * failed. A stale secret looked identical. Session 140 lost a cycle to exactly
+ * this class of "the check is green and nothing works".
+ *
+ * Against the pre-fix doctor this test FAILS: the mute server accepts the
+ * connection, probeTcp returns true, and the check reports ok.
+ */
+test("a port held by something that is not the bridge fails --require-live", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const mute = await startMuteServer();
+  const others = await startBridges(4);
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    process.env.GODOT_PROJECT = projectDir;
+    process.env.BREAKPOINT_BRIDGE_PORT = String(mute.port); // squatter
+    process.env.BREAKPOINT_RUNTIME_PORT = String(others[1].port);
+    process.env.GODOT_LSP_PORT = String(others[2].port);
+    process.env.GODOT_DAP_PORT = String(others[3].port);
+
+    const report = await runDoctorChecks(loadConfig(), {
+      timeoutMs: 400,
+      requireLive: true,
+      includeCsharp: false,
+    });
+
+    assert.equal(status(report, "editor-bridge"), "fail", "an open port that never answers is not a live bridge");
+    assert.equal(report.ok, false, "--require-live must not pass on a squatted port");
+    const check = report.checks.find((c) => c.name === "editor-bridge");
+    assert.match(check?.detail ?? "", /open, but no Breakpoint bridge answered/);
+    assert.match(check?.hint ?? "", /stale/i, "the hint must name the stale-secret cause too");
+    // The runtime bridge answered, so it must still be ok — this failure is
+    // per-bridge, not a blanket downgrade of every live check.
+    assert.equal(status(report, "runtime-bridge"), "ok");
+  } finally {
+    await mute.close();
+    await closeAll(others);
     restoreEnv();
   }
 });

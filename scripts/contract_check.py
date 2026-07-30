@@ -1999,6 +1999,17 @@ EXEC_ROSTER = {
     Path("scripts/validate.sh"),
 }
 
+# The "twelve" above was PROSE — the one number in this file that nothing
+# checked, in the file whose entire job is checking numbers. It was accurate
+# when written and would have gone stale silently the first time anyone added a
+# thirteenth `#!` script, leaving a confident sentence quietly wrong. Assert it.
+#
+# The count is the point, not the identity: this is the non-executable-with-a-
+# shebang population, and it is expected to move whenever a demo/driver script
+# is added or removed. When it does, update this number in the same commit —
+# that is the prompt to re-read the sentence above and confirm it still holds.
+SHEBANG_NONEXEC_EXPECTED = 12
+
 
 def _tracked_modes() -> "dict[Path, str] | None":
     # QUOTED annotation on purpose. `X | None` is PEP 604 and needs 3.10, and a
@@ -2127,6 +2138,30 @@ else:
         else:
             shebangs_confirmed += 1
 
+    # The prose above says twelve tracked `.mjs`/`.ts` files carry `#!` and are
+    # correctly NOT executable. Count them, so the sentence cannot rot: this is
+    # the population the roster's set-equality deliberately does not cover, and
+    # it was the only number in this file that nothing verified.
+    shebang_nonexec = []
+    for rel, mode in tracked_modes.items():
+        if rel.suffix not in (".mjs", ".ts") or mode == "100755":
+            continue
+        try:
+            if (ROOT / rel).open("rb").read(2) == b"#!":
+                shebang_nonexec.append(rel)
+        except OSError:
+            continue  # unreadable is check 15's other branch, not this one
+    shebang_nonexec_count = len(shebang_nonexec)
+    if shebang_nonexec_count != SHEBANG_NONEXEC_EXPECTED:
+        listed = ", ".join(str(r) for r in sorted(shebang_nonexec)[:15])
+        errors.append(
+            f"check 15: {shebang_nonexec_count} tracked .mjs/.ts file(s) carry `#!` while committed "
+            f"non-executable, but the comment beside EXEC_ROSTER says {SHEBANG_NONEXEC_EXPECTED}. "
+            f"These are invoked as `node <file>`, so 100644 is correct — but the count is prose that "
+            f"goes stale silently. Update SHEBANG_NONEXEC_EXPECTED and re-read that comment. "
+            f"Current set: {listed}."
+        )
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -2160,7 +2195,8 @@ print(
 )
 print(
     f"File modes              : {len(exec_tracked)} tracked at 100755 · roster of "
-    f"{len(EXEC_ROSTER)} · {shebangs_confirmed} interpreter line(s) confirmed"
+    f"{len(EXEC_ROSTER)} · {shebangs_confirmed} interpreter line(s) confirmed · "
+    f"{shebang_nonexec_count} shebang'd non-exec"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 _origin_counts: dict[str, int] = {}

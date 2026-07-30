@@ -24,6 +24,8 @@ import { spawnSync } from "node:child_process";
 import { loadConfig, type Config } from "../config.js";
 import { CAPABILITY_GROUPS, droppedTools, selectPrivilegedGroups } from "../capabilities.js";
 import { parseArgs } from "./args.js";
+import { BridgeClient } from "../bridge.js";
+import { resolveBridgeSecret } from "../secret.js";
 
 export type CheckStatus = "ok" | "fail" | "skip";
 
@@ -248,6 +250,33 @@ export function checkCapabilities(config: Config): Check[] {
   return checks;
 }
 
+/**
+ * Prove the thing on the far end is OUR bridge, not merely a listening socket.
+ *
+ * Sends an authenticated `ping` with the same secret resolution index.ts uses,
+ * so this fails exactly when a real call would: wrong process on the port, or a
+ * secret that no longer matches the one the addon minted. `probeTcp` can see
+ * neither, which is what made "editor-bridge reachable" a check that could pass
+ * while every tool failed.
+ */
+async function handshakeOk(
+  config: Config,
+  b: { host: string; port: number; secretEnv?: string[] },
+  timeoutMs: number,
+): Promise<boolean> {
+  const client = new BridgeClient(b.host, b.port, timeoutMs, "bridge", undefined, () =>
+    resolveBridgeSecret(config.projectPath, b.secretEnv ?? []),
+  );
+  try {
+    await client.request("ping", {}, timeoutMs);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    client.close();
+  }
+}
+
 export async function runDoctorChecks(config: Config, opts: DoctorOptions): Promise<DoctorReport> {
   const checks: Check[] = [];
 
@@ -262,18 +291,24 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
 
   // The four bridges.
   const severity: Check["severity"] = opts.requireLive ? "required" : "info";
-  const bridges: Array<{ name: string; host: string; port: number; hint: string }> = [
+  // `secretEnv` marks the two bridges that speak OUR protocol, so a TCP connect
+  // is not the end of the story for them (see handshakeOk). The LSP and DAP
+  // entries have none: those ports belong to Godot, and anything we could send
+  // to prove liveness would be us implementing a foreign protocol inside doctor.
+  const bridges: Array<{ name: string; host: string; port: number; hint: string; secretEnv?: string[] }> = [
     {
       name: "editor-bridge",
       host: config.bridgeHost,
       port: config.bridgePort,
       hint: 'Open the editor with the "Breakpoint MCP" plugin enabled.',
+      secretEnv: ["BREAKPOINT_BRIDGE_SECRET"],
     },
     {
       name: "runtime-bridge",
       host: config.runtimeHost,
       port: config.runtimePort,
       hint: "Launch the project (godot_run_project / dbg_launch) with the plugin enabled — it auto-registers the runtime autoload.",
+      secretEnv: ["BREAKPOINT_RUNTIME_SECRET", "BREAKPOINT_BRIDGE_SECRET"],
     },
     {
       name: "gdscript-lsp",
@@ -291,12 +326,38 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
   const bridgeChecks = await Promise.all(
     bridges.map(async (b): Promise<Check> => {
       const ok = await probeTcp(b.host, b.port, opts.timeoutMs);
+      if (!ok) {
+        return {
+          name: b.name,
+          status: "fail",
+          severity,
+          detail: `${b.host}:${b.port} unreachable`,
+          hint: b.hint,
+        };
+      }
+      // An open port is not a working bridge. A TCP connect succeeds for ANY
+      // process holding it, and never touches the shared secret — so the two
+      // failures that look most like success stayed invisible: a foreign
+      // process on 9080, and a stale secret (the addon regenerates it into
+      // res://.godot/, so a copied or long-lived config goes quietly wrong).
+      // Both then reported "reachable" here and failed on every real call.
+      if (b.secretEnv) {
+        const live = await handshakeOk(config, b, opts.timeoutMs);
+        if (!live) {
+          return {
+            name: b.name,
+            status: "fail",
+            severity,
+            detail: `${b.host}:${b.port} open, but no Breakpoint bridge answered`,
+            hint: "Something holds that port without speaking the bridge protocol, or the shared secret is stale. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the editor to remint it.",
+          };
+        }
+      }
       return {
         name: b.name,
-        status: ok ? "ok" : "fail",
+        status: "ok",
         severity,
-        detail: `${b.host}:${b.port} ${ok ? "reachable" : "unreachable"}`,
-        hint: ok ? undefined : b.hint,
+        detail: `${b.host}:${b.port} reachable${b.secretEnv ? " · bridge answered" : ""}`,
       };
     }),
   );

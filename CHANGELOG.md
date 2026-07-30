@@ -7,6 +7,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **`doctor --require-live` called a squatted port a working bridge.** The check was a bare TCP
+  connect, which succeeds for *any* process holding the port and never touches the shared secret. The
+  two failures that look most like success were therefore invisible: another process on 9080 (a
+  second editor, a stale instance, something unrelated), and a stale secret — the addon mints one into
+  `res://.godot/`, so a copied or long-lived config goes quietly wrong. Both reported
+  `editor-bridge reachable` and then failed on every real call, which is the worst shape a
+  diagnostic can take: green, and wrong.
+
+  The editor and runtime bridges — the two that speak our line protocol — now complete an
+  authenticated `ping` using the same secret resolution `index.ts` uses, so the check fails exactly
+  when a real call would, and the hint names both causes. The LSP and DAP ports keep the TCP probe:
+  those belong to Godot, and anything further would be doctor reimplementing a foreign protocol. The
+  failure is per-bridge, not a blanket downgrade.
+
+- **The one number in `contract_check.py` that nothing checked.** Check 15's roster comment states
+  that twelve tracked `.mjs`/`.ts` files carry `#!` while correctly committed non-executable (they
+  are invoked as `node <file>`). That sentence was accurate and entirely unverified — it would have
+  gone stale in silence the first time a thirteenth driver script was added, in the file whose whole
+  job is refusing to let claims drift from code. It is now asserted, and reported in the check-15
+  summary line.
 - **A dropped connection reported "closed" and threw away the reason.** All five clients register
   `socket.once("error")` *inside* `connect()`, where it rejects the connect promise. Once the
   connection is up that handler is still armed, so a mid-flight `ECONNRESET` / `EPIPE` fired it,
