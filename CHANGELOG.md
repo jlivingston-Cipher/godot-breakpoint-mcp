@@ -6,6 +6,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.28.0] — 2026-07-30
+
+### Removed
+- **The `network` capability group**, and with it `BREAKPOINT_PRIVILEGED_GROUPS=network` as a
+  meaningful value. Nothing on the surface ever egressed beyond loopback, so the group gated two
+  local tools behind a name that promised otherwise — see the Fixed entry below for why that was
+  wrong in both directions. The token is now reported as unknown and ignored, and the two tools it
+  gated (`backend_detect`, `backend_configure`) register by default, so an existing config keeps
+  working and gains a warning rather than losing a capability. **Minor, not patch:** this changes the
+  default advertised surface from 274 tools to 276 and retires a documented configuration value.
+
 ### Fixed
 - **`doctor --require-live` called a squatted port a working bridge.** The check was a bare TCP
   connect, which succeeds for *any* process holding the port and never touches the shared secret. The
