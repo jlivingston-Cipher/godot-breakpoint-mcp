@@ -29,6 +29,16 @@ name: integration
 #                     (the floor where OS.add_logger was introduced) and 4.7 (newest stable) — on
 #                     4.5/4.7 the print() must be captured. Headless & deterministic like cli-plane
 #                     (no Xvfb/GPU), and — like cli-plane — a REQUIRED gate: all three arms must pass.
+#   * runtime-render-plane — the same live GAME as runtime-plane, but rendered by a rasterizer that
+#                     actually DRAWS (Xvfb + Mesa llvmpipe, no --headless), so the two pixel-producing
+#                     runtime tools finally execute: runtime_screenshot and runtime_screenshot_diff.
+#                     Boots res://tests/render_probe.tscn — a 400x400 red patch, deliberately NOT the
+#                     uniform frame res://main.tscn produces — then toggles the patch's visibility and
+#                     asserts the diff over a KNOWN pixel set: full frame ~0.2143, a region inside the
+#                     patch 1.0, a region outside it 0.0. No single constant satisfies all three, which
+#                     is what separates this from a job that is green without comparing anything.
+#                     Markers RENDER_LIVE_*. Like render-plane, a degraded capture (no_image /
+#                     no_texture) is an ERROR here, not the graceful skip it is everywhere else.
 #   * peers-plane   — F6 multi-peer determinism, headless. The ONLY job here that boots no game for
 #                     itself and needs no editor: runtime_spawn_peers spawns its own headless children
 #                     through the shipped PeerRegistry, each on an allocated loopback port. Freezes,
@@ -878,3 +888,85 @@ jobs:
           fi
           echo "render path verified: $(grep -o 'OPS_UNIT_RENDER.*' /tmp/ops-render.log)"
           echo "$(grep -o 'OPS_UNIT_SUMMARY.*' /tmp/ops-render.log)"
+
+  runtime-render-plane:
+    name: runtime plane vs a real rasterizer (Xvfb + llvmpipe)
+    runs-on: ubuntu-latest
+    # render-plane covers the EDITOR-side capture, but it does so with a --script
+    # run, and runtime_screenshot_diff needs a RUNNING GAME. So this is the other
+    # half of the same correction: same Xvfb + llvmpipe rasterizer, applied to
+    # Plane C instead of the addon unit suite.
+    #
+    # The handoffs called this "the one thing CI structurally cannot do". It was
+    # the same mistake RENDER_PATH_COVERAGE_GAP §2 made and #138 disproved:
+    # llvmpipe is software but it is a REAL rasterizer that draws, and what
+    # actually blocked the capture was the dummy driver that --headless selects.
+    # Drop --headless, keep LIBGL_ALWAYS_SOFTWARE=1, and get_image() works.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: host/package-lock.json
+      - name: Install Godot + Xvfb
+        run: |
+          set -eux
+          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Build host
+        working-directory: host
+        run: npm ci && npm run build
+      - name: Import the example project (headless)
+        run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
+      - name: Boot the render probe scene under a live rasterizer and diff real pixels
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          # The default-on loopback handshake is covered by bridge_auth_smoke.gd;
+          # this probe connects without a secret, so disable auth for the boot.
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+          # A distinct port so this game can never be confused with runtime-plane's
+          # :9081 / :9082 if the jobs ever share a runner.
+          BREAKPOINT_RUNTIME_PORT: '9083'
+          # Software OpenGL (Mesa llvmpipe) — no GPU on a runner, but NOT the dummy
+          # driver: it draws, so the capture path is genuinely exercised.
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -eux
+          # pipefail matters below: the probe is piped through `tee`, and without
+          # it the step's exit status would be tee's (always 0) — a failed
+          # assertion would print and be ignored.
+          set -o pipefail
+          # NOTE THE ABSENCE OF --headless. That is the entire point of this job:
+          # under --headless the viewport has no texture and runtime_screenshot
+          # degrades to no_image, which the probe treats as a hard failure.
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            "$GODOT_BIN" --path "$GODOT_PROJECT" res://tests/render_probe.tscn \
+            --rendering-driver opengl3 --audio-driver Dummy >/tmp/godot-render.log 2>&1 &
+          for i in $(seq 1 60); do
+            if node -e "require('net').connect(9083,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "render probe port open"; break
+            fi
+            sleep 1
+          done
+          node test-integration/runtime-screenshot.integration.mjs | tee /tmp/render-live.log
+          # The probe already exits non-zero on any failed assertion, and pipefail
+          # now propagates that. This second pass is belt-and-braces on the job's
+          # REASON FOR EXISTING: a run that somehow reported success without these
+          # markers would be a job that proves nothing while looking like coverage,
+          # which is the exact defect #138/#139 removed elsewhere.
+          for marker in RENDER_LIVE_CAPTURE RENDER_LIVE_SELF RENDER_LIVE_CHANGE RENDER_LIVE_REGION_IN RENDER_LIVE_REGION_OUT RENDER_LIVE_RESULT; do
+            if ! grep -q "$marker" /tmp/render-live.log; then
+              echo "::error::$marker missing — the pixel path did not execute"; exit 1
+            fi
+          done
+          echo "live render verified: $(grep -o 'RENDER_LIVE_RESULT.*' /tmp/render-live.log)"
+      - name: Game log tail (on failure)
+        if: always()
+        run: tail -n 50 /tmp/godot-render.log || true
