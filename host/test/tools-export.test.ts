@@ -5,7 +5,7 @@ import { annotationsFor, ANNOTATED_TOOLS } from "../src/annotations.js";
 import { TOOL_CAPABILITIES } from "../src/capabilities.js";
 
 const FULL = 289;
-const SECURE_DEFAULT = 274;
+const SECURE_DEFAULT = 276;
 
 test("the full surface report covers every registered tool exactly once", () => {
   const r = buildToolsReport("full");
@@ -95,7 +95,7 @@ test("no confirmation-gated tool is marked read-only", () => {
 
 test("the capability-group block lists both groups as default-off with their tools", () => {
   const r = buildToolsReport("full");
-  assert.deepEqual(r.capabilityGroups.map((g) => g.id), ["code-execution", "network"]);
+  assert.deepEqual(r.capabilityGroups.map((g) => g.id), ["code-execution"]);
   for (const g of r.capabilityGroups) {
     assert.equal(g.defaultEnabled, false);
     assert.ok(g.describe.length > 0);

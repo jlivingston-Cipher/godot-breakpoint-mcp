@@ -13,33 +13,35 @@ import { loadConfig } from "../src/config.js";
 test("resolvePrivilegedGroups: safe default, --trust presets, explicit list, unknown token", () => {
   assert.deepEqual(resolvePrivilegedGroups({}), { value: "" });
   assert.deepEqual(resolvePrivilegedGroups({ trust: "safe" }), { value: "" });
-  assert.deepEqual(resolvePrivilegedGroups({ trust: "full" }), { value: "code-execution,network" });
+  assert.deepEqual(resolvePrivilegedGroups({ trust: "full" }), { value: "code-execution" });
   assert.deepEqual(resolvePrivilegedGroups({ "privileged-groups": "code-execution" }), { value: "code-execution" });
-  assert.deepEqual(resolvePrivilegedGroups({ "privileged-groups": "all" }), { value: "code-execution,network" });
+  assert.deepEqual(resolvePrivilegedGroups({ "privileged-groups": "all" }), { value: "code-execution" });
 
-  const bad = resolvePrivilegedGroups({ "privileged-groups": "network, bogus" });
-  assert.equal(bad.value, "network");
+  // `network` is no longer a group, so it warns exactly like a typo does.
+  const bad = resolvePrivilegedGroups({ "privileged-groups": "code-execution, network, bogus" });
+  assert.equal(bad.value, "code-execution");
   assert.match(bad.warn ?? "", /bogus/);
+  assert.match(bad.warn ?? "", /network/);
 });
 
 test("serverEntry adds BREAKPOINT_PRIVILEGED_GROUPS only when opted in", () => {
   const safe = serverEntry("/proj", "godot", false) as { env: Record<string, string> };
   assert.equal(safe.env.BREAKPOINT_PRIVILEGED_GROUPS, undefined);
-  const full = serverEntry("/proj", "godot", false, "code-execution,network") as { env: Record<string, string> };
-  assert.equal(full.env.BREAKPOINT_PRIVILEGED_GROUPS, "code-execution,network");
+  const full = serverEntry("/proj", "godot", false, "code-execution") as { env: Record<string, string> };
+  assert.equal(full.env.BREAKPOINT_PRIVILEGED_GROUPS, "code-execution");
 });
 
-test("doctor checkCapabilities reports the secure default (15 dropped) + how-to-enable hint", () => {
+test("doctor checkCapabilities reports the secure default (13 dropped) + how-to-enable hint", () => {
   const cfg = { ...loadConfig(), privilegedGroups: null };
   const main = checkCapabilities(cfg).find((c) => c.name === "capability-groups");
   assert.ok(main);
   assert.equal(main.severity, "info");
   assert.match(main.detail, /code-execution off/);
-  assert.match(main.detail, /15 higher-trust tool/);
+  assert.match(main.detail, /13 higher-trust tool/);
   assert.match(main.hint ?? "", /BREAKPOINT_PRIVILEGED_GROUPS/);
 });
 
-test("doctor checkCapabilities reports the full surface when both groups are on", () => {
+test("doctor checkCapabilities reports the full surface when the group is on", () => {
   const cfg = { ...loadConfig(), privilegedGroups: ["all"] };
   const main = checkCapabilities(cfg).find((c) => c.name === "capability-groups");
   assert.ok(main);
@@ -51,8 +53,9 @@ test("doctor flags a configured asset-gen backend unless code-execution is on", 
   const off = { ...loadConfig(), privilegedGroups: null, assetGenBackend: "command", assetGenCommand: "/bin/echo" };
   assert.ok(checkCapabilities(off).some((c) => c.name === "capability-assetgen"));
 
-  // network alone does NOT load the asset_gen_* tools — their only privileged
-  // path is the local command backend (code-execution), so the hint still fires.
+  // An unrecognized group token does NOT load the asset_gen_* tools — their only
+  // privileged path is the local command backend (code-execution), so the hint
+  // still fires. `network` is such a token now: it names no group at all.
   const net = { ...off, privilegedGroups: ["network"] };
   assert.ok(checkCapabilities(net).some((c) => c.name === "capability-assetgen"));
 

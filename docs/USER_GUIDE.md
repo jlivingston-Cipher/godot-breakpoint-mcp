@@ -7,7 +7,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 - **Version:** host 1.27.1 · addon 1.9.2
 - **License:** MIT
-- **What it exposes:** full 289 tools (secure-default 274 with the privileged groups off) + 6 MCP resources
+- **What it exposes:** full 289 tools (secure-default 276 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -377,14 +377,14 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 274 tools**. Opt in
+**dropped at registration** (never listed), giving a **secure-default surface of 276 tools**. Opt in
 to load the **full 289**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BREAKPOINT_PRIVILEGED_GROUPS` | *(empty → none)* | Comma/space list of groups to enable: `code-execution` (runs GDScript / invokes arbitrary methods / paused-frame `evaluate` / the local asset-gen `command` backend), `network` (egress beyond loopback — the Group M backend SDK), or `all`. |
+| `BREAKPOINT_PRIVILEGED_GROUPS` | *(empty → none)* | Comma/space list of groups to enable: `code-execution` (runs GDScript / invokes arbitrary methods / paused-frame `evaluate` / the local asset-gen `command` backend), or `all`. There is no `network` group: nothing on the surface egresses beyond loopback. |
 
 ### AI asset generation (opt-in)
 
@@ -590,7 +590,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **289 tools** in total (the secure-default surface is **274** with the two privileged capability groups off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **289 tools** in total (the secure-default surface is **276** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -1008,7 +1008,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-289 tools (secure-default 274) and 6 resources. The exhaustive per-tool schemas are in
+289 tools (secure-default 276) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**
