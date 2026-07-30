@@ -53,7 +53,7 @@ export class CsLspClient {
     }
     this.rootFsPath = root.replace(/[\\/]+$/, "");
     this.channel.onMessage((m) => this.onMessage(m));
-    this.channel.onClose(() => this.onClose());
+    this.channel.onClose((cause) => this.onClose(cause));
   }
 
   /**
@@ -133,10 +133,10 @@ export class CsLspClient {
     }
   }
 
-  private onClose(): void {
+  private onClose(cause?: Error): void {
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new LspError("closed", "C# LSP connection closed"));
+      p.reject(new LspError("closed", `C# LSP connection closed${cause ? ` (${cause.message})` : ""}`));
     }
     this.pending.clear();
     this.initialized = null;

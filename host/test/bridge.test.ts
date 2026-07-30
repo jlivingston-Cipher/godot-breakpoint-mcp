@@ -102,6 +102,42 @@ test("pending requests reject with 'bridge_closed' if the connection drops first
   await srv.close();
 });
 
+/**
+ * A drop with a socket-level cause must NAME it. `socket.once("error")` only
+ * rejects the CONNECT promise; once the connection is up that handler still
+ * fires but reject() is a no-op on a settled promise, so before the fix the
+ * errno was swallowed and every pending request got the same generic message —
+ * the operator could not tell a crashed editor from an RST by something else on
+ * the port. resetAndDestroy() sends a TCP RST, so the client sees ECONNRESET.
+ *
+ * The CODE must stay `bridge_closed` (callers and the test above branch on it);
+ * only the message gains the errno.
+ */
+test("a reset connection names the transport error, not just 'closed'", async () => {
+  const srv = await startBridge((_req, s) => s.resetAndDestroy());
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  await assert.rejects(client.request("x"), (e: unknown) => {
+    assert.ok(isBridgeError("bridge_closed")(e), `code should stay bridge_closed, got ${(e as BridgeError).code}`);
+    assert.match((e as Error).message, /ECONNRESET/, `message should name the errno: ${(e as Error).message}`);
+    return true;
+  });
+  client.close();
+  await srv.close();
+});
+
+/** A clean FIN has no cause, so the message must stay unadorned — no empty "()". */
+test("a clean close reports no phantom cause", async () => {
+  const srv = await startBridge((_req, s) => s.end());
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  await assert.rejects(client.request("x"), (e: unknown) => {
+    assert.ok(isBridgeError("bridge_closed")(e));
+    assert.doesNotMatch((e as Error).message, /\(\s*\)/, "no empty parenthetical");
+    return true;
+  });
+  client.close();
+  await srv.close();
+});
+
 test("request() rejects with 'bridge_unavailable' when nothing is listening", async () => {
   const tmp = await startTcpServer(() => {});
   const deadPort = tmp.port;

@@ -80,12 +80,16 @@ export class DapClient extends EventEmitter {
       "Is the editor running with the Debug Adapter enabled (Editor Settings → Network → Debug Adapter, port 6006)?",
     );
     this.conn.onMessage((m) => this.onMessage(m));
-    this.conn.onClose(() => {
+    this.conn.onClose((cause) => {
       this.state = "terminated";
       this.configured = false;
+      // `cause` is the socket-level error when the drop had one (ECONNRESET, EPIPE).
+      // Without it every pending request reported a generic close and the operator
+      // could not tell a crashed server from something else holding the port.
+      const detail = cause ? ` (${cause.message})` : "";
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
-        p.reject(new DapError(p.command, "DAP connection closed"));
+        p.reject(new DapError(p.command, `DAP connection closed${detail}`));
       }
       this.pending.clear();
       this.emit("closed");

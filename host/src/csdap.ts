@@ -66,12 +66,13 @@ export class CsDapClient extends EventEmitter {
   ) {
     super();
     this.channel.onMessage((m) => this.onMessage(m));
-    this.channel.onClose(() => {
+    this.channel.onClose((cause) => {
       this.state = "terminated";
       this.configured = false;
+      const detail = cause ? ` (${cause.message})` : "";
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
-        p.reject(new DapError(p.command, "C# DAP connection closed"));
+        p.reject(new DapError(p.command, `C# DAP connection closed${detail}`));
       }
       this.pending.clear();
       this.emit("closed");
