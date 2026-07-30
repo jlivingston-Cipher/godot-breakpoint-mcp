@@ -819,3 +819,61 @@ jobs:
       - name: Editor log tail (on failure)
         if: always()
         run: tail -n 80 /tmp/godot-editor-authoring.log || true
+
+  render-plane:
+    name: render path / screenshot capture vs a real rasterizer (Xvfb + llvmpipe)
+    runs-on: ubuntu-latest
+    # The GDScript unit suite AGAIN, but with a rasterizer that actually draws.
+    # gdscript-unit runs it under --headless, where the capture path cannot execute
+    # and is correctly reported as a SKIP. This job is the one that makes it a PASS.
+    # No GPU is involved or required: Mesa llvmpipe is software, but it is a real
+    # rasterizer, and it is enough to exercise get_image() end to end.
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Godot + Xvfb
+        run: |
+          set -eux
+          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Import the example project (headless)
+        run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
+      - name: Run the addon unit suite against a live rasterizer
+        env:
+          # A CI runner has no GPU, so force software OpenGL (Mesa llvmpipe) — the
+          # same override the editor-plane job uses. Software, but NOT the dummy
+          # driver: it draws, so the capture path is genuinely exercised.
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          # The whole reason this job exists: here, a degraded capture is a FAILURE.
+          # gdscript-unit is allowed to skip it; this job is not.
+          BREAKPOINT_TEST_REQUIRE_RENDER: '1'
+        run: |
+          set -eu
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            "$GODOT_BIN" --path "${{ github.workspace }}/example" \
+            --rendering-driver opengl3 --audio-driver Dummy \
+            --script res://tests/ops_unit_test.gd > /tmp/ops-render.log 2>&1 || true
+          echo "=== ops_unit_test.gd (live rasterizer) ==="
+          cat /tmp/ops-render.log
+          echo "=========================================="
+          if ! grep -q "OPS_UNIT_SUMMARY" /tmp/ops-render.log; then
+            echo "::error::no OPS_UNIT_SUMMARY — the script did not complete"; exit 1
+          fi
+          if grep -q "OPS_UNIT_FAIL" /tmp/ops-render.log; then
+            echo "::error::an assertion failed against a live rasterizer"; exit 1
+          fi
+          # This job's REASON FOR EXISTING. Green without these two lines would be a
+          # job that proves nothing while looking like coverage — the exact defect
+          # this whole change set is here to remove. Assert its own premise.
+          if ! grep -q "OPS_UNIT_PASS rb.shot.mime" /tmp/ops-render.log; then
+            echo "::error::capture path did not execute — this job proved nothing"; exit 1
+          fi
+          if grep -q "OPS_UNIT_SKIP rb.shot.capture" /tmp/ops-render.log; then
+            echo "::error::capture was SKIPPED in the job whose only purpose is to run it"; exit 1
+          fi
+          echo "render path verified: $(grep -o 'OPS_UNIT_RENDER.*' /tmp/ops-render.log)"
+          echo "$(grep -o 'OPS_UNIT_SUMMARY.*' /tmp/ops-render.log)"

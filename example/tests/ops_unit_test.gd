@@ -18,8 +18,15 @@ extends SceneTree
 ##
 ## The editor-COUPLED handlers (every mutator that drives EditorInterface /
 ## EditorUndoRedoManager) are already covered end-to-end by the authoring-plane
-## integration probe. This suite needs no editor, no bridge, and no GUI — just
-## `godot --headless --path example --script res://tests/ops_unit_test.gd`.
+## integration probe. This suite needs no editor and no bridge:
+##   `godot --headless --path example --script res://tests/ops_unit_test.gd`
+##
+## ...with ONE documented exception. The live _screenshot capture needs a real
+## rasterizer, and --headless selects the dummy one. Run WITHOUT --headless (a
+## GUI session, or Xvfb + --rendering-driver opengl3) and the capture assertions
+## execute; run with it and they are reported as OPS_UNIT_SKIP, never as passes.
+## Set BREAKPOINT_TEST_REQUIRE_RENDER=1 to turn any non-capture into a hard fail —
+## that is what the render-plane CI job does.
 ##
 ## Prints `OPS_UNIT_PASS` / `OPS_UNIT_FAIL` per assertion and a final
 ## `OPS_UNIT_SUMMARY pass=<n>/<total>` line, and quits non-zero if anything fails
@@ -60,7 +67,15 @@ class _LiveRuntimeBridge extends RB:
 
 var _pass := 0
 var _fail := 0
-var _live_done := false
+var _skip := 0
+var _frame := 0
+
+## The frame by which any live rasterizer has drawn into the root viewport.
+## A viewport has no readable texture until something has actually been rendered
+## into it, so probing on frame 1 would report "no image" on a perfectly healthy
+## renderer — and we would be right back to a test that cannot tell a dummy
+## driver from a real one, which is the whole bug being fixed here.
+const _SHOT_FRAME := 5
 
 
 func _initialize() -> void:
@@ -94,16 +109,22 @@ func _initialize() -> void:
 
 
 func _process(_delta: float) -> bool:
-	# One-shot LIVE-TREE phase. On the first real frame `root` is active, so nodes
-	# added to it enter the tree (get_viewport / absolute `/root/...` paths resolve)
-	# — reaching branches the hermetic phase cannot. The runtime-bridge autoload was
-	# freed in _initialize, so no socket opens here either.
-	if _live_done:
-		return true
-	_live_done = true
-	_test_live_resolve_absolute()
+	# LIVE-TREE phase, spread across a few frames. On the first real frame `root`
+	# is active, so nodes added to it enter the tree (get_viewport / absolute
+	# `/root/...` paths resolve) — reaching branches the hermetic phase cannot.
+	# The runtime-bridge autoload was freed in _initialize, so no socket opens.
+	#
+	# The screenshot waits until _SHOT_FRAME on purpose: see that constant. Under
+	# --headless the extra frames cost microseconds; under a real rasterizer they
+	# are the difference between a meaningful result and a false negative.
+	_frame += 1
+	if _frame == 1:
+		_test_live_resolve_absolute()
+		return false
+	if _frame < _SHOT_FRAME:
+		return false
 	_test_live_screenshot()
-	print("OPS_UNIT_SUMMARY pass=%d/%d" % [_pass, _pass + _fail])
+	print("OPS_UNIT_SUMMARY pass=%d/%d skip=%d" % [_pass, _pass + _fail, _skip])
 	quit(0 if _fail == 0 else 1)
 	return true
 
@@ -115,6 +136,32 @@ func _check(label: String, cond: bool) -> void:
 	else:
 		_fail += 1
 		print("OPS_UNIT_FAIL %s" % label)
+
+
+## A SKIP IS NOT A PASS. It exists so an environment that cannot exercise a path
+## says so out loud, instead of banking a green check for the degradation branch
+## and letting `pass=N/N` read as coverage. That substitution is precisely how the
+## screenshot capture path went unexercised across seventeen releases.
+func _skip_check(label: String, why: String) -> void:
+	_skip += 1
+	print("OPS_UNIT_SKIP %s (%s)" % [label, why])
+
+
+## What the engine is actually rasterizing with, as the capture path experiences it.
+##
+## "dummy" is the --headless rasterizer: a viewport and a texture both exist, but
+## get_image() yields null because nothing was ever drawn. It is the ONLY backend
+## for which an empty capture is correct behaviour rather than a defect.
+##
+## Every other backend is expected to hand back a real frame — including Mesa
+## llvmpipe under Xvfb, which is software but is a genuine rasterizer. Treating
+## "software" and "cannot capture" as synonyms is the mistake that kept this
+## uncovered; the dividing line is the dummy driver, not the absence of a GPU.
+func _render_backend() -> String:
+	if DisplayServer.get_name() == "headless":
+		return "dummy"
+	var adapter := RenderingServer.get_video_adapter_name()
+	return adapter if adapter != "" else "unknown"
 
 
 func _eq(label: String, got: Variant, want: Variant) -> void:
@@ -599,22 +646,55 @@ func _test_live_resolve_absolute() -> void:
 # --- LIVE tree: _screenshot with a real viewport ----------------------------
 func _test_live_screenshot() -> void:
 	# In-tree, get_viewport() is non-null — the precondition the hermetic guard
-	# cannot reach. The capture itself needs a real renderer: under the headless
-	# dummy driver get_image() yields null, so _screenshot degrades to no_image
-	# (it also logs a benign engine "Parameter t is null"); on a GPU it returns ok.
+	# cannot reach. Whether the CAPTURE can then run depends on the rasterizer, so
+	# this reports FOUR distinct outcomes where it used to report two passing ones:
+	#
+	#   captured  — assert it is a real PNG with real dimensions and a real payload
+	#   degraded  — assert it failed CLEANLY, and SKIP the capture assertions
+	#   demanded  — BREAKPOINT_TEST_REQUIRE_RENDER=1 turns a degrade into a FAIL
+	#   impossible— a LIVE backend that cannot capture is a bug, not an environment
+	#
+	# The last two are the point. Before this, `else` swallowed every non-capture
+	# into one green check, so a real rasterizer silently failing to produce a frame
+	# looked exactly like headless working as designed.
 	var host := Node.new()
 	host.name = "ShotHost"
 	root.add_child(host)
 	var rb := _LiveRuntimeBridge.new()
 	host.add_child(rb)
 	_check("rb.live.has_viewport", rb.get_viewport() != null)
+
+	var backend := _render_backend()
+	var require := OS.get_environment("BREAKPOINT_TEST_REQUIRE_RENDER") == "1"
+	# Emitted unconditionally so a CI log always answers "what was it drawing with?"
+	print("OPS_UNIT_RENDER backend=%s require=%s frame=%d" % [backend, str(require), _frame])
+
 	var shot: Dictionary = rb._screenshot()
 	if shot["ok"]:
+		# THE CAPTURE PATH. Until this edit landed, nothing in this repo had ever
+		# executed the three assertions below — not once, in any run, anywhere.
 		var r: Dictionary = shot["result"]
 		_eq("rb.shot.mime", r["mime"], "image/png")
-		_check("rb.shot.dims", int(r["width"]) > 0 and int(r["height"]) > 0)
-	else:
-		# headless / dummy renderer: graceful degradation to a clean error, no crash
+		# Report the MEASURED size, not just "positive": on a HiDPI/Retina backing
+		# store these may not be the logical size an agent asked about, and a bare
+		# pass would hide that. The number belongs in the log where it can be read.
+		_check("rb.shot.dims (%dx%d)" % [int(r["width"]), int(r["height"])], int(r["width"]) > 0 and int(r["height"]) > 0)
+		# A real PNG is never a handful of bytes. An empty buffer is the shape a
+		# dead rasterizer returns, and it must not read as a successful capture.
+		_check("rb.shot.payload", String(r["base64"]).length() > 512)
+	elif require:
+		# Asked for a real frame and did not get one. Whatever the reason, that is
+		# a failure — the same contract as doctor --require-live (#136).
+		_check("rb.shot.required (backend=%s code=%s)" % [backend, str(shot["error"]["code"])], false)
+	elif backend == "dummy":
+		# --headless: nothing was drawn, so no frame is the CORRECT outcome. Assert
+		# it degraded cleanly — that is real coverage of a real guard — but do NOT
+		# bank it as capture coverage. Hence the skip alongside the pass.
 		_check("rb.shot.degrades", shot["error"]["code"] in ["no_image", "no_texture"])
+		_skip_check("rb.shot.capture", "dummy rasterizer — drop --headless to exercise it")
+	else:
+		# A live rasterizer that cannot produce a frame is a defect in the capture
+		# path, not a property of the environment. Fail, and name what it was using.
+		_check("rb.shot.live_backend_captures (backend=%s code=%s)" % [backend, str(shot["error"]["code"])], false)
 	rb.free()
 	host.free()
