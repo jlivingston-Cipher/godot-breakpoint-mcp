@@ -3,6 +3,29 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { BridgeClient } from "../../bridge.js";
 import { fail, type EditorCall } from "./common.js";
 
+/**
+ * Smallest edge, in pixels, a captured editor viewport may have and still be a
+ * frame rather than a placeholder.
+ *
+ * Godot does not tear down the main-screen tab you are not looking at — it
+ * collapses that tab's SubViewport to its minimum size and keeps rendering it.
+ * `get_texture().get_image()` therefore still succeeds, and the capture returns
+ * a real, valid, **2x2** PNG: correct magic bytes, correct mime, an 81-byte
+ * payload, and a note reading "Captured 2d viewport (2x2)". Every layer above
+ * reports success, and an assistant then *looks at* four pixels and reasons
+ * about the scene from them.
+ *
+ * Measured on Godot 4.7 (session 144), four editor boots, real Metal hardware:
+ * with the Script or 3D tab active, `viewport=2d` returned 2x2/81B; with the 2D
+ * tab active it returned 1297x492/3.6KB. A fresh editor with no saved layout —
+ * the CI condition — boots on the **3D** tab, and opening a `Node2D` scene does
+ * not switch it. So the degenerate case is the DEFAULT, not the exception.
+ *
+ * 8px is deliberately far below any real viewport and far above the collapsed
+ * one: it separates the two populations without guessing at a "reasonable" size.
+ */
+const MIN_RENDERED_VIEWPORT_PX = 8;
+
 /** Editor selection, ClassDB / docs lookups, and viewport screenshot. */
 export function registerIntrospectionTools(server: McpServer, call: EditorCall, bridge: BridgeClient): void {
   server.registerTool(
@@ -89,7 +112,8 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
       title: "Screenshot editor viewport",
       description:
         "Capture the 2D or 3D editor viewport as a PNG and return it as image content so the assistant can see the scene. " +
-        "Requires the matching editor tab (2D/3D) to be active and rendered.",
+        "Requires the matching editor tab (2D/3D) to be active: Godot collapses the inactive tab's viewport to a few " +
+        "pixels, and this tool returns a viewport_not_rendered error rather than that placeholder frame.",
       inputSchema: { viewport: z.enum(["2d", "3d"]).optional().describe("Which viewport (default 3d)") },
     },
     async ({ viewport }) => {
@@ -101,6 +125,16 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
           height: number;
           viewport: string;
         };
+        if (r.width < MIN_RENDERED_VIEWPORT_PX || r.height < MIN_RENDERED_VIEWPORT_PX) {
+          return fail({
+            code: "viewport_not_rendered",
+            message:
+              `The ${r.viewport} editor viewport measured ${r.width}x${r.height} — a collapsed viewport, not a rendered ` +
+              `frame. Godot keeps the inactive main-screen tab's viewport alive at its minimum size, so the capture ` +
+              `"succeeds" and returns a placeholder image. Switch the editor to the ${r.viewport.toUpperCase()} tab ` +
+              `(opening a scene does NOT switch it), then retry — or capture the viewport whose tab is active.`,
+          });
+        }
         return {
           content: [
             { type: "image" as const, data: r.base64, mimeType: r.mime },

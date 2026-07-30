@@ -1189,6 +1189,73 @@ async function main() {
       : fail("AUTH_UNDO_NOOP_GUARD", `performed=${noop.performed} has_redo=${noop.has_redo}`);
   });
 
+  // -------------------------------------------------- screenshot_editor (render path) ----
+  // The ONLY pixel-producing tool this probe touches, and the only one that cannot go
+  // through call() — screenshot_editor returns IMAGE content and no structuredContent,
+  // so call() would throw "no structuredContent" before any assertion ran. Until this
+  // family landed, no CI job in this repo exercised a pixel-producing tool at all.
+  //
+  // #138 closed the runtime half (ops_unit_test.gd captures under Xvfb + llvmpipe and
+  // FAILS if it cannot). This is the editor half: the same rasterizer, but going through
+  // EditorInterface.get_editor_viewport_2d() on a booted editor rather than a SceneTree
+  // root viewport. Nothing else covers it.
+  await family("AUTH_SHOT", async () => {
+    // WHICH VIEWPORT, AND WHY 3D. Measured on Godot 4.7 across four editor boots
+    // (session 144): a fresh editor with no saved layout — exactly what a CI runner
+    // has — boots on the 3D main-screen tab, and opening main.tscn does NOT switch
+    // it despite the root being a Node2D. The 3D viewport is therefore the one that
+    // is actually rendered here. Capturing 2d instead would assert against a
+    // collapsed 2x2 viewport and tell us nothing about the capture path.
+    const raw = await client.callTool(
+      { name: "screenshot_editor", arguments: { viewport: "3d" } }, undefined, { timeout: 60000 });
+    if (raw.isError) { fail("AUTH_SHOT_CAPTURE", (raw.content?.[0]?.text || "").slice(0, 200)); return; }
+    const img = (raw.content || []).find((c) => c.type === "image");
+    const note = (raw.content || []).find((c) => c.type === "text")?.text || "";
+    if (!img) { fail("AUTH_SHOT_CAPTURE", `no image block: ${JSON.stringify(raw.content).slice(0, 200)}`); return; }
+    img.mimeType === "image/png" ? pass("AUTH_SHOT_MIME", img.mimeType) : fail("AUTH_SHOT_MIME", String(img.mimeType));
+    // Decode rather than trust the label: a base64 string of the right shape can
+    // still be an error page, an empty buffer, or a 1x1 placeholder.
+    const bytes = Buffer.from(img.data || "", "base64");
+    bytes.length > 1024
+      ? pass("AUTH_SHOT_BYTES", `${bytes.length}B`)
+      : fail("AUTH_SHOT_BYTES", `${bytes.length}B — too small to be a real frame`);
+    // PNG magic 89 50 4E 47 — proves the payload really is an image.
+    (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47)
+      ? pass("AUTH_SHOT_MAGIC")
+      : fail("AUTH_SHOT_MAGIC", `first bytes ${[...bytes.slice(0, 4)].join(",")}`);
+    // MEASURE the dimensions, do not merely match their SHAPE. The first draft of
+    // this assertion tested /\(\d+x\d+\)/, which passes cheerfully on "(2x2)" — it
+    // would have certified the exact placeholder frame this family exists to reject.
+    const dims = /\((\d+)x(\d+)\)/.exec(note);
+    const w = dims ? Number(dims[1]) : 0, h = dims ? Number(dims[2]) : 0;
+    (w >= 64 && h >= 64)
+      ? pass("AUTH_SHOT_DIMS", `${w}x${h}`)
+      : fail("AUTH_SHOT_DIMS", `${note || "(no note)"} — not a rendered viewport`);
+
+    // THE OTHER HALF: the tab that is NOT active must REFUSE, not return a
+    // placeholder. Before the host-side guard this returned ok + a 2x2 81-byte PNG,
+    // with correct mime and correct PNG magic — success-shaped and empty, which an
+    // assistant would have looked at and reasoned from. A skip is not a pass, and a
+    // 2x2 is not a screenshot.
+    const raw2d = await client.callTool(
+      { name: "screenshot_editor", arguments: { viewport: "2d" } }, undefined, { timeout: 60000 });
+    const txt2d = (raw2d.content?.[0]?.text || "").slice(0, 200);
+    const img2d = (raw2d.content || []).find((c) => c.type === "image");
+    if (raw2d.isError && /viewport_not_rendered/.test(txt2d)) {
+      pass("AUTH_SHOT_INACTIVE_REFUSED", txt2d.slice(0, 80));
+    } else if (!raw2d.isError && img2d) {
+      // Legitimate on a machine where the 2D tab happens to be active (a developer
+      // running this locally). Assert it is a REAL frame, not the placeholder.
+      const d2 = /\((\d+)x(\d+)\)/.exec((raw2d.content || []).find((c) => c.type === "text")?.text || "");
+      const w2 = d2 ? Number(d2[1]) : 0, h2 = d2 ? Number(d2[2]) : 0;
+      (w2 >= 64 && h2 >= 64)
+        ? pass("AUTH_SHOT_INACTIVE_REFUSED", `2D tab was active — real frame ${w2}x${h2}`)
+        : fail("AUTH_SHOT_INACTIVE_REFUSED", `returned ok with a ${w2}x${h2} placeholder — the guard did not bite`);
+    } else {
+      fail("AUTH_SHOT_INACTIVE_REFUSED", `neither a real frame nor viewport_not_rendered: ${txt2d}`);
+    }
+  });
+
   // ---------------------------------------------------------------- summary ----
   console.log("AUTH_UNDO_ASSERTED note=undo/redo round-tripped via editor_undo/editor_redo (see AUTH_UNDO_* / AUTH_REDO_* markers)");
   const total = results.pass.length + results.fail.length;

@@ -238,3 +238,81 @@ test("node_delete forwards node.delete with the path once confirmed", async () =
   assert.equal(h.calls[0].method, "node.delete");
   assert.deepEqual(h.calls[0].params, { path: "/root/Main/Enemy" });
 });
+
+// ------------------------------------------------- screenshot_editor viewport guard ----
+
+/**
+ * Godot keeps the main-screen tab you are NOT looking at alive at its minimum
+ * size rather than tearing it down, so capturing it succeeds and yields a valid
+ * 2x2 PNG — right mime, right magic bytes, 81-byte payload, a note reading
+ * "Captured 2d viewport (2x2)". Every signal says success; the frame is empty.
+ * Measured on Godot 4.7 across four editor boots in session 144, where a fresh
+ * editor (the CI condition) boots on the 3D tab and opening a Node2D scene does
+ * not switch it — so the degenerate case is the default, not the exception.
+ */
+test("screenshot_editor refuses a collapsed viewport instead of returning a placeholder frame", async () => {
+  const h = makeHarness();
+  // Exactly what the addon returned from an inactive 2D tab on Godot 4.7.
+  h.setBridge("resolve", {
+    base64: "iVBORw0KGgoAAAANSUhEUg==",
+    mime: "image/png",
+    width: 2,
+    height: 2,
+    viewport: "2d",
+  });
+  const r = await h.handler("screenshot_editor")({ viewport: "2d" });
+  assert.equal(r.isError, true, "a 2x2 viewport must not be reported as a capture");
+  assert.match(text(r), /viewport_not_rendered/, "the error must carry a code the caller can branch on");
+  assert.match(text(r), /2x2/, "the error must name what was actually measured");
+  assert.match(text(r), /2D tab/, "the error must say how to fix it");
+  assert.equal(
+    r.content?.some((c) => (c as { type?: string }).type === "image"),
+    false,
+    "no image block may survive — an assistant would look at it",
+  );
+});
+
+test("screenshot_editor passes a real frame through untouched", async () => {
+  const h = makeHarness();
+  // The 3D tab on the same boot: 1417x548, a genuine frame.
+  h.setBridge("resolve", {
+    base64: "iVBORw0KGgoAAAANSUhEUgAA",
+    mime: "image/png",
+    width: 1417,
+    height: 548,
+    viewport: "3d",
+  });
+  const r = await h.handler("screenshot_editor")({ viewport: "3d" });
+  assert.notEqual(r.isError, true);
+  const img = r.content?.find((c) => (c as { type?: string }).type === "image") as
+    | { data?: string; mimeType?: string }
+    | undefined;
+  assert.ok(img, "a rendered viewport must still come back as image content");
+  assert.equal(img!.mimeType, "image/png");
+  assert.equal(img!.data, "iVBORw0KGgoAAAANSUhEUgAA");
+  // The note is content[1] on a success — content[0] is the image — so read the
+  // text block by type rather than by position (text() takes content[0]).
+  const note = r.content?.find((c) => (c as { type?: string }).type === "text") as { text?: string } | undefined;
+  assert.match(note?.text ?? "", /1417x548/);
+});
+
+test("the viewport guard trips on either edge, and 8px is the boundary", async () => {
+  const cases: Array<[number, number, boolean]> = [
+    [2, 2, true],       // both collapsed — the observed case
+    [1417, 4, true],    // height collapsed only
+    [4, 548, true],     // width collapsed only
+    [7, 7, true],       // just under the boundary
+    [8, 8, false],      // the boundary itself is allowed through
+    [1417, 548, false], // a real frame
+  ];
+  for (const [width, height, shouldRefuse] of cases) {
+    const h = makeHarness();
+    h.setBridge("resolve", { base64: "iVBORw0K", mime: "image/png", width, height, viewport: "3d" });
+    const r = await h.handler("screenshot_editor")({ viewport: "3d" });
+    assert.equal(
+      r.isError === true,
+      shouldRefuse,
+      `${width}x${height} should ${shouldRefuse ? "be refused" : "pass through"}`,
+    );
+  }
+});
