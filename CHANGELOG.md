@@ -6,6 +6,36 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **The status dock could push the bottom panel and the FileSystem dock out of the editor window**
+  ([#124](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/124)). An editor dock
+  slot cannot scroll and cannot be shrunk below its content's minimum size, so a dock that reports
+  an oversized minimum is not clipped — it raises the minimum size of the whole editor layout, and
+  the editor can only satisfy that by pushing whatever sits below out of the window. Measured in a
+  real headless editor, this dock demanded **311 x 4015 px** where every built-in dock asks for
+  104–125 px of height.
+
+  The height came from three `AUTOWRAP_WORD_SMART` labels. A `Label` with autowrap reports a minimum
+  height measured at its *narrowest* possible width — about one glyph — so the pause-state, config
+  and footer labels claimed 740, 1328 and 1421 px, and the `VBoxContainer` summed them. Every
+  `Control` now lives in a `ScrollContainer`, which decouples the dock's minimum height from its
+  content height; this is what `EditorInspector` does for the same reason. The width came from one
+  un-trimmed status line measuring 311 px against a 280 px default dock column; the labels that do
+  not wrap now trim with an ellipsis and keep the full line as a tooltip. The dock's minimum is now
+  **192 x 0 px** — smaller than every built-in dock.
+
+  This also explains the two things that made the report confusing. Under distraction-free mode the
+  side docks are hidden, which removed the oversized minimum and made the bottom panel usable again
+  — the reporter correctly described that as the inverse of the bug. And resetting the editor layout
+  or deleting the *global* `editor_layout.cfg` could never have helped: minimum sizes come from code,
+  and since Godot 4.7 the dock layout is stored per project in `.godot/editor/editor_layout.cfg`.
+
+  Guarded by `example/tests/status_dock_layout_smoke.gd`, wired into the `gdscript-unit` CI job. It
+  asserts the numbers the editor layout actually reads *and* the structure that keeps them true, so
+  it fails on the unfixed addon on a Godot build whose font metrics differ from the measured one:
+  9/9 against the fix, 0/9 against `1.9.1`.
+
+
 ## [1.27.0] — 2026-07-29
 
 ### Fixed
