@@ -273,6 +273,19 @@ jobs:
           grep -q "PAUSE_LATCH_SUMMARY" /tmp/pause-latch.log || { echo "::error::pause_latch_smoke.gd produced no PAUSE_LATCH_SUMMARY (script error?)"; exit 1; }
           if grep -q "PAUSE_LATCH_FAIL" /tmp/pause-latch.log; then echo "::error::a pause-latch assertion failed"; exit 1; fi
           echo "Pause Agent latch smoke passed: $(grep -o 'PAUSE_LATCH_SUMMARY.*' /tmp/pause-latch.log)"
+      - name: Run the status-dock layout regression (issue #124 — dock must fit its slot)
+        run: |
+          set -eu
+          "$GODOT_BIN" --headless --path "${{ github.workspace }}/example" \
+            --script res://tests/status_dock_layout_smoke.gd > /tmp/dock-layout.log 2>&1 || true
+          echo "=== status_dock_layout_smoke.gd output ==="
+          cat /tmp/dock-layout.log
+          echo "=========================================="
+          # DOCK_LAYOUT_* markers are the source of truth (headless --script exit
+          # codes can be unreliable): require the summary, and fail on any FAIL.
+          grep -q "DOCK_LAYOUT_SUMMARY" /tmp/dock-layout.log || { echo "::error::status_dock_layout_smoke.gd produced no DOCK_LAYOUT_SUMMARY (script error?)"; exit 1; }
+          if grep -q "DOCK_LAYOUT_FAIL" /tmp/dock-layout.log; then echo "::error::the status dock no longer fits an editor dock slot (issue #124 regression)"; exit 1; fi
+          echo "Status-dock layout regression passed: $(grep -o 'DOCK_LAYOUT_SUMMARY.*' /tmp/dock-layout.log)"
 
   cli-plane:
     name: CLI plane vs real Godot (headless)

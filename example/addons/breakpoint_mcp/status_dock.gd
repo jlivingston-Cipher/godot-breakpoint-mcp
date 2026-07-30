@@ -80,6 +80,7 @@ var _copy_feedback: Label = null
 var _timer: Timer = null
 var _pause_toggle: CheckButton = null
 var _pause_state: Label = null
+var _body: VBoxContainer = null   # every Control child lives in here (see _build_ui)
 
 
 ## plugin.gd injects the live bridge server so the editor-bridge plane is read
@@ -111,32 +112,52 @@ func _exit_tree() -> void:
 
 func _build_ui() -> void:
 	name = "Breakpoint"
-	add_theme_constant_override("separation", 6)
+
+	# #124: a dock slot cannot scroll and cannot be shrunk past its content, so a
+	# tall dock is not clipped — it raises the MINIMUM size of the whole editor
+	# layout, which the editor can only satisfy by pushing the bottom panel and
+	# the lower docks out of the window. A Label with autowrap reports a minimum
+	# height measured at its NARROWEST width, a VBoxContainer sums those, and this
+	# dock demanded 311x4015 px against ~208x125 for every built-in dock. Putting
+	# every Control inside a ScrollContainer decouples the dock's minimum height
+	# from its content height, which is what EditorInspector does for the same
+	# reason. Verify with get_combined_minimum_size(), not by eye.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(scroll)
+
+	_body = VBoxContainer.new()
+	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body.add_theme_constant_override("separation", 6)
+	scroll.add_child(_body)
 
 	var header := Label.new()
 	header.text = "Breakpoint MCP"
 	header.add_theme_font_size_override("font_size", 15)
-	add_child(header)
+	_body.add_child(header)
 
 	var sub := Label.new()
 	sub.text = "bridge status · ports · client setup"
 	sub.modulate = Color(1, 1, 1, 0.6)
-	add_child(sub)
+	_body.add_child(sub)
 
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	var bridges_hdr := Label.new()
 	bridges_hdr.text = "Bridges"
 	bridges_hdr.modulate = Color(1, 1, 1, 0.75)
-	add_child(bridges_hdr)
+	_body.add_child(bridges_hdr)
 
 	for p in PLANES:
 		var row := Label.new()
 		row.add_theme_font_size_override("font_size", 13)
 		_rows[p["key"]] = row
-		add_child(row)
+		_body.add_child(row)
 		_set_plane(p["key"], "pending", "…")
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	# Control: a one-click "Pause Agent" latch honored by the editor + runtime
 	# bridges (pause_latch.gd). Engaged, those two planes hold new agent commands
@@ -144,55 +165,66 @@ func _build_ui() -> void:
 	var ctrl_hdr := Label.new()
 	ctrl_hdr.text = "Control"
 	ctrl_hdr.modulate = Color(1, 1, 1, 0.75)
-	add_child(ctrl_hdr)
+	_body.add_child(ctrl_hdr)
 
 	_pause_toggle = CheckButton.new()
 	_pause_toggle.text = "Pause Agent"
 	_pause_toggle.tooltip_text = "Hold new agent commands on the editor + runtime bridges. In-flight ops finish and a bare ping still answers; resume to continue."
 	_pause_toggle.toggled.connect(_on_pause_toggled)
-	add_child(_pause_toggle)
+	_body.add_child(_pause_toggle)
 
 	_pause_state = Label.new()
 	_pause_state.add_theme_font_size_override("font_size", 12)
 	_pause_state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(_pause_state)
+	_body.add_child(_pause_state)
 
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	var cfg_hdr := Label.new()
 	cfg_hdr.text = "Config"
 	cfg_hdr.modulate = Color(1, 1, 1, 0.75)
-	add_child(cfg_hdr)
+	_body.add_child(cfg_hdr)
 
 	_config_label = Label.new()
 	_config_label.add_theme_font_size_override("font_size", 12)
 	_config_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(_config_label)
+	_body.add_child(_config_label)
 
-	add_child(HSeparator.new())
+	_body.add_child(HSeparator.new())
 
 	var copy_btn := Button.new()
 	copy_btn.text = "Copy MCP-client config"
 	copy_btn.tooltip_text = "Copy the mcpServers snippet for this project to the clipboard."
 	copy_btn.pressed.connect(_on_copy_pressed)
-	add_child(copy_btn)
+	_body.add_child(copy_btn)
 
 	var refresh_btn := Button.new()
 	refresh_btn.text = "Refresh"
 	refresh_btn.pressed.connect(_refresh)
-	add_child(refresh_btn)
+	_body.add_child(refresh_btn)
 
 	_copy_feedback = Label.new()
 	_copy_feedback.add_theme_font_size_override("font_size", 12)
 	_copy_feedback.modulate = Color(1, 1, 1, 0.7)
 	_copy_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(_copy_feedback)
+	_body.add_child(_copy_feedback)
 
 	var foot := Label.new()
 	foot.text = "Status/config only — the assistant runs in your MCP client, not here."
 	foot.modulate = Color(1, 1, 1, 0.5)
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(foot)
+	_body.add_child(foot)
+
+	# The height half of #124 is the ScrollContainer above; this is the width half.
+	# A non-wrapping Label reports its FULL text width as a minimum, so one long
+	# status line (311 px) forced the dock wider than a default dock slot (280 px).
+	# Trimming with an ellipsis lets the dock shrink; _set_plane keeps the whole
+	# line reachable as a tooltip. Applies to every such Label, including any
+	# added later.
+	for child in _body.get_children():
+		var lbl := child as Label
+		if lbl != null and lbl.autowrap_mode == TextServer.AUTOWRAP_OFF:
+			lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 
 func _display_name(key: String) -> String:
@@ -207,6 +239,7 @@ func _set_plane(key: String, status: String, detail: String) -> void:
 	if row == null:
 		return
 	row.text = plane_line(_display_name(key), status, detail)
+	row.tooltip_text = row.text   # the row trims with an ellipsis (see _build_ui)
 	var col := COLOR_PENDING
 	if status == "ok":
 		col = COLOR_OK
