@@ -109,10 +109,10 @@ async function main(): Promise<void> {
   // applyCapabilities so a dropped tool is never wrapped.
   applyTimeoutCaveat(server);
 
-  // Capability groups — a risk-based axis over the toolsets. Both `code-execution`
-  // and `network` are OFF by default; a disabled group's tools are DROPPED at
+  // Capability groups — a risk-based axis over the toolsets. `code-execution` is
+  // OFF by default; a disabled group's tools are DROPPED at
   // registration (omitted from tools/list), so the secure-default surface is
-  // 289 − 15 = 274 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
+  // 289 − 13 = 276 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
   // server.registerTool AFTER applyOutputSchemas (schema wrapper stays innermost).
   const privilegedGroups = selectPrivilegedGroups(config.privilegedGroups, (unknown) =>
     log(`ignoring unknown BREAKPOINT_PRIVILEGED_GROUPS token(s): ${unknown.join(", ")}`),

@@ -6,6 +6,35 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **A capability group promised egress that no tool performed.** `capabilities.ts` gated
+  `backend_detect` and `backend_configure` behind a default-OFF `network` group described as
+  *"egress beyond loopback"*, while `annotations.ts` published `openWorldHint: false` for every tool
+  on the surface and a test asserted *"every bridge is loopback-only"*. Both files could not be
+  right. **`annotations.ts` was right.** Neither tool leaves the machine: `backend_detect` reads
+  which SDKs are installed over the loopback editor bridge, and `backend_configure` writes a
+  `res://` script through that same bridge. Group M's principle is *host nothing, scaffold
+  everything* — the GENERATED GDScript is what reaches a provider, at game runtime, in a different
+  process. There is not one `fetch`/`http`/`net.connect` in the module.
+
+  The mis-tagging misstated the risk in **both** directions: it implied the secure default was
+  holding back a network capability that never existed, and it made reading a list of installed
+  addons look like opening an outbound path — so an operator who needed `backend_detect` had to opt
+  into a group named for egress. `backend_configure` was also the only one of four sibling codegen
+  tools (`leaderboard_scaffold`, `cloudsave_scaffold`, `auth_scaffold`) that was privileged, for a
+  reason that turned out not to exist.
+
+  The `network` group is **removed** rather than left gating nothing — a group advertised by
+  `doctor` and `godot://capabilities` that protects against nothing is the same class of defect.
+  `BREAKPOINT_PRIVILEGED_GROUPS=network` now warns as an unknown token and the tools are present
+  anyway, which is strictly better than before. A future tool that genuinely egresses must
+  re-introduce the group **and** list itself in `OPEN_WORLD`, and two new controls now require the
+  two files to agree in both directions — the check that was missing for six releases.
+
+  **Surface change:** the secure default is now **276 tools, not 274**, and the privileged drop is
+  **13, not 15**. The full surface is unchanged at 289. Every gated count claim moved with it.
+
+
 ## [1.27.1] — 2026-07-30
 
 ### Fixed

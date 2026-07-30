@@ -5,6 +5,7 @@ import { applyOutputSchemas } from "../src/schemas.js";
 import { loadConfig } from "../src/config.js";
 import {
   CAPABILITY_GROUPS,
+  GROUP_DESCRIBE,
   TOOL_CAPABILITIES,
   applyCapabilities,
   droppedTools,
@@ -13,10 +14,11 @@ import {
   selectPrivilegedGroups,
   toolAllowed,
 } from "../src/capabilities.js";
+import { ALL_ANNOTATED, annotationsFor } from "../src/annotations.js";
 
 const FULL_TOOL_COUNT = 289;
 
-// The 15 privileged tools, split by which single group keeps them.
+// All 13 privileged tools. There is one group, so there is no split.
 const CODE_EXEC_ONLY = [
   // arbitrary execution / invocation / paused-frame evaluation
   "cs_dbg_evaluate",
@@ -37,8 +39,12 @@ const CODE_EXEC_ONLY = [
   "asset_gen_sprite",
   "asset_gen_texture",
 ].sort();
-const NETWORK_ONLY = ["backend_configure", "backend_detect"].sort();
-const ALL_PRIVILEGED = [...CODE_EXEC_ONLY, ...NETWORK_ONLY].sort();
+// Formerly tagged `network` and dropped by default. Neither leaves the machine —
+// backend_detect reads installed SDKs over the loopback bridge and
+// backend_configure writes a res:// script through it — so both are unprivileged
+// and must be present on an untouched install.
+const FORMERLY_NETWORK = ["backend_configure", "backend_detect"].sort();
+const ALL_PRIVILEGED = [...CODE_EXEC_ONLY].sort();
 
 /**
  * Register the entire surface exactly as index.ts does — applyOutputSchemas, then
@@ -83,33 +89,33 @@ function registerWith(tokens: string[] | null) {
   return calls.map((c) => c.name);
 }
 
-test("secure default (no groups) drops exactly the 15 privileged tools → 274", () => {
+test("secure default (no groups) drops exactly the 13 privileged tools → 276", () => {
   const names = registerWith(null);
   assert.equal(names.length, FULL_TOOL_COUNT - ALL_PRIVILEGED.length);
-  assert.equal(names.length, 274);
+  assert.equal(names.length, 276);
   const present = new Set(names);
   for (const t of ALL_PRIVILEGED) assert.ok(!present.has(t), `${t} should be dropped by default`);
 });
 
-test("enabling both groups (or 'all') restores the full 289-tool surface", () => {
-  assert.equal(registerWith(["code-execution", "network"]).length, FULL_TOOL_COUNT);
+test("enabling code-execution (or 'all') restores the full 289-tool surface", () => {
+  assert.equal(registerWith(["code-execution"]).length, FULL_TOOL_COUNT);
   assert.equal(registerWith(["all"]).length, FULL_TOOL_COUNT);
 });
 
-test("code-execution only keeps everything except the network-only tools (287)", () => {
-  const names = registerWith(["code-execution"]);
-  assert.equal(names.length, FULL_TOOL_COUNT - NETWORK_ONLY.length);
-  const present = new Set(names);
-  for (const t of NETWORK_ONLY) assert.ok(!present.has(t), `${t} needs the network group`);
-  for (const t of CODE_EXEC_ONLY) assert.ok(present.has(t), `${t} should be present`);
+test("the backend_* tools are on an untouched install — they never egressed", () => {
+  const present = new Set(registerWith(null));
+  for (const t of FORMERLY_NETWORK) {
+    assert.ok(present.has(t), `${t} is loopback-only and must not be gated`);
+    assert.equal(TOOL_CAPABILITIES[t], undefined, `${t} must carry no capability tag`);
+  }
 });
 
-test("network only keeps everything except the pure code-execution tools (276)", () => {
-  const names = registerWith(["network"]);
-  assert.equal(names.length, FULL_TOOL_COUNT - CODE_EXEC_ONLY.length);
-  const present = new Set(names);
-  for (const t of CODE_EXEC_ONLY) assert.ok(!present.has(t), `${t} needs the code-execution group`);
-  for (const t of NETWORK_ONLY) assert.ok(present.has(t), `${t} should be present`);
+test("`network` is not a group: the token is reported as unknown and ignored", () => {
+  const unknown: string[][] = [];
+  const enabled = selectPrivilegedGroups(["network"], (u) => unknown.push(u));
+  assert.deepEqual([...enabled], [], "an unknown token must enable nothing");
+  assert.deepEqual(unknown, [["network"]], "and must be reported, never silently dropped");
+  assert.ok(!CAPABILITY_GROUPS.includes("network" as never));
 });
 
 test("every tagged tool is a real tool in the full surface (no stale capability tags)", () => {
@@ -120,14 +126,14 @@ test("every tagged tool is a real tool in the full surface (no stale capability 
 
 test("droppedTools reports the right set per enabled-group combination", () => {
   assert.deepEqual(droppedTools(selectPrivilegedGroups(null)), ALL_PRIVILEGED);
-  assert.deepEqual(droppedTools(selectPrivilegedGroups(["code-execution"])), NETWORK_ONLY);
-  assert.deepEqual(droppedTools(selectPrivilegedGroups(["network"])), CODE_EXEC_ONLY);
+  assert.deepEqual(droppedTools(selectPrivilegedGroups(["code-execution"])), []);
+  assert.deepEqual(droppedTools(selectPrivilegedGroups(["network"])), ALL_PRIVILEGED);
   assert.deepEqual(droppedTools(selectPrivilegedGroups(["all"])), []);
 });
 
 test("parse + select: unset → none; unknown tokens reported and ignored; 'all' expands", () => {
   assert.equal(parsePrivilegedGroups(undefined), null);
-  assert.deepEqual(parsePrivilegedGroups("code-execution, network"), ["code-execution", "network"]);
+  assert.deepEqual(parsePrivilegedGroups("code-execution, bogus"), ["code-execution", "bogus"]);
   assert.equal(selectPrivilegedGroups(null).size, 0);
 
   const unknown: string[] = [];
@@ -177,4 +183,41 @@ test("the capabilities resource reports group state, dropped tools, and how to e
     [...CAPABILITY_GROUPS].sort(),
   );
   for (const g of payload.groups) assert.equal(g.enabled, false);
+});
+
+/**
+ * The control for the defect this file's `network` group was: a capability group
+ * DESCRIBED as reaching past loopback while `annotations.ts` published
+ * `openWorldHint: false` for the very tools it gated. Two files disagreed about
+ * whether the surface egresses, and nothing compared them — so the risk story
+ * was wrong in both directions for six releases.
+ *
+ * Any group whose description claims egress must gate only tools that
+ * annotations.ts also marks open-world. Against the tree before the fix this
+ * fails, naming backend_configure and backend_detect.
+ */
+test("a group that claims egress gates only openWorld tools (capabilities <-> annotations)", () => {
+  const EGRESS = /egress|beyond loopback|open.?world|outside this machine/i;
+  const offenders: string[] = [];
+  for (const group of CAPABILITY_GROUPS) {
+    if (!EGRESS.test(GROUP_DESCRIBE[group])) continue;
+    for (const [tool, groups] of Object.entries(TOOL_CAPABILITIES)) {
+      if (!groups.includes(group)) continue;
+      if (!annotationsFor(tool).openWorldHint) offenders.push(`${tool} (${group})`);
+    }
+  }
+  assert.deepEqual(
+    offenders.sort(),
+    [],
+    `group(s) promise egress but these tools are annotated loopback-only: ${offenders.join(", ")}`,
+  );
+});
+
+/** The mirror: nothing may be annotated open-world without a group that says so. */
+test("an openWorld tool is gated by a group that admits egress", () => {
+  const EGRESS = /egress|beyond loopback|open.?world|outside this machine/i;
+  const ungated = ALL_ANNOTATED.filter((t) => annotationsFor(t).openWorldHint).filter(
+    (t) => !(TOOL_CAPABILITIES[t] ?? []).some((g) => EGRESS.test(GROUP_DESCRIBE[g])),
+  );
+  assert.deepEqual(ungated, [], `openWorld but not gated by an egress group: ${ungated.join(", ")}`);
 });

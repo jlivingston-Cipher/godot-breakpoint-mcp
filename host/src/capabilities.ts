@@ -1,24 +1,40 @@
 /**
  * Capability groups — a risk-based axis that cuts ACROSS the plane/feature
- * toolsets (`BREAKPOINT_TOOLSETS`). Two groups, both OFF by default:
+ * toolsets (`BREAKPOINT_TOOLSETS`). One group, OFF by default:
  *
  *   • `code-execution` — tools that run arbitrary GDScript, invoke arbitrary
  *     methods, evaluate an expression in a paused debug frame, spawn headless
  *     child processes of the project, or run a local asset-gen *command* backend.
- *   • `network` — tools that egress beyond loopback: the Group M backend SDK.
+ *
+ * There is deliberately NO `network` group. There was one, tagging
+ * `backend_detect` and `backend_configure` and described as "egress beyond
+ * loopback" — but neither tool egresses. `backend_detect` reads which SDKs are
+ * installed over the loopback editor bridge, and `backend_configure` writes a
+ * `res://` script through that same bridge; the Group M principle is "host
+ * nothing, scaffold everything", so the GENERATED GDScript is what talks to a
+ * provider, at game runtime, in a different process. The group therefore gated
+ * two local tools behind a name that promised egress, which misleads in both
+ * directions: it implied the secure default was holding back a network
+ * capability that never existed, and it made reading a list of installed addons
+ * look like opening an outbound path. `openWorldHint` was false for every tool
+ * on the surface — annotations.ts was right and this file was wrong.
+ *
+ * A future tool that genuinely leaves this machine must re-introduce the group
+ * here AND list itself in annotations.ts's OPEN_WORLD, and the two must agree.
  *
  * Where toolsets filter whole planes, capability groups tag INDIVIDUAL tools and
  * DROP them at registration when their group isn't enabled — so a default
  * session's advertised surface omits the high-blast tools entirely
  * (least-privilege by construction, mirroring `godot-agent-loop`). The full
  * 289-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
- * groups back in; the secure-default surface is 289 − 15 = 274 tools.
+ * group back in; the secure-default surface is 289 − 13 = 276 tools.
  *
  * A tool with NO capability tag is always registered. Semantics are a UNION: a
  * tool tagged with more than one group is registered when ANY of its groups is
- * enabled. (No tool is multi-tagged today; the asset-gen generators were formerly
- * `code-execution` + `network`, but their `network` path — an external *provider*
- * backend — is not implemented, so they are `code-execution`-only until it ships.)
+ * enabled. (Nothing is multi-tagged, and with one group nothing can be — the
+ * asset-gen generators were formerly `code-execution` + `network` for an external
+ * *provider* backend that is not implemented, which is the same reason the
+ * `network` group is gone rather than merely unused.)
  *
  * This is defense-in-depth + a legible least-privilege default over a surface
  * that is already typed, schema-frozen, undoable, and destructive-op
@@ -28,16 +44,15 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export type CapabilityGroup = "code-execution" | "network";
+export type CapabilityGroup = "code-execution";
 
-/** The two groups, in display order. */
-export const CAPABILITY_GROUPS: readonly CapabilityGroup[] = ["code-execution", "network"];
+/** The groups, in display order. */
+export const CAPABILITY_GROUPS: readonly CapabilityGroup[] = ["code-execution"];
 
 /** One-line human description per group (shown by `doctor` and the resource). */
 export const GROUP_DESCRIBE: Record<CapabilityGroup, string> = {
   "code-execution":
     "Run arbitrary GDScript, invoke arbitrary methods, evaluate an expression in a paused debug frame, spawn headless child processes of the project, or run a local asset-gen command backend.",
-  network: "Egress beyond loopback — the Group M backend SDK.",
 };
 
 /**
@@ -67,9 +82,11 @@ export const TOOL_CAPABILITIES: Readonly<Record<string, readonly CapabilityGroup
   asset_gen_texture: ["code-execution"],
   asset_gen_model: ["code-execution"],
   asset_gen_audio_sfx: ["code-execution"],
-  // network — Group M backend SDK (egress to a backend provider)
-  backend_configure: ["network"],
-  backend_detect: ["network"],
+  // backend_detect / backend_configure are deliberately ABSENT: neither leaves
+  // this machine (see the header). They are unprivileged, which also puts
+  // backend_configure back in line with the three sibling codegen tools —
+  // leaderboard_scaffold / cloudsave_scaffold / auth_scaffold — that write the
+  // same kind of generated GDScript and were never privileged.
 };
 
 /**

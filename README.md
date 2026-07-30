@@ -6,7 +6,7 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.27.1 · addon 1.9.2 · full 289 / secure-default 274 tools · 6 MCP resources · MIT.** The host builds against
+> **npm 1.27.1 · addon 1.9.2 · full 289 / secure-default 276 tools · 6 MCP resources · MIT.** The host builds against
 > the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 431-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
@@ -67,8 +67,8 @@ more than the label. A per-project shared secret authenticates every bridge (con
 minted into the git-ignored `res://.godot/`), every socket binds to loopback only, and the
 highest-blast tools — arbitrary code execution and network egress — are **dropped at
 registration**, not merely flagged. They are absent from `tools/list` until you opt in, so the
-default surface is **274 tools an agent can actually call**, not 289 with a warning label on
-15 of them. Destructive operations are confirmation-gated and fail closed on clients that
+default surface is **276 tools an agent can actually call**, not 289 with a warning label on
+13 of them. Destructive operations are confirmation-gated and fail closed on clients that
 cannot prompt. Nothing runs in the cloud and no project data leaves the machine.
 
 Every tool also publishes MCP risk annotations (`readOnlyHint` / `destructiveHint` /
@@ -136,7 +136,7 @@ if you do, that is exactly what it buys.
 
 ## What it does
 
-Breakpoint MCP is organized into four capability **planes** (full **289 tools**, or **274** with the two privileged capability groups off by default — see [Safety & trust model](#safety--trust-model) — plus **6 resources**):
+Breakpoint MCP is organized into four capability **planes** (full **289 tools**, or **276** with the privileged capability group off by default — see [Safety & trust model](#safety--trust-model) — plus **6 resources**):
 
 - **Plane A — Live Editor Bridge** (toolset `a` → **146** tools: `editor_*`, `scene_*`,
   `node_*`, `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot
@@ -328,7 +328,7 @@ and wrapper key differ.
 | `BREAKPOINT_RUNTIME_HOST` / `BREAKPOINT_RUNTIME_PORT` | `127.0.0.1` / `9081` | In-game runtime bridge (must match the autoload) |
 | `BREAKPOINT_RUNTIME_TIMEOUT_MS` | `15000` | Runtime request timeout |
 | `BREAKPOINT_TOOLSETS` | *(unset → all)* | Comma/space list of tool groups or planes to enable — see [Toolsets](#toolsets-optional--load-only-the-planes-you-need) |
-| `BREAKPOINT_PRIVILEGED_GROUPS` | *(unset → none)* | Comma/space list of the default-OFF capability groups to enable: `code-execution`, `network`, or `all`. Off → secure-default **274** tools; opting in loads the **full 289** — see [Safety & trust model](#safety--trust-model) |
+| `BREAKPOINT_PRIVILEGED_GROUPS` | *(unset → none)* | Comma/space list of the default-OFF capability groups to enable: `code-execution`, or `all`. Off → secure-default **276** tools; opting in loads the **full 289** — see [Safety & trust model](#safety--trust-model) |
 
 > **Renamed from `CLAUDE_*`:** the `BREAKPOINT_*` variables above (plus `BREAKPOINT_RESOURCE_COALESCE_MS`) were named `CLAUDE_*` in earlier versions. The legacy `CLAUDE_*` names were honoured with a one-time deprecation warning in `1.0.0` and **removed in `1.1.0`** — use the `BREAKPOINT_*` names. `GODOT_*` variables are unchanged.
 
@@ -487,12 +487,15 @@ Breakpoint MCP is a **local co-development tool** and is built to keep you in co
   `confirm: true` to auto-approve; if the client can't prompt, the tool blocks rather
   than acting silently.
 - **Least-privilege by default — capability groups (since 1.18.0).** The higher-blast tools are
-  partitioned into two **default-OFF** groups: `code-execution` (runs GDScript, invokes arbitrary
-  methods, evaluates in a paused frame, or spawns the local asset-gen `command` backend) and
-  `network` (egress beyond loopback — the Group M backend-SDK scaffolding). With both off, those
-  tools are **dropped at registration** and never appear in `tools/list`, so the secure-default
-  surface is **274 tools**; opt in with `BREAKPOINT_PRIVILEGED_GROUPS=code-execution,network` (or
-  `all`, or `breakpoint-mcp init --trust full`) to load the full **289**. The always-on
+  gathered into one **default-OFF** group: `code-execution` (runs GDScript, invokes arbitrary
+  methods, evaluates in a paused frame, or spawns the local asset-gen `command` backend). With it
+  off, those tools are **dropped at registration** and never appear in `tools/list`, so the
+  secure-default surface is **276 tools**; opt in with
+  `BREAKPOINT_PRIVILEGED_GROUPS=code-execution` (or `all`, or
+  `breakpoint-mcp init --trust full`) to load the full **289**. There is deliberately no `network`
+  group — nothing on this surface egresses beyond loopback, and `openWorldHint` is `false` for
+  every tool. A group named for egress that gated two loopback-only tools misstated the risk in
+  both directions, so it was removed rather than left unused (1.28.0). The always-on
   **`godot://capabilities`** resource lists every group, its state, and the exact tools it gates,
   so a disabled tool is discoverable rather than a silent gap. Defense-in-depth and a legible
   least-privilege story over an already typed / undoable / gated surface — not the closing of an

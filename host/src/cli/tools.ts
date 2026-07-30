@@ -18,7 +18,7 @@
  *
  * Two surfaces are reported, because the difference is the security story:
  *   • `full`           — all 289 tools, what loads with BREAKPOINT_PRIVILEGED_GROUPS=all
- *   • `secure-default` — 274, what an untouched install actually advertises
+ *   • `secure-default` — 276, what an untouched install actually advertises
  * `--surface` picks which one populates `tools[]`; both counts are always in the
  * header so a consumer cannot report one as the other by accident.
  */
