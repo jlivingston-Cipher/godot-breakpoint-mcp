@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.27.0] — 2026-07-29
+
 ### Fixed
 - **The late-reply fix reached one client out of five, and named the wrong knob on one of those.**
   The ledger shipped in the editor bridge; `lsp.ts`, `cslsp.ts`, `dap.ts` and `csdap.ts` each still
