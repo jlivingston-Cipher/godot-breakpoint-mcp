@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.29.0] — 2026-07-30
+
 ### Changed — the live screenshot test reported coverage it had never performed (no tool change)
 `ops_unit_test.gd`'s `_test_live_screenshot` branched on whether the capture succeeded and scored a
 PASS either way. The suite runs under `--headless`, which selects the dummy rasterizer, so
@@ -54,6 +56,11 @@ scene does **not** switch it, so the degenerate case is the default rather than 
 `screenshot_editor` now refuses any viewport under 8px on either edge with a
 `viewport_not_rendered` error naming the measured size and how to fix it, instead of returning the
 placeholder frame. Host-side only — no addon change, no schema change, no Asset Library trip.
+
+**Minor, not patch:** a `screenshot_editor` call that used to return `ok` for a viewport Godot had
+collapsed now returns an error, and `viewport_not_rendered` is a new code on the tool's surface.
+Nothing that genuinely worked stops working — the old success carried four pixels — but the
+observable contract of a shipped tool changed, and cutting this as a patch would say it had not.
 
 ### Added — `AUTH_SHOT`: the authoring plane now exercises a pixel-producing tool
 Until this landed, **no CI job in this repo captured an editor frame at all** — #138 closed the
