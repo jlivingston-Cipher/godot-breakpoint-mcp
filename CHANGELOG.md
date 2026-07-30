@@ -6,6 +6,38 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `runtime-render-plane` CI job: `runtime_screenshot_diff` finally executes (no tool change)
+1.29.0's notes closed with "`runtime_screenshot_diff` still has no automated coverage", and the
+handoffs carried it as *the one thing CI structurally cannot do* — it needs a running game, not a
+`--script` run, so it could not ride on `render-plane`. That premise was wrong in the same way
+`RENDER_PATH_COVERAGE_GAP` §2 was wrong before #138 disproved it: what blocks the capture is the
+dummy driver `--headless` selects, not the absent GPU. The same Xvfb + llvmpipe rasterizer works just
+as well on a **booted game** as on a `--script` run. This job is that correction, executed — the last
+of the three pixel-producing tools to gain live coverage.
+
+`host/test-integration/runtime-screenshot.integration.mjs` drives `runtime_screenshot` and
+`runtime_screenshot_diff` through the host's own Plane C wiring against a live game: capture a frame,
+assert the returned bytes are a PNG whose **own IHDR header** agrees with the dimensions the tool
+reported, save it as a reference, then diff. A degraded capture (`no_image` / `no_texture`) is a hard
+error here, not the graceful skip it is everywhere else.
+
+**What makes it coverage rather than green.** A diff of a uniform frame against a uniform reference
+returns 0 whether or not the comparison ever reads a pixel — and `res://main.tscn` renders exactly
+that, since its `Sprite2D` has no texture. So the probe boots a new `res://tests/render_probe.tscn`
+(a 400x400 opaque patch, deliberately non-uniform) and toggles the patch's visibility to move a
+known, bounded set of pixels: the full frame must then differ at **~0.2143** — 160,000 of 746,496 —
+a region inside the patch at **1.0**, and a region in the opposite corner at **0.0**. No constant
+satisfies all three, and the last one is the assertion a diff that reports everything as different
+cannot pass. Region cropping, `tolerance`, `dimension_mismatch` and `bad_reference` are all covered
+on the way through, and the frame is restored to an exact match at the end.
+
+Verified on an Apple M2 (Godot 4.7, Metal, no `--headless`): all ten `RENDER_LIVE_*` markers green,
+frame `1152x648` — the logical size again, confirming no HiDPI backing-store discrepancy on the
+runtime path either — with `differing=160000` exactly matching the patch. **Negative control:** the
+same probe against the same scene booted `--headless` fails with `no_image` and the message *"the
+capture path did not execute — this job proved nothing"*, which is what the job is for. Forward+/
+Vulkan on real hardware remains outside CI by construction.
+
 ## [1.29.0] — 2026-07-30
 
 ### Changed — the live screenshot test reported coverage it had never performed (no tool change)

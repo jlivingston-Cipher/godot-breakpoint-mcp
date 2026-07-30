@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+; Dedicated scene for the runtime-render plane (see .github/workflows/integration.yml).
+;
+; res://main.tscn cannot serve this purpose: its Sprite2D has no texture, so the
+; frame it produces is a SINGLE FLAT COLOUR. A diff of a uniform frame against a
+; uniform reference returns 0 whether or not the comparison ever looks at a pixel
+; — the exact shape of "green that proves nothing" that #138/#139 removed
+; elsewhere. This scene puts a 400x400 opaque red patch in the top-left corner of
+; the default 1152x648 viewport, so the frame is deliberately NON-UNIFORM and the
+; probe can toggle `Patch.visible` to make a KNOWN, BOUNDED set of pixels change:
+;
+;   * inside the patch  -> every pixel differs      (region ratio must be 1.0)
+;   * outside the patch -> no pixel differs         (region ratio must be 0.0)
+;
+; A diff implementation that returned a constant would fail one of those two.
+;
+; Deliberately script-free: the probe drives everything over the runtime bridge,
+; so there is no in-scene logic that could mask a broken capture path.
+
+[node name="RenderProbe" type="Node2D"]
+
+[node name="Patch" type="ColorRect" parent="."]
+offset_right = 400.0
+offset_bottom = 400.0
+color = Color(1, 0, 0, 1)
