@@ -39,6 +39,37 @@ suite under `--headless` reports **180/180 with the capture skipped**, and under
 `BREAKPOINT_TEST_REQUIRE_RENDER=1` it **fails as designed**. Forward+/Vulkan on real hardware remains
 outside CI by construction; `runtime_screenshot_diff` still has no automated coverage.
 
+### Fixed — `screenshot_editor` returned a 2x2 placeholder as a successful capture
+Godot does not tear down the main-screen tab you are not looking at; it collapses that tab's
+SubViewport to its minimum size and keeps rendering it. `get_texture().get_image()` therefore still
+succeeded, and the tool returned a **valid 2x2 PNG** — correct mime, correct magic bytes, an 81-byte
+payload, and a note reading `Captured 2d viewport (2x2)`. Nothing anywhere reported a problem, and an
+assistant would then *look at* four pixels and reason about the scene from them.
+
+Measured on Godot 4.7 across four editor boots on real hardware: with the Script or 3D tab active,
+`viewport=2d` returned `2x2`/81B; with the 2D tab active it returned `1297x492`/3.6KB. A **fresh
+editor with no saved layout — the CI condition — boots on the 3D tab**, and `scene_open` on a `Node2D`
+scene does **not** switch it, so the degenerate case is the default rather than the exception.
+
+`screenshot_editor` now refuses any viewport under 8px on either edge with a
+`viewport_not_rendered` error naming the measured size and how to fix it, instead of returning the
+placeholder frame. Host-side only — no addon change, no schema change, no Asset Library trip.
+
+### Added — `AUTH_SHOT`: the authoring plane now exercises a pixel-producing tool
+Until this landed, **no CI job in this repo captured an editor frame at all** — #138 closed the
+runtime half (a `SceneTree` root viewport under llvmpipe); this is the editor half, going through
+`EditorInterface.get_editor_viewport_3d()` on a booted editor. Five assertions in
+`authoring-plane.integration.mjs`: PNG mime, a decoded payload over 1 KB, PNG magic bytes, **measured**
+dimensions of at least 64x64 — and that the *inactive* tab returns `viewport_not_rendered` rather
+than a placeholder. It captures the **3D** viewport because that is the tab a fresh editor is
+actually on; asserting against 2D would have asserted against a collapsed viewport.
+
+The dimension check measures rather than pattern-matches on purpose: the first draft tested
+`/\(\d+x\d+\)/`, which passes cheerfully on `(2x2)` and would have certified the exact placeholder
+the family exists to reject. Verified on an Apple M2 under the CI condition — **181/181, zero
+failures**, `2210x1808` captured, the inactive tab refused; and with the guard disabled as a control,
+`AUTH_SHOT_INACTIVE_REFUSED` **fails as designed**.
+
 ## [1.28.0] — 2026-07-30
 
 ### Removed
