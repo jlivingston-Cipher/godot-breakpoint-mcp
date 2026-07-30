@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.27.1] — 2026-07-30
+
 ### Fixed
 - **The status dock could push the bottom panel and the FileSystem dock out of the editor window**
   ([#124](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/124)). An editor dock
