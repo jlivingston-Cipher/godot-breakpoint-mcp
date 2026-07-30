@@ -13,7 +13,7 @@ export type FramedMessage = Record<string, unknown>;
  */
 export interface JsonRpcChannel {
   onMessage(cb: (msg: FramedMessage) => void): void;
-  onClose(cb: () => void): void;
+  onClose(cb: (cause?: Error) => void): void;
   send(msg: FramedMessage): Promise<void>;
   close(): void;
 }
@@ -85,7 +85,9 @@ export class FramedConnection implements JsonRpcChannel {
   private connecting: Promise<net.Socket> | null = null;
   private decoder: FrameDecoder;
   private messageCb: (msg: FramedMessage) => void = () => {};
-  private closeCb: () => void = () => {};
+  private closeCb: (cause?: Error) => void = () => {};
+  /** Last socket error, so the close path can name the errno (see connect()). */
+  private lastError: Error | null = null;
 
   constructor(
     private readonly host: string,
@@ -100,7 +102,7 @@ export class FramedConnection implements JsonRpcChannel {
     this.messageCb = cb;
   }
 
-  onClose(cb: () => void): void {
+  onClose(cb: (cause?: Error) => void): void {
     this.closeCb = cb;
   }
 
@@ -114,18 +116,25 @@ export class FramedConnection implements JsonRpcChannel {
       socket.once("connect", () => {
         this.socket = socket;
         this.connecting = null;
+        this.lastError = null;
         log(`${this.label} connected to ${this.host}:${this.port}`);
         resolve(socket);
       });
       socket.once("error", (err) => {
         this.connecting = null;
+        // Held for the close path: once the connection is up this reject() is a
+        // no-op on a settled promise, so without recording it the errno is lost
+        // and every pending request gets a generic "connection closed".
+        this.lastError = err;
         reject(new Error(`${this.label} unavailable at ${this.host}:${this.port}. ${this.unavailableHint} (${err.message})`));
       });
       socket.on("data", (chunk) => this.decoder.push(chunk));
       socket.on("close", () => {
         this.socket = null;
         this.decoder.reset();
-        this.closeCb();
+        const cause = this.lastError;
+        this.lastError = null;
+        this.closeCb(cause ?? undefined);
       });
     });
     return this.connecting;

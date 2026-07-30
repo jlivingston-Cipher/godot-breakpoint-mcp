@@ -91,6 +91,20 @@ export class BridgeClient {
     this.eventListeners.add(cb);
   }
 
+  /**
+   * The last socket-level error, held so the close path can name it.
+   *
+   * `socket.once("error")` below only rejects the CONNECT promise. Once the
+   * connection is up that handler is still armed, so a mid-flight ECONNRESET /
+   * EPIPE fires it, calls reject() on an already-settled promise — a silent
+   * no-op — and then `close` rejects every pending request with a generic
+   * "connection closed". The specific errno never reached the caller, which is
+   * the difference between "the editor crashed" and "something else is on that
+   * port". Cleared on a successful connect so a stale errno cannot be blamed
+   * for a later, unrelated drop.
+   */
+  private lastSocketError: Error | null = null;
+
   private connect(): Promise<net.Socket> {
     if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
     if (this.connecting) return this.connecting;
@@ -102,6 +116,7 @@ export class BridgeClient {
       socket.once("connect", () => {
         this.socket = socket;
         this.connecting = null;
+        this.lastSocketError = null;
         this.clearReconnect();
         // Loopback-auth handshake: if a secret is available it MUST be the first
         // line on the connection. TCP preserves order and the addon drains lines
@@ -119,6 +134,9 @@ export class BridgeClient {
       });
       socket.once("error", (err) => {
         this.connecting = null;
+        // Recorded for onClose(): if the connection was already up, this reject()
+        // is a no-op on a settled promise and the errno would otherwise be lost.
+        this.lastSocketError = err;
         reject(
           new BridgeError(
             "bridge_unavailable",
@@ -239,9 +257,16 @@ export class BridgeClient {
 
   private onClose(): void {
     this.socket = null;
+    // Name the transport error when there was one. The CODE stays `bridge_closed`
+    // — callers and tests branch on it — but the message carries the errno.
+    const cause = this.lastSocketError;
+    this.lastSocketError = null;
+    const detail = cause ? ` (${cause.message})` : "";
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new BridgeError("bridge_closed", "Bridge connection closed before a response arrived"));
+      p.reject(
+        new BridgeError("bridge_closed", `Bridge connection closed before a response arrived${detail}`),
+      );
     }
     this.pending.clear();
     // Keep the push channel alive across editor restarts while subscriptions want it.

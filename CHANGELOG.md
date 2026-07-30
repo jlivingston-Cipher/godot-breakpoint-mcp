@@ -7,6 +7,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **A dropped connection reported "closed" and threw away the reason.** All five clients register
+  `socket.once("error")` *inside* `connect()`, where it rejects the connect promise. Once the
+  connection is up that handler is still armed, so a mid-flight `ECONNRESET` / `EPIPE` fired it,
+  called `reject()` on an **already-settled promise — a silent no-op** — and then the `close` handler
+  rejected every pending request with a generic "connection closed". The errno never reached the
+  caller, which is exactly the difference between *the editor crashed* and *something else is holding
+  that port*: the operator was told the connection closed and left to guess why.
+
+  The last socket error is now recorded and named in the close-path rejection, in `bridge.ts` and in
+  the shared `framing.ts` channel — so `lsp`, `cslsp`, `dap` and `csdap` get it too, rather than the
+  bridge alone. It is cleared on a successful connect, so a stale errno can never be blamed for a
+  later unrelated drop. Error **codes are unchanged** (`bridge_closed`, `closed`); callers and tests
+  branch on those, and only the message gains the cause. A clean FIN still reports no cause at all,
+  guarded so the fix cannot leave a bare "()" behind.
+
+
+### Fixed
 - **A capability group promised egress that no tool performed.** `capabilities.ts` gated
   `backend_detect` and `backend_configure` behind a default-OFF `network` group described as
   *"egress beyond loopback"*, while `annotations.ts` published `openWorldHint: false` for every tool

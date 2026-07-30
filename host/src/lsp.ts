@@ -68,7 +68,7 @@ export class LspClient {
       "Is the editor running with the GDScript language server enabled (Editor Settings → Network → Language Server, port 6005)?",
     );
     this.conn.onMessage((m) => this.onMessage(m));
-    this.conn.onClose(() => this.onClose());
+    this.conn.onClose((cause) => this.onClose(cause));
   }
 
   /**
@@ -149,10 +149,14 @@ export class LspClient {
     }
   }
 
-  private onClose(): void {
+  private onClose(cause?: Error): void {
+    // `cause` is the socket-level error when the drop had one (ECONNRESET, EPIPE).
+    // Without it every pending request reported a generic close and the operator
+    // could not tell a crashed server from something else holding the port.
+    const detail = cause ? ` (${cause.message})` : "";
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new LspError("closed", "LSP connection closed"));
+      p.reject(new LspError("closed", `LSP connection closed${detail}`));
     }
     this.pending.clear();
     this.initialized = null;
