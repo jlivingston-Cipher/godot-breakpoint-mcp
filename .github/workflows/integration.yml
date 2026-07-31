@@ -550,6 +550,56 @@ jobs:
             sleep 1
           done
           node test-integration/node-lifecycle.integration.mjs
+      - name: Boot the input probe scene and run the inject-input probe
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+          # A SIXTH distinct port. :9081 (capture), :9082 (frame-step), :9084
+          # (verification family), :9085 (animation) and :9086 (node lifecycle) are
+          # all still running, backgrounded and never reaped, by the time this
+          # starts. A seventh step needs :9088.
+          BREAKPOINT_RUNTIME_PORT: '9087'
+        run: |
+          set -eux
+          # runtime_inject_input was the largest gap left on handoff 152 §2's ranked list:
+          # 39 lines of GDScript, four `kind` branches plus the reject arm, of which the
+          # host unit tests reach exactly zero — they prove the tool FORWARDS
+          # runtime.inject_input and nothing more.
+          #
+          # The fixture question was asked first, and for the FOURTH session running the
+          # answer was no: example/project.godot had no [input] section at all, so the
+          # `action` branch had nothing to be pointed at (Input.action_press on an unknown
+          # action is an engine error, not an injection). Two actions were added there for
+          # this probe alone — bp_probe_bound, whose ONLY binding is KEY_K, and
+          # bp_probe_unbound, which has no events at all — plus res://tests/input_probe.tscn,
+          # an OBSERVER fixture that never synthesises input of its own.
+          #
+          # THE BINDING IS BUILT IN _ready(), NOT SERIALISED, and this job is why. Written
+          # into [input] by Godot 4.7 it carries `device: 16`, which matched on 4.7 and did
+          # NOT match on 4.3 or 4.5 — the key injection reached the listener and never
+          # reached the InputMap, so the routing assertion went red on two of three arms.
+          # Built at runtime the device is the default 0 on both sides and they match by
+          # equality everywhere. Same reason anim_probe.gd builds its library in _ready().
+          #
+          # The pair is what makes the lane checkable rather than merely green: a `key`
+          # injection on the bound keycode must show up BOTH as an InputEvent and as the
+          # action going pressed, which is the only evidence that it travelled the engine's
+          # real input pipeline; the same injection on an unbound keycode must move only the
+          # first. `action` injection, meanwhile, must generate NO InputEvent at all, so an
+          # implementation that faked it by synthesising a key event fails on the event
+          # count alone. Markers INPUT_LIVE_*.
+          "$GODOT_BIN" --headless --path "$GODOT_PROJECT" res://tests/input_probe.tscn >/tmp/godot-inputprobe.log 2>&1 &
+          for i in $(seq 1 40); do
+            if node -e "require('net').connect(9087,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "input probe port open"; break
+            fi
+            sleep 1
+          done
+          node test-integration/inject-input.integration.mjs
+      - name: Input-probe game log tail (on failure)
+        if: always()
+        run: tail -n 50 /tmp/godot-inputprobe.log || true
       - name: Node-probe game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-nodeprobe.log || true

@@ -6,6 +6,72 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `runtime_inject_input` reported success for an InputMap action that does not exist (addon 1.9.4)
+🔴 **A behaviour change to a shipped tool.** `kind: "action"` called `Input.action_press` without
+first asking whether the action existed. The engine pushes its own error and returns, so the tool
+answered `{"injected": true}` for a typo'd action name and the caller's *next* assertion — the one
+checking that something moved — is where the failure surfaced. As far from the cause as it is
+possible to get, and invisible unless someone was reading the game's log.
+
+- `_inject_input` now guards with `InputMap.has_action` and returns **`bad_action`**. The guard
+  covers both operands: an omitted `action` key arrives as `""` and is rejected by the same branch.
+- Found by pointing the tool at a real InputMap for the first time (see the coverage entry below) —
+  not by reading the code.
+
+### Fixed — `runtime_node_add`'s `not_a_node` branch leaked one object per call (addon 1.9.4)
+`ClassDB.instantiate` hands back an **unowned** instance. The branch returned its error without
+freeing it, so every rejected `type:` that instantiated to a non-Node leaked — reported by the engine
+only at exit, as `N ObjectDB instances were leaked`, in a log for a backgrounded game nobody reaps.
+
+- 🔴 **Invisible in casual testing precisely because the obvious test case is safe.** `Resource` is
+  `RefCounted` and releases itself; a bare `Object` does not. Measured: **51 leaked over 51 calls**
+  before, **0** after. The `RefCounted` arm must stay excluded — `free()` on a `RefCounted` is itself
+  an engine error.
+- **New monitor key `object/count`** (`Performance.OBJECT_COUNT`) on the `runtime_get_monitors` /
+  `runtime_assert_perf` allow-list. It is the total live ObjectDB population and the **only** one of
+  the three object counters that can see a leaked non-Node, which is what makes the fix
+  regression-locked in CI rather than proved once on a laptop: `node-lifecycle.integration.mjs` now
+  drives the branch 60 times and asserts the count does not follow. Idle drift headless is zero.
+
+### Tests — `runtime_inject_input` had no live coverage; the largest remaining runtime gap is closed
+The tool with the most GDScript unreached by CI: 39 lines, four `kind` branches plus the reject arm,
+of which the host unit tests execute exactly zero — they prove the tool *forwards*
+`runtime.inject_input` and stop there.
+
+- 🔴 **The fixture question was asked first, and came back no for the FOURTH session running.**
+  `example/project.godot` had **no `[input]` section at all**, so the `action` branch had nothing to
+  be pointed at. Two actions were added for this probe and nothing else: **`bp_probe_bound`**, whose
+  only binding is `KEY_K`, and **`bp_probe_unbound`**, which has no events at all.
+- 🔴 **The binding is built in `_ready()`, not serialised into `project.godot` — and that is a
+  measured decision, not a preference.** A binding written into the `[input]` section by Godot 4.7
+  carries `device: 16`, which matched on 4.7 and **silently did not match on 4.3 or 4.5**: a `key`
+  injection reached the listener and never reached the InputMap, so the routing assertion failed on
+  two of the three arms. Built at runtime, the binding's device is the default `0` and so is an
+  injected event's, so they match **by equality on every version** rather than by whatever each
+  engine happens to call "all devices". Same reason `anim_probe.gd` builds its animation library in
+  `_ready()`; the actions themselves stay declared in `project.godot`, with no events.
+- **New fixture `example/tests/input_probe.tscn` + `input_probe.gd` — an OBSERVER that never
+  synthesises input.** Same discipline as #154's scriptless fixture, one step on: that lane's subject
+  was the shape of the tree, so its fixture carries no script; this lane's subject is whether an
+  event *arrives*, so its fixture may hold a script but that script must not be able to produce one.
+- **New probe `host/test-integration/inject-input.integration.mjs`**, a **sixth step on the existing
+  required `runtime-plane` job** (`:9087`) — no new job, and it inherits the 4.3 / 4.5 / 4.7 matrix.
+- 🔴 **`action` and `key` are observable through different instruments, and the difference is itself
+  asserted.** `Input.action_press` generates **no `InputEvent`** (measured at exactly 0), so an
+  implementation that faked the action branch by synthesising a key event fails the event-count check
+  and nothing else.
+- 🔴 **A `key` injection on the BOUND keycode must move both lanes** — arriving as an `InputEvent`
+  *and* pressing `bp_probe_bound`. That is the only evidence the event travelled the engine's real
+  input pipeline rather than being handed to a listener. The same injection on an unbound keycode
+  must move only the first: two operands of one claim, in the shape #154 §4 found the hard way.
+- The `position` / `relative` decode guards are reached **separately, in both directions** — a motion
+  event carrying only `relative` must leave position at `(0,0)`, and vice versa. `strength` is proved
+  forwarded rather than defaulted (pressed at 0.6, reads back 0.6). Five rejection reasons are
+  asserted separately and proved **inert**. The event count is **exact, not monotonic**: ten
+  injections, ten events, and the per-kind counters must sum to the total.
+- **Twelve mutations applied to the live addon, twelve caught**, each for the assertion it was
+  aimed at.
+
 ### Tests — the node lifecycle had no live coverage; #1 on the ranked gap list is closed (no tool change)
 #153's audit left a ranked backlog rather than an unknown, and `runtime_node_add` /
 `runtime_node_remove` sat at the top of it: **~44 lines of GDScript with the densest error paths in

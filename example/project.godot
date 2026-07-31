@@ -26,6 +26,17 @@ BreakpointRuntimeBridge="*res://addons/breakpoint_mcp/runtime_bridge.gd"
 
 enabled=PackedStringArray("res://addons/breakpoint_mcp/plugin.cfg")
 
+[input]
+
+bp_probe_bound={
+"deadzone": 0.2,
+"events": []
+}
+bp_probe_unbound={
+"deadzone": 0.2,
+"events": []
+}
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

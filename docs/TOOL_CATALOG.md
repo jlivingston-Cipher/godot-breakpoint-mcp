@@ -2522,6 +2522,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```json
 { "type": "object", "required": ["injected", "kind"], "properties": { "injected": { "type": "boolean" }, "kind": { "type": "string" } } }
 ```
+- Errors: `bad_action` (kind=action naming an action the project's InputMap does not define — including an omitted `action`) / `bad_kind` (an unrecognised or absent `kind`; unreachable through this tool, whose schema is an enum, but reachable by any client writing to the runtime socket directly). `kind=action` sets **InputMap state** and produces no `InputEvent`; the other three kinds go through `Input.parse_input_event` and are delivered as real events, so an action bound to the injected key **will** fire.
 
 ### `runtime_get_monitors` ✅
 - **Input**
@@ -2532,6 +2533,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```json
 { "type": "object", "required": ["monitors"], "properties": { "monitors": { "type": "object", "additionalProperties": { "type": "number" } } } }
 ```
+- Allow-listed keys: `time/fps`, `time/process`, `time/physics_process`, `memory/static`, `object/count`, `object/node_count`, `object/resource_count`, `render/total_objects_drawn`, `render/total_draw_calls`, `render/video_mem_used`, `physics_3d/active_objects`, `physics_2d/active_objects`, `audio/output_latency`. Anything else is **skipped, not invented** — `runtime_assert_perf` reports it as `checked: 0` rather than as a passing comparison. `object/count` is the total live ObjectDB population, and the only one of the three object counters that can see a leaked non-Node.
 
 ### `runtime_screenshot` ✅  (returns MCP image content)
 - **Input**
