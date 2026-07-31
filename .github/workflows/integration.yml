@@ -41,6 +41,16 @@ name: integration
 #                     must flip; a hidden label's text must NOT be found while assert_node_state
 #                     proves that node holds it (absence vs invisibility); and assert_perf is driven
 #                     past the bound as both higher_better and lower_better. Markers VERIFY_LIVE_*.
+#                     Then a FOURTH game on :9085, res://tests/anim_probe.tscn, for the ANIMATION
+#                     LANE — runtime_anim_play / _stop / _get_state, which the §6.5 audit found
+#                     unit-test-only because no scene in this repo held an AnimationPlayer at all.
+#                     The animation MOVES a node, read back through runtime_get_property, so a
+#                     reported playing:true is not enough; keep_state is proved by the playhead
+#                     (pause keeps it, stop rewinds it) — which is where _anim_stop's written claim
+#                     that pause()/stop() are stable across 4.2-4.5 finally gets checked, on all
+#                     three arms; custom_speed is measured over equal windows rather than trusted;
+#                     and from_end is proved on the NON-looping animation, the only one where
+#                     starting at the end is observable. Markers ANIM_LIVE_*.
 #   * runtime-render-plane — the same live GAME as runtime-plane, but rendered by a rasterizer that
 #                     actually DRAWS (Xvfb + Mesa llvmpipe, no --headless), so the two pixel-producing
 #                     runtime tools finally execute: runtime_screenshot and runtime_screenshot_diff.
@@ -455,6 +465,37 @@ jobs:
       - name: Verify-probe game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-verify.log || true
+      - name: Boot the anim probe scene and run the animation-lane probe
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+          # A fourth distinct port. :9081 (capture), :9082 (frame-step) and :9084
+          # (verification family) are all still running, backgrounded and never
+          # reaped, by the time this starts. A fifth step needs a fifth port.
+          BREAKPOINT_RUNTIME_PORT: '9085'
+        run: |
+          set -eux
+          # The §6.5 audit after #152 walked all 27 tools in host/src/tools/runtime.ts
+          # against host/test-integration/ and found nine with no live coverage. The
+          # animation lane was the largest, and the reason nobody noticed is the same
+          # one #152 found for _assert_screen_text: THE FIXTURE DID NOT EXIST. No scene
+          # in this repo contained an AnimationPlayer, so _resolve_anim_player,
+          # _anim_state, _anim_play and _anim_stop had never run anywhere. This is also
+          # the only place the cross-version claim in _anim_stop's own comment —
+          # pause()/stop() being stable across 4.2-4.5 — is actually checked, which is
+          # why it rides this matrix rather than a single arm. Fully headless.
+          "$GODOT_BIN" --headless --path "$GODOT_PROJECT" res://tests/anim_probe.tscn >/tmp/godot-anim.log 2>&1 &
+          for i in $(seq 1 40); do
+            if node -e "require('net').connect(9085,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "anim probe port open"; break
+            fi
+            sleep 1
+          done
+          node test-integration/animation-lane.integration.mjs
+      - name: Anim-probe game log tail (on failure)
+        if: always()
+        run: tail -n 50 /tmp/godot-anim.log || true
 
   peers-plane:
     name: peers plane / F6 multi-peer convergence (headless)

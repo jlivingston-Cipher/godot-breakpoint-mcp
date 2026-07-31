@@ -1,0 +1,33 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for the runtime animation lane (see .github/workflows/integration.yml).
+;
+; NO OTHER SCENE IN THIS REPOSITORY CONTAINS AN AnimationPlayer — not main.tscn, not
+; render_probe, not frame_step_probe, not peer_converge_probe, not verify_probe — so
+; runtime_anim_play / runtime_anim_stop / runtime_anim_get_state could not have been
+; exercised against a real one, and were not. The §6.5 audit after #152 found them
+; unit-test-only against a mocked bridge, which cannot reach any of the ~60 lines of
+; GDScript behind them.
+;
+; The nodes exist for these reasons and no others:
+;
+;   Anim        AnimationPlayer  -> the subject. Its library is built in _ready() rather
+;                                   than embedded here, because sub-resource
+;                                   serialisation drifts across the 4.3/4.5/4.7 arms.
+;   Marker      Node2D           -> something the animation MOVES. runtime_get_property
+;                                   reads its position, which is how the probe tells a
+;                                   running animation from a reported one.
+;   NotAPlayer  Node2D           -> a real node that is not an AnimationPlayer, so
+;                                   _resolve_anim_player's `not_animation_player` branch
+;                                   is reachable and distinguishable from `bad_path`.
+
+[ext_resource type="Script" path="res://tests/anim_probe.gd" id="1_anim"]
+
+[node name="AnimProbe" type="Node2D"]
+script = ExtResource("1_anim")
+
+[node name="Marker" type="Node2D" parent="."]
+
+[node name="Anim" type="AnimationPlayer" parent="."]
+
+[node name="NotAPlayer" type="Node2D" parent="."]
