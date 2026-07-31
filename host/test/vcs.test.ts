@@ -320,3 +320,116 @@ test("vcs_branch_create (+switch) and vcs_switch move HEAD between branches", as
     assert.equal(dupe.isError, true);
   } finally { cleanup(dir); }
 });
+
+// ---- unhappy paths ---------------------------------------------------------
+// Everything above drives the happy path. The five below are the states the mkrepo()
+// fixture cannot produce; each was a live defect until session 155. The VCS-plane probe
+// (test-integration/vcs.integration.mjs) covers them more broadly — these are the guards
+// that make `npm test` alone catch a regression.
+
+test("vcs_blame accepts a range bound given ALONE (start without end ran to a git usage error)", async () => {
+  const dir = mkrepo();
+  try {
+    const h = setup(dir);
+    // player.gd is 6 lines after mkrepo's edits; assert relative to the full blame so the
+    // test does not encode the fixture's exact length.
+    const full = (await h.vcs_blame({ path: "player.gd" })).structuredContent as { count: number };
+
+    const startOnly = await h.vcs_blame({ path: "player.gd", start: 2 });
+    assert.ok(!startOnly.isError, `start-without-end must succeed: ${startOnly.content?.[0].text}`);
+    const s = startOnly.structuredContent as { lines: Array<{ line: number }>; count: number };
+    assert.equal(s.lines[0].line, 2, "start alone begins at `start`");
+    assert.equal(s.count, full.count - 1, "and runs to end-of-file");
+
+    const endOnly = await h.vcs_blame({ path: "player.gd", end: 2 });
+    assert.ok(!endOnly.isError, `end-without-start must succeed: ${endOnly.content?.[0].text}`);
+    assert.deepEqual((endOnly.structuredContent as { lines: Array<{ line: number }> }).lines.map((l) => l.line), [1, 2]);
+  } finally { cleanup(dir); }
+});
+
+test("vcs_stash push ERRORS when nothing was stashed, and does not create an entry", async () => {
+  const dir = mkrepo();
+  try {
+    const h = setup(dir);
+    g(dir, "stash", "-q", "-u"); // park everything so the tree is genuinely clean
+    g(dir, "stash", "drop", "-q");
+
+    const noop = await h.vcs_stash({ op: "push", message: "nothing" });
+    assert.equal(noop.isError, true, "a push that stashes nothing must not report success");
+    assert.match(noop.content?.[0].text ?? "", /nothing was stashed/i);
+    assert.equal(g(dir, "stash", "list"), "", "and no entry may exist");
+
+    // a real change still stashes
+    fs.appendFileSync(path.join(dir, "player.gd"), "\n# real\n");
+    const real = await h.vcs_stash({ op: "push", message: "real" });
+    assert.ok(!real.isError, JSON.stringify(real.content));
+    assert.match(g(dir, "stash", "list"), /stash@/);
+
+    // with an entry already present, a no-op push must STILL error (the check is OID
+    // inequality, not emptiness)
+    const noop2 = await h.vcs_stash({ op: "push", message: "still nothing" });
+    assert.equal(noop2.isError, true);
+    assert.equal(g(dir, "stash", "list").split("\n").length, 1, "and must not add a second entry");
+  } finally { cleanup(dir); }
+});
+
+test("vcs_branch_create reports the branch it created when the switch is refused", async () => {
+  const dir = mkrepo();
+  try {
+    const h = setup(dir);
+    // a branch whose content conflicts with an uncommitted local edit
+    g(dir, "branch", "other");
+    g(dir, "stash", "-q", "-u");
+    g(dir, "switch", "-q", "other");
+    fs.writeFileSync(path.join(dir, "player.gd"), "wholly different\n");
+    g(dir, "add", "-A"); g(dir, "commit", "-q", "-m", "divergent");
+    g(dir, "switch", "-q", "-"); // back to the starting branch
+    fs.appendFileSync(path.join(dir, "player.gd"), "local edit\n");
+
+    const r = await h.vcs_branch_create({ name: "newbr", from: "other", switch: true });
+    assert.equal(r.isError, true, "a refused switch is not a success");
+    assert.match(r.content?.[0].text ?? "", /newbr.*WAS created/is, "the error must name the branch it created");
+    assert.equal(g(dir, "branch", "--list", "newbr").replace(/^[*+ ]+/, ""), "newbr", "the branch really exists");
+    assert.notEqual(g(dir, "rev-parse", "--abbrev-ref", "HEAD"), "newbr", "and HEAD did not move");
+  } finally { cleanup(dir); }
+});
+
+test("vcs_branch_list reports a detached HEAD as detached, agreeing with vcs_status", async () => {
+  const dir = mkrepo();
+  try {
+    const h = setup(dir);
+    g(dir, "stash", "-q", "-u");
+    g(dir, "checkout", "-q", "--detach", "HEAD~1");
+    const b = (await h.vcs_branch_list({})).structuredContent as {
+      current: string | null; detached: boolean; branches: Array<{ name: string }>; count: number;
+    };
+    const s = (await h.vcs_status({})).structuredContent as { branch: string | null };
+    assert.equal(b.current, null, "git's '(HEAD detached at …)' pseudo-entry is not a branch");
+    assert.equal(b.detached, true);
+    assert.equal(s.branch, b.current, "the two tools must agree");
+    assert.ok(!b.branches.some((x) => x.name.startsWith("(")), "no pseudo-entry may be listed");
+    assert.equal(b.count, b.branches.length);
+  } finally { cleanup(dir); }
+});
+
+test("vcs_branch_list flags remote-tracking branches (the prefix test could never match)", async () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), "gcb-vcs-bare-"));
+  const dir = mkrepo();
+  try {
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "-q", "--bare", bare]);
+    g(dir, "remote", "add", "origin", bare);
+    g(dir, "push", "-q", "-u", "origin", "HEAD");
+    const h = setup(dir);
+    const all = (await h.vcs_branch_list({ remotes: true })).structuredContent as {
+      branches: Array<{ name: string; remote: boolean; current: boolean }>;
+    };
+    const tracking = all.branches.filter((x) => x.remote);
+    assert.equal(tracking.length, 1, `exactly one tracking branch expected, got ${JSON.stringify(all.branches)}`);
+    assert.match(tracking[0].name, /^origin\//);
+    assert.equal(tracking[0].current, false, "a tracking branch is never current");
+    assert.ok(all.branches.some((x) => !x.remote && x.current), "the local branch is still there and current");
+
+    const local = (await h.vcs_branch_list({})).structuredContent as { branches: Array<{ remote: boolean }> };
+    assert.ok(local.branches.every((x) => !x.remote), "remotes=false must not leak tracking branches");
+  } finally { cleanup(dir); cleanup(bare); }
+});

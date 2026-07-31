@@ -338,6 +338,32 @@ jobs:
           if grep -q "DOCK_LAYOUT_FAIL" /tmp/dock-layout.log; then echo "::error::the status dock no longer fits an editor dock slot (issue #124 regression)"; exit 1; fi
           echo "Status-dock layout regression passed: $(grep -o 'DOCK_LAYOUT_SUMMARY.*' /tmp/dock-layout.log)"
 
+  vcs-plane:
+    name: VCS plane vs real git
+    runs-on: ubuntu-latest
+    # The one plane that needs NO Godot: the Group L tools shell out to git and answer
+    # whenever the project is a work tree. So this job installs nothing beyond node and
+    # runs in seconds — cheap enough to be a required gate on every push.
+    #
+    # It covers the repo states test/vcs.test.ts (which also drives real git, but only on
+    # a happy-path fixture) cannot reach: a staged rename, a conflicted merge, a repo with
+    # no commits, a detached HEAD, a real remote, and the calls git REFUSES.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: host/package-lock.json
+      - name: Build host
+        working-directory: host
+        run: npm ci && npm run build
+      - name: Identify the git build under test
+        run: git --version
+      - name: VCS-plane integration probe (real throwaway repositories)
+        working-directory: host
+        run: node test-integration/vcs.integration.mjs
+
   cli-plane:
     name: CLI plane vs real Godot (headless)
     runs-on: ubuntu-latest

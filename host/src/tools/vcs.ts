@@ -256,27 +256,47 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       title: "Git branches",
       description:
         "List branches with their short object name and a flag for the current branch. Local only by default; " +
-        "set remotes=true to include remote-tracking branches. Read-only.",
+        "set remotes=true to include remote-tracking branches (flagged remote=true). On a detached HEAD, " +
+        "`current` is null and `detached` is true — matching vcs_status — and no pseudo-branch is listed. " +
+        "Read-only.",
       inputSchema: {
         remotes: z.boolean().optional().describe("Include remote-tracking branches (default false)"),
       },
     },
     async ({ remotes }) => {
-      const args = ["branch", "--no-color", `--format=%(refname:short)${UNIT}%(objectname:short)${UNIT}%(HEAD)`];
+      const args = [
+        "branch", "--no-color",
+        `--format=%(refname)${UNIT}%(refname:short)${UNIT}%(objectname:short)${UNIT}%(HEAD)`,
+      ];
       if (remotes) args.push("--all");
       const r = await git(cfg, args);
       if (!r.ok) return gitFail(r);
       let current: string | null = null;
+      let detached = false;
+      type Branch = { name: string; short_sha: string; current: boolean; remote: boolean };
       const branches = r.stdout
         .split("\n")
         .filter(Boolean)
-        .map((line) => {
-          const [name, short_sha, head] = line.split(UNIT);
+        .map((line): Branch | null => {
+          const [full, name, short_sha, head] = line.split(UNIT);
           const isCurrent = head.trim() === "*";
+          // On a detached HEAD `git branch` emits a pseudo-entry whose refname is the
+          // literal "(HEAD detached at <sha>)" rather than refs/heads/… . It is NOT a
+          // branch — listing it as `current` contradicted vcs_status, which reports
+          // null for the same repo, and no vcs_switch could ever reach it.
+          if (!full.startsWith("refs/")) {
+            if (isCurrent) detached = true;
+            return null;
+          }
           if (isCurrent) current = name;
-          return { name, short_sha, current: isCurrent, remote: name.startsWith("remotes/") };
-        });
-      return ok({ current, branches, count: branches.length });
+          // Discriminate off the FULL refname: `%(refname:short)` of a remote-tracking
+          // branch is "origin/main", never "remotes/origin/main", so the old
+          // name.startsWith("remotes/") test could never match and every branch came
+          // back remote=false — including under remotes=true, the flag's whole point.
+          return { name, short_sha, current: isCurrent, remote: full.startsWith("refs/remotes/") };
+        })
+        .filter((b): b is Branch => b !== null);
+      return ok({ current, branches, count: branches.length, detached });
     },
   );
 
@@ -287,16 +307,20 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       title: "Git blame",
       description:
         "Per-line last-change attribution for a file: for each line, the short commit, author, ISO date, and the " +
-        "line text. Optionally restrict to a [start,end] line range (1-based, inclusive). Read-only.",
+        "line text. Optionally restrict to a [start,end] line range (1-based, inclusive); either bound may be " +
+        "given alone (start alone runs to end-of-file). Read-only.",
       inputSchema: {
         path: z.string().describe("File to blame (res:// or repo-relative)"),
-        start: z.number().int().positive().optional().describe("First line (1-based, inclusive)"),
-        end: z.number().int().positive().optional().describe("Last line (1-based, inclusive)"),
+        start: z.number().int().positive().optional().describe("First line (1-based, inclusive). May be given without `end`."),
+        end: z.number().int().positive().optional().describe("Last line (1-based, inclusive). May be given without `start`."),
       },
     },
     async ({ path, start, end }) => {
       const args = ["blame", "--line-porcelain"];
-      if (start != null || end != null) args.push("-L", `${start ?? 1},${end ?? "$"}`);
+      // An omitted end must be an EMPTY field: `-L 3,` blames line 3 to end-of-file.
+      // `$` is a `git log -L` form and `git blame` REJECTS it with usage exit 129, so
+      // the old `end ?? "$"` made every start-without-end call fail. Measured, not read.
+      if (start != null || end != null) args.push("-L", `${start ?? 1},${end ?? ""}`);
       args.push("--", toRepoPath(path));
       const r = await git(cfg, args);
       if (!r.ok) return gitFail(r);
@@ -400,7 +424,10 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       description:
         "Manage stashes: op='push' saves and reverts your working changes (optional message); 'pop' " +
         "re-applies the latest stash; 'list' returns the stash entries; 'drop' deletes a stash entry. " +
-        "Only 'drop' is destructive and elicitation-gated (confirm:true bypasses); push/pop/list are not.",
+        "Only 'drop' is destructive and elicitation-gated (confirm:true bypasses); push/pop/list are not. " +
+        "op='push' ERRORS when nothing was stashed (no tracked file has uncommitted changes) rather than " +
+        "reporting success — a success there would tell you work is parked when it is not. Untracked files " +
+        "are never stashed.",
       inputSchema: {
         op: z.enum(["push", "pop", "list", "drop"]).describe("Stash operation"),
         message: z.string().optional().describe("Message for op='push'"),
@@ -426,13 +453,36 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
         if (!r.ok) return gitFail(r);
         return ok({ op, message: r.stdout.trim() || "dropped", stashes: [] });
       }
-      // push / pop
-      const args = op === "push"
-        ? ["stash", "push", ...(message ? ["-m", message] : [])]
-        : ["stash", "pop", ...(ref ? [ref] : [])];
-      const r = await git(cfg, args);
+      if (op === "push") {
+        // `git stash push` EXITS 0 printing "No local changes to save" when there is
+        // nothing to stash. Passing that through as success is the worst shape this
+        // family has: the caller believes their work is safely parked and may then
+        // switch or restore over it. Decide on refs/stash BEFORE vs AFTER rather than
+        // on git's wording, which is not a stable interface across versions.
+        // Note untracked-only trees stash NOTHING here (no -u) — measured.
+        const before = await git(cfg, ["rev-parse", "--quiet", "--verify", "refs/stash"]);
+        const r = await git(cfg, ["stash", "push", ...(message ? ["-m", message] : [])]);
+        if (!r.ok) return gitFail(r);
+        const after = await git(cfg, ["rev-parse", "--quiet", "--verify", "refs/stash"]);
+        const beforeOid = before.ok ? before.stdout.trim() : "";
+        const afterOid = after.ok ? after.stdout.trim() : "";
+        if (afterOid === "" || afterOid === beforeOid) {
+          return {
+            isError: true as const,
+            content: [{
+              type: "text" as const,
+              text:
+                "Nothing was stashed — no tracked file has uncommitted changes, so your working tree " +
+                "is unchanged and no stash entry was created. Do not treat this as work being parked. " +
+                `(git said: ${r.stdout.trim() || "nothing"})`,
+            }],
+          };
+        }
+        return ok({ op, message: r.stdout.trim() || "push ok", stashes: [] });
+      }
+      const r = await git(cfg, ["stash", "pop", ...(ref ? [ref] : [])]);
       if (!r.ok) return gitFail(r);
-      return ok({ op, message: r.stdout.trim() || `${op} ok`, stashes: [] });
+      return ok({ op, message: r.stdout.trim() || "pop ok", stashes: [] });
     },
   );
 
@@ -443,7 +493,9 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       title: "Git branch (create)",
       description:
         "Create a new branch, optionally starting from a given ref (default HEAD), and optionally switch to " +
-        "it. Reversible (`git branch -d`), so not gated. Errors clearly if the branch already exists.",
+        "it. Reversible (`git branch -d`), so not gated. Errors clearly if the branch already exists. If " +
+        "switch=true and the switch is refused (e.g. local changes would be overwritten), the error SAYS the " +
+        "branch was still created — create and switch are two git calls and only the second can fail.",
       inputSchema: {
         name: z.string().min(1).describe("New branch name"),
         from: z.string().optional().describe("Start point (branch, tag, or sha; default HEAD)"),
@@ -456,7 +508,22 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       let switched = false;
       if (doSwitch) {
         const sw = await git(cfg, ["switch", name]);
-        if (!sw.ok) return gitFail(sw);
+        if (!sw.ok) {
+          // The branch EXISTS at this point. Returning only the switch failure strands
+          // the caller: they believe nothing happened, retry, and get "already exists"
+          // from a branch they created themselves. Report BOTH halves.
+          const failure = gitFail(sw);
+          return {
+            isError: true as const,
+            content: [{
+              type: "text" as const,
+              text:
+                `Branch '${name}' WAS created, but switching to it failed — you are still on the ` +
+                `previous branch. Delete it with \`git branch -d ${name}\` if it is unwanted, or ` +
+                `resolve the block below and switch with vcs_switch. ${failure.content[0].text}`,
+            }],
+          };
+        }
         switched = true;
       }
       return ok({ created: true, name, from: from ?? null, switched });
