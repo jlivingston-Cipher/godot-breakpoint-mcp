@@ -1,0 +1,37 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for the verification-family plane (see .github/workflows/integration.yml).
+;
+; res://main.tscn cannot serve this purpose: it holds a Node2D and an untextured
+; Sprite2D and NOTHING with a `text` property, so runtime_assert_screen_text's
+; positive path cannot run against it — only the absence form can, and absence
+; passes trivially against a tool that finds nothing ever.
+;
+; The two labels differ in exactly one way, and that is the assertion:
+;
+;   VisibleLabel  visible  -> its text MUST be found      (matches >= 1)
+;   HiddenLabel   hidden   -> its text MUST NOT be found  (matches == 0)
+;
+; _assert_screen_text walks CanvasItems and skips any node failing
+; is_visible_in_tree(). With only a visible label present, an implementation that
+; never checked visibility would pass every assertion. HiddenLabel is what makes
+; the filter observable — and the probe asserts the node IS there, via
+; runtime_assert_node_state on its own `text`, so a miss is attributable to the
+; visibility filter rather than to an absent node.
+
+[ext_resource type="Script" path="res://tests/verify_probe.gd" id="1_verify"]
+
+[node name="VerifyProbe" type="Node2D"]
+script = ExtResource("1_verify")
+
+[node name="VisibleLabel" type="Label" parent="."]
+offset_right = 400.0
+offset_bottom = 40.0
+text = "READY PLAYER ONE"
+
+[node name="HiddenLabel" type="Label" parent="."]
+visible = false
+offset_top = 60.0
+offset_right = 400.0
+offset_bottom = 100.0
+text = "HIDDEN SENTINEL 9137"
