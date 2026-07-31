@@ -64,12 +64,15 @@
 // placeholder mint+import, degrade, command backend) / AUTH_MP_* (Group M netcode scaffolding: spawner /
 // synchronizer / authority node authoring + undo/redo, enet/lobby codegen, @rpc wiring, WebRTC feature-detect) /
 // AUTH_BACKEND_* (Group M backend-SDK scaffolding: detect, unsupported_feature + sdk_missing degrades, and the
-// real write path via an in-memory autoload simulating an installed SDK) / AUTH_UNDO_* / AUTH_REDO_*. Every marker prints
+// real write path via an in-memory autoload simulating an installed SDK) / AUTH_UNDO_* / AUTH_REDO_* /
+// AUTH_CLEAN (the probe put GODOT_PROJECT back byte-for-byte — see the cleanup section). Every marker prints
 // "OK" or "FAIL"; a trailing AUTH_SUMMARY line reports the tally and the process exits
 // non-zero if any assertion failed. The reachability check is the gate (exit 1 if the
 // addon is unreachable).
 //
-// Side effects (harmless in the ephemeral CI runner; clean up after a local run):
+// Side effects — ALL OF THEM UNDONE BEFORE EXIT as of session 148; see the cleanup
+// section at the bottom and the AUTH_CLEAN marker. Listed here because knowing WHAT the
+// probe writes is still how you reason about it; you no longer have to clean it up.
 //   * unsaved in-memory edits to res://main.tscn (never saved -> vanish on close);
 //   * written files under res://_auth_probe_* : _auth_probe_tex.tres,
 //     _auth_probe_audio.tres, _auth_probe_a.gdshader, _auth_probe_b.gdshader,
@@ -79,7 +82,10 @@
 //     3D resources (_auth_probe_box.mesh.tres, _auth_probe_mat3d.tres, _auth_probe_env.tres),
 //     and the _auth_probe_dir/
 //     directory (with moved.tres) — plus their .uid/.import siblings;
-//   * two extra AudioServer buses on the running editor (global, reset on restart).
+//   * an extra AudioServer bus on the running editor. GLOBAL to the process and NOT undone
+//     by the restore below — there is no audio_bus_remove tool — so consecutive runs against
+//     one live editor accumulate AuthBus, AuthBus 2, AuthBus 3... The AUTH_AUDIO_BUS_ADD
+//     assertion accounts for that (see its comment); a restart resets it.
 //   * Group I: in-memory ProjectSettings edits (input/autoload/main_scene, save:false ->
 //     vanish on close), a net-zero EditorSettings write, and res://export_presets.cfg on disk.
 //   * Group J: written files under res://_asset_probe_* (sprite/texture/icon/forced/det_*/model/
@@ -88,11 +94,22 @@
 //   * Group M: written GDScript files res://_auth_probe_enet.gd (also mutated by mp_wire_rpc),
 //     _auth_probe_lobby.gd, and (only where the WebRTC module is present) _auth_probe_webrtc.gd; the
 //     backend half writes res://_auth_probe_backend_{config,leaderboard,save,auth}.gd (and adds/removes an
-//     in-memory "SilentWolf" autoload, save:false) — plus their .uid siblings, all covered by the
-//     _auth_probe_* cleanup glob below.
-//   Local cleanup (narrow — do NOT `rm example/*.uid`, that deletes tracked sidecars):
-//     rm -rf example/_auth_probe_* example/default_bus_layout.tres example/export_presets.cfg
-//     git checkout -- example/project.godot
+//     in-memory "SilentWolf" autoload, save:false) — plus their .uid siblings. Nothing in this
+//     list needs naming anywhere for cleanup: the snapshot below discovers it.
+//   Cleanup is no longer yours to type. The probe snapshots GODOT_PROJECT before it
+//   connects and restores it on the way out — on success, on assertion failure, and on a
+//   fatal throw — so a local run leaves the tree byte-identical to how it found it and
+//   re-runs with no `git checkout`. AUTH_CLEAN then re-hashes every snapshotted file and
+//   FAILS if anything survived, which is what stops the restore rotting the way the old
+//   hand-maintained `rm -rf` glob did every time a family was added to the probe. Because
+//   the snapshot is taken at startup, files that were already there — including your own
+//   untracked scratch — are not "new" and are never touched; the old glob would have
+//   happily matched a real file named _auth_probe_*.
+//   NOT restored: .godot/, the engine's own import cache. Gitignored, rewritten by the
+//   editor for reasons unrelated to the probe, and restoring it would fight the editor.
+//   NOT restored either: the two extra AudioServer buses and the in-memory ProjectSettings
+//   edits — neither is on disk, and both die with the editor process — and the Group J
+//   fixture generator, which is written under the OS temp dir, not under GODOT_PROJECT.
 //
 // Requires the editor up (booted under Xvfb by the workflow) with GODOT_PROJECT set.
 // Run from host/:  node test-integration/authoring-plane.integration.mjs
@@ -104,6 +121,7 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import { decodePng, sampleDistinctColours } from "./_png.mjs";
+import { snapshotDir, restoreDir, diffDir, describeDiff } from "./_workspace.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url)); // host/test-integration
 const HOST_DIR = path.resolve(THIS_DIR, "..");                 // host/ (the package root)
@@ -112,6 +130,11 @@ const DIST = path.join(HOST_DIR, "dist", "index.js");
 const GODOT_PROJECT = process.env.GODOT_PROJECT || path.join(REPO, "example");
 const GODOT_BIN = process.env.GODOT_BIN || "godot";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Pre-probe state of GODOT_PROJECT. Module-scoped rather than a local in main() so the
+// FATAL handler can restore too — a crash is precisely when the tree is most likely to
+// be left dirty, and that is the run whose leftovers a developer least expects.
+let workspace = null;
 
 // Tools gated behind a confirmation prompt — pass confirm:true so we exercise the
 // action rather than the decline path.
@@ -147,6 +170,13 @@ function fail(marker, detail = "") { results.fail.push(marker); console.log(`${m
 const near = (a, b) => typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 1e-3;
 
 async function main() {
+  // Taken BEFORE anything connects: every file the probe goes on to write is therefore
+  // "new" relative to it, and every file already present — including a developer's own
+  // untracked scratch — is not, so cleanup can never reach beyond what this run created.
+  // Reading ~560KB of example/ is noise next to the ~120s software editor boot.
+  workspace = snapshotDir(GODOT_PROJECT);
+  console.log(`AUTH_CLEAN_SNAPSHOT ${workspace.files.size} file(s) / ${workspace.dirs.size} dir(s) under ${GODOT_PROJECT} (.godot/ skipped)`);
+
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
     // This probe exercises the full tool surface, including the asset_gen_* and
@@ -639,13 +669,33 @@ async function main() {
     (await propResClass(player, "stream")) === "AudioStreamWAV"
       ? pass("AUTH_AUDIO_SET_STREAM") : fail("AUTH_AUDIO_SET_STREAM", `class=${await propResClass(player, "stream")}`);
 
+    // THE AUDIOSERVER IS GLOBAL TO THE EDITOR PROCESS, and nothing here removes a bus —
+    // there is no audio_bus_remove tool, and adding one would be new tool surface for a
+    // test's convenience. So on a SECOND run against the same live editor the name is
+    // already taken and Godot dedupes it to "AuthBus 2". That is correct engine
+    // behaviour, but the old `add.name === "AuthBus"` rejected it.
+    //
+    // Nobody had ever seen this, because until session 148 a re-run also needed a
+    // `git checkout` to undo the filesystem side, and in practice that meant restarting
+    // the editor — which reset the AudioServer and hid the collision. Making the disk
+    // side idempotent is what made this observable: the same shape as 147, where the
+    // finding came from the tooling the errand forced rather than the errand's result.
     const add = await call("audio_bus_add", { name: "AuthBus" });
-    add.name === "AuthBus" && add.count >= 2 ? pass("AUTH_AUDIO_BUS_ADD", `idx=${add.index} count=${add.count}`) : fail("AUTH_AUDIO_BUS_ADD", JSON.stringify(add));
+    const BUS = add.name;
+    // Accept the requested name or Godot's deduped variant; assert the things that are
+    // true either way — a bus was added, and the index addresses a real non-Master slot.
+    ((BUS === "AuthBus" || /^AuthBus \d+$/.test(BUS)) && add.count >= 2 && Number.isInteger(add.index) && add.index >= 1)
+      ? pass("AUTH_AUDIO_BUS_ADD", `name=${BUS} idx=${add.index} count=${add.count}`)
+      : fail("AUTH_AUDIO_BUS_ADD", JSON.stringify(add));
 
-    const fx = await call("audio_bus_add_effect", { bus: "AuthBus", effect: "AudioEffectReverb" });
+    // Drive the rest off the name the tool RETURNED, not the one we asked for. On a
+    // re-run the literal "AuthBus" is the bus the PREVIOUS run created, so the old code
+    // added a second reverb to a stale bus and asserted against it — passing (effect_count
+    // rose to 2) while measuring the wrong object entirely.
+    const fx = await call("audio_bus_add_effect", { bus: BUS, effect: "AudioEffectReverb" });
     fx.effect_count >= 1 ? pass("AUTH_AUDIO_BUS_ADD_EFFECT", `count=${fx.effect_count}`) : fail("AUTH_AUDIO_BUS_ADD_EFFECT", JSON.stringify(fx));
 
-    const vol = await call("audio_bus_set_volume", { bus: "AuthBus", volume_db: -12 });
+    const vol = await call("audio_bus_set_volume", { bus: BUS, volume_db: -12 });
     near(vol.volume_db, -12) ? pass("AUTH_AUDIO_BUS_SET_VOLUME") : fail("AUTH_AUDIO_BUS_SET_VOLUME", `got ${vol.volume_db}`);
 
     await call("audio_set_bus_layout", { to_path: BUS_LAYOUT });
@@ -1300,6 +1350,32 @@ async function main() {
     }
   });
 
+  // ---------------------------------------------------------------- cleanup ----
+  // Put example/ back the way we found it. Until now this was a `rm -rf` glob a
+  // developer typed by hand from the header comment, which meant (a) every local run
+  // started from a tree the previous one had polluted, and (b) the glob only knew about
+  // the families that existed when it was last edited — nothing ever checked it was
+  // still complete. The snapshot inverts that: the artefact list is derived from what
+  // actually appeared, so a family added tomorrow is covered without anyone remembering.
+  //
+  // The settle wait is not superstition: filesystem_scan and the editor's own watcher
+  // both write asynchronously, and deleting a file the editor is mid-way through
+  // minting produces a .uid with no owner. Waiting lets those land so restore removes
+  // them rather than racing them.
+  await sleep(1500);
+  const restored = restoreDir(workspace);
+  console.log(`AUTH_CLEAN_ACTION removed=${restored.removed.length} restored=${restored.rewritten.length} rmdir=${restored.rmdir.length}`
+    + (restored.failed.length ? ` failed=${restored.failed.map((f) => `${f.path} (${f.why})`).join("; ")}` : ""));
+  // AND THEN CHECK. restoreDir() reports what it DID; diffDir() re-walks the tree and
+  // re-hashes every snapshotted file to establish what is actually TRUE — which is the
+  // whole difference between this and a cleanup that merely runs. A restore that silently
+  // misses a path is the same failure shape as #143's all-black frame passing on its
+  // label: the step reports success and nothing ever compares the result to the claim.
+  const residue = diffDir(workspace);
+  residue.clean
+    ? pass("AUTH_CLEAN", `example/ byte-identical to the pre-probe snapshot (${workspace.files.size} file(s) re-hashed; ${restored.removed.length + restored.rmdir.length} artefact(s) removed, ${restored.rewritten.length} restored)`)
+    : fail("AUTH_CLEAN", `residue survived the restore -> ${describeDiff(residue)}`);
+
   // ---------------------------------------------------------------- summary ----
   console.log("AUTH_UNDO_ASSERTED note=undo/redo round-tripped via editor_undo/editor_redo (see AUTH_UNDO_* / AUTH_REDO_* markers)");
   const total = results.pass.length + results.fail.length;
@@ -1308,4 +1384,18 @@ async function main() {
   process.exit(results.fail.length ? 1 : 0);
 }
 
-main().catch((e) => { console.error("[authoring] FATAL:", (e && e.stack) || e); process.exit(1); });
+main().catch((e) => {
+  console.error("[authoring] FATAL:", (e && e.stack) || e);
+  // Restore on the way out of a crash too. Deliberately NOT asserted and never allowed
+  // to throw: the run has already failed, the exit code already says so, and a cleanup
+  // error here would replace the stack trace that explains the actual failure.
+  if (workspace) {
+    try {
+      const r = restoreDir(workspace);
+      console.error(`[authoring] cleanup after FATAL: removed=${r.removed.length} restored=${r.rewritten.length} rmdir=${r.rmdir.length} failed=${r.failed.length}`);
+    } catch (ce) {
+      console.error("[authoring] cleanup after FATAL did not complete:", (ce && ce.message) || ce);
+    }
+  }
+  process.exit(1);
+});

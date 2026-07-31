@@ -100,7 +100,7 @@ name: integration
 #                     — and the only family here that opens the payload rather than reading the tool's own
 #                     label: AUTH_SHOT_IHDR re-reads the dims off the PNG, AUTH_SHOT_DRAWN rejects a frame
 #                     that is a single flat colour (session 147);
-#                     AUTH_SUMMARY pass=183/183, measured, session 147). Single newest-stable arm — the A-G authoring surface is
+#                     AUTH_SUMMARY pass=184/184, measured, session 148). Single newest-stable arm — the A-G authoring surface is
 #                     version-stable, unlike the LSP/DAP planes that matrix 4.3/4.7 for capability
 #                     divergence. A REQUIRED gate as of session 42 (promoted the runtime-plane /
 #                     csharp-plane way once green across a few runs); disk-backed resource_* / filesystem_* /
@@ -771,7 +771,7 @@ jobs:
   authoring-plane:
     name: authoring plane / A-G mutators vs real editor
     runs-on: ubuntu-latest
-    # A REQUIRED gate as of session 42: the A-G authoring probe (183/183 forward + undo/redo assertions,
+    # A REQUIRED gate as of session 42: the A-G authoring probe (184/184 forward + undo/redo assertions,
     # covering Group A nodes/scenes/signals, B resources/filesystem, C animation, D tileset/tilemap,
     # E physics/collision, F VFX/audio and G UI/controls/theming) is green across #47, two main pushes, #48 and #49 — so a
     # live-engine regression in the authoring plane now blocks a merge, the way runtime-plane was
@@ -828,8 +828,45 @@ jobs:
             fi
             sleep 2
           done
+          # Baseline for the independent oracle in the next step. Taken HERE, after the
+          # editor has booted and before the probe runs, because booting the editor is
+          # itself a write: Godot rewrites project.godot (resolving the autoload to a
+          # uid://, and dropping the comment block while it is at it) and mints .uid
+          # siblings for any script that lacks one. Measured on a real boot, session 148.
+          # Comparing against HEAD would therefore blame the probe for the editor's dirt.
+          git -C "${{ github.workspace }}" status --porcelain example/ | sort > /tmp/example-before.txt
           node test-integration/authoring-plane.integration.mjs
           kill "$GODOT_PID" 2>/dev/null || true
+      # A SECOND, INDEPENDENT ORACLE for the same property AUTH_CLEAN asserts.
+      #
+      # AUTH_CLEAN compares the tree against the probe's OWN snapshot. That is the check
+      # that can name a leftover precisely, but it is also the probe grading its own
+      # homework: if the snapshot were taken at the wrong moment, or the walk skipped a
+      # directory it should not have, the restore and the assertion would be wrong in
+      # exactly the same direction and the job would still be green. git does not share
+      # that failure mode — it knows nothing about SKIP_DIRS or when the snapshot ran.
+      #
+      # The two have overlapping but not identical blind spots, which is the point: git
+      # ignores *.import and .godot/ (so it will not flag engine churn), while the snapshot
+      # ignores tracked-ness (so it catches an untracked leftover AND a modified tracked
+      # file). Neither subsumes the other, and both must come back clean.
+      #
+      # This compares BEFORE-probe against AFTER-probe, not against HEAD. example/ is
+      # legitimately dirty before the probe ever runs — see the baseline capture above —
+      # so an absolute check would fail the job for the editor's writes. The delta is the
+      # probe's contribution and nothing else, which is exactly the claim being tested.
+      - name: The probe must have left the tree exactly as it found it
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -u
+          git status --porcelain example/ | sort > /tmp/example-after.txt
+          if ! diff -u /tmp/example-before.txt /tmp/example-after.txt > /tmp/example-delta.txt; then
+            echo "::error::the authoring probe changed example/ and did not put it back — git sees a delta AUTH_CLEAN's snapshot did not"
+            echo "--- before the probe (editor already booted) vs after ---"
+            cat /tmp/example-delta.txt
+            exit 1
+          fi
+          echo "example/ is exactly as the probe found it — git agrees with AUTH_CLEAN"
       - name: Editor log tail (on failure)
         if: always()
         run: tail -n 80 /tmp/godot-editor-authoring.log || true
