@@ -6,6 +6,36 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the authoring plane's git oracle was a coin flip on a 12-second window (CI only, no tool change)
+#144 added an independent `git status --porcelain example/` oracle beside `AUTH_CLEAN`, comparing
+before-probe against after-probe. The baseline is captured the moment the addon's bridge port opens
+— but the editor's own rewrite of `project.godot` (autoload `res://` → `uid://`, the trade #145
+accepted) is **not synchronised with that port**, and the probe's own snapshot happens ~12s later
+still. So the rewrite can land in any of three windows, and all three have now been seen on real runs:
+
+| When the editor's rewrite lands | Baseline | After | Old oracle |
+|---|---|---|---|
+| Before the baseline | dirty | dirty | pass (no delta) |
+| After `AUTH_CLEAN`'s snapshot (`restored=1`) | clean | clean | pass (probe restored it) |
+| **Between the two** (`restored=0`) | clean | dirty | **failed** |
+
+The third is a false alarm — the probe did nothing wrong — and session 149 hit it on a PR that
+touched only `example-csharp/` sidecars and `contract_check.py`. Requiring an empty delta made a
+required gate depend on a race.
+
+The oracle now tolerates exactly one path in the delta, `example/project.godot`, and **asserts its
+contents**: the only permitted hunk is the `BreakpointRuntimeBridge=` autoload line. Anything else
+fails the job and prints the diff. This is strictly *more* than the old form checked, not a
+concession — when the rewrite landed before the baseline the file was dirty on both sides and nothing
+ever looked inside it, so a probe that scribbled a project setting would have gone unnoticed. Check
+17 gates the *committed* form of that line; this gates what a live boot is allowed to do to it.
+
+Verified against real repo states across five cases: no change (pass); the false-alarm ordering
+(pass); autoload rewrite plus a stray `config/name` edit (fail, content); a dirty baseline plus a
+stray edit — the case the old form was blind to (fail, content); an untracked leftover (fail, paths).
+The first draft of the path filter matched nothing, because `diff`'s `> ` prefix plus porcelain's
+blank status column yields *two* spaces; the case-2 run caught it.
+
 ### Fixed — the authoring probe starts from the committed scene, not from its own last run (no tool change)
 #144 made the probe re-runnable against one live editor by snapshotting and restoring `GODOT_PROJECT`
 on disk. The edited scene was the other half of that claim, and no disk restore can reach it:
