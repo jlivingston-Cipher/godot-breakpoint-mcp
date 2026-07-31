@@ -6,6 +6,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.32.0] — 2026-07-31
+
+**Minor, and the reason is one line of GDScript that had been discarding the engine's verdict since
+`runtime_emit_signal` was written.** 1.31.0 shipped hours earlier and was itself cut because coverage
+started finding defects; this release exists because the *next* probe found the next one immediately.
+
+🔴 **The runtime coverage plane is CLOSED with this release.** Live coverage is **26 of 27**, and the
+one remaining tool — `runtime_await_condition` — has **zero** GDScript: it is host-side polling over
+`runtime.get_property`, which six probes already exercise. There is no engine-side code left to
+point a probe at. Over six sessions the plane went 18 → 26, and **three of the gaps closed came back
+with a bug attached** — `inject_input` accepting a nonexistent action, `node_add` leaking, and now
+`emit_signal` reporting success for emissions the engine refused.
+
+**The addon moved 1.9.4 → 1.9.5**, so this release carries an Asset Library trip. Unlike 1.31.0, this
+one also changes host source (the `runtime_emit_signal` description), so the npm package is not
+byte-equivalent to the last one.
+
 ### Fixed — `runtime_emit_signal` reported success for an emission the engine refused (addon 1.9.5)
 🔴 **A behaviour change to a shipped tool, and the same defect class #155 fixed one release
 ago.** `_emit_signal` called `node.callv("emit_signal", …)` and **discarded the `Error` it
