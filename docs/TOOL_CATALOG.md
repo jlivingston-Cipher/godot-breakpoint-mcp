@@ -3000,14 +3000,18 @@ Two modes: with no `path`, returns commit metadata + patch; with a `path`, retur
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["current", "branches", "count"],
+{ "type": "object", "required": ["current", "branches", "count", "detached"],
   "properties": {
     "current": { "type": ["string", "null"] },
     "branches": { "type": "array", "items": { "type": "object", "required": ["name", "short_sha", "current", "remote"],
       "properties": { "name": { "type": "string" }, "short_sha": { "type": "string" }, "current": { "type": "boolean" }, "remote": { "type": "boolean" } } } },
-    "count": { "type": "integer" }
+    "count": { "type": "integer" },
+    "detached": { "type": "boolean" }
   } }
 ```
+`current` is `null` on a detached HEAD (`detached: true`), matching `vcs_status`'s `branch`;
+git's `(HEAD detached at <sha>)` pseudo-entry is never listed as a branch. `remote` is true
+only for entries under `refs/remotes/`, which `remotes: true` adds.
 
 ### `vcs_blame` ✅  (Plane B / host)
 - **Input**

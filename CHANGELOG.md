@@ -6,6 +6,54 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the VCS plane is live-covered, on the states a happy path never reaches
+`host/test-integration/vcs.integration.mjs` drives the Group L tools against **real throwaway git
+repositories** in a new `vcs-plane` CI job. It is the one plane that needs **no Godot** — the tools
+shell out to `git` — so the job installs nothing beyond node and runs in seconds.
+
+The premise that this family was mock-tested is **wrong**: `test/vcs.test.ts` already drove real git.
+What it drove was the **happy path** — two commits, one staged edit, one unstaged edit, one untracked
+file, every call shaped to succeed. The probe covers what that fixture cannot produce: a **staged
+rename** (with spaces in both names, exercising the `porcelain=v2` `2 ` field offset), a **conflicted
+merge** (the `u ` arm), a repo with **no commits**, a **detached HEAD**, a **real remote**, and the
+calls git **refuses**. Five defects were found by reaching those states — every one the same shape
+#157 fixed in `runtime_emit_signal`: the tool reported success, or reported nothing, for work git had
+refused or never done.
+
+Verified with **18 mutations, 18 caught** — 11 under-eager and **7 over-eager**, per 154 §7's
+second-order lesson that a mutation set blind in one direction proves only that direction.
+
+### Fixed — `vcs_blame` failed outright when only one range bound was given
+🔴 **A schema-legal call that always failed.** `start` and `end` are independently optional, but an
+omitted end was rendered as `$` — `-L 3,$` — which is a `git log -L` form that **`git blame` rejects
+with a usage error (exit 129)**. An omitted end must be the *empty* field: `-L 3,` blames from line 3
+to end-of-file. `end` alone was unaffected. Measured on git 2.39.
+
+### Fixed — `vcs_branch_create(switch: true)` hid the branch it had just created
+🔴 **A behaviour change to a shipped tool.** Create and switch are two git calls and only the second
+can fail. When the switch was refused — local changes would be overwritten — the caller got a bare
+checkout error for a branch that **now existed**, so the obvious retry produced "already exists"
+about a branch they had created themselves. The error now says the branch was created, names it,
+and still carries git's own reason.
+
+### Fixed — `vcs_stash push` reported success having stashed nothing
+🔴 **A behaviour change to a shipped tool, and the worst shape in the family.** `git stash push`
+**exits 0** printing "No local changes to save" when there is nothing to stash. Passed through as
+success, it tells a caller their work is safely parked when it is not — and the next thing a caller
+does with a "stashed" tree is switch or restore over it. The verdict now comes from **`refs/stash`
+moving**, not from git's wording, which is not a stable interface across versions; a no-op push
+errors even when a stash entry already exists. Untracked-only trees stash nothing here (no `-u`) and
+are treated the same way.
+
+### Fixed — `vcs_branch_list` invented a branch on a detached HEAD, and never flagged a remote
+🔴 **Two behaviour changes to one shipped tool.** On a detached HEAD, `git branch` emits a
+`(HEAD detached at <sha>)` pseudo-entry; it was listed as a real branch and reported as `current`,
+while `vcs_status` reported `branch: null` for the very same repo. The two now agree: `current` is
+null, the new **`detached: true`** says why, and no pseudo-entry is listed. Separately the `remote`
+flag tested `name.startsWith("remotes/")` against `%(refname:short)` — which is `origin/main`, never
+`remotes/…` — so it **could not fire**, and under `remotes: true` (the flag's entire purpose) every
+branch came back `remote: false`. Both now discriminate on the full `%(refname)`.
+
 ## [1.32.0] — 2026-07-31
 
 **Minor, and the reason is one line of GDScript that had been discarding the engine's verdict since

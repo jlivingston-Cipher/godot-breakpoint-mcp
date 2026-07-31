@@ -653,6 +653,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       name: z.string(), short_sha: z.string(), current: z.boolean(), remote: z.boolean(),
     })),
     count: z.number(),
+    detached: z.boolean(),
   },
   vcs_blame: {
     path: z.string(),
