@@ -45,6 +45,35 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
   );
 
   server.registerTool(
+    "main_screen_get",
+    {
+      title: "Get the active main-screen tab",
+      description:
+        "Report which main-screen editor tab is active (2D / 3D / Script / …) and which are available. " +
+        "Read-only. The active tab decides which viewport screenshot_editor can actually capture: Godot " +
+        "collapses the inactive tab's viewport to a few pixels.",
+      inputSchema: {},
+    },
+    async () => call("main_screen.get"),
+  );
+
+  server.registerTool(
+    "main_screen_set",
+    {
+      title: "Switch the main-screen tab",
+      description:
+        "Switch the editor's main-screen tab (2D / 3D / Script / …), matching the name case-insensitively. " +
+        "Use this before screenshot_editor to make the viewport you want to capture the active one — opening " +
+        "a scene does NOT switch the tab. Returns the resulting state, read back from the editor rather than " +
+        "echoed. An unknown name comes back with the live list of available tabs.",
+      inputSchema: {
+        name: z.string().describe('Tab name as the editor reports it, case-insensitive — e.g. "2D", "3D", "Script"'),
+      },
+    },
+    async ({ name }) => call("main_screen.set", { name }),
+  );
+
+  server.registerTool(
     "classdb_get_class",
     {
       title: "Introspect class",
@@ -126,13 +155,25 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
           viewport: string;
         };
         if (r.width < MIN_RENDERED_VIEWPORT_PX || r.height < MIN_RENDERED_VIEWPORT_PX) {
+          // Name the tab that is ACTUALLY active rather than leaving the caller to infer
+          // it from a 2x2. Best-effort: this error must survive an addon too old to answer
+          // (main_screen.* is 1.9.3+), so a failure here degrades the message instead of
+          // replacing a useful "not rendered" error with an unrelated bridge error.
+          let active: string | undefined;
+          try {
+            const s = (await bridge.request("main_screen.get", {})) as { active?: string | null };
+            if (s?.active) active = s.active;
+          } catch { /* older addon, or no main-screen container — fall through */ }
           return fail({
             code: "viewport_not_rendered",
             message:
               `The ${r.viewport} editor viewport measured ${r.width}x${r.height} — a collapsed viewport, not a rendered ` +
               `frame. Godot keeps the inactive main-screen tab's viewport alive at its minimum size, so the capture ` +
-              `"succeeds" and returns a placeholder image. Switch the editor to the ${r.viewport.toUpperCase()} tab ` +
-              `(opening a scene does NOT switch it), then retry — or capture the viewport whose tab is active.`,
+              `"succeeds" and returns a placeholder image. ` +
+              (active
+                ? `The editor is on the "${active}" tab. Call main_screen_set {"name":"${r.viewport.toUpperCase()}"} `
+                : `Switch the editor to the ${r.viewport.toUpperCase()} tab with main_screen_set (opening a scene does NOT switch it) `) +
+              `and retry — or capture the viewport whose tab is active.`,
           });
         }
         return {

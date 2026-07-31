@@ -7,7 +7,7 @@ extends RefCounted
 ## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything the assistant did.
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
-const ADDON_VERSION := "1.9.2"
+const ADDON_VERSION := "1.9.3"
 
 var _plugin: EditorPlugin
 
@@ -317,6 +317,10 @@ func dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _ok(_selection_get())
 		"selection.set":
 			return _selection_set(params)
+		"main_screen.get":
+			return _main_screen_get()
+		"main_screen.set":
+			return _main_screen_set(params)
 		"classdb.get_class":
 			return _classdb_get_class(params)
 		"classdb.reference":
@@ -681,6 +685,119 @@ func _selection_set(params: Dictionary) -> Dictionary:
 			sel.add_node(node)
 			applied.append(String(p))
 	return _ok({"selection": applied})
+
+
+# ------------------------------------------------- main-screen tab ----------
+# Godot keeps the INACTIVE main-screen tab's viewport alive at its minimum size,
+# so screenshot_editor on the wrong tab "succeeds" and returns a 2x2 placeholder.
+# The host has guarded that since #139 by rejecting anything under 8px, but the
+# error could only tell the caller to switch tabs by hand -- there was no tool to
+# do it with, which is a dead end for the assistant this addon exists to serve.
+#
+# Tab names are NOT hardcoded anywhere here. The engine reports them, they differ
+# between versions (Godot 4.6 added "Game"), and a caller that asks for one that
+# does not exist gets the live list back in the error. `_main_screen_set` matches
+# case-insensitively so "2d" works as well as the engine's own "2D".
+#
+# Both EditorInterface methods are reached through call()/has_method rather than
+# literally, for the reason spelled out on _scene_close: a literal call to a
+# method the running engine lacks fails at PARSE time and takes the WHOLE addon
+# down on that version, not just this tool. get_editor_main_screen is 4.1+ and
+# set_main_screen_editor is 4.0+, so both should be present across this repo's
+# 4.3/4.5/4.7 matrix -- the guard is here so that being wrong about that degrades
+# to one tool reporting `unsupported` instead of the plugin failing to load.
+func _main_screen_root() -> Node:
+	if not EditorInterface.has_method("get_editor_main_screen"):
+		return null
+	return EditorInterface.call("get_editor_main_screen")
+
+
+# The container's children do NOT carry the tab names. Measured on 4.7, the five
+# children are named @CanvasItemEditor@10149, @Node3DEditor@10909, two
+# @WindowWrapper@... and @EditorAssetLibrary@... -- Godot's auto-generated node
+# names, which `set_main_screen_editor` does not accept. The tab name it DOES
+# accept ("2D", "3D", "Script", "Game", "AssetLib") is the EditorPlugin's name,
+# which is not on the control. So the label is derived from the control's class:
+const _MAIN_SCREEN_LABELS := {
+	"CanvasItemEditor": "2D",
+	"Node3DEditor": "3D",
+	"ScriptEditor": "Script",
+	"GameView": "Game",
+	"EditorAssetLibrary": "AssetLib",
+}
+
+
+func _main_screen_label(c: Node) -> String:
+	var cls := c.get_class()
+	if _MAIN_SCREEN_LABELS.has(cls):
+		return String(_MAIN_SCREEN_LABELS[cls])
+	# Script and Game are wrapped in a WindowWrapper (the "make floating" feature),
+	# so the identifying class is one level down. Measured: ['Window','ScriptEditor']
+	# and ['Window','GameView'].
+	for k in c.get_children():
+		var kcls := k.get_class()
+		if _MAIN_SCREEN_LABELS.has(kcls):
+			return String(_MAIN_SCREEN_LABELS[kcls])
+	# A third-party EditorPlugin main screen, or a future built-in this map predates.
+	# Its real tab name is the plugin's get_plugin_name(), which is not reachable from
+	# here -- so report something honest rather than inventing one. set_main_screen_editor
+	# is still given the caller's string verbatim, so such a tab remains switchable by
+	# name even though this list cannot spell it.
+	var nm := String(c.name)
+	return cls if nm.begins_with("@") else nm
+
+
+func _main_screen_state() -> Dictionary:
+	# The active tab is the one visible child; the editor shows exactly one at a time.
+	# Reported as null rather than guessed if somehow none is visible.
+	var mains := _main_screen_root()
+	var available: Array = []
+	var active: Variant = null
+	if mains == null:
+		return {"active": null, "available": available}
+	for c in mains.get_children():
+		var label := _main_screen_label(c)
+		available.append(label)
+		if c is Control and (c as Control).visible:
+			active = label
+	return {"active": active, "available": available}
+
+
+func _main_screen_get() -> Dictionary:
+	if _main_screen_root() == null:
+		return _err("unsupported", "main_screen_get requires EditorInterface.get_editor_main_screen (Godot 4.1+)")
+	return _ok(_main_screen_state())
+
+
+func _main_screen_set(params: Dictionary) -> Dictionary:
+	if not EditorInterface.has_method("set_main_screen_editor"):
+		return _err("unsupported", "main_screen_set requires EditorInterface.set_main_screen_editor")
+	var state := _main_screen_state()
+	var available: Array = state.get("available", [])
+	var want := String(params.get("name", ""))
+	if want == "":
+		return _err("bad_params", "name is required (one of: %s)" % ", ".join(PackedStringArray(available)))
+	# Resolve case-insensitively against the derived labels so "2d" works, but fall
+	# back to the caller's string verbatim when nothing matches. The label map cannot
+	# spell a third-party plugin's main screen (see _main_screen_label), and the
+	# engine's own lookup can -- so a name this addon does not recognise is still
+	# WORTH TRYING rather than rejected here.
+	var target := want
+	for nm in available:
+		if String(nm).to_lower() == want.to_lower():
+			target = String(nm)
+			break
+	EditorInterface.call("set_main_screen_editor", target)
+	# Verify by READ-BACK, not by trusting the call. set_main_screen_editor returns
+	# nothing and silently does nothing for a name it does not know, so this is the
+	# only way to tell a successful switch from a typo -- and it is what makes the
+	# verbatim fallback above safe. It also means the caller's next move (usually a
+	# screenshot) acts on what the editor actually did.
+	var after := _main_screen_state()
+	var now := String(after.get("active", ""))
+	if now.to_lower() != target.to_lower():
+		return _err("not_found", "No main-screen tab named \"%s\" — the editor is still on \"%s\". Available: %s" % [want, now, ", ".join(PackedStringArray(available))])
+	return _ok({"active": after.get("active"), "available": after.get("available"), "requested": target})
 
 
 func _classdb_get_class(params: Dictionary) -> Dictionary:

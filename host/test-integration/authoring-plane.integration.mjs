@@ -1394,6 +1394,67 @@ async function main() {
     }
   });
 
+  // ------------------------------------------------- main-screen tab (1.9.3) ----
+  // The family AUTH_SHOT could not have: it proves the caller can RECOVER. Until
+  // 1.9.3 the viewport_not_rendered error said "switch to the 2D tab" and there was
+  // no tool that could — a dead end for the assistant this addon exists to serve.
+  // The assertions below walk that loop end to end: observe the tab, watch a capture
+  // be refused, switch, and watch the SAME capture succeed.
+  await family("AUTH_MAINSCREEN", async () => {
+    const before = await call("main_screen_get");
+    const avail = before.available || [];
+    (typeof before.active === "string" && avail.includes(before.active) && avail.length >= 2)
+      ? pass("AUTH_MAINSCREEN_GET", `active=${before.active} available=[${avail.join(",")}]`)
+      : fail("AUTH_MAINSCREEN_GET", JSON.stringify(before).slice(0, 160));
+
+    // An unknown tab must be refused BY NAME and hand back the live list, rather than
+    // silently doing nothing — the caller's whole problem is not knowing what exists.
+    const bogus = await client.callTool(
+      { name: "main_screen_set", arguments: { name: "NoSuchTab" } }, undefined, { timeout: 30000 });
+    const btxt = (bogus.content?.[0]?.text || "");
+    (bogus.isError && /not_found/.test(btxt) && avail.some((n) => btxt.includes(n)))
+      ? pass("AUTH_MAINSCREEN_UNKNOWN", btxt.slice(0, 90))
+      : fail("AUTH_MAINSCREEN_UNKNOWN", `expected not_found naming the available tabs, got: ${btxt.slice(0, 160)}`);
+
+    // The improved guard message must name the tab that is ACTUALLY active. Only
+    // meaningful while the 2D tab is inactive, which is the CI condition (a fresh
+    // editor boots on 3D); skipped rather than faked if a developer is already on 2D.
+    if (before.active !== "2D") {
+      const refused = await client.callTool(
+        { name: "screenshot_editor", arguments: { viewport: "2d" } }, undefined, { timeout: 60000 });
+      const rtxt = (refused.content?.[0]?.text || "");
+      (refused.isError && rtxt.includes(`"${before.active}"`) && /main_screen_set/.test(rtxt))
+        ? pass("AUTH_MAINSCREEN_ERROR_NAMES_TAB", `error names "${before.active}" and the tool that fixes it`)
+        : fail("AUTH_MAINSCREEN_ERROR_NAMES_TAB", rtxt.slice(0, 200));
+    } else {
+      pass("AUTH_MAINSCREEN_ERROR_NAMES_TAB", "skipped — 2D already active, nothing would be refused");
+    }
+
+    // Lower-case on purpose: the engine spells it "2D", and the tool is documented
+    // as case-insensitive, so this asserts that contract rather than assuming it.
+    const set = await call("main_screen_set", { name: "2d" });
+    (set.active === "2D" && set.requested === "2D")
+      ? pass("AUTH_MAINSCREEN_SET", `active=${set.active} (requested via "2d")`)
+      : fail("AUTH_MAINSCREEN_SET", JSON.stringify(set).slice(0, 160));
+
+    // THE POINT OF THE FEATURE. The same call that was refused moments ago must now
+    // return a real frame — not a placeholder, and not merely a non-error.
+    const shot = await client.callTool(
+      { name: "screenshot_editor", arguments: { viewport: "2d" } }, undefined, { timeout: 60000 });
+    const dims = /\((\d+)x(\d+)\)/.exec((shot.content || []).find((c) => c.type === "text")?.text || "");
+    const sw = dims ? Number(dims[1]) : 0, sh = dims ? Number(dims[2]) : 0;
+    (!shot.isError && sw >= 64 && sh >= 64)
+      ? pass("AUTH_MAINSCREEN_RECOVERS_SHOT", `2d captured ${sw}x${sh} after the switch`)
+      : fail("AUTH_MAINSCREEN_RECOVERS_SHOT", `expected a real 2d frame after switching; got ${shot.isError ? (shot.content?.[0]?.text || "").slice(0, 140) : `${sw}x${sh}`}`);
+
+    // Leave the editor on the tab we found it on. #146 made the probe idempotent for
+    // the edited scene; the main-screen tab is process state in exactly the same way.
+    const restored = await call("main_screen_set", { name: before.active });
+    (restored.active === before.active)
+      ? pass("AUTH_MAINSCREEN_RESTORED", `back to ${restored.active}`)
+      : fail("AUTH_MAINSCREEN_RESTORED", `wanted ${before.active}, got ${restored.active}`);
+  });
+
   // ---------------------------------------------------------------- cleanup ----
   // Put example/ back the way we found it. Until now this was a `rm -rf` glob a
   // developer typed by hand from the header comment, which meant (a) every local run

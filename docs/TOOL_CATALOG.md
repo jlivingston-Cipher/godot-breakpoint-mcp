@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **289 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **291 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -706,6 +706,35 @@ Toggle "Editable Children" on an instanced sub-scene. When enabled, property ove
 - **Output**
 ```json
 { "type": "object", "required": ["selection"], "properties": { "selection": { "type": "array", "items": { "type": "string" } } } }
+```
+
+### `main_screen_get` ✅ · read-only
+Which main-screen editor tab is active, and which exist on this Godot version. The active tab decides
+what `screenshot_editor` can capture: Godot collapses the inactive tab's viewport to a few pixels, so
+a capture of the wrong one "succeeds" with a placeholder frame. `available` is read from the engine,
+not hardcoded — the list differs by version.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "properties": {} }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["active", "available"], "properties": { "active": { "type": ["string", "null"] }, "available": { "type": "array", "items": { "type": "string" } } } }
+```
+
+### `main_screen_set` ✅ · idempotent
+Switch the main-screen tab. The name is matched case-insensitively against what the editor reports,
+so `"2d"` works as well as `"2D"`; an unknown name returns `not_found` carrying the live list. The
+result is read back from the editor rather than echoed, because the caller's next move is usually a
+capture and it should act on what the editor actually did. Pair with `screenshot_editor`: opening a
+scene does **not** switch the tab.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["name"], "properties": { "name": { "type": "string" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["active", "available", "requested"], "properties": { "active": { "type": ["string", "null"] }, "available": { "type": "array", "items": { "type": "string" } }, "requested": { "type": "string" } } }
 ```
 
 ### `classdb_get_class` ✅
@@ -4131,6 +4160,8 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `signal_emit` | A / Editor | ✅ | ✔ |
 | `selection_get` | A / Editor | ✅ | – |
 | `selection_set` | A / Editor | ✅ | – |
+| `main_screen_get` | A / Editor | ✅ | – |
+| `main_screen_set` | A / Editor | ✅ | – |
 | `classdb_get_class` | A / Editor | ✅ | – |
 | `screenshot_editor` | A / Editor | ✅ | – |
 | `resource_create` | A / Editor | ✅ | ✔ writes file |
@@ -4375,4 +4406,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | N / Editor | ✅ | ✔ writes files |
 
-**289 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**291 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
