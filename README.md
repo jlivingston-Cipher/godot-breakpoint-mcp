@@ -141,15 +141,15 @@ Breakpoint MCP is organized into four capability **planes** (full **291 tools**,
 - **Plane A — Live Editor Bridge** (toolset `a` → **148** tools: `editor_*`, `scene_*`,
   `node_*`, `signal_*`, `resource_*`, `filesystem_*`, `anim_*`, and more): a Godot
   `EditorPlugin` opens a loopback server the host drives for scene/node/resource CRUD
-  **with full undo/redo**, project settings, `ClassDB` introspection, selection, and
-  editor screenshots. A read-only documentation / code-lookup family
-  (`class_reference`, `docs_search`) is part of that 146. Four sibling toolsets ride the
+  **with full undo/redo**, project settings, `ClassDB` introspection, selection,
+  main-screen tab control, and editor screenshots. A read-only documentation / code-lookup family
+  (`class_reference`, `docs_search`) is part of that 148. Four sibling toolsets ride the
   same bridge and are counted separately — native multiplayer authoring (`netcode` →
   **7**), backend-SDK integration scaffolding (`backend` → **5**, including
   `leaderboard_scaffold`, `cloudsave_scaffold` and `auth_scaffold`), AI asset generation
   (`assetgen` → **7**), and card/board/piece authoring (`tabletop` → **14**) — so
   `a,netcode,backend,assetgen,tabletop` → **181** tools require the editor open, not the
-  146 alone.
+  148 alone.
 
 - **Plane B — Headless CLI & host-side tools** (`godot_*`, `vcs_*`, project search):
   launch the editor, run the project, export, import, and run headless scripts or tests —
@@ -457,7 +457,8 @@ details helps us improve the experience for everyone.
 4. `node_add`, `node_set_property`, … → make changes (all undoable).
 5. `gd_completion` / `gd_diagnostics` → write GDScript with type awareness and catch
    errors *before* running.
-6. `screenshot_editor` → let Claude *see* the result.
+6. `main_screen_set` → `screenshot_editor` → let Claude *see* the result. The tab has to
+   match the viewport you want; a fresh editor is on 3D and opening a scene does not switch it.
 7. `dbg_set_breakpoints` → `dbg_launch` → `dbg_stack_trace` / `dbg_variables` /
    `dbg_evaluate` → debug from real program state.
 8. `godot_run_project` → `runtime_get_tree` / `runtime_set_property` /

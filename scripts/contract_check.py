@@ -33,6 +33,17 @@ Verifies, without running Godot or Node, that the three layers agree:
  16. Shape parity has a FLOOR: checks 6 and 7 compare intersections, so a tool
      the catalog parser cannot read drops out silently. Every tool must be
      compared, or exempt with a reason — asserted as set equality both ways
+ 17. The example project's renderer and autoload form: `gl_compatibility` on
+     both rendering_method keys, and the autoload on the `res://` PATH form —
+     the `uid://` form is REJECTED, carrying the CI output that proved it
+     breaks 4.3 and every cold clone as the stated reason
+ 18. Every tracked `.gd` inside a Godot project this repo opens (`example/`,
+     `example-csharp/`) has its `.uid` sidecar committed, so a boot or
+     `--import` cannot leave permanent untracked noise in `git status`
+ 19. The DISTRIBUTABLE addon (`addons/breakpoint_mcp/`) ships NO `.uid`
+     sidecars — the opposite rule to 18, for the reason spelled out there:
+     the addon has no `uid://` references of its own, so a pinned uid buys
+     nothing and costs a duplicate-uid warning for anyone vendoring a copy
 
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """

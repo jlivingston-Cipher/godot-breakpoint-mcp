@@ -51,7 +51,10 @@ Ask Claude to run each; mark pass/fail.
 | A5 | `node_add` `{parent_path:".", type:"AudioStreamPlayer3D", name:"SFX"}` | new node path `SFX`; appears in editor |
 | A6 | `node_set_property` `{path:"Sprite2D", property:"position", value:{"__type__":"Vector2","x":10,"y":20}}` | position updates; **Ctrl-Z reverts it** |
 | A7 | `node_delete` `{path:"SFX"}` | elicitation prompt → accept → node removed |
-| A8 | `screenshot_editor` `{viewport:"2d"}` | image returned (2D editor tab active) |
+| A8 | `main_screen_get` | `active` names the current tab; `available` lists `2D, 3D, Script, Game, AssetLib` |
+| A9 | `screenshot_editor` `{viewport:"2d"}` *(before switching)* | if the editor is not on 2D: `viewport_not_rendered`, naming the active tab and pointing at `main_screen_set` — **this is the expected result, not a failure** |
+| A10 | `main_screen_set` `{name:"2d"}` | `active: "2D"` (lower case in, engine spelling out) |
+| A11 | `screenshot_editor` `{viewport:"2d"}` *(after switching)* | image returned — the same call that was refused at A9 now succeeds |
 
 ### Plane D — LSP (semantic)
 | # | Tool call | Expected |

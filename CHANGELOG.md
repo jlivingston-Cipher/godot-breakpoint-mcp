@@ -6,6 +6,33 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs — post-1.30.0 sweep: the places the gate cannot see (no tool change)
+1.30.0 landed two tools and two new gate checks. The contract check enforces every count and
+shape it knows about, which is exactly why the stale claims that survive a release are the ones
+**outside** its reach — prose numbers in a form its regex does not anchor on, and documentation
+of things it has no opinion about at all.
+
+- **`contract_check.py`'s own docstring enumerated checks 1–16.** The script has had **19** since
+  1.30.0: 17 and 18 arrived with #145 and 19 with #147, and neither updated the header. All three
+  are now listed, including *why* 18 and 19 point in opposite directions.
+- **Two bare `146`s in `README.md` and one in `docs/USER_GUIDE.md`** — the pre-1.30.0 `editor`
+  toolset size, in running prose (`"is part of that 146"`, `"not the 146 alone"`). Check 13
+  anchors on the `` `a` → **N** `` form and correctly did not see these.
+- **`screenshot_editor`'s description stated the precondition but not the remedy.** It is the text
+  the model reads when choosing a call, so it now says to call `main_screen_set` first — the
+  error message has said so since #149, but only *after* the call already failed.
+- **`main_screen_*` was missing from the `USER_GUIDE` family list**, and `screenshot_editor`'s
+  entry there did not mention the tab requirement at all.
+- **`RUNBOOK` step A8 was not deterministic** — `screenshot_editor {viewport:"2d"}`, expecting
+  "image returned (2D editor tab active)", with nothing making that true. It is now A8–A11: read
+  the tab, watch the capture be refused, switch, watch the same call succeed.
+- **`CONTRIBUTING.md`'s "adding a tool" checklist would have walked a contributor into a wall of
+  red.** It never mentioned `annotations.ts` — a hard gate — and reduced the count fan-out to
+  "keeping the tool count accurate", when it is ~20 files including host-test constants and the
+  `timeout-caveat.ts` class sizes, with a global-sed trap on wrapped lines and historical numbers.
+  Both fixed, plus a new section on the `.uid` rules, which checks 18/19 will otherwise fail a PR
+  for with no documentation anywhere explaining them.
+
 ## [1.30.0] — 2026-07-31
 
 **Minor, not patch, and the reason is the first entry below.** `[Unreleased]` opened this session

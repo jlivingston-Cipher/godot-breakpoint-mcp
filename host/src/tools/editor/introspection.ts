@@ -23,6 +23,12 @@ import { fail, type EditorCall } from "./common.js";
  *
  * 8px is deliberately far below any real viewport and far above the collapsed
  * one: it separates the two populations without guessing at a "reasonable" size.
+ *
+ * Since 1.30.0 the refusal is RECOVERABLE rather than terminal: `main_screen_set`
+ * switches the tab, so the error names the tab that is actually active and the
+ * call that fixes it, and a caller can act on that instead of giving up. The
+ * guard itself is unchanged — this threshold still decides what counts as a
+ * frame; the tab tools only give the caller somewhere to go when it bites.
  */
 const MIN_RENDERED_VIEWPORT_PX = 8;
 
@@ -142,7 +148,9 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
       description:
         "Capture the 2D or 3D editor viewport as a PNG and return it as image content so the assistant can see the scene. " +
         "Requires the matching editor tab (2D/3D) to be active: Godot collapses the inactive tab's viewport to a few " +
-        "pixels, and this tool returns a viewport_not_rendered error rather than that placeholder frame.",
+        "pixels, and this tool returns a viewport_not_rendered error rather than that placeholder frame. " +
+        "A fresh editor is on the 3D tab and opening a scene does NOT switch it, so to capture 2d reliably call " +
+        'main_screen_set {"name":"2D"} first — or main_screen_get to see which tab is active.',
       inputSchema: { viewport: z.enum(["2d", "3d"]).optional().describe("Which viewport (default 3d)") },
     },
     async ({ viewport }) => {
