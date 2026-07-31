@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3]
+
+; The PackedScene that runtime_node_add's `scene:` branch instantiates. NOT a scene that
+; is ever booted on its own — it exists only to be loaded and instantiated INTO the
+; node-lifecycle probe's running tree.
+;
+; Its whole job is to be distinguishable from what the `type:` branch can produce, so
+; each authored detail below is an assertion the probe makes:
+;
+;   Payload  Node2D  -> the authored ROOT NAME. node_add given no `name` must land at
+;                       Host/Payload, which a type: add could only match by coincidence.
+;                       position (137, 91) is a non-default AUTHORED VALUE: proof the
+;                       scene's serialised state was applied, not just its class.
+;   Cargo    Node2D  -> the authored SUBTREE. A type: add instantiates exactly one node
+;                       and has no way to bring a child with it, so a resolvable
+;                       Host/Payload/Cargo is only possible if a real PackedScene was
+;                       instantiated. position (11, 13) pins it to THIS scene.
+;
+; Deliberately inert: node_payload.gd sets one self-owned flag in _ready() and does
+; nothing else. Every other scene under example/tests/ has a _ready() that builds state
+; for its own lane, which is why none of them could be used here.
+
+[ext_resource type="Script" path="res://tests/node_payload.gd" id="1_payload"]
+
+[node name="Payload" type="Node2D"]
+position = Vector2(137, 91)
+script = ExtResource("1_payload")
+
+[node name="Cargo" type="Node2D" parent="."]
+position = Vector2(11, 13)

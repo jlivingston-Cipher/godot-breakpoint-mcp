@@ -1,0 +1,40 @@
+[gd_scene format=3]
+
+; Dedicated fixture for the runtime NODE-LIFECYCLE integration probe — runtime_node_add
+; and runtime_node_remove, ranked #1 on handoff 151 §2's list of runtime tools with no
+; live coverage (~44 lines of GDScript, the densest error paths left in the plane).
+;
+; DELIBERATELY SCRIPTLESS, and that is the design rather than an omission.
+;
+; Every other probe fixture in this directory carries a script whose _ready() builds the
+; state its lane needs. This lane's subject IS the shape of the tree, so anything that
+; mutated the tree on boot would be competing with the tool under test: after a failure
+; you could not tell whether a node is present because node_add put it there or because
+; the fixture did. With no script, EVERY node that appears under this root during the run
+; was put there by runtime_node_add, and every one that disappears was taken by
+; runtime_node_remove. The probe's pristine-restore check at the end is only meaningful
+; because of that.
+;
+; The two nodes exist for these reasons and no others:
+;
+;   NodeProbe  Node2D  -> the scene ROOT, which is the subject of _node_remove's
+;                         `cannot_remove_root` guard. The probe attacks it by both spellings
+;                         that _resolve maps onto the root ("." and "") and then proves it
+;                         SURVIVED — a guard that refused and freed anyway would pass a
+;                         reply-only check.
+;   Host       Node2D  -> a PRE-EXISTING NON-ROOT parent. Adding under it exercises
+;                         _resolve + _path_of on a nested parent, which adding under the
+;                         root cannot: a _path_of that returned get_path() instead of the
+;                         scene-relative path is invisible at the root and wrong here.
+;                         Its child_count is also the pristine anchor — 0 at boot, and 0
+;                         again when the probe is done.
+;
+; The PackedScene the `scene:` branch instantiates is a SEPARATE file,
+; res://tests/node_payload.tscn — see its header for why it could not be one of these.
+;
+; Driven headless by the runtime-plane CI job (:9086); see
+; host/test-integration/node-lifecycle.integration.mjs.
+
+[node name="NodeProbe" type="Node2D"]
+
+[node name="Host" type="Node2D" parent="."]
