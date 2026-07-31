@@ -6,6 +6,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.30.0] — 2026-07-31
+
+**Minor, not patch, and the reason is the first entry below.** `[Unreleased]` opened this session
+holding four test/CI/hygiene changes, which would have been a patch. #149 then added **two tools** —
+`main_screen_get` and `main_screen_set` — moving the surface 289 → 291 and the secure-default
+276 → 278, and changed a shipped tool's error text. New surface is a minor by definition. Following
+1.28.0 and 1.29.0, the change that forces the bump is stated at the top of the release rather than
+buried inside a section named for something else.
+
+Addon **1.9.2 → 1.9.3** as well, so this release has an Asset Library trip attached to it whenever
+you want to make one; 1.9.2 is live and approved, and nothing here is required by anyone waiting.
+
 ### Added — `main_screen_get` / `main_screen_set`: the editor tab is now steerable (addon 1.9.3)
 Since #139 `screenshot_editor` has refused a viewport under 8px rather than returning Godot's
 collapsed 2x2 placeholder as if it were a frame. The guard is right and stays. Its **error was a dead
