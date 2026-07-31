@@ -6,6 +6,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the authoring probe starts from the committed scene, not from its own last run (no tool change)
+#144 made the probe re-runnable against one live editor by snapshotting and restoring `GODOT_PROJECT`
+on disk. The edited scene was the other half of that claim, and no disk restore can reach it:
+`node_add` and its neighbours mutate the editor's **in-memory** tree, which is never saved, never
+appears in the snapshot diff, and dies only with the editor process. Measured after a single run:
+**22 leftover `Auth*` nodes** under the scene root, with the editor reporting `main.tscn` unsaved. Run
+N started from run N−1's tree.
+
+Nothing was failing, and it is worth being precise about why. Every family asserts against the path a
+tool *returned*, so Godot's deduplicated names (`AuthNodeRoot2`, `AuthNodeRoot3`, …) were followed
+correctly. That is the same habit that saved the creator call in #144 §3's `AudioServer` bug — and
+the same bug is the reason this is not left alone, because there the two calls that addressed the bus
+by *literal* name passed while measuring the previous run's object. The distance between latent and
+biting is one future family written with a literal name.
+
+The probe now `scene_reload`s from disk immediately after `scene_open`, before anything mutates it —
+~120ms, and a no-op on a fresh editor, since the edits it discards were never going to be saved. New
+marker **`AUTH_SCENE_PRISTINE`** asserts the result through two oracles that share no machinery with
+the reload, per #144 §2: the editor's own unsaved set (`get_unsaved_scenes`, 4.4+, reported as
+`unsaved_supported`) and a count of surviving `Auth*` nodes (every version, and the one the families
+actually depend on). Where the editor cannot report its dirty set — 4.3, still in this repo's matrix
+— "cannot know" is explicitly not treated as "clean" and the footprint oracle carries the check.
+`AUTH_SUMMARY` goes 184/184 → **185/185**; `scene_reload` had no probe coverage before this.
+
+Verified by making it fail: with the reload suppressed against an editor that had already served
+three runs, `AUTH_SCENE_PRISTINE` failed and named all 22 leftovers with both oracles firing
+(`unsaved=true auth_leftovers=22`).
+
 ### Fixed — opening `example/` in the editor no longer dirties the tree (no tool change)
 Booting the example project in a real Godot editor rewrote `project.godot` and minted three `.uid`
 files, every single time. The working tree came back dirty from *looking* at the project, which made

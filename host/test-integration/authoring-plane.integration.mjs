@@ -13,7 +13,7 @@
 //       node_remove_from_group, node_move_child, node_change_type, node_set_owner,
 //       node_find, node_get_path, node_list_properties, node_list_groups.
 //   A · scenes: scene_pack, node_instantiate_scene, scene_list_open,
-//       scene_get_dependencies.
+//       scene_get_dependencies, scene_reload (at startup — see AUTH_SCENE_PRISTINE).
 //   A · signals: signal_connect, signal_disconnect, signal_add_user_signal,
 //       signal_list, signal_list_connections, signal_emit.
 //   B · resources/filesystem: resource_create, resource_load, resource_save,
@@ -65,6 +65,8 @@
 // synchronizer / authority node authoring + undo/redo, enet/lobby codegen, @rpc wiring, WebRTC feature-detect) /
 // AUTH_BACKEND_* (Group M backend-SDK scaffolding: detect, unsupported_feature + sdk_missing degrades, and the
 // real write path via an in-memory autoload simulating an installed SDK) / AUTH_UNDO_* / AUTH_REDO_* /
+// AUTH_SCENE_PRISTINE (the edited scene started from disk, not from the previous run — see the
+// idempotency section below) /
 // AUTH_CLEAN (the probe put GODOT_PROJECT back byte-for-byte — see the cleanup section). Every marker prints
 // "OK" or "FAIL"; a trailing AUTH_SUMMARY line reports the tally and the process exits
 // non-zero if any assertion failed. The reachability check is the gate (exit 1 if the
@@ -73,7 +75,8 @@
 // Side effects — ALL OF THEM UNDONE BEFORE EXIT as of session 148; see the cleanup
 // section at the bottom and the AUTH_CLEAN marker. Listed here because knowing WHAT the
 // probe writes is still how you reason about it; you no longer have to clean it up.
-//   * unsaved in-memory edits to res://main.tscn (never saved -> vanish on close);
+//   * unsaved in-memory edits to res://main.tscn (never saved -> vanish on close, and
+//     discarded up-front by the startup scene_reload so they cannot reach the NEXT run);
 //   * written files under res://_auth_probe_* : _auth_probe_tex.tres,
 //     _auth_probe_audio.tres, _auth_probe_a.gdshader, _auth_probe_b.gdshader,
 //     _auth_probe_bus_layout.tres, _auth_probe_branch.tscn, _auth_probe_style*.tres,
@@ -130,6 +133,9 @@ const DIST = path.join(HOST_DIR, "dist", "index.js");
 const GODOT_PROJECT = process.env.GODOT_PROJECT || path.join(REPO, "example");
 const GODOT_BIN = process.env.GODOT_BIN || "godot";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The scene every in-scene family mutates. Named because the idempotency reload below
+// has to open, reload and assert against the same one.
+const MAIN_SCENE = "res://main.tscn";
 
 // Pre-probe state of GODOT_PROJECT. Module-scoped rather than a local in main() so the
 // FATAL handler can restore too — a crash is precisely when the tree is most likely to
@@ -142,7 +148,9 @@ const GATED = new Set([
   "physics_set_gravity", "shader_create", "shader_set_code", "resource_create",
   "audio_bus_add", "audio_bus_add_effect", "audio_bus_set_volume", "audio_set_bus_layout",
   // Group A/B/C/D destructive writers exercised below:
-  "scene_pack", "signal_emit", "resource_save", "resource_duplicate",
+  // (scene_reload discards unsaved edits, so it is gated like any other destructive tool —
+  // it runs once at startup for idempotency, not as part of a family.)
+  "scene_pack", "scene_reload", "signal_emit", "resource_save", "resource_duplicate",
   "resource_set_property", "filesystem_move", "anim_delete",
   "tileset_create", "tileset_add_source", "tileset_add_tile", "tileset_set_tile_collision",
   // Group G theme file-writers (Theme .tres on disk):
@@ -238,7 +246,43 @@ async function main() {
     process.exit(1);
   }
   // A known edited scene root must exist for the in-scene mutators.
-  await call("scene_open", { path: "res://main.tscn" });
+  await call("scene_open", { path: MAIN_SCENE });
+
+  // ------------------------------------------------------- scene idempotency ----
+  // #144 made the probe re-runnable by restoring GODOT_PROJECT on disk. The edited scene is
+  // the other half, and no disk restore can reach it: node_add and friends mutate the
+  // editor's IN-MEMORY tree, which is never saved, so it does not appear in the snapshot
+  // diff and dies only with the editor process. Against one long-lived editor, run N
+  // therefore used to start from run N-1's tree — measured at 22 leftover Auth* nodes under
+  // the root after a single run, with the editor reporting main.tscn unsaved.
+  //
+  // Nothing was failing: every family asserts against the path a tool RETURNED, so Godot's
+  // deduped names (AuthNodeRoot2, AuthNodeRoot3, ...) were followed correctly. That is
+  // exactly the shape of #144 §3's AudioServer bug, though — there the same "assert against
+  // what came back" habit held for the creator and broke for the two calls that addressed
+  // the bus by literal name, which passed while measuring the PREVIOUS run's object. The
+  // difference between latent and biting is one future family written with a literal name.
+  //
+  // Reloading from disk costs ~120ms and makes the starting tree the committed main.tscn.
+  // The discarded edits were never going to be saved, so on a fresh editor this is a no-op.
+  await call("scene_reload", { path: MAIN_SCENE });
+
+  await family("AUTH_SCENE_PRISTINE", async () => {
+    // Two independent oracles, in the spirit of #144 §2 — a single one here would be the
+    // reload grading its own homework. The editor's own dirty set is the stronger claim but
+    // needs 4.4+ (get_unsaved_scenes; the addon reports unsaved_supported=false on 4.3, and
+    // 4.3 is still in this repo's matrix). The Auth* footprint check knows nothing about the
+    // editor's bookkeeping, works on every version, and is the one the families care about.
+    const open = await call("scene_list_open");
+    const leftovers = ((await call("node_get_children", { path: "." })).children || [])
+      .filter((c) => String(c.name ?? "").startsWith("Auth"));
+    const dirty = open.unsaved_supported ? (open.unsaved || []).includes(MAIN_SCENE) : null;
+    // dirty === null is "cannot know" on 4.3, which must not read as "clean" — hence
+    // `!== true` rather than `=== false`; the footprint oracle carries the check there.
+    (leftovers.length === 0 && dirty !== true)
+      ? pass("AUTH_SCENE_PRISTINE", `unsaved=${dirty === null ? "n/a(<4.4)" : dirty} auth_leftovers=0`)
+      : fail("AUTH_SCENE_PRISTINE", `unsaved=${dirty} auth_leftovers=${leftovers.length} :: ${leftovers.map((c) => c.name).join(",")}`);
+  });
 
   // ---------------------------------------------------------------- fixtures ----
   const TEX = "res://_auth_probe_tex.tres";
