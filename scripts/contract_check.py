@@ -2008,7 +2008,7 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 12
+SHEBANG_NONEXEC_EXPECTED = 13  # +1 session 147: host/verify_shot_editor_live.mjs
 
 
 def _tracked_modes() -> "dict[Path, str] | None":

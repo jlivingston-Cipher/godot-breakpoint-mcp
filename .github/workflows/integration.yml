@@ -96,8 +96,11 @@ name: integration
 #                     undo/redo round-trips wherever the mutation is scene-undoable (markers AUTH_NODE_* /
 #                     AUTH_SCENE_* / AUTH_SIGNAL_* / AUTH_RESOURCE_* / AUTH_ANIM_* / AUTH_TILESET_* /
 #                     AUTH_TILEMAP_* / AUTH_PHYS_* / AUTH_VFX_* / AUTH_AUDIO_* / AUTH_UNDO_* / AUTH_REDO_* / AUTH_UI_* /
-#                     AUTH_SHOT_*, the last being the only pixel-producing tool any job in this repo touches;
-#                     AUTH_SUMMARY pass=181/181, measured, session 144). Single newest-stable arm — the A-G authoring surface is
+#                     AUTH_SHOT_*, the last being the only pixel-producing tool any job in this repo touches
+#                     — and the only family here that opens the payload rather than reading the tool's own
+#                     label: AUTH_SHOT_IHDR re-reads the dims off the PNG, AUTH_SHOT_DRAWN rejects a frame
+#                     that is a single flat colour (session 147);
+#                     AUTH_SUMMARY pass=183/183, measured, session 147). Single newest-stable arm — the A-G authoring surface is
 #                     version-stable, unlike the LSP/DAP planes that matrix 4.3/4.7 for capability
 #                     divergence. A REQUIRED gate as of session 42 (promoted the runtime-plane /
 #                     csharp-plane way once green across a few runs); disk-backed resource_* / filesystem_* /
@@ -768,7 +771,7 @@ jobs:
   authoring-plane:
     name: authoring plane / A-G mutators vs real editor
     runs-on: ubuntu-latest
-    # A REQUIRED gate as of session 42: the A-G authoring probe (181/181 forward + undo/redo assertions,
+    # A REQUIRED gate as of session 42: the A-G authoring probe (183/183 forward + undo/redo assertions,
     # covering Group A nodes/scenes/signals, B resources/filesystem, C animation, D tileset/tilemap,
     # E physics/collision, F VFX/audio and G UI/controls/theming) is green across #47, two main pushes, #48 and #49 — so a
     # live-engine regression in the authoring plane now blocks a merge, the way runtime-plane was

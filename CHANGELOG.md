@@ -6,6 +6,54 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `screenshot_editor` verified on Metal, and the two assertions that finding justified (no tool change)
+The `AUTH_SHOT_*` family is `screenshot_editor`'s only live coverage, and it runs under Xvfb + Mesa
+llvmpipe — a screen that is always content-scale 1.0. Two properties of the tool were therefore
+untestable in CI by construction: whether `Image.get_width()` reports **logical or physical** pixels
+on a HiDPI display, and whether `SubViewport.get_texture().get_image()` reads back at all under
+**Metal**, which is what every macOS user runs and no CI job touches.
+
+Both were answered on real hardware (M2, Godot 4.7, 2880x1864 Retina): the capture path works, the 3D
+viewport returns a genuine frame — grid, three axis gizmos, sky gradient — and the inactive tab's
+collapsed placeholder still measures **2x2**, not 4x4. The dims are **logical**, so the
+`MIN_RENDERED_VIEWPORT_PX = 8` guard keeps the same 4x headroom it has on an Xvfb screen. That
+matches what #141 found for the runtime path; **both pixel paths are now confirmed HiDPI-clean on
+hardware, not just under software rendering.**
+
+**The gap the run exposed.** Every assertion in the family read the tool's own *label* — the mimeType,
+the first four magic bytes, the `(WxH)` note — and none opened the payload. A correctly-sized,
+correctly-labelled, entirely **black** frame satisfied all of them. That is the editor-side twin of
+the defect #141 built `render_probe.tscn` to reject on the runtime side, and nothing here would have
+caught it. Two assertions close it, backed by a new dependency-free 8-bit PNG reader
+(`host/test-integration/_png.mjs`, ~130ms for a 1417x872 RGBA frame):
+
+- **`AUTH_SHOT_IHDR`** — the dims read off the payload's own header must agree with the dims the tool
+  reported, crossing the addon's `Marshalls.raw_to_base64` → JSON → stdio path.
+- **`AUTH_SHOT_DRAWN`** — the frame must not be a single flat colour. A live 3D viewport measured
+  **1106 distinct colours on Metal and 774 under llvmpipe** over a sampled grid; a rasterizer that
+  initialised and drew nothing measures 1. Asserts `> 1` rather than a floor near either figure — the
+  bar is "the rasterizer drew something", and the two drivers legitimately disagree on the count.
+
+**The two drivers side by side**, which is the point of doing both:
+
+| | Metal (M2, 2880x1864 Retina) | llvmpipe (Xvfb 1280x720) |
+|---|---|---|
+| 3D viewport | 1417x929 | 850x595 |
+| distinct colours | 1106 | 774 |
+| inactive placeholder | **2x2** | **2x2** |
+| guard headroom | **4.00x** | **4.00x** |
+
+The viewport dims differ because the windows differ. The **placeholder does not** — so the 8px
+guard's margin is independent of both display scale and rasterizer, which is the specific claim the
+Metal run existed to test.
+
+`AUTH_SUMMARY` moves 181/181 → **183/183**. Also adds `host/verify_shot_editor_live.mjs`, a
+**read-only and fully idempotent** scratch harness (unlike the authoring probe, it leaves `example/`
+clean and re-runs without a `git checkout`) that makes the same assertions on real hardware from the
+same `_png.mjs`, so the Metal run and the llvmpipe run are comparable rather than merely both green.
+It logs `AUTH_SHOT_GUARD_MARGIN` / `SHOT_LIVE_GUARD_MARGIN` so the 8px heuristic's headroom is
+recorded on every run instead of assumed.
+
 ### Added — `runtime-render-plane` CI job: `runtime_screenshot_diff` finally executes (no tool change)
 1.29.0's notes closed with "`runtime_screenshot_diff` still has no automated coverage", and the
 handoffs carried it as *the one thing CI structurally cannot do* — it needs a running game, not a
