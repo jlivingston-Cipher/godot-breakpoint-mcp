@@ -6,6 +6,55 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — opening `example/` in the editor no longer dirties the tree (no tool change)
+Booting the example project in a real Godot editor rewrote `project.godot` and minted three `.uid`
+files, every single time. The working tree came back dirty from *looking* at the project, which made
+a local editor session indistinguishable from real work in progress — and in #144's own session a
+`git add -A` duly swept that dirt into a staged commit it had no business being in. Both halves are
+now closed, and both are gated so they cannot come back.
+
+**The comment Godot ate.** Five lines in `[rendering]` explained why the project selects
+`gl_compatibility`: a CI runner has no GPU, the default Forward+/Vulkan renderer segfaults on init
+there, and the game the DAP plane launches therefore never reached its breakpoint. Godot rewrites
+`project.godot` from its in-memory `ConfigFile` on every boot, emitting its own header and **dropping
+every other comment**, so that block was destroyed and hand-restored on a loop — a recurring
+near-miss that survived only because someone kept noticing. The rationale now lives in
+`contract_check.py`, which the editor cannot rewrite, and the **settings themselves are asserted**
+rather than explained: new **check 17** fails if either `renderer/rendering_method` key moves off
+`gl_compatibility`.
+
+**The autoload rewrite — and the thing that did NOT work.** The editor also rewrites the autoload
+from the `res://` path form to `uid://`. Committing that rewrite looked like the tidy fix, since it
+would leave a boot with nothing left to change. **CI killed it in ninety seconds:**
+
+```
+ERROR: Failed to create an autoload, can't load from path: uid://dkyjj7tbsecr0.
+       at: _create_autoload (editor/editor_autoload_settings.cpp:413)
+```
+
+The uid→path map lives in `.godot/uid_cache.bin`, which is gitignored and therefore absent on a fresh
+checkout — and on 4.3, still in this repo's matrix, script uids do not exist at all. The autoload
+resolved to null, the runtime bridge never started, its port never opened, and the runtime and peers
+planes timed out against a game that was never listening. So check 17 now **rejects** the uid form
+outright and requires the path form, carrying that CI output as the reason. The cost is accepted
+deliberately: a local boot still rewrites that one line, undone with
+`git checkout -- example/project.godot`, in exchange for an autoload that resolves on every engine
+version and on a cold clone.
+
+**The missing sidecars.** `example/tests/{frame_step_mover,peer_converge_mover,status_dock_layout_smoke}.gd`
+shipped without their `.uid` files while the other eleven scripts in that directory had them. Nothing
+was broken — Godot mints one on import and these are referenced by path from their `.tscn` — but the
+sidecar was regenerated as untracked noise on every boot. All three are now committed, and new
+**check 18** fails if a tracked `.gd` under `example/tests/` is missing one. Deliberately scoped:
+`addons/breakpoint_mcp/` is the distributable addon, and whether uids ship to end users is a
+packaging decision rather than a hygiene one.
+
+Verified by negative test — each rule was made to fail on purpose before being trusted: check 18
+named exactly the three scripts while they were untracked; check 17 caught `forward_plus`, and caught
+the `uid://` autoload that CI had just rejected. A cold editor boot with `example/.godot` deleted first now leaves only the single
+expected autoload line in `git status` — down from one modified file plus three untracked ones — and
+the authoring probe still returns 184/184 with `AUTH_CLEAN` green.
+
 ### Fixed — the authoring probe restores `example/` instead of leaving it dirty (no tool change)
 The A–G authoring probe writes roughly thirty real files into `example/` — `_auth_probe_*.tres`, the
 `_asset_probe_*` resources, the Group M codegen `.gd` files, `export_presets.cfg`,

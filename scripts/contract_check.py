@@ -2162,6 +2162,142 @@ else:
             f"Current set: {listed}."
         )
 
+# --- 17: example/project.godot — the invariants a local editor boot erases ---
+# Opening example/ in a real editor REWRITES project.godot from Godot's in-memory
+# ConfigFile: it emits its own header, DROPS EVERY OTHER COMMENT, and resolves
+# script references to uid://. Both measured on a real boot, session 148.
+#
+# That had two consequences, and this check exists because of them.
+#
+# FIRST — a five-line comment block in [rendering] explained WHY this project
+# selects gl_compatibility: a CI runner has no GPU, the default Forward+/Vulkan
+# renderer segfaults on init there, and the game the DAP plane launches therefore
+# never reached its breakpoint. gl_compatibility is also what the integration
+# workflow forces via `--rendering-driver opengl3`. That comment was destroyed on
+# every local boot and restored by hand each time, which is not a convention — it
+# is a recurring near-miss that only ever survived because someone noticed.
+#
+#   THE RATIONALE NOW LIVES HERE, in a file the editor cannot rewrite, and the
+#   SETTINGS are asserted instead of explained. Do not put the comment back into
+#   project.godot: it will not survive the next person who opens the editor.
+#
+# SECOND — the editor also rewrites the autoload from the res:// path form to the
+# uid:// form. THAT REWRITE MUST NOT BE COMMITTED, and this check is here to make
+# sure it never is again.
+#
+#   Session 148 committed it, on the reasoning that adopting the editor's own
+#   output would leave a boot with nothing to rewrite. CI killed it in 90 seconds:
+#
+#     ERROR: Failed to create an autoload, can't load from path: uid://dkyjj7tbsecr0.
+#            at: _create_autoload (editor/editor_autoload_settings.cpp:413)
+#
+#   The uid -> path map lives in .godot/uid_cache.bin, which is gitignored and
+#   therefore absent on a fresh checkout — and on 4.3, which this repo still
+#   supports in its matrix, script uids do not exist at all. The autoload resolved
+#   to null, the runtime bridge never started, its port never opened, and the
+#   runtime and peers planes timed out against a game that was never listening.
+#   A failure as far from its cause as it is possible to get.
+#
+# So the path form is REQUIRED and the uid form is REJECTED. The cost is that a
+# local editor boot still rewrites this one line, and that is the deliberate
+# trade: one predictable line of `git status` noise, restored with
+# `git checkout -- example/project.godot`, in exchange for an autoload that
+# resolves on every engine version and on a cold clone.
+RENDERING_METHOD_REQUIRED = "gl_compatibility"
+
+_proj_path = ROOT / "example/project.godot"
+if not _proj_path.exists():
+    errors.append("check 17: example/project.godot is missing — the example project is CI's subject.")
+else:
+    _ptext = _proj_path.read_text(encoding="utf-8")
+
+    for _key in ("renderer/rendering_method", "renderer/rendering_method.mobile"):
+        _m = re.search(r'^' + re.escape(_key) + r'="([^"]*)"', _ptext, re.M)
+        if _m is None:
+            errors.append(
+                f"check 17: example/project.godot no longer sets `{_key}`. It must be "
+                f'"{RENDERING_METHOD_REQUIRED}" — CI runners have no GPU, Vulkan segfaults on init '
+                f"there, and the game the DAP plane launches never reaches its breakpoint. The full "
+                f"reasoning is in the comment above this check, deliberately NOT in project.godot, "
+                f"because the editor deletes comments from that file on every boot."
+            )
+        elif _m.group(1) != RENDERING_METHOD_REQUIRED:
+            errors.append(
+                f'check 17: example/project.godot sets `{_key}="{_m.group(1)}"`, but CI requires '
+                f'"{RENDERING_METHOD_REQUIRED}". Changing this makes the runtime and DAP planes fail '
+                f"on a GPU-less runner. If the change is deliberate, update this check in the same "
+                f"commit and say why."
+            )
+
+    _al = re.search(r'^BreakpointRuntimeBridge="\*([^"]+)"', _ptext, re.M)
+    if _al is None:
+        errors.append(
+            "check 17: example/project.godot has no BreakpointRuntimeBridge autoload. The runtime "
+            "bridge is loaded by that entry; without it every runtime-plane tool fails at a distance."
+        )
+    else:
+        _ref = _al.group(1)
+        if _ref.startswith("uid://"):
+            errors.append(
+                f"check 17: the BreakpointRuntimeBridge autoload is committed as `{_ref}`. That is "
+                f"the editor's rewrite, and it MUST NOT be committed — the uid->path map lives in "
+                f"the gitignored .godot/uid_cache.bin, so on a fresh checkout (and on 4.3, which has "
+                f"no script uids at all) it resolves to null, the runtime bridge never starts, and "
+                f"the runtime/peers planes time out against a game that never opened its port. "
+                f"Measured, session 148. Restore the path form: "
+                f'BreakpointRuntimeBridge="*res://addons/breakpoint_mcp/runtime_bridge.gd" '
+                f"— `git checkout -- example/project.godot` does it."
+            )
+        elif not _ref.startswith("res://"):
+            errors.append(
+                f"check 17: the autoload is `{_ref}`, which is neither a res:// path nor a uid. "
+                f"It must be `*res://addons/breakpoint_mcp/runtime_bridge.gd`."
+            )
+        elif not (ROOT / "example" / _ref[len("res://"):]).exists():
+            errors.append(
+                f"check 17: the autoload points at `{_ref}`, which does not exist under example/."
+            )
+
+# --- 18: example/tests/*.gd must ship their .uid sidecars --------------------
+# A .gd committed without its .uid is not broken — Godot mints one on first
+# import and resolves by path regardless. It is committed INCOMPLETE, and the
+# cost is paid every time: the editor writes the sidecar on boot, it shows up as
+# untracked, and it sits in `git status` forever looking like something you did.
+# Session 148 lost real time to exactly that — three such files made a local boot
+# indistinguishable from a dirty working tree, and a `git add -A` swept them into
+# a commit they had no business being in.
+#
+# Scoped to example/tests/ ON PURPOSE, and the exclusions are the interesting part:
+#   * addons/breakpoint_mcp/ (repo root) is the DISTRIBUTABLE addon — what gets
+#     zipped for the Asset Library. Whether uids ship to end users is a packaging
+#     decision, not a hygiene one, and it is not this check's business.
+#   * example/addons/breakpoint_mcp/ is a maintained copy of that addon, kept in
+#     step by check 14's version-parity roster rather than by convention here.
+#   * example-csharp/ mirrors the same addon for the Mono plane.
+# example/tests/ is hand-authored, every file in it is referenced by path from a
+# .tscn, and 11 of its 14 scripts already had sidecars — so the convention was
+# already real and three files had simply drifted out of it.
+if tracked_modes is None:
+    warnings.append("check 18: skipped — `git ls-files` unavailable, so tracked-ness is unknown.")
+else:
+    _tracked = set(tracked_modes)
+    _missing_uid = sorted(
+        str(p) for p in _tracked
+        if p.suffix == ".gd" and str(p).startswith("example/tests/")
+        and Path(str(p) + ".uid") not in _tracked
+    )
+    if _missing_uid:
+        errors.append(
+            "check 18: tracked .gd file(s) under example/tests/ have no tracked .uid sidecar: "
+            + ", ".join(_missing_uid)
+            + ". Godot mints one on the next editor boot, where it becomes permanent untracked "
+            "noise in `git status` and an easy accident for `git add -A`. Open the project once "
+            "and commit the generated sidecar alongside the script."
+        )
+    _uid_sidecars_checked = len([
+        p for p in _tracked if p.suffix == ".gd" and str(p).startswith("example/tests/")
+    ])
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -2199,6 +2335,11 @@ print(
     f"{shebang_nonexec_count} shebang'd non-exec"
 )
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
+print(
+    f"Example project         : renderer {RENDERING_METHOD_REQUIRED} \u00b7 autoload on the res:// path form "
+    f"\u00b7 {_uid_sidecars_checked} example/tests script(s) checked for .uid sidecars"
+)
+
 _origin_counts: dict[str, int] = {}
 for _how in shape_origin.values():
     _key = "xref" if _how.startswith("xref") else _how
