@@ -6,6 +6,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.31.0] — 2026-07-31
+
+**Minor, not patch, and the reason is that two shipped tools changed how they answer.** The four
+sessions before this one added no host code at all — they added *coverage*, and 149 §7.3's standing
+rule was not to cut a release for tests and docs alone. That condition stopped holding the moment
+the coverage found something: pointing `runtime_inject_input` at a real InputMap for the first time
+produced a tool that reported success for actions that do not exist, and the `runtime_node_add`
+audit produced a leak. Both are behaviour, both are below, and the addon moved 1.9.2 → 1.9.4 to
+carry them.
+
+**Nothing here is a host code change.** Every version field below moves because the release is cut,
+not because `host/src` differs from 1.30.0 — the two fixes and the new monitor key are all in the
+GDScript addon, which `ping` reports separately as `ADDON_VERSION`. A user who upgrades the npm
+package and not the addon gets none of this; the Asset Library trip is the one that matters, and
+§7.1 of the session handoff tracks it.
+
+🔴 **The through-line of all five entries is one method, and it is worth stating once at the top:
+every defect below was found by pointing a tool at a real running game, and none was found by
+reading code.** The runtime plane went from 18 of 27 tools live-covered to 22 of 27 over four
+sessions; two of the four gaps closed came back with a bug attached. The remaining three are
+enumerated in the handoff, ranked by how much GDScript is reachable only live.
+
+
 ### Fixed — `runtime_inject_input` reported success for an InputMap action that does not exist (addon 1.9.4)
 🔴 **A behaviour change to a shipped tool.** `kind: "action"` called `Input.action_press` without
 first asking whether the action existed. The engine pushes its own error and returns, so the tool
