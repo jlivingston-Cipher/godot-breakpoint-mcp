@@ -460,7 +460,7 @@ here is wrapped in Godot's undo system.
 Four sibling toolsets ride the same bridge and are counted separately: `netcode` → 7,
 `backend` → 5, `assetgen` → 7, and `tabletop` → 14 (multiplayer authoring, backend-SDK
 scaffolding, AI asset generation, and card/board/piece authoring). So
-`a,netcode,backend,assetgen,tabletop` → 181 tools require the editor open, not the 146
+`a,netcode,backend,assetgen,tabletop` → 181 tools require the editor open, not the 148
 above alone.
 
 ### Plane B — Headless CLI (`godot_*`)
@@ -561,7 +561,8 @@ addon enabled and the host registered (Sections 3–4).
 
 - `godot_run_project` (or `godot_run_managed` to also capture console output). Both refuse if
   the runtime bridge port is already held by another game — see Troubleshooting.
-- `screenshot_editor` → let the assistant see the editor viewport.
+- `main_screen_set` then `screenshot_editor` → let the assistant see the editor viewport. The
+  matching tab must be active; a fresh editor is on 3D and opening a scene does not switch it.
 
 **6. Debug a live bug from real state.**
 
@@ -612,8 +613,14 @@ undo system unless noted.
 - **`signal_*`** — list signals and connections; connect, disconnect, add user signals,
   and emit *(emit is destructive)*.
 - **`selection_*`** — get and set the editor selection.
+- **`main_screen_*`** — read and switch the editor's main-screen tab (2D / 3D / Script /
+  Game / AssetLib). Names are matched case-insensitively and the result is read back from
+  the editor, not echoed.
 - **`classdb_get_class`** — `ClassDB` introspection: methods, properties, signals.
-- **`screenshot_editor`** — capture the 2D or 3D editor viewport as an image.
+- **`screenshot_editor`** — capture the 2D or 3D editor viewport as an image. The matching
+  tab must be active — Godot collapses the inactive one to a few pixels, and this tool
+  refuses that placeholder rather than returning it. A fresh editor is on **3D** and
+  opening a scene does not switch it, so pair it with `main_screen_set`.
 - **`resource_*`** — create, load, save, duplicate, get/set properties, and get/set import
   settings for resources *(writes are destructive)*.
 - **`filesystem_*`** — list, scan, create directories, and move files
@@ -865,7 +872,8 @@ underlying steps.
 3. `node_add`, then `node_set_property` for each field (Variant values like `Vector2` /
    `Color` are tagged — see `docs/TOOL_CATALOG.md`).
 4. `node_instantiate_scene` to drop in prefabs; `signal_connect` to wire behavior.
-5. `screenshot_editor` so the assistant can see the result, then adjust.
+5. `main_screen_set` `{name:"2D"}` then `screenshot_editor` so the assistant can see the result,
+   then adjust. Without the switch a 2D capture is refused — a fresh editor sits on the 3D tab.
 6. `scene_save`. Anything you dislike reverts with **Ctrl-Z** or `editor_undo`.
 
 ### B. Debugging a bug

@@ -101,15 +101,33 @@ practice that means:
 
 1. Register the tool in the appropriate file under `host/src/tools/`.
 2. Add or update its GDScript bridge handler in `operations.gd` (editor) or
-   `runtime_bridge.gd` (runtime) as needed.
+   `runtime_bridge.gd` (runtime) as needed — and mirror it into
+   `example/addons/breakpoint_mcp/` (see below).
 3. Add the tool's frozen `outputSchema` entry in `host/src/schemas.ts`.
-4. Document it in `docs/TOOL_CATALOG.md` (both the index row and any detail
-   block), keeping the tool count accurate.
-5. Add unit tests under `host/test/`, and cover live behavior with an
+4. **Annotate it in `host/src/annotations.ts`.** Every registered tool must
+   appear on `ALL_ANNOTATED`, plus whichever of `READ_ONLY` / `DESTRUCTIVE` /
+   `IDEMPOTENT` / `OPEN_WORLD` apply. This is a hard gate, not a nicety — an
+   unannotated tool fails the check outright.
+5. Document it in `docs/TOOL_CATALOG.md` — **both** the index row and a detail
+   block with `Input` and `Output` shapes. A tool the catalog parser cannot read
+   drops out of shape parity silently, so the gate asserts every tool is
+   compared or explicitly exempt.
+6. **Re-stamp the counts.** Adding a tool moves the full / secure-default totals
+   and the toolset-subset arithmetic, and they are claimed in *many* places:
+   `README.md`, `docs/USER_GUIDE.md`, `docs/TOOL_CATALOG.md`, several
+   `host/src/` prose comments, the `timeout-caveat.ts` annotation-class sizes,
+   and around half a dozen host-test constants. **Do not try to find them by
+   hand and do not global-sed a number** — some claims wrap across a line break
+   (`the full\n * 291-tool surface`), and some numbers in the docs are
+   *historical* and must not move. Run the contract check and fix exactly the
+   sites it names, one pass at a time, until it is green.
+7. Add unit tests under `host/test/`, and cover live behavior with an
    integration probe where the change can only be exercised against a real
-   editor.
-6. Run `python3 scripts/contract_check.py` and make sure it reports all hard
-   checks passing.
+   editor. If you add probe assertions, update the `AUTH_SUMMARY pass=N/N`
+   claims in `.github/workflows/integration.yml` (two sites).
+8. Run `python3 scripts/contract_check.py` and make sure it reports all hard
+   checks passing. Check `$?` directly — **do not pipe it through `tail`**, or
+   you will read `tail`'s exit code instead of the gate's.
 
 ### Keep the addon copies byte-identical
 
@@ -117,6 +135,30 @@ If you edit anything under `addons/breakpoint_mcp/`, apply the **exact same
 change** to `example/addons/breakpoint_mcp/` so the two copies stay
 byte-identical. The addon's behavior is validated by the live integration jobs
 rather than by unit tests, so this parity matters.
+
+### `.uid` sidecars: committed inside the projects, never in the distributable
+
+Godot 4.4+ mints a `.uid` file next to every script it imports. The contract
+check gates where those may live, and the rule differs by directory *on purpose*:
+
+| If you add a `.gd` under… | Do this | Gate |
+|---|---|---|
+| `example/` or `example-csharp/` | open or `--import` the project once and **commit the generated `.uid` alongside the script** | check 18 |
+| `addons/breakpoint_mcp/` | **do not commit a `.uid`** — delete it if the editor made one | check 19 |
+
+The two rules point opposite ways because the directories are different kinds of
+thing. `example/` and `example-csharp/` are real projects that CI opens, so a
+missing sidecar gets minted on every boot and sits in `git status` forever
+looking like uncommitted work. `addons/breakpoint_mcp/` is the **distributable** —
+copied verbatim into the npm package and the Asset Library zip — so a committed
+sidecar would pin one uid onto every install worldwide. It buys nothing (the
+addon has no `uid://` references of its own) and costs a
+`WARNING: UID duplicate detected` for anyone who ends up with two copies in one
+project.
+
+If a boot leaves `example/project.godot` modified, that one autoload line is a
+known and accepted rewrite — `git checkout -- example/project.godot`. Check
+`git status` before `git add -A` after running anything against a real editor.
 
 ## Proposing a change
 
