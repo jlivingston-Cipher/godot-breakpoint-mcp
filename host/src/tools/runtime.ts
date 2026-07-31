@@ -156,8 +156,8 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       title: "Runtime emit signal",
       description:
         "Emit a signal from a live node. DESTRUCTIVE — gated by confirmation. " +
-        "args must match the signal's DECLARED arity or the emission fails with emit_failed and no handler runs; " +
-        "argument types are not checked.",
+        "args must match the arity of the signal's CONNECTED callables, or the emission fails with emit_failed and no handler runs. " +
+        "Argument types are not checked, and a signal with no listeners always succeeds — so emitted:true does not mean a handler ran.",
       inputSchema: { path: z.string(), signal: z.string(), args: z.array(z.any()).optional(), ...confirmField, ...peerField },
     },
     async ({ path, signal, args, confirm, peer }) => {

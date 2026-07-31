@@ -17,10 +17,19 @@ arguments each returned `emitted: true` while the handler never executed.
 
 - `_emit_signal` now returns **`emit_failed`**, carrying the engine's own code by name and number
   (`error_string(err)`), plus the argument count that was sent.
-- 🔴 **Arity only, and this is a measured limit rather than an oversight.** Godot does not
-  type-check signal arguments — a `signal typed_sig(n: int)` accepted a `String` and the handler
-  ran with it. The probe deliberately asserts nothing about types, because an assertion claiming
-  otherwise would be false.
+- 🔴 **TWO of the engine's codes are non-`OK` and only one is a failure**, measured identically on
+  4.3, 4.5 and 4.7: `ERR_METHOD_NOT_FOUND` (37) means a callable IS connected and could not be
+  invoked — the defect worth reporting — while `ERR_UNAVAILABLE` (2) means the signal has **no
+  connections at all**. Emitting into the void is ordinary and stays a success; the first cut of
+  this fix rejected every non-`OK` code and so turned every unheard emission into an error. The
+  repo's own `ops_unit_test.gd` (`rb.emit.ok`) caught that before it left the branch.
+- 🔴 **Two limits on the guard, both measured and neither fixable here — the docs now say so
+  rather than implying a guarantee.** (1) **Arity only:** Godot does not type-check signal
+  arguments — `signal typed_sig(n: int)` accepted a `String` and the handler ran with it. (2)
+  **Only when something is connected:** with no listener, a *wrong* count also returns
+  `ERR_UNAVAILABLE`, because there is no callable whose arity could mismatch — so it is
+  indistinguishable from a correct emission. `emitted: true` does not mean a handler ran, and
+  `TOOL_CATALOG.md` states that outright.
 - Found by pointing the tool at a live signal for the first time (see the coverage entry below).
   The unit tests prove the tool forwards `runtime.emit_signal`; nothing executed the emission.
 
@@ -61,6 +70,9 @@ uncoverable by construction rather than merely uncovered**.
 - **New probe `host/test-integration/tree-shape.integration.mjs`**, a **seventh step on the
   existing required `runtime-plane` job** (`:9088`) — no new job, and it inherits the 4.3 / 4.5 /
   4.7 matrix and required-gate status.
+- **`probe_lonely` is declared and deliberately never connected**, so the no-listener branch is
+  covered rather than trusted to a comment — and the probe asserts the *limit* too: a wrong
+  argument count there is NOT reported, because the engine cannot see it.
 - 🔴 **Nothing in the fixture is a sub-resource, deliberately.** #153's animation library and
   #155's InputMap key event were both correct only on the arm they were authored on; plain nodes
   have no serialisation that drifts, and this job is what *checks* that on all three arms rather

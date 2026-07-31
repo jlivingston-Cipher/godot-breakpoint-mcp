@@ -31,6 +31,17 @@ signal probe_two(a: Variant, b: Variant)
 ## rejecting every emission that carries no args.
 signal probe_none()
 
+## DECLARED AND DELIBERATELY NEVER CONNECTED. emit_signal returns ERR_UNAVAILABLE (2)
+## for a signal with no connections, which is NOT a failure -- emitting into the void is
+## what a game does constantly, and a guard that rejected every non-OK code turned all of
+## it into an error. That regression shipped in this PR's first commit and the repo's own
+## ops_unit_test.gd caught it, so the branch is now covered here rather than trusted.
+##
+## It is also the honest limit of the arity check: with nothing connected, a WRONG
+## argument count returns ERR_UNAVAILABLE too, because there is no callable whose arity
+## could mismatch. The probe asserts exactly that and claims nothing more.
+signal probe_lonely(x: Variant)
+
 var two_seen: int = 0
 var two_a: Variant = null
 var two_b: Variant = null
@@ -40,6 +51,7 @@ var none_seen: int = 0
 func _ready() -> void:
 	probe_two.connect(_on_probe_two)
 	probe_none.connect(_on_probe_none)
+	# probe_lonely is NOT connected here, and that is the point. Do not "fix" it.
 	print("TREE_PROBE_READY children=", get_child_count())
 
 

@@ -285,6 +285,32 @@ try {
   assert.equal(await read("none_seen"), noneBefore + 1, "…without running the handler");
   console.log("TREE_LIVE_ZEROARG ok probe_none() succeeds on 0 args and fails on 1 — the guard checks the MATCH, not the count");
 
+  // ================ 8. EMITTING INTO THE VOID IS NOT A FAILURE — and its limit ===
+  // emit_signal returns ERR_UNAVAILABLE (2), not OK, for a signal with NO connections.
+  // A guard rejecting every non-OK code therefore turns every emission nobody happens to
+  // be listening to into an error — which is most of what a real game emits. That
+  // regression shipped in this PR's first commit; ops_unit_test.gd's rb.emit.ok caught it.
+  // probe_lonely is declared and deliberately never connected so the branch is covered
+  // here rather than trusted to a comment.
+  const lonely = await emit("probe_lonely", [1]);
+  assert.ok(
+    !lonely.isError,
+    `a signal with NO connections must still emit successfully — the engine returns ERR_UNAVAILABLE for it, ` +
+      `which is 'nobody was listening', not 'the emission failed': ${errText(lonely)}`,
+  );
+  assert.equal(lonely.structuredContent?.emitted, true, "…and it reports emitted:true");
+
+  // The honest limit, asserted rather than glossed: with nothing connected there is no
+  // callable whose arity could mismatch, so a WRONG count is ERR_UNAVAILABLE too and is
+  // indistinguishable from a correct one. Claiming otherwise in the docs would be false.
+  const lonelyWrong = await emit("probe_lonely", [1, 2, 3]);
+  assert.ok(
+    !lonelyWrong.isError,
+    "a wrong argument count on an UNCONNECTED signal is NOT detectable — the engine reports ERR_UNAVAILABLE either way. " +
+      "If this ever starts failing the engine gained a check and TOOL_CATALOG.md's caveat should be revisited",
+  );
+  console.log("TREE_LIVE_NOLISTENER ok emitting into the void succeeds, and arity is uncheckable there (by construction)");
+
   console.log("TREE_LIVE_ALL ok every claim held");
   runtime.close();
 } catch (err) {

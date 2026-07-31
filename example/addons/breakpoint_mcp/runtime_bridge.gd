@@ -463,17 +463,33 @@ func _emit_signal(params: Dictionary) -> Dictionary:
 	for a in params.get("args", []):
 		call_args.append(Codec.decode(a))
 	# emit_signal RETURNS an Error, and discarding it made this tool answer
-	# {"emitted": true} for an emission the engine refused. The dominant cause is an
-	# `args` count that does not match the signal's declared arity: the engine pushes
-	# its own "Method expected N argument(s), but called with M" into the GAME's log —
-	# not the caller's — and no connected callable ever runs. The caller then fails at
-	# its NEXT assertion, arbitrarily far from the cause. Note this is arity only:
-	# Godot does NOT type-check signal arguments, so a wrong-TYPE arg still emits OK.
+	# {"emitted": true} for an emission the engine refused. The cause is an `args` count
+	# that does not match a CONNECTED callable's arity: the engine pushes its own
+	# "Method expected N argument(s), but called with M" into the GAME's log — not the
+	# caller's — and that callable never runs, so the caller fails at its NEXT assertion,
+	# arbitrarily far from the cause.
+	#
+	# 🔴 TWO non-OK codes, and only one of them is a failure. Measured identically on
+	# 4.3, 4.5 and 4.7:
+	#
+	#   OK (0)                    a connected callable ran
+	#   ERR_METHOD_NOT_FOUND (37) a callable IS connected and could not be invoked —
+	#                             the arity mismatch. This is the defect worth reporting.
+	#   ERR_UNAVAILABLE (2)       the signal exists but has NO connections at all.
+	#                             Emitting into the void is ordinary and must SUCCEED —
+	#                             rejecting it would break every game that emits a signal
+	#                             nothing happens to be listening to.
+	#
+	# 🔴 The honest consequence: arity is checkable ONLY when something is connected.
+	# With no listener, a wrong count also returns ERR_UNAVAILABLE (there is no callable
+	# whose arity could mismatch), so it is indistinguishable from a correct emission.
+	# That is a limit of what the engine reports, not something this tool can tighten,
+	# and the catalog says so rather than implying a guarantee that does not exist.
 	var err: int = node.callv("emit_signal", call_args)
-	if err != OK:
+	if err != OK and err != ERR_UNAVAILABLE:
 		return _err(
 			"emit_failed",
-			"emit_signal(%s) with %d arg(s) failed: %s (%d). Check the count against the signal's declared arity."
+			"emit_signal(%s) with %d arg(s) failed: %s (%d). Check the count against the arity of the signal's connected callables."
 				% [sig, call_args.size() - 1, error_string(err), err]
 		)
 	return _ok({"emitted": true})
