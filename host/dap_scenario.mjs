@@ -30,7 +30,16 @@ function log(label, val) { console.log(`\n=== ${label} ===`); console.log(JSON.s
 async function main() {
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
-    env: { ...process.env, GODOT_BIN, GODOT_PROJECT, CLAUDE_RUNTIME_TIMEOUT_MS: "120000" },
+    // dbg_evaluate and runtime_call_method are both dropped from the default
+    // surface by the capability layer; without this the scenario fails at the
+    // call with "not found" rather than anything about privilege.
+    env: {
+      ...process.env,
+      GODOT_BIN,
+      GODOT_PROJECT,
+      CLAUDE_RUNTIME_TIMEOUT_MS: "120000",
+      BREAKPOINT_PRIVILEGED_GROUPS: "code-execution",
+    },
     stderr: "inherit",
   });
   const client = new Client({ name: "gcb-dap", version: "1.0.0" }, { capabilities: { elicitation: {} } });

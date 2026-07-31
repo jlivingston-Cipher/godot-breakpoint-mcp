@@ -5,9 +5,13 @@
 // running game over the socketed runtime autoload — the one thing static + headless
 // can't do. Boots the example project as a managed child so the host stays alive.
 //
-//   Prereq: on the feat/verify-family-s102 branch (or after applying the patches),
-//           then:  cd host && npm run build && node verify_family_s102_live.mjs
+//   Run:    cd host && npm run build && node verify_family_s102_live.mjs
+//           (the feat/verify-family-s102 branch this once needed is long merged)
 //   Prereq: close any other running game first so port 9081 is free.
+//   Note:   the SCREEN_TEXT check below asserts a ReadyLabel scene edit that is
+//           NOT in example/ — expect that one line to report NO MATCH. Every
+//           other check should be green; set SCREEN_TEXT to real on-screen text
+//           if you want it green too.
 //   Optional: SCREEN_TEXT="..." to assert your own on-screen string
 //             (default matches the ReadyLabel scene-edit block in the handoff).
 
@@ -57,7 +61,12 @@ function makePng(w, h, rgba) {
 async function main() {
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
-    env: { ...process.env, GODOT_BIN, GODOT_PROJECT }, stderr: "inherit",
+    // godot_run_managed is one of the 13 tools the capability layer DROPS from
+    // the default surface, so without this the harness dies at its first call
+    // with "Tool godot_run_managed not found" — which reads as "the tool was
+    // deleted", not "the tool is gated". Same line as demo_verify_live.mjs.
+    env: { ...process.env, GODOT_BIN, GODOT_PROJECT, BREAKPOINT_PRIVILEGED_GROUPS: "code-execution" },
+    stderr: "inherit",
   });
   const client = new Client({ name: "gcb-verify-s102", version: "1.0.0" }, { capabilities: { elicitation: {} } });
   client.setRequestHandler(ElicitRequestSchema, async () => ({ action: "accept", content: { proceed: true } }));
