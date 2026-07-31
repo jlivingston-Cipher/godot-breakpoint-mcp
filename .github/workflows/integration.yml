@@ -860,11 +860,51 @@ jobs:
         run: |
           set -u
           git status --porcelain example/ | sort > /tmp/example-after.txt
-          if ! diff -u /tmp/example-before.txt /tmp/example-after.txt > /tmp/example-delta.txt; then
+          diff /tmp/example-before.txt /tmp/example-after.txt > /tmp/example-delta.txt || true
+
+          # --- why example/project.godot is tolerated HERE and asserted BELOW ---
+          # The baseline above is taken when the bridge port opens. The editor's own
+          # rewrite of project.godot (autoload res:// -> uid://) is NOT synchronised
+          # with that port, and the probe's own snapshot happens ~12s later still, so
+          # the rewrite can land on either side of the baseline. All three orderings
+          # have been observed on real runs:
+          #   rewrite before the baseline  -> dirty in both, no delta          (PASS)
+          #   rewrite after AUTH_CLEAN's snapshot -> probe restores it, restored=1 (PASS)
+          #   rewrite BETWEEN the two      -> clean baseline, dirty after      (FAILED)
+          # The third is a false alarm: the probe did nothing wrong, and session 149
+          # hit it on an unrelated PR. Requiring an empty delta therefore made this
+          # oracle a coin flip on a ~12s window.
+          #
+          # Tolerating the file alone would be the weak fix -- and note the old form
+          # was ALREADY blind here: when the rewrite landed before the baseline, the
+          # file was dirty on both sides and nothing ever looked inside it. So the
+          # content assertion below is not a concession, it is strictly more than the
+          # empty-delta form ever checked.
+          # NB the two spaces: `diff` prefixes with "> ", and porcelain's own X column
+          # is blank for an unstaged modification, so the line reads ">  M example/...".
+          # A single-space pattern silently matches nothing and fails every run.
+          unexpected=$(grep -E '^[<>]' /tmp/example-delta.txt | grep -vE '^[<>][[:space:]]+M[[:space:]]example/project\.godot$' || true)
+          if [ -n "$unexpected" ]; then
             echo "::error::the authoring probe changed example/ and did not put it back — git sees a delta AUTH_CLEAN's snapshot did not"
             echo "--- before the probe (editor already booted) vs after ---"
             cat /tmp/example-delta.txt
             exit 1
+          fi
+
+          # If project.godot is dirty at all -- from either side of the baseline -- the
+          # ONLY change permitted in it is the autoload line the editor rewrites to the
+          # uid:// form. That is the trade #145 accepted deliberately, and check 17
+          # gates the COMMITTED form; this gates what a live boot is allowed to do to it.
+          # Anything else means something wrote a project setting and left it behind.
+          if ! git diff --quiet -- example/project.godot; then
+            if git diff -U0 -- example/project.godot \
+                 | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+                 | grep -qvE '^[+-]BreakpointRuntimeBridge='; then
+              echo "::error::example/project.godot changed beyond the editor's accepted autoload rewrite"
+              git diff -- example/project.godot
+              exit 1
+            fi
+            echo "example/project.godot carries only the editor's accepted autoload rewrite (#145)"
           fi
           echo "example/ is exactly as the probe found it — git agrees with AUTH_CLEAN"
       - name: Editor log tail (on failure)
