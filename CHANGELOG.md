@@ -6,6 +6,62 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the authoring probe restores `example/` instead of leaving it dirty (no tool change)
+The A–G authoring probe writes roughly thirty real files into `example/` — `_auth_probe_*.tres`, the
+`_asset_probe_*` resources, the Group M codegen `.gd` files, `export_presets.cfg`,
+`default_bus_layout.tres`, the `.uid` and `.import` siblings the editor mints for each — and it edits
+`project.godot`. In CI that costs nothing: the runner is thrown away. On a developer machine it meant
+every local run ended in a dirty tree, the next run started from a project the previous one had
+polluted, and recovery was a `rm -rf` glob typed by hand out of the file's header comment — narrow
+enough, the comment warned, not to delete tracked `.uid` sidecars by accident.
+
+**The glob was also the wrong shape of fix.** It enumerated the artefacts that existed when it was
+last edited, so every family added since had to remember to extend it, and nothing ever checked that
+it had. `host/test-integration/_workspace.mjs` (new, dependency-free, node builtins only) inverts
+that: the probe snapshots `GODOT_PROJECT` **before it connects** and restores it on the way out — on
+success, on assertion failure, and from the `FATAL` handler — so the artefact list is *discovered*
+rather than maintained, and a family added tomorrow is cleaned up by construction. Because the
+snapshot predates every mutation, a file that was already there — including a developer's own
+untracked scratch — is not "new" and is never touched; the old glob would have happily matched a real
+file named `_auth_probe_*`.
+
+**And then it checks, rather than assuming.** `restoreDir()` reports what it *did*; the new
+**`AUTH_CLEAN`** assertion re-walks the tree and re-hashes every snapshotted file to establish what is
+actually *true*, failing with the offending paths named if anything survived. A cleanup that merely
+runs is the same failure shape as a screenshot assertion that reads the label instead of the pixels
+(#143): the step reports success and nothing compares the result against the claim. `AUTH_SUMMARY`
+moves 183/183 → **184/184**.
+
+**What the fix then exposed, which is the more interesting half.** With the tree finally stable, the
+probe could be run twice back-to-back against one live editor for the first time — and the second run
+failed. `AUTH_AUDIO_BUS_ADD` asserted `add.name === "AuthBus"`, but the `AudioServer` is global to the
+editor process and nothing removes a bus (there is no `audio_bus_remove` tool, and adding one would be
+new tool surface for a test's convenience). On the second run the name is already taken, so Godot
+dedupes it to `AuthBus 2` — correct engine behaviour that the assertion rejected. Nobody had ever seen
+it, because a re-run previously needed a `git checkout` too, which in practice meant restarting the
+editor, which reset the `AudioServer` and hid the collision.
+
+Worse, the two downstream calls addressed the bus by the literal name `"AuthBus"`, so on a re-run they
+added a reverb to the bus the *previous* run created and asserted against that — reporting
+`effect_count=2` and passing while measuring the wrong object entirely. Both now drive off the name
+the tool actually returned; measured `effect_count=1` on every run. Verified across four consecutive
+runs against a single editor process with no cleanup of any kind between them: 184/184 on runs 1, 3
+and 4, buses deduping to `AuthBus 2/3/4` exactly as the engine intends, and `git` reporting a byte-for-byte
+identical `example/` throughout.
+
+A second, deliberately **independent** oracle backs it up in `integration.yml`: a `git status
+--porcelain example/` step that fails the job on any residue. `AUTH_CLEAN` compares against the
+probe's own snapshot and can name a leftover precisely, but a snapshot taken at the wrong moment
+would make the restore and the assertion wrong in the same direction. git knows nothing about when
+the snapshot ran or which directories it skips. The two have overlapping but not identical blind
+spots — git ignores `*.import` and `.godot/`, the snapshot ignores tracked-ness — and both must be
+clean.
+
+`.godot/` is deliberately not restored: it is the engine's own import cache, it is gitignored, and it
+churns on editor focus for reasons that have nothing to do with the probe. Neither are the two extra
+`AudioServer` buses or the in-memory `ProjectSettings` edits, which are not on disk and die with the
+editor process.
+
 ### Added — `screenshot_editor` verified on Metal, and the two assertions that finding justified (no tool change)
 The `AUTH_SHOT_*` family is `screenshot_editor`'s only live coverage, and it runs under Xvfb + Mesa
 llvmpipe — a screen that is always content-scale 1.0. Two properties of the tool were therefore
