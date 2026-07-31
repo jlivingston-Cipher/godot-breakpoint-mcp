@@ -216,7 +216,25 @@ try {
   // Nothing may be pressed before the probe presses it, or the action lane proves nothing.
   assert.equal(await read("bound_pressed"), false, `${BOUND} must not be pressed at boot`);
   assert.equal(await read("unbound_pressed"), false, `${UNBOUND} must not be pressed at boot`);
-  console.log(`INPUT_LIVE_FIXTURE ok counters 0, ${BOUND} and ${UNBOUND} both released`);
+
+  // 🔴 The BINDING is fixture setup, and it is checked here rather than assumed. The
+  // routing assertion in section 3 is the probe's sharpest claim, and its most likely
+  // false failure is a binding that never got built — which would read as "the tool did
+  // not route a key to the InputMap" and send the next session after a tool that is fine.
+  const bindings = await read("bound_event_count");
+  assert.equal(
+    bindings,
+    1,
+    `${BOUND} must be bound to exactly ONE event before the routing check means anything, got ${bindings} — ` +
+      `input_probe.gd's _bind_probe_action() did not run or the action is missing from project.godot`,
+  );
+  const boundKeycode = await read("bound_keycode");
+  assert.equal(
+    boundKeycode,
+    KEY_K,
+    `the fixture and this probe must agree on the bound keycode: fixture says ${boundKeycode}, probe says ${KEY_K}`,
+  );
+  console.log(`INPUT_LIVE_FIXTURE ok counters 0, ${BOUND} bound to 1 event (keycode ${boundKeycode}), ${UNBOUND} released`);
 
   // ============================== 1. every rejection, separately, and INERT ===
   // bad_kind is reachable only over the socket (see socketReject). bad_action is the

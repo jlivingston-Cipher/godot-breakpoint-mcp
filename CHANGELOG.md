@@ -41,9 +41,15 @@ of which the host unit tests execute exactly zero — they prove the tool *forwa
 - 🔴 **The fixture question was asked first, and came back no for the FOURTH session running.**
   `example/project.godot` had **no `[input]` section at all**, so the `action` branch had nothing to
   be pointed at. Two actions were added for this probe and nothing else: **`bp_probe_bound`**, whose
-  only binding is `KEY_K`, and **`bp_probe_unbound`**, which has no events at all. The `[input]`
-  block is written in **Godot's own serialisation** (captured by making `ProjectSettings.save()`
-  emit it), so `--import` and an editor boot are no-ops on it rather than a rewrite.
+  only binding is `KEY_K`, and **`bp_probe_unbound`**, which has no events at all.
+- 🔴 **The binding is built in `_ready()`, not serialised into `project.godot` — and that is a
+  measured decision, not a preference.** A binding written into the `[input]` section by Godot 4.7
+  carries `device: 16`, which matched on 4.7 and **silently did not match on 4.3 or 4.5**: a `key`
+  injection reached the listener and never reached the InputMap, so the routing assertion failed on
+  two of the three arms. Built at runtime, the binding's device is the default `0` and so is an
+  injected event's, so they match **by equality on every version** rather than by whatever each
+  engine happens to call "all devices". Same reason `anim_probe.gd` builds its animation library in
+  `_ready()`; the actions themselves stay declared in `project.godot`, with no events.
 - **New fixture `example/tests/input_probe.tscn` + `input_probe.gd` — an OBSERVER that never
   synthesises input.** Same discipline as #154's scriptless fixture, one step on: that lane's subject
   was the shape of the tree, so its fixture carries no script; this lane's subject is whether an

@@ -9,11 +9,16 @@
 ; to be pointed at: Input.action_press on an unknown action is an engine error, not an
 ; injection. Two actions were added there for this fixture and this fixture only:
 ;
-;   bp_probe_bound    -> ONE event, KEY_K. The bridge between the two lanes: a `key`
-;                        injection carrying keycode 75 must show up BOTH as an InputEvent
-;                        here and as this action going pressed, which is what proves the
-;                        event went through the engine's real input pipeline rather than
-;                        being handed straight to a listener.
+;   bp_probe_bound    -> ONE event, KEY_K, added by input_probe.gd's _ready() rather than
+;                        serialised into project.godot — see that script's header, and note
+;                        that this is not a style choice: the serialised form Godot 4.7
+;                        writes carries `device: 16` and does NOT match an injected event on
+;                        4.3 or 4.5, which cost this probe a red run on two of three arms.
+;                        The bridge between the two lanes: a `key` injection carrying
+;                        keycode 75 must show up BOTH as an InputEvent here and as this
+;                        action going pressed, which is what proves the event went through
+;                        the engine's real input pipeline rather than being handed straight
+;                        to a listener.
 ;   bp_probe_unbound  -> NO events at all. The control. Nothing this probe injects may
 ;                        ever move it, so it is what makes "the key lane and the action
 ;                        lane are separable" a check rather than a hope — and it also
