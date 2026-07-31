@@ -6,6 +6,46 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Tests — a coverage audit of the whole runtime plane, and the largest gap it found (no tool change)
+#152 closed the verification family and left an obvious question behind: *which other runtime tools
+are unit-test-only?* Nobody had asked. Walking all **27** tools in `host/src/tools/runtime.ts`
+against `host/test-integration/` and `.github/workflows/` answers it — **18 are exercised against a
+real running game, 9 are not**: the three animation tools, `runtime_node_add` / `runtime_node_remove`,
+`runtime_inject_input`, `runtime_get_tree`, `runtime_emit_signal` and `runtime_await_condition`.
+
+- 🔴 **`host/runtime_scenario.mjs` is a third scratch harness**, alongside
+  `verify_family_s102_live.mjs` and `verify_shot_editor_live.mjs`. It runs in no workflow and is not
+  in `package.json`, yet it references `runtime_emit_signal`, `runtime_get_tree` and
+  `runtime_inject_input` — so those three look live-covered to a grep and are not.
+- 🔴 **The animation lane had never executed anywhere, for the same reason #152 found:
+  no scene in this repository contained an `AnimationPlayer`.** Not `main.tscn`, not
+  `render_probe.tscn`, not `frame_step_probe.tscn`, not `peer_converge_probe.tscn`, not
+  `verify_probe.tscn`. `_resolve_anim_player`, `_anim_state`, `_anim_play` and `_anim_stop` — about
+  sixty lines of GDScript — were reachable only through a mocked bridge that never gets there. The
+  authoring plane's `AUTH_ANIM_*` markers are a *different* lane (editor-side authoring) and are what
+  makes the gap look covered.
+- **New fixture `example/tests/anim_probe.tscn`** — an `AnimationPlayer` whose library is built in
+  `_ready()` (sub-resource serialisation drifts across the 4.3 / 4.5 / 4.7 arms), a `Marker` the
+  animation actually **moves**, and a `NotAPlayer` `Node2D` so `not_animation_player` is reachable and
+  distinguishable from `bad_path`. Two animations differing in length and loop mode, because a
+  single-animation fixture cannot tell `length` from a constant.
+- **New probe `host/test-integration/animation-lane.integration.mjs`**, a fourth step on the existing
+  required `runtime-plane` job (`:9085`), inheriting the 4.3 / 4.5 / 4.7 matrix at no new job cost.
+  Every behaviour is asserted in both directions and four are unsatisfiable by a static
+  implementation: the animation must **move a node**, read back through `runtime_get_property`;
+  `keep_state` is proved by the playhead, since pause must keep it and stop must rewind it;
+  `custom_speed` is **measured** over equal windows rather than trusted; and `from_end` is proved on
+  the non-looping animation, the only one where starting at the end is observable at all.
+- **The cross-version claim in `_anim_stop`'s own comment is now checked.** *"`pause()`/`stop()` with
+  no args are stable across Godot 4.2–4.5"* was an assertion about three engine versions, written
+  down and never run on any of them. It rides the matrix now.
+- **Noted, not changed:** `runtime_anim_play` reports `speed_scale`, which is
+  `AnimationPlayer.speed_scale` — `play()`'s `custom_speed` argument does not write to it. Passing
+  `custom_speed: 8` therefore reads back `speed_scale: 1` while playback is measurably 8×. The probe
+  pins both facts so the asymmetry cannot drift unnoticed.
+- Verified the standing way: **seven mutations applied to the live addon, seven caught**, each by the
+  assertion written for it.
+
 ### Tests — the verification family had no live coverage, and the handoffs said the opposite (no tool change)
 Every handoff since 143 carried "**`runtime_screenshot_diff` still has zero automated coverage** …
 now the largest untested surface in the repo" forward, through 144, 147 and 149. It stopped being
