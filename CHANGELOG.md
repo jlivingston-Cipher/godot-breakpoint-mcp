@@ -6,6 +6,71 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `runtime_emit_signal` reported success for an emission the engine refused (addon 1.9.5)
+🔴 **A behaviour change to a shipped tool, and the same defect class #155 fixed one release
+ago.** `_emit_signal` called `node.callv("emit_signal", …)` and **discarded the `Error` it
+returns**, then answered `{"emitted": true}` unconditionally. When the length of `args` does not
+match the signal's declared arity, Godot refuses the call: it pushes
+`Method expected N argument(s), but called with M` into the **game's** log — not the caller's —
+and runs **no** connected callable. Measured against an arity-2 signal: emitting with 0, 1 or 3
+arguments each returned `emitted: true` while the handler never executed.
+
+- `_emit_signal` now returns **`emit_failed`**, carrying the engine's own code by name and number
+  (`error_string(err)`), plus the argument count that was sent.
+- 🔴 **Arity only, and this is a measured limit rather than an oversight.** Godot does not
+  type-check signal arguments — a `signal typed_sig(n: int)` accepted a `String` and the handler
+  ran with it. The probe deliberately asserts nothing about types, because an assertion claiming
+  otherwise would be false.
+- Found by pointing the tool at a live signal for the first time (see the coverage entry below).
+  The unit tests prove the tool forwards `runtime.emit_signal`; nothing executed the emission.
+
+### Tests — the last two structural runtime tools had no live coverage; the plane is closed
+`runtime_get_tree` (~25 lines: `_serialize`, its `depth < max_depth` bound, and the
+CanvasItem/Node3D/neither branch on `visible`) and `runtime_emit_signal` (13 lines) were the last
+two entries on handoff 153 §2 with GDScript reachable only against a running game. The third,
+`runtime_await_condition`, has **zero** — it is host-side polling over `runtime.get_property`,
+which is already covered — so live runtime coverage is now **25 of 27, with the remaining two
+uncoverable by construction rather than merely uncovered**.
+
+- 🔴 **The fixture question was asked first, and came back no for the FIFTH session running.**
+  153 §2 hoped `verify_probe.tscn` "may already be deep enough". It is not — it has more
+  *siblings*, not more depth, and **every fixture in the repo is at most one level deep**.
+  `_serialize` recurses on `depth < max_depth`, so nothing shallower than depth 3 can show the
+  bound truncating in the *middle* of a tree, which is the only place it is observable as a bound
+  rather than as an absent root. No fixture held a `Node3D` or a bare `Node` either, leaving two
+  of the three `visible` arms with nowhere to run.
+- **New fixture `example/tests/tree_probe.tscn` + `tree_probe.gd`** — depth 4, mixing `Node`,
+  `Node3D`, `Node2D` and `Label`, with one node hidden. Per #154's discipline the script is
+  **inert with respect to tree shape** (it declares signals and records receipts, and never
+  touches the tree); the probe holds that to account by asserting the exact tree, node for node,
+  *before* it emits anything.
+- 🔴 **The load-bearing assertion is a COMPARISON, not a value.** At `max_depth: 2`, `Limb`
+  reports `child_count: 1` with **no `children` key**, while `Bare` reports `child_count: 0` with
+  no `children` key. Truncation and leafness are otherwise **identical on the wire** — so
+  `child_count` is the only field that separates them, and both are checked in the same response.
+  A serializer that dropped `child_count` at the bound, or emitted `children: []`, would be
+  indistinguishable from a leaf.
+- 🔴 **`visible` is asserted ABSENT on the plain `Node`s.** That arm had no fixture anywhere until
+  now, and asserting absence rather than skipping it is what catches an implementation that adds
+  the key to every node.
+- 🔴 **`Codec.decode` is invisible over the wire, so the probe reads `typeof()` instead.** Reading
+  the received argument back through `runtime_get_property` re-encodes it to
+  `{"__type__":"Vector2",…}` **whether or not** decode ever ran — the wire cannot distinguish a
+  real `Vector2` from the `Dictionary` it was sent as. The fixture records `typeof()` at receipt,
+  inside the engine, which is the only place the difference exists.
+- **New probe `host/test-integration/tree-shape.integration.mjs`**, a **seventh step on the
+  existing required `runtime-plane` job** (`:9088`) — no new job, and it inherits the 4.3 / 4.5 /
+  4.7 matrix and required-gate status.
+- 🔴 **Nothing in the fixture is a sub-resource, deliberately.** #153's animation library and
+  #155's InputMap key event were both correct only on the arm they were authored on; plain nodes
+  have no serialisation that drifts, and this job is what *checks* that on all three arms rather
+  than assuming it.
+
+### Docs — `runtime_emit_signal`'s description and catalog entry stated no failure mode
+The tool description is the text a model reads when choosing a call, and it said nothing about
+arity — so the first sign of a mismatch was a silent no-op. Both it and the `TOOL_CATALOG.md`
+entry now name `emit_failed`, the arity rule, and the fact that types are *not* checked.
+
 ## [1.31.0] — 2026-07-31
 
 **Minor, not patch, and the reason is that two shipped tools changed how they answer.** The four

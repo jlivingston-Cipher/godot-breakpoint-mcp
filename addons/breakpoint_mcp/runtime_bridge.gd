@@ -462,7 +462,20 @@ func _emit_signal(params: Dictionary) -> Dictionary:
 	var call_args: Array = [sig]
 	for a in params.get("args", []):
 		call_args.append(Codec.decode(a))
-	node.callv("emit_signal", call_args)
+	# emit_signal RETURNS an Error, and discarding it made this tool answer
+	# {"emitted": true} for an emission the engine refused. The dominant cause is an
+	# `args` count that does not match the signal's declared arity: the engine pushes
+	# its own "Method expected N argument(s), but called with M" into the GAME's log —
+	# not the caller's — and no connected callable ever runs. The caller then fails at
+	# its NEXT assertion, arbitrarily far from the cause. Note this is arity only:
+	# Godot does NOT type-check signal arguments, so a wrong-TYPE arg still emits OK.
+	var err: int = node.callv("emit_signal", call_args)
+	if err != OK:
+		return _err(
+			"emit_failed",
+			"emit_signal(%s) with %d arg(s) failed: %s (%d). Check the count against the signal's declared arity."
+				% [sig, call_args.size() - 1, error_string(err), err]
+		)
 	return _ok({"emitted": true})
 
 

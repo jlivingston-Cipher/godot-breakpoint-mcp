@@ -2502,6 +2502,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```json
 { "type": "object", "properties": { "emitted": { "type": "boolean" } } }
 ```
+- Errors: `bad_path` (no node at `path`) / `no_signal` (the node declares no such signal — including an omitted `signal`, which arrives as `""`) / `emit_failed` (the engine refused the emission and returned a non-`OK` `Error`, which the message carries by name and number). In practice `emit_failed` means the length of `args` does not match the signal's **declared arity**: Godot pushes `Method expected N argument(s), but called with M` into the *game's* log and runs no connected callable, so before this was checked the tool answered `{"emitted": true}` for an emission that never reached anyone. Arity only — Godot does **not** type-check signal arguments, so an argument of the wrong type still emits successfully and arrives as sent. `args` entries are decoded through the `Variant` envelope, so `{"__type__":"Vector2","x":3,"y":4}` reaches the handler as a real `Vector2`.
 
 ### `runtime_inject_input` ✅ · destructive
 - **Input**
