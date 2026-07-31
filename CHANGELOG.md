@@ -35,6 +35,46 @@ Verified against real repo states across five cases: no change (pass); the false
 stray edit — the case the old form was blind to (fail, content); an untracked leftover (fail, paths).
 The first draft of the path filter matched nothing, because `diff`'s `> ` prefix plus porcelain's
 blank status column yields *two* spaces; the case-2 run caught it.
+### Changed — the `.uid` packaging question is decided and gated both ways (no tool change)
+Session 148 §7.4 left twelve `.gd` files without `.uid` sidecars deliberately undecided, on the
+grounds that whether uids ship to end users is a packaging decision rather than a hygiene one. It is
+now decided, and the answer splits by directory, because the two directories are different kinds of
+thing:
+
+| Directory | Rule | Gate |
+|---|---|---|
+| Inside a Godot project this repo opens (`example/`, `example-csharp/`) | the sidecar **must** be committed | check 18, widened |
+| The distributable addon (`addons/breakpoint_mcp/`) | no sidecar **may** be committed | check 19, new |
+
+**Why 18 widened.** `example-csharp/` is a real Godot project and CI runs `--import` against it.
+Measured: `--headless --path example-csharp --import` minted exactly **four untracked `.uid` files**
+under `example-csharp/addons/breakpoint_mcp/` — session 148's problem reproducing itself in a
+directory check 18 had explicitly excluded. Those four are now committed, and check 18 covers whole
+projects rather than just `example/tests/`. Every `example/` script already complied.
+
+**Why 19 is the opposite rule and not an oversight.** `addons/breakpoint_mcp/` is what
+`stage-addon.mjs` copies verbatim into the npm package and what the Asset Library serves. It is not
+inside any Godot project here, so nothing ever mints a sidecar in it and the hygiene argument simply
+does not apply. On the packaging question the evidence says don't ship them:
+
+- **The addon has zero `uid://` references to its own scripts.** The only `uid://` strings in tracked
+  non-`.uid` files are the two `demo.tscn` scene self-uids. A shipped sidecar would resolve nothing a
+  path does not already resolve.
+- **Fixed uids cost something.** Measured on 4.7 — two copies of one script carrying the same
+  committed uid produce `WARNING: UID duplicate detected between res://vendor/… and res://addons/…`
+  on every import. Users vendor addons. The control run, same two copies with no sidecars, minted two
+  distinct uids and logged nothing.
+- **The "ship uids so `uid://` resolves on a cold clone" argument is empirically dead here, and #145
+  is the proof.** That failure was `can't load from path: uid://dkyjj7tbsecr0` — and
+  `uid://dkyjj7tbsecr0` is exactly the contents of `example/addons/breakpoint_mcp/runtime_bridge.gd.uid`,
+  a **tracked** sidecar present on that fresh checkout. It failed anyway, because autoloads resolve
+  before the import scan populates the gitignored `.godot/uid_cache.bin`. A committed sidecar does not
+  make an early-boot `uid://` reference resolvable.
+
+Check 19 turns today's accident — that directory is sidecar-free only because no editor has ever
+imported it — into a stated decision a stray `git add` cannot quietly reverse. Both rules were made
+to fail before being trusted: un-tracking one sidecar named it under check 18, and staging a single
+`.uid` into `addons/breakpoint_mcp/` named it under check 19.
 
 ### Fixed — the authoring probe starts from the committed scene, not from its own last run (no tool change)
 #144 made the probe re-runnable against one live editor by snapshotting and restoring `GODOT_PROJECT`
