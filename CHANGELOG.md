@@ -6,6 +6,55 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Tests — the node lifecycle had no live coverage; #1 on the ranked gap list is closed (no tool change)
+#153's audit left a ranked backlog rather than an unknown, and `runtime_node_add` /
+`runtime_node_remove` sat at the top of it: **~44 lines of GDScript with the densest error paths in
+the runtime plane**, of which the host unit tests reach exactly zero — they prove the tool *forwards*
+`runtime.node_add` with the right params and stop there.
+
+- 🔴 **The fixture question was asked first, and the answer was again no.** Handoff 151 §7.3 made it
+  the gate on scoping, because it is what found the last two gaps: what must the tool be pointed at?
+  `node_add`'s `scene:` branch needs a `res://` **PackedScene**, and every scene under `example/` is a
+  probe fixture whose `_ready()` builds state for its own lane — instantiating one would have mutated
+  the very tree the probe asserts on. **Third session running that a missing fixture, not a missing
+  test, was the reason a tool had never executed.**
+- **New fixture `example/tests/node_probe.tscn`, deliberately SCRIPTLESS** — and that is the design,
+  not an omission. The subject of this lane *is* the shape of the tree, so a `_ready()` that touched
+  it would compete with the tool under test. With no script, every node that appears beneath the root
+  during the run was put there by `node_add` and every one that vanishes was taken by `node_remove`,
+  which is the only reason the pristine-restore check at the end means anything.
+- **New fixture `example/tests/node_payload.tscn`** — the PackedScene the `scene:` branch
+  instantiates: inert, and authored so that its **root name**, its **property values** and its
+  **child** are three things a `type:` add cannot fake. `node_payload.gd` sets `ready_ran` in
+  `_ready()`, which the engine calls only on entry to the SceneTree — positive evidence that
+  `add_child()` really ran, rather than an instantiate whose result was described in the reply and
+  dropped.
+- **New probe `host/test-integration/node-lifecycle.integration.mjs`**, a fifth step on the existing
+  required `runtime-plane` job (`:9086`), inheriting the 4.3 / 4.5 / 4.7 matrix at no new job cost.
+  Mutations are read back through tools that are themselves already live-covered
+  (`assert_scene_structure`, `assert_node_state`, `get_property`, `call_method` — all #152), never
+  through the tools under test.
+- 🔴 **Seven rejection reasons are asserted separately, because they are not interchangeable.** The
+  split a single spot-check misses: `NoSuchClass9137` fails `ClassDB.class_exists` and `Viewport`
+  fails `can_instantiate` — **both `bad_type`, through different operands** — while `Resource`
+  instantiates fine and is `not_a_node`. The `scene:` guard has the same shape: a missing path makes
+  `load()` return null, a `.gd` path **loads successfully and returns the wrong type**.
+- **Removal is proved to take the whole subtree** — the payload's authored child *and* a child added
+  afterwards — with siblings untouched, and re-removing the same path is `bad_path` rather than a
+  second success. The `cannot_remove_root` guard is attacked through **both** spellings `_resolve`
+  maps onto the scene root (`"."` and `""`), and the assertion is not that the call was refused but
+  that the root **survived**: a guard that returned the error and freed anyway passes a reply-only
+  check and takes the game with it.
+- **Documented, because it bounds the claim:** whether removal used `queue_free()` or `free()` is
+  **not observable over the socket** — idle frames keep processing between one request and the next,
+  the same property that holds during a frozen-clock window. The probe asserts that removal *happens*
+  and leaves the mechanism to the GDScript rather than pretending to check it.
+- **Noted, not changed:** an unnamed `node_add` returns an engine-generated `@Class@N` path, so a
+  caller must use the returned path rather than guessing it. Asserted by shape *and* by resolving it,
+  which is the round-trip that matters.
+- Verified the standing way: **nine mutations applied to the live addon, nine caught**, each by the
+  assertion written for it.
+
 ### Tests — a coverage audit of the whole runtime plane, and the largest gap it found (no tool change)
 #152 closed the verification family and left an obvious question behind: *which other runtime tools
 are unit-test-only?* Nobody had asked. Walking all **27** tools in `host/src/tools/runtime.ts`

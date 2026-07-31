@@ -51,6 +51,21 @@ name: integration
 #                     three arms; custom_speed is measured over equal windows rather than trusted;
 #                     and from_end is proved on the NON-looping animation, the only one where
 #                     starting at the end is observable. Markers ANIM_LIVE_*.
+#                     Then a FIFTH game on :9086, res://tests/node_probe.tscn, for NODE
+#                     LIFECYCLE — runtime_node_add / runtime_node_remove, #1 on the §2 ranked
+#                     gap list and the densest error paths left in the plane. Same fixture
+#                     story a third time: the `scene:` branch needs a PackedScene to
+#                     instantiate and none existed that was safe to use, so the probe scene is
+#                     deliberately SCRIPTLESS (every node under it was put there by the tool
+#                     under test) and the payload it instantiates is inert and authored so its
+#                     name, its property values and its CHILD are things a `type:` add cannot
+#                     fake. Seven rejection reasons are asserted SEPARATELY — including the
+#                     split a spot-check misses, where a missing class and an abstract class
+#                     are both bad_type through different operands. Removal is proved to take
+#                     the whole subtree (authored child AND a child added afterwards), the
+#                     root guard is attacked through both spellings _resolve maps onto the
+#                     scene root and the root is proved to have SURVIVED, and the probe
+#                     restores the tree it found. Markers NODE_LIVE_*.
 #   * runtime-render-plane — the same live GAME as runtime-plane, but rendered by a rasterizer that
 #                     actually DRAWS (Xvfb + Mesa llvmpipe, no --headless), so the two pixel-producing
 #                     runtime tools finally execute: runtime_screenshot and runtime_screenshot_diff.
@@ -496,6 +511,48 @@ jobs:
       - name: Anim-probe game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-anim.log || true
+      - name: Boot the node probe scene and run the node-lifecycle probe
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+          # A fifth distinct port. :9081 (capture), :9082 (frame-step), :9084
+          # (verification family) and :9085 (animation) are all still running,
+          # backgrounded and never reaped, by the time this starts. A sixth step
+          # needs :9087.
+          BREAKPOINT_RUNTIME_PORT: '9086'
+        run: |
+          set -eux
+          # runtime_node_add / runtime_node_remove came out #1 on handoff 151 §2's ranked
+          # list of runtime tools with no live coverage: ~44 lines of GDScript with the
+          # densest error paths in the plane, of which the host unit tests reach exactly
+          # zero — they prove the tool FORWARDS runtime.node_add and nothing more.
+          #
+          # The fixture question that found the last two gaps was asked first here, and
+          # the answer was again no: node_add's `scene:` branch needs a res:// PackedScene
+          # to instantiate, and every existing scene under example/ is a probe fixture
+          # whose _ready() builds state for its own lane. Instantiating one would mutate
+          # the tree this probe asserts on. Hence TWO new files —
+          # res://tests/node_probe.tscn (deliberately SCRIPTLESS, so every node that
+          # appears under it was put there by the tool under test) and
+          # res://tests/node_payload.tscn (inert, and authored so that its name, its
+          # property values and its CHILD are all things the `type:` branch cannot fake).
+          #
+          # Seven distinct rejection reasons are asserted separately, including the split
+          # a single spot-check misses: a class that does not exist and a class that
+          # exists but is abstract are both bad_type via DIFFERENT operands, and a class
+          # that instantiates to a non-Node is not_a_node. Markers NODE_LIVE_*.
+          "$GODOT_BIN" --headless --path "$GODOT_PROJECT" res://tests/node_probe.tscn >/tmp/godot-nodeprobe.log 2>&1 &
+          for i in $(seq 1 40); do
+            if node -e "require('net').connect(9086,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "node probe port open"; break
+            fi
+            sleep 1
+          done
+          node test-integration/node-lifecycle.integration.mjs
+      - name: Node-probe game log tail (on failure)
+        if: always()
+        run: tail -n 50 /tmp/godot-nodeprobe.log || true
 
   peers-plane:
     name: peers plane / F6 multi-peer convergence (headless)
