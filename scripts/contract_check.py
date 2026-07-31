@@ -2258,7 +2258,7 @@ else:
                 f"check 17: the autoload points at `{_ref}`, which does not exist under example/."
             )
 
-# --- 18: example/tests/*.gd must ship their .uid sidecars --------------------
+# --- 18/19: where .uid sidecars belong, and where they must not go ----------
 # A .gd committed without its .uid is not broken — Godot mints one on first
 # import and resolves by path regardless. It is committed INCOMPLETE, and the
 # cost is paid every time: the editor writes the sidecar on boot, it shows up as
@@ -2267,35 +2267,92 @@ else:
 # indistinguishable from a dirty working tree, and a `git add -A` swept them into
 # a commit they had no business being in.
 #
-# Scoped to example/tests/ ON PURPOSE, and the exclusions are the interesting part:
-#   * addons/breakpoint_mcp/ (repo root) is the DISTRIBUTABLE addon — what gets
-#     zipped for the Asset Library. Whether uids ship to end users is a packaging
-#     decision, not a hygiene one, and it is not this check's business.
-#   * example/addons/breakpoint_mcp/ is a maintained copy of that addon, kept in
-#     step by check 14's version-parity roster rather than by convention here.
-#   * example-csharp/ mirrors the same addon for the Mono plane.
-# example/tests/ is hand-authored, every file in it is referenced by path from a
-# .tscn, and 11 of its 14 scripts already had sidecars — so the convention was
-# already real and three files had simply drifted out of it.
+# Session 148 §7.4 left the rest of the repo undecided, on the grounds that
+# whether uids ship to END USERS is a packaging decision rather than a hygiene
+# one. Session 149 decided it, and the answer splits by directory because the two
+# directories are different kinds of thing. The rule:
+#
+#   INSIDE a Godot project this repo opens  ->  the sidecar MUST be committed (18)
+#   the DISTRIBUTABLE addon                 ->  no sidecar may be committed  (19)
+#
+# --- why 18 covers whole projects now ---------------------------------------
+# example/ and example-csharp/ are both real Godot projects, and CI runs the
+# editor or `--import` against both. Anything importable inside them gets a
+# sidecar minted on the next boot whether or not it is committed, so the only
+# question is whether that sidecar is tracked or is permanent untracked noise.
+# Measured in session 149: `--headless --path example-csharp --import` minted
+# exactly four untracked .uid files under example-csharp/addons/breakpoint_mcp/,
+# reproducing the session-148 problem in a directory check 18 had deliberately
+# excluded. Widening 18 from example/tests/ to both projects closes that; every
+# example/ script already complied, so the convention was already real.
+#
+# --- why 19 is the OPPOSITE rule, not an oversight --------------------------
+# addons/breakpoint_mcp/ is the distributable — what `stage-addon.mjs` copies
+# verbatim into the npm package and what the Asset Library serves. It is NOT
+# inside any Godot project in this repo, so nothing ever mints a sidecar there
+# and check 18's hygiene argument does not apply. Shipping fixed uids to every
+# install worldwide is a separate question, and the evidence says don't:
+#
+#   * The addon contains ZERO uid:// references to its own scripts. The only
+#     uid:// strings in tracked non-.uid files are the two demo.tscn scene
+#     self-uids, which are not addon files. So a shipped sidecar would resolve
+#     nothing that a path does not already resolve.
+#   * Fixed uids COST something. Measured on 4.7: two copies of one script
+#     carrying the same committed uid produce, on every import,
+#         WARNING: UID duplicate detected between res://vendor/... and res://addons/...
+#     Users vendor addons. The control run — same two copies, no sidecars — minted
+#     two distinct uids and logged nothing.
+#   * The "ship uids so uid:// references resolve on a cold clone" argument is
+#     empirically dead HERE, and #145 is the proof. That autoload failure was
+#         ERROR: Failed to create an autoload, can't load from path: uid://dkyjj7tbsecr0
+#     and uid://dkyjj7tbsecr0 is exactly what example/addons/breakpoint_mcp/
+#     runtime_bridge.gd.uid contains — a TRACKED sidecar, present on that fresh
+#     checkout. It still failed, because autoloads resolve before the import scan
+#     populates the gitignored .godot/uid_cache.bin. A committed sidecar does not
+#     make an early-boot uid:// reference resolvable.
+#
+# 19 therefore turns today's accident — that directory has no sidecars only
+# because no editor has ever imported it — into a stated decision that a stray
+# `git add` cannot quietly reverse.
+_UID_PROJECT_DIRS = ("example/", "example-csharp/")
 if tracked_modes is None:
-    warnings.append("check 18: skipped — `git ls-files` unavailable, so tracked-ness is unknown.")
+    warnings.append("check 18/19: skipped — `git ls-files` unavailable, so tracked-ness is unknown.")
 else:
     _tracked = set(tracked_modes)
+    _in_projects = [
+        p for p in _tracked
+        if p.suffix == ".gd" and str(p).startswith(_UID_PROJECT_DIRS)
+    ]
     _missing_uid = sorted(
-        str(p) for p in _tracked
-        if p.suffix == ".gd" and str(p).startswith("example/tests/")
-        and Path(str(p) + ".uid") not in _tracked
+        str(p) for p in _in_projects if Path(str(p) + ".uid") not in _tracked
     )
     if _missing_uid:
         errors.append(
-            "check 18: tracked .gd file(s) under example/tests/ have no tracked .uid sidecar: "
+            "check 18: tracked .gd file(s) inside a Godot project have no tracked .uid sidecar: "
             + ", ".join(_missing_uid)
-            + ". Godot mints one on the next editor boot, where it becomes permanent untracked "
-            "noise in `git status` and an easy accident for `git add -A`. Open the project once "
-            "and commit the generated sidecar alongside the script."
+            + ". Godot mints one on the next editor boot or `--import`, where it becomes permanent "
+            "untracked noise in `git status` and an easy accident for `git add -A`. Import the "
+            "project once and commit the generated sidecar alongside the script."
         )
-    _uid_sidecars_checked = len([
-        p for p in _tracked if p.suffix == ".gd" and str(p).startswith("example/tests/")
+    _uid_sidecars_checked = len(_in_projects)
+
+    # 19 — the distributable must stay sidecar-free. See the rationale above.
+    _shipped_uid = sorted(
+        str(p) for p in _tracked
+        if p.suffix == ".uid" and str(p).startswith("addons/breakpoint_mcp/")
+    )
+    if _shipped_uid:
+        errors.append(
+            "check 19: the distributable addon must not ship .uid sidecars, but these are tracked: "
+            + ", ".join(_shipped_uid)
+            + ". addons/breakpoint_mcp/ is copied verbatim into the npm package and the Asset "
+            "Library zip, so a committed sidecar pins one uid onto every install worldwide. The "
+            "addon has no uid:// references of its own, so this buys nothing — and it costs a "
+            "`WARNING: UID duplicate detected` for any user who has two copies in one project. "
+            "Delete the sidecar; the editor mints a unique one per install."
+        )
+    _shipped_uid_dir_scanned = len([
+        p for p in _tracked if str(p).startswith("addons/breakpoint_mcp/")
     ])
 
 # --- report -----------------------------------------------------------------
@@ -2337,7 +2394,8 @@ print(
 print(f"Catalog JSON blocks     : {len(catalog_json_blocks())} ({bad_json} invalid)")
 print(
     f"Example project         : renderer {RENDERING_METHOD_REQUIRED} \u00b7 autoload on the res:// path form "
-    f"\u00b7 {_uid_sidecars_checked} example/tests script(s) checked for .uid sidecars"
+    f"\u00b7 {_uid_sidecars_checked} in-project script(s) checked for .uid sidecars "
+    f"· {_shipped_uid_dir_scanned} distributable addon file(s) checked for shipped uids"
 )
 
 _origin_counts: dict[str, int] = {}
