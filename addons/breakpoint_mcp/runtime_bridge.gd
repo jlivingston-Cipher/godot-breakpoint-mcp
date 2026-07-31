@@ -35,6 +35,12 @@ const MONITORS := {
 	"time/process": Performance.TIME_PROCESS,
 	"time/physics_process": Performance.TIME_PHYSICS_PROCESS,
 	"memory/static": Performance.MEMORY_STATIC,
+	# Total live ObjectDB instances — Nodes, Resources and BARE Objects alike, which is
+	# what makes it the only monitor here that can see a leaked non-Node. Added session
+	# 153 so the _node_add `not_a_node` leak fixed in the same commit is REGRESSION-LOCKED
+	# in CI rather than merely proved once on a laptop: node-lifecycle.integration.mjs
+	# drives that branch in bulk and watches this number.
+	"object/count": Performance.OBJECT_COUNT,
 	"object/node_count": Performance.OBJECT_NODE_COUNT,
 	"object/resource_count": Performance.OBJECT_RESOURCE_COUNT,
 	"render/total_objects_drawn": Performance.RENDER_TOTAL_OBJECTS_IN_FRAME,
@@ -466,6 +472,14 @@ func _inject_input(params: Dictionary) -> Dictionary:
 	match kind:
 		"action":
 			var action := String(ev.get("action", ""))
+			# An action the InputMap does not know is NOT injectable. Input.action_press
+			# pushes its own engine error and returns, so without this guard the reply is
+			# {"injected": true} for a typo'd action name and the caller's NEXT assertion is
+			# where the failure surfaces — as far from the cause as it is possible to get.
+			# Found live, session 153, by the probe that first pointed this tool at a real
+			# InputMap. Covers both operands: an absent "action" key arrives here as "".
+			if not InputMap.has_action(action):
+				return _err("bad_action", "No such InputMap action: %s" % action)
 			if bool(ev.get("pressed", true)):
 				Input.action_press(action, float(ev.get("strength", 1.0)))
 			else:
@@ -891,6 +905,16 @@ func _node_add(params: Dictionary) -> Dictionary:
 			return _err("bad_type", "Cannot instantiate class: %s" % type_name)
 		var obj: Variant = ClassDB.instantiate(type_name)
 		if not (obj is Node):
+			# ClassDB.instantiate hands back an UNOWNED instance. A RefCounted subclass
+			# (Resource, Image, ...) releases itself when this reference goes out of scope;
+			# a bare Object does NOT, so returning here without freeing leaked one instance
+			# per call — which the engine reports only at exit, as "N ObjectDB instances
+			# were leaked". Proved session 152, measured session 153 at 51 leaked over 51
+			# calls and 0 with this branch in place.
+			# The RefCounted arm MUST be excluded: free() on a RefCounted is itself an error,
+			# which is why the safe-looking `Resource` case hid this for so long.
+			if obj is Object and not (obj is RefCounted):
+				(obj as Object).free()
 			return _err("not_a_node", "%s is not a Node" % type_name)
 		child = obj
 	if child == null:

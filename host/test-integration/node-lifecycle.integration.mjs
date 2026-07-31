@@ -264,6 +264,44 @@ try {
   assert.equal(await childCount("Host"), 0, "a rejected node_add must not add anything");
   console.log("NODE_LIVE_ADD_ERRORS ok bad_path / bad_args / bad_type x2 / not_a_node / bad_scene x2, nothing added");
 
+  // ======================== 1b. the `not_a_node` branch must not LEAK ===
+  // 🔴 Added session 153, with the fix it guards.
+  //
+  // ClassDB.instantiate hands back an UNOWNED instance. The branch above used to return
+  // its error without freeing it, which is invisible for a RefCounted subclass (Resource
+  // releases itself) and leaks exactly one instance per call for anything else — reported
+  // by the engine only at exit, as "N ObjectDB instances were leaked", in a log for a
+  // backgrounded game nobody reaps. That is why it survived to be found by hand.
+  //
+  // `object/count` is the total ObjectDB population and the only monitor that can see a
+  // leaked non-Node (node_count and resource_count both miss it by construction); it was
+  // added to the allow-list in the same commit for this check. Measured headless: idle
+  // drift over seconds is ZERO, the unfixed branch grows the count by exactly one per
+  // call, and the fixed branch by none. The threshold is therefore generous rather than
+  // tight — 60 calls must not add 60 objects, and anything under 10 is comfortably noise.
+  const objectCount = async () =>
+    (await call("runtime_get_monitors", { keys: ["object/count"] })).monitors["object/count"];
+  const LEAK_CALLS = 60;
+  const countBefore = await objectCount();
+  assert.equal(typeof countBefore, "number", `object/count must be served by the monitor allow-list, got ${countBefore}`);
+  for (let i = 0; i < LEAK_CALLS; i++) {
+    // `Object` specifically: it is the class that is NOT RefCounted, so it is the one the
+    // engine will not clean up. (Resource, used above for the reason assertion, cannot
+    // demonstrate this — which is exactly why the bug hid.)
+    const r = await raw("runtime_node_add", { parent: "Host", type: "Object", confirm: true });
+    assert.equal(r.isError, true, `instantiating Object must still be not_a_node on call ${i}`);
+  }
+  await sleep(250);
+  const grew = (await objectCount()) - countBefore;
+  assert.ok(
+    grew < 10,
+    `the not_a_node branch LEAKS: ${LEAK_CALLS} rejected adds grew object/count by ${grew}. ` +
+      `ClassDB.instantiate returns an unowned instance and a bare Object is not RefCounted, so the ` +
+      `branch must free() it before returning the error.`,
+  );
+  assert.equal(await childCount("Host"), 0, "and none of those rejected adds may have parented anything");
+  console.log(`NODE_LIVE_NO_LEAK ok ${LEAK_CALLS} not_a_node rejections grew object/count by ${grew}`);
+
   // ======================================= 2. the `type:` branch, proved by class ===
   // Timer rather than Node2D on purpose: it is not in the fixture's own class hierarchy,
   // so "the reply says Timer" can be cross-examined against a tree that agrees, and

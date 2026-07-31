@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for the runtime INPUT-INJECTION lane — runtime_inject_input, the
+; largest remaining gap on handoff 152 §2's ranked list (39 lines of GDScript, four `kind`
+; branches plus bad_kind, of which the host unit tests reach exactly zero).
+;
+; THE FIXTURE QUESTION, ASKED FIRST — AND ANSWERED NO FOR THE FOURTH SESSION RUNNING.
+; example/project.godot had no [input] section at all, so the `action` branch had nothing
+; to be pointed at: Input.action_press on an unknown action is an engine error, not an
+; injection. Two actions were added there for this fixture and this fixture only:
+;
+;   bp_probe_bound    -> ONE event, KEY_K. The bridge between the two lanes: a `key`
+;                        injection carrying keycode 75 must show up BOTH as an InputEvent
+;                        here and as this action going pressed, which is what proves the
+;                        event went through the engine's real input pipeline rather than
+;                        being handed straight to a listener.
+;   bp_probe_unbound  -> NO events at all. The control. Nothing this probe injects may
+;                        ever move it, so it is what makes "the key lane and the action
+;                        lane are separable" a check rather than a hope — and it also
+;                        proves `action` injection is pure InputMap state, since it can be
+;                        pressed while having no binding that could produce it.
+;
+; ONE node, and it is an OBSERVER — see input_probe.gd. It never synthesises input. The
+; reasoning is node_probe.tscn's, one step on: that lane's subject was the shape of the
+; tree, so its fixture is scriptless; this lane's subject is whether an event ARRIVES, so
+; its fixture may hold a script but that script must not be able to produce one.
+;
+; Deliberately NOT reusing an existing scene. Every other fixture here builds state in
+; _ready() for its own lane, and three of them (verify_probe, anim_probe,
+; peer_converge_probe) run timers or animations that would keep _input alive with traffic
+; this probe would then have to subtract from its own counts.
+;
+; Driven headless by the runtime-plane CI job (:9087); see
+; host/test-integration/inject-input.integration.mjs.
+
+[ext_resource type="Script" path="res://tests/input_probe.gd" id="1_input"]
+
+[node name="InputProbe" type="Node2D"]
+script = ExtResource("1_input")
