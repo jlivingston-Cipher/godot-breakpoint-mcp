@@ -6,6 +6,46 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Tests — the verification family had no live coverage, and the handoffs said the opposite (no tool change)
+Every handoff since 143 carried "**`runtime_screenshot_diff` still has zero automated coverage** …
+now the largest untested surface in the repo" forward, through 144, 147 and 149. It stopped being
+true at **#141**, which added `runtime-screenshot.integration.mjs` and the `runtime-render-plane`
+job. The sentence that kept the item looking alive — *"`verify_family_s102_live.mjs` … runs in no
+workflow"* — is true and irrelevant: that is a scratch harness, and the tool it names is covered by a
+different file. Four sessions re-read the claim instead of the code.
+
+**What was actually uncovered is the family around it.** `runtime_assert_node_state`,
+`runtime_assert_perf`, `runtime_assert_screen_text` and `runtime_state_digest` had host unit tests
+against a *mocked* bridge and no live coverage at all; `runtime_assert_scene_structure` appeared live
+only as a green premise gate inside the render probe. A mocked test proves the host forwards a
+request and parses a reply — it cannot reach the GDScript where every interesting behaviour in this
+family lives.
+
+- 🔴 **A positive `assert_screen_text` had never executed anywhere in this repository.** It walks
+  `CanvasItem`s reading `text`, and **no scene here contained a single `Control` with a `text`
+  property** — `main.tscn` is a Node2D and an untextured Sprite2D, `render_probe.tscn` is a
+  `ColorRect`, `frame_step_probe.tscn` is a bare Node2D. Only the *absence* form could run, and
+  absence passes trivially against a tool that finds nothing, ever.
+- **New fixture `example/tests/verify_probe.tscn`** — a root with `counter`, plus two labels that
+  differ in exactly one way: `VisibleLabel` is on screen and its text must be found; `HiddenLabel`
+  holds a sentinel string with `visible = false` and its text must **not** be. Against a fixture with
+  only a visible label, an implementation that never checked visibility passes everything.
+- **New probe `host/test-integration/verification-family.integration.mjs`**, a third step on the
+  existing required `runtime-plane` job (`:9084`), so it inherits the 4.3 / 4.5 / 4.7 matrix and
+  costs no new job. Every check is made in **both** directions, and three are unsatisfiable by a
+  static implementation: `counter` is changed live and the same assertion must flip green → red →
+  green (the #146 failure mode); absence and invisibility are told apart, because
+  `assert_node_state` proves `HiddenLabel` holds the string `assert_screen_text` must not find; and
+  `assert_perf` is driven past the bound as both `higher_better` and `lower_better`, with the
+  `direction` override then flipping the verdict on the same numbers.
+- Also newly live: all four `_assert_scene_structure` reasons, `bad_path` / `bad_regex` as errors
+  rather than quiet zero-match passes, `case_sensitive` / `regex` / `min_count` each with their
+  inverse, an unknown monitor key falling to `checked: 0`, digest `fields` **replacing** the defaults
+  rather than extending them, and `max_depth` bounded at 0 and 1.
+- **Seven mutations were applied to the live addon and all seven were caught**, each by the
+  assertion written for it — the visibility filter, the value comparison, the direction override,
+  the depth bound, the monitor allow-list, a renamed failure reason, and a no-op `set_property`.
+
 ### Docs — post-1.30.0 sweep: the places the gate cannot see (no tool change)
 1.30.0 landed two tools and two new gate checks. The contract check enforces every count and
 shape it knows about, which is exactly why the stale claims that survive a release are the ones
