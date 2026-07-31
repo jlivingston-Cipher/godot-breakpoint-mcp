@@ -597,9 +597,64 @@ jobs:
             sleep 1
           done
           node test-integration/inject-input.integration.mjs
+      - name: Boot the tree probe scene and run the tree-shape probe
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+          # A SEVENTH distinct port, as the sixth step's comment reserved. :9081
+          # (capture), :9082 (frame-step), :9084 (verification family), :9085
+          # (animation), :9086 (node lifecycle) and :9087 (input) are all still
+          # running, backgrounded and never reaped, by the time this starts. An
+          # eighth step needs :9089.
+          BREAKPOINT_RUNTIME_PORT: '9088'
+        run: |
+          set -eux
+          # The last two structural gaps on handoff 153 §2: runtime_get_tree (~25 lines,
+          # _serialize and its depth bound) and runtime_emit_signal (13 lines, the
+          # has_signal guard and callv over decoded args). The third entry there,
+          # runtime_await_condition, has ZERO GDScript — it is host-side polling over
+          # runtime.get_property, which is already covered — so this closes the plane.
+          #
+          # The fixture question was asked first and came back no for the FIFTH session
+          # running. 153 §2 hoped verify_probe.tscn "may already be deep enough"; it is
+          # not — it has more SIBLINGS, not more depth, and every fixture in the repo is
+          # at most one level deep. _serialize recurses on `depth < max_depth`, so nothing
+          # shallower than depth 3 can show the bound truncating in the MIDDLE of a tree,
+          # which is the only place it is observable as a bound rather than as an absent
+          # root. No fixture held a Node3D or a bare Node either, leaving two of the three
+          # `visible` arms with nowhere to run.
+          #
+          # res://tests/tree_probe.tscn is depth 4 and mixes all three node classes. The
+          # load-bearing assertion is a COMPARISON, not a value: at max_depth 2, Limb
+          # reports child_count 1 with no `children` key, while Bare reports child_count 0
+          # with no `children` key — truncation and leafness are otherwise identical on the
+          # wire, so child_count is the only field that separates them and both are checked
+          # in the same response. `visible` is asserted ABSENT on the plain Nodes, which is
+          # the arm that had no fixture until now.
+          #
+          # NOTHING IN THIS FIXTURE IS A SUB-RESOURCE, deliberately: #153's animation
+          # library and #155's InputMap key event were both correct only on the arm they
+          # were authored on. Plain nodes have no serialisation that drifts — and this job
+          # is what checks that claim on 4.3, 4.5 and 4.7 rather than assuming it.
+          #
+          # emit_signal's arity verdict is also new behaviour here: the engine returns an
+          # Error the tool used to discard, so a wrong `args` count answered
+          # {"emitted": true} while no callable ran. Markers TREE_LIVE_*.
+          "$GODOT_BIN" --headless --path "$GODOT_PROJECT" res://tests/tree_probe.tscn >/tmp/godot-treeprobe.log 2>&1 &
+          for i in $(seq 1 40); do
+            if node -e "require('net').connect(9088,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "tree probe port open"; break
+            fi
+            sleep 1
+          done
+          node test-integration/tree-shape.integration.mjs
       - name: Input-probe game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-inputprobe.log || true
+      - name: Tree-probe game log tail (on failure)
+        if: always()
+        run: tail -n 50 /tmp/godot-treeprobe.log || true
       - name: Node-probe game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-nodeprobe.log || true

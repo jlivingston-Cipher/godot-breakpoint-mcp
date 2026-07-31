@@ -1,0 +1,75 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for the tree-shape plane (see .github/workflows/integration.yml).
+;
+; THE FIXTURE QUESTION, ASKED FIRST — and no for the FIFTH session running. Every
+; existing fixture is at most ONE level deep:
+;
+;   verify_probe   VerifyProbe -> 2 Labels          depth 1  (more SIBLINGS, not more depth)
+;   node_probe     NodeProbe   -> Host              depth 1
+;   anim_probe     AnimProbe   -> 3 children        depth 1
+;   main.tscn      Main        -> Sprite2D          depth 1
+;
+; _serialize recurses on `depth < max_depth`, so a tree of depth 1 can only ever
+; demonstrate "root, then stop". Nothing shallower than depth 3 can show truncation
+; happening in the MIDDLE of a tree, which is the only place the bound is observable
+; as a bound rather than as an absent root.
+;
+; THE THREE THINGS THIS SHAPE EXISTS TO MAKE OBSERVABLE
+; ----------------------------------------------------
+;   1. THE DEPTH BOUND, distinguishable from a leaf. At max_depth 2, Limb reports
+;      child_count 1 and carries NO `children` key. Hidden and Bare also carry no
+;      `children` key -- because they have none. `child_count` is the ONLY field that
+;      separates "truncated here" from "nothing below here", so the probe asserts both
+;      cases in the same response. A serializer that dropped `child_count` at the bound,
+;      or that emitted `children: []`, would be indistinguishable from a leaf.
+;
+;   2. THE `visible` BRANCH, all THREE ways. _serialize adds `visible` for CanvasItem,
+;      adds it for Node3D, and adds it for nothing else:
+;         Branch / Bare   plain Node -> the key must be ABSENT      <- the arm with no fixture before now
+;         Limb            Node3D     -> present
+;         Twig / Leaf     CanvasItem -> present
+;         Hidden          CanvasItem, visible=false -> present AND false
+;      Hidden is what makes the value load-bearing: with only visible nodes present,
+;      an implementation hardcoding `true` passes everything.
+;
+;   3. `_path_of` RELATIVE TO THE BASE. The root serialises as "." and everything else
+;      as a slash path from it (Branch/Limb/Twig/Leaf at depth 4).
+;
+; WHY A Node3D IN A 2D TREE. It is not a mistake and it is not rendered -- Limb exists
+; solely because the Node3D arm of the `visible` branch had no fixture anywhere in the
+; repo. Headless, an unparented-in-3D Node3D is inert.
+;
+; NOTHING HERE IS A SUB-RESOURCE, deliberately. #153 (animation libraries) and #155
+; (InputMap key events, which carry device:16 on 4.7 and did not match on 4.3/4.5)
+; both shipped fixtures that were correct only on the arm they were authored on. Plain
+; nodes with plain properties have no serialisation that drifts across 4.3/4.5/4.7 --
+; and that claim is checked, not assumed: this probe runs on all three arms.
+;
+; ON THE SCRIPT. #154 made node_probe.tscn SCRIPTLESS because that lane's subject was
+; the shape of the tree and anything mutating the tree on boot competes with the tool
+; under test. This lane's subject is ALSO the shape of the tree -- so tree_probe.gd is
+; inert with respect to shape: it declares signals and records receipts, and never adds,
+; removes, renames or reparents a node. That is held to account rather than asserted in
+; a comment: the probe asserts this exact tree, node for node, BEFORE it emits anything.
+
+[ext_resource type="Script" path="res://tests/tree_probe.gd" id="1_tree"]
+
+[node name="TreeProbe" type="Node2D"]
+script = ExtResource("1_tree")
+
+[node name="Branch" type="Node" parent="."]
+
+[node name="Limb" type="Node3D" parent="Branch"]
+
+[node name="Twig" type="Node2D" parent="Branch/Limb"]
+
+[node name="Leaf" type="Label" parent="Branch/Limb/Twig"]
+offset_right = 400.0
+offset_bottom = 40.0
+text = "DEPTH FOUR"
+
+[node name="Hidden" type="Node2D" parent="."]
+visible = false
+
+[node name="Bare" type="Node" parent="."]
