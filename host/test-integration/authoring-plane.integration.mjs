@@ -103,6 +103,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import { decodePng, sampleDistinctColours } from "./_png.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url)); // host/test-integration
 const HOST_DIR = path.resolve(THIS_DIR, "..");                 // host/ (the package root)
@@ -1232,6 +1233,36 @@ async function main() {
       ? pass("AUTH_SHOT_DIMS", `${w}x${h}`)
       : fail("AUTH_SHOT_DIMS", `${note || "(no note)"} — not a rendered viewport`);
 
+    // Everything above this line reads the tool's LABEL. These two open the payload.
+    const decoded = decodePng(bytes);
+    // The dims asserted above come from the note, which the addon builds from the
+    // Image it measured. These come from the bytes that actually crossed
+    // Marshalls.raw_to_base64 -> JSON -> stdio. A disagreement means the frame
+    // delivered is not the frame that was measured.
+    if (!decoded) {
+      fail("AUTH_SHOT_IHDR", `payload did not decode as an 8-bit PNG (${bytes.length}B)`);
+      fail("AUTH_SHOT_DRAWN", "no decode, so the frame's content is unknown");
+    } else {
+      (decoded.width === w && decoded.height === h)
+        ? pass("AUTH_SHOT_IHDR", `payload ${decoded.width}x${decoded.height} matches the reported dims`)
+        : fail("AUTH_SHOT_IHDR", `payload is ${decoded.width}x${decoded.height} but the tool reported ${w}x${h}`);
+      // THE ONE THAT IS NOT ABOUT SHAPE AT ALL. Every other assertion in this
+      // family is satisfied by a correctly-sized, correctly-labelled, entirely
+      // BLACK frame — a rasterizer that initialised and then drew nothing. That is
+      // the editor-side twin of the defect #141 built render_probe.tscn to reject
+      // on the runtime side ("a job that is green without comparing anything"),
+      // and until now nothing here would have caught it. A live 3D viewport draws
+      // the grid, the three axis gizmos and the sky gradient, so it is far from
+      // uniform; measured 1097-1112 distinct colours across three Metal boots
+      // (session 147). Deliberately asserts >1, not a floor near the measured
+      // value: the bar is "the rasterizer drew something", and pinning a number
+      // measured on one GPU would make this brittle across drivers for no gain.
+      const shades = sampleDistinctColours(decoded);
+      shades.distinct > 1
+        ? pass("AUTH_SHOT_DRAWN", `${shades.distinct} distinct colours over ${shades.sampled} sampled px`)
+        : fail("AUTH_SHOT_DRAWN", `the frame is a single flat colour over ${shades.sampled} sampled px — the rasterizer drew nothing`);
+    }
+
     // THE OTHER HALF: the tab that is NOT active must REFUSE, not return a
     // placeholder. Before the host-side guard this returned ok + a 2x2 81-byte PNG,
     // with correct mime and correct PNG magic — success-shaped and empty, which an
@@ -1243,6 +1274,17 @@ async function main() {
     const img2d = (raw2d.content || []).find((c) => c.type === "image");
     if (raw2d.isError && /viewport_not_rendered/.test(txt2d)) {
       pass("AUTH_SHOT_INACTIVE_REFUSED", txt2d.slice(0, 80));
+      // Record how much room the MIN_RENDERED_VIEWPORT_PX = 8 heuristic actually has,
+      // rather than leaving it an assumption. The guard compares the addon's IMAGE
+      // dims against 8, so on a display where those dims scaled with the backing
+      // store the placeholder would grow and the margin would shrink. Measured on
+      // Metal at 2880x1864 Retina (session 147): still 2x2, so the dims are LOGICAL
+      // and the headroom is the same 4x it is on an Xvfb screen. Logged, not asserted
+      // — Godot's minimum SubViewport size is not ours to pin.
+      const m = /measured (\d+)x(\d+)/.exec(txt2d);
+      console.log(m
+        ? `AUTH_SHOT_GUARD_MARGIN placeholder=${m[1]}x${m[2]} threshold=8 headroom=${(8 / Math.max(Number(m[1]), Number(m[2]))).toFixed(2)}x`
+        : "AUTH_SHOT_GUARD_MARGIN not measurable — the error did not name the dims");
     } else if (!raw2d.isError && img2d) {
       // Legitimate on a machine where the 2D tab happens to be active (a developer
       // running this locally). Assert it is a REAL frame, not the placeholder.
