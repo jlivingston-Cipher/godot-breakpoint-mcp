@@ -6,6 +6,50 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `main_screen_get` / `main_screen_set`: the editor tab is now steerable (addon 1.9.3)
+Since #139 `screenshot_editor` has refused a viewport under 8px rather than returning Godot's
+collapsed 2x2 placeholder as if it were a frame. The guard is right and stays. Its **error was a dead
+end**, though: it said *"switch the editor to the 2D tab, then retry"* — and there was no tool that
+could switch tabs. A human at the keyboard can click it. The assistant this addon exists to serve
+could not, which made a recoverable situation terminal.
+
+Two new tools, taking the surface **289 → 291** (secure-default 276 → 278; privileged still 13):
+
+- **`main_screen_get`** — read-only. Which tab is active, and which exist on this Godot version.
+- **`main_screen_set`** — switch tabs, matching the name case-insensitively so `"2d"` works.
+
+`viewport_not_rendered` now also **names the tab that is actually active** and the tool that fixes it:
+*"The editor is on the "Script" tab. Call main_screen_set {"name":"2D"} and retry."* That lookup is
+best-effort — an addon older than 1.9.3 cannot answer it, so a failure there degrades the message
+rather than replacing a useful error with a bridge error.
+
+**What the implementation had to discover.** `EditorInterface.get_editor_main_screen()` returns the
+container, but its children are **not** named for the tabs — measured on 4.7, they are
+`@CanvasItemEditor@10149`, `@Node3DEditor@10909`, two `@WindowWrapper@…` and `@EditorAssetLibrary@…`,
+Godot's auto-generated node names, none of which `set_main_screen_editor` accepts. The name it *does*
+accept is the `EditorPlugin`'s, which is not on the control. The first draft returned those raw names
+and validated against them, so every real tab name was rejected — caught on the first live run, not
+in review. Labels are now derived from the control's **class** (`CanvasItemEditor` → `2D`,
+`Node3DEditor` → `3D`, and one level deeper for `Script`/`Game`, which sit inside a `WindowWrapper`
+for the make-floating feature).
+
+`main_screen_set` deliberately does **not** reject a name missing from that derived list: the map
+cannot spell a third-party plugin's main screen and the engine's own lookup can, so the caller's
+string is passed through and the result is **verified by read-back**. `set_main_screen_editor` returns
+nothing and silently no-ops on an unknown name, so reading the state back is the only way to tell a
+switch from a typo — and it is what makes the pass-through safe.
+
+Both `EditorInterface` calls go through `has_method` + `call()`, per the rule `_scene_close` states: a
+literal call to a method the running engine lacks fails at **parse** time and takes the entire addon
+down on that version. The guard degrades one tool to `unsupported` instead.
+
+New probe family **`AUTH_MAINSCREEN`** (6 assertions; `AUTH_SUMMARY` 185/185 → **191/191**) walks the
+whole loop against a real editor: read the tab, watch `2d` refused at 2x2 with the error naming `3D`,
+switch via lower-case `"2d"`, watch **the same call** return a real 2210x1808 frame, then restore the
+original tab so the probe stays idempotent the way #146 made it. An unknown tab is asserted to fail
+by name and hand back the live list.
+
+
 ### Fixed — the authoring plane's git oracle was a coin flip on a 12-second window (CI only, no tool change)
 #144 added an independent `git status --porcelain example/` oracle beside `AUTH_CLEAN`, comparing
 before-probe against after-probe. The baseline is captured the moment the addon's bridge port opens

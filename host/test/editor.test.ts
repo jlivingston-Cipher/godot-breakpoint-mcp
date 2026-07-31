@@ -10,7 +10,7 @@ import {
 
 /**
  * Behavior tests for the editor plane (tools/editor.ts) — the largest surface
- * (toolset `editor` → 146 tools) and the one that had no unit coverage. Two
+ * (toolset `editor` → 148 tools) and the one that had no unit coverage. Two
  * invariants matter most and are asserted here without a real Godot editor:
  *
  *   1. Every DESTRUCTIVE editor tool sits behind the confirmation gate: on a

@@ -5,9 +5,9 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.29.0 · addon 1.9.2
+- **Version:** host 1.29.0 · addon 1.9.3
 - **License:** MIT
-- **What it exposes:** full 289 tools (secure-default 276 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 291 tools (secure-default 278 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -377,8 +377,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 276 tools**. Opt in
-to load the **full 289**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 278 tools**. Opt in
+to load the **full 291**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -446,7 +446,7 @@ command line). Others need the editor open with the addon enabled, or the game r
                /undo/redo     live SceneTree  diagnostics   stepping, eval
 ```
 
-### Plane A — Live Editor Bridge (toolset `a` → 146 tools)
+### Plane A — Live Editor Bridge (toolset `a` → 148 tools)
 
 The largest plane. It drives the editor through the addon's loopback server on
 `127.0.0.1:9080`, so it **requires the editor open with the plugin enabled**. It covers
@@ -460,7 +460,7 @@ here is wrapped in Godot's undo system.
 Four sibling toolsets ride the same bridge and are counted separately: `netcode` → 7,
 `backend` → 5, `assetgen` → 7, and `tabletop` → 14 (multiplayer authoring, backend-SDK
 scaffolding, AI asset generation, and card/board/piece authoring). So
-`a,netcode,backend,assetgen,tabletop` → 179 tools require the editor open, not the 146
+`a,netcode,backend,assetgen,tabletop` → 181 tools require the editor open, not the 146
 above alone.
 
 ### Plane B — Headless CLI (`godot_*`)
@@ -590,7 +590,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **289 tools** in total (the secure-default surface is **276** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **291 tools** in total (the secure-default surface is **278** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -1008,7 +1008,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-289 tools (secure-default 276) and 6 resources. The exhaustive per-tool schemas are in
+291 tools (secure-default 278) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

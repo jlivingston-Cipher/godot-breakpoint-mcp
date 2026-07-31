@@ -7,7 +7,7 @@
  * it's **free** (MIT, shipped in the server), and it sits **over typed,
  * schema-validated, undoable tools** — so the contract is executed by the
  * server, not merely described in prose the model might misapply. Recipes are
- * discoverable via MCP `prompts/list`; they add **no tools** (the 289-tool
+ * discoverable via MCP `prompts/list`; they add **no tools** (the 291-tool
  * count is unchanged) and cost nothing until a client pulls one.
  */
 import { z } from "zod";

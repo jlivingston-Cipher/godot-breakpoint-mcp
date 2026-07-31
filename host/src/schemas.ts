@@ -116,6 +116,8 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     child_count: z.number(),
     children: z.array(sceneNode).optional(),
   },
+  main_screen_get: { active: z.string().nullable(), available: z.array(z.string()) },
+  main_screen_set: { active: z.string().nullable(), available: z.array(z.string()), requested: z.string() },
   scene_open: { opened: z.string() },
   scene_save: { saved: z.string() },
   scene_new: { created: z.string(), root_type: z.string() },

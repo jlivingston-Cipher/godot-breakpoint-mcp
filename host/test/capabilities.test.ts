@@ -16,7 +16,7 @@ import {
 } from "../src/capabilities.js";
 import { ALL_ANNOTATED, annotationsFor } from "../src/annotations.js";
 
-const FULL_TOOL_COUNT = 289;
+const FULL_TOOL_COUNT = 291;
 
 // All 13 privileged tools. There is one group, so there is no split.
 const CODE_EXEC_ONLY = [
@@ -89,15 +89,15 @@ function registerWith(tokens: string[] | null) {
   return calls.map((c) => c.name);
 }
 
-test("secure default (no groups) drops exactly the 13 privileged tools → 276", () => {
+test("secure default (no groups) drops exactly the 13 privileged tools → 278", () => {
   const names = registerWith(null);
   assert.equal(names.length, FULL_TOOL_COUNT - ALL_PRIVILEGED.length);
-  assert.equal(names.length, 276);
+  assert.equal(names.length, 278);
   const present = new Set(names);
   for (const t of ALL_PRIVILEGED) assert.ok(!present.has(t), `${t} should be dropped by default`);
 });
 
-test("enabling code-execution (or 'all') restores the full 289-tool surface", () => {
+test("enabling code-execution (or 'all') restores the full 291-tool surface", () => {
   assert.equal(registerWith(["code-execution"]).length, FULL_TOOL_COUNT);
   assert.equal(registerWith(["all"]).length, FULL_TOOL_COUNT);
 });
