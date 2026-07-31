@@ -30,8 +30,22 @@ caught it. Two assertions close it, backed by a new dependency-free 8-bit PNG re
 - **`AUTH_SHOT_IHDR`** — the dims read off the payload's own header must agree with the dims the tool
   reported, crossing the addon's `Marshalls.raw_to_base64` → JSON → stdio path.
 - **`AUTH_SHOT_DRAWN`** — the frame must not be a single flat colour. A live 3D viewport measured
-  1106 and 1112 distinct colours over a sampled grid across two Metal boots; a rasterizer that
-  initialised and drew nothing measures 1.
+  **1106 distinct colours on Metal and 774 under llvmpipe** over a sampled grid; a rasterizer that
+  initialised and drew nothing measures 1. Asserts `> 1` rather than a floor near either figure — the
+  bar is "the rasterizer drew something", and the two drivers legitimately disagree on the count.
+
+**The two drivers side by side**, which is the point of doing both:
+
+| | Metal (M2, 2880x1864 Retina) | llvmpipe (Xvfb 1280x720) |
+|---|---|---|
+| 3D viewport | 1417x929 | 850x595 |
+| distinct colours | 1106 | 774 |
+| inactive placeholder | **2x2** | **2x2** |
+| guard headroom | **4.00x** | **4.00x** |
+
+The viewport dims differ because the windows differ. The **placeholder does not** — so the 8px
+guard's margin is independent of both display scale and rasterizer, which is the specific claim the
+Metal run existed to test.
 
 `AUTH_SUMMARY` moves 181/181 → **183/183**. Also adds `host/verify_shot_editor_live.mjs`, a
 **read-only and fully idempotent** scratch harness (unlike the authoring probe, it leaves `example/`

@@ -1253,10 +1253,11 @@ async function main() {
       // on the runtime side ("a job that is green without comparing anything"),
       // and until now nothing here would have caught it. A live 3D viewport draws
       // the grid, the three axis gizmos and the sky gradient, so it is far from
-      // uniform; measured 1097-1112 distinct colours across three Metal boots
-      // (session 147). Deliberately asserts >1, not a floor near the measured
-      // value: the bar is "the rasterizer drew something", and pinning a number
-      // measured on one GPU would make this brittle across drivers for no gain.
+      // uniform; measured 1106 distinct colours on Metal and 774 here under
+      // llvmpipe (session 147). Deliberately asserts >1, not a floor near either
+      // figure: the bar is "the rasterizer drew something", and the two drivers
+      // legitimately disagree on the count, so pinning one would be brittle for
+      // no gain.
       const shades = sampleDistinctColours(decoded);
       shades.distinct > 1
         ? pass("AUTH_SHOT_DRAWN", `${shades.distinct} distinct colours over ${shades.sampled} sampled px`)
@@ -1278,9 +1279,10 @@ async function main() {
       // rather than leaving it an assumption. The guard compares the addon's IMAGE
       // dims against 8, so on a display where those dims scaled with the backing
       // store the placeholder would grow and the margin would shrink. Measured on
-      // Metal at 2880x1864 Retina (session 147): still 2x2, so the dims are LOGICAL
-      // and the headroom is the same 4x it is on an Xvfb screen. Logged, not asserted
-      // — Godot's minimum SubViewport size is not ours to pin.
+      // Metal at 2880x1864 Retina AND here under llvmpipe (session 147): 2x2 in
+      // BOTH, so the dims are LOGICAL and the margin is independent of display
+      // scale and rasterizer alike. Logged, not asserted — Godot's minimum
+      // SubViewport size is not ours to pin.
       const m = /measured (\d+)x(\d+)/.exec(txt2d);
       console.log(m
         ? `AUTH_SHOT_GUARD_MARGIN placeholder=${m[1]}x${m[2]} threshold=8 headroom=${(8 / Math.max(Number(m[1]), Number(m[2]))).toFixed(2)}x`
