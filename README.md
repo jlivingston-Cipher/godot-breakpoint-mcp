@@ -6,8 +6,8 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.40.0 · addon 1.9.5 · full 291 / secure-default 278 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 631-test suite plus
+> **npm 1.41.0 · addon 1.9.5 · full 291 / secure-default 278 tools · 6 MCP resources · MIT.** The host builds against
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 635-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
