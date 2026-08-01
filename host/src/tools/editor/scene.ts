@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** Scene lifecycle: open / save / new / reload / pack / dependencies. */
-export function registerSceneTools(server: McpServer, call: EditorCall): void {
+export function registerSceneTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "scene_get_tree",
     {
@@ -110,6 +110,10 @@ export function registerSceneTools(server: McpServer, call: EditorCall): void {
       },
     },
     async ({ path, to_path, confirm }) => {
+      // `path` is a NODE path inside the open scene, not a file path — it cannot
+      // express a filesystem escape and is deliberately left alone.
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Pack branch "${path}" to ${to_path}`);
       if (blocked) return blocked;
       return call("scene.pack", { path, to_path });

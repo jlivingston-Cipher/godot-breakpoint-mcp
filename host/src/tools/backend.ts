@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
 import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
+import { resolveInsideProject } from "../paths.js";
 
 /**
  * Group M (second half) — Backend-SDK integration scaffolding (`backend_*`,
@@ -392,7 +393,7 @@ interface DetectResult {
 
 // ------------------------------------------------------------- registration ----
 
-export function registerBackendTools(server: McpServer, bridge: BridgeClient, _config: Config): void {
+export function registerBackendTools(server: McpServer, bridge: BridgeClient, config: Config): void {
   const call = async (method: string, params: Record<string, unknown> = {}) => bridge.request(method, params);
 
   async function detect(): Promise<DetectResult> {
@@ -422,6 +423,21 @@ export function registerBackendTools(server: McpServer, bridge: BridgeClient, _c
     const info = SDK_INFO[opts.sdk];
     if (!opts.toPath.startsWith("res://") || !opts.toPath.endsWith(".gd")) {
       return fail({ code: "bad_params", message: "'to_path' must be a res:// .gd path" });
+    }
+    // 🔴 `res://../` SATISFIES THE PREFIX CHECK ABOVE and, measured against a live
+    // editor, wrote all four scaffolds outside the project root. The same defect
+    // netcode.ts fixed at its three call sites in 161 — and this file calls the SAME
+    // addon method, `mp.write_script`. One helper guarded, its twin not: the fourth
+    // consecutive session where the second call site was the interesting one.
+    //
+    // 🔴 IT GOES BEFORE THE CAPABILITY AND INSTALLED CHECKS, not after. The first run
+    // of this session's probe put sixteen backend rows through an uninstalled SDK and
+    // measured `sdk_missing` — the DETECTOR, not the path. A guard that sits behind a
+    // feature gate is a guard nobody can measure.
+    try {
+      resolveInsideProject(opts.toPath, config.projectPath, "to_path");
+    } catch (err) {
+      return fail(err);
     }
     // (1) capability — intrinsic to the SDK, no bridge needed.
     if (!hasCapability(opts.sdk, opts.feature)) {

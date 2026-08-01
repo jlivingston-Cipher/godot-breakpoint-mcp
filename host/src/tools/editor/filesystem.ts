@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** Project FileSystem dock ops: list / scan / move / mkdir. */
-export function registerFilesystemTools(server: McpServer, call: EditorCall): void {
+export function registerFilesystemTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "filesystem_list",
     {
@@ -40,6 +40,12 @@ export function registerFilesystemTools(server: McpServer, call: EditorCall): vo
       },
     },
     async ({ from_path, to_path, confirm }) => {
+      // 🔴 THE SHARPEST ROW OF THE MEASUREMENT. This is the only writer in the set
+      // that is destructive on BOTH sides: `res://../…` as `to_path` moved a project
+      // file OUT of the project, and as `from_path` it moved a file the project never
+      // owned IN. Both parameters, therefore, and neither is theoretical.
+      const escaped = guard(from_path, "from_path") ?? guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Move ${from_path} to ${to_path}`);
       if (blocked) return blocked;
       return call("filesystem.move", { from_path, to_path });

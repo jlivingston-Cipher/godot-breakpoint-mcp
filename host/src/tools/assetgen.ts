@@ -5,7 +5,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { BridgeClient } from "../bridge.js";
 import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
-import { toFsPath } from "../paths.js";
+import { toFsPath, resolveInsideProject } from "../paths.js";
+import { failPath } from "./lsp-common.js";
 
 /**
  * Group J — AI asset generation.
@@ -213,6 +214,22 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
     },
   ) {
     const { prompt, to_path, width, height, duration_ms, shape, placeholder, confirm, forcePlaceholder } = args;
+
+    // 🔴 BEFORE THE BACKEND CHECK, NOT AFTER — 163 §3's shape. All six generators
+    // funnel through here, and MEASURED against a live editor every one of them wrote
+    // outside the root through `res://../`. Refusing first means the refusal costs no
+    // bridge call and no backend, so a unit test reaches it with `backend: "none"`.
+    //
+    // 🔴 THIS IS THE ONE BEHAVIOUR CHANGE. With no backend configured, an escaping
+    // `to_path` used to come back `no_backend` carrying a `request` spec — which was
+    // an instruction to the CALLER to write outside the project. It now refuses. That
+    // is the honest answer, and it is pinned by a test rather than left to chance.
+    try {
+      resolveInsideProject(to_path, config.projectPath, "to_path");
+    } catch (err) {
+      return failPath(err);
+    }
+
     const spec = KIND_FORMAT[kind];
     const usePlaceholder = forcePlaceholder === true || placeholder === true || state.backend === "placeholder";
     const effectiveBackend: Backend = usePlaceholder ? "placeholder" : state.backend;

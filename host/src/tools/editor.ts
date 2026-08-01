@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { BridgeClient } from "../bridge.js";
-import { makeCall } from "./editor/common.js";
+import type { Config } from "../config.js";
+import { makeCall, makePathGuard } from "./editor/common.js";
 import { registerCoreTools } from "./editor/core.js";
 import { registerSceneTools } from "./editor/scene.js";
 import { registerNodeTools } from "./editor/node.js";
@@ -25,22 +26,29 @@ import { registerProjectInputTestTools } from "./editor/project_input_test.js";
  * helper and registers each group in its original order, so the registered tool
  * set and its order are unchanged.
  */
-export function registerEditorTools(server: McpServer, bridge: BridgeClient): void {
+export function registerEditorTools(server: McpServer, bridge: BridgeClient, config: Config): void {
   const call = makeCall(bridge);
+  // 🔴 THE GUARD IS THREADED, NOT INSTALLED IN `makeCall`. Wrapping the shared bridge
+  // helper would have been one line, but it serves ~150 editor tools whose params are
+  // node paths, property names and class names — a helper that has to GUESS which
+  // string is a filesystem path is a guess on every one of them. The eleven writers
+  // that were MEASURED escaping take it explicitly instead, so the blast radius of
+  // this change is exactly the set that was measured.
+  const guard = makePathGuard(config.projectPath);
   registerCoreTools(server, call);
-  registerSceneTools(server, call);
+  registerSceneTools(server, call, guard);
   registerNodeTools(server, call);
   registerSignalTools(server, call);
   registerIntrospectionTools(server, call, bridge);
-  registerResourceTools(server, call);
-  registerFilesystemTools(server, call);
+  registerResourceTools(server, call, guard);
+  registerFilesystemTools(server, call, guard);
   registerAnimationTools(server, call);
-  registerTileTools(server, call);
+  registerTileTools(server, call, guard);
   registerPhysicsTools(server, call);
   registerParticleTools(server, call);
-  registerShaderTools(server, call);
-  registerAudioTools(server, call);
-  registerUiTools(server, call);
-  registerSpatialTools(server, call);
+  registerShaderTools(server, call, guard);
+  registerAudioTools(server, call, guard);
+  registerUiTools(server, call, guard);
+  registerSpatialTools(server, call, guard);
   registerProjectInputTestTools(server, call);
 }
