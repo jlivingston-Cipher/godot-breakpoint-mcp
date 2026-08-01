@@ -247,7 +247,14 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         spawnable_scenes: z.array(z.string()).optional().describe("res:// scenes the spawner may instantiate (add_spawnable_scene)"),
       },
     },
+    // 🔴 AN ARRAY PARAM, AND EVERY ELEMENT IS A PATH. The spawner STORED
+    // `res://../example_evil/x.tscn` on the node and echoed it back, so at runtime it
+    // would instantiate a scene from outside the project. Guard each element — a
+    // guard on `spawnable_scenes[0]` alone is not a guard.
     async ({ parent_path, name, spawn_path, spawnable_scenes }) => {
+      try {
+        for (const s of spawnable_scenes ?? []) resolveInsideProject(s, config.projectPath, "spawnable_scenes");
+      } catch (err) { return fail(err); }
       try {
         return ok(await call("mp.add_spawner", {
           parent_path,

@@ -1913,6 +1913,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     async (raw) => {
       const a = raw as unknown as Parameters<typeof emitCardInstance>[1];
       try {
+        resolveInsideProject(a.template_path, config.projectPath, "template_path");
+      } catch (err) { return fail(err); }
+      try {
         return ok(await emitCardInstance(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(err);
@@ -1942,6 +1945,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     },
     async (raw) => {
       const a = raw as unknown as Parameters<typeof emitCardHand>[1];
+      try {
+        resolveInsideProject(a.template_path, config.projectPath, "template_path");
+      } catch (err) { return fail(err); }
       try {
         return ok(await emitCardHand(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
@@ -1984,6 +1990,12 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     },
     async (raw) => {
       const a = raw as unknown as DeckArgs;
+      // 🔴 `table_path` has been guarded since #173 (`resolveExistingFile`, via
+      // `readFile`); `template_path` on the SAME CALL was not. Fourth session running
+      // where the interesting defect is the second parameter on a guarded tool.
+      try {
+        resolveInsideProject(a.template_path, config.projectPath, "template_path");
+      } catch (err) { return fail(err); }
       try {
         return ok(await emitDeckFromTable(emit, readFile, a) as unknown as Record<string, unknown>);
       } catch (err) {
@@ -2216,6 +2228,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       try {
         guardWriteTarget(a.path, a.overwrite, "path");
         if (a.script_path !== undefined) resolveInsideProject(a.script_path, config.projectPath, "script_path");
+        // 🔴 `art` is STORED, not loaded: the escaping path was written verbatim into
+        // the generated .tscn, so the template carried a reference out of the project.
+        if (a.art !== undefined) resolveInsideProject(a.art, config.projectPath, "art");
       } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create piece template scene + script at ${a.path}`);
       if (blocked) return blocked;
@@ -2253,6 +2268,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     },
     async (raw) => {
       const a = raw as unknown as PieceInstanceArgs;
+      try {
+        resolveInsideProject(a.template_path, config.projectPath, "template_path");
+      } catch (err) { return fail(err); }
       try {
         return ok(await emitPieceInstance(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {

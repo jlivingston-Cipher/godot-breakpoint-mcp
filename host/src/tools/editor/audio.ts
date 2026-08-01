@@ -22,6 +22,8 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
       },
     },
     async ({ parent_path, dim, name, stream_path, autoplay, volume_db, bus }) => {
+      const escaped = guard(stream_path, "stream_path");
+      if (escaped) return escaped;
       const params: Record<string, unknown> = { parent_path };
       if (dim !== undefined) params.dim = dim;
       if (name !== undefined) params.name = name;
@@ -44,7 +46,11 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
         stream_path: z.string().describe("res:// path to an AudioStream resource"),
       },
     },
-    async ({ path, stream_path }) => call("audio.set_stream", { path, stream_path }),
+    async ({ path, stream_path }) => {
+      const escaped = guard(stream_path, "stream_path");
+      if (escaped) return escaped;
+      return call("audio.set_stream", { path, stream_path });
+    },
   );
 
   server.registerTool(

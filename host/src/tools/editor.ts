@@ -31,13 +31,13 @@ export function registerEditorTools(server: McpServer, bridge: BridgeClient, con
   // 🔴 THE GUARD IS THREADED, NOT INSTALLED IN `makeCall`. Wrapping the shared bridge
   // helper would have been one line, but it serves ~150 editor tools whose params are
   // node paths, property names and class names — a helper that has to GUESS which
-  // string is a filesystem path is a guess on every one of them. The eleven writers
-  // that were MEASURED escaping take it explicitly instead, so the blast radius of
-  // this change is exactly the set that was measured.
+  // string is a filesystem path is a guess on every one of them. The writers (164)
+  // and READERS (165) that were MEASURED escaping take it explicitly instead, so the
+  // blast radius of this change is exactly the set that was measured.
   const guard = makePathGuard(config.projectPath);
   registerCoreTools(server, call);
   registerSceneTools(server, call, guard);
-  registerNodeTools(server, call);
+  registerNodeTools(server, call, guard);
   registerSignalTools(server, call);
   registerIntrospectionTools(server, call, bridge);
   registerResourceTools(server, call, guard);
@@ -45,10 +45,10 @@ export function registerEditorTools(server: McpServer, bridge: BridgeClient, con
   registerAnimationTools(server, call);
   registerTileTools(server, call, guard);
   registerPhysicsTools(server, call);
-  registerParticleTools(server, call);
+  registerParticleTools(server, call, guard);
   registerShaderTools(server, call, guard);
   registerAudioTools(server, call, guard);
   registerUiTools(server, call, guard);
   registerSpatialTools(server, call, guard);
-  registerProjectInputTestTools(server, call);
+  registerProjectInputTestTools(server, call, guard);
 }

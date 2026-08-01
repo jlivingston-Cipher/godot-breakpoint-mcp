@@ -5,7 +5,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { log } from "../logger.js";
 import { registerTaskTool } from "../tasks.js";
-import { ok } from "./lsp-common.js";
+import { ok, failPath } from "./lsp-common.js";
+import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
 
 const execFileAsync = promisify(execFile);
@@ -110,7 +111,14 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
           ),
       },
     },
+    // 🔴 MEASURED by the LAUNCHED PROCESS'S OWN ARGV: `res://../example_evil/x.tscn`
+    // produced `godot --path …/example res://../example_evil/x.tscn` and the game
+    // ran it. The port check comes second — a scene that can never legally run
+    // should not first claim the runtime port.
     async ({ scene, allow_port_conflict }) => {
+      try {
+        if (scene !== undefined) resolveInsideProject(scene, cfg.projectPath, "scene");
+      } catch (err) { return failPath(err); }
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
         return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
       }
@@ -136,7 +144,16 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms: z.number().int().positive().optional().describe("Max run time (default 600000)"),
       },
     },
+    // 🔴 A WRITER THE `to_path` SWEEP MISSED ON A NAMING ACCIDENT. `output_path` goes
+    // to the Godot CLI verbatim, and the CLI honours an escaping one: measured with
+    // the equivalent `--export-pack "Linux/X11" ../example_evil/g165_pack.pck`, which
+    // put a 306KB .pck outside the root. (The tool's own `--export-release` could not
+    // be run to completion on the measuring Mac — no export templates installed — so
+    // this row is CLI-measured plus source-verified passthrough, not tool-measured.)
     async ({ preset, output_path, debug, timeout_ms }, signal) => {
+      try {
+        resolveInsideProject(output_path, cfg.projectPath, "output_path");
+      } catch (err) { return failPath(err); }
       const flag = debug ? "--export-debug" : "--export-release";
       const r = await runCaptured(
         cfg,
@@ -193,7 +210,14 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms: z.number().int().positive().optional().describe("Max run time (default 600000)"),
       },
     },
+    // 🔴🔴 THE SHARPEST ROW OF THE SESSION. `-s <script_path>` EXECUTES the file. A
+    // script at `res://../example_evil/g165_run.gd` RAN — proven by the marker file it
+    // wrote, not by the reply, which answered `exit_code: 0` for the real script AND
+    // for one that did not exist. The reply channel carried zero information.
     async ({ script_path, args, timeout_ms }, signal) => {
+      try {
+        resolveInsideProject(script_path, cfg.projectPath, "script_path");
+      } catch (err) { return failPath(err); }
       const r = await runCaptured(
         cfg,
         ["--headless", "--path", cfg.projectPath, "-s", script_path, ...(args ?? [])],

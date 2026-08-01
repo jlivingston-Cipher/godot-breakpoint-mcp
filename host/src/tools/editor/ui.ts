@@ -120,7 +120,13 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
         theme_path: z.string().describe("Theme res:// path, or \"\" to clear the theme override"),
       },
     },
-    async ({ path, theme_path }) => call("control.set_theme", { path, theme_path }),
+    // `""` is the documented "clear the override" spelling and resolves to the
+    // project root itself, which is INSIDE it — so the guard leaves it alone.
+    async ({ path, theme_path }) => {
+      const escaped = guard(theme_path, "theme_path");
+      if (escaped) return escaped;
+      return call("control.set_theme", { path, theme_path });
+    },
   );
 
   server.registerTool(
@@ -179,6 +185,8 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       },
     },
     async ({ path, name, theme_type, font_path, confirm }) => {
+      const escaped = guard(font_path, "font_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set theme font ${theme_type}/${name} in ${path}`);
       if (blocked) return blocked;
       return call("theme.set_font", { path, name, theme_type, font_path });
@@ -200,6 +208,8 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       },
     },
     async ({ path, name, theme_type, stylebox_path, confirm }) => {
+      const escaped = guard(stylebox_path, "stylebox_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set theme stylebox ${theme_type}/${name} in ${path}`);
       if (blocked) return blocked;
       return call("theme.set_stylebox", { path, name, theme_type, stylebox_path });

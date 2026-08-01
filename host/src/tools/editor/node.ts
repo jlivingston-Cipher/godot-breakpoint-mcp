@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** Scene-tree node authoring: add / delete / reparent / property / group ops. */
-export function registerNodeTools(server: McpServer, call: EditorCall): void {
+export function registerNodeTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "node_add",
     {
@@ -185,8 +185,11 @@ export function registerNodeTools(server: McpServer, call: EditorCall): void {
         name: z.string().optional().describe("Node name (defaults to the instanced scene's root name)"),
       },
     },
-    async ({ parent_path, scene_path, name }) =>
-      call("node.instantiate_scene", name !== undefined ? { parent_path, scene_path, name } : { parent_path, scene_path }),
+    async ({ parent_path, scene_path, name }) => {
+      const escaped = guard(scene_path, "scene_path");
+      if (escaped) return escaped;
+      return call("node.instantiate_scene", name !== undefined ? { parent_path, scene_path, name } : { parent_path, scene_path });
+    },
   );
 
   server.registerTool(

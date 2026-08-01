@@ -3,7 +3,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
 import { MAX_PEERS, type PeerRegistry } from "../peers.js";
 import { gate } from "../confirm.js";
-import { ok } from "./lsp-common.js";
+import { ok, failPath } from "./lsp-common.js";
+import type { Config } from "../config.js";
+import { resolveInsideProject } from "../paths.js";
 
 const confirmField = {
   confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
@@ -85,7 +87,21 @@ function canonical(value: unknown): string {
   return JSON.stringify(walk(value));
 }
 
-export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, peers: PeerRegistry): void {
+export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, peers: PeerRegistry, config: Config): void {
+  /** 🔴 MEASURED against a game actually hosting the runtime bridge — rounds A–C
+   *  answered `bridge_unavailable` for every runtime row, which is a degrade path,
+   *  not a verdict. With the bridge up, `runtime_node_add` instantiated a PackedScene
+   *  from outside the root and `runtime_screenshot_diff` diffed against an outside
+   *  PNG, both through all three spellings. */
+  const guardPath = (p: string | undefined, label: string) => {
+    if (p === undefined) return null;
+    try {
+      resolveInsideProject(p, config.projectPath, label);
+      return null;
+    } catch (err) {
+      return failPath(err);
+    }
+  };
   /** The bridge addressing `peer`, or the default running game when omitted. */
   const clientFor = (peer?: string): BridgeClient => (peer ? peers.clientFor(peer) : runtime);
   /** Human label for confirmation prompts, so a gated op names its target process. */
@@ -404,7 +420,11 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         ...peerField,
       },
     },
+    // `user://…` stays legal: `toFsPath` treats it as a relative spelling and joins
+    // it under the root, so it resolves INSIDE and the guard passes it through
+    // untouched — the documented mainline is preserved, and a test pins it.
     async ({ reference, tolerance, per_channel_threshold, region, peer }) =>
+      guardPath(reference, "reference") ??
       call(
         "runtime.screenshot_diff",
         {
@@ -555,6 +575,8 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       },
     },
     async ({ parent, type, scene, name, confirm, peer }) => {
+      const escaped = guardPath(scene, "scene");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Add ${scene ?? type ?? "node"} under ${parent} in ${target(peer)}`);
       if (blocked) return blocked;
       return call(
@@ -730,6 +752,8 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       },
     },
     async ({ count, scene, args, role, timeout_ms }) => {
+      const escaped = guardPath(scene, "scene");
+      if (escaped) return escaped;
       try {
         const spawned = await peers.spawn({
           count,

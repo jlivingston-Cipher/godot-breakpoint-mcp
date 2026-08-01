@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** InputMap, extended project config (autoloads / export presets / main scene / settings), editor settings, and test-framework detection. */
-export function registerProjectInputTestTools(server: McpServer, call: EditorCall): void {
+export function registerProjectInputTestTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "inputmap_add_action",
     {
@@ -237,6 +237,12 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
         dir: z.string().optional().describe("Directory to search (default res://test)"),
       },
     },
-    async ({ dir }) => call("test.list", dir !== undefined ? { dir } : {}),
+    // 🔴 MEASURED: `res://../example_evil` returned that directory's `test_*.gd`
+    // files in the reply. A reader's leak is the LISTING, not a file it wrote.
+    async ({ dir }) => {
+      const escaped = guard(dir, "dir");
+      if (escaped) return escaped;
+      return call("test.list", dir !== undefined ? { dir } : {});
+    },
   );
 }
