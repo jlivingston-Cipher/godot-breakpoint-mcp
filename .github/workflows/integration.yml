@@ -977,6 +977,12 @@ jobs:
     # runtime-plane was promoted in session 20. The fixture/host builds, the OmniSharp cs_* LSP
     # probe and the netcoredbg initialize gate (C#_DAP_REACHED) all gate the job; the netcoredbg
     # launch-to-breakpoint flow past that gate stays log-only. See docs/D4_CSHARP_PLAN.md.
+    #
+    # 🔴 CORRECTED (session 157): "the OmniSharp cs_* LSP probe ... gate[s] the job" was true only
+    # of its `initialize` HANDSHAKE. Everything past that in csharp-lsp.integration.mjs is a
+    # try/catch that console.logs, so every cs_* tool could have answered isError on every call and
+    # this REQUIRED job would still have been green. The `C2 GATE` step below is what actually
+    # asserts the cs_* family; the older step stays as the diagnostic it always was.
     env:
       # The .NET/Mono Godot build (NOT the standard build the other planes download). Its version
       # MUST match the Godot.NET.Sdk pinned in example-csharp/ExampleCsharp.csproj (4.7.0) and the
@@ -1070,6 +1076,26 @@ jobs:
           # reaches the server (the gate) then best-effort exercises the cs_* tools; markers C#_LSP_*.
           # Bounded by an outer timeout so a misbehaving server can never hang the runner.
           timeout 300 node test-integration/csharp-lsp.integration.mjs
+      - name: C2 GATE — cs_* plane assertions vs real OmniSharp (markers CS_LSP_LIVE_*)
+        working-directory: host
+        env:
+          GODOT_CSHARP_PROJECT: ${{ github.workspace }}/example-csharp
+          GODOT_CSLSP_CMD: ${{ env.OMNISHARP_BIN }}
+          GODOT_CSLSP_ARGS: '-lsp'
+        run: |
+          set -eux
+          # The step ABOVE is a DIAGNOSTIC: only its `initialize` handshake can fail, because
+          # everything past `if (reached)` is a try/catch that console.logs. It would print
+          # `C#_LSP_SEMANTIC_OK: hover=false definition=false` and stay green — and this job is a
+          # REQUIRED gate, so its own header comment claiming the "OmniSharp cs_* LSP probe ...
+          # gate[s] the job" held only for the handshake. THIS step is what makes it true.
+          #
+          # It is a STEP, not a separate job — unlike lsp-plane. That one had to be separate
+          # because `editor-plane` carries `continue-on-error: true` by design, so an assertion
+          # placed there could never fail a merge. `csharp-plane` carries no such flag, so a step
+          # here already blocks the merge AND reuses the dotnet/OmniSharp/fixture setup above
+          # rather than paying for it twice. Check where an assertion LANDS before writing it.
+          timeout 420 node test-integration/cs-lsp-plane.integration.mjs
       - name: Import + build C# solution (headless)
         run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example-csharp" --import --build-solutions --quit-after 200 || true'
       - name: C3 — live cs_dbg_* DAP probe vs real netcoredbg (markers C#_DAP_*)

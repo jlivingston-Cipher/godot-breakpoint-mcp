@@ -4,6 +4,7 @@ import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { z } from "zod";
 import { CsLspClient } from "../src/cslsp.js";
 import { LspError } from "../src/lsp.js";
 import { FramedConnection } from "../src/framing.js";
@@ -536,4 +537,194 @@ test("CsLspClient recovers when the language server appears after a failed spawn
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// --- session 157: the states this mock never produced ------------------------
+// Every one of these was MEASURED against a real OmniSharp v1.39.15 driving the
+// example-csharp fixture BEFORE the guard was written, and every one succeeded
+// with isError:false (or leaked a .NET stack trace) beforehand. Two of the five
+// shapes behave DIFFERENTLY here than they did on the gd_* plane; the assertions
+// below encode what the C# plane actually did, not what the GDScript one did.
+
+test("cs_rename REFUSES an invalid C# identifier before it plans a single edit", async () => {
+  const projectPath = tmpProject({ "Player.cs": "public partial class Player : Node2D { int Counter; }\n" });
+  const { srv, received } = await startCs({
+    capabilities: { renameProvider: true },
+    onRequest: (msg, s) => writeFrame(s, {
+      jsonrpc: "2.0", id: msg.id,
+      result: { changes: { "file:///proj/Player.cs": [{ range: { start: { line: 0, character: 42 }, end: { line: 0, character: 49 } }, newText: "zzz" }] } },
+    }),
+  });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  // Measured live: each of these came back isError:false with a five-edit plan.
+  // "" is included deliberately — OmniSharp DOES reject it, but with an internal
+  // assertion failure ("Unexpected true - file Renamer.cs line 151"), not a
+  // usable validation error, so the host must refuse it too.
+  for (const bad of ["", "1bad name!", "a b", "a\nb", "my-name", " lead", "@", "@1bad"]) {
+    const res = (await rec.handler("cs_rename")({ path: "Player.cs", line: 0, character: 42, new_name: bad })) as ToolResultLike;
+    assert.equal(res.isError, true, `rename to ${JSON.stringify(bad)} must be refused`);
+    assert.match(res.content![0].text!, /not a valid C# identifier/);
+    // A HOST refusal, not a server failure — it must not send the caller to
+    // debug a language server that was never asked.
+    assert.doesNotMatch(res.content![0].text!, /^LSP error/);
+  }
+  assert.ok(!received.some((m) => m.method === "textDocument/rename"),
+    "must not send textDocument/rename at all — OmniSharp plans the illegal rename happily");
+  cslsp.close();
+  await srv.close();
+});
+
+test("cs_rename REFUSES a C# reserved keyword, but NOT a contextual keyword, a verbatim @name, or a Unicode identifier", async () => {
+  const projectPath = tmpProject({ "Player.cs": "public partial class Player : Node2D { int Counter; }\n" });
+  const { srv } = await startCs({
+    capabilities: { renameProvider: true },
+    onRequest: (msg, s) => writeFrame(s, {
+      jsonrpc: "2.0", id: msg.id,
+      result: { changes: { "file:///proj/Player.cs": [{ range: { start: { line: 0, character: 42 }, end: { line: 0, character: 49 } }, newText: "ok" }] } },
+    }),
+  });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  for (const kw of ["class", "int", "static", "void", "return", "true", "null", "string"]) {
+    const res = (await rec.handler("cs_rename")({ path: "Player.cs", line: 0, character: 42, new_name: kw })) as ToolResultLike;
+    assert.equal(res.isError, true, `rename to "${kw}" must be refused`);
+    assert.match(res.content![0].text!, /reserved keyword/);
+  }
+  // NOT over-eager. Each of these compiles, so each must still plan edits:
+  //   - ordinary and underscore-led identifiers
+  //   - CONTEXTUAL keywords, which are not reserved and are legal identifiers
+  //   - framework type names, shadowable exactly like Godot's engine classes
+  //   - the @-verbatim form, whose entire purpose is to legalize a keyword
+  //   - Unicode identifiers, which the C# spec allows
+  for (const good of [
+    "Counter2", "_private", "PascalCase",
+    "var", "value", "async", "await", "yield", "nameof", "record", "when", "from",
+    "Console", "String", "Task",
+    "@class", "@int", "@Counter",
+    "Ångström", "日本語", "_",
+  ]) {
+    const res = (await rec.handler("cs_rename")({ path: "Player.cs", line: 0, character: 42, new_name: good })) as ToolResultLike;
+    assert.notEqual(res.isError, true, `rename to "${good}" must be allowed`);
+    assert.equal((res.structuredContent as { edit_count?: number })?.edit_count, 1);
+  }
+  cslsp.close();
+  await srv.close();
+});
+
+test("the cs_* tools REFUSE a path that resolves outside the C# project root", async () => {
+  const projectPath = tmpProject({ "Player.cs": "public partial class Player {}\n" });
+  const { srv, received } = await startCs({
+    capabilities: { documentSymbolProvider: true, hoverProvider: true },
+    onRequest: (msg, s) => writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [] }),
+  });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  // Measured live: all three of the first forms answered isError:false with
+  // symbols:[]. The fourth is why the guard compares against `root + path.sep`
+  // rather than a bare startsWith(root) — a SIBLING directory whose name merely
+  // starts with the project's name would otherwise pass.
+  const sibling = `${projectPath}_evil/x.cs`;
+  for (const bad of ["res://../../../etc/passwd", "/etc/passwd", "res://../outside.cs", sibling]) {
+    const res = (await rec.handler("cs_document_symbols")({ path: bad })) as ToolResultLike;
+    assert.equal(res.isError, true, `${bad} must be refused`);
+    assert.match(res.content![0].text!, /outside the C# project root/);
+    assert.doesNotMatch(res.content![0].text!, /^LSP error/);
+  }
+  assert.ok(!received.some((m) => m.method === "textDocument/documentSymbol"),
+    "a refused path must never reach the language server");
+  // Not over-eager: a path inside the project still works, including one that
+  // walks out and back in again.
+  for (const good of ["res://Player.cs", "Player.cs", "res://sub/../Player.cs"]) {
+    const res = (await rec.handler("cs_document_symbols")({ path: good })) as ToolResultLike;
+    assert.notEqual(res.isError, true, `${good} must be allowed`);
+  }
+  cslsp.close();
+  await srv.close();
+});
+
+test("a cs_* host REFUSAL is not dressed up as an LSP error", async () => {
+  const projectPath = tmpProject({ "Player.cs": "public partial class Player {}\n" });
+  const { srv } = await startCs({ capabilities: { documentSymbolProvider: true } });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  // fail() is SHARED with the gd_* plane (lsp-common.ts), so the refusal path it
+  // grew in 1.34.0 covers cs_* for free — but only once something actually
+  // refuses. Before this change nothing did, so there was nothing to dress.
+  const refused = (await rec.handler("cs_document_symbols")({ path: "/etc/passwd" })) as ToolResultLike;
+  assert.doesNotMatch(refused.content![0].text!, /LSP error/);
+  assert.match(refused.content![0].text!, /^Refusing/);
+  cslsp.close();
+  await srv.close();
+});
+
+test("cs_* position inputs reject a negative line or character at the SCHEMA, before any handler runs", async () => {
+  const projectPath = tmpProject({ "Player.cs": "public partial class Player {}\n" });
+  const { srv } = await startCs({ capabilities: { hoverProvider: true } });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  // A handler pulled out of a recording server never sees its own zod schema —
+  // the real MCP server validates before dispatch — so this asserts the SCHEMA.
+  //
+  // The measured symptom here is NOT the gd_* one. A negative position did not
+  // come back a silent success; OmniSharp threw and the host returned
+  // `LSP error [-32603]: Internal Error - System.ArgumentOutOfRangeException`
+  // with a .NET stack trace in the tool's answer, on every position tool.
+  for (const tool of ["cs_hover", "cs_completion", "cs_definition", "cs_references", "cs_signature_help", "cs_rename"]) {
+    const shape = z.object(rec.tools.get(tool)!.config.inputSchema as Record<string, z.ZodTypeAny>);
+    for (const bad of [{ line: -1, character: 0 }, { line: 0, character: -1 }, { line: -5, character: -5 }]) {
+      const parsed = shape.safeParse({ path: "res://Player.cs", new_name: "x", ...bad });
+      assert.equal(parsed.success, false, `${tool} must reject ${JSON.stringify(bad)}`);
+    }
+    assert.equal(shape.safeParse({ path: "res://Player.cs", line: 0, character: 0, new_name: "x" }).success, true,
+      `${tool} must still accept 0,0`);
+  }
+  cslsp.close();
+  await srv.close();
+});
+
+test("the cs_* tools REFUSE a path that does not exist, instead of opening it as an empty document", async () => {
+  const projectPath = tmpProject({ "Player.cs": "public partial class Player {}\n" });
+  const { srv, received } = await startCs({
+    capabilities: { documentSymbolProvider: true, hoverProvider: true },
+    onRequest: (msg, s) => writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [] }),
+  });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  // readFileText() returns "" for ANY read failure, so a missing file was
+  // announced to OmniSharp via ensureOpen(uri, "") as an EMPTY one. This is a
+  // SHARPER repro than the GDScript one: measured live, cs_document_symbols
+  // returned byte-identical {"symbols":[]} with isError:false for a MISSING
+  // file, a genuinely EMPTY existing file, and a DIRECTORY. Three states, one
+  // answer — the caller could not tell which it got.
+  for (const tool of ["cs_document_symbols", "cs_diagnostics"]) {
+    const res = (await rec.handler(tool)({ path: "res://NoSuchFile.cs", wait_ms: 50 })) as ToolResultLike;
+    assert.equal(res.isError, true, `${tool} must refuse a missing file`);
+    assert.match(res.content![0].text!, /no such file/i);
+    assert.doesNotMatch(res.content![0].text!, /^LSP error/);
+  }
+  assert.ok(!received.some((m) => m.method === "textDocument/didOpen"),
+    "a missing file must never be announced to the language server at all");
+  // A directory is not a file either — `res://` resolves to the project root.
+  for (const dirPath of ["res://", "res://."]) {
+    const dir = (await rec.handler("cs_document_symbols")({ path: dirPath })) as ToolResultLike;
+    assert.equal(dir.isError, true, `${dirPath} must be refused`);
+    assert.match(dir.content![0].text!, /is not a file/);
+  }
+  cslsp.close();
+  await srv.close();
+});
+
+test("a C# file that EXISTS and is genuinely empty is still served — the guard is about absence, not size", async () => {
+  // The distinction the old behaviour destroyed. Measured live: "" on disk and
+  // no file at all produced identical {"symbols":[]} answers. An empty file that
+  // exists must still be opened and served.
+  const projectPath = tmpProject({ "Empty.cs": "", "Player.cs": "public partial class Player {}\n" });
+  const { srv, received } = await startCs({
+    capabilities: { documentSymbolProvider: true },
+    onRequest: (msg, s) => writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [] }),
+  });
+  const { cslsp, rec } = csToolHarness(srv.port, projectPath);
+  for (const good of ["res://Empty.cs", "res://Player.cs", "Player.cs"]) {
+    const res = (await rec.handler("cs_document_symbols")({ path: good })) as ToolResultLike;
+    assert.notEqual(res.isError, true, `${good} exists and must be served`);
+  }
+  assert.ok(received.some((m) => m.method === "textDocument/didOpen"),
+    "an existing file must still be opened on the language server");
+  cslsp.close();
+  await srv.close();
 });

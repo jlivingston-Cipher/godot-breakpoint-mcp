@@ -2132,12 +2132,48 @@ Rename a C# symbol project-wide via OmniSharp `textDocument/rename`. Returns the
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "line", "character", "new_name"],
   "properties": {
-    "path": { "type": "string" }, "line": { "type": "integer" },
-    "character": { "type": "integer" }, "new_name": { "type": "string" },
+    "path": { "type": "string" }, "line": { "type": "integer", "minimum": 0 },
+    "character": { "type": "integer", "minimum": 0 }, "new_name": { "type": "string" },
     "apply": { "type": "boolean", "default": false, "description": "Write edits to disk (default false = dry run returning the planned edit)" },
     "confirm": { "type": "boolean", "description": "Auto-approve writing edits (skip the elicitation prompt); only relevant with apply=true" } } }
 ```
 - **Output** same shape as `gd_rename`: `{ "changed_files": [string], "edit_count": integer, "applied": boolean, "written": [string] }` (`written` = absolute paths actually written, empty on a dry run).
+
+`new_name` must be a **valid C# identifier** and must not be a reserved keyword. OmniSharp does
+**not** validate it: measured against a real OmniSharp v1.39.15, a rename to `"1bad name!"`,
+`"class"`, `"int"`, `"  "`, `"a\nb"` or `"my-name"` each came back with a full five-edit plan and
+`isError: false` — and with `apply: true` those edits write C# that does not compile. The one string
+OmniSharp itself rejects is `""`, and it rejects it with an internal assertion failure
+(`Unexpected true - file Renamer.cs line 151`) rather than a usable validation error, so the host
+refuses that too. The refusal happens **before** the rename is planned and no `textDocument/rename`
+request is sent.
+
+The check is deliberately narrow. **Contextual keywords** (`var`, `value`, `async`, `await`,
+`yield`, `nameof`, `record`, `when`) are not reserved and stay legal; **framework type names**
+(`Console`, `String`, `Task`) are shadowable and stay legal, the same call the GDScript plane makes
+for engine classes; **Unicode identifiers** (`Ångström`) are valid C# and stay legal; and the
+**verbatim `@` prefix** is accepted precisely because it is what legalizes a keyword — `@class` is a
+valid identifier, so it skips the reserved-word check rather than being refused by it.
+
+`line` and `character` are **0-based and non-negative** on every `cs_*` tool that takes a position.
+A negative value is rejected by the input schema. Note the symptom here differed from the GDScript
+plane: rather than a silent success, a negative position reached OmniSharp and came back as
+`LSP error [-32603]: Internal Error - System.ArgumentOutOfRangeException` with a .NET stack trace in
+the tool's answer, on `cs_hover`, `cs_definition`, `cs_references`, `cs_completion` and
+`cs_signature_help` alike. The bound is one-sided by necessity — a line *past the end of the file*
+produces the same `-32603`, and no input schema can know the file's length.
+
+Every `cs_*` tool that takes a `path` **refuses one that resolves outside the C# project root** —
+including a `res://` path that walks out through `..` — and **refuses a path that does not exist**
+or is not a regular file. The refusal names the resolved path and is reported as a host refusal, not
+as an `LSP error [...]`.
+
+A missing C# script used to be **opened as an empty document**, the same `readFileText` shape the
+GDScript plane had, and here it erased the distinction completely: measured live,
+`cs_document_symbols` returned byte-identical `{"symbols": []}` with `isError: false` for a **missing
+file**, for a file that **exists and is genuinely empty**, and for a **directory** — three different
+states, one indistinguishable answer. **A file that exists and is genuinely empty is still served**;
+the guard is about absence, not size.
 
 ### `cs_document_symbols` ✅
 - **Input**
@@ -2182,7 +2218,7 @@ Unlike Godot's GDScript server, OmniSharp implements LSP `workspace/symbol`, so 
     "uri": { "type": "string" },
     "diagnostics": { "type": "array", "items": { "type": "object", "properties": {
       "severity": { "type": "string" }, "message": { "type": "string" },
-      "line": { "type": "integer" }, "character": { "type": "integer" } } } } } }
+      "line": { "type": "integer", "minimum": 0 }, "character": { "type": "integer", "minimum": 0 } } } } } }
 ```
 
 ### `cs_code_action` ✅ · OmniSharp implements it
