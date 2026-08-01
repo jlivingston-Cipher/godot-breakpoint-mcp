@@ -55,6 +55,10 @@ Ask Claude to run each; mark pass/fail.
 | A9 | `screenshot_editor` `{viewport:"2d"}` *(before switching)* | if the editor is not on 2D: `viewport_not_rendered`, naming the active tab and pointing at `main_screen_set` — **this is the expected result, not a failure** |
 | A10 | `main_screen_set` `{name:"2d"}` | `active: "2D"` (lower case in, engine spelling out) |
 | A11 | `screenshot_editor` `{viewport:"2d"}` *(after switching)* | image returned — the same call that was refused at A9 now succeeds |
+| A12 | `card_deck_from_table` `{table_path:"res://../anything.csv", …}` | refused `path_outside_project`, naming the resolved path. **The refusal is the pass.** `res://../` clears a `res://` prefix test but leaves the project root, and this tool stamps what it reads into the scene |
+| A13 | `card_deck_from_table` against a real but **empty** table | refused `empty_table` — *not* `not_found`. A directory or `""` (the project root) answers `not_a_file`; only a genuinely absent file answers `not_found` |
+| A14 | `board_create` twice at the same `path`, no `overwrite` | first call `saved: true`; **second call refused `exists`** and the scene on disk is byte-identical. Before 1.39.0 the second call appended to the first board and reported success |
+| A15 | `board_create` again with `overwrite: true` | scene REPLACED, node count back to the fresh value (not doubled). If that scene is open in the editor on Godot < 4.4 the call is refused `overwrite_unsupported` — refusing is correct, appending is the bug |
 
 ### Plane D — LSP (semantic)
 | # | Tool call | Expected |

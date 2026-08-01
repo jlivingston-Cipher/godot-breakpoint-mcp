@@ -3595,6 +3595,8 @@ Composite authoring **on top of** the existing primitives. Each `card_*` / `boar
 
 ### `card_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
 Build a reusable card `PackedScene` from a slot spec, with a generated script-backed `set_data()` / `set_face()`. Named slots (`label` / `rich_text` / `texture` / `panel` / `badge`) become the card's regions; optional inline theme and a two-sided card back.
+
+`path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "size", "slots"],
@@ -3714,6 +3716,8 @@ Instance N cards under a container and arrange them as a `row`, `fan`, `stack`, 
 
 ### `card_deck_from_table` ✅  (Plane A / Editor + host)  · undoable
 Read a CSV or JSON table and stamp one card per row, binding columns to slots via a column map. `column_map` values are bare `{column}` references or composed templates like `"{name} · {role}"`; an optional `filter` selects rows and an optional `layout` arranges them. Table columns no slot referenced are surfaced (never silently dropped).
+
+`table_path` may be `res://…`, project-relative, or absolute — but it must RESOLVE INSIDE the project root. A path that escapes it (including `res://../…`, which is not the same string test) is refused with `path_outside_project`. This is not a formality: the rows this tool reads are stamped into the scene, so an escaped read puts content from outside the project into your game. The refusal also distinguishes the causes that a bare "cannot read" used to merge — `not_found` (no such file), `not_a_file` (a directory, or the project root, which is what `""` resolves to), and `empty_table` (a real, reachable, zero-byte file). An empty table is a data problem; a missing one is a path problem, and they no longer share an error.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["template_path", "parent", "table_path", "column_map"],
@@ -3784,6 +3788,8 @@ Flip an instanced card (or any node exposing `set_face(bool)` — the generated 
 
 ### `board_create` ✅  (Plane A / Editor + host)  · writes files (gated)
 Build a board scene whose children are addressable **cells** — each a `cell_<id>` node in the `board_cells` group — from one of three general-purpose layouts: a `ring` of ids, a `grid` of `rows`×`cols` (ids `"<row>_<col>"`), or an explicit `cells` list of `{id, x, y}`. Cells are `Marker2D` (or `Control`) anchors positioned by pure ring/grid math; an optional `background` (solid `color` or a `res://` `art` texture) is drawn behind them. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `node.add_to_group` → `scene.save`. **Destructive** (writes a scene) — elicitation-gated. Returns the `cell_id → node_path + position` map. For `tile`-backed cells (a `TileMapLayer` grid addressed by `[x, y]` coordinates) see `board_tile_create` / `board_tile_place`.
+
+`path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "layout"],
@@ -3861,6 +3867,8 @@ Reparent an existing node (a card or piece instance) onto a board cell by id and
 
 ### `board_tile_create` ✅  (Plane A / Editor + host)  · writes files (gated)
 Build a **tile-backed** board scene: a `TileMapLayer` grid whose cells are addressable by integer `[x, y]` tile coordinates (`cols` wide × `rows` tall) — the other Group D idiom to `board_create`'s per-cell `Marker2D` anchors. The layer binds a `TileSet`: a supplied `tileset` `.tres`, or a fresh empty one created at `<scene>_tiles.tres`, so the layer has a real `tile_size` (the coordinate frame `board_tile_place` snaps to). `paint` optionally fills the whole grid with one tile from the bound tileset in a single action; omitted, the cells stay empty and the layer is a coordinate frame only. Adds **no** addon method — decomposes onto `scene.new` → `tileset.create` → `tilemaplayer.create` → `tilemap.set_cells_rect` → `scene.save`. **Destructive** (writes a scene, and a `TileSet` `.tres` unless `tileset` is supplied) — elicitation-gated. General-purpose — cells carry only coordinates. Returns the layer path + grid dimensions + tile size.
+
+`path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "rows", "cols"],
@@ -3930,6 +3938,8 @@ Snap an existing node (a card or piece instance) onto a `TileMapLayer` cell by i
 
 ### `piece_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
 Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite2D` under a `Node2D` root, `TextureRect` under a `Control` root), an optional `Label`, an optional hit area (`Area2D` + `CollisionShape2D` with a `rectangle`/`circle` shape sized from `size`), and an optional two-sided `Back`, plus a generated script-backed `set_data()` / `set_face()`. `set_data` binds the neutral keys `art` (texture) / `color` (Art tint) / `label` (text); `set_face` flips Art+Label vs Back. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `resource.create` → `scene.save`. **Destructive** (writes a scene + script) — elicitation-gated. Returns the scene path + created-node map.
+
+`path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "size"],

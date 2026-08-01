@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
 import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
-import { toFsPath, readFileText } from "../paths.js";
+import { readFileText, resolveExistingFile, resolveInsideProject } from "../paths.js";
 
 /**
  * Group M — Netcode & backend scaffolding (native multiplayer family, `mp_*`).
@@ -342,6 +342,8 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
     },
     async ({ to_path, port, max_clients, class_name, overwrite, confirm }) => {
       if (!to_path.startsWith("res://") || !to_path.endsWith(".gd")) return fail({ code: "bad_params", message: "'to_path' must be a res:// .gd path" });
+      // `res://../` satisfies the pre-guard and writes outside the root (161).
+      try { resolveInsideProject(to_path, config.projectPath, "to_path"); } catch (err) { return fail(err); }
       const blocked = await gate(server, confirm, `Write ENet peer script to ${to_path}`);
       if (blocked) return blocked;
       const content = buildEnetScript({ className: class_name, port: port ?? 24565, maxClients: max_clients ?? 32 });
@@ -372,6 +374,8 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
     },
     async ({ to_path, class_name, overwrite, confirm }) => {
       if (!to_path.startsWith("res://") || !to_path.endsWith(".gd")) return fail({ code: "bad_params", message: "'to_path' must be a res:// .gd path" });
+      // `res://../` satisfies the pre-guard and writes outside the root (161).
+      try { resolveInsideProject(to_path, config.projectPath, "to_path"); } catch (err) { return fail(err); }
       const blocked = await gate(server, confirm, `Write WebRTC peer script to ${to_path}`);
       if (blocked) return blocked;
       const content = buildWebrtcScript({ className: class_name });
@@ -413,8 +417,15 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
     },
     async ({ path, function: fn, mode, transfer_mode, call_local, channel, confirm }) => {
       if (!path.startsWith("res://") || !path.endsWith(".gd")) return fail({ code: "bad_params", message: "'path' must be a res:// .gd path" });
-      const source = readFileText(toFsPath(path, config.projectPath));
-      if (source === "") return fail({ code: "not_found", message: `Cannot read ${path} (does it exist?)` });
+      // The res:// pre-guard above stops an absolute path and a bare `../`, but
+      // `res://../elsewhere/x.gd` satisfies startsWith("res://") and resolved to
+      // a real file outside the project root — which this tool then REWROTE.
+      // Measured 3/3 against a sibling directory (session 161).
+      let source: string;
+      try {
+        source = readFileText(resolveExistingFile(path, config.projectPath, "path"));
+      } catch (err) { return fail(err); }
+      if (source === "") return fail({ code: "empty_file", message: `${path} is empty (0 bytes) — there is no source to annotate.` });
       const annotation = rpcAnnotation({
         mode: mode ?? "authority",
         call_local: call_local ?? false,
@@ -462,6 +473,8 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
     },
     async ({ to_path, port, max_players, class_name, overwrite, confirm }) => {
       if (!to_path.startsWith("res://") || !to_path.endsWith(".gd")) return fail({ code: "bad_params", message: "'to_path' must be a res:// .gd path" });
+      // `res://../` satisfies the pre-guard and writes outside the root (161).
+      try { resolveInsideProject(to_path, config.projectPath, "to_path"); } catch (err) { return fail(err); }
       const blocked = await gate(server, confirm, `Write multiplayer lobby script to ${to_path}`);
       if (blocked) return blocked;
       const content = buildLobbyScript({ className: class_name, port: port ?? 24565, maxPlayers: max_players ?? 8 });

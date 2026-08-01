@@ -1358,6 +1358,124 @@ jobs:
         if: always()
         run: tail -n 80 /tmp/godot-editor-authoring.log || true
 
+  tabletop-plane:
+    name: tabletop plane / card-board-piece vs real editor
+    runs-on: ubuntu-latest
+    # A REQUIRED gate from the day it lands, and deliberately so. Session 160
+    # §8.19 left `tabletop` as the last substantial lead — 14 tools, no live
+    # gate, and a read path five consecutive sessions had READ and described
+    # wrongly in two directions. Session 161 MEASURED it and found five defects
+    # where the handoff predicted one, two of which nobody had proposed: four
+    # scene creators wrote OUTSIDE the project root through `res://../` (which
+    # satisfies their `startsWith("res://")` pre-guard), and `overwrite` was
+    # declared in four schemas, documented, and never read — so a second create
+    # APPENDED to the existing scene and reported success.
+    #
+    # Adding it with continue-on-error would have made it theatre: the whole
+    # point is that these are silent-success defects, and a job that reports
+    # success while failing cannot catch a silent success. Same rule that
+    # promoted runtime-plane (s20), csharp-plane (s25), authoring-plane (s42)
+    # and gdscript-dap-plane (s159) — except those were promoted after proving
+    # themselves green, and this one is measured-red-then-green on the very
+    # commit that fixes it.
+    env:
+      # The tabletop composites decompose onto version-stable scene/node ops, so
+      # one newest-stable arm is enough — unlike the LSP/DAP planes, which matrix
+      # 4.3/4.7 to reveal capability divergence. One version-sensitive claim does
+      # exist (EditorInterface.close_scene is 4.4+) and the probe asserts BOTH
+      # sides of it, so a 4.3 arm would add a branch, not a guarantee.
+      GODOT_VERSION: "4.7-stable"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: host/package-lock.json
+      - name: Install Godot + Xvfb
+        run: |
+          set -eux
+          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Build host
+        working-directory: host
+        run: npm ci && npm run build
+      # THE FIXTURE, and it is the reason this job cannot run against example/
+      # in place. Two independent reasons, both standing since 160 §5:
+      #   1. the escape assertions need a SIBLING directory beside the project
+      #      root whose name SHARES the root's string prefix (`example_evil`),
+      #      because that is precisely the case a guard written as a bare
+      #      startsWith(root) lets through. There is nowhere in the repo to put
+      #      one that is not itself inside the repo.
+      #   2. booting --editor damages example/project.godot.
+      # A temp copy answers both, and it means nothing is committed to example/:
+      # the tracked-file count does not move and there is no new .uid sidecar.
+      - name: Stage a throwaway project copy with a sibling directory
+        run: |
+          set -eux
+          rm -rf /tmp/tt && mkdir -p /tmp/tt
+          cp -R "${{ github.workspace }}/example" /tmp/tt/example
+          mkdir -p /tmp/tt/example_evil
+          "$GODOT_BIN" --headless --path /tmp/tt/example --import || true
+      - name: Boot the editor under Xvfb and run the tabletop-plane gate
+        working-directory: host
+        env:
+          GODOT_PROJECT: /tmp/tt/example
+          # A CI runner has no GPU, so Godot's default Vulkan backend segfaults
+          # on init before the addon bridge can start. Force software OpenGL,
+          # same as the editor / dap / authoring planes.
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          # Bridge auth (default-on) is covered by bridge_auth_smoke.gd; this
+          # live probe connects without a secret, so disable auth for the boot.
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+        run: |
+          set -eux
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            "$GODOT_BIN" --editor --path "$GODOT_PROJECT" \
+            --rendering-driver opengl3 --audio-driver Dummy \
+            >/tmp/godot-editor-tabletop.log 2>&1 &
+          GODOT_PID=$!
+          # The addon opens :9080 once the editor enables the plugin. Software-
+          # rendered editor boot is slow — wait up to ~120s for the bridge port.
+          for i in $(seq 1 60); do
+            if node -e "require('net').connect(9080,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "bridge port open"; break
+            fi
+            sleep 2
+          done
+          node test-integration/tabletop-plane.integration.mjs
+          kill "$GODOT_PID" 2>/dev/null || true
+      # A SECOND, INDEPENDENT ORACLE for the claim that matters most.
+      #
+      # TT_WRITE_NO_LEAK diffs the sibling directory from inside the probe. That
+      # is the check that can name a leaked file, but it is also the probe
+      # grading its own homework — it compares against a baseline it took itself,
+      # and a probe that took the baseline at the wrong moment would be wrong in
+      # the same direction twice and still go green. This step knows nothing
+      # about the probe's baseline: it asserts the sibling directory holds
+      # EXACTLY the two fixture files the probe seeds and nothing else.
+      #
+      # Before the fix this directory held nine files after a run.
+      - name: Nothing may have been written outside the project root
+        if: always()
+        run: |
+          set -u
+          leaked=$(ls -1 /tmp/tt/example_evil 2>/dev/null | grep -vE '^(outside\.csv|outside\.gd)$' || true)
+          if [ -n "$leaked" ]; then
+            echo "::error::a tabletop or netcode tool wrote OUTSIDE the Godot project root"
+            echo "--- unexpected files in /tmp/tt/example_evil ---"
+            echo "$leaked"
+            exit 1
+          fi
+          echo "the sibling directory holds only the two seeded fixtures — nothing escaped the project root"
+      - name: Editor log tail (on failure)
+        if: always()
+        run: tail -n 80 /tmp/godot-editor-tabletop.log || true
+
   render-plane:
     name: render path / screenshot capture vs a real rasterizer (Xvfb + llvmpipe)
     runs-on: ubuntu-latest

@@ -1,9 +1,10 @@
+import fs from "node:fs";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient, BridgeError } from "../bridge.js";
 import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
-import { toFsPath, readFileText } from "../paths.js";
+import { readFileText, resolveExistingFile, resolveInsideProject, resolveWriteTarget } from "../paths.js";
 
 /**
  * Group N — Card / board / piece authoring composites (`card_*`, and later
@@ -657,8 +658,12 @@ export async function emitDeckFromTable(emit: Emit, readFile: ReadFile, args: De
   const face_up = args.face_up ?? true;
   const format: "csv" | "json" = args.format ?? (args.table_path.toLowerCase().endsWith(".json") ? "json" : "csv");
 
+  // The reader seam guarantees the file EXISTS and is a regular file inside the
+  // project root (see resolveExistingFile), so "" here means one thing only: a
+  // real, reachable, zero-byte table. It used to mean four things at once and
+  // reported the wrong one for three of them.
   const text = readFile(args.table_path);
-  if (text === "") throw new ComposeError("not_found", `Cannot read table ${args.table_path} (does it exist?)`);
+  if (text === "") throw new ComposeError("empty_table", `Table ${args.table_path} is empty (0 bytes) — there are no rows to stamp.`);
   const allRows = readTableRows(text, format);
   const rows_read = allRows.length;
   const header = new Set<string>();
@@ -1742,7 +1747,72 @@ export async function emitAddDropZone(emit: Emit, args: AddDropZoneArgs): Promis
 
 export function registerTabletopTools(server: McpServer, bridge: BridgeClient, config: Config): void {
   const emit: Emit = (method, params) => bridge.request(method, params);
-  const readFile: ReadFile = (p) => readFileText(toFsPath(p, config.projectPath));
+  // The reader REFUSES a path that escapes the project root, and separates
+  // "missing" / "a directory" / "the project root" from "an empty file" —
+  // `readFileText` alone answered "" to all four and the caller was told
+  // "does it exist?" for three things that did.
+  const readFile: ReadFile = (p) => readFileText(resolveExistingFile(p, config.projectPath, "table_path"));
+
+  /**
+   * Guard a caller-supplied res:// scene/script target before anything is
+   * written: refuse a path that escapes the root, refuse an existing target
+   * unless `overwrite`, and — when overwriting — close a stale editor tab.
+   *
+   * That last step is not defensive. The addon's `scene.new` saves a fresh
+   * single-root scene to `path` and then calls
+   * `EditorInterface.open_scene_from_path(path)`. When that scene is ALREADY
+   * OPEN the editor switches to the existing tab, whose in-memory tree is the
+   * OLD one — so every `node.add` that follows lands on top of it and the save
+   * writes both trees. Measured (session 161): a second `board_create` against
+   * the same path took a 5-node scene to 9, reported `saved: true` and a
+   * `node_count` of 5, and never mentioned the four orphans it had just made.
+   */
+  function guardWriteTarget(p: string, overwrite: boolean | undefined, label: string): void {
+    resolveWriteTarget(p, config.projectPath, { overwrite, label });
+  }
+
+  /**
+   * The second half, run only AFTER the confirmation gate has been cleared —
+   * closing a scene tab is a visible side effect and must not happen on a call
+   * the caller then declines.
+   */
+  async function clearStaleTab(p: string): Promise<void> {
+    // Unconditional, and deliberately NOT gated on "the file exists": the stale
+    // tab is the editor's, not the disk's. Measured — deleting the .tscn out
+    // from under an OPEN editor tab still produced an append, because
+    // open_scene_from_path reuses the tab whatever the disk says. Keying the
+    // close on `exists` would have left that case open; keying it on "is this
+    // scene open" closes the whole class.
+    const open = await emit("scene.list_open", {}) as { scenes?: unknown; current?: unknown };
+    const scenes = Array.isArray(open?.scenes) ? open.scenes.map(String) : [];
+    if (!scenes.includes(p)) return;   // not open: scene.new reopens it fresh from disk
+    if (open?.current !== p) {
+      // Only the CURRENT scene can be closed, so a non-current target has to be
+      // made current first — and `scene.open` needs the file to still be there.
+      // A scene whose file was deleted from under the editor cannot be reached
+      // this way; skip rather than turn a create into "Scene not found". That
+      // residual case needs someone to delete a .tscn behind the editor's back,
+      // which no tool in this surface does.
+      if (!fs.existsSync(resolveInsideProject(p, config.projectPath, "path"))) return;
+      await emit("scene.open", { path: p });
+    }
+    try {
+      await emit("scene.close", { path: p });
+    } catch (err) {
+      // EditorInterface.close_scene is Godot 4.4+; the addon answers
+      // "unsupported" below that. Refuse rather than proceed — proceeding is
+      // exactly the silent append this guard exists to stop.
+      if ((err as { code?: string })?.code === "unsupported") {
+        throw new ComposeError(
+          "overwrite_unsupported",
+          `Cannot overwrite ${p}: it is open in the editor, and closing a scene requires Godot 4.4+. ` +
+          `Close that scene tab by hand and retry, or write to a different path. Overwriting an OPEN ` +
+          `scene without closing it appends to the stale tab instead of replacing it.`,
+        );
+      }
+      throw err;
+    }
+  }
 
   const slotSchema = z.object({
     name: z.string().describe("Slot key used by card_instance / card_deck_from_table data (e.g. title, cost, body, art)"),
@@ -1798,7 +1868,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           }).optional(),
         }).optional().describe("Inline theme built via theme_create + theme_set_*"),
         script_path: z.string().optional().describe("Generated card script path (default derives from `path`)"),
-        overwrite: z.boolean().optional().describe("Overwrite an existing template at `path` (default false)"),
+        overwrite: z.boolean().optional().describe("Replace an existing template at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
@@ -1806,9 +1876,15 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const a = raw as unknown as TemplateSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
       if (a.theme_path && a.theme) return fail({ code: "bad_params", message: "Pass either theme_path or an inline theme, not both" });
+      try {
+        guardWriteTarget(a.path, a.overwrite, "path");
+        if (a.script_path !== undefined) resolveInsideProject(a.script_path, config.projectPath, "script_path");
+        if (a.theme_path !== undefined) resolveInsideProject(a.theme_path, config.projectPath, "theme_path");
+      } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create card template scene + script at ${a.path}`);
       if (blocked) return blocked;
       try {
+        await clearStaleTab(a.path);
         return ok(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(err);
@@ -1989,16 +2065,18 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           art: z.string().optional().describe("res:// texture background (Sprite2D under Node2D, TextureRect under Control)"),
           size: z.object({ w: z.number().optional(), h: z.number().optional() }).optional().describe("Background size in px (ColorRect / TextureRect)"),
         }).optional().describe("Optional background drawn behind the cells"),
-        overwrite: z.boolean().optional().describe("Overwrite an existing board at `path` (default false)"),
+        overwrite: z.boolean().optional().describe("Replace an existing board at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
     async (raw) => {
       const a = raw as unknown as BoardSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
+      try { guardWriteTarget(a.path, a.overwrite, "path"); } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create board scene at ${a.path}`);
       if (blocked) return blocked;
       try {
+        await clearStaleTab(a.path);
         return ok(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(err);
@@ -2051,7 +2129,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           atlas_coords: z.array(z.number().int()).length(2).optional().describe("Tile atlas coordinates [x, y] within the source (default [0, 0])"),
         }).optional().describe("Fill the whole grid with one tile (needs an existing `tileset` that has the source); omitted → cells stay empty (a coordinate frame only)"),
         layer_name: z.string().optional().describe("TileMapLayer node name (default \"Cells\")"),
-        overwrite: z.boolean().optional().describe("Overwrite an existing board at `path` (default false)"),
+        overwrite: z.boolean().optional().describe("Replace an existing board at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
@@ -2059,9 +2137,16 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const a = raw as unknown as TileBoardSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
       if (a.tileset !== undefined && !(a.tileset.startsWith("res://") && a.tileset.endsWith(".tres"))) return fail({ code: "bad_params", message: "'tileset' must be a res:// .tres path" });
+      try {
+        guardWriteTarget(a.path, a.overwrite, "path");
+        // A supplied tileset is READ, not written — but `res://../x.tres` would
+        // reach outside the root just the same, so it is resolved too.
+        if (a.tileset !== undefined) resolveInsideProject(a.tileset, config.projectPath, "tileset");
+      } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create tile-backed board scene at ${a.path}`);
       if (blocked) return blocked;
       try {
+        await clearStaleTab(a.path);
         return ok(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(err);
@@ -2121,16 +2206,21 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           color: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional().describe("Solid ColorRect back colour"),
         }).optional().describe("Optional back state; its presence makes the piece two-sided"),
         script_path: z.string().optional().describe("Generated piece script path (default derives from `path`)"),
-        overwrite: z.boolean().optional().describe("Overwrite an existing template at `path` (default false)"),
+        overwrite: z.boolean().optional().describe("Replace an existing template at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
     async (raw) => {
       const a = raw as unknown as PieceSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
+      try {
+        guardWriteTarget(a.path, a.overwrite, "path");
+        if (a.script_path !== undefined) resolveInsideProject(a.script_path, config.projectPath, "script_path");
+      } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create piece template scene + script at ${a.path}`);
       if (blocked) return blocked;
       try {
+        await clearStaleTab(a.path);
         return ok(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(err);
@@ -2228,6 +2318,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     async (raw) => {
       const a = raw as unknown as MakeDraggableArgs & { confirm?: boolean };
       if (!a.script_path.startsWith("res://") || !a.script_path.endsWith(".gd")) return fail({ code: "bad_params", message: "'script_path' must be a res:// .gd path" });
+      try { resolveInsideProject(a.script_path, config.projectPath, "script_path"); } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Make ${a.node} draggable (writes script ${a.script_path})`);
       if (blocked) return blocked;
       try {
@@ -2268,6 +2359,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     async (raw) => {
       const a = raw as unknown as AddDropZoneArgs & { confirm?: boolean };
       if (!a.script_path.startsWith("res://") || !a.script_path.endsWith(".gd")) return fail({ code: "bad_params", message: "'script_path' must be a res:// .gd path" });
+      try { resolveInsideProject(a.script_path, config.projectPath, "script_path"); } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Add a drop zone on ${a.node} (writes script ${a.script_path})`);
       if (blocked) return blocked;
       try {

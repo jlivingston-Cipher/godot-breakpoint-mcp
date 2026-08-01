@@ -236,7 +236,11 @@ test("mp_wire_rpc errors clearly when the script cannot be read (no bridge call)
   const { handlers, calls } = setup({ projectPath: "/tmp/gcb-does-not-exist" }, WRITTEN);
   const r = await handlers.mp_wire_rpc({ path: "res://missing.gd", function: "x", confirm: true });
   assert.equal(r.isError, true);
-  assert.match(r.content![0].text!, /Cannot read/);
+  // The refusal now NAMES the resolved path instead of asking "does it exist?".
+  // That question was the defect: it was equally the answer for a directory, a
+  // real but empty file, and the project root itself (session 161 measured all
+  // four, and three of them existed).
+  assert.match(r.content![0].text!, /no such file/);
   assert.equal(calls.length, 0);
 });
 
