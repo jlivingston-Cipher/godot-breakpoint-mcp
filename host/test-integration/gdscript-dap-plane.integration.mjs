@@ -452,6 +452,16 @@ try {
         check(sc(rs).session_id === "godot" && typeof sc(rs).state === "string", "GD_DAP_RESTART", `…and answered the documented shape (state=${sc(rs).state})`);
       }
     }
+
+    // 🔴 END THIS SESSION BEFORE SECTION 9 OPENS ANOTHER, and CI taught it — on the
+    // 4.3 arm only. The editor serves ONE debug session at a time (§7's standing
+    // gotcha), and section 8's `dbg_restart` deliberately leaves a fresh game running.
+    // Without this, section 9's launch is refused and three claims fail for a reason
+    // that has nothing to do with what they test. On 4.7 it happened to pass, because
+    // the restarted game had already terminated by the time section 9 ran — a timing
+    // accident, which is exactly the kind of thing a gate must not depend on.
+    await endSession(dap);
+    live = null;
   }
 
   // ── 9. buffered breakpoint modifiers are feature-detected too ───────────────
@@ -485,7 +495,16 @@ try {
     check(sc(before).unsupported_modifiers === undefined, "GD_DAP_MODIFIERS", "…and claims no verdict it cannot yet have");
 
     const launched = await call("dbg_launch", { scene: "main", allow_port_conflict: true });
-    check(launched.isError !== true, "GD_DAP_MODIFIERS", "the launch that applies the buffered modifiers is accepted");
+    // Quote the refusal when it fails: a launch refused here means the previous
+    // section left a session open, which is a completely different fault from the
+    // modifier reporting under test — and the first CI run said only "not accepted".
+    check(
+      launched.isError !== true,
+      "GD_DAP_MODIFIERS",
+      launched.isError === true
+        ? `the launch that applies the buffered modifiers was REFUSED: ${textOf(launched).slice(0, 110)}`
+        : "the launch that applies the buffered modifiers is accepted",
+    );
     const caps = dap.capabilities;
     // The expected set is derived from what THIS adapter advertises, so the claim is
     // the same one on a build that implements the modifiers and on one that does not.
