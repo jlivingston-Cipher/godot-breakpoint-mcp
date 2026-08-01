@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.35.0] — 2026-07-31
+
 ### Added — the `cs_*` plane has a gate, and the job it lives in stops overstating itself
 `host/test-integration/cs-lsp-plane.integration.mjs` asserts all ten `cs_*` tools against a real
 OmniSharp, as a new **`C2 GATE`** step inside the existing `csharp-plane` job.
