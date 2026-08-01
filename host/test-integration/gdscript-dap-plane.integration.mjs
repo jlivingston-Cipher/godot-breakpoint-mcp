@@ -242,17 +242,32 @@ try {
     check(String(frames[0]?.source ?? "").endsWith("player.gd"), "GD_DAP_LIVE", `the top frame is in the script we breakpointed (${frames[0]?.source})`);
     const scopes = await call("dbg_scopes", { frame_id: frames[0]?.id ?? 0 });
     check(scopes.isError !== true && (sc(scopes).scopes ?? []).length > 0, "GD_DAP_LIVE", `scopes: ${(sc(scopes).scopes ?? []).map((s) => s.name).join(",")}`);
-    // 🔴 `dbg_evaluate` gets an INVARIANT, not a value. Godot's own adapter answers
-    // `success=false message="timeout"` after ~5 s at a `breakpoint` stop while
-    // returning "2" for the same expression at a `step` stop — measured, repeatedly,
-    // both ways. Asserting `result === "2"` would make this gate flaky by
-    // construction, which is 1.36.0's lesson about building on what a plane can
-    // assert deterministically. What IS the host's own contract: it never answers a
-    // silent success. Either a result comes back, or the adapter's refusal does.
+    // 🔴 `dbg_evaluate` gets a SHAPE assertion, not a value, and the reason is worth
+    // reading. The same `1+1` at a live stop produces three different answers from
+    // Godot depending on build and stop reason — "2" at a `step` stop on 4.7,
+    // `success=false message="timeout"` after ~5 s at a `breakpoint` stop on 4.7, and
+    // `success` with an EMPTY result on 4.3. All three are upstream; none is the
+    // host's to fix, and an empty string is a legitimate value for an expression to
+    // have, so refusing it would be over-eager. Asserting a value here would make the
+    // gate flaky by construction — 1.36.0's lesson about building only on what a
+    // plane can assert deterministically.
+    //
+    // What IS the host's contract, and what this pins: the answer is self-describing
+    // either way. A refusal carries a non-empty message (never the bare label-and-colon
+    // this release also fixed); a success carries the full documented shape. The value
+    // itself is logged, not asserted, so the 4.3/4.7 difference stays visible.
     const ev = await call("dbg_evaluate", { expression: "1+1", confirm: true });
-    const evalOk = ev.isError !== true && String(sc(ev).result ?? "") !== "";
-    const evalRefused = ev.isError === true && textOf(ev).trim().length > 0 && !/\[\w+\]:\s*$/.test(textOf(ev));
-    check(evalOk || evalRefused, "GD_DAP_LIVE", evalOk ? `evaluate 1+1 -> ${sc(ev).result}` : `evaluate refused with a non-empty message (upstream): ${textOf(ev).slice(0, 80)}`);
+    const shapeOk =
+      ev.isError === true
+        ? textOf(ev).trim().length > 0 && !/\[\w+\]:\s*$/.test(textOf(ev))
+        : sc(ev).result !== undefined && sc(ev).type !== undefined && sc(ev).variables_ref !== undefined;
+    check(
+      shapeOk,
+      "GD_DAP_LIVE",
+      ev.isError === true
+        ? `evaluate refused with a non-empty message (upstream): ${textOf(ev).slice(0, 80)}`
+        : `evaluate answered the documented shape; result=${JSON.stringify(sc(ev).result)} type=${JSON.stringify(sc(ev).type)}`,
+    );
     const stepped = await call("dbg_step", { kind: "over" });
     check(stepped.isError !== true, "GD_DAP_LIVE", `step over -> state=${sc(stepped).state} reason=${sc(stepped).stopped_reason}`);
     const cont = await call("dbg_continue", {});

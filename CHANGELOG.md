@@ -99,6 +99,15 @@ job, rebuilt by accident inside the tool written to prevent it. Found by an over
 by reading. The bail-out now lands in a `catch` that counts a failure, and a recorded crash counts as
 one too.
 
+### Note — what Godot answers to `dbg_evaluate` is three different things, all upstream
+The same `1+1` at a live stop produced `"2"` at a `step` stop on 4.7, `success=false
+message="timeout"` after ~5 s at a `breakpoint` stop on 4.7, and **success with an empty result** on
+4.3. None is the host's to fix, and an empty string is a legitimate value for an expression to have,
+so refusing it would be over-eager. The gate therefore asserts the answer's **shape** — a refusal
+carries a non-empty message, a success carries the documented fields — and logs the value rather
+than asserting it, so the version difference stays visible in the job log. Left alone on the same
+call 158 §13 made about upstream behaviour the host passes through.
+
 ### Note — three corrections carried from the handoff
 `dbg_*` is **fifteen** tools, not the seventeen the handoff predicted (13 + `dbg_goto` +
 `dbg_data_breakpoints`). `dbg_set_exception_breakpoints`, `dbg_goto`, `dbg_data_breakpoints` and
