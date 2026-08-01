@@ -1,11 +1,9 @@
 import { z } from "zod";
-import * as fs from "node:fs";
-import * as nodePath from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { CsDapClient } from "../csdap.js";
 import { DapError } from "../dap.js";
-import { toFsPath } from "../paths.js";
+import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 import { portFree, portConflictMessage } from "../ports.js";
@@ -83,6 +81,39 @@ function isDapTimeout(err: unknown): err is DapError {
  * `supportsGotoTargetsRequest` nor `supportsDataBreakpoints`, so those tools
  * would only ever return "unsupported" here.
  */
+/**
+ * 🔴 THE PLANE WHOSE GUARD IS DELIBERATELY DIFFERENT, and the one 161 §8 item 5 said
+ * to find before folding anything together. `anchoredOnly` is the whole difference:
+ *
+ *   - `res://…` and relative paths are PROJECT-ANCHORED by definition; one that
+ *     resolves outside the root (`res://../../../etc/passwd` landed in
+ *     `~/Downloads/etc/passwd`) is meaningless and is refused.
+ *   - an ABSOLUTE path is the caller explicitly naming a file elsewhere, which is
+ *     exactly how you debug another program — `cs_dbg_launch` documents overriding
+ *     `program` for precisely that. It stays legal.
+ *
+ * Measured, session 162, and this is not a reading of the code: `<csroot>_evil/…` and
+ * a plain `elsewhere/…` both answered ok through the real stdio server, while every
+ * project-anchored escape was refused. The cs-dap gate DEPENDS on this — its own
+ * throwaway fixture source is an absolute path outside the project, and §4 of that
+ * probe is built on breakpoints in it. Flattening this plane onto the other three
+ * would have broken the documented mainline of the tool AND its gate.
+ *
+ * Existence is checked for BOTH forms: that guard asks whether a breakpoint can bind
+ * at all, and it is location-independent.
+ */
+const CS_DAP_PATHS: PlaneWording = {
+  root: "the C# project root",
+  escapeHint:
+    "A res:// or relative path is project-anchored; pass an absolute path to set a " +
+    "breakpoint in a program outside the project.",
+  missingHint:
+    "A breakpoint there can never bind, but it was previously answered exactly like " +
+    "one on a real file.",
+  emptyNote: " (an empty path resolves to the project root)",
+  anchoredOnly: true,
+};
+
 export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Config): void {
   const root = cfg.csDapProjectPath;
 
@@ -112,36 +143,7 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
    * `root + path.sep`, never a bare `startsWith(root)`: the latter accepts a sibling
    * directory that merely shares the root's name prefix.
    */
-  const guardSource = (p: string): string => {
-    const fsPath = nodePath.resolve(toFsPath(p, root));
-    const rootPath = nodePath.resolve(root);
-    const projectAnchored = !nodePath.isAbsolute(p);
-    if (projectAnchored && fsPath !== rootPath && !fsPath.startsWith(rootPath + nodePath.sep)) {
-      refuse(
-        `Refusing "${p}": it resolves to ${fsPath}, which is outside the C# project root ` +
-          `(${rootPath}). A res:// or relative path is project-anchored; pass an absolute ` +
-          `path to set a breakpoint in a program outside the project.`,
-        "path_outside_project",
-      );
-    }
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(fsPath);
-    } catch {
-      refuse(
-        `Refusing "${p}": no such file (${fsPath}). A breakpoint there can never bind, but ` +
-          `it was previously answered exactly like one on a real file.`,
-        "file_not_found",
-      );
-    }
-    if (!stat.isFile()) {
-      refuse(
-        `Refusing "${p}": ${fsPath} is not a file${p === "" ? " (an empty path resolves to the project root)" : ""}.`,
-        "not_a_file",
-      );
-    }
-    return fsPath;
-  };
+  const guardSource = (p: string): string => resolveSourceFile(p, root, CS_DAP_PATHS);
 
   server.registerTool(
     "cs_dbg_launch",

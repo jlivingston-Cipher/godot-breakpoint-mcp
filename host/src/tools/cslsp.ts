@@ -1,10 +1,9 @@
 import fs from "node:fs";
-import nodePath from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { CsLspClient } from "../cslsp.js";
-import { toFileUri, toFsPath, readFileText } from "../paths.js";
+import { toFileUri, toFsPath, readFileText, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import {
   COMPLETION_KIND, SYMBOL_KIND, ok, fail, markupToString, isMethodNotFound, normalizeLocations,
@@ -78,6 +77,27 @@ const CS_KEYWORDS = new Set([
   "using", "virtual", "void", "volatile", "while",
 ]);
 
+/**
+ * This plane's shipped refusal wording, kept verbatim while the guard itself moved to
+ * `paths.ts` (161 §8 item 5). `cs-lsp-plane.integration.mjs` pins /outside the C#
+ * project root/ by regex, so the `root` phrase here is a contract, not decoration —
+ * and it is the reason `paths.ts` takes the wording as a parameter instead of
+ * hardcoding "Godot" the way the tabletop helper does.
+ *
+ * Measured against OmniSharp v1.39.15: `res://../../../etc/passwd`, a bare
+ * `/etc/passwd` and `res://../../README.md` each resolved outside the project root and
+ * were answered with `isError: false`. And this plane had the SHARPER existence repro:
+ * `cs_document_symbols` returned byte-identical `{"symbols":[]}` for a MISSING file,
+ * a genuinely EMPTY one, and a DIRECTORY — three states, one answer.
+ */
+const CS_LSP_PATHS: PlaneWording = {
+  root: "the C# project root",
+  escapeHint: "Pass a res:// path, or a path inside the project.",
+  missingHint:
+    "It was previously opened as an EMPTY document, so the language server answered " +
+    "about a file that does not exist.",
+};
+
 export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: Config): void {
   const root = cfg.csLspProjectPath;
 
@@ -98,45 +118,7 @@ export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: C
    * latter accepts a SIBLING directory that merely shares the root's name prefix.
    */
   const guardPath = (p: string): void => {
-    const fsPath = nodePath.resolve(toFsPath(p, root));
-    const rootPath = nodePath.resolve(root);
-    if (fsPath !== rootPath && !fsPath.startsWith(rootPath + nodePath.sep)) {
-      throw Object.assign(
-        new Error(
-          `Refusing "${p}": it resolves to ${fsPath}, which is outside the C# ` +
-          `project root (${rootPath}). Pass a res:// path, or a path inside the project.`,
-        ),
-        { refusal: true, code: "path_outside_project" },
-      );
-    }
-    // A file that does not exist must be REFUSED, not opened as an empty one.
-    // `readFileText` swallows every read error and returns "" (it is shared with
-    // three other tool families, so it stays lenient), and `ensureOpen(uri, "")`
-    // tells the language server the file exists and is empty.
-    //
-    // Measured against a real OmniSharp, and this is a SHARPER repro than the
-    // GDScript one: `cs_document_symbols` returns byte-identical `{"symbols":[]}`
-    // with `isError: false` for a MISSING file, for a file that exists and is
-    // genuinely EMPTY, and for a DIRECTORY. Three different states, one answer —
-    // the caller cannot tell which it got.
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(fsPath);
-    } catch {
-      throw Object.assign(
-        new Error(
-          `Refusing "${p}": no such file (${fsPath}). It was previously opened as an ` +
-          `EMPTY document, so the language server answered about a file that does not exist.`,
-        ),
-        { refusal: true, code: "file_not_found" },
-      );
-    }
-    if (!stat.isFile()) {
-      throw Object.assign(
-        new Error(`Refusing "${p}": ${fsPath} is not a file.`),
-        { refusal: true, code: "not_a_file" },
-      );
-    }
+    resolveSourceFile(p, root, CS_LSP_PATHS);
   };
 
   const openAndPos = async (path: string) => {

@@ -1,16 +1,43 @@
 import fs from "node:fs";
-import nodePath from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { LspClient } from "../lsp.js";
-import { toFileUri, toFsPath, readFileText } from "../paths.js";
+import { toFileUri, toFsPath, readFileText, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import {
   type Range, type Location,
   COMPLETION_KIND, SYMBOL_KIND, ok, fail, markupToString, isMethodNotFound, normalizeLocations,
   applyTextEdits,
 } from "./lsp-common.js";
+
+/**
+ * The wording this plane's refusals have shipped with, kept verbatim while the guard
+ * itself moved to `paths.ts` (161 §8 item 5). `lsp-plane.integration.mjs` pins every
+ * string here by regex — /outside the Godot project root/, /no such file/,
+ * /is not a file/ — so this constant IS the contract, not decoration.
+ *
+ * Measured, sessions 156 and 162: `toFsPath` joins through `path.join`, which
+ * normalizes `..` away silently, so `res://../../../etc/passwd` resolved to a real
+ * path outside the project and the tools answered success for it. And a missing file
+ * was OPENED AS AN EMPTY ONE: `gd_document_symbols` returned a phantom
+ * `{name: "<file>.gd", kind: "class"}` and `gd_diagnostics` a genuine
+ * "(EMPTY_FILE): Empty script file." warning — both isError:false, about a file that
+ * is not there.
+ *
+ * 🔴 162: this guard sits AFTER each tool's capability check, so on Godot 4.7 only
+ * 11 of the 19 path-taking gd_* tools reach it — the other 8 answer "unsupported"
+ * first. Nothing escapes (an unsupported tool never touches the path), but the live
+ * gate can only assert the refusal on tools whose provider the connected build
+ * advertises. Measured, recorded, deliberately NOT rearranged.
+ */
+const GD_LSP_PATHS: PlaneWording = {
+  root: "the Godot project root",
+  escapeHint: "Pass a res:// path, or a path inside the project.",
+  missingHint:
+    "It was previously opened as an EMPTY document, so the language server answered " +
+    "about a file that does not exist.",
+};
 
 /**
  * Returned by gd_workspace_symbols when the connected Godot build's GDScript
@@ -227,47 +254,8 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
    * leaked, but nothing refused it either.
    */
   const guardPath = (p: string): void => {
-    const fsPath = nodePath.resolve(toFsPath(p, cfg.projectPath));
-    const root = nodePath.resolve(cfg.projectPath);
-    if (fsPath !== root && !fsPath.startsWith(root + nodePath.sep)) {
-      throw Object.assign(
-        new Error(
-          `Refusing "${p}": it resolves to ${fsPath}, which is outside the Godot ` +
-          `project root (${root}). Pass a res:// path, or a path inside the project.`,
-        ),
-        { refusal: true, code: "path_outside_project" },
-      );
-    }
-    // A file that does not exist must be REFUSED, not opened as an empty one.
-    // `readFileText` swallows every read error and returns "" (it is shared with
-    // four other tool families, so it stays lenient), and `ensureOpen(uri, "")`
-    // tells the language server the file exists and is empty. The server then
-    // answers honestly about THAT: measured on real 4.3/4.5/4.7,
-    // `gd_document_symbols` on a missing path returned a phantom
-    // `{name: "<file>.gd", kind: "class"}` with isError:false, and
-    // `gd_diagnostics` returned a genuine "(EMPTY_FILE): Empty script file."
-    // warning. Both are the host answering success about a file that is not
-    // there — the caller cannot distinguish "empty" from "absent".
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(fsPath);
-    } catch {
-      throw Object.assign(
-        new Error(
-          `Refusing "${p}": no such file (${fsPath}). It was previously opened as an ` +
-          `EMPTY document, so the language server answered about a file that does not exist.`,
-        ),
-        { refusal: true, code: "file_not_found" },
-      );
-    }
-    if (!stat.isFile()) {
-      throw Object.assign(
-        new Error(`Refusing "${p}": ${fsPath} is not a file.`),
-        { refusal: true, code: "not_a_file" },
-      );
-    }
+    resolveSourceFile(p, cfg.projectPath, GD_LSP_PATHS);
   };
-
   const openAndPos = async (path: string) => {
     guardPath(path);
     const uri = toFileUri(path, cfg.projectPath);
