@@ -76,7 +76,7 @@ export function buildToolsets(d: ToolsetDeps): Toolset[] {
   d.onPeers?.(peers);
   return [
     { id: "cli", describe: "Plane B — headless CLI (no editor required)", run: () => registerCliTools(s, c) },
-    { id: "editor", describe: "Plane A — live editor authoring (addon bridge)", run: () => registerEditorTools(s, stub<AnyClient>(d.bridge)) },
+    { id: "editor", describe: "Plane A — live editor authoring (addon bridge)", run: () => registerEditorTools(s, stub<AnyClient>(d.bridge), c) },
     { id: "lsp", describe: "Plane D — GDScript language server (LSP)", run: () => registerLspTools(s, stub<AnyClient>(d.lsp), c) },
     { id: "cslsp", describe: "Plane D — C# language server (OmniSharp)", run: () => registerCsLspTools(s, stub<AnyClient>(d.csLsp), c) },
     { id: "dap", describe: "Plane D — GDScript debug adapter (DAP)", run: () => registerDapTools(s, stub<AnyClient>(d.dap), c) },

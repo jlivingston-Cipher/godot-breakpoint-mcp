@@ -52,6 +52,27 @@ export function fail(err: unknown) {
 }
 
 /**
+ * MCP error envelope for a PATH REFUSAL — the host declining a call before it
+ * touches any backend. Lives here, beside `ok`/`fail`, because it belongs to no
+ * single plane: the editor writers and the asset generators both raise it.
+ *
+ * 🔴 DELIBERATELY NOT the editor plane's `fail()`, which labels everything
+ * "Bridge error" — that means "the editor could not be reached" and sends the
+ * caller to restart Godot over a typo in their own path. The distinction is the
+ * one `fail()` above already draws for LSP refusals, applied to the writers.
+ *
+ * The refusal's own message and `path_outside_project` code carry through
+ * unchanged, which is what every gate in the tree actually pins.
+ */
+export function failPath(err: unknown) {
+  const be = err as { code?: string; message?: string };
+  return {
+    isError: true as const,
+    content: [{ type: "text" as const, text: `Path error [${be?.code ?? "error"}]: ${be?.message ?? String(err)}` }],
+  };
+}
+
+/**
  * Normalize an LSP documentation / MarkupContent field (a plain string, a
  * `{ kind, value }` MarkupContent, or an array of either) down to a single
  * string. Used by hover-style and signature-help results.

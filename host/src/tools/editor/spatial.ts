@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** 3D & navigation. meshinstance/mesh/light/camera/csg/navregion/navagent mutate the EDITED scene and are undoable + ungated (the node_* model). primitive_mesh_create and the two environment_* tools author a resource on disk, so are file-writers gated by confirmation. */
-export function registerSpatialTools(server: McpServer, call: EditorCall): void {
+export function registerSpatialTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "meshinstance_create",
     {
@@ -57,6 +57,8 @@ export function registerSpatialTools(server: McpServer, call: EditorCall): void 
       },
     },
     async ({ to_path, shape, confirm }) => {
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create ${shape ?? "box"} PrimitiveMesh at ${to_path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { to_path };
@@ -189,6 +191,8 @@ export function registerSpatialTools(server: McpServer, call: EditorCall): void 
       },
     },
     async ({ to_path, background, ambient_color, confirm }) => {
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create Environment at ${to_path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { to_path };

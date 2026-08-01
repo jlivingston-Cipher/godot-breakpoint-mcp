@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** UI / Control / theming. control_* + container_add_child mutate the EDITED scene and are undoable via EditorUndoRedoManager and ungated (the node_* model). theme_* author a Theme on disk via ResourceSaver, so — like resource_* — they are file-writers gated by confirmation. */
-export function registerUiTools(server: McpServer, call: EditorCall): void {
+export function registerUiTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "control_create",
     {
@@ -135,6 +135,8 @@ export function registerUiTools(server: McpServer, call: EditorCall): void {
       },
     },
     async ({ to_path, confirm }) => {
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create Theme resource at ${to_path}`);
       if (blocked) return blocked;
       return call("theme.create", { to_path });

@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** AudioStreamPlayer nodes + audio bus layout / effects. */
-export function registerAudioTools(server: McpServer, call: EditorCall): void {
+export function registerAudioTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "audio_player_create",
     {
@@ -124,6 +124,11 @@ export function registerAudioTools(server: McpServer, call: EditorCall): void {
       },
     },
     async ({ to_path, confirm }) => {
+      // `to_path` is OPTIONAL here — an omitted one takes the addon's documented
+      // default and has nothing to escape, which is why the guard passes `undefined`
+      // through untouched rather than refusing it.
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Save audio bus layout to ${to_path ?? "res://default_bus_layout.tres"}`);
       if (blocked) return blocked;
       return call("audio.set_bus_layout", to_path !== undefined ? { to_path } : {});

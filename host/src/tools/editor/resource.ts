@@ -1,10 +1,16 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
-/** Resource (.tres/.res) create / load / save / property / import ops. */
-export function registerResourceTools(server: McpServer, call: EditorCall): void {
+/**
+ * Resource (.tres/.res) create / load / save / property / import ops.
+ *
+ * 🔴 THE GUARD RUNS BEFORE `gate()`, deliberately (163 §3's shape): a call that can
+ * never legally write must not first ask the user to approve writing. It also means
+ * the refusal needs no editor at all, which is what makes the unit tests cheap.
+ */
+export function registerResourceTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "resource_create",
     {
@@ -19,6 +25,8 @@ export function registerResourceTools(server: McpServer, call: EditorCall): void
       },
     },
     async ({ class_name, to_path, properties, confirm }) => {
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create ${class_name} resource at ${to_path}`);
       if (blocked) return blocked;
       return call("resource.create", properties !== undefined ? { class_name, to_path, properties } : { class_name, to_path });
@@ -49,6 +57,12 @@ export function registerResourceTools(server: McpServer, call: EditorCall): void
       },
     },
     async ({ from_path, to_path, flags, confirm }) => {
+      // 🔴 BOTH parameters. Measured: `from_path: res://../…` LOADED a resource from
+      // outside the root and saved a copy inside it. Guarding only the destination
+      // would leave this tool half-wired — the failure mode 161, 162 and 163 each
+      // re-learned on a different plane.
+      const escaped = guard(from_path, "from_path") ?? guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Save resource ${from_path}${to_path ? ` to ${to_path}` : ""}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { from_path };
@@ -72,6 +86,8 @@ export function registerResourceTools(server: McpServer, call: EditorCall): void
       },
     },
     async ({ path, to_path, deep, confirm }) => {
+      const escaped = guard(path, "path") ?? guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Duplicate resource ${path} to ${to_path}`);
       if (blocked) return blocked;
       return call("resource.duplicate", deep !== undefined ? { path, to_path, deep } : { path, to_path });

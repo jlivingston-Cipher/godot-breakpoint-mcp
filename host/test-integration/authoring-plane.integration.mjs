@@ -1455,6 +1455,95 @@ async function main() {
       : fail("AUTH_MAINSCREEN_RESTORED", `wanted ${before.active}, got ${restored.active}`);
   });
 
+  // ------------------------------------------------- AUTH_WRITE_PATH (164) ----
+  //
+  // 163 §8 item 5's sharpest cluster, measured and then pinned. Against a REAL editor
+  // on a temp project copy with a prefix-sharing sibling, TWENTY-ONE writers created
+  // files OUTSIDE the project root through `res://../` — every one answering `ok` and
+  // echoing the escaping path back, so the tool's own reply could never have revealed
+  // it. The verdict came from `stat`, and so does the last claim in this section.
+  //
+  // 🔴 NO FIXTURE, ON PURPOSE: these refusals resolve the path and stop, without
+  // touching the filesystem or the bridge, so the escape target NEED NOT EXIST. That
+  // is what lets this run against the repo's own `example/` — 163 §6 could not put a
+  // prefix-sharing sibling anywhere inside the repo, and this section does not need
+  // one. It is also the claim: a guard that needed the target to exist would be a
+  // guard an attacker could dodge by naming a file that does not.
+  //
+  // 🔴 AND NO 27th CI JOB. This strengthens a REQUIRED gate that already boots the
+  // editor these tools drive, exactly as 163 strengthened `gdscript-dap-plane`.
+  await family("AUTH_WRITE_PATH", async () => {
+    const EVIL = `${path.basename(GODOT_PROJECT.replace(/\/$/, ''))}_evil`; // shares the root's NAME PREFIX
+    const escapeOf = (ext) => `res://../${EVIL}/auth_esc${ext}`;
+    // Every writer MEASURED escaping, with args that reach the guard. The `.gd` on the
+    // backend four is load-bearing — a non-.gd path is refused earlier, for the wrong
+    // reason, and would pass this section without asserting anything.
+    const WRITERS = [
+      ["resource_create", "to_path", { class_name: "StyleBoxFlat", to_path: escapeOf(".tres") }],
+      ["resource_save", "to_path", { from_path: MAIN_SCENE, to_path: escapeOf(".tres") }],
+      ["resource_save", "from_path", { from_path: escapeOf(".tres"), to_path: "res://auth_ok.tres" }],
+      ["resource_duplicate", "to_path", { path: MAIN_SCENE, to_path: escapeOf(".tres") }],
+      ["resource_duplicate", "path", { path: escapeOf(".tres"), to_path: "res://auth_ok.tres" }],
+      ["filesystem_move", "to_path", { from_path: MAIN_SCENE, to_path: escapeOf(".tscn") }],
+      ["filesystem_move", "from_path", { from_path: escapeOf(".tscn"), to_path: "res://auth_ok.tscn" }],
+      ["scene_pack", "to_path", { path: ".", to_path: escapeOf(".tscn") }],
+      ["shader_create", "to_path", { to_path: escapeOf(".gdshader") }],
+      ["theme_create", "to_path", { to_path: escapeOf(".tres") }],
+      ["tileset_create", "to_path", { to_path: escapeOf(".tres") }],
+      ["primitive_mesh_create", "to_path", { to_path: escapeOf(".tres") }],
+      ["environment_create", "to_path", { to_path: escapeOf(".tres") }],
+      ["audio_set_bus_layout", "to_path", { to_path: escapeOf(".tres") }],
+      ["asset_gen_icon", "to_path", { prompt: "x", to_path: escapeOf(".tres") }],
+      ["asset_gen_sprite", "to_path", { prompt: "x", to_path: escapeOf(".tres") }],
+      ["asset_gen_texture", "to_path", { prompt: "x", to_path: escapeOf(".tres") }],
+      ["asset_gen_audio_sfx", "to_path", { prompt: "x", to_path: escapeOf(".tres") }],
+      ["asset_gen_model", "to_path", { prompt: "x", to_path: escapeOf(".tres") }],
+      ["asset_gen_placeholder", "to_path", { kind: "icon", to_path: escapeOf(".tres") }],
+      ["backend_configure", "to_path", { sdk: "silentwolf", to_path: escapeOf(".gd") }],
+      ["leaderboard_scaffold", "to_path", { sdk: "silentwolf", to_path: escapeOf(".gd") }],
+      ["cloudsave_scaffold", "to_path", { sdk: "silentwolf", to_path: escapeOf(".gd") }],
+      ["auth_scaffold", "to_path", { sdk: "silentwolf", to_path: escapeOf(".gd") }],
+    ];
+    let refused = 0;
+    for (const [tool, param, args] of WRITERS) {
+      const r = await client.callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
+      const txt = (r.content?.[0]?.text || "").replace(/\s+/g, " ");
+      const good = r.isError === true
+        && /path_outside_project/.test(txt)
+        && /outside the Godot project root/.test(txt)
+        && new RegExp(`Refusing ${param}\\b`).test(txt);
+      good
+        ? refused++
+        : fail("AUTH_WRITE_PATH", `${tool}.${param} did not refuse BY REASON -> ${r.isError ? txt.slice(0, 140) : `ok ${txt.slice(0, 120)}`}`);
+    }
+    refused === WRITERS.length
+      ? pass("AUTH_WRITE_PATH", `${refused}/${WRITERS.length} measured writer parameters refuse res://.. by reason, naming the parameter`)
+      : fail("AUTH_WRITE_PATH", `only ${refused}/${WRITERS.length} refused`);
+
+    // 🔴 A path refusal is NOT a bridge error. `Bridge error` means "the editor could
+    // not be reached" and sends the caller to restart Godot over their own typo.
+    const one = await client.callTool({ name: "theme_create", arguments: { to_path: escapeOf(".tres"), confirm: true } }, undefined, { timeout: 60000 });
+    /^Path error \[path_outside_project\]/.test((one.content?.[0]?.text || ""))
+      ? pass("AUTH_WRITE_PATH_ENVELOPE", "a path refusal carries its own envelope, not the bridge's")
+      : fail("AUTH_WRITE_PATH_ENVELOPE", (one.content?.[0]?.text || "").slice(0, 140));
+
+    // 🔴 THE CLAIM THAT MATTERS, AND IT ASKS THE FILESYSTEM RATHER THAN THE TOOL.
+    // Every reply above said "refused"; this checks that nothing appeared where the
+    // replies said nothing would. It is the only assertion here the host cannot fake.
+    const evilDir = path.join(path.dirname(GODOT_PROJECT.replace(/\/$/, '')), EVIL);
+    const landed = fs.existsSync(evilDir) ? fs.readdirSync(evilDir).filter((f) => f.startsWith("auth_esc")) : [];
+    landed.length === 0
+      ? pass("AUTH_WRITE_PATH_NOTHING_LANDED", `nothing exists under ${evilDir} — asked the filesystem, not the tools`)
+      : fail("AUTH_WRITE_PATH_NOTHING_LANDED", `${landed.length} file(s) escaped: ${landed.join(", ")}`);
+
+    // …and the legal side still writes where it names, through the same tool, in the
+    // same run. A guard that refused everything would pass every claim above.
+    const okRes = await call("resource_create", { class_name: "StyleBoxFlat", to_path: "res://_auth_probe_guard_ok.tres" });
+    String(okRes.created) === "res://_auth_probe_guard_ok.tres"
+      ? pass("AUTH_WRITE_PATH_LEGAL", "a legal res:// destination still writes, unrewritten")
+      : fail("AUTH_WRITE_PATH_LEGAL", JSON.stringify(okRes).slice(0, 140));
+  });
+
   // ---------------------------------------------------------------- cleanup ----
   // Put example/ back the way we found it. Until now this was a `rm -rf` glob a
   // developer typed by hand from the header comment, which meant (a) every local run

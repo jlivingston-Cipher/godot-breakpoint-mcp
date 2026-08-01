@@ -6,6 +6,54 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.42.0] — 2026-08-01
+
+### Fixed — twenty-one editor / asset / backend writers created files OUTSIDE the project root
+
+1.41.0 closed `dbg_launch.scene` and left behind an enumeration: 78 path-like parameters that are
+not called `path`, of which 24 are the `to_path` writer family. Measured against a real Godot 4.7
+editor with the addon live, on a temp project copy with a sibling directory sharing the root's name
+prefix — and the verdict taken from the **filesystem**, not from the tools' replies:
+
+| family | tools | `res://../` result before |
+|---|---|---|
+| `editor` plane | `resource_create`, `resource_save`, `resource_duplicate`, `filesystem_move`, `scene_pack`, `shader_create`, `theme_create`, `tileset_create`, `primitive_mesh_create`, `environment_create`, `audio_set_bus_layout` | wrote outside the root |
+| `asset_gen_*` | all six generators | wrote outside the root |
+| `backend` scaffolds | `backend_configure`, `leaderboard_scaffold`, `cloudsave_scaffold`, `auth_scaffold` | wrote outside the root |
+
+Every one of the twenty-one answered `ok` and echoed the escaping path straight back, so no reply
+could have revealed it. `filesystem_move` was destructive in both directions: it moved a project file
+out, and moved a file the project never owned in. The addon's only check is
+`to_path.begins_with("res://")` at seventeen call sites, which `res://../` satisfies — a bare
+relative and an absolute path were already refused there, so `res://../` was the silent one.
+
+Three source-side parameters on the same call sites escaped too and are guarded with them:
+`resource_save.from_path`, `resource_duplicate.path`, `filesystem_move.from_path`.
+
+The guard is `resolveInsideProject`, already shipped and already used by the netcode and tabletop
+writers. It refuses **before the confirmation prompt and before the bridge**, so a call that can
+never legally write never asks for approval; it returns nothing and rewrites nothing, so the
+caller's original spelling still reaches the addon. Re-measured after the fix: 22/22 legal spellings
+still write where they name.
+
+**One behaviour change**, pinned by a test: `asset_gen_*` with **no generation backend configured**
+and an escaping `to_path` used to answer `no_backend` with a `request` spec — an instruction to the
+calling client to write outside the project. It now refuses.
+
+Refusals carry their own `Path error [path_outside_project]` envelope rather than the editor plane's
+`Bridge error`, which means "the editor could not be reached" and would send the caller to restart
+Godot over a path typo.
+
+### Added
+
+- `test/writer_path_guards.test.ts` — 10 tests (**635 → 645**), including a carried check that
+  1.39.0's netcode `to_path` guards are still wired at all three call sites. That gap was found by
+  this release's mutation sweep: unwiring all three left the unit suite green, because those guards
+  shipped with live-gate coverage only.
+- `AUTH_WRITE_PATH` section in the `authoring-plane` gate (a **required** context) — 24 writer
+  parameters refused by reason, the envelope, the legal side still writing, and a filesystem check
+  that nothing landed outside the root. No new CI job; required contexts stay at 24.
+
 ## [1.41.0] — 2026-08-01
 
 ### Fixed — `dbg_launch` reported a session as `running` when nothing was going to run

@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** TileSet authoring (disk-backed, gated) + TileMapLayer cell painting. */
-export function registerTileTools(server: McpServer, call: EditorCall): void {
+export function registerTileTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "tileset_create",
     {
@@ -18,6 +18,8 @@ export function registerTileTools(server: McpServer, call: EditorCall): void {
       },
     },
     async ({ to_path, tile_size, confirm }) => {
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create TileSet resource at ${to_path}`);
       if (blocked) return blocked;
       return call("tileset.create", tile_size !== undefined ? { to_path, tile_size } : { to_path });

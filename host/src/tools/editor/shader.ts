@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** Shader + ShaderMaterial authoring. */
-export function registerShaderTools(server: McpServer, call: EditorCall): void {
+export function registerShaderTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "shader_create",
     {
@@ -18,6 +18,8 @@ export function registerShaderTools(server: McpServer, call: EditorCall): void {
       },
     },
     async ({ to_path, code, confirm }) => {
+      const escaped = guard(to_path, "to_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create shader at ${to_path}`);
       if (blocked) return blocked;
       return call("shader.create", code !== undefined ? { to_path, code } : { to_path });

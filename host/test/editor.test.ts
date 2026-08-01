@@ -49,7 +49,7 @@ interface BridgeCall {
  * behavior (resolve vs. reject) and whose elicitation response are switchable
  * per test.
  */
-function makeHarness() {
+function makeHarness(projectPath = "/tmp/g164-editor-harness") {
   const calls: BridgeCall[] = [];
   const elicitReqs: unknown[] = [];
   let bridgeMode: "resolve" | "reject" = "resolve";
@@ -77,6 +77,7 @@ function makeHarness() {
   registerEditorTools(
     rec.server as unknown as Parameters<typeof registerEditorTools>[0],
     bridge as unknown as Parameters<typeof registerEditorTools>[1],
+    { projectPath } as Parameters<typeof registerEditorTools>[2],
   );
 
   return {
