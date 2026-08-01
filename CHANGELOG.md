@@ -6,6 +6,92 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the `cs_dbg_*` plane has a gate, in the same required job, one step further down
+`host/test-integration/cs-dap-plane.integration.mjs` asserts all thirteen `cs_dbg_*` tools against a
+real **netcoredbg 3.2.0-1092**, as a new **`C3 GATE`** step inside `csharp-plane`.
+
+🔴 **1.35.0's correction stopped one probe short.** It established that `csharp-plane` is a REQUIRED
+gate whose `cs_*` LSP probe could not fail past its handshake. The same shape sat one step below:
+`csharp-dap.integration.mjs` is documented in its own header as **"LOG-ONLY beyond the
+`C#_DAP_REACHED` gate"**, so all thirteen `cs_dbg_*` tools were unasserted inside that same required
+job. Two probes, one job, one blind spot each.
+
+🔴 **This gate does NOT drive Godot, and that is the point.** The diagnostic above it launches the C#
+*game* under netcoredbg — and whether the adapter can debug the CoreCLR the Godot native host loads
+is precisely the uncertainty that probe was written around. An assertion built on it would be flaky
+by construction. This one builds a **throwaway .NET console app** in a temp dir (removed in a
+`finally`), so `launch → stop at entry → arm → verify → hit → step → inspect` is deterministic and
+needs no display server, no port and no Mono build. **Nothing is added to `example-csharp/`** — the
+tracked-file count does not move and there is no new `.uid` sidecar, the same call sessions 155–157
+made. It also **refuses to assert against a session that never stopped**: `CS_DAP_LIVE_WARM` exits
+non-zero rather than let the frame/scope/variable claims below it pass vacuously.
+
+It is a **step, not a new job**, for the reason 1.35.0 gave: `csharp-plane` carries no
+`continue-on-error`, so a step here already blocks a merge and reuses the netcoredbg/SDK setup.
+CI job count unchanged at 25.
+
+### Fixed — `cs_dbg_launch` reported a session that never started as `running`
+🔴 **A behaviour change to a shipped tool, and the sharpest defect of the family.** Measured against a
+real netcoredbg: `program: "/no/such/binary"` produced `launch success=true`, then
+`configurationDone success=false — "Failed command 'configurationDone' : 0x80070002"`
+(ERROR_FILE_NOT_FOUND). **The adapter does report the failure**, on the one response the handshake
+`.catch(() => undefined)`-swallowed immediately before an unconditional `state = "running"`. So the
+tool answered `isError:false` for a phantom session and every later `cs_dbg_*` call failed against it
+with a bare hex code. The same held for `program: ""` and for `cs_dbg_attach` on a dead pid.
+
+The failure is only fatal when the adapter **advertised** `supportsConfigurationDoneRequest`
+(netcoredbg does) — an adapter that never claimed the request may reject it while the session is
+perfectly alive, and refusing there would be the over-eager mirror of the bug.
+
+🔴 **A latent crash went with it.** A `launch`/`attach` rejection was routed to
+`this.emit("error", err)`, and nothing in the host registers an `error` listener — an unlistened
+`error` emit on an EventEmitter **throws**. It is captured now, on a distinct event name.
+
+### Fixed — `stop_on_entry` never reported a stop, and took the stack trace down with it
+🔴 **A behaviour change to a shipped tool.** The handshake returned before the entry `stopped` event,
+so `cs_dbg_launch({stop_on_entry: true})` answered `state: "running"` and `threadId()` fell back to
+`1` while netcoredbg's real thread id is a large integer. `cs_dbg_stack_trace` immediately afterwards
+returned `0x80070057` — and the **identical call 1.5 s later succeeded**. Stop-on-entry was
+non-functional end to end purely because nothing waited. The wait is bounded, so an adapter that
+ignores `stopAtEntry` still reports `running` as before.
+
+### Fixed — a breakpoint source that can never bind was accepted exactly like a real file
+🔴 **A behaviour change to a shipped tool.** `res://NoSuchFile.cs`, `res://demo` (a **directory**) and
+`""` — which `path.join`s down to the **project root directory** — each returned
+`{"buffered":true,"breakpoints":[]}` with `isError:false`, byte-identical to `res://Player.cs`. A
+`res://` or relative path resolving outside the project root (`res://../../../etc/passwd` landed in
+`~/Downloads/etc/passwd`) is refused too, comparing against `root + path.sep` so a sibling directory
+sharing the root's name prefix cannot pass.
+
+🔴 **The escape check is deliberately NARROWER than the `cs_*` LSP plane's, and four over-eager
+mutations exist to keep it that way.** `cs_dbg_launch` documents overriding `program` to debug a
+different .NET program, whose sources legitimately live outside the Godot project — refusing every
+outside path would break the documented mainline. `res://` and relative paths are project-anchored;
+an **absolute** path elsewhere stays legal.
+
+### Fixed — `cs_dbg_attach` accepted a process id nothing runs under
+🔴 **A behaviour change to a shipped tool.** `process_id` gains `.positive()` — `-1` and `0` are not
+process ids and both answered `state: "running"` — and a pid the kernel reports `ESRCH` for is
+refused by name before the handshake. `EPERM` (a live process owned by another user) is a legitimate
+attach target and is **not** refused.
+
+### Fixed — `cs_dbg_set_exception_breakpoints` forwarded a filter the adapter never advertised
+The empty case was validated; membership was not. `["nonsense-filter"]` reached the wire and came
+back `Failed command 'setExceptionBreakpoints' : 0x80070057` — a hex code for a question the host
+already held `available_filters` to answer. The unknown id is now named, and the real filters listed.
+
+### Fixed — an adapter failure with no message rendered as a bare `C# DAP error [setVariable]: `
+netcoredbg advertises `supportsSetVariable: true` and answered a `setVariable` failure with an
+**empty** `message`, so the tool's entire answer was a label and a colon. (The client already
+substitutes text for an *absent* message; an explicitly empty one fell through.) Refusals from the
+new guards also render verbatim rather than as `C# DAP error [...]`, which would send the caller to
+debug an adapter that was never asked — the distinction `lsp-common.fail()` already draws for the LSP planes.
+
+### Note — the log-only probes stay, and the workflow comment stops overstating again
+`csharp-lsp.integration.mjs` and `csharp-dap.integration.mjs` remain as the diagnostics they always
+were. The `csharp-plane` header comment — corrected in 1.35.0 for the LSP probe — is corrected again
+for the DAP one, in place rather than left to mislead the next audit.
+
 ## [1.35.0] — 2026-07-31
 
 ### Added — the `cs_*` plane has a gate, and the job it lives in stops overstating itself

@@ -1,5 +1,6 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
@@ -57,7 +58,17 @@ function makeConfig(projectPath: string): Config {
   }
 }
 
-function tmpDir(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "gcb-csdap-")); }
+/**
+ * A temp C# project root — seeded with `Player.cs`, because `cs_dbg_set_breakpoints`
+ * now refuses a source that names nothing (session 158). The tests below have always
+ * MEANT "a real script at Player.cs:30"; before the refusal existed, an empty temp dir
+ * happened to be indistinguishable from one, which is precisely the defect.
+ */
+function tmpDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gcb-csdap-"));
+  fs.writeFileSync(path.join(dir, "Player.cs"), `${"\n".repeat(40)}// Player.cs fixture\n`);
+  return dir;
+}
 
 /** Wire a CsDapClient (over a loopback TCP channel) to the cs_dbg_* tools on a recording server. */
 
@@ -111,10 +122,13 @@ test("cs_dbg_launch runs the handshake and reports state 'running'", async () =>
 test("cs_dbg_attach forwards the process id to the DAP attach request", async () => {
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port);
-  const res = (await rec.handler("cs_dbg_attach")({ process_id: 4242 })) as ToolResultLike;
+  // A pid that genuinely EXISTS — session 158 refuses one nothing runs under, and a
+  // hard-coded 4242 is only ever a live process by luck.
+  const pid = process.pid;
+  const res = (await rec.handler("cs_dbg_attach")({ process_id: pid })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
   const attach = received.find((m) => m.command === "attach");
-  assert.deepEqual(attach!.arguments, { processId: 4242 });
+  assert.deepEqual(attach!.arguments, { processId: pid });
   dap.close();
   await srv.close();
 });
@@ -665,4 +679,253 @@ test("cs_dbg_launch gates on Godot's --path flag even when the program is named 
     srv.close();
     held.close();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Session 158 — the cs_dbg_* plane, measured against a real netcoredbg 3.2.0-1092.
+// Every state below is one this file's mock could always have produced; none of
+// them was ever asserted, because the live probe next door is log-only past its
+// `initialize` handshake and it sits inside a REQUIRED job.
+// ---------------------------------------------------------------------------
+
+/** A handshake whose `configurationDone` FAILS — what a bogus program really does. */
+function handshakeConfigureFails(msg: DapMsg, s: net.Socket, caps: Record<string, unknown> = { supportsConfigurationDoneRequest: true }): boolean {
+  switch (msg.command) {
+    case "initialize":
+      dapResponse(s, msg, caps);
+      dapEvent(s, "initialized", {});
+      return true;
+    case "launch":
+    case "attach":
+      // 🔴 netcoredbg answers `launch` success=true even for a program that does
+      // not exist. The failure lands on configurationDone, below.
+      dapResponse(s, msg, {});
+      return true;
+    case "configurationDone":
+      dapResponse(s, msg, {}, false);
+      return true;
+  }
+  return false;
+}
+
+test("cs_dbg_launch reports a launch the adapter REJECTED, instead of state 'running'", async () => {
+  // Measured live: `program: "/no/such/binary"` -> launch success=true, then
+  // configurationDone success=false ("Failed command 'configurationDone' : 0x80070002",
+  // ERROR_FILE_NOT_FOUND). That response was `.catch(() => undefined)`-swallowed
+  // immediately before an unconditional `state = "running"`, so the tool answered
+  // isError:false for a session that never existed and every later call failed with a
+  // bare hex code against a phantom session.
+  const { srv } = await startDap((m, s) => { handshakeConfigureFails(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/no/such/binary", args: [] })) as ToolResultLike;
+    assert.equal(res.isError, true, "a rejected launch must not be reported as a running session");
+    assert.notEqual((res.structuredContent as { state?: string } | undefined)?.state, "running");
+    assert.match(res.content?.[0]?.text ?? "", /did not start the session/);
+    assert.equal(dap.state, "terminated", "the client must not be left believing a session is live");
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_launch reports a launch the adapter rejected OUTRIGHT, and never emits an unlistened 'error'", async () => {
+  // 🔴 The other half of the same defect, and the live probe cannot reach it: netcoredbg
+  // answers `launch` success=true even for a program that does not exist, so only an
+  // adapter that rejects the request itself exercises this path. The rejection used to
+  // go to `this.emit("error", err)` — and nothing registers an `error` listener, so an
+  // unlistened `error` emit on an EventEmitter THROWS. The mutation sweep found this
+  // gap: dropping the startFailure half survived the live probe untouched.
+  const { srv } = await startDap((m, s) => {
+    if (m.command === "initialize") { dapResponse(s, m, { supportsConfigurationDoneRequest: true }); dapEvent(s, "initialized", {}); return; }
+    if (m.command === "launch") { dapResponse(s, m, {}, false); return; }
+    if (m.command === "configurationDone") { dapResponse(s, m, {}); return; }
+  });
+  const { dap, rec } = csDapHarness(srv.port);
+  const uncaught: unknown[] = [];
+  const onUncaught = (err: unknown) => uncaught.push(err);
+  process.on("uncaughtException", onUncaught);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/no/such/binary" })) as ToolResultLike;
+    assert.equal(res.isError, true, "a launch the adapter rejected is not a running session");
+    assert.match(res.content?.[0]?.text ?? "", /did not start the session/);
+    assert.equal(dap.state, "terminated");
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(uncaught, [], "the rejection must not surface as an unlistened 'error' emit");
+  } finally {
+    process.removeListener("uncaughtException", onUncaught);
+    dap.close();
+    srv.close();
+  }
+});
+
+test("cs_dbg_launch still succeeds when configurationDone fails on an adapter that never advertised it", async () => {
+  // 🔴 The over-eager mirror. An adapter that does not advertise
+  // supportsConfigurationDoneRequest may reject the request while the session is
+  // perfectly alive — treating THAT as fatal would break every such adapter. The
+  // failure is only fatal when the adapter claimed to implement the request.
+  const { srv } = await startDap((m, s) => { handshakeConfigureFails(m, s, { supportsConfigurationDoneRequest: false }); });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app", args: [] })) as ToolResultLike;
+    assert.notEqual(res.isError, true, "an unadvertised configurationDone failure is not evidence of a failed launch");
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_launch with stop_on_entry waits for the entry stop and reports 'stopped'", async () => {
+  // 🔴 It used to return before the entry stop, so the tool said "running" and
+  // threadId() fell back to 1 while netcoredbg's real thread id is a large integer —
+  // cs_dbg_stack_trace answered 0x80070057 immediately after launch and the IDENTICAL
+  // call succeeded 1.5s later.
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s) && m.command === "configurationDone") {
+      setTimeout(() => dapEvent(s, "stopped", { reason: "entry", threadId: 42618413, allThreadsStopped: true }), 5);
+    }
+  });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app", stop_on_entry: true })) as ToolResultLike;
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "stopped" });
+    assert.equal(dap.threadId(), 42618413, "the adapter's thread id, not the fallback 1");
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_launch WITHOUT stop_on_entry does not wait for a stop", async () => {
+  // The over-eager mirror: a plain launch must not block on a `stopped` event that
+  // is never coming. The mock below never sends one.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app" })) as ToolResultLike;
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_set_breakpoints refuses a source that names nothing or names a directory", async () => {
+  // Measured: `res://NoSuchFile.cs`, `res://demo` (a DIRECTORY) and `""` (which
+  // path.join's down to the PROJECT ROOT) each answered {buffered:true,
+  // breakpoints:[]} with isError:false — byte-identical to a real file.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec, cfg } = csDapHarness(srv.port);
+  try {
+    fs.mkdirSync(path.join(cfg.csDapProjectPath, "demo"), { recursive: true });
+    const missing = (await rec.handler("cs_dbg_set_breakpoints")({ path: "res://NoSuchFile.cs", lines: [1] })) as ToolResultLike;
+    assert.equal(missing.isError, true);
+    assert.match(missing.content?.[0]?.text ?? "", /no such file/);
+    const dir = (await rec.handler("cs_dbg_set_breakpoints")({ path: "res://demo", lines: [1] })) as ToolResultLike;
+    assert.equal(dir.isError, true);
+    assert.match(dir.content?.[0]?.text ?? "", /is not a file/);
+    const empty = (await rec.handler("cs_dbg_set_breakpoints")({ path: "", lines: [1] })) as ToolResultLike;
+    assert.equal(empty.isError, true);
+    assert.match(empty.content?.[0]?.text ?? "", /project root/);
+    // A refusal is the HOST declining, not the adapter failing — it must not be
+    // dressed as "C# DAP error [...]" and send the caller to debug netcoredbg.
+    for (const r of [missing, dir, empty]) assert.doesNotMatch(r.content?.[0]?.text ?? "", /^C# DAP error/);
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_set_breakpoints refuses a project-anchored path that escapes the root, but NOT an absolute one", async () => {
+  // 🔴 The escape check is deliberately narrower than the cs_* LSP plane's.
+  // cs_dbg_launch documents debugging a different .NET program, whose sources live
+  // outside the Godot project — refusing every outside path would break that
+  // documented mainline. res:// and relative paths are project-anchored; absolute
+  // ones are the caller explicitly naming a file elsewhere.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec, cfg } = csDapHarness(srv.port);
+  try {
+    const escape = (await rec.handler("cs_dbg_set_breakpoints")({ path: "res://../../../etc/passwd", lines: [1] })) as ToolResultLike;
+    assert.equal(escape.isError, true);
+    assert.match(escape.content?.[0]?.text ?? "", /outside the C# project root/);
+
+    // A sibling directory sharing the root's NAME PREFIX must not pass: the guard
+    // compares against `root + path.sep`, never a bare startsWith(root).
+    const siblingRoot = `${cfg.csDapProjectPath}-sibling`;
+    fs.mkdirSync(siblingRoot, { recursive: true });
+    fs.writeFileSync(path.join(siblingRoot, "X.cs"), "class X {}\n");
+    const sibling = (await rec.handler("cs_dbg_set_breakpoints")({
+      path: `res://../${path.basename(siblingRoot)}/X.cs`, lines: [1],
+    })) as ToolResultLike;
+    assert.equal(sibling.isError, true, "a sibling sharing the name prefix is still outside the root");
+
+    // …and the legal cases survive.
+    const outside = path.join(siblingRoot, "X.cs");
+    const abs = (await rec.handler("cs_dbg_set_breakpoints")({ path: outside, lines: [1] })) as ToolResultLike;
+    assert.notEqual(abs.isError, true, "an ABSOLUTE path outside the project is how you debug another program");
+    fs.writeFileSync(path.join(cfg.csDapProjectPath, "Player.cs"), "class Player {}\n");
+    const inside = (await rec.handler("cs_dbg_set_breakpoints")({ path: "res://Player.cs", lines: [1] })) as ToolResultLike;
+    assert.notEqual(inside.isError, true);
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_attach's schema rejects a non-positive pid, and the tool refuses one nothing runs under", async () => {
+  // 🔴 A HANDLER PULLED OUT OF A RECORDING SERVER NEVER SEES ITS zod SCHEMA, so the
+  // schema half is asserted through the registered inputSchema directly — otherwise a
+  // mutation that drops `.positive()` is invisible here.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    const shape = (rec.tools.get("cs_dbg_attach")!.config as { inputSchema: Record<string, z.ZodTypeAny> }).inputSchema;
+    const schema = z.object(shape);
+    for (const pid of [-1, 0]) {
+      assert.equal(schema.safeParse({ process_id: pid }).success, false, `pid ${pid} is not a process id`);
+    }
+    assert.equal(schema.safeParse({ process_id: 4242 }).success, true, "a real pid must still parse");
+
+    // 999999 parses, and is refused by the tool: `kill(pid, 0)` signals nothing, it
+    // only asks the kernel. ESRCH means no such process.
+    const gone = (await rec.handler("cs_dbg_attach")({ process_id: 999999 })) as ToolResultLike;
+    assert.equal(gone.isError, true);
+    assert.match(gone.content?.[0]?.text ?? "", /no such process/);
+    assert.doesNotMatch(gone.content?.[0]?.text ?? "", /^C# DAP error/);
+
+    // The over-eager mirror: our OWN pid exists, so it must reach the handshake.
+    // (EPERM — a process owned by another user — is likewise NOT a refusal.)
+    const self = (await rec.handler("cs_dbg_attach")({ process_id: process.pid })) as ToolResultLike;
+    assert.doesNotMatch(self.content?.[0]?.text ?? "", /no such process/);
+  } finally { dap.close(); srv.close(); }
+});
+
+test("cs_dbg_set_exception_breakpoints refuses a filter the adapter never advertised", async () => {
+  // The EMPTY case was validated; membership was not, so an unknown id went to the
+  // wire and came back `Failed command 'setExceptionBreakpoints' : 0x80070057` — a hex
+  // code for a question the host already had the answer to.
+  const caps = { supportsConfigurationDoneRequest: true, exceptionBreakpointFilters: [{ filter: "all", label: "all" }, { filter: "user-unhandled", label: "user-unhandled" }] };
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s, caps)) return;
+    if (m.command === "setExceptionBreakpoints") dapResponse(s, m, { breakpoints: [{ verified: true }] });
+  });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    await rec.handler("cs_dbg_launch")({ program: "/opt/app" });
+    const bad = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["nonsense-filter"] })) as ToolResultLike;
+    assert.equal(bad.isError, true);
+    assert.match(bad.content?.[0]?.text ?? "", /does not advertise them/);
+    assert.match(bad.content?.[0]?.text ?? "", /user-unhandled/, "the refusal must list the real filters");
+    assert.doesNotMatch(bad.content?.[0]?.text ?? "", /^C# DAP error/);
+    // The over-eager mirror: the advertised filters, and clearing, must still work.
+    const good = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
+    assert.notEqual(good.isError, true);
+    const cleared = (await rec.handler("cs_dbg_set_exception_breakpoints")({})) as ToolResultLike;
+    assert.notEqual(cleared.isError, true);
+  } finally { dap.close(); srv.close(); }
+});
+
+test("an adapter failure carrying NO message never renders as a bare 'C# DAP error [cmd]: '", async () => {
+  // Measured: netcoredbg advertises supportsSetVariable:true and answered a
+  // setVariable failure with an empty `message`, so the tool's whole answer was
+  // `C# DAP error [setVariable]: ` — text that says nothing about what went wrong.
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    // 🔴 `message: ""`, not an absent field. `onMessage` already substitutes
+    // "C# DAP request failed" for an ABSENT message, so only an explicitly EMPTY one
+    // reproduces what netcoredbg actually sent — and it is what reached the caller.
+    if (m.command === "setVariable") writeFrame(s, { seq: 0, type: "response", request_seq: m.seq, success: false, command: "setVariable", message: "" });
+  });
+  const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "accept", content: { proceed: true } }));
+  try {
+    await rec.handler("cs_dbg_launch")({ program: "/opt/app" });
+    const res = (await rec.handler("cs_dbg_set_variable")({ variables_ref: 1, name: "x", value: "1", confirm: true })) as ToolResultLike;
+    assert.equal(res.isError, true);
+    const text = (res.content?.[0]?.text ?? "").trim();
+    assert.doesNotMatch(text, /^C# DAP error \[[a-zA-Z]+\]:$/, "an error whose text is only a label says nothing");
+    assert.match(text, /reported a failure with no message/);
+  } finally { dap.close(); srv.close(); }
 });

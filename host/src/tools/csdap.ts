@@ -1,4 +1,6 @@
 import { z } from "zod";
+import * as fs from "node:fs";
+import * as nodePath from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { CsDapClient } from "../csdap.js";
@@ -14,11 +16,42 @@ import { portFree, portConflictMessage } from "../ports.js";
 const RESUME_WAIT_MS = 15000;
 
 function fail(err: unknown) {
-  const e = err as { command?: string; message?: string };
+  const e = err as { command?: string; message?: string; refusal?: boolean };
+  // A REFUSAL is the host declining the call, not the debug adapter failing one —
+  // the same distinction `lsp-common.fail()` draws. Rendering it as
+  // "C# DAP error [...]" sends the caller to debug an adapter that was never asked.
+  if (e?.refusal) {
+    return {
+      isError: true as const,
+      content: [{ type: "text" as const, text: e.message ?? String(err) }],
+    };
+  }
+  // 🔴 An adapter failure can carry NO message at all. Measured: netcoredbg
+  // advertises `supportsSetVariable: true` and answered a setVariable failure with an
+  // empty `message`, so this rendered as the bare, meaningless
+  // `C# DAP error [setVariable]: ` — an error whose text says nothing about what went
+  // wrong or who reported it. Say that the adapter reported a failure without one.
+  const message = (e?.message ?? "").trim();
+  const command = e?.command ?? "error";
+  if (message === "") {
+    return {
+      isError: true as const,
+      content: [{
+        type: "text" as const,
+        text: `C# DAP error [${command}]: the debug adapter reported a failure with no message. ` +
+          `The request was rejected; nothing was changed by it.`,
+      }],
+    };
+  }
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `C# DAP error [${e.command ?? "error"}]: ${e.message ?? String(err)}` }],
+    content: [{ type: "text" as const, text: `C# DAP error [${command}]: ${message}` }],
   };
+}
+
+/** Throw a host refusal — rendered verbatim by `fail()`, never as an adapter error. */
+function refuse(message: string, code: string): never {
+  throw Object.assign(new Error(message), { refusal: true, code });
 }
 
 /**
@@ -51,6 +84,65 @@ function isDapTimeout(err: unknown): err is DapError {
  * would only ever return "unsupported" here.
  */
 export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Config): void {
+  const root = cfg.csDapProjectPath;
+
+  /**
+   * Resolve a breakpoint source path and REFUSE one that cannot carry a breakpoint.
+   *
+   * Measured against a real netcoredbg: `res://NoSuchFile.cs`, `res://demo` (a
+   * DIRECTORY) and `""` (which `path.join`s down to the PROJECT ROOT DIRECTORY) each
+   * answered `{buffered:true, breakpoints:[]}` with `isError:false` — byte-identical
+   * to `res://Player.cs`. The caller could not tell an armed breakpoint from one that
+   * can never bind.
+   *
+   * 🔴 The escape check is deliberately NARROWER than the `cs_*` LSP plane's, and the
+   * difference is not an oversight. `cs_dbg_launch` documents overriding `program` to
+   * "debug a different .NET program", whose sources legitimately live outside the
+   * Godot C# project — refusing every absolute path outside the root would break the
+   * documented mainline of this tool. So:
+   *
+   *   - `res://…` and relative paths are PROJECT-ANCHORED by definition; one that
+   *     resolves outside the root (`res://../../../etc/passwd` landed in
+   *     `~/Downloads/etc/passwd`) is meaningless and is refused.
+   *   - an ABSOLUTE path is the caller explicitly naming a file elsewhere, which is
+   *     exactly how you debug another program. It stays legal.
+   *
+   * Existence is checked for BOTH forms — that guard is about whether a breakpoint
+   * can bind at all, and it is location-independent. The comparison is against
+   * `root + path.sep`, never a bare `startsWith(root)`: the latter accepts a sibling
+   * directory that merely shares the root's name prefix.
+   */
+  const guardSource = (p: string): string => {
+    const fsPath = nodePath.resolve(toFsPath(p, root));
+    const rootPath = nodePath.resolve(root);
+    const projectAnchored = !nodePath.isAbsolute(p);
+    if (projectAnchored && fsPath !== rootPath && !fsPath.startsWith(rootPath + nodePath.sep)) {
+      refuse(
+        `Refusing "${p}": it resolves to ${fsPath}, which is outside the C# project root ` +
+          `(${rootPath}). A res:// or relative path is project-anchored; pass an absolute ` +
+          `path to set a breakpoint in a program outside the project.`,
+        "path_outside_project",
+      );
+    }
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(fsPath);
+    } catch {
+      refuse(
+        `Refusing "${p}": no such file (${fsPath}). A breakpoint there can never bind, but ` +
+          `it was previously answered exactly like one on a real file.`,
+        "file_not_found",
+      );
+    }
+    if (!stat.isFile()) {
+      refuse(
+        `Refusing "${p}": ${fsPath} is not a file${p === "" ? " (an empty path resolves to the project root)" : ""}.`,
+        "not_a_file",
+      );
+    }
+    return fsPath;
+  };
+
   server.registerTool(
     "cs_dbg_launch",
     {
@@ -59,7 +151,10 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         "Start a C# Godot game under netcoredbg. `program` defaults to the configured Mono/.NET Godot binary " +
         "(GODOT_CSHARP_BIN) and `args` to ['--path', <C# project>]; override either to debug a different .NET program. " +
         "Any breakpoints set beforehand are applied during the handshake. Requires netcoredbg (GODOT_CSDAP_CMD) — " +
-        "absent, the lazy spawn fails with an actionable hint rather than hanging.",
+        "absent, the lazy spawn fails with an actionable hint rather than hanging. A launch the adapter rejects " +
+        "(a program that does not exist, or is not a .NET assembly) is reported as an error: it previously answered " +
+        "state 'running' for a session that never started. With `stop_on_entry` the call waits for the entry stop, " +
+        "so it returns state 'stopped' with a usable thread — not 'running'.",
       inputSchema: {
         program: z.string().optional().describe("Path to the program to launch (default: the Mono/.NET Godot binary)"),
         args: z.array(z.string()).optional().describe("Program arguments (default: ['--path', <C# project>])"),
@@ -123,13 +218,32 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
       title: "Attach C# debug session",
       description:
         "Attach netcoredbg to an already-running .NET process (e.g. a C# Godot game launched separately) by its OS process id. " +
-        "Any breakpoints set beforehand are applied during the handshake.",
+        "Any breakpoints set beforehand are applied during the handshake. A process id nothing is running under is refused " +
+        "rather than reported as an attached session; a process owned by another user is a legitimate target and is not refused.",
       inputSchema: {
-        process_id: z.number().int().describe("OS process id of the running .NET process to attach to"),
+        // .positive(): a pid is 1 or greater. `-1` and `0` are not process ids, and
+        // both were measured answering `isError:false state:"running"` — a phantom
+        // session against a process that cannot exist.
+        process_id: z.number().int().positive().describe("OS process id of the running .NET process to attach to"),
       },
     },
     async ({ process_id }) => {
       try {
+        // Refuse a pid nothing is running under, BEFORE the handshake. `kill(pid, 0)`
+        // signals nothing; it only asks the kernel about the process. ESRCH means no
+        // such process. EPERM means it EXISTS and is owned by someone else — that is a
+        // legitimate attach target, so it must NOT be refused here.
+        try {
+          process.kill(process_id, 0);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException)?.code === "ESRCH") {
+            refuse(
+              `Refusing to attach to process ${process_id}: no such process. The debug session ` +
+                `was previously reported as "running" against a process that does not exist.`,
+              "no_such_process",
+            );
+          }
+        }
         await dap.start("attach", { processId: process_id });
         return ok({ session_id: "csharp", state: dap.state });
       } catch (err) { return fail(err); }
@@ -144,7 +258,10 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         "Set (replace) the breakpoints for a C# source file. Applied immediately if a session is running, else buffered until launch/attach. " +
         "Feature-detected: the per-line `conditions` modifier is only sent when the connected adapter advertises supportsConditionalBreakpoints " +
         "(netcoredbg does); on an adapter that advertises it unsupported the modifier is dropped and the result carries `unsupported_modifiers` " +
-        "plus a `warning`. Detection needs a live session, so set conditions after cs_dbg_launch/cs_dbg_attach.",
+        "plus a `warning`. Detection needs a live session, so set conditions after cs_dbg_launch/cs_dbg_attach. " +
+        "A path that names nothing, or names a directory, is refused: it previously answered exactly like a real file. " +
+        "A res:// or relative path that resolves outside the C# project root is refused too; an absolute path elsewhere " +
+        "is legal, because debugging a different .NET program is supported.",
       inputSchema: {
         path: z.string().describe("C# script path (res://..., absolute, or relative to the C# project root)"),
         lines: z.array(z.number().int().positive()).describe("1-based line numbers"),
@@ -153,7 +270,7 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ path, lines, conditions }) => {
       try {
-        const fsPath = toFsPath(path, cfg.csDapProjectPath);
+        const fsPath = guardSource(path);
         // Feature-detect the condition modifier against the connected adapter. Only when it does
         // not advertise supportsConditionalBreakpoints do we DROP conditions and warn — otherwise
         // a "conditional" breakpoint could halt unconditionally on an adapter that ignores them.
@@ -384,7 +501,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         "Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching .NET exception is thrown " +
         "(DAP setExceptionBreakpoints). Pass the filter IDs to enable; call with no filters (or []) to clear them. The result echoes the " +
         "active filters and lists `available_filters` — the exception filters the connected adapter advertises (netcoredbg exposes `all` " +
-        "for every thrown exception and `user-unhandled`). Requires a running debug session. Not gated (it only configures the debugger). " +
+        "for every thrown exception and `user-unhandled`). A filter id the adapter does not advertise is refused by name, listing the real " +
+        "ones, rather than forwarded to the adapter as an opaque failure. Requires a running debug session. Not gated (it only configures the debugger). " +
         "Feature-detected: on an adapter that advertises no exceptionBreakpointFilters it returns a clear \"unsupported\" message WITHOUT sending anything.",
       inputSchema: {
         filters: z.array(z.string()).optional().describe("Exception filter IDs to enable (default none = clear). Choose from available_filters in the result (netcoredbg: 'all', 'user-unhandled')."),
@@ -406,6 +524,21 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
           };
         }
         const active = filters ?? [];
+        // 🔴 The empty case was validated; MEMBERSHIP was not. An id the adapter never
+        // advertised went straight to the wire and came back
+        // `Failed command 'setExceptionBreakpoints' : 0x80070057` — a hex code for a
+        // question the host already had the answer to, since `available_filters` is
+        // right here. Name the bad filter and list the real ones instead.
+        const known = new Set(available_filters.map((f) => f.filter));
+        const unknown = active.filter((f) => !known.has(f));
+        if (unknown.length) {
+          refuse(
+            `Refusing exception filter(s) ${unknown.map((f) => JSON.stringify(f)).join(", ")}: the ` +
+              `connected C# debug adapter does not advertise them. Available: ` +
+              `${available_filters.map((f) => f.filter).join(", ")}.`,
+            "unknown_exception_filter",
+          );
+        }
         const body = await dap.request("setExceptionBreakpoints", { filters: active });
         const breakpoints = Array.isArray(body["breakpoints"])
           ? (body["breakpoints"] as Array<{ verified?: boolean }>).map((b) => ({ verified: Boolean(b.verified) }))
