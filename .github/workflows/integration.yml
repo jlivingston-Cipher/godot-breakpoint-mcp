@@ -1005,8 +1005,9 @@ jobs:
             >/tmp/godot-headless-editor.log 2>&1 &
           GODOT_PID=$!
           # The Debug Adapter is served by the editor on 6006. A HEADLESS editor boots
-          # far faster than the Xvfb GUI one dap-plane uses — measured at ~4s here
-          # against the ~120s that job budgets — but keep a generous ceiling anyway.
+          # far faster than the Xvfb GUI boot the deleted `dap-plane` job used —
+          # measured at ~4s here against the ~120s it budgeted — but keep a generous
+          # ceiling anyway, since the ~4s is this runner on a good day.
           for i in $(seq 1 60); do
             if node -e "require('net').connect(6006,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
               echo "DAP port open after ${i} tick(s)"; break

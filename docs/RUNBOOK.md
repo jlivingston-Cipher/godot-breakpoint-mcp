@@ -70,9 +70,23 @@ Ask Claude to run each; mark pass/fail.
 | E1 | `dbg_set_breakpoints` `{path:"res://player.gd", lines:[38]}` (the `counter -= amount` line) | breakpoint buffered/verified |
 | E2 | `dbg_launch` | game starts; session running |
 | E3 | trigger `take_damage` (via `runtime_call_method`, see C-plane) | `stopped` at the breakpoint |
-| E4 | `dbg_stack_trace` → `dbg_scopes` → `dbg_variables` | see `amount`, `counter` locals |
+| E4 | `dbg_stack_trace` → `dbg_scopes` → `dbg_variables` | see `amount`, `counter` locals — but see the note below |
 | E5 | `dbg_evaluate` `{expression:"counter"}` | elicitation → accept → returns value |
 | E6 | `dbg_continue` | resumes |
+| E7 | `dbg_set_breakpoints` `{…, conditions:["counter < 0"]}` **before** `dbg_launch`, then `dbg_launch` | set → `modifier_detection: "deferred"` + warning; launch → `unsupported_modifiers` naming what was dropped |
+
+> **E4 — `dbg_variables` may refuse a reference `dbg_scopes` just handed out.** Measured on
+> Godot 4.7 at a breakpoint stop: `DAP error [variables]: unknown` for the `Locals` and
+> `Members` refs the adapter itself issued, while `Globals` answered. Upstream, and not
+> reproducible on demand — the same stop worked minutes earlier. A self-describing refusal
+> here is the expected behaviour, not a regression; `dbg_watch` is the reliable way to read
+> a single value at a stop.
+>
+> **E7 — an ignored modifier is not a no-op.** Godot advertises conditional / hit-count /
+> logpoint breakpoints as unsupported and ignores them if sent, so an undropped condition
+> makes the breakpoint halt **every time** — the opposite of what was asked. The host
+> feature-detects when the breakpoints are *applied*, which is why E7 sets them before the
+> launch: that is the ordinary path, and it is the one that used to go unreported.
 
 ### Plane C — Runtime bridge (game running)
 | # | Tool call | Expected |

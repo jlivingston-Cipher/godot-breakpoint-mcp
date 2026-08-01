@@ -495,9 +495,13 @@ Two protocols Godot already speaks:
 
 - **GDScript language server** (`gd_*`, port 6005): completion, hover, definition and
   references, rename, document symbols, diagnostics, and signature help.
-- **Godot debug adapter** (`dbg_*`, port 6006): real breakpoints (conditional, hit-count,
-  logpoint, exception), stepping, stack traces, scopes and variables, watch expressions,
-  and expression evaluation.
+- **Godot debug adapter** (`dbg_*`, port 6006): real breakpoints, stepping, stack traces,
+  scopes and variables, watch expressions, and expression evaluation. The per-line
+  **modifiers** — conditional, hit-count and logpoint — are accepted and **feature-detected**:
+  Godot's adapter advertises all three unsupported and ignores them outright, so on such a
+  build they are **dropped and reported** rather than sent. That matters because an ignored
+  condition does not make the breakpoint inert, it makes it halt *every time* — the opposite
+  of the request. See `dbg_set_breakpoints` in the tool catalog for what the result carries.
 
 There is also a **C# plane**: `cs_*` (semantic, via OmniSharp) and `cs_dbg_*` (debugging,
 via netcoredbg). Many capabilities across this plane are **feature-detected** per Godot
