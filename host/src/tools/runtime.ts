@@ -88,6 +88,18 @@ function canonical(value: unknown): string {
 }
 
 export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, peers: PeerRegistry, config: Config): void {
+  // 🔴 NINE `.mjs` INTEGRATION PROBES CALL THIS REGISTRAR DIRECTLY, WHERE TYPESCRIPT
+  // CANNOT SEE THEM. Adding `config` compiled clean, passed the whole unit suite, and
+  // then broke six CI jobs at runtime with "Cannot read properties of undefined
+  // (reading 'projectPath')" — thrown from inside a guard, forty minutes in, naming
+  // neither the parameter nor the caller. Failing HERE turns that into a named error
+  // at registration. A .mjs call site is a call site; the compiler is not the roster.
+  if (!config?.projectPath) {
+    throw new Error(
+      "registerRuntimeTools requires a Config as its FOURTH argument (added 1.43.0) — " +
+      "got none. Direct callers in test-integration/*.mjs must pass `cfg`.",
+    );
+  }
   /** 🔴 MEASURED against a game actually hosting the runtime bridge — rounds A–C
    *  answered `bridge_unavailable` for every runtime row, which is a degrade path,
    *  not a verdict. With the bridge up, `runtime_node_add` instantiated a PackedScene

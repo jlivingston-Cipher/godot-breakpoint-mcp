@@ -50,12 +50,16 @@ spelling stopped working.**
 
 ### Added
 
-- `test/reader_path_guards.test.ts` — 10 tests (645 → 655), including the first unit coverage of any
+- `test/reader_path_guards.test.ts` — 11 tests (645 → 656), including the first unit coverage of any
   MCP **task** tool's body: `godot_export` and `godot_run_headless_script` register through
   `experimental.tasks.registerToolTask`, and the existing test stubbed that away and replaced the
   handler, so their bodies had never been asserted.
 - `AUTH_READ_PATH` claims in the required `authoring-plane` gate. No 27th CI job; required contexts
   stay at 24.
+- `registerRuntimeTools` now throws at registration when its `Config` is missing. Nine
+  `test-integration/*.mjs` probes call that registrar directly, where TypeScript cannot see them, so
+  adding the parameter compiled clean and failed six CI jobs at runtime with an unattributed
+  `Cannot read properties of undefined`. A `.mjs` call site is a call site.
 
 ## [1.42.0] — 2026-08-01
 

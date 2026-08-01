@@ -316,6 +316,28 @@ test("the launchers refuse BEFORE claiming the runtime port", async () => {
   }
 });
 
+test("registerRuntimeTools refuses to register without its Config — a .mjs call site is a call site", async () => {
+  // 🔴 THE REGRESSION THIS SESSION SHIPPED TO CI AND HAD TO CHASE BACK. Nine
+  // `test-integration/*.mjs` probes call this registrar DIRECTLY, so adding a fourth
+  // parameter compiled clean, passed 655 unit tests, and then failed six CI jobs at
+  // runtime with "Cannot read properties of undefined (reading 'projectPath')" —
+  // raised inside a guard, naming neither the parameter nor the caller.
+  //
+  // TypeScript is not the roster of call sites. Failing loudly at registration is,
+  // and this pins it so the next parameter added here cannot repeat the trip.
+  const rec = makeRecordingServer(acceptAll);
+  assert.throws(
+    () => registerRuntimeTools(
+      rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
+      explodingBridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+      {} as unknown as Parameters<typeof registerRuntimeTools>[2],
+      undefined as unknown as Config,
+    ),
+    /FOURTH argument/,
+    "a missing Config must fail at registration, naming the parameter and the callers",
+  );
+});
+
 test("CARRIED — 164's to_path writer guards are still wired at a sample of call sites", async () => {
   // A carried mutation per shipped guard, the rule 164 §4.2 paid for twice. These are
   // 1.42.0's, re-asserted here so a refactor of the reader guards cannot quietly
