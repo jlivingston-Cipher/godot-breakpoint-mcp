@@ -1,10 +1,8 @@
-import fs from "node:fs";
-import nodePath from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { DapClient, DapError } from "../dap.js";
-import { toFsPath } from "../paths.js";
+import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 import { portFree, portConflictMessage } from "../ports.js";
@@ -20,6 +18,14 @@ const ENTRY_STOP_WAIT_MS = 3000;
 
 /** A refusal raised by a guard here, rendered verbatim rather than as a DAP error. */
 class DapRefusal extends Error {
+  /**
+   * 🔴 162: the SAME marker `paths.ts`, `lsp-common.fail()` and `csdap.ts` already use.
+   * Before this, dap.ts recognised a refusal only by `instanceof DapRefusal`, so a
+   * refusal raised anywhere else — including by the shared guard this file now calls —
+   * would have been rendered as `DAP error [error]: Refusing "…"`, sending the caller
+   * to debug an adapter that was never asked. One refusal contract, four planes.
+   */
+  readonly refusal = true;
   constructor(
     message: string,
     readonly reason: string,
@@ -28,6 +34,33 @@ class DapRefusal extends Error {
     this.name = "DapRefusal";
   }
 }
+
+/**
+ * This plane's shipped refusal wording, kept verbatim while the guard moved to
+ * `paths.ts` (161 §8 item 5). `gdscript-dap-plane.integration.mjs` pins every string
+ * here BY REASON — /outside the Godot project root/, /no such file/, /is not a file/,
+ * and for the empty path additionally /project root/.
+ *
+ * 🔴 The escape check is deliberately WIDER than the `cs_dbg_*` plane's, and 162
+ * measured both to confirm the difference is real rather than drift. `cs_dbg_launch`
+ * documents overriding `program` to debug a DIFFERENT .NET program, whose sources
+ * legitimately live outside the Godot C# project. `dbg_launch` has no such mainline:
+ * its `scene` is `'main'`, `'current'` or a `res://` path, and Godot binds breakpoints
+ * only to scripts in the project it runs — so an absolute path outside the root can
+ * never bind here whichever way it is spelled, and all three forms stay anchored.
+ * Absolute paths INSIDE the project stay legal; the probe uses that form and two
+ * over-eager mutations exist to keep it working.
+ */
+const GD_DAP_PATHS: PlaneWording = {
+  root: "the Godot project root",
+  escapeHint:
+    "Godot binds breakpoints only to scripts in the project it runs, so a breakpoint " +
+    "there can never bind.",
+  missingHint:
+    "A breakpoint there can never bind, but it was previously answered exactly like " +
+    "one on a real script.",
+  emptyNote: " (an empty path resolves to the project root)",
+};
 
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
@@ -38,10 +71,10 @@ function fail(err: unknown) {
   // A refusal this file raised is the host's own answer — rendering it as
   // `DAP error [...]` would send the caller off to debug an adapter that was never
   // asked. Same distinction lsp-common.fail() already draws for the LSP planes.
-  if (err instanceof DapRefusal) {
-    return { isError: true as const, content: [{ type: "text" as const, text: err.message }] };
+  const e = err as { command?: string; message?: string; refusal?: boolean };
+  if (err instanceof DapRefusal || e?.refusal) {
+    return { isError: true as const, content: [{ type: "text" as const, text: e.message ?? String(err) }] };
   }
-  const e = err as { command?: string; message?: string };
   // An adapter can answer a failure with an EMPTY message (netcoredbg did, on
   // setVariable). `?? String(err)` only covers an ABSENT one, so the whole answer
   // became a label and a colon.
@@ -138,35 +171,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
    * The comparison is against `root + path.sep`, never a bare `startsWith(root)`:
    * the latter accepts a sibling directory that merely shares the root's name prefix.
    */
-  const guardSource = (p: string): string => {
-    const fsPath = nodePath.resolve(toFsPath(p, cfg.projectPath));
-    const rootPath = nodePath.resolve(cfg.projectPath);
-    if (fsPath !== rootPath && !fsPath.startsWith(rootPath + nodePath.sep)) {
-      throw new DapRefusal(
-        `Refusing "${p}": it resolves to ${fsPath}, which is outside the Godot project root ` +
-          `(${rootPath}). Godot binds breakpoints only to scripts in the project it runs, so a ` +
-          `breakpoint there can never bind.`,
-        "path_outside_project",
-      );
-    }
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(fsPath);
-    } catch {
-      throw new DapRefusal(
-        `Refusing "${p}": no such file (${fsPath}). A breakpoint there can never bind, but it was ` +
-          `previously answered exactly like one on a real script.`,
-        "file_not_found",
-      );
-    }
-    if (!stat.isFile()) {
-      throw new DapRefusal(
-        `Refusing "${p}": ${fsPath} is not a file${p === "" ? " (an empty path resolves to the project root)" : ""}.`,
-        "not_a_file",
-      );
-    }
-    return fsPath;
-  };
+  const guardSource = (p: string): string => resolveSourceFile(p, cfg.projectPath, GD_DAP_PATHS);
 
   server.registerTool(
     "dbg_launch",
@@ -611,6 +616,8 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. " +
         "DESTRUCTIVE: skips or repeats code by moving execution — confirm with the user and keep this gated. " +
         "Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear \"unsupported\" message WITHOUT prompting. " +
+        "Refuses a source that can never carry a target — a missing file, a directory, an empty path (which resolves to the project root), " +
+        "or a path resolving outside the Godot project root — the same guard dbg_set_breakpoints applies. " +
         "Only meaningful while stopped at a breakpoint.",
       inputSchema: {
         path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
@@ -627,7 +634,20 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
             content: [{ type: "text" as const, text: "dbg_goto is unsupported by the connected Godot build's debug adapter (it does not advertise supportsGotoTargetsRequest)." }],
           };
         }
-        const fsPath = toFsPath(path, cfg.projectPath);
+        // 🔴 162: THIS GUARD WAS MISSING, and only a measurement found it. 161 §8 item 5
+        // described dap.ts as carrying "its own inline copy of the escape guard" — true
+        // of ONE of its two path-taking tools. `dbg_goto` resolved with a bare
+        // `toFsPath` and handed the result to the adapter as `source.path`: no
+        // containment check, no existence check. The same shape as 161 §4's "only
+        // board_create's stale-tab close was asserted, and one of four creators was
+        // covered" — a guard is not wired until every call site is wired.
+        //
+        // 🔴 It is not currently REACHABLE on Godot: the capability gate above returns
+        // first because no Godot build advertises supportsGotoTargetsRequest. That is a
+        // capability, not a boundary — it can change under us, and `dbg_goto` is the
+        // DESTRUCTIVE tool on this plane. Guarded on its own merits, not on the engine's
+        // current answer.
+        const fsPath = guardSource(path);
         const body = await dap.request("gotoTargets", { source: { path: fsPath }, line });
         const targets = Array.isArray(body["targets"])
           ? (body["targets"] as Array<{ id?: number; label?: string; line?: number }>).map((t) => ({ id: t.id ?? 0, label: t.label ?? "", line: t.line ?? 0 }))

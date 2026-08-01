@@ -2377,7 +2377,9 @@ Restart the current debug session. Uses the DAP `restart` request when the adapt
 ```
 
 ### `dbg_goto` ✅ · destructive (moves execution — gate hard)
-Move the program counter within the current stopped frame — 'set next statement' (DAP `gotoTargets` + `goto`). Call with `path` + `line` to list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear "unsupported" message **without prompting**. Only meaningful while stopped at a breakpoint.
+Move the program counter within the current stopped frame — 'set next statement' (DAP `gotoTargets` + `goto`). Call with `path` + `line` to list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear "unsupported" message **without prompting**. Refuses a source that can never carry a target — a missing file, a directory, an empty path (which resolves to the project root), or a path resolving outside the Godot project root — the same guard `dbg_set_breakpoints` applies. Only meaningful while stopped at a breakpoint.
+
+Until 1.40.0 this tool resolved `path` with a bare `toFsPath` and handed the result to the adapter as `source.path` with **no** containment or existence check — the one path-taking tool on this plane that was never wired to the guard. It was unreachable in practice (no Godot build advertises `supportsGotoTargetsRequest`, so the capability check returns first), but that is a capability rather than a boundary, and this is the destructive tool on the plane.
 - **Input**
 ```json
 { "type": "object", "required": ["path", "line"], "properties": { "path": { "type": "string" }, "line": { "type": "integer", "minimum": 1 }, "target_id": { "type": "integer", "description": "A specific target id from a prior listing; omit to auto-pick when the line has a single target" }, "confirm": { "type": "boolean", "description": "Auto-approve the jump (skip the elicitation prompt)" } } }

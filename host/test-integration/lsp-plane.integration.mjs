@@ -176,6 +176,36 @@ const refusal = async (marker, name, args, re, detail) => {
   }
 };
 
+// 🔴 EVERY REACHABLE PATH-TAKING TOOL, not one of them (session 162).
+//
+// Until now this plane asserted the escape refusal on `gd_document_symbols` alone,
+// while nineteen gd_* tools take a `path`. That is the shape 161 §4 caught on the
+// tabletop plane — `clearStaleTab` asserted on one of four call sites, and deleting it
+// from the other three survived the sweep — and 162's measurement caught it again on
+// the DAP plane, where `dbg_goto` turned out to take a path and guard nothing.
+//
+// The exemption is EARNED, never hardcoded: a tool whose provider this build does not
+// advertise answers "unsupported" BEFORE the guard, so it cannot be asserted here. That
+// is a measured property of the connected engine (on 4.7, 8 of the 19 are exempt), and
+// the count is printed so a silent drop to zero is visible.
+{
+  const PATH_TOOLS = Object.keys(ARGS).filter((t) => "path" in (ARGS[t] ?? {}));
+  let asserted = 0; const exempt = [];
+  for (const name of PATH_TOOLS) {
+    const cap = CAP[name];
+    if (cap && !caps[cap]) { exempt.push(name); continue; }
+    const r = await call(name, { ...ARGS[name], path: "res://../example_evil/x.gd" });
+    const text = String(r?.content?.[0]?.text ?? "");
+    if (UNSUPPORTED.test(text)) { exempt.push(name); continue; }
+    check(r.isError === true && /outside the Godot project root/.test(text), "PATH_EVERY_TOOL",
+      `${name}: an escaping path must be refused BY REASON (got ${text.slice(0, 80)})`);
+    asserted++;
+  }
+  check(asserted > 0, "PATH_EVERY_TOOL", "at least one path-taking tool must be reachable to assert");
+  console.log(`LSP_LIVE_PATH_COVERAGE ok ${asserted}/${PATH_TOOLS.length} asserted · ` +
+    `exempt (provider not advertised): ${exempt.join(" ") || "none"}`);
+}
+
 await refusal("PATH_ESCAPE", "gd_document_symbols", { path: "res://../../../etc/passwd" },
   /outside the Godot project root/, "a res:// path that escapes the project root must be refused");
 await refusal("PATH_ABSOLUTE", "gd_document_symbols", { path: "/etc/passwd" },

@@ -6,6 +6,44 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.40.0] — 2026-08-01
+
+### Fixed — `dbg_goto` never guarded its `path`
+`dbg_set_breakpoints` has refused a source that escapes the Godot project root, names nothing, or
+names a directory since 1.34.0. `dbg_goto` — the **destructive** tool on the same plane, which moves
+the program counter — takes the same `path`, resolved it with a bare `toFsPath` and handed the
+result to the debug adapter as `source.path`. No containment check, no existence check.
+
+It is not currently reachable on Godot: no Godot build advertises `supportsGotoTargetsRequest`, so
+the capability check returns first. That is a capability, not a boundary — it can change under us,
+and the tool is the destructive one. `dbg_goto` now applies the same guard as
+`dbg_set_breakpoints`, and its description says so.
+
+### Changed — one implementation of the escape check, five call sites
+The containment comparison lived in **five** places: `paths.ts` plus a hand-rolled copy in each of
+`lsp.ts`, `cslsp.ts`, `dap.ts` and `csdap.ts`. All five now call `escapesProject()`, and the four
+planes share `resolveSourceFile()`.
+
+Each plane's refusal **wording is a parameter**, not a constant, because each plane's live gate pins
+its own strings by regex — `/outside the Godot project root/`, `/outside the C# project root/`,
+`/no such file/`, `/is not a file/`. The consolidation is behaviour-preserving by construction, and
+that was verified rather than argued: 310 (tool × spelling) rows were measured through the real
+stdio server before and after, and the output is **byte-identical**.
+
+One difference between the planes is **deliberate and was kept**: `cs_dbg_set_breakpoints` root-checks
+only project-anchored spellings, leaving an absolute path outside the root legal, because
+`cs_dbg_launch` documents debugging a different .NET program whose sources live elsewhere. That is
+now expressed as `anchoredOnly` and asserted on both sides.
+
+### Added
+- `test/plane_path_guards.test.ts` — six tests, split between proving the helper and proving each
+  plane is **wired** to it. A helper that refuses correctly guards nothing until every call site
+  calls it, which is how `dbg_goto` stayed unguarded through 1.39.0.
+- The LSP plane gate now asserts the escape refusal on **every reachable path-taking tool**, not on
+  one of nineteen. The exemption is earned per run: a tool whose provider the connected build does
+  not advertise answers "unsupported" before the guard, so it cannot be asserted — on Godot 4.7 that
+  is 8 of the 19, and the count is printed so a silent drop to zero is visible.
+
 ## [1.39.0] — 2026-08-01
 
 ### Fixed — the tabletop and netcode file paths could leave the Godot project root
