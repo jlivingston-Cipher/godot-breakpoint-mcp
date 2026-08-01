@@ -6,6 +6,80 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the `cs_*` plane has a gate, and the job it lives in stops overstating itself
+`host/test-integration/cs-lsp-plane.integration.mjs` asserts all ten `cs_*` tools against a real
+OmniSharp, as a new **`C2 GATE`** step inside the existing `csharp-plane` job.
+
+🔴 **The plane already had a live probe, and this one sat inside a REQUIRED gate.**
+`csharp-lsp.integration.mjs` spawns a real OmniSharp and exercises the `cs_*` tools — but only its
+`initialize` handshake can fail. Everything past `if (reached)` is a `try/catch` that
+`console.log`s, so `C#_LSP_SEMANTIC_OK: hover=false definition=false` would have printed and the job
+would have stayed **green**. The job's own header comment claimed the "OmniSharp `cs_*` LSP probe …
+gate[s] the job"; that held for the handshake and nothing after it. The comment is corrected in
+place and the old step stays as the diagnostic it always was.
+
+🔴 **It is a STEP, not a new job — and that is the same rule, not a departure from it.** `lsp-plane`
+had to be a separate job because `editor-plane` carries `continue-on-error: true` by design, so an
+assertion placed there could never fail a merge. `csharp-plane` carries no such flag, so a step here
+already blocks the merge *and* reuses the dotnet/OmniSharp/fixture setup rather than paying for it
+twice. **Check where an assertion lands before writing it** — the answer just happened to differ.
+
+The capability baseline is derived from the connected server, never pinned; an "unsupported" verdict
+on a provider the server *did* advertise must be earned by asking the server for a real `-32601`.
+Measured on OmniSharp v1.39.15, no trap fires — unlike Godot's GDScript server, it implements
+everything it advertises. The probe also **fails rather than passes vacuously** if OmniSharp's
+asynchronous design-time build never finishes: a cold workspace answers empty for everything, which
+would make every assertion below it trivially true.
+
+### Fixed — `cs_rename` planned a project-wide rename to a name C# cannot compile
+🔴 **A behaviour change to a shipped, destructive tool.** OmniSharp does not validate `new_name`.
+Measured live: `"1bad name!"`, `"class"`, `"int"`, `"  "`, `"a\nb"` and `"my-name"` each returned
+`isError: false` with a full five-edit plan — and with `apply: true` the host writes C# that does not
+compile. The one string OmniSharp itself rejects is `""`, and it rejects it with an internal
+assertion failure (`Unexpected true - file Renamer.cs line 151`) rather than a usable validation
+error. `new_name` must now be a valid C# identifier and not a reserved keyword, refused **before**
+the rename is planned.
+
+🔴 **The check is deliberately narrow, and four of the twelve over-eager mutations exist to keep it
+that way.** Contextual keywords (`var`, `value`, `async`, `record`) are not reserved and stay legal;
+framework type names (`Console`, `String`, `Task`) are shadowable and stay legal, the same call the
+GDScript plane makes for engine classes; Unicode identifiers (`Ångström`) are valid C# and stay
+legal; and the verbatim `@` prefix is **accepted specifically because it is what legalizes a
+keyword** — `@class` skips the reserved-word check rather than being refused by it.
+
+### Fixed — the `cs_*` tools accepted a path that resolves outside the C# project root
+🔴 **A behaviour change to shipped tools.** `toFsPath` joins through `path.join`, which normalizes
+`..` away silently. Measured: `res://../../../etc/passwd`, a bare `/etc/passwd` and
+`res://../../README.md` each resolved outside the root and were answered with `isError: false`.
+Both are now refused by name, and the refusal never reaches the language server. The comparison is
+against `root + path.sep`, never a bare `startsWith(root)` — the latter accepts a sibling directory
+that merely shares the root's name prefix.
+
+### Fixed — a missing C# script was opened as an EMPTY one
+🔴 **A behaviour change to shipped tools, and the sharpest version of this defect the project has
+measured.** `readFileText` swallows every read error and returns `""`, so `ensureOpen(uri, "")` told
+OmniSharp a missing file existed and was empty. Measured live, `cs_document_symbols` returned
+**byte-identical `{"symbols": []}` with `isError: false` for a missing file, for a file that exists
+and is genuinely empty, and for a directory** — three different states, one indistinguishable
+answer. All three are now told apart: absent and not-a-file are refused by name, and **a file that
+exists and is genuinely empty is still served**. The guard is about absence, not size.
+
+### Fixed — a negative `line` or `character` reached OmniSharp and came back as an internal error
+🔴 **A behaviour change to shipped tools, with a different symptom than the GDScript plane's.** The
+position fields were `z.number().int()` with no lower bound. This did *not* produce the silent
+success `gd_*` gave: measured live, a negative position returned
+`LSP error [-32603]: Internal Error - System.ArgumentOutOfRangeException` with a .NET stack trace in
+the tool's answer, on `cs_hover`, `cs_definition`, `cs_references`, `cs_completion` and
+`cs_signature_help` alike. They are now `.min(0)`, refused before the wire. **The bound is one-sided
+by necessity** — a line *past the end of the file* produces the same `-32603`, and no input schema
+can know the file's length; that case is explicitly not fixed by this.
+
+### Note — the refusal rendering needed no change here
+`fail()` lives in the shared `lsp-common.ts`, so the `refusal: true` path added in 1.34.0 covers the
+`cs_*` plane for free — but only once something actually refuses. Before this change nothing did, so
+there was nothing to dress up. The probe asserts it on every refusal regardless, and an under-eager
+mutation that re-breaks the shared helper is caught by the `cs_*` gate too.
+
 ## [1.34.0] — 2026-07-31
 
 **Minor. Seven entries, five of them behaviour changes to shipped tools — and the finding that

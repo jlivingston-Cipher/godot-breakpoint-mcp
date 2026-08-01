@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import nodePath from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
@@ -43,9 +44,103 @@ function unsupportedCsLsp(tool: string, method: string, capability: string, alt:
   };
 }
 
+/**
+ * A C# identifier: the only thing `cs_rename` may rename a symbol TO.
+ *
+ * This is the spec shape (identifier-start-character then identifier-part-characters),
+ * NOT an ASCII approximation — `Ångström` and `日本語` are legal C# identifiers and a
+ * rename to one produces a file that compiles, so refusing them would be wrong.
+ *
+ * The leading `@` is C#'s verbatim-identifier prefix: `@class` IS a legal identifier
+ * precisely BECAUSE it escapes the keyword, so a `@`-prefixed name skips the reserved
+ * word check below rather than being refused by it.
+ */
+const CS_IDENTIFIER = /^@?[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{Cf}]*$/u;
+
+/**
+ * C# **reserved** keywords. A rename to one of these is shaped like an identifier but
+ * produces a file the compiler rejects, so it is refused for the same reason.
+ *
+ * Deliberately excludes CONTEXTUAL keywords (`var`, `value`, `async`, `await`, `yield`,
+ * `nameof`, `record`, `when`, `from`, `select`, …) — those are legal identifiers and a
+ * rename to one compiles. Framework type names (`Console`, `String`, `Task`) are legal
+ * too and are likewise not listed, the same call `gd_rename` makes for engine classes.
+ */
+const CS_KEYWORDS = new Set([
+  "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
+  "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
+  "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
+  "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
+  "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
+  "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed",
+  "short", "sizeof", "stackalloc", "static", "string", "struct", "switch", "this",
+  "throw", "true", "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort",
+  "using", "virtual", "void", "volatile", "while",
+]);
+
 export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: Config): void {
   const root = cfg.csLspProjectPath;
+
+  /**
+   * Resolve a caller-supplied script path and REFUSE one that escapes the C# project
+   * root, names nothing, or names something that is not a regular file. This is the
+   * same guard the `gd_*` plane grew in 1.34.0, ported after measuring the `cs_*`
+   * plane against a real OmniSharp — the defects are the same shape, but two of them
+   * present differently, and the comments record what was measured HERE, not there.
+   *
+   * `toFsPath` joins through `path.join`, which normalizes `..` away silently.
+   * Measured against OmniSharp v1.39.15: `res://../../../etc/passwd`, a bare
+   * `/etc/passwd` and `res://../../README.md` each resolved outside the project root
+   * and were answered with `isError: false`. Nothing leaked — the answer was the same
+   * degenerate one any unloaded path produces — but nothing refused them either.
+   *
+   * The comparison is against `root + path.sep`, never a bare `startsWith(root)`: the
+   * latter accepts a SIBLING directory that merely shares the root's name prefix.
+   */
+  const guardPath = (p: string): void => {
+    const fsPath = nodePath.resolve(toFsPath(p, root));
+    const rootPath = nodePath.resolve(root);
+    if (fsPath !== rootPath && !fsPath.startsWith(rootPath + nodePath.sep)) {
+      throw Object.assign(
+        new Error(
+          `Refusing "${p}": it resolves to ${fsPath}, which is outside the C# ` +
+          `project root (${rootPath}). Pass a res:// path, or a path inside the project.`,
+        ),
+        { refusal: true, code: "path_outside_project" },
+      );
+    }
+    // A file that does not exist must be REFUSED, not opened as an empty one.
+    // `readFileText` swallows every read error and returns "" (it is shared with
+    // three other tool families, so it stays lenient), and `ensureOpen(uri, "")`
+    // tells the language server the file exists and is empty.
+    //
+    // Measured against a real OmniSharp, and this is a SHARPER repro than the
+    // GDScript one: `cs_document_symbols` returns byte-identical `{"symbols":[]}`
+    // with `isError: false` for a MISSING file, for a file that exists and is
+    // genuinely EMPTY, and for a DIRECTORY. Three different states, one answer —
+    // the caller cannot tell which it got.
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(fsPath);
+    } catch {
+      throw Object.assign(
+        new Error(
+          `Refusing "${p}": no such file (${fsPath}). It was previously opened as an ` +
+          `EMPTY document, so the language server answered about a file that does not exist.`,
+        ),
+        { refusal: true, code: "file_not_found" },
+      );
+    }
+    if (!stat.isFile()) {
+      throw Object.assign(
+        new Error(`Refusing "${p}": ${fsPath} is not a file.`),
+        { refusal: true, code: "not_a_file" },
+      );
+    }
+  };
+
   const openAndPos = async (path: string) => {
+    guardPath(path);
     const uri = toFileUri(path, root);
     await cslsp.ensureOpen(uri, readFileText(toFsPath(path, root)));
     return uri;
@@ -53,8 +148,20 @@ export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: C
 
   const posSchema = {
     path: z.string().describe("C# script path (res://..., absolute, or relative to the C# project root)"),
-    line: z.number().int().describe("0-based line"),
-    character: z.number().int().describe("0-based character"),
+    // .min(0): a negative line or character is not a position. The symptom here is
+    // NOT the GDScript one — measured against OmniSharp, a negative position does not
+    // come back a silent success, it comes back
+    // `LSP error [-32603]: Internal Error - System.ArgumentOutOfRangeException ...`
+    // with a .NET stack trace leaking into the tool's answer, on cs_hover,
+    // cs_definition, cs_references, cs_completion and cs_signature_help alike.
+    // A schema-legal call that can only ever produce an internal-error trace should
+    // be refused before it reaches the wire.
+    //
+    // NOTE the bound is one-sided and deliberately so: a line number PAST the end of
+    // the file produces the same -32603, and no schema can know the file's length.
+    // That case is out of scope here, not fixed by this.
+    line: z.number().int().min(0).describe("0-based line"),
+    character: z.number().int().min(0).describe("0-based character"),
   };
 
   server.registerTool(
@@ -123,16 +230,48 @@ export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: C
     {
       title: "C# rename symbol",
       description:
-        "Rename a C# symbol project-wide via OmniSharp. Returns the planned edit; pass apply=true to WRITE the changes to disk (DESTRUCTIVE — confirm with the user).",
+        "Rename a C# symbol project-wide via OmniSharp. Returns the planned edit; pass apply=true to WRITE the changes to disk (DESTRUCTIVE — confirm with the user). " +
+        "new_name must be a valid C# identifier and not a reserved keyword: the language server plans a rename to any string, including one that would write a file the C# compiler rejects, so an illegal name is refused here before the rename is planned. Verbatim identifiers (@class) and contextual keywords (var, value, async) are legal and accepted.",
       inputSchema: {
         ...posSchema,
-        new_name: z.string().describe("New symbol name"),
+        new_name: z.string().describe("New symbol name — a valid C# identifier, optionally @-prefixed"),
         apply: z.boolean().optional().describe("Write edits to disk (default false = dry run)"),
         confirm: z.boolean().optional().describe("Auto-approve writing edits (skip the confirmation prompt); only relevant with apply=true"),
       },
     },
     async ({ path, line, character, new_name, apply, confirm }) => {
       try {
+        // Refuse BEFORE planning. OmniSharp does not validate the new name.
+        // Measured against a real OmniSharp v1.39.15 on the example-csharp fixture:
+        // a rename to "1bad name!", "class", "int", "  ", "a\nb" or "my-name" each
+        // came back `isError: false` with a five-edit plan across Player.cs — and
+        // with apply:true the host WRITES those edits, producing C# that does not
+        // compile. The one string OmniSharp itself rejects is "", and it rejects it
+        // with an internal assertion failure ("Unexpected true - file Renamer.cs
+        // line 151"), not a usable validation error. So the refusal has to happen
+        // here for all of them, including "".
+        if (!CS_IDENTIFIER.test(new_name)) {
+          throw Object.assign(
+            new Error(
+              `Refusing to rename to ${JSON.stringify(new_name)}: it is not a valid C# ` +
+              `identifier (a letter or underscore, then letters, digits or underscores; ` +
+              `optionally @-prefixed). The language server will plan this rename anyway ` +
+              `and the written file would not compile.`,
+            ),
+            { refusal: true, code: "invalid_identifier" },
+          );
+        }
+        // The @ prefix is what MAKES a keyword legal, so it exempts the name here.
+        if (!new_name.startsWith("@") && CS_KEYWORDS.has(new_name)) {
+          throw Object.assign(
+            new Error(
+              `Refusing to rename to "${new_name}": it is a C# reserved keyword. The ` +
+              `language server will plan this rename anyway and the written file would ` +
+              `not compile. Pass "@${new_name}" if you meant the verbatim identifier.`,
+            ),
+            { refusal: true, code: "reserved_word" },
+          );
+        }
         const uri = await openAndPos(path);
         const edit = await cslsp.request("textDocument/rename", {
           textDocument: { uri }, position: { line, character }, newName: new_name,
