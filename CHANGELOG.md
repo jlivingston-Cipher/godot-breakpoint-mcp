@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.37.0] — 2026-07-31
+
 ### Added — the GDScript `dbg_*` plane has a gate, and it is a JOB rather than a step
 `host/test-integration/gdscript-dap-plane.integration.mjs` asserts all fifteen `dbg_*` tools against
 a real Godot editor Debug Adapter, as a new **required `gdscript-dap-plane` job**. 42 individual
