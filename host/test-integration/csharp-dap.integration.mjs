@@ -8,7 +8,9 @@
 // launch/attach semantics under headless CI are the least-certain piece of the
 // C# debugging plane, so ONLY the initialize gate is fatal; every
 // live-flow probe failure is logged and swallowed, exactly like the GDScript
-// dap-plane probe began.
+// DAP plane began — worth remembering that the GDScript plane did not STAY there:
+// its log-only probes were replaced by a required gate and then deleted outright,
+// which is the trajectory this one is meant to follow too.
 //
 // Requires netcoredbg resolvable via GODOT_CSDAP_CMD, the Mono/.NET Godot binary
 // via GODOT_CSHARP_BIN, and GODOT_CSHARP_PROJECT pointing at the fixture.

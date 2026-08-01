@@ -6,6 +6,92 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a breakpoint modifier buffered before launch was silently ignored, not dropped
+`dbg_set_breakpoints` feature-detects `conditions` / `hit_conditions` / `log_messages` against the
+adapter's advertised capabilities and drops what it cannot honour, because Godot advertises all three
+**false** and then IGNORES them — an undropped "conditional" breakpoint halts unconditionally, which
+is the opposite of what the caller asked for. That guard ran at **set** time, against capabilities
+that are `null` until `initialize` answers. **So it never ran for a breakpoint buffered before a
+session — which is the documented and ordinary way to arm one.** Measured live on Godot 4.7:
+
+```
+A_PRELAUNCH  capabilities=null     warned=false  unsupported_modifiers=null
+             halted_anyway=true    ← the condition "counter < 0" is ALWAYS false
+B_POSTLAUNCH capabilities=present  warned=true   unsupported_modifiers=["condition"]
+```
+
+Case A asked for a conditional breakpoint, got one that halts every frame, and was told nothing —
+1.37.0's `stop_on_entry` defect in a different tool. Detection now happens in `applyBreakpoints`,
+where the modifiers actually go on the wire, so it covers the buffered path too:
+
+- `dbg_set_breakpoints` before a session answers `modifier_detection: "deferred"` plus a warning
+  saying detection is not yet possible, rather than an unqualified `buffered: true`.
+- `dbg_launch` / `dbg_attach` report the `unsupported_modifiers` the handshake actually dropped, and
+  append the warning without clobbering `stop_on_entry`'s.
+- The record is cleared per session, so a drop cannot leak into a later launch.
+
+Eleven unit tests (593 → **604**), covering both directions: a modifier the adapter DOES advertise is
+still forwarded, an all-null modifier array requests nothing, a later call does not inherit an
+earlier one's report, and a launch that dropped nothing reports nothing.
+
+### Removed — the experimental `dap-plane` job, whose coverage now lives in the required gate
+CI job count **27 → 25**; `host/test-integration/*.mjs` 24 → **22**. `dap-plane` was the last
+optional job still describing itself as coverage: two log-only probes under `continue-on-error`,
+which is the same "silently optional assertion" shape 1.35.0 and 1.36.0 were about.
+
+🔴 **The premise for deleting it was measured first, and it was wrong.** 159 §8.17 proposed the
+deletion on the grounds that the `D_DAP_*` markers "duplicate what the gate logs". Run against one
+live 4.7 adapter, the gate exercised **eight** of the fifteen `dbg_*` tools live and the two probes
+reached **all fifteen**. Nine things had no counterpart in the gate at all. So they became claims
+there BEFORE the job was removed — which is what makes this a subtraction rather than a loss:
+
+- the **adapter's advertised capabilities** (`GD_DAP_CAPS` — a different claim from the existing one,
+  which counts fifteen tool *names* in the host surface)
+- breakpoint **`verified` flags** on a live session; the gate had only ever asserted the buffered
+  answer, which by construction carries none, so nothing proved a breakpoint ever bound
+- live `dbg_variables`, `dbg_watch` and `dbg_set_variable` — previously reachable only in the
+  no-session refusal case
+- `dbg_restart`, never exercised: it now asserts the **capability branch** (native `restart` when the
+  adapter advertises `supportsRestartRequest`, `relaunch` otherwise)
+- `dbg_goto` / `dbg_data_breakpoints` / `dbg_set_exception_breakpoints` (`GD_DAP_GATED`), each
+  asserted to refuse **iff** the adapter lacks the capability — a biconditional, so it holds on 4.3
+  and 4.7 alike
+- the launched game's **console output**, the proof a launch actually spawned a game
+- the **breakpoint modifiers** (`GD_DAP_MODIFIERS`), replacing the deleted modifier probe with a
+  claim about the host rather than an observation about the adapter
+
+The gate goes 42 → **66 claims**, verified stable across repeated live runs.
+
+🔴 **One ported assertion was over-eager and the live run caught it.** The first draft claimed that a
+scope reference `dbg_scopes` just handed out is one `dbg_variables` accepts. That reads like a host
+contract and is not one: on 4.7 the adapter answered `DAP error [variables]: unknown` for the
+`Locals` and `Members` refs it had itself just issued while `Globals` worked — 159 §8.16, upstream
+and not reproducible on demand. It now asserts what the host owns, the same shape discipline
+`dbg_evaluate` gets: self-describing either way, contents logged rather than asserted.
+
+### Verification — 20 mutations, and the first run was wrong about five of them
+The sweep (`_to_delete/mutate160.py`) mutates each guard in both directions and asserts the suite
+under it goes red. First run: **14 caught, 5 survivors, 1 anchor missing.** Every one was real, and
+none was a coverage number that could be talked up:
+
+- **Three were genuine holes in the new tests** and are now closed — a buffered breakpoint with no
+  modifiers claiming `deferred` anyway, an all-null modifier array counting as a request, and a
+  second `dbg_set_breakpoints` inheriting the previous call's `unsupported_modifiers`.
+- **One survivor was right about the code.** The `caps === null` branch of the detection guard is
+  unreachable from its only caller: a DAP response body is normalised to `{}` before assignment, and
+  the handshake sets capabilities before applying any breakpoint. It is defensive typing, now
+  documented as such rather than left looking load-bearing; the reachable case — an adapter that
+  answers `initialize` with an empty body and so advertises nothing — got the unit test instead.
+- **One survivor was aimed at the wrong layer.** Forcing a `condition` onto every SourceBreakpoint in
+  the built client survived the live gate, correctly: the gate observes what the host *answers*, not
+  what it puts on the wire, and the wire claim is a unit-level one that N01 already makes. Retired
+  with that reason logged, rather than kept as a "gap" inviting socket interception into a gate that
+  is right not to have any.
+- **The missing anchor was a HARD FAILURE, not a skip** — it pointed at a call this very release
+  moved out of the tool layer. A sweep that shrugs at a stale anchor reports coverage it did not earn.
+
+Final: **20 mutations, 20 caught, no survivors, no missing anchors**, probe and unit green afterwards.
+
 ## [1.37.0] — 2026-07-31
 
 ### Added — the GDScript `dbg_*` plane has a gate, and it is a JOB rather than a step

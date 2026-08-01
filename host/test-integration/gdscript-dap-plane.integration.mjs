@@ -1,15 +1,28 @@
 // GDScript DAP plane GATE — asserts all fifteen `dbg_*` tools against a REAL Godot
 // editor Debug Adapter (:6006). Every claim below FAILS THE JOB; nothing here is
 // log-only. Grep-able markers: GD_DAP_CAPS / GD_DAP_PHANTOM / GD_DAP_NOSESSION /
-// GD_DAP_SOURCE / GD_DAP_ENTRY / GD_DAP_LIVE.
+// GD_DAP_SOURCE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_GATED / GD_DAP_RESTART /
+// GD_DAP_MODIFIERS.
 //
-// 🔴 WHY THIS IS A SEPARATE JOB AND NOT A STEP IN `dap-plane`. 156 §2's rule is
-// "check where the assertion lands". `csharp-plane` carries no `continue-on-error`,
-// so #164 and #166 could land their gates as STEPS inside it. `dap-plane` DOES carry
-// `continue-on-error: true` by design — it is an experimental probe of a novel live
-// adapter and must never block a merge. A strict assertion added there would be
-// silently optional, which is the exact failure 1.35.0 and 1.36.0 were about. So this
-// is its own REQUIRED job, and `dap-plane` keeps its two log-only probes unchanged.
+// 🔴 THIS IS NOW THE ONLY DAP COVERAGE, AND THE MEASUREMENT THAT EARNED THAT.
+// 159 §8.17 proposed deleting the experimental `dap-plane` job on the grounds that its
+// D_DAP_* markers "duplicate what the gate logs". Measured against one live 4.7
+// adapter, that was FALSE: of the fifteen `dbg_*` tools this gate exercised EIGHT
+// live, and the two deleted probes reached all fifteen. Nine things had no counterpart
+// here at all — the adapter capability dump, breakpoint `verified` flags, live
+// `dbg_variables` / `dbg_watch` / `dbg_set_variable`, `dbg_restart`, the three
+// capability-gated tools, the game's console output, and the breakpoint modifiers.
+// Every one of them is now a claim in this file rather than a line in a log, which is
+// what made deleting the job a subtraction instead of a loss. Sections 7, 8 and 9 and
+// the second half of 6 are that port; do not read them as scope creep.
+//
+// 🔴 WHY THIS IS A SEPARATE JOB — the reasoning that survives `dap-plane`'s deletion.
+// 156 §2's rule is "check where the assertion lands". `csharp-plane` carries no
+// `continue-on-error`, so #164 and #166 could land their gates as STEPS inside it.
+// `dap-plane` DID carry `continue-on-error: true`, so a strict assertion added there
+// would have been silently optional — the exact failure 1.35.0 and 1.36.0 were about.
+// That is why this was built as its own REQUIRED job rather than a step, and it is why
+// the optional job could then be deleted rather than repaired.
 //
 // 🔴 THE EDITOR IS HEADLESS; ONLY THE GAME IT SPAWNS NEEDS A DISPLAY.
 // `godot --headless --editor` serves the Debug Adapter on 6006 just the same, so this
@@ -50,6 +63,15 @@ function check(cond, marker, detail) {
 
 function newClient(projectPath = cfg.projectPath) {
   const dap = new DapClient(cfg.dapHost, cfg.dapPort, 15000);
+  // Console output the launched game produced, via DAP `output` events. The clearest
+  // proof that `launch` actually SPAWNED AND RAN a game rather than merely being
+  // accepted — player.gd's _ready() prints a line. Ported from the deleted dap-plane
+  // probe's D_DAP_OUT, as an assertion rather than a log.
+  const output = [];
+  dap.on("output", (b) => {
+    const line = String(b?.output ?? "").replace(/\s+$/, "");
+    if (line) output.push(line);
+  });
   const tools = new Map();
   registerDapTools(
     { registerTool: (n, c, h) => tools.set(n, { c, h }), registerResource: () => {}, server: { elicitInput: async () => ({ action: "accept", content: {} }) } },
@@ -67,7 +89,7 @@ function newClient(projectPath = cfg.projectPath) {
     catch (e) { return { isError: true, content: [{ type: "text", text: `schema refused: ${e.issues?.[0]?.message ?? e.message}` }] }; }
     return t.h(parsed, {});
   };
-  return { dap, tools, call };
+  return { dap, tools, call, output };
 }
 
 const textOf = (r) => r.content?.[0]?.text ?? "";
@@ -217,7 +239,7 @@ try {
   // ── 6. a real session: arm → launch → stop → inspect → step → continue ──────
   {
     live = newClient();
-    const { dap, call } = live;
+    const { dap, call, output } = live;
     const stopped = new Promise((resolve) => {
       const timer = setTimeout(() => resolve(false), 60000);
       timer.unref?.();
@@ -242,6 +264,79 @@ try {
     check(String(frames[0]?.source ?? "").endsWith("player.gd"), "GD_DAP_LIVE", `the top frame is in the script we breakpointed (${frames[0]?.source})`);
     const scopes = await call("dbg_scopes", { frame_id: frames[0]?.id ?? 0 });
     check(scopes.isError !== true && (sc(scopes).scopes ?? []).length > 0, "GD_DAP_LIVE", `scopes: ${(sc(scopes).scopes ?? []).map((s) => s.name).join(",")}`);
+
+    // ── ported from the deleted dap-plane probe (D_DAP_VAR / PROBE dbg_variables) ──
+    // 🔴 `dbg_variables` was previously reachable ONLY in the no-session refusal case,
+    // so nothing here ever called it against a live stop. It gets a SHAPE claim, and
+    // the first draft of this port got that wrong in a way worth recording: it asserted
+    // that a scope ref `dbg_scopes` just handed out is one `dbg_variables` accepts.
+    // That reads like a host contract and is not one. Measured on 4.7 at a `_ready`
+    // breakpoint stop, the adapter answered `DAP error [variables]: unknown` for the
+    // `Locals` and `Members` refs it had itself just issued, while `Globals` worked —
+    // and the deleted probe had seen all three succeed at the same stop minutes
+    // earlier. That is 159 §8.16, upstream and not reproducible on demand.
+    //
+    // So the claim is the one the host actually owns, the same one `dbg_evaluate` and
+    // `dbg_set_variable` get: the answer is SELF-DESCRIBING either way — the documented
+    // shape on success, or a refusal quoting the adapter's own message, never a bare
+    // label and never a silent empty success. Contents and success are logged so the
+    // build difference stays visible. Asserting the success would have made this gate
+    // flaky by construction, which is 159 §6's lesson about over-eager invariants.
+    let counter = null;
+    let anyRef = null;
+    for (const s of sc(scopes).scopes ?? []) {
+      if (!s.variables_ref) continue;
+      if (anyRef === null) anyRef = s.variables_ref;
+      const vars = await call("dbg_variables", { variables_ref: s.variables_ref });
+      const selfDescribing = vars.isError === true
+        ? textOf(vars).trim().length > 0 && !/\[\w+\]:\s*$/.test(textOf(vars))
+        : Array.isArray(sc(vars).variables);
+      check(
+        selfDescribing,
+        "GD_DAP_LIVE",
+        vars.isError === true
+          ? `dbg_variables refuses self-describingly for '${s.name}' (ref=${s.variables_ref}, upstream): ${textOf(vars).slice(0, 90)}`
+          : `dbg_variables answers the documented shape for '${s.name}' (${(sc(vars).variables ?? []).length} var(s): ${(sc(vars).variables ?? []).slice(0, 6).map((v) => v.name).join(", ")})`,
+      );
+      const hit = (sc(vars).variables ?? []).find((v) => v.name === "counter");
+      if (hit) counter = hit.value;
+    }
+    check(anyRef !== null, "GD_DAP_LIVE", `dbg_scopes handed out at least one variables reference to follow (ref=${anyRef})`);
+    console.log(`  note GD_DAP_LIVE — counter=${counter ?? "(not found on this build)"} (logged, not asserted: upstream)`);
+
+    // dbg_watch live: previously refusal-only here too.
+    const watch = await call("dbg_watch", { add: ["counter"] });
+    const watches = sc(watch).watches ?? [];
+    check(
+      watch.isError !== true && watches.length === 1 && watches[0].expression === "counter" && "value" in watches[0] && "error" in watches[0],
+      "GD_DAP_LIVE",
+      `dbg_watch answers the documented shape at a stop (value=${JSON.stringify(watches[0]?.value)} error=${JSON.stringify(watches[0]?.error)})`,
+    );
+
+    // 🔴 dbg_set_variable is the sharpest port. Godot ADVERTISES supportsSetVariable=true
+    // and then does not answer the request at all — it times out. The host contract is
+    // that such a build produces a SELF-DESCRIBING refusal naming the situation, never a
+    // hang surfacing as a bare label (this release's D5 sibling on the cs_dbg_* plane).
+    // A build that implements it answers the documented shape. Both are legal; silence
+    // and a bare `[setVariable]: ` are not.
+    // Driven off ANY scope ref, not one that happened to yield `counter`: the claim is
+    // about how the host reports an advertised-but-unimplemented request, which does
+    // not depend on the ref resolving to anything in particular.
+    if (anyRef !== null) {
+      const setv = await call("dbg_set_variable", { variables_ref: anyRef, name: "counter", value: "4242", confirm: true });
+      const selfDescribing = setv.isError === true
+        ? textOf(setv).trim().length > 0 && !/\[\w+\]:\s*$/.test(textOf(setv))
+        : sc(setv).name !== undefined && sc(setv).value !== undefined && sc(setv).variables_ref !== undefined;
+      check(
+        selfDescribing,
+        "GD_DAP_LIVE",
+        setv.isError === true
+          ? `dbg_set_variable refuses self-describingly on an advertised-but-unimplemented build: ${textOf(setv).slice(0, 90)}`
+          : `dbg_set_variable answered the documented shape (value=${JSON.stringify(sc(setv).value)})`,
+      );
+    } else {
+      check(false, "GD_DAP_LIVE", "dbg_scopes handed out no variables reference at all — dbg_set_variable could not be reached");
+    }
     // 🔴 `dbg_evaluate` gets a SHAPE assertion, not a value, and the reason is worth
     // reading. The same `1+1` at a live stop produces three different answers from
     // Godot depending on build and stop reason — "2" at a `step` stop on 4.7,
@@ -272,7 +367,164 @@ try {
     check(stepped.isError !== true, "GD_DAP_LIVE", `step over -> state=${sc(stepped).state} reason=${sc(stepped).stopped_reason}`);
     const cont = await call("dbg_continue", {});
     check(cont.isError !== true, "GD_DAP_LIVE", `continue -> state=${sc(cont).state} reason=${sc(cont).stopped_reason}`);
+
+    // ── ported: the adapter capability dump (D_DAP_CAPS) ─────────────────────
+    // 🔴 NOT the same claim as section 1's GD_DAP_CAPS, which counts fifteen tool
+    // NAMES in the host surface. This is what the ADAPTER advertised, and nothing in
+    // the gate read it before — yet three tools' behaviour is derived from it, and the
+    // modifier fix in this release is derived from it too. A build that answered
+    // `initialize` without capabilities would silently disable every feature gate.
+    const caps = dap.capabilities;
+    check(caps !== null && typeof caps === "object", "GD_DAP_CAPS", "the adapter's capabilities were captured by the handshake");
+    const capNames = ["supportsRestartRequest", "supportsGotoTargetsRequest", "supportsDataBreakpoints", "supportsSetVariable", "supportsConditionalBreakpoints", "supportsHitConditionalBreakpoints", "supportsLogPoints", "supportsTerminateRequest"];
+    check(
+      capNames.every((k) => caps?.[k] === undefined || typeof caps[k] === "boolean"),
+      "GD_DAP_CAPS",
+      `every advertised capability the host gates on is a boolean or absent: ${capNames.map((k) => `${k}=${caps?.[k] ?? "-"}`).join(" ")}`,
+    );
+
+    // ── ported: breakpoints VERIFIED on a live session (D_DAP_BP) ─────────────
+    // 🔴 The gate only ever asserted the BUFFERED answer (`buffered:true`,
+    // `breakpoints:[]`), which by construction carries no verified flags — so nothing
+    // proved a breakpoint ever actually BOUND. Re-asserting on the live session is the
+    // only way to see the adapter's own verdict.
+    const rebp = await call("dbg_set_breakpoints", { path: "res://player.gd", lines: [13, 21] });
+    const verified = sc(rebp).breakpoints ?? [];
+    check(rebp.isError !== true && sc(rebp).buffered === false, "GD_DAP_LIVE", "re-asserting on a live session applies immediately rather than buffering");
+    check(
+      verified.length === 2 && verified.every((b) => typeof b.verified === "boolean" && typeof b.line === "number"),
+      "GD_DAP_LIVE",
+      `the adapter's own verified flags come back per line: ${JSON.stringify(verified)}`,
+    );
+    check(verified.some((b) => b.verified === true), "GD_DAP_LIVE", "at least one breakpoint in a script we stopped inside is VERIFIED by the adapter");
+
+    // ── ported: the game actually ran (D_DAP_OUT / D_DAP_GAME_RAN) ────────────
+    // A launch the adapter accepts is not the same as a game that started. player.gd's
+    // _ready() prints, so console output is the proof — and it is what distinguishes a
+    // real launch from one that died on a GPU-less renderer.
+    check(output.length > 0, "GD_DAP_LIVE", `the launched game produced console output (${output.length} line(s), first: ${JSON.stringify(output[0]?.slice(0, 60) ?? "")})`);
     check(crashed === null, "GD_DAP_LIVE", `still no unhandled rejection anywhere${crashed ? ` — ${crashed}` : ""}`);
+
+    // ── 7. every capability-gated tool refuses IFF the adapter lacks the capability ──
+    // 🔴 159 §3 found these four "needed nothing" and left them unexercised. That was
+    // the evidence against porting #166 mechanically — and it is exactly why they
+    // deserve a gate: nothing would notice if a refactor stopped consulting
+    // capabilities and started firing the request at an adapter that cannot serve it.
+    // The claim is a BICONDITIONAL, so it holds on 4.3 and 4.7 alike and would fail on
+    // a build that starts advertising support without the tool noticing.
+    // `dbg_set_exception_breakpoints` gates on a NON-EMPTY exceptionBreakpointFilters
+    // array rather than a boolean, so its predicate differs in kind from the other two.
+    for (const [tool, cap, args, advertised] of [
+      ["dbg_goto", "supportsGotoTargetsRequest", { path: "res://player.gd", line: 14 }, caps?.supportsGotoTargetsRequest === true],
+      ["dbg_data_breakpoints", "supportsDataBreakpoints", { watch: [{ name: "counter" }] }, caps?.supportsDataBreakpoints === true],
+      ["dbg_set_exception_breakpoints", "exceptionBreakpointFilters", {}, Array.isArray(caps?.exceptionBreakpointFilters) && caps.exceptionBreakpointFilters.length > 0],
+    ]) {
+      const r = await call(tool, { ...args, confirm: true });
+      if (advertised) {
+        check(r.isError !== true, "GD_DAP_GATED", `${tool}: the adapter advertises ${cap}, so the tool must not refuse as unsupported`);
+      } else {
+        check(
+          r.isError === true && /unsupported|does not advertise|advertises/i.test(textOf(r)),
+          "GD_DAP_GATED",
+          `${tool}: ${cap} is not advertised, so it refuses BY REASON (${textOf(r).slice(0, 70)})`,
+        );
+      }
+    }
+
+    // ── 8. dbg_restart takes the path the advertised capability implies ───────
+    // 🔴 Never exercised by the gate before, and it is the one tool whose behaviour
+    // BRANCHES on a capability: a native `restart` request when the adapter advertises
+    // supportsRestartRequest, a terminate-and-relaunch fallback when it does not.
+    // Asserting the branch matches the advertisement holds on both builds; asserting a
+    // re-hit would not — the relaunched game may or may not settle in the window, which
+    // is the runner's timing and not the host's contract.
+    {
+      const rs = await call("dbg_restart", {});
+      if (rs.isError === true) {
+        check(textOf(rs).trim().length > 0 && !/\[\w+\]:\s*$/.test(textOf(rs)), "GD_DAP_RESTART", `restart refused self-describingly: ${textOf(rs).slice(0, 80)}`);
+      } else {
+        const expected = caps?.supportsRestartRequest === true ? "restart" : "relaunch";
+        check(
+          sc(rs).method === expected,
+          "GD_DAP_RESTART",
+          `restart took the ${sc(rs).method} path, which is the one supportsRestartRequest=${caps?.supportsRestartRequest === true} implies`,
+        );
+        check(sc(rs).session_id === "godot" && typeof sc(rs).state === "string", "GD_DAP_RESTART", `…and answered the documented shape (state=${sc(rs).state})`);
+      }
+    }
+
+    // 🔴 END THIS SESSION BEFORE SECTION 9 OPENS ANOTHER, and CI taught it — on the
+    // 4.3 arm only. The editor serves ONE debug session at a time (§7's standing
+    // gotcha), and section 8's `dbg_restart` deliberately leaves a fresh game running.
+    // Without this, section 9's launch is refused and three claims fail for a reason
+    // that has nothing to do with what they test. On 4.7 it happened to pass, because
+    // the restarted game had already terminated by the time section 9 ran — a timing
+    // accident, which is exactly the kind of thing a gate must not depend on.
+    await endSession(dap);
+    live = null;
+  }
+
+  // ── 9. buffered breakpoint modifiers are feature-detected too ───────────────
+  // 🔴 THE DEFECT THIS RELEASE FIXES, and the only live assertion of it anywhere.
+  // Detection used to run at SET time against capabilities that are null until a
+  // session exists — so a modifier buffered BEFORE launch, which is the documented and
+  // ordinary way to arm one, skipped detection entirely and went to an adapter that
+  // ignores it. Measured on 4.7: `conditions: ["counter < 0"]` (always false) produced
+  // no warning and the breakpoint halted on the first frame regardless.
+  //
+  // This also replaces the deleted `editor-dap-breakpoints` probe, which asked the same
+  // question of the ADAPTER and logged the answer. The answer was always "ignored", on
+  // every build tried; what actually matters is that the HOST notices and says so, and
+  // that is a claim rather than an observation.
+  {
+    // Tracked in `live` so the finally tears this session down too if a claim throws —
+    // the editor serves one session at a time and a leaked one poisons the next run.
+    live = newClient();
+    const { dap, call } = live;
+    const before = await call("dbg_set_breakpoints", {
+      path: "res://player.gd", lines: [21],
+      conditions: ["counter < 0"], hit_conditions: [">1000000"], log_messages: ["GCB_LOGPOINT {counter}"],
+    });
+    check(sc(before).buffered === true, "GD_DAP_MODIFIERS", "modifiers set before a session are buffered");
+    check(
+      sc(before).modifier_detection === "deferred",
+      "GD_DAP_MODIFIERS",
+      `a buffered modifier reports detection as deferred rather than staying silent (${sc(before).modifier_detection})`,
+    );
+    check(typeof sc(before).warning === "string" && sc(before).warning.length > 0, "GD_DAP_MODIFIERS", "…and carries a warning saying why it could not be detected");
+    check(sc(before).unsupported_modifiers === undefined, "GD_DAP_MODIFIERS", "…and claims no verdict it cannot yet have");
+
+    const launched = await call("dbg_launch", { scene: "main", allow_port_conflict: true });
+    // Quote the refusal when it fails: a launch refused here means the previous
+    // section left a session open, which is a completely different fault from the
+    // modifier reporting under test — and the first CI run said only "not accepted".
+    check(
+      launched.isError !== true,
+      "GD_DAP_MODIFIERS",
+      launched.isError === true
+        ? `the launch that applies the buffered modifiers was REFUSED: ${textOf(launched).slice(0, 110)}`
+        : "the launch that applies the buffered modifiers is accepted",
+    );
+    const caps = dap.capabilities;
+    // The expected set is derived from what THIS adapter advertises, so the claim is
+    // the same one on a build that implements the modifiers and on one that does not.
+    const expected = [
+      ["condition", "supportsConditionalBreakpoints"],
+      ["hitCondition", "supportsHitConditionalBreakpoints"],
+      ["logMessage", "supportsLogPoints"],
+    ].filter(([, capName]) => caps?.[capName] !== true).map(([field]) => field);
+    const reported = sc(launched).unsupported_modifiers ?? [];
+    check(
+      JSON.stringify(reported) === JSON.stringify(expected),
+      "GD_DAP_MODIFIERS",
+      `dbg_launch reports exactly the modifiers this adapter cannot honour: reported=${JSON.stringify(reported)} expected=${JSON.stringify(expected)}`,
+    );
+    if (expected.length > 0) {
+      check(/halt unconditionally/.test(String(sc(launched).warning ?? "")), "GD_DAP_MODIFIERS", "…and warns that the affected breakpoints halt unconditionally");
+    } else {
+      check(sc(launched).warning === undefined, "GD_DAP_MODIFIERS", "…and stays silent on a build that honours all three");
+    }
+    await endSession(dap);
   }
 } catch (err) {
   // 🔴 THIS CATCH IS THE POINT, and a mutation found its absence. The
