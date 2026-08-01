@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.36.0] — 2026-07-31
+
 ### Added — the `cs_dbg_*` plane has a gate, in the same required job, one step further down
 `host/test-integration/cs-dap-plane.integration.mjs` asserts all thirteen `cs_dbg_*` tools against a
 real **netcoredbg 3.2.0-1092**, as a new **`C3 GATE`** step inside `csharp-plane`.
