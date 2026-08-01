@@ -996,10 +996,16 @@ jobs:
     # 1.35.0 and 1.36.0 were about. So this is its own job, and `dap-plane` keeps its
     # two log-only probes unchanged.
     #
-    # 🔴 NO Xvfb, NO GPU, NO port. `dap-plane` needs a software-rendered GUI editor
-    # because its probes RUN THE GAME; `godot --headless --editor` serves the Debug
-    # Adapter on 6006 just the same, and every assertion here is about what the HOST
-    # does with the adapter's answers.
+    # 🔴 THE EDITOR IS HEADLESS; ONLY THE LAUNCHED GAME NEEDS A DISPLAY.
+    # `godot --headless --editor` serves the Debug Adapter on 6006 just the same, so
+    # this job skips dap-plane's software-rendered GUI editor boot entirely — the DAP
+    # port opens in ~4s here versus the ~120s wait dap-plane budgets for. The host-side
+    # assertions (the refusals, the session guard, the source guard) need no display at
+    # all. The LIVE section does: the editor spawns the game as a child process, and a
+    # game with no DISPLAY exits before it can hit a breakpoint. CI taught that — the
+    # first version of this job ran fully headless and the live stop never landed.
+    # So the step runs under xvfb-run for the child's sake, with software GL.
+    # Unlike dap-plane, EVERY claim here is fatal.
     #
     # 🔴 It boots the editor against a COPY of example/ in a temp dir, never the tree.
     # Booting --editor damages example/project.godot two ways (the standing gotcha),
@@ -1021,6 +1027,7 @@ jobs:
       - name: Install Godot (standard linux build)
         run: |
           set -eux
+          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -1044,13 +1051,18 @@ jobs:
           # Bridge auth (default-on) is covered by bridge_auth_smoke.gd; this probe
           # connects without a secret, so disable auth for the boot.
           BREAKPOINT_BRIDGE_INSECURE: '1'
+          # For the GAME the editor spawns, not for the editor: a CI runner has no GPU.
+          LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
+          set -eux
+          cat > /tmp/gate.sh <<'GATE'
           set -eux
           "$GODOT_BIN" --headless --editor --path "$GD_PROJECT" \
             >/tmp/godot-headless-editor.log 2>&1 &
           GODOT_PID=$!
-          # The Debug Adapter is served by the editor on 6006. A headless editor boots
-          # far faster than the Xvfb one dap-plane uses, but still allow ~120s.
+          # The Debug Adapter is served by the editor on 6006. A HEADLESS editor boots
+          # far faster than the Xvfb GUI one dap-plane uses — measured at ~4s here
+          # against the ~120s that job budgets — but keep a generous ceiling anyway.
           for i in $(seq 1 60); do
             if node -e "require('net').connect(6006,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
               echo "DAP port open after ${i} tick(s)"; break
@@ -1060,6 +1072,10 @@ jobs:
           # 🔴 The gate. Every claim inside fails the job; nothing is log-only.
           GODOT_PROJECT="$GD_PROJECT" timeout 420 node test-integration/gdscript-dap-plane.integration.mjs
           kill "$GODOT_PID" 2>/dev/null || true
+          GATE
+          # A file rather than a pipe into bash: the backgrounded editor would otherwise
+          # inherit the script itself on stdin.
+          xvfb-run -a -s "-screen 0 1280x720x24" bash /tmp/gate.sh
       - name: Editor log tail (on failure)
         if: always()
         run: tail -n 80 /tmp/godot-headless-editor.log || true

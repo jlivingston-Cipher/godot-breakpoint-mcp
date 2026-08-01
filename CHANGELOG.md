@@ -18,11 +18,14 @@ experimental probe of a novel live adapter and must never block a merge. A stric
 there would be silently optional, which is the exact failure the last two releases were about. So
 this is its own job, and `dap-plane` keeps its two log-only probes unchanged.
 
-🔴 **And it needs no Xvfb.** `dap-plane` boots a software-rendered GUI editor because its probes run
-the game. **`godot --headless --editor` serves the Debug Adapter on 6006 just the same** — measured —
-and every assertion here is about what the *host* does with the adapter's answers. No display
-server, no GPU, no port. The editor boots against a **copy** of `example/` in a temp dir, never the
-checkout: booting `--editor` damages `example/project.godot` two ways, and the escape-guard
+🔴 **The editor is headless; only the game it spawns needs a display.** `godot --headless --editor`
+serves the Debug Adapter on 6006 just the same, so this job skips `dap-plane`'s software-rendered
+GUI editor boot entirely — **the port opens in ~4 s here against the ~120 s that job budgets**. The
+host-side assertions (the refusals, the session guard, the source guard) need no display at all. The
+live section does, and **CI taught that**: the first version of this job ran fully headless and the
+stop never landed, because the editor spawns the game as a child and a game with no `DISPLAY` exits
+first. The step runs under `xvfb-run` for the child's sake — but unlike `dap-plane`, every claim here
+is fatal. The editor boots against a **copy** of `example/` in a temp dir, never the checkout: booting `--editor` damages `example/project.godot` two ways, and the escape-guard
 assertions need a real file in a sibling directory beside the project root. **Nothing is added to
 `example/`** — the tracked-file count does not move and there is no new `.uid` sidecar, the same
 call sessions 155–158 made.
@@ -102,7 +105,8 @@ one too.
 `dbg_set_variable` are **already correctly feature-gated** and needed no change — evidence against
 porting #166 mechanically. And a lone apostrophe inside a comment in `schemas.ts` makes
 `contract_check.py` swallow every later entry into the one above it (155 §7, hit for real this
-session); the file now says so where it matters.
+session); the file now says so where it matters. And `--headless --editor` **does** serve the DAP —
+so `dap-plane`'s GUI editor boot is avoidable, though Xvfb is still needed for the game it spawns.
 
 ## [1.36.0] — 2026-07-31
 

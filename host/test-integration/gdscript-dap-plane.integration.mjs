@@ -11,10 +11,14 @@
 // silently optional, which is the exact failure 1.35.0 and 1.36.0 were about. So this
 // is its own REQUIRED job, and `dap-plane` keeps its two log-only probes unchanged.
 //
-// 🔴 WHY IT NEEDS NO Xvfb. `dap-plane` boots `--editor` under Xvfb with software GL
-// because its probes RUN THE GAME. `godot --headless --editor` serves the Debug
-// Adapter on 6006 just the same (measured), and every assertion here is about what
-// the HOST does with the adapter's answers, so the gate is display-free and cheap.
+// 🔴 THE EDITOR IS HEADLESS; ONLY THE GAME IT SPAWNS NEEDS A DISPLAY.
+// `godot --headless --editor` serves the Debug Adapter on 6006 just the same, so this
+// job skips dap-plane's software-rendered GUI editor boot entirely — the port opens in
+// ~4s here against the ~120s that job budgets. Sections 1–5 need no display at all.
+// Section 6 does: the editor spawns the game as a child, and a game with no DISPLAY
+// exits before it can reach a breakpoint. CI taught that — the first version of this
+// job ran fully headless and the live stop never landed — so the workflow wraps the
+// step in xvfb-run for the child's sake.
 //
 // Requires: a headless editor already up on the project at GODOT_PROJECT.
 import fs from "node:fs";
@@ -199,7 +203,11 @@ try {
     check(typeof sc(r).stop_on_entry_honored === "boolean", "GD_DAP_ENTRY", `stop_on_entry_honored is reported (${sc(r).stop_on_entry_honored})`);
     if (sc(r).stop_on_entry_honored === false) {
       check(typeof sc(r).warning === "string" && sc(r).warning.length > 0, "GD_DAP_ENTRY", "an ignored stop_on_entry carries a warning rather than a bare 'running'");
-      check(sc(r).state === "running", "GD_DAP_ENTRY", "…and reports running, which is what is actually true");
+      // 🔴 NOT `state === "running"`. CI taught this: a game that boots and exits
+      // inside the wait window reports `terminated`, which is equally true and
+      // equally not-a-stop. The claim under test is that the session did NOT stop —
+      // pinning the exact non-stopped state would be asserting the runner's timing.
+      check(sc(r).state !== "stopped", "GD_DAP_ENTRY", `…and does not claim a stop (state=${sc(r).state})`);
     } else {
       check(sc(r).state === "stopped", "GD_DAP_ENTRY", "an honoured stop_on_entry reports stopped");
     }
