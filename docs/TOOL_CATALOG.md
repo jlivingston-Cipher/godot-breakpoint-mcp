@@ -1854,9 +1854,16 @@ A negative value is rejected by the input schema; it used to reach the wire and 
 success with empty contents, indistinguishable from a real miss.
 
 Every `gd_*` tool that takes a `path` **refuses one that resolves outside the Godot project root**
-— including a `res://` path that walks out through `..`. The refusal names the resolved path and is
-reported as a host refusal, not as an `LSP error [...]`, so the caller is not sent to debug a
-language server that was never asked.
+— including a `res://` path that walks out through `..` — and **refuses a path that does not exist**
+or is not a regular file. The refusal names the resolved path and is reported as a host refusal, not
+as an `LSP error [...]`, so the caller is not sent to debug a language server that was never asked.
+
+A missing script used to be **opened as an empty document**: `readFileText` returns `""` for any read
+failure, so the language server was told the file existed and was empty, and answered about that.
+Measured on real 4.3 / 4.5 / 4.7, `gd_document_symbols` on a missing path returned a phantom
+`{ "name": "<file>.gd", "kind": "class" }` and `gd_diagnostics` returned an `"(EMPTY_FILE): Empty
+script file."` warning — both with `isError: false`. **A file that exists and is genuinely empty is
+still served**; the guard is about absence, not size.
 
 ### `gd_document_symbols` ✅
 - **Input**

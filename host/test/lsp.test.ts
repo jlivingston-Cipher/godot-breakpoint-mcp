@@ -838,3 +838,51 @@ test("gd_* position inputs reject a negative line or character at the SCHEMA, be
   lsp.close();
   await srv.close();
 });
+
+test("the gd_* tools REFUSE a path that does not exist, instead of opening it as an empty document", async () => {
+  const projectPath = tmpProject({ "a.gd": "extends Node\nvar counter := 1\n" });
+  const { srv, received } = await startLsp({
+    capabilities: { documentSymbolProvider: true, hoverProvider: true },
+    onRequest: (msg, s) => writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [] }),
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  // readFileText() returns "" for ANY read failure, so a missing file used to be
+  // announced to the server via ensureOpen(uri, "") as an EMPTY one. Measured on
+  // real 4.3/4.5/4.7: gd_document_symbols answered a phantom
+  // {name:"<file>.gd", kind:"class"} and gd_diagnostics answered a real
+  // "(EMPTY_FILE): Empty script file." warning — both isError:false, and both
+  // indistinguishable from a genuinely empty file that does exist.
+  for (const tool of ["gd_document_symbols", "gd_diagnostics"]) {
+    const res = (await rec.handler(tool)({ path: "res://no_such_file.gd", wait_ms: 50 })) as ToolResultLike;
+    assert.equal(res.isError, true, `${tool} must refuse a missing file`);
+    assert.match(res.content![0].text!, /no such file/i);
+    assert.doesNotMatch(res.content![0].text!, /^LSP error/);
+  }
+  assert.ok(!received.some((m) => m.method === "textDocument/didOpen"),
+    "a missing file must never be announced to the language server at all");
+  // A directory is not a file either — `res://` itself resolves to the project root.
+  const dir = (await rec.handler("gd_document_symbols")({ path: "res://" })) as ToolResultLike;
+  assert.equal(dir.isError, true);
+  assert.match(dir.content![0].text!, /is not a file/);
+  lsp.close();
+  await srv.close();
+});
+
+test("a file that EXISTS and is genuinely empty is still served — the guard is about absence, not size", async () => {
+  // The distinction the old behaviour destroyed: "" on disk and no file at all
+  // produced identical answers. An empty file that exists must still work.
+  const projectPath = tmpProject({ "empty.gd": "", "a.gd": "extends Node\n" });
+  const { srv, received } = await startLsp({
+    capabilities: { documentSymbolProvider: true },
+    onRequest: (msg, s) => writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [] }),
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  for (const good of ["res://empty.gd", "res://a.gd", "a.gd"]) {
+    const res = (await rec.handler("gd_document_symbols")({ path: good })) as ToolResultLike;
+    assert.notEqual(res.isError, true, `${good} exists and must be served`);
+  }
+  assert.ok(received.some((m) => m.method === "textDocument/didOpen"),
+    "an existing file must still be opened on the language server");
+  lsp.close();
+  await srv.close();
+});

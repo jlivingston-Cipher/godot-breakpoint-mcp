@@ -50,6 +50,22 @@ name, and the refusal never reaches the language server.
 lower bound, so a negative value went to the wire and came back as a *successful* empty result —
 indistinguishable from a real miss at a valid position. They are now `.min(0)`.
 
+### Fixed — a missing script was opened as an EMPTY one, so the tools answered about a file that wasn't there
+🔴 **A behaviour change to shipped tools, and the host was the cause — not the engine.** `gd_*` path
+tools resolved a path and handed it to `LspClient.ensureOpen(uri, readFileText(...))`. `readFileText`
+swallows every read error and returns `""`, so **a file that does not exist was announced to the
+language server as a file that exists and is empty.** The server then answered honestly about *that*:
+measured on real 4.3 / 4.5 / 4.7, `gd_document_symbols("res://no_such_file.gd")` returned a phantom
+`{ name: "no_such_file.gd", kind: "class" }` with `isError: false`, and `gd_diagnostics` returned a
+real `"(EMPTY_FILE): Empty script file."` warning. **A caller could not distinguish "empty" from
+"absent".** A missing path, and a path that is not a regular file, are now refused by name and never
+reach the server. `readFileText` itself is unchanged — it is shared with four other tool families and
+stays lenient.
+
+🔴 **The guard is about absence, not size:** a file that exists and is genuinely empty is still
+served. That is the distinction the old behaviour destroyed, and it carries its own assertion in
+both the unit suite and the live probe.
+
 ### Fixed — a host refusal was reported as an `LSP error`
 `fail()` prefixed every error with `LSP error [code]:`, including refusals the host raised without
 ever contacting the server — sending the caller to debug a language server that was never asked.
