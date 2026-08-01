@@ -4,6 +4,7 @@ import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { z } from "zod";
 import { LspClient, LspError } from "../src/lsp.js";
 import { registerLspTools } from "../src/tools/lsp.js";
 import { loadConfig } from "../src/config.js";
@@ -715,6 +716,125 @@ test("request() surfaces an LspError with the server's error code on an error re
   });
   const lsp = new LspClient("127.0.0.1", srv.port, "file:///tmp/proj", 3000);
   await assert.rejects(lsp.request("textDocument/hover", {}), (e) => e instanceof LspError && e.code === -32602 && /Invalid params/.test((e as Error).message));
+  lsp.close();
+  await srv.close();
+});
+
+// --- session 156: the states the mock never produced -------------------------
+// Each of these was MEASURED against real Godot 4.3/4.5/4.7 language servers
+// before the guard was written; every one succeeded with isError:false before.
+
+test("gd_rename REFUSES an invalid identifier before it plans a single edit", async () => {
+  const projectPath = tmpProject({ "a.gd": "extends Node\nvar counter := 1\n" });
+  const { srv, received } = await startLsp({
+    capabilities: { renameProvider: true },
+    onRequest: (msg, s) => writeFrame(s, {
+      jsonrpc: "2.0", id: msg.id,
+      result: { changes: { "file:///x/a.gd": [{ range: { start: { line: 1, character: 4 }, end: { line: 1, character: 11 } }, newText: "zzz" }] } },
+    }),
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  for (const bad of ["", "1bad name!", "a b", "a\nb", "has-dash", " lead"]) {
+    const res = (await rec.handler("gd_rename")({ path: "res://a.gd", line: 1, character: 4, new_name: bad })) as ToolResultLike;
+    assert.equal(res.isError, true, `rename to ${JSON.stringify(bad)} must be refused`);
+    assert.match(res.content![0].text!, /not a valid GDScript identifier/);
+    // The refusal is a HOST refusal, not an LSP failure — it must not be dressed
+    // up as one, and the caller must not be sent to debug the language server.
+    assert.doesNotMatch(res.content![0].text!, /^LSP error/);
+  }
+  assert.ok(!received.some((m) => m.method === "textDocument/rename"),
+    "must not send textDocument/rename at all — the server plans the illegal rename happily");
+  lsp.close();
+  await srv.close();
+});
+
+test("gd_rename REFUSES a GDScript reserved word, and still allows a legal name", async () => {
+  const projectPath = tmpProject({ "a.gd": "extends Node\nvar counter := 1\n" });
+  const { srv } = await startLsp({
+    capabilities: { renameProvider: true },
+    onRequest: (msg, s) => writeFrame(s, {
+      jsonrpc: "2.0", id: msg.id,
+      result: { changes: { "file:///x/a.gd": [{ range: { start: { line: 1, character: 4 }, end: { line: 1, character: 11 } }, newText: "ok" }] } },
+    }),
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  for (const kw of ["func", "var", "class", "extends", "return", "true", "null"]) {
+    const res = (await rec.handler("gd_rename")({ path: "res://a.gd", line: 1, character: 4, new_name: kw })) as ToolResultLike;
+    assert.equal(res.isError, true, `rename to "${kw}" must be refused`);
+    assert.match(res.content![0].text!, /reserved word/);
+  }
+  // Not over-eager: an ordinary identifier, a leading underscore, and an engine
+  // CLASS name (shadowable, therefore legal) must all still plan edits.
+  for (const good of ["counter2", "_private", "Node", "Vector2", "PascalCase"]) {
+    const res = (await rec.handler("gd_rename")({ path: "res://a.gd", line: 1, character: 4, new_name: good })) as ToolResultLike;
+    assert.notEqual(res.isError, true, `rename to "${good}" must be allowed`);
+    assert.equal((res.structuredContent as { edit_count?: number })?.edit_count, 1);
+  }
+  lsp.close();
+  await srv.close();
+});
+
+test("the gd_* tools REFUSE a path that resolves outside the project root", async () => {
+  const projectPath = tmpProject({ "a.gd": "extends Node\n" });
+  const { srv, received } = await startLsp({
+    capabilities: { documentSymbolProvider: true, hoverProvider: true },
+    onRequest: (msg, s) => writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [] }),
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  // `toFsPath` joins through path.join, which silently normalizes `..` away, so
+  // both of these resolved to a real path outside the project and answered ok.
+  // The last one is why the guard compares against `root + path.sep` rather than
+  // a bare startsWith(root): a SIBLING directory whose name merely starts with
+  // the project's name would otherwise pass.
+  const sibling = `${projectPath}_evil/x.gd`;
+  for (const bad of ["res://../../../etc/passwd", "/etc/passwd", "res://../outside.gd", sibling]) {
+    const res = (await rec.handler("gd_document_symbols")({ path: bad })) as ToolResultLike;
+    assert.equal(res.isError, true, `${bad} must be refused`);
+    assert.match(res.content![0].text!, /outside the Godot project root/);
+    assert.doesNotMatch(res.content![0].text!, /^LSP error/);
+  }
+  assert.ok(!received.some((m) => m.method === "textDocument/documentSymbol"),
+    "a refused path must never reach the language server");
+  // Not over-eager: a path INSIDE the project still works, including one that
+  // walks out and back in again.
+  for (const good of ["res://a.gd", "a.gd", "res://sub/../a.gd"]) {
+    const res = (await rec.handler("gd_document_symbols")({ path: good })) as ToolResultLike;
+    assert.notEqual(res.isError, true, `${good} must be allowed`);
+  }
+  lsp.close();
+  await srv.close();
+});
+
+test("a host REFUSAL is not dressed up as an LSP error", async () => {
+  const projectPath = tmpProject({ "a.gd": "extends Node\n" });
+  const { srv } = await startLsp({ capabilities: { documentSymbolProvider: true } });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const refused = (await rec.handler("gd_document_symbols")({ path: "/etc/passwd" })) as ToolResultLike;
+  // fail() prefixes genuine server failures with "LSP error [code]:" — sending a
+  // caller to debug a server that was never asked is the bug this guards.
+  assert.doesNotMatch(refused.content![0].text!, /LSP error/);
+  assert.match(refused.content![0].text!, /^Refusing/);
+  lsp.close();
+  await srv.close();
+});
+
+test("gd_* position inputs reject a negative line or character at the SCHEMA, before any handler runs", async () => {
+  const projectPath = tmpProject({ "a.gd": "extends Node\n" });
+  const { srv } = await startLsp({ capabilities: { hoverProvider: true } });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  // A handler pulled out of a recording server never sees its own zod schema —
+  // the real MCP server validates first — so this asserts the SCHEMA directly.
+  // Measured: negatives sailed through to the wire and came back "successful"
+  // with empty contents, indistinguishable from a real miss.
+  for (const tool of ["gd_hover", "gd_completion", "gd_definition", "gd_references", "gd_rename"]) {
+    const shape = z.object(rec.tools.get(tool)!.config.inputSchema as Record<string, z.ZodTypeAny>);
+    for (const bad of [{ line: -1, character: 0 }, { line: 0, character: -1 }, { line: -5, character: -5 }]) {
+      const parsed = shape.safeParse({ path: "res://a.gd", new_name: "x", ...bad });
+      assert.equal(parsed.success, false, `${tool} must reject ${JSON.stringify(bad)}`);
+    }
+    assert.equal(shape.safeParse({ path: "res://a.gd", line: 0, character: 0, new_name: "x" }).success, true,
+      `${tool} must still accept 0,0`);
+  }
   lsp.close();
   await srv.close();
 });

@@ -35,7 +35,16 @@ export function ok(obj: unknown) {
 
 /** MCP error envelope for a failed LSP call (never throws to the caller). */
 export function fail(err: unknown) {
-  const e = err as { code?: number | string; message?: string };
+  const e = err as { code?: number | string; message?: string; refusal?: boolean };
+  // A REFUSAL is the host declining the call, not the language server failing
+  // one. Rendering it as "LSP error [...]" sent the caller to debug a server
+  // that was never asked. Refusals carry their own message verbatim.
+  if (e?.refusal) {
+    return {
+      isError: true as const,
+      content: [{ type: "text" as const, text: e.message ?? String(err) }],
+    };
+  }
   return {
     isError: true as const,
     content: [{ type: "text" as const, text: `LSP error [${e.code ?? "error"}]: ${e.message ?? String(err)}` }],
