@@ -6,6 +6,74 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the tabletop and netcode file paths could leave the Godot project root
+`card_deck_from_table` read a table from **outside** the project root through all three spellings —
+an absolute path, `res://../…`, and a bare `../…` — and answered success. That is not merely a
+lenient read: the tool **stamps what it reads into the scene**, so the rows of a file outside the
+project became card data inside it. Four scene creators (`card_template_create`,
+`piece_template_create`, `board_create`, `board_tile_create`) and the two `interact_*` script
+writers had a `startsWith("res://")` pre-guard that `res://../…` satisfies, so they **wrote**
+outside the root; measured against a real project, they created seven files there. The four
+`mp_*` netcode writers shared the hole, and `mp_wire_rpc` **rewrote** a `.gd` file outside the root.
+
+Every caller-supplied path in these two families is now resolved and refused if it lands outside
+the project root (`path_outside_project`). An absolute path that resolves **inside** the root stays
+legal, because `table_path` is documented as "res:// or absolute" and narrowing it would break
+callers pointing at a real file in their own project. The comparison is against `root + path.sep`,
+never a bare `startsWith(root)` — a sibling directory named `<root>_evil` shares the prefix, and
+that is the case the gate asserts.
+
+`mp_wire_rpc`'s own `res://` + `.gd` pre-guard already refused an absolute path and a bare `../`,
+so only `res://../` reached it — the shared helper did not imply a shared exposure, and the two
+families are asserted separately per spelling.
+
+### Fixed — "cannot read table" was the answer to four different questions
+`readFileText` returns `""` for every failure, so a **missing** file, a real but **empty** file, a
+**directory**, and `""` (which resolves to the project root itself) all produced
+`Cannot read table … (does it exist?)`. Three of those four existed. The causes are now distinct:
+`not_found` for a genuinely absent file, `not_a_file` for a directory or the project root,
+`empty_table` for a real, reachable, zero-byte table, and `path_outside_project` for an escape.
+An empty table is a data problem and a missing one is a path problem; they no longer share an error.
+`mp_wire_rpc` gains the same separation (`empty_file`).
+
+### Fixed — `overwrite` was declared on four tools, documented, and never read
+`card_template_create`, `piece_template_create`, `board_create` and `board_tile_create` all accept
+`overwrite` ("Overwrite an existing … at `path` (default false)"). **Nothing in the implementation
+looked at it.** A second call against the same path did not overwrite and did not refuse — it
+**appended**. Measured: a second `board_create` took a 5-node scene on disk to 9, answered
+`saved: true`, and reported the `node_count` it intended rather than the one it had produced.
+
+The mechanism is worth recording because it is not obvious from the host code. The addon's
+`scene.new` saves a fresh single-root scene to `path` and then calls
+`EditorInterface.open_scene_from_path(path)`; when that scene is **already open**, the editor
+switches to the existing tab, whose in-memory tree is the old one, and every `node.add` that
+follows lands on top of it.
+
+- With `overwrite` omitted or `false`, an existing `path` is now refused (`exists`).
+- With `overwrite: true` the scene is replaced — closing a stale editor tab first when the target
+  is open, which is what makes it a replace rather than an append.
+- `EditorInterface.close_scene` is Godot 4.4+. Below that, an **open** target is refused
+  (`overwrite_unsupported`) rather than appended to. Refusing is the correct answer; appending is
+  the defect.
+
+This is the third instance of the same disease in three releases — 1.37.0's `stop_on_entry` and
+1.38.0's breakpoint modifiers were both parameters that were accepted and then ignored.
+
+### Added — `tabletop-plane`, a required CI gate for the 14 card / board / piece tools
+The family had **no live gate**: 69 unit tests against a mocked bridge, plus six happy-path GDScript
+smoke scenes. That is precisely why five consecutive sessions read this code and described it
+wrongly in two directions. The new job drives all 14 tools against a real editor and asserts 50
+claims — the plane's happy path, every escape spelling per tool, all four read causes, and both
+sides of the `overwrite` contract. It runs with **no `continue-on-error`**: every defect it covers
+is a silent success, and a job that reports success while failing cannot catch one.
+
+It carries **two oracles with different blind spots**. The probe diffs a sibling directory beside
+the project root, which can name a leaked file; a separate CI step then asserts that directory holds
+exactly the two seeded fixtures and nothing else, knowing nothing about the probe's own baseline. A
+probe that took its baseline at the wrong moment would be wrong twice in the same direction and
+still go green — the second oracle does not share that failure mode, and the write escape was found
+by it.
+
 ## [1.38.0] — 2026-08-01
 
 ### Fixed — a breakpoint modifier buffered before launch was silently ignored, not dropped
