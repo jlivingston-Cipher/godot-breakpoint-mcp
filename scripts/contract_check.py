@@ -1629,6 +1629,56 @@ if bad_counts:
         "naming it — do not add a number you have not identified."
     )
 
+# --- 11c: the test suite's own SIZE — the same drift class, one level out ----
+# README's front-door badge claimed a "431-test suite" from host 1.18.1 all the
+# way to 1.33.0 — fourteen minor releases and 124 tests stale, with every gate
+# green the whole time, because nothing derived the number. Checks 10 and 11
+# derive their counts from code; so does this one.
+#
+# The count is DERIVED by parsing the declarations `node --test` itself counts:
+# one `test(...)`/`it(...)` opening a line, `await` allowed. It reports the
+# identical figure (555 at 1.33.0), so no claim here can be satisfied by editing
+# a constant to match a stale doc.
+TEST_DECL_RE = re.compile(r"^[ \t]*(?:await[ \t]+)?(?:test|it)[ \t]*\(", re.M)
+host_test_count = sum(
+    len(TEST_DECL_RE.findall(p.read_text(encoding="utf-8")))
+    for p in sorted(HOST_TEST.rglob("*.ts"))
+)
+TEST_COUNT_CLAIM_RE = re.compile(r"(\d[\d,]*)[- ]test suite", re.I)
+
+test_count_claims: list[tuple[Path, int, int, str]] = []
+for _f in RESOURCE_DOCS:
+    if not _f.exists():
+        continue
+    for _ln, _line in enumerate(_f.read_text(encoding="utf-8").splitlines(), 1):
+        for _m in TEST_COUNT_CLAIM_RE.finditer(_line):
+            test_count_claims.append(
+                (_f, _ln, int(_m.group(1).replace(",", "")), _line.strip()[:110])
+            )
+
+if not host_test_count:
+    # The anchor-missing case: a check that cannot see the thing it guards
+    # passes vacuously, which is worse than failing.
+    errors.append(
+        "Could not count any test declaration under host/test — the suite-size "
+        "check would pass vacuously. Has the suite moved, or the declaration "
+        "style changed away from a line-opening test(…)/it(…)?"
+    )
+else:
+    bad_test_counts = [
+        f"{_f.relative_to(ROOT)}:{_ln} claims a {_n}-test suite, host/test "
+        f"declares {host_test_count} — “{_snippet}”"
+        for _f, _ln, _n, _snippet in test_count_claims
+        if _n != host_test_count
+    ]
+    if bad_test_counts:
+        errors.append(
+            f"Host test-suite size drift (suite: {host_test_count}):\n      - "
+            + "\n      - ".join(bad_test_counts) +
+            "\n      The suite size is derived, not typed — correct the prose, "
+            "never the count."
+        )
+
 # --- 11b: tool-FAMILY counts ------------------------------------------------
 # Exact where it can be — a `<toolset ids>` -> N claim resolves id by id — and
 # an explicit eyeball list where it cannot.
@@ -2388,6 +2438,10 @@ print(
     f"Family claims (exact)   : {len(prefix_lines)} tool-name glob(s) · "
     f"{len(allfalse_lines) + len(annclass_lines)} annotation class · "
     f"{len(FAMILY_COUNT_EXEMPT)} exempt (rival ceiling)"
+)
+print(
+    f"Host test suite         : {host_test_count} test(s) declared under host/test "
+    f"· {len(test_count_claims)} doc claim(s) checked"
 )
 print(
     f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "
