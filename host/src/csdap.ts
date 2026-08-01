@@ -18,6 +18,14 @@ interface BufferedBreakpoints {
 }
 
 /**
+ * How long `start()` waits for the entry `stopped` event when `stopAtEntry` was
+ * requested. Bounded so an adapter that ignores stop-on-entry reports `running`
+ * rather than hanging the launch. Measured: netcoredbg emits it well inside a
+ * second on a local program, after its `configurationDone` response.
+ */
+const ENTRY_STOP_WAIT_MS = 10000;
+
+/**
  * Minimal DAP client for the C#/.NET debugging plane (D4 C3) — the debugger
  * analogue of the C2 `CsLspClient`. Transport-agnostic: it drives any
  * `JsonRpcChannel`, so production spawns **netcoredbg** (Samsung, MIT) over
@@ -54,6 +62,12 @@ export class CsDapClient extends EventEmitter {
   private watches: string[] = [];
   private lastStartMode: "launch" | "attach" | null = null;
   private lastStartArgs: Record<string, unknown> | null = null;
+  /**
+   * The launch/attach rejection, when one arrives. Set by `start()`; read there and
+   * kept afterwards so a rejection that lands late is still visible rather than
+   * being emitted as an unlistened `error` event (which throws).
+   */
+  private startFailure: unknown = null;
 
   capabilities: Record<string, unknown> | null = null;
   state: DapState = "disconnected";
@@ -256,7 +270,23 @@ export class CsDapClient extends EventEmitter {
     }
   }
 
-  /** Full handshake: initialize → launch/attach → (breakpoints) → configurationDone. */
+  /**
+   * Full handshake: initialize → launch/attach → (breakpoints) → configurationDone.
+   *
+   * 🔴 The handshake used to declare success unconditionally. Measured against a
+   * real netcoredbg 3.2.0-1092 with `program: "/no/such/binary"`:
+   *
+   *     >> launch             << success=true
+   *     >> configurationDone  << success=false
+   *                              "Failed command 'configurationDone' : 0x80070002"
+   *
+   * `0x80070002` is ERROR_FILE_NOT_FOUND — the adapter DOES report the failure, and it
+   * reports it on `configurationDone`, which was `.catch(() => undefined)`-swallowed
+   * immediately before `state = "running"`. So `cs_dbg_launch` answered
+   * `isError:false state:"running"` for a session that never existed, and every tool
+   * afterwards failed with a bare hex code against a phantom session. The same held
+   * for `program: ""` and for `cs_dbg_attach` on a process id that does not exist.
+   */
   async start(mode: "launch" | "attach", args: Record<string, unknown>): Promise<void> {
     this.lastStartMode = mode;
     this.lastStartArgs = args;
@@ -275,14 +305,76 @@ export class CsDapClient extends EventEmitter {
 
     // Send launch/attach but don't await it yet — many adapters (netcoredbg included)
     // only resolve it after configurationDone.
-    const startReq = this.request(mode, args);
+    //
+    // 🔴 A rejection used to be routed to `this.emit("error", err)`. Nothing in the
+    // host registers an `error` listener, and an unlistened `error` emit on an
+    // EventEmitter is an UNCAUGHT THROW — a failing launch could take the MCP server
+    // down. It is captured instead, and recorded on the client so a rejection that
+    // lands after `start()` has returned still puts the session in `terminated`
+    // rather than leaving it reading `running`.
+    this.startFailure = null;
+    const startReq = this.request(mode, args).then(
+      () => undefined,
+      (err: unknown) => {
+        this.startFailure = err;
+        this.configured = false;
+        this.state = "terminated";
+        // A DISTINCT event name, deliberately: `error` is special-cased by
+        // EventEmitter and throws when unlistened. This one is safe to ignore.
+        this.emit("start_failed", err);
+      },
+    );
     await onInit;
     await this.applyAllBreakpoints();
-    await this.request("configurationDone", {}).catch(() => undefined);
+
+    // Arm the entry-stop wait BEFORE configurationDone is sent: netcoredbg can emit
+    // `stopped` before its configurationDone response lands, and a listener attached
+    // afterwards would miss it.
+    const wantsEntryStop = mode === "launch" && args["stopAtEntry"] === true;
+    const entryStop = wantsEntryStop ? this.waitEvent("stopped", ENTRY_STOP_WAIT_MS) : null;
+
+    let configureFailure: unknown = null;
+    await this.request("configurationDone", {}).catch((err: unknown) => {
+      configureFailure = err;
+    });
+
+    // 🔴 Only treat a configurationDone failure as fatal when the adapter ADVERTISED
+    // the request. An adapter that never claimed `supportsConfigurationDoneRequest`
+    // may legitimately reject it while the session is perfectly alive — refusing
+    // there would be the over-eager mirror of the bug being fixed. netcoredbg
+    // advertises it (measured: `supportsConfigurationDoneRequest = true`), so its
+    // 0x80070002 is a real answer, not an unimplemented request.
+    const configureDoneAdvertised = this.capabilities?.["supportsConfigurationDoneRequest"] === true;
+    const fatal = this.startFailure ?? (configureDoneAdvertised ? configureFailure : null);
+    if (fatal) {
+      this.configured = false;
+      this.state = "terminated";
+      void startReq;
+      const detail = (fatal as { message?: string })?.message ?? String(fatal);
+      throw new DapError(
+        mode,
+        `the C# debug adapter did not start the session: ${detail}. No debug session is ` +
+          `running — check that the program exists and is a .NET assembly (${mode} args: ` +
+          `${JSON.stringify(args).slice(0, 200)}).`,
+      );
+    }
+
     this.configured = true;
-    this.state = "running";
-    // Surface a launch/attach failure if one occurs, but don't hang on success.
-    startReq.catch((err) => this.emit("error", err));
+    // 🔴 ONLY from `initialized`, never unconditionally. The adapter can emit `stopped`
+    // (or `terminated`) between the configurationDone RESPONSE and this line, and the
+    // event handler has already moved the state — a blind `= "running"` clobbers it and
+    // the awaited entry stop below then has nothing left to wait for. The first version
+    // of this fix wrote it unconditionally and passed locally for exactly that reason:
+    // the race window is small, and CI is where it opened.
+    if (this.state === "initialized") this.state = "running";
+
+    // 🔴 `stop_on_entry` used to return before the entry stop, so the tool reported
+    // `running` and `threadId()` fell back to 1 while netcoredbg's real thread id is a
+    // large integer — cs_dbg_stack_trace answered `0x80070057` immediately after
+    // launch, and the IDENTICAL call succeeded 1.5s later. Waiting here is what makes
+    // stop-on-entry work end to end. Bounded: an adapter that ignores stopAtEntry
+    // simply reports `running`, as before.
+    if (entryStop) await entryStop;
   }
 
   threadId(): number {

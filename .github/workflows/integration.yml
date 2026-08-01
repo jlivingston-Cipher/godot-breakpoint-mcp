@@ -127,6 +127,9 @@ name: integration
 #                     probe and the netcoredbg initialize gate must pass — the launch-to-breakpoint
 #                     flow past C#_DAP_REACHED stays log-only. Promoted from experimental the way
 #                     runtime-plane was in session 20. See docs/D4_CSHARP_PLAN.md.
+#                     🆕 The real assertions live in two GATE steps: `C2 GATE` (s157, cs_* vs real
+#                     OmniSharp) and `C3 GATE` (s158, cs_dbg_* vs real netcoredbg over a throwaway
+#                     .NET console app). The two older probes above them stay diagnostics.
 #   * authoring-plane — boots the editor GUI under Xvfb (like editor-plane) and drives the Groups A-G
 #                     authoring mutators against the addon bridge (:9080), asserting each mutation by
 #                     reading the live edited scene back through separate read tools — plus forward +
@@ -983,6 +986,13 @@ jobs:
     # try/catch that console.logs, so every cs_* tool could have answered isError on every call and
     # this REQUIRED job would still have been green. The `C2 GATE` step below is what actually
     # asserts the cs_* family; the older step stays as the diagnostic it always was.
+    #
+    # 🔴 CORRECTED AGAIN (session 158): the sentence above stopped one probe short. The SAME shape
+    # sat one step further down — csharp-dap.integration.mjs is documented as "LOG-ONLY beyond the
+    # C#_DAP_REACHED gate", so all thirteen cs_dbg_* tools were unasserted inside this required job
+    # too. `C3 GATE` closes that. Note what the two gates do NOT share: the C2 probe asserts against
+    # the Godot C# fixture, while C3 builds a throwaway console app, because the one thing the DAP
+    # diagnostic was written around is whether netcoredbg can debug Godot's CoreCLR at all.
     env:
       # The .NET/Mono Godot build (NOT the standard build the other planes download). Its version
       # MUST match the Godot.NET.Sdk pinned in example-csharp/ExampleCsharp.csproj (4.7.0) and the
@@ -1111,7 +1121,28 @@ jobs:
           # markers C#_DAP_*. Bounded by an outer timeout so a misbehaving adapter can never hang the
           # runner. LOG-ONLY beyond the gate — the netcoredbg + Godot native-host attach story is the
           # least-certain piece of D4 (see docs/D4_CSHARP_PLAN.md), proven by the mock unit suite.
+          # The GATE for the cs_dbg_* tools is the C3 GATE step below; this one stays a diagnostic.
           timeout 180 node test-integration/csharp-dap.integration.mjs
+      - name: C3 GATE — cs_dbg_* plane assertions vs real netcoredbg (markers CS_DAP_LIVE_*)
+        working-directory: host
+        env:
+          GODOT_CSHARP_PROJECT: ${{ github.workspace }}/example-csharp
+          GODOT_CSDAP_CMD: ${{ env.NETCOREDBG_BIN }}
+        run: |
+          set -eux
+          # The step ABOVE is a DIAGNOSTIC and says so: only its `initialize` handshake can fail.
+          # Same shape the C2 GATE fixed one step up in this same job — and this job carries no
+          # `continue-on-error`, so it was a log-only probe inside a REQUIRED gate.
+          #
+          # 🔴 This step does NOT drive Godot. The diagnostic above launches the C# GAME under
+          # netcoredbg, and whether the adapter can debug the CoreCLR the Godot native host loads
+          # is exactly the uncertainty it was written around — an assertion built on it would be
+          # flaky by construction. This probe builds a throwaway .NET console app in a temp dir
+          # (removed in a `finally`; NOTHING is added to example-csharp/), so the live flow —
+          # launch → stop at entry → arm → verify → hit → step → inspect — is deterministic.
+          # It also refuses to assert against a session that never stopped: CS_DAP_LIVE_WARM
+          # exits non-zero rather than let the claims below it pass vacuously.
+          timeout 420 node test-integration/cs-dap-plane.integration.mjs
       - name: Boot the C# game headless (C1 smoke — the .NET assembly loads and the scene runs)
         run: |
           set -eux

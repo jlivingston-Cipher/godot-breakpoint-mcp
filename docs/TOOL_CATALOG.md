@@ -2394,6 +2394,10 @@ Set (replace) data breakpoints — 'watchpoints' that halt when a variable's val
 
 ### `cs_dbg_launch` ✅ · runs code
 Launch a C# Godot game under netcoredbg. `program` defaults to the configured Mono/.NET Godot binary and `args` to `['--path', <C# project>]`; override either to debug a different .NET program. Buffered breakpoints are applied during the handshake. **Refuses when the runtime bridge port is already bound — but only when this looks like a Godot launch**, meaning the program's filename contains `godot` *or* the args carry Godot's `--path` project flag (the default args do). Pointing `program` and `args` at some other .NET program is never gated: it has no Breakpoint autoload and no interest in the runtime port, so refusing there would be a check firing when nothing is wrong. The first version of this gate tested `program === <configured default>`, which let an explicitly-named Mono binary — the documented way to point at one — through ungated.
+
+**A launch the adapter REJECTED is reported as an error rather than as a running session.** Measured against a real netcoredbg 3.2.0-1092: `program: "/no/such/binary"` (and `""`) got `launch success=true` followed by `configurationDone success=false — "Failed command 'configurationDone' : 0x80070002"` (ERROR_FILE_NOT_FOUND). That response used to be swallowed immediately before an unconditional `state: "running"`, so the tool answered `isError:false` for a session that never existed and every later `cs_dbg_*` call failed with a bare hex code against a phantom session. The failure is only treated as fatal when the adapter **advertised** `supportsConfigurationDoneRequest` — one that never claimed the request may reject it while the session is alive.
+
+**With `stop_on_entry` the call waits for the entry stop**, so it returns `state: "stopped"` with a usable thread. It used to return first: the tool said `running`, the thread id fell back to `1` while netcoredbg's is a large integer, and `cs_dbg_stack_trace` answered `0x80070057` — while the identical call 1.5 s later succeeded.
 - **Input**
 ```json
 { "type": "object", "properties": { "program": { "type": "string" }, "args": { "type": "array", "items": { "type": "string" } }, "stop_on_entry": { "type": "boolean", "default": false }, "just_my_code": { "type": "boolean", "default": true }, "allow_port_conflict": { "type": "boolean", "default": false, "description": "launch the Godot binary even though the runtime bridge port is bound; ignored when debugging another program" } } }
@@ -2404,10 +2408,10 @@ Launch a C# Godot game under netcoredbg. `program` defaults to the configured Mo
 ```
 
 ### `cs_dbg_attach` ✅
-Attach netcoredbg to an already-running .NET process (e.g. a C# Godot game launched separately) by its OS process id.
+Attach netcoredbg to an already-running .NET process (e.g. a C# Godot game launched separately) by its OS process id. **A pid nothing is running under is refused before the handshake** — `-1` and `0` are rejected by the schema, and a pid the kernel reports `ESRCH` for is refused by name; all three previously answered `isError:false state:"running"`. `EPERM` — a live process owned by another user — is a legitimate attach target and is **not** refused. Like `cs_dbg_launch`, an attach the adapter itself rejects is now an error rather than a running session.
 - **Input**
 ```json
-{ "type": "object", "required": ["process_id"], "properties": { "process_id": { "type": "integer" } } }
+{ "type": "object", "required": ["process_id"], "properties": { "process_id": { "type": "integer", "minimum": 1 } } }
 ```
 - **Output**
 ```json
@@ -2416,6 +2420,10 @@ Attach netcoredbg to an already-running .NET process (e.g. a C# Godot game launc
 
 ### `cs_dbg_set_breakpoints` ✅
 Set (replace) the breakpoints for a C# source file. Applied immediately if a session is running, else buffered until launch/attach. Feature-detected: the per-line `conditions` modifier is only sent when the connected adapter advertises `supportsConditionalBreakpoints` (netcoredbg does); on an adapter that advertises it unsupported the modifier is dropped and the result carries `unsupported_modifiers` + a `warning`.
+
+**A source that cannot carry a breakpoint is refused.** Measured: `res://NoSuchFile.cs`, `res://demo` (a **directory**) and `""` (which `path.join`s down to the **project root directory**) each returned `{"buffered":true,"breakpoints":[]}` with `isError:false` — byte-identical to a real file, so the caller could not tell an armed breakpoint from one that can never bind. A `res://` or relative path resolving **outside** the C# project root is refused too (compared against `root + path.sep`, never a bare `startsWith`, so a sibling directory sharing the root's name prefix does not pass).
+
+🔴 **The escape check is deliberately narrower than the `cs_*` LSP plane's.** `cs_dbg_launch` documents overriding `program` to debug a **different .NET program**, whose sources legitimately live outside the Godot project — refusing every outside path would break that documented mainline. So `res://` and relative paths are project-anchored and refused on escape; an **absolute** path elsewhere is the caller explicitly naming a file outside, and stays legal.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "lines"], "properties": { "path": { "type": "string" }, "lines": { "type": "array", "items": { "type": "integer", "minimum": 1 } }, "conditions": { "type": "array", "items": { "type": ["string", "null"] } } } }
@@ -2503,7 +2511,7 @@ Manage a persistent set of C# watch expressions and re-evaluate them in the curr
 ```
 
 ### `cs_dbg_set_exception_breakpoints` ✅
-Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching .NET exception is thrown (DAP `setExceptionBreakpoints`). Pass filter IDs to enable; call with no filters (or `[]`) to clear. The result echoes the active `filters` and reports `available_filters` — the exception filters the connected adapter advertises (**netcoredbg exposes `all` and `user-unhandled`**). Requires a running session; **not** gated (it only configures the debugger). Feature-detected: on an adapter that advertises no `exceptionBreakpointFilters` it returns a clear "unsupported" message **without sending anything**.
+Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching .NET exception is thrown (DAP `setExceptionBreakpoints`). Pass filter IDs to enable; call with no filters (or `[]`) to clear. The result echoes the active `filters` and reports `available_filters` — the exception filters the connected adapter advertises (**netcoredbg exposes `all` and `user-unhandled`**). Requires a running session; **not** gated (it only configures the debugger). Feature-detected: on an adapter that advertises no `exceptionBreakpointFilters` it returns a clear "unsupported" message **without sending anything**. **A filter id the adapter never advertised is refused by name, listing the real ones** — the empty case was validated but membership was not, so an unknown id went to the wire and came back `Failed command 'setExceptionBreakpoints' : 0x80070057`: a hex code for a question the host already had `available_filters` to answer.
 - **Input**
 ```json
 { "type": "object", "properties": { "filters": { "type": "array", "items": { "type": "string" }, "description": "Exception filter IDs to enable (default none = clear); choose from available_filters" } } }
