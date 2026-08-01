@@ -238,6 +238,34 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
         { refusal: true, code: "path_outside_project" },
       );
     }
+    // A file that does not exist must be REFUSED, not opened as an empty one.
+    // `readFileText` swallows every read error and returns "" (it is shared with
+    // four other tool families, so it stays lenient), and `ensureOpen(uri, "")`
+    // tells the language server the file exists and is empty. The server then
+    // answers honestly about THAT: measured on real 4.3/4.5/4.7,
+    // `gd_document_symbols` on a missing path returned a phantom
+    // `{name: "<file>.gd", kind: "class"}` with isError:false, and
+    // `gd_diagnostics` returned a genuine "(EMPTY_FILE): Empty script file."
+    // warning. Both are the host answering success about a file that is not
+    // there — the caller cannot distinguish "empty" from "absent".
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(fsPath);
+    } catch {
+      throw Object.assign(
+        new Error(
+          `Refusing "${p}": no such file (${fsPath}). It was previously opened as an ` +
+          `EMPTY document, so the language server answered about a file that does not exist.`,
+        ),
+        { refusal: true, code: "file_not_found" },
+      );
+    }
+    if (!stat.isFile()) {
+      throw Object.assign(
+        new Error(`Refusing "${p}": ${fsPath} is not a file.`),
+        { refusal: true, code: "not_a_file" },
+      );
+    }
   };
 
   const openAndPos = async (path: string) => {

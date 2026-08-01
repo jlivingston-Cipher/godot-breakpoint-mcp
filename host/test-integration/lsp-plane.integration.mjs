@@ -17,6 +17,7 @@
 // raw LSP request itself and requires the server to answer -32601. That is the
 // 155 §6 rule — the load-bearing assertion asks the language server, not the
 // tool's own answer read back.
+import fs from "node:fs";
 import { z } from "zod";
 import { LspClient } from "../dist/lsp.js";
 import { loadConfig } from "../dist/config.js";
@@ -185,6 +186,16 @@ await refusal("PATH_ABSOLUTE", "gd_document_symbols", { path: "/etc/passwd" },
 await refusal("PATH_SIBLING_PREFIX", "gd_document_symbols", { path: "res://../example_evil/x.gd" },
   /outside the Godot project root/,
   "a sibling directory sharing the project's name prefix must be refused");
+// A missing file must be refused, not opened as an empty document. Before the
+// guard, gd_document_symbols answered a phantom class symbol and gd_diagnostics
+// a real "(EMPTY_FILE)" warning — both isError:false, for a file that is not there.
+for (const tool of ["gd_document_symbols", "gd_diagnostics", "gd_hover"]) {
+  await refusal("MISSING_FILE", tool,
+    { path: "res://no_such_file.gd", line: 0, character: 0, wait_ms: 50 },
+    /no such file/i, `${tool} must refuse a path that does not exist`);
+}
+await refusal("NOT_A_FILE", "gd_document_symbols", { path: "res://" },
+  /is not a file/, "a directory must be refused");
 for (const [bad, why] of [["", "empty"], ["1bad name!", "not an identifier"], ["a\nb", "contains a newline"]]) {
   await refusal("RENAME_IDENT", "gd_rename", { path: P, line: 8, character: 4, new_name: bad, apply: false },
     /not a valid GDScript identifier/, `rename to ${JSON.stringify(bad)} (${why}) must be refused BEFORE edits are planned`);
@@ -210,6 +221,19 @@ for (const good of ["counter2", "_private", "Node", "Vector2"]) {
 for (const good of [P, "player.gd", "res://sub/../player.gd"]) {
   const r = await call("gd_document_symbols", { path: good });
   check(!r.isError, "PATH_LEGAL", `"${good}" resolves inside the project and must be accepted`);
+}
+// The missing-file guard is about ABSENCE, not size: a file that exists and is
+// genuinely empty must still be served. That is the distinction the old
+// behaviour destroyed — "" on disk and no file at all answered identically.
+const emptyRel = "tests/lsp_empty_probe.gd";
+const emptyAbs = `${cfg.projectPath}/${emptyRel}`;
+fs.writeFileSync(emptyAbs, "");
+try {
+  const r = await call("gd_document_symbols", { path: `res://${emptyRel}` });
+  check(!r.isError, "EMPTY_FILE_OK",
+    `a file that EXISTS and is empty must still be served — ${r.isError ? String(r.content?.[0]?.text ?? "").slice(0, 80) : "ok"}`);
+} finally {
+  fs.rmSync(emptyAbs, { force: true });
 }
 
 lsp.close();
