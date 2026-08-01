@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.38.0] — 2026-08-01
+
 ### Fixed — a breakpoint modifier buffered before launch was silently ignored, not dropped
 `dbg_set_breakpoints` feature-detects `conditions` / `hit_conditions` / `log_messages` against the
 adapter's advertised capabilities and drops what it cannot honour, because Godot advertises all three
