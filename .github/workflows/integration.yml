@@ -115,6 +115,19 @@ name: integration
 #                    stable (4.7) so the D_DAP_* markers reveal which advertised-but-dead-
 #                    on-4.3 capabilities light up on a modern build. Also EXPERIMENTAL /
 #                    continue-on-error (never blocks).
+#   * gdscript-dap-plane — the GATE for the same plane, and a REQUIRED job. Boots the editor
+#                    HEADLESS (no Xvfb, no GPU, no port — `--headless --editor` serves the
+#                    Debug Adapter on 6006 just the same) against a COPY of example/ in a
+#                    temp dir, and asserts all fifteen dbg_* tools: a launch/attach the
+#                    adapter REJECTED is refused rather than reported as running (and no
+#                    longer kills the process with an unhandled rejection), the eight tools
+#                    that need a session refuse without one instead of inventing state,
+#                    breakpoint sources that can never bind are refused BY REASON, and a
+#                    real breakpoint is armed, hit, inspected and stepped. It is a separate
+#                    job precisely BECAUSE dap-plane carries continue-on-error: a strict
+#                    assertion added there would be silently optional.
+#                    Markers: GD_DAP_CAPS / GD_DAP_PHANTOM / GD_DAP_NOSESSION /
+#                    GD_DAP_SOURCE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_ALL.
 #   * csharp-plane  — D4 C1 + C2 + C3. Downloads a Mono/.NET Godot build + the .NET SDK and boots the
 #                     C# fixture (example-csharp/) headless: dotnet-builds the project, imports +
 #                     --build-solutions, then asserts the C# scene's _Ready() ran (C#_PLANE_BOOT_OK).
@@ -970,6 +983,86 @@ jobs:
       - name: Editor log tail (on failure)
         if: always()
         run: tail -n 80 /tmp/godot-editor-dap.log || true
+
+  gdscript-dap-plane:
+    name: GDScript DAP plane vs real adapter (headless)
+    runs-on: ubuntu-latest
+    # 🔴 A REQUIRED gate, and a SEPARATE JOB rather than a step — the opposite answer
+    # to 1.35.0's and 1.36.0's, for a documented reason. Those landed their gates as
+    # steps inside `csharp-plane` because that job carries no continue-on-error, so a
+    # step there already blocks a merge. `dap-plane` DOES carry continue-on-error by
+    # design: it is an experimental probe of a novel live adapter and must never block.
+    # A strict assertion added there would be silently optional — the exact failure
+    # 1.35.0 and 1.36.0 were about. So this is its own job, and `dap-plane` keeps its
+    # two log-only probes unchanged.
+    #
+    # 🔴 NO Xvfb, NO GPU, NO port. `dap-plane` needs a software-rendered GUI editor
+    # because its probes RUN THE GAME; `godot --headless --editor` serves the Debug
+    # Adapter on 6006 just the same, and every assertion here is about what the HOST
+    # does with the adapter's answers.
+    #
+    # 🔴 It boots the editor against a COPY of example/ in a temp dir, never the tree.
+    # Booting --editor damages example/project.godot two ways (the standing gotcha),
+    # and the escape-guard assertions need a real file in a sibling directory beside
+    # the project root — both are fine in a copy and unacceptable in the checkout.
+    strategy:
+      fail-fast: false        # the 4.3 baseline and the newest stable are independent
+      matrix:
+        godot: [ "4.3-stable", "4.7-stable" ]
+    env:
+      GODOT_VERSION: ${{ matrix.godot }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: host/package-lock.json
+      - name: Install Godot (standard linux build)
+        run: |
+          set -eux
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Build host
+        working-directory: host
+        run: npm ci && npm run build
+      - name: Copy the example project out of the tree and import it
+        run: |
+          set -eux
+          GD_PROJECT="$(mktemp -d)/example"
+          mkdir -p "$GD_PROJECT"
+          cp -R "${{ github.workspace }}/example/." "$GD_PROJECT/"
+          "$GODOT_BIN" --headless --path "$GD_PROJECT" --import || true
+          echo "GD_PROJECT=$GD_PROJECT" >> "$GITHUB_ENV"
+      - name: Boot the editor HEADLESS and run the GDScript DAP gate
+        working-directory: host
+        env:
+          # Bridge auth (default-on) is covered by bridge_auth_smoke.gd; this probe
+          # connects without a secret, so disable auth for the boot.
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+        run: |
+          set -eux
+          "$GODOT_BIN" --headless --editor --path "$GD_PROJECT" \
+            >/tmp/godot-headless-editor.log 2>&1 &
+          GODOT_PID=$!
+          # The Debug Adapter is served by the editor on 6006. A headless editor boots
+          # far faster than the Xvfb one dap-plane uses, but still allow ~120s.
+          for i in $(seq 1 60); do
+            if node -e "require('net').connect(6006,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "DAP port open after ${i} tick(s)"; break
+            fi
+            sleep 2
+          done
+          # 🔴 The gate. Every claim inside fails the job; nothing is log-only.
+          GODOT_PROJECT="$GD_PROJECT" timeout 420 node test-integration/gdscript-dap-plane.integration.mjs
+          kill "$GODOT_PID" 2>/dev/null || true
+      - name: Editor log tail (on failure)
+        if: always()
+        run: tail -n 80 /tmp/godot-headless-editor.log || true
 
   csharp-plane:
     name: C# / .NET plane vs real Mono build

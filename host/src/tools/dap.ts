@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import nodePath from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
@@ -7,16 +9,46 @@ import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 import { portFree, portConflictMessage } from "../ports.js";
 
+/**
+ * How long `stop_on_entry: true` waits for the entry `stopped` event before
+ * reporting that the adapter did not honour it. Short on purpose: Godot 4.7 ignores
+ * `stopOnEntry` outright (measured — the game ran to completion and printed its
+ * `_ready()` line), so this is the price of the honest answer on every launch, not a
+ * rare timeout. An adapter that DOES honour it stops well inside the window.
+ */
+const ENTRY_STOP_WAIT_MS = 3000;
+
+/** A refusal raised by a guard here, rendered verbatim rather than as a DAP error. */
+class DapRefusal extends Error {
+  constructor(
+    message: string,
+    readonly reason: string,
+  ) {
+    super(message);
+    this.name = "DapRefusal";
+  }
+}
+
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
 // the current state — e.g. `continue` with no further breakpoint stays running.
 const RESUME_WAIT_MS = 15000;
 
 function fail(err: unknown) {
+  // A refusal this file raised is the host's own answer — rendering it as
+  // `DAP error [...]` would send the caller off to debug an adapter that was never
+  // asked. Same distinction lsp-common.fail() already draws for the LSP planes.
+  if (err instanceof DapRefusal) {
+    return { isError: true as const, content: [{ type: "text" as const, text: err.message }] };
+  }
   const e = err as { command?: string; message?: string };
+  // An adapter can answer a failure with an EMPTY message (netcoredbg did, on
+  // setVariable). `?? String(err)` only covers an ABSENT one, so the whole answer
+  // became a label and a colon.
+  const detail = e.message && e.message.trim() !== "" ? e.message : String(err);
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `DAP error [${e.command ?? "error"}]: ${e.message ?? String(err)}` }],
+    content: [{ type: "text" as const, text: `DAP error [${e.command ?? "error"}]: ${detail}` }],
   };
 }
 
@@ -63,6 +95,80 @@ function hasModifier(arr?: (string | null)[]): boolean {
 }
 
 export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config): void {
+  /**
+   * Refuse when no launch/attach the adapter accepted is in force.
+   *
+   * 🔴 Measured on a client that had never launched anything: `dbg_continue` and
+   * `dbg_step` answered `isError:false {"state":"running"}`, `dbg_stack_trace`
+   * answered `{"frames":[]}` and `dbg_scopes` `{"scopes":[]}` — all four
+   * indistinguishable from the same calls against a real session. Worse,
+   * `resume()`'s optimistic `state = "running"` MEANT THE FIRST SUCH CALL LEFT THE
+   * CLIENT LOOKING LIVE, so everything after it read as a genuine session. Only
+   * `dbg_restart` refused, and only because it happens to read `lastStartMode`.
+   */
+  const requireSession = (tool: string): void => {
+    if (dap.hasSession) return;
+    throw new DapRefusal(
+      `${tool} needs a debug session: call dbg_launch or dbg_attach first. ` +
+        `There is none, so any state, frame or scope reported here would be invented — ` +
+        `this call previously answered as if the program were running.`,
+      "no_session",
+    );
+  };
+
+  /**
+   * Resolve a breakpoint source, refusing one that can never bind.
+   *
+   * 🔴 Measured: `res://NoSuchFile.gd`, `res://tests` (a DIRECTORY) and `""` — which
+   * resolves to the project root — each answered `{"buffered":true,"breakpoints":[]}`
+   * with `isError:false`, so a caller could not tell an armed breakpoint from one
+   * that can never bind. `res://../../../etc/passwd` resolved to `/private/etc/passwd`
+   * and was accepted too.
+   *
+   * 🔴 THE ESCAPE CHECK IS DELIBERATELY WIDER THAN THE `cs_dbg_*` PLANE'S, and the
+   * difference is the point rather than an inconsistency. `cs_dbg_launch` documents
+   * overriding `program` to debug a DIFFERENT .NET program, whose sources
+   * legitimately live outside the Godot project, so #166 kept an absolute path
+   * elsewhere legal. `dbg_launch` has no such mainline: its `scene` is `'main'`,
+   * `'current'` or a `res://` path, and Godot binds breakpoints only to scripts in
+   * the project it is running. An absolute path outside the root can never bind here
+   * whichever way it is spelled, so ALL THREE FORMS are anchored to the root.
+   * Absolute paths INSIDE the project stay legal — that form is documented, the probe
+   * uses it, and two over-eager mutations exist to keep it working.
+   *
+   * The comparison is against `root + path.sep`, never a bare `startsWith(root)`:
+   * the latter accepts a sibling directory that merely shares the root's name prefix.
+   */
+  const guardSource = (p: string): string => {
+    const fsPath = nodePath.resolve(toFsPath(p, cfg.projectPath));
+    const rootPath = nodePath.resolve(cfg.projectPath);
+    if (fsPath !== rootPath && !fsPath.startsWith(rootPath + nodePath.sep)) {
+      throw new DapRefusal(
+        `Refusing "${p}": it resolves to ${fsPath}, which is outside the Godot project root ` +
+          `(${rootPath}). Godot binds breakpoints only to scripts in the project it runs, so a ` +
+          `breakpoint there can never bind.`,
+        "path_outside_project",
+      );
+    }
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(fsPath);
+    } catch {
+      throw new DapRefusal(
+        `Refusing "${p}": no such file (${fsPath}). A breakpoint there can never bind, but it was ` +
+          `previously answered exactly like one on a real script.`,
+        "file_not_found",
+      );
+    }
+    if (!stat.isFile()) {
+      throw new DapRefusal(
+        `Refusing "${p}": ${fsPath} is not a file${p === "" ? " (an empty path resolves to the project root)" : ""}.`,
+        "not_a_file",
+      );
+    }
+    return fsPath;
+  };
+
   server.registerTool(
     "dbg_launch",
     {
@@ -70,6 +176,10 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       description:
         "Start the game under the debugger. scene may be 'main', 'current', or a res:// scene path. " +
         "Any breakpoints set beforehand are applied during the handshake. " +
+        "Refuses if the debug adapter rejects the launch (e.g. Godot answers 'wrong_path' when the configured " +
+        "project path is not the one the editor has open) rather than reporting a session that never started. " +
+        "With stop_on_entry the result carries stop_on_entry_honored: Godot's adapter does not implement " +
+        "stopOnEntry, so it reports false plus a warning instead of a bare 'running'. " +
         "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, so " +
         "runtime_* would address the process already holding the port. Clear the holder (godot_stop, or quit " +
         "it), or dbg_attach onto it if it is already under the debugger, or pass allow_port_conflict " +
@@ -95,12 +205,26 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         };
       }
       try {
-        await dap.start("launch", {
-          project: cfg.projectPath,
-          scene: scene ?? "main",
-          stopOnEntry: stop_on_entry ?? false,
-        });
-        return ok({ session_id: "godot", state: dap.state, scene: scene ?? "main" });
+        const { entryStopSeen } = await dap.start(
+          "launch",
+          { project: cfg.projectPath, scene: scene ?? "main", stopOnEntry: stop_on_entry ?? false },
+          stop_on_entry ? ENTRY_STOP_WAIT_MS : 0,
+        );
+        const result: Record<string, unknown> = { session_id: "godot", state: dap.state, scene: scene ?? "main" };
+        if (stop_on_entry) {
+          // 🔴 Measured on Godot 4.7: stopOnEntry is ignored outright — the game ran to
+          // completion and printed its _ready() line while the tool answered a bare
+          // `running`, which reads exactly like a launch that simply had not stopped
+          // YET. Say which one it is.
+          result.stop_on_entry_honored = entryStopSeen;
+          if (!entryStopSeen) {
+            result.warning =
+              `The connected Godot debug adapter did not stop at entry within ${ENTRY_STOP_WAIT_MS}ms ` +
+              `and the program is running. Godot's adapter does not implement stopOnEntry — set a ` +
+              `breakpoint with dbg_set_breakpoints before dbg_launch to land a stop.`;
+          }
+        }
+        return ok(result);
       } catch (err) { return fail(err); }
     },
   );
@@ -112,7 +236,10 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     "dbg_attach",
     {
       title: "Attach debug session",
-      description: "Attach to an already-running Godot debug session.",
+      description:
+        "Attach to an already-running Godot debug session. Refuses if the adapter rejects the attach — " +
+        "Godot answers 'not_running' when nothing is running — instead of reporting state 'running' for a " +
+        "session that never started.",
       inputSchema: {
         address: z.string().optional().describe("Address of the running game (default 127.0.0.1)"),
         port: z.number().int().optional().describe("Remote debug port"),
@@ -132,6 +259,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       title: "Set breakpoints",
       description:
         "Set (replace) the breakpoints for a source file. Applied immediately if a session is running, else buffered until launch. " +
+        "Refuses a source that can never bind: a missing file, a directory, an empty path (which resolves to the project root), " +
+        "or a path resolving outside the Godot project root — Godot binds breakpoints only to scripts in the project it runs, so " +
+        "unlike cs_dbg_set_breakpoints an absolute path outside the root is refused here too. " +
         "Feature-detected: the per-line conditions / hit_conditions / log_messages modifiers are only sent when the connected adapter " +
         "advertises support (supportsConditionalBreakpoints / supportsHitConditionalBreakpoints / supportsLogPoints). On an adapter that " +
         "advertises them unsupported (e.g. Godot 4.3, which ignores them and would otherwise halt unconditionally) the modifier is dropped " +
@@ -146,7 +276,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ path, lines, conditions, hit_conditions, log_messages }) => {
       try {
-        const fsPath = toFsPath(path, cfg.projectPath);
+        const fsPath = guardSource(path);
         // Feature-detect the per-line modifiers against the connected adapter. When it does
         // not advertise support (Godot 4.3 advertises none AND ignores them, so the
         // breakpoint would halt unconditionally), DROP the field and warn rather than send
@@ -191,6 +321,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async () => {
       try {
+        requireSession("dbg_continue");
         const r = await dap.resume("continue", { threadId: dap.threadId() }, RESUME_WAIT_MS);
         return ok({ state: r.state, stopped_reason: r.reason });
       } catch (err) { return fail(err); }
@@ -208,6 +339,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ kind }) => {
       try {
+        requireSession("dbg_step");
         const command = kind === "in" ? "stepIn" : kind === "out" ? "stepOut" : "next";
         const r = await dap.resume(command, { threadId: dap.threadId() }, RESUME_WAIT_MS);
         return ok({ state: r.state, stopped_reason: r.reason });
@@ -224,6 +356,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ levels }) => {
       try {
+        requireSession("dbg_stack_trace");
         const body = await dap.request("stackTrace", { threadId: dap.threadId(), startFrame: 0, levels: levels ?? 20 });
         const frames = Array.isArray(body["stackFrames"])
           ? (body["stackFrames"] as Array<{ id?: number; name?: string; source?: { path?: string; name?: string }; line?: number }>).map((f) => ({
@@ -244,6 +377,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ frame_id }) => {
       try {
+        requireSession("dbg_scopes");
         const body = await dap.request("scopes", { frameId: frame_id });
         const scopes = Array.isArray(body["scopes"])
           ? (body["scopes"] as Array<{ name?: string; variablesReference?: number }>).map((s) => ({ name: s.name ?? "", variables_ref: s.variablesReference ?? 0 }))
@@ -262,6 +396,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ variables_ref }) => {
       try {
+        requireSession("dbg_variables");
         const body = await dap.request("variables", { variablesReference: variables_ref });
         const variables = Array.isArray(body["variables"])
           ? (body["variables"] as Array<{ name?: string; value?: string; type?: string; variablesReference?: number }>).map((v) => ({
@@ -287,6 +422,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ expression, frame_id, confirm }) => {
       try {
+        // Before the gate on purpose: the old order prompted the operator to approve
+        // arbitrary code execution against a session that had never been started.
+        requireSession("dbg_evaluate");
         const blocked = await gate(server, confirm, `Evaluate expression in the running game: ${expression}`);
         if (blocked) return blocked;
         // Bound the evaluate request to a short deadline instead of the full dapTimeoutMs:
@@ -328,6 +466,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ add, remove, clear, frame_id }) => {
       try {
+        requireSession("dbg_watch");
         if (clear) dap.clearWatches();
         if (remove && remove.length) dap.removeWatches(remove);
         if (add && add.length) dap.addWatches(add);
@@ -398,6 +537,8 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ variables_ref, name, value, confirm }) => {
       try {
+        // Before the gate and the caps check on purpose — see dbg_evaluate.
+        requireSession("dbg_set_variable");
         // Feature-detect: some debug adapters don't implement setVariable. If the
         // adapter explicitly advertised it as unsupported, say so plainly instead
         // of prompting for a confirmation and then failing.

@@ -7,7 +7,7 @@
 > connect too (see [Compatibility](#compatibility)).
 >
 > **npm 1.36.0 · addon 1.9.5 · full 291 / secure-default 278 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 580-test suite plus
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 593-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and

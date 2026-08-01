@@ -399,7 +399,16 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
 
   // ---- Plane D: debugging / DAP (tools/dap.ts) ----
-  dbg_launch: { session_id: z.string(), state: z.string(), scene: z.string() },
+  dbg_launch: {
+    session_id: z.string(), state: z.string(), scene: z.string(),
+    // Present only when stop_on_entry was requested: whether an entry stop actually
+    // landed. The Godot adapter does not implement stopOnEntry, so it reports false.
+    // NOTE: keep single quotes out of comments in this file (155 §7). An unpaired
+    // one inside a shape makes contract_check.py swallow every later entry into
+    // this one, and the drift error then names every field in the file.
+    stop_on_entry_honored: z.boolean().optional(),
+    warning: z.string().optional(),
+  },
   dbg_attach: { session_id: z.string(), state: z.string() },
   dbg_set_breakpoints: {
     path: z.string(), buffered: z.boolean(),
