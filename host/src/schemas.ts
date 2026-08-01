@@ -407,14 +407,25 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     // one inside a shape makes contract_check.py swallow every later entry into
     // this one, and the drift error then names every field in the file.
     stop_on_entry_honored: z.boolean().optional(),
+    // Modifiers dropped when the handshake applied the BUFFERED breakpoints. Buffered
+    // modifiers cannot be feature-detected at set time, so this is where their fate is
+    // reported; dbg_set_breakpoints said only that detection was deferred.
+    unsupported_modifiers: z.array(z.string()).optional(),
     warning: z.string().optional(),
   },
-  dbg_attach: { session_id: z.string(), state: z.string() },
+  dbg_attach: {
+    session_id: z.string(), state: z.string(),
+    unsupported_modifiers: z.array(z.string()).optional(),
+    warning: z.string().optional(),
+  },
   dbg_set_breakpoints: {
     path: z.string(), buffered: z.boolean(),
     breakpoints: z.array(z.object({ line: z.number(), verified: z.boolean() })),
     // Present only when the adapter advertised a requested modifier unsupported (see tools/dap.ts).
     unsupported_modifiers: z.array(z.string()).optional(),
+    // Present when modifiers were buffered before any session existed: the adapter had
+    // advertised nothing yet, so nothing could be detected. Value: deferred.
+    modifier_detection: z.string().optional(),
     warning: z.string().optional(),
   },
   dbg_continue: { state: z.string(), stopped_reason: z.string().nullable() },

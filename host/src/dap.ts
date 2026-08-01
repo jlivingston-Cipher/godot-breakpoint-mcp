@@ -21,6 +21,56 @@ interface Pending {
 
 export type DapState = "disconnected" | "initialized" | "running" | "stopped" | "terminated";
 
+/**
+ * Per-line breakpoint modifier fields, each gated by an adapter capability. Godot
+ * advertises all three false AND ignores them — a "conditional" breakpoint halts
+ * unconditionally (measured live on 4.3 and 4.7), so an undropped modifier is not a
+ * no-op, it is the opposite of what the caller asked for.
+ */
+export const BREAKPOINT_MODIFIER_CAPS: Record<string, string> = {
+  condition: "supportsConditionalBreakpoints",
+  hitCondition: "supportsHitConditionalBreakpoints",
+  logMessage: "supportsLogPoints",
+};
+
+/**
+ * Which of condition/hitCondition/logMessage the connected adapter does NOT support, out
+ * of the ones actually requested.
+ *
+ * `caps === null` returns [] — nothing can be feature-detected before the adapter has
+ * advertised anything. 🔴 That branch is DEFENSIVE TYPING, NOT A LIVE PATH, and the
+ * mutation sweep proved it by surviving a mutation that made it drop everything: the
+ * only caller is `applyBreakpoints`, a response body is normalised to `{}` before it is
+ * ever assigned, and the handshake sets `capabilities` before it applies any breakpoint.
+ * Recorded rather than deleted because the field's TYPE is nullable and a future caller
+ * could reach it; what IS reachable — an adapter answering `initialize` with an empty
+ * body, so `caps` is `{}` and advertises nothing — is pinned by a unit test instead.
+ *
+ * 🔴 CAPABILITIES ARE UNKNOWN UNTIL `initialize` ANSWERS, AND BREAKPOINTS ARE ORDINARILY
+ * BUFFERED BEFORE THAT. That is why this is called from `applyBreakpoints` — the moment
+ * the modifiers are actually put on the wire — and not only from the tool layer at set
+ * time. Detecting at set time alone left the buffered path, which is the documented and
+ * overwhelmingly common one, sending modifiers to an adapter that ignores them with no
+ * warning: the caller asked for "break when counter < 0" and got a breakpoint that halts
+ * every frame, reported as success. Measured, D1 of this release.
+ */
+export function unsupportedBreakpointModifiers(
+  caps: Record<string, unknown> | null,
+  requested: { condition: boolean; hitCondition: boolean; logMessage: boolean },
+): string[] {
+  if (!caps) return [];
+  const out: string[] = [];
+  for (const field of ["condition", "hitCondition", "logMessage"] as const) {
+    if (requested[field] && caps[BREAKPOINT_MODIFIER_CAPS[field]] !== true) out.push(field);
+  }
+  return out;
+}
+
+/** True when a per-line modifier array carries at least one non-null, non-empty entry. */
+export function hasModifier(arr?: (string | null)[]): boolean {
+  return Array.isArray(arr) && arr.some((v) => v != null && v !== "");
+}
+
 interface BufferedBreakpoints {
   path: string;
   lines: number[];
@@ -49,6 +99,8 @@ export class DapClient extends EventEmitter {
   private seq = 1;
   private pending = new Map<number, Pending>();
   private breakpoints = new Map<string, BufferedBreakpoints>();
+  /** Modifier fields dropped at apply time this session; reset by `start()`. */
+  private droppedModifiers = new Set<string>();
   /**
    * Seqs whose deadline fired, so a response arriving later is recognised, not
    * dropped. `seq` is monotonic and is never reset, so a seq is never reused and
@@ -243,21 +295,46 @@ export class DapClient extends EventEmitter {
     if (this.configured) {
       return this.applyBreakpoints(path);
     }
-    return { buffered: true, path, lines };
+    // 🔴 Buffered: capabilities are still unknown, so the modifiers CANNOT be
+    // feature-detected yet. Say so rather than let the caller read a bare
+    // `buffered: true` as "your condition was accepted" — detection happens in
+    // `applyBreakpoints` during the handshake, and `dbg_launch` reports the result.
+    const deferred = hasModifier(conditions) || hasModifier(hitConditions) || hasModifier(logMessages);
+    return deferred ? { buffered: true, path, lines, modifier_detection_deferred: true } : { buffered: true, path, lines };
+  }
+
+  /**
+   * Modifier fields dropped because the connected adapter does not support them,
+   * accumulated across every `applyBreakpoints` since the last `start()`. Read by
+   * `dbg_launch` / `dbg_attach` so a buffered modifier's fate is reported to the
+   * caller that buffered it.
+   */
+  droppedBreakpointModifiers(): string[] {
+    return [...this.droppedModifiers];
   }
 
   private applyBreakpoints(path: string): Promise<Record<string, unknown>> {
     const bp = this.breakpoints.get(path);
     if (!bp) return Promise.resolve({});
+    // 🔴 Feature-detect HERE, where the modifiers actually go on the wire. This is the
+    // only point that sees both the modifiers and the adapter's capabilities on every
+    // path — the buffered one included. See `unsupportedBreakpointModifiers`.
+    const dropped = unsupportedBreakpointModifiers(this.capabilities, {
+      condition: hasModifier(bp.conditions),
+      hitCondition: hasModifier(bp.hitConditions),
+      logMessage: hasModifier(bp.logMessages),
+    });
+    for (const d of dropped) this.droppedModifiers.add(d);
+    const drop = new Set(dropped);
     return this.request("setBreakpoints", {
       source: { path },
       // DAP SourceBreakpoint: line + optional condition / hitCondition / logMessage.
       // A logMessage turns the breakpoint into a logpoint (adapter logs, doesn't halt).
       breakpoints: bp.lines.map((line, i) => {
         const b: { line: number; condition?: string; hitCondition?: string; logMessage?: string } = { line };
-        const condition = bp.conditions?.[i];
-        const hit = bp.hitConditions?.[i];
-        const log = bp.logMessages?.[i];
+        const condition = drop.has("condition") ? null : bp.conditions?.[i];
+        const hit = drop.has("hitCondition") ? null : bp.hitConditions?.[i];
+        const log = drop.has("logMessage") ? null : bp.logMessages?.[i];
         if (condition) b.condition = condition;
         if (hit) b.hitCondition = hit;
         if (log) b.logMessage = log;
@@ -358,6 +435,9 @@ export class DapClient extends EventEmitter {
     this.lastStartMode = mode;
     this.lastStartArgs = args;
     this.sessionStarted = false;
+    // A fresh session re-detects against whatever adapter answers this time — a
+    // restart may reach a different build than the one that dropped last time.
+    this.droppedModifiers.clear();
     // Listen for `initialized` before we ask, so we cannot miss it.
     const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
     this.capabilities = await this.request("initialize", {

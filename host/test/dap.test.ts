@@ -357,6 +357,237 @@ test("dbg_set_breakpoints drops condition/hitCondition/logMessage and warns when
   await srv.close();
 });
 
+// ---- buffered breakpoint modifiers (the pre-launch detection hole) --------------
+//
+// 🔴 BOTH TESTS ABOVE SET BREAKPOINTS AFTER `dbg_launch`, AND THAT IS WHY THE HOLE
+// SURVIVED. Feature detection used to run at SET time against `dap.capabilities`,
+// which is null until `initialize` answers — so every breakpoint buffered BEFORE a
+// session, the documented and ordinary way to arm one, skipped detection entirely and
+// sent the modifier to an adapter that ignores it. Measured live on Godot 4.7: a
+// pre-launch `conditions: ["counter < 0"]` (always false) produced no warning and the
+// breakpoint halted on the first frame anyway. Detection now happens where the
+// modifiers go on the wire, so these tests arm BEFORE launch on purpose.
+
+test("dbg_set_breakpoints buffered before a session says detection is deferred rather than staying silent", async () => {
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = dapHarness(srv.port);
+  const res = (await rec.handler("dbg_set_breakpoints")({
+    path: "player.gd", lines: [10], conditions: ["hp < 0"],
+  })) as ToolResultLike;
+  const sc = res.structuredContent as { buffered: boolean; modifier_detection?: string; warning?: string; unsupported_modifiers?: string[] };
+  assert.equal(sc.buffered, true);
+  assert.equal(sc.modifier_detection, "deferred", "a buffered modifier cannot be feature-detected yet and must say so");
+  assert.match(sc.warning ?? "", /could not be feature-detected/i);
+  // It must NOT claim a verdict it cannot have: nothing has been dropped yet.
+  assert.equal(sc.unsupported_modifiers, undefined);
+  dap.close();
+  await srv.close();
+});
+
+test("a breakpoint buffered before launch has its unsupported modifiers dropped BY THE HANDSHAKE, not sent", async () => {
+  // The default handshake advertises none of the three modifier caps, like Godot.
+  let bpReq: DapMsg | undefined;
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] }); }
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({
+    path: "player.gd", lines: [10],
+    conditions: ["hp < 0"], hit_conditions: [">3"], log_messages: ["hit {hp}"],
+  });
+  const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+  // 🔴 The claim that matters: the modifier never reached the adapter. Before the fix
+  // all three were forwarded verbatim and the breakpoint halted unconditionally.
+  const bps = (bpReq!.arguments as { breakpoints: Array<Record<string, unknown>> }).breakpoints;
+  assert.equal(bps[0].condition, undefined, "a condition the adapter ignores must not be sent");
+  assert.equal(bps[0].hitCondition, undefined);
+  assert.equal(bps[0].logMessage, undefined);
+  // …and the caller who buffered it is told, on the launch that applied it.
+  const sc = launch.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  assert.deepEqual(sc.unsupported_modifiers, ["condition", "hitCondition", "logMessage"]);
+  assert.match(sc.warning ?? "", /halt unconditionally/i);
+  dap.close();
+  await srv.close();
+});
+
+test("a buffered modifier the adapter DOES advertise is forwarded, and the launch stays silent", async () => {
+  // Over-eager guard: dropping a supported modifier would be as wrong as keeping an
+  // unsupported one, and silently worse — the caller would never learn it.
+  let bpReq: DapMsg | undefined;
+  const { srv } = await startDap((m, s) => {
+    if (m.command === "initialize") {
+      dapResponse(s, m, { supportsConfigurationDoneRequest: true, supportsConditionalBreakpoints: true, supportsHitConditionalBreakpoints: true, supportsLogPoints: true });
+      dapEvent(s, "initialized", {});
+      return;
+    }
+    if (m.command === "launch" || m.command === "configurationDone") { dapResponse(s, m, {}); return; }
+    if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] }); }
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({
+    path: "player.gd", lines: [10],
+    conditions: ["hp < 0"], hit_conditions: [">3"], log_messages: ["hit {hp}"],
+  });
+  const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+  const bps = (bpReq!.arguments as { breakpoints: Array<Record<string, unknown>> }).breakpoints;
+  assert.equal(bps[0].condition, "hp < 0", "a supported condition must still reach the adapter");
+  assert.equal(bps[0].hitCondition, ">3");
+  assert.equal(bps[0].logMessage, "hit {hp}");
+  const sc = launch.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  assert.equal(sc.unsupported_modifiers, undefined, "nothing was dropped, so nothing may be reported");
+  assert.equal(sc.warning, undefined);
+  dap.close();
+  await srv.close();
+});
+
+test("a buffered breakpoint with NO modifiers does not claim deferred detection", async () => {
+  // Over-eager, and the mutation sweep found it missing: the tests above only checked
+  // the LAUNCH result for silence, so nothing pinned the SET result. A plain buffered
+  // breakpoint has nothing to detect and must say nothing about detection at all.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = dapHarness(srv.port);
+  const res = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] })) as ToolResultLike;
+  const sc = res.structuredContent as { buffered: boolean; modifier_detection?: string; warning?: string };
+  assert.equal(sc.buffered, true);
+  assert.equal(sc.modifier_detection, undefined, "nothing was requested, so detection is not 'deferred' — it is irrelevant");
+  assert.equal(sc.warning, undefined);
+  dap.close();
+  await srv.close();
+});
+
+test("an all-null modifier array does not count as a modifier request", async () => {
+  // Over-eager. `conditions: [null, null]` is the documented way to skip every line,
+  // so it must be indistinguishable from passing no conditions at all. The sweep
+  // caught that nothing exercised the null-filled spelling.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = dapHarness(srv.port);
+  const res = (await rec.handler("dbg_set_breakpoints")({
+    path: "player.gd", lines: [10, 20], conditions: [null, null], log_messages: [null, ""],
+  })) as ToolResultLike;
+  const sc = res.structuredContent as { modifier_detection?: string; warning?: string };
+  assert.equal(sc.modifier_detection, undefined, "an all-null modifier array requests nothing");
+  assert.equal(sc.warning, undefined);
+  dap.close();
+  await srv.close();
+});
+
+test("a later dbg_set_breakpoints does not re-report a drop an earlier call already made", async () => {
+  // Over-eager. The drop record accumulates for the session so dbg_launch can report
+  // buffered drops, which means a per-call report has to subtract what was already
+  // known — otherwise a breakpoint carrying no modifiers at all inherits the previous
+  // call's warning. The sweep found this unpinned.
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_launch")({ scene: "main" });
+  const first = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] })) as ToolResultLike;
+  assert.deepEqual((first.structuredContent as { unsupported_modifiers?: string[] }).unsupported_modifiers, ["condition"]);
+  const second = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [20] })) as ToolResultLike;
+  const sc = second.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  assert.equal(sc.unsupported_modifiers, undefined, "this call dropped nothing and must not inherit the last one's report");
+  assert.equal(sc.warning, undefined);
+  dap.close();
+  await srv.close();
+});
+
+test("an adapter that advertises NO capabilities at all has its modifiers dropped, not sent", async () => {
+  // The reachable half of "capabilities unknown". An adapter answering `initialize`
+  // with an empty body advertises nothing, which means it supports nothing — so the
+  // modifiers must be dropped rather than gambled on. (The `caps === null` branch of
+  // the same guard is unreachable from `applyBreakpoints`: the response body is
+  // normalised to `{}`, and the handshake sets capabilities before it applies any
+  // breakpoint. The sweep proved that by surviving; it is defensive typing, not a
+  // live path, and is documented as such rather than tested through a fiction.)
+  let bpReq: DapMsg | undefined;
+  const { srv } = await startDap((m, s) => {
+    if (m.command === "initialize") { dapResponse(s, m, {}); dapEvent(s, "initialized", {}); return; }
+    if (m.command === "launch" || m.command === "configurationDone") { dapResponse(s, m, {}); return; }
+    if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] }); }
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] });
+  const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+  const bps = (bpReq!.arguments as { breakpoints: Array<Record<string, unknown>> }).breakpoints;
+  assert.equal(bps[0].condition, undefined, "an adapter advertising nothing supports nothing");
+  assert.deepEqual((launch.structuredContent as { unsupported_modifiers?: string[] }).unsupported_modifiers, ["condition"]);
+  dap.close();
+  await srv.close();
+});
+
+test("a launch with no modifiers at all reports no unsupported_modifiers and no warning", async () => {
+  // Over-eager guard: the report must be driven by what was actually dropped, never by
+  // the adapter merely lacking the capability.
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] });
+  const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+  assert.deepEqual(launch.structuredContent, { session_id: "godot", state: "running", scene: "main" });
+  dap.close();
+  await srv.close();
+});
+
+test("dbg_launch's stop_on_entry warning is kept when a dropped-modifier note is added to it", async () => {
+  // Two warnings can be true at once. The modifier note appends; it must not overwrite
+  // the stop_on_entry one, which is the more actionable of the pair.
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] });
+  const launch = (await rec.handler("dbg_launch")({ scene: "main", stop_on_entry: true })) as ToolResultLike;
+  const sc = launch.structuredContent as { stop_on_entry_honored?: boolean; unsupported_modifiers?: string[]; warning?: string };
+  assert.equal(sc.stop_on_entry_honored, false);
+  assert.deepEqual(sc.unsupported_modifiers, ["condition"]);
+  assert.match(sc.warning ?? "", /did not stop at entry/i, "the stop_on_entry warning must survive");
+  assert.match(sc.warning ?? "", /halt unconditionally/i, "and the modifier note must be there too");
+  dap.close();
+  await srv.close();
+});
+
+test("dbg_attach reports modifiers the handshake dropped, the same as dbg_launch", async () => {
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], log_messages: ["hit {hp}"] });
+  const res = (await rec.handler("dbg_attach")({ port: 6007 })) as ToolResultLike;
+  const sc = res.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  assert.deepEqual(sc.unsupported_modifiers, ["logMessage"]);
+  assert.match(sc.warning ?? "", /halt unconditionally/i);
+  dap.close();
+  await srv.close();
+});
+
+test("the dropped-modifier record is cleared by a new session, so it cannot leak across launches", async () => {
+  // A restart may reach a different build than the one that dropped last time; a stale
+  // record would report a drop that this session never made.
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s)) return;
+    if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
+    if (m.command === "disconnect" || m.command === "terminate") dapResponse(s, m, {});
+  });
+  const { dap, rec } = dapHarness(srv.port);
+  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] });
+  const first = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+  assert.deepEqual((first.structuredContent as { unsupported_modifiers?: string[] }).unsupported_modifiers, ["condition"]);
+  // Re-arm without modifiers, then launch again: the previous drop must not follow.
+  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] });
+  const second = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+  const sc = second.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  assert.equal(sc.unsupported_modifiers, undefined, "the second session dropped nothing and must say nothing");
+  assert.equal(sc.warning, undefined);
+  dap.close();
+  await srv.close();
+});
+
 // ---- dbg_set_exception_breakpoints ----------------------------------------
 
 test("dbg_set_exception_breakpoints forwards filters and reports the adapter's advertised available_filters", async () => {

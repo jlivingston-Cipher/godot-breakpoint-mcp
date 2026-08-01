@@ -2242,8 +2242,9 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state", "scene"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "scene": { "type": "string" }, "stop_on_entry_honored": { "type": "boolean", "description": "present only when stop_on_entry was requested: whether an entry stop actually landed" }, "warning": { "type": "string", "description": "present when stop_on_entry was requested and the adapter ignored it" } } }
+{ "type": "object", "required": ["session_id", "state", "scene"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "scene": { "type": "string" }, "stop_on_entry_honored": { "type": "boolean", "description": "present only when stop_on_entry was requested: whether an entry stop actually landed" }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" }, "description": "breakpoint modifiers dropped when this handshake applied the buffered breakpoints" }, "warning": { "type": "string", "description": "present when stop_on_entry was requested and the adapter ignored it, and/or when buffered modifiers were dropped" } } }
 ```
+🔴 **It reports what the handshake dropped.** Breakpoint modifiers buffered before a session cannot be feature-detected until the adapter advertises its capabilities, so `dbg_set_breakpoints` can only say `modifier_detection: "deferred"`. This is where the caller learns the outcome — see `dbg_set_breakpoints` below.
 
 ### `dbg_attach` ✅
 Attach to an already-running Godot debug session. 🔴 **An attach the adapter rejects is refused** — Godot answers `not_running` when nothing is running, the most ordinary caller mistake there is; it previously answered `isError:false state:"running"` and took the server process down with an unhandled rejection.
@@ -2253,7 +2254,7 @@ Attach to an already-running Godot debug session. 🔴 **An attach the adapter r
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" } } }
+{ "type": "object", "required": ["session_id", "state"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" }, "description": "breakpoint modifiers dropped when this handshake applied the buffered breakpoints" }, "warning": { "type": "string" } } }
 ```
 
 ### `dbg_set_breakpoints` ✅
@@ -2272,9 +2273,10 @@ Attach to an already-running Godot debug session. 🔴 **An attach the adapter r
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["path", "buffered", "breakpoints"], "properties": { "path": { "type": "string" }, "buffered": { "type": "boolean" }, "breakpoints": { "type": "array", "items": { "type": "object", "properties": { "line": { "type": "integer" }, "verified": { "type": "boolean" } } } }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" } }, "warning": { "type": "string" } } }
+{ "type": "object", "required": ["path", "buffered", "breakpoints"], "properties": { "path": { "type": "string" }, "buffered": { "type": "boolean" }, "breakpoints": { "type": "array", "items": { "type": "object", "properties": { "line": { "type": "integer" }, "verified": { "type": "boolean" } } } }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" } }, "modifier_detection": { "type": "string" }, "warning": { "type": "string" } } }
 ```
-- **Feature-detect:** `conditions` / `hit_conditions` / `log_messages` are sent only when the connected adapter advertises `supportsConditionalBreakpoints` / `supportsHitConditionalBreakpoints` / `supportsLogPoints`. Godot 4.3 advertises all three **false** and ignores them (a conditional breakpoint would halt unconditionally — verified live in the `dap-plane` modifier probe), so there they are dropped and the result carries `unsupported_modifiers` + a `warning`. Detection needs a live session (set modifiers after `dbg_launch`).
+- **Feature-detect:** `conditions` / `hit_conditions` / `log_messages` are sent only when the connected adapter advertises `supportsConditionalBreakpoints` / `supportsHitConditionalBreakpoints` / `supportsLogPoints`. Godot advertises all three **false** and ignores them — a conditional breakpoint would halt unconditionally — so there they are dropped and the result carries `unsupported_modifiers` + a `warning`.
+- **Buffered modifiers are detected too, and this is where a real defect was.** Detection happens when the breakpoints are **applied**, not when they are set. An adapter advertises nothing until `initialize` answers, so a breakpoint buffered *before* a session — the ordinary way to arm one — could not be feature-detected at set time and previously had its modifiers forwarded verbatim, silently: measured live, a pre-launch `conditions: ["counter < 0"]` (always false) produced no warning and the breakpoint halted on the first frame anyway. Now a buffered modifier returns `modifier_detection: "deferred"` plus a warning, and the `dbg_launch` / `dbg_attach` that applies it reports the `unsupported_modifiers` actually dropped.
 
 ### `dbg_continue` / `dbg_step` ✅
 - **Input (`dbg_step`)** `{ "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["in", "over", "out"] } } }`

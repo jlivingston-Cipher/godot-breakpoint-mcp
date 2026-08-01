@@ -61,38 +61,19 @@ function isDapTimeout(err: unknown): err is DapError {
   return err instanceof DapError && /timed out after/.test(err.message);
 }
 
-// Per-line breakpoint modifier fields, each gated by an adapter capability. Godot 4.3
-// advertises all three false AND ignores them (a "conditional" breakpoint would halt
-// unconditionally — verified live in the dap-plane's editor-dap-breakpoints probe), so we
-// feature-detect: drop an unsupported modifier and warn, mirroring the
-// dbg_set_exception_breakpoints / dbg_goto / dbg_data_breakpoints discipline.
-const BREAKPOINT_MODIFIER_CAPS: Record<string, string> = {
-  condition: "supportsConditionalBreakpoints",
-  hitCondition: "supportsHitConditionalBreakpoints",
-  logMessage: "supportsLogPoints",
-};
-
 /**
- * Which of condition/hitCondition/logMessage the connected adapter does NOT support, out of
- * the ones actually requested. Returns [] when capabilities are unknown (no session yet) —
- * we can only feature-detect once the adapter has advertised what it supports.
+ * 🔴 The modifier feature-detection lives in `dap.ts` (the client), NOT here, and that
+ * is the fix this release carries. It was here, at SET time, where `dap.capabilities`
+ * is null for every breakpoint buffered before launch — which is the documented and
+ * ordinary way to arm one. The guard was correct and unreachable: measured live, a
+ * pre-launch `conditions: ["counter < 0"]` was sent verbatim to an adapter that ignores
+ * it, the breakpoint halted every frame, and the result carried no warning at all.
+ * Detection now happens where the modifiers go on the wire, so every path gets it.
  */
-function unsupportedBreakpointModifiers(
-  caps: Record<string, unknown> | null,
-  requested: { condition: boolean; hitCondition: boolean; logMessage: boolean },
-): string[] {
-  if (!caps) return [];
-  const out: string[] = [];
-  for (const field of ["condition", "hitCondition", "logMessage"] as const) {
-    if (requested[field] && caps[BREAKPOINT_MODIFIER_CAPS[field]] !== true) out.push(field);
-  }
-  return out;
-}
-
-/** True when a per-line modifier array carries at least one non-null, non-empty entry. */
-function hasModifier(arr?: (string | null)[]): boolean {
-  return Array.isArray(arr) && arr.some((v) => v != null && v !== "");
-}
+const warnDropped = (dropped: string[]): string =>
+  `The connected Godot debug adapter does not support ${dropped.join(", ")} on breakpoints (it advertises ` +
+  `${dropped.length > 1 ? "them" : "it"} unsupported), so ${dropped.length > 1 ? "they were" : "it was"} dropped — ` +
+  `the affected breakpoint(s) will halt unconditionally.`;
 
 export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config): void {
   /**
@@ -114,6 +95,24 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         `this call previously answered as if the program were running.`,
       "no_session",
     );
+  };
+
+  /**
+   * Report, on a launch/attach result, any breakpoint modifier the handshake dropped
+   * when it applied the buffered breakpoints.
+   *
+   * 🔴 This is the other half of the buffered-modifier fix. `dbg_set_breakpoints` can
+   * only say "deferred" before a session exists; this is where the caller finds out what
+   * actually happened. Without it the honest "deferred" answer would have no follow-up
+   * and the caller would still be left guessing.
+   */
+  const reportDroppedModifiers = (result: Record<string, unknown>): void => {
+    const dropped = dap.droppedBreakpointModifiers();
+    if (!dropped.length) return;
+    result.unsupported_modifiers = dropped;
+    // Never clobber a warning the caller needs more (stop_on_entry's); append.
+    const note = `Buffered breakpoint modifiers were applied during this handshake: ${warnDropped(dropped)}`;
+    result.warning = typeof result.warning === "string" && result.warning.length > 0 ? `${result.warning} ${note}` : note;
   };
 
   /**
@@ -224,6 +223,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
               `breakpoint with dbg_set_breakpoints before dbg_launch to land a stop.`;
           }
         }
+        reportDroppedModifiers(result);
         return ok(result);
       } catch (err) { return fail(err); }
     },
@@ -248,7 +248,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     async ({ address, port }) => {
       try {
         await dap.start("attach", { address: address ?? "127.0.0.1", port });
-        return ok({ session_id: "godot", state: dap.state });
+        const result: Record<string, unknown> = { session_id: "godot", state: dap.state };
+        reportDroppedModifiers(result);
+        return ok(result);
       } catch (err) { return fail(err); }
     },
   );
@@ -264,8 +266,10 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "unlike cs_dbg_set_breakpoints an absolute path outside the root is refused here too. " +
         "Feature-detected: the per-line conditions / hit_conditions / log_messages modifiers are only sent when the connected adapter " +
         "advertises support (supportsConditionalBreakpoints / supportsHitConditionalBreakpoints / supportsLogPoints). On an adapter that " +
-        "advertises them unsupported (e.g. Godot 4.3, which ignores them and would otherwise halt unconditionally) the modifier is dropped " +
-        "and the result includes `unsupported_modifiers` plus a `warning`. Detection needs a live session, so set modifiers after dbg_launch.",
+        "advertises them unsupported (Godot advertises all three false and IGNORES them, so the breakpoint would halt unconditionally) the " +
+        "modifier is dropped and the result includes `unsupported_modifiers` plus a `warning`. Detection happens when the breakpoints are " +
+        "applied, so it covers buffered ones too: setting modifiers before a session exists returns `modifier_detection: \"deferred\"` with a " +
+        "warning, and dbg_launch then reports the `unsupported_modifiers` actually dropped during the handshake.",
       inputSchema: {
         path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
         lines: z.array(z.number().int().positive()).describe("1-based line numbers"),
@@ -277,33 +281,27 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     async ({ path, lines, conditions, hit_conditions, log_messages }) => {
       try {
         const fsPath = guardSource(path);
-        // Feature-detect the per-line modifiers against the connected adapter. When it does
-        // not advertise support (Godot 4.3 advertises none AND ignores them, so the
-        // breakpoint would halt unconditionally), DROP the field and warn rather than send
-        // something the adapter mishandles.
-        const dropped = unsupportedBreakpointModifiers(dap.capabilities, {
-          condition: hasModifier(conditions),
-          hitCondition: hasModifier(hit_conditions),
-          logMessage: hasModifier(log_messages),
-        });
-        const drop = new Set(dropped);
-        const body = await dap.setBreakpoints(
-          fsPath,
-          lines,
-          drop.has("condition") ? undefined : conditions,
-          drop.has("hitCondition") ? undefined : hit_conditions,
-          drop.has("logMessage") ? undefined : log_messages,
-        );
+        // The client feature-detects and drops at apply time — on this call when a session
+        // is live, during the handshake when the breakpoint is buffered.
+        const before = new Set(dap.droppedBreakpointModifiers());
+        const body = await dap.setBreakpoints(fsPath, lines, conditions, hit_conditions, log_messages);
         const verified = Array.isArray(body["breakpoints"])
           ? (body["breakpoints"] as Array<{ line?: number; verified?: boolean }>).map((b) => ({ line: b.line ?? 0, verified: Boolean(b.verified) }))
           : [];
         const result: Record<string, unknown> = { path: fsPath, buffered: body["buffered"] === true, breakpoints: verified };
+        const dropped = dap.droppedBreakpointModifiers().filter((d) => !before.has(d));
         if (dropped.length) {
           result.unsupported_modifiers = dropped;
+          result.warning = warnDropped(dropped);
+        } else if (body["modifier_detection_deferred"] === true) {
+          // 🔴 Buffered with modifiers and no session yet: the honest answer is "not yet
+          // known", never silence. dbg_launch reports what was actually dropped.
+          result.modifier_detection = "deferred";
           result.warning =
-            `The connected Godot debug adapter does not support ${dropped.join(", ")} on breakpoints (it advertises ` +
-            `${dropped.length > 1 ? "them" : "it"} unsupported), so ${dropped.length > 1 ? "they were" : "it was"} dropped — ` +
-            `the affected breakpoint(s) will halt unconditionally.`;
+            "These breakpoints are buffered until launch, so the adapter has not advertised its capabilities yet and the " +
+            "conditions / hit_conditions / log_messages modifiers COULD NOT be feature-detected. Godot ignores modifiers it " +
+            "does not support, which makes such a breakpoint halt unconditionally. dbg_launch reports `unsupported_modifiers` " +
+            "for whatever is dropped when these are applied.";
         }
         return ok(result);
       } catch (err) { return fail(err); }

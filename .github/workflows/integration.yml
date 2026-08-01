@@ -107,27 +107,33 @@ name: integration
 #                    selection change over the addon bridge must push notifications/resources/updated.
 #                    EXPERIMENTAL: runs under continue-on-error while the GUI-boot
 #                    timing is tuned on real runners, so it never blocks a merge.
-#   * dap-plane    — boots the same editor GUI under Xvfb and connects to its built-in
-#                    Debug Adapter (DAP, :6006): runs the initialize handshake, dumps
-#                    the adapter's advertised capabilities (D_DAP_CAPS / D_DAP_FILTERS —
-#                    the "D-DAP" probe), and best-effort launches the example scene to a
-#                    breakpoint. Runs as a MATRIX across the 4.3 baseline and the newest
-#                    stable (4.7) so the D_DAP_* markers reveal which advertised-but-dead-
-#                    on-4.3 capabilities light up on a modern build. Also EXPERIMENTAL /
-#                    continue-on-error (never blocks).
-#   * gdscript-dap-plane — the GATE for the same plane, and a REQUIRED job. Boots the editor
+#   * gdscript-dap-plane — the ONLY DAP job, and a REQUIRED one. Boots the editor
 #                    HEADLESS (no Xvfb, no GPU, no port — `--headless --editor` serves the
 #                    Debug Adapter on 6006 just the same) against a COPY of example/ in a
 #                    temp dir, and asserts all fifteen dbg_* tools: a launch/attach the
 #                    adapter REJECTED is refused rather than reported as running (and no
 #                    longer kills the process with an unhandled rejection), the eight tools
 #                    that need a session refuse without one instead of inventing state,
-#                    breakpoint sources that can never bind are refused BY REASON, and a
-#                    real breakpoint is armed, hit, inspected and stepped. It is a separate
-#                    job precisely BECAUSE dap-plane carries continue-on-error: a strict
-#                    assertion added there would be silently optional.
+#                    breakpoint sources that can never bind are refused BY REASON, a real
+#                    breakpoint is armed, hit, inspected and stepped, every capability-gated
+#                    tool refuses IFF the adapter lacks the capability, dbg_restart takes the
+#                    path its advertised capability implies, and buffered breakpoint
+#                    modifiers are feature-detected when the handshake applies them.
 #                    Markers: GD_DAP_CAPS / GD_DAP_PHANTOM / GD_DAP_NOSESSION /
-#                    GD_DAP_SOURCE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_ALL.
+#                    GD_DAP_SOURCE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_GATED /
+#                    GD_DAP_RESTART / GD_DAP_MODIFIERS / GD_DAP_ALL.
+#
+#                    🔴 IT ABSORBED AND REPLACED THE `dap-plane` JOB, WHICH IS GONE.
+#                    That job ran two log-only probes under continue-on-error and was the
+#                    last optional job still describing itself as coverage. 159 §8.17
+#                    proposed deleting it because its D_DAP_* markers "duplicate what the
+#                    gate logs" — measured against a live 4.7 adapter, that was FALSE: this
+#                    gate exercised eight of the fifteen tools live and those probes reached
+#                    all fifteen. So the nine uncovered things (adapter capabilities,
+#                    breakpoint verified flags, live variables/watch/set_variable, restart,
+#                    the three gated tools, game output, and the breakpoint modifiers)
+#                    became CLAIMS here first, and only then was the job deleted. That is
+#                    what made it a subtraction rather than a loss of coverage.
 #   * csharp-plane  — D4 C1 + C2 + C3. Downloads a Mono/.NET Godot build + the .NET SDK and boots the
 #                     C# fixture (example-csharp/) headless: dotnet-builds the project, imports +
 #                     --build-solutions, then asserts the C# scene's _Ready() ran (C#_PLANE_BOOT_OK).
@@ -914,98 +920,36 @@ jobs:
         if: always()
         run: tail -n 50 /tmp/godot-editor.log || true
 
-  dap-plane:
-    name: DAP / debugger plane vs real adapter (experimental)
-    runs-on: ubuntu-latest
-    continue-on-error: true   # novel live-adapter probe; must never block a merge
-    strategy:
-      fail-fast: false        # one Godot version's probe must not cancel the other
-      matrix:
-        godot: [ "4.3-stable", "4.7-stable" ]
-    env:
-      # Probe BOTH the 4.3 baseline and the newest stable (4.7): the D_DAP_* markers then
-      # show which advertised-but-dead-on-4.3 capabilities (setVariable / evaluate /
-      # breakpoint modifiers) actually light up on a modern build. Overrides the
-      # workflow-level GODOT_VERSION for this job only; the run steps use it verbatim.
-      GODOT_VERSION: ${{ matrix.godot }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: host/package-lock.json
-      - name: Install Godot + Xvfb
-        run: |
-          set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
-          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
-          unzip -q godot.zip
-          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
-          chmod +x "$GODOT_BIN"
-          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Build host
-        working-directory: host
-        run: npm ci && npm run build
-      - name: Import the example project (headless)
-        run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
-      - name: Boot the editor under Xvfb and run the DAP smoke
-        working-directory: host
-        env:
-          GODOT_PROJECT: ${{ github.workspace }}/example
-          # Same as the LSP plane: a CI runner has no GPU, so force software OpenGL
-          # (Mesa llvmpipe) or Godot's default Vulkan backend segfaults on init.
-          LIBGL_ALWAYS_SOFTWARE: '1'
-          # Bridge auth (default-on) is covered by bridge_auth_smoke.gd; this live
-          # probe connects without a secret, so disable auth for the boot.
-          BREAKPOINT_BRIDGE_INSECURE: '1'
-        run: |
-          set -eux
-          xvfb-run -a -s "-screen 0 1280x720x24" \
-            "$GODOT_BIN" --editor --path "$GODOT_PROJECT" \
-            --rendering-driver opengl3 --audio-driver Dummy \
-            >/tmp/godot-editor-dap.log 2>&1 &
-          GODOT_PID=$!
-          # The Debug Adapter is served by the editor (port 6006). Software-rendered
-          # editor boot is slow — wait up to ~120s for the DAP port to open.
-          for i in $(seq 1 60); do
-            if node -e "require('net').connect(6006,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
-              echo "DAP port open"; break
-            fi
-            sleep 2
-          done
-          node test-integration/editor-dap.integration.mjs
-          # Second probe against the same editor: does 4.3 honor condition/hitCondition/
-          # logMessage breakpoint modifiers it advertises as unsupported? (log-only)
-          sleep 3
-          node test-integration/editor-dap-breakpoints.integration.mjs
-          kill "$GODOT_PID" 2>/dev/null || true
-      - name: Editor log tail (on failure)
-        if: always()
-        run: tail -n 80 /tmp/godot-editor-dap.log || true
-
   gdscript-dap-plane:
     name: GDScript DAP plane vs real adapter (headless)
     runs-on: ubuntu-latest
-    # 🔴 A REQUIRED gate, and a SEPARATE JOB rather than a step — the opposite answer
-    # to 1.35.0's and 1.36.0's, for a documented reason. Those landed their gates as
-    # steps inside `csharp-plane` because that job carries no continue-on-error, so a
-    # step there already blocks a merge. `dap-plane` DOES carry continue-on-error by
-    # design: it is an experimental probe of a novel live adapter and must never block.
-    # A strict assertion added there would be silently optional — the exact failure
-    # 1.35.0 and 1.36.0 were about. So this is its own job, and `dap-plane` keeps its
-    # two log-only probes unchanged.
+    # 🔴 THE ONLY DAP JOB, AND A REQUIRED ONE. It was built as a separate job rather
+    # than a step because the job it sat beside, `dap-plane`, carried continue-on-error
+    # by design — so a strict assertion added there would have been silently optional,
+    # the exact failure 1.35.0 and 1.36.0 were about. That reasoning is what let
+    # `dap-plane` be DELETED rather than repaired once its coverage was absorbed here:
+    # an optional job describing itself as coverage is worse than no job, and the
+    # honest fix for one is to make its claims fatal somewhere else first.
+    #
+    # 🔴 WHAT WAS ABSORBED, AND WHY IT WAS NOT SIMPLY DROPPED. 159 §8.17 proposed the
+    # deletion on the grounds that dap-plane's D_DAP_* markers duplicated this gate's
+    # log. Measured against a live 4.7 adapter, they did not: this gate exercised eight
+    # of the fifteen dbg_* tools live and those two probes reached all fifteen. The nine
+    # uncovered things became claims here BEFORE the job was removed — the adapter
+    # capability dump, breakpoint verified flags, live dbg_variables / dbg_watch /
+    # dbg_set_variable, dbg_restart's capability branch, the three capability-gated
+    # tools, the launched game's console output, and the breakpoint modifiers (whose
+    # buffered path turned out to carry a real defect, fixed in the same release).
     #
     # 🔴 THE EDITOR IS HEADLESS; ONLY THE LAUNCHED GAME NEEDS A DISPLAY.
     # `godot --headless --editor` serves the Debug Adapter on 6006 just the same, so
-    # this job skips dap-plane's software-rendered GUI editor boot entirely — the DAP
-    # port opens in ~4s here versus the ~120s wait dap-plane budgets for. The host-side
-    # assertions (the refusals, the session guard, the source guard) need no display at
-    # all. The LIVE section does: the editor spawns the game as a child process, and a
-    # game with no DISPLAY exits before it can hit a breakpoint. CI taught that — the
-    # first version of this job ran fully headless and the live stop never landed.
-    # So the step runs under xvfb-run for the child's sake, with software GL.
-    # Unlike dap-plane, EVERY claim here is fatal.
+    # this job skips the software-rendered GUI editor boot the deleted job budgeted
+    # ~120s for — the DAP port opens in ~4s here. The host-side assertions (the
+    # refusals, the session guard, the source guard) need no display at all. The LIVE
+    # section does: the editor spawns the game as a child process, and a game with no
+    # DISPLAY exits before it can hit a breakpoint. CI taught that — the first version
+    # of this job ran fully headless and the live stop never landed. So the step runs
+    # under xvfb-run for the child's sake, with software GL. EVERY claim here is fatal.
     #
     # 🔴 It boots the editor against a COPY of example/ in a temp dir, never the tree.
     # Booting --editor damages example/project.godot two ways (the standing gotcha),
