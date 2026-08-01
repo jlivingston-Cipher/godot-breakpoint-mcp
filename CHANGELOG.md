@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.39.0] — 2026-08-01
+
 ### Fixed — the tabletop and netcode file paths could leave the Godot project root
 `card_deck_from_table` read a table from **outside** the project root through all three spellings —
 an absolute path, `res://../…`, and a bare `../…` — and answered success. That is not merely a
