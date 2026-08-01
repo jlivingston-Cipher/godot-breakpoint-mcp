@@ -6,6 +6,55 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the LSP plane has a gate, not just a log
+`host/test-integration/lsp-plane.integration.mjs` runs in a new **`lsp-plane`** CI job on 4.3 and
+4.7. The plane already had a live probe — `editor-lsp.integration.mjs`, against a real editor on two
+arms — but every call in it sits in a `try/catch` that only `console.log`s, and the job carries
+`continue-on-error`. 🔴 **A `gd_*` tool returning an error on every single call left CI green**, on
+both arms, while reading as coverage on the board. The old probe stays as the diagnostic it is; the
+new one has no `continue-on-error` and fails the build.
+
+The baseline is **derived from the connected build, never pinned to a table** — the providers Godot
+advertises differ per version (measured: **4.7 advertises `documentHighlight` and 4.3 does not; 4.3
+advertises `workspaceSymbol` and 4.5/4.7 do not**), so a pinned matrix would need hand maintenance
+on every engine bump. Unadvertised providers must return the documented `unsupported` degradation;
+advertised ones must succeed — **unless the probe earns the exemption itself** by issuing the raw
+LSP request and getting a real `-32601` back. That is Godot's advertise-then-refuse trap, and on 4.3
+`gd_workspace_symbols` triggers it live.
+
+Every call is validated **through the tool's own zod `inputSchema` first**: a handler pulled out of
+a recording server never sees its schema, so a probe that skips that step cannot observe a
+schema-level fix at all.
+
+The job needs **no Xvfb and no software OpenGL** — `--headless --editor` brings both the language
+server (`:6005`) and the addon bridge (`:9080`) up in about **8 seconds** rather than up to 120.
+`editor-plane` was moved onto the same boot, retiring its `xvfb`/`libgl1-mesa-dri` install.
+
+### Fixed — `gd_rename` planned a project-wide rename to a name GDScript cannot parse
+🔴 **A behaviour change to a shipped, destructive tool.** The language server does not validate
+`new_name`. Measured on real 4.3 / 4.5 / 4.7: renaming to `""`, `"1bad name!"`, `"func"`, `"  "` or
+`"a\nb"` each returned `isError: false` with a full nine-edit plan — and with `apply: true` those
+edits **write a file that does not parse**. `new_name` must now be a valid GDScript identifier and
+not a reserved word, refused **before** the rename is planned, so no `textDocument/rename` request
+is sent at all. Engine class names (`Node`, `Vector2`) are shadowable and stay legal.
+
+### Fixed — the `gd_*` tools accepted a path that resolves outside the project
+🔴 **A behaviour change to shipped tools.** `toFsPath` joins through `path.join`, which normalizes
+`..` away silently, so `res://../../../etc/passwd` and a bare `/etc/passwd` both resolved outside
+the project root and were answered with a success. Nothing leaked — the answer was the same
+degenerate one any missing path produces — but nothing refused them either. Both are now refused by
+name, and the refusal never reaches the language server.
+
+### Fixed — a negative `line` or `character` was accepted and answered as a success
+🔴 **A behaviour change to shipped tools.** The position fields were `z.number().int()` with no
+lower bound, so a negative value went to the wire and came back as a *successful* empty result —
+indistinguishable from a real miss at a valid position. They are now `.min(0)`.
+
+### Fixed — a host refusal was reported as an `LSP error`
+`fail()` prefixed every error with `LSP error [code]:`, including refusals the host raised without
+ever contacting the server — sending the caller to debug a language server that was never asked.
+Refusals now carry their own message verbatim.
+
 ## [1.33.0] — 2026-07-31
 
 **Minor, and every fix in it is the shape 1.32.0 shipped one release earlier: a tool answering

@@ -759,6 +759,71 @@ jobs:
           # the probe kills every child in a finally block and exits explicitly either way.
           timeout 300 node test-integration/runtime-peers.integration.mjs
 
+  lsp-plane:
+    # The GATE for the 20 gd_* tools. It exists because `editor-plane` below is a
+    # DIAGNOSTIC: every probe there is wrapped in a try/catch that only logs, and
+    # the job carries continue-on-error anyway — so a gd_* tool erroring on every
+    # single call left CI green on both arms. Adding assertions to that job would
+    # have been theatre; this one has no continue-on-error and fails the build.
+    #
+    # The baseline is DERIVED from the connected build, never pinned to a table:
+    # the providers Godot advertises differ per version (measured — 4.7 advertises
+    # documentHighlight and 4.3 does not; 4.3 advertises workspaceSymbol and 4.7
+    # does not), so a pinned matrix would need hand maintenance on every engine
+    # bump. And the advertised-but--32601 exemption is EARNED per run: the probe
+    # issues the raw LSP request itself and requires a real -32601 before it will
+    # accept a tool's "unsupported" verdict.
+    name: LSP plane vs real language server
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false        # one Godot version's gate must not cancel the other
+      matrix:
+        godot: [ "4.3-stable", "4.7-stable" ]
+    env:
+      GODOT_VERSION: ${{ matrix.godot }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: host/package-lock.json
+      - name: Install Godot
+        run: |
+          set -eux
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Build host
+        working-directory: host
+        run: npm ci && npm run build
+      - name: Import the example project (headless)
+        run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
+      - name: Boot the language server and gate the gd_* family
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+        run: |
+          set -eux
+          # No Xvfb and no software GL: --headless --editor brings :6005 up in ~8s.
+          "$GODOT_BIN" --headless --editor --path "$GODOT_PROJECT" \
+            --audio-driver Dummy >/tmp/godot-lsp.log 2>&1 &
+          GODOT_PID=$!
+          for i in $(seq 1 60); do
+            if node -e "require('net').connect(6005,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "LSP port open"; break
+            fi
+            sleep 2
+          done
+          node test-integration/lsp-plane.integration.mjs
+          kill "$GODOT_PID" 2>/dev/null || true
+      - name: Language-server log tail (on failure)
+        if: failure()
+        run: tail -n 60 /tmp/godot-lsp.log || true
+
   editor-plane:
     name: editor / LSP plane vs real editor (experimental)
     runs-on: ubuntu-latest
@@ -780,10 +845,9 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: host/package-lock.json
-      - name: Install Godot + Xvfb
+      - name: Install Godot
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -794,24 +858,24 @@ jobs:
         run: npm ci && npm run build
       - name: Import the example project (headless)
         run: '"$GODOT_BIN" --headless --path "${{ github.workspace }}/example" --import || true'
-      - name: Boot the editor under Xvfb and run the LSP smoke
+      - name: Boot the editor headless and run the LSP smoke
         working-directory: host
         env:
           GODOT_PROJECT: ${{ github.workspace }}/example
-          # A CI runner has no GPU, so Godot's default Vulkan backend segfaults on
-          # init before the LSP can start. Force software OpenGL (Mesa llvmpipe).
-          LIBGL_ALWAYS_SOFTWARE: '1'
           # Bridge auth (default-on) is covered by bridge_auth_smoke.gd; this live
           # probe connects without a secret, so disable auth for the boot.
           BREAKPOINT_BRIDGE_INSECURE: '1'
         run: |
           set -eux
-          xvfb-run -a -s "-screen 0 1280x720x24" \
-            "$GODOT_BIN" --editor --path "$GODOT_PROJECT" \
-            --rendering-driver opengl3 --audio-driver Dummy \
+          # `--headless --editor` runs the full editor with no display server: the
+          # GDScript language server (:6005) AND the Breakpoint addon bridge (:9080)
+          # both come up, measured on 4.3 / 4.5 / 4.7. That retires Xvfb, the Mesa
+          # llvmpipe install and the software-rendered boot this job used to need —
+          # the port opens in about 8 seconds instead of up to 120.
+          "$GODOT_BIN" --headless --editor --path "$GODOT_PROJECT" \
+            --audio-driver Dummy \
             >/tmp/godot-editor.log 2>&1 &
           GODOT_PID=$!
-          # Software-rendered editor boot is slow — wait up to ~120s for the LSP port.
           for i in $(seq 1 60); do
             if node -e "require('net').connect(6005,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
               echo "LSP port open"; break

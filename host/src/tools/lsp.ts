@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import nodePath from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
@@ -193,8 +194,54 @@ function decodeSemanticTokens(data: unknown, legend: SemanticLegend | undefined)
 // offsetOf / applyTextEdits now live in ./lsp-common.js (shared with the C#
 // rename mutator, cs_rename). Imported above.
 
+/**
+ * A GDScript identifier: the only thing `gd_rename` may rename a symbol TO.
+ * Measured on real 4.3/4.5/4.7 — the language server happily plans a full
+ * project-wide rename to "", "1bad name!", "func" or a string containing a
+ * newline and answers `edit_count: 9` for every one of them. With `apply:true`
+ * those edits WRITE GDScript that cannot parse, so the refusal has to happen
+ * here: the server will not do it for us.
+ */
+const GD_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * GDScript reserved words. A rename to one of these is syntactically an
+ * identifier but produces a file the parser rejects, so it is refused for the
+ * same reason. Kept deliberately narrow — engine CLASS names (Node, Vector2)
+ * are shadowable and legal, so they are NOT listed.
+ */
+const GD_KEYWORDS = new Set([
+  "if", "elif", "else", "for", "while", "match", "when", "break", "continue", "pass", "return",
+  "class", "class_name", "extends", "is", "in", "as", "self", "super", "signal", "func",
+  "static", "const", "enum", "var", "breakpoint", "preload", "await", "yield", "assert",
+  "void", "PI", "TAU", "INF", "NAN", "and", "or", "not", "true", "false", "null",
+]);
+
 export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config): void {
+  /**
+   * Resolve a caller-supplied script path and REFUSE one that escapes the
+   * project root. `toFsPath` joins through `path.join`, which normalizes `..`
+   * away silently — so `res://../../../etc/passwd` resolved to a real path
+   * outside the project and the tools answered success for it. Measured: the
+   * answer was the same degenerate one any missing path produces, so nothing
+   * leaked, but nothing refused it either.
+   */
+  const guardPath = (p: string): void => {
+    const fsPath = nodePath.resolve(toFsPath(p, cfg.projectPath));
+    const root = nodePath.resolve(cfg.projectPath);
+    if (fsPath !== root && !fsPath.startsWith(root + nodePath.sep)) {
+      throw Object.assign(
+        new Error(
+          `Refusing "${p}": it resolves to ${fsPath}, which is outside the Godot ` +
+          `project root (${root}). Pass a res:// path, or a path inside the project.`,
+        ),
+        { refusal: true, code: "path_outside_project" },
+      );
+    }
+  };
+
   const openAndPos = async (path: string) => {
+    guardPath(path);
     const uri = toFileUri(path, cfg.projectPath);
     await lsp.ensureOpen(uri, readFileText(toFsPath(path, cfg.projectPath)));
     return uri;
@@ -202,8 +249,11 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
 
   const posSchema = {
     path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
-    line: z.number().int().describe("0-based line"),
-    character: z.number().int().describe("0-based character"),
+    // .min(0): a negative line or character is not a position. Measured — they
+    // sailed through to the wire and the server answered success with empty
+    // contents, so the caller could not tell a bad request from a real miss.
+    line: z.number().int().min(0).describe("0-based line"),
+    character: z.number().int().min(0).describe("0-based character"),
   };
 
   server.registerTool(
@@ -277,7 +327,8 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
     {
       title: "GDScript rename symbol",
       description:
-        "Rename a symbol project-wide. Returns the planned edit; pass apply=true to WRITE the changes to disk (DESTRUCTIVE — confirm with the user).",
+        "Rename a symbol project-wide. Returns the planned edit; pass apply=true to WRITE the changes to disk (DESTRUCTIVE — confirm with the user). " +
+        "new_name must be a valid GDScript identifier and not a reserved word: the language server plans a rename to any string, including one that would write a file GDScript cannot parse, so an illegal name is refused here before the rename is planned.",
       inputSchema: {
         ...posSchema,
         new_name: z.string().describe("New symbol name"),
@@ -287,6 +338,31 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
     },
     async ({ path, line, character, new_name, apply, confirm }) => {
       try {
+        // Refuse BEFORE planning. The language server does not validate the new
+        // name: measured on 4.3/4.5/4.7, a rename to "", "1bad name!", "func"
+        // or "a\nb" each came back with edit_count 9 and isError:false — and
+        // with apply:true those edits write a file GDScript cannot parse.
+        if (!GD_IDENTIFIER.test(new_name)) {
+          throw Object.assign(
+            new Error(
+              `Refusing to rename to ${JSON.stringify(new_name)}: it is not a valid GDScript ` +
+              `identifier (letter or underscore, then letters, digits or underscores). ` +
+              `The language server will plan this rename anyway and the written file would ` +
+              `not parse.`,
+            ),
+            { refusal: true, code: "invalid_identifier" },
+          );
+        }
+        if (GD_KEYWORDS.has(new_name)) {
+          throw Object.assign(
+            new Error(
+              `Refusing to rename to "${new_name}": it is a GDScript reserved word. ` +
+              `The language server will plan this rename anyway and the written file would ` +
+              `not parse.`,
+            ),
+            { refusal: true, code: "reserved_word" },
+          );
+        }
         const uri = await openAndPos(path);
         const edit = (await lsp.request("textDocument/rename", {
           textDocument: { uri }, position: { line, character }, newName: new_name,
@@ -440,10 +516,10 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
         "end_line/end_character default to the start position (a caret, not a selection).",
       inputSchema: {
         path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
-        start_line: z.number().int().describe("0-based start line"),
-        start_character: z.number().int().describe("0-based start character"),
-        end_line: z.number().int().optional().describe("0-based end line (default = start_line)"),
-        end_character: z.number().int().optional().describe("0-based end character (default = start_character)"),
+        start_line: z.number().int().min(0).describe("0-based start line"),
+        start_character: z.number().int().min(0).describe("0-based start character"),
+        end_line: z.number().int().min(0).optional().describe("0-based end line (default = start_line)"),
+        end_character: z.number().int().min(0).optional().describe("0-based end character (default = start_character)"),
         only: z.array(z.string()).optional().describe("Restrict to these CodeActionKind prefixes, e.g. 'quickfix', 'refactor', 'source'"),
       },
     },
@@ -652,6 +728,7 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
       try {
         const caps = await lsp.getServerCapabilities();
         if (!caps.documentFormattingProvider) return unsupportedLsp("gd_formatting", "textDocument/formatting", "documentFormattingProvider", alt);
+        guardPath(path);
         const fsPath = toFsPath(path, cfg.projectPath);
         const before = readFileText(fsPath);
         const uri = toFileUri(path, cfg.projectPath);

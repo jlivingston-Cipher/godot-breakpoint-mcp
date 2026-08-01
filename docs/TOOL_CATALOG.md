@@ -1841,6 +1841,23 @@ The project-authoring surface (now **217**). Four `inputmap_*` tools author the 
     "written": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths actually written (empty on a dry run)" } } }
 ```
 
+`new_name` must be a **valid GDScript identifier** (`[A-Za-z_][A-Za-z0-9_]*`) and must not be a
+reserved word. The language server does **not** validate it: measured on real 4.3 / 4.5 / 4.7, a
+rename to `""`, `"1bad name!"`, `"func"` or a name containing a newline each came back with a full
+project-wide edit plan and no error — and with `apply: true` those edits write a file GDScript
+cannot parse. The refusal therefore happens host-side, **before** the rename is planned, and no
+`textDocument/rename` request is sent. Engine class names (`Node`, `Vector2`) are shadowable and
+remain legal.
+
+`line` and `character` are **0-based and non-negative** on every `gd_*` tool that takes a position.
+A negative value is rejected by the input schema; it used to reach the wire and come back as a
+success with empty contents, indistinguishable from a real miss.
+
+Every `gd_*` tool that takes a `path` **refuses one that resolves outside the Godot project root**
+— including a `res://` path that walks out through `..`. The refusal names the resolved path and is
+reported as a host refusal, not as an `LSP error [...]`, so the caller is not sent to debug a
+language server that was never asked.
+
 ### `gd_document_symbols` ✅
 - **Input**
 ```json
