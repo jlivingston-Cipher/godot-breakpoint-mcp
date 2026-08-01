@@ -219,6 +219,8 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       },
     },
     async ({ path, sky_material, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set sky on Environment ${path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { path };

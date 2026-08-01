@@ -39,6 +39,8 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
       },
     },
     async ({ path, code, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Overwrite shader code at ${path}`);
       if (blocked) return blocked;
       return call("shader.set_code", { path, code });

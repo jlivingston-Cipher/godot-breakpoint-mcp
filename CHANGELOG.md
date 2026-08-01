@@ -6,6 +6,58 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.44.0] — 2026-08-01
+
+### Fixed — twenty-four more parameters reached outside the project root, and six of them WROTE there
+
+**This release is a correction, not an extension.** Three releases scoped their path work against a
+count of "78 path-like parameters". The enumerator that produced 78 was blind three ways, and every
+one of them hid real defects:
+
+1. it walked **top-level** `inputSchema.properties` only, so a path parameter nested one level down
+   appeared in no count at all;
+2. it **discarded** all 124 parameters literally named `path`, on the standing belief that an earlier
+   sweep had already covered them — 1.43.0 had already found two it had not;
+3. its name test was an **anchored exact-word list**, so a compound name like `font_path` could only
+   ever be found through its *description* — and `card_template_create.theme.font_path` has no
+   description, which made it invisible to both tests at once.
+
+Corrected, the enumeration is **258 rows, not 78**.
+
+Re-measured against a real Godot 4.7 editor, **24 parameters reached outside the project root**.
+Verdicts came from the filesystem — file hashes and directory snapshots — never from the reply,
+because six of these tools answered `ok` while changing bytes outside the project:
+
+| how it escaped | parameters |
+|---|---|
+| **rewrote a file outside the root** | `theme_set_color.path`, `theme_set_constant.path`, `theme_set_font.path`, `theme_set_stylebox.path`, `resource_set_property.path`, `resource_set_import_settings.path` |
+| **created files or directories outside the root** | `filesystem_create_dir.path`, `scene_save_as.path`, `scene_new.path` |
+| read or listed outside the root | `resource_load.path`, `resource_get_property.path`, `resource_get_import_settings.path`, `scene_open.path`, `scene_reload.path`, `scene_get_dependencies.path`, `shader_set_code.path`, `environment_set_sky.path`, `project_add_autoload.path`, `project_set_main_scene.path`, `filesystem_list.path`, `project_search.path` |
+| **nested one level down — in no previous count** | `board_create.background.art`, `card_template_create.back.art`, `card_template_create.theme.font_path`, `piece_template_create.back.art` |
+
+🔴 **All four `theme_set_*` tools load the Theme at `path` and re-save it, so `path` is a write
+target.** `theme_set_font` and `theme_set_stylebox` have guarded their *second* parameter since
+1.40.0 and left `path` open the whole time.
+
+🔴 **`project_search` never touches the editor bridge**, so the addon's own `res://` check was never
+in front of it. It returned matches from files outside the project root through all three spellings.
+
+Containment logic is unchanged — `resolveInsideProject` and the `path_outside_project` code every
+gate pins are untouched. The guards are threaded at the tool layer, run before the confirmation
+prompt and before the transport, and rewrite nothing: a legal `res://` spelling still reaches the
+addon exactly as the caller typed it. Optional parameters keep their documented defaults — an
+omitted `path` on `scene_reload`, `scene_get_dependencies`, `filesystem_list` and `project_search`,
+and an omitted `back` / `background` / `theme` object on the tabletop writers, are all still legal.
+
+### Added
+
+- `test/nested_and_path_cohort_guards.test.ts` — 9 tests covering all 24 parameters across three
+  spellings, guard-before-prompt ordering, the caller's spelling reaching the wire unmodified, and
+  the optional/nested-omission cases an over-eager guard would break (656 → 665).
+- `AUTH_NESTED_PATH`, `AUTH_NESTED_PATH_BOTH_PARAMS`, `AUTH_NESTED_PATH_SPELLINGS` and
+  `AUTH_NESTED_PATH_LEGAL` claims in the required `authoring-plane` gate. No new CI job; required
+  contexts stay at 24.
+
 ## [1.43.0] — 2026-08-01
 
 ### Fixed — twenty-nine reader parameters loaded, listed, launched and EXECUTED files outside the project root

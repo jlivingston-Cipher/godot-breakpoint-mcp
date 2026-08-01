@@ -1647,6 +1647,108 @@ async function main() {
       : fail("AUTH_READ_PATH_LEGAL", JSON.stringify(okList).slice(0, 140));
   });
 
+  // ------------------------------------------------ AUTH_NESTED_PATH (166) ----
+  //
+  // 🔴 THIS SECTION EXISTS BECAUSE THE ENUMERATOR WAS WRONG, NOT BECAUSE A TOOL WAS.
+  // Three sessions scoped their work against "78 path-like parameters". The script
+  // that produced 78 walks TOP-LEVEL `inputSchema.properties` only, DISCARDS the 124
+  // parameters literally named `path` on the belief that 162 swept them, and matches
+  // names by an ANCHORED EXACT-WORD list so a compound like `font_path` is only ever
+  // found via its description — and `card_template_create.theme.font_path` has no
+  // description at all. Corrected, the enumeration is 258 rows.
+  //
+  // Re-measured against a real editor, TWENTY-FOUR parameters reached outside the
+  // root and SIX of them WROTE there. The verdicts came from the filesystem — file
+  // hashes and directory snapshots — never from the reply, because all four
+  // `theme_set_*` answered `ok` while rewriting a Theme outside the project.
+  //
+  // Same no-fixture property as the two sections above: these refusals resolve the
+  // path and stop, so the escape target need not exist. Still no 27th CI job.
+  await family("AUTH_NESTED_PATH", async () => {
+    const EVIL = `${path.basename(GODOT_PROJECT.replace(/\/$/, ''))}_evil`;
+    const esc = (ext) => `res://../${EVIL}/auth_np${ext}`;
+    const ROWS = [
+      ["theme_set_color", "path", { path: esc(".tres"), name: "font_color", theme_type: "Button", color: [1, 0, 0, 1] }],
+      ["theme_set_constant", "path", { path: esc(".tres"), name: "h_separation", theme_type: "HBoxContainer", value: 4 }],
+      ["theme_set_font", "path", { path: esc(".tres"), name: "font", theme_type: "Button", font_path: "res://auth_f.tres" }],
+      ["theme_set_stylebox", "path", { path: esc(".tres"), name: "panel", theme_type: "Panel", stylebox_path: "res://auth_s.tres" }],
+      ["resource_load", "path", { path: esc(".tres") }],
+      ["resource_get_property", "path", { path: esc(".tres"), property: "resource_name" }],
+      ["resource_set_property", "path", { path: esc(".tres"), property: "resource_name", value: "x" }],
+      ["resource_get_import_settings", "path", { path: esc(".png") }],
+      ["resource_set_import_settings", "path", { path: esc(".png"), settings: { "compress/mode": 1 } }],
+      ["scene_open", "path", { path: esc(".tscn") }],
+      ["scene_new", "path", { root_type: "Node2D", path: esc(".tscn") }],
+      ["scene_reload", "path", { path: esc(".tscn") }],
+      ["scene_get_dependencies", "path", { path: esc(".tscn") }],
+      ["scene_save_as", "path", { path: esc(".tscn") }],
+      ["shader_set_code", "path", { path: esc(".gdshader"), code: "shader_type canvas_item;" }],
+      ["environment_set_sky", "path", { path: esc(".tres") }],
+      ["project_add_autoload", "path", { name: "AuthNp", path: esc(".gd") }],
+      ["project_set_main_scene", "path", { path: esc(".tscn") }],
+      ["filesystem_list", "path", { path: `res://../${EVIL}` }],
+      ["filesystem_create_dir", "path", { path: `res://../${EVIL}/auth_np_dir` }],
+      ["project_search", "path", { query: "extends", path: `res://../${EVIL}` }],
+      // 🔴 THE NESTED FOUR — one level down, in NO count this project has ever produced.
+      ["board_create", "background.art", { path: "res://auth_np_b.tscn", layout: { mode: "grid", rows: 2, cols: 2 }, background: { art: esc(".png") } }],
+      ["card_template_create", "back.art", { path: "res://auth_np_c.tscn", size: { width: 10, height: 10 }, slots: [{ name: "t", kind: "label" }], back: { art: esc(".png") } }],
+      ["card_template_create", "theme.font_path", { path: "res://auth_np_c2.tscn", size: { width: 10, height: 10 }, slots: [{ name: "t", kind: "label" }], theme: { font_path: esc(".tres") } }],
+      ["piece_template_create", "back.art", { path: "res://auth_np_p.tscn", size: { width: 10, height: 10 }, back: { art: esc(".png") } }],
+    ];
+    let refused = 0;
+    for (const [tool, param, args] of ROWS) {
+      const r = await client.callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
+      const txt = (r.content?.[0]?.text || "").replace(/\s+/g, " ");
+      const good = r.isError === true
+        && /path_outside_project/.test(txt)
+        && /outside the Godot project root/.test(txt)
+        && new RegExp(`Refusing ${param.replace(".", "\\.")}\\b`).test(txt);
+      good
+        ? refused++
+        : fail("AUTH_NESTED_PATH", `${tool}.${param} did not refuse BY REASON -> ${r.isError ? txt.slice(0, 140) : `ok ${txt.slice(0, 120)}`}`);
+    }
+    refused === ROWS.length
+      ? pass("AUTH_NESTED_PATH", `${refused}/${ROWS.length} measured parameters refuse res://.. by reason, naming the parameter (incl. 4 NESTED)`)
+      : fail("AUTH_NESTED_PATH", `only ${refused}/${ROWS.length} refused`);
+
+    // 🔴 THE CLAIM THAT COULD NOT HAVE PASSED BEFORE THIS CHANGE. `theme_set_font` and
+    // `theme_set_stylebox` guarded their SECOND parameter since #175 and left `path` —
+    // the Theme they LOAD AND RE-SAVE — open. Both parameters must refuse now, and the
+    // refusal must NAME the one that failed so a caller can tell them apart.
+    let both = 0;
+    for (const [tool, operand, name] of [["theme_set_font", "font_path", "font"], ["theme_set_stylebox", "stylebox_path", "panel"]]) {
+      const a = await client.callTool({ name: tool, arguments: { path: esc(".tres"), name, theme_type: "Button", [operand]: "res://auth_ok.tres", confirm: true } }, undefined, { timeout: 60000 });
+      const b = await client.callTool({ name: tool, arguments: { path: "res://auth_t.tres", name, theme_type: "Button", [operand]: esc(".tres"), confirm: true } }, undefined, { timeout: 60000 });
+      const at = (a.content?.[0]?.text || ""), bt = (b.content?.[0]?.text || "");
+      if (a.isError && /Refusing path\b/.test(at) && b.isError && new RegExp(`Refusing ${operand}\\b`).test(bt)) both++;
+    }
+    both === 2
+      ? pass("AUTH_NESTED_PATH_BOTH_PARAMS", "theme_set_font / theme_set_stylebox refuse BOTH `path` and their operand, naming which one")
+      : fail("AUTH_NESTED_PATH_BOTH_PARAMS", `only ${both}/2 tools refused both parameters by name`);
+
+    // 🔴 ALL THREE SPELLINGS on a host-side tool the addon never sees. `project_search`
+    // does not touch the editor bridge, so the addon's `begins_with("res://")` check was
+    // never in front of it — measured returning MATCHES from files outside the root.
+    const root = GODOT_PROJECT.replace(/\/$/, "");
+    const three = [`res://../${EVIL}`, `../${EVIL}`, path.join(path.dirname(root), "elsewhere")];
+    let spelled = 0;
+    for (const p of three) {
+      const r = await client.callTool({ name: "project_search", arguments: { query: "extends", path: p } }, undefined, { timeout: 60000 });
+      if (r.isError === true && /path_outside_project/.test(r.content?.[0]?.text || "")) spelled++;
+    }
+    spelled === 3
+      ? pass("AUTH_NESTED_PATH_SPELLINGS", "project_search refuses res://.. , a bare relative and an absolute elsewhere — host-side, no addon in the path")
+      : fail("AUTH_NESTED_PATH_SPELLINGS", `only ${spelled}/3 spellings refused`);
+
+    // …and the legal side still works, including an OMITTED optional and an omitted
+    // NESTED object. A guard that refused everything would pass every claim above.
+    const okSearch = await call("project_search", { query: "extends" });
+    const okList = await call("filesystem_list", {});
+    (typeof okSearch.count === "number" && Array.isArray(okList.files))
+      ? pass("AUTH_NESTED_PATH_LEGAL", `legal reads still work (project_search -> ${okSearch.count} match(es); filesystem_list -> ${okList.files.length} file(s) at res://)`)
+      : fail("AUTH_NESTED_PATH_LEGAL", `${JSON.stringify(okSearch).slice(0, 90)} | ${JSON.stringify(okList).slice(0, 90)}`);
+  });
+
   // ---------------------------------------------------------------- cleanup ----
   // Put example/ back the way we found it. Until now this was a `rm -rf` glob a
   // developer typed by hand from the header comment, which meant (a) every local run

@@ -13,7 +13,13 @@ export function registerFilesystemTools(server: McpServer, call: EditorCall, gua
         "List the subdirectories and files of a directory in the project filesystem (hidden entries like .godot are skipped). Read-only.",
       inputSchema: { path: z.string().optional().describe("Directory res:// path (default res://)") },
     },
-    async ({ path }) => call("filesystem.list", path !== undefined ? { path } : {}),
+    async ({ path }) => {
+      // 🔴 MEASURED: this LISTED the contents of a directory outside the project root and
+      // named the files it found there. An omitted `path` means res:// and stays legal.
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("filesystem.list", path !== undefined ? { path } : {});
+    },
   );
 
   server.registerTool(
@@ -59,6 +65,11 @@ export function registerFilesystemTools(server: McpServer, call: EditorCall, gua
       description: "Create a directory (recursively) in the project filesystem, then rescan. No-op if it already exists.",
       inputSchema: { path: z.string().describe("Directory res:// path to create") },
     },
-    async ({ path }) => call("filesystem.create_dir", { path }),
+    async ({ path }) => {
+      // 🔴 MEASURED: this CREATED directories outside the project root via `res://../`.
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("filesystem.create_dir", { path });
+    },
   );
 }

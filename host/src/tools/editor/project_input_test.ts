@@ -106,6 +106,8 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
       },
     },
     async ({ name, path, enabled, save, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Add autoload "${name}" -> ${path}${save ? " and save project.godot" : ""}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { name, path };
@@ -173,6 +175,8 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
       },
     },
     async ({ path, save, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set main scene to ${path}${save ? " and save project.godot" : ""}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { path };

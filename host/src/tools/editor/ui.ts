@@ -164,6 +164,12 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       },
     },
     async ({ path, name, theme_type, color, confirm }) => {
+      // 🔴 THE THEME ITSELF IS LOADED AND RE-SAVED, so `path` is a WRITE target. All four
+      // theme_set_* tools rewrote a Theme OUTSIDE the project root through ALL THREE
+      // spellings — verdict from the file's bytes. `theme_set_font`/`theme_set_stylebox`
+      // guarded their SECOND parameter and left this one open since #175.
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set theme color ${theme_type}/${name} in ${path}`);
       if (blocked) return blocked;
       return call("theme.set_color", { path, name, theme_type, color });
@@ -185,7 +191,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       },
     },
     async ({ path, name, theme_type, font_path, confirm }) => {
-      const escaped = guard(font_path, "font_path");
+      const escaped = guard(path, "path") ?? guard(font_path, "font_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set theme font ${theme_type}/${name} in ${path}`);
       if (blocked) return blocked;
@@ -208,7 +214,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       },
     },
     async ({ path, name, theme_type, stylebox_path, confirm }) => {
-      const escaped = guard(stylebox_path, "stylebox_path");
+      const escaped = guard(path, "path") ?? guard(stylebox_path, "stylebox_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set theme stylebox ${theme_type}/${name} in ${path}`);
       if (blocked) return blocked;
@@ -231,6 +237,8 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       },
     },
     async ({ path, name, theme_type, value, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set theme constant ${theme_type}/${name} in ${path}`);
       if (blocked) return blocked;
       return call("theme.set_constant", { path, name, theme_type, value });
