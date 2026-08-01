@@ -6,6 +6,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.33.0] — 2026-07-31
+
+**Minor, and every fix in it is the shape 1.32.0 shipped one release earlier: a tool answering
+success about work the underlying system had refused or never done.** 1.32.0 closed the runtime
+coverage plane and left nothing owed. This release exists because the next question asked was not
+*"what is left in the runtime plane"* but **"which other family has never been run against the real
+thing on a path that fails?"** — and the twelve `vcs_*` tools had exactly that hole. Five defects
+came out of it, **four of them behaviour changes to shipped tools**.
+
+The premise the work opened on was wrong, and correcting it is what made the defects findable: this
+family was never mock-tested — `test/vcs.test.ts` has driven real git since Group L landed. What it
+drove was the **happy path**, and every one of the five defects lives in a repository state that
+fixture cannot build.
+
+**This is a host-only release. The addon is untouched at 1.9.5**, so no Asset Library trip is
+attached and the existing paste card stays valid.
+
 ### Added — the VCS plane is live-covered, on the states a happy path never reaches
 `host/test-integration/vcs.integration.mjs` drives the Group L tools against **real throwaway git
 repositories** in a new `vcs-plane` CI job. It is the one plane that needs **no Godot** — the tools
@@ -53,6 +70,14 @@ null, the new **`detached: true`** says why, and no pseudo-entry is listed. Sepa
 flag tested `name.startsWith("remotes/")` against `%(refname:short)` — which is `origin/main`, never
 `remotes/…` — so it **could not fire**, and under `remotes: true` (the flag's entire purpose) every
 branch came back `remote: false`. Both now discriminate on the full `%(refname)`.
+
+### Fixed — the README claimed a 431-test suite; there are 555, and the number is now derived
+🔴 **A front-door claim that had been wrong for fourteen minor releases.** The badge paragraph has
+said "431-test suite" since host **1.18.1** — 124 tests stale — with every gate green the whole time,
+because nothing derived the figure. Corrected to **555**, and `contract_check.py` gained **check 11c**
+so it cannot drift again: the count is parsed out of the declarations `node --test` itself counts, so
+a stale claim fails the gate and **no claim can be satisfied by editing a constant**. The check fails
+loudly rather than passing vacuously if it can no longer see the suite at all.
 
 ## [1.32.0] — 2026-07-31
 
