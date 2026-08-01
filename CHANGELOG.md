@@ -6,6 +6,40 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.34.0] — 2026-07-31
+
+**Minor. Seven entries, five of them behaviour changes to shipped tools — and the finding that
+produced them is not a defect at all, it is that a probe which cannot fail reads on the board
+exactly like coverage.**
+
+1.33.0 asked *"which family has never been run against the real thing on a path that fails?"* and
+found the `vcs_*` tools. Asking it of the twenty `gd_*` tools returned a worse answer than "no
+coverage": **the LSP plane already had a live probe against a real editor on two arms, and every
+call in it sat in a `try/catch` that only `console.log`s, inside a job carrying
+`continue-on-error`.** A `gd_*` tool returning an error on every single call would have been green,
+on both arms, indefinitely — while every audit scored the family as covered. The old probe stays as
+the diagnostic it always was; a new `lsp-plane` job is the gate.
+
+On the capability axis all twenty tools were already correct on real 4.3, 4.5 and 4.7. The five
+defects were somewhere else entirely: `test/lsp.test.ts` drives a mock language server whose replies
+the test itself writes, and every one of them lives in a state that mock cannot produce.
+
+**The design premise this opened on was wrong, and the spike refuted it before a line was written.**
+*"Advertised ⇒ the tool must succeed"* fails on 4.3, which advertises `workspaceSymbolProvider` and
+then answers `-32601` to the request — so the invariant would have failed CI on a tool degrading
+exactly as documented. The baseline is derived from the connected build, and the exemption for that
+trap is **earned per run** by issuing the raw LSP request and requiring a real `-32601`, never
+hardcoded.
+
+**The `readFileText` finding is a correction.** The nonexistent-file answers were first attributed
+to the engine and passed through on that basis. They were not: `readFileText` swallows every read
+error and returns `""`, so the host announced a missing file to the language server as one that
+exists and is empty. The engine answered honestly about *that*. Traced to the right layer, it was
+fixed the same release.
+
+**This is a host-only release. The addon is untouched at 1.9.5**, so no Asset Library trip is
+attached and the existing paste card stays valid.
+
 ### Added — the LSP plane has a gate, not just a log
 `host/test-integration/lsp-plane.integration.mjs` runs in a new **`lsp-plane`** CI job on 4.3 and
 4.7. The plane already had a live probe — `editor-lsp.integration.mjs`, against a real editor on two
