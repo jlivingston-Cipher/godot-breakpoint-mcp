@@ -2231,6 +2231,10 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 # Plane D — Debugging (DAP)  (✅ implemented — Phase 2; raw TCP + DAP `Content-Length` framing to Godot's debug adapter, default `127.0.0.1:6006`)
 
 ### `dbg_launch` ✅
+🔴 **A launch the adapter itself rejects is an error, not a session.** Godot answers `wrong_path` to the `launch` request when `project` is not the project the editor has open — trivially reachable, e.g. on macOS where `/tmp` realpaths to `/private/tmp` — and that rejection used to be swallowed: the tool answered `isError:false state:"running"` for a session that never started, **and the unhandled rejection terminated the MCP server process**. Both are fixed; the refusal quotes the adapter's own message.
+
+🔴 **`stop_on_entry` says which it is.** Godot's adapter does not implement `stopOnEntry` — the game runs to completion — so the result carries `stop_on_entry_honored: false` plus a `warning` naming the remedy (set a breakpoint before launching), instead of a bare `running` that reads exactly like a stop that has not landed *yet*. An adapter that does honour it reports `true` and no warning.
+
 **Refuses when the runtime bridge port is already bound** — the launched game's autoload could not `listen()`, so `runtime_*` would keep addressing whichever process already holds the port. The refusal lists every remedy with the condition it applies under (`godot_stop` for a managed child, `dbg_attach` if the holder is already under the debugger, otherwise quit it) because the probe learns only *that* the port is held, never by what. Or override with `allow_port_conflict`: a DAP session is addressed by session rather than by port, so breakpoints and stepping are unaffected either way — only `runtime_*` is. `dbg_attach` and `dbg_restart` are deliberately **not** gated (attach is the remedy; restart's own game still holds the port at check time, so a probe there would false-positive every time).
 - **Input**
 ```json
@@ -2238,10 +2242,11 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state", "scene"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "scene": { "type": "string" } } }
+{ "type": "object", "required": ["session_id", "state", "scene"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "scene": { "type": "string" }, "stop_on_entry_honored": { "type": "boolean", "description": "present only when stop_on_entry was requested: whether an entry stop actually landed" }, "warning": { "type": "string", "description": "present when stop_on_entry was requested and the adapter ignored it" } } }
 ```
 
 ### `dbg_attach` ✅
+Attach to an already-running Godot debug session. 🔴 **An attach the adapter rejects is refused** — Godot answers `not_running` when nothing is running, the most ordinary caller mistake there is; it previously answered `isError:false state:"running"` and took the server process down with an unhandled rejection.
 - **Input**
 ```json
 { "type": "object", "properties": { "address": { "type": "string", "default": "127.0.0.1" }, "port": { "type": "integer" } } }
@@ -2252,6 +2257,9 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 ```
 
 ### `dbg_set_breakpoints` ✅
+🔴 **A source that can never bind is refused, and the refusal names which guard fired.** A missing script, a **directory**, and `""` — which resolves to the project root — each previously answered `{"buffered":true,"breakpoints":[]}` with `isError:false`, so a caller could not tell an armed breakpoint from one that can never bind.
+
+🔴 **The escape check is deliberately WIDER than the `cs_dbg_*` plane's, and the difference is the point.** `cs_dbg_launch` documents overriding `program` to debug a *different* .NET program, whose sources legitimately live outside the Godot project, so there an absolute path elsewhere stays legal. `dbg_launch` has no such mainline — its `scene` is `'main'`, `'current'` or a `res://` path, and Godot binds breakpoints only to scripts in the project it runs. So **all three spellings** (`res://`, relative and absolute) are anchored to the project root here; an absolute path *inside* the project stays legal. The comparison is against `root + path.sep`, so a sibling directory merely sharing the root's name prefix cannot pass.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "lines"],

@@ -58,6 +58,18 @@ export class DapClient extends EventEmitter {
   private configured = false;
   /** Persistent watch expressions, re-evaluated at each stop (see evaluateWatches). */
   private watches: string[] = [];
+  /**
+   * True only between a launch/attach the adapter ACCEPTED and the session ending.
+   *
+   * 🔴 Before this existed, exactly one of the fifteen `dbg_*` tools (`dbg_restart`)
+   * knew whether a session had ever been started, and it knew by accident — it reads
+   * `lastStartMode`. Everything else fired its request at the adapter and reported the
+   * answer, so `dbg_continue` on a never-launched client returned
+   * `{"state":"running"}` with `isError:false` AND left `state = "running"` behind
+   * (see `resume()`'s optimistic assignment), which made every later answer read as if
+   * a session existed. Measured live against Godot 4.7.
+   */
+  private sessionStarted = false;
   /** The mode + args of the last start(), so restart() can reuse/override them. */
   private lastStartMode: "launch" | "attach" | null = null;
   private lastStartArgs: Record<string, unknown> | null = null;
@@ -66,6 +78,25 @@ export class DapClient extends EventEmitter {
   state: DapState = "disconnected";
   lastStoppedThreadId: number | null = null;
   lastStoppedReason: string | null = null;
+
+  /**
+   * Whether a launch/attach the adapter accepted is still in force. The `dbg_*` tools
+   * that can only answer from a live session consult this instead of asking the
+   * adapter and reporting whatever came back.
+   */
+  get hasSession(): boolean {
+    return this.sessionStarted && this.state !== "terminated" && this.state !== "disconnected";
+  }
+
+  /**
+   * Whether the adapter has reported a stop, read through a call so TypeScript's
+   * control-flow narrowing does not collapse it: `state` is mutated by the event
+   * handler across every `await` in `start()`, and a literal `this.state === "stopped"`
+   * after a `this.state = "running"` is (wrongly) an impossible comparison to tsc.
+   */
+  private stoppedNow(): boolean {
+    return this.state === "stopped";
+  }
 
   constructor(
     host: string,
@@ -294,11 +325,39 @@ export class DapClient extends EventEmitter {
     }
   }
 
-  /** Full handshake: initialize → launch/attach → (breakpoints) → configurationDone. */
-  async start(mode: "launch" | "attach", args: Record<string, unknown>): Promise<void> {
+  /**
+   * Full handshake: initialize → launch/attach → (breakpoints) → configurationDone.
+   *
+   * 🔴 THREE THINGS HERE WERE WRONG AT ONCE, and Godot's adapter reaches all three.
+   *
+   * 1. `startReq.catch(...)` was attached on the LAST line of the handshake. Godot
+   *    rejects the `launch`/`attach` request ITSELF — `wrong_path` when `project`
+   *    does not match the editor's open project (trivially reachable on macOS, where
+   *    `/tmp` realpaths to `/private/tmp`), `not_running` when nothing is running to
+   *    attach to. That rejection lands DURING the handshake, before the `.catch()`
+   *    existed, so it was an UNHANDLED REJECTION — which Node terminates the process
+   *    for. Measured twice, exit code 1. The handler is now attached at creation.
+   * 2. It emitted on `"error"`. An unlistened `error` emit on an EventEmitter THROWS
+   *    (158 §1). The notification goes out on a distinct name, `start_failed`.
+   * 3. `state = "running"` was unconditional, so a session the adapter refused was
+   *    reported as running. It is now only set from `initialized`, which also stops
+   *    it clobbering a `stopped` that arrives mid-handshake (the race CI found in
+   *    #166 and this Mac never did).
+   *
+   * `entryStopWaitMs > 0` additionally waits, bounded, for the entry `stopped` event
+   * before returning — see `dbg_launch`'s `stop_on_entry`. Godot 4.7 does not honour
+   * `stopOnEntry` at all, so this wait times out there and the caller is told so
+   * rather than being handed a bare `running` that reads like it worked.
+   */
+  async start(
+    mode: "launch" | "attach",
+    args: Record<string, unknown>,
+    entryStopWaitMs = 0,
+  ): Promise<{ entryStopSeen: boolean }> {
     // Remember how we started so restart() can reuse (or override) these params.
     this.lastStartMode = mode;
     this.lastStartArgs = args;
+    this.sessionStarted = false;
     // Listen for `initialized` before we ask, so we cannot miss it.
     const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
     this.capabilities = await this.request("initialize", {
@@ -313,15 +372,43 @@ export class DapClient extends EventEmitter {
     this.state = "initialized";
 
     // Send launch/attach but don't await it yet — many adapters only resolve it
-    // after configurationDone.
+    // after configurationDone. The rejection handler is attached HERE, on the same
+    // tick the promise is created: see (1) above. It records rather than throws, so
+    // a rejection arriving at any point is observable and never unhandled.
+    let startFailure: unknown = null;
     const startReq = this.request(mode, args);
+    startReq.catch((err) => {
+      startFailure = err;
+      this.sessionStarted = false;
+      // Only the handshake's own window may report `running`; a failure arriving
+      // later ends the session so the tools' session guard refuses from then on.
+      if (!this.stoppedNow()) this.state = "terminated";
+      this.emit("start_failed", err);
+    });
+    // An entry stop can arrive before configurationDone answers — arm first.
+    const entryStop = entryStopWaitMs > 0 ? this.waitEvent("stopped", entryStopWaitMs) : null;
     await onInit;
     await this.applyAllBreakpoints();
     await this.request("configurationDone", {}).catch(() => undefined);
+    // 🔴 By the time we get here an already-arrived rejection has ALREADY run its
+    // `.catch()`: the `.catch(() => undefined)` on the configurationDone request adds
+    // a microtask hop, so the recorder is queued ahead of this continuation even when
+    // both responses land in a single TCP read. A `setImmediate` here looked like
+    // prudence and was measurably dead code — a mutation deleting it survived every
+    // test in the suite, including one written specifically to catch it. The
+    // same-read ordering is pinned by a unit test instead, which is the thing that
+    // would actually notice if that hop were ever removed.
+    // A rejection arriving LATER than this ends the session via the handler above.
+    if (startFailure) throw startFailure;
     this.configured = true;
-    this.state = "running";
-    // Surface a launch/attach failure if one occurs, but don't hang on success.
-    startReq.catch((err) => this.emit("error", err));
+    this.sessionStarted = true;
+    // Guarded, not unconditional: a `stopped` that landed mid-handshake stays.
+    if (this.state === "initialized") this.state = "running";
+    if (entryStop) {
+      await entryStop;
+      if (startFailure) throw startFailure;
+    }
+    return { entryStopSeen: this.stoppedNow() };
   }
 
   threadId(): number {
@@ -428,5 +515,6 @@ export class DapClient extends EventEmitter {
     this.conn.close();
     this.state = "disconnected";
     this.configured = false;
+    this.sessionStarted = false;
   }
 }

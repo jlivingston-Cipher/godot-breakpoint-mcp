@@ -6,6 +6,117 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the GDScript `dbg_*` plane has a gate, and it is a JOB rather than a step
+`host/test-integration/gdscript-dap-plane.integration.mjs` asserts all fifteen `dbg_*` tools against
+a real Godot editor Debug Adapter, as a new **required `gdscript-dap-plane` job**. 42 individual
+claims, none log-only. CI job count 25 → **27** (the job is a 4.3 / 4.7 matrix).
+
+🔴 **The job/step decision goes the OTHER WAY here, for the reason 1.35.0 gave.** `csharp-plane`
+carries no `continue-on-error`, so #164 and #166 could land their gates as *steps* inside it and
+reuse its setup. `dap-plane` **does** carry `continue-on-error: true`, by design — it is an
+experimental probe of a novel live adapter and must never block a merge. A strict assertion added
+there would be silently optional, which is the exact failure the last two releases were about. So
+this is its own job, and `dap-plane` keeps its two log-only probes unchanged.
+
+🔴 **The editor is headless; only the game it spawns needs a display.** `godot --headless --editor`
+serves the Debug Adapter on 6006 just the same, so this job skips `dap-plane`'s software-rendered
+GUI editor boot entirely — **the port opens in ~4 s here against the ~120 s that job budgets**. The
+host-side assertions (the refusals, the session guard, the source guard) need no display at all. The
+live section does, and **CI taught that**: the first version of this job ran fully headless and the
+stop never landed, because the editor spawns the game as a child and a game with no `DISPLAY` exits
+first. The step runs under `xvfb-run` for the child's sake — but unlike `dap-plane`, every claim here
+is fatal. The editor boots against a **copy** of `example/` in a temp dir, never the checkout: booting `--editor` damages `example/project.godot` two ways, and the escape-guard
+assertions need a real file in a sibling directory beside the project root. **Nothing is added to
+`example/`** — the tracked-file count does not move and there is no new `.uid` sidecar, the same
+call sessions 155–158 made.
+
+### Fixed — `dbg_launch` / `dbg_attach` reported a session that never started, and killed the server
+🔴 **Two behaviour changes to shipped tools, and the sharpest defect this project has shipped.**
+`dap.ts` carried the same swallowed-handshake shape #166 fixed in `csdap.ts` — but on Godot it is
+not latent. Godot rejects the `launch`/`attach` **request itself**: `wrong_path` when the configured
+project is not the one the editor has open (trivially reachable — on macOS `/tmp` realpaths to
+`/private/tmp`), `not_running` when nothing is running to attach to, which is the most ordinary
+caller mistake there is. That rejection lands **during** the handshake, before the old
+`startReq.catch(...)` on the last line existed, so it was an **unhandled rejection — and Node
+terminates the process for that. Measured twice, exit code 1.** When it did land in time it emitted
+on `"error"`, and an unlistened `error` emit on an EventEmitter throws.
+
+The handler is now attached on the same tick the request is created, on the distinct event name
+`start_failed`, and a rejected start is reported as a refusal quoting the adapter's own message
+instead of `isError:false state:"running"`. The state assignment is guarded on `initialized` rather
+than unconditional, so a `stopped` arriving mid-handshake is no longer clobbered — the CI-only race
+from #166, pinned here by a unit test that sends the event **before** the response.
+
+### Fixed — eight `dbg_*` tools answered as if a session existed when none did
+🔴 **Eight behaviour changes to shipped tools, and one with no C# counterpart.** With no session at
+all — never launched, never attached — `dbg_continue` and `dbg_step` answered
+`isError:false {"state":"running"}`, `dbg_stack_trace` `{"frames":[]}` and `dbg_scopes`
+`{"scopes":[]}`, each indistinguishable from the same call against a real session.
+`dbg_variables` / `dbg_evaluate` / `dbg_watch` / `dbg_set_variable` spent a full adapter timeout
+each and `dbg_watch` then answered `isError:false`. Exactly one of the fifteen tools —
+`dbg_restart` — refused, and only because it happens to read `lastStartMode`.
+
+🔴 **The sharpest half is the side effect.** `resume()` optimistically sets `state = "running"`, so
+the *first* such call left the client looking live and every later answer read as a genuine session.
+All eight now refuse, by reason, without putting a byte on the wire. On the two elicitation-gated
+tools the guard sits **above** the gate: the old order prompted the operator to approve arbitrary
+code execution against a session that did not exist.
+
+### Fixed — a breakpoint source that can never bind was accepted like a real script
+🔴 **A behaviour change to a shipped tool.** `res://NoSuchFile.gd`, `res://tests` (a **directory**)
+and `""` — which resolves to the **project root** — each returned
+`{"buffered":true,"breakpoints":[]}` with `isError:false`.
+
+🔴 **The escape check is deliberately WIDER than the `cs_dbg_*` plane's, and the difference is the
+point rather than an inconsistency.** #166 kept an outside *absolute* path legal for C# because
+`cs_dbg_launch` documents overriding `program` to debug a **different .NET program**. `dbg_launch`
+has no such mainline — its `scene` is `'main'`, `'current'` or a `res://` path, and Godot binds
+breakpoints only to scripts in the project it runs, so an outside path can never bind however it is
+spelled. All three spellings are anchored to the root; an absolute path **inside** the project stays
+legal, and over-eager mutations exist to keep it that way. The comparison is against
+`root + path.sep`, so a sibling directory merely sharing the root's name prefix cannot pass.
+
+### Fixed — `stop_on_entry` was silently ignored and reported as a bare "running"
+🔴 **A behaviour change to a shipped tool.** Godot's adapter does not implement `stopOnEntry` at all
+— measured: the game ran to completion and printed its `_ready()` line while the tool answered
+`state: "running"`, which reads exactly like a stop that has not landed *yet*. The launch now waits,
+bounded, and reports `stop_on_entry_honored` plus a `warning` naming the remedy. An adapter that
+does honour it reports `true`, no warning, and `state: "stopped"` — pinned by its own unit test so
+the honest answer cannot become a blanket one.
+
+### Fixed — an adapter failure with no message rendered as a bare `DAP error [stackTrace]: `
+The `?? String(err)` fallback only covered an **absent** message; an explicitly empty one fell
+through to a label and a colon. The `cs_dbg_*` mirror of this shipped in 1.36.0. Refusals raised by
+the new guards also render verbatim rather than as `DAP error [...]`, which would send the caller to
+debug an adapter that was never asked.
+
+### Note — the sweep found a defect in the gate itself, of the exact shape it guards against
+🔴 **The probe printed six `FAIL` lines and exited 0.** Its "no stop landed" bail-out `throw`s rather
+than let the frame/scope claims below pass vacuously — and the `uncaughtException` /
+`unhandledRejection` listeners installed at the top *to prove the crash is gone* **swallowed that
+throw**, making the code that sets the exit code unreachable. A log-only probe inside a required
+job, rebuilt by accident inside the tool written to prevent it. Found by an over-eager mutation, not
+by reading. The bail-out now lands in a `catch` that counts a failure, and a recorded crash counts as
+one too.
+
+### Note — what Godot answers to `dbg_evaluate` is three different things, all upstream
+The same `1+1` at a live stop produced `"2"` at a `step` stop on 4.7, `success=false
+message="timeout"` after ~5 s at a `breakpoint` stop on 4.7, and **success with an empty result** on
+4.3. None is the host's to fix, and an empty string is a legitimate value for an expression to have,
+so refusing it would be over-eager. The gate therefore asserts the answer's **shape** — a refusal
+carries a non-empty message, a success carries the documented fields — and logs the value rather
+than asserting it, so the version difference stays visible in the job log. Left alone on the same
+call 158 §13 made about upstream behaviour the host passes through.
+
+### Note — three corrections carried from the handoff
+`dbg_*` is **fifteen** tools, not the seventeen the handoff predicted (13 + `dbg_goto` +
+`dbg_data_breakpoints`). `dbg_set_exception_breakpoints`, `dbg_goto`, `dbg_data_breakpoints` and
+`dbg_set_variable` are **already correctly feature-gated** and needed no change — evidence against
+porting #166 mechanically. And a lone apostrophe inside a comment in `schemas.ts` makes
+`contract_check.py` swallow every later entry into the one above it (155 §7, hit for real this
+session); the file now says so where it matters. And `--headless --editor` **does** serve the DAP —
+so `dap-plane`'s GUI editor boot is avoidable, though Xvfb is still needed for the game it spawns.
+
 ## [1.36.0] — 2026-07-31
 
 ### Added — the `cs_dbg_*` plane has a gate, in the same required job, one step further down
