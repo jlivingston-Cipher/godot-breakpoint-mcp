@@ -2231,6 +2231,10 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 # Plane D — Debugging (DAP)  (✅ implemented — Phase 2; raw TCP + DAP `Content-Length` framing to Godot's debug adapter, default `127.0.0.1:6006`)
 
 ### `dbg_launch` ✅
+🔴 **A scene that can never run is refused — the same shape as `dbg_set_breakpoints` below, one tool over.** `scene` is a path parameter that is not called `path`, so 1.40.0's sweep never reached it. Measured against a real 4.7 adapter by launching each spelling and reading the game's console back over the DAP `output` event: `res://../evil/x.tscn`, a bare `../`, `<root>_evil/x.tscn`, `/elsewhere/x.tscn` and `""` all answered `ok {"state":"running"}` and **nothing ran** — the four escapes left a live *sceneless* game whose `dbg_stack_trace` then returned `{"frames":[]}`, byte-identical to a healthy session, and `""` had no game process at all. **Nothing ever escaped the project root**; Godot does not run a scene from outside the project it launched. The defect was the answer, and it is now a refusal that names which guard fired — raised *before* the port check and before the transport, so it costs no adapter round trip. `dbg_restart` takes the same `scene` and is wired to the same guard.
+
+🔴 **`uid://` stays legal, and that is measured rather than assumed.** `uid://<known>` ran the scene it names, so requiring a path on disk would have refused a working spelling. A `uid://` the project does **not** know is the one case still not caught: Godot silently runs the main scene instead, and resolving it needs the engine's UID map, which the host does not have. A real file inside the root that is not a scene (`res://player.gd`) also stays legal — nothing runs, but the session terminates, so it announces itself.
+
 🔴 **A launch the adapter itself rejects is an error, not a session.** Godot answers `wrong_path` to the `launch` request when `project` is not the project the editor has open — trivially reachable, e.g. on macOS where `/tmp` realpaths to `/private/tmp` — and that rejection used to be swallowed: the tool answered `isError:false state:"running"` for a session that never started, **and the unhandled rejection terminated the MCP server process**. Both are fixed; the refusal quotes the adapter's own message.
 
 🔴 **`stop_on_entry` says which it is.** Godot's adapter does not implement `stopOnEntry` — the game runs to completion — so the result carries `stop_on_entry_honored: false` plus a `warning` naming the remedy (set a breakpoint before launching), instead of a bare `running` that reads exactly like a stop that has not landed *yet*. An adapter that does honour it reports `true` and no warning.
@@ -2238,7 +2242,7 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 **Refuses when the runtime bridge port is already bound** — the launched game's autoload could not `listen()`, so `runtime_*` would keep addressing whichever process already holds the port. The refusal lists every remedy with the condition it applies under (`godot_stop` for a managed child, `dbg_attach` if the holder is already under the debugger, otherwise quit it) because the probe learns only *that* the port is held, never by what. Or override with `allow_port_conflict`: a DAP session is addressed by session rather than by port, so breakpoints and stepping are unaffected either way — only `runtime_*` is. `dbg_attach` and `dbg_restart` are deliberately **not** gated (attach is the remedy; restart's own game still holds the port at check time, so a probe there would false-positive every time).
 - **Input**
 ```json
-{ "type": "object", "properties": { "scene": { "type": "string", "description": "'main' (default), 'current', or a res:// scene path" }, "stop_on_entry": { "type": "boolean", "default": false }, "allow_port_conflict": { "type": "boolean", "default": false, "description": "launch even though the runtime bridge port is bound; dbg_* still works, runtime_* would address the other process" } } }
+{ "type": "object", "properties": { "scene": { "type": "string", "description": "'main' (default), 'current', a res:// or absolute scene inside the project, or a uid:// reference" }, "stop_on_entry": { "type": "boolean", "default": false }, "allow_port_conflict": { "type": "boolean", "default": false, "description": "launch even though the runtime bridge port is bound; dbg_* still works, runtime_* would address the other process" } } }
 ```
 - **Output**
 ```json
@@ -2366,10 +2370,10 @@ Change a variable's value in a stopped frame (DAP `setVariable`). `variables_ref
 ```
 
 ### `dbg_restart` ✅
-Restart the current debug session. Uses the DAP `restart` request when the adapter advertises `supportsRestartRequest`; otherwise falls back to `terminate` + a fresh launch/attach handshake, so it works on every adapter. Reuses the last `dbg_launch`/`dbg_attach` params; `scene` / `stop_on_entry` override them for a launched session. `method` reports which path ran (`restart` = native DAP restart, `relaunch` = terminate + fresh handshake).
+Restart the current debug session. Uses the DAP `restart` request when the adapter advertises `supportsRestartRequest`; otherwise falls back to `terminate` + a fresh launch/attach handshake, so it works on every adapter. Reuses the last `dbg_launch`/`dbg_attach` params; `scene` / `stop_on_entry` override them for a launched session. `method` reports which path ran (`restart` = native DAP restart, `relaunch` = terminate + fresh handshake). 🔴 **`scene` is held to `dbg_launch`'s rule — the second call site of the same parameter.** Measured unguarded, a restart onto `res://../evil/x.tscn` answered `ok {"method":"restart","state":"running"}` exactly like the launch did; guarding only `dbg_launch` would have left the plane guarded in name only. The scene is checked before the session check, so a typo'd scene is named rather than hidden behind "no debug session".
 - **Input**
 ```json
-{ "type": "object", "properties": { "scene": { "type": "string", "description": "Override scene for a launched session: 'main', 'current', or res://scene.tscn" }, "stop_on_entry": { "type": "boolean" } } }
+{ "type": "object", "properties": { "scene": { "type": "string", "description": "Override scene for a launched session: 'main', 'current', res://scene.tscn, or uid://…" }, "stop_on_entry": { "type": "boolean" } } }
 ```
 - **Output**
 ```json

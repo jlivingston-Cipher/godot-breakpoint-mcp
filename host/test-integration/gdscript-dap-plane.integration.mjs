@@ -1,7 +1,7 @@
 // GDScript DAP plane GATE — asserts all fifteen `dbg_*` tools against a REAL Godot
 // editor Debug Adapter (:6006). Every claim below FAILS THE JOB; nothing here is
 // log-only. Grep-able markers: GD_DAP_CAPS / GD_DAP_PHANTOM / GD_DAP_NOSESSION /
-// GD_DAP_SOURCE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_GATED / GD_DAP_RESTART /
+// GD_DAP_SOURCE / GD_DAP_SCENE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_GATED / GD_DAP_RESTART /
 // GD_DAP_MODIFIERS.
 //
 // 🔴 THIS IS NOW THE ONLY DAP COVERAGE, AND THE MEASUREMENT THAT EARNED THAT.
@@ -214,6 +214,79 @@ try {
     const esc3 = await call("dbg_set_breakpoints", { path: `res://../${path.basename(siblingDir)}/sibling_real.gd`, lines: [1] });
     check(esc3.isError === true && /outside the Godot project root/.test(textOf(esc3)), "GD_DAP_SOURCE", "a res:// path escaping into that sibling is refused BY REASON");
     check(parent.length > 0, "GD_DAP_SOURCE", `fixtures live beside the root (${parent})`);
+    fs.rmSync(siblingDir, { recursive: true, force: true });
+  }
+
+  // ── 4b. scenes that can never run ────────────────────────────────────────────
+  // 🔴 163. `scene` is a path parameter that is not called `path`, which is why 162's
+  // sweep reached `dbg_goto` and not this. MEASURED against a real 4.7 adapter before
+  // the guard was written: every spelling below answered `ok {"state":"running"}`, and
+  // the four escapes left a live SCENELESS game whose `dbg_stack_trace` returned
+  // `{"frames":[]}` — byte-identical to a healthy session. Nothing ever escaped; the
+  // ANSWER was the defect.
+  //
+  // 🔴 NOT LAUNCHED, DELIBERATELY. The guard refuses before the port check and before
+  // the transport, so this whole section costs no game process and no adapter round
+  // trip. That property is the reason it can assert every case rather than the one or
+  // two a launching section could afford.
+  //
+  // 🔴 THE uid:// CARVE-OUT IS UNIT-ONLY AND HERE IS WHY. `uid://<known>` was measured
+  // running its scene, so it must stay legal — but `example/` has no uid-bearing scene
+  // to point at, and adding one would change the tracked-file count this gate's sibling
+  // checks pin. Asserting a uid here would exercise the unknown-uid FALLBACK, not the
+  // carve-out. `test/dbg_scene_guard.test.ts` covers it where a fixture is free.
+  {
+    const { call } = newClient();
+    const siblingDir = `${ROOT}_evil`;
+    fs.mkdirSync(siblingDir, { recursive: true });
+    const siblingScene = path.join(siblingDir, "outside.tscn");
+    fs.writeFileSync(siblingScene, "[gd_scene format=3]\n");
+    const relToSibling = `../${path.basename(siblingDir)}/outside.tscn`;
+
+    // Escapes — the fixture EXISTS, so only the escape guard can be what refused it.
+    for (const [spelling, what] of [
+      [siblingScene, "an ABSOLUTE scene in a sibling sharing the root's name prefix"],
+      [relToSibling, "a bare relative scene escaping into that sibling"],
+      [`res://../${path.basename(siblingDir)}/outside.tscn`, "a res:// scene escaping into that sibling"],
+    ]) {
+      const r = await call("dbg_launch", { scene: spelling });
+      check(
+        r.isError === true && /outside the Godot project root/.test(textOf(r)),
+        "GD_DAP_SCENE", `${what} is refused BY REASON`,
+      );
+      // The host's own refusal, never dressed as an adapter failure — the caller must
+      // not be sent off to debug a debug adapter that was never asked.
+      check(!/^DAP error/.test(textOf(r)), "GD_DAP_SCENE", `${what} is refused as a REFUSAL, not a DAP error`);
+    }
+    const miss = await call("dbg_launch", { scene: "res://NoSuchScene.tscn" });
+    check(miss.isError === true && /no such file/.test(textOf(miss)), "GD_DAP_SCENE", "a missing scene is refused as missing");
+    const dir = await call("dbg_launch", { scene: "res://tests" });
+    check(dir.isError === true && /is not a file/.test(textOf(dir)), "GD_DAP_SCENE", "a DIRECTORY scene is refused as not-a-file");
+    const empty = await call("dbg_launch", { scene: "" });
+    check(
+      empty.isError === true && /is not a file/.test(textOf(empty)) && /project root/.test(textOf(empty)),
+      "GD_DAP_SCENE", "an empty scene is refused, and says it resolved to the project root",
+    );
+
+    // 🔴 THE SECOND CALL SITE. `dbg_restart` takes the same `scene`; guarding only
+    // `dbg_launch` would leave the plane guarded in name only (§7's standing rule, and
+    // 161 §4's clearStaleTab). There is no session here, and the SCENE is still what is
+    // named — the guard runs before the session check, so a typo'd scene is not hidden
+    // behind "no debug session".
+    const rs = await call("dbg_restart", { scene: relToSibling });
+    check(
+      rs.isError === true && /outside the Godot project root/.test(textOf(rs)),
+      "GD_DAP_SCENE", "dbg_restart is wired to the same guard, and names the scene rather than the missing session",
+    );
+
+    // …and the sentinels are NOT refused. Cheap to assert, and the thing that would
+    // break first if the guard were made over-eager: `main` reaching the port gate or
+    // the adapter means it got past the guard.
+    const sentinel = await call("dbg_restart", { scene: "main" });
+    check(
+      sentinel.isError === true && !/outside the Godot project root|no such file|is not a file/.test(textOf(sentinel)),
+      "GD_DAP_SCENE", `'main' is not touched by the guard (refused for the real reason: ${textOf(sentinel).slice(0, 48)}…)`,
+    );
     fs.rmSync(siblingDir, { recursive: true, force: true });
   }
 

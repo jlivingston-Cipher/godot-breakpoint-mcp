@@ -6,6 +6,38 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.41.0] — 2026-08-01
+
+### Fixed — `dbg_launch` reported a session as `running` when nothing was going to run
+`scene` is a path parameter that is not called `path`, so 1.40.0's sweep — which enumerated tools by
+`inputSchema.properties.path` — never reached it. Measured against a real Godot 4.7 debug adapter,
+by launching each spelling and reading the game's console back over the DAP `output` event:
+
+| `scene` | what actually ran | session after 6s |
+|---|---|---|
+| `main`, `current`, `res://demo/demo.tscn`, absolute inside the root, `uid://<known>` | the scene that was asked for | `running` ✅ |
+| `res://../evil/x.tscn`, `../evil/x.tscn`, `<root>_evil/x.tscn`, `/elsewhere/x.tscn` | **nothing** | **`running`, with a live sceneless game** |
+| `""` | **nothing** — no game process existed at all | **`running`** |
+| `/etc/passwd`, `res://NoSuchScene.tscn`, a directory | nothing | `terminated` |
+
+**Nothing ever escaped the project root** — Godot does not run a scene from outside the project it
+launched, whichever way the path is spelled. The defect was the *answer*: all of those returned
+`ok {"state":"running"}`, and for the four escapes and `""` the caller had no way to find out. A
+follow-up `dbg_stack_trace` returned `{"frames":[]}`, which is byte-identical to what a healthy
+running session returns.
+
+`dbg_launch` now refuses a scene that escapes the root, does not exist, is a directory, or is empty
+— before the port check and before the transport, so the refusal costs no adapter round trip. The
+same guard is wired to **`dbg_restart`**, which takes the same `scene` and reached the same adapter.
+
+**`uid://` stays legal, and that is measured rather than assumed:** `uid://<known>` ran its scene, so
+requiring a path on disk would have refused a working spelling. A `uid://` the project does *not*
+know is the one case still not caught — Godot silently runs the main scene instead, and resolving it
+needs the engine's UID map, which the host does not have. Said so in the tool description.
+
+Every spelling that measurably ran a scene still runs the same scene: 6/6 re-verified through the
+tool against the same live adapter after the guard landed.
+
 ## [1.40.0] — 2026-08-01
 
 ### Fixed — `dbg_goto` never guarded its `path`

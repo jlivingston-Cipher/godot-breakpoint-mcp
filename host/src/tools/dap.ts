@@ -62,6 +62,63 @@ const GD_DAP_PATHS: PlaneWording = {
   emptyNote: " (an empty path resolves to the project root)",
 };
 
+/**
+ * `dbg_launch` / `dbg_restart`'s `scene`, which is a path parameter that is not
+ * called `path` — which is exactly why 162's sweep never reached it (163 §2).
+ *
+ * 🔴 MEASURED against a real 4.7 adapter before a line of this was written, because
+ * the obvious rule would have broken two spellings that work. Every row below is a
+ * launch that was actually performed and whose game console was read back over the
+ * DAP `output` event, so "did it run" is the engine's answer, not an inference:
+ *
+ *   main · current · res://demo/demo.tscn · <abs inside>/demo/demo.tscn · uid://<known>
+ *       -> the REQUESTED scene ran. The last three are the load-bearing ones: each
+ *          ran a scene that is NOT the main scene, so they prove the spelling is
+ *          honoured rather than silently falling back.
+ *   res://../example_evil/… · ../example_evil/… · <root>_evil/… · /elsewhere/…
+ *       -> 🔴 NOTHING ran, and the session stayed `running` with a live, sceneless
+ *          game process. `dbg_stack_trace` then answered `{"frames":[]}` — BYTE
+ *          IDENTICAL to a healthy running session. The caller could not find out.
+ *   ""  -> 🔴 nothing ran, NO game process existed at all, session still `running`.
+ *   /etc/passwd · res://NoSuchFile.tscn · res://tests (a directory)
+ *       -> nothing ran; the session terminated a moment later, so those at least
+ *          announced themselves.
+ *
+ * So NOTHING ESCAPES — Godot never ran an out-of-project scene, whichever way it was
+ * spelled. The defect is not containment, it is that `dbg_launch` answered
+ * `{"state":"running"}` for every one of them. That is the same shape as the
+ * `dbg_set_breakpoints` defect above it in this file — an answer that cannot
+ * distinguish "armed" from "can never bind" — one tool over on the same plane.
+ *
+ * 🔴 uid:// IS EXEMPT AND THAT EXEMPTION IS MEASURED, NOT ASSUMED. Godot 4 writes a
+ * UID into every scene header, and `uid://bq3k7x2yv8n1a` RAN the scene it names. A
+ * uid names a project resource through the engine's own map, never a filesystem
+ * location, so it cannot express an escape — and requiring it to exist on disk would
+ * refuse a working spelling to fix a broken one. That is precisely the mistake 162
+ * §5 D2 caught itself about to make on `csdap`.
+ *
+ * 🔴 WHAT THIS DELIBERATELY DOES NOT FIX, because it was measured and is a different
+ * defect: an UNKNOWN uid (`uid://zzzzzzzzzzzzz`) silently ran the MAIN scene while
+ * the tool echoed the uid back. Resolving that needs the engine's UID map, which the
+ * host does not have. Recorded in the description and the handoff rather than guessed
+ * at. Likewise `res://player.gd` — a real file inside the root that is not a scene —
+ * stays legal here and terminates the session, which at least announces itself.
+ */
+const GD_DAP_SCENE: PlaneWording = {
+  root: "the Godot project root",
+  escapeHint:
+    "Godot runs scenes from the project it launched, so a scene outside the root never " +
+    "loads: measured, the game starts with no scene and the session reports `running` " +
+    "forever. Pass 'main', 'current', a scene inside the project, or a uid:// reference.",
+  missingHint:
+    "The adapter accepts the launch and nothing runs, so this was previously reported " +
+    "as a started session.",
+  emptyNote: " (an empty scene resolves to the project root)",
+};
+
+/** Scene spellings the adapter resolves itself; neither names a file. */
+const SCENE_SENTINELS = new Set(["main", "current"]);
+
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
 // the current state — e.g. `continue` with no further breakpoint stays running.
@@ -173,12 +230,39 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
    */
   const guardSource = (p: string): string => resolveSourceFile(p, cfg.projectPath, GD_DAP_PATHS);
 
+  /**
+   * `scene` for `dbg_launch` / `dbg_restart`. See GD_DAP_SCENE for the measurement.
+   *
+   * 🔴 Returns the ORIGINAL SPELLING, never the resolved path. `res://demo/demo.tscn`
+   * and `<abs>/demo/demo.tscn` were both measured running the demo scene, so what
+   * reaches the adapter must not change — this guard only ever ADDS a refusal, which
+   * is what makes it behaviour-preserving on every spelling that already worked.
+   *
+   * 🔴 It also refuses BEFORE the port check and before the transport, deliberately:
+   * that is the property 162 §2 identified as making a guard measurable with no
+   * backend at all, and it is why the unit tests below need no editor. The one
+   * behaviour change is a call that has BOTH a bad scene and a bound bridge port —
+   * it now names the scene instead of the port. That is the more actionable of the
+   * two answers, and it is pinned by a test rather than left to chance.
+   */
+  const guardScene = (s: string | undefined): void => {
+    if (s === undefined) return;
+    if (SCENE_SENTINELS.has(s)) return;
+    if (s.startsWith("uid://")) return;
+    resolveSourceFile(s, cfg.projectPath, GD_DAP_SCENE);
+  };
+
   server.registerTool(
     "dbg_launch",
     {
       title: "Launch debug session",
       description:
-        "Start the game under the debugger. scene may be 'main', 'current', or a res:// scene path. " +
+        "Start the game under the debugger. scene may be 'main', 'current', a scene inside the project " +
+        "(res://, or an absolute path inside the root), or a uid:// reference. " +
+        "Refuses a scene outside the project root, one that does not exist, and an empty scene: measured on 4.7, " +
+        "the adapter ACCEPTS all of those and nothing runs — an out-of-project scene leaves a live sceneless game " +
+        "and a session that reports 'running' forever. A uid:// the project does not know is the one case still " +
+        "not caught: Godot silently runs the main scene instead, and resolving it needs the engine's UID map. " +
         "Any breakpoints set beforehand are applied during the handshake. " +
         "Refuses if the debug adapter rejects the launch (e.g. Godot answers 'wrong_path' when the configured " +
         "project path is not the one the editor has open) rather than reporting a session that never started. " +
@@ -189,7 +273,10 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "it), or dbg_attach onto it if it is already under the debugger, or pass allow_port_conflict " +
         "(dbg_* is unaffected either way; only runtime_* is).",
       inputSchema: {
-        scene: z.string().optional().describe("'main' (default), 'current', or res://scene.tscn"),
+        scene: z
+          .string()
+          .optional()
+          .describe("'main' (default), 'current', res://scene.tscn, or uid://… — must be inside the project"),
         stop_on_entry: z.boolean().optional().describe("Break at entry (default false)"),
         allow_port_conflict: z
           .boolean()
@@ -202,6 +289,8 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       },
     },
     async ({ scene, stop_on_entry, allow_port_conflict }) => {
+      // Before the port check and before the transport — see guardScene.
+      try { guardScene(scene); } catch (err) { return fail(err); }
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
         return {
           isError: true,
@@ -590,14 +679,26 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "Restart the current debug session. Uses the DAP `restart` request when the adapter advertises `supportsRestartRequest`, " +
         "otherwise falls back to terminate + relaunch — so it works on every adapter. Reuses the last dbg_launch/dbg_attach parameters; " +
         "pass `scene` / `stop_on_entry` to override them for a launched session. `method` in the result reports which path ran " +
-        "('restart' = native DAP restart, 'relaunch' = terminate + fresh handshake). Requires a session started with dbg_launch/dbg_attach.",
+        "('restart' = native DAP restart, 'relaunch' = terminate + fresh handshake). Requires a session started with dbg_launch/dbg_attach. " +
+        "`scene` is held to the same rule as dbg_launch's — inside the project root, existing, non-empty.",
       inputSchema: {
-        scene: z.string().optional().describe("Override the scene for a launched session: 'main', 'current', or res://scene.tscn"),
+        scene: z
+          .string()
+          .optional()
+          .describe("Override the scene for a launched session: 'main', 'current', res://scene.tscn, or uid://…"),
         stop_on_entry: z.boolean().optional().describe("Override stop-at-entry for the restart (launched sessions)"),
       },
     },
     async ({ scene, stop_on_entry }) => {
       try {
+        // 🔴 THE SECOND CALL SITE, and the reason it is here. 162 §8 item 5 named
+        // `dbg_launch` alone; `dbg_restart` takes the same `scene` and hands it to the
+        // same adapter, so guarding only the first would have left the plane guarded
+        // in name only. Measured before it was written: an unguarded `dbg_restart`
+        // onto `res://../example_evil/outside.tscn` answered
+        // `ok {"method":"restart","state":"running"}`, exactly like `dbg_launch`.
+        // §7's standing rule — a guard is not wired until EVERY call site is wired.
+        guardScene(scene);
         const override: Record<string, unknown> = {};
         if (scene !== undefined) override.scene = scene;
         if (stop_on_entry !== undefined) override.stopOnEntry = stop_on_entry;
