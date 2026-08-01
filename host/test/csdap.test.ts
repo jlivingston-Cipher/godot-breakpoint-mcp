@@ -788,6 +788,29 @@ test("cs_dbg_launch with stop_on_entry waits for the entry stop and reports 'sto
   } finally { dap.close(); srv.close(); }
 });
 
+test("cs_dbg_launch with stop_on_entry survives a stop that lands BEFORE configurationDone answers", async () => {
+  // 🔴 The race CI found and this Mac never did. The adapter may emit `stopped` between
+  // the configurationDone RESPONSE and the line that sets the state, so the event
+  // handler has already moved the state to "stopped" — and the first version of this
+  // fix then wrote `state = "running"` over it unconditionally, with the awaited entry
+  // stop already resolved and nothing left to wait for. Here the event is sent BEFORE
+  // the response, which pins that ordering deterministically instead of by luck.
+  const { srv } = await startDap((m, s) => {
+    if (m.command === "initialize") { dapResponse(s, m, { supportsConfigurationDoneRequest: true }); dapEvent(s, "initialized", {}); return; }
+    if (m.command === "launch") { dapResponse(s, m, {}); return; }
+    if (m.command === "configurationDone") {
+      dapEvent(s, "stopped", { reason: "entry", threadId: 42618413, allThreadsStopped: true });
+      dapResponse(s, m, {});
+    }
+  });
+  const { dap, rec } = csDapHarness(srv.port);
+  try {
+    const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app", stop_on_entry: true })) as ToolResultLike;
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "stopped" });
+    assert.equal(dap.threadId(), 42618413);
+  } finally { dap.close(); srv.close(); }
+});
+
 test("cs_dbg_launch WITHOUT stop_on_entry does not wait for a stop", async () => {
   // The over-eager mirror: a plain launch must not block on a `stopped` event that
   // is never coming. The mock below never sends one.

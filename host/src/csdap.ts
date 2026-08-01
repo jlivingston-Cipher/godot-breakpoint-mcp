@@ -360,7 +360,13 @@ export class CsDapClient extends EventEmitter {
     }
 
     this.configured = true;
-    this.state = "running";
+    // 🔴 ONLY from `initialized`, never unconditionally. The adapter can emit `stopped`
+    // (or `terminated`) between the configurationDone RESPONSE and this line, and the
+    // event handler has already moved the state — a blind `= "running"` clobbers it and
+    // the awaited entry stop below then has nothing left to wait for. The first version
+    // of this fix wrote it unconditionally and passed locally for exactly that reason:
+    // the race window is small, and CI is where it opened.
+    if (this.state === "initialized") this.state = "running";
 
     // 🔴 `stop_on_entry` used to return before the entry stop, so the tool reported
     // `running` and `threadId()` fell back to 1 while netcoredbg's real thread id is a
