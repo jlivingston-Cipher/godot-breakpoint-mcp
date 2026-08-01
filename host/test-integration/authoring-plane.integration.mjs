@@ -1544,6 +1544,109 @@ async function main() {
       : fail("AUTH_WRITE_PATH_LEGAL", JSON.stringify(okRes).slice(0, 140));
   });
 
+  // ------------------------------------------------- AUTH_READ_PATH (165) ----
+  //
+  // 164 §8 item 5's OTHER half. Against a real editor — and, for the runtime rows, a
+  // game actually hosting the runtime bridge — 29 of 35 measured reader parameters
+  // reached OUTSIDE the project root, through ALL THREE spellings rather than only
+  // `res://../`. A reader leaves no file to `stat`, so the measurement was a
+  // DIFFERENTIAL: the same escaping path pointed at a file that exists and one that
+  // does not. A tool that answers differently has opened the outside file.
+  //
+  // 🔴 THE SHARPEST ROW WAS `godot_run_headless_script`, WHICH EXECUTED AN OUTSIDE
+  // SCRIPT — proven by a marker file the script wrote, because the reply said
+  // `exit_code: 0` for the real script AND for one that did not exist.
+  //
+  // Same no-fixture property as the section above: these refusals resolve and stop,
+  // so the escape target need not exist and this runs against the repo's own
+  // `example/`. Still no 27th CI job.
+  await family("AUTH_READ_PATH", async () => {
+    const EVIL = `${path.basename(GODOT_PROJECT.replace(/\/$/, ''))}_evil`;
+    const esc = (ext) => `res://../${EVIL}/auth_rd${ext}`;
+    // Every reader MEASURED escaping, with args that reach the guard. The extensions
+    // are load-bearing in the tabletop family the same way `.gd` is for the backend
+    // four above: a non-`.tscn` `path` is refused earlier, for the wrong reason.
+    const READERS = [
+      ["audio_player_create", "stream_path", { parent_path: ".", stream_path: esc(".tres") }],
+      ["audio_set_stream", "stream_path", { path: ".", stream_path: esc(".tres") }],
+      ["control_set_theme", "theme_path", { path: ".", theme_path: esc(".tres") }],
+      ["theme_set_font", "font_path", { path: "res://auth_t.tres", name: "font", theme_type: "Label", font_path: esc(".tres") }],
+      ["theme_set_stylebox", "stylebox_path", { path: "res://auth_t.tres", name: "panel", theme_type: "Panel", stylebox_path: esc(".tres") }],
+      ["meshinstance_create", "mesh_path", { parent_path: ".", mesh_path: esc(".tres") }],
+      ["mesh_set_surface_material", "material_path", { path: ".", material_path: esc(".tres") }],
+      ["particles_set_texture", "texture_path", { path: ".", texture_path: esc(".tres") }],
+      ["shadermaterial_create", "shader_path", { path: ".", shader_path: esc(".gdshader") }],
+      ["shadermaterial_set_shader", "shader_path", { path: ".", shader_path: esc(".gdshader") }],
+      ["tilemaplayer_create", "tileset_path", { parent_path: ".", tileset_path: esc(".tres") }],
+      ["tileset_add_source", "tileset_path", { tileset_path: esc(".tres"), texture_path: "res://icon.svg" }],
+      ["tileset_add_source", "texture_path", { tileset_path: "res://auth_ts.tres", texture_path: esc(".png") }],
+      ["tileset_add_tile", "tileset_path", { tileset_path: esc(".tres"), source_id: 0, atlas_coords: [0, 0] }],
+      ["tileset_set_tile_collision", "tileset_path", { tileset_path: esc(".tres"), source_id: 0, atlas_coords: [0, 0], polygon: [[0, 0], [8, 0], [8, 8]] }],
+      ["node_instantiate_scene", "scene_path", { parent_path: ".", scene_path: esc(".tscn") }],
+      ["test_list", "dir", { dir: `res://../${EVIL}` }],
+      ["card_instance", "template_path", { template_path: esc(".tscn"), parent: ".", data: {} }],
+      ["card_hand_layout", "template_path", { template_path: esc(".tscn"), parent: ".", cards: [{ data: {} }], mode: "row" }],
+      ["card_deck_from_table", "template_path", { template_path: esc(".tscn"), parent: ".", table_path: "res://auth.csv", column_map: { a: "a" } }],
+      ["piece_instance", "template_path", { template_path: esc(".tscn"), parent: ".", data: {} }],
+      ["piece_template_create", "art", { path: "res://auth_pt.tscn", size: { width: 10, height: 10 }, art: esc(".png") }],
+      ["mp_add_spawner", "spawnable_scenes", { parent_path: ".", spawnable_scenes: [esc(".tscn")] }],
+      ["godot_run_headless_script", "script_path", { script_path: esc(".gd") }],
+      ["godot_run_project", "scene", { scene: esc(".tscn") }],
+      ["godot_run_managed", "scene", { scene: esc(".tscn") }],
+      ["godot_export", "output_path", { preset: "Linux/X11", output_path: esc(".bin") }],
+      ["runtime_node_add", "scene", { parent: ".", scene: esc(".tscn") }],
+      ["runtime_screenshot_diff", "reference", { reference: esc(".png") }],
+      ["runtime_spawn_peers", "scene", { count: 1, scene: esc(".tscn") }],
+    ];
+    let refused = 0;
+    for (const [tool, param, args] of READERS) {
+      const r = await client.callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
+      const txt = (r.content?.[0]?.text || "").replace(/\s+/g, " ");
+      const good = r.isError === true
+        && /path_outside_project/.test(txt)
+        && /outside the Godot project root/.test(txt)
+        && new RegExp(`Refusing ${param}\\b`).test(txt);
+      good
+        ? refused++
+        : fail("AUTH_READ_PATH", `${tool}.${param} did not refuse BY REASON -> ${r.isError ? txt.slice(0, 140) : `ok ${txt.slice(0, 120)}`}`);
+    }
+    refused === READERS.length
+      ? pass("AUTH_READ_PATH", `${refused}/${READERS.length} measured reader parameters refuse res://.. by reason, naming the parameter`)
+      : fail("AUTH_READ_PATH", `only ${refused}/${READERS.length} refused`);
+
+    // 🔴 ALL THREE SPELLINGS. For WRITERS the addon's `begins_with("res://")` already
+    // refused a bare relative and an absolute elsewhere, so those two were
+    // self-announcing. FOR READERS THEY WERE NOT — 19 of the first probe's rows
+    // reached outside through every spelling. This claim is the one that would have
+    // failed before this change and passes only because the host now refuses all three.
+    const root = GODOT_PROJECT.replace(/\/$/, "");
+    const three = [`res://../${EVIL}/x.tres`, `../${EVIL}/x.tres`, path.join(path.dirname(root), "elsewhere", "x.tres")];
+    let spelled = 0;
+    for (const p of three) {
+      const r = await client.callTool({ name: "control_set_theme", arguments: { path: ".", theme_path: p } }, undefined, { timeout: 60000 });
+      if (r.isError === true && /path_outside_project/.test(r.content?.[0]?.text || "")) spelled++;
+    }
+    spelled === 3
+      ? pass("AUTH_READ_PATH_SPELLINGS", "res://.. , a bare relative, and an absolute elsewhere are all refused by the HOST")
+      : fail("AUTH_READ_PATH_SPELLINGS", `only ${spelled}/3 spellings refused`);
+
+    // 🔴 THE EXECUTION ROW, ASSERTED SEPARATELY BECAUSE IT IS THE WORST ONE. Before
+    // this change `-s res://../<evil>/x.gd` RAN. The refusal must not be dressed as a
+    // task failure — a caller who sees `exit_code` looks for a bug in their script.
+    const ex = await client.callTool({ name: "godot_run_headless_script", arguments: { script_path: esc(".gd") } }, undefined, { timeout: 60000 });
+    const exTxt = (ex.content?.[0]?.text || "").replace(/\s+/g, " ");
+    (ex.isError === true && /^Path error \[path_outside_project\]/.test(exTxt) && !/exit_code/.test(exTxt))
+      ? pass("AUTH_READ_PATH_NO_EXEC", "an outside script is refused by PATH, never run and never reported as an exit code")
+      : fail("AUTH_READ_PATH_NO_EXEC", exTxt.slice(0, 160));
+
+    // …and the legal side still reads. A guard that refused everything would pass
+    // every claim above. `test_list` on its documented default must still answer.
+    const okList = await call("test_list", {});
+    typeof okList.count === "number"
+      ? pass("AUTH_READ_PATH_LEGAL", `a legal read still works (test_list -> ${okList.count} test script(s))`)
+      : fail("AUTH_READ_PATH_LEGAL", JSON.stringify(okList).slice(0, 140));
+  });
+
   // ---------------------------------------------------------------- cleanup ----
   // Put example/ back the way we found it. Until now this was a `rm -rf` glob a
   // developer typed by hand from the header comment, which meant (a) every local run

@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { log } from "../logger.js";
-import { ok } from "./lsp-common.js";
+import { ok, failPath } from "./lsp-common.js";
+import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
 
 interface LogLine {
@@ -124,7 +125,13 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
           ),
       },
     },
+    // 🔴 `godot_run_project`'s TWIN, in a different file, with the same defect —
+    // measured the same way and launching the same escaping argv. 1.42.0's lesson
+    // ("the second call site is the interesting one") applied before the fact.
     async ({ scene, allow_port_conflict }) => {
+      try {
+        if (scene !== undefined) resolveInsideProject(scene, cfg.projectPath, "scene");
+      } catch (err) { return failPath(err); }
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
         return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
       }

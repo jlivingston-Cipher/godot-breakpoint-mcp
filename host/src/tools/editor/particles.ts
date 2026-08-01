@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { EditorCall } from "./common.js";
+import type { EditorCall, PathGuard } from "./common.js";
 
 /** GPUParticles authoring (process material, amount, lifetime, texture). */
-export function registerParticleTools(server: McpServer, call: EditorCall): void {
+export function registerParticleTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
   server.registerTool(
     "particles_create",
     {
@@ -115,6 +115,10 @@ export function registerParticleTools(server: McpServer, call: EditorCall): void
         texture_path: z.string().describe("res:// path to a Texture2D resource"),
       },
     },
-    async ({ path, texture_path }) => call("particles.set_texture", { path, texture_path }),
+    async ({ path, texture_path }) => {
+      const escaped = guard(texture_path, "texture_path");
+      if (escaped) return escaped;
+      return call("particles.set_texture", { path, texture_path });
+    },
   );
 }

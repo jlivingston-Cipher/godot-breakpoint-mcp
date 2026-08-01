@@ -81,7 +81,7 @@ export function buildToolsets(d: ToolsetDeps): Toolset[] {
     { id: "cslsp", describe: "Plane D — C# language server (OmniSharp)", run: () => registerCsLspTools(s, stub<AnyClient>(d.csLsp), c) },
     { id: "dap", describe: "Plane D — GDScript debug adapter (DAP)", run: () => registerDapTools(s, stub<AnyClient>(d.dap), c) },
     { id: "csdap", describe: "Plane D — C# debug adapter (netcoredbg)", run: () => registerCsDapTools(s, stub<AnyClient>(d.csDap), c) },
-    { id: "runtime", describe: "Plane C — running-game runtime + verification family (incl. F6 multi-peer)", run: () => registerRuntimeTools(s, stub<AnyClient>(d.runtime), peers) },
+    { id: "runtime", describe: "Plane C — running-game runtime + verification family (incl. F6 multi-peer)", run: () => registerRuntimeTools(s, stub<AnyClient>(d.runtime), peers, c) },
     { id: "processes", describe: "Managed run + captured console output", run: () => { const h = registerProcessTools(s, c); d.onProcesses?.(h); } },
     { id: "knowledge", describe: "Group K — host-side project grep / symbol & idiom lookup", run: () => registerKnowledgeTools(s, c) },
     { id: "vcs", describe: "Group L — read-only version control (git) over the project", run: () => registerVcsTools(s, c) },

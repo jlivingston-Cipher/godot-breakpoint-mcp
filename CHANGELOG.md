@@ -6,6 +6,61 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.43.0] — 2026-08-01
+
+### Fixed — twenty-nine reader parameters loaded, listed, launched and EXECUTED files outside the project root
+
+1.42.0 closed the 24 `to_path` writers and left 54 of the 78 path-like parameters open, naming the
+readers as the sharpest remaining cluster. Measured against a real Godot 4.7 editor with the addon
+live — and, for the runtime rows, against a game actually hosting the runtime bridge — **29 of 35
+measured parameters reached outside the project root**.
+
+A reader writes nothing at the escape target, so 1.42.0's `stat`-the-file verdict does not exist
+here. What was measured instead is a **differential**: the same escaping spelling pointed at a file
+that exists out there and at one that does not. A tool that answers differently has opened the
+outside file; a tool that answers identically never reached the read at all.
+
+| how it escaped | parameters |
+|---|---|
+| loaded an outside resource | `stream_path` ×2, `theme_path`, `font_path`, `stylebox_path`, `mesh_path`, `material_path`, `texture_path` ×2, `shader_path` ×2, `tileset_path` ×4, `scene_path`, `template_path` ×4, `reference`, `scene` (runtime) |
+| **executed** an outside script | `godot_run_headless_script.script_path` |
+| launched an outside scene as the game | `godot_run_project.scene`, `godot_run_managed.scene` |
+| listed an outside directory's contents | `test_list.dir` |
+| stored an outside path into a saved scene | `piece_template_create.art`, `mp_add_spawner.spawnable_scenes` |
+| wrote outside (missed by the `to_path` sweep on a naming accident) | `godot_export.output_path` |
+
+🔴 **`godot_run_headless_script` is the sharpest of these: `-s <script_path>` EXECUTES the file.** A
+script outside the root ran, proven by a marker file the script itself wrote — its reply reported
+`exit_code: 0` for the real script *and* for one that did not exist, so the reply channel carried no
+information at all.
+
+Two differences from the writer family. First, **readers escaped through all three spellings**, not
+just `res://../`: the addon's `begins_with("res://")` check made a bare relative and an absolute path
+self-announcing for writers, and readers never reached it. Second, `mp_add_spawner.spawnable_scenes`
+is an **array**, so every element is guarded rather than the first.
+
+The guard is `resolveInsideProject`, unchanged and already shipped. It refuses **before the
+confirmation prompt and before the transport** — and, for the launchers, before the runtime port is
+claimed, so a scene that can never legally run cannot take the port from one that can. It returns
+nothing and rewrites nothing, so the caller's original spelling still reaches the addon.
+`runtime_screenshot_diff`'s documented `user://` spelling stays legal and is pinned by a test.
+
+Re-measured after the fix through the same live editor: **93/93 escape rows refused, no legal
+spelling stopped working.**
+
+### Added
+
+- `test/reader_path_guards.test.ts` — 11 tests (645 → 656), including the first unit coverage of any
+  MCP **task** tool's body: `godot_export` and `godot_run_headless_script` register through
+  `experimental.tasks.registerToolTask`, and the existing test stubbed that away and replaced the
+  handler, so their bodies had never been asserted.
+- `AUTH_READ_PATH` claims in the required `authoring-plane` gate. No 27th CI job; required contexts
+  stay at 24.
+- `registerRuntimeTools` now throws at registration when its `Config` is missing. Nine
+  `test-integration/*.mjs` probes call that registrar directly, where TypeScript cannot see them, so
+  adding the parameter compiled clean and failed six CI jobs at runtime with an unattributed
+  `Cannot read properties of undefined`. A `.mjs` call site is a call site.
+
 ## [1.42.0] — 2026-08-01
 
 ### Fixed — twenty-one editor / asset / backend writers created files OUTSIDE the project root

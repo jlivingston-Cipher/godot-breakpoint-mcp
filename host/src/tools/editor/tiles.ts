@@ -43,6 +43,8 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
       },
     },
     async ({ tileset_path, texture_path, texture_region_size, source_id, margins, separation, confirm }) => {
+      const escaped = guard(tileset_path, "tileset_path") ?? guard(texture_path, "texture_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Add atlas source (${texture_path}) to TileSet ${tileset_path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { tileset_path, texture_path };
@@ -69,6 +71,8 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
       },
     },
     async ({ tileset_path, source_id, atlas_coords, size, confirm }) => {
+      const escaped = guard(tileset_path, "tileset_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Add tile ${JSON.stringify(atlas_coords)} to source ${source_id} in ${tileset_path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { tileset_path, source_id, atlas_coords };
@@ -94,6 +98,8 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
       },
     },
     async ({ tileset_path, source_id, atlas_coords, polygon, physics_layer, one_way, confirm }) => {
+      const escaped = guard(tileset_path, "tileset_path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set collision on tile ${JSON.stringify(atlas_coords)} in ${tileset_path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { tileset_path, source_id, atlas_coords, polygon };
@@ -116,6 +122,8 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
       },
     },
     async ({ parent_path, name, tileset_path }) => {
+      const escaped = guard(tileset_path, "tileset_path");
+      if (escaped) return escaped;
       const params: Record<string, unknown> = { parent_path };
       if (name !== undefined) params.name = name;
       if (tileset_path !== undefined) params.tileset_path = tileset_path;

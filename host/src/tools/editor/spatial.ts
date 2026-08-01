@@ -18,6 +18,8 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       },
     },
     async ({ parent_path, name, mesh_path }) => {
+      const escaped = guard(mesh_path, "mesh_path");
+      if (escaped) return escaped;
       const params: Record<string, unknown> = { parent_path };
       if (name !== undefined) params.name = name;
       if (mesh_path !== undefined) params.mesh_path = mesh_path;
@@ -38,6 +40,8 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       },
     },
     async ({ path, material_path, surface }) => {
+      const escaped = guard(material_path, "material_path");
+      if (escaped) return escaped;
       const params: Record<string, unknown> = { path, material_path };
       if (surface !== undefined) params.surface = surface;
       return call("mesh.set_surface_material", params);

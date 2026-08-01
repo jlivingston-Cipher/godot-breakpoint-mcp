@@ -163,6 +163,7 @@ function makeHarness() {
     rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
     bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
     peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+    { projectPath: "/proj" } as unknown as Parameters<typeof registerRuntimeTools>[3],
   );
 
   return {
@@ -679,6 +680,7 @@ test("runtime_peers_digest compares by content, not by key order", async () => {
     rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
     bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
     peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+    { projectPath: "/proj" } as unknown as Parameters<typeof registerRuntimeTools>[3],
   );
   const r = (await rec.handler("runtime_peers_digest")({ root: "/root" })) as ToolResultLike;
   assert.equal(r.structuredContent?.converged, true, "key order must not decide convergence");
@@ -701,6 +703,7 @@ test("runtime_peers_digest reports divergence per node path", async () => {
     rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
     bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
     peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+    { projectPath: "/proj" } as unknown as Parameters<typeof registerRuntimeTools>[3],
   );
   const r = (await rec.handler("runtime_peers_digest")({ root: "/root" })) as ToolResultLike;
   assert.equal(r.structuredContent?.converged, false);
@@ -715,6 +718,7 @@ test("runtime_peers_digest refuses a convergence claim over fewer than two peers
     rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
     bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
     peers as unknown as Parameters<typeof registerRuntimeTools>[2],
+    { projectPath: "/proj" } as unknown as Parameters<typeof registerRuntimeTools>[3],
   );
   const r = (await rec.handler("runtime_peers_digest")({ root: "/root" })) as ToolResultLike;
   assert.equal(r.isError, true);

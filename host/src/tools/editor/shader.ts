@@ -56,8 +56,11 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
         shader_path: z.string().optional().describe("res:// path to a Shader to assign to the new material"),
       },
     },
-    async ({ path, shader_path }) =>
-      call("shadermaterial.create", shader_path !== undefined ? { path, shader_path } : { path }),
+    async ({ path, shader_path }) => {
+      const escaped = guard(shader_path, "shader_path");
+      if (escaped) return escaped;
+      return call("shadermaterial.create", shader_path !== undefined ? { path, shader_path } : { path });
+    },
   );
 
   server.registerTool(
@@ -71,7 +74,11 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
         shader_path: z.string().describe("res:// path to a Shader resource"),
       },
     },
-    async ({ path, shader_path }) => call("shadermaterial.set_shader", { path, shader_path }),
+    async ({ path, shader_path }) => {
+      const escaped = guard(shader_path, "shader_path");
+      if (escaped) return escaped;
+      return call("shadermaterial.set_shader", { path, shader_path });
+    },
   );
 
   server.registerTool(

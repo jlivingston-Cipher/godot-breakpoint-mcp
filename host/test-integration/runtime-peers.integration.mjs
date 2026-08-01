@@ -70,7 +70,11 @@ const server = {
   // Never reached: every gated call below passes confirm:true.
   server: { elicitInput: async () => ({ action: "decline" }) },
 };
-registerRuntimeTools(server, unreachableDefaultGame, peers);
+// 🔴 `cfg` IS THE FOURTH ARGUMENT AS OF 1.43.0. These probes call the registrar
+// DIRECTLY, so TypeScript cannot see them: adding a parameter compiled clean and
+// broke six CI jobs at runtime with "Cannot read properties of undefined". A .mjs
+// call site is a call site.
+registerRuntimeTools(server, unreachableDefaultGame, peers, cfg);
 
 const raw = async (name, args = {}) => {
   const h = tools.get(name);
