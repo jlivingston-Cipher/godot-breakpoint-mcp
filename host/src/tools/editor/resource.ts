@@ -40,7 +40,11 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
       description: "Load a resource file and return its class, resource_name, and inspector-visible property list. Read-only.",
       inputSchema: { path: z.string().describe("Resource res:// path") },
     },
-    async ({ path }) => call("resource.load", { path }),
+    async ({ path }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("resource.load", { path });
+    },
   );
 
   server.registerTool(
@@ -104,7 +108,11 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         property: z.string().describe("Property name"),
       },
     },
-    async ({ path, property }) => call("resource.get_property", { path, property }),
+    async ({ path, property }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("resource.get_property", { path, property });
+    },
   );
 
   server.registerTool(
@@ -121,6 +129,11 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
       },
     },
     async ({ path, property, value, confirm }) => {
+      // 🔴 MEASURED AGAINST A LIVE 4.7 EDITOR: `res://../example_evil/x.tres` had its
+      // BYTES REWRITTEN outside the project root, and the reply reported `ok`. The
+      // verdict came from the file's hash, not the reply.
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set ${property} on ${path}`);
       if (blocked) return blocked;
       return call("resource.set_property", { path, property, value });
@@ -135,7 +148,11 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         "Read an asset's import metadata (.import): the importer and its parameters. Read-only. Returns imported=false when the asset has no .import sidecar.",
       inputSchema: { path: z.string().describe("Asset res:// path (e.g. res://icon.png)") },
     },
-    async ({ path }) => call("resource.get_import_settings", { path }),
+    async ({ path }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("resource.get_import_settings", { path });
+    },
   );
 
   server.registerTool(
@@ -152,6 +169,12 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
       },
     },
     async ({ path, settings, reimport, confirm }) => {
+      // 🔴 MEASURED: `res://../example_evil/g166_icon.png` had its `.import` SIDECAR
+      // REWRITTEN outside the project root — verdict from the sidecar's hash. The other
+      // two spellings answered `reimported: true` while changing nothing out there,
+      // which is a separate reporting problem and is NOT what this guard is for.
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Set import settings on ${path} and reimport`);
       if (blocked) return blocked;
       return call("resource.set_import_settings", reimport !== undefined ? { path, settings, reimport } : { path, settings });

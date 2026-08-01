@@ -22,7 +22,11 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       description: "Open an existing scene in the editor by res:// path.",
       inputSchema: { path: z.string().describe("Scene path, e.g. res://scenes/main.tscn") },
     },
-    async ({ path }) => call("scene.open", { path }),
+    async ({ path }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("scene.open", { path });
+    },
   );
 
   server.registerTool(
@@ -44,6 +48,8 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       },
     },
     async ({ root_type, path, name, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create and overwrite scene file "${path}"`);
       if (blocked) return blocked;
       return call("scene.new", { root_type, path, name });
@@ -73,6 +79,11 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       },
     },
     async ({ path, confirm }) => {
+      // 🔴 OPTIONAL — an omitted `path` means "the current edited scene" and must stay
+      // legal. `makePathGuard` returns null for undefined; an over-eager mutation that
+      // refuses omission is caught by the sweep.
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Reload scene ${path ?? "(current)"} from disk, discarding unsaved changes`);
       if (blocked) return blocked;
       return call("scene.reload", path !== undefined ? { path } : {});
@@ -127,7 +138,11 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       description: "List the external resource dependencies of a scene file. Read-only. Defaults to the current scene.",
       inputSchema: { path: z.string().optional().describe("Scene res:// path; omitted = the current edited scene") },
     },
-    async ({ path }) => call("scene.get_dependencies", path !== undefined ? { path } : {}),
+    async ({ path }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
+      return call("scene.get_dependencies", path !== undefined ? { path } : {});
+    },
   );
 
   server.registerTool(
@@ -141,6 +156,8 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       },
     },
     async ({ path, confirm }) => {
+      const escaped = guard(path, "path");
+      if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Save the current scene to ${path}`);
       if (blocked) return blocked;
       return call("scene.save_as", { path });

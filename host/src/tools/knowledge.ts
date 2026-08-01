@@ -3,7 +3,8 @@ import path from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
-import { toFsPath } from "../paths.js";
+import { resolveInsideProject, toFsPath } from "../paths.js";
+import { failPath } from "./lsp-common.js";
 
 /**
  * Group K — Knowledge & search (read-only).
@@ -367,6 +368,14 @@ export function registerKnowledgeTools(server: McpServer, cfg: Config): void {
       },
     },
     async ({ query, regex, ignore_case, extensions, path: sub, max_results }) => {
+      // 🔴 MEASURED: `path: "res://../example_evil"` SEARCHED AND RETURNED MATCHES from
+      // files outside the project root. This tool never touches the editor bridge, so
+      // the addon's res:// check was never in front of it — the host is the only guard.
+      // An omitted `path` means "whole project" and stays legal.
+      if (sub !== undefined) {
+        try { resolveInsideProject(sub, cfg.projectPath, "path"); }
+        catch (err) { return failPath(err); }
+      }
       const cap = max_results ?? 200;
       let re: RegExp;
       try {

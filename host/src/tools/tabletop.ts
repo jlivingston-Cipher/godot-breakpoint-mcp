@@ -1880,6 +1880,13 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         guardWriteTarget(a.path, a.overwrite, "path");
         if (a.script_path !== undefined) resolveInsideProject(a.script_path, config.projectPath, "script_path");
         if (a.theme_path !== undefined) resolveInsideProject(a.theme_path, config.projectPath, "theme_path");
+        // 🔴 NESTED. `back.art` and `theme.font_path` live ONE LEVEL DOWN in the schema,
+        // which is why no enumeration this project ever ran could see them: enum163 walks
+        // TOP-LEVEL `inputSchema.properties` only. Measured — `back.art` was written
+        // VERBATIM into the saved scene, and `theme.font_path` LOADED a font from outside
+        // the root through all three spellings.
+        if (a.back?.art !== undefined) resolveInsideProject(a.back.art, config.projectPath, "back.art");
+        if (a.theme?.font_path !== undefined) resolveInsideProject(a.theme.font_path, config.projectPath, "theme.font_path");
       } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create card template scene + script at ${a.path}`);
       if (blocked) return blocked;
@@ -2084,7 +2091,11 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     async (raw) => {
       const a = raw as unknown as BoardSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
-      try { guardWriteTarget(a.path, a.overwrite, "path"); } catch (err) { return fail(err); }
+      try {
+        guardWriteTarget(a.path, a.overwrite, "path");
+        // 🔴 NESTED — `background.art` is stored verbatim in the saved board scene.
+        if (a.background?.art !== undefined) resolveInsideProject(a.background.art, config.projectPath, "background.art");
+      } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create board scene at ${a.path}`);
       if (blocked) return blocked;
       try {
@@ -2231,6 +2242,10 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         // 🔴 `art` is STORED, not loaded: the escaping path was written verbatim into
         // the generated .tscn, so the template carried a reference out of the project.
         if (a.art !== undefined) resolveInsideProject(a.art, config.projectPath, "art");
+        // 🔴 AND ITS NESTED TWIN. #173 guarded `art` and left `back.art` open, because the
+        // enumerator that scoped that work could not see one level down. Same defect,
+        // same tool, three sessions apart — measured storing the escaping path verbatim.
+        if (a.back?.art !== undefined) resolveInsideProject(a.back.art, config.projectPath, "back.art");
       } catch (err) { return fail(err); }
       const blocked = await gate(server, a.confirm, `Create piece template scene + script at ${a.path}`);
       if (blocked) return blocked;
