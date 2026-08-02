@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.51.0] — 2026-08-02
+
 ### Fixed — three live drivers recorded a verdict they never read
 
 `demo_verify_live.mjs`, `cs_demo_verify_live.mjs` and `cs_demo_verify_live_gif.mjs`
