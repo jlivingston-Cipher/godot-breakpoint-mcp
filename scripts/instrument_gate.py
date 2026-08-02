@@ -216,6 +216,40 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🔴 177. THE INSTRUMENT THAT READS TWO LANGUAGES, WHICH IS ALSO ITS FAILURE MODE.
+        # Every other gate here is wrong in one file at a time; this one is wrong when
+        # `operations.gd`'s `_ok({…})` spelling drifts, when the addon's dispatcher is
+        # rewritten, when `registerTool` is refactored, or when the probe idiom changes —
+        # four independent halves, any one of which going quiet leaves the other three
+        # reporting a clean tree. That is why `judge()` takes all four populations and why
+        # each has its own named collapse.
+        #
+        # 🔴 `comparisons()` IS BLINDED TO A HEALTHY-LOOKING SITE, NOT TO NOTHING.
+        # Returning `[]` would be caught by SITE_FLOOR, which proves the floor rather than
+        # the finder — 176's reasoning for `discarded()`, one file over. The blind returns
+        # a well-formed site whose receiver resolved to nothing, which is exactly what the
+        # gate is entitled to see on a healthy tree.
+        "name": "boundary_gate.mjs",
+        "src": HOST / "scripts" / "boundary_gate.mjs",
+        "gate": ["node", "scripts/boundary_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 6,
+        "why": "the tautology that cannot be seen from either side alone — a GDScript constant asserted in JS",
+        "targets": {
+            "export function dispatchMap(gdText) {": 'return new Map([["a.b", "_a_b"]]);',
+            "export function hardwired(gdText) {": 'return new Map([["_a_b", new Map([["f", "true"]])]]);',
+            "export function toolOps(sources) {": 'return new Map([["t", "a.b"]]);',
+            "export function comparisons(file, text) {":
+                'return [{ file, line: 1, field: "ok", lit: "true", tool: null, text: "" }];',
+            "export function judge(pop, offenders) {":
+                'return { lines: ["BOUNDARY_GATE ok"], failed: false };',
+            # 🔴 THE COLLAPSE TEST ITSELF. 176 §8's G12 extracted this shape precisely so
+            # that a floor set to zero has a case that reddens; blinding it to `false`
+            # switches all four floors off at once, and the self-test must notice.
+            "export function collapsed(n, floor) {": "return false;",
+        },
+    },
+    {
         # The COMPILED walk rather than the .ts, so this step costs no tsc invocation:
         # `npm test` has already emitted dist-test/ by the time this runs.
         "name": "path-cohort (compiled walk)",
@@ -360,7 +394,8 @@ def main() -> int:
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
     # would sweep nothing, report nothing and exit 0 — the exact shape it exists to
     # catch, one level up. taut169, again, again.
-    INSTRUMENT_FLOOR = 7   # 176: 5 -> 7, tautology_gate.mjs and verdict_gate.mjs admitted
+    INSTRUMENT_FLOOR = 8   # 177: 7 -> 8, boundary_gate.mjs admitted
+    #                        176: 5 -> 7, tautology_gate.mjs and verdict_gate.mjs admitted
     print(f"INSTRUMENT_GATE instruments={len(INSTRUMENTS)} floor={INSTRUMENT_FLOOR}")
     problems.extend(_self_check(INSTRUMENT_FLOOR))
     if scope_collapsed(len(INSTRUMENTS), INSTRUMENT_FLOOR):

@@ -6,6 +6,81 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — four claims compared against a value the addon types by hand
+
+```gdscript
+func _filesystem_scan(_params: Dictionary) -> Dictionary:
+	EditorInterface.get_resource_filesystem().scan()
+	return _ok({"scanning": true})
+```
+```js
+(await call("filesystem_scan")).scanning === true
+  ? pass("AUTH_RESOURCE_FS_SCAN") : fail("AUTH_RESOURCE_FS_SCAN");
+```
+
+Neither half is wrong on its own, and `tautology_gate.mjs` cannot see it. That gate grades
+a claim's **leaves**, and `.scanning` is a property of a value fetched at runtime — the
+textbook shape of the VALUE claim it is built to pass. The constant is real, but it is in
+GDScript, in another file, on the far side of a JSON hop. **A claim is only as falsifiable
+as the widest thing that can vary in it, and nothing in `_filesystem_scan` can vary at
+all.**
+
+And `call()` throws on `isError`, which closes the last escape: one could argue
+`.scanning === true` at least separates success from failure, and it does not. Every
+`_err` path escapes before the comparison is reached, so by the time a hard-wired field is
+read the literal the addon typed is the only value it can hold. **The claim's two outcomes
+were "true" and "never reached".**
+
+Four live claims, all in `authoring-plane.integration.mjs`, each now asserting something
+that can actually fail:
+
+- `AUTH_SIGNAL_EMIT` rested entirely on `em.emitted === true`. It now asserts `path`,
+  which `_signal_emit` **computes** from the node it resolved, and drives the refusing
+  direction — an undeclared signal must be refused. A `_signal_emit` that ignored its
+  `signal` argument entirely satisfied every claim this marker used to make.
+- `AUTH_RESOURCE_FS_SCAN` is **pinned rather than fixed**, and the reason is written down.
+  The editor's rescan is asynchronous and reports nothing back, so there is no value here
+  to verify and inventing one would be a flaky assertion dressed as a strict one. The
+  claim is now over the response **shape**, which is the drift a constant field is really
+  exposed to. A SHAPE claim over a documented constant is honest; a VALUE claim over one
+  is not.
+- `AUTH_3D_ENVIRONMENT_CREATE` and `AUTH_3D_ENVIRONMENT_SET_SKY` each kept one real
+  conjunct, so neither was vacuous and the population gate could not see them — the dead
+  conjunct simply read as evidence and was not. `set_sky` now reads `background_mode` back
+  off the saved resource before and after, because "setting a sky switches the background
+  mode" is a claim about the `Environment`, not about a string in a reply.
+
+### Added — `boundary_gate.mjs`, and it invented six defects before it caught four
+
+The gate binds every `<receiver>.<field> === <literal>` to the call that **produced** the
+receiver, then resolves that tool to a GDScript function through two real lookups —
+`registerTool`'s own `call("<op>")` argument, and the addon's dispatcher read out of
+`operations.gd`.
+
+🔴 **The first draft skipped both lookups and matched the field by name.** It flagged ten
+sites; six were `resource_load(...).type === "Shader"` and its siblings, and
+`_resource_load` returns `"type": res.get_class()` — **derived**, and the entire point of
+those checks. The name `.type` is hard-wired by `_shader_create` and computed by
+`_resource_load`, and nothing about the name can tell those apart. That is 1.51.0's defect,
+committed again in 1.52.0's, and committed a third time by the session that had just read
+both. **A lesson recorded in a handoff is a lesson about the past tense.**
+
+- **A hard-wired field nobody asserts is not a defect.** `_screenshot.mime` is
+  `"image/png"` unconditionally and that is fine — a constant in a response only becomes a
+  defect when something dresses it as evidence. The population is the intersection.
+- **"Literal on every return path" is the whole test.** An operation with one literal
+  `_ok` and one derived `_ok` has a field that can vary, and a claim over it is honest.
+- **What the gate could not judge is printed on every run**, green or red: 798 of 876
+  comparisons have a receiver that is not a tool call, and silence about that is what
+  every session since 170 has been paying for.
+- **Four floors, because there are four ways this collapses into a green lie** — the
+  constants reader, the dispatcher, the registration reader and the comparison finder each
+  going quiet leaves the other three reporting a clean tree.
+
+`boundary_gate.mjs` is the instrument gate's eighth entry (floor 7 → 8), and its self-test
+adds 49 known-answer claims. Steps in the existing job, not a 27th job — **fourteenth
+session running.**
+
 ## [1.52.0] — 2026-08-02
 
 ### Fixed — a live probe discarded a verdict and then sealed the claim it was fetched to prove
