@@ -6,6 +6,68 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.49.0] — 2026-08-02
+
+### Fixed — `filesystem_move` reported that it had moved an `.import` sidecar it had not
+
+`moved_import` was set to `true` whenever the source file **had** a sidecar. The
+`rename()` that was supposed to move it had its **return value discarded**:
+
+```gdscript
+if is_file and FileAccess.file_exists(from_path + ".import"):
+    dir.rename(from_path + ".import", to_path + ".import")   # <- return dropped
+    moved_import = true                                       # <- unconditional
+```
+
+So the field described the **request** — "there was an `.import` and I called rename" —
+rather than the outcome. When that rename failed (destination already occupied, a
+permissions refusal, a case-only rename on a case-insensitive filesystem) the asset moved
+and its sidecar stayed behind: an orphaned `.import` next to nothing, and a moved asset
+that loses its custom import settings on the next scan and is silently re-imported with
+defaults. The report said `moved_import: true` throughout. This is the same class as
+`scene_get_dependencies` (1.48.0) and `resource_set_import_settings` (1.46.0) — **a
+response field that echoes what was asked instead of what happened.**
+
+- **Both flags are now derived from the return code**, and there is a new one. `moved_import`
+  is true only when the sidecar's `rename()` returned `OK`; **`import_stranded`** is true
+  when a sidecar existed and would not move. Two booleans because there are three
+  outcomes: no sidecar, sidecar moved, sidecar left behind — and `moved_import: false`
+  alone cannot distinguish the first from the third, which is the difference between an
+  asset that never had import settings and one that has just lost them.
+- A stranded sidecar is reported as a **partial, not an error**. The move itself succeeded;
+  answering `_err` would claim nothing happened, which is the same misdescription pointing
+  the other way.
+
+### Fixed — `filesystem_create_dir` echoed the path it was asked for
+
+`created` was the requested path copied back, and `make_dir_recursive_absolute()`
+returning `OK` was never confirmed against the filesystem. It is now re-read, so `created`
+names a directory that is **there**. Same family, one step milder.
+
+### Added — the two branches nobody had ever exercised are now asserted
+
+Every asset the live probes moved was a `.tres`, which has no sidecar — so the
+`moved_import` **true** branch had never once run in CI, in the tree or out of it. The
+authoring plane now mints a real imported PNG, moves it, and checks the report against the
+**filesystem**: sidecar present at the destination, absent at the source.
+`filesystem_create_dir`'s `existed` is asserted in both branches for the same reason — it
+is the only field distinguishing "I made this" from "it was already here", and a hard-wired
+constant satisfied every reader there was.
+
+### Added — `scripts/instrument_gate.py`, the blinding harness pointed at the JS instruments
+
+Blind each enumerator in turn and assert the run goes red — 1.48.0's `scope_gate.py`,
+applied to `_population.mjs`, the new `_path_ledger.mjs` and the path-cohort walk. It found
+`reportOrDie()`: the member that turns a failure list into a non-zero exit, the **only** one
+eleven of the fourteen live probes call, and one that could `return 0` with the population
+self-test entirely green.
+
+The path-cohort **comparison** had no gate at all — it lived inline in a probe that boots
+the editor GUI under Xvfb, so no case with a known answer had ever been put through it. It
+is now `test-integration/_path_ledger.mjs` with a 28-claim self-test, and
+`npm run path-cohort` floors its five counts, checks both blindness canaries by name and
+runs the ledger comparison headless.
+
 ## [1.48.0] — 2026-08-02
 
 ### Fixed — `scene_get_dependencies` returned the one spelling of a dependency that does not load

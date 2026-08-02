@@ -204,7 +204,11 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // ---- Group B: filesystem (tools/editor.ts -> operations.gd _filesystem_*) ----
   filesystem_list: { path: z.string(), dirs: z.array(z.string()), files: z.array(z.string()) },
   filesystem_scan: { scanning: z.boolean() },
-  filesystem_move: { moved: z.string(), from: z.string(), moved_import: z.boolean() },
+  // `import_stranded` (173): the .import sidecar EXISTED and would not move. Separate
+  // from `moved_import: false`, which also means "there was no sidecar" — one boolean
+  // cannot carry both, and the difference is a moved asset that has lost its import
+  // settings versus one that never had any.
+  filesystem_move: { moved: z.string(), from: z.string(), moved_import: z.boolean(), import_stranded: z.boolean() },
   filesystem_create_dir: { created: z.string(), existed: z.boolean() },
 
   // ---- Group C: animation (tools/editor.ts -> operations.gd _anim_*) ----
