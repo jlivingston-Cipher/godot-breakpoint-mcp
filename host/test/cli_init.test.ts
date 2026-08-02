@@ -105,8 +105,13 @@ test("mergeClientConfig preserves sibling servers", () => {
   const merged = JSON.parse(mergeClientConfig(existing, "mcpServers", "godot", entry)) as {
     mcpServers: Record<string, unknown>;
   };
-  assert.ok(merged.mcpServers.other, "existing server preserved");
-  assert.ok(merged.mcpServers.godot, "new server added");
+  // 🔴 PRESERVED, NOT MERELY PRESENT. This read `assert.ok(merged.mcpServers.other)`
+  // until 171 — and `{}` is truthy, so a merge that clobbered every sibling to an empty
+  // object passed a test whose own name is "preserves sibling servers". Measured, not
+  // supposed: `mutate171.sh` M2 made the merge do exactly that and this test stayed
+  // green. A presence check cannot tell "kept" from "replaced with something".
+  assert.deepEqual(merged.mcpServers.other, { command: "x" }, "the sibling server is preserved INTACT");
+  assert.deepEqual(merged.mcpServers.godot, entry, "the new server is written as given");
 });
 
 test("serverEntry omits GODOT_BIN when default, includes it when custom, and adds type for vscode", () => {
