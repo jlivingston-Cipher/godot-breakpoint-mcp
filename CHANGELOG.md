@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.53.0] — 2026-08-02
+
 ### Fixed — four claims compared against a value the addon types by hand
 
 ```gdscript
