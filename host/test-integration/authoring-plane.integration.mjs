@@ -467,9 +467,59 @@ async function main() {
       ? pass("AUTH_RESOURCE_DUPLICATE", RES_DUP) : fail("AUTH_RESOURCE_DUPLICATE", JSON.stringify(dp));
 
     // resource_get_import_settings — a .tres is not an imported asset (degrade path -> imported:false)
+    //
+    // 🔴 168: this claim used to be `typeof imp.imported === "boolean"`, which is true for
+    // EVERY possible reply this tool can produce — including the one it produced for a file
+    // that did not exist. It is the reason 166 §5 D3 had to be found by hand and then
+    // survived two more releases. A tautology in a green suite is worse than no claim: it
+    // reads as coverage. Replaced with claims that name the reply they demand.
     const imp = await call("resource_get_import_settings", { path: RES });
-    (typeof imp.imported === "boolean")
+    (imp.imported === false && imp.importer === "" && imp.path === RES)
       ? pass("AUTH_RESOURCE_IMPORT_SETTINGS", `imported=${imp.imported}`) : fail("AUTH_RESOURCE_IMPORT_SETTINGS", JSON.stringify(imp));
+
+    // 🔴 THE D3 CLAIM. A path that is not a file must REFUSE, not answer imported:false —
+    // otherwise a caller cannot tell "not imported" from "not there". `call` throws on
+    // isError, so the refusal is the success condition here and a reply is the failure.
+    const ABSENT_ASSET = "res://_auth_probe_no_such_asset_qwerty.png";
+    let absentRefused = null;
+    try {
+      const bad = await call("resource_get_import_settings", { path: ABSENT_ASSET });
+      absentRefused = `ANSWERED ${JSON.stringify(bad)}`;
+    } catch (e) {
+      absentRefused = /not_found/.test(String(e.message)) ? null : `wrong code: ${e.message}`;
+    }
+    absentRefused === null
+      ? pass("AUTH_RESOURCE_IMPORT_ABSENT", "not_found for a path that is not a file")
+      : fail("AUTH_RESOURCE_IMPORT_ABSENT", absentRefused);
+
+    // 🔴 THE D4 CLAIM, against a REAL imported asset (the addon's own icon — the only
+    // committed asset in the project with a .import sidecar). `reimport: false` keeps this
+    // off the editor's reimport queue; the sidecar is restored by the workspace snapshot.
+    // 🔴 THE TRY/CATCH IS LOAD-BEARING, AND IT WAS ADDED BECAUSE A MUTATION EXPOSED IT.
+    // Run against the pre-fix addon, the reply has no `changed` field at all, so the
+    // host's structured-output validation THREW before this claim could speak: the run
+    // reported the generic AUTH_RESOURCE_THREW and aborted the remaining Group B claims,
+    // and the marker that exists to name this exact defect never printed. A claim that
+    // cannot fail BY NAME is 167 §4's manufactured verdict wearing a different hat.
+    // Catching here keeps the failure attributable and lets the rest of the family run.
+    const ICON = "res://addons/breakpoint_mcp/icon.png";
+    try {
+      const iconGet = await call("resource_get_import_settings", { path: ICON });
+      const curMode = iconGet.settings?.["compress/mode"];
+      const flipped = (typeof curMode === "number" ? curMode : 0) === 1 ? 0 : 1;
+      const setReal = await call("resource_set_import_settings", { path: ICON, settings: { "compress/mode": flipped }, reimport: false, confirm: true });
+      const setNoop = await call("resource_set_import_settings", { path: ICON, settings: { "compress/mode": flipped }, reimport: false, confirm: true });
+      // A real edit names the key; re-setting the same value names nothing. BOTH halves are
+      // asserted — a `changed` hard-wired to [] would satisfy the second one on its own.
+      (Array.isArray(setReal.changed) && setReal.changed.includes("compress/mode")
+        && Array.isArray(setNoop.changed) && setNoop.changed.length === 0
+        && setNoop.settings.includes("compress/mode"))
+        ? pass("AUTH_RESOURCE_IMPORT_NOOP", `real=${JSON.stringify(setReal.changed)} noop=${JSON.stringify(setNoop.changed)}`)
+        : fail("AUTH_RESOURCE_IMPORT_NOOP", `real=${JSON.stringify(setReal)} noop=${JSON.stringify(setNoop)}`);
+      if (typeof curMode === "number") await call("resource_set_import_settings", { path: ICON, settings: { "compress/mode": curMode }, reimport: false, confirm: true });
+    } catch (e) {
+      fail("AUTH_RESOURCE_IMPORT_NOOP", `threw: ${String(e.message).slice(0, 160)}`);
+    }
 
     // filesystem_create_dir + filesystem_list (dirs/files are bare names)
     const cd = await call("filesystem_create_dir", { path: DIR });

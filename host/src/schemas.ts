@@ -186,7 +186,11 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   resource_get_property: { path: z.string(), property: z.string(), value: encodedValue },
   resource_set_property: { path: z.string(), property: z.string(), value: encodedValue },
   resource_get_import_settings: { path: z.string(), imported: z.boolean(), importer: z.string(), settings: z.record(encodedValue) },
-  resource_set_import_settings: { path: z.string(), reimported: z.boolean(), settings: z.array(z.string()) },
+  // `changed` (1.46.0) is narrower than `settings`: `settings` lists every key the call
+  // SET, `changed` only those whose stored value actually moved. Setting a key to the
+  // value it already held reported `reimported: true` with the sidecar's bytes unmoved
+  // until 1.46.0 — see the note in operations.gd's _resource_set_import_settings.
+  resource_set_import_settings: { path: z.string(), reimported: z.boolean(), settings: z.array(z.string()), changed: z.array(z.string()) },
 
   // ---- Group B: filesystem (tools/editor.ts -> operations.gd _filesystem_*) ----
   filesystem_list: { path: z.string(), dirs: z.array(z.string()), files: z.array(z.string()) },
