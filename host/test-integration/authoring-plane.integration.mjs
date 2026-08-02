@@ -692,8 +692,14 @@ async function main() {
     (painted && tu.performed === true && cleared)
       ? pass("AUTH_TILEMAP_SET_CELL") : fail("AUTH_TILEMAP_SET_CELL", `painted=${painted} performed=${tu.performed} cleared=${cleared}`);
     await call("editor_redo");
-    !(await call("tilemap_get_cell", { path: layer, coords: [3, 3] })).empty
-      ? pass("AUTH_TILEMAP_SET_CELL_REDO") : fail("AUTH_TILEMAP_SET_CELL_REDO");
+    // 🔴 `!(…).empty` PASSED WHEN THE FIELD WAS ABSENT (172) — `!undefined` is true, so
+    // a reply that stopped reporting `empty` at all read as a repainted cell. The
+    // sibling claim above happens to catch that, but a claim that leans on its
+    // neighbour is 171 §3's separated floor: assert the boolean this reads.
+    const redone = await call("tilemap_get_cell", { path: layer, coords: [3, 3] });
+    redone.empty === false
+      ? pass("AUTH_TILEMAP_SET_CELL_REDO", `cell repainted (empty=${redone.empty})`)
+      : fail("AUTH_TILEMAP_SET_CELL_REDO", `empty=${JSON.stringify(redone.empty)} :: ${JSON.stringify(redone).slice(0, 120)}`);
 
     // tilemap_set_cells_rect (undoable) — forward
     const rc = await call("tilemap_set_cells_rect", { path: layer, rect: [0, 0, 2, 2], source_id: sourceId, atlas_coords: [0, 0] });
@@ -2013,7 +2019,10 @@ async function main() {
   // misses a path is the same failure shape as #143's all-black frame passing on its
   // label: the step reports success and nothing ever compares the result to the claim.
   const residue = diffDir(workspace);
-  residue.clean
+  // 🔴 `residue.clean` ALONE IS A TRUTHINESS TEST (172). If `diffDir` ever returned a
+  // shape without the field, this read as clean. The claim that closes the probe is the
+  // last one that should lean on a field being there.
+  residue.clean === true
     ? pass("AUTH_CLEAN", `example/ byte-identical to the pre-probe snapshot (${workspace.files.size} file(s) re-hashed; ${restored.removed.length + restored.rmdir.length} artefact(s) removed, ${restored.rewritten.length} restored)`)
     : fail("AUTH_CLEAN", `residue survived the restore -> ${describeDiff(residue)}`);
 

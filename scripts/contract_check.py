@@ -256,7 +256,7 @@ def registered_tools() -> list[str]:
     return names
 
 
-def uncaptured_tool_registrations() -> list[str]:
+def uncaptured_tool_registrations() -> "tuple[list[str], int]":
     """Registration sites whose tool name the strict net above does NOT match.
 
     Checks 3, 4, 6 and 11 all reach the surface through `registered_tools()`, so
@@ -272,18 +272,27 @@ def uncaptured_tool_registrations() -> list[str]:
     the next one fail loudly instead of silently.** It re-scans with a
     deliberately permissive literal net and reports the difference — so the gate
     asserts the net captured every site, rather than trusting that it did.
+
+    🔴 AND IN 172 THIS DETECTOR WAS ITSELF BLINDED AND THE RUN STAYED GREEN. Early-
+    returning `[]` here — a permissive net that matches nothing — prints ALL HARD
+    CHECKS PASSED, because "no misses found" and "did not look" are the same
+    observable. That is exactly the failure the paragraph above describes, committed
+    by the function written to prevent it. It now returns the number of sites it
+    SCANNED as well, and the scope ledger floors that against a literal.
     """
     missed: list[str] = []
+    scanned = 0
     for f in sorted(TOOLS.rglob("*.ts")):
         text = f.read_text()
         for m in re.finditer(
             r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([^"\n]*)"', text
         ):
+            scanned += 1
             name = m.group(1)
             if not re.fullmatch(r"[a-z0-9_]+", name):
                 line = text.count("\n", 0, m.start()) + 1
                 missed.append(f"{f.relative_to(ROOT)}:{line} {name!r}")
-    return missed
+    return missed, scanned
 
 
 def annotated_tools() -> set[str]:
@@ -643,9 +652,16 @@ def toolset_aliases() -> dict[str, list[str]]:
     return out
 
 
-def toolset_claims(files: list[Path]) -> tuple[list[str], list[tuple[Path, int, int, str]]]:
-    """(mismatches, unresolved) — exact check of `<ids>` -> N claims, plus every
-    other "N tools" phrase listed for a human to eyeball."""
+def toolset_claims(files: list[Path]) -> "tuple[list[str], list[tuple[Path, int, int, str]], int]":
+    """(mismatches, unresolved, resolved) — exact check of `<ids>` -> N claims, plus
+    every other "N tools" phrase listed for a human to eyeball.
+
+    🔴 `resolved` IS THE SCOPE, AND IT WAS NOT REPORTED (172). Both returned lists are
+    OFFENDER lists: empty means "nothing wrong", which is also what a finder that read
+    nothing produces. Blinded, this function left check 11b green AND made its warning
+    disappear — a gate getting quieter as it goes blind. The count of claims it actually
+    RESOLVED is the only number that separates the two, so it comes back too.
+    """
     sizes = toolset_sizes()
     aliases = toolset_aliases()
     mismatches: list[str] = []
@@ -682,7 +698,7 @@ def toolset_claims(files: list[Path]) -> tuple[list[str], list[tuple[Path, int, 
             if (f, ln) in resolved_lines:
                 continue
             unresolved.append((f, ln, int(m.group(1)), _snip(m.group(0))))
-    return mismatches, unresolved
+    return mismatches, unresolved, len(resolved_lines)
 
 
 # --- 13 helpers: prefix families, the all-false class, and a rival's ceiling -
@@ -1387,7 +1403,7 @@ if dupes:
 # A name the net misses is invisible to checks 3, 4, 6 and 11 at once, and the
 # gate's output is byte-identical to a clean run. Assert the net saw every site
 # rather than trusting the count it produced.
-uncaptured = uncaptured_tool_registrations()
+uncaptured, registration_sites_scanned = uncaptured_tool_registrations()
 if uncaptured:
     errors.append(
         "Tool registration(s) whose name the scanner cannot match "
@@ -1695,7 +1711,7 @@ else:
 # So a resolved mismatch now FAILS. The eyeball list below is still warn-only,
 # and that half of the original rule stands: an UNRESOLVED prose count is not
 # verified, and gating on it would mean guessing which number a sentence meant.
-family_mismatches, family_unresolved = toolset_claims(TOOL_COUNT_FILES)
+family_mismatches, family_unresolved, family_resolved_count = toolset_claims(TOOL_COUNT_FILES)
 surface_claim_keys = {(f, ln) for f, ln, _k, _n, _s in count_claims}
 family_unresolved = [c for c in family_unresolved if (c[0], c[1]) not in surface_claim_keys]
 
@@ -2069,7 +2085,11 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 16  # +1 session 167: host/scripts/path-cohort.mjs
+SHEBANG_NONEXEC_EXPECTED = 17  # +1 session 172: scripts/scope_gate.py — and see 172's
+#                                 note below: the census now reads .py/.sh too, which is
+#                                 how that file stopped being invisible to BOTH halves
+#                                 of check 15 at once
+#                                 +1 session 167: host/scripts/path-cohort.mjs
 #                                 +2 session 171: host/scripts/tautology_gate{,.selftest}.mjs
 #   (was 13, +1 session 147: host/verify_shot_editor_live.mjs)
 # 🔴 SESSION 167 GOTCHA: this roster counts TRACKED files, so a newly written
@@ -2208,9 +2228,15 @@ else:
     # correctly NOT executable. Count them, so the sentence cannot rot: this is
     # the population the roster's set-equality deliberately does not cover, and
     # it was the only number in this file that nothing verified.
+    # 🔴 AND THE CENSUS ITSELF HAD A SUFFIX FILTER (172). It read `.mjs`/`.ts` only, so
+    # `scripts/scope_gate.py` — the first tracked `#!` PYTHON file committed 100644 —
+    # landed in NEITHER population: not on EXEC_ROSTER (it is not executable) and not in
+    # this count (wrong suffix). It was invisible to check 15 in both directions, and
+    # nothing said so. A population defined by a filter is a derived scope like any
+    # other; this one was narrower than the contract it was standing in for.
     shebang_nonexec = []
     for rel, mode in tracked_modes.items():
-        if rel.suffix not in (".mjs", ".ts") or mode == "100755":
+        if rel.suffix not in (".mjs", ".ts", ".py", ".sh") or mode == "100755":
             continue
         try:
             if (ROOT / rel).open("rb").read(2) == b"#!":
@@ -2221,7 +2247,7 @@ else:
     if shebang_nonexec_count != SHEBANG_NONEXEC_EXPECTED:
         listed = ", ".join(str(r) for r in sorted(shebang_nonexec)[:15])
         errors.append(
-            f"check 15: {shebang_nonexec_count} tracked .mjs/.ts file(s) carry `#!` while committed "
+            f"check 15: {shebang_nonexec_count} tracked .mjs/.ts/.py/.sh file(s) carry `#!` while committed "
             f"non-executable, but the comment beside EXEC_ROSTER says {SHEBANG_NONEXEC_EXPECTED}. "
             f"These are invoked as `node <file>`, so 100644 is correct — but the count is prose that "
             f"goes stale silently. Update SHEBANG_NONEXEC_EXPECTED and re-read that comment. "
@@ -2421,6 +2447,112 @@ else:
         p for p in _tracked if str(p).startswith("addons/breakpoint_mcp/")
     ])
 
+# --- 20: THE SCOPE LEDGER — one literal floor per derived population ---------
+#
+# 🔴 WHY THIS EXISTS, MEASURED RATHER THAN ARGUED (session 172, answering 171 §10.21:
+# "for each instrument that reports a count over a scope it derives itself, ask what it
+# would print if its finder matched nothing — and whether that output is distinguishable
+# from success. Start with contract_check.py").
+#
+# It was not distinguishable. Blinding each enumerator in turn — an early return of the
+# empty collection its own annotation promises — and re-running produced:
+#
+#     25 blindable enumerators · CONTROL (unmutated) PASS · 11 caught · 14 STILL GREEN
+#
+# Fourteen finders could match NOTHING AT ALL and this file still printed ALL HARD
+# CHECKS PASSED. Every check downstream of them compares set intersections, iterates a
+# list, or filters for offenders — and all three of those are satisfied, silently and
+# instantly, by an empty input. That is 168 §4's class applied to a gate rather than a
+# test: a claim true of every possible state of the code.
+#
+# 🔴 AND THE SHARPEST CASE WAS CHECK 16, THE ONE WRITTEN TO PREVENT PRECISELY THIS.
+# Its own comment records the incident it was built for: "one find-and-replace of
+# `"properties"` -> `"props"` took both to `0 checked` while the JSON linter still read
+# `514 (0 invalid)`. A release in which every documented shape was wrong passed green."
+# The floor it built is `universe - comparable - exempt`, where `universe` is
+# `set(code_inputs)` — THE SAME FINDER'S OUTPUT. Blind the finder and the universe
+# empties with it, so there is nothing left to be uncovered. `len(x) >= len(x)`, which
+# is the exact tautology `_population.mjs`'s docstring says it takes a separate `scope`
+# argument to avoid. A gate cannot floor a population against itself.
+#
+# So the floors here are LITERALS, and they are >= rather than exact for 171 §4's
+# reason: these populations are supposed to grow, and a gate that goes red on good work
+# gets deleted. Only a COLLAPSE is a defect. Each line states what a zero would mean,
+# because a floor whose consequence nobody wrote down is a number nobody will maintain.
+#
+# 🔴 ONE LINE PER POPULATION, NEVER AGGREGATED (171 §10.22). The rule was written after
+# a total collapse in one directory hid behind a healthy number from another. A single
+# "N things checked" summing twenty populations is that failure waiting to happen.
+SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
+    # (population, measured now, literal floor, what a collapse would mean)
+    ("gdscript.editor_methods", len(editor_methods), 120,
+     "checks 1 & 2 stop comparing the host's bridge calls to any GDScript handler"),
+    ("gdscript.runtime_methods", len(runtime_methods), 18,
+     "the runtime half of the same wire contract goes unchecked"),
+    ("host.bridge_calls", len(host_calls), 140,
+     "check 2 compares an EMPTY set of calls to the dispatch table and finds nothing missing"),
+    ("tools.registered", len(tools), 250,
+     "checks 3, 4, 6, 9 and 11 all reach the surface through this list — an empty one satisfies all five"),
+    ("tools.registration_sites_scanned", registration_sites_scanned, 250,
+     "the net-completeness DETECTOR itself stops looking, which is how it passed while blind (172)"),
+    ("catalog.index_tools", len(cat_tools), 250,
+     "check 4 stops demanding a catalog row for anything"),
+    ("catalog.json_blocks", len(catalog_json_blocks()), 400,
+     "check 5 lints zero blocks and still reports (0 invalid)"),
+    ("annotations.roster", len(annotated), 250,
+     "check 9 stops demanding risk hints, and consumers infer risk from the tool NAME"),
+    ("resources.registered", resource_count, 5,
+     "check 10 compares nothing to the documented resource count"),
+    ("resources.doc_claims", len(resource_claims), 6,
+     "the documented side of check 10 goes unread"),
+    ("counts.tool_claims", len(count_claims), 60,
+     "check 11 verifies zero of the surface counts stated in docs and prose"),
+    ("counts.test_constants", len(count_constants), 3,
+     "check 11c stops watching the host suite's own declared size — the 681 drifts silently"),
+    ("families.toolset_sizes", len(toolset_sizes()), 10,
+     "check 11b resolves no toolset and every prose family count becomes 'unverified' (warn only, and quiet)"),
+    ("families.prefix_glob_lines", len(prefix_lines), 4,
+     "check 13's exact tool-name globs match nothing and every glob claim reads as satisfied"),
+    # 🔴 THESE THREE WERE ONE LINE IN THE FIRST DRAFT OF THIS LEDGER, AND THE BLINDING
+    # HARNESS CAUGHT IT: with `allfalse` and `annclass` summed, blinding either one left
+    # the total above the floor and the run green. 171 §10.22, committed by the ledger
+    # written to enforce it, inside the same commit — the aggregation reflex is that
+    # strong. One line per population is not a style rule.
+    ("families.allfalse_lines", len(allfalse_lines), 1,
+     "check 13's all-false annotation claims stop resolving — the ~50 tools with no hints at all go unverified"),
+    ("families.annclass_lines", len(annclass_lines), 1,
+     "the annotation-class half of check 13 stops resolving any claim it is meant to verify"),
+    ("families.exempt_lines", len(exempt_lines), 1,
+     "the rival-ceiling exemptions stop being located, so a stale exemption is indistinguishable from a live one"),
+    ("families.toolset_aliases", len(toolset_aliases()), 1,
+     "check 11b can no longer expand an alias, so every aliased toolset claim silently drops to 'unverified'"),
+    ("families.toolset_claims_resolved", family_resolved_count, 3,
+     "🔴 check 11b resolves NOTHING and its warning DISAPPEARS — a gate that gets quieter as it goes blind"),
+    ("recipes.registered", len(recipe_set), 6,
+     "check 12's roster comparison has nothing on the code side to compare"),
+    ("shapes.inputs_parsed", len(code_inputs), 250,
+     "🔴 CHECK 16's UNIVERSE — the population it floors coverage against. Empty here, nothing is uncovered"),
+    ("shapes.inputs_compared", len(input_comparable), 250,
+     "check 6 compares zero input shapes to the catalog and reports parity"),
+    ("shapes.outputs_parsed", len(code_outputs), 250,
+     "🔴 the same universe on the output side (172's measurement blinded both)"),
+    ("shapes.outputs_compared", len(output_comparable), 250,
+     "check 7 compares zero output shapes to the catalog and reports parity"),
+    ("versions.sites_checked", version_sites_checked, 8,
+     "check 14's release ritual verifies no stamp — a half-bumped release passes"),
+    ("modes.shebangs_confirmed", shebangs_confirmed, 2,
+     "check 15 confirms no interpreter line and the exec-bit contract stops being read"),
+]
+scope_collapses = [(n, v, f, why) for (n, v, f, why) in SCOPE_LEDGER if v < f]
+for name, value, floor, why in scope_collapses:
+    errors.append(
+        f"SCOPE COLLAPSE {name}: {value} < floor {floor}. The finder behind this "
+        f"population matched (almost) nothing, so {why}. Either coverage really was "
+        f"deleted — in which case lower the literal deliberately — or the finder "
+        f"stopped recognising what it reads, which is indistinguishable from success "
+        f"in every check downstream of it."
+    )
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -2478,6 +2610,14 @@ print(f"Input shapes            : {len(code_inputs)} parsed · {len(input_compar
 print(f"Output shapes           : {len(code_outputs)} in schemas.ts · {len(output_comparable)} checked vs catalog "
       f"· {len(set(code_outputs)) - len(set(output_comparable))} uncovered")
 print(f"Shape sources           : {_origin_note} · {len(SHAPE_COVERAGE_EXEMPT)} exempt")
+print()
+# 🔴 ONE LINE PER POPULATION. The block above is a human summary; this is the gate.
+# Printing it always — not only on failure — is what makes a shrink visible in a diff
+# of two CI logs, which is the review nobody can do against a single "PASSED".
+print(f"=== scope ledger ({len(SCOPE_LEDGER)} population(s), literal floors, >= ) ===")
+for _name, _value, _floor, _why in SCOPE_LEDGER:
+    _mark = "ok" if _value >= _floor else "🔴 COLLAPSE"
+    print(f"SCOPE {_name:<36} {_value:>5} / {_floor:<5} {_mark}")
 print()
 for w in warnings:
     print("WARN:", w)

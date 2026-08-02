@@ -127,3 +127,14 @@ jobs:
         run: node scripts/tautology_gate.selftest.mjs
       - name: No test block asserts only shape (tautology gate)
         run: node scripts/tautology_gate.mjs
+      # 🔴 AND THE SAME GATE FOR contract_check.py's OWN ENUMERATORS. 171 §10.21 asked
+      # what each of them would print if its finder matched nothing. Measured in 172:
+      # 25 blindable, 14 could match NOTHING and the run still said ALL HARD CHECKS
+      # PASSED — including check 16, which exists BECAUSE checks 6/7 can be driven to
+      # zero comparisons, and which floored its universe against the same finder it was
+      # protecting. This step blinds each enumerator in turn and asserts the run goes
+      # red. A floor never tested against the collapse it names is a claim that cannot
+      # fail. ~18s, no Godot, no ports: a step here rather than a 27th job (NINTH
+      # session running).
+      - name: Every derived population collapses loudly (scope gate)
+        run: python3 ../scripts/scope_gate.py

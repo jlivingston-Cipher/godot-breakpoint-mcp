@@ -201,7 +201,13 @@ try {
   claim("scopes on that frame succeeds", !scopes.isError && (scopes.structuredContent?.scopes ?? []).length > 0);
   const ref = scopes.structuredContent.scopes[0].variables_ref;
   const vars = await live.call("cs_dbg_variables", { variables_ref: ref });
-  claim("variables under that scope succeeds", !vars.isError && Array.isArray(vars.structuredContent?.variables));
+  // 🔴 `Array.isArray(…)` IS A TYPE TEST, AND `[]` IS AN ARRAY (172). A scope that came
+  // back with NO variables satisfied a claim named "variables under that scope
+  // succeeds". Floored the way the `scopes` claim two lines up already floors itself —
+  // the file's own idiom, applied to the one claim that had drifted out of it.
+  claim("variables under that scope succeeds",
+    !vars.isError && (vars.structuredContent?.variables ?? []).length > 0,
+    `${(vars.structuredContent?.variables ?? []).length} variable(s): ${JSON.stringify((vars.structuredContent?.variables ?? []).map((v) => v.name)).slice(0, 90)}`);
   const evald = await live.call("cs_dbg_evaluate", { expression: "1+1", confirm: true });
   claim("evaluate in the stopped frame succeeds", !evald.isError && evald.structuredContent?.result === "2",
     JSON.stringify(evald.structuredContent ?? {}).slice(0, 80));

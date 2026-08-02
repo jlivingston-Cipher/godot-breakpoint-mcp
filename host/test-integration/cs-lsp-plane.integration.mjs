@@ -171,7 +171,9 @@ for (const name of Object.keys(CAP).sort()) {
 
   check(!res.isError, "SUPPORTED",
     `${name}: ${cap ?? "no provider gate"} is available, so the tool must succeed — ${res.isError ? text.slice(0, 110) : "ok"}`);
-  check(!res.isError && !!res.structuredContent, "STRUCTURED", `${name}: must return structuredContent`);
+  // 🔴 `!!res.structuredContent` WAS SATISFIED BY `{}` (172) — see lsp-plane, same line.
+  check(!res.isError && Object.keys(res.structuredContent ?? {}).length > 0, "STRUCTURED",
+    `${name}: must return a NON-EMPTY structuredContent (got ${JSON.stringify(res.structuredContent ?? null).slice(0, 90)})`);
 }
 console.log(`CS_LSP_TRAPS ${traps.length ? traps.join(" ") : "none"} (advertised-but--32601, earned this run)`);
 
