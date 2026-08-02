@@ -46,7 +46,9 @@
     "prepublishOnly": "npm run build && npm run stage-addon",
     "path-cohort": "node scripts/path-cohort.mjs",
     "tautology-gate": "node scripts/tautology_gate.selftest.mjs && node scripts/tautology_gate.mjs",
-    "scope-gate": "python3 ../scripts/scope_gate.py"
+    "scope-gate": "python3 ../scripts/scope_gate.py",
+    "instrument-gate": "python3 ../scripts/instrument_gate.py",
+    "ledger-selftest": "node test-integration/_path_ledger.selftest.mjs"
   },
   "engines": {
     "node": ">=18"
