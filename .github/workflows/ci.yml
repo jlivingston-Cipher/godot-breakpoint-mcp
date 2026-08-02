@@ -186,6 +186,20 @@ jobs:
       # red. A floor never tested against the collapse it names is a claim that cannot
       # fail. ~18s, no Godot, no ports: a step here rather than a 27th job (NINTH
       # session running).
+      # 🔴 AND THE TAUTOLOGY THAT LIVES ON THE OTHER SIDE OF THE BRIDGE — 177 §4.
+      # `_filesystem_scan` returns `_ok({"scanning": true})` unconditionally and the
+      # authoring probe asserted `.scanning === true`. Neither half is wrong alone and
+      # `tautology_gate.mjs` cannot see it: it grades a claim's LEAVES, and `.scanning`
+      # is a property of a value fetched at runtime — the textbook shape of the VALUE
+      # claim it is built to pass. The constant is real but it is in GDScript, in another
+      # file, on the far side of a JSON hop, and `call()` throws on `isError` so every
+      # other return path escapes before the comparison is reached. Four live claims had
+      # two outcomes: "true", and "never reached". A step, not a 27th job (FOURTEENTH
+      # session running).
+      - name: The boundary instrument, self-checked
+        run: node scripts/boundary_gate.selftest.mjs
+      - name: No claim is compared against a value the addon hard-wires (boundary gate)
+        run: node scripts/boundary_gate.mjs
       - name: Every derived population collapses loudly (scope gate)
         run: python3 ../scripts/scope_gate.py
       # 🔴 AND THE SAME TECHNIQUE POINTED AT THE JS INSTRUMENTS — 172 §10.2, which named

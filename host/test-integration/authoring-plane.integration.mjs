@@ -508,9 +508,33 @@ async function main() {
     (await sigNames(a)).includes("visibility_changed")
       ? pass("AUTH_SIGNAL_LIST") : fail("AUTH_SIGNAL_LIST");
 
-    // signal_emit (gated, edit-time) — fires now, returns emitted:true (no connections left)
+    // signal_emit (gated, edit-time) — fires now (no connections left)
+    // 🔴 `emitted` IS A HARD-WIRED `true` IN `_signal_emit`, SO `em.emitted === true` —
+    // the claim that stood here, and the only evidence this marker had — COULD NOT FAIL.
+    // Every error path in that operation returns `_err`, and `call()` throws on `isError`,
+    // so by the time this line runs the literal the addon typed is the only value the
+    // field can hold. Its two outcomes were "true" and "never reached". 177 §4: no JS
+    // instrument could see it, because the constant is on the other side of the bridge.
+    //
+    // What CAN fail, in both directions this file's other claims are written in:
+    //   * `path` is `_path_of(root, node)` — computed from the node the addon actually
+    //     RESOLVED, not echoed from the request, so it reddens if `path` stops resolving
+    //     to the node the caller named. `a` came from `node_add`'s reply, so both sides
+    //     are the addon's own spelling and the comparison is not a format guess.
+    //   * the REFUSING direction, which is the half that proves the operation consults
+    //     its arguments at all — a `_signal_emit` that ignored `signal` and returned
+    //     `emitted: true` regardless satisfied every claim this marker used to make.
     const em = await call("signal_emit", { path: a, signal: "auth_evt", args: [7] });
-    em.emitted === true ? pass("AUTH_SIGNAL_EMIT") : fail("AUTH_SIGNAL_EMIT", JSON.stringify(em));
+    let emitRefused = null;
+    try {
+      const bad = await call("signal_emit", { path: a, signal: "auth_evt_never_declared" });
+      emitRefused = `ANSWERED ${JSON.stringify(bad)}`;
+    } catch (e) {
+      emitRefused = /no_signal/.test(String(e.message)) ? null : `wrong code: ${e.message}`;
+    }
+    (em.path === a && em.signal === "auth_evt" && emitRefused === null)
+      ? pass("AUTH_SIGNAL_EMIT", `path=${em.path} and an undeclared signal is refused`)
+      : fail("AUTH_SIGNAL_EMIT", `${JSON.stringify(em)} wanted path=${a} refusal=${emitRefused}`);
   });
 
   // ---------------------------------------------------------------- Group B: resources & filesystem ----
@@ -609,8 +633,24 @@ async function main() {
       : fail("AUTH_RESOURCE_CREATE_DIR_EXISTED", `first=${JSON.stringify(cd)} second=${JSON.stringify(cdAgain)}`);
 
     // filesystem_scan
-    (await call("filesystem_scan")).scanning === true
-      ? pass("AUTH_RESOURCE_FS_SCAN") : fail("AUTH_RESOURCE_FS_SCAN");
+    // 🔴 `scanning` IS A HARD-WIRED `true` AND `_filesystem_scan` HAS NO ERROR PATH AT
+    // ALL — it triggers the rescan and returns `_ok({"scanning": true})`, unconditionally,
+    // for every state of the engine, the project and the request. `.scanning === true`,
+    // the claim that stood here, was the addon's own literal compared against itself.
+    //
+    // 🔴 AND IT IS DELIBERATE, SO IT IS PINNED RATHER THAN "FIXED" (176 §11.4 asked for
+    // the reason AND an assertion). The editor's rescan is asynchronous and reports
+    // nothing back, so there is no value in this reply to verify and inventing one would
+    // be a flaky assertion dressed as a strict one. What CAN fail is the SHAPE: this
+    // response carries exactly one field, so a rename, an extra field or a type change on
+    // the addon side reddens this — which is the drift a constant field is actually
+    // exposed to. A SHAPE claim over a documented constant is honest; a VALUE claim over
+    // one is not.
+    const scan = await call("filesystem_scan");
+    const scanShape = Object.keys(scan).sort().join(",");
+    (scanShape === "scanning" && typeof scan.scanning === "boolean")
+      ? pass("AUTH_RESOURCE_FS_SCAN", `fire-and-forget; shape pinned {${scanShape}}`)
+      : fail("AUTH_RESOURCE_FS_SCAN", `shape drifted: ${JSON.stringify(scan)}`);
 
     // filesystem_move (gated): move the duplicate into the new dir
     const MOVED = DIR + "/moved.tres";
@@ -1038,13 +1078,36 @@ async function main() {
     ((await hasChild(boxmi, agent.path, "NavigationAgent3D")) && near(await propVal(agent.path, "radius"), 1.5) && near(await propVal(agent.path, "max_speed"), 8))
       ? pass("AUTH_3D_NAVAGENT_CONFIGURE", `r=${agent.config.radius} v=${agent.config.max_speed}`) : fail("AUTH_3D_NAVAGENT_CONFIGURE", JSON.stringify(agent.config));
 
+    // 🔴 BOTH OF THESE LEANED ON A FIELD THE ADDON HARD-WIRES (177 §4).
+    // `_environment_create` returns `"type": "Environment"` and `_environment_set_sky`
+    // returns `"background_mode": "sky"` — literals, on every return path, with every
+    // other path escaping through `call()`. Each marker kept one real conjunct (the
+    // `resource_load` read-back, which is `res.get_class()` and genuinely derived), so
+    // neither was vacuous and the population gate could not see them; the dead conjunct
+    // simply read as evidence and was not.
+    //
+    // The replacements are the value the operation actually COMPUTED. `background_mode`
+    // in the create reply is the request normalised and validated against the addon's own
+    // mode table, so it reddens if the operation stops honouring `background`. And the
+    // set_sky claim now reads the saved resource back off disk BEFORE and AFTER, because
+    // "setting a sky switches the background mode" is a claim about the Environment, not
+    // about a string in a reply — comparing the two raw encodings needs no knowledge of
+    // the enum's numbering or of how Codec tags it, and a set_sky that saved nothing
+    // leaves them identical.
+    const bgOnDisk = async () =>
+      JSON.stringify((await call("resource_get_property", { path: ENV, property: "background_mode" })).value);
+
     const env = await call("environment_create", { to_path: ENV, background: "clear_color" });
-    (env.type === "Environment" && (await call("resource_load", { path: ENV })).type === "Environment")
-      ? pass("AUTH_3D_ENVIRONMENT_CREATE", env.background_mode) : fail("AUTH_3D_ENVIRONMENT_CREATE", JSON.stringify(env));
+    const bgBefore = await bgOnDisk();
+    (env.background_mode === "clear_color" && (await call("resource_load", { path: ENV })).type === "Environment")
+      ? pass("AUTH_3D_ENVIRONMENT_CREATE", `background_mode=${env.background_mode} on disk=${bgBefore}`)
+      : fail("AUTH_3D_ENVIRONMENT_CREATE", JSON.stringify(env));
 
     const sky = await call("environment_set_sky", { path: ENV, sky_material: "procedural" });
-    (sky.sky_material === "procedural" && sky.background_mode === "sky" && (await call("resource_load", { path: ENV })).type === "Environment")
-      ? pass("AUTH_3D_ENVIRONMENT_SET_SKY") : fail("AUTH_3D_ENVIRONMENT_SET_SKY", JSON.stringify(sky));
+    const bgAfter = await bgOnDisk();
+    (sky.sky_material === "procedural" && bgAfter !== bgBefore && (await call("resource_load", { path: ENV })).type === "Environment")
+      ? pass("AUTH_3D_ENVIRONMENT_SET_SKY", `background_mode on disk ${bgBefore} -> ${bgAfter}`)
+      : fail("AUTH_3D_ENVIRONMENT_SET_SKY", `${JSON.stringify(sky)} on disk ${bgBefore} -> ${bgAfter}`);
 
     // Creator undo/redo round-trip proves the 3D scene mutators push a reversible action.
     const tmp = (await call("light_create", { parent_path: d3root, kind: "omni", name: "AuthUndoLight" })).path;
