@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.52.0] — 2026-08-02
+
 ### Fixed — a live probe discarded a verdict and then sealed the claim it was fetched to prove
 
 `inject-input.integration.mjs`'s "leave it pristine" section closes with the check that the
