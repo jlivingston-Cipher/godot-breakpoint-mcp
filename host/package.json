@@ -48,7 +48,8 @@
     "tautology-gate": "node scripts/tautology_gate.selftest.mjs && node scripts/tautology_gate.mjs",
     "scope-gate": "python3 ../scripts/scope_gate.py",
     "instrument-gate": "python3 ../scripts/instrument_gate.py",
-    "ledger-selftest": "node test-integration/_path_ledger.selftest.mjs"
+    "ledger-selftest": "node test-integration/_path_ledger.selftest.mjs",
+    "workspace-selftest": "node test-integration/_workspace.selftest.mjs"
   },
   "engines": {
     "node": ">=18"

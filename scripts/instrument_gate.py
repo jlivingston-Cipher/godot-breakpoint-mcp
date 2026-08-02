@@ -82,6 +82,36 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🔴 174. SIX OF SIX STILL GREEN when this was measured — every headless gate in
+        # the tree passed with the module fully blinded, because it is imported in
+        # exactly one place: a probe that boots the editor GUI under Xvfb. That is
+        # `_path_ledger.mjs`'s gap of one session earlier, one file over.
+        #
+        # AND THE SEAM IS WHY THIS ENTRY MATTERS MORE THAN ITS SELF-TEST. `restoreDir`
+        # decides what to REMOVE from `walk()`; `diffDir` decides what APPEARED from
+        # `walk()`. diffDir re-HASHES independently — the half #141/#143 were about —
+        # but it does not re-ENUMERATE independently, so a blind enumerator means the
+        # restore removes nothing AND the check that proves the restore worked reports
+        # clean. A self-test cannot pin that: it calls the enumerator it would need to
+        # distrust. A blinding harness can, and `walk` below is the target that does.
+        "name": "_workspace.mjs",
+        "src": HOST / "test-integration" / "_workspace.mjs",
+        "gate": ["node", "test-integration/_workspace.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 6,
+        "why": "the snapshot/restore/diff that decides what AUTH_CLEAN's byte-identical means",
+        "targets": {
+            # 🔴 THE SHARED ENUMERATOR. Blinding this one is the seam itself.
+            "function walk(root, rel, files, dirs) {": "return;",
+            "export function snapshotDir(root) {": "return { root, files: new Map(), dirs: new Set() };",
+            "function liveHash(abs, size) {": "return null;",
+            "export function restoreDir(snap) {": "return { removed: [], rewritten: [], rmdir: [], failed: [] };",
+            "export function diffDir(snap) {":
+                "return { added: [], modified: [], missing: [], dirs: [], clean: true };",
+            "export function describeDiff(d, limit = 6) {": 'return "nothing";',
+        },
+    },
+    {
         # The COMPILED walk rather than the .ts, so this step costs no tsc invocation:
         # `npm test` has already emitted dist-test/ by the time this runs.
         "name": "path-cohort (compiled walk)",
@@ -192,7 +222,7 @@ def main() -> int:
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
     # would sweep nothing, report nothing and exit 0 — the exact shape it exists to
     # catch, one level up. taut169, again, again.
-    INSTRUMENT_FLOOR = 3
+    INSTRUMENT_FLOOR = 4
     print(f"INSTRUMENT_GATE instruments={len(INSTRUMENTS)} floor={INSTRUMENT_FLOOR}")
     if len(INSTRUMENTS) < INSTRUMENT_FLOOR:
         problems.append(

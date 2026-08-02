@@ -169,9 +169,33 @@ export class Population {
       get: (target, prop, recv) => {
         const value = Reflect.get(target, prop, recv);
         if (typeof value !== "function") return value;
+        // 🔴 174: A CLASS IS NOT AN ASSERTION METHOD, SO IT IS PASSED THROUGH WHOLE.
+        // Measured across every function-valued property of node:assert: exactly one —
+        // `AssertionError` — has a NON-WRITABLE `prototype`, which is what a class has
+        // and what none of the twenty assertion methods has. Structural, so it does not
+        // depend on reading source text. Wrapping it is what broke `new` and identity;
+        // not wrapping it is also just correct, because constructing an error is not a
+        // claim and must not touch the counter.
+        const proto = Object.getOwnPropertyDescriptor(value, "prototype");
+        if (proto && proto.writable === false) return value;
         if (!this._wrapped.has(prop)) {
           // Memoised so `assert.ok !== assert.ok` never becomes a source of confusion.
-          this._wrapped.set(prop, (...args) => { bump(); return value.apply(target, args); });
+          //
+          // 🔴 174: A PROXY, NOT AN ARROW. The arrow this replaced wrapped EVERY
+          // function-valued property, and `nodeAssert.AssertionError` is a CLASS. An
+          // arrow cannot be constructed, so `new assert.AssertionError(...)` threw
+          // "is not a constructor" and `e instanceof assert.AssertionError` was
+          // meaningless — while the claim guarding it, `typeof assert.AssertionError
+          // === "function"`, stayed green, because the wrapper that WAS the defect is
+          // itself a function. That claim lived in `_population.selftest.mjs`, which
+          // the tautology gate's `_`-prefix filter had never once swept.
+          //
+          // `apply` counts, because a call to an assertion method is a claim.
+          // `construct` does NOT, because building an error object is not a claim.
+          this._wrapped.set(prop, new Proxy(value, {
+            apply: (t, thisArg, args) => { bump(); return Reflect.apply(t, target, args); },
+            construct: (t, args, newTarget) => Reflect.construct(t, args, newTarget),
+          }));
         }
         return this._wrapped.get(prop);
       },
