@@ -34,6 +34,21 @@ import ts from "typescript";
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 // The directories whose scripts drive a live engine and report a verdict.
+//
+// 🔴 176 MEASURED 175 §11.3's QUESTION AND THE ANSWER IS THAT THIS STAYS AT THE HOST
+// ROOT — a documented divergence from the discard half below, which walks everything.
+// `test-integration/` holds five probes that drive a `runtime_assert_*` tool, and every
+// one of them is HONEST. But their honesty is throw-shaped: they escape through
+// `node:assert`, which the runner turns into a nonzero exit. `exitsNonZero` looks for a
+// COMPUTED `process.exit`, deliberately, because a literal `exit(1)` in a crash handler
+// was present in all three of 175's broken drivers and counting it would have greened
+// every one. Admitting test-integration to THIS half would therefore red five healthy
+// files — including `verification-family.integration.mjs`, which checks forty verdicts.
+//
+// 🔴 AND THE FILE IS THE WRONG UNIT THERE ANYWAY, WHICH IS THE REAL FINDING. A probe
+// making a hundred assertions satisfies "reads a verdict somewhere and can escape"
+// however many replies it drops. That is what `discarded()` below is for, and it is why
+// the answer to "extend the roster?" was a second question rather than a bigger roster.
 const DIRS = ["."];
 
 // 🔴 A LITERAL FLOOR ON THE SUBJECT COUNT, FOR 170 §4's REASON. This gate derives its
@@ -70,20 +85,6 @@ const VERDICT_TOOL = /assert/i;
 // before the commit. The mechanism is exercised by `verdict_gate.selftest.mjs`, not by
 // a live entry, so it is proven without anything being excused.
 const NOT_A_VERDICT = {};
-
-/** Every function-shaped declaration in a source, by name. */
-function declarations(src) {
-  const out = new Map();
-  const visit = (n) => {
-    if (ts.isFunctionDeclaration(n) && n.name) out.set(n.name.text, n);
-    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer
-        && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer)))
-      out.set(n.name.text, n.initializer);
-    ts.forEachChild(n, visit);
-  };
-  visit(src);
-  return out;
-}
 
 /** Read one source. Exported so the self-test can drive the SCANNER with no files. */
 export function inspect(file, text) {
@@ -122,7 +123,157 @@ export function inspect(file, text) {
     ts.forEachChild(n, visit);
   };
   visit(src);
-  return { tools: [...tools].sort(), readsVerdict, exitsNonZero, labelsAssert, decls: declarations(src) };
+  return { tools: [...tools].sort(), readsVerdict, exitsNonZero, labelsAssert };
+}
+
+// ── 176: THE SECOND QUESTION, AND IT NEEDS A DIFFERENT UNIT ──────────────────────────
+//
+// 🔴 `inspect()` above asks a per-FILE question: does this file read a verdict ANYWHERE,
+// and can it exit on it? That is the right unit for the host root, whose drivers push
+// every reply into a recorder and check the whole run at the end. It is the WRONG unit
+// for `test-integration/`, where each reply is checked at its own site by node:assert —
+// a probe making a hundred assertions passes the file-level test trivially even if ONE
+// call site drops its verdict. 175 §11.3 handed over "test-integration holds fourteen
+// live probes; do any of THEM fetch a verdict they do not read?" Measuring it found
+// exactly that shape, once:
+//
+//   inject-input.integration.mjs, section 7 "leave it pristine"
+//     await call("runtime_assert_scene_structure", { expect: [{ path: ".", type: "Node2D" }] });
+//     population.seal("INPUT_LIVE_PRISTINE", `ok … fixture intact`);
+//
+//   `call()` throws only on `isError`, and a structure mismatch is a SUCCESSFUL reply
+//   carrying `ok: false` — so a fixture that had stopped being a Node2D sealed
+//   "fixture intact" anyway, from a string literal, in the step #146's rule exists for.
+//
+// 🔴 AND THE FIRST INSTRUMENT WRITTEN TO ANSWER THAT QUESTION INVENTED SEVENTEEN OTHERS.
+// Asking "is `.ok` read?" per call site flagged 17 sites in test-integration. Reading
+// them showed almost every one was an HONEST check on a DIFFERENT field: `.matches` is
+// the measurement for `runtime_assert_screen_text` (`min_count` changes the verdict, not
+// the count), `.isError` is the whole point of the `raw()` error-path cases, and the
+// three `boot` guards read `boot.structuredContent?.ok` — a nested access the test could
+// not see. That is 175 §3's OWN defect committed by 175's own follow-up question:
+// matching a check by the NAME of a field rather than by what the reply DOES.
+//
+// 🔴 SO THE ONLY CLASSIFICATION THAT SURVIVES EVERY IDIOM IS THE ABSENCE OF A BINDING.
+// A reply that is never bound cannot be read by node:assert, by an accumulator, by a
+// computed exit or by anything else — no field name and no escape convention has to be
+// guessed, so the false-positive rate is structurally zero rather than merely low. What
+// it costs is everything it does NOT catch: a reply that is bound and then ignored is
+// invisible here, and that is the honest trade. This half finds the verdict nobody KEPT;
+// `inspect()` finds the verdict nobody READ.
+export function discarded(file, text) {
+  const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const sites = [];
+  const visit = (n) => {
+    if (ts.isCallExpression(n)) {
+      const a0 = n.arguments[0];
+      // The SAME predicate `inspect()` uses. Two spellings of "a verdict-bearing tool"
+      // would be two populations, and the one nobody re-read would drift.
+      if (a0 && ts.isStringLiteralLike(a0) && VERDICT_TOOL.test(a0.text) && /^\w+$/.test(a0.text)) {
+        // Climb past `await`, parentheses and `void` to the node that actually carries
+        // the value. `void` is in that list on purpose: it is the one operator whose
+        // whole meaning is "discard this", so stopping the climb there would classify
+        // the most explicit possible discard as a reply somebody kept.
+        let v = n;
+        while (v.parent && (ts.isAwaitExpression(v.parent) || ts.isParenthesizedExpression(v.parent)
+               || (ts.isVoidExpression(v.parent)))) v = v.parent;
+        const line = src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1;
+        // 🔴 THE WHOLE TEST. If the value-carrying node's parent is the STATEMENT, the
+        // reply went nowhere: not into a binding, not into an argument, not into a
+        // return, not into a condition. Everything else is kept by somebody.
+        sites.push({ file, line, tool: a0.text, dropped: ts.isExpressionStatement(v.parent) });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return sites;
+}
+
+// 🔴 ONE RECURSIVE WALK, AND NO DIRECTORY ROSTER AT ALL. 175 shipped this gate with
+// `DIRS = ["."]` in the very session that found two directory rosters hiding real
+// defects (175 §11.22), and the first draft of THIS half repeated it a third time:
+// `[".", "scripts", "test-integration"]` over a recursive walk double-counted every
+// site under the last two, reporting 109 sites where there are 61 and the one real
+// defect TWICE. A roster whose entries overlap is a roster nobody re-read.
+//
+// So there is no roster. The walk starts at `host/` and descends, and the only thing it
+// will not enter is named below — with a written reason, because 174 §5 found a `_`
+// filename prefix buying a silent exemption for 127 claim sites and the lesson is that
+// an exclusion costing nothing to write is an exclusion nobody re-reads.
+//
+// 🔴 AND IT DESCENDS BECAUSE `readdirSync` DOES NOT. 175 §4 found `test/helpers` unswept
+// INSIDE a rostered directory for exactly that reason — the third spelling of one
+// mistake in a single session. `DISCARD_DIRS_SEEN` below pins that this walk reaches
+// more than one directory, so a walk that quietly stopped descending goes red rather
+// than reporting a clean subset.
+export const DISCARD_SKIP = {
+  node_modules: "third-party sources; nothing here is ours to fix",
+  dist: "compiled output of host/src — the .ts is the instrument, and it drives no probe",
+  "dist-test": "compiled test output, same reason",
+  _to_delete: "the bridge-scratch convention (129 §7). Scratch may evaporate between sessions",
+  addon: "gitignored build output that `npm run stage-addon` recreates by copying verbatim",
+  ".godot": "engine cache, not source",
+};
+
+function walkMjs(abs, rel = "") {
+  const out = [];
+  for (const e of readdirSync(join(abs, rel), { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) {
+      if (Object.hasOwn(DISCARD_SKIP, e.name)) continue;
+      out.push(...walkMjs(abs, r));
+    } else if (/\.mjs$/.test(e.name)) out.push(r);
+  }
+  return out;
+}
+
+// 🔴 A FLOOR ON THE SITES EXAMINED, not on the offenders found. A finder that matches
+// nothing reports zero dropped replies and passes — 170 §4, and the shape this whole
+// gate is an instance of. Measured at 61 on the tree this ships with.
+export const DISCARD_SITE_FLOOR = 55;
+// 🔴 AND A FLOOR ON THE DIRECTORIES REACHED, which is the OTHER way this collapses. A
+// site floor alone stays green on a walk that stopped descending as long as the host
+// root still carries enough calls — and the host root carries 13 of the 61.
+export const DISCARD_DIR_FLOOR = 2;
+
+export function scanDiscarded(root = ROOT) {
+  const sites = [];
+  for (const f of walkMjs(root)) sites.push(...discarded(f, readFileSync(join(root, f), "utf8")));
+  return sites;
+}
+
+/** The discard judgement, as a pure function of its population (174 §8's reason). */
+export function judgeDiscarded(sites, floor = DISCARD_SITE_FLOOR, dirFloor = DISCARD_DIR_FLOOR) {
+  const out = { lines: [], failed: false };
+  const say = (s) => out.lines.push(s);
+  const dropped = sites.filter((s) => s.dropped);
+  const dirs = new Set(sites.map((s) => (s.file.includes("/") ? s.file.slice(0, s.file.lastIndexOf("/")) : ".")));
+
+  say(`VERDICT_DISCARD sites=${sites.length} floor=${floor} dirs=${dirs.size}/${dirFloor} dropped=${dropped.length}`);
+  if (dirs.size < dirFloor) {
+    say(`🔴 VERDICT_DISCARD_DIRS_COLLAPSE ${dirs.size} < ${dirFloor} — the walk reached ${[...dirs].join(", ") || "nothing"}.`);
+    say(`   readdirSync is not recursive (175 §4); a walk that stops descending reports a`);
+    say(`   clean SUBSET, and a subset that passes is indistinguishable from a clean tree.`);
+    out.failed = true;
+  }
+  if (sites.length < floor) {
+    say(`🔴 VERDICT_DISCARD_SCOPE_COLLAPSE ${sites.length} < ${floor} — either the probes stopped`);
+    say(`   driving verdict tools, or this scan stopped recognising the call. Zero dropped`);
+    say(`   replies out of zero sites examined is not a clean tree.`);
+    out.failed = true;
+  }
+  for (const d of dropped) {
+    out.failed = true;
+    say(`\n🔴 VERDICT_DISCARDED ${d.file}:${d.line}  ${d.tool}`);
+    say(`   the reply is not even bound, so no idiom in this repo can be reading it —`);
+    say(`   not node:assert, not an accumulator, not a computed exit. A verdict tool`);
+    say(`   called for its side effects is a verdict tool called for nothing: these`);
+    say(`   tools have none. Bind it and assert on it, or call something that is not`);
+    say(`   an assertion.`);
+  }
+  say(out.failed ? `\nVERDICT_DISCARD 🔴 FAILED` : `VERDICT_DISCARD ok — ${sites.length} site(s), every reply is kept by somebody`);
+  return out;
 }
 
 /**
@@ -201,10 +352,28 @@ export function scan() {
   return subjects;
 }
 
+/**
+ * The two halves combined.
+ *
+ * 🔴 BOTH ALWAYS RUN, AND NEITHER SHORT-CIRCUITS THE OTHER. A gate that stops at its
+ * first failing half reports one defect and hides the rest of the population behind it —
+ * the reader then fixes the named file and reads the next green run as clean.
+ *
+ * 🔴 AND IT IS A SEPARATE EXPORTED FUNCTION BECAUSE 176's REVERSE SWEEP CAUGHT THE
+ * WIRING. Inlined in `main()`, dropping `|| d.failed` left the gate GREEN: the shipped
+ * tree has nothing dropped, so the discard half never fails and the term it was ORed
+ * with could be deleted invisibly. That is 174 §8 and 175's G3 a third time — two
+ * conditions never satisfied apart in the live population. Taking both verdicts as
+ * parameters is what makes the second one reachable at all.
+ */
+export function combine(r, d) {
+  return { lines: [...r.lines, ...d.lines], failed: r.failed || d.failed };
+}
+
 export function main() {
-  const r = judge(scan());
-  for (const l of r.lines) console.log(l);
-  if (r.failed) process.exit(1);
+  const c = combine(judge(scan()), judgeDiscarded(scanDiscarded()));
+  for (const l of c.lines) console.log(l);
+  if (c.failed) process.exit(1);
 }
 
 if (process.argv[1]?.endsWith("verdict_gate.mjs")) main();

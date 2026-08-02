@@ -497,7 +497,17 @@ try {
     near(await read(action === BOUND ? "bound_strength" : "unbound_strength"), 0.0, `${action} must be left at zero strength`);
   }
   // The fixture itself survived, and is still the thing this probe thought it was.
-  await call("runtime_assert_scene_structure", { expect: [{ path: ".", type: "Node2D" }] });
+  //
+  // 🔴 176: THIS REPLY WAS DISCARDED, AND THE SEAL BELOW SAID "fixture intact" ANYWAY.
+  // `call()` throws only on `isError`; a structure MISMATCH is a successful reply
+  // carrying `ok: false`, so a fixture that had stopped being a Node2D — the exact
+  // contamination #146's rule and this whole section exist to catch — was reported
+  // intact from a string literal, with the measurement fetched and dropped. That is
+  // 175's `cs_demo_verify_live_gif.mjs` one directory over, and the reason
+  // `VERDICT_DISCARD` scans call sites rather than files: this probe makes fifty
+  // assertions, so every file-level test of "does it read a verdict" passed it.
+  const intact = await call("runtime_assert_scene_structure", { expect: [{ path: ".", type: "Node2D" }] });
+  assert.equal(intact.ok, true, `the probe must leave its own fixture intact: ${JSON.stringify(intact.failures)}`);
   population.seal("INPUT_LIVE_PRISTINE", `ok ${BOUND} and ${UNBOUND} both released at zero strength, fixture intact`);
 
   console.log(
