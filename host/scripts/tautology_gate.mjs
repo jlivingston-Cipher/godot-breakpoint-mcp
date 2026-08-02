@@ -47,7 +47,7 @@
 // move the 681 and drag `contract_check.py` check 11c in, for a file that needs no
 // compile step and belongs beside the thing it checks (170 §5, carried).
 import ts from "../node_modules/typescript/lib/typescript.js";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -64,7 +64,24 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 // gates moved this population 794 -> 923 in one commit, and a floor left at 700 would
 // have let all 127 of the newly-swept sites disappear again without a word. A floor
 // that does not move when its population does is a floor measuring the old population.
-const FLOORS = { test: 2100, "test-integration": 850 };
+//
+// 🔴 175 ADDED `scripts` AND THE HOST ROOT, AND THE ROSTER WAS THE THIRD VARIANT OF
+// 174 §5's FINDING. 174 excluded by FILENAME PREFIX. This excluded by DIRECTORY ROSTER —
+// and, measured this session, by a fourth mechanism nobody had named: `readdirSync` is
+// NOT RECURSIVE, so `test/helpers/` was unswept even though `test` is rostered. Three
+// spellings of one mistake: an exclusion that costs nothing to write.
+//
+//   scripts    96 sites — `tautology_gate.selftest.mjs` (67) is THIS GATE'S OWN GATE,
+//              never once classified by it, and `verdict_gate.selftest.mjs` (29) is new.
+//   .          11 sites — the live drivers. Admitted only AFTER `collectFailers`, which
+//              removed seventeen sites this gate had INVENTED here (see CHECK_FNS).
+//   test/helpers  DELIBERATELY NOT ROSTERED, and pinned: `recording-server.ts` and
+//              `tcp.ts` are fixtures — a recording MCP server and a socket harness. They
+//              make no claims and are not suites. 174's D5 corollary is why this is
+//              written down AND asserted rather than left as a quiet omission: see
+//              `tautology_gate.selftest.mjs`'s HELPERS_NOT_ROSTERED case, which fails if
+//              either file ever grows a claim site.
+export const FLOORS = { test: 2100, "test-integration": 850, scripts: 90, ".": 10 };
 
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
@@ -85,6 +102,30 @@ export const NO_CLAIMS_EXPECTED = {
   "csharp-dap.integration.mjs": "documented LOG-ONLY diagnostic — its only gate is reachability (170, measured)",
   "editor-lsp.integration.mjs": 'best-effort probe bank, its own header: "probe failures are never fatal — only an unreachable language server fails the job"',
   "editor-subscriptions.integration.mjs": 'event-push probe, its own header: "The reachability check is the gate (exit 1 if the addon is unreachable)"',
+
+  // ── host/scripts, admitted 175 ─────────────────────────────────────────────────────
+  // The gates themselves. A gate is a classifier, not a suite; its claims live in the
+  // `.selftest.mjs` beside it, which IS classified (67 and 29 sites).
+  "tautology_gate.mjs": "the classifier itself — its claims are in tautology_gate.selftest.mjs, now swept (175)",
+  "verdict_gate.mjs": "the verdict classifier itself — its claims are in verdict_gate.selftest.mjs (175)",
+  "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
+  "stage-addon.mjs": "a packaging step — copies the addon into the tarball. Its correctness is asserted by the packaging job, not by a claim here",
+
+  // ── the host root, admitted 175 ────────────────────────────────────────────────────
+  // 🔴 THESE ARE THE FILES 175 WAS ABOUT, SO THE REASONS ARE THE FINDING. Four of them
+  // drive a `runtime_assert_*` tool and are gated by `verdict_gate.mjs` — which is a
+  // DIFFERENT gate on purpose (174 §3): the tautology gate grades conditions, and these
+  // files' defect was that there was no condition, only a fetched verdict nobody read.
+  // The rest genuinely assert nothing, and each says which kind of nothing.
+  "cs_demo_verify_live_gif.mjs": "drives both passes and pins all four verdicts through a local `pin()`; VERDICT_GATE is its gate (175 — it printed its conclusion as a string literal)",
+  "verify_family_s102_live.mjs": "accumulates verdicts into a `summary` map and exits on it; VERDICT_GATE is its gate — the honest shape the other three were made to match",
+  "cs_demo_verify_replay.mjs": "renders a captured transcript for a GIF and re-runs nothing; its ✓/✗ are READ from cs_demo_verify_{buggy,fixed}.json, which the live drivers write and VERDICT_GATE pins at the source",
+  "demo_debugger_live.mjs": "a scripted debugger walkthrough for a recording — it steps and prints; nothing here is a verdict",
+  "cs_demo_debugger_live.mjs": "the C# mirror of demo_debugger_live.mjs, same reason",
+  "dap_scenario.mjs": "a single-session DAP driver for manual gate work; it exercises a sequence and prints replies",
+  "runtime_scenario.mjs": "a single-session runtime-bridge driver, same reason as dap_scenario.mjs",
+  "drive.mjs": "the minimal stdio client — `drive.mjs call <tool>`; a CLI, and its two throws are argument validation, not claims",
+  "sweep_editor.mjs": "a coverage SWEEP: it calls every editor tool and tabulates OK / SCHEMA-MISMATCH / THREW for a human. 🔴 Its local `check(name, args)` is the tool invoker whose fifteen invented claim sites collectFailers removed (175) — it is named like an assertion and is not one",
 };
 
 const SHAPE_TYPEOF = new Set(["boolean", "number", "string", "object", "function", "undefined", "bigint", "symbol"]);
@@ -120,7 +161,37 @@ const CONTROL = new Set(["throws", "rejects", "doesNotThrow", "doesNotReject"]);
 // way round. Keying on POSITION would have read one of them backwards and classified a
 // marker string; keying on SHAPE reads both, and a bare `claim()` with no condition
 // (the `_population.mjs` counting form) self-excludes because there is nothing to find.
-const CHECK_FNS = new Set(["check", "_check", "assertOk", "claim"]);
+// 🔴 175: THIS SET WAS MATCHED BY NAME ALONE, AND A NAME IS NOT A BEHAVIOUR.
+// 174 §5 found a filename prefix buying a silent exemption. This is the same shape
+// pointing the other way: a name buying a silent ADMISSION. `sweep_editor.mjs` declares
+//   async function check(name, args = {}) { … results.push({tool: name, status}) … }
+// — a TOOL INVOKER. It branches on the reply, never on a parameter, and cannot fail.
+// The finder read fifteen `check("scene_open", {path: …})` calls, took the first
+// non-string argument as the condition, and recorded fifteen claims whose condition is
+// an OBJECT LITERAL. `cs_demo_verify_replay.mjs` declares `assertOk` as a transcript
+// READER and contributed two more. Seventeen of the host root's twenty-four claim
+// sites were invented by the gate, every one of them unfailable.
+//
+// 🔴 A GATE THAT FABRICATES ITS OWN POPULATION IS WORSE THAN ONE THAT MISSES IT. 168's
+// rule is that a measurement which gets smaller is not a measurement that got better;
+// the converse is sharper, because the fabricated sites INFLATE the very floors that
+// are supposed to detect a collapse. A floor set against a population the finder
+// invented is a floor that cannot go red when the real population disappears.
+//
+// So the name is now a CANDIDATE and `canFail` is the test. See `collectFailers`.
+// `_check` is kept for the record and matches nothing in the tree — measured 175: no
+// declaration of that name exists anywhere under test/, test-integration/ or scripts/.
+// It is left because removing it would be an unmeasured deletion (172's rule), and it
+// is now HARMLESS: unresolvable names admit nothing.
+//
+// 🆕 `verdict` is 175's own idiom, added because the three fixed drivers assert through
+// it. It is SAFE FOR THE REASON THE RESOLVER EXISTS: `tautology_gate.selftest.mjs`
+// calls an IMPORTED `verdict(A(src))` — the gate's own exported analyser — on almost
+// every line, and under the old name-only rule that would have recorded a hundred-odd
+// claims whose condition is a call to the classifier. It resolves to no local
+// declaration, so it admits nothing. The fix and the extension landed together, and the
+// extension is only shippable because of the fix.
+const CHECK_FNS = new Set(["check", "_check", "assertOk", "claim", "verdict"]);
 
 // 🔴 AN OUTCOME FLAG IS A PRECONDITION, IN EVERY IDIOM (172). 171 §3 dismissed forty
 // `assert.ok(!r.isError)` because each guards real value claims below it, and warned
@@ -411,6 +482,122 @@ function collectAsserters(src) {
   return out;
 }
 
+// ──────────────────────────────────── can this helper FAIL? (175, the CHECK_FNS fix) --
+// 🔴 STRUCTURAL, NOT A NAME LIST — 174 §6's precedent. That session had to tell a class
+// from a function and found ONE property that separates them (a non-writable
+// `prototype`) rather than pattern-matching on capitalisation. Same discipline here:
+// what actually separates the six real helpers from the two impostors?
+//
+//   REAL      check(cond, name)   `if (cond) {…} console.log("FAIL"); failures++`
+//             claim(cond, what)   `if (!cond) { bad++; console.log("🔴 FAILED") }`
+//             claim(name, cond)   `if (cond) log(ok); else { failures++; log(FAIL) }`
+//   IMPOSTOR  check(name, args)   branches on `r.isError` — a value it FETCHED
+//             assertOk(o, step)   `return s && s.result ? s.result.ok : undefined`
+//
+// TWO conditions, and BOTH are needed. Either alone admits an impostor:
+//   1. the body branches on a PARAMETER of the helper — the impostors branch only on
+//      values they derived, so their behaviour is not a function of what the caller
+//      claimed. `sweep_editor`'s `check` fails here.
+//   2. on some branch it does something OTHER than compute a return value: mutates a
+//      binding declared outside itself, throws, or exits nonzero. `assertOk` fails
+//      here — it branches on a parameter-derived value and then merely RETURNS it.
+//
+// 🔴 CONDITION 2 ALONE IS NOT ENOUGH, AND THAT IS THE INTERESTING PART. `sweep_editor`'s
+// `check` DOES mutate an outer binding (`results.push({tool, status})`) — a reasonable
+// first rule admits it. The parameter test is what excludes it: a helper that never
+// consults what it was told cannot be asserting it.
+//
+// A name that resolves to NO declaration in the file admits nothing. Measured 175:
+// every one of the six live helpers is declared locally, so this costs no coverage —
+// `test` and `test-integration` are byte-identical before and after (3141 sites).
+function collectFailers(src) {
+  const out = new Set();
+  const consider = (name, fn) => {
+    if (!fn?.body) return;
+    const params = new Set(
+      (fn.parameters ?? []).filter((p) => ts.isIdentifier(p.name)).map((p) => p.name.text),
+    );
+    if (!params.size) return;
+
+    // Every binding the helper declares itself. Anything assigned that is NOT one of
+    // these and NOT a parameter is state belonging to an enclosing scope.
+    const own = new Set(params);
+    const collectOwn = (n) => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name)) own.add(n.name.text);
+      ts.forEachChild(n, collectOwn);
+    };
+    collectOwn(fn.body);
+
+    const mentionsParam = (node) => {
+      let hit = false;
+      const walk = (n) => {
+        if (ts.isIdentifier(n) && params.has(n.text)) hit = true;
+        ts.forEachChild(n, walk);
+      };
+      walk(node);
+      return hit;
+    };
+
+    // The root of an assignment/increment target: `failures++` -> failures,
+    // `results.push(x)` -> results, `o.steps[0].n = 1` -> o.
+    const rootName = (e) => {
+      let n = e;
+      for (let i = 0; i < 40 && n; i++) {
+        if (ts.isIdentifier(n)) return n.text;
+        if (ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) n = n.expression;
+        else if (ts.isCallExpression(n)) n = n.expression;
+        else return null;
+      }
+      return null;
+    };
+
+    let branchesOnParam = false;
+    let escapes = false;
+    const walk = (n) => {
+      if ((ts.isIfStatement(n) || ts.isConditionalExpression(n)) && mentionsParam(n.expression ?? n.condition))
+        branchesOnParam = true;
+      if (ts.isIfStatement(n) && mentionsParam(n.expression)) branchesOnParam = true;
+      if (ts.isConditionalExpression(n) && mentionsParam(n.condition)) branchesOnParam = true;
+
+      if (ts.isThrowStatement(n)) escapes = true;
+      if (ts.isCallExpression(n) && /^process\.exit$/.test(n.expression.getText(src))) {
+        const a = n.arguments[0];
+        if (!a || a.getText(src).trim() !== "0") escapes = true;
+      }
+      if (ts.isPostfixUnaryExpression(n) || ts.isPrefixUnaryExpression(n)) {
+        const op = n.operator;
+        if (op === ts.SyntaxKind.PlusPlusToken || op === ts.SyntaxKind.MinusMinusToken) {
+          const r = rootName(n.operand);
+          if (r && !own.has(r)) escapes = true;
+        }
+      }
+      if (ts.isBinaryExpression(n) && ts.isToken(n.operatorToken)
+          && /Equals(Token)?$/.test(ts.SyntaxKind[n.operatorToken.kind] ?? "")) {
+        const r = rootName(n.left);
+        if (r && !own.has(r)) escapes = true;
+      }
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)
+          && /^(push|add|set|delete|unshift)$/.test(n.expression.name.text)) {
+        const r = rootName(n.expression.expression);
+        if (r && !own.has(r)) escapes = true;
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(fn.body);
+
+    if (branchesOnParam && escapes) out.add(name);
+  };
+  const visit = (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name) consider(n.name.text, n);
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer
+        && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer)))
+      consider(n.name.text, n.initializer);
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
 // The nearest enclosing `test("name", …)` / `it(…)`, so each assertion is attributed to
 // the case it belongs to.
 function enclosingTest(node, src) {
@@ -433,6 +620,9 @@ export function analyze(fileName, text) {
   );
   const consts = collectConsts(src);
   const asserters = collectAsserters(src);
+  // 175: a CHECK_FNS name is only a claim idiom when it resolves to something that can
+  // actually fail. See `collectFailers` — the name is the candidate, this is the test.
+  const failers = collectFailers(src);
   const claims = [];
 
   // One shared scorer, so a probe claim and a unit claim are judged by the same rules.
@@ -468,7 +658,7 @@ export function analyze(fileName, text) {
       // one. Order-independent, so `check(cond, "M")` and `claim("M", cond)` both read.
       const marker = node.arguments.find((a) => ts.isStringLiteralLike(a));
       const cond = node.arguments.find((a) => !ts.isStringLiteralLike(a));
-      if (CHECK_FNS.has(callee) && cond) record(node, callee, cond, marker?.text ?? null);
+      if (CHECK_FNS.has(callee) && failers.has(callee) && cond) record(node, callee, cond, marker?.text ?? null);
       // a call to a local pass/fail helper: the condition lives in its guard clauses
       else if (asserters.has(callee) && marker) record(node, callee, asserters.get(callee), marker.text);
     }
@@ -577,8 +767,11 @@ function main() {
     // written reason; a filename prefix costs nothing and is invisible in the output.
     // The gate's own scope line read `files=21` either way. Silent exemptions are the
     // shape this gate exists to catch, one level out from the claims it reads.
+    // 175: `.` is a rostered directory now, and a DIRECTORY whose name ends in .ts or
+    // .mjs would otherwise be read as a file and throw EISDIR.
     const files = readdirSync(d).filter(
-      (f) => /\.(mjs|ts)$/.test(f) && (!f.startsWith("_") || f.endsWith(".selftest.mjs")),
+      (f) => /\.(mjs|ts)$/.test(f) && (!f.startsWith("_") || f.endsWith(".selftest.mjs"))
+        && statSync(join(d, f)).isFile(),
     );
     let mine = [];
     const empty = [];

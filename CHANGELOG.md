@@ -6,6 +6,71 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — three live drivers recorded a verdict they never read
+
+`demo_verify_live.mjs`, `cs_demo_verify_live.mjs` and `cs_demo_verify_live_gif.mjs`
+called `runtime_assert_node_state` / `runtime_assert_screen_text`, wrote the reply to a
+transcript, and called `process.exit(0)` regardless. The word "assert" was in the step
+**label**; nothing read `ok`. Their own captures are the proof — `demo_verify_buggy.json`
+holds `ok: false` twice, and that run exited 0.
+
+`cs_demo_verify_live_gif.mjs` was the sharpest: it ran both passes, took `{ice, grew,
+a1, a2}` back from each, and then printed
+
+> buggy **FAILS both** · fixed **PASSES both** — automation proves the fix
+
+as a string literal, with both measurements in hand and discarded.
+
+All three now read the verdict and exit on it. The expectation is keyed on the
+buggy/fixed **label** rather than "any false is a failure": the buggy pass is supposed to
+fail both, so a script that reddened on it would break the two-capture workflow *and*
+still exit 0 on the day the buggy build quietly stopped being buggy. Captures are
+unchanged, and are still written before the exit status is decided.
+
+### Added — `verdict_gate.mjs`, the gate for the absence of a check
+
+A headless gate (a step in the existing `host tests` job — no 27th job, twelfth session
+running) asserting that every host-root driver which fetches a verdict-bearing tool reads
+that verdict and can change the process exit status on it. Reading `ok` is explicitly not
+enough on its own — the gif driver did that and displayed it. A literal `process.exit(1)`
+in a `main().catch(...)` crash handler does not count either: every one of the three
+broken drivers had one, so counting it would have greened all three.
+
+### Fixed — the tautology gate invented claim sites, and missed three directories
+
+`CHECK_FNS` matched a claim idiom by **callee name alone**. `sweep_editor.mjs` declares
+`async function check(name, args)` — a tool invoker — so fifteen tool-argument object
+literals were recorded as claims that cannot fail, plus two more from a transcript reader
+named `assertOk`: **seventeen of the host root's twenty-four claim sites were fabricated
+by the gate**. A gate that invents its own population inflates the very floors meant to
+detect a collapse.
+
+A name is now a candidate and `collectFailers` is the test: the callee must resolve to a
+declaration that **branches on one of its own parameters** *and* **escapes** — mutates a
+binding outside itself, throws, or exits nonzero. Both halves are required; outer
+mutation alone re-admits the invoker. Measured before and after: `test` and
+`test-integration` are byte-identical at 3141 sites, so the fix costs no coverage.
+
+Three unswept directories were then admitted, each a different spelling of 174's finding
+that an exclusion costing nothing to write is one nobody re-reads:
+
+- `host/scripts` — including `tautology_gate.selftest.mjs`, **this gate's own gate**, 67
+  claim sites it had never classified
+- the **host root** — 11 real sites once the fabricated ones were gone
+- `test/helpers` — reachable only because `readdirSync` is not recursive. Deliberately
+  *not* rostered, and pinned by an assertion that fails if either fixture grows a claim
+
+Thirteen new `NO_CLAIMS_EXPECTED` entries, each with a written reason.
+
+### Added — `_png.mjs` is the fifth blinded instrument
+
+Measured first: `BLIND175 _png.mjs 2 of 2 STILL GREEN` — both exports replaced with
+constants and every headless gate in the tree still passed, because its only importers
+are an Xvfb editor probe and a real-GPU script. It decides `AUTH_SHOT_NOT_UNIFORM`, the
+check separating a rasterizer that drew something from one that drew nothing (#143).
+`_png.selftest.mjs` adds 35 known-answer claims over PNGs built byte by byte, and the
+instrument gate's floor goes 4 → 5.
+
 ## [1.50.0] — 2026-08-02
 
 ### Fixed — `vcs_restore` reported discarding work it had never touched

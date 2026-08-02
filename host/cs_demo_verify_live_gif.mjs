@@ -100,9 +100,31 @@ async function main() {
   console.log("");
   await sleep(800);
 
+  // 🔴 175: THE CONCLUSION WAS A STRING LITERAL, PRINTED WITH THE MEASUREMENT IN HAND.
+  // This script ran both passes, took `{ice, grew, a1, a2}` back from each — and then
+  // printed "buggy FAILS both · fixed PASSES both — automation proves the fix" without
+  // consulting either. It threw the return values away and exited 0 unconditionally, so
+  // the sentence was true of the GIF it renders and independent of the run behind it.
+  // A hardcoded verdict is the purest form of the thing this repo has spent nineteen
+  // sessions finding in its tools: a report that describes what was supposed to happen
+  // rather than what did. It was in the script that MAKES THE EVIDENCE.
+  //
+  // The four-way expectation below is the sentence, written as a check. It pins BOTH
+  // halves for `demo_verify_live.mjs`'s reason: a buggy pass that quietly starts passing
+  // breaks the demo just as badly as a fixed pass that starts failing, and only one of
+  // those two failures is loud.
+  const EXPECT = { BUGGY: false, FIXED: true };
+  const mismatches = [];
+  const pin = (label, r) => {
+    for (const [name, got] of [["GrewEver==false", r.a1], ['screen "ALL MELTED"', r.a2]]) {
+      if (got !== EXPECT[label]) mismatches.push(`${label} ${name}: expected ok=${EXPECT[label]}, got ${JSON.stringify(got)}`);
+    }
+    return r;
+  };
+
   try {
     execSync("git checkout -- example-csharp/demo/DemoSnowman.cs", { cwd: REPO, stdio: "ignore" });
-    await runPass(t, "BUGGY", C.red);
+    pin("BUGGY", await runPass(t, "BUGGY", C.red));
 
     console.log(`${C.yellow}✎ the one-line fix${C.reset}  ${C.dim}DemoSnowman.cs${C.reset}   int melt = ${C.red}warmth - Shade${C.reset}   →   int melt = ${C.green}Mathf.Max(0, warmth - Shade)${C.reset}`);
     console.log("");
@@ -112,10 +134,16 @@ async function main() {
     writeFileSync(CS, patched);
     await sleep(400);
 
-    await runPass(t, "FIXED", C.green);
+    pin("FIXED", await runPass(t, "FIXED", C.green));
 
-    console.log(`${C.bold}buggy ${C.red}FAILS both${C.reset}${C.bold} · fixed ${C.green}PASSES both${C.reset}${C.bold} — automation proves the fix on the C# track, live.${C.reset}`);
-    console.log(`${C.dim}Captured live on Godot 4.7 .NET. The runtime bridge reads C# props by PascalCase → zero [Export] needed.${C.reset}`);
+    // The sentence is now printed only when the run it describes actually happened.
+    if (mismatches.length) {
+      console.log(`${C.bold}${C.red}🔴 THE CLOSE DID NOT HAPPEN — this run does not prove the fix.${C.reset}`);
+      for (const m of mismatches) console.log(`   ${C.red}${m}${C.reset}`);
+    } else {
+      console.log(`${C.bold}buggy ${C.red}FAILS both${C.reset}${C.bold} · fixed ${C.green}PASSES both${C.reset}${C.bold} — automation proves the fix on the C# track, live.${C.reset}`);
+      console.log(`${C.dim}Captured live on Godot 4.7 .NET. The runtime bridge reads C# props by PascalCase → zero [Export] needed.${C.reset}`);
+    }
     console.log("");
     await sleep(600);
   } finally {
@@ -124,6 +152,8 @@ async function main() {
     pkill();
     try { await client.close(); } catch {}
   }
-  process.exit(0);
+  for (const m of mismatches) console.error(`🔴 VERDICT_MISMATCH ${m}`);
+  console.log(`VERIFY_CLOSE label=BUGGY+FIXED verdicts=4 mismatches=${mismatches.length}`);
+  process.exit(mismatches.length ? 1 : 0);
 }
 main().catch((e) => { console.error("[cs-verify-live] FATAL:", (e && e.stack) || e); process.exit(1); });

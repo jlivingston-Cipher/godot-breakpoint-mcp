@@ -43,6 +43,33 @@ function rec(step, tool, args, result) {
   console.log(redact(JSON.stringify(result, null, 2)));
 }
 
+// 🔴 175: THIS SCRIPT RECORDED VERDICTS IT NEVER READ, AND EXITED 0 EITHER WAY.
+// The header above says it "asserts against the LIVE game" and that "before the fix
+// these FAIL; after the one-line clamp they PASS. That is the honest close." Every
+// word of that was true of the TOOL and false of the SCRIPT: `rec()` pushes the reply
+// into `out.steps` and prints it, and the word "assert" appeared only in the step
+// LABEL. Its own captures are the proof — `demo_verify_buggy.json` holds ok:false
+// twice and that run exited 0.
+//
+// 🔴 AND THE EXPECTED VERDICT IS A FUNCTION OF THE LABEL, WHICH IS WHY "exit 1 if any
+// verdict is false" WOULD BE THE SAME BUG POINTING THE OTHER WAY. The buggy pass is
+// SUPPOSED to fail both; a script that reddened on it would break the two-capture
+// workflow AND would still exit 0 on the day the buggy build quietly stopped being
+// buggy — the half nobody would notice. Pinning both halves is the honest close.
+const EXPECT = { buggy: false, fixed: true };
+const expected = EXPECT[LABEL];   // undefined for ad-hoc labels — then nothing is pinned
+const failures = [];
+function verdict(step, result) {
+  const ok = result && typeof result === "object" ? result.ok : undefined;
+  if (expected === undefined) {
+    console.log(`  VERDICT ${step} -> ok=${ok}  (label "${LABEL}" pins nothing)`);
+    return ok;
+  }
+  if (ok !== expected) failures.push(`${step}: expected ok=${expected} for the "${LABEL}" build, got ${JSON.stringify(ok)}`);
+  console.log(`  VERDICT ${step} -> ok=${ok}  expected ${expected}  ${ok === expected ? "✓" : "🔴 MISMATCH"}`);
+  return ok;
+}
+
 async function main() {
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
@@ -74,13 +101,15 @@ async function main() {
     S(await t("runtime_get_property", { path: ".", property: "grew_ever" })));
 
   // ASSERT 1 — the ice NEVER grew on a warm spell
+  const a1 = S(await t("runtime_assert_node_state", { path: ".", expect: { grew_ever: false } }));
   rec("assert grew_ever==false", "runtime_assert_node_state",
-    { path: ".", expect: { grew_ever: false } },
-    S(await t("runtime_assert_node_state", { path: ".", expect: { grew_ever: false } })));
+    { path: ".", expect: { grew_ever: false } }, a1);
+  verdict("assert grew_ever==false", a1);
 
   // ASSERT 2 — the finish condition fires when ice <= 0
-  rec('assert screen "ALL MELTED"', "runtime_assert_screen_text", { text: "ALL MELTED" },
-    S(await t("runtime_assert_screen_text", { text: "ALL MELTED" })));
+  const a2 = S(await t("runtime_assert_screen_text", { text: "ALL MELTED" }));
+  rec('assert screen "ALL MELTED"', "runtime_assert_screen_text", { text: "ALL MELTED" }, a2);
+  verdict('assert screen "ALL MELTED"', a2);
 
   // captured console — the trajectory + (fixed only) the ALL MELTED line
   const console_out = S(await t("godot_output", { id }));
@@ -91,6 +120,11 @@ async function main() {
   writeFileSync(path.join(HOST_DIR, `demo_verify_${LABEL}.json`), redact(JSON.stringify(out, null, 2)));
   console.log(`\n=== wrote demo_verify_${LABEL}.json ===`);
   await client.close();
-  process.exit(0);
+  // The capture is written FIRST and is byte-identical to what this script always
+  // produced; only the exit status is new. A failed verdict must still leave the
+  // transcript on disk — that transcript is the evidence for what went wrong.
+  for (const f of failures) console.error(`🔴 VERDICT_MISMATCH ${f}`);
+  console.log(`VERIFY_CLOSE label=${LABEL} verdicts=2 mismatches=${failures.length}`);
+  process.exit(failures.length ? 1 : 0);
 }
 main().catch((e) => { console.error("[verify] FATAL:", (e && e.stack) || e); process.exit(1); });

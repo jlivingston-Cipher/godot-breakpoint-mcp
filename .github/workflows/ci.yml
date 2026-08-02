@@ -156,6 +156,27 @@ jobs:
         run: node scripts/tautology_gate.selftest.mjs
       - name: No test block asserts only shape (tautology gate)
         run: node scripts/tautology_gate.mjs
+      # 🔴 175. THE PNG READER DECIDES WHAT A RENDERED FRAME IS, AND NOTHING HEADLESS HAD
+      # EVER RUN IT. Measured before this step existed: `BLIND175 _png.mjs 2 of 2 STILL
+      # GREEN` — both exports replaced with constants and every gate above still passed,
+      # because its only two importers are an Xvfb editor probe and a real-GPU script.
+      # `sampleDistinctColours` returning >1 IS AUTH_SHOT_NOT_UNIFORM, the check that
+      # separates a rasterizer that drew something from one that drew nothing (#143).
+      - name: The PNG reader, self-checked
+        run: node test-integration/_png.selftest.mjs
+      # 🔴 AND THE GATE FOR THE ABSENCE OF A CHECK. 174 §11.3 asked which directories the
+      # tautology sweep does not enter; the host root was one, and the classifier read it
+      # as SILENT. 171 §2: a silent file either asserts nothing or asserts in an idiom the
+      # finder cannot read. Here it was the first — three live drivers fetched a verdict
+      # from a `runtime_assert_*` tool, wrote it to a transcript and exited 0 regardless,
+      # and one of them printed "buggy FAILS both · fixed PASSES both — automation proves
+      # the fix" as a STRING LITERAL with both measurements in hand. The tautology gate
+      # cannot pin that: it grades CONDITIONS, and there was no condition to grade
+      # (174 §3's division of labour). Steps, not a 27th job — TWELFTH session running.
+      - name: The verdict instrument, self-checked
+        run: node scripts/verdict_gate.selftest.mjs
+      - name: Every recorded verdict is read (verdict gate)
+        run: node scripts/verdict_gate.mjs
       # 🔴 AND THE SAME GATE FOR contract_check.py's OWN ENUMERATORS. 171 §10.21 asked
       # what each of them would print if its finder matched nothing. Measured in 172:
       # 25 blindable, 14 could match NOTHING and the run still said ALL HARD CHECKS
