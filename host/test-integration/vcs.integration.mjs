@@ -33,8 +33,11 @@
 //       which is "origin/main" — never "remotes/…". It could not fire. Under remotes=true,
 //       the flag's entire purpose, every branch came back remote:false.
 //
-// (D5 — vcs_restore echoing paths it did not actually change — was found and deliberately
-// left alone; it is a steer, not a defect. It has no assertion here either way.)
+// D5 — vcs_restore echoing paths it did not actually change — was carried from 155 §2 to
+// 174 as "a steer, not a defect", and this note used to end "it has no assertion here
+// either way". 🔴 IT WAS A DEFECT, AND THE NOTE IS WHY IT SURVIVED NINETEEN SESSIONS: a
+// thing recorded as deliberately unasserted reads, on every re-reading, as a thing
+// already considered. VCS_LIVE_RESTORE_ECHO is that assertion (section 7b).
 //
 // WHAT MAKES IT COVERAGE RATHER THAN GREEN
 // ----------------------------------------
@@ -61,10 +64,10 @@ const population = new Population("VCS_LIVE", {
   families: [
     "VCS_LIVE_RENAME", "VCS_LIVE_UNMERGED", "VCS_LIVE_INITIAL", "VCS_LIVE_DETACHED",
     "VCS_LIVE_REMOTE", "VCS_LIVE_BLAME", "VCS_LIVE_STASH_NOOP", "VCS_LIVE_BRANCH_PARTIAL",
-    "VCS_LIVE_REFUSALS", "VCS_LIVE_NOREPO",
+    "VCS_LIVE_REFUSALS", "VCS_LIVE_NOREPO", "VCS_LIVE_RESTORE_ECHO",
   ],
-  scope: 10,
-  claims: 69,          // 🔴 EXACT. 69 on local 4.7 AND on CI — the same number in every environment measured
+  scope: 11,           // 🔴 174: 10 -> 11 with VCS_LIVE_RESTORE_ECHO. The floor moves when the population does.
+  claims: 78,          // 🔴 EXACT. 69 + the nine D5 claims — the same number in every environment measured
 });
 const assert = population.assert;
 import { execFileSync } from "node:child_process";
@@ -302,6 +305,38 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   assert.ok(!pop.isError, `pop must restore — got ${txt(pop)}`);
   assert.ok(fs.readFileSync(path.join(d, "a.gd"), "utf8").includes("# real edit"), "pop must bring the edit back");
   population.seal("VCS_LIVE_STASH_NOOP", "ok clean and untracked-only pushes error with refs/stash untouched; a real push moves it and reverts the tree");
+}
+
+// 7b) 🔴 D5 — vcs_restore echoing paths it did not change. Carried since 155 §2 as a
+//     "steer, not a defect", and this file's own header used to record that it had no
+//     assertion either way. It is the third confirmed member of #181/#183/#188's family:
+//     `git restore` exits 0 for a path with nothing to discard, so the REQUEST echoed
+//     back reported work discarded that was never touched — from the destructive tool
+//     whose output is the caller's only record of what it just threw away.
+//
+//     Asked of GIT: the mixed case, one dirty path and one clean one in a single call.
+{
+  const d = newRepo("restoreecho", { "dirty.gd": "extends Node\n", "clean.gd": "extends Node\n" });
+  fs.appendFileSync(path.join(d, "dirty.gd"), "# discard me\n");
+  const h = tools(d, async () => ({ action: "accept", content: { proceed: true } }));
+
+  assert.equal(g(d, "diff", "--name-only"), "dirty.gd", "the fixture must have exactly one dirty path");
+  const cleanBefore = fs.readFileSync(path.join(d, "clean.gd"), "utf8");
+
+  const r = await h.vcs_restore({ paths: ["dirty.gd", "clean.gd"], confirm: true });
+  assert.ok(!r.isError, `the restore must succeed — got ${txt(r)}`);
+  const out = sc(r);
+
+  assert.deepEqual(out.restored, ["dirty.gd"], `only the path git changed may be reported restored — got ${JSON.stringify(out.restored)}`);
+  assert.equal(out.count, 1, "count follows the measurement, not the number of paths asked about");
+  assert.deepEqual(out.requested, ["dirty.gd", "clean.gd"], "the request survives, labelled as the request");
+  assert.deepEqual(out.stranded, [], "nothing may be left dirty");
+
+  // and the verdict is checked against git rather than against the answer under test
+  assert.equal(g(d, "diff", "--name-only"), "", "the working tree must be clean vs the index afterwards");
+  assert.ok(!fs.readFileSync(path.join(d, "dirty.gd"), "utf8").includes("# discard me"), "the edit must actually be gone");
+  assert.equal(fs.readFileSync(path.join(d, "clean.gd"), "utf8"), cleanBefore, "the clean file must be byte-identical");
+  population.seal("VCS_LIVE_RESTORE_ECHO", "ok a clean path in a mixed call is absent from restored[] rather than reported as discarded work");
 }
 
 // 8) D2 — vcs_branch_create(switch:true) where the switch is refused AFTER the branch

@@ -6,6 +6,49 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.50.0] — 2026-08-02
+
+### Fixed — `vcs_restore` reported discarding work it had never touched
+
+`restored` was the **request, echoed back**:
+
+```ts
+const r = await git(cfg, ["restore", "--", ...rels]);
+if (!r.ok) return gitFail(r);
+return ok({ restored: rels, count: rels.length });   // <- the argument, not the result
+```
+
+`git restore` exits 0 for a path with **nothing to discard**, so asking to discard five
+files of which one was dirty reported all five as restored — from a tool that is
+DESTRUCTIVE, elicitation-gated, and whose output is the caller's only record of what it
+just threw away.
+
+Carried as D5 since 155 §2, described in the probe's own header as "a steer, not a
+defect… no assertion here either way". It is the **third confirmed member** of the family
+after #181, #183 and #188 (`filesystem_move`'s `.import` sidecar): a report that
+describes the *action requested* rather than the *result achieved*.
+
+`restored` is now **measured** — the working-tree-vs-index diff, read before and after,
+which is exactly what `git restore` discards. Three outcomes, so one list cannot carry
+them:
+
+| | `restored` | `requested` | `stranded` |
+|---|---|---|---|
+| was dirty, now clean | **✓** | ✓ | |
+| nothing to discard | | ✓ | |
+| still dirty afterwards | | ✓ | **✓** |
+
+A stranded path is a **partial, not an error** — work *was* discarded for the other
+paths, and `_err` would claim nothing happened, which is the same misdescription
+pointing the other way (#188's reasoning inverted).
+
+🔴 **The branch had never run anywhere.** Every pre-existing `vcs_restore` test restored
+a path that *was* dirty, so no test in the tree had ever put a clean path through it and
+the fix would have been unfalsifiable. Two unit cases and a live probe family
+(`VCS_LIVE_RESTORE_ECHO`, 9 claims) now cover it; both unit cases go red against the old
+echo, while the pre-existing gating test stays green — which is why this survived
+nineteen sessions.
+
 ## [1.49.0] — 2026-08-02
 
 ### Fixed — `filesystem_move` reported that it had moved an `.import` sidecar it had not

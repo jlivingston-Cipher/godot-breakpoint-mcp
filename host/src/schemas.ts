@@ -713,8 +713,12 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     summary: z.string(),
   },
   vcs_restore: {
+    // 🔴 `restored` IS MEASURED, NOT ECHOED (D5, 155 §2). It used to be the requested
+    // paths handed straight back, so a clean path reported as discarded work.
     restored: z.array(z.string()),
     count: z.number(),
+    requested: z.array(z.string()),
+    stranded: z.array(z.string()),
   },
   vcs_stash: {
     op: z.string(),

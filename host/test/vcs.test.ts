@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { registerVcsTools } from "../src/tools/vcs.js";
+import { registerVcsTools, restoreOutcome } from "../src/tools/vcs.js";
 import type { Config } from "../src/config.js";
 
 type Handler = (args: Record<string, unknown>) => Promise<{
@@ -269,6 +269,89 @@ test("vcs_restore is gated: blocks without elicitation, proceeds on confirm/acce
     assert.ok(!r.isError, JSON.stringify(r.content));
     assert.ok(!fs.readFileSync(path.join(dir, "player.gd"), "utf8").includes("# tweak"));
   } finally { cleanup(dir); }
+});
+
+// 🔴 D5 (155 §2), CARRIED NINETEEN SESSIONS, AND THE THIRD CONFIRMED MEMBER OF THE
+// FAMILY AFTER #181, #183 AND #188. `restored` was the REQUEST handed straight back:
+// `git restore` exits 0 for a path with nothing to discard, so asking about five files
+// of which one was dirty reported all five as restored — from a DESTRUCTIVE, gated tool
+// whose entire output is the caller's record of what it just threw away.
+//
+// 🔴 AND THE BRANCH HAD NEVER RUN. Every pre-existing vcs_restore case restored a path
+// that WAS dirty, so no test in the tree had ever put a clean path through it — the fix
+// would have been unfalsifiable (173 §8). These two cases are that branch, both
+// directions, checked against GIT rather than against the tool's own answer.
+test("vcs_restore reports the paths git actually changed, not the paths it was asked about", async () => {
+  const dir = mkrepo();
+  try {
+    const h = setup(dir, ACCEPT);
+    // enemy.gd's edit is STAGED, so its working tree already matches the index: there is
+    // nothing there for `git restore` to discard, and git exits 0 saying exactly that.
+    assert.equal(g(dir, "diff", "--name-only"), "player.gd", "fixture: only player.gd is dirty vs the index");
+
+    const r = await h.vcs_restore({ paths: ["player.gd", "enemy.gd"], confirm: true });
+    assert.ok(!r.isError, JSON.stringify(r.content));
+    const out = r.structuredContent as { restored: string[]; count: number; requested: string[]; stranded: string[] };
+
+    assert.deepEqual(out.restored, ["player.gd"], "only the path git actually changed is reported restored");
+    assert.equal(out.count, 1, "count follows the measurement, not the request length");
+    assert.deepEqual(out.requested, ["player.gd", "enemy.gd"], "the request survives, labelled as the request");
+    assert.deepEqual(out.stranded, [], "nothing was left dirty");
+
+    // checked against git, not against the answer under test
+    assert.ok(!fs.readFileSync(path.join(dir, "player.gd"), "utf8").includes("# tweak"), "the unstaged tweak is gone");
+    assert.equal(g(dir, "diff", "--name-only"), "", "nothing is dirty vs the index afterwards");
+    assert.match(g(dir, "diff", "--cached", "--name-only"), /enemy\.gd/, "enemy.gd's STAGED edit is untouched — restore never reached it");
+  } finally { cleanup(dir); }
+});
+
+test("vcs_restore over a path with nothing to discard reports zero rather than a discard", async () => {
+  const dir = mkrepo();
+  try {
+    const h = setup(dir, ACCEPT);
+    const before = fs.readFileSync(path.join(dir, "enemy.gd"), "utf8");
+    const r = await h.vcs_restore({ paths: ["enemy.gd"], confirm: true });
+    assert.ok(!r.isError, JSON.stringify(r.content));
+    const out = r.structuredContent as { restored: string[]; count: number; requested: string[]; stranded: string[] };
+
+    assert.deepEqual(out.restored, [], "a clean path is NOT reported as discarded work");
+    assert.equal(out.count, 0, "and the count is zero, which is what the caller needs to see");
+    assert.deepEqual(out.requested, ["enemy.gd"], "what was asked for is still reported");
+    assert.equal(fs.readFileSync(path.join(dir, "enemy.gd"), "utf8"), before, "the file is byte-identical");
+  } finally { cleanup(dir); }
+});
+
+// 🔴 THE COLLAPSE CASE GIT WILL NOT PRODUCE ON DEMAND. Both live cases above assert
+// `stranded` is EMPTY, and a collector only ever asserted empty is a collector nobody
+// has proved collects (173 §6, caught by that session's own reverse sweep). A real
+// `git restore` that works never strands anything, so the classification is a pure
+// function taking its populations as parameters and these cases hand it the readings
+// directly — which is the only way the stranded arm can be constructed at all.
+test("restoreOutcome separates restored, requested and stranded from the two readings", () => {
+  // the healthy mixed call: one dirty path discarded, one clean path asked about
+  const okCase = restoreOutcome(["dirty.gd", "clean.gd"], ["dirty.gd"], []);
+  assert.deepEqual(okCase.restored, ["dirty.gd"]);
+  assert.equal(okCase.count, 1);
+  assert.deepEqual(okCase.requested, ["dirty.gd", "clean.gd"], "the request is carried, not discarded");
+  assert.deepEqual(okCase.stranded, []);
+
+  // 🔴 THE ARM THAT PROVES THE COLLECTOR COLLECTS: git said ok, and a path is still dirty
+  const stuck = restoreOutcome(["a.gd", "b.gd"], ["a.gd", "b.gd"], ["b.gd"]);
+  assert.deepEqual(stuck.restored, ["a.gd"], "a path still dirty afterwards was NOT restored");
+  assert.equal(stuck.count, 1, "and it does not count towards the discard");
+  assert.deepEqual(stuck.stranded, ["b.gd"], "it is named instead of silently folded into restored");
+
+  // everything stranded: the report must not claim a single discard
+  const none = restoreOutcome(["a.gd"], ["a.gd"], ["a.gd"]);
+  assert.deepEqual(none.restored, [], "nothing was discarded");
+  assert.equal(none.count, 0);
+  assert.deepEqual(none.stranded, ["a.gd"]);
+
+  // nothing was dirty to begin with: zero discards, and no stranding either
+  const noop = restoreOutcome(["clean.gd"], [], []);
+  assert.deepEqual(noop.restored, [], "a clean path is never reported as discarded work");
+  assert.equal(noop.count, 0);
+  assert.deepEqual(noop.stranded, []);
 });
 
 test("vcs_stash push/list/pop work; drop is gated", async () => {
