@@ -1749,6 +1749,107 @@ async function main() {
       : fail("AUTH_NESTED_PATH_LEGAL", `${JSON.stringify(okSearch).slice(0, 90)} | ${JSON.stringify(okList).slice(0, 90)}`);
   });
 
+  // ------------------------------------------------ AUTH_PATH_LEDGER (167) ----
+  //
+  // 🔴 THE SECTION ABOVE PINS PARAMETERS SOMEBODY ALREADY MEASURED. THIS ONE PINS THE
+  // ONES NOBODY HAS.
+  //
+  // Six consecutive sessions found the same shape of defect: a path parameter that no
+  // enumeration had ever asked about — `theme_set_*.path` survived four releases
+  // because #175 guarded the SECOND parameter and nobody looked at the first. The root
+  // cause was never a missing guard. It was that a parameter could enter the surface
+  // and never appear in anyone's list.
+  //
+  // So the ledger is a GATE, not a note. `host/path-cohort-ledger.tsv` classifies all
+  // 258 path-like parameters, and this claim fails when the live cohort and the ledger
+  // disagree IN EITHER DIRECTION:
+  //
+  //   · a row in the surface with no ledger entry  -> a parameter nobody classified,
+  //     named in the failure, so the next session cannot not-see it;
+  //   · a ledger entry with no matching row        -> a classification that outlived
+  //     the thing it classified.
+  //
+  // 🔴 THE SECOND HALF IS THE POINT AND IT IS WHY THIS IS NOT JUST A SNAPSHOT TEST.
+  // 162's finding ("I swept the `path` params") became `if (prop === "path") continue;`
+  // in the enumerator, and that filter kept asserting a conclusion for three sessions
+  // after 165 disproved it — because nothing could ever notice it had gone stale. An
+  // entry here cannot outlive its row.
+  //
+  // No fixture, no editor state, no new CI job: it reads the tool list and a file.
+  await family("AUTH_PATH_LEDGER", async () => {
+    const LEDGER = path.join(HOST_DIR, "path-cohort-ledger.tsv");
+    const { enumeratePathCohort, summarisePathCohort } = await import("../dist/path-cohort.js");
+
+    const tools = [];
+    let cursor;
+    do {
+      const page = await client.listTools(cursor ? { cursor } : {});
+      tools.push(...page.tools);
+      cursor = page.nextCursor;
+    } while (cursor);
+
+    const live = enumeratePathCohort(tools);
+    const sum = summarisePathCohort(live);
+    const liveKeys = new Set(live.map((r) => `${r.tool}\t${r.param}`));
+
+    const CLASSES = new Set([
+      "guarded", "node-path", "not-a-path", "capability-gated", "do-not-reopen", "backend-absent", "stores-only",
+    ]);
+    const ledger = new Map();
+    const badClass = [];
+    for (const line of fs.readFileSync(LEDGER, "utf8").split("\n")) {
+      if (!line.trim() || line.startsWith("#")) continue;
+      const [tool, param, cls, ...reason] = line.split("\t");
+      if (!CLASSES.has(cls)) { badClass.push(`${tool}.${param} -> ${cls}`); continue; }
+      // a classification with no reason is a classification nobody has to defend
+      if (!reason.join(" ").trim()) { badClass.push(`${tool}.${param} -> no reason given`); continue; }
+      ledger.set(`${tool}\t${param}`, cls);
+    }
+
+    const unclassified = [...liveKeys].filter((k) => !ledger.has(k));
+    const stale = [...ledger.keys()].filter((k) => !liveKeys.has(k));
+
+    unclassified.length === 0
+      ? pass("AUTH_PATH_LEDGER", `all ${live.length} path-like parameters in the live surface are classified (${sum.topLevelNamedPath} named \`path\`, ${sum.nested} nested)`)
+      : fail("AUTH_PATH_LEDGER", `${unclassified.length} path-like parameter(s) entered the surface unclassified -> ${unclassified.map((k) => k.replace("\t", ".")).slice(0, 8).join(", ")}${unclassified.length > 8 ? " …" : ""} — measure them, then add a line to host/path-cohort-ledger.tsv`);
+
+    stale.length === 0
+      ? pass("AUTH_PATH_LEDGER_NO_STALE", `no ledger entry outlives its parameter (${ledger.size} entries, all live)`)
+      : fail("AUTH_PATH_LEDGER_NO_STALE", `${stale.length} ledger entr(ies) name a parameter that no longer exists -> ${stale.map((k) => k.replace("\t", ".")).slice(0, 8).join(", ")}`);
+
+    badClass.length === 0
+      ? pass("AUTH_PATH_LEDGER_WELLFORMED", `every entry carries a known class and a reason (${[...CLASSES].join("/")})`)
+      : fail("AUTH_PATH_LEDGER_WELLFORMED", `${badClass.length} malformed entr(ies) -> ${badClass.slice(0, 5).join("; ")}`);
+
+    // 🔴 THE ENUMERATOR'S OWN REGRESSION ROW. `card_template_create.theme.font_path` is
+    // the parameter that was invisible to BOTH hints at once: a compound name that an
+    // exact-word list cannot match, and NO description for a description test to read.
+    // If a future edit reintroduces either blindness, this row disappears and says so.
+    //
+    // 🔴 TWO CANARIES, ONE PER HISTORICAL BLINDNESS, AND THEY ARE NOT REDUNDANT WITH
+    // THE TWO CLAIMS ABOVE. A blind enumerator SHRINKS the live set, so nothing reads
+    // as unclassified — `AUTH_PATH_LEDGER` stays green through it. Measured, not
+    // reasoned: reintroducing `if (prop === "path") continue;` left AUTH_PATH_LEDGER
+    // saying "all 133 parameters classified" while 125 entries went stale.
+    //
+    // NO_STALE catches that today only because the ledger still holds the 124 rows. A
+    // session that regenerated the ledger FROM a blind enumerator would take both
+    // claims green together — which is precisely 162's failure mode one level up. The
+    // canaries name specific parameters, so they survive a regeneration.
+    const canaries = [
+      // the nested compound name with NO description: invisible to an exact-word name
+      // test AND to a description test, simultaneously. Blindnesses 1 + 3.
+      ["card_template_create", "theme.font_path", "nested, compound name, no description"],
+      // the parameter that survived FOUR releases because the enumerator discarded
+      // every name equal to `path`. Blindness 2.
+      ["theme_set_font", "path", "literally named `path` — the discarded cohort"],
+    ];
+    const lost = canaries.filter(([t, p]) => !live.some((r) => r.tool === t && r.param === p));
+    lost.length === 0
+      ? pass("AUTH_PATH_LEDGER_CANARY", `both blindness canaries are still enumerated (${canaries.map(([t, p]) => `${t}.${p}`).join(", ")})`)
+      : fail("AUTH_PATH_LEDGER_CANARY", `the enumerator lost ${lost.map(([t, p, why]) => `${t}.${p} (${why})`).join("; ")} — a blindness has been reintroduced`);
+  });
+
   // ---------------------------------------------------------------- cleanup ----
   // Put example/ back the way we found it. Until now this was a `rm -rf` glob a
   // developer typed by hand from the header comment, which meant (a) every local run
