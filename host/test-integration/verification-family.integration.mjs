@@ -41,7 +41,31 @@
 // Requires res://tests/verify_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads
 // a pixel. Not part of `npm test` (Godot-free); invoked directly by integration.yml.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`VERIFY_LIVE_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("VERIFY_LIVE", {
+  families: [
+    "VERIFY_LIVE_STRUCT", "VERIFY_LIVE_STRUCT_RED", "VERIFY_LIVE_STRUCT_BASE", "VERIFY_LIVE_NODE",
+    "VERIFY_LIVE_NODE_LIVE", "VERIFY_LIVE_NODE_BADPATH", "VERIFY_LIVE_PERF", "VERIFY_LIVE_PERF_RED",
+    "VERIFY_LIVE_PERF_SKIP", "VERIFY_LIVE_TEXT", "VERIFY_LIVE_TEXT_HIDDEN", "VERIFY_LIVE_TEXT_REVEAL",
+    "VERIFY_LIVE_TEXT_OPTS", "VERIFY_LIVE_DIGEST", "VERIFY_LIVE_DIGEST_OPTS",
+  ],
+  scope: 15,
+  claims: 95,         // measured 100 locally, session 170
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -131,7 +155,7 @@ try {
   }
   assert.equal(structOk.checked, 4, "checked should count every expectation, including the absent one");
   assert.deepEqual(structOk.failures, [], "the fixture scene should produce no structure failures");
-  console.log(`VERIFY_LIVE_STRUCT ok checked=${structOk.checked} failures=0`);
+  population.seal("VERIFY_LIVE_STRUCT", `ok checked=${structOk.checked} failures=0`);
 
   // All three failure reasons the addon can emit, each against a real tree. None of
   // these has ever run live: the render probe uses this tool only as a green gate.
@@ -154,7 +178,7 @@ try {
     reasons.expected_absent_but_present,
     `expected an 'expected_absent_but_present' failure, got ${JSON.stringify(structRed.failures)}`,
   );
-  console.log(`VERIFY_LIVE_STRUCT_RED ok reasons=[${Object.keys(reasons).sort().join(",")}]`);
+  population.seal("VERIFY_LIVE_STRUCT_RED", `ok reasons=[${Object.keys(reasons).sort().join(",")}]`);
 
   // A Label IS a CanvasItem IS a Node: is_class() must accept a base class, or every
   // polymorphic expectation a user writes would be a false failure.
@@ -162,7 +186,7 @@ try {
     expect: [{ path: "VisibleLabel", type: "Control" }, { path: "VisibleLabel", type: "CanvasItem" }],
   });
   assert.equal(structBase.ok, true, `a Label should satisfy Control and CanvasItem, got ${JSON.stringify(structBase.failures)}`);
-  console.log("VERIFY_LIVE_STRUCT_BASE ok Label satisfies Control/CanvasItem");
+  population.seal("VERIFY_LIVE_STRUCT_BASE", "ok Label satisfies Control/CanvasItem");
 
   // ============================== 2. runtime_assert_node_state ===============
 
@@ -171,7 +195,7 @@ try {
   assert.equal(nodeOk.checked, 1, "checked should count the expectations supplied");
   assert.deepEqual(nodeOk.mismatches, [], "a matching property should produce no mismatch");
   assert.equal(nodeOk.path, ".", "the tool should echo the resolved path of the node it read");
-  console.log(`VERIFY_LIVE_NODE ok path=${nodeOk.path} checked=${nodeOk.checked}`);
+  population.seal("VERIFY_LIVE_NODE", `ok path=${nodeOk.path} checked=${nodeOk.checked}`);
 
   const nodeRed = await call("runtime_assert_node_state", { path: ".", expect: { counter: 999 } });
   assert.equal(nodeRed.ok, false, "counter is 100, so expecting 999 must not pass");
@@ -198,7 +222,7 @@ try {
   assert.equal(tolPass.ok, true, "counter=250 should satisfy an expectation of 251 within tolerance 1");
   const tolFail = await call("runtime_assert_node_state", { path: ".", expect: { counter: 251 }, tolerance: 0 });
   assert.equal(tolFail.ok, false, "counter=250 must not satisfy an expectation of 251 at tolerance 0");
-  console.log(`VERIFY_LIVE_NODE_LIVE ok 100->250 observed, tolerance 1 passes / 0 fails`);
+  population.seal("VERIFY_LIVE_NODE_LIVE", `ok 100->250 observed, tolerance 1 passes / 0 fails`);
 
   // Restore, and assert the restore rather than assuming it. #146's lesson: state left
   // behind by a probe is a defect even when nothing is currently failing.
@@ -220,7 +244,7 @@ try {
   const badPath = await raw("runtime_assert_node_state", { path: "NoSuchNode9137", expect: { counter: 1 } });
   assert.equal(badPath.isError, true, "asserting against a node that does not exist should be an error, not ok:false");
   assert.match(errText(badPath), /bad_path/, `expected bad_path, got ${errText(badPath)}`);
-  console.log("VERIFY_LIVE_NODE_BADPATH ok bad_path");
+  population.seal("VERIFY_LIVE_NODE_BADPATH", "ok bad_path");
 
   // ==================================== 3. runtime_assert_perf ===============
 
@@ -235,7 +259,7 @@ try {
   assert.equal(perfOk.ok, true, `a static scene should not regress its own node_count, got ${JSON.stringify(perfOk.regressions)}`);
   assert.equal(perfOk.checked, 1, "one known monitor was supplied");
   assert.equal(perfOk.monitors["object/node_count"], nodeCount, "the tool should report the monitor it compared");
-  console.log(`VERIFY_LIVE_PERF ok node_count=${nodeCount} stable at tolerance 0`);
+  population.seal("VERIFY_LIVE_PERF", `ok node_count=${nodeCount} stable at tolerance 0`);
 
   // Both signs. time/fps is higher_better (an impossible floor must regress) and
   // object/node_count is lower_better (an impossible ceiling must regress). A
@@ -254,7 +278,7 @@ try {
     perfLower.regressions[0].current > perfLower.regressions[0].baseline,
     "a lower_better regression means current exceeded the baseline",
   );
-  console.log(`VERIFY_LIVE_PERF_RED ok higher_better and lower_better both fire`);
+  population.seal("VERIFY_LIVE_PERF_RED", `ok higher_better and lower_better both fire`);
 
   // The `direction` override flips the verdict on the SAME numbers — the cleanest
   // possible proof that the parameter is read rather than defaulted.
@@ -284,7 +308,7 @@ try {
   assert.equal(unknown.checked, 0, "an unknown monitor key must not be counted as checked");
   assert.deepEqual(unknown.regressions, [], "an unknown monitor key must not produce a regression");
   assert.equal(unknown.ok, true, "checking nothing is vacuously ok — but `checked` is what says so");
-  console.log("VERIFY_LIVE_PERF_SKIP ok unknown monitor key -> checked=0");
+  population.seal("VERIFY_LIVE_PERF_SKIP", "ok unknown monitor key -> checked=0");
 
   // =============================== 4. runtime_assert_screen_text =============
   // The positive path here is running for the first time in this repository's life:
@@ -299,7 +323,7 @@ try {
   assert.equal(textOk.samples.length, 1, "a match should come back with a sample");
   assert.equal(textOk.samples[0].path, "VisibleLabel", `the sample should name the node, got ${textOk.samples[0].path}`);
   assert.equal(textOk.samples[0].text, "READY PLAYER ONE", "the sample should carry the text actually read off the node");
-  console.log(`VERIFY_LIVE_TEXT ok matches=${textOk.matches} sample=${textOk.samples[0].path}`);
+  population.seal("VERIFY_LIVE_TEXT", `ok matches=${textOk.matches} sample=${textOk.samples[0].path}`);
 
   const textAbsent = await call("runtime_assert_screen_text", { text: "ZZZ_NO_SUCH_TEXT_9137", present: false });
   assert.equal(textAbsent.ok, true, "text nothing carries should satisfy an absence assertion");
@@ -320,7 +344,7 @@ try {
   assert.equal(hidden.matches, 0, "a hidden node's text must not count as on-screen text");
   assert.equal(hidden.ok, false, "a present-assertion for hidden text must fail");
   assert.deepEqual(hidden.samples, [], "a hidden node must not appear in the samples");
-  console.log("VERIFY_LIVE_TEXT_HIDDEN ok hidden node's text is not found, though the node holds it");
+  population.seal("VERIFY_LIVE_TEXT_HIDDEN", "ok hidden node's text is not found, though the node holds it");
 
   // And the inverse, to prove the filter tracks the live flag rather than the scene
   // file: reveal it, find it, hide it again, lose it again.
@@ -331,7 +355,7 @@ try {
   await call("runtime_set_property", { path: "HiddenLabel", property: "visible", value: false, confirm: true });
   const rehidden = await call("runtime_assert_screen_text", { text: "HIDDEN SENTINEL 9137" });
   assert.equal(rehidden.matches, 0, "the probe must leave HiddenLabel hidden");
-  console.log("VERIFY_LIVE_TEXT_REVEAL ok visible -> found, hidden -> not found, restored");
+  population.seal("VERIFY_LIVE_TEXT_REVEAL", "ok visible -> found, hidden -> not found, restored");
 
   // ---- the option surface, each proved by its own inverse ----------------------
   const insensitive = await call("runtime_assert_screen_text", { text: "ready player one" });
@@ -356,7 +380,7 @@ try {
   const minRed = await call("runtime_assert_screen_text", { text: "READY PLAYER ONE", min_count: 2 });
   assert.equal(minRed.ok, false, "one match must not satisfy min_count 2");
   assert.equal(minRed.matches, 1, "min_count changes the verdict, not the count");
-  console.log("VERIFY_LIVE_TEXT_OPTS ok case / regex / bad_regex / min_count all bite");
+  population.seal("VERIFY_LIVE_TEXT_OPTS", "ok case / regex / bad_regex / min_count all bite");
 
   // Change the text live: the same query must stop matching, then match again.
   await call("runtime_set_property", { path: "VisibleLabel", property: "text", value: "GAME OVER", confirm: true });
@@ -385,7 +409,7 @@ try {
     "Vector2",
     `a Vector2 should survive as a tagged object, got ${JSON.stringify(digest.digest["."].position)}`,
   );
-  console.log(`VERIFY_LIVE_DIGEST ok node_count=${digest.node_count} keys=[${Object.keys(digest.digest).sort().join(",")}]`);
+  population.seal("VERIFY_LIVE_DIGEST", `ok node_count=${digest.node_count} keys=[${Object.keys(digest.digest).sort().join(",")}]`);
 
   // Explicit fields replace the defaults rather than adding to them.
   const fielded = await call("runtime_state_digest", { root: ".", fields: ["text"] });
@@ -412,7 +436,7 @@ try {
   const digestBad = await raw("runtime_state_digest", { root: "NoSuchNode9137" });
   assert.equal(digestBad.isError, true, "digesting a root that does not exist should be an error");
   assert.match(errText(digestBad), /bad_path/, `expected bad_path, got ${errText(digestBad)}`);
-  console.log("VERIFY_LIVE_DIGEST_OPTS ok fields replace / max_depth bounds / subtree / bad_path");
+  population.seal("VERIFY_LIVE_DIGEST_OPTS", "ok fields replace / max_depth bounds / subtree / bad_path");
 
   // ------------------------------------------------------------- left clean ---
   // Re-assert the whole fixture through the tool that gated it, so anything this
@@ -440,4 +464,6 @@ try {
   process.exit(1);
 }
 
+// 🔴 THE POPULATION GATE, before the ✔ that used to be unconditional.
+population.reportOrDie();
 console.log("✔ verification-family integration OK");

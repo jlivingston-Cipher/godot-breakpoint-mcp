@@ -39,7 +39,29 @@
 //
 // Requires the render-probe scene running with GODOT_PROJECT set. Not part of
 // `npm test` (Godot-free); invoked directly by integration.yml.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`RENDER_LIVE_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("RENDER_LIVE", {
+  families: [
+    "RENDER_LIVE_CAPTURE", "RENDER_LIVE_SELF", "RENDER_LIVE_CHANGE", "RENDER_LIVE_REGION_IN",
+    "RENDER_LIVE_REGION_OUT", "RENDER_LIVE_RESTORE", "RENDER_LIVE_MISMATCH", "RENDER_LIVE_BADREF",
+  ],
+  scope: 8,
+  claims: 28,         // 🔴 PROVISIONAL — needs a real rasterizer (xvfb). Tightened from the first CI run
+});
+const assert = population.assert;
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -228,7 +250,7 @@ assert.ok(W > 2 && H > 2, `captured frame is ${W}x${H} — a degenerate placehol
 assert.ok(W >= 640 && H >= 480, `captured frame is ${W}x${H}; this probe's regions assume at least 640x480`);
 const reported = (shotRes.content ?? []).find((c) => c.type === "text")?.text ?? "";
 assert.ok(reported.includes(`${W}x${H}`), `the tool reported "${reported}" but the PNG header says ${W}x${H}`);
-console.log(`RENDER_LIVE_CAPTURE ok ${W}x${H} png_bytes=${bytes.length}`);
+population.seal("RENDER_LIVE_CAPTURE", `ok ${W}x${H} png_bytes=${bytes.length}`);
 
 // Establish the reference from the frame just captured. res:// maps to the
 // project directory in a run-from-source project, so the addon's Image.load()
@@ -248,7 +270,7 @@ try {
   assert.equal(self.total_pixels, W * H, `total_pixels should be ${W * H} for a ${W}x${H} frame`);
   assert.equal(self.width, W, "diff width should match the captured frame");
   assert.equal(self.height, H, "diff height should match the captured frame");
-  console.log(`RENDER_LIVE_SELF ok ratio=${self.diff_ratio} total=${self.total_pixels}`);
+  population.seal("RENDER_LIVE_SELF", `ok ratio=${self.diff_ratio} total=${self.total_pixels}`);
 
   // ------------------------------------ 3. change known pixels, diff again ---
 
@@ -275,7 +297,7 @@ try {
     Math.abs(changed.diff_ratio - expected) < 0.02,
     `hiding a 400x400 patch in a ${W}x${H} frame should move ~${expected.toFixed(4)} of the pixels, got ${changed.diff_ratio}`,
   );
-  console.log(`RENDER_LIVE_CHANGE ok ratio=${changed.diff_ratio.toFixed(4)} expected~${expected.toFixed(4)} differing=${changed.differing_pixels}`);
+  population.seal("RENDER_LIVE_CHANGE", `ok ratio=${changed.diff_ratio.toFixed(4)} expected~${expected.toFixed(4)} differing=${changed.differing_pixels}`);
 
   // ------------------------------------------------- 4. region cropping ------
 
@@ -284,7 +306,7 @@ try {
   assert.equal(inside.total_pixels, 200 * 200, "a 200x200 region should compare 40000 pixels");
   assert.equal(inside.diff_ratio, 1, `every pixel inside the hidden patch should differ, got ${inside.diff_ratio}`);
   assert.equal(inside.ok, false, "a fully-changed region must not pass at tolerance 0");
-  console.log(`RENDER_LIVE_REGION_IN ok ratio=${inside.diff_ratio} total=${inside.total_pixels}`);
+  population.seal("RENDER_LIVE_REGION_IN", `ok ratio=${inside.diff_ratio} total=${inside.total_pixels}`);
 
   // Fully outside the patch, in the opposite corner: nothing there changed.
   // THIS is the assertion a constant-returning diff cannot satisfy alongside the
@@ -294,7 +316,7 @@ try {
   assert.equal(outside.differing_pixels, 0, `no pixel outside the patch should differ, got ${outside.differing_pixels}`);
   assert.equal(outside.diff_ratio, 0, "a region outside the change should diff at ratio 0");
   assert.equal(outside.ok, true, "an unchanged region should pass at tolerance 0");
-  console.log(`RENDER_LIVE_REGION_OUT ok ratio=${outside.diff_ratio} total=${outside.total_pixels}`);
+  population.seal("RENDER_LIVE_REGION_OUT", `ok ratio=${outside.diff_ratio} total=${outside.total_pixels}`);
 
   // ------------------------------------------------- 5. restore and re-diff --
 
@@ -307,7 +329,7 @@ try {
   }
   assert.equal(restored?.differing_pixels, 0, "restoring the patch should return the frame to the reference exactly");
   assert.equal(restored.ok, true, "the restored frame should pass at tolerance 0");
-  console.log(`RENDER_LIVE_RESTORE ok ratio=${restored.diff_ratio}`);
+  population.seal("RENDER_LIVE_RESTORE", `ok ratio=${restored.diff_ratio}`);
 
   // ------------------------------------------- 6. the documented sad paths ---
 
@@ -316,7 +338,7 @@ try {
   assert.equal(mismatch.reason, "dimension_mismatch", `expected dimension_mismatch, got ${JSON.stringify(mismatch)}`);
   assert.equal(mismatch.total_pixels, 0, "a dimension mismatch compares no pixels");
   assert.equal(mismatch.width, W, "a dimension mismatch still reports the frame's own width");
-  console.log(`RENDER_LIVE_MISMATCH ok reason=${mismatch.reason}`);
+  population.seal("RENDER_LIVE_MISMATCH", `ok reason=${mismatch.reason}`);
 
   const badRef = await raw("runtime_screenshot_diff", { reference: MISSING_RES });
   assert.equal(badRef.isError, true, "diffing against a missing reference should be an error, not a pass");
@@ -325,7 +347,7 @@ try {
     /bad_reference/,
     `a missing reference should report bad_reference, got ${badRef.content?.[0]?.text}`,
   );
-  console.log("RENDER_LIVE_BADREF ok bad_reference");
+  population.seal("RENDER_LIVE_BADREF", "ok bad_reference");
 
   console.log(`RENDER_LIVE_RESULT frame=${W}x${H} self=0 changed=${changed.diff_ratio.toFixed(4)} region_in=1 region_out=0`);
   console.log("✔ runtime_screenshot + runtime_screenshot_diff verified against a real rasterizer");
@@ -339,4 +361,6 @@ try {
 
 cleanup();
 runtime.close();
+// 🔴 THE POPULATION GATE, before the ✔ that used to be unconditional.
+population.reportOrDie();
 console.log("✔ runtime-render-plane integration OK");

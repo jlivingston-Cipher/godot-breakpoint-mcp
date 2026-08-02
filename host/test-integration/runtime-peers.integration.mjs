@@ -29,7 +29,29 @@
 //
 // Requires GODOT_BIN and GODOT_PROJECT. Boots no game of its own and needs no editor.
 // Not part of `npm test` (which is Godot-free).
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`F6_PEERS_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("F6_PEERS", {
+  families: [
+    "F6_PEERS_EQUALISE", "F6_PEERS_STEP", "F6_PEERS_DIVERGE", "F6_PEERS_CEILING",
+    "F6_PEERS_STOP",
+  ],
+  scope: 5,
+  claims: 28,         // measured 30 locally, session 170
+});
+const assert = population.assert;
 import { loadConfig } from "../dist/config.js";
 import { PeerRegistry } from "../dist/peers.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -157,7 +179,7 @@ try {
     await call("runtime_set_property", { path: ".", property: "ticks", value: 0, confirm: true, peer });
     await call("runtime_set_property", { path: "Marker", property: "position", value: vec2(0, 0), confirm: true, peer });
   }
-  console.log(`F6_PEERS_EQUALISE ${ids.length} peer(s) reset to a common starting state while frozen`);
+  population.seal("F6_PEERS_EQUALISE", `${ids.length} peer(s) reset to a common starting state while frozen`);
 
   for (const peer of ids) {
     await call("runtime_seed_rng", { seed: SEED, confirm: true, peer });
@@ -171,7 +193,7 @@ try {
     const ticks = await propOf(peer, "ticks");
     assert.equal(ticks, FRAMES, `${peer}: expected exactly ${FRAMES} guarded physics frames, got ${ticks}`);
   }
-  console.log(`F6_PEERS_STEP each peer advanced exactly ${FRAMES} physics frames (seed ${SEED}, ${STAGGER_MS}ms stagger)`);
+  population.seal("F6_PEERS_STEP", `each peer advanced exactly ${FRAMES} physics frames (seed ${SEED}, ${STAGGER_MS}ms stagger)`);
 
   // ------------------------------------------------- 4. the positive control
   const conv = await call("runtime_peers_digest", { root: "." });
@@ -196,14 +218,14 @@ try {
     peer: ids[0],
   });
   const div = await call("runtime_peers_digest", { root: "." });
-  console.log(`F6_PEERS_DIVERGE converged=${div.converged} diverged_at=${JSON.stringify(div.diverged_at)}`);
+  population.seal("F6_PEERS_DIVERGE", `converged=${div.converged} diverged_at=${JSON.stringify(div.diverged_at)}`);
   assert.equal(div.converged, false, "a skewed peer must NOT be reported as converged");
   assert.ok(Array.isArray(div.diverged_at) && div.diverged_at.includes("Marker"), "diverged_at must name the skewed node");
   assert.ok(!div.diverged_at.includes("."), "diverged_at must not name the nodes that still agree");
 
   // ------------------------------------------------------------ 6. the ceiling
   const over = await raw("runtime_spawn_peers", { count: PEER_COUNT, scene: PROBE_SCENE });
-  console.log(`F6_PEERS_CEILING ${PEER_COUNT} live + ${PEER_COUNT} more -> ${over.isError ? "refused" : "ALLOWED"}`);
+  population.seal("F6_PEERS_CEILING", `${PEER_COUNT} live + ${PEER_COUNT} more -> ${over.isError ? "refused" : "ALLOWED"}`);
   assert.ok(over.isError, `the ceiling must refuse a spawn past ${PEER_COUNT} live peers`);
   assert.match(textOf(over), /ceiling/i, "the refusal must explain the ceiling");
 
@@ -214,7 +236,7 @@ try {
   assert.ok(dead.isError, "a stopped peer must not answer");
   assert.match(textOf(dead), /stopped/i, "a stopped peer must say so, not report a generic unreachable bridge");
   const again = await call("runtime_peer_stop", { id: ids[2] });
-  console.log(`F6_PEERS_STOP ${ids[2]} stopped, reports "${textOf(dead).slice(0, 60)}…", repeat stop = no-op`);
+  population.seal("F6_PEERS_STOP", `${ids[2]} stopped, reports "${textOf(dead).slice(0, 60)}…", repeat stop = no-op`);
   assert.ok(Array.isArray(again.stopped), "stopping an already-stopped peer must be a no-op, not an error");
 
   console.log(
@@ -230,6 +252,12 @@ try {
 } finally {
   peers.stopAll();
 }
+
+// 🔴 THE POPULATION GATE, outside the try/catch: the run that shrank the suite is
+// exactly the run that will not reach a check placed inside it. Only consulted on a
+// run that otherwise passed — a failed run already exits non-zero and its population
+// is not the interesting fact about it.
+if (!failed) population.reportOrDie();
 
 // Explicit: peer children hold piped stdio, so an unreaped one would otherwise keep the event
 // loop — and a CI runner — alive long after the assertions are done.

@@ -53,7 +53,29 @@
 // Requires res://tests/input_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads a
 // pixel. Not part of `npm test` (Godot-free); invoked directly by integration.yml.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`INPUT_LIVE_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("INPUT_LIVE", {
+  families: [
+    "INPUT_LIVE_FIXTURE", "INPUT_LIVE_REJECT", "INPUT_LIVE_ACTION", "INPUT_LIVE_KEY",
+    "INPUT_LIVE_BUTTON", "INPUT_LIVE_MOTION", "INPUT_LIVE_EXACT", "INPUT_LIVE_PRISTINE",
+  ],
+  scope: 8,
+  claims: 63,         // measured 66 locally, session 170
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -238,7 +260,7 @@ try {
     KEY_K,
     `the fixture and this probe must agree on the bound keycode: fixture says ${boundKeycode}, probe says ${KEY_K}`,
   );
-  console.log(`INPUT_LIVE_FIXTURE ok counters 0, ${BOUND} bound to 1 event (keycode ${boundKeycode}), ${UNBOUND} released`);
+  population.seal("INPUT_LIVE_FIXTURE", `ok counters 0, ${BOUND} bound to 1 event (keycode ${boundKeycode}), ${UNBOUND} released`);
 
   // ============================== 1. every rejection, separately, and INERT ===
   // bad_kind is reachable only over the socket (see socketReject). bad_action is the
@@ -278,7 +300,7 @@ try {
   assert.equal(afterRejects.bound_pressed, false, "a rejected injection must not press an action");
   assert.equal(afterRejects.unbound_pressed, false, "a rejected injection must not press the control action");
   assert.equal(afterRejects.bound_press_edges, 0, "a rejected injection must not produce a press edge");
-  console.log("INPUT_LIVE_REJECT ok bad_kind x3 (unknown / absent kind / absent event) + bad_action x2, nothing injected");
+  population.seal("INPUT_LIVE_REJECT", "ok bad_kind x3 (unknown / absent kind / absent event) + bad_action x2, nothing injected");
 
   // ================== 2. the `action` branch — state, strength, and NO event ===
   // Pressed at 0.6 rather than the default, because `strength` is the one field of this
@@ -322,7 +344,7 @@ try {
   await inject({ kind: "action", action: UNBOUND, pressed: false });
   await waitFor("unbound_pressed", (v) => v === false, `${UNBOUND} must release`);
   assert.equal(await read("total_events"), 0, "none of the six action injections may have produced an InputEvent");
-  console.log(`INPUT_LIVE_ACTION ok press/release x3, strength 0.6 and default 1.0, 1 edge, 0 events (${polls} poll(s))`);
+  population.seal("INPUT_LIVE_ACTION", `ok press/release x3, strength 0.6 and default 1.0, 1 edge, 0 events (${polls} poll(s))`);
 
   // ============================ 3. the `key` branch — delivery AND the pipeline ===
   // (a) An UNBOUND keycode. The event must arrive, and no action may move: this is the
@@ -362,7 +384,7 @@ try {
   injectedEvents++;
   await waitFor("bound_pressed", (v) => v === false, "releasing the bound key must release the action");
   assert.equal(await read("key_count"), 4, "four key injections, four key events");
-  console.log(`INPUT_LIVE_KEY ok unbound KEY_J delivered in isolation, bound KEY_K delivered AND routed to ${BOUND}`);
+  population.seal("INPUT_LIVE_KEY", `ok unbound KEY_J delivered in isolation, bound KEY_K delivered AND routed to ${BOUND}`);
 
   // ==================== 4. `mouse_button` — index, pressed, and the position guard ===
   // (a) Everything supplied. RIGHT rather than LEFT because LEFT is the branch's own
@@ -398,7 +420,7 @@ try {
   injectedEvents++;
   await waitFor("button_count", (v) => v === 3, "a mouse_button with no index must still be delivered");
   assert.equal(await read("last_button"), 1, "omitting `button` must default to 1 (LEFT)");
-  console.log("INPUT_LIVE_BUTTON ok index+pressed+position forwarded, absent position stays (0,0), absent index defaults to 1");
+  population.seal("INPUT_LIVE_BUTTON", "ok index+pressed+position forwarded, absent position stays (0,0), absent index defaults to 1");
 
   // ================== 5. `mouse_motion` — two INDEPENDENT decode guards ===
   // This branch has the same two-operand shape #154 §4 found in _node_add, doubled:
@@ -439,7 +461,7 @@ try {
     { x: 0, y: 0 },
     "with no `relative` the guard must leave it at (0,0) — it must not fall back to `position`",
   );
-  console.log("INPUT_LIVE_MOTION ok position+relative decoded independently, each proved with the other absent");
+  population.seal("INPUT_LIVE_MOTION", "ok position+relative decoded independently, each proved with the other absent");
 
   // ================================ 6. the count is EXACT, not monotonic ===
   // 🔴 Ten injections, ten events, and the three per-kind counters must account for all of
@@ -463,7 +485,7 @@ try {
     { key: 4, button: 3, motion: 3 },
     `each kind must have been delivered as ITS OWN class of event: ${JSON.stringify(totals)}`,
   );
-  console.log(`INPUT_LIVE_EXACT ok ${injectedEvents} injected = ${totals.total_events} delivered (key 4 / button 3 / motion 3)`);
+  population.seal("INPUT_LIVE_EXACT", `ok ${injectedEvents} injected = ${totals.total_events} delivered (key 4 / button 3 / motion 3)`);
 
   // ================================================ 7. leave it pristine ===
   // #146's rule: state left behind by a probe is a defect even when nothing is currently
@@ -476,7 +498,7 @@ try {
   }
   // The fixture itself survived, and is still the thing this probe thought it was.
   await call("runtime_assert_scene_structure", { expect: [{ path: ".", type: "Node2D" }] });
-  console.log(`INPUT_LIVE_PRISTINE ok ${BOUND} and ${UNBOUND} both released at zero strength, fixture intact`);
+  population.seal("INPUT_LIVE_PRISTINE", `ok ${BOUND} and ${UNBOUND} both released at zero strength, fixture intact`);
 
   console.log(
     `INPUT_LIVE_RESULT kinds=action+key+mouse_button+mouse_motion rejects=bad_kind x3+bad_action x2 ` +
@@ -491,4 +513,6 @@ try {
   process.exit(1);
 }
 
+// 🔴 THE POPULATION GATE, before the ✔ that used to be unconditional.
+population.reportOrDie();
 console.log("✔ inject-input integration OK");

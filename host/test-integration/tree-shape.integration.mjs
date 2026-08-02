@@ -50,7 +50,29 @@
 // type-check signal arguments; typed_sig(n: int) accepted a String and the handler ran.
 // The guard is arity only, and an assertion claiming otherwise would be false.
 
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`TREE_LIVE_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("TREE_LIVE", {
+  families: [
+    "TREE_LIVE_DEPTH", "TREE_LIVE_VISIBLE", "TREE_LIVE_BOUND", "TREE_LIVE_GUARDS",
+    "TREE_LIVE_ARITY", "TREE_LIVE_DECODE", "TREE_LIVE_ZEROARG", "TREE_LIVE_NOLISTENER",
+  ],
+  scope: 8,
+  claims: 75,         // measured 79, session 170
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -173,7 +195,7 @@ try {
     assert.equal(got.path, want.path, `${want.path}: path must be relative to the base ('.' for the root)`);
     assert.equal(got.child_count, want.children, `${want.path}: child_count`);
   }
-  console.log(`TREE_LIVE_DEPTH ok all ${TREE.length} nodes reached at the default bound, Leaf at depth 4`);
+  population.seal("TREE_LIVE_DEPTH", `ok all ${TREE.length} nodes reached at the default bound, Leaf at depth 4`);
 
   // ====================================== 2. `visible`, all THREE branches ===
   // The ABSENT case is the one no fixture could reach before this one existed. Asserting
@@ -194,7 +216,7 @@ try {
       );
     }
   }
-  console.log("TREE_LIVE_VISIBLE ok absent on Node, present on Node3D and CanvasItem, false on Hidden");
+  population.seal("TREE_LIVE_VISIBLE", "ok absent on Node, present on Node3D and CanvasItem, false on Hidden");
 
   // ============ 3. THE DEPTH BOUND — truncation distinguished from leafness ===
   const d2 = await call("runtime_get_tree", { max_depth: 2 });
@@ -224,7 +246,7 @@ try {
   assert.ok(at(d1, "Branch"), "max_depth 1 reaches Branch");
   assert.equal(at(d1, "Branch/Limb"), undefined, "max_depth 1 must stop ABOVE Branch/Limb — the bound must track the argument");
   assert.equal(at(d1, "Branch").child_count, 1, "Branch is truncated at max_depth 1 and must still report child_count 1");
-  console.log("TREE_LIVE_BOUND ok max_depth 2 truncates at Limb (child_count 1, no children); max_depth 1 truncates at Branch");
+  population.seal("TREE_LIVE_BOUND", "ok max_depth 2 truncates at Limb (child_count 1, no children); max_depth 1 truncates at Branch");
 
   // ============================== 4. emit_signal — the guards, both operands ===
   const unknown = await emit("no_such_signal", []);
@@ -238,7 +260,7 @@ try {
   const badPath = await raw("runtime_emit_signal", { path: "NoSuchNode", signal: "probe_two", args: [], confirm: true });
   assert.ok(badPath.isError, "emitting from a node that does not exist must be an error");
   assert.match(errText(badPath), /bad_path/, "…and it must be bad_path");
-  console.log("TREE_LIVE_GUARDS ok no_signal covers both a typo and an omitted name; bad_path covers a missing node");
+  population.seal("TREE_LIVE_GUARDS", "ok no_signal covers both a typo and an omitted name; bad_path covers a missing node");
 
   // ================== 5. THE ARITY VERDICT — success is not a foregone reply ===
   // probe_two takes exactly 2. Every mismatch must be an error AND must leave two_seen
@@ -259,7 +281,7 @@ try {
     assert.match(errText(res), /emit_failed/, `${label}: the arity failure must surface as emit_failed`);
     assert.equal(await read("two_seen"), before, `${label}: no handler may have run — two_seen must not move`);
   }
-  console.log("TREE_LIVE_ARITY ok 0, 1 and 3 args on an arity-2 signal all rejected, handler never ran");
+  population.seal("TREE_LIVE_ARITY", "ok 0, 1 and 3 args on an arity-2 signal all rejected, handler never ran");
 
   // ================================== 6. the correct arity, and the DECODE ===
   const ok2 = await emit("probe_two", [VEC, 7]);
@@ -277,7 +299,7 @@ try {
     "a {__type__:'Vector2'} argument must reach the handler as a REAL Vector2 (typeof 5), not as the Dictionary it was sent as (27) — " +
       "runtime_get_property re-encodes both to identical JSON, so this type is the only place the difference is visible",
   );
-  console.log("TREE_LIVE_DECODE ok arity-2 emit ran the handler once and delivered a real Vector2 (typeof 5)");
+  population.seal("TREE_LIVE_DECODE", "ok arity-2 emit ran the handler once and delivered a real Vector2 (typeof 5)");
 
   // ============================ 7. zero args is not itself the failure mode ===
   const noneBefore = await read("none_seen");
@@ -287,7 +309,7 @@ try {
   const none1 = await emit("probe_none", [1]);
   assert.ok(none1.isError, "…while giving probe_none() an argument it does not declare must fail");
   assert.equal(await read("none_seen"), noneBefore + 1, "…without running the handler");
-  console.log("TREE_LIVE_ZEROARG ok probe_none() succeeds on 0 args and fails on 1 — the guard checks the MATCH, not the count");
+  population.seal("TREE_LIVE_ZEROARG", "ok probe_none() succeeds on 0 args and fails on 1 — the guard checks the MATCH, not the count");
 
   // ================ 8. EMITTING INTO THE VOID IS NOT A FAILURE — and its limit ===
   // emit_signal returns ERR_UNAVAILABLE (2), not OK, for a signal with NO connections.
@@ -313,9 +335,11 @@ try {
     "a wrong argument count on an UNCONNECTED signal is NOT detectable — the engine reports ERR_UNAVAILABLE either way. " +
       "If this ever starts failing the engine gained a check and TOOL_CATALOG.md's caveat should be revisited",
   );
-  console.log("TREE_LIVE_NOLISTENER ok emitting into the void succeeds, and arity is uncheckable there (by construction)");
+  population.seal("TREE_LIVE_NOLISTENER", "ok emitting into the void succeeds, and arity is uncheckable there (by construction)");
 
-  console.log("TREE_LIVE_ALL ok every claim held");
+  // 🔴 THE POPULATION GATE, before the sentence that used to be unconditional.
+  const claims = population.reportOrDie();
+  console.log(`TREE_LIVE_ALL ok every claim held (${claims} claim(s) ran)`);
   runtime.close();
 } catch (err) {
   die(err?.message ?? String(err));

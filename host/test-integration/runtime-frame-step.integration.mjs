@@ -14,7 +14,17 @@
 //
 // Requires the probe game running (booted by integration.yml) with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Not part of `npm test` (Godot-free).
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). Four assertions behind a ✔.
+// This probe prints its markers BEFORE the claims they describe, so the sections
+// are opened rather than sealed — `open()` prints nothing, so the log is unchanged.
+const population = new Population("F4_STEP", {
+  families: ["F4_STEP_FREEZE", "F4_STEP_ADVANCE", "F4_STEP_FROZEN"],
+  scope: 3,
+  claims: 4,
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -72,6 +82,7 @@ try {
 
 try {
   // 1) Freeze. scale 0 pauses the tree; the mover's ticks must then hold steady.
+  population.open("F4_STEP_FREEZE");
   await call("runtime_time_scale", { scale: 0, confirm: true });
   await delay(250);
   const a1 = await ticksNow();
@@ -81,6 +92,7 @@ try {
   assert.equal(a2, a1, `freeze failed: ticks advanced ${a1} -> ${a2} while time_scale 0`);
 
   // 2) Advance EXACTLY N physics frames; ticks must move by exactly N.
+  population.open("F4_STEP_ADVANCE");
   const N = 30;
   const step = await call("runtime_step_frames", { frames: N, kind: "physics", confirm: true });
   await delay(150);
@@ -90,6 +102,7 @@ try {
   assert.equal(b - a2, N, `expected exactly ${N} physics frames of advance, got ${b - a2}`);
 
   // 3) Still frozen after stepping: a further wait must not advance ticks.
+  population.open("F4_STEP_FROZEN");
   await delay(300);
   const c = await ticksNow();
   assert.equal(c, b, `game did not stay frozen after stepping: ticks ${b} -> ${c}`);
@@ -97,6 +110,7 @@ try {
   // Thaw so the game is left in a clean state.
   await call("runtime_time_scale", { scale: 1, confirm: true });
   console.log(`F4_STEP_RESULT froze, stepped +${N} deterministically, stayed frozen`);
+  population.reportOrDie();
   console.log("✔ frame-step integration OK");
   runtime.close();
 } catch (err) {

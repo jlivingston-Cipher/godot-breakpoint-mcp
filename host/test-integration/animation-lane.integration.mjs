@@ -54,7 +54,30 @@
 // Requires res://tests/anim_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads a
 // pixel. Not part of `npm test` (Godot-free); invoked directly by integration.yml.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`ANIM_LIVE_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("ANIM_LIVE", {
+  families: [
+    "ANIM_LIVE_STATE", "ANIM_LIVE_ERRORS", "ANIM_LIVE_PLAY", "ANIM_LIVE_DRIVES",
+    "ANIM_LIVE_PAUSE", "ANIM_LIVE_RESUME", "ANIM_LIVE_STOP", "ANIM_LIVE_SWITCH",
+    "ANIM_LIVE_SPEED", "ANIM_LIVE_FROM_END",
+  ],
+  scope: 10,
+  claims: 58,         // measured 61 locally, session 170
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -165,7 +188,7 @@ try {
   assert.equal(atBoot.position, 0, "position is 0 before anything plays");
   assert.equal(atBoot.length, 0, "length is 0 while no animation is assigned");
   assert.equal(await markerX(), 0, "Marker starts at x=0; the animation has not run");
-  console.log(`ANIM_LIVE_STATE ok animations=[${[...atBoot.animations].sort().join(",")}] idle at 0`);
+  population.seal("ANIM_LIVE_STATE", `ok animations=[${[...atBoot.animations].sort().join(",")}] idle at 0`);
 
   // ==================================================== 1. the error branches ===
   // _resolve_anim_player has two rejections and they are NOT the same rejection: a
@@ -193,7 +216,7 @@ try {
   const noAnim = await raw("runtime_anim_play", { path: "Anim", animation: "nope9137", confirm: true });
   assert.equal(noAnim.isError, true, "playing an animation the library does not hold must be an error");
   assert.match(errText(noAnim), /no_animation/, `expected no_animation, got ${errText(noAnim)}`);
-  console.log("ANIM_LIVE_ERRORS ok bad_path / not_animation_player on all three tools, no_animation on play");
+  population.seal("ANIM_LIVE_ERRORS", "ok bad_path / not_animation_player on all three tools, no_animation on play");
 
   // ===================================== 2. play, and prove it actually plays ===
   const played = await call("runtime_anim_play", { path: "Anim", animation: DRIFT, confirm: true });
@@ -204,7 +227,7 @@ try {
   assert.equal(playing.playing, true, "get_state should agree that the animation is running");
   assert.equal(playing.current_animation, DRIFT, "get_state should name the running animation");
   assert.equal(playing.length, DRIFT_LENGTH, `length should be read off drift itself (${DRIFT_LENGTH}s)`);
-  console.log(`ANIM_LIVE_PLAY ok ${DRIFT} playing length=${playing.length}`);
+  population.seal("ANIM_LIVE_PLAY", `ok ${DRIFT} playing length=${playing.length}`);
 
   // THE check a static implementation cannot satisfy. drift drives Marker:position:x
   // from 0 to 800 over 8s, so a running animation MOVES A NODE and the move is visible
@@ -218,7 +241,7 @@ try {
   );
   const movedX = await markerX();
   assert.ok(movedX > 0, `drift animates Marker:position:x away from 0; the scene must actually change, got x=${movedX}`);
-  console.log(`ANIM_LIVE_DRIVES ok position=${advanced.position.toFixed(3)}s marker.x=${movedX.toFixed(1)}`);
+  population.seal("ANIM_LIVE_DRIVES", `ok position=${advanced.position.toFixed(3)}s marker.x=${movedX.toFixed(1)}`);
 
   // ======================================= 3. keep_state — pause versus stop ====
   // This is the cross-version claim in _anim_stop's own comment, checked on 4.3, 4.5
@@ -248,7 +271,7 @@ try {
     `a paused animation must not advance: ${paused.position} -> ${stillPaused.position}`,
   );
   assert.equal(await markerX(), heldX, "a paused animation must not keep moving the node it drives");
-  console.log(`ANIM_LIVE_PAUSE ok held at ${paused.position.toFixed(3)}s marker.x=${heldX.toFixed(1)} across 300ms`);
+  population.seal("ANIM_LIVE_PAUSE", `ok held at ${paused.position.toFixed(3)}s marker.x=${heldX.toFixed(1)} across 300ms`);
 
   // Omitting `animation` replays the currently-assigned one — the documented behaviour
   // of the optional argument, and the reason pause is useful at all. It must RESUME
@@ -262,7 +285,7 @@ try {
     afterResume.position > paused.position,
     `resume must continue from the paused position, got ${afterResume.position} vs ${paused.position}`,
   );
-  console.log(`ANIM_LIVE_RESUME ok resumed ${paused.position.toFixed(3)}s -> ${afterResume.position.toFixed(3)}s`);
+  population.seal("ANIM_LIVE_RESUME", `ok resumed ${paused.position.toFixed(3)}s -> ${afterResume.position.toFixed(3)}s`);
 
   // The other direction, and the whole point of the pair: a default stop REWINDS.
   const stopped = await call("runtime_anim_stop", { path: "Anim", confirm: true });
@@ -272,7 +295,7 @@ try {
   const afterStop = await call("runtime_anim_get_state", { path: "Anim" });
   assert.equal(afterStop.position, 0, "get_state should agree the playhead was rewound");
   assert.equal(afterStop.length, 0, "with nothing assigned there is no current length");
-  console.log(`ANIM_LIVE_STOP ok keep_state kept ${paused.position.toFixed(3)}s, default rewound to 0`);
+  population.seal("ANIM_LIVE_STOP", `ok keep_state kept ${paused.position.toFixed(3)}s, default rewound to 0`);
 
   // Re-stopping an already-stopped player is a no-op, not an error (#146: a probe that
   // cannot safely repeat its own cleanup leaves state behind the moment anything fails).
@@ -290,7 +313,7 @@ try {
   assert.equal(stillState.length, STILL_LENGTH, `length must track the assigned animation (${STILL_LENGTH}s, not ${DRIFT_LENGTH}s)`);
   assert.notEqual(STILL_LENGTH, DRIFT_LENGTH, "the two fixture animations must differ in length or this check proves nothing");
   await call("runtime_anim_stop", { path: "Anim", confirm: true });
-  console.log(`ANIM_LIVE_SWITCH ok ${DRIFT}=${DRIFT_LENGTH}s ${STILL}=${stillState.length}s`);
+  population.seal("ANIM_LIVE_SWITCH", `ok ${DRIFT}=${DRIFT_LENGTH}s ${STILL}=${stillState.length}s`);
 
   // ========================================================= 5. custom_speed ====
   // Measured, not trusted. The same animation over the same wall-clock window at 1x and
@@ -326,7 +349,7 @@ try {
     1,
     "speed_scale reports AnimationPlayer.speed_scale, which play()'s custom_speed does not set — see the handoff",
   );
-  console.log(`ANIM_LIVE_SPEED ok 1x=${slow.toFixed(3)}s 8x=${fast.toFixed(3)}s ratio=${(fast / slow).toFixed(2)}`);
+  population.seal("ANIM_LIVE_SPEED", `ok 1x=${slow.toFixed(3)}s 8x=${fast.toFixed(3)}s ratio=${(fast / slow).toFixed(2)}`);
 
   // ============================================================ 6. from_end ====
   // from_end starts playback at the END of the animation. It is NOT observable on
@@ -355,7 +378,7 @@ try {
     assert.equal(atStart.position, 0, `without from_end the same animation must start at 0, got ${atStart.position}`);
     assert.equal(atStart.playing, true, "started at 0 with the clock frozen, still has 4s to run");
     assert.notEqual(atEnd.position, atStart.position, "from_end must change where playback begins or it is not implemented");
-    console.log(`ANIM_LIVE_FROM_END ok from_end=${atEnd.position}s (finished) vs normal=${atStart.position}s (running)`);
+    population.seal("ANIM_LIVE_FROM_END", `ok from_end=${atEnd.position}s (finished) vs normal=${atStart.position}s (running)`);
   } finally {
     // Restore the clock whatever happened above, so a failure here cannot leave a
     // frozen game behind for anything that runs next against the same port.
@@ -396,4 +419,6 @@ try {
   process.exit(1);
 }
 
+// 🔴 THE POPULATION GATE, before the ✔ that used to be unconditional.
+population.reportOrDie();
 console.log("✔ animation-lane integration OK");

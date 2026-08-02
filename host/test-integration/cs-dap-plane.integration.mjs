@@ -37,9 +37,29 @@ import { CsDapClient } from "../dist/csdap.js";
 import { StdioChannel } from "../dist/stdio.js";
 import { loadConfig } from "../dist/config.js";
 import { registerCsDapTools } from "../dist/tools/csdap.js";
+import { Population } from "./_population.mjs";
 
 let failures = 0;
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). The whole body of this probe is
+// one try/finally: a throw in section 3 skips sections 4–8, `failures` stays where it
+// was, and the run ends `CS_DAP_LIVE_ALL ok every claim held` — true of the empty set.
+//
+// `claim()` names its assertion in PROSE, not with a marker, so the family unit here
+// is the section-closing `CS_DAP_*` line this probe already printed. Two of those did
+// not exist (`SURFACE`, `ADAPTER_ERROR`); their claims were previously attributed to
+// whichever section happened to close next, so they are printed now rather than left
+// to lean on a neighbour.
+const population = new Population("CS_DAP", {
+  families: [
+    "CS_DAP_SURFACE", "CS_DAP_PHANTOM", "CS_DAP_LIVE_STOPPED", "CS_DAP_LIVE_BREAKPOINT",
+    "CS_DAP_PATH_ESCAPE", "CS_DAP_MISSING_FILE", "CS_DAP_NOT_A_FILE", "CS_DAP_PATH_LEGAL",
+    "CS_DAP_EXC_FILTER", "CS_DAP_ADAPTER_ERROR", "CS_DAP_ATTACH_PID",
+  ],
+  scope: 11,
+  claims: 30,         // 🔴 PROVISIONAL — never run locally (needs netcoredbg). Tightened from the first CI run
+});
 const claim = (name, cond, detail = "") => {
+  population.claim();
   if (cond) console.log(`  ok   ${name}${detail ? ` — ${detail}` : ""}`);
   else { failures++; console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ""}`); }
 };
@@ -125,6 +145,7 @@ try {
     const { dap, tools } = makeSession();
     console.log(`CS_DAP_CAPS ${tools.length} tools · advertised: ${tools.slice().sort().join(" ")}`);
     claim("every cs_dbg_* tool is registered", tools.length === 13, `${tools.length}`);
+    population.seal("CS_DAP_SURFACE", "ok");
     dap.close();
   }
 
@@ -142,7 +163,7 @@ try {
     claim(`  …and the session is not left configured`, dap.state !== "running", `state=${dap.state}`);
     dap.close();
   }
-  console.log("CS_DAP_PHANTOM ok — a launch the adapter rejected is reported as one");
+  population.seal("CS_DAP_PHANTOM", "ok — a launch the adapter rejected is reported as one");
 
   // ---- 3. THE LIVE SESSION — and the vacuity gate ---------------------------
   console.log("\n-- live session --");
@@ -161,6 +182,9 @@ try {
   if (!(live.dap.lastStoppedThreadId > 0)) {
     die("CS_DAP_LIVE_WARM", `stopped with no thread id — the stack/scope claims below would pass vacuously`);
   }
+  // NOT a family: the three lines above are `die()` guards, not claims, so sealing
+  // here would drain nothing and fire VACUOUS on a healthy run. Same reason the
+  // `_PING` banners on the runtime probes stay out of their manifests.
   console.log(`CS_DAP_LIVE_WARM ok — stopped at entry, thread=${live.dap.lastStoppedThreadId}`);
   claim("stop_on_entry reports stopped, not running", launched.structuredContent.state === "stopped");
   claim("  …and the thread id is the adapter's, not the fallback 1", live.dap.threadId() !== 1,
@@ -181,7 +205,7 @@ try {
   const evald = await live.call("cs_dbg_evaluate", { expression: "1+1", confirm: true });
   claim("evaluate in the stopped frame succeeds", !evald.isError && evald.structuredContent?.result === "2",
     JSON.stringify(evald.structuredContent ?? {}).slice(0, 80));
-  console.log("CS_DAP_LIVE_STOPPED ok — stack → scopes → variables → evaluate all real");
+  population.seal("CS_DAP_LIVE_STOPPED", "ok — stack → scopes → variables → evaluate all real");
 
   // ---- 4. breakpoint bind + hit — the claim the log-only probe never made -----
   const armed = await live.call("cs_dbg_set_breakpoints", { path: source, lines: [12] });
@@ -197,7 +221,7 @@ try {
     JSON.stringify((atBp.structuredContent?.frames ?? [])[0] ?? {}).slice(0, 110));
   const stepped = await live.call("cs_dbg_step", { kind: "over" });
   claim("step over lands stopped", stepped.structuredContent?.state === "stopped", JSON.stringify(stepped.structuredContent ?? {}));
-  console.log("CS_DAP_LIVE_BREAKPOINT ok — armed, verified, hit, stepped");
+  population.seal("CS_DAP_LIVE_BREAKPOINT", "ok — armed, verified, hit, stepped");
 
   // ---- 5. path refusals, and the LEGAL cases that must survive ---------------
   console.log("\n-- breakpoint source paths --");
@@ -212,17 +236,17 @@ try {
   claim("  …BY REASON — the escape guard, not the existence guard",
     /outside the C# project root/.test(textOf(escape)), textOf(escape).slice(0, 120));
   claim("  …and the refusal is not dressed as an adapter error", !/^C# DAP error/.test(textOf(escape)));
-  console.log("CS_DAP_PATH_ESCAPE ok");
+  population.seal("CS_DAP_PATH_ESCAPE", "ok");
 
   const missing = await live.call("cs_dbg_set_breakpoints", { path: "res://NoSuchFile.cs", lines: [1] });
   claim("a source that names nothing is refused", missing.isError === true, textOf(missing).slice(0, 100));
-  console.log("CS_DAP_MISSING_FILE ok");
+  population.seal("CS_DAP_MISSING_FILE", "ok");
 
   const dir = await live.call("cs_dbg_set_breakpoints", { path: "res://demo", lines: [1] });
   claim("a source that names a DIRECTORY is refused", dir.isError === true, textOf(dir).slice(0, 100));
   const empty = await live.call("cs_dbg_set_breakpoints", { path: "", lines: [1] });
   claim("an empty source path (→ the project root) is refused", empty.isError === true, textOf(empty).slice(0, 100));
-  console.log("CS_DAP_NOT_A_FILE ok");
+  population.seal("CS_DAP_NOT_A_FILE", "ok");
 
   // 🔴 THE OVER-EAGER SIDE. `cs_dbg_launch` documents debugging a different .NET
   // program, whose sources are outside the Godot project. An ABSOLUTE path elsewhere
@@ -249,7 +273,7 @@ try {
   } finally {
     fs.rmSync(siblingRoot, { recursive: true, force: true });
   }
-  console.log("CS_DAP_PATH_LEGAL ok");
+  population.seal("CS_DAP_PATH_LEGAL", "ok");
 
   // ---- 6. exception filters — membership, and the advertised ones -----------
   console.log("\n-- exception filters --");
@@ -261,7 +285,7 @@ try {
   claim("an ADVERTISED filter still works", !realFilter.isError, textOf(realFilter).slice(0, 90));
   const clearFilters = await live.call("cs_dbg_set_exception_breakpoints", {});
   claim("clearing the filters still works", !clearFilters.isError, textOf(clearFilters).slice(0, 90));
-  console.log("CS_DAP_EXC_FILTER ok");
+  population.seal("CS_DAP_EXC_FILTER", "ok");
 
   // ---- 7. an adapter failure with NO message ---------------------------------
   const blank = await live.call("cs_dbg_set_variable", { variables_ref: -1, name: "x", value: "1", confirm: true });
@@ -286,6 +310,7 @@ try {
       plain.structuredContent?.state === "running", JSON.stringify(plain.structuredContent ?? {}));
     s.dap.close();
   }
+  population.seal("CS_DAP_ADAPTER_ERROR", "ok");
 
   // ---- 8. attach — the schema, and a pid nothing runs under ------------------
   console.log("\n-- attach --");
@@ -308,10 +333,12 @@ try {
       !/no such process/.test(textOf(self)), textOf(self).slice(0, 90));
     s.dap.close();
   }
-  console.log("CS_DAP_ATTACH_PID ok");
+  population.seal("CS_DAP_ATTACH_PID", "ok");
 
+  // 🔴 THE POPULATION GATE, folded into the same failure count the probe already had.
+  failures += population.report().length;
   if (failures) die("CS_DAP_LIVE_ALL", `${failures} claim(s) failed`);
-  console.log("\nCS_DAP_LIVE_ALL ok every claim held");
+  console.log(`\nCS_DAP_LIVE_ALL ok every claim held (${population.total} claim(s) ran)`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

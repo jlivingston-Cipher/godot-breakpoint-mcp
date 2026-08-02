@@ -46,7 +46,27 @@
 // Needs git and nothing else — no Godot, no port, no game, no matrix. Not part of
 // `npm test`; invoked directly by .github/workflows/integration.yml. Exits non-zero on any
 // failure.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end
+// `VCS_LIVE_ALL ok every claim held` having counted nothing at all — a sentence
+// that is literally true of the empty set. Every section here is a block scope
+// inside one file: a block that stops running, or one whose assertions are
+// deleted while its marker line survives, leaves the run green and smaller.
+//
+// The manifest is the ten marker names this probe already printed, so it costs
+// no new maintenance surface; `population.seal()` attributes each section's claims to
+// the marker that closes it. See `_population.mjs`.
+const population = new Population("VCS_LIVE", {
+  families: [
+    "VCS_LIVE_RENAME", "VCS_LIVE_UNMERGED", "VCS_LIVE_INITIAL", "VCS_LIVE_DETACHED",
+    "VCS_LIVE_REMOTE", "VCS_LIVE_BLAME", "VCS_LIVE_STASH_NOOP", "VCS_LIVE_BRANCH_PARTIAL",
+    "VCS_LIVE_REFUSALS", "VCS_LIVE_NOREPO",
+  ],
+  scope: 10,
+  claims: 66,          // measured 69 locally, session 170
+});
+const assert = population.assert;
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -123,7 +143,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   );
   assert.deepEqual(s.unstaged, [], "a staged-only rename must not appear as unstaged");
   assert.equal(s.clean, false);
-  console.log("VCS_LIVE_RENAME ok staged rename reports the new path with its space, not the tab-joined pair");
+  population.seal("VCS_LIVE_RENAME", "ok staged rename reports the new path with its space, not the tab-joined pair");
 }
 
 // 2) The UNMERGED arm ("u " lines). Requires a real conflicted merge.
@@ -143,7 +163,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   const s = sc(await h.vcs_status({}));
   assert.deepEqual(s.unmerged, ["c.gd"], `conflicted path must land in unmerged — got ${JSON.stringify(s)}`);
   assert.equal(s.clean, false, "a repo mid-conflict is never clean");
-  console.log("VCS_LIVE_UNMERGED ok a conflicted path lands in unmerged[] and forces clean=false");
+  population.seal("VCS_LIVE_UNMERGED", "ok a conflicted path lands in unmerged[] and forces clean=false");
 }
 
 // 3) A repo with NO commits. `# branch.oid (initial)` must become null rather than the
@@ -162,7 +182,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   const log = await h.vcs_log({});
   assert.equal(log.isError, true, "log on an unborn branch must ERROR, not answer 'no commits'");
   assert.match(txt(log), /does not have any commits/i);
-  console.log("VCS_LIVE_INITIAL ok unborn branch: oid null, branch named, log errors legibly");
+  population.seal("VCS_LIVE_INITIAL", "ok unborn branch: oid null, branch named, log errors legibly");
 }
 
 // 4) D4 — DETACHED HEAD. git emits a "(HEAD detached at <sha>)" pseudo-entry from
@@ -188,7 +208,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   const back = sc(await h.vcs_branch_list({}));
   assert.equal(back.current, "main");
   assert.equal(back.detached, false);
-  console.log("VCS_LIVE_DETACHED ok current null + detached true, no pseudo-branch, and it agrees with vcs_status");
+  population.seal("VCS_LIVE_DETACHED", "ok current null + detached true, no pseudo-branch, and it agrees with vcs_status");
 }
 
 // 5) D6 — the remote-tracking flag. Needs a real second repository to push to.
@@ -208,7 +228,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   assert.equal(byName["main"].current, true);
   assert.equal(byName["origin/main"].current, false, "a tracking branch is never current");
   assert.deepEqual(local.branches.map((x) => x.name), ["main"], "remotes=false must not leak the tracking branch");
-  console.log("VCS_LIVE_REMOTE ok origin/main flagged remote:true, local main remote:false, and remotes=false excludes it");
+  population.seal("VCS_LIVE_REMOTE", "ok origin/main flagged remote:true, local main remote:false, and remotes=false excludes it");
 }
 
 // 6) D1 — vcs_blame with an omitted range bound. `start` alone is schema-legal and used
@@ -237,7 +257,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   // the range is a WINDOW on the file, not a re-numbering: line numbers stay absolute
   assert.equal(both.lines[0].text, full.lines[1].text, "ranged line 2 must be the file's line 2");
   assert.equal(sc(startOnly).lines[0].author, "Probe User", "attribution survives the range");
-  console.log("VCS_LIVE_BLAME ok start-alone runs to EOF, end-alone starts at 1, and both keep absolute line numbers");
+  population.seal("VCS_LIVE_BLAME", "ok start-alone runs to EOF, end-alone starts at 1, and both keep absolute line numbers");
 }
 
 // 7) D3 — vcs_stash push that stashes NOTHING. git exits 0 here; the verdict must come
@@ -281,7 +301,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   const pop = await h.vcs_stash({ op: "pop" });
   assert.ok(!pop.isError, `pop must restore — got ${txt(pop)}`);
   assert.ok(fs.readFileSync(path.join(d, "a.gd"), "utf8").includes("# real edit"), "pop must bring the edit back");
-  console.log("VCS_LIVE_STASH_NOOP ok clean and untracked-only pushes error with refs/stash untouched; a real push moves it and reverts the tree");
+  population.seal("VCS_LIVE_STASH_NOOP", "ok clean and untracked-only pushes error with refs/stash untouched; a real push moves it and reverts the tree");
 }
 
 // 8) D2 — vcs_branch_create(switch:true) where the switch is refused AFTER the branch
@@ -320,7 +340,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   assert.ok(!clean.isError, `an unblocked create+switch must succeed — got ${txt(clean)}`);
   assert.equal(sc(clean).switched, true);
   assert.equal(g(d, "rev-parse", "--abbrev-ref", "HEAD"), "cleanbr", "and HEAD must really be there");
-  console.log("VCS_LIVE_BRANCH_PARTIAL ok a refused switch names the branch it created, leaves HEAD put, and the clean path still switches");
+  population.seal("VCS_LIVE_BRANCH_PARTIAL", "ok a refused switch names the branch it created, leaves HEAD put, and the clean path still switches");
 }
 
 // 9) The refusals that were already correct, held to account so they stay that way.
@@ -354,7 +374,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   const popped = await h2.vcs_stash({ op: "pop" });
   assert.equal(popped.isError, true, "a conflicting pop must error");
   assert.match(gq(d2, "stash", "list"), /stash@/, "and MUST NOT drop the entry it failed to apply");
-  console.log("VCS_LIVE_REFUSALS ok a refused switch leaves HEAD and the tree alone; a conflicting pop keeps the stash");
+  population.seal("VCS_LIVE_REFUSALS", "ok a refused switch leaves HEAD and the tree alone; a conflicting pop keeps the stash");
 }
 
 // 10) The not-a-repo path is the one shape every tool in the family shares. One tool
@@ -366,7 +386,9 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   assert.equal(r.isError, true);
   assert.match(txt(r), /not a git repository/i);
   assert.match(txt(r), /not inside a git work tree/i, "the host's hint must survive into the message");
-  console.log("VCS_LIVE_NOREPO ok a non-repo path errors with git's reason and the host's hint");
+  population.seal("VCS_LIVE_NOREPO", "ok a non-repo path errors with git's reason and the host's hint");
 }
 
-console.log("VCS_LIVE_ALL ok every claim held");
+// 🔴 THE POPULATION GATE, before the sentence that used to be unconditional.
+const claims = population.reportOrDie();
+console.log(`VCS_LIVE_ALL ok every claim held (${claims} claim(s) ran)`);

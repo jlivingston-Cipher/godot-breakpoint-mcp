@@ -47,7 +47,30 @@
 // Requires res://tests/node_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads a
 // pixel. Not part of `npm test` (Godot-free); invoked directly by integration.yml.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end with a
+// bare ✔ having counted nothing — a line that reads as coverage and is true of the
+// empty set. A section skipped by a conditional, or one whose assertions are deleted
+// while its marker survives, left the run green and smaller with nothing to say so.
+//
+// The manifest is the marker names this probe ALREADY printed, so it costs no new
+// maintenance surface: `population.seal()` prints each marker exactly as before and
+// attributes to it every claim made since the previous one. See `_population.mjs`.
+//
+// 🔴 THE REACHABILITY BANNER (`NODE_LIVE_PING`) IS DELIBERATELY NOT A FAMILY. It
+// asserts nothing — the gate is a throw — so sealing it would fire VACUOUS on a
+// healthy run, and a gate that cries wolf on green is a gate that gets deleted.
+const population = new Population("NODE_LIVE", {
+  families: [
+    "NODE_LIVE_FIXTURE", "NODE_LIVE_ADD_ERRORS", "NODE_LIVE_NO_LEAK", "NODE_LIVE_TYPE",
+    "NODE_LIVE_AUTONAME", "NODE_LIVE_NESTED", "NODE_LIVE_REMOVE_ERRORS", "NODE_LIVE_ROOT_GUARD",
+    "NODE_LIVE_SUBTREE", "NODE_LIVE_PRISTINE",
+  ],
+  scope: 10,
+  claims: 118,         // measured 124 locally, session 170
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -194,7 +217,7 @@ try {
   const rootAtBoot = await childCount(".");
   assert.equal(hostAtBoot, 0, `Host must start empty so the pristine check means something, got ${hostAtBoot}`);
   assert.equal(rootAtBoot, 1, `the root must start with exactly Host beneath it, got ${rootAtBoot}`);
-  console.log(`NODE_LIVE_FIXTURE ok root=Node2D host=Node2D children root=${rootAtBoot} host=${hostAtBoot}`);
+  population.seal("NODE_LIVE_FIXTURE", `ok root=Node2D host=Node2D children root=${rootAtBoot} host=${hostAtBoot}`);
 
   // ================================== 1. node_add — every rejection, separately ===
   // Five distinct `reason` values across four guards. They are checked one at a time
@@ -266,7 +289,7 @@ try {
   // Nothing above may have left anything behind. Five rejected adds that each silently
   // parented something would be invisible to every assertion so far.
   assert.equal(await childCount("Host"), 0, "a rejected node_add must not add anything");
-  console.log("NODE_LIVE_ADD_ERRORS ok bad_path / bad_args / bad_type x2 / not_a_node / bad_scene x2, nothing added");
+  population.seal("NODE_LIVE_ADD_ERRORS", "ok bad_path / bad_args / bad_type x2 / not_a_node / bad_scene x2, nothing added");
 
   // ======================== 1b. the `not_a_node` branch must not LEAK ===
   // 🔴 Added session 153, with the fix it guards.
@@ -304,7 +327,7 @@ try {
       `branch must free() it before returning the error.`,
   );
   assert.equal(await childCount("Host"), 0, "and none of those rejected adds may have parented anything");
-  console.log(`NODE_LIVE_NO_LEAK ok ${LEAK_CALLS} not_a_node rejections grew object/count by ${grew}`);
+  population.seal("NODE_LIVE_NO_LEAK", `ok ${LEAK_CALLS} not_a_node rejections grew object/count by ${grew}`);
 
   // ======================================= 2. the `type:` branch, proved by class ===
   // Timer rather than Node2D on purpose: it is not in the fixture's own class hierarchy,
@@ -326,7 +349,7 @@ try {
   const timeLeft = await call("runtime_call_method", { path: `Host/${TIMER}`, method: "get_time_left", confirm: true });
   assert.equal(typeof timeLeft.return, "number", `a real Timer answers get_time_left(), got ${JSON.stringify(timeLeft)}`);
   assert.equal(await childCount("Host"), 1, "exactly one node should have been added");
-  console.log(`NODE_LIVE_TYPE ok ${added.path} is a live Timer (get_time_left=${timeLeft.return})`);
+  population.seal("NODE_LIVE_TYPE", `ok ${added.path} is a live Timer (get_time_left=${timeLeft.return})`);
 
   // ========================== 3. no `name` — the engine names it, and the path works ===
   // Verified against a live engine before being asserted: a node added with no name does
@@ -348,7 +371,7 @@ try {
     [{ path: autoNamed.path, type: "Marker2D" }],
     "the returned path must resolve — it is the only handle the caller gets for an unnamed add",
   );
-  console.log(`NODE_LIVE_AUTONAME ok engine-named ${autoNamed.path} and the returned path resolves`);
+  population.seal("NODE_LIVE_AUTONAME", `ok engine-named ${autoNamed.path} and the returned path resolves`);
 
   // ================= 4. the `scene:` branch — authored name, values and SUBTREE ===
   // The branch that a mocked test cannot touch and that a type: add cannot fake.
@@ -420,13 +443,13 @@ try {
     `_path_of must report the full scene-relative path two levels down, got ${deep.path}`,
   );
   await expectPresent([{ path: deep.path, type: "Timer" }], "a node added under an added node must be in the tree");
-  console.log(`NODE_LIVE_NESTED ok ${deep.path} — an added node accepts children of its own`);
+  population.seal("NODE_LIVE_NESTED", `ok ${deep.path} — an added node accepts children of its own`);
 
   // ==================================== 6. node_remove — the rejections ===
   const goneParent = await raw("runtime_node_remove", { path: "NoSuchNode9137", confirm: true });
   assert.equal(goneParent.isError, true, "removing a node that does not exist must be an error");
   assert.match(errText(goneParent), /bad_path/, `expected bad_path, got ${errText(goneParent)}`);
-  console.log("NODE_LIVE_REMOVE_ERRORS ok bad_path on a node that does not exist");
+  population.seal("NODE_LIVE_REMOVE_ERRORS", "ok bad_path on a node that does not exist");
 
   // =============================== 7. the root guard, in BOTH its spellings ===
   // _resolve maps two different inputs onto the current scene — "." and "" — so the guard
@@ -451,7 +474,7 @@ try {
     ],
     "the refused root removal must leave the scene completely intact",
   );
-  console.log(`NODE_LIVE_ROOT_GUARD ok refused as '.' and as '', and the root SURVIVED both`);
+  population.seal("NODE_LIVE_ROOT_GUARD", `ok refused as '.' and as '', and the root SURVIVED both`);
 
   // ============================= 8. removal takes the WHOLE SUBTREE ===
   // Payload holds an AUTHORED child (Cargo) and an ADDED one (Deep9137). Removing the
@@ -484,7 +507,7 @@ try {
     ],
     "removing one child must not disturb its siblings",
   );
-  console.log(`NODE_LIVE_SUBTREE ok parent + authored child + added child all gone after ${frames} poll(s), siblings intact`);
+  population.seal("NODE_LIVE_SUBTREE", `ok parent + authored child + added child all gone after ${frames} poll(s), siblings intact`);
 
   // ================================================ 9. leave it pristine ===
   // #146's rule: state left behind by a probe is a defect even when nothing is currently
@@ -511,7 +534,7 @@ try {
     ],
     "and the fixture itself must have survived the whole run",
   );
-  console.log(`NODE_LIVE_PRISTINE ok created ${MADE.length}, removed ${MADE.length}, host=${hostAtEnd} root=${rootAtEnd}`);
+  population.seal("NODE_LIVE_PRISTINE", `ok created ${MADE.length}, removed ${MADE.length}, host=${hostAtEnd} root=${rootAtEnd}`);
 
   console.log(
     `NODE_LIVE_RESULT add=type+scene+nested errors=7reasons remove=subtree+root_guard pristine=restored`,
@@ -525,4 +548,6 @@ try {
   process.exit(1);
 }
 
+// 🔴 THE POPULATION GATE, before the ✔ that used to be unconditional.
+population.reportOrDie();
 console.log("✔ node-lifecycle integration OK");

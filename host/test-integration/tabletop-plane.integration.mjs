@@ -55,6 +55,7 @@ import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
+import { Population } from "./_population.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HOST_DIR = path.resolve(THIS_DIR, "..");
@@ -72,8 +73,15 @@ const GATED = new Set([
 ]);
 
 const results = { pass: [], fail: [] };
-function pass(marker, detail = "") { results.pass.push(marker); console.log(`${marker} OK ${detail}`.trimEnd()); }
-function fail(marker, detail = "") { results.fail.push(marker); console.log(`${marker} FAIL ${detail}`.trimEnd()); }
+// The five families this probe must always run. 🔴 `TT_GATE_PING` is deliberately
+// absent: it is the reachability banner, made outside any family.
+const population = new Population("TT", {
+  families: ["TT_LIVE", "TT_READ", "TT_WRITE", "TT_OVERWRITE", "TT_RPC"],
+  scope: 5,
+  claims: 47,         // measured 50 locally, session 170
+});
+function pass(marker, detail = "") { population.claim(); results.pass.push(marker); console.log(`${marker} OK ${detail}`.trimEnd()); }
+function fail(marker, detail = "") { population.claim(); results.fail.push(marker); console.log(`${marker} FAIL ${detail}`.trimEnd()); }
 
 /**
  * Assert a refusal BY REASON, and quote what actually came back when it does
@@ -135,9 +143,13 @@ async function main() {
       return { isError: !!r.isError, text: (r.content?.[0]?.text || "").replace(/\s+/g, " "), sc: r.structuredContent ?? null };
     } catch (e) { return { threw: String(e?.message || e).replace(/\s+/g, " ") }; }
   }
-  async function family(label, fn) {
-    try { await fn(); } catch (e) { fail(`${label}_THREW`, String(e?.message || e).slice(0, 200)); }
-  }
+  // 🔴 THE FAMILY IS THE POPULATION UNIT, AND IT NOW REPORTS ITS OWN SIZE (169 §4).
+  // `TT_SUMMARY 15/15 ok` printed a total that was never compared to anything: a
+  // family throwing halfway keeps the claims it made, drops the rest, and the run
+  // still reads 100% for a smaller number. Delegated to `_population.mjs` rather
+  // than open-coded so this probe and the eleven others share one gate.
+  const family = (label, fn) =>
+    population.family(label, fn, (l, threw) => fail(`${l}_THREW`, threw));
 
   // ------------------------------------------------------------- gate ----
   console.log(`tabletop-plane gate -> host stdio, GODOT_PROJECT=${GODOT_PROJECT}, sibling=${EVIL}`);
@@ -398,7 +410,11 @@ async function main() {
     expectRefusal("TT_RPC_MISSING", await call("mp_wire_rpc", { path: "res://__tt_nope.gd", function: "ping" }), "not_found");
   });
 
-  // ----------------------------------------------------------- summary ----
+  // ----------------------------------------------------- population + summary ----
+  // 🔴 THE GATE, BEFORE THE TALLY. `TT_SUMMARY` reports a rate; the rate stays 100%
+  // when the denominator shrinks, which is the only failure mode it cannot show.
+  for (const f of population.report()) results.fail.push(f.split(" — ")[0]);
+
   const total = results.pass.length + results.fail.length;
   console.log(`\nTT_SUMMARY ${results.pass.length}/${total} ok` +
     (results.fail.length ? ` — FAILED: ${results.fail.join(", ")}` : ""));
