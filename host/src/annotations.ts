@@ -31,7 +31,14 @@
  *     a separate recovery path.
  *   • idempotentHint  — repeating the call with identical arguments adds no
  *     further effect (absolute setters and converging deletes are true;
- *     creators, appenders, steppers, and undo/redo are false).
+ *     appenders, steppers, and undo/redo are false). A CREATOR goes either way
+ *     and the split is the caller's destination: one that writes to a path the
+ *     caller supplied converges (`resource_create`, `theme_create`, `board_create`)
+ *     and is TRUE, while one that auto-names its result diverges (`node_add` ->
+ *     Node2D, Node2D2, Node2D3...) and is FALSE. This paragraph used to say
+ *     "creators ... are false" flatly; measured against the table, 25 creators are
+ *     idempotent and every one of them is correctly so. The prose was
+ *     over-generalising, not the table — pinned now by a test naming both halves.
  *   • openWorldHint   — the call reaches an entity outside this machine + this
  *     project. FALSE for every tool today: all four bridges are loopback, the
  *     asset-gen `command` backend spawns a LOCAL argv, and the backend_*
