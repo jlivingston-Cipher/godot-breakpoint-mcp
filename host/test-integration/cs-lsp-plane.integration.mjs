@@ -63,7 +63,7 @@ const population = new Population("CS_LSP_LIVE", {
     "RENAME_LEGAL", "PATH_LEGAL", "EMPTY_FILE_OK",
   ],
   scope: 15,
-  claims: 40,         // 🔴 PROVISIONAL — never run locally (needs OmniSharp). Tightened from the first CI run
+  claims: 62,         // measured 64 in CI (this PR). Never runnable locally — needs OmniSharp
 });
 const check = (cond, marker, detail) => {
   population.claim(marker);

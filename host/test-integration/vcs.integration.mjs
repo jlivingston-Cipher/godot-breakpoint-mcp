@@ -64,7 +64,7 @@ const population = new Population("VCS_LIVE", {
     "VCS_LIVE_REFUSALS", "VCS_LIVE_NOREPO",
   ],
   scope: 10,
-  claims: 66,          // measured 69 locally, session 170
+  claims: 69,          // 🔴 EXACT. 69 on local 4.7 AND on CI — the same number in every environment measured
 });
 const assert = population.assert;
 import { execFileSync } from "node:child_process";

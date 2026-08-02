@@ -63,7 +63,7 @@ const population = new Population("VERIFY_LIVE", {
     "VERIFY_LIVE_TEXT_OPTS", "VERIFY_LIVE_DIGEST", "VERIFY_LIVE_DIGEST_OPTS",
   ],
   scope: 15,
-  claims: 95,         // measured 100 locally, session 170
+  claims: 100,        // 🔴 EXACT — 100 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";

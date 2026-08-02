@@ -59,7 +59,7 @@ const population = new Population("RENDER_LIVE", {
     "RENDER_LIVE_REGION_OUT", "RENDER_LIVE_RESTORE", "RENDER_LIVE_MISMATCH", "RENDER_LIVE_BADREF",
   ],
   scope: 8,
-  claims: 28,         // 🔴 PROVISIONAL — needs a real rasterizer (xvfb). Tightened from the first CI run
+  claims: 29,         // measured 31 in CI (this PR). Never runnable locally — needs a real rasterizer
 });
 const assert = population.assert;
 import fs from "node:fs";

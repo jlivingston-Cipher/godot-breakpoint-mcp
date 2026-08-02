@@ -49,7 +49,7 @@ const population = new Population("F6_PEERS", {
     "F6_PEERS_STOP",
   ],
   scope: 5,
-  claims: 28,         // measured 30 locally, session 170
+  claims: 30,         // 🔴 EXACT — 30 on local 4.7 and CI 4.3 / 4.7
 });
 const assert = population.assert;
 import { loadConfig } from "../dist/config.js";

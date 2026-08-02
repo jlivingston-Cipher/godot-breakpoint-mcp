@@ -56,7 +56,7 @@ const population = new Population("CS_DAP", {
     "CS_DAP_EXC_FILTER", "CS_DAP_ADAPTER_ERROR", "CS_DAP_ATTACH_PID",
   ],
   scope: 11,
-  claims: 30,         // 🔴 PROVISIONAL — never run locally (needs netcoredbg). Tightened from the first CI run
+  claims: 42,         // measured 44 in CI (this PR). Never runnable locally — needs netcoredbg
 });
 const claim = (name, cond, detail = "") => {
   population.claim();

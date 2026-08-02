@@ -66,7 +66,7 @@ const population = new Population("LSP_LIVE", {
     "RENAME_LEGAL", "PATH_LEGAL", "EMPTY_FILE_OK",
   ],
   scope: 15,
-  claims: 70,         // measured 84 on 4.7, session 170 — see the note above: DEGRADE+NO_RAW_RPC (18 here) are build-dependent
+  claims: 80,         // 🔴 NOT exact, and MEASURED not guessed: 84 claims / 17 families on 4.7, 82 / 18 on 4.3. The 18th is TRAP_EARNED, which 4.7 never makes — naming it would have false-failed 4.7 on a green run
 });
 const check = (cond, marker, detail) => {
   population.claim(marker);

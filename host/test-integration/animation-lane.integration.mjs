@@ -75,7 +75,7 @@ const population = new Population("ANIM_LIVE", {
     "ANIM_LIVE_SPEED", "ANIM_LIVE_FROM_END",
   ],
   scope: 10,
-  claims: 58,         // measured 61 locally, session 170
+  claims: 61,         // 🔴 EXACT — 61 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";

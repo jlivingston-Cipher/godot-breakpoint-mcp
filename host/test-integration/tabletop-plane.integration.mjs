@@ -78,7 +78,7 @@ const results = { pass: [], fail: [] };
 const population = new Population("TT", {
   families: ["TT_LIVE", "TT_READ", "TT_WRITE", "TT_OVERWRITE", "TT_RPC"],
   scope: 5,
-  claims: 47,         // measured 50 locally, session 170
+  claims: 50,         // 🔴 EXACT — 50 locally and in CI
 });
 function pass(marker, detail = "") { population.claim(); results.pass.push(marker); console.log(`${marker} OK ${detail}`.trimEnd()); }
 function fail(marker, detail = "") { population.claim(); results.fail.push(marker); console.log(`${marker} FAIL ${detail}`.trimEnd()); }

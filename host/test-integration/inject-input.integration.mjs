@@ -73,7 +73,7 @@ const population = new Population("INPUT_LIVE", {
     "INPUT_LIVE_BUTTON", "INPUT_LIVE_MOTION", "INPUT_LIVE_EXACT", "INPUT_LIVE_PRISTINE",
   ],
   scope: 8,
-  claims: 63,         // measured 66 locally, session 170
+  claims: 66,         // 🔴 EXACT — 66 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";

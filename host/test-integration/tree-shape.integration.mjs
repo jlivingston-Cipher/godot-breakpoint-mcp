@@ -70,7 +70,7 @@ const population = new Population("TREE_LIVE", {
     "TREE_LIVE_ARITY", "TREE_LIVE_DECODE", "TREE_LIVE_ZEROARG", "TREE_LIVE_NOLISTENER",
   ],
   scope: 8,
-  claims: 75,         // measured 79, session 170
+  claims: 79,         // 🔴 EXACT — 79 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
