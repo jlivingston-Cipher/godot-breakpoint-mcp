@@ -6,6 +6,109 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a live probe discarded a verdict and then sealed the claim it was fetched to prove
+
+`inject-input.integration.mjs`'s "leave it pristine" section closes with the check that the
+probe did not damage its own fixture — the rule #146 exists for, and the one that stops a
+probe's leftovers from contaminating whatever runs next against the same game:
+
+```js
+await call("runtime_assert_scene_structure", { expect: [{ path: ".", type: "Node2D" }] });
+population.seal("INPUT_LIVE_PRISTINE", `ok … fixture intact`);
+```
+
+**The reply is never bound.** `call()` throws only on `isError`, and a structure mismatch
+is a *successful* reply carrying `ok: false` — so a fixture that had stopped being a
+`Node2D` sealed "fixture intact" anyway, from a string literal, with the measurement
+fetched and dropped. That is 1.51.0's `cs_demo_verify_live_gif.mjs` one directory over.
+The reply is now bound and asserted.
+
+### Added — `VERDICT_DISCARD`, because the file was the wrong unit
+
+175's verdict gate asks a per-**file** question: does this file read a verdict anywhere,
+and can it exit on it? That is right for the host root, whose drivers push every reply
+into a recorder and check the whole run at the end. It is the wrong unit for
+`test-integration/`, where each reply is checked at its own site by `node:assert` — a
+probe making fifty assertions passes the file-level test however many replies it drops.
+
+🔴 **And the first instrument written to ask the call-site question invented seventeen
+defects.** Asking "is `.ok` read?" per site flagged 17 in `test-integration`; reading them
+showed almost every one was an honest check on a *different* field — `.matches` is the
+measurement for `runtime_assert_screen_text` (`min_count` changes the verdict, not the
+count), `.isError` is the entire point of the `raw()` error-path cases, and three `boot`
+guards read `boot.structuredContent?.ok`, a nested access the test could not see. **That
+is 1.51.0's own defect committed by its own follow-up question: matching a check by the
+NAME of a field rather than by what the reply does.**
+
+So the gate asks the one question that survives every idiom: **was the reply bound at
+all?** A reply that is never bound cannot be read by `node:assert`, by an accumulator, by
+a computed exit or by anything else — no field name and no escape convention has to be
+guessed, so the false-positive rate is structurally zero rather than merely low. What it
+costs is everything it does not catch: a reply that is bound and then ignored is invisible
+to this half, and that is the honest trade.
+
+- **No directory roster.** 175 shipped `DIRS = ["."]` in the session that found two
+  rosters hiding defects, and this half's own first draft repeated it a third time —
+  `[".", "scripts", "test-integration"]` over a recursive walk double-counted every site
+  under the last two, reporting 109 sites where there are 61 and the one real defect
+  twice. One recursive walk from `host/`, and the only skipped directories carry written
+  reasons.
+- **Two floors, because they collapse differently.** `DISCARD_SITE_FLOOR` (55, measured at
+  61) catches a finder that stopped matching. `DISCARD_DIR_FLOOR` (2) catches a walk that
+  stopped descending — the site floor alone stays green on the host root's thirteen sites
+  alone, and a passing subset is indistinguishable from a clean tree.
+- **`scan()` deliberately stays at the host root**, and the reason is now written down
+  rather than inherited. `test-integration`'s five verdict-driving probes are all honest,
+  but their honesty is *throw*-shaped; `exitsNonZero` looks for a computed `process.exit`
+  on purpose, because a literal `exit(1)` in a crash handler was present in all three of
+  1.51.0's broken drivers. Admitting them to that half would redden five healthy files.
+
+### Removed — `verdict_gate.mjs` built a declaration map nothing read
+
+`declarations()` walked the whole AST of every scanned file to populate `inspect()`'s
+`decls`, and **nothing consulted it** — not `judge()`, not the self-test, not anywhere.
+Measured before removal (172's rule): blinding it stayed green in every headless gate in
+the tree, including the scope and instrument gates. It also duplicated
+`tautology_gate.mjs`'s own helper of the same name.
+
+### Added — the instrument gate's sixth and seventh entries
+
+`tautology_gate.mjs` and `verdict_gate.mjs`, floor 5 → 7.
+
+**Measured first, and 175 §11.2's premise did not hold:** `BLIND176 0 of 7 STILL GREEN` —
+every finder in `tautology_gate.mjs` reddens its own self-test when blinded. It was handed
+over as "finders whose silence would be invisible"; their silence is loud, so this entry
+is a **pin on coverage that already exists**, not a hole being closed. It earns its line
+for the reason `_path_ledger.mjs` went in at 0 of 8: coverage measured once is coverage at
+one commit, and the failure this gate exists for is a case list that stops matching what
+it names — exactly what 1.51.0 found *inside* this self-test, where `probe()` declared
+`const check = (c, m, d) => {};` and nine cases had been proving the classifier against a
+stub no probe in the tree resembles.
+
+`verdict_gate.mjs` is where the measurement paid: blinding it is what found the dead
+`declarations()`.
+
+### Fixed — three collapse detectors that could be switched off silently
+
+The reverse sweep over this change went `pass=12 fail=3` on its first run, and all three
+failures were the same defect in three different files: **a floor read by exactly one
+branch and asserted by nothing.**
+
+- **`main()`'s wiring in `verdict_gate.mjs`.** Dropping `|| d.failed` left every gate
+  green, because the shipped tree has nothing dropped, so the discard half never fails
+  and the term it was ORed with could be deleted invisibly. Two conditions never
+  satisfied apart in the live population — 1.48.0's G3 and 1.50.0's H5, a third time.
+  `combine(r, d)` is now a separate exported function taking both verdicts as parameters,
+  which is what makes the second one reachable at all.
+- **`verdict_gate.selftest.mjs`'s claim floor.** `if (ran < 31)` set to `if (ran < 0)`
+  left the whole file green. It is now a named `CLAIM_FLOOR` with a claim pinning its
+  value — 1.51.0's `SUBJECT_FLOOR` fix, one level up.
+- **`instrument_gate.py`'s `INSTRUMENT_FLOOR`.** Setting it to `0` left the gate entirely
+  green: seven instruments is not fewer than zero. Pinning the value would be circular,
+  so the collapse test is extracted as a pure `scope_collapsed(n, floor)` and a self-check
+  asserts that an **emptied** instrument list is a collapse whatever the floor says. With
+  the floor at 0 it is not, so the check reddens on exactly that mutant.
+
 ## [1.51.0] — 2026-08-02
 
 ### Fixed — three live drivers recorded a verdict they never read

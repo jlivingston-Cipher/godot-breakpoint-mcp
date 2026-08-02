@@ -146,6 +146,76 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🔴 176, AND MEASURED FIRST — WHICH IS WHY THIS ENTRY READS DIFFERENTLY FROM THE
+        # FOUR ABOVE. `BLIND176 0 of 7 STILL GREEN`: every finder in this file reddens its
+        # own self-test when blinded. 175 §11.2 handed it over as "finders whose silence
+        # would be invisible"; their silence is loud, and the honest description of this
+        # entry is a PIN on coverage that already exists rather than a hole being closed.
+        #
+        # It earns its line anyway, for the reason `_path_ledger.mjs` went in at 0 of 8:
+        # coverage measured once is coverage at one commit. The self-test is 78 cases over
+        # a classifier whose population is the whole repo, and the failure mode this gate
+        # exists for is a case list that stops matching the thing it names — which is
+        # exactly what 175 §10 found INSIDE this very self-test, where `probe()` declared
+        # `const check = (c, m, d) => {};` and nine cases had been proving the classifier
+        # against a stub no probe in the tree resembles.
+        "name": "tautology_gate.mjs",
+        "src": HOST / "scripts" / "tautology_gate.mjs",
+        "gate": ["node", "scripts/tautology_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 7,
+        "why": "the classifier that decides whether a repo-wide assertion could have failed",
+        "targets": {
+            # The classifier itself. VALUE, not SHAPE — SHAPE is the FAILING answer, and
+            # a blind that injects a failure proves nothing about a gate meant to catch it
+            # (175's `_png.mjs` reasoning, same trap one file over).
+            "export function classifyLeaf(node, src) {": 'return { kind: "VALUE", why: "blind", text: "" };',
+            "export function leaves(node, src, out = [], depth = 0) {": "return out;",
+            "function collectConsts(src) {": "return [];",
+            "function collectAsserters(src) {": "return new Map();",
+            # 🔴 175's OWN FIX. This is the resolver that stopped a tool invoker called
+            # `check` and a transcript reader called `assertOk` from fabricating seventeen
+            # of the host root's twenty-four claim sites.
+            "function collectFailers(src) {": "return new Set();",
+            "export function analyze(fileName, text) {": "return [];",
+            "export function verdict(claims) {": "return { blocks: 0, vacuous: [], every: [], offender: [] };",
+        },
+    },
+    {
+        # 🔴 176. THE NEWEST INSTRUMENT IN THE TREE, AND BLINDING IT IS WHAT FOUND THE
+        # DEAD `declarations()` — a full AST walk built into `decls` on every file, read
+        # by nothing: not `judge()`, not the self-test, not anywhere. It was 1 of 4 still
+        # green here and green in scope_gate and instrument_gate too, so the deletion was
+        # measured rather than assumed (172's rule) instead of being left alone the way
+        # 175 §11.17 left `_check`.
+        #
+        # `scan()`'s blind returns FOUR healthy-looking subjects on purpose: three would
+        # be caught by SUBJECT_FLOOR alone, which would prove the floor rather than the
+        # scanner. The constant has to be the answer a healthy tree gives.
+        "name": "verdict_gate.mjs",
+        "src": HOST / "scripts" / "verdict_gate.mjs",
+        "gate": ["node", "scripts/verdict_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 4,
+        "why": "the gate for the ABSENCE of a check — the half no condition-grader can reach",
+        "targets": {
+            "export function inspect(file, text) {":
+                'return { tools: [], readsVerdict: true, exitsNonZero: true, labelsAssert: false };',
+            "export function judge(subjects, roster = NOT_A_VERDICT, floor = SUBJECT_FLOOR) {":
+                'return { lines: ["VERDICT_GATE ok"], failed: false };',
+            "export function scan() {":
+                "return [{ f: \"a.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }, "
+                "{ f: \"b.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }, "
+                "{ f: \"c.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }, "
+                "{ f: \"d.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }];",
+            # 🔴 176's OWN NEW FINDER. `dropped: false` is the healthy answer — returning
+            # an empty list would be caught by DISCARD_SITE_FLOOR, which proves the floor
+            # rather than the finder, and those are different instruments.
+            "export function discarded(file, text) {":
+                'return [{ file, line: 1, tool: "runtime_assert_x", dropped: false }];',
+        },
+    },
+    {
         # The COMPILED walk rather than the .ts, so this step costs no tsc invocation:
         # `npm test` has already emitted dist-test/ by the time this runs.
         "name": "path-cohort (compiled walk)",
@@ -172,6 +242,40 @@ INSTRUMENTS = [
         },
     },
 ]
+
+
+def scope_collapsed(n_instruments: int, floor: int) -> bool:
+    """The gate's own scope check, as a PURE function of its two numbers.
+
+    🔴 EXTRACTED BECAUSE 176's REVERSE SWEEP FOUND THE FLOOR UNFALSIFIABLE. Setting
+    `INSTRUMENT_FLOOR = 0` left this gate entirely GREEN: seven instruments is not fewer
+    than zero, and nothing anywhere asserted what the floor was supposed to BE. A literal
+    read by one branch and asserted by nothing is a literal anyone can move — which is
+    175's G9 (`SUBJECT_FLOOR`) and 176's G11 (the verdict self-test's claim floor), the
+    same defect three times in three files, each of them a collapse detector.
+
+    Pinning the value would be circular. Asserting that the BRANCH BITES is not: an
+    emptied INSTRUMENTS list must be a collapse whatever the floor says, and with the
+    floor at 0 it is not, so the self-check below goes red on exactly the mutant.
+    """
+    return n_instruments < floor
+
+
+def _self_check(floor: int) -> list[str]:
+    """Run before the sweep. A harness whose own collapse detector is off is not a harness."""
+    problems = []
+    if not scope_collapsed(0, floor):
+        problems.append(
+            f"INSTRUMENT_GATE's own floor is {floor}, which does not treat an EMPTY instrument "
+            f"list as a collapse. A gate that would sweep nothing and exit 0 is the exact "
+            f"shape this file exists to catch, one level up"
+        )
+    if scope_collapsed(len(INSTRUMENTS), floor):
+        problems.append(
+            f"INSTRUMENT_GATE's floor is {floor} but only {len(INSTRUMENTS)} instrument(s) are "
+            f"listed — raise the list or lower the literal ON PURPOSE"
+        )
+    return problems
 
 
 def green(inst: dict) -> bool:
@@ -256,9 +360,10 @@ def main() -> int:
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
     # would sweep nothing, report nothing and exit 0 — the exact shape it exists to
     # catch, one level up. taut169, again, again.
-    INSTRUMENT_FLOOR = 5   # 175: 4 -> 5, _png.mjs admitted
+    INSTRUMENT_FLOOR = 7   # 176: 5 -> 7, tautology_gate.mjs and verdict_gate.mjs admitted
     print(f"INSTRUMENT_GATE instruments={len(INSTRUMENTS)} floor={INSTRUMENT_FLOOR}")
-    if len(INSTRUMENTS) < INSTRUMENT_FLOOR:
+    problems.extend(_self_check(INSTRUMENT_FLOOR))
+    if scope_collapsed(len(INSTRUMENTS), INSTRUMENT_FLOOR):
         problems.append(
             f"INSTRUMENT_GATE swept {len(INSTRUMENTS)} instrument(s), floor is {INSTRUMENT_FLOOR} — "
             f"a harness whose own target list collapsed sweeps nothing and exits 0"

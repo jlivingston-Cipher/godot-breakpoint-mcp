@@ -16,13 +16,24 @@
 // no stale exemption, no dead exemption, no collapse. 174 §8 watched a collector that was
 // only ever asserted EMPTY lose its filter invisibly. These are the parameters that make
 // those branches reachable at all.
-import { inspect, judge, scan, SUBJECT_FLOOR } from "./verdict_gate.mjs";
+import {
+  inspect, judge, scan, SUBJECT_FLOOR,
+  discarded, scanDiscarded, judgeDiscarded, combine,
+  DISCARD_SITE_FLOOR, DISCARD_DIR_FLOOR, DISCARD_SKIP,
+} from "./verdict_gate.mjs";
 
 let ran = 0, bad = 0;
 const claim = (cond, what) => {
   ran++;
   if (!cond) { bad++; console.log(`🔴 FAILED: ${what}`); }
 };
+// 🔴 NAMED AND PINNED, BECAUSE 176's REVERSE SWEEP FOUND THE BARE LITERAL UNFALSIFIABLE.
+// Setting `if (ran < 31)` to `if (ran < 0)` left this whole file green — the floor was
+// read by exactly one branch and asserted by nothing, so the collapse detector could be
+// switched off without a single case noticing. 175's G9 (`SUBJECT_FLOOR` unpinned), one
+// file over and one level up: this is the floor that protects the floors.
+const CLAIM_FLOOR = 69;
+
 const sub = (f, o = {}) => ({ f, tools: ["runtime_assert_node_state"], readsVerdict: true, exitsNonZero: true, labelsAssert: false, ...o });
 const J = (subjects, roster = {}, floor = 1) => judge(subjects, roster, floor);
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
@@ -98,11 +109,120 @@ claim(SUBJECT_FLOOR === 4, `the shipped subject floor is 4, not ${SUBJECT_FLOOR}
 claim(judge(live, {}, live.length + 1).failed === true,
   "and the live population one above its own size collapses — the floor is compared, not decorative");
 
+// ── 7. 176: THE DISCARD HALF, WHOSE UNIT IS THE CALL SITE ────────────────────────────
+// `inspect()` asks a per-FILE question and that is right for the host root's accumulator
+// idiom. It is the wrong unit for test-integration, where a probe making fifty
+// assertions passes trivially while one call site drops its reply — which is exactly
+// what `inject-input.integration.mjs` did, sealing "fixture intact" over a discarded
+// `runtime_assert_scene_structure`.
+const drop = (src) => discarded("t.mjs", src);
+const one = (src) => drop(src)[0];
+
+claim(one(`await call("runtime_assert_x", {});`)?.dropped === true,
+  "a bare `await call(verdictTool, …)` statement is a DISCARDED reply — 176's defect shape");
+claim(one(`void (await call("runtime_assert_x", {}));`)?.dropped === true,
+  "🔴 and so is `void` — the one operator whose whole meaning is 'discard this', so stopping the climb there would miss the MOST explicit discard");
+claim(one(`const r = await call("runtime_assert_x", {});`)?.dropped === false,
+  "a bound reply is kept — whether it is then read is inspect()'s question, not this one");
+claim(one(`assert.equal((await call("runtime_assert_x", {})).ok, true);`)?.dropped === false,
+  "a reply passed straight into an assertion is kept");
+claim(one(`const f = () => call("runtime_assert_x", {});`)?.dropped === false,
+  "a reply returned from an arrow is kept — it becomes the caller's problem, which is a caller's");
+claim(one(`call("runtime_assert_x", {}).then((r) => r.ok);`)?.dropped === false,
+  "and a reply consumed by .then() is kept");
+claim(drop(`await call("runtime_set_property", { confirm: true });`).length === 0,
+  "a non-verdict tool discarded is not a site at all — most tools are called for effect");
+
+// 🔴 THE DIVERGENCE FROM inspect(), PINNED RATHER THAN LEFT TO BE REDISCOVERED. inspect()
+// scans EVERY argument because it asks "does this file mention a verdict tool"; discarded()
+// reads argument 0 ONLY because it asks "where is the tool INVOKED". The repo's invocation
+// convention is `fn(toolName, args)`, so a recorder like
+// `rec("assert …", "runtime_assert_x", {}, S(await t("runtime_assert_x", …)))` must NOT be
+// counted as a second call site — the real one is the inner `t(…)`, and counting the outer
+// would be 175 §3's fabricated population in a new spelling.
+claim(inspect("t.mjs", `rec("assert grew", "runtime_assert_x", {}, r);`).tools.length === 1,
+  "inspect() finds a verdict tool named in a LATER argument — the recorder idiom");
+claim(drop(`rec("assert grew", "runtime_assert_x", {}, r);`).length === 0,
+  "🔴 but discarded() does not call that a call site — the recorder is not the invocation, and counting it would fabricate a population");
+claim(drop(`await t("runtime_assert_x", {}); await t("runtime_assert_y", {});`).length === 2,
+  "two invocations are two sites — this is a call-site list, not a tool set");
+claim(one(`\nawait call("runtime_assert_x", {});`)?.line === 2,
+  "the reported line is 1-based and real — a defect nobody can locate is a defect nobody fixes");
+
+// ── 8. THE DISCARD JUDGEMENT, ON POPULATIONS THE TREE CANNOT PRODUCE ─────────────────
+const site = (o = {}) => ({ file: "a.mjs", line: 1, tool: "runtime_assert_x", dropped: false, ...o });
+const many = (n, o = {}) => Array.from({ length: n }, (_, i) => site({ line: i + 1, ...o }));
+const D = (sites, floor = 1, dirFloor = 1) => judgeDiscarded(sites, floor, dirFloor);
+
+claim(D([site()]).failed === false, "a kept reply passes");
+claim(D([site({ dropped: true })]).failed === true, "a dropped reply fails");
+claim(D([site({ dropped: true })]).lines.some((l) => l.includes("VERDICT_DISCARDED")),
+  "and the offender line names itself");
+claim(D([], 1).failed === true, "an empty site list is a COLLAPSE, not a clean tree");
+claim(D([site()], 2).failed === true, "a population under its site floor collapses");
+claim(D([site()], 2).lines.some((l) => l.includes("VERDICT_DISCARD_SCOPE_COLLAPSE")), "and says so");
+
+// 🔴 THE DIRECTORY FLOOR IS NOT THE SITE FLOOR, AND THIS PAIR IS WHY IT EXISTS. A walk
+// that stopped descending still finds the host root's thirteen sites; with a site floor
+// alone that is a green run over a SUBSET, and a subset that passes is indistinguishable
+// from a clean tree. 175 §4: readdirSync is not recursive.
+claim(D(many(60, { file: "a.mjs" }), 55, 1).failed === false,
+  "sixty sites in one directory clear a site floor of 55");
+claim(D(many(60, { file: "a.mjs" }), 55, 2).failed === true,
+  "🔴 and the SAME population fails the directory floor — a deep walk that went shallow");
+claim(D(many(60, { file: "a.mjs" }), 55, 2).lines.some((l) => l.includes("VERDICT_DISCARD_DIRS_COLLAPSE")),
+  "the directory collapse names itself separately from the site collapse");
+claim(D([site({ file: "a.mjs" }), site({ file: "sub/b.mjs" })], 1, 2).failed === false,
+  "two directories satisfy it, and a bare filename counts as the root");
+
+// 🔴 EVERY EXCLUSION COSTS PROSE. 174 §5 found a `_` filename prefix buying a silent
+// exemption for 127 claim sites; the corollary is that a skip roster whose values may be
+// empty is a roster whose next entry will be.
+claim(Object.values(DISCARD_SKIP).every((why) => typeof why === "string" && why.length > 12),
+  "every skipped directory carries a written reason a reviewer has to disagree with");
+
+// ── 9. THE REAL TREE, READ RATHER THAN ASSUMED ───────────────────────────────────────
+const liveSites = scanDiscarded();
+claim(liveSites.length === 61, `the tree holds exactly 61 verdict call sites (got ${liveSites.length})`);
+claim(liveSites.filter((s) => s.dropped).length === 0,
+  "and not one of them discards its reply — 176 fixed the only one");
+const liveDirs = new Set(liveSites.map((s) => (s.file.includes("/") ? s.file.slice(0, s.file.lastIndexOf("/")) : ".")));
+claim(liveDirs.size === 2, `the walk reaches exactly 2 directories (got ${[...liveDirs].join(", ")})`);
+claim(liveDirs.has("test-integration"),
+  "🔴 including test-integration — the directory 175 shipped this gate unable to enter");
+claim(liveSites.some((s) => s.file === "test-integration/inject-input.integration.mjs"),
+  "and the file 176's defect was in is inside the population, not merely adjacent to it");
+claim(judgeDiscarded(liveSites).failed === false, "so the discard gate is green on the tree it ships with");
+// 🔴 THE SHIPPED FLOORS THEMSELVES, NAMED. 175's reverse sweep found SUBJECT_FLOOR
+// unpinned: setting it to 0 left every case green because the collapse cases pass their
+// own floor and the live case reads whatever the module says.
+claim(DISCARD_SITE_FLOOR === 55, `the shipped site floor is 55, not ${DISCARD_SITE_FLOOR}`);
+claim(DISCARD_DIR_FLOOR === 2, `the shipped directory floor is 2, not ${DISCARD_DIR_FLOOR}`);
+claim(judgeDiscarded(liveSites, liveSites.length + 1).failed === true,
+  "and the live population one above its own size collapses — the floor is compared, not decorative");
+claim(judgeDiscarded(liveSites, DISCARD_SITE_FLOOR, liveDirs.size + 1).failed === true,
+  "as does one directory above the number the walk actually reached");
+
+// ── 10. THE WIRING, WHICH THE SHIPPED TREE CANNOT FALSIFY ────────────────────────────
+// 🔴 176's REVERSE SWEEP CAUGHT THIS INLINED IN main(). With nothing dropped on the real
+// tree, `d.failed` is always false, so `r.failed || d.failed` could lose its second term
+// and every gate stayed green. Two conditions never satisfied apart in the live
+// population — 173's G3, 174's H5, 175's G3, and now this.
+const V = (failed, lines = []) => ({ failed, lines });
+claim(combine(V(false), V(false)).failed === false, "two clean halves are a clean run");
+claim(combine(V(true), V(false)).failed === true, "the subject half alone can fail the run");
+claim(combine(V(false), V(true)).failed === true,
+  "🔴 and so can the DISCARD half alone — the term the sweep could delete invisibly");
+claim(combine(V(true), V(true)).failed === true, "both failing is still one failure");
+claim(combine(V(false, ["a"]), V(false, ["b"])).lines.join() === "a,b",
+  "and both halves' lines are printed, in order — a half that runs silently is a half nobody reads");
+claim(CLAIM_FLOOR === 69, `the shipped claim floor is 69, not ${CLAIM_FLOOR}`);
+
 console.log(`\nVERDICT_SELFTEST ${ran - bad}/${ran} claims`);
 if (bad) { console.log(`🔴 VERDICT_SELFTEST FAILED — ${bad} of ${ran}`); process.exit(1); }
 // 🔴 29, MEASURED — AND THIS LINE WAS WRITTEN AT 30 FROM A GUESS AND CAUGHT ITSELF, the
 // SECOND floor-above-the-truth in this session after VERDICT_GATE's SUBJECT_FLOOR=5.
 // Both were harmless because both reddened immediately; a floor written from a guess in
 // the other direction is the one that never says anything.
-if (ran < 31) { console.log(`🔴 VERDICT_SELFTEST ran ${ran} claims, floor is 31 — cases were deleted or stopped running`); process.exit(1); }
+if (ran < CLAIM_FLOOR) { console.log(`🔴 VERDICT_SELFTEST ran ${ran} claims, floor is ${CLAIM_FLOOR} — cases were deleted or stopped running`); process.exit(1); }
 console.log("VERDICT_SELFTEST ok");
