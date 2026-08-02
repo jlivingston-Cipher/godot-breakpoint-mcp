@@ -222,8 +222,27 @@ async function main() {
   const nodeIndex = async (p) => (await call("node_get_path", { path: p })).index;
 
   // Run one family; a throw inside marks a fail but never aborts the other families.
+  // 🔴 THE FAMILY IS THE POPULATION UNIT, AND IT NOW REPORTS ITS OWN SIZE (169 §4).
+  //
+  // 168 §8.5 asked for a floor on the AUTH_SUMMARY total. A bare total turned out to be
+  // the weaker half of the answer: this catch means a family that throws HALFWAY files
+  // one `_THREW` and silently drops every claim it had not yet reached, and the run
+  // still ends "pass=N/N fail=0" for a smaller N — 168 §5's disease exactly, one organ
+  // over. Measured during that session: a family throwing early took AUTH_SUMMARY from
+  // 207 to 189 and nothing said so.
+  //
+  // Instrumenting `family()` rather than listing 203 marker names is deliberate. A
+  // hand-maintained manifest of every marker is 168 §6's 149-row exception table with a
+  // different label on it — the thing that was MEASURED and thrown away. The family
+  // label is already written at each call site, so the manifest maintains itself.
+  const families = [];
   async function family(label, fn) {
-    try { await fn(); } catch (e) { fail(`${label}_THREW`, String(e?.message || e).slice(0, 200)); }
+    const before = results.pass.length + results.fail.length;
+    let threw = null;
+    try { await fn(); } catch (e) { threw = String(e?.message || e).slice(0, 200); fail(`${label}_THREW`, threw); }
+    // -1 for the _THREW claim itself, so "claims the body actually made" is honest.
+    const made = results.pass.length + results.fail.length - before - (threw ? 1 : 0);
+    families.push({ label, made, threw });
   }
 
   // ---------------------------------------------------------------- gate ----
@@ -395,9 +414,39 @@ async function main() {
       ? pass("AUTH_SCENE_LIST_OPEN", `current=${open.current}`) : fail("AUTH_SCENE_LIST_OPEN", JSON.stringify(open.scenes).slice(0, 120));
 
     // scene_get_dependencies (read) — main.tscn references player.gd
+    //
+    // 🔴 WAS `Array.isArray(deps.dependencies)`, which the comment on this very line
+    // already contradicted: it names res://player.gd and the claim never looked. A
+    // resolver that found NOTHING answers `[]`, which is an array, so the claim was
+    // green for the one failure worth catching. The correct pattern was FOUR LINES UP
+    // the whole time — AUTH_SCENE_LIST_OPEN asserts isArray AND includes.
+    //
+    // 🔴🔴 AND THE REPLACEMENT WENT RED ON ITS FIRST RUN (169 §5). The tautology was not
+    // merely weak, it was CONCEALING A LIVE DEFECT: the tool answered
+    // `["uid://ccgi4n26nbyku::::res://player.gd"]` — the engine's internal encoding —
+    // and that exact string is the one spelling resource_load refuses, while both of
+    // its halves load. Fixed addon-side in 1.9.7; `dependencies` now carries loadable
+    // paths and `dependencies_raw` preserves the engine form.
     const deps = await call("scene_get_dependencies", { path: "res://main.tscn" });
-    Array.isArray(deps.dependencies)
-      ? pass("AUTH_SCENE_DEPENDENCIES", `n=${deps.dependencies.length}`) : fail("AUTH_SCENE_DEPENDENCIES", JSON.stringify(deps));
+    // 🔴 NOT `includes("res://player.gd")` ALONE. That would pass again the moment the
+    // splitter regressed to emitting both forms. Every entry must be loadable.
+    const depsClean = Array.isArray(deps.dependencies)
+      && deps.dependencies.includes("res://player.gd")
+      && deps.dependencies.every((d) => typeof d === "string" && !d.includes("::::") && d.startsWith("res://"));
+    const depsAligned = Array.isArray(deps.dependencies_raw) && Array.isArray(deps.dependency_uids)
+      && deps.dependencies_raw.length === deps.dependencies.length
+      && deps.dependency_uids.length === deps.dependencies.length;
+    depsClean && depsAligned
+      ? pass("AUTH_SCENE_DEPENDENCIES", `n=${deps.dependencies.length} — every entry is a loadable res:// path, raw + uids index-aligned`)
+      : fail("AUTH_SCENE_DEPENDENCIES", `clean=${depsClean} aligned=${depsAligned} ${JSON.stringify(deps).slice(0, 180)}`);
+
+    // 🔴 THE CLAIM THAT WOULD HAVE CAUGHT THIS ALL ALONG: what the tool hands back must
+    // WORK when used for the thing it is named for. An echo is not a report (168 §5's
+    // D5 sibling) — feed the first dependency straight back to resource_load.
+    const depLoad = await call("resource_load", { path: deps.dependencies[0] });
+    depLoad.path === deps.dependencies[0]
+      ? pass("AUTH_SCENE_DEPENDENCIES_LOADABLE", `the first dependency round-trips through resource_load (${deps.dependencies[0]})`)
+      : fail("AUTH_SCENE_DEPENDENCIES_LOADABLE", `scene_get_dependencies returned a string resource_load will not take: ${JSON.stringify(depLoad).slice(0, 140)}`);
   });
 
   // ---------------------------------------------------------------- Group A: signals ----
@@ -1690,11 +1739,38 @@ async function main() {
       : fail("AUTH_READ_PATH_NO_EXEC", exTxt.slice(0, 160));
 
     // …and the legal side still reads. A guard that refused everything would pass
-    // every claim above. `test_list` on its documented default must still answer.
-    const okList = await call("test_list", {});
-    typeof okList.count === "number"
-      ? pass("AUTH_READ_PATH_LEGAL", `a legal read still works (test_list -> ${okList.count} test script(s))`)
+    // every claim above.
+    //
+    // 🔴🔴 THIS CONTROL WAS THE ONE CLAIM THAT COULD NOT DO THAT JOB, AND ITS LIVE
+    // READING WAS ALREADY THE FAILURE SIGNATURE (169 §3). It asserted
+    // `typeof okList.count === "number"` against `test_list` on its DOCUMENTED DEFAULT
+    // — and the documented default is `res://test`, while the example project ships
+    // `res://tests`. Measured on a healthy tree: {"count":0,"dir":"res://test","tests":[]}.
+    // Zero. The reading this control produced when everything worked was
+    // byte-identical to the reading it would produce if the guard had refused every
+    // read on the plane. It could never have been anything but green.
+    //
+    // Two changes, and the second is the one that matters:
+    //   1. point it at the directory that HAS tests, measured: count=1,
+    //      tests=["res://tests/ops_unit_test.gd"];
+    //   2. assert a NON-EMPTY result and the echoed dir. `count > 0` is what an
+    //      over-refusing guard cannot fake — a refusal has nothing to count.
+    // The default-dir reading is kept as a SEPARATE, non-vacuous claim below rather
+    // than deleted: that the default answers `count:0` for a project with no
+    // `res://test` is correct behaviour, and it is worth pinning as correct rather
+    // than leaving as an accident that once masqueraded as coverage.
+    const okList = await call("test_list", { dir: "res://tests" });
+    (okList.count > 0 && Array.isArray(okList.tests) && okList.tests.length === okList.count && okList.dir === "res://tests")
+      ? pass("AUTH_READ_PATH_LEGAL", `a legal read still returns CONTENT (test_list res://tests -> ${okList.count} test script(s)); an over-refusing guard has nothing to count`)
       : fail("AUTH_READ_PATH_LEGAL", JSON.stringify(okList).slice(0, 140));
+
+    // The documented default, pinned as a real claim instead of an accidental one: a
+    // project with no res://test answers an EMPTY list rather than erroring or
+    // inventing the sibling directory that does exist.
+    const defList = await call("test_list", {});
+    (defList.dir === "res://test" && defList.count === 0 && Array.isArray(defList.tests) && defList.tests.length === 0)
+      ? pass("AUTH_READ_PATH_LEGAL_DEFAULT", "the documented default res://test is absent here and answers an empty list — it does not silently fall back to res://tests")
+      : fail("AUTH_READ_PATH_LEGAL_DEFAULT", JSON.stringify(defList).slice(0, 140));
   });
 
   // ------------------------------------------------ AUTH_NESTED_PATH (166) ----
@@ -1792,11 +1868,26 @@ async function main() {
 
     // …and the legal side still works, including an OMITTED optional and an omitted
     // NESTED object. A guard that refused everything would pass every claim above.
+    //
+    // 🔴 THE SAME VACUOUS CONTROL AS AUTH_READ_PATH_LEGAL, IN THE SAME SENTENCE'S
+    // SERVICE (169 §2). `typeof okSearch.count === "number" && Array.isArray(okList.files)`
+    // is green for `count:0` and `files:[]` — which is precisely what a guard that
+    // resolved every legal path to nothing would answer. Measured on a healthy tree:
+    // project_search "extends" -> count=51; filesystem_list at res:// -> 6 files
+    // including main.tscn and player.gd.
+    //
+    // The replacement names CONTENT, not shape: a non-zero count whose matches array
+    // agrees with it, and two files that are definitely there. `truncated` is read
+    // too — a search that silently capped would otherwise report a count that means
+    // something different from the one this claim thinks it is reading.
     const okSearch = await call("project_search", { query: "extends" });
     const okList = await call("filesystem_list", {});
-    (typeof okSearch.count === "number" && Array.isArray(okList.files))
-      ? pass("AUTH_NESTED_PATH_LEGAL", `legal reads still work (project_search -> ${okSearch.count} match(es); filesystem_list -> ${okList.files.length} file(s) at res://)`)
-      : fail("AUTH_NESTED_PATH_LEGAL", `${JSON.stringify(okSearch).slice(0, 90)} | ${JSON.stringify(okList).slice(0, 90)}`);
+    const searchOk = okSearch.count > 0 && Array.isArray(okSearch.matches) && okSearch.matches.length > 0
+      && okSearch.truncated !== true && okSearch.matches.every((m) => typeof m.file === "string" && m.file.startsWith("res://"));
+    const listOk = Array.isArray(okList.files) && okList.files.includes("main.tscn") && okList.files.includes("player.gd");
+    (searchOk && listOk)
+      ? pass("AUTH_NESTED_PATH_LEGAL", `legal reads still return CONTENT (project_search -> ${okSearch.count} match(es) all under res://; filesystem_list -> ${okList.files.length} file(s) incl. main.tscn + player.gd)`)
+      : fail("AUTH_NESTED_PATH_LEGAL", `searchOk=${searchOk} listOk=${listOk} | ${JSON.stringify(okSearch).slice(0, 90)} | ${JSON.stringify(okList).slice(0, 90)}`);
   });
 
   // ------------------------------------------------ AUTH_PATH_LEDGER (167) ----
@@ -1925,6 +2016,47 @@ async function main() {
   residue.clean
     ? pass("AUTH_CLEAN", `example/ byte-identical to the pre-probe snapshot (${workspace.files.size} file(s) re-hashed; ${restored.removed.length + restored.rmdir.length} artefact(s) removed, ${restored.rewritten.length} restored)`)
     : fail("AUTH_CLEAN", `residue survived the restore -> ${describeDiff(residue)}`);
+
+  // ------------------------------------------------------------ population ----
+  //
+  // 🔴 168 §8.5, ANSWERED: `T` in `AUTH_SUMMARY pass=P/T` was never compared to
+  // anything, so a family that threw early shrank the suite and the pass RATE stayed
+  // 100%. Three gates, cheapest first, each catching a shrink the previous one cannot.
+  //
+  // Measured baselines, session 169, local headless run against the g169 fixture:
+  // 26 families, 203 claims, pass=200/203 (the three AUTH_SHOT_* / AUTH_MAINSCREEN_*
+  // failures are the documented local-only viewport gap; CI under Xvfb reads 209).
+  //
+  // 🔴 THE FLOOR IS THE **LOCAL** TOTAL, NOT CI'S. A floor set to CI's 209 would fail
+  // every local run, which is how floors get deleted rather than maintained.
+  const AUTH_FAMILY_FLOOR = 26;
+  const AUTH_CLAIM_FLOOR = 195;
+
+  const emptyFamilies = families.filter((f) => f.made === 0);
+  const partialFamilies = families.filter((f) => f.threw && f.made > 0);
+  console.log(`AUTH_POPULATION families=${families.length}/${AUTH_FAMILY_FLOOR} claims=${results.pass.length + results.fail.length}/${AUTH_CLAIM_FLOOR} empty=${emptyFamilies.length} partial=${partialFamilies.length}`);
+
+  // 1. every family that ran must have SAID something. A family whose body threw on its
+  //    first call contributes one `_THREW` and nothing else — one failure standing in
+  //    for however many claims it was going to make.
+  emptyFamilies.length === 0
+    ? pass("AUTH_POPULATION_SPOKE", `all ${families.length} famil(ies) made at least one claim`)
+    : fail("AUTH_POPULATION_SPOKE", `${emptyFamilies.length} famil(ies) made NO claim: ${emptyFamilies.map((f) => f.label).join(", ")}`);
+
+  // 2. 🔴 THE ONE THAT WOULD HAVE CAUGHT 168's 207 -> 189. A family that throws PART WAY
+  //    through is the silent case: it files one `_THREW`, keeps the claims it already
+  //    made, and drops the rest with no marker naming what went missing.
+  partialFamilies.length === 0
+    ? pass("AUTH_POPULATION_COMPLETE", "no family threw part way through, so no family dropped claims it had not yet reached")
+    : fail("AUTH_POPULATION_COMPLETE", `${partialFamilies.length} famil(ies) threw AFTER claiming — claims were dropped, not failed: ${partialFamilies.map((f) => `${f.label}(made ${f.made}, then threw: ${f.threw?.slice(0, 60)})`).join(" | ")}`);
+
+  // 3. the coarse backstop, and the scope check on the gate itself (168 §6): a floor
+  //    whose expected family count silently drifted to zero would pass while covering
+  //    nothing, so the family count is asserted before the claim count.
+  const totalNow = results.pass.length + results.fail.length;
+  (families.length >= AUTH_FAMILY_FLOOR && totalNow >= AUTH_CLAIM_FLOOR)
+    ? pass("AUTH_POPULATION_FLOOR", `${families.length} famil(ies) / ${totalNow} claim(s) — at or above the measured floor`)
+    : fail("AUTH_POPULATION_FLOOR", `THE SUITE GOT SMALLER, NOT GREENER: ${families.length} famil(ies) (floor ${AUTH_FAMILY_FLOOR}) / ${totalNow} claim(s) (floor ${AUTH_CLAIM_FLOOR})`);
 
   // ---------------------------------------------------------------- summary ----
   console.log("AUTH_UNDO_ASSERTED note=undo/redo round-tripped via editor_undo/editor_redo (see AUTH_UNDO_* / AUTH_REDO_* markers)");

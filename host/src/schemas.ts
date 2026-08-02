@@ -125,7 +125,16 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   scene_reload: { reloaded: z.string() },
   scene_close: { closed: z.string() },
   scene_pack: { packed: z.string(), branch: z.string() },
-  scene_get_dependencies: { path: z.string(), dependencies: z.array(z.string()) },
+  // `dependencies` are LOADABLE res:// paths as of 1.48.0; `dependencies_raw` keeps the
+  // engine's own `uid://X::::res://Y` encoding, which is what the field used to carry and
+  // which resource_load answers `not_found` for (169 §5). `dependency_uids` is
+  // index-aligned with both, "" where the dependency has no UID.
+  scene_get_dependencies: {
+    path: z.string(),
+    dependencies: z.array(z.string()),
+    dependencies_raw: z.array(z.string()),
+    dependency_uids: z.array(z.string()),
+  },
   scene_save_as: { saved_as: z.string() },
   node_add: { path: z.string(), name: z.string(), type: z.string() },
   node_delete: { deleted: z.string() },

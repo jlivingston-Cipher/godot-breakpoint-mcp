@@ -396,7 +396,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["path", "dependencies"], "properties": { "path": { "type": "string" }, "dependencies": { "type": "array", "items": { "type": "string" } } } }
+{ "type": "object", "required": ["path", "dependencies", "dependencies_raw", "dependency_uids"], "properties": { "path": { "type": "string" }, "dependencies": { "type": "array", "items": { "type": "string" } }, "dependencies_raw": { "type": "array", "items": { "type": "string" } }, "dependency_uids": { "type": "array", "items": { "type": "string" } } } }
 ```
 
 ### `scene_save_as` ✅ · destructive (writes a new file)

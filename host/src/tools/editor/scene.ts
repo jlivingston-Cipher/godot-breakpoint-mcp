@@ -135,7 +135,7 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
     "scene_get_dependencies",
     {
       title: "Scene dependencies",
-      description: "List the external resource dependencies of a scene file. Read-only. Defaults to the current scene.",
+      description: "List the external resource dependencies of a scene file. Read-only. Defaults to the current scene. `dependencies` are loadable res:// paths; `dependencies_raw` carries the engine's own `uid://…::::res://…` encoding and `dependency_uids` the UID alone (\"\" when the dependency has none) — all three index-aligned.",
       inputSchema: { path: z.string().optional().describe("Scene res:// path; omitted = the current edited scene") },
     },
     async ({ path }) => {

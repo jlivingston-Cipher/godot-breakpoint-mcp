@@ -54,7 +54,23 @@ const ROOT = fs.realpathSync(cfg.projectPath);
 console.log(`GD_DAP target ${cfg.dapHost}:${cfg.dapPort}  project=${ROOT}`);
 
 let failures = 0;
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §4 / 168 §8.5). `failures` was the only number
+// this probe kept, and a probe that counts only failures cannot tell "nothing was wrong"
+// from "nothing was asked". The whole body sits inside ONE try/catch: a throw in section
+// 3 skips sections 4–12, and a conditional that guards a block (`if (anyRef !== null)`)
+// removes its claims from the run without leaving a trace. In both cases `failures`
+// stays at its old value and the last line still reads "every claim held" — literally
+// true of the empty set.
+//
+// 168 §5 earned this the hard way: deleting a reply field took a suite from 205/205 to a
+// perfectly green 200/200 because the claims raised inside their own argument lists. The
+// fix there was to compare the mutant's claim TOTAL against a baseline. This is that
+// comparison, made permanent and moved into the probe itself.
+let claims = 0;
+const seen = new Map();
 function check(cond, marker, detail) {
+  claims++;
+  seen.set(marker, (seen.get(marker) ?? 0) + 1);
   if (cond) { console.log(`  ok   ${marker} — ${detail}`); return true; }
   console.log(`  FAIL ${marker} — ${detail}`);
   failures++;
@@ -295,7 +311,25 @@ try {
     const { dap, call } = newClient();
     const r = await call("dbg_launch", { scene: "main", stop_on_entry: true, allow_port_conflict: true });
     check(r.isError !== true, "GD_DAP_ENTRY", "a launch the adapter accepted is not refused");
-    check(typeof sc(r).stop_on_entry_honored === "boolean", "GD_DAP_ENTRY", `stop_on_entry_honored is reported (${sc(r).stop_on_entry_honored})`);
+    // 🔴 WAS `typeof sc(r).stop_on_entry_honored === "boolean"` — 168 §4's tautology
+    // VERBATIM, one plane over, found by the mechanical sweep that finding earned
+    // (169 §2). Measured on 4.7: the field reads `false`. So the claim was green, and
+    // the value it was green for was the negative one — a host that never asked the
+    // adapter and hardcoded `false` produced exactly this reading and this OK line.
+    //
+    // The replacement is a BICONDITIONAL, which is this file's own house style two
+    // sections down (GD_DAP_GATED: "the claim is a BICONDITIONAL, so it holds on 4.3
+    // and 4.7 alike"). Measured off the sibling rather than invented (168 §3). The
+    // report must AGREE WITH THE SESSION: an unhonoured entry did not stop, an
+    // honoured one did. A hardcoded field cannot satisfy both halves, because the
+    // half it does not control is read from the adapter's own session state.
+    const honored = sc(r).stop_on_entry_honored;
+    const stoppedAtEntry = sc(r).state === "stopped";
+    check(
+      (honored === true || honored === false) && honored === stoppedAtEntry,
+      "GD_DAP_ENTRY",
+      `stop_on_entry_honored AGREES with the session it describes (honored=${honored} state=${sc(r).state})`,
+    );
     if (sc(r).stop_on_entry_honored === false) {
       check(typeof sc(r).warning === "string" && sc(r).warning.length > 0, "GD_DAP_ENTRY", "an ignored stop_on_entry carries a warning rather than a bare 'running'");
       // 🔴 NOT `state === "running"`. CI taught this: a game that boots and exits
@@ -448,7 +482,27 @@ try {
     // modifier fix in this release is derived from it too. A build that answered
     // `initialize` without capabilities would silently disable every feature gate.
     const caps = dap.capabilities;
-    check(caps !== null && typeof caps === "object", "GD_DAP_CAPS", "the adapter's capabilities were captured by the handshake");
+    // 🔴 WAS `caps !== null && typeof caps === "object"` — vacuous for `{}`, which is
+    // EXACTLY the build the comment above warns about (169 §2). Worse, the two CAPS
+    // claims were vacuous TOGETHER: the `capNames.every(...)` claim below is satisfied
+    // when every key is `undefined`, so an adapter that answered `initialize` with an
+    // empty capabilities object passed both, and every feature gate derived from them
+    // would have silently read "unsupported" with two green ticks over it.
+    //
+    // 🔴 NOT a list of REQUIRED capabilities: which ones a build advertises is exactly
+    // the thing that varies between 4.3 and 4.7, and pinning them would assert the
+    // engine version instead of the handshake. What is asserted is that the handshake
+    // brought back a NON-EMPTY object containing at least one key the host's own
+    // feature gates read — the minimum that distinguishes "captured" from "empty".
+    // Measured on 4.7: supportsRestartRequest / supportsSetVariable /
+    // supportsTerminateRequest all true, the other five absent.
+    const capNamesRead = ["supportsRestartRequest", "supportsGotoTargetsRequest", "supportsDataBreakpoints", "supportsSetVariable", "supportsConditionalBreakpoints", "supportsHitConditionalBreakpoints", "supportsLogPoints", "supportsTerminateRequest", "exceptionBreakpointFilters"];
+    const capsPresent = capNamesRead.filter((k) => caps?.[k] !== undefined);
+    check(
+      caps !== null && typeof caps === "object" && capsPresent.length > 0,
+      "GD_DAP_CAPS",
+      `the handshake captured a NON-EMPTY capabilities object naming ${capsPresent.length} gate(s) the host reads (${capsPresent.join(", ") || "none"}) — an empty {} is the silent-disable build`,
+    );
     const capNames = ["supportsRestartRequest", "supportsGotoTargetsRequest", "supportsDataBreakpoints", "supportsSetVariable", "supportsConditionalBreakpoints", "supportsHitConditionalBreakpoints", "supportsLogPoints", "supportsTerminateRequest"];
     check(
       capNames.every((k) => caps?.[k] === undefined || typeof caps[k] === "boolean"),
@@ -619,9 +673,56 @@ if (crashed) {
   console.log(`  FAIL GD_DAP_CRASH — ${crashed}`);
   failures++;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 THE POPULATION GATE. Deliberately OUTSIDE the try/catch and evaluated even when the
+// body threw, because the run that shrank the suite is exactly the run that will not
+// reach a check placed inside it.
+//
+// 🔴 A FAMILY MANIFEST, NOT A BARE TOTAL. A single `claims >= N` floor forces a choice
+// between catching a lost family and tolerating legitimate build variance: this probe
+// takes different arms on 4.3 and 4.7 (`stop_on_entry_honored` true vs false; the three
+// claims behind the `anyRef !== null` guard), so a floor tight enough to catch the
+// smallest family — GD_DAP_RESTART makes two claims — would false-fail on another build.
+// Naming the families removes the trade-off: every family must SPEAK, and how many times
+// it speaks is allowed to vary. That is 168 §6's totality gate, transferred here.
+//
+// Measured on 4.7 (a complete run, session 169): 77 claims across these ten families —
+// LIVE 21, SCENE 11, NOSESSION 10, SOURCE 9, PHANTOM 7, MODIFIERS 7, ENTRY 4, GATED 3,
+// CAPS 3, RESTART 2.
+//
+// 🔴 EACH GATE ASSERTS ITS OWN SCOPE (168 §6): if this list is ever emptied, the gate
+// passes while covering nothing, so its length is checked before its contents.
+const GD_DAP_FAMILIES = [
+  "GD_DAP_LIVE", "GD_DAP_SCENE", "GD_DAP_NOSESSION", "GD_DAP_SOURCE", "GD_DAP_PHANTOM",
+  "GD_DAP_MODIFIERS", "GD_DAP_ENTRY", "GD_DAP_GATED", "GD_DAP_CAPS", "GD_DAP_RESTART",
+];
+// The coarse backstop, kept alongside the manifest: it catches a family that shrank from
+// twenty-one claims to one, which the manifest alone cannot see.
+const GD_DAP_CLAIM_FLOOR = 70;
+
+console.log(`\nGD_DAP_CLAIMS ${claims} (floor ${GD_DAP_CLAIM_FLOOR}) across ${seen.size}/${GD_DAP_FAMILIES.length} famil(ies): ${[...seen].map(([m, n]) => `${m}=${n}`).join(" ")}`);
+
+if (GD_DAP_FAMILIES.length < 10) {
+  console.log(`  FAIL GD_DAP_POPULATION_SCOPE — the manifest itself has ${GD_DAP_FAMILIES.length} entries; a gate whose scope collapsed passes while covering nothing`);
+  failures++;
+}
+const silent = GD_DAP_FAMILIES.filter((m) => !seen.has(m));
+if (silent.length) {
+  // 🔴 A SUITE THAT GETS SMALLER IS NOT A SUITE THAT GOT GREENER (168 §5). Without this,
+  // a throw in section 3 prints one FAIL and eleven sections silently do not happen —
+  // and a conditional that skips a block removes its claims leaving no trace at all.
+  console.log(`  FAIL GD_DAP_POPULATION — ${silent.length} famil(ies) never made a claim: ${silent.join(", ")} — they went MISSING rather than failed`);
+  failures++;
+}
+if (claims < GD_DAP_CLAIM_FLOOR) {
+  console.log(`  FAIL GD_DAP_POPULATION — only ${claims} claim(s) ran, floor is ${GD_DAP_CLAIM_FLOOR}: a family shrank rather than failed`);
+  failures++;
+}
+
 if (failures > 0) {
   console.log(`\nGD_DAP_ALL FAILED — ${failures} claim(s) did not hold`);
   process.exit(1);
 }
-console.log("\nGD_DAP_ALL ok — every claim held");
+console.log(`\nGD_DAP_ALL ok — every claim held (${claims} claim(s) ran)`);
 process.exit(0);
