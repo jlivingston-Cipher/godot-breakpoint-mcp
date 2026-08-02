@@ -105,6 +105,7 @@ func _initialize() -> void:
 	_test_runtime_inject_input()
 	_test_resource_props(ops)          # pure resource-property listing (hermetic)
 	_test_import_settings_reporting(ops)  # import-settings REPORTING pair, 166 D3/D4 (hermetic)
+	_test_scene_dependency_shape(ops)  # scene_get_dependencies split, 169 §5 (hermetic)
 	_test_screenshot_no_viewport()     # runtime screenshot guard, detached (hermetic)
 	# Summary + quit are emitted from _process, after the live-tree phase runs.
 
@@ -125,9 +126,45 @@ func _process(_delta: float) -> bool:
 	if _frame < _SHOT_FRAME:
 		return false
 	_test_live_screenshot()
-	print("OPS_UNIT_SUMMARY pass=%d/%d skip=%d" % [_pass, _pass + _fail, _skip])
+
+	# ── 🔴 THE POPULATION FLOOR (169 §6; 168 §8.5 asked for it, this suite earned it) ──
+	#
+	# This suite counted passes and failures and never counted CLAIMS. A GDScript runtime
+	# error inside a test function aborts that function and the runner carries on: the
+	# claims it had not yet reached leave the tally, `_fail` never moves, and the summary
+	# prints a SMALLER total with a perfect pass rate.
+	#
+	# 🔴 THAT IS NOT HYPOTHETICAL — IT HAPPENED WHILE WRITING 169's OWN TESTS. Run against
+	# the pre-fix addon, the thirteen new dependency assertions became one: the suite went
+	# from 218/218 to a perfectly green 206/206. Twelve claims vanished, zero failed, and
+	# the only thing that looked different was a number nobody was comparing to anything.
+	#
+	# The accessors were fixed so the claims speak (see `_rarray`). This is the backstop
+	# for the next accessor nobody has thought about yet.
+	#
+	# 🔴 WHEN YOU ADD ASSERTIONS, RAISE THIS. A floor nobody maintains is a floor that
+	# stopped measuring — and the failure message says so, because a floor that fails
+	# without explaining itself gets deleted rather than updated.
+	var total := _pass + _fail
+	if total < OPS_UNIT_CLAIM_FLOOR:
+		_fail += 1
+		print("OPS_UNIT_FAIL population — only %d claim(s) ran, floor is %d. A SUITE THAT GOT SMALLER IS NOT A SUITE THAT GOT GREENER: assertions left the tally instead of failing (168 §5). If you deliberately removed assertions, lower OPS_UNIT_CLAIM_FLOOR in the same commit." % [total, OPS_UNIT_CLAIM_FLOOR])
+		total = _pass + _fail
+
+	print("OPS_UNIT_SUMMARY pass=%d/%d skip=%d floor=%d" % [_pass, total, _skip, OPS_UNIT_CLAIM_FLOOR])
 	quit(0 if _fail == 0 else 1)
 	return true
+
+
+## The measured claim count of a complete run, session 169: 232 (was 205 at 1.9.6, plus
+## the twenty-seven dependency assertions — fourteen against live scenes, thirteen against
+## the splitter's own branches on synthetic input, every one of them added because a
+## mutation survived without it (169 §7).
+##
+## 🔴 SET TWO BELOW THE MEASUREMENT, NOT AT IT. `skip` moves a claim out of pass/fail on
+## a rasterizer that cannot capture, so a floor pinned exactly at 232 would false-fail on
+## a legitimate environment — and a floor that cries wolf is a floor somebody deletes.
+const OPS_UNIT_CLAIM_FLOOR := 230
 
 
 func _check(label: String, cond: bool) -> void:
@@ -641,6 +678,28 @@ func _rfield(reply: Variant, section: String, key: String) -> Variant:
 func _rok(reply: Variant) -> Variant:
 	return reply["ok"] if (reply is Dictionary and reply.has("ok")) else null
 
+
+## 🔴 A MISSING ARRAY FIELD MUST COMPARE FALSE, NOT RAISE (168 §5, re-earned in 169 §6).
+##
+## `_rfield` already returns null for an absent field — that fix is a session old. What
+## bit anyway was the CALL SITE: `var deps: Array = _rfield(...)` is a TYPED assignment,
+## and a typed assignment raises on null exactly like the descriptive-String sentinel
+## 168 replaced. Measured: running 169's thirteen new dependency assertions against the
+## PRE-FIX addon took this suite from 218/218 to a perfectly green 206/206 — twelve
+## claims left the tally instead of failing, and the pass rate stayed 100%.
+##
+## So reach for reply arrays through here. An absent or wrongly-typed field yields an
+## EMPTY ARRAY, every downstream claim still speaks, and it speaks the word FAIL.
+func _rarray(reply: Variant, section: String, key: String) -> Array:
+	var v: Variant = _rfield(reply, section, key)
+	return v if v is Array else []
+
+
+## Same rule for indexing: an out-of-range read answers "" rather than raising, so a
+## claim about element 0 of an array that came back empty FAILS BY NAME.
+func _at(arr: Array, i: int) -> String:
+	return String(arr[i]) if i < arr.size() else ""
+
 # --- operations.gd import-settings REPORTING (166 §5 D3/D4, fixed 1.46.0) ---
 #
 # 🔴 EVERY ASSERTION HERE IS POSITIVE AND DISCRIMINATING. The claim these replace was
@@ -748,6 +807,121 @@ func _test_import_settings_reporting(ops) -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(bare))
 
 # --- runtime_bridge.gd _screenshot guard (no viewport; hermetic) ------------
+# ── 169 §5: scene_get_dependencies handed out the one spelling that does not load ──
+#
+# The tool echoed ResourceLoader.get_dependencies verbatim. Measured on 4.7 against the
+# example project, the entry shape is HETEROGENEOUS — `res://demo/demo_snowman.gd` for a
+# dependency with no UID sidecar, `uid://ccgi4n26nbyku::::res://player.gd` for one with —
+# and the second form answers `not_found` from resource_load while BOTH of its halves
+# load fine on their own.
+#
+# 🔴 THESE ASSERTIONS ARE ON THE SPLITTER, NOT ON A LIVE SCENE. The live behaviour is
+# covered by the authoring probe's AUTH_SCENE_DEPENDENCIES against a real editor; what a
+# unit test can pin — cheaply, hermetically and on every push — is that each SHAPE maps
+# to the right answer. The shapes below are quoted from the measurement, not invented.
+func _test_scene_dependency_shape(ops) -> void:
+	# The real scene in this project: one dependency, UID-prefixed. This is the row the
+	# defect was found on.
+	var r: Dictionary = ops._scene_get_dependencies({"path": "res://main.tscn"})
+	_eq("dep.ok", _rok(r), true)
+	# 🔴 _rarray / _at, NOT typed locals. Against the PRE-FIX addon these fields do not
+	# exist, and `var deps: Array = _rfield(...)` raised — taking twelve of the thirteen
+	# claims below out of the tally and leaving a perfectly green 206/206. See _rarray.
+	var deps: Array = _rarray(r, "result", "dependencies")
+	var raw: Array = _rarray(r, "result", "dependencies_raw")
+	var uids: Array = _rarray(r, "result", "dependency_uids")
+
+	# 🔴 THE CLAIM THE TAUTOLOGY REPLACED. `Array.isArray(deps)` was green for every one
+	# of these; naming the content is what makes it a claim.
+	_check("dep.named", deps.has("res://player.gd"))
+	_check("dep.loadable", _at(deps, 0) != "" and not _at(deps, 0).contains("::::"))
+
+	# The three arrays describe the same dependencies and must stay index-aligned, or a
+	# caller pairing a path with its UID silently pairs the wrong two.
+	_eq("dep.aligned.raw", raw.size(), deps.size())
+	_eq("dep.aligned.uids", uids.size(), deps.size())
+	# …and the population is non-empty, so the two alignment claims above cannot be
+	# satisfied by three empty arrays agreeing with each other (0 == 0 == 0).
+	_check("dep.nonempty", deps.size() > 0)
+
+	# 🔴 NOTHING IS DESTROYED. The engine's own encoding is still there verbatim — this
+	# is the half of #181's lesson that says a fix must not remove a capability.
+	_check("dep.raw.preserved", _at(raw, 0).contains("res://player.gd"))
+	_check("dep.uid.extracted", _at(uids, 0).begins_with("uid://"))
+	# …and the raw entry is reconstructible from the two halves, which is what "no
+	# information lost" actually means rather than merely asserts.
+	_eq("dep.roundtrip", _at(uids, 0) + "::::" + _at(deps, 0), _at(raw, 0))
+
+	# A scene whose dependency has NO uid prefix takes the one-segment arm. Measured:
+	# res://demo/demo.tscn -> "res://demo/demo_snowman.gd", 1 segment.
+	var r2: Dictionary = ops._scene_get_dependencies({"path": "res://demo/demo.tscn"})
+	_eq("dep.nouid.ok", _rok(r2), true)
+	var deps2: Array = _rarray(r2, "result", "dependencies")
+	var uids2: Array = _rarray(r2, "result", "dependency_uids")
+	_check("dep.nouid.named", deps2.has("res://demo/demo_snowman.gd"))
+	# 🔴 "" NOT null, and NOT omitted: the arrays stay index-aligned even when a
+	# dependency has no UID. An omitted entry would shift every later pairing by one.
+	_eq("dep.nouid.blank", _at(uids2, 0), "")
+
+	# Control: a scene that does not exist is still refused rather than answered with an
+	# empty list. If this goes red the fixture is wrong, not the tool (168 §1).
+	var absent: Dictionary = ops._scene_get_dependencies({"path": "res://g169_no_such_scene.tscn"})
+	_eq("dep.absent.ok", _rok(absent), false)
+	_eq("dep.absent.code", _rfield(absent, "error", "code"), "not_found")
+
+	# ── the splitter's own branches, on SYNTHETIC input ───────────────────────
+	#
+	# 🔴 THESE EXIST BECAUSE A MUTATION SWEEP SAID THEY HAD TO (169 §7). Two mutants —
+	# a splitter that DROPS unrecognised entries, and a UID prefix matched as loosely as
+	# `begins_with("u")` — both SURVIVED the live-scene assertions above with the suite
+	# fully green, because nothing this project contains produces an entry that reaches
+	# either branch. A branch no fixture can reach is covered by nothing, however many
+	# green claims sit next to it.
+	var split_uid: Dictionary = ops.split_dependency_entry("uid://abc123::::res://player.gd")
+	_eq("dep.split.uid.path", split_uid["path"], "res://player.gd")
+	_eq("dep.split.uid.uid", split_uid["uid"], "uid://abc123")
+
+	var split_plain: Dictionary = ops.split_dependency_entry("res://demo/demo_snowman.gd")
+	_eq("dep.split.plain.path", split_plain["path"], "res://demo/demo_snowman.gd")
+	_eq("dep.split.plain.uid", split_plain["uid"], "")
+
+	# user:// is a legal resource path and must be read as a PATH, not mistaken for a uid
+	# — the exact confusion the loose-prefix mutant introduced.
+	var split_user: Dictionary = ops.split_dependency_entry("uid://xyz::::user://saved.tres")
+	_eq("dep.split.user.path", split_user["path"], "user://saved.tres")
+	_eq("dep.split.user.uid", split_user["uid"], "uid://xyz")
+
+	# 🔴 THE FALLBACK, ASSERTED RATHER THAN COMMENTED. An entry with no recognisable path
+	# segment comes back WHOLE. A splitter that dropped it would shrink the dependency
+	# list and look cleaner for it.
+	var split_odd: Dictionary = ops.split_dependency_entry("something::::we::::have::::not::::seen")
+	_eq("dep.split.unknown.kept", split_odd["path"], "something::::we::::have::::not::::seen")
+	_eq("dep.split.unknown.uid", split_odd["uid"], "")
+
+	# A trailing type segment (a shape other Godot versions emit) must not be mistaken
+	# for the path.
+	var split_typed: Dictionary = ops.split_dependency_entry("uid://q::::res://a.tres::::Texture2D")
+	_eq("dep.split.typed.path", split_typed["path"], "res://a.tres")
+	_eq("dep.split.typed.uid", split_typed["uid"], "uid://q")
+
+	# 🔴 THE LAST TWO ROWS EXIST BECAUSE THE SWEEP'S SECOND RUN STILL HAD SURVIVORS, AND
+	# EACH SURVIVOR NAMED THE INPUT NOBODY HAD WRITTEN. Neither is a hypothetical: each
+	# is the smallest entry that separates the real rule from a mutant of it.
+
+	# 'FIRST path segment wins' — needs TWO path segments to mean anything. With only one,
+	# a splitter that took the LAST would agree with one that took the first, and the
+	# mutation survived on exactly that.
+	var split_two: Dictionary = ops.split_dependency_entry("uid://q::::res://first.tres::::res://second.tres")
+	_eq("dep.split.two.path", split_two["path"], "res://first.tres")
+
+	# A non-uid segment that merely STARTS with "u" must not be read as a UID. Every
+	# earlier row let a prefix as loose as `begins_with("u")` pass, because `user://`
+	# is caught by the path branch first and nothing else in them began with a u.
+	var split_loose: Dictionary = ops.split_dependency_entry("unknown_thing::::res://a.tres")
+	_eq("dep.split.loose.uid", split_loose["uid"], "")
+	_eq("dep.split.loose.path", split_loose["path"], "res://a.tres")
+
+
 func _test_screenshot_no_viewport() -> void:
 	# A _LiveRuntimeBridge NOT in the tree has no viewport, so _screenshot must
 	# short-circuit to the no_viewport error without touching the renderer.

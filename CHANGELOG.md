@@ -6,6 +6,76 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.48.0] — 2026-08-02
+
+### Fixed — `scene_get_dependencies` returned the one spelling of a dependency that does not load
+
+The tool echoed `ResourceLoader.get_dependencies` verbatim. Measured on Godot 4.7 against
+the example project, that array is **heterogeneous**: a dependency with no UID comes back
+as `res://demo/demo_snowman.gd`, while one with a UID comes back as
+`uid://ccgi4n26nbyku::::res://player.gd` — the engine's internal encoding. Fed straight
+back to `resource_load`, the second form answers `not_found`, while **both of its halves
+load fine on their own**. A caller doing the obvious thing with a "dependency" hit a wall,
+and could not even write a stable parser without already knowing which shape to expect.
+
+This is 1.46.0's defect in a read-only tool: a value echoed from the engine and presented
+as an answer nobody had measured. Same fix, and nothing is destroyed:
+
+- **`dependencies` now carries loadable `res://` paths** — what the tool's description has
+  always promised.
+- **`dependencies_raw` preserves the engine's encoding verbatim**, and **`dependency_uids`
+  carries the UID alone (`""` when there is none)**. All three are index-aligned, so a
+  caller pairing a path with its UID cannot silently pair the wrong two.
+- An entry in a shape the splitter does not recognise is passed through **whole** rather
+  than skipped. A splitter that dropped what it did not understand would shrink the
+  dependency list and look tidier for it.
+
+### Changed — five assertions that could not fail were replaced with claims that name the reply
+
+1.47.0 found `typeof imp.imported === "boolean"` by hand and named the class: an assertion
+green against every reply its tool can produce, sitting in a required context reading as
+coverage. This release went looking for its siblings **mechanically** — parsing every claim
+site across 68 test files, extracting the condition that guards it, and reporting the ones
+whose every leaf is a type-or-presence test. Five survived being run against the specific
+failure their own comment names:
+
+- **`AUTH_READ_PATH_LEGAL`** and **`AUTH_NESTED_PATH_LEGAL`** — both introduced by the
+  comment *"a guard that refused everything would pass every claim above"*, and both
+  vacuous for exactly that guard. `AUTH_READ_PATH_LEGAL` was the sharpest: it asserted
+  `typeof count === "number"` against `test_list` on its documented default, and the
+  documented default is `res://test` while the example project ships `res://tests`. Its
+  reading on a healthy tree was `count: 0` — **byte-identical to the over-refusal it
+  existed to detect.** It could never have been anything but green.
+- **`AUTH_SCENE_DEPENDENCIES`** — `Array.isArray(deps.dependencies)`, contradicted by the
+  comment on its own line naming `res://player.gd`. Replacing it is what found the
+  dependency defect above; the correct pattern had been four lines up the whole time.
+- **`GD_DAP_ENTRY`** — 1.47.0's tautology verbatim, one plane over. Now a biconditional:
+  the reported `stop_on_entry_honored` must agree with whether the session actually stopped.
+- **`GD_DAP_CAPS`** — vacuous for `{}`, which is precisely the "answered `initialize`
+  without capabilities" build its comment warns about. Its sibling claim was vacuous for
+  `{}` too, so an empty handshake passed both with two green ticks over it.
+
+### Added — suites now notice when they get smaller instead of greener
+
+1.47.0 watched a mutation take a suite from `205/205` to a perfectly green `200/200` —
+claims leaving the tally instead of failing. The totals that would have shown it were
+printed and never compared to anything. Now they are:
+
+- **`authoring-plane`** instruments `family()` itself rather than listing 203 marker names
+  (a hand-maintained manifest is the exception table 1.47.0 measured and threw away). Three
+  gates: every family must make at least one claim; **no family may throw part way through**
+  — the silent case, where a family keeps the claims it made and drops the rest; and a
+  family/claim floor, the family count asserted first so a collapsed scope cannot pass.
+- **`gdscript-dap-plane`** gets a named family manifest plus a claim floor. A manifest
+  rather than a bare total because this probe legitimately takes different arms on 4.3 and
+  4.7, so a floor tight enough to catch its smallest family would false-fail elsewhere.
+- **the GDScript unit suite** gets a claim floor — and it earned it during this release:
+  run against the pre-fix addon, the new dependency assertions went from 13 to 1 and the
+  suite reported a perfectly green `206/206`. The cause was a **typed local** (`var deps:
+  Array = _rfield(...)`) raising on the null the accessor correctly returned — 1.47.0's
+  sentinel lesson in a new costume. Reply arrays now come through `_rarray` / `_at`, which
+  compare false instead of raising, so every claim speaks.
+
 ## [1.47.0] — 2026-08-02
 
 ### Added — the annotation table is now checked for being RIGHT, not just for being complete

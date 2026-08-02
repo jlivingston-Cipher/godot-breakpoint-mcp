@@ -7,7 +7,7 @@ extends RefCounted
 ## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything the assistant did.
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
-const ADDON_VERSION := "1.9.6"
+const ADDON_VERSION := "1.9.7"
 
 var _plugin: EditorPlugin
 
@@ -1411,10 +1411,71 @@ func _scene_get_dependencies(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "Current scene has no saved path yet")
 	if not ResourceLoader.exists(target):
 		return _err("not_found", "Scene not found: %s" % target)
+	# 🔴 THE ENTRY GODOT HANDS BACK IS NOT A PATH, AND FOR SOME DEPENDENCIES IT IS THE
+	# ONLY SPELLING THAT DOES NOT LOAD (session 169 §5). Measured on 4.7 against the
+	# example project, with controls:
+	#
+	#   res://main.tscn            -> "uid://ccgi4n26nbyku::::res://player.gd"   (2 segments)
+	#   res://demo/demo.tscn       -> "res://demo/demo_snowman.gd"               (1 segment)
+	#
+	# The shape is HETEROGENEOUS — it depends on whether the dependency has a `.uid`
+	# sidecar — so `dependencies` was an array a caller could not parse without already
+	# knowing the rule. Fed to resource_load verbatim, the two-segment form answers
+	# `not_found`, while BOTH of its halves load fine on their own. The tool was handing
+	# out the one spelling that works with nothing.
+	#
+	# This is #181's defect in a read-only tool: a value echoed from the engine and
+	# presented as an answer nobody had measured. Same fix as #181 — the field is made to
+	# mean what its description says, and nothing is destroyed: the engine's own encoding
+	# is preserved verbatim under `dependencies_raw`.
+	#
+	# 🔴 THE FALLBACK NEVER DROPS AN ENTRY. An unrecognised shape (no res:// or user://
+	# segment) is passed through whole rather than skipped: a splitter that silently
+	# discards what it does not understand would shrink the dependency list and look
+	# cleaner for it, which is this session's entire subject.
 	var deps: Array = []
+	var raw: Array = []
+	var uids: Array = []
 	for d in ResourceLoader.get_dependencies(target):
-		deps.append(String(d))
-	return _ok({"path": target, "dependencies": deps})
+		var entry := String(d)
+		var split := split_dependency_entry(entry)
+		raw.append(entry)
+		deps.append(split["path"])
+		uids.append(split["uid"])
+	return _ok({
+		"path": target,
+		"dependencies": deps,
+		"dependencies_raw": raw,
+		"dependency_uids": uids,
+	})
+
+
+## Split one ResourceLoader.get_dependencies entry into its loadable path and its UID.
+##
+## 🔴 A SEPARATE, PUBLIC FUNCTION ON PURPOSE. Inlined in the loop, two of its branches
+## were unreachable from any scene the example project contains — a mutation sweep proved
+## it (169 §7): making the splitter DROP unrecognised entries, and matching the UID prefix
+## as loosely as `begins_with("u")`, both SURVIVED with the suite fully green, because no
+## fixture produces an entry that exercises either path. The comment claiming "the
+## fallback never drops an entry" was itself an unasserted claim, which is this session's
+## whole subject. Pulled out here, every branch takes a synthetic input in one cheap
+## hermetic test.
+##
+## Returns {"path": String, "uid": String}. `uid` is "" when the entry carries none.
+## An entry with no recognisable path segment is returned WHOLE as the path: dropping it
+## would shrink the dependency list and look tidier for it.
+static func split_dependency_entry(entry: String) -> Dictionary:
+	var found_path := ""
+	var found_uid := ""
+	for s in entry.split("::::"):
+		var seg := String(s)
+		if seg.begins_with("res://") or seg.begins_with("user://"):
+			if found_path == "":
+				found_path = seg
+		elif seg.begins_with("uid://"):
+			if found_uid == "":
+				found_uid = seg
+	return {"path": found_path if found_path != "" else entry, "uid": found_uid}
 
 
 func _scene_pack(params: Dictionary) -> Dictionary:
