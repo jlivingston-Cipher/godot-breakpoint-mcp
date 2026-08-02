@@ -847,10 +847,29 @@ func _test_scene_dependency_shape(ops) -> void:
 	# 🔴 NOTHING IS DESTROYED. The engine's own encoding is still there verbatim — this
 	# is the half of #181's lesson that says a fix must not remove a capability.
 	_check("dep.raw.preserved", _at(raw, 0).contains("res://player.gd"))
-	_check("dep.uid.extracted", _at(uids, 0).begins_with("uid://"))
-	# …and the raw entry is reconstructible from the two halves, which is what "no
-	# information lost" actually means rather than merely asserts.
-	_eq("dep.roundtrip", _at(uids, 0) + "::::" + _at(deps, 0), _at(raw, 0))
+
+	# 🔴 A BICONDITIONAL, BECAUSE THE ENTRY'S SHAPE IS ENVIRONMENT-DEPENDENT AND CI
+	# TAUGHT THAT THE HARD WAY. The first cut asserted `uids[0].begins_with("uid://")`
+	# and a fixed roundtrip — measured true on a local fixture that had been `--import`ed,
+	# and FALSE on CI, where the same scene's dependency comes back as a bare
+	# `res://player.gd`. The two-segment form appears only once the UID cache is
+	# populated, so pinning it was asserting the environment, not the tool.
+	#
+	# That heterogeneity is the defect's own shape (see this function's header) and it
+	# makes the tool WORSE for a caller, not better — but a claim about it has to hold on
+	# both arms. What is invariant is that the halves RECONSTRUCT the raw entry: with a
+	# UID the compound reassembles, without one the path IS the raw entry and the uid is
+	# empty. Neither arm can be satisfied by the other.
+	#
+	# The uid-extraction branch itself is not left uncovered — it is pinned exactly, and
+	# environment-independently, by the synthetic `dep.split.*` rows below. That is what
+	# extracting the splitter bought.
+	if _at(raw, 0).contains("::::"):
+		_check("dep.uid.consistent", _at(uids, 0).begins_with("uid://"))
+		_eq("dep.roundtrip", _at(uids, 0) + "::::" + _at(deps, 0), _at(raw, 0))
+	else:
+		_eq("dep.uid.consistent", _at(uids, 0), "")
+		_eq("dep.roundtrip", _at(deps, 0), _at(raw, 0))
 
 	# A scene whose dependency has NO uid prefix takes the one-segment arm. Measured:
 	# res://demo/demo.tscn -> "res://demo/demo_snowman.gd", 1 segment.
