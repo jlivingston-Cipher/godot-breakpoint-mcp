@@ -6,6 +6,10 @@ host/addon/
 host/*.log
 npm-debug.log*
 
+# scope_gate.py writes a mutated copy of contract_check.py here and removes it in a
+# finally; this is the belt-and-braces for a run killed between the two.
+scripts/_scope_gate_mutant.py
+
 # Godot
 .godot/
 *.import
