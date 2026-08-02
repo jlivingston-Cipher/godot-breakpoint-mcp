@@ -22,6 +22,7 @@ import { z } from "zod";
 import { LspClient } from "../dist/lsp.js";
 import { loadConfig } from "../dist/config.js";
 import { registerLspTools } from "../dist/tools/lsp.js";
+import { Population } from "./_population.mjs";
 
 const cfg = loadConfig();
 const lsp = new LspClient(cfg.lspHost, cfg.lspPort, cfg.projectUri, 20000);
@@ -45,7 +46,30 @@ const validate = (name, args) => z.object(schemas.get(name)).parse(args);
 const call = async (name, args) => handlers.get(name)(validate(name, args), {});
 
 let failures = 0;
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). `failures` was the only number
+// this probe kept, and a probe that counts only failures cannot tell "nothing was
+// wrong" from "nothing was asked": the last line read `LSP_LIVE_ALL ok every claim
+// held`, which is true of the empty set.
+//
+// 🔴 THE MANIFEST HOLDS ONLY WHAT MUST ALWAYS SPEAK, and this plane is the reason
+// that distinction exists. Four markers are legitimately absent on a healthy run:
+// `NO_THROW` fires only when a tool throws to the caller, and `DEGRADE`,
+// `NO_RAW_RPC` and `TRAP_EARNED` are EARNED per build — Godot's providers differ by
+// version (measured: 4.7 advertises documentHighlight and 4.3/4.5 do not), so a
+// build that supports everything makes none of them. Naming them would false-fail a
+// green run on a future engine; they are still counted in the total.
+const population = new Population("LSP_LIVE", {
+  families: [
+    "SUPPORTED", "STRUCTURED", "REFUSAL_NOT_LSP_ERROR", "PATH_EVERY_TOOL",
+    "PATH_ESCAPE", "PATH_ABSOLUTE", "PATH_SIBLING_PREFIX", "MISSING_FILE",
+    "NOT_A_FILE", "RENAME_IDENT", "RENAME_KEYWORD", "NEG_POSITION",
+    "RENAME_LEGAL", "PATH_LEGAL", "EMPTY_FILE_OK",
+  ],
+  scope: 15,
+  claims: 80,         // 🔴 NOT exact, and MEASURED not guessed: 84 claims / 17 families on 4.7, 82 / 18 on 4.3. The 18th is TRAP_EARNED, which 4.7 never makes — naming it would have false-failed 4.7 on a green run
+});
 const check = (cond, marker, detail) => {
+  population.claim(marker);
   if (cond) console.log(`LSP_LIVE_${marker} ok ${detail}`);
   else { failures++; console.log(`LSP_LIVE_${marker} FAIL ${detail}`); }
 };
@@ -267,5 +291,7 @@ try {
 }
 
 lsp.close();
+// 🔴 THE POPULATION GATE, folded into the same failure count the probe already had.
+failures += population.report().length;
 if (failures) { console.log(`LSP_LIVE_ALL FAIL ${failures} claim(s) did not hold`); process.exit(1); }
-console.log("LSP_LIVE_ALL ok every claim held");
+console.log(`LSP_LIVE_ALL ok every claim held (${population.total} claim(s) ran)`);

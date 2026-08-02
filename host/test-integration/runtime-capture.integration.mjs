@@ -18,7 +18,18 @@
 //
 // Requires the game running (booted by the workflow) with GODOT_PROJECT set. Not
 // part of `npm test` (Godot-free); invoked directly by integration.yml.
-import assert from "node:assert/strict";
+import { Population } from "./_population.mjs";
+
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). Three assertions behind a ✔,
+// and they live in a TWO-ARMED conditional: >=4.5 captures print(), <4.5 does not.
+// Both arms make three claims, so one family and one floor cover both — and an arm
+// that quietly stopped asserting is exactly what this catches.
+const population = new Population("D6_CAP", {
+  families: ["D6_CAP_RESULT"],
+  scope: 1,
+  claims: 3,
+});
+const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
@@ -93,6 +104,7 @@ const entries = after.entries ?? [];
 const printLine = entries.find((e) => String(e.message).includes("took 7 damage, counter now"));
 const pushLine = entries.find((e) => e.level === "warning" && String(e.message).includes("took 7 damage"));
 
+population.open("D6_CAP_RESULT");
 if (capture) {
   // Godot >= 4.5: the print() must have been captured into the runtime log.
   assert.equal(after.capture, true, "runtime_get_log should report capture=true on a >=4.5 engine");
@@ -111,4 +123,5 @@ if (capture) {
 }
 
 runtime.close();
+population.reportOrDie();
 console.log("✔ runtime-plane integration OK");

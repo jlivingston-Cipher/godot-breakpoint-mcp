@@ -109,3 +109,10 @@ jobs:
         run: npm ci
       - name: Compile the suite and run it (node:test)
         run: npm test
+      # 🔴 THE GATE ON THE GATE. `_population.mjs` is the only thing standing between
+      # fourteen live probes and 169 §4's "…_ALL ok every claim held" — a sentence that
+      # is true of the empty set. If the instrument silently stopped counting, all
+      # fourteen would go back to reporting coverage they no longer have, in green.
+      # No Godot, no ports, no deps: it runs here rather than earning a 27th job.
+      - name: The population instrument, self-checked
+        run: node test-integration/_population.selftest.mjs

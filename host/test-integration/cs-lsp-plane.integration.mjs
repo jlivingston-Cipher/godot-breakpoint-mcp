@@ -18,6 +18,7 @@ import { CsLspClient } from "../dist/cslsp.js";
 import { StdioChannel } from "../dist/stdio.js";
 import { loadConfig } from "../dist/config.js";
 import { registerCsLspTools } from "../dist/tools/cslsp.js";
+import { Population } from "./_population.mjs";
 
 const cfg = loadConfig();
 const channel = new StdioChannel(
@@ -46,7 +47,26 @@ const call = async (name, args) => handlers.get(name)(validate(name, args), {});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;
+// 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2) — see `lsp-plane` for the long
+// form. `CS_LSP_LIVE_ALL ok every claim held` counted nothing, and this probe has an
+// extra way to shrink: everything below `WARM` is skipped when OmniSharp's
+// design-time build has not finished, and the run still ends on that sentence.
+//
+// Excluded from the manifest for the same reason as the GDScript plane: `NO_THROW`
+// is an error path, and `DEGRADE` / `NO_RAW_RPC` / `TRAP_EARNED` are earned per
+// build. Counted, but never required.
+const population = new Population("CS_LSP_LIVE", {
+  families: [
+    "WARM", "SUPPORTED", "STRUCTURED", "REFUSAL_NOT_LSP_ERROR",
+    "PATH_ESCAPE", "PATH_ABSOLUTE", "PATH_SIBLING_PREFIX", "MISSING_FILE",
+    "NOT_A_FILE", "RENAME_IDENT", "RENAME_KEYWORD", "NEG_POSITION",
+    "RENAME_LEGAL", "PATH_LEGAL", "EMPTY_FILE_OK",
+  ],
+  scope: 15,
+  claims: 62,         // measured 64 in CI (this PR). Never runnable locally — needs OmniSharp
+});
 const check = (cond, marker, detail) => {
+  population.claim(marker);
   if (cond) console.log(`CS_LSP_LIVE_${marker} ok ${detail}`);
   else { failures++; console.log(`CS_LSP_LIVE_${marker} FAIL ${detail}`); }
 };
@@ -237,6 +257,8 @@ try {
 }
 
 cslsp.close();
+// 🔴 THE POPULATION GATE, folded into the same failure count the probe already had.
+failures += population.report().length;
 if (failures) { console.log(`CS_LSP_LIVE_ALL FAIL ${failures} claim(s) did not hold`); process.exit(1); }
-console.log("CS_LSP_LIVE_ALL ok every claim held");
+console.log(`CS_LSP_LIVE_ALL ok every claim held (${population.total} claim(s) ran)`);
 process.exit(0);
