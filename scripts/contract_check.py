@@ -2085,7 +2085,9 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 18  # +1 session 173: scripts/instrument_gate.py — the blinding
+SHEBANG_NONEXEC_EXPECTED = 21  # +3 session 175: host/scripts/verdict_gate.mjs, its self-test,
+                               # and host/test-integration/_png.selftest.mjs — all `node <file>`.
+                               # +1 session 173: scripts/instrument_gate.py — the blinding
 #                                 technique pointed at the JS instruments (172 §10.2)
 #                                 +1 session 172: scripts/scope_gate.py — and see 172's
 #                                 note below: the census now reads .py/.sh too, which is

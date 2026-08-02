@@ -112,6 +112,40 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🔴 175. `BLIND175 _png.mjs 2 of 2 STILL GREEN`, measured before a line of this
+        # entry existed — the suite, both tautology gates, both verdict gates and all
+        # three instrument self-tests passed with the module returning constants. Same
+        # reason as `_workspace.mjs` a session earlier: it is imported in exactly two
+        # places, `authoring-plane.integration.mjs` (boots the editor GUI under Xvfb)
+        # and `verify_shot_editor_live.mjs` (needs a real GPU). Neither runs headless.
+        #
+        # AND WHAT IT DECIDES IS #143's FAILURE. `sampleDistinctColours` returning more
+        # than 1 is the entire content of AUTH_SHOT_NOT_UNIFORM — the check separating a
+        # rasterizer that drew something from one that initialised and drew nothing. The
+        # tool's own label cannot tell those apart: an all-black frame has the right
+        # mimeType, the right "(WxH)" note and the right four magic bytes.
+        "name": "_png.mjs",
+        "src": HOST / "test-integration" / "_png.mjs",
+        "gate": ["node", "test-integration/_png.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 3,
+        "why": "the reader that decides whether a rendered frame contains anything at all",
+        "targets": {
+            "export function decodePng(buf) {": "return null;",
+            # 🔴 NOT `return {distinct: 1, …}` — 1 is the FAILING answer, and a blind that
+            # injects a failure proves nothing about a gate that is supposed to catch it.
+            # The constant has to be the answer a healthy frame gives.
+            "export function sampleDistinctColours(img, step = 7) {":
+                "return { distinct: 999, sampled: 999 };",
+            # 🔴 THIS ONE NEEDED A NEW CASE TO BE CATCHABLE AT ALL. Every paeth assertion
+            # in the first draft used a row where the predictor legitimately chooses `a`,
+            # so `return a;` round-tripped all of them — a wrong answer of the right type,
+            # in the test for the function whose job is to reject exactly that. The
+            # PAETH_CHOOSES_ABOVE case exists because this target was written first.
+            "function paeth(a, b, c) {": "return a;",
+        },
+    },
+    {
         # The COMPILED walk rather than the .ts, so this step costs no tsc invocation:
         # `npm test` has already emitted dist-test/ by the time this runs.
         "name": "path-cohort (compiled walk)",
@@ -222,7 +256,7 @@ def main() -> int:
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
     # would sweep nothing, report nothing and exit 0 — the exact shape it exists to
     # catch, one level up. taut169, again, again.
-    INSTRUMENT_FLOOR = 4
+    INSTRUMENT_FLOOR = 5   # 175: 4 -> 5, _png.mjs admitted
     print(f"INSTRUMENT_GATE instruments={len(INSTRUMENTS)} floor={INSTRUMENT_FLOOR}")
     if len(INSTRUMENTS) < INSTRUMENT_FLOOR:
         problems.append(

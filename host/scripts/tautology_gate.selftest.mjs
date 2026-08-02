@@ -14,7 +14,10 @@
 //
 // 🔴 THE CLAIM FLOOR IS A LITERAL. 170 §5's self-test caught its own miscount twice
 // because of exactly this line; if a case stops running, the count moves and this fails.
-import { analyze, verdict, NO_CLAIMS_EXPECTED } from "./tautology_gate.mjs";
+import { analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS } from "./tautology_gate.mjs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";   // not .pathname — "Godot MCP" keeps the %20
 
 let ran = 0, bad = 0;
 const claim = (cond, what) => {
@@ -120,7 +123,20 @@ claim(A(wrap(`  assert.ok(x);`))[0].owner?.name === "a case", "a claim inside te
 // claims went from swept to unseen in the same commit that fixed 2175 unit ones, and
 // `TAUT_SCOPE test-integration 422/400 ok` reported health over a population it no
 // longer contained. Every idiom below is pinned so the next replacement has to notice.
-const probe = (body) => `const check = (c, m, d) => {};\nfunction pass(m, d) {}\nfunction fail(m, d) {}\n${body}\n`;
+// 🔴 175 HAD TO MAKE THIS FIXTURE REAL, AND THAT IS A FINDING ABOUT THE FIXTURE.
+// It declared `const check = (c, m, d) => {};` — AN EMPTY BODY — and `claim` not at all.
+// Under name-only matching that was invisible. Under `collectFailers` it is exactly the
+// impostor the resolver is built to reject: a helper that cannot fail, and a name with
+// no declaration behind it. Every one of these cases had been proving the classifier
+// against a stub that no probe in the tree resembles. The bodies below are the real
+// `lsp-plane` / `cs-dap-plane` helpers, reduced.
+const probe = (body) => `let failures = 0;
+const check = (c, m, d) => { if (c) { console.log("ok " + m); return true; } failures++; console.log("FAIL " + m + d); return false; };
+const claim = (m, c, d = "") => { if (c) console.log("ok " + m); else { failures++; console.log("FAIL " + m + d); } };
+function pass(m, d) {}
+function fail(m, d) {}
+${body}
+`;
 
 // ── 10. THE PROBE IDIOMS, ALL THREE, READ OUT OF THE SOURCES ────────────────────────
 claim(A(probe(`check(r.count === 3, "M_ONE", "detail");`)).length === 1,
@@ -202,10 +218,63 @@ claim(V(probe(`check(list.some((d) => d.bad) === false && list.every((d) => d.ok
 claim(Object.keys(NO_CLAIMS_EXPECTED).length > 0 && Object.values(NO_CLAIMS_EXPECTED).every((r) => typeof r === "string" && r.length > 20),
   "every exempt file states its reason, at length — a roster of bare names is a list nobody can justify");
 
+// ── 17. A NAME IS NOT A BEHAVIOUR (175) ─────────────────────────────────────────────
+// 🔴 CHECK_FNS WAS MATCHED BY NAME ALONE, AND THE HOST ROOT IS WHERE THAT SHOWED. The
+// gate INVENTED seventeen of that directory's twenty-four claim sites — fifteen from a
+// tool invoker called `check` and two from a transcript reader called `assertOk`.
+// A gate that fabricates its own population inflates the very floor meant to detect a
+// collapse. Both impostors below are the real shapes, reduced.
+const REAL_CHECK = `let failures = 0;\nfunction check(cond, name) {\n  if (cond) { console.log("ok " + name); return true; }\n  console.log("FAIL " + name); failures++; return false;\n}\n`;
+const INVOKER = `const results = [];\nasync function check(name, args = {}) {\n  const r = await call(name, args);\n  results.push({ tool: name, status: r.isError ? "ERR" : "OK" });\n  return r;\n}\n`;
+const READER = `const assertOk = (o, step) => {\n  const s = o.steps.find((x) => x.step === step);\n  return s && s.result ? s.result.ok : undefined;\n};\n`;
+
+claim(A(REAL_CHECK + `check(x.length > 0, "M");`).length === 1,
+  "a helper that branches on its condition parameter and counts a failure IS a claim idiom");
+claim(A(INVOKER + `check("scene_open", { path: "res://main.tscn" });`).length === 0,
+  '🔴 a tool INVOKER named `check` is not — sweep_editor.mjs, fifteen invented sites (175)');
+claim(A(READER + `assertOk(o, "assert GrewEver==false");`).length === 0,
+  "🔴 nor is a transcript READER named `assertOk` — cs_demo_verify_replay.mjs, two more (175)");
+claim(A(`check(x.length > 0, "M");`).length === 0,
+  "🔴 and a name that resolves to NO local declaration admits nothing — which is why adding `verdict` to CHECK_FNS is safe, with this gate's own selftest calling an imported verdict() on every line");
+claim(A(`const claim = (cond, what) => { ran++; if (!cond) { bad++; console.log(what); } };\nclaim(n === 3, "M");`).length === 1,
+  "the `claim(cond, what)` form still reads — this very file's idiom");
+claim(A(`const verdict = (step, result) => {\n  const ok = result ? result.ok : undefined;\n  if (ok !== expected) failures.push(step);\n  return ok;\n};\nverdict("assert grew_ever==false", a1);`).length === 1,
+  "and 175's `verdict(step, result)` form reads — the shape the three fixed drivers assert through");
+// 🔴 CONDITION 2 ALONE WOULD ADMIT THE INVOKER, WHICH IS WHY BOTH ARE REQUIRED. The
+// invoker DOES mutate an outer binding (`results.push`). Only the parameter test
+// excludes it: a helper that never consults what it was told cannot be asserting it.
+claim(A(`const out = [];\nconst check = (cond, name) => { out.push(name); return cond; };\ncheck(x > 0, "M");`).length === 0,
+  "🔴 outer mutation alone is not enough — it must branch on a PARAMETER, or the invoker walks straight back in");
+// 🔴 AND THE OTHER HALF, WHICH THE REVERSE SWEEP FOUND UNPROVEN (175's G3). Dropping the
+// ESCAPE test left every case above still green: the invoker and the reader are both
+// excluded by the PARAMETER test, so nothing isolated the second condition. 173's G3 and
+// 174's H5, a third time — two conditions that in the live population are never satisfied
+// apart. This is a pure predicate: it branches on its parameter and only returns.
+claim(A(`const check = (cond, name) => (cond ? true : false);\ncheck(x > 0, "M");`).length === 0,
+  "🔴 a helper that branches on its parameter and only RETURNS is not an assertion — it computes, it does not claim");
+
+// ── 18. WHICH DIRECTORIES DOES THE SWEEP NOT ENTER? (175, 174 §11.3's question) ──────
+claim(Object.keys(FLOORS).length === 4 && ["test", "test-integration", "scripts", "."].every((d) => d in FLOORS),
+  "four directories are rostered — `scripts` and the host root were admitted in 175");
+// 🔴 `test/helpers` IS DELIBERATELY NOT ROSTERED, AND THIS IS THE ASSERTION THAT SAYS SO.
+// `readdirSync` is not recursive, so a SUBDIRECTORY of a rostered directory is unswept —
+// the fourth spelling of 174 §5's finding, after the filename prefix and the directory
+// roster. 174's D5 died of a note reading "deliberately left alone… no assertion here
+// either way", so this decision is pinned rather than written: `recording-server.ts` and
+// `tcp.ts` are fixtures. If either grows a claim site, this fails and the decision gets
+// re-made by a person.
+const HELPERS = fileURLToPath(new URL("../test/helpers/", import.meta.url));
+const helperClaims = readdirSync(HELPERS)
+  .filter((f) => /\.(mjs|ts)$/.test(f))
+  .map((f) => [f, analyze(join(HELPERS, f), readFileSync(join(HELPERS, f), "utf8")).length]);
+claim(helperClaims.length === 2, `test/helpers holds exactly 2 files (got ${helperClaims.length})`);
+claim(helperClaims.every(([, n]) => n === 0),
+  `🔴 HELPERS_NOT_ROSTERED — test/helpers asserts nothing, so a non-recursive sweep costs no coverage: ${JSON.stringify(helperClaims)}`);
+
 // ── the floor on this file itself (170 §5) ───────────────────────────────────────────
 // 🔴 IT CAUGHT ITS OWN MISCOUNT ON THE FIRST RUN — 170 §5's experience, verbatim: the
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
-const EXPECTED = 67;
+const EXPECTED = 78;   // 175: 67 -> 78 (the resolver, the directory roster, HELPERS_NOT_ROSTERED)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);

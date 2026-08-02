@@ -52,6 +52,25 @@ function rec(step, tool, args, result) {
   console.log(redact(JSON.stringify(result, null, 2)));
 }
 
+// 🔴 175: the C# mirror of `demo_verify_live.mjs`'s defect, and it mirrored it exactly —
+// two recorded verdicts, neither read, `process.exit(0)` regardless. See that file's
+// note for why the expectation is keyed on the LABEL rather than "any false is a fail":
+// the buggy pass is supposed to fail both, and the day it stops doing so is the half
+// that would otherwise go unnoticed. `cs_demo_verify_buggy.json` holds ok:false twice.
+const EXPECT = { buggy: false, fixed: true };
+const expected = EXPECT[LABEL];   // undefined for ad-hoc labels — then nothing is pinned
+const failures = [];
+function verdict(step, result) {
+  const ok = result && typeof result === "object" ? result.ok : undefined;
+  if (expected === undefined) {
+    console.log(`  VERDICT ${step} -> ok=${ok}  (label "${LABEL}" pins nothing)`);
+    return ok;
+  }
+  if (ok !== expected) failures.push(`${step}: expected ok=${expected} for the "${LABEL}" build, got ${JSON.stringify(ok)}`);
+  console.log(`  VERDICT ${step} -> ok=${ok}  expected ${expected}  ${ok === expected ? "✓" : "🔴 MISMATCH"}`);
+  return ok;
+}
+
 async function main() {
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
@@ -84,13 +103,15 @@ async function main() {
     S(await t("runtime_get_property", { path: ".", property: "GrewEver" })));
 
   // ASSERT 1 — the ice NEVER grew on a warm spell (GrewEver stayed false)
+  const a1 = S(await t("runtime_assert_node_state", { path: ".", expect: { GrewEver: false } }));
   rec("assert GrewEver==false", "runtime_assert_node_state",
-    { path: ".", expect: { GrewEver: false } },
-    S(await t("runtime_assert_node_state", { path: ".", expect: { GrewEver: false } })));
+    { path: ".", expect: { GrewEver: false } }, a1);
+  verdict("assert GrewEver==false", a1);
 
   // ASSERT 2 — the finish condition fires when Ice <= 0
-  rec('assert screen "ALL MELTED"', "runtime_assert_screen_text", { text: "ALL MELTED" },
-    S(await t("runtime_assert_screen_text", { text: "ALL MELTED" })));
+  const a2 = S(await t("runtime_assert_screen_text", { text: "ALL MELTED" }));
+  rec('assert screen "ALL MELTED"', "runtime_assert_screen_text", { text: "ALL MELTED" }, a2);
+  verdict('assert screen "ALL MELTED"', a2);
 
   // captured console — the trajectory + (fixed only) the ALL MELTED line
   const console_out = S(await t("godot_output", { id }));
@@ -101,6 +122,9 @@ async function main() {
   writeFileSync(path.join(HOST_DIR, `cs_demo_verify_${LABEL}.json`), redact(JSON.stringify(out, null, 2)));
   console.log(`\n=== wrote cs_demo_verify_${LABEL}.json ===`);
   await client.close();
-  process.exit(0);
+  // The capture is written FIRST and is unchanged; only the exit status is new.
+  for (const f of failures) console.error(`🔴 VERDICT_MISMATCH ${f}`);
+  console.log(`VERIFY_CLOSE label=${LABEL} verdicts=2 mismatches=${failures.length}`);
+  process.exit(failures.length ? 1 : 0);
 }
 main().catch((e) => { console.error("[cs-verify] FATAL:", (e && e.stack) || e); process.exit(1); });
