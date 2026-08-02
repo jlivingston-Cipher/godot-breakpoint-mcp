@@ -6,9 +6,22 @@ import { outputSchemas, applyOutputSchemas } from "../src/schemas.js";
 /** Build a validator from a tool's frozen ZodRawShape. */
 const schemaOf = (name: string) => z.object(outputSchemas[name]);
 
-test("every entry in outputSchemas is a valid ZodRawShape", () => {
+test("every entry in outputSchemas is a valid, NON-EMPTY ZodRawShape", () => {
+  // 🔴 WHAT THIS USED TO ASSERT, AND WHY IT WAS NOT ENOUGH. Until 171 the block held
+  // only `typeof shape === "object"` and `typeof zt.parse === "function"` — both true of
+  // every wrong answer of the right type (168 §4). `mutate171.sh` M5 injected a null
+  // entry and the test DID go red, so this was dismissed as a defect — but it went red
+  // by ACCIDENT: `Object.entries(null)` throws on the very next line, so the suite
+  // reports a TypeError instead of naming the offending schema. Two cases had no
+  // backstop at all:
+  //   • outputSchemas collapsing to `{}` — the loop body never runs, everything green
+  //   • a shape of `{}` — applyOutputSchemas would enforce NOTHING, and every assertion
+  //     in the old block still passed
+  // Both are now claims rather than side effects.
+  assert.ok(Object.keys(outputSchemas).length > 0, "outputSchemas collapsed to empty");
   for (const [name, shape] of Object.entries(outputSchemas)) {
-    assert.equal(typeof shape, "object", `${name} shape is not an object`);
+    assert.ok(shape && typeof shape === "object", `${name} shape is not an object`);
+    assert.ok(Object.keys(shape).length > 0, `${name} has an EMPTY shape — it would enforce nothing`);
     for (const [field, zt] of Object.entries(shape)) {
       assert.ok(zt && typeof (zt as z.ZodType).parse === "function", `${name}.${field} is not a Zod type`);
     }

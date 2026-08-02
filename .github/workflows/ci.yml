@@ -116,3 +116,14 @@ jobs:
       # No Godot, no ports, no deps: it runs here rather than earning a 27th job.
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
+      # 🔴 THE SAME GATE, FOR THE UNIT SUITE. 170 §10.2 asked whether taut169.mjs
+      # reporting ZERO tautology candidates against these 47 files was good news or a
+      # classifier that does not understand node:test. It was the classifier: its claim
+      # finder only recognised bare-identifier callees, so it found zero CLAIM SITES —
+      # and its own aggregated SCOPE line hid that collapse behind the probe suite's
+      # healthy number. 2602 assertions across 676 blocks had never been swept.
+      # No Godot, no ports, no deps: a step here rather than a 27th job.
+      - name: The tautology instrument, self-checked
+        run: node scripts/tautology_gate.selftest.mjs
+      - name: No test block asserts only shape (tautology gate)
+        run: node scripts/tautology_gate.mjs

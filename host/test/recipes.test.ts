@@ -21,14 +21,34 @@ function build() {
 }
 
 test("registers exactly the declared recipes, in order", () => {
+  // 🔴 THE FLOOR ON BOTH SIDES. `RECIPE_NAMES` is the expected list AND the source
+  // `registerRecipes` is written against, so comparing one to the other cannot notice
+  // them collapsing together. The literal is what makes this a scope assertion
+  // (170 §4's SCOPE gate) rather than a self-comparison.
+  assert.equal(RECIPE_NAMES.length, 8, "the recipe roster shrank — update this literal deliberately");
   assert.deepEqual(build().map((p) => p.name), [...RECIPE_NAMES]);
 });
 
-test("every recipe has a title + description and an argsSchema object", () => {
+test("every recipe has a NON-EMPTY title + description and a real argsSchema", () => {
+  // 🔴 THIS TEST USED TO ASSERT `typeof title === "string"` AND NOTHING ELSE — 168 §4's
+  // named class ("an assertion whose condition is true of every reply the tool can
+  // produce"), in node:test dress, which is why the 169 sweep could not see it: its
+  // claim finder only recognised bare-identifier callees, never `assert.equal(...)`.
+  // Measured, not supposed: `mutate171.sh` M3 emptied every title and description in
+  // `src/recipes.ts` to "" and this test stayed green. A recipe with no title is
+  // exactly the wrong ANSWER of the right TYPE.
+  // `typeof null === "object"` too, hence the truthiness on argsSchema.
   for (const p of build()) {
-    assert.equal(typeof p.config.title, "string");
-    assert.equal(typeof p.config.description, "string");
-    assert.equal(typeof p.config.argsSchema, "object");
+    const title = p.config.title as string;
+    const description = p.config.description as string;
+    assert.equal(typeof title, "string", `${p.name}: title is not a string`);
+    assert.ok(title.length > 0, `${p.name}: empty title`);
+    assert.equal(typeof description, "string", `${p.name}: description is not a string`);
+    assert.ok(description.length > 0, `${p.name}: empty description`);
+    assert.ok(
+      p.config.argsSchema && typeof p.config.argsSchema === "object",
+      `${p.name}: argsSchema is not an object`,
+    );
   }
 });
 

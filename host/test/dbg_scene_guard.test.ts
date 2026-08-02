@@ -87,7 +87,24 @@ const REFUSED: Array<[string, (root: string) => string, RegExp]> = [
   ["the empty scene", () => "", /project root/],
 ];
 
+/**
+ * 🔴 THE SCOPE ASSERTION, and why it is inline rather than a test of its own.
+ *
+ * 170 §4 named five gates and put SCOPE first: *the manifest's own length, checked
+ * against a LITERAL*. Every row below drives its claims off `REFUSED`, and until 171
+ * nothing in this file asserted that table's size — it was the only one of the 47 unit
+ * files with no length or count assertion anywhere. Emptying `REFUSED` left both
+ * driving tests GREEN while they covered nothing, which is 170 §4's VACUOUS exactly:
+ * a reassuring sentence that survives the deletion of everything beneath it. Measured,
+ * not supposed — `mutate171.sh` M1.
+ *
+ * It sits INSIDE each driving test rather than in a test of its own for 170 §3's
+ * reason: a floor that can be separated from the population it defends eventually is.
+ */
+const REFUSED_ROWS = 7;
+
 test("dbg_launch refuses every scene that cannot run, and none reaches the adapter", async () => {
+  assert.equal(REFUSED.length, REFUSED_ROWS, "the refusal table shrank — this test covers what it enumerates");
   const { root, cleanup } = workspace();
   try {
     for (const [label, spell, reason] of REFUSED) {
@@ -133,6 +150,7 @@ test("dbg_launch still passes every spelling that MEASURABLY ran, unchanged", as
 });
 
 test("dbg_restart is wired to the same guard — the second call site", async () => {
+  assert.equal(REFUSED.length, REFUSED_ROWS, "the refusal table shrank — this test covers what it enumerates");
   const { root, cleanup } = workspace();
   try {
     // 162 §8 item 5 named dbg_launch alone. Guarding only the first call site leaves a
