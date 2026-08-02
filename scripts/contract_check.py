@@ -2069,7 +2069,11 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 13  # +1 session 147: host/verify_shot_editor_live.mjs
+SHEBANG_NONEXEC_EXPECTED = 14  # +1 session 167: host/scripts/path-cohort.mjs
+#   (was 13, +1 session 147: host/verify_shot_editor_live.mjs)
+# 🔴 SESSION 167 GOTCHA: this roster counts TRACKED files, so a newly written
+# script passes this check LOCALLY until it is `git add`ed and only fails in CI
+# afterwards. Run contract_check.py AFTER staging, not before.
 
 
 def _tracked_modes() -> "dict[Path, str] | None":

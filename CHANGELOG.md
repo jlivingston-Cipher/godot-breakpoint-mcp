@@ -6,6 +6,61 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.45.0] — 2026-08-02
+
+### Added — the path-cohort enumerator is now shipped, unit-tested and gated
+
+1.44.0 corrected an enumerator that had been wrong for three releases and left it in a scratch
+directory. This release promotes it and closes the loop that let it go wrong in the first place.
+
+**Why the enumerator was wrong is more useful than the fact that it was.** The line that did the
+damage was `if (prop === "path") { pathNamed++; continue; }` — an earlier session's *conclusion*
+("I already swept the `path` parameters") compiled into the tool that scoped every later session's
+work. When 1.43.0 disproved that conclusion, the tool went on asserting it, because nothing could
+notice it had gone stale. It discarded 124 parameters, 15 of which were escaping.
+
+- **`src/path-cohort.ts`** — the corrected walk, exported and covered by 12 unit tests. It recurses
+  into nested objects and array items, matches compound names by *segment* rather than exact word,
+  handles multi-branch unions, and **excludes nothing**. Over-inclusion costs one question; the
+  under-inclusion it replaces cost four releases. Independently re-implemented for this release with
+  five further candidate blindnesses closed — the result is a strict superset that loses no row.
+- **`npm run path-cohort`** — lists the cohort (291 tools → **258 path-like parameters**: 124 named
+  `path`, 128 other top-level, 6 nested). Needs no editor. Replaces the scratch script whose count
+  was quoted in three handoffs and two shipped changelogs.
+- **`host/path-cohort-ledger.tsv`** — every one of the 258 parameters classified against a real 4.7
+  editor *and* a running game, with a reason per row: **117 guarded** (refuse an escaping spelling,
+  naming the parameter), **115 node paths** (resolved through the scene tree — measured, not assumed:
+  the runtime rows answer `Node not found` for a `res://../` spelling against a live game), 10 on
+  do-not-reopen planes, 8 capability-gated ahead of the guard, 6 enumerator over-inclusions, 1
+  requiring an absent backend, and 1 stored-only.
+- **`AUTH_PATH_LEDGER`** on the existing required `authoring-plane` context — four claims, no 27th CI
+  job, no new gate file. It fails when the live surface and the ledger disagree **in either
+  direction**: a path parameter that entered the surface unclassified is named in the failure, and a
+  ledger entry whose parameter no longer exists fails too. The second half is the point — it is the
+  property the old enumerator lacked.
+
+Verified by mutation: nine mutations against the ledger and the compiled enumerator, nine caught,
+zero survivors. Two of them matter most. Reintroducing the `path` discard leaves the
+"everything is classified" claim **green** — a blind enumerator shrinks the live set, so nothing
+reads as unclassified — and is caught only by the stale-entry claim. Reintroducing it *and*
+regenerating the ledger to match takes both ledger claims green together, and is caught only by the
+named canaries. Both canaries name a specific parameter for a specific historical blindness:
+`card_template_create.theme.font_path` (nested, compound name, no description — invisible to a name
+test and a description test at once) and `theme_set_font.path` (the cohort that was discarded).
+
+### Audited — no containment escapes, and that is the finding
+
+The 258 rows were re-measured against a real 4.7 editor and a running game to answer whether 1.42.0
+and 1.43.0 under-scoped their work by using the blind enumerator. **They did not.** Every escaping
+spelling either refuses by reason and names the parameter, or resolves as a node path, or is
+accounted for by a recorded decision. No guard changed in this release.
+
+One row is recorded rather than guarded: `project_add_export_preset.export_path` stores an escaping
+`res://../…` verbatim into `export_presets.cfg`. The addon writes the string and never resolves it,
+and an export target outside the source tree is ordinary Godot usage, so narrowing it would break
+callers to prevent nothing. It is classified `stores-only` in the ledger with that reason, which
+means the next session inherits the decision instead of rediscovering the row.
+
 ## [1.44.0] — 2026-08-01
 
 ### Fixed — twenty-four more parameters reached outside the project root, and six of them WROTE there
