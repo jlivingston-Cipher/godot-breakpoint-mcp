@@ -6,6 +6,51 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.46.0] — 2026-08-02
+
+### Fixed — the import-settings pair now reports what actually happened
+
+Two tools answered questions they had not been asked and stayed silent about the one that
+mattered. Neither is a containment defect: nothing escaped the project root, nothing was
+written that should not have been. Both are **reporting** defects, which are the kind that
+survive longest, because a caller acting on the wrong answer looks exactly like a caller
+acting on the right one.
+
+- **`resource_get_import_settings` could not tell "not imported" from "not there".** A real
+  file with no `.import` sidecar and a path that did not exist returned byte-identical
+  replies — `{"imported": false, "importer": "", "settings": {}}`. So did a directory. All
+  three now behave the way every sibling read in the group already behaved: a path that is
+  not a file answers `not_found`, and `imported: false` means the file is really there and
+  really has no sidecar. The vocabulary was not invented for this fix — `resource_load` and
+  `resource_get_property` were probed for both cases first, and this joins them.
+- **`resource_set_import_settings` reported `reimported: true` when it had changed nothing.**
+  `reimported` echoed the request parameter and `settings` listed every key the caller sent,
+  so setting a key to the value it already held reported a successful edit with the
+  sidecar's bytes provably unmoved. The new **`changed`** field lists only the keys whose
+  stored value actually moved. It is a channel, not a behaviour change: `settings: {}` with
+  `reimport: true` remains a legitimate force-reimport idiom, so the reimport still runs and
+  `reimported` still reports it — what was missing was the ability to say "and nothing moved".
+- **`not_imported` no longer describes a file that does not exist.** A missing path was
+  refused with "No `.import` metadata for X (not an imported asset)" — a sentence about a
+  file that exists and is not imported. It now answers `not_found`, and the two codes name
+  two different worlds.
+
+### Changed — the claim that let this survive
+
+The authoring probe's assertion for this tool was `typeof imp.imported === "boolean"`, which
+is true of **every reply the tool can produce**, including the one it produced for a file
+that did not exist. It passed against the broken tool and it passed against the fixed one.
+A tautology inside a green suite is worse than no claim at all, because it reads as
+coverage. It is replaced by claims that name the reply they demand, and the addon unit suite
+gains **25 assertions** (180 → 205) covering both tools' full answer space.
+
+Three of those assertions exist only because a mutation sweep contradicted the sweep's own
+first verdict: deleting the new `changed` field made five claims **disappear from the tally**
+rather than fail, taking the suite from 205/205 to a perfectly green 200/200. Reply fields
+are now read through null-returning accessors so a missing field fails the claim that names
+it, and the sweep itself now compares each mutant's claim total against the baseline —
+because a suite that gets smaller is not a suite that got greener.
+
 ## [1.45.0] — 2026-08-02
 
 ### Added — the path-cohort enumerator is now shipped, unit-tested and gated

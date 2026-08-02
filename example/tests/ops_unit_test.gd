@@ -104,6 +104,7 @@ func _initialize() -> void:
 	_test_runtime_property_method_signal()
 	_test_runtime_inject_input()
 	_test_resource_props(ops)          # pure resource-property listing (hermetic)
+	_test_import_settings_reporting(ops)  # import-settings REPORTING pair, 166 D3/D4 (hermetic)
 	_test_screenshot_no_viewport()     # runtime screenshot guard, detached (hermetic)
 	# Summary + quit are emitted from _process, after the live-tree phase runs.
 
@@ -608,6 +609,143 @@ func _test_resource_props(ops) -> void:
 	_check("rprops.all_editor_usage", all_editor)
 	_check("rprops.no_nil_types", all_typed)
 
+
+
+
+## Reply-field readers that CANNOT abort the suite when the field is missing.
+##
+## 🔴 MEASURED, 168: deleting `changed` from the reply made `s1["result"]["changed"]`
+## raise "Invalid access to property or key" — a SCRIPT ERROR that killed the run after
+## the first failing claim, so 24 later assertions never executed and the mutation sweep
+## classified a caught mutant as BROKEN. Same shape as the AUTH_RESOURCE_THREW problem in
+## the authoring probe: a claim that cannot fail BY NAME reports nothing useful, and a
+## suite that stops early reports a smaller universe rather than a failure. Both are
+## 167 §4 — an assertion aimed at the wrong channel manufactures a verdict.
+## 🔴 THE SENTINEL IS `null` AND THAT IS THE WHOLE POINT. The first version of these
+## returned a descriptive String like "<no result.changed>", which read better in a log
+## and was WRONG: comparing a String to the expected Array raises "Invalid operands" INSIDE
+## the `_eq` argument list, so `_check` was never reached and the claim vanished from the
+## tally instead of failing. Measured — deleting `changed` from the reply took the suite
+## from 205/205 to a GREEN 200/200. That is 167 §7 exactly one level down: the population
+## shrank, so coverage stayed 100%. `null` compares false against every expected value
+## without raising, so a missing field FAILS THE CLAIM THAT NAMES IT.
+func _rfield(reply: Variant, section: String, key: String) -> Variant:
+	if not (reply is Dictionary) or not reply.has(section):
+		return null
+	var inner: Variant = reply[section]
+	if not (inner is Dictionary) or not inner.has(key):
+		return null
+	return inner[key]
+
+
+func _rok(reply: Variant) -> Variant:
+	return reply["ok"] if (reply is Dictionary and reply.has("ok")) else null
+
+# --- operations.gd import-settings REPORTING (166 §5 D3/D4, fixed 1.46.0) ---
+#
+# 🔴 EVERY ASSERTION HERE IS POSITIVE AND DISCRIMINATING. The claim these replace was
+# `typeof imp.imported === "boolean"` in the authoring probe — a shape that passes for
+# every possible way of being wrong, which is exactly how both defects survived to be
+# found by hand. 167 §4's lesson: an assertion aimed at the wrong channel manufactures a
+# verdict. So each check below names the specific reply it demands.
+#
+# Hermetic: the `set` half builds its own asset + sidecar under user:// and passes
+# `reimport: false`, so EditorInterface is never touched and the project tree is never
+# written. The `get` half reads files the example project already ships.
+func _test_import_settings_reporting(ops) -> void:
+	# ---- D3: is "no sidecar" distinguishable from "no such file"? -------------
+	# Before 1.46.0 these two returned byte-identical results and this was unanswerable.
+	var absent: Dictionary = ops._resource_get_import_settings({"path": "res://g168_no_such_file_qwerty.png"})
+	_eq("imp.get.absent.ok", _rok(absent), false)
+	_eq("imp.get.absent.code", _rfield(absent, "error", "code"), "not_found")
+
+	# A DIRECTORY exists but is not a file. Measured against resource_load first: it
+	# answers not_found for a directory too, so this joins that convention.
+	var adir: Dictionary = ops._resource_get_import_settings({"path": "res://addons"})
+	_eq("imp.get.dir.ok", _rok(adir), false)
+	_eq("imp.get.dir.code", _rfield(adir, "error", "code"), "not_found")
+
+	# A REAL file with no .import sidecar still succeeds with imported=false. This is the
+	# degrade path, and keeping it is the whole point: the fix must not turn a legitimate
+	# "not imported" into an error.
+	var plain: Dictionary = ops._resource_get_import_settings({"path": "res://player.gd"})
+	_eq("imp.get.plain.ok", _rok(plain), true)
+	_eq("imp.get.plain.imported", _rfield(plain, "result", "imported"), false)
+
+	# 🔴 THE CLAIM ITSELF, stated as one assertion so it cannot be satisfied by accident.
+	_check("imp.get.distinguishable", _rok(plain) != _rok(absent))
+
+	# Control: a real imported asset still reports its importer and params. If this goes
+	# red the fixture is wrong, not the tool (167 §7).
+	var real: Dictionary = ops._resource_get_import_settings({"path": "res://addons/breakpoint_mcp/icon.png"})
+	_eq("imp.get.control.ok", _rok(real), true)
+	_eq("imp.get.control.imported", _rfield(real, "result", "imported"), true)
+	_check("imp.get.control.importer", String(_rfield(real, "result", "importer")) != "")
+
+	# ---- D4: does `changed` separate a real edit from a ceremonial one? -------
+	var asset := "user://g168_asset.png"
+	var sidecar := asset + ".import"
+	var f := FileAccess.open(asset, FileAccess.WRITE)
+	f.store_string("not really a png, and nothing here loads it")
+	f.close()
+	var seed := ConfigFile.new()
+	seed.set_value("remap", "importer", "texture")
+	seed.set_value("params", "compress/mode", 0)
+	seed.save(sidecar)
+
+	# A REAL change: the key exists and the value moves.
+	var s1: Dictionary = ops._resource_set_import_settings({"path": asset, "settings": {"compress/mode": 1}, "reimport": false})
+	_eq("imp.set.real.ok", _rok(s1), true)
+	_eq("imp.set.real.applied", _rfield(s1, "result", "settings"), ["compress/mode"])
+	_eq("imp.set.real.changed", _rfield(s1, "result", "changed"), ["compress/mode"])
+
+	# 🔴 THE D4 CLAIM: the same value again. `settings` still echoes the key — the call
+	# did set it — but `changed` is empty, which is the channel that did not exist before.
+	var s2: Dictionary = ops._resource_set_import_settings({"path": asset, "settings": {"compress/mode": 1}, "reimport": false})
+	_eq("imp.set.noop.ok", _rok(s2), true)
+	_eq("imp.set.noop.applied", _rfield(s2, "result", "settings"), ["compress/mode"])
+	_eq("imp.set.noop.changed", _rfield(s2, "result", "changed"), [])
+
+	# An EMPTY settings map asks for nothing. Both lists are empty; `reimported` stays
+	# honest about the force-reimport idiom rather than being suppressed.
+	var s3: Dictionary = ops._resource_set_import_settings({"path": asset, "settings": {}, "reimport": false})
+	_eq("imp.set.empty.applied", _rfield(s3, "result", "settings"), [])
+	_eq("imp.set.empty.changed", _rfield(s3, "result", "changed"), [])
+
+	# A key that was never in the file at all counts as changed — `not had` is a distinct
+	# branch from `old != new` and a test that only flipped values would never reach it.
+	var s4: Dictionary = ops._resource_set_import_settings({"path": asset, "settings": {"compress/g168_brand_new": 7}, "reimport": false})
+	_eq("imp.set.newkey.changed", _rfield(s4, "result", "changed"), ["compress/g168_brand_new"])
+
+	# 🔴 `not had` is a DISTINCT branch from `old_value != new_value`, and ONLY a new key
+	# carrying null reaches it — for any other new key `null != value` already fires. A
+	# mutation sweep proved the point: deleting `not had` survived every other case here.
+	# An unasserted clause is one that looks redundant to the next person to read it.
+	var s5: Dictionary = ops._resource_set_import_settings({"path": asset, "settings": {"compress/g168_null_key": null}, "reimport": false})
+	_eq("imp.set.newkey_null.changed", _rfield(s5, "result", "changed"), ["compress/g168_null_key"])
+
+	# The write really reached the file — otherwise every `changed` above could be
+	# bookkeeping that never touched disk. Verdict from the sidecar's bytes (167 §3).
+	var back := ConfigFile.new()
+	back.load(sidecar)
+	_eq("imp.set.persisted", back.get_value("params", "compress/mode"), 1)
+	_eq("imp.set.persisted_newkey", back.get_value("params", "compress/g168_brand_new"), 7)
+
+	# `not_found` vs `not_imported` are now different sentences about different worlds.
+	var sAbsent: Dictionary = ops._resource_set_import_settings({"path": "user://g168_no_such_asset.png", "settings": {"compress/mode": 1}, "reimport": false})
+	_eq("imp.set.absent.code", _rfield(sAbsent, "error", "code"), "not_found")
+
+	var bare := "user://g168_bare.txt"
+	var bf := FileAccess.open(bare, FileAccess.WRITE)
+	bf.store_string("a real file with no sidecar")
+	bf.close()
+	var sBare: Dictionary = ops._resource_set_import_settings({"path": bare, "settings": {"compress/mode": 1}, "reimport": false})
+	_eq("imp.set.bare.code", _rfield(sBare, "error", "code"), "not_imported")
+	_check("imp.set.codes_differ", String(_rfield(sAbsent, "error", "code")) != String(_rfield(sBare, "error", "code")))
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(sidecar))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(asset))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(bare))
 
 # --- runtime_bridge.gd _screenshot guard (no viewport; hermetic) ------------
 func _test_screenshot_no_viewport() -> void:

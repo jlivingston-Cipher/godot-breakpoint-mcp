@@ -145,7 +145,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
     {
       title: "Get import settings",
       description:
-        "Read an asset's import metadata (.import): the importer and its parameters. Read-only. Returns imported=false when the asset has no .import sidecar.",
+        "Read an asset's import metadata (.import): the importer and its parameters. Read-only. Returns imported=false when the file exists but has no .import sidecar; errors not_found when the path is not a file (matching resource_load).",
       inputSchema: { path: z.string().describe("Asset res:// path (e.g. res://icon.png)") },
     },
     async ({ path }) => {
@@ -160,7 +160,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
     {
       title: "Set import settings",
       description:
-        "Update import parameters in an asset's .import metadata and trigger a reimport. DESTRUCTIVE (rewrites metadata + reimports) — gated by confirmation. Errors if the asset has no .import sidecar.",
+        "Update import parameters in an asset's .import metadata and trigger a reimport. DESTRUCTIVE (rewrites metadata + reimports) — gated by confirmation. Errors not_found when the path is not a file, not_imported when the file has no .import sidecar. `settings` echoes every key set; `changed` lists only those whose stored value actually moved, so a no-op is distinguishable from a real edit.",
       inputSchema: {
         path: z.string().describe("Asset res:// path"),
         settings: z.record(z.any()).describe("Import params to set (name -> JSON scalar or __type__-tagged Variant)"),

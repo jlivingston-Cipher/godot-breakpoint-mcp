@@ -7,7 +7,7 @@ extends RefCounted
 ## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything the assistant did.
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
-const ADDON_VERSION := "1.9.5"
+const ADDON_VERSION := "1.9.6"
 
 var _plugin: EditorPlugin
 
@@ -1741,6 +1741,18 @@ func _resource_get_import_settings(params: Dictionary) -> Dictionary:
 	var path := String(params.get("path", ""))
 	if path == "":
 		return _err("bad_params", "Missing 'path'")
+	# 🔴 168 (166 §5 D3), MEASURED against a live 4.7 editor: this used to test ONLY for
+	# the sidecar, so `res://player.gd` (a real file with no .import) and
+	# `res://no_such_file.png` (nothing at all) returned BYTE-IDENTICAL replies —
+	# {"imported": false, "importer": "", "settings": {}} — and a caller had no channel
+	# to tell "not imported" from "not there". A directory answered the same way.
+	# The vocabulary here is NOT invented: resource_load and resource_get_property were
+	# both probed for a missing path AND for a directory, and both already answer
+	# `not_found` / "Resource not found: %s" for each. This joins that convention rather
+	# than adding a third one. `imported: false` now means what it says — the file is
+	# really there and really has no .import sidecar.
+	if not FileAccess.file_exists(path):
+		return _err("not_found", "Resource not found: %s" % path)
 	var import_path := path + ".import"
 	if not FileAccess.file_exists(import_path):
 		return _ok({"path": path, "imported": false, "importer": "", "settings": {}})
@@ -1762,6 +1774,12 @@ func _resource_set_import_settings(params: Dictionary) -> Dictionary:
 	var path := String(params.get("path", ""))
 	if path == "":
 		return _err("bad_params", "Missing 'path'")
+	# 🔴 168: the same lie as D3, one tool over. A path that does not exist was refused
+	# with "No .import metadata for X (not an imported asset)" — a sentence that
+	# describes a file which EXISTS and is not imported. Measured: a directory got that
+	# message too. `not_imported` is now reserved for what it names.
+	if not FileAccess.file_exists(path):
+		return _err("not_found", "Resource not found: %s" % path)
 	var import_path := path + ".import"
 	if not FileAccess.file_exists(import_path):
 		return _err("not_imported", "No .import metadata for %s (not an imported asset)" % path)
@@ -1769,10 +1787,28 @@ func _resource_set_import_settings(params: Dictionary) -> Dictionary:
 	var e := cfg.load(import_path)
 	if e != OK:
 		return _err("load_failed", "Could not read import metadata: %s (%d)" % [import_path, e])
+	# 🔴 168 (166 §5 D4), MEASURED: `applied` lists every key the CALLER SENT, and
+	# `reimported` echoes the REQUEST parameter. Setting a key to the value it already
+	# held reported {"reimported": true, "settings": ["compress/mode"]} with the
+	# sidecar's bytes provably unmoved (sha256 before == after). A caller reading that
+	# reply cannot tell a real edit from a ceremonial one.
+	#
+	# `changed` is the missing channel, and it is deliberately a channel rather than a
+	# behaviour change: `settings: {}` with `reimport: true` is a legitimate FORCE-REIMPORT
+	# idiom (the source file moved under Godot's feet), so the reimport still runs and
+	# `reimported` still reports it honestly. What was missing was the ability to say
+	# "and nothing in the metadata actually moved" — which is now `changed: []`.
 	var applied: Array = []
+	var changed: Array = []
 	for key in params.get("settings", {}):
-		cfg.set_value("params", String(key), Codec.decode(params["settings"][key]))
-		applied.append(String(key))
+		var k := String(key)
+		var new_value = Codec.decode(params["settings"][key])
+		var had := cfg.has_section_key("params", k)
+		var old_value = cfg.get_value("params", k) if had else null
+		cfg.set_value("params", k, new_value)
+		applied.append(k)
+		if not had or old_value != new_value:
+			changed.append(k)
 	e = cfg.save(import_path)
 	if e != OK:
 		return _err("save_failed", "Could not write import metadata (%d)" % e)
@@ -1780,7 +1816,7 @@ func _resource_set_import_settings(params: Dictionary) -> Dictionary:
 	if reimport:
 		var efs := EditorInterface.get_resource_filesystem()
 		efs.reimport_files(PackedStringArray([path]))
-	return _ok({"path": path, "reimported": reimport, "settings": applied})
+	return _ok({"path": path, "reimported": reimport, "settings": applied, "changed": changed})
 
 
 # ----------------------------------------------- Group B: filesystem --------

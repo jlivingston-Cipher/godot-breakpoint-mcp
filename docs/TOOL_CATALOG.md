@@ -851,7 +851,7 @@ scene does **not** switch the tab.
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["path", "reimported", "settings"], "properties": { "path": { "type": "string" }, "reimported": { "type": "boolean" }, "settings": { "type": "array", "items": { "type": "string" } } } }
+{ "type": "object", "required": ["path", "reimported", "settings", "changed"], "properties": { "path": { "type": "string" }, "reimported": { "type": "boolean" }, "settings": { "type": "array", "items": { "type": "string" } }, "changed": { "type": "array", "items": { "type": "string" } } } }
 ```
 
 ### `filesystem_list` ✅
