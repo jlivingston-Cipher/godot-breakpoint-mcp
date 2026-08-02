@@ -3159,6 +3159,8 @@ Commit the staged changes. Reversible (`git reset --soft HEAD~1`), loses nothing
 
 ### `vcs_restore` ✅  (Plane B / host) — mutating (**gated**)
 Discard uncommitted working-tree changes to the given paths (`git restore -- <paths>`). DESTRUCTIVE — the discarded edits are unrecoverable — so elicitation-gated (`confirm:true` bypasses).
+
+🔴 **`restored` is MEASURED, not echoed.** `git restore` exits 0 for a path with nothing to discard, so until 1.50.0 this returned the *requested* paths and a caller asking about five files of which one was dirty was told all five had been discarded. `restored` now lists only the paths git actually changed (the working-tree-vs-index diff, read before and after), `requested` carries what was asked for, and `stranded` names any path still dirty afterwards — a **partial, not an error**, because work was discarded for the other paths.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["paths"],
@@ -3169,10 +3171,12 @@ Discard uncommitted working-tree changes to the given paths (`git restore -- <pa
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["restored", "count"],
+{ "type": "object", "required": ["restored", "count", "requested", "stranded"],
   "properties": {
     "restored": { "type": "array", "items": { "type": "string" } },
-    "count": { "type": "integer" }
+    "count": { "type": "integer" },
+    "requested": { "type": "array", "items": { "type": "string" } },
+    "stranded": { "type": "array", "items": { "type": "string" } }
   } }
 ```
 

@@ -74,6 +74,34 @@ function gitFail(r: GitResult) {
 }
 
 /**
+ * The paths from a `git ... --name-only` run, in git's own order and dropping the
+ * trailing blank. Used by `vcs_restore` to MEASURE what changed rather than echo what
+ * was requested — see the comment at its handler for why that distinction is the whole
+ * point (D5, 155 §2; the same family as #181, #183 and #188).
+ */
+function nameOnly(stdout: string): string[] {
+  return stdout.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Classify a `vcs_restore` run from the two readings around it.
+ *
+ * 🔴 A PURE FUNCTION TAKING ITS POPULATIONS AS PARAMETERS, AND THAT IS THE POINT
+ * (173 §6, whose own reverse sweep caught the same shape in the commit written to fix
+ * that session). Inlined in the handler, `stranded` could only ever be built from what
+ * a real `git restore` produces — which, when it works, is always the empty list. A
+ * collector you only ever assert is EMPTY is a collector nobody has proved collects,
+ * so the collapse case has to be constructible without git's cooperation.
+ */
+export function restoreOutcome(rels: string[], wasDirty: string[], stillDirty: string[]): {
+  restored: string[]; count: number; requested: string[]; stranded: string[];
+} {
+  const stuck = new Set(stillDirty);
+  const restored = wasDirty.filter((p) => !stuck.has(p));
+  return { restored, count: restored.length, requested: rels, stranded: [...stuck] };
+}
+
+/**
  * Truncate long text so a single tool result stays reasonable; report whether it
  * was cut. Keeps the HEAD (not the tail): for a patch the first changed files and
  * their hunks are the useful part, and for file content the start is; the caller
@@ -400,7 +428,10 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       description:
         "Discard uncommitted working-tree changes to the given paths, restoring them from the index/HEAD " +
         "(`git restore -- <paths>`). DESTRUCTIVE — the discarded edits are unrecoverable — so it is " +
-        "elicitation-gated: pass confirm:true to bypass the prompt on clients that can't elicit.",
+        "elicitation-gated: pass confirm:true to bypass the prompt on clients that can't elicit. " +
+        "`restored` is MEASURED, not echoed: it lists only the paths git actually changed, so a path with " +
+        "nothing to discard is absent from it rather than reported as discarded work. `requested` carries " +
+        "what you asked for, and `stranded` names any path still dirty afterwards (a partial, not an error).",
       inputSchema: {
         paths: z.array(z.string()).min(1).describe("Paths to discard changes for (res:// or repo-relative)"),
         confirm: z.boolean().optional().describe("Skip the confirmation prompt"),
@@ -410,9 +441,33 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       const rels = paths.map(toRepoPath);
       const blocked = await gate(server, confirm, `Discard working-tree changes to: ${rels.join(", ")}`);
       if (blocked) return blocked;
+      // 🔴 D5 (155 §2), AND THE THIRD MEMBER OF #181/#183/#188's FAMILY: this used to
+      // return `restored: rels` — THE REQUEST, ECHOED. `git restore` exits 0 for a path
+      // with nothing to discard, so asking to discard five files of which one was dirty
+      // reported all five as restored, and the caller of a DESTRUCTIVE, gated tool was
+      // told it had thrown away work it had not touched. Every existing test restored a
+      // path that was dirty, so the clean-path branch had never run anywhere.
+      //
+      // What `git restore -- <paths>` discards is exactly the working-tree-vs-index
+      // diff, so that diff, read BEFORE and AFTER, is the measurement — not the request.
+      const before = await git(cfg, ["diff", "--name-only", "--", ...rels]);
+      if (!before.ok) return gitFail(before);
+      const wasDirty = nameOnly(before.stdout);
+
       const r = await git(cfg, ["restore", "--", ...rels]);
       if (!r.ok) return gitFail(r);
-      return ok({ restored: rels, count: rels.length });
+
+      const after = await git(cfg, ["diff", "--name-only", "--", ...rels]);
+      if (!after.ok) return gitFail(after);
+      // Three outcomes, and one list cannot carry them (#188's two booleans, as lists):
+      // a path that was dirty and is now clean was RESTORED; a path git still reports as
+      // dirty is STRANDED; and `requested` stays available so a caller can see that the
+      // other paths had nothing to discard rather than having to infer it.
+      //
+      // A stranded path is a PARTIAL, not an error — deliberately, and for #188 §7's
+      // reason inverted: work WAS discarded for the other paths, and `_err` would claim
+      // nothing happened, which is the same misdescription pointing the other way.
+      return ok(restoreOutcome(rels, wasDirty, nameOnly(after.stdout)));
     },
   );
 
