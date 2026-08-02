@@ -577,6 +577,15 @@ async function main() {
     (cd.created && listRoot.dirs.some((d) => d === "_auth_probe_dir"))
       ? pass("AUTH_RESOURCE_CREATE_DIR", DIR) : fail("AUTH_RESOURCE_CREATE_DIR", `dirs=${JSON.stringify(listRoot.dirs).slice(0, 120)}`);
 
+    // 🔴 `existed` HAD NEVER BEEN ASSERTED IN EITHER BRANCH (173 §10.3). It is the only
+    // field distinguishing "I made this" from "it was already here" — `created` carries
+    // the same path either way — and a hard-wired `false` satisfied every reader there
+    // was. BOTH branches, because either constant passes the other's test on its own.
+    const cdAgain = await call("filesystem_create_dir", { path: DIR });
+    (cd.existed === false && cdAgain.existed === true && cdAgain.created === DIR)
+      ? pass("AUTH_RESOURCE_CREATE_DIR_EXISTED", `first=${cd.existed} second=${cdAgain.existed}`)
+      : fail("AUTH_RESOURCE_CREATE_DIR_EXISTED", `first=${JSON.stringify(cd)} second=${JSON.stringify(cdAgain)}`);
+
     // filesystem_scan
     (await call("filesystem_scan")).scanning === true
       ? pass("AUTH_RESOURCE_FS_SCAN") : fail("AUTH_RESOURCE_FS_SCAN");
@@ -587,6 +596,52 @@ async function main() {
     const listDir = await call("filesystem_list", { path: DIR });
     (mv.moved === MOVED && listDir.files.some((f) => f === "moved.tres"))
       ? pass("AUTH_RESOURCE_FS_MOVE", MOVED) : fail("AUTH_RESOURCE_FS_MOVE", `files=${JSON.stringify(listDir.files).slice(0, 120)}`);
+
+    // 🔴 THE NO-SIDECAR BRANCH, NAMED. A `.tres` is a native resource and has no
+    // `.import`, so BOTH flags must be false — and they must be false for DIFFERENT
+    // reasons than each other. Neither had ever been read by anything.
+    (mv.moved_import === false && mv.import_stranded === false)
+      ? pass("AUTH_RESOURCE_FS_MOVE_NO_SIDECAR", `moved_import=${mv.moved_import} import_stranded=${mv.import_stranded}`)
+      : fail("AUTH_RESOURCE_FS_MOVE_NO_SIDECAR", JSON.stringify(mv).slice(0, 160));
+
+    // ------------------------------------------ 🔴 THE SIDECAR BRANCH (173 §10.3) ----
+    //
+    // `moved_import` was set to `true` whenever a `.import` merely EXISTED — the return
+    // of the sidecar's own `rename()` was DISCARDED. So the field described the request,
+    // not the outcome, and a sidecar that would not move left an orphan beside a file
+    // that had gone, reported as a clean move. Third confirmed member of the
+    // echo-mistaken-for-a-report family (#181, #183, 172 D5).
+    //
+    // Nothing in the tree had ever taken this branch: every asset the probes move is a
+    // `.tres`. So mint one that has a sidecar — a real PNG the editor imports — by
+    // copying the only committed importable asset in the project, and move THAT.
+    //
+    // 🔴 THE WAIT IS BOUNDED AND ITS EXPIRY IS A NAMED FAILURE, NOT A SKIP. A claim that
+    // quietly does not run when the import is slow is a claim that cannot fail (167 §4).
+    const IMG_SRC = path.join(GODOT_PROJECT, "addons", "breakpoint_mcp", "icon.png");
+    const IMG_REL = "_auth_probe_img.png";
+    const IMG = `res://${IMG_REL}`;
+    fs.copyFileSync(IMG_SRC, path.join(GODOT_PROJECT, IMG_REL));
+    await call("filesystem_scan");
+    let sidecarReady = false;
+    for (let i = 0; i < 20 && !sidecarReady; i++) {
+      await sleep(500);
+      sidecarReady = fs.existsSync(path.join(GODOT_PROJECT, `${IMG_REL}.import`));
+    }
+    if (!sidecarReady) {
+      fail("AUTH_RESOURCE_FS_MOVE_SIDECAR", `the editor did not import ${IMG} within 10s, so the sidecar branch did not run — this claim is NOT skipped, it is unproven`);
+    } else {
+      const IMG_MOVED_REL = "_auth_probe_dir/moved_img.png";
+      const mvImg = await call("filesystem_move", { from_path: IMG, to_path: `res://${IMG_MOVED_REL}` });
+      // The report is checked against the FILESYSTEM, not against itself: the sidecar has
+      // to be at the destination AND gone from the source. `moved_import: true` over a
+      // sidecar still sitting at the old path is exactly the defect this claim exists for.
+      const landed = fs.existsSync(path.join(GODOT_PROJECT, `${IMG_MOVED_REL}.import`));
+      const stranded = fs.existsSync(path.join(GODOT_PROJECT, `${IMG_REL}.import`));
+      (mvImg.moved_import === true && mvImg.import_stranded === false && landed && !stranded)
+        ? pass("AUTH_RESOURCE_FS_MOVE_SIDECAR", `moved_import=${mvImg.moved_import} sidecar at destination=${landed} orphan left behind=${stranded}`)
+        : fail("AUTH_RESOURCE_FS_MOVE_SIDECAR", `report=${JSON.stringify(mvImg)} landed=${landed} stranded=${stranded} — the flag and the filesystem disagree`);
+    }
   });
 
   // ---------------------------------------------------------------- Group C: animation ----

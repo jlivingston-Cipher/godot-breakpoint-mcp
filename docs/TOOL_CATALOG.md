@@ -881,7 +881,7 @@ scene does **not** switch the tab.
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["moved", "from", "moved_import"], "properties": { "moved": { "type": "string" }, "from": { "type": "string" }, "moved_import": { "type": "boolean" } } }
+{ "type": "object", "required": ["moved", "from", "moved_import", "import_stranded"], "properties": { "moved": { "type": "string" }, "from": { "type": "string" }, "moved_import": { "type": "boolean" }, "import_stranded": { "type": "boolean" } } }
 ```
 
 ### `filesystem_create_dir` ✅

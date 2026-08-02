@@ -7,7 +7,7 @@ extends RefCounted
 ## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything the assistant did.
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
-const ADDON_VERSION := "1.9.7"
+const ADDON_VERSION := "1.9.8"
 
 var _plugin: EditorPlugin
 
@@ -1920,12 +1920,28 @@ func _filesystem_move(params: Dictionary) -> Dictionary:
 	var e := dir.rename(from_path, to_path)
 	if e != OK:
 		return _err("move_failed", "rename() returned %d" % e)
+	# 🔴 173 §10.3 — THE THIRD CONFIRMED MEMBER OF THE ECHO-MISTAKEN-FOR-A-REPORT
+	# FAMILY (#181, #183, 172 D5). `dir.rename()`'s RETURN WAS DISCARDED HERE and
+	# `moved_import` was set to true whenever a sidecar merely EXISTED — so the field
+	# described the REQUEST ("there was an .import and I called rename") rather than the
+	# outcome. A sidecar rename that failed (destination taken, permissions, a
+	# case-only rename on a case-insensitive filesystem) left an ORPHANED .import beside
+	# a file that had moved, stripping the moved asset of its import settings on the next
+	# scan — and the report said `moved_import: true`.
+	#
+	# THREE OUTCOMES, TWO BOOLEANS, BOTH DERIVED FROM THE RETURN CODE. "No sidecar" and
+	# "a sidecar that would not move" are different events and the caller has to be able
+	# to tell them apart; one boolean can only say "not moved" for both. The move itself
+	# already succeeded, so a stranded sidecar is a PARTIAL, not a failure — returning
+	# _err here would say nothing happened, which is the same lie in the other direction.
 	var moved_import := false
+	var import_stranded := false
 	if is_file and FileAccess.file_exists(from_path + ".import"):
-		dir.rename(from_path + ".import", to_path + ".import")
-		moved_import = true
+		var ie := dir.rename(from_path + ".import", to_path + ".import")
+		moved_import = ie == OK
+		import_stranded = ie != OK
 	EditorInterface.get_resource_filesystem().scan()
-	return _ok({"moved": to_path, "from": from_path, "moved_import": moved_import})
+	return _ok({"moved": to_path, "from": from_path, "moved_import": moved_import, "import_stranded": import_stranded})
 
 
 func _filesystem_create_dir(params: Dictionary) -> Dictionary:
@@ -1937,6 +1953,11 @@ func _filesystem_create_dir(params: Dictionary) -> Dictionary:
 	var e := DirAccess.make_dir_recursive_absolute(path)
 	if e != OK:
 		return _err("mkdir_failed", "make_dir_recursive_absolute() returned %d" % e)
+	# 🔴 173 §10.3, same family, one step milder: `created` was the REQUESTED path echoed
+	# back, and an OK return was never once confirmed against the filesystem. Re-read it,
+	# so `created` names a directory that is THERE rather than one that was asked for.
+	if not DirAccess.dir_exists_absolute(path):
+		return _err("mkdir_failed", "make_dir_recursive_absolute() returned OK but %s does not exist" % path)
 	EditorInterface.get_resource_filesystem().scan()
 	return _ok({"created": path, "existed": false})
 
