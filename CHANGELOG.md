@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.47.0] — 2026-08-02
+
+### Added — the annotation table is now checked for being RIGHT, not just for being complete
+
+The MCP annotation hints already had a two-directional gate: every registered tool has an
+entry, and no entry outlives its tool. Neither claim can catch an entry that is simply
+**wrong** — every tool has one either way, so a mis-classification contradicts nothing and
+the suite stays green. That is 1.45.0's lesson in a new place: completeness is not
+correctness, and it is how a public 2026-07 catalog published the wrong risk for
+`tilemap_clear` and `navagent_configure`.
+
+- **Two structural gates**, each scoped in the dozens and each at zero disagreements today,
+  so they gate future drift without an exception list to rot: an explicitly-named delete is
+  `destructive` and never `readOnly` (scope 9), and every `set` / `setup` / `configure` /
+  `wire` / `inject` / `apply` mutator is non-`readOnly` (scope 60). Both assert their own
+  scope size first — a rule whose scope silently collapses to zero looks green while
+  covering nothing.
+- **Three named canaries** for the tools whose *correct* annotation contradicts what their
+  name suggests, each carrying its reason inline so the decision is inherited rather than
+  re-litigated: `tilemap_clear` (destructive **and** idempotent), `anim_remove_key`
+  (destructive and **not** idempotent — removing key N shifts the indices, so the identical
+  call removes a different key), and `navagent_configure` (reads as a setter, actually
+  *adds* a node, therefore non-idempotent and — being purely additive — **not** destructive).
+
+### Fixed — prose that over-generalised what the table actually says
+
+`annotations.ts` documented its idempotency rule as "creators, appenders, steppers, and
+undo/redo are false". Measured against the table, **25 creators are idempotent `true`, and
+every one of them is right**: a creator writing to a path the *caller* supplied converges,
+while one that auto-names its result (`node_add` → `Node2D`, `Node2D2`, …) does not. The
+prose was wrong, not the table. The rule now states the split, and a test pins both halves
+so neither drifts toward the other.
+
+### A negative result worth recording
+
+A broader gate was tried first and measured out. Modelling "what would a consumer guess from
+the tool's name?" and recording every disagreement as a reasoned exception is the path-cohort
+ledger applied to annotations — and it disagreed with **149 of 291 tools**, because the model
+flagged every LSP reader (`gd_hover`, `cs_definition`). It was measuring the regex, not the
+annotations. A 149-row hand-maintained exception table is worse than no table; the narrow
+rules above are the subset where the name genuinely does determine the answer.
+
 ## [1.46.0] — 2026-08-02
 
 ### Fixed — the import-settings pair now reports what actually happened
