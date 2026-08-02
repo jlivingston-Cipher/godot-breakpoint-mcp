@@ -135,6 +135,16 @@ jobs:
       # It needs a tool list and a file: no Godot, no ports, no deps.
       - name: The path-cohort ledger comparison, self-checked
         run: node test-integration/_path_ledger.selftest.mjs
+      # 🔴 AND THE CLEANUP THAT PROVES ITSELF, WHICH HAD THE SAME GAP ONE FILE OVER.
+      # `_workspace.mjs` decides what AUTH_CLEAN's "byte-identical" means, and 174
+      # measured it at SIX OF SIX STILL GREEN — every headless gate in the tree passed
+      # with the module fully blinded, because it too was imported only by the Xvfb
+      # probe. The seam is sharper than the absence: restoreDir decides what to REMOVE
+      # from walk(), diffDir decides what APPEARED from walk(), so a blind enumerator
+      # means the restore removes nothing AND the check that proves the restore worked
+      # reports clean. Real temp dirs, node builtins only: no Godot, no ports, no deps.
+      - name: The workspace snapshot/restore/diff, self-checked
+        run: node test-integration/_workspace.selftest.mjs
       # 🔴 THE SAME GATE, FOR THE UNIT SUITE. 170 §10.2 asked whether taut169.mjs
       # reporting ZERO tautology candidates against these 47 files was good news or a
       # classifier that does not understand node:test. It was the classifier: its claim

@@ -60,7 +60,11 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 // population is a unit suite that is SUPPOSED to grow; an exact floor would go red on
 // every legitimate test added, and a gate that goes red on good work gets deleted. What
 // must never happen is a COLLAPSE, so the floor is a collapse detector.
-const FLOORS = { test: 2100, "test-integration": 700 };
+// 🔴 174 RAISED test-integration 700 -> 850. Admitting the three `_*.selftest.mjs`
+// gates moved this population 794 -> 923 in one commit, and a floor left at 700 would
+// have let all 127 of the newly-swept sites disappear again without a word. A floor
+// that does not move when its population does is a floor measuring the old population.
+const FLOORS = { test: 2100, "test-integration": 850 };
 
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
@@ -559,7 +563,23 @@ function main() {
   let all = [], failed = false;
   for (const [dir, floor] of Object.entries(FLOORS)) {
     const d = join(ROOT, dir);
-    const files = readdirSync(d).filter((f) => /\.(mjs|ts)$/.test(f) && !f.startsWith("_"));
+    // 🔴 174: `!f.startsWith("_")` WAS A SILENT EXEMPTION, AND IT COVERED THE GATES.
+    // The prefix is right for the HELPER MODULES — `_population.mjs`, `_path_ledger.mjs`
+    // and `_workspace.mjs` are libraries, not suites, and have no claims to classify.
+    // But their SELF-TESTS carry the same prefix and are nothing BUT claims: they are
+    // the gates `instrument_gate.py` points its blinding harness at. Measured before
+    // the change, by admitting them: +127 claim sites across 3 files the classifier had
+    // never read — and TAUT_VACUOUS went 0 -> 1, on `PROXY_PASSES_NON_METHODS` in
+    // `_population.selftest.mjs`, a claim that was green over a real defect in the
+    // instrument fourteen live probes report through.
+    //
+    // 🔴 AND NOTE WHAT THE TWO EXCLUSIONS COST DIFFERENTLY. NO_CLAIMS_EXPECTED costs a
+    // written reason; a filename prefix costs nothing and is invisible in the output.
+    // The gate's own scope line read `files=21` either way. Silent exemptions are the
+    // shape this gate exists to catch, one level out from the claims it reads.
+    const files = readdirSync(d).filter(
+      (f) => /\.(mjs|ts)$/.test(f) && (!f.startsWith("_") || f.endsWith(".selftest.mjs")),
+    );
     let mine = [];
     const empty = [];
     for (const f of files) {

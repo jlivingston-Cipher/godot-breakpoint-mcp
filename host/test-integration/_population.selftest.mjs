@@ -14,6 +14,7 @@
 //
 // Deliberately NOT a node:test file. It has no dependencies, needs no compile
 // step, and lives beside the thing it checks; the `ci` job runs it directly.
+import nodeAssert from "node:assert";
 import { Population } from "./_population.mjs";
 
 import { spawnSync } from "node:child_process";
@@ -186,7 +187,21 @@ console.log("\n-- the counting proxy --");
   check(msg !== null && msg.includes("the probe's own message"), "PROXY_STILL_THROWS a red assertion throws with its own message", msg?.slice(0, 40));
   check(p.total === 1, "PROXY_COUNTS_THE_RED_ONE the throwing call was still counted", `total=${p.total}`);
   check(assert.ok === assert.ok, "PROXY_STABLE_IDENTITY assert.ok is the same function twice");
-  check(typeof assert.AssertionError === "function", "PROXY_PASSES_NON_METHODS AssertionError survives the proxy");
+  // 🔴 174: THIS CLAIM USED TO READ `typeof assert.AssertionError === "function"` AND
+  // IT WAS GREEN OVER A REAL DEFECT. The proxy wrapped every function-valued property
+  // in an ARROW, and an arrow cannot be constructed — so AssertionError did not survive
+  // the proxy at all, and the claim named for its survival passed because the wrapper
+  // that broke it is also a function. A wrong answer of the right type: the exact shape
+  // `tautology_gate.mjs` exists to catch, in a file its `_`-prefix filter never swept.
+  // Identity and constructability, now, because those are what "survives" means.
+  check(assert.AssertionError === nodeAssert.AssertionError,
+    "PROXY_PASSES_NON_METHODS AssertionError comes through as the REAL class, not a wrapper");
+  let built = null;
+  try { built = new assert.AssertionError({ message: "constructed through the proxy" }); } catch { /* left null */ }
+  check(built instanceof nodeAssert.AssertionError,
+    "PROXY_NON_METHOD_CONSTRUCTS ...and `new` through it still builds a real AssertionError", built ? "built" : "THREW");
+  check(p.total === 1,
+    "PROXY_CONSTRUCT_IS_NOT_A_CLAIM building an error object did not inflate the population", `total=${p.total}`);
 }
 {
   // 🔴 COUNTING AT THE CALL, NOT THE SOURCE LINE. One assertion inside a helper run

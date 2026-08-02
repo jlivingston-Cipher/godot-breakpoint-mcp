@@ -186,6 +186,28 @@ async function main() {
   workspace = snapshotDir(GODOT_PROJECT);
   console.log(`AUTH_CLEAN_SNAPSHOT ${workspace.files.size} file(s) / ${workspace.dirs.size} dir(s) under ${GODOT_PROJECT} (.godot/ skipped)`);
 
+  // 🔴 174: AND THEN COMPARE IT TO SOMETHING. Until this claim, the line above was a
+  // `console.log` and nothing else — the one number that would expose a collapsed
+  // enumeration, printed and floored against nothing, which is 173 §4's canary list
+  // with the names changed.
+  //
+  // It matters here more than most populations because of the seam: `restoreDir` and
+  // `diffDir` both derive what-appeared from the SAME walk. If that walk ever goes
+  // quiet, restore removes nothing, diff reports nothing, and AUTH_CLEAN passes with
+  // `0 file(s) re-hashed` in its own success message while every artefact this probe
+  // wrote is still sitting in example/. Measured in 174 against a blinded walk: that
+  // is exactly what happens. The check cannot catch its own enumerator, so the floor
+  // has to live out here, where the expected size is known independently.
+  //
+  // Measured baselines: CI reads 76 file(s) / 4 dir(s); a local tree reads 77 / 5.
+  // 🔴 THE FLOOR IS THE LOWER OF THE TWO WITH MARGIN, NOT EITHER READING — a floor set
+  // to the number of the day is a floor someone deletes the first time it is right.
+  const AUTH_SNAPSHOT_FILE_FLOOR = 70;
+  const AUTH_SNAPSHOT_DIR_FLOOR = 4;
+  (workspace.files.size >= AUTH_SNAPSHOT_FILE_FLOOR && workspace.dirs.size >= AUTH_SNAPSHOT_DIR_FLOOR)
+    ? pass("AUTH_CLEAN_SCOPE", `the snapshot enumerated ${workspace.files.size} file(s) / ${workspace.dirs.size} dir(s) — at or above the floor, so AUTH_CLEAN has something to be clean ABOUT`)
+    : fail("AUTH_CLEAN_SCOPE", `THE SNAPSHOT ENUMERATED ALMOST NOTHING: ${workspace.files.size} file(s) (floor ${AUTH_SNAPSHOT_FILE_FLOOR}) / ${workspace.dirs.size} dir(s) (floor ${AUTH_SNAPSHOT_DIR_FLOOR}) — restore will remove nothing, diff will report clean, and AUTH_CLEAN below would PASS over a tree full of artefacts`);
+
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
     // This probe exercises the full tool surface, including the asset_gen_* and
