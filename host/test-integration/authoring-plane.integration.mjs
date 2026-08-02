@@ -125,6 +125,7 @@ import fs from "node:fs";
 import os from "node:os";
 import { decodePng, sampleDistinctColours } from "./_png.mjs";
 import { snapshotDir, restoreDir, diffDir, describeDiff } from "./_workspace.mjs";
+import { comparePathLedger, LEDGER_CLASSES, LEDGER_CANARIES } from "./_path_ledger.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url)); // host/test-integration
 const HOST_DIR = path.resolve(THIS_DIR, "..");                 // host/ (the package root)
@@ -1937,35 +1938,26 @@ async function main() {
 
     const live = enumeratePathCohort(tools);
     const sum = summarisePathCohort(live);
-    const liveKeys = new Set(live.map((r) => `${r.tool}\t${r.param}`));
 
-    const CLASSES = new Set([
-      "guarded", "node-path", "not-a-path", "capability-gated", "do-not-reopen", "backend-absent", "stores-only",
-    ]);
-    const ledger = new Map();
-    const badClass = [];
-    for (const line of fs.readFileSync(LEDGER, "utf8").split("\n")) {
-      if (!line.trim() || line.startsWith("#")) continue;
-      const [tool, param, cls, ...reason] = line.split("\t");
-      if (!CLASSES.has(cls)) { badClass.push(`${tool}.${param} -> ${cls}`); continue; }
-      // a classification with no reason is a classification nobody has to defend
-      if (!reason.join(" ").trim()) { badClass.push(`${tool}.${param} -> no reason given`); continue; }
-      ledger.set(`${tool}\t${param}`, cls);
-    }
-
-    const unclassified = [...liveKeys].filter((k) => !ledger.has(k));
-    const stale = [...ledger.keys()].filter((k) => !liveKeys.has(k));
+    // 🔴 THE COMPARISON ITSELF LIVES IN `_path_ledger.mjs` AND IS SELF-TESTED THERE.
+    // Until 173 it was inline here, which meant the only way to run it was to boot the
+    // editor GUI under Xvfb — so no case with a known answer had ever been put through
+    // it, and the blinding harness 172 §10.22 left behind had nothing to point at. The
+    // claims below are unchanged; what they read is now a pure function with 25 claims
+    // of its own, `ledger` and `badClass` included.
+    const cmp = comparePathLedger(live, fs.readFileSync(LEDGER, "utf8"));
+    const { unclassified, stale, badClass } = cmp;
 
     unclassified.length === 0
       ? pass("AUTH_PATH_LEDGER", `all ${live.length} path-like parameters in the live surface are classified (${sum.topLevelNamedPath} named \`path\`, ${sum.nested} nested)`)
       : fail("AUTH_PATH_LEDGER", `${unclassified.length} path-like parameter(s) entered the surface unclassified -> ${unclassified.map((k) => k.replace("\t", ".")).slice(0, 8).join(", ")}${unclassified.length > 8 ? " …" : ""} — measure them, then add a line to host/path-cohort-ledger.tsv`);
 
     stale.length === 0
-      ? pass("AUTH_PATH_LEDGER_NO_STALE", `no ledger entry outlives its parameter (${ledger.size} entries, all live)`)
+      ? pass("AUTH_PATH_LEDGER_NO_STALE", `no ledger entry outlives its parameter (${cmp.ledgerCount} entries, all live)`)
       : fail("AUTH_PATH_LEDGER_NO_STALE", `${stale.length} ledger entr(ies) name a parameter that no longer exists -> ${stale.map((k) => k.replace("\t", ".")).slice(0, 8).join(", ")}`);
 
     badClass.length === 0
-      ? pass("AUTH_PATH_LEDGER_WELLFORMED", `every entry carries a known class and a reason (${[...CLASSES].join("/")})`)
+      ? pass("AUTH_PATH_LEDGER_WELLFORMED", `every entry carries a known class and a reason (${LEDGER_CLASSES.join("/")})`)
       : fail("AUTH_PATH_LEDGER_WELLFORMED", `${badClass.length} malformed entr(ies) -> ${badClass.slice(0, 5).join("; ")}`);
 
     // 🔴 THE ENUMERATOR'S OWN REGRESSION ROW. `card_template_create.theme.font_path` is
@@ -1983,18 +1975,22 @@ async function main() {
     // session that regenerated the ledger FROM a blind enumerator would take both
     // claims green together — which is precisely 162's failure mode one level up. The
     // canaries name specific parameters, so they survive a regeneration.
-    const canaries = [
-      // the nested compound name with NO description: invisible to an exact-word name
-      // test AND to a description test, simultaneously. Blindnesses 1 + 3.
-      ["card_template_create", "theme.font_path", "nested, compound name, no description"],
-      // the parameter that survived FOUR releases because the enumerator discarded
-      // every name equal to `path`. Blindness 2.
-      ["theme_set_font", "path", "literally named `path` — the discarded cohort"],
-    ];
-    const lost = canaries.filter(([t, p]) => !live.some((r) => r.tool === t && r.param === p));
+    const lost = cmp.lost;
     lost.length === 0
-      ? pass("AUTH_PATH_LEDGER_CANARY", `both blindness canaries are still enumerated (${canaries.map(([t, p]) => `${t}.${p}`).join(", ")})`)
+      ? pass("AUTH_PATH_LEDGER_CANARY", `all ${cmp.canaryCount} blindness canaries are still enumerated (${LEDGER_CANARIES.map(([t, p]) => `${t}.${p}`).join(", ")})`)
       : fail("AUTH_PATH_LEDGER_CANARY", `the enumerator lost ${lost.map(([t, p, why]) => `${t}.${p} (${why})`).join("; ")} — a blindness has been reintroduced`);
+
+    // 🔴🔴 AND THE CANARY LIST IS ITSELF A POPULATION. 173, measured: emptying
+    // `LEDGER_CANARIES` left the claim above printing *"both blindness canaries are
+    // still enumerated"* — `.filter()` over nothing returns nothing. The one claim
+    // written to survive a blind enumerator could go blind itself and say so in green.
+    // `_population.mjs` takes `scope` as a separate argument for exactly this reason
+    // (`families.length >= families.length` is a tautology); this gate, written five
+    // sessions later, had no equivalent. The floors are literals and live beside the
+    // lists they floor.
+    cmp.scope.length === 0
+      ? pass("AUTH_PATH_LEDGER_SCOPE", `the gate's own populations are at their literal floors (${cmp.canaryCount} canaries, ${LEDGER_CLASSES.length} classes)`)
+      : fail("AUTH_PATH_LEDGER_SCOPE", `this gate's own scope collapsed -> ${cmp.scope.join(" | ")}`);
   });
 
   // ---------------------------------------------------------------- cleanup ----

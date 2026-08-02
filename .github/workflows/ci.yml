@@ -49,6 +49,17 @@ jobs:
         run: npm run build
       - name: Assert dist/index.js was emitted
         run: test -f dist/index.js
+      # 🔴 THE PATH COHORT, FLOORED — 172 §10.2. This enumerator succeeded
+      # `_to_delete/enum163.mjs`, whose number (78) was quoted in three handoffs and two
+      # shipped changelogs and was wrong by 180 rows. Its replacement shipped with
+      # nothing comparing ITS number to anything either: five counts printed, exit 0,
+      # whatever they said. 168's rule is that a measurement which gets SMALLER is not a
+      # measurement that got better, and a blinded walk prints `total=0` and looks fine.
+      # It also runs the ledger comparison, which until 173 needed the editor GUI under
+      # Xvfb — it needs neither: a tool list over stdio and a file. ~2s on the dist/ the
+      # step above just built. A step, not a 27th job.
+      - name: The path cohort is at its floors and agrees with the ledger
+        run: node scripts/path-cohort.mjs --summary
       - name: Onboarding CLI smoke — doctor runs headless (host-only, no Godot)
         # The bin dispatches `doctor` without touching the stdio server path.
         # /bin/echo stands in for the Godot binary (prints a version, exits 0);
@@ -116,6 +127,14 @@ jobs:
       # No Godot, no ports, no deps: it runs here rather than earning a 27th job.
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
+      # 🔴 AND THE LEDGER COMPARISON, WHICH UNTIL 173 HAD NO GATE ANYWHERE. The four
+      # claims deciding whether the live path cohort and path-cohort-ledger.tsv agree
+      # lived inline in `authoring-plane`, a probe that boots the editor GUI under Xvfb,
+      # so no case with a known answer had ever been put through them. A blinding
+      # harness says nothing about an instrument with no gate — and says it in green.
+      # It needs a tool list and a file: no Godot, no ports, no deps.
+      - name: The path-cohort ledger comparison, self-checked
+        run: node test-integration/_path_ledger.selftest.mjs
       # 🔴 THE SAME GATE, FOR THE UNIT SUITE. 170 §10.2 asked whether taut169.mjs
       # reporting ZERO tautology candidates against these 47 files was good news or a
       # classifier that does not understand node:test. It was the classifier: its claim
@@ -138,3 +157,12 @@ jobs:
       # session running).
       - name: Every derived population collapses loudly (scope gate)
         run: python3 ../scripts/scope_gate.py
+      # 🔴 AND THE SAME TECHNIQUE POINTED AT THE JS INSTRUMENTS — 172 §10.2, which named
+      # `_population.mjs` and the path cohort as the two it had not reached. Measured in
+      # 173: `reportOrDie()` could return 0 without reporting or exiting and the
+      # population self-test stayed entirely GREEN — and ELEVEN of the fourteen live
+      # probes call ONLY that member, so every gate above it was decorative in exactly
+      # the probes with no other backstop. ~3s, and it needs dist-test/, which the
+      # `npm test` step above has already emitted. A step, not a 27th job (TENTH session).
+      - name: Every JS instrument collapses loudly (instrument gate)
+        run: python3 ../scripts/instrument_gate.py

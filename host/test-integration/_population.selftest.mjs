@@ -16,6 +16,8 @@
 // step, and lives beside the thing it checks; the `ci` job runs it directly.
 import { Population } from "./_population.mjs";
 
+import { spawnSync } from "node:child_process";
+
 let failures = 0;
 const claims = [];
 function check(cond, name, detail = "") {
@@ -207,11 +209,81 @@ console.log("\n-- the counting proxy --");
   check(gates(quiet(() => p.report())) === "SILENT", "UNSEALED trailing claims count but do not satisfy a family");
 }
 
+// ─────────────────────────────────── 🔴 reportOrDie — THE 173 BLIND SPOT, MEASURED
+//
+// Every case above exercises `report()`. ELEVEN of the fourteen live probes never call
+// it: they call `reportOrDie()`, the one member that turns a failure list into a
+// non-zero exit. 173 pointed 172's blinding harness at this file and got one survivor
+// out of eight — `reportOrDie() { return 0; }` left this self-test entirely GREEN.
+//
+// Blinded that way the eleven probes print no population line at all and exit 0, so
+// every gate above it — SCOPE, SILENT, VACUOUS, PARTIAL, FLOOR — becomes decorative in
+// exactly the probes that have no other backstop. The gate on the gate had tested
+// everything except the last mile, which is the only part those probes use.
+//
+// It exits the process, so it is tested in a CHILD process. That is the point, not an
+// inconvenience: "did it exit non-zero" is the claim, and it cannot be made in-process.
+console.log("\n-- reportOrDie: the exit, not the report --");
+{
+  const POP_URL = new URL("./_population.mjs", import.meta.url).href;
+  const child = (body) => spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", `import { Population } from ${JSON.stringify(POP_URL)};\n${body}`],
+    { encoding: "utf8" },
+  );
+
+  // healthy: it returns the claim total and the process carries on.
+  const ok = child(`
+    const p = new Population("T", { families: ["A"], scope: 1, claims: 1 });
+    p.assert.ok(true); p.seal("A", "ok");
+    console.log("RETURNED " + p.reportOrDie());
+    console.log("STILL RUNNING");
+  `);
+  check(ok.status === 0, "ORDIE_HEALTHY_EXIT_ZERO a healthy population exits 0", `status=${ok.status}`);
+  check(/RETURNED 1\b/.test(ok.stdout), "ORDIE_RETURNS_THE_TOTAL ...and returns the claim total", ok.stdout.trim().split("\n").pop());
+  check(ok.stdout.includes("STILL RUNNING"), "ORDIE_HEALTHY_DOES_NOT_EXIT ...and does not stop the probe");
+
+  // 🔴 a family that went missing: it must EXIT, not return.
+  const silent = child(`
+    const p = new Population("T", { families: ["A", "B"], scope: 2, claims: 1 });
+    p.assert.ok(true); p.seal("A", "ok");
+    p.reportOrDie();
+    console.log("STILL RUNNING");
+  `);
+  check(silent.status === 1, "ORDIE_SILENT_EXITS_ONE a missing family exits 1", `status=${silent.status}`);
+  check(!silent.stdout.includes("STILL RUNNING"),
+    "ORDIE_SILENT_STOPS_THE_PROBE ...and the probe does NOT carry on past it — the claim a `return 0` breaks");
+  check(silent.stderr.includes("::error::T population gate failed"),
+    "ORDIE_SILENT_ANNOTATES ...and files a CI error annotation naming the prefix", silent.stderr.trim().slice(0, 60));
+  check(/_POPULATION_SILENT/.test(silent.stderr), "ORDIE_SILENT_NAMES_THE_GATE ...naming which gate failed");
+
+  // a marker that outlived its assertions, and a suite that simply got smaller.
+  const vacuous = child(`
+    const p = new Population("T", { families: ["A"], scope: 1, claims: 1 });
+    p.seal("A", "ok");
+    p.reportOrDie();
+  `);
+  check(vacuous.status === 1 && /_POPULATION_VACUOUS/.test(vacuous.stderr),
+    "ORDIE_VACUOUS_EXITS_ONE a marker that asserted nothing exits 1", `status=${vacuous.status}`);
+
+  const shrank = child(`
+    const p = new Population("T", { families: ["A"], scope: 1, claims: 9 });
+    p.assert.ok(true); p.seal("A", "ok");
+    p.reportOrDie();
+  `);
+  check(shrank.status === 1 && /_POPULATION_FLOOR/.test(shrank.stderr),
+    "ORDIE_FLOOR_EXITS_ONE a suite below its claim floor exits 1", `status=${shrank.status}`);
+
+  // and the population line itself still reaches the log, because CI reads it.
+  check(/T_POPULATION claims=/.test(silent.stdout),
+    "ORDIE_PRINTS_THE_LINE the population line is printed before the exit", silent.stdout.trim().split("\n")[1]?.slice(0, 50));
+}
+
 // ────────────────────────────────────────────────────────── population + summary
 //
 // The self-test has a population of its own, for the same reason everything else
 // here does: a `for` loop that stopped iterating would take these claims with it.
-const SELFTEST_CLAIM_FLOOR = 26;
+const SELFTEST_CLAIM_FLOOR = 35;
 console.log(`\nPOP_SELFTEST_CLAIMS ${claims.length} (floor ${SELFTEST_CLAIM_FLOOR})`);
 if (claims.length < SELFTEST_CLAIM_FLOOR) {
   console.log(`  FAIL POP_SELFTEST_POPULATION — only ${claims.length} claim(s) ran, floor is ${SELFTEST_CLAIM_FLOOR}`);
