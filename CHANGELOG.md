@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.55.0] — 2026-08-03
+
 ### Fixed — the two rules `boundary_gate.mjs` enforced somewhere other than where its population comes from
 
 178 §10.23 said: *`unresolved` is honest, `judged` is not — so audit `judged`.* All 204
