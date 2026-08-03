@@ -6,6 +6,96 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the late blind, put to all 51 targets, and the four instruments that could answer once and stop
+
+181 §6 found `_workspace.mjs`'s floor sitting on the FIRST of three walks and handed over
+the generalisation: *every "blind the enumerator" target in `instrument_gate.py` replaces a
+whole function body, so it blinds for the whole run. Ask each of the 51 whether anything
+between the floor and the verdict re-derives.*
+
+The answer is mechanical and needs no new constant — the same target table behind a call
+counter, so call 1 answers honestly and satisfies whatever floor is above it and every call
+after it is the blind:
+
+```
+function walk(...) { if (++n > 1) { return; }   ...the real body...
+```
+
+**Two axes, and the one that found everything is the LIVE gate rather than the self-test.**
+For four of the eight instruments the shipped gate IS the caller and runs headless. 84 runs:
+
+```
+A:gate  51 targets   1 green (declared)          14 not constructible (called once)
+B:live  33 targets   6 green — FOUR of them real
+```
+
+🔴 **`boundary_gate.mjs` derives two populations once per FILE and counted neither.**
+`helpers()` and `conduits()` run inside the walk, ninety-nine times each, and every one of
+the seven floors above them pins a population derived ONCE for the whole tree:
+
+```
+conduits blinded from call 2  ->  judged 185 -> 162, floor 150, `ok`, exit 0
+helpers  blinded from call 2  ->  nonthrowing 18 -> 0, judged 185 -> 180, exit 0
+```
+
+`HELPER_FLOOR = 350` (measured 511) and `CONDUIT_FLOOR = 15` (measured 24), on their own
+line. **`nonthrowing` is not the thing to floor** even though it collapsed hardest: it
+counts receivers REFUSED, so honest work on those eighteen drives it toward zero and a floor
+there would fire on the fix. What only a working resolver can produce is what it RESOLVED.
+
+🔴 **`tautology_gate.mjs` could classify one leaf of 1605 and print byte-identical output.**
+Every number the gate printed counted claim SITES — what the FINDER found. Nothing counted a
+CLASSIFICATION, so `classifyLeaf` blinded to `{ kind: "VALUE" }` (the answer a healthy leaf
+gives) moved nothing at all, and neither did `leaves` over 1216 calls. A floor cannot sit on
+`vacuous`, `every` or `offender` — their healthy value is zero, which is 181 §5's problem —
+but `allShape` and `precondition` are healthy, non-zero and unreachable without a working
+classifier: `SHAPED_FLOOR = 80` (measured 116), `PRECONDITION_FLOOR = 40` (measured 61).
+
+🟢 **Two greens are structural, and the reason is the finding.** `collapsed()` returns the
+answer a healthy tree gives, so a live run says nothing about it. `segments()` is measured,
+not assumed: of 258 live cohort rows, **0** reach the cohort through the segment branch
+(`hint_only=0 both=252 segments_only=0`) — it is there for camelCase names this surface does
+not publish. Both are declared with a reason each rather than a name each, and the gate FAILS
+if a declared-green target ever starts reddening.
+
+🔴 **And the axis could be switched off in one line.** The reverse sweep's G15: make `late()`
+return the text unmodified and every target files as *not constructible*, no problem is
+raised, and the gate prints ok over an axis that measured nothing — the exact defect it was
+built to find, in itself. `LATE_CONSTRUCTED_FLOOR = 55` (measured 70).
+
+### Added — `CHECKS_RUN`: a check deleted takes its own errors with it (181 §11.3)
+
+181 §5 closed the report WIRE. The other half stayed open: the twenty-six SCOPE floors count
+POPULATIONS, not COMPARISONS, so a check deleted outright leaves every floor holding.
+Measured by deleting each of the nineteen check blocks in turn — with 181 §4's discriminator,
+because a `NameError` downstream and a violation are both `returncode != 0`:
+
+```
+caught_by_CHECKS_RUN=2   caught_other=0   crashed=17   still-green=0   of 19
+…and the same two deletions with the counter itself removed:  BOTH STILL GREEN
+```
+
+The counter sits at the END of each block, so a check whose header survives while its body
+goes is caught too — and the first placement got that wrong: two prose-only `# ---` sections
+sit inside check 18/19, so `_ran("18/19")` was left behind by a deletion of its own code and
+`measure182f` reported the block gone with ALL HARD CHECKS PASSED. Both halves are asserted:
+the roster SET (a check renamed would not move a count) and a literal floor tied to the
+roster size (181 §7 — a roster pinned by key is not a roster pinned).
+
+`floor_pin_gate.py` grew a Python half to match: its DISCOVER walk was scoped to the
+LANGUAGE rather than the property, so a floor written in Python was outside the gate by
+construction and no line said so. 30 targets now, `CHECKS_RUN_FLOOR` among them, with the
+three gate-own roster floors exempt with a reason each.
+
+```
+MUTATE182 pass=15 fail=0 declared-green=3
+INSTRUMENT_GATE_LATE_CONSTRUCTED 70/55 · 0 undeclared green on either axis
+BOUNDARY_GATE_PERFILE helper_defs=511/350 conduit_entries=24/15
+TAUT_CLASSIFIED shaped=116/80 precondition=61/40
+CHECKS_RUN 20/20 · FLOOR_PIN_GATE 30/30 · SCOPE_GATE 0 of 25
+TAUT_SELFTEST 108 (was 94) · BOUNDARY_SELFTEST 143 (was 130)
+```
+
 ## [1.57.0] — 2026-08-03
 
 ### Added — the same question put to the four instruments 179's list did not name, and to every floor in the tree

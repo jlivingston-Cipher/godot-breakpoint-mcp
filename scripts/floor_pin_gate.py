@@ -52,7 +52,7 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 25
+TARGET_FLOOR = 30   # 182: 25 -> 30 (HELPER, CONDUIT, SHAPED, PRECONDITION, CHECKS_RUN)
 
 # (label, file, regex whose group(1) ends immediately before the digits, runner argv)
 # The runner is the file that MUST go red when this floor's value is zeroed.
@@ -68,9 +68,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("RETURN_FLOOR",             f"{S}/boundary_gate.mjs",           r"(export const RETURN_FLOOR = )150;",                       [f"{S}/boundary_gate.selftest.mjs"]),
     ("PLANE_FLOOR",              f"{S}/boundary_gate.mjs",           r"(export const PLANE_FLOOR = )2;",                          [f"{S}/boundary_gate.selftest.mjs"]),
     ("JUDGED_FLOOR",             f"{S}/boundary_gate.mjs",           r"(export const JUDGED_FLOOR = )150;",                       [f"{S}/boundary_gate.selftest.mjs"]),
-    ("bg.CLAIM_FLOOR",           f"{S}/boundary_gate.selftest.mjs",  r"(const CLAIM_FLOOR = )120;",                               [f"{S}/boundary_gate.selftest.mjs"]),
+    ("HELPER_FLOOR",             f"{S}/boundary_gate.mjs",           r"(export const HELPER_FLOOR = )350;",                       [f"{S}/boundary_gate.selftest.mjs"]),
+    ("CONDUIT_FLOOR",            f"{S}/boundary_gate.mjs",           r"(export const CONDUIT_FLOOR = )15;",                       [f"{S}/boundary_gate.selftest.mjs"]),
+    ("bg.CLAIM_FLOOR",           f"{S}/boundary_gate.selftest.mjs",  r"(const CLAIM_FLOOR = )130;",                               [f"{S}/boundary_gate.selftest.mjs"]),
     ("UNIT_FLOOR",               f"{S}/tautology_gate.mjs",          r"(export const UNIT_FLOOR = )1200;",                        [f"{S}/tautology_gate.selftest.mjs"]),
     ("ATTRIBUTED_FLOOR",         f"{S}/tautology_gate.mjs",          r"(export const ATTRIBUTED_FLOOR = )2500;",                  [f"{S}/tautology_gate.selftest.mjs"]),
+    ("SHAPED_FLOOR",             f"{S}/tautology_gate.mjs",          r"(export const SHAPED_FLOOR = )80;",                        [f"{S}/tautology_gate.selftest.mjs"]),
+    ("PRECONDITION_FLOOR",       f"{S}/tautology_gate.mjs",          r"(export const PRECONDITION_FLOOR = )40;",                  [f"{S}/tautology_gate.selftest.mjs"]),
     ("FLOORS.test",              f"{S}/tautology_gate.mjs",          r"(export const FLOORS = \{ test: )2100,",                   [f"{S}/tautology_gate.selftest.mjs"]),
     ("FLOORS.test-integration",  f"{S}/tautology_gate.mjs",          r'("test-integration": )850,',                               [f"{S}/tautology_gate.selftest.mjs"]),
     ("FLOORS.scripts",           f"{S}/tautology_gate.mjs",          r"(scripts: )90, ",                                          [f"{S}/tautology_gate.selftest.mjs"]),
@@ -82,6 +86,11 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("pl.SELFTEST_CLAIM_FLOOR",  f"{T}/_path_ledger.selftest.mjs",   r"(const SELFTEST_CLAIM_FLOOR = )30;",                       [f"{T}/_path_ledger.selftest.mjs"]),
     ("ws.SELFTEST_CLAIM_FLOOR",  f"{T}/_workspace.selftest.mjs",     r"(const SELFTEST_CLAIM_FLOOR = )48;",                       [f"{T}/_workspace.selftest.mjs"]),
     ("pop.SELFTEST_CLAIM_FLOOR", f"{T}/_population.selftest.mjs",    r"(const SELFTEST_CLAIM_FLOOR = )35;",                       [f"{T}/_population.selftest.mjs"]),
+    # 🔴 182 — THE FIRST FLOOR IN THIS TABLE THAT IS NOT JAVASCRIPT. `scripts/` was walked
+    # for `.mjs` only, so a Python floor was outside the DISCOVER half by construction and
+    # nobody would have been told. That is the shape 174 §5 names: an exclusion nobody
+    # wrote down is an exclusion nobody re-reads.
+    ("CHECKS_RUN_FLOOR",         "../scripts/contract_check.py",     r"(CHECKS_RUN_FLOOR = )20 ",                                 ["../scripts/contract_check.py"]),
 ]
 
 # ── the DISCOVERY half ────────────────────────────────────────────────────────────
@@ -89,6 +98,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
 # is a gate failure, so the table above cannot silently fall behind the tree.
 DISCOVER_DIRS = [HOST / "scripts", HOST / "test-integration"]
 DISCOVER_RE = re.compile(r"^\s*(?:export )?const ([A-Za-z_][A-Za-z0-9_]*FLOOR)\s*=\s*\d+", re.M)
+# 🔴 182 — AND THE SAME WALK IN PYTHON, BECAUSE THE FIRST DRAFT'S SCOPE WAS THE LANGUAGE
+# AND NOT THE PROPERTY. `scripts/*.mjs` was walked; `scripts/*.py` was not, so a floor
+# written in Python was outside this gate by construction and no line said so — the
+# DISCOVER half rotting in a direction its own docstring promises it cannot.
+DISCOVER_PY_DIRS = [ROOT / "scripts"]
+DISCOVER_PY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*FLOOR)\s*[:=][^=]*?=?\s*\d+", re.M)
 
 # Floors that live in a file no headless runner exercises. Each needs a REASON, not a
 # name — 174 §5: an exclusion that costs nothing to write is one nobody re-reads.
@@ -98,11 +113,34 @@ DISCOVER_EXEMPT: dict[str, str] = {
     "AUTH_FAMILY_FLOOR": "same file, same reason",
     "AUTH_CLAIM_FLOOR": "same file, same reason",
     "GD_DAP_CLAIM_FLOOR": "gdscript-dap-plane.integration.mjs — needs a real Godot binary and a live DAP session",
+    # 🔴 182 — THE THREE A GATE HOLDS OVER ITS OWN ROSTER. Mutating one here would mean
+    # running that gate as a step of this one: `instrument_gate.py` is 34s and mutates the
+    # working tree, and `scope_gate.py` is 90s and does too, so nesting them would break
+    # 178 §11.4's rule that the three mutating gates never run concurrently. Each is
+    # instead pinned WHERE IT LIVES, and that is stated rather than assumed:
+    "INSTRUMENT_FLOOR": "instrument_gate.py's own roster floor — pinned in-file by `_self_check()`, "
+                        "which asserts the collapse branch BITES at 0 (176's G12 shape). Running it "
+                        "here would nest one tree-mutating gate inside another (178 §11.4)",
+    "LATE_CONSTRUCTED_FLOOR": "instrument_gate.py's floor on its own second axis — pinned in the "
+                              "same `_self_check()`, which fails if it is not positive, because a "
+                              "zero would re-permit an injector that injects nothing. Same nesting "
+                              "reason as INSTRUMENT_FLOOR",
+    "TARGET_FLOOR": "the same shape in scope_gate.py and in THIS file — a gate cannot pin the floor "
+                    "over its own target list without reading the constant it is checking. scope_gate "
+                    "asserts its branch bites; this file's is the one below, and a session that "
+                    "deletes a TARGETS line without lowering it gets FLOOR_PIN_TARGETS_COLLAPSE",
 }
 
 
 def run(argv: list[str]) -> bool:
-    p = subprocess.run(["node", *argv], capture_output=True, text=True, cwd=str(HOST))
+    """🔴 THE INTERPRETER FOLLOWS THE FILE, NOT THE TABLE. `["node", *argv]` was hard-wired
+    while every target happened to be JavaScript; the first Python floor (182's
+    CHECKS_RUN_FLOOR) would have been run through node and reported as a catch — a syntax
+    error and a violation being one observable, which is 181 §4 in a third spelling."""
+    if argv and argv[0].endswith(".py"):
+        p = subprocess.run([sys.executable, *argv], capture_output=True, text=True, cwd=str(HOST))
+    else:
+        p = subprocess.run(["node", *argv], capture_output=True, text=True, cwd=str(HOST))
     return p.returncode == 0
 
 
@@ -138,6 +176,14 @@ def main() -> int:
                 if name in known or name in DISCOVER_EXEMPT:
                     continue
                 unswept.append(f"{f.relative_to(HOST)}:{name}")
+    for d in DISCOVER_PY_DIRS:                        # 🆕 182 — the other language
+        for f in sorted(d.rglob("*.py")):
+            if "_to_delete" in f.parts:
+                continue
+            for name in DISCOVER_PY_RE.findall(f.read_text()):
+                if name in known or name in DISCOVER_EXEMPT:
+                    continue
+                unswept.append(f"{f.relative_to(ROOT)}:{name}")
     print(f"FLOOR_PIN_DISCOVERED unswept={len(unswept)} exempt={len(DISCOVER_EXEMPT)}")
     if unswept:
         failed = True
