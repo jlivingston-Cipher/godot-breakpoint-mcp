@@ -9,7 +9,7 @@
 // point at; `comparePathLedger` had none, so no amount of blinding could say anything
 // about it. Each case below is a population that is healthy, or one that collapsed in a
 // specific way, with the verdict written down before the code ran (169 §2's discipline).
-import { comparePathLedger, parsePathLedger, ledgerScopeFailures, LEDGER_CANARIES, LEDGER_CLASSES, LEDGER_SCOPE } from "./_path_ledger.mjs";
+import { comparePathLedger as compareAtScale, parsePathLedger, ledgerScopeFailures, LEDGER_CANARIES, LEDGER_CLASSES, LEDGER_SCOPE, LEDGER_POPULATION } from "./_path_ledger.mjs";
 
 let failures = 0;
 const claims = [];
@@ -28,6 +28,15 @@ const canaryLines = LEDGER_CANARIES.map(([t, p]) => `${t}\t${p}\tguarded\tthe ca
 const line = (t, p, cls = "guarded", why = "a reason") => `${t}\t${p}\t${cls}\t${why}`;
 const ledgerOf = (...extra) => ["# a ledger", "", ...canaryLines, ...extra].join("\n");
 const rowsOf = (...extra) => [...CANARY_ROWS, ...extra];
+
+// 🔴 180 — `comparePathLedger` NOW FLOORS THE TWO SIDES IT COMPARES, and every fixture in
+// this file is three rows. The floor is a PARAMETER for exactly this reason (173's move,
+// mirrored): a fixture states the scale it is testing at, so a case about `stale` is not
+// also a case about the population size. `FIXTURE_SCALE` is named and zero rather than
+// absent, so nothing here quietly opts out of a floor it should be meeting — the SHIPPED
+// default gets its own section below, driven from both sides.
+const FIXTURE_SCALE = Object.freeze({ live: 0, ledger: 0 });
+const comparePathLedger = (rows, ledger, pop = FIXTURE_SCALE) => compareAtScale(rows, ledger, pop);
 
 // ────────────────────────────────────────────────────────────── the healthy run
 console.log("\n-- agreement --");
@@ -146,10 +155,62 @@ console.log("\n-- shapes --");
   check(r.lost.length === LEDGER_CANARIES.length, "SHAPES_NULL_LOUD ...and it still loses both canaries");
 }
 
+// ─────────────────────────── 180: THE POPULATION THIS GATE COMPARES, floored at last
+//
+// 179 §11.2 asked five instruments whether every floor they hold can hold while the
+// number they exist to produce goes to zero. `LEDGER_SCOPE` floors this gate's OWN
+// roster; nothing floored `liveCount` or `ledgerCount`. The hole was already written in
+// prose above `LEDGER_CANARIES` — *"a session that REGENERATED the ledger from a blind
+// enumerator would take both green together"* — and had never been executed. It was, in
+// `_to_delete/measure180d.mjs`, and it was true: two rows of 258, every claim passing,
+// the probe printing "all 2 path-like parameters in the live surface are classified".
+//
+// 🔴 AND THE FLOOR ALREADY EXISTED, IN THE OTHER CALLER. `scripts/path-cohort.mjs` pins
+// `sum.total >= 250` before it calls this function; `authoring-plane.integration.mjs`
+// calls the same function with nothing under it. 179's meta-rule verbatim: an instrument
+// enforces its rules where they were WRITTEN, not where its population COMES FROM.
+console.log("\n-- population (180) --");
+{
+  const two = rowsOf();                       // exactly the two canaries: a blind enumerator
+  const r = compareAtScale(two, ledgerOf());  // …and a ledger regenerated from it
+  check(r.unclassified.length === 0 && r.stale.length === 0 && r.lost.length === 0,
+    "POP_THE_QUIET_CASE every OTHER claim is green — this is why a floor was needed",
+    `unclassified=${r.unclassified.length} stale=${r.stale.length} lost=${r.lost.length}`);
+  check(r.scope.length === 2, "POP_BOTH_SIDES_COLLAPSE and both sides report, separately (172 §6)", `scope=${r.scope.length}`);
+  check(r.scope.some((s) => s.includes("LIVE cohort")), "POP_LIVE_NAMED the live side names itself");
+  check(r.scope.some((s) => s.includes("LEDGER holds")), "POP_LEDGER_NAMED …and so does the ledger side");
+}
+{
+  // ONE side at a time, because a shared total would let either hide behind the other.
+  const live = Array.from({ length: LEDGER_POPULATION.live }, (_, i) => ({ tool: `t${i}`, param: "path" }));
+  const full = ["# a ledger", ...live.map((r) => line(r.tool, r.param))].join("\n");
+  check(compareAtScale(live, full).scope.length === 0, "POP_AT_THE_FLOOR exactly at both floors is quiet");
+  check(compareAtScale(live.slice(1), full).scope.some((s) => s.includes("LIVE cohort")),
+    "POP_LIVE_ALONE one row below on the LIVE side alone reddens");
+  const short = ["# a ledger", ...live.slice(1).map((r) => line(r.tool, r.param))].join("\n");
+  check(compareAtScale(live, short).scope.some((s) => s.includes("LEDGER holds")),
+    "POP_LEDGER_ALONE …and one entry below on the LEDGER side alone reddens");
+}
+check(LEDGER_POPULATION.live >= 200 && LEDGER_POPULATION.ledger >= 200,
+  "POP_FLOOR_IS_A_LITERAL the shipped floor is a measured literal with headroom, not a rounding of zero",
+  `live=${LEDGER_POPULATION.live} ledger=${LEDGER_POPULATION.ledger}`);
+check(Object.isFrozen(LEDGER_POPULATION), "POP_FROZEN it cannot be lowered at runtime by a probe that imports it");
+// 🔴 THE DEFAULT IS THE SHIPPED ONE. Every fixture above passes FIXTURE_SCALE; this is
+// the claim that stops the override from quietly becoming the norm.
+check(ledgerScopeFailures(LEDGER_CANARIES, LEDGER_CLASSES, 0, 0).length === 2,
+  "POP_DEFAULT_IS_SHIPPED called with no `pop`, the floors are LEDGER_POPULATION's — not zero");
+
 // ──────────────────────────────────────────────────────── population + summary
 //
 // This file has a population of its own, for the reason every other gate here does.
-const SELFTEST_CLAIM_FLOOR = 22;
+const SELFTEST_CLAIM_FLOOR = 30;   // 180: 22 -> 30 (the population section)
+// 🔴 AND THE FLOOR'S OWN VALUE IS PINNED, because `mutate180`'s G15 set it to 0 and this
+// file stayed GREEN. A `<` floor with nothing asserting what it IS can be zeroed
+// invisibly: the run still passes, the population line still prints, and the only thing
+// that changed is that the floor stopped being one. `verdict_gate.selftest.mjs` pins
+// `SUBJECT_FLOOR === 4` and `DISCARD_SITE_FLOOR === 55` for exactly this reason; this
+// file, three sessions older, never did.
+check(SELFTEST_CLAIM_FLOOR === 30, "SELFTEST_FLOOR_PINNED the claim floor is 30, not whatever it was last set to");
 console.log(`\nLEDGER_SELFTEST_CLAIMS ${claims.length} (floor ${SELFTEST_CLAIM_FLOOR})`);
 if (claims.length < SELFTEST_CLAIM_FLOOR) {
   console.log(`  FAIL LEDGER_SELFTEST_POPULATION — only ${claims.length} claim(s) ran, floor is ${SELFTEST_CLAIM_FLOOR}`);

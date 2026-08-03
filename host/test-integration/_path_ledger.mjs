@@ -57,6 +57,35 @@ export const LEDGER_CANARIES = Object.freeze([
  */
 export const LEDGER_SCOPE = Object.freeze({ classes: 7, canaries: 2 });
 
+/**
+ * 🔴 AND THE POPULATION THIS FILE COMPARES, WHICH UNTIL 180 IT DID NOT FLOOR AT ALL.
+ *
+ * 179 §11.2 asked five instruments whether every floor they hold can hold while the
+ * number they exist to produce goes to zero. `LEDGER_SCOPE` floors this gate's OWN
+ * roster — its classes and its canaries — and that is what 173 built. It says nothing
+ * about `liveCount` or `ledgerCount`, which are the two sides of the comparison.
+ *
+ * The hole was already written down, thirty lines up: *"a session that REGENERATED the
+ * ledger from a blind enumerator would take both green together."* It had never been
+ * RUN. Session 180 ran it (`_to_delete/measure180d.mjs`), and the sentence is true:
+ *
+ *     live=2 ledger=2 unclassified=0 stale=0 lost=0 scope=0   EVERY CLAIM PASSES
+ *     -> the probe prints "all 2 path-like parameters in the live surface are classified"
+ *
+ * Two of 258. The canaries defend only a blindness that happens to drop one of THEM;
+ * they are two named rows, not a floor.
+ *
+ * 🔴 AND THE FLOOR EXISTED — IN THE OTHER CALLER. `scripts/path-cohort.mjs` pins
+ * `sum.total >= 250` before it calls this function. `authoring-plane.integration.mjs`
+ * calls the same function with nothing under it. That is 179's meta-rule word for word:
+ * AN INSTRUMENT ENFORCES ITS RULES WHERE THEY WERE WRITTEN, NOT WHERE ITS POPULATION
+ * COMES FROM. So the floor moves HERE, where the comparison is, and both callers
+ * inherit it instead of one of them remembering.
+ *
+ * `>=`, not exact, and below the shipped 258/258 with headroom: both sides grow.
+ */
+export const LEDGER_POPULATION = Object.freeze({ live: 220, ledger: 220 });
+
 /** `tool\tparam` — the key both sides of the comparison are addressed by. */
 export const ledgerKey = (tool, param) => `${tool}\t${param}`;
 
@@ -98,8 +127,27 @@ export function parsePathLedger(text) {
  * @param classes  the class list to floor (defaults to the shipped one)
  * @returns one failure string per collapsed population — never a sum (172 §6)
  */
-export function ledgerScopeFailures(canaries = LEDGER_CANARIES, classes = LEDGER_CLASSES) {
+export function ledgerScopeFailures(canaries = LEDGER_CANARIES, classes = LEDGER_CLASSES, live = null, ledger = null, pop = LEDGER_POPULATION) {
   const failures = [];
+  // 🔴 180 — THE TWO SIDES OF THE COMPARISON, floored HERE so both callers inherit it.
+  // `null` means "not offered", which is how `ledgerScopeFailures()` keeps its 173
+  // signature meaningful when called with no population at all; `comparePathLedger`
+  // always offers both.
+  if (live !== null && live < pop.live) {
+    failures.push(
+      `the LIVE cohort holds ${live} row(s), floor is ${pop.live} — a blind ` +
+      `enumerator SHRINKS the live set, so nothing reads as unclassified; if the ledger was ` +
+      `regenerated from it, nothing reads as stale either, and the gate prints "all ${live} ` +
+      `path-like parameters in the live surface are classified"`,
+    );
+  }
+  if (ledger !== null && ledger < pop.ledger) {
+    failures.push(
+      `the LEDGER holds ${ledger} entr(ies), floor is ${pop.ledger} — a ledger ` +
+      `regenerated from a blind enumerator agrees with it perfectly. Two lists that agree ` +
+      `are not two measurements`,
+    );
+  }
   if (classes.length < LEDGER_SCOPE.classes) {
     failures.push(
       `LEDGER_CLASSES holds ${classes.length} class(es), floor is ${LEDGER_SCOPE.classes} — ` +
@@ -130,7 +178,7 @@ export function ledgerScopeFailures(canaries = LEDGER_CANARIES, classes = LEDGER
  *   `lost`         a canary the enumerator can no longer see;
  *   `scope`        the gate's own two populations, against LITERAL floors.
  */
-export function comparePathLedger(liveRows, ledgerText) {
+export function comparePathLedger(liveRows, ledgerText, pop = LEDGER_POPULATION) {
   const rows = Array.isArray(liveRows) ? liveRows : [];
   const { entries, badClass } = parsePathLedger(ledgerText);
   const liveKeys = new Set(rows.map((r) => ledgerKey(r.tool, r.param)));
@@ -140,8 +188,17 @@ export function comparePathLedger(liveRows, ledgerText) {
   const lost = LEDGER_CANARIES.filter(([t, p]) => !rows.some((r) => r.tool === t && r.param === p));
 
   // 🔴 ONE LINE PER POPULATION, NOT A SUM (172 §10.22). Two scope floors that shared a
-  // total would let either collapse while the other covered for it.
-  const scope = ledgerScopeFailures();
+  // total would let either collapse while the other covered for it. 180 makes it four:
+  // the gate's own roster AND the two sides it compares, offered from here so that every
+  // caller is defended rather than the one that remembered to floor its input.
+  //
+  // 🔴 AND `pop` IS A PARAMETER FOR THE MIRROR OF 173's REASON. 173 made the ROSTER a
+  // parameter so the COLLAPSED case was constructible; 180 makes the population floor
+  // one so the HEALTHY case still is. Every fixture in the self-test is three rows —
+  // adding a 220-row floor with no way to lower it would have turned twenty-eight
+  // passing fixture cases red and the honest fix would have looked like weakening the
+  // floor. Shipped default, overridable by a fixture, and the default is itself asserted.
+  const scope = ledgerScopeFailures(LEDGER_CANARIES, LEDGER_CLASSES, rows.length, entries.size, pop);
 
   return {
     unclassified, stale, badClass, lost, scope,
