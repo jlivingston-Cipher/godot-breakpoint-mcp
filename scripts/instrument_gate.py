@@ -233,7 +233,7 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "boundary_gate.mjs",
         "gate": ["node", "scripts/boundary_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 8,
+        "floor": 9,   # 🆕 179: helpers() is the ninth, and the reader both 179 rules rest on
         "why": "the tautology that cannot be seen from either side alone — a GDScript constant asserted in JS",
         "targets": {
             "export function dispatchMap(gdText) {": 'return new Map([["a.b", "_a_b"]]);',
@@ -242,9 +242,15 @@ INSTRUMENTS = [
             "export function toolOps(sources) {": 'return new Map([["t", "a.b"]]);',
             # 🆕 178. The conduit resolver blinded to "no helper is ever a conduit" — the
             # shape 177 §10.18 declined to build and 178 measured a live defect behind.
-            "export function conduits(file, text) {": "return new Map();",
-            "export function comparisons(file, text, conduit = new Map()) {":
-                'return [{ file, line: 1, field: "ok", lit: "true", tool: null, text: "", idiom: "===" }];',
+            "export function conduits(file, text, h = helpers(file, text)) {": "return new Map();",
+            "export function comparisons(file, text, conduit = new Map(), h = helpers(file, text)) {":
+                'return [{ file, line: 1, field: "ok", lit: "true", tool: null, drop: null, wouldBe: null, text: "", idiom: "===" }];',
+            # 🆕 179. The reader both 179 rules rest on: which locally-defined helpers throw
+            # on `isError`. Blinded to "none of them", every direct receiver is refused as
+            # nonthrowing and `judged` goes to zero — which is exactly what JUDGED_FLOOR is
+            # for, and nothing else in the file could have caught it.
+            "export function helpers(file, text) {":
+                "return { s: null, bodyOf: new Map(), throwers: new Set(), defined: new Set() };",
             "export function judge(pop, offenders) {":
                 'return { lines: ["BOUNDARY_GATE ok"], failed: false };',
             # 🔴 THE COLLAPSE TEST ITSELF. 176 §8's G12 extracted this shape precisely so

@@ -316,7 +316,20 @@ export function toolOps(sources) {
  * One hop, one file, and exactly one string-literal call inside the body — a helper that
  * reaches two tools is dropped, for the same reason an ambiguous registration is.
  */
-export function conduits(file, text) {
+/**
+ * 🔴 179: EXTRACTED, BECAUSE THE THROWING TEST WAS ENFORCED ON THE HOP AND NOT ON THE
+ * DIRECT CALL. `conduits()` asked "does the helper this wrapper bottoms out in throw?" and
+ * refused two wrappers over `raw()`. `comparisons()` asked nothing at all about a receiver
+ * spelled `await raw("runtime_node_add", …)` — seventeen of them, every one asserting
+ * `.isError === true`, all counted as `judged` against an operation whose `_err` paths the
+ * gate had already decided were irrelevant *because `call()` throws*. Over a `raw()`
+ * receiver that premise is false. Same rule, same file, one spelling exempt.
+ *
+ * Returns the locally-DEFINED helpers and which of them throw on `isError`. Only local
+ * definitions: an imported `call` cannot be read from here, and refusing what cannot be
+ * read would be a guess in the other direction.
+ */
+export function helpers(file, text) {
   const s = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true,
     /\.ts$/.test(file) ? ts.ScriptKind.TS : ts.ScriptKind.JS);
   const bodyOf = new Map();
@@ -336,6 +349,11 @@ export function conduits(file, text) {
     f(body);
     if (t) throwers.add(name);
   }
+  return { s, bodyOf, throwers, defined: new Set(bodyOf.keys()) };
+}
+
+export function conduits(file, text, h = helpers(file, text)) {
+  const { s, bodyOf, throwers } = h;
   const out = new Map();
   for (const [name, body] of bodyOf) {
     if (throwers.has(name)) continue;
@@ -374,11 +392,15 @@ const strip = (e) => { let v = e; while (ts.isPropertyAccessExpression(v) && ENV
  * about as often as it writes `===`, and it is the same claim about the same reply — four
  * of 178's five defects are spelled that way and none of them was visible.
  */
-export function comparisons(file, text, conduit = new Map()) {
+export function comparisons(file, text, conduit = new Map(), h = helpers(file, text)) {
   const s = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true,
     /\.ts$/.test(file) ? ts.ScriptKind.TS : ts.ScriptKind.JS);
   const lines = text.split("\n");
-  const toolOf = (e) => {
+  // 🔴 179: WHY A RECEIVER WAS REFUSED IS PART OF THE READING. A site with `tool: null` and
+  // no `drop` is an honest under-reach — nothing bound it. A site with a `drop` is a
+  // receiver this gate COULD have resolved and declined to, and the count of those belongs
+  // on the population line beside `unresolved` and `opaque`.
+  const toolOf = (e, drop = {}) => {
     const d = down(e);
     if (ts.isCallExpression(d)) {
       // 🔴 THE CONDUIT IS CHECKED FIRST, AND THE SELF-TEST IS WHY. `rm("Host/Thing")` and
@@ -386,20 +408,99 @@ export function comparisons(file, text, conduit = new Map()) {
       // a tool name — taking it as one resolved the receiver to a tool nothing registers,
       // which fails CLOSED (unjudged) and so would never have shown up as a red gate.
       if (ts.isIdentifier(d.expression) && conduit.has(d.expression.text)) return conduit.get(d.expression.text);
+      // 🔴 AND THE THROWING TEST, ON THE DIRECT SPELLING (179). `conduits()` refuses a
+      // wrapper over `raw()` because `raw()` does not throw, so the error path DOES reach
+      // the comparison and the claim really can fail. `await raw("runtime_node_add", …)`
+      // is the same receiver with the hop spelled out, and 178 judged seventeen of them.
+      if (ts.isIdentifier(d.expression) && h.defined.has(d.expression.text) && !h.throwers.has(d.expression.text)) {
+        // 🔴 AND WHAT IT WOULD HAVE SAID IS RECORDED, BECAUSE THE COUNT ALONE IS USELESS.
+        // Most refusals here are `parsePathLedger("…")` and `dispatchMap("…")` — helpers
+        // whose first argument is a string that was never a tool name. Those were always
+        // unjudgeable; folding them into a new counter would report 172 where the finding
+        // is 18. `scan()` counts only the refusals whose `wouldBe` names a REGISTERED
+        // tool, which is the population this rule actually took away.
+        const a0 = d.arguments[0];
+        drop.why = "nonthrowing";
+        drop.wouldBe = a0 && ts.isStringLiteralLike(a0) ? a0.text : null;
+        return null;
+      }
       const a = d.arguments[0];
       if (a && ts.isStringLiteralLike(a)) return a.text;
     }
     return null;
   };
-  const bound = new Map();
-  const bind = (n) => {
-    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
-      const t = toolOf(n.initializer);
-      if (t) bound.set(n.name.text, t);
+  // 🔴 THE BINDING MAP IS LEXICALLY SCOPED (179), AND IT WAS FILE-SCOPED AND LAST-WINS.
+  //
+  //     for (const spelling of ROOT_SPELLINGS) {
+  //       const r = await raw("runtime_node_add", …);   // one block
+  //       assert.equal(r.isError, true, …);
+  //     }
+  //     for (const path of leftovers) {
+  //       const r = await rm(path);                     // another block, another tool
+  //       assert.equal(r.removed, true, …);
+  //     }
+  //
+  // One flat `Map<name, tool>` for the whole file meant the SECOND declaration overwrote
+  // the first and every `r.field` claim above it was judged against `runtime_node_remove`.
+  // Twenty identifiers in this tree are declared more than once; nine judged claims rested
+  // on one, and SIX were judged against an operation other than the one that replied.
+  //
+  // 🔴 AND THE FIRST FIX FOR THIS WAS WRONG IN A WAY ONLY THE SWEEP COULD SHOW. Refusing
+  // every multiply-declared name — the rule `toolOps()` and `conduits()` already apply —
+  // made the gate green under mutant G19, which restores one of the five defects 178 had
+  // just fixed. A narrowing that is CORRECT can still cost real coverage, and the reverse
+  // sweep is the only thing in this repo that can say so. Scope resolution keeps both:
+  // each `r` resolves to its own declaration, and nothing is refused for being reused.
+  const SCOPE = (n) => ts.isSourceFile(n) || ts.isBlock(n) || ts.isModuleBlock(n) || ts.isCaseBlock(n)
+    || ts.isForStatement(n) || ts.isForOfStatement(n) || ts.isForInStatement(n)
+    || ts.isCatchClause(n) || ts.isArrowFunction(n) || ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n);
+  const scopes = new Map();
+  const slot = (scope, id) => {
+    if (!scopes.has(scope)) scopes.set(scope, new Map());
+    const m = scopes.get(scope);
+    if (!m.has(id)) m.set(id, { tools: new Set(), drops: new Set(), wouldBe: new Set() });
+    return m.get(id);
+  };
+  const scopeOf = (n) => { let p = n.parent; while (p && !SCOPE(p)) p = p.parent; return p ?? s; };
+  const record = (scope, id, init) => {
+    const drop = {};
+    const t = toolOf(init, drop);
+    if (t) slot(scope, id).tools.add(t);
+    else if (drop.why) {
+      const sl = slot(scope, id);
+      sl.drops.add(drop.why);
+      if (drop.wouldBe) sl.wouldBe.add(drop.wouldBe);
     }
+  };
+  const bind = (n) => {
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer)
+      record(scopeOf(n), n.name.text, n.initializer);
+    // 🔴 A REASSIGNMENT IS A SECOND BINDING IN THE SAME SCOPE, AND THAT ONE REALLY IS
+    // AMBIGUOUS. Two `const`s of a name in one block is a syntax error, so after scope
+    // resolution the ambiguity rule would be dead code — except for `let r = await
+    // call(A); … r = await call(B);`, where nothing in the source says which reply a later
+    // `r.field` is about. Refused and counted, not guessed.
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left))
+      record(scopeOf(n), n.left.text, n.right);
     ts.forEachChild(n, bind);
   };
   bind(s);
+  /** The tool an identifier resolves to at a USE SITE, walking outward from its scope. */
+  const ofName = (id, at) => {
+    let p = scopeOf(at);
+    while (p) {
+      const b = scopes.get(p)?.get(id);
+      if (b) {
+        if (b.tools.size === 1 && b.drops.size === 0) return { tool: [...b.tools][0], drop: null, wouldBe: null };
+        if (b.tools.size === 0) return { tool: null, drop: [...b.drops][0] ?? null, wouldBe: [...b.wouldBe][0] ?? null };
+        // two tools in ONE scope — a tool and a refusal is as ambiguous as two tools
+        return { tool: null, drop: "ambiguous", wouldBe: [...b.tools][0] ?? null };
+      }
+      if (ts.isSourceFile(p)) break;
+      p = scopeOf(p);
+    }
+    return { tool: null, drop: null, wouldBe: null };
+  };
 
   const out = [];
   const isLit = (b) => b.kind === ts.SyntaxKind.TrueKeyword || b.kind === ts.SyntaxKind.FalseKeyword
@@ -407,10 +508,15 @@ export function comparisons(file, text, conduit = new Map()) {
   const push = (node, acc, litNode, idiom) => {
     const recv = strip(down(acc.expression));
     const line = s.getLineAndCharacterOfPosition(node.getStart(s)).line;
+    const inlineDrop = {};
+    const inline = toolOf(recv, inlineDrop);
+    const named = !inline && ts.isIdentifier(recv) ? ofName(recv.text, recv) : { tool: null, drop: null, wouldBe: null };
     out.push({
       file, line: line + 1, field: acc.name.text,
       lit: litNode.getText(s).replace(/^["']|["']$/g, ""),
-      tool: toolOf(recv) ?? (ts.isIdentifier(recv) ? bound.get(recv.text) ?? null : null),
+      tool: inline ?? named.tool,
+      drop: inline ? null : (inlineDrop.why ?? named.drop),
+      wouldBe: inline ? null : (inlineDrop.wouldBe ?? named.wouldBe ?? null),
       text: lines[line].trim(), idiom,
     });
   };
@@ -473,12 +579,21 @@ function walk(abs, rel = "", re = /\.(mjs|ts)$/) {
 //           spelling loses twelve returns and every floor above stays green.
 //   PLANE   🆕 a dispatcher file stops resolving. 177 read one of the two and called the
 //           result the population; nothing would have reddened if it had read zero.
+//   JUDGED  🆕 179. THE SEVENTH, AND THE ONE THAT WAS MISSING FOR TWO SESSIONS. Every
+//           floor above pins an INPUT — constants found, arms read, tools registered,
+//           sites found, returns read, planes opened. None of them pins the OUTPUT. The
+//           six could all hold while `comparisons()` resolved not one receiver, and the
+//           gate would print `BOUNDARY_GATE ok — 0 judged claim(s), none compared against
+//           a constant` and exit 0. 178 §10.22 said an instrument's population is the
+//           least audited number it prints; `judged` is that number here, and it was the
+//           only population in this file with nothing under it.
 export const CONST_FLOOR = 20;    // measured 25 fields across both planes
 export const OP_FLOOR = 150;      // measured 177 dispatcher arms across both planes
 export const TOOL_FLOOR = 150;    // measured 171 tools resolved to exactly one operation
 export const SITE_FLOOR = 1500;   // measured 1816 literal comparisons in the walked tree
 export const RETURN_FLOOR = 150;  // measured 187 reply dicts actually read
 export const PLANE_FLOOR = 2;     // operations.gd and runtime_bridge.gd
+export const JUDGED_FLOOR = 150;  // measured 185 claims resolved to an operation (179)
 
 /**
  * 🔴 THE COLLAPSE TEST, EXTRACTED AS A PURE FUNCTION — 176 §8's G12 shape. Pinning a
@@ -497,7 +612,8 @@ export function judge(pop, offenders) {
   say(`BOUNDARY_GATE consts=${pop.consts}/${CONST_FLOOR} ops=${pop.ops}/${OP_FLOOR} `
     + `tools=${pop.tools}/${TOOL_FLOOR} sites=${pop.sites}/${SITE_FLOOR} `
     + `reads=${pop.reads}/${RETURN_FLOOR} planes=${pop.planes}/${PLANE_FLOOR} `
-    + `opaque=${pop.opaque} unresolved=${pop.unresolved} judged=${pop.judged} offenders=${offenders.length}`);
+    + `opaque=${pop.opaque} ambiguous=${pop.ambiguous ?? 0} nonthrowing=${pop.nonthrowing ?? 0} `
+    + `unresolved=${pop.unresolved} judged=${pop.judged}/${JUDGED_FLOOR} offenders=${offenders.length}`);
 
   for (const [what, n, floor, why] of [
     ["CONSTS", pop.consts, CONST_FLOOR, "the addon stopped yielding hard-wired fields — the `_ok({…})` reader no longer matches"],
@@ -506,6 +622,7 @@ export function judge(pop, offenders) {
     ["SITES", pop.sites, SITE_FLOOR, "no comparison against a literal was found at all — the finder, not the tree, went quiet"],
     ["RETURNS", pop.reads, RETURN_FLOOR, "the reply-dict reader went quiet — a spelling it used to handle is now invisible, and no other floor can see that"],
     ["PLANES", pop.planes, PLANE_FLOOR, "an addon dispatcher file stopped being read — 177 read one of two and printed the result as the population"],
+    ["JUDGED", pop.judged, JUDGED_FLOOR, "the number this whole gate is about went quiet. Every other floor pins an INPUT; this one pins the OUTPUT, and until 179 the gate could resolve zero claims and still print `ok — 0 judged claim(s)`"],
   ]) {
     if (collapsed(n, floor)) {
       say(`🔴 BOUNDARY_${what}_COLLAPSE ${n} < ${floor} — ${why}.`);
@@ -544,12 +661,19 @@ export function scan(host = HOST, gdPaths = GD) {
   for (const f of walk(host)) {
     if (f.startsWith("src/")) continue;          // the registrations, not a claim site
     const text = readFileSync(join(host, f), "utf8");
-    sites.push(...comparisons(f, text, conduits(f, text)));
+    const h = helpers(f, text);
+    sites.push(...comparisons(f, text, conduits(f, text, h), h));
   }
 
   const offenders = [];
-  let judged = 0, unresolved = 0;
+  let judged = 0, unresolved = 0, ambiguous = 0, nonthrowing = 0;
   for (const c of sites) {
+    // 🔴 A REFUSAL IS ONLY WORTH COUNTING WHERE IT TOOK SOMETHING AWAY. A receiver
+    // refused because its helper does not throw is only interesting if that helper was
+    // reaching a REGISTERED TOOL; `parsePathLedger("…")` was never judgeable and folding
+    // it in would print 172 where the finding is 18.
+    if (c.drop === "ambiguous") ambiguous++;
+    if (c.drop === "nonthrowing" && c.wouldBe && tools.has(c.wouldBe)) nonthrowing++;
     if (!c.tool) { unresolved++; continue; }
     const op = tools.get(c.tool) ?? (c.tool.includes(".") ? c.tool : null);
     const plane = op ? planes.find((p) => p.dispatch.has(op)) : null;
@@ -568,7 +692,7 @@ export function scan(host = HOST, gdPaths = GD) {
     ops += p.dispatch.size; reads += p.reads; opaque += p.opaque.length;
   }
   return {
-    pop: { consts, ops, tools: tools.size, sites: sites.length, reads, opaque, planes: planes.length, judged, unresolved },
+    pop: { consts, ops, tools: tools.size, sites: sites.length, reads, opaque, planes: planes.length, judged, unresolved, ambiguous, nonthrowing },
     offenders,
   };
 }
