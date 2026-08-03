@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.58.0] — 2026-08-03
+
 ### Added — the late blind, put to all 51 targets, and the four instruments that could answer once and stop
 
 181 §6 found `_workspace.mjs`'s floor sitting on the FIRST of three walks and handed over
