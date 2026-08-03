@@ -2126,8 +2126,13 @@ async function main() {
     // (`families.length >= families.length` is a tautology); this gate, written five
     // sessions later, had no equivalent. The floors are literals and live beside the
     // lists they floor.
+    // 🔴 180: `scope` COVERS FOUR POPULATIONS NOW, NOT TWO, AND THE GREEN LINE HAS TO SAY
+    // SO. `comparePathLedger` floors the two sides it COMPARES as well as the gate's own
+    // roster — a message naming only the roster reports less than it checked, which is
+    // the class 174 §5 is about one level out. The live and ledger counts are the two
+    // that were unfloored until this session; they are the ones a reader needs to see.
     cmp.scope.length === 0
-      ? pass("AUTH_PATH_LEDGER_SCOPE", `the gate's own populations are at their literal floors (${cmp.canaryCount} canaries, ${LEDGER_CLASSES.length} classes)`)
+      ? pass("AUTH_PATH_LEDGER_SCOPE", `all four of the gate's populations are at their literal floors (live ${cmp.liveCount}, ledger ${cmp.ledgerCount}, ${cmp.canaryCount} canaries, ${LEDGER_CLASSES.length} classes)`)
       : fail("AUTH_PATH_LEDGER_SCOPE", `this gate's own scope collapsed -> ${cmp.scope.join(" | ")}`);
   });
 

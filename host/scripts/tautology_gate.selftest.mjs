@@ -14,7 +14,10 @@
 //
 // 🔴 THE CLAIM FLOOR IS A LITERAL. 170 §5's self-test caught its own miscount twice
 // because of exactly this line; if a case stops running, the count moves and this fails.
-import { analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS } from "./tautology_gate.mjs";
+import {
+  analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS,
+  judgeScope, combineFailed, UNIT_FLOOR, ATTRIBUTED_FLOOR,   // 180 — the output floor and its wire
+} from "./tautology_gate.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";   // not .pathname — "Godot MCP" keeps the %20
@@ -25,6 +28,9 @@ const claim = (cond, what) => {
   if (!cond) { bad++; console.log(`🔴 FAILED: ${what}`); }
 };
 const A = (src) => analyze("fixture.ts", src);
+// 179's idiom, imported by hand: a gate's PRINTED name is part of its contract, so the
+// self-test asserts on the line and not only on the boolean.
+const said = (r, s) => r.lines.some((l) => l.includes(s));
 const V = (src) => verdict(A(src));
 const wrap = (body) => `import assert from "node:assert/strict";\ntest("a case", () => {\n${body}\n});\n`;
 
@@ -271,10 +277,62 @@ claim(helperClaims.length === 2, `test/helpers holds exactly 2 files (got ${help
 claim(helperClaims.every(([, n]) => n === 0),
   `🔴 HELPERS_NOT_ROSTERED — test/helpers asserts nothing, so a non-recursive sweep costs no coverage: ${JSON.stringify(helperClaims)}`);
 
+// ── 18. 🔴 THE OUTPUT FLOOR (180, answering 179 §11.2) ───────────────────────────────
+//
+// `FLOORS` pins claim sites the FINDER FOUND. Between that and the verdict sits
+// attribution, and `vacuous` is scored over what survives it. Measured before this
+// section existed (`_to_delete/measure180c.mjs`): forcing `verdict()`'s `if (!k)
+// continue` to fire for every claim left all four directory floors at their shipped
+// values and printed `TAUT_GATE ok — 3465 claim sites, 0 blocks, none vacuous`, exit 0.
+//
+// 🔴 AND THESE CASES CANNOT LIVE AT THE LIVE GATE, FOR 179 §9's REASON RESTATED. The
+// sweep deletes a rule and asks whether the gate still reddens; deleting a floor cannot
+// redden a tree that is ABOVE it. So a floor is fixture-covered BY CONSTRUCTION, exactly
+// like a narrowing, and `mutate180.py` says so at G3/G4.
+claim(V(wrap(`  assert.equal(x, 1);\n  assert.equal(y, 2);`)).attributed === 2,
+  "verdict() counts the claims that REACHED a unit — this gate's `judged`");
+claim(V(`import assert from "node:assert/strict";\nassert.equal(x, 1);\n`).attributed === 0,
+  "🔴 and a claim in neither a test() block nor a marker reaches no unit — 472 of 3465 take this path today");
+claim(judgeScope({ blocks: 1408, attributed: 2993 }, 3465).failed === false,
+  "the shipped population is above both floors");
+claim(judgeScope({ blocks: 0, attributed: 0 }, 3465).failed === true,
+  "🔴 attribution resolving NOTHING reddens — the case that exited 0 before 180");
+claim(said(judgeScope({ blocks: 0, attributed: 0 }, 3465), "TAUT_ATTRIBUTION_COLLAPSE UNITS"),
+  "…and it is named as an attribution collapse, not as a claim-site one");
+claim(judgeScope({ blocks: UNIT_FLOOR - 1, attributed: 2993 }, 3465).failed === true,
+  "one unit below the floor reddens");
+claim(judgeScope({ blocks: UNIT_FLOOR, attributed: 2993 }, 3465).failed === false,
+  "…and exactly at it does not");
+// 🔴 THE CASE A UNIT FLOOR ALONE CANNOT SEE, and the whole reason there are two numbers.
+// Measured live: keeping every unit but only its FIRST claim leaves units=1408/1200 `ok`
+// and takes claims to 1408/2500. One number would have hidden this behind the other —
+// 171 §10.22, one instrument over.
+claim(judgeScope({ blocks: 1408, attributed: 1408 }, 3465).failed === true,
+  "🔴 every unit intact, one claim each: the UNIT floor holds and the CLAIM floor catches it");
+claim(said(judgeScope({ blocks: 1408, attributed: 1408 }, 3465), "TAUT_ATTRIBUTION_COLLAPSE CLAIMS"),
+  "…and it is named separately, because it is a different collapse");
+claim(judgeScope({ blocks: 0, attributed: 0 }, 3465, 0, 0).failed === false,
+  "the floors are parameters — a fixture can drive this from below, which the live tree cannot");
+claim(UNIT_FLOOR >= 1000 && ATTRIBUTED_FLOOR >= 2000,
+  `🔴 the shipped floors are literals with headroom, not a rounding of zero (${UNIT_FLOOR}/${ATTRIBUTED_FLOOR})`);
+claim(said(judgeScope({ blocks: 1408, attributed: 2993 }, 3465), "orphan=472"),
+  "a green run still prints the orphan count — §11.10's 472, no longer floored by nothing");
+
+// 🔴 AND THE WIRE, WHICH THE SWEEP CAUGHT AFTER THE FLOOR LOOKED FINISHED. `mutate180`'s
+// G5 deleted `if (scope.failed) failed = true` from `main()` and G6 stopped `judgeScope`
+// running at all; BOTH stayed green, because on a healthy tree `scope.failed` is already
+// false and the term it is ORed with is never satisfied apart. 174 §8, 176's G3, and
+// `verdict_gate.combine()` — the third time, so it gets the same fix.
+claim(combineFailed(false, { failed: true }) === true,
+  "🔴 an attribution collapse REACHES the exit code — the wire, not just the verdict");
+claim(combineFailed(true, { failed: false }) === true,
+  "…and it does not swallow a failure raised earlier in the run");
+claim(combineFailed(false, { failed: false }) === false, "a healthy run stays green");
+
 // ── the floor on this file itself (170 §5) ───────────────────────────────────────────
 // 🔴 IT CAUGHT ITS OWN MISCOUNT ON THE FIRST RUN — 170 §5's experience, verbatim: the
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
-const EXPECTED = 78;   // 175: 67 -> 78 (the resolver, the directory roster, HELPERS_NOT_ROSTERED)
+const EXPECTED = 93;   // 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);

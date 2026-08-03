@@ -6,6 +6,86 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the other four instruments asked 179 §11.2's question, and two could not answer it
+
+179 added `JUDGED_FLOOR` and handed over: *six floors pinned this gate's inputs and none
+pinned its output — no other instrument in this repo has been asked that question.* The
+question was put to all five, by **neutralising each one's resolution step and running
+it**, rather than by reading for a `*_FLOOR` constant.
+
+Three answered well. `verdict_gate.mjs` reddens on all three of its axes (`subjects=0`,
+`sites=0`, `dirs=1`). `path-cohort.mjs` floors the enumerator's five output populations —
+173 did this work already. `_population.mjs` floors `total`, which is the output.
+
+**`tautology_gate.mjs` did not.** `FLOORS` pins claim sites the *finder found*. Between
+that and the verdict sits attribution:
+
+```js
+const k = c.marker ? `${c.file}::${c.marker}` : c.owner ? … : null;
+if (!k) continue;                          // silent — and 473 of 3491 already take it
+```
+
+and `vacuous`, the class this gate exists for, is scored over the blocks that survive.
+Forcing that `continue` for every claim left **all four directory floors at their shipped
+values** and printed
+
+```
+TAUT_CLAIM_SITES 3465 across 0 unit(s) — 472 attributed to neither …
+TAUT_GATE ok — 3465 claim sites, 0 blocks, none vacuous
+```
+
+and exited 0. `UNIT_FLOOR = 1200` (measured 1433) and `ATTRIBUTED_FLOOR = 2500` (measured
+3018) — **two numbers, because they are two collapses.** Keeping every unit while each
+keeps one claim leaves `units=1408/1200 ok` and takes claims to 1408; one number would
+have hidden that behind the other (171 §10.22).
+
+**`_path_ledger.mjs` did not either, and the hole was already written down in it.**
+`LEDGER_SCOPE` floors the gate's *own roster* — classes and canaries — and nothing floored
+the two sides it *compares*. The file's own prose, above `LEDGER_CANARIES`, says *"a
+session that REGENERATED the ledger from a blind enumerator would take both green
+together."* It had never been executed. Executed, it is true:
+
+```
+live=2 ledger=2 unclassified=0 stale=0 lost=0 scope=0   EVERY CLAIM PASSES
+-> the probe prints "all 2 path-like parameters in the live surface are classified"
+```
+
+Two of 258. 🔴 **And the floor already existed — in the other caller.**
+`scripts/path-cohort.mjs` pins `sum.total >= 250` before calling `comparePathLedger`;
+`authoring-plane.integration.mjs` calls the same function with nothing under it. That is
+179's own meta-rule word for word — *an instrument enforces its rules where they were
+written, not where its population comes from* — so `LEDGER_POPULATION = { live: 220,
+ledger: 220 }` lives at the comparison, and both callers inherit it instead of one of them
+remembering.
+
+### Fixed — the wire, which the reverse sweep caught after the floors looked finished
+
+`if (scope.failed) failed = true;` inline in `main()`. Mutants that deleted that line, and
+that stopped `judgeScope` running at all, **both stayed green** — on a healthy tree
+`scope.failed` is already false, so the term it is ORed with is never satisfied apart and
+the whole wire deletes invisibly. 174 §8 and 176's G3 for the third time, and exactly why
+`verdict_gate.combine()` exists. Extracted as `combineFailed()`, self-tested, and pinned
+as a ninth blind target for `instrument_gate.py`.
+
+A third mutant zeroed `_path_ledger.selftest.mjs`'s own `SELFTEST_CLAIM_FLOOR` and the
+file stayed green: a `<` floor with nothing asserting its **value** can be zeroed
+invisibly. `verdict_gate.selftest.mjs` pins `SUBJECT_FLOOR === 4` for this reason; this
+file, three sessions older, never did. It does now.
+
+🔴 **And a floor cannot be covered by the live reverse sweep, for 179 §9's reason
+restated.** A floor is reachable only from *below*, and the shipped tree is above it by
+construction. So `UNIT_FLOOR = 0` is green live exactly as 179's G25–G28 were, and the
+coverage is in the self-tests by construction rather than by accident. `mutate180.py`
+gained a sixth field so a mutant can be **declared green by construction** — and fails if
+one ever starts reddening, because that means the structure changed.
+
+```
+TAUT_ATTRIBUTED units=1433/1200 claims=3018/2500 orphan=473
+TAUT_SELFTEST 93 (was 78) · LEDGER_SELFTEST 39 (was 28)
+INSTRUMENT_GATE 8 instruments — tautology_gate.mjs 0 of 9 (was 0 of 7)
+MUTATE180 pass=16 fail=0 declared-green=1
+```
+
 ## [1.55.0] — 2026-08-03
 
 ### Fixed — the two rules `boundary_gate.mjs` enforced somewhere other than where its population comes from

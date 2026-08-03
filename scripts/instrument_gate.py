@@ -75,8 +75,8 @@ INSTRUMENTS = [
             # 🔴 THE ONE 173's OWN REVERSE SWEEP ADDED. Its first draft inlined this
             # check, so the only case any test could construct was the healthy one and
             # `scope` was a collector asserted EMPTY and never proved to collect.
-            "export function ledgerScopeFailures(canaries = LEDGER_CANARIES, classes = LEDGER_CLASSES) {": "return [];",
-            "export function comparePathLedger(liveRows, ledgerText) {":
+            "export function ledgerScopeFailures(canaries = LEDGER_CANARIES, classes = LEDGER_CLASSES, live = null, ledger = null, pop = LEDGER_POPULATION) {": "return [];",
+            "export function comparePathLedger(liveRows, ledgerText, pop = LEDGER_POPULATION) {":
                 "return { unclassified: [], stale: [], badClass: [], lost: [], scope: [], "
                 "liveCount: 0, ledgerCount: 0, canaryCount: 0 };",
         },
@@ -163,7 +163,7 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "tautology_gate.mjs",
         "gate": ["node", "scripts/tautology_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 7,
+        "floor": 9,
         "why": "the classifier that decides whether a repo-wide assertion could have failed",
         "targets": {
             # The classifier itself. VALUE, not SHAPE — SHAPE is the FAILING answer, and
@@ -178,7 +178,19 @@ INSTRUMENTS = [
             # of the host root's twenty-four claim sites.
             "function collectFailers(src) {": "return new Set();",
             "export function analyze(fileName, text) {": "return [];",
-            "export function verdict(claims) {": "return { blocks: 0, vacuous: [], every: [], offender: [] };",
+            "export function verdict(claims) {": "return { blocks: 0, attributed: 0, vacuous: [], every: [], offender: [] };",
+            # 🔴 180. THE OUTPUT FLOOR, AND IT IS A BLIND TARGET FOR THE SAME REASON THE
+            # CLASSIFIER IS: `judgeScope` is the only thing standing between "attribution
+            # resolved nothing" and `TAUT_GATE ok`. Blinded to a passing verdict it must
+            # take the self-test red, or §18's twelve cases are proving nothing.
+            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR) {":
+                "return { lines: [], failed: false };",
+            # 🔴 180. THE WIRE, AND IT IS HERE BECAUSE THE REVERSE SWEEP CAUGHT IT GREEN.
+            # `if (scope.failed) failed = true` inline in main() could be deleted with
+            # every gate staying green — on a healthy tree the term is never satisfied
+            # apart, which is 174 SS8 and verdict_gate's `combine()` a third time. Blinded
+            # to "the scope verdict never reaches the exit code", the self-test must red.
+            "export function combineFailed(failedSoFar, scope) {": "return failedSoFar;",
         },
     },
     {

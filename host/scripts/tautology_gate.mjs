@@ -83,6 +83,32 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 //              either file ever grows a claim site.
 export const FLOORS = { test: 2100, "test-integration": 850, scripts: 90, ".": 10 };
 
+// 🔴 AND EVERY ONE OF THEM PINS AN INPUT. Session 180, answering 179 §11.2 — which asked
+// the question of five instruments and got one yes. `FLOORS` counts claim sites the
+// FINDER FOUND. Between that and the verdict sits ATTRIBUTION: `verdict()` keys each
+// claim to its marker or its `test()` block and drops the rest on the floor —
+//
+//     const k = c.marker ? … : c.owner ? … : null;
+//     if (!k) continue;                        // silent, and 472 of 3465 already take it
+//
+// — and `vacuous`, the class this gate was built for, is scored over the BLOCKS that
+// survive. So the resolution step had nothing under it. MEASURED, NOT REASONED
+// (`_to_delete/measure180c.mjs`): forcing that `continue` to fire for every claim leaves
+// all four directory floors at their shipped values and prints
+//
+//     TAUT_CLAIM_SITES 3465 across 0 unit(s) — 472 attributed to neither …
+//     TAUT_GATE ok — 3465 claim sites, 0 blocks, none vacuous
+//
+// and exits 0. That is 179 §8's shape exactly, one instrument over: "3465 claim sites,
+// none vacuous" is literally true of zero blocks, in the same way 169 §4's
+// `…_ALL ok every claim held` was literally true of the empty set.
+//
+// TWO floors, because they are two different collapses and a single number hides one
+// behind the other (171 §10.22): a gate that keeps every unit but one claim each still
+// scores `vacuous` over a population that quietly shrank.
+export const UNIT_FLOOR = 1200;         // measured 1408 units (blocks `vacuous` is scored over)
+export const ATTRIBUTED_FLOOR = 2500;   // measured 2993 of 3465 claim sites reaching a unit
+
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
 // assertion over more than one population needs one number per population." A DIRECTORY
@@ -719,9 +745,15 @@ export function verdict(claims) {
   // have been different. The marker is exactly the key its manifest is built on, so
   // scoring there makes the two gates meet instead of merely abut.
   const blocks = new Map();
+  // 🔴 COUNTED, BECAUSE THE `continue` BELOW IS THE RESOLUTION STEP AND IT WAS SILENT
+  // (180). `attributed` is this gate's `judged`: the claims that reached a unit and can
+  // therefore reach a verdict. The 3465 - 2993 = 472 that do not are §11.10's orphans,
+  // reported since 170 and floored by nothing until now.
+  let attributed = 0;
   for (const c of claims) {
     const k = c.marker ? `${c.file}::${c.marker}` : c.owner ? `${c.file}::${c.owner.line}::${c.owner.name}` : null;
     if (!k) continue;
+    attributed++;
     if (!blocks.has(k)) blocks.set(k, { file: c.file, name: c.marker ?? c.owner.name, line: c.marker ? c.line : c.owner.line, marker: Boolean(c.marker), claims: [] });
     blocks.get(k).claims.push(c);
   }
@@ -737,6 +769,7 @@ export function verdict(claims) {
 
   return {
     blocks: blocks.size,
+    attributed,
     // A unit made ONLY of outcome-flag preconditions is 171 §3's forty, and demanding
     // more of them is how a gate loses its credibility on the first green run. A unit
     // that makes a real claim is judged on the real claims alone.
@@ -747,6 +780,59 @@ export function verdict(claims) {
     every: claims.filter((c) => c.anyEvery && !hasFloor(c)),
     offender: claims.filter((c) => c.anyOffender && !hasFloor(c)),
   };
+}
+
+/**
+ * The OUTPUT collapse, as a pure function of the verdict — 180, answering 179 §11.2.
+ *
+ * 🔴 A SEPARATE EXPORTED FUNCTION FOR THE REASON `verdict_gate.judge()` IS ONE (174 §8,
+ * 176's sweep): a branch that is empty against the healthy tree by construction cannot
+ * be reached at all if it is inlined in `main()`, and a floor is empty by construction —
+ * the shipped tree is above it or the gate would be red. Taking the population and the
+ * floors as parameters is what makes both branches reachable from a fixture.
+ *
+ * 🔴 AND THAT IS 179 §9's STRUCTURAL POINT ABOUT NARROWINGS, RESTATED FOR FLOORS. The
+ * reverse sweep deletes a rule and asks whether the gate still reddens. Deleting a floor
+ * cannot redden a tree that is ABOVE it, so `UNIT_FLOOR = 0` is green live, exactly as
+ * `G25`–`G28` are. The coverage is in the self-test, by construction, not by accident —
+ * and `mutate180.py` says so at the mutant.
+ */
+export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR) {
+  const out = { lines: [], failed: false };
+  const say = (s) => out.lines.push(s);
+  const orphan = sites - v.attributed;
+  say(`TAUT_ATTRIBUTED units=${v.blocks}/${unitFloor} claims=${v.attributed}/${attrFloor} orphan=${orphan}`);
+  for (const [name, got, floor, why] of [
+    ["UNITS", v.blocks, unitFloor,
+      "the population `vacuous` is scored over. Every FLOORS entry pins claim sites the finder FOUND; this pins the ones that reached a unit, and until 180 attribution could resolve NOTHING while all four held"],
+    ["CLAIMS", v.attributed, attrFloor,
+      "units can survive intact while each keeps one claim of twenty — a shrink no unit count can see (171 §10.22)"],
+  ]) {
+    if (got >= floor) continue;
+    out.failed = true;
+    say(`🔴 TAUT_ATTRIBUTION_COLLAPSE ${name} ${got} < ${floor} — ${why}.`);
+    say(`   "N claim sites, none vacuous" is literally true of zero of them (169 §4).`);
+  }
+  return out;
+}
+
+/**
+ * 🔴 THE WIRE, AS A FUNCTION, BECAUSE THE SWEEP CAUGHT IT — 180, and `verdict_gate.mjs`
+ * already carries the identical fix for the identical reason.
+ *
+ * The first draft of §18 read `if (scope.failed) failed = true;` inline in `main()`.
+ * `mutate180.py`'s G5 deletes that line and G6 stops `judgeScope` running at all, and
+ * BOTH stayed GREEN — because on a healthy tree `scope.failed` is already false, so the
+ * term it is ORed with is never satisfied apart and the whole wire can be removed
+ * invisibly. That is 174 §8 and 176's G3 for the third time: A COLLECTOR ONLY EVER
+ * ASSERTED EMPTY IS A COLLECTOR NOBODY HAS PROVED COLLECTS.
+ *
+ * `verdict_gate.combine(r, d)` exists word for word for this — "Inlined in `main()`,
+ * dropping `|| d.failed` left the gate GREEN." Taking both verdicts as parameters is
+ * what makes the second one reachable at all.
+ */
+export function combineFailed(failedSoFar, scope) {
+  return failedSoFar || scope.failed;
 }
 
 // ─────────────────────────────────────────────────────────────────────────── main --
@@ -816,6 +902,11 @@ function main() {
   const v = verdict(all);
   const orphan = all.filter((c) => !c.marker && !c.owner).length;
   console.log(`TAUT_CLAIM_SITES ${all.length} across ${v.blocks} unit(s) — ${orphan} attributed to neither a test() block nor a marker`);
+  // 🔴 THE OUTPUT FLOOR (180). Printed and enforced here; judged in `judgeScope()` so a
+  // fixture can drive it from below, which the live tree cannot do.
+  const scope = judgeScope(v, all.length);
+  for (const l of scope.lines) console.log(l);
+  failed = combineFailed(failed, scope);
   console.log(`TAUT_VACUOUS   ${v.vacuous.length}`);
   console.log(`TAUT_EVERY     ${v.every.length}`);
   console.log(`TAUT_OFFENDER  ${v.offender.length}`);
@@ -839,7 +930,7 @@ function main() {
   }
 
   if (failed) { console.log(`\nTAUT_GATE 🔴 FAILED`); process.exit(1); }
-  console.log(`\nTAUT_GATE ok — ${all.length} claim sites, ${v.blocks} blocks, none vacuous`);
+  console.log(`\nTAUT_GATE ok — ${all.length} claim sites, ${v.attributed} of them attributed across ${v.blocks} blocks, none vacuous`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("tautology_gate.mjs")) main();
