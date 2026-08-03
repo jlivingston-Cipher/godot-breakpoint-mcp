@@ -299,6 +299,11 @@ console.log("\n-- reportOrDie: the exit, not the report --");
 // The self-test has a population of its own, for the same reason everything else
 // here does: a `for` loop that stopped iterating would take these claims with it.
 const SELFTEST_CLAIM_FLOOR = 35;
+// 🔴 AND THE FLOOR'S OWN VALUE IS PINNED (181, from 180 §11.3). The third instance of
+// the hole 180 §7.3 closed in `_path_ledger.selftest.mjs`: a `<` floor with nothing
+// asserting its VALUE zeroes in silence. Found by sweeping every floor in the tree
+// rather than by reading this file, which three sessions had already read.
+check(SELFTEST_CLAIM_FLOOR === 35, "SELFTEST_FLOOR_PINNED the claim floor is 35, not whatever it was last set to");
 console.log(`\nPOP_SELFTEST_CLAIMS ${claims.length} (floor ${SELFTEST_CLAIM_FLOOR})`);
 if (claims.length < SELFTEST_CLAIM_FLOOR) {
   console.log(`  FAIL POP_SELFTEST_POPULATION — only ${claims.length} claim(s) ran, floor is ${SELFTEST_CLAIM_FLOOR}`);

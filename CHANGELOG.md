@@ -6,6 +6,93 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the same question put to the four instruments 179's list did not name, and to every floor in the tree
+
+180 answered 179 §11.2 for five instruments and handed over two follow-ups: the same
+question for the gates that were *not* on that list, and 180 §11.3 — *every `<` floor in
+the tree, asked whether its own value is pinned.* Both were answered the way 180 answered
+its own: by **neutralising the step and running it**, not by reading.
+
+**`_png.mjs` is defended, and the reason is structural.** Collapsing its sampling
+population can only *lower* `distinct`, so it can only turn the caller's `distinct > 1`
+red. A black frame at 1 sampled pixel reads `distinct=1` and fails; a *good* frame at 1
+pixel also reads `distinct=1` and fails. 179 §9's narrowing rule, opposite sign — and
+saying so is part of the answer.
+
+🔴 **`scope_gate.py` could report `0 of 25` having executed not one contract check.**
+Its `run()` returned `p.returncode == 0 and "ALL HARD CHECKS PASSED"`, and every caller
+read a `False` as *the check caught the mutant*. A mutant that does not COMPILE also exits
+non-zero — Python exits 1 on a `SyntaxError` exactly as `contract_check.py` exits 1 on a
+violation. Measured by breaking the injected text so that every mutant was uncompilable:
+
+```
+SCOPE_GATE_CONTROL ok — an unmutated copy passes, so a caught mutant means something
+SCOPE_GATE_BLIND_COUNT 0 of 25
+SCOPE_GATE ok — every derived population collapses LOUDLY        exit 0
+```
+
+`TARGET_FLOOR = 25` held. The CONTROL passed — because it covers the *unmutated* path and
+the defect is on the mutated one. `run()` returns `(green, executed)` now, keyed on a
+marker `contract_check.py` prints only if it reached its report, and that discriminator was
+measured before being relied on: `MARKER_ABSENT_ON_A_REAL_CATCH 0 of 25`. A red run without
+the marker is a harness failure, not a catch. The three-population verdict moved into
+`gate_failed()` with a truth table asserting each reaches the exit code ALONE — 180 §7.1's
+`combineFailed`, one file over, for the fourth session running.
+
+🔴 **`contract_check.py`'s twenty-six SCOPE floors are all inputs.** (Twenty-six, not the
+twenty-three 180 §11.2 estimated.) Leave every check running and make `errors` unable to
+speak, and all twenty-six hold, `ALL HARD CHECKS PASSED`, exit 0. A floor cannot close it —
+the healthy value is zero errors, so there is no number to be above — so the wire carries a
+canary appended at the top and required to arrive at the report.
+
+🔴 **`_workspace.mjs`: the caller's floor is on the FIRST walk, and there are three.**
+`AUTH_SNAPSHOT_FILE_FLOOR = 70` pins `snapshotDir`, which runs before anything connects;
+`restoreDir` and `diffDir` each walk again ~120 seconds later. Measured:
+
+```
+snapshot=6 (the floor is on THIS) · restore removed=0 · diff clean=true · added=0
+…and the artefact was still on disk
+```
+
+`instrument_gate.py` blinds `walk` and IS caught — but a *global* blind empties the
+snapshot too, so the floor catches that one, and the late blind was never constructible.
+The module already holds two independent readings of the same tree: `walk()` enumerates,
+`liveHash()` stats each snapshot path by name. They check each other now — *every snapshot
+file `liveHash` says is still there must have been enumerated* — with no literal and
+nothing to maintain. Lifted out as `blindWalk()` so the collapsed case is constructible
+from three arguments (173's move for `ledgerScopeFailures`), and admitted as
+`instrument_gate.py`'s seventh blind target for this module.
+
+### Added — `floor_pin_gate.py`, and the six floors it found unpinned
+
+180 §7.3 closed one instance of a defect that had four families. Swept:
+
+```
+FLOOR_VALUE_UNPINNED 6 of 25
+  FLOORS.test · FLOORS."test-integration" · FLOORS.scripts · FLOORS."."
+  _workspace.selftest.mjs SELFTEST_CLAIM_FLOOR · _population.selftest.mjs SELFTEST_CLAIM_FLOOR
+```
+
+`tautology_gate.selftest.mjs` pinned that roster's four KEYS — `Object.keys(FLOORS).length
+=== 4`, each directory name present — and never a value, so `{ test: 0, "test-integration":
+0, scripts: 0, ".": 0 }` satisfied every word of the assertion written to defend it. Those
+are the same four floors 180 §4 reported as *held at their shipped values* while the gate
+resolved nothing.
+
+The gate has two halves, and the second is the one that would otherwise rot: **mutate**
+(zero each floor, run the file that should notice, require red) and **discover** (find
+every floor-shaped constant in the shipped tree and fail if one is not in the table). A
+sweep whose target list is hand-maintained goes quiet as the tree grows. Five live-probe
+floors are exempt with a reason each, not a name each (174 §5). A step in the existing
+`host tests` job — no 27th job, EIGHTEENTH session running.
+
+```
+MUTATE181 pass=16 fail=0 declared-green=1
+FLOOR_PIN_GATE 25 targets, floor 25, unswept 0
+SCOPE_GATE 0 of 25 · never-ran 0        INSTRUMENT_GATE _workspace.mjs 0 of 7
+WORKSPACE_SELFTEST 58 (was 47) · TAUT_SELFTEST 94 (was 93)
+```
+
 ## [1.56.0] — 2026-08-03
 
 ### Added — the other four instruments asked 179 §11.2's question, and two could not answer it

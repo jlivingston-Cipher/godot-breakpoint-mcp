@@ -211,3 +211,14 @@ jobs:
       # `npm test` step above has already emitted. A step, not a 27th job (TENTH session).
       - name: Every JS instrument collapses loudly (instrument gate)
         run: python3 ../scripts/instrument_gate.py
+      # 🔴 AND THE THIRD TECHNIQUE, POINTED AT THE FLOORS THE OTHER TWO REST ON — 180
+      # §11.3. 180 §7.3 set `SELFTEST_CLAIM_FLOOR = 0` in one self-test and the file
+      # stayed green; the sweep behind this step asked every floor in the tree the same
+      # question and SIX of twenty-five answered the same way, four of them the tautology
+      # gate's own directory floors, whose roster was pinned by KEY and never by value.
+      # A floor cannot be covered by the live reverse sweep for 180 §8's reason — it is
+      # reachable only from below and the tree is above it by construction — so this is
+      # the only place the coverage can live. ~40s. A step, not a 27th job (EIGHTEENTH
+      # session running).
+      - name: Every floor's own value is pinned (floor pin gate)
+        run: python3 ../scripts/floor_pin_gate.py

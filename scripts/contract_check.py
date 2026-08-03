@@ -213,6 +213,29 @@ SHAPE_COVERAGE_EXEMPT: dict[str, str] = {}
 errors: list[str] = []
 warnings: list[str] = []
 
+# 🔴 THE REPORT WIRE, PROVED TO CARRY (181). Check 20's scope ledger floors twenty-six
+# populations — every one of them an INPUT: what a finder found before a check read it.
+# Nothing floored the OUTPUT, which is this list. Measured, by leaving every check
+# running and making `errors` unable to speak:
+#
+#     class _Silent(list):
+#         def append(self, x): pass
+#
+#     -> all 26 SCOPE floors hold · ALL HARD CHECKS PASSED · exit 0
+#
+# So the one number the whole file exists to produce had nothing under it, in the same
+# shape 180 §4 found in `tautology_gate.mjs`: the floors pin what went IN. `scope_gate.py`
+# does not cover it either — it blinds `def`-annotated ENUMERATORS, and this is the wire
+# after them.
+#
+# A floor cannot close it: the healthy value is ZERO errors, so there is no number to be
+# above. What can is the canary idiom this repo already uses for rosters — put a known
+# violation in at the top and require it to arrive. If `append` is broken, subverted, or
+# the list is rebound to something that drops writes, the sentinel does not come back and
+# the run dies loudly instead of passing quietly.
+_WIRE_CANARY = "__report_wire_canary__ (if you are reading this in output, check 21 failed to strip it)"
+errors.append(_WIRE_CANARY)
+
 
 def dispatch_methods(gd_file: Path, func_names: list[str]) -> set[str]:
     """Extract string case-labels inside the named dispatch function(s)."""
@@ -2085,7 +2108,11 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 23  # +2 session 177: host/scripts/boundary_gate.mjs and its
+SHEBANG_NONEXEC_EXPECTED = 24  # +1 session 181: scripts/floor_pin_gate.py — the third
+                               #   blinding technique, pointed at the floors the other
+                               #   two rest on (180 §11.3). 100644 like its two siblings:
+                               #   CI invokes it as `python3 <file>`.
+                               # +2 session 177: host/scripts/boundary_gate.mjs and its
                                #   self-test — both invoked as `node <file>` from CI.
                                # +3 session 175: host/scripts/verdict_gate.mjs, its self-test,
                                # and host/test-integration/_png.selftest.mjs — all `node <file>`.
@@ -2625,6 +2652,24 @@ for _name, _value, _floor, _why in SCOPE_LEDGER:
     _mark = "ok" if _value >= _floor else "🔴 COLLAPSE"
     print(f"SCOPE {_name:<36} {_value:>5} / {_floor:<5} {_mark}")
 print()
+# --- 21: THE REPORT WIRE ARRIVED ------------------------------------------------
+# 🔴 RUN BEFORE THE VERDICT, NOT AFTER IT. The canary appended at the top has to still
+# be here; if it is not, `errors` did not carry, every "no violations found" above is
+# vacuous, and the exit code below would be 0 for the worst possible reason. Stripped
+# rather than reported, because a canary that reaches a reader is a false alarm — and
+# `remove` is used deliberately: it raises if the sentinel is absent from a list that
+# CLAIMS to contain it, which is one more way for a subverted collection to be caught.
+if _WIRE_CANARY not in errors:
+    print(
+        "\n🔴 REPORT WIRE FAILED — the canary appended at the top of this file did not\n"
+        "   survive to the report. `errors` is not carrying what the checks put in it, so\n"
+        "   'no violations' above means only that nothing could be heard. Every check in\n"
+        "   this file is unverified until this is fixed.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+errors.remove(_WIRE_CANARY)
+
 for w in warnings:
     print("WARN:", w)
 for e in errors:

@@ -139,7 +139,7 @@ export function restoreDir(snap) {
 
 /**
  * What still differs from `snap`. Run this AFTER restoreDir to prove it worked.
- * @returns {{added: string[], modified: string[], missing: string[], dirs: string[], clean: boolean}}
+ * @returns {{added: string[], modified: string[], missing: string[], dirs: string[], blind: string[], clean: boolean}}
  */
 export function diffDir(snap) {
   const nowFiles = [], nowDirs = [];
@@ -152,10 +152,60 @@ export function diffDir(snap) {
     else if (h !== rec.hash) modified.push(rel);
   }
   const dirs = nowDirs.filter((d) => !snap.dirs.has(d));
+  // ONE call, read into ONE binding, ORed into `clean` exactly like the other four.
+  // Computing it twice would leave a copy a mutant could delete with the verdict intact
+  // — 174 §8 / 176's G3 / 180 §7.1, which is the same wire three sessions running.
+  const blind = blindWalk(snap, nowFiles, missing);
   return {
-    added, modified, missing, dirs,
-    clean: !added.length && !modified.length && !missing.length && !dirs.length,
+    added, modified, missing, dirs, blind,
+    clean: !added.length && !modified.length && !missing.length && !dirs.length && !blind.length,
   };
+}
+
+/**
+ * 🔴 THE SEAM, CHECKED AT THE COMPARISON RATHER THAN AT THE CALLER (181, from 180 §6).
+ *
+ * `AUTH_SNAPSHOT_FILE_FLOOR = 70` in `authoring-plane.integration.mjs` floors the FIRST
+ * walk — the one `snapshotDir` runs before anything connects. `restoreDir` and `diffDir`
+ * each walk AGAIN, ~120 seconds later, and nothing floored either of those. Measured:
+ *
+ *     snapshot=6 (the floor is on THIS) · restore removed=0 · diff clean=true
+ *     …and the artefact was still on disk
+ *
+ * A floor could not close it. A floor is a literal about a population's SIZE, and this
+ * module's fixtures are three rows while the live tree is seventy-odd, so any literal
+ * that held here would be meaningless there (180 §6's `pop` parameter, one file over).
+ * `instrument_gate.py` blinds `walk` and IS caught — but it blinds it for the whole run,
+ * so `snapshotDir` empties too and the caller's floor catches that. The hazard is the
+ * enumerator going quiet AFTER the population floor has already been satisfied, and a
+ * global blind cannot construct it.
+ *
+ * What closes it is that this module already holds TWO independent readings of the same
+ * tree: `walk()` enumerates, and `liveHash()` stats each snapshot path by name without
+ * consulting the walk at all. So they can be made to check each other, with no literal
+ * and nothing to maintain:
+ *
+ *   every snapshot file that `liveHash` says is STILL THERE must have been enumerated.
+ *
+ * A walk that goes quiet — wholly, or over one subtree, or only on the second call —
+ * fails that immediately. A file the probe legitimately deleted is `null` from
+ * `liveHash`, lands in `missing`, and is excluded here so the two populations never
+ * double-report the same fact. Symlinks cannot appear on the snapshot side: `walk`
+ * records only `isFile()` entries, so nothing `liveHash` follows can be in `snap.files`
+ * without the walk having seen it first.
+ *
+ * 🔴 EXPORTED, AND PURE, FOR 173's REASON AND 180 §8's. A self-test cannot blind
+ * `walk` — it is module-private and the self-test would be calling the enumerator it
+ * needs to distrust. Lifting the comparison out as a pure function makes the COLLAPSED
+ * case constructible from three plain arguments, which is the only way this population
+ * gets covered: like a floor, `blind` is reachable only from a tree that is already
+ * wrong, so a live run can never redden on it and `instrument_gate.py` blinding it can
+ * never be covered by anything but the self-test below.
+ */
+export function blindWalk(snap, nowFiles, missing) {
+  const enumerated = new Set(nowFiles);
+  const gone = new Set(missing);
+  return [...snap.files.keys()].filter((rel) => !gone.has(rel) && !enumerated.has(rel));
 }
 
 /** One-line, bounded summary for a marker's detail field. */
@@ -163,5 +213,10 @@ export function describeDiff(d, limit = 6) {
   const parts = [];
   const some = (label, xs) => { if (xs.length) parts.push(`${label}=${xs.slice(0, limit).join(",")}${xs.length > limit ? `+${xs.length - limit}` : ""}`); };
   some("added", d.added); some("modified", d.modified); some("missing", d.missing); some("newdirs", d.dirs);
+  // 🔴 `blind` IS REPORTED TOO. A message that reports less than it checked is 174 §5,
+  // and this is the only line a reader of a failed AUTH_CLEAN ever sees. Labelled
+  // differently from the other four on purpose: the others say the tree is dirty, this
+  // one says the reading is not trustworthy, and those want different next steps.
+  some("UNENUMERATED", d.blind || []);
   return parts.join(" ") || "nothing";
 }
