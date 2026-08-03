@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.54.0] — 2026-08-03
+
 ### Fixed — five claims on the runtime plane, in the half of the population the gate was not reading
 
 `boundary_gate.mjs` shipped in 1.53.0 reading **one** addon dispatcher, **one** return
