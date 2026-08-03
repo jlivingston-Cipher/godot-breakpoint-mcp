@@ -98,16 +98,23 @@ INSTRUMENTS = [
         "src": HOST / "test-integration" / "_workspace.mjs",
         "gate": ["node", "test-integration/_workspace.selftest.mjs"],
         "cwd": HOST,
-        "floor": 6,
+        "floor": 7,   # 181: 6 -> 7, blindWalk admitted
         "why": "the snapshot/restore/diff that decides what AUTH_CLEAN's byte-identical means",
         "targets": {
             # 🔴 THE SHARED ENUMERATOR. Blinding this one is the seam itself.
             "function walk(root, rel, files, dirs) {": "return;",
+            # 🔴 AND THE COMPARISON THAT CATCHES THE BLIND THIS ONE CANNOT CONSTRUCT (181).
+            # Blinding `walk` above empties `snapshotDir` too, so the caller's
+            # AUTH_SNAPSHOT_FILE_FLOOR = 70 catches it — which is why this entry was green
+            # for the whole class while the LATE blind, the walk going quiet only on the
+            # second and third calls, passed as `clean=true` over a polluted tree.
+            # Measured: snapshot=6, restore removed=0, diff clean=true, artefact on disk.
+            "export function blindWalk(snap, nowFiles, missing) {": "return [];",
             "export function snapshotDir(root) {": "return { root, files: new Map(), dirs: new Set() };",
             "function liveHash(abs, size) {": "return null;",
             "export function restoreDir(snap) {": "return { removed: [], rewritten: [], rmdir: [], failed: [] };",
             "export function diffDir(snap) {":
-                "return { added: [], modified: [], missing: [], dirs: [], clean: true };",
+                "return { added: [], modified: [], missing: [], dirs: [], blind: [], clean: true };",
             "export function describeDiff(d, limit = 6) {": 'return "nothing";',
         },
     },

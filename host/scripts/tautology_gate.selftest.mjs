@@ -262,6 +262,18 @@ claim(A(`const check = (cond, name) => (cond ? true : false);\ncheck(x > 0, "M")
 // ── 18. WHICH DIRECTORIES DOES THE SWEEP NOT ENTER? (175, 174 §11.3's question) ──────
 claim(Object.keys(FLOORS).length === 4 && ["test", "test-integration", "scripts", "."].every((d) => d in FLOORS),
   "four directories are rostered — `scripts` and the host root were admitted in 175");
+// 🔴 THE ROSTER WAS PINNED AND THE VALUES WERE NOT (181, from 180 §11.3). The claim
+// above asserts four KEYS and that each name is present; `FLOORS = { test: 0,
+// "test-integration": 0, scripts: 0, ".": 0 }` satisfies every word of it. Measured by
+// the §11.3 sweep: zeroing any of the four leaves this file GREEN, so all four of the
+// directory floors 180 §4 reported as "held at their shipped values" could have been
+// zeroed by a find-and-replace with nothing to say. Exact `===`, not `>=`: this is a
+// PIN, and it is supposed to cost a deliberate edit — the same reason
+// `verdict_gate.selftest.mjs` writes `SUBJECT_FLOOR === 4`.
+claim(FLOORS.test === 2100 && FLOORS["test-integration"] === 850
+  && FLOORS.scripts === 90 && FLOORS["."] === 10,
+  "🔴 and each of the four VALUES is pinned — a rostered directory with a floor of 0 is not floored, "
+  + `got ${JSON.stringify(FLOORS)}`);
 // 🔴 `test/helpers` IS DELIBERATELY NOT ROSTERED, AND THIS IS THE ASSERTION THAT SAYS SO.
 // `readdirSync` is not recursive, so a SUBDIRECTORY of a rostered directory is unswept —
 // the fourth spelling of 174 §5's finding, after the filename prefix and the directory
@@ -332,7 +344,7 @@ claim(combineFailed(false, { failed: false }) === false, "a healthy run stays gr
 // ── the floor on this file itself (170 §5) ───────────────────────────────────────────
 // 🔴 IT CAUGHT ITS OWN MISCOUNT ON THE FIRST RUN — 170 §5's experience, verbatim: the
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
-const EXPECTED = 93;   // 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor)
+const EXPECTED = 94;   // 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);

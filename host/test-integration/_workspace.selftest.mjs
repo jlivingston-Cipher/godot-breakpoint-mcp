@@ -31,11 +31,12 @@
 // self-test calls the enumerator it would need to distrust.
 //
 // Dependency-free (node builtins only), same as the module under test.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { snapshotDir, restoreDir, diffDir, describeDiff } from "./_workspace.mjs";
+import { snapshotDir, restoreDir, diffDir, describeDiff, blindWalk } from "./_workspace.mjs";
 
 let failures = 0;
 const claims = [];
@@ -313,11 +314,94 @@ console.log("\n-- the round trip --");
     "TRIP_DISK_IDENTICAL and an independent listing agrees, byte for byte", onDisk(root).join(","));
 }
 
+// ────────────────────────────── the SEAM, constructible at last (181, from 180 §6)
+//
+// 🔴 THE HEADER ABOVE HAS SAID SINCE 174 THAT A SELF-TEST CANNOT PIN THIS, AND IT WAS
+// RIGHT ABOUT `walk` AND WRONG ABOUT THE SEAM. 181 measured the case the module's own
+// prose describes, and found the caller's floor does not reach it:
+//
+//     snapshot=6 (AUTH_SNAPSHOT_FILE_FLOOR = 70 is on THIS) · restore removed=0
+//     diff clean=true · added=0 · …and the artefact was still on disk
+//
+// `instrument_gate.py` blinds `walk` and IS caught — but a GLOBAL blind empties
+// `snapshotDir` too, so the caller's floor catches that one and the late blind, the one
+// that survives the floor, was never constructible. Lifting the comparison out as a pure
+// `blindWalk(snap, nowFiles, missing)` makes it constructible from three arguments,
+// 173's move for `ledgerScopeFailures` applied to this seam. Every case below states its
+// verdict before the code runs (169 §2).
+console.log("\n-- blindWalk: the second reading, checked against the first --");
+{
+  const snapOf = (rels) => ({ root: "/x", files: new Map(rels.map((r) => [r, { hash: "h", size: 1, bytes: null }])), dirs: new Set() });
+
+  // HEALTHY: the walk saw everything the snapshot holds.
+  check(blindWalk(snapOf(["a", "b", "c"]), ["a", "b", "c"], []).length === 0,
+    "BLIND_HEALTHY an agreeing pair of readings reports nothing");
+  // …and an addition is not this population's business.
+  check(blindWalk(snapOf(["a"]), ["a", "new"], []).length === 0,
+    "BLIND_ADDED_IS_NOT_BLIND a file the walk found and the snapshot lacks is `added`, not blind");
+  // TOTALLY QUIET: the case that passed as clean.
+  check(sorted(blindWalk(snapOf(["a", "b"]), [], [])) === "a,b",
+    "BLIND_TOTAL a walk that enumerated nothing is caught by the files liveHash still sees");
+  // ONE SUBTREE QUIET: the realistic shape — a SKIP_DIRS entry, an unreadable directory,
+  // a readdir that threw into walk's `catch { return; }`.
+  check(sorted(blindWalk(snapOf(["a", "sub/b", "sub/c"]), ["a"], [])) === "sub/b,sub/c",
+    "BLIND_SUBTREE a walk quiet over ONE directory is caught, not only a wholly blind one");
+  // 🔴 AND THE HALF THAT STOPS IT CRYING WOLF. A file the probe legitimately deleted is
+  // `null` from liveHash, lands in `missing`, and must NOT also be reported here — two
+  // populations naming one fact is 175's "a measurement that got bigger without its
+  // population growing".
+  check(blindWalk(snapOf(["a", "gone"]), ["a"], ["gone"]).length === 0,
+    "BLIND_EXCLUDES_MISSING a file liveHash says is GONE is `missing`, and is not double-reported");
+  check(sorted(blindWalk(snapOf(["a", "gone", "unseen"]), ["a"], ["gone"])) === "unseen",
+    "BLIND_MISSING_AND_BLIND_TOGETHER the two populations separate cleanly when both are non-empty");
+}
+{
+  // 🔴 AND THE WIRE INTO `clean`, WHICH IS THE PART A MUTANT DELETES. `blind` alone
+  // being correct is worth nothing if the verdict never reads it — 174 §8 / 176's G3 /
+  // 180 §7.1, the same wire four sessions running. Driven through the REAL diffDir with
+  // a snapshot naming a file that is on disk but outside the walked root, which is the
+  // one shape that reaches this branch without monkey-patching anything.
+  const root = mkroot();
+  put(root, "a.txt", "alpha");
+  const outside = mkroot();
+  const body = "not under root";
+  put(outside, "elsewhere.txt", body);
+  const s = snapshotDir(root);
+  // 🔴 THE RECORDED HASH IS THE REAL ONE, SO `modified` STAYS EMPTY. A fixture with a
+  // wrong hash flips `clean` for TWO reasons at once and the claim below would hold with
+  // the new term deleted — 173's G3 / 176's two-conditions-never-apart, which is the
+  // failure this whole file exists to make constructible. `blind` is the ONLY non-empty
+  // population here.
+  s.files.set("../" + path.basename(outside) + "/elsewhere.txt", {
+    hash: crypto.createHash("sha256").update(body).digest("hex"), size: body.length, bytes: Buffer.from(body),
+  });
+  const d = diffDir(s);
+  check(d.blind.length === 1, "BLIND_REACHES_DIFF diffDir returns the population", describeDiff(d));
+  // Compared as a VALUE, not as four `!x.length` conjuncts — the tautology gate flagged
+  // the first draft of this line as `bare truthiness (presence only)` x4 and was right
+  // to. `describeDiff` over the same diff with `blind` emptied is "nothing" exactly when
+  // the other four populations are, and it prints what it saw when it is not.
+  check(describeDiff({ ...d, blind: [] }) === "nothing",
+    "BLIND_ALONE the other four populations are empty, so the next claim isolates this one",
+    describeDiff({ ...d, blind: [] }));
+  check(d.clean === false, "🔴 BLIND_FLIPS_CLEAN and the verdict READS it — a walk nobody can trust is not a clean tree");
+  check(/UNENUMERATED/.test(describeDiff(d)),
+    "BLIND_IS_REPORTED describeDiff names it, and names it differently from the other four (174 §5)",
+    describeDiff(d));
+}
+
 // ─────────────────────────────────────────────────────── population + summary
 //
 // This file has a population of its own, for the reason every other gate here does: a
 // self-test that silently stopped running most of its cases would pass.
-const SELFTEST_CLAIM_FLOOR = 38;
+const SELFTEST_CLAIM_FLOOR = 48;   // 181: 38 -> 48 (the blindWalk section), measured 58
+// 🔴 AND THE FLOOR'S OWN VALUE IS PINNED (181, from 180 §11.3). 180 §7.3 found this
+// exact hole in `_path_ledger.selftest.mjs` and closed it there; the §11.3 sweep asked
+// every other floor in the tree the same question and this file was one of the two that
+// answered badly. A `<` floor with nothing asserting what it IS can be zeroed
+// invisibly — the run passes, the population line prints, and the only thing that
+// changed is that the floor stopped being one.
+check(SELFTEST_CLAIM_FLOOR === 48, "SELFTEST_FLOOR_PINNED the claim floor is 48, not whatever it was last set to");
 console.log(`\nWORKSPACE_SELFTEST_CLAIMS ${claims.length} (floor ${SELFTEST_CLAIM_FLOOR})`);
 if (claims.length < SELFTEST_CLAIM_FLOOR) {
   console.log(`  FAIL WORKSPACE_SELFTEST_POPULATION — only ${claims.length} claim(s) ran, floor is ${SELFTEST_CLAIM_FLOOR}`);
