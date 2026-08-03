@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.56.0] — 2026-08-03
+
 ### Added — the other four instruments asked 179 §11.2's question, and two could not answer it
 
 179 added `JUDGED_FLOOR` and handed over: *six floors pinned this gate's inputs and none
