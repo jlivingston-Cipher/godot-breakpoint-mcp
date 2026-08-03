@@ -6,6 +6,83 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — five claims on the runtime plane, in the half of the population the gate was not reading
+
+`boundary_gate.mjs` shipped in 1.53.0 reading **one** addon dispatcher, **one** return
+spelling and **one** comparison idiom, and printed `judged=78` as though that were the
+population. It was not, and the difference held five live tautologies — every one of them
+the same defect the gate was written for, sitting in the part of the tree it could not see.
+
+```gdscript
+func _node_add(params: Dictionary) -> Dictionary:
+	...
+	return _ok({"added": true, "path": _path_of(child), "type": child.get_class()})
+```
+```js
+assert.equal(added.added, true, "a successful node_add reports added:true");
+```
+
+`call()` throws on `isError`, so every `_err` path escapes before that line: **the claim's
+two outcomes were "true" and "never reached."** The two assertions below it — `path`, which
+the addon COMPUTES from the node it actually parented, and `type`, which is
+`child.get_class()` off the instance it built — were carrying the marker on their own the
+whole time. **A dead conjunct beside a live one is invisible to every gate that counts
+claims** (177 §10.24), and this is the second session in a row that has been where the
+defects were.
+
+Five claims, in `node-lifecycle` (4) and `inject-input` (1), each now a SHAPE claim over a
+documented constant with the reason written next to it — the `filesystem_scan` treatment
+from 1.53.0. Nothing in the addon changed: `added`, `removed` and `injected` are honest
+fields to return, and the defect was never in returning them.
+
+### Added — the four holes in the gate's population, and the three rules that stop widening it from inventing defects
+
+- **It read one dispatcher; the addon has two.** `runtime_bridge.gd` carries its own
+  `_dispatch`, its own `_ok`/`_err`, and 22 registered tools resolve into it. Every
+  comparison over a runtime reply landed in `unresolved` — printed, and **printed is not
+  judged**. Four of the five defects were in there.
+- **`"ping": return _ok(_ping())` named the wrapper.** The arm resolved to `_ok`, which is
+  truthy, so the claim **counted as judged** and could never be flagged — the worst reading
+  an instrument can print, because it is indistinguishable from a clean one. Five arms.
+  The same hop on the return side reaches the twelve handlers that build their reply one
+  call away (177 §10.2).
+- **`assert.equal(x.f, lit)` is the same claim as `x.f === lit`** and is the majority
+  idiom in `test-integration/`. Four of the five defects are spelled that way.
+- **A conduit is one hop from a comparison to a tool.** 177 §10.18 declined to follow one
+  for the verdict finder on a measurement of +3 sites and 0 defects; here it is +1 defect,
+  so it is followed.
+
+🔴 **And widening a population is exactly where false positives come from** — 177 §5's
+lesson arriving from the other direction. Three rules were added at the same time, and each
+one stopped an invented defect before it was written down:
+
+- **Absence is not sameness.** `_compare_images` returns `"reason": "dimension_mismatch"`
+  on one `_ok` path and has no `reason` key at all on the other. "Every occurrence is the
+  same literal" answered yes; the claim is still falsifiable, because `undefined` is the
+  other outcome. A field must be present on **every** reply path.
+- **An unreadable return poisons its whole operation.** `_asset_gen_placeholder` returns
+  `_ok(desc)`, a dict assembled line by line. "Literal on every path" is unanswerable when
+  a path cannot be read, so the operation yields nothing and is counted as `opaque`. So is
+  an arm target that yielded no reply dict at all — `_screenshot_diff` ends
+  `return _compare_images(...)`, a delegation spelling this reader does not follow, and
+  before 178 it fell out of the loop in silence. **An under-reach that is not counted is
+  indistinguishable from coverage.** Nine operations, named on demand.
+- **A conduit is followed only if it throws.** `raw()` does not throw on `isError`, so
+  `r.emitted === true` over a `raw()` receiver really does separate success from failure.
+  Two conduits in the tree bottom out in a non-throwing helper; both stay unjudged.
+
+Two new floors, because 177 §10.2 named a hole that no floor could detect: `RETURN_FLOOR`
+pins the reply dicts **read** (`CONST_FLOOR` counts fields *found*, so the reader could
+quietly stop handling the multi-line spelling and every existing floor stayed green), and
+`PLANE_FLOOR` pins that both dispatcher files resolve. The self-test grew 58 → 101 claims
+and **caught a real ordering bug while it was being written**: a conduit's first argument
+is not a tool name, and `rm("Host/Thing")` was resolving to a tool nothing registers.
+
+```
+BOUNDARY_GATE consts=25/20 ops=177/150 tools=171/150 sites=1837/1500 reads=187/150
+              planes=2/2 opaque=9 unresolved=1633 judged=204 offenders=0
+```
+
 ## [1.53.0] — 2026-08-02
 
 ### Fixed — four claims compared against a value the addon types by hand
