@@ -594,6 +594,24 @@ export const SITE_FLOOR = 1500;   // measured 1816 literal comparisons in the wa
 export const RETURN_FLOOR = 150;  // measured 187 reply dicts actually read
 export const PLANE_FLOOR = 2;     // operations.gd and runtime_bridge.gd
 export const JUDGED_FLOOR = 150;  // measured 185 claims resolved to an operation (179)
+//   HELPER  🆕 182. AND THE TWO THAT RUN ONCE PER FILE, WHICH IS WHY NEITHER OF THE
+//   CONDUIT  seven above could see them. `helpers()` and `conduits()` are called inside
+//           the walk — ninety-nine times each — and their outputs were counted NOWHERE.
+//           Every floor above pins a population derived ONCE, so a resolver that answers
+//           for the first file and then goes quiet satisfies all seven. Measured with a
+//           LATE blind (call 1 honest, calls 2..99 blinded), which is 181 §6's shape and
+//           the thing `instrument_gate.py` could not construct until this session:
+//
+//             conduits blinded late -> judged 185 -> 162, floor 150, ok, exit 0
+//             helpers  blinded late -> nonthrowing 18 -> 0, judged 185 -> 180, exit 0
+//
+//           🔴 AND `nonthrowing` IS NOT THE THING TO FLOOR, though it is the number that
+//           collapsed hardest. It counts receivers REFUSED, so honest work on those
+//           eighteen drives it toward zero and a floor there would fire on the fix. The
+//           population that only a working resolver can produce is what it RESOLVED:
+//           locally-defined helpers, and conduit entries. Those are floored instead.
+export const HELPER_FLOOR = 350;  // measured 510 locally-defined helpers across 99 files
+export const CONDUIT_FLOOR = 15;  // measured 24 conduit entries across 8 of those files
 
 /**
  * 🔴 THE COLLAPSE TEST, EXTRACTED AS A PURE FUNCTION — 176 §8's G12 shape. Pinning a
@@ -614,6 +632,11 @@ export function judge(pop, offenders) {
     + `reads=${pop.reads}/${RETURN_FLOOR} planes=${pop.planes}/${PLANE_FLOOR} `
     + `opaque=${pop.opaque} ambiguous=${pop.ambiguous ?? 0} nonthrowing=${pop.nonthrowing ?? 0} `
     + `unresolved=${pop.unresolved} judged=${pop.judged}/${JUDGED_FLOOR} offenders=${offenders.length}`);
+  // 🔴 THE PER-FILE HALF, ON ITS OWN LINE (182). The summary above is one population per
+  // WHOLE-TREE derivation; these two are summed across ninety-nine files, and a reader
+  // comparing two CI logs needs to see them move independently of `judged`.
+  say(`BOUNDARY_GATE_PERFILE helper_defs=${pop.helperDefs ?? 0}/${HELPER_FLOOR} `
+    + `conduit_entries=${pop.conduitEntries ?? 0}/${CONDUIT_FLOOR}`);
 
   for (const [what, n, floor, why] of [
     ["CONSTS", pop.consts, CONST_FLOOR, "the addon stopped yielding hard-wired fields — the `_ok({…})` reader no longer matches"],
@@ -623,6 +646,12 @@ export function judge(pop, offenders) {
     ["RETURNS", pop.reads, RETURN_FLOOR, "the reply-dict reader went quiet — a spelling it used to handle is now invisible, and no other floor can see that"],
     ["PLANES", pop.planes, PLANE_FLOOR, "an addon dispatcher file stopped being read — 177 read one of two and printed the result as the population"],
     ["JUDGED", pop.judged, JUDGED_FLOOR, "the number this whole gate is about went quiet. Every other floor pins an INPUT; this one pins the OUTPUT, and until 179 the gate could resolve zero claims and still print `ok — 0 judged claim(s)`"],
+    // 🔴 182. THE TWO DERIVED ONCE PER FILE. `?? 0` deliberately: a `pop` built before
+    // these existed reads as a COLLAPSE rather than as an exemption — an absent
+    // population is the loudest case, not the quietest (172 §6's lesson about the lock
+    // fields check 14 skipped when they were missing).
+    ["HELPERS", pop.helperDefs ?? 0, HELPER_FLOOR, "the local-helper reader answered for the first file and stopped. It runs once per file, so no whole-tree floor above can see it: measured, a LATE blind takes nonthrowing 18 -> 0 and judged 185 -> 180, and all seven floors hold"],
+    ["CONDUITS", pop.conduitEntries ?? 0, CONDUIT_FLOOR, "the conduit resolver answered for the first file and stopped — measured, a LATE blind takes judged 185 -> 162 against a floor of 150, and the gate prints ok"],
   ]) {
     if (collapsed(n, floor)) {
       say(`🔴 BOUNDARY_${what}_COLLAPSE ${n} < ${floor} — ${why}.`);
@@ -658,11 +687,19 @@ export function scan(host = HOST, gdPaths = GD) {
   const tools = toolOps(walk(host, "src", /\.ts$/).map((f) => [f, readFileSync(join(host, f), "utf8")]));
 
   const sites = [];
+  // 🔴 COUNTED, BECAUSE THESE TWO RUN ONCE PER FILE AND NOTHING ABOVE THEM CAN SEE A
+  // RESOLVER THAT ANSWERS ONCE AND STOPS (182). Sums across the walk, one population
+  // each — never added together (172 §6): a conduit collapse and a helper collapse are
+  // different failures, and a total would let either hide behind the other.
+  let helperDefs = 0, conduitEntries = 0;
   for (const f of walk(host)) {
     if (f.startsWith("src/")) continue;          // the registrations, not a claim site
     const text = readFileSync(join(host, f), "utf8");
     const h = helpers(f, text);
-    sites.push(...comparisons(f, text, conduits(f, text, h), h));
+    helperDefs += h.defined.size;
+    const cd = conduits(f, text, h);
+    conduitEntries += cd.size;
+    sites.push(...comparisons(f, text, cd, h));
   }
 
   const offenders = [];
@@ -692,7 +729,7 @@ export function scan(host = HOST, gdPaths = GD) {
     ops += p.dispatch.size; reads += p.reads; opaque += p.opaque.length;
   }
   return {
-    pop: { consts, ops, tools: tools.size, sites: sites.length, reads, opaque, planes: planes.length, judged, unresolved, ambiguous, nonthrowing },
+    pop: { consts, ops, tools: tools.size, sites: sites.length, reads, opaque, planes: planes.length, judged, unresolved, ambiguous, nonthrowing, helperDefs, conduitEntries },
     offenders,
   };
 }

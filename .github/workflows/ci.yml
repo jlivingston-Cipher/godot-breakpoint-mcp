@@ -209,6 +209,13 @@ jobs:
       # probes call ONLY that member, so every gate above it was decorative in exactly
       # the probes with no other backstop. ~3s, and it needs dist-test/, which the
       # `npm test` step above has already emitted. A step, not a 27th job (TENTH session).
+      # 🔴 182: THE LATE AXIS NEEDS `dist/`, AND `npm test` ONLY EMITS `dist-test/`.
+      # The gate's live half runs `scripts/path-cohort.mjs`, which imports `dist/` and
+      # spawns the server over stdio — headless, no editor. Without this step the gate
+      # REFUSES rather than skipping, which is the whole point: a skipped axis reported
+      # in green is the failure it exists to catch, and CI said so on the first run.
+      - name: Build dist/ for the instrument gate's live axis
+        run: npm run build
       - name: Every JS instrument collapses loudly (instrument gate)
         run: python3 ../scripts/instrument_gate.py
       # 🔴 AND THE THIRD TECHNIQUE, POINTED AT THE FLOORS THE OTHER TWO REST ON — 180

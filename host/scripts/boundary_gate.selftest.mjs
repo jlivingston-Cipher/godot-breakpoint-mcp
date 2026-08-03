@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import {
   dispatchMap, hardwired, toolOps, comparisons, conduits, helpers, judge, collapsed, run, report,
   CONST_FLOOR, OP_FLOOR, TOOL_FLOOR, SITE_FLOOR, RETURN_FLOOR, PLANE_FLOOR, JUDGED_FLOOR,
+  HELPER_FLOOR, CONDUIT_FLOOR,   // 🆕 182 — the two derived once per FILE
   BOUNDARY_SKIP, PLANES,
 } from "./boundary_gate.mjs";
 
@@ -28,11 +29,13 @@ const claim = (cond, what) => {
 // 🔴 NAMED AND PINNED — 176 §8's G11. A bare `if (ran < 42)` is a floor read by one branch
 // and asserted by nothing, so it can be set to zero and this whole file goes green while
 // still printing a passing line. The floor that protects the floors.
-const CLAIM_FLOOR = 120;   // measured 130 (was 104 in 178, floor 95)
+const CLAIM_FLOOR = 130;   // measured 143 (was 130 in 181, floor 120)
 
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 const POP = { consts: 99, ops: 999, tools: 999, sites: 9999, reads: 999, planes: 9,
-  opaque: 0, judged: 999, unresolved: 0, ambiguous: 0, nonthrowing: 0 };
+  opaque: 0, judged: 999, unresolved: 0, ambiguous: 0, nonthrowing: 0,
+  // 🆕 182 — the two derived once per FILE rather than once per tree.
+  helperDefs: 999, conduitEntries: 99 };
 
 // ── 1. THE ADDON'S DISPATCHER, READ RATHER THAN RE-SPELLED ───────────────────────────
 const DISPATCH = `
@@ -217,6 +220,48 @@ claim(said(judge({ ...POP, ambiguous: 21, nonthrowing: 17 }, []), "ambiguous=21 
   "…and they report their own numbers rather than a hard-coded pair");
 claim(said(judge({ ...POP, opaque: 4 }, []), "opaque=4"),
   "🔴 the operations whose replies could NOT be read are printed on every run, green or red");
+
+// 🔴 THE EIGHTH AND NINTH (182), AND THEY EXIST BECAUSE THE SEVEN ABOVE COULD NOT SEE
+// THEM. Every floor above pins a population derived ONCE for the whole tree. `helpers()`
+// and `conduits()` run once per FILE, inside the walk, and until now their outputs were
+// counted nowhere — so a resolver that answered for the first file and went quiet for the
+// other ninety-eight satisfied all seven. Measured with a LATE blind, which is the axis
+// `instrument_gate.py` gained this session:
+//
+//    conduits blinded from call 2  ->  judged 185 -> 162, floor 150, `ok`, exit 0
+//    helpers  blinded from call 2  ->  nonthrowing 18 -> 0, judged 185 -> 180, exit 0
+claim(judge({ ...POP, helperDefs: 0 }, []).failed === true,
+  "🔴 a local-helper reader that resolved NOTHING is a collapse — it runs once per file and no whole-tree floor can see it");
+claim(said(judge({ ...POP, helperDefs: 0 }, []), "BOUNDARY_HELPERS_COLLAPSE"), "and it is named separately from the seven");
+claim(judge({ ...POP, conduitEntries: 0 }, []).failed === true,
+  "🔴 a conduit resolver that resolved NOTHING is a collapse — measured at judged 162/150, which every other floor called ok");
+claim(said(judge({ ...POP, conduitEntries: 0 }, []), "BOUNDARY_CONDUITS_COLLAPSE"), "…and separately again, because they fail for different reasons");
+claim(judge({ ...POP, helperDefs: HELPER_FLOOR - 1 }, []).failed === true, "one below the helper floor reddens");
+claim(judge({ ...POP, helperDefs: HELPER_FLOOR }, []).failed === false, "…and exactly at it does not");
+claim(judge({ ...POP, conduitEntries: CONDUIT_FLOOR - 1 }, []).failed === true, "one below the conduit floor reddens");
+claim(judge({ ...POP, conduitEntries: CONDUIT_FLOOR }, []).failed === false, "…and exactly at it does not");
+claim(HELPER_FLOOR >= 200 && CONDUIT_FLOOR >= 10,
+  "🔴 both new floors are PINNED — zeroing either reddens HERE rather than silently re-permitting the collapse it exists for");
+// 🔴 AN ABSENT POPULATION IS THE LOUDEST CASE, NOT THE QUIETEST. `pop.helperDefs ?? 0`
+// makes a `pop` built before these existed read as a COLLAPSE. The alternative — treating
+// absent as exempt — is how check 14 skipped the two lock fields it was written for.
+// 🔴 AND ONE CASE PER `??`, NOT ONE FOR BOTH — `mutate182.py`'s G5 CAUGHT THE FIRST
+// DRAFT. With only the both-absent case, changing `pop.helperDefs ?? 0` to `?? 999` left
+// the self-test GREEN: the conduit row still collapsed and still reddened the verdict, so
+// the case proved that AT LEAST ONE of the two defaults bites, which is not what it says.
+{
+  const { helperDefs, conduitEntries, ...older } = POP;   // a pop from before 182
+  claim(judge(older, []).failed === true,
+    "🔴 a pop with no helper/conduit population at all FAILS rather than skipping — absent is a collapse, not an exemption");
+  const { helperDefs: _h, ...noHelpers } = POP;
+  claim(judge(noHelpers, []).failed === true && said(judge(noHelpers, []), "BOUNDARY_HELPERS_COLLAPSE"),
+    "…and an absent HELPER population alone collapses, by name");
+  const { conduitEntries: _c, ...noConduits } = POP;
+  claim(judge(noConduits, []).failed === true && said(judge(noConduits, []), "BOUNDARY_CONDUITS_COLLAPSE"),
+    "…and an absent CONDUIT population alone collapses, by its own name");
+}
+claim(said(judge(POP, []), "BOUNDARY_GATE_PERFILE"),
+  "the per-file populations print on their own line on every run, green or red — a reader diffing two CI logs must see them move apart from `judged`");
 
 // 🔴 THE FLOORS THEMSELVES, WITHOUT CIRCULARITY — 176 §8's G12. Asserting `CONST_FLOOR
 // === 14` reads the constant it is checking and proves nothing; setting the floor to 0

@@ -27,6 +27,7 @@ Run: python3 scripts/instrument_gate.py   (a CI step beside the scope gate)
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -185,12 +186,15 @@ INSTRUMENTS = [
             # of the host root's twenty-four claim sites.
             "function collectFailers(src) {": "return new Set();",
             "export function analyze(fileName, text) {": "return [];",
-            "export function verdict(claims) {": "return { blocks: 0, attributed: 0, vacuous: [], every: [], offender: [] };",
+            # 🆕 182: `shaped` and `precondition` are in the blind at their HEALTHY values
+            # for the same reason `scan()`'s blind returns four subjects — a blind that
+            # trips the new floors proves the floor, not the finder.
+            "export function verdict(claims) {": "return { blocks: 0, attributed: 0, shaped: 116, precondition: 61, vacuous: [], every: [], offender: [] };",
             # 🔴 180. THE OUTPUT FLOOR, AND IT IS A BLIND TARGET FOR THE SAME REASON THE
             # CLASSIFIER IS: `judgeScope` is the only thing standing between "attribution
             # resolved nothing" and `TAUT_GATE ok`. Blinded to a passing verdict it must
             # take the self-test red, or §18's twelve cases are proving nothing.
-            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR) {":
+            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR) {":
                 "return { lines: [], failed: false };",
             # 🔴 180. THE WIRE, AND IT IS HERE BECAUSE THE REVERSE SWEEP CAUGHT IT GREEN.
             # `if (scope.failed) failed = true` inline in main() could be deleted with
@@ -280,9 +284,12 @@ INSTRUMENTS = [
             # so the sweep could reach them; `scan()` is the third of the three, and a
             # blind that returns a healthy-looking population with an empty offender list
             # is precisely the green lie both fixtures exist to catch.
+            # 🆕 182: `helperDefs`/`conduitEntries` at HEALTHY values, same reasoning as
+            # every other constant here — a blind that trips a floor proves the floor.
             "export function scan(host = HOST, gdPaths = GD) {":
                 'return { pop: { consts: 99, ops: 999, tools: 999, sites: 9999, reads: 999, '
-                'planes: 9, opaque: 0, judged: 9, unresolved: 0 }, offenders: [] };',
+                'planes: 9, opaque: 0, judged: 9, unresolved: 0, helperDefs: 999, '
+                'conduitEntries: 99 }, offenders: [] };',
         },
     },
     {
@@ -312,6 +319,165 @@ INSTRUMENTS = [
         },
     },
 ]
+
+
+# ══ THE LATE BLIND — 182, answering 181 §11.2 ══════════════════════════════════════
+#
+# 🔴 EVERY TARGET ABOVE BLINDS FOR THE WHOLE RUN, AND 181 §6 SHOWED THAT IS THE WEAKER
+# HALF OF THE CLASS. `_workspace.mjs`'s caller floors `snapshotDir` at 70 files and then
+# walks the same tree twice more, two minutes later. A GLOBAL blind empties the snapshot
+# too, so the floor catches it and the entry read green for the whole class — the hazard
+# is the enumerator going quiet AFTER the population floor has already been satisfied,
+# and a global blind cannot construct that.
+#
+# The late blind is the SAME TABLE behind a call counter. Call 1 answers honestly and
+# satisfies whatever floor is above it; every call after it is the blind:
+#
+#     function walk(...) { if (++n > 1) { return; }   ...the real body...
+#
+# No new constant: the injected text is the `empty` the global blind already uses. What
+# it found, put to all 51 targets on two axes (182):
+#
+#     conduits blinded from call 2  ->  judged 185 -> 162, floor 150, `ok`, exit 0
+#     helpers  blinded from call 2  ->  nonthrowing 18 -> 0, judged 185 -> 180, exit 0
+#     classifyLeaf, 1604 of 1605 blinded  ->  BYTE-IDENTICAL output, exit 0
+#     leaves, 1215 of 1216 blinded        ->  byte-identical again, exit 0
+#
+# 🔴 AND THE AXIS THAT FOUND ALL FOUR IS THE LIVE ONE, NOT THE SELF-TEST. For four of the
+# eight instruments the shipped gate IS the caller, and it runs headless; those get both
+# axes. The other four are reachable only through a probe that boots the editor under
+# Xvfb, so their self-test is the only place a late blind can be constructed at all.
+LATE_MARK = "LATE_BLIND_CALLS"
+LATE_HOOK = (
+    'if(!globalThis.__LBH){globalThis.__LBH=1;'
+    'process.on("exit",()=>{try{process.stdout.write("\\n%s "+(globalThis.__LB||0)+"\\n")}catch(e){}});}'
+    'globalThis.__LB=(globalThis.__LB||0)+1;' % LATE_MARK
+)
+
+# The LIVE caller for each instrument that has one that runs headless. The second element
+# overrides which FILE to blind: `path-cohort.mjs` imports `dist/`, while the unit-test
+# gate above imports `dist-test/src/` — two artefacts compiled from one .ts, and blinding
+# the wrong one sweeps a walk that is not the one the live gate reads.
+LATE_LIVE = {
+    "tautology_gate.mjs": (["node", "scripts/tautology_gate.mjs"], None),
+    "verdict_gate.mjs": (["node", "scripts/verdict_gate.mjs"], None),
+    "boundary_gate.mjs": (["node", "scripts/boundary_gate.mjs"], None),
+    "_path_ledger.mjs": (["node", "scripts/path-cohort.mjs", "--summary"], None),
+    "path-cohort (compiled walk)": (["node", "scripts/path-cohort.mjs", "--summary"],
+                                    HOST / "dist" / "path-cohort.js"),
+}
+
+# 🔴 DECLARED GREEN, WITH A REASON EACH RATHER THAN A NAME EACH (174 §5) — AND THE GATE
+# FAILS IF ONE EVER STARTS REDDENING (181's `mutate181.py` idiom). A late blind that
+# leaves a gate green is not automatically a defect: two states produce it, and only one
+# of them is.
+LATE_DECLARED_GREEN = {
+    ("boundary_gate.mjs", "export function collapsed(n, floor) {", "B:live"):
+        "the blind returns `false` — which is the CORRECT answer for all seven live "
+        "populations of a healthy tree. There is no collapse for it to miss, so a green "
+        "run says nothing about the collapse test. Its coverage is the self-test's "
+        "`collapsed(0, 0) === true`, where a case with a known answer exists.",
+    ("path-cohort (compiled walk)", "function segments(name) {", "B:live"):
+        "MEASURED, not assumed: of 258 live cohort rows, 0 reach the cohort through the "
+        "segment branch — `hint_only=0 both=252 segments_only=0`, because every path-like "
+        "parameter this surface publishes is snake_case and NAME_HINT matches it first. "
+        "The branch is there for camelCase (`toPath`), which the live surface has none of. "
+        "If one ever appears this declaration reddens, which is the point of re-measuring "
+        "it every run rather than writing the exemption down once.",
+    ("tautology_gate.mjs", "export function combineFailed(failedSoFar, scope) {", "A:gate"):
+        "a 2x2 truth table called three times with LITERAL fixtures, not once per member "
+        "of a population. Only `combineFailed(false, {failed:true})` can distinguish the "
+        "function from `failedSoFar`, and it is the FIRST case — so a late blind here "
+        "deletes the cases AFTER the discriminating one and measures case ORDER rather "
+        "than coverage. The live axis calls it once, so it is N/A there.",
+}
+
+
+def late(text: str, sig: str, empty: str) -> str | None:
+    """`empty` becomes the body from the SECOND call onwards. Same anchor as blind()."""
+    idx = text.find("\n  " + sig + " {")
+    if idx < 0:
+        idx = text.find("\n" + sig)
+        if idx < 0:
+            return None
+    brace = text.find("{", idx)
+    if brace < 0:
+        return None
+    return (text[: brace + 1]
+            + f"\n    {LATE_HOOK} if(globalThis.__LB>1){{ {empty} }}  // INSTRUMENT_GATE LATE"
+            + text[brace + 1 :])
+
+
+def run_counting(cmd, cwd) -> tuple[bool, int]:
+    """(gate ran green, how many times the target was called)."""
+    p = subprocess.run(cmd, capture_output=True, text=True, cwd=str(cwd))
+    hits = [int(m) for m in re.findall(rf"{LATE_MARK} (\d+)", p.stdout + p.stderr)]
+    return (p.returncode == 0, max(hits) if hits else 0)
+
+
+# 🔴 THE FLOOR ON THE HARNESS ITSELF, AND THE REVERSE SWEEP IS WHY IT EXISTS. Make
+# `late()` return the text unmodified and EVERY target reports `calls=0`, every one is
+# filed as "not constructible", no problem is raised and the gate prints ok — the whole
+# second axis neutralised in silence, which is the exact defect it was built to find, one
+# level up. `>=`, and measured at 70 of 84 across both axes.
+LATE_CONSTRUCTED_FLOOR = 55
+LATE_CONSTRUCTED: list[str] = []
+
+
+def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, int, list[str]]:
+    """(#undeclared-green, #targets swept, problems). Source restored whatever happens."""
+    original = src.read_text()
+    problems: list[str] = []
+    green_undeclared: list[str] = []
+    print(f"\n-- {inst['name']} [{axis}] — late blind · {' '.join(cmd)}")
+    try:
+        ok, _ = run_counting(cmd, inst["cwd"])
+        if not ok:
+            return (0, 0, [
+                f"{inst['name']} [{axis}]: CONTROL FAILED — the unmutated gate does not pass "
+                f"under `{' '.join(cmd)}`, so every late-blind result below is meaningless"
+            ])
+        na = 0
+        for sig, empty in inst["targets"].items():
+            mutant = late(original, sig, empty)
+            if mutant is None:
+                problems.append(
+                    f"{inst['name']} [{axis}]: SIGNATURE NOT FOUND {sig!r} for the late blind"
+                )
+                continue
+            src.write_text(mutant)
+            green, calls = run_counting(cmd, inst["cwd"])
+            declared = LATE_DECLARED_GREEN.get((inst["name"], sig, axis))
+            if calls <= 1:
+                # 🔴 NOT "defended" — NOT CONSTRUCTIBLE. The guard never fired, so the run
+                # is the control. Re-measured every time: a target called once today and
+                # twice tomorrow moves out of this bucket on the commit that changes it.
+                na += 1
+                continue
+            LATE_CONSTRUCTED.append(f"{inst['name']}[{axis}]::{sig[:40]}")
+            if green and declared is None:
+                green_undeclared.append(f"{sig}  (called {calls}x)")
+                print(f"   🔴 STILL GREEN {sig[:58]}  calls={calls}")
+            elif green:
+                print(f"   declared-green {sig[:52]}  calls={calls}")
+            elif declared is not None:
+                # 🔴 A DECLARED EXEMPTION THAT STARTS REDDENING IS A STRUCTURE CHANGE, AND
+                # SILENCE HERE WOULD BE THE EXEMPTION OUTLIVING ITS REASON (174 §5).
+                problems.append(
+                    f"{inst['name']} [{axis}]: `{sig}` is DECLARED GREEN and now REDDENS. The "
+                    f"reason on file no longer holds — re-read it and delete the declaration: {declared}"
+                )
+            else:
+                print(f"   ok            {sig[:58]}  calls={calls}")
+        print(f"   ({na} target(s) called once — a late blind is not constructible there)")
+        return (len(green_undeclared), len(inst["targets"]), problems + [
+            f"{inst['name']} [{axis}]: `{s}` can answer ONCE and return its empty for every "
+            f"call after that, and the gate stays GREEN — the population above it was floored "
+            f"before the collapse and nothing re-reads it ({inst['why']})"
+            for s in green_undeclared
+        ])
+    finally:
+        src.write_text(original)
 
 
 def scope_collapsed(n_instruments: int, floor: int) -> bool:
@@ -344,6 +510,16 @@ def _self_check(floor: int) -> list[str]:
         problems.append(
             f"INSTRUMENT_GATE's floor is {floor} but only {len(INSTRUMENTS)} instrument(s) are "
             f"listed — raise the list or lower the literal ON PURPOSE"
+        )
+    # 🆕 182. THE LATE AXIS'S OWN FLOOR, PINNED THE SAME WAY AND FOR THE SAME REASON.
+    # `LATE_CONSTRUCTED_FLOOR = 0` would re-permit an injector that injects nothing, in
+    # silence — 181 §7's six unpinned floors, in the code written this session. Asserting
+    # the VALUE would be circular; asserting that it can still BITE is not.
+    if not LATE_CONSTRUCTED_FLOOR > 0:
+        problems.append(
+            f"LATE_CONSTRUCTED_FLOOR is {LATE_CONSTRUCTED_FLOOR}, which cannot treat an axis that "
+            f"built ZERO late blinds as a collapse. That is the second axis switched off with one "
+            f"digit, and every line it prints would still say ok"
         )
     return problems
 
@@ -446,6 +622,50 @@ def main() -> int:
         # ONE LINE PER INSTRUMENT. A total across all three would let one go blind while
         # the other two covered for it (172 §6, committed by the ledger written to stop it).
         print(f"INSTRUMENT_GATE_BLIND {inst['name']}: {n_green} of {n_targets} STILL GREEN")
+
+    # ── THE SECOND AXIS (182) ───────────────────────────────────────────────────────
+    # 🔴 SEPARATE LINES AND A SEPARATE PASS, NOT A SECOND COLUMN ON THE FIRST. The two
+    # axes answer different questions — "can this finder match nothing" and "can it match
+    # something ONCE and then stop" — and 181 §6 is the whole reason the second exists:
+    # the first is satisfied by a floor at the top of the run, and the second is not.
+    print("\n" + "=" * 78)
+    print("INSTRUMENT_GATE_LATE — the same targets, blinded from their SECOND call")
+    for inst in INSTRUMENTS:
+        src = Path(inst["src"])
+        if not src.exists():
+            problems.append(f"{inst['name']}: {src} does not exist — the late axis swept nothing")
+            continue
+        n_green, n_targets, probs = late_sweep(inst, inst["gate"], src, "A:gate")
+        problems.extend(probs)
+        print(f"INSTRUMENT_GATE_LATE {inst['name']} [A:gate]: {n_green} of {n_targets} STILL GREEN")
+        if inst["name"] not in LATE_LIVE:
+            continue
+        cmd, alt = LATE_LIVE[inst["name"]]
+        live_src = alt or src
+        if not live_src.exists():
+            problems.append(
+                f"{inst['name']}: the live late axis needs {live_src.relative_to(ROOT)}, which does "
+                f"not exist — build first (`npm run build`). A missing artefact is a SKIPPED axis, "
+                f"and a skipped axis reported in green is what this gate exists to stop"
+            )
+            continue
+        n_green, n_targets, probs = late_sweep(inst, cmd, live_src, "B:live")
+        problems.extend(probs)
+        print(f"INSTRUMENT_GATE_LATE {inst['name']} [B:live]: {n_green} of {n_targets} STILL GREEN")
+
+    # 🔴 AND THE HARNESS'S OWN POPULATION, WHICH IS THE ONE NOTHING ELSE ABOVE COULD SEE.
+    # Every line printed by the late axis is a judgement about a mutant that was BUILT. A
+    # `late()` that stopped injecting files every target as "not constructible", raises no
+    # problem, and lets this gate print ok over an axis that measured nothing — the exact
+    # failure the axis exists to find, in the axis itself.
+    print(f"INSTRUMENT_GATE_LATE_CONSTRUCTED {len(LATE_CONSTRUCTED)}/{LATE_CONSTRUCTED_FLOOR}")
+    if len(LATE_CONSTRUCTED) < LATE_CONSTRUCTED_FLOOR:
+        problems.append(
+            f"INSTRUMENT_GATE_LATE built {len(LATE_CONSTRUCTED)} late blind(s), floor is "
+            f"{LATE_CONSTRUCTED_FLOOR} — a target whose counter never fires is filed as 'not "
+            f"constructible' and reported in green, so an injector that stopped injecting reads "
+            f"exactly like a tree where nothing is called twice"
+        )
 
     if problems:
         print("")

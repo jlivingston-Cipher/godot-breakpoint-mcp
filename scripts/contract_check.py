@@ -236,6 +236,33 @@ warnings: list[str] = []
 _WIRE_CANARY = "__report_wire_canary__ (if you are reading this in output, check 21 failed to strip it)"
 errors.append(_WIRE_CANARY)
 
+# 🔴 AND THE OTHER HALF OF 181 §5, WHICH THAT SESSION NAMED AND DID NOT CLOSE (181 §11.3).
+#
+# The canary above proves `errors` CARRIED. It says nothing about how many checks put
+# anything into it, and the twenty-six SCOPE floors below count POPULATIONS, not
+# COMPARISONS — so a check deleted outright takes its own errors away with it, every
+# floor still holds, and this file prints ALL HARD CHECKS PASSED over one fewer contract
+# than it claims to enforce. `scope_gate.py` cannot see it either: it blinds `def`-
+# annotated ENUMERATORS, and a check is neither a def nor an enumerator.
+#
+# 🔴 THE COUNTER IS AT THE END OF EACH BLOCK, NOT THE START. A check whose header
+# survives while its body is deleted is the same failure wearing a nicer name, and only
+# the end position distinguishes the two. Names are pinned as a ROSTER rather than a
+# count, because 181 §7's lesson is that a roster pinned by KEY is not a roster pinned —
+# here it is the reverse risk, so both are asserted: the SET must match and the SIZE is
+# floored at a literal.
+CHECKS_EXPECTED = (
+    "1&2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "11b", "11c",
+    "12", "13", "14", "15", "16", "17", "18/19", "20",
+)
+CHECKS_RUN_FLOOR = 20   # measured: twenty blocks reach their own end on a healthy tree
+checks_ran: "list[str]" = []
+
+
+def _ran(check: str) -> None:
+    """Called as the LAST statement of each check block. See CHECKS_EXPECTED above."""
+    checks_ran.append(check)
+
 
 def dispatch_methods(gd_file: Path, func_names: list[str]) -> set[str]:
     """Extract string case-labels inside the named dispatch function(s)."""
@@ -1417,6 +1444,8 @@ orphans = sorted(m for m in gd_all if m not in host_calls and m != "ping")
 if orphans:
     warnings.append(f"GDScript dispatch methods never called by host (ok if intentional): {orphans}")
 
+_ran("1&2")
+
 # --- 3: tool-name uniqueness + net completeness ----------------------------
 tools = registered_tools()
 dupes = sorted({t for t in tools if tools.count(t) > 1})
@@ -1433,6 +1462,8 @@ if uncaptured:
         f"(invisible to the catalog, annotation and count checks): {uncaptured}"
     )
 
+_ran("3")
+
 # --- 4: catalog <-> code ----------------------------------------------------
 tool_set = set(tools)
 cat_tools = catalog_index_tools()
@@ -1444,6 +1475,8 @@ in_catalog_not_code = sorted(cat_tools - tool_set)
 if in_catalog_not_code:
     warnings.append(f"Catalog lists tools not found in code (may be planned/renamed): {in_catalog_not_code}")
 
+_ran("4")
+
 # --- 5: JSON lint -----------------------------------------------------------
 bad_json = 0
 for i, block in enumerate(catalog_json_blocks()):
@@ -1452,6 +1485,8 @@ for i, block in enumerate(catalog_json_blocks()):
     except json.JSONDecodeError as e:
         bad_json += 1
         errors.append(f"Invalid JSON block #{i+1} in catalog: {e}")
+
+_ran("5")
 
 # --- 6: input SHAPE parity (inputSchema params <-> catalog Input) -----------
 code_inputs = input_schema_shapes()
@@ -1466,6 +1501,8 @@ for name in input_comparable:
             f"documented but not in code={doc_only}"
         )
 
+_ran("6")
+
 # --- 7: output/return SHAPE parity (schemas.ts <-> catalog Output) ----------
 code_outputs = output_schema_shapes()
 output_comparable = sorted(set(code_outputs) & set(cat_outputs))
@@ -1478,6 +1515,8 @@ for name in output_comparable:
             f"Output shape drift for `{name}`: fields pinned in schemas.ts but "
             f"absent from the catalog Output block={undocumented}"
         )
+
+_ran("7")
 
 # --- 16: shape-parity COVERAGE floor ---------------------------------------
 # Checks 6 and 7 compare set INTERSECTIONS. An intersection has no floor: a tool
@@ -1524,6 +1563,8 @@ if unknown_exempt:
         f"same name."
     )
 
+_ran("16")
+
 # --- 8: outputSchemas hygiene (no schema for a non-existent tool) -----------
 stale_schemas = sorted(set(code_outputs) - tool_set)
 if stale_schemas:
@@ -1534,6 +1575,8 @@ if missing_output_schema:
         f"Registered tools without an outputSchema (success shape unvalidated at "
         f"runtime): {missing_output_schema}"
     )
+
+_ran("8")
 
 # --- 9: MCP annotations are total (every tool publishes risk hints) ---------
 annotated = annotated_tools()
@@ -1550,6 +1593,8 @@ else:
     stale_annotations = sorted(annotated - tool_set)
     if stale_annotations:
         errors.append(f"annotations.ts annotates non-existent tools: {stale_annotations}")
+
+_ran("9")
 
 # --- 10: MCP resource count — code <-> live docs ----------------------------
 resources_found = registered_resources()
@@ -1600,6 +1645,8 @@ if bad_claims:
         f"({resource_count} registered): "
         + "; ".join(f"{f.relative_to(ROOT)}:{ln} says {n}" for f, ln, n in bad_claims)
     )
+
+_ran("10")
 
 # --- 11: tool count — code <-> live docs, source prose, test constants ------
 # The counterpart to check 10, closing the other half of the same drift class.
@@ -1668,6 +1715,8 @@ if bad_counts:
         "naming it — do not add a number you have not identified."
     )
 
+_ran("11")
+
 # --- 11c: the test suite's own SIZE — the same drift class, one level out ----
 # README's front-door badge claimed a "431-test suite" from host 1.18.1 all the
 # way to 1.33.0 — fourteen minor releases and 124 tests stale, with every gate
@@ -1718,6 +1767,8 @@ else:
             "never the count."
         )
 
+_ran("11c")
+
 # --- 11b: tool-FAMILY counts ------------------------------------------------
 # Exact where it can be — a `<toolset ids>` -> N claim resolves id by id — and
 # an explicit eyeball list where it cannot.
@@ -1745,6 +1796,8 @@ if family_mismatches:
         "`editor,runtime,vcs` as 172 when it was 182:\n      - "
         + "\n      - ".join(family_mismatches)
     )
+
+_ran("11b")
 
 # --- 13: the rest of the family class, gated exactly ------------------------
 # Runs before 11b's leftover list is emitted, because anything resolved here is
@@ -1797,6 +1850,8 @@ if bad_constants:
         f"Host-test tool-count constants disagree with the {total_tools} registered "
         f"tools: {bad_constants}"
     )
+
+_ran("13")
 
 # --- 12: recipe roster — code <-> live docs ---------------------------------
 # The third instance of checks 10 and 11's drift class, and the one that had
@@ -1888,6 +1943,8 @@ if recipe_count_prose:
             f"{f.relative_to(ROOT)}:{ln} “{s}”" for f, ln, s in recipe_count_prose
         )
     )
+
+_ran("12")
 
 # --- 14: version parity — the release ritual, gated -------------------------
 # The third member of the drift class checks 10-12 close, and the one that had
@@ -2072,6 +2129,8 @@ for label, found, roster in (
 # Comparisons actually performed — NOT the roster length. A site that could not be
 # located raises its own error and must not inflate this number into reassurance.
 version_sites_checked = len(host_compared) + len(addon_compared)
+
+_ran("14")
 
 # --- 15: file modes — the exec bit is a contract nothing else can see -------
 # #125 rewrote `scripts/contract_check.py` through a Cowork mount that forbids
@@ -2287,6 +2346,8 @@ else:
             f"Current set: {listed}."
         )
 
+_ran("15")
+
 # --- 17: example/project.godot — the invariants a local editor boot erases ---
 # Opening example/ in a real editor REWRITES project.godot from Godot's in-memory
 # ConfigFile: it emits its own header, DROPS EVERY OTHER COMMENT, and resolves
@@ -2382,6 +2443,8 @@ else:
             errors.append(
                 f"check 17: the autoload points at `{_ref}`, which does not exist under example/."
             )
+
+_ran("17")
 
 # --- 18/19: where .uid sidecars belong, and where they must not go ----------
 # A .gd committed without its .uid is not broken — Godot mints one on first
@@ -2479,6 +2542,13 @@ else:
     _shipped_uid_dir_scanned = len([
         p for p in _tracked if str(p).startswith("addons/breakpoint_mcp/")
     ])
+# 🔴 HERE, NOT AFTER THE TWO PROSE SECTIONS BELOW — AND THE MEASUREMENT IS WHY. This
+# counter was first placed before `# --- 20`, which put two comment-only sections between
+# check 18/19's last statement and its own `_ran`. Deleting the check's CODE then left the
+# `_ran` behind, the count stayed at 20, and `measure182f.py` reported the whole block
+# gone with ALL HARD CHECKS PASSED. A counter that survives the code it counts is worse
+# than no counter: it reports coverage that is not there.
+_ran("18/19")
 
 # --- 20: THE SCOPE LEDGER — one literal floor per derived population ---------
 #
@@ -2586,6 +2656,8 @@ for name, value, floor, why in scope_collapses:
         f"in every check downstream of it."
     )
 
+_ran("20")
+
 # --- report -----------------------------------------------------------------
 print("=== breakpoint-mcp static contract check ===")
 print(f"GDScript editor methods : {len(editor_methods)}")
@@ -2652,6 +2724,49 @@ for _name, _value, _floor, _why in SCOPE_LEDGER:
     _mark = "ok" if _value >= _floor else "🔴 COLLAPSE"
     print(f"SCOPE {_name:<36} {_value:>5} / {_floor:<5} {_mark}")
 print()
+# --- 22: EVERY CHECK REACHED ITS OWN END (182, closing 181 §11.3) ---------------
+# 🔴 THE SCOPE LEDGER ABOVE COUNTS POPULATIONS, NOT COMPARISONS. Twenty-six floors pin
+# what the finders found; not one of them notices a CHECK that is no longer there. A
+# deleted block takes its own `errors.append` calls away with it, every floor holds, and
+# the line below this one says ALL HARD CHECKS PASSED over one fewer contract.
+#
+# Both halves are asserted, because either alone is escapable: the SET catches a check
+# renamed or replaced (the count would not move), and the literal FLOOR catches the
+# roster itself being trimmed to match a smaller reality — 181 §7's `{ test: 0 }`, where
+# every key was pinned and no value was.
+_ran_set, _expected_set = set(checks_ran), set(CHECKS_EXPECTED)
+# 🔴 AND THE FLOOR'S OWN VALUE IS PINNED, WHICH IS 181 §7 APPLIED TO THE FLOOR THIS
+# SESSION ADDED. `CHECKS_RUN_FLOOR = 0` would leave the collapse branch below unable to
+# bite, the roster check green on a healthy tree, and the whole counter re-permitted in
+# silence — six floors were found in exactly that state one session ago. Tying it to the
+# ROSTER is not circular, because the roster is itself compared against what actually ran.
+if CHECKS_RUN_FLOOR != len(_expected_set):
+    errors.append(
+        f"CHECKS_RUN_FLOOR is {CHECKS_RUN_FLOOR} but CHECKS_EXPECTED names {len(_expected_set)} "
+        f"check(s). The floor exists to notice a check going missing; set to anything other than "
+        f"the roster size it stops being able to. Move both, on purpose."
+    )
+print(f"CHECKS_RUN {len(_ran_set)}/{CHECKS_RUN_FLOOR} reached their own end: {' '.join(checks_ran)}")
+if len(_ran_set) < CHECKS_RUN_FLOOR:
+    errors.append(
+        f"CHECKS_RUN collapsed — {len(_ran_set)} check(s) reached their own end, floor is "
+        f"{CHECKS_RUN_FLOOR}. Missing: {sorted(_expected_set - _ran_set)}. A check that is "
+        f"deleted, or whose body stops before its end, takes its own errors away with it and "
+        f"every scope floor above still holds — which is exactly what 'ALL HARD CHECKS PASSED' "
+        f"would have meant here."
+    )
+if _ran_set != _expected_set:
+    errors.append(
+        f"CHECKS_RUN roster drift — ran {sorted(_ran_set)}, expected {sorted(_expected_set)}. "
+        f"Unexpected: {sorted(_ran_set - _expected_set)}; missing: {sorted(_expected_set - _ran_set)}. "
+        f"Add or remove the check ON PURPOSE, in CHECKS_EXPECTED, with the floor moved to match."
+    )
+if len(checks_ran) != len(_ran_set):
+    errors.append(
+        f"CHECKS_RUN counted a name twice — {checks_ran}. Two blocks claiming one name means one "
+        f"of them can be deleted while the count stays put."
+    )
+
 # --- 21: THE REPORT WIRE ARRIVED ------------------------------------------------
 # 🔴 RUN BEFORE THE VERDICT, NOT AFTER IT. The canary appended at the top has to still
 # be here; if it is not, `errors` did not carry, every "no violations found" above is

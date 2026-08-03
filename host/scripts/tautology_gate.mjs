@@ -108,6 +108,12 @@ export const FLOORS = { test: 2100, "test-integration": 850, scripts: 90, ".": 1
 // scores `vacuous` over a population that quietly shrank.
 export const UNIT_FLOOR = 1200;         // measured 1408 units (blocks `vacuous` is scored over)
 export const ATTRIBUTED_FLOOR = 2500;   // measured 2993 of 3465 claim sites reaching a unit
+// 🔴 182 — AND THE TWO THAT PIN THE CLASSIFIER RATHER THAN THE FINDER. Every floor above
+// counts claim SITES; a classifier that stops classifying leaves all of them untouched.
+// Measured with a LATE blind: `classifyLeaf` honest for one call and constant for the
+// other 1604 printed byte-identical output, and so did `leaves` over 1216.
+export const SHAPED_FLOOR = 80;         // measured 116 claims whose leaves are EVERY one SHAPE
+export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every one an outcome flag
 
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
@@ -750,7 +756,22 @@ export function verdict(claims) {
   // therefore reach a verdict. The 3465 - 2993 = 472 that do not are §11.10's orphans,
   // reported since 170 and floored by nothing until now.
   let attributed = 0;
+  // 🔴 AND THE TWO POPULATIONS ONLY A CLASSIFIER THAT CLASSIFIED CAN PRODUCE (182).
+  // Every number this gate printed until now counts claim SITES — what the FINDER found.
+  // Nothing counted a CLASSIFICATION. Measured with a LATE blind (call 1 honest, calls
+  // 2..1605 returning `{ kind: "VALUE" }`, which is the answer a healthy leaf gives):
+  // the gate printed BYTE-IDENTICAL output and exited 0. `leaves()` blinded the same way,
+  // 1216 calls, byte-identical again.
+  //
+  // A floor cannot sit on `vacuous`, `every` or `offender` — their healthy value is zero,
+  // which is 181 §5's problem. But `allShape` and `precondition` are healthy, non-zero,
+  // and unreachable without a working classifier: `allShape` needs every leaf of a claim
+  // to come back SHAPE, and `precondition` needs every leaf's TEXT to match an outcome
+  // flag. Both are 0 under either blind, and neither is the offence.
+  let shaped = 0, precondition = 0;
   for (const c of claims) {
+    if (c.allShape) shaped++;
+    if (c.precondition) precondition++;
     const k = c.marker ? `${c.file}::${c.marker}` : c.owner ? `${c.file}::${c.owner.line}::${c.owner.name}` : null;
     if (!k) continue;
     attributed++;
@@ -770,6 +791,8 @@ export function verdict(claims) {
   return {
     blocks: blocks.size,
     attributed,
+    shaped,
+    precondition,
     // A unit made ONLY of outcome-flag preconditions is 171 §3's forty, and demanding
     // more of them is how a gate loses its credibility on the first green run. A unit
     // that makes a real claim is judged on the real claims alone.
@@ -797,16 +820,25 @@ export function verdict(claims) {
  * `G25`–`G28` are. The coverage is in the self-test, by construction, not by accident —
  * and `mutate180.py` says so at the mutant.
  */
-export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR) {
+export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const orphan = sites - v.attributed;
   say(`TAUT_ATTRIBUTED units=${v.blocks}/${unitFloor} claims=${v.attributed}/${attrFloor} orphan=${orphan}`);
+  // 🔴 182 — THE CLASSIFIER'S OWN OUTPUT, ON ITS OWN LINE. Everything above counts what
+  // the FINDER found; these two count what the CLASSIFIER decided, and `?? 0` is
+  // deliberate: a verdict built before 182 reads as a COLLAPSE rather than as an
+  // exemption, because an absent population is the loudest case and not the quietest.
+  say(`TAUT_CLASSIFIED shaped=${v.shaped ?? 0}/${shapedFloor} precondition=${v.precondition ?? 0}/${preFloor}`);
   for (const [name, got, floor, why] of [
     ["UNITS", v.blocks, unitFloor,
       "the population `vacuous` is scored over. Every FLOORS entry pins claim sites the finder FOUND; this pins the ones that reached a unit, and until 180 attribution could resolve NOTHING while all four held"],
     ["CLAIMS", v.attributed, attrFloor,
       "units can survive intact while each keeps one claim of twenty — a shrink no unit count can see (171 §10.22)"],
+    ["SHAPED", v.shaped ?? 0, shapedFloor,
+      "🆕 182: the CLASSIFIER stopped classifying. `allShape` needs every leaf of a claim to come back SHAPE, so it cannot be reached without a working `classifyLeaf` and `leaves` — and a late blind on either printed byte-identical output while every floor above held"],
+    ["PRECONDITION", v.precondition ?? 0, preFloor,
+      "the same collapse read from the other side: a precondition needs every leaf's TEXT to match an outcome flag, so it dies when the leaf walk goes quiet even if the kinds survive"],
   ]) {
     if (got >= floor) continue;
     out.failed = true;
