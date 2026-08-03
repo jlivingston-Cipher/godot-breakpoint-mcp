@@ -52,7 +52,8 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 30   # 182: 25 -> 30 (HELPER, CONDUIT, SHAPED, PRECONDITION, CHECKS_RUN)
+TARGET_FLOOR = 36   # 183: 30 -> 36 (2 caller-shape snapshot floors + 4 FILE_FLOORS)
+#                     182: 25 -> 30 (HELPER, CONDUIT, SHAPED, PRECONDITION, CHECKS_RUN)
 
 # (label, file, regex whose group(1) ends immediately before the digits, runner argv)
 # The runner is the file that MUST go red when this floor's value is zeroed.
@@ -79,6 +80,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("FLOORS.test-integration",  f"{S}/tautology_gate.mjs",          r'("test-integration": )850,',                               [f"{S}/tautology_gate.selftest.mjs"]),
     ("FLOORS.scripts",           f"{S}/tautology_gate.mjs",          r"(scripts: )90, ",                                          [f"{S}/tautology_gate.selftest.mjs"]),
     ('FLOORS."."',               f"{S}/tautology_gate.mjs",          r'("\.": )10 \};',                                           [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🆕 183 — THE FILE-COUNT FLOORS, THE PAIR `FLOORS.*` ABOVE COULD NOT COVER. Those
+    # four pin claim SITES; these four pin FILES READ, which is the only number that sees
+    # a directory walk that stopped admitting sources.
+    ("FILE_FLOORS.test",             f"{S}/tautology_gate.mjs",      r"(export const FILE_FLOORS = \{ test: )45,",                [f"{S}/tautology_gate.selftest.mjs"]),
+    ("FILE_FLOORS.test-integration", f"{S}/tautology_gate.mjs",      r'(FILE_FLOORS = \{ test: 45, "test-integration": )28,',     [f"{S}/tautology_gate.selftest.mjs"]),
+    ("FILE_FLOORS.scripts",          f"{S}/tautology_gate.mjs",      r'("test-integration": 28, scripts: )8,',                    [f"{S}/tautology_gate.selftest.mjs"]),
+    ('FILE_FLOORS."."',              f"{S}/tautology_gate.mjs",      r'(scripts: 8, "\.": )12 \};',                               [f"{S}/tautology_gate.selftest.mjs"]),
     ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),
@@ -91,6 +99,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # nobody would have been told. That is the shape 174 §5 names: an exclusion nobody
     # wrote down is an exclusion nobody re-reads.
     ("CHECKS_RUN_FLOOR",         "../scripts/contract_check.py",     r"(CHECKS_RUN_FLOOR = )20 ",                                 ["../scripts/contract_check.py"]),
+    # 🆕 183 — AND THE FIRST TWO FLOORS THIS TABLE HAS EVER HELD THAT MIRROR AN EXEMPT
+    # ONE. `AUTH_SNAPSHOT_FILE_FLOOR` / `_DIR_FLOOR` are four lines up in DISCOVER_EXEMPT
+    # because no headless runner can redden a probe that boots the editor. These two are
+    # the SAME NUMBERS in the headless caller-shape harness, so the pair that could not be
+    # swept now has a swept twin — which is the point of the harness stated as a floor.
+    ("SHAPE_SNAPSHOT_FILE_FLOOR", f"{T}/_caller_shape.harness.mjs",  r"(const SHAPE_SNAPSHOT_FILE_FLOOR = )70;",                  [f"{T}/_caller_shape.harness.mjs"]),
+    ("SHAPE_SNAPSHOT_DIR_FLOOR",  f"{T}/_caller_shape.harness.mjs",  r"(const SHAPE_SNAPSHOT_DIR_FLOOR = )8;",                    [f"{T}/_caller_shape.harness.mjs"]),
 ]
 
 # ── the DISCOVERY half ────────────────────────────────────────────────────────────
@@ -125,6 +140,11 @@ DISCOVER_EXEMPT: dict[str, str] = {
                               "same `_self_check()`, which fails if it is not positive, because a "
                               "zero would re-permit an injector that injects nothing. Same nesting "
                               "reason as INSTRUMENT_FLOOR",
+    "LATE_LIVE_FLOOR": "🆕 183 — instrument_gate.py's floor on the LIVE-axis roster, pinned in the "
+                       "same `_self_check()` by asserting the branch bites on an empty roster. It "
+                       "exists because LATE_CONSTRUCTED_FLOOR cannot see a roster shrink: deleting "
+                       "the three caller-shape entries takes 82 constructed blinds to 70, which is "
+                       "still above that floor. Same nesting reason as INSTRUMENT_FLOOR",
     "TARGET_FLOOR": "the same shape in scope_gate.py and in THIS file — a gate cannot pin the floor "
                     "over its own target list without reading the constant it is checking. scope_gate "
                     "asserts its branch bites; this file's is the one below, and a session that "
