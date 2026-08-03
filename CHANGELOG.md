@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.57.0] — 2026-08-03
+
 ### Added — the same question put to the four instruments 179's list did not name, and to every floor in the tree
 
 180 answered 179 §11.2 for five instruments and handed over two follow-ups: the same
