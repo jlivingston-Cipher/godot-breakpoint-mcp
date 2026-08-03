@@ -6,6 +6,75 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the two rules `boundary_gate.mjs` enforced somewhere other than where its population comes from
+
+178 §10.23 said: *`unresolved` is honest, `judged` is not — so audit `judged`.* All 204
+members were audited rather than sampled, and 26 of them were not what the gate thought
+they were.
+
+**Eighteen claims were judged over a receiver the gate's own premise does not cover.**
+This gate exists because `call()` throws on `isError`, so an operation's `_err` paths never
+reach a comparison and a hard-wired field is the only value the claim can hold. `raw()`
+does not throw. `conduits()` already refused two wrappers over `raw()` for exactly that
+reason — and `comparisons()` asked nothing at all about `await raw("runtime_node_add", …)`
+spelled directly, judging eighteen of them, every one asserting `.isError === true`. Same
+rule, same file, one spelling exempt. The throwing test now runs on the direct callee too,
+and the refusals are counted (`nonthrowing=18`) rather than folded into `unresolved`.
+
+**And the binding map was file-scoped and last-declaration-wins.**
+
+```js
+for (const spelling of ROOT_SPELLINGS) {
+  const r = await raw("runtime_node_add", { type: "Object" });
+  assert.equal(r.isError, true, "instantiating Object must still be not_a_node");
+}
+…
+for (const path of leftovers) {
+  const r = await rm(path);           // a different tool, a different block
+  assert.equal(r.removed, true, …);
+}
+```
+
+One `Map<name, tool>` per file meant the second declaration overwrote the first, so the
+claim about `node_add` above was judged against `_node_remove`. Twenty identifiers in the
+tree are declared more than once; nine judged claims rested on one and **six were judged
+against an operation other than the one that replied.** Binding is now lexically scoped —
+each `r` resolves to the declaration in its own block — with a reassignment (`let r =
+await call(A); r = await call(B)`) still refused as `ambiguous`, because scope cannot
+answer that one.
+
+**The first fix for the second bug was wrong, and only the reverse sweep could say so.**
+Refusing every multiply-declared name is the rule `toolOps()` and `conduits()` already
+apply, it is correct, and it made the gate **green** under mutant G19 — which restores one
+of the five defects 178 had just fixed, on a `const r` inside a cleanup loop. A narrowing
+that is right in principle can still cost real coverage.
+
+### Added — `JUDGED_FLOOR`, the seventh collapse and the first one that pins an output
+
+Six floors pinned this gate's **inputs**: constants found, dispatcher arms read, tools
+registered, comparison sites found, reply dicts read, dispatcher files opened. None pinned
+the **output**. All six could hold while `comparisons()` resolved not one receiver, and the
+gate would print `ok — 0 judged claim(s), none compared against a constant` and exit 0.
+178 §10.22 said an instrument's population is the least audited number it prints; `judged`
+is that number here, and it was the only population in the file with nothing under it.
+
+`helpers()` is extracted as a ninth blind target for `instrument_gate.py`, and the
+self-test grew 104 → 130 claims, including a fixture that drives `run()` end to end and
+asserts the printed refusal counts — because every other case for the two new rules drives
+`comparisons()` directly, and that is not the wire.
+
+🔴 **And the reverse sweep cannot cover a narrowing at all.** The gate reds on offenders;
+a rule that removes candidates from `judged` can only turn a red green. Both new rules were
+pointed at the live gate first and both stayed green — measured, not assumed — so their
+coverage lives in the self-test, and `mutate179.py` says so where a future session will
+read it.
+
+```
+BOUNDARY_GATE consts=25/20 ops=177/150 tools=171/150 sites=1868/1500 reads=187/150
+              planes=2/2 opaque=9 ambiguous=0 nonthrowing=18 unresolved=1683
+              judged=185/150 offenders=0
+```
+
 ## [1.54.0] — 2026-08-03
 
 ### Fixed — five claims on the runtime plane, in the half of the population the gate was not reading

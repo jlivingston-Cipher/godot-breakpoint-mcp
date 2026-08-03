@@ -15,8 +15,8 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  dispatchMap, hardwired, toolOps, comparisons, conduits, judge, collapsed, run, report,
-  CONST_FLOOR, OP_FLOOR, TOOL_FLOOR, SITE_FLOOR, RETURN_FLOOR, PLANE_FLOOR,
+  dispatchMap, hardwired, toolOps, comparisons, conduits, helpers, judge, collapsed, run, report,
+  CONST_FLOOR, OP_FLOOR, TOOL_FLOOR, SITE_FLOOR, RETURN_FLOOR, PLANE_FLOOR, JUDGED_FLOOR,
   BOUNDARY_SKIP, PLANES,
 } from "./boundary_gate.mjs";
 
@@ -28,11 +28,11 @@ const claim = (cond, what) => {
 // 🔴 NAMED AND PINNED — 176 §8's G11. A bare `if (ran < 42)` is a floor read by one branch
 // and asserted by nothing, so it can be set to zero and this whole file goes green while
 // still printing a passing line. The floor that protects the floors.
-const CLAIM_FLOOR = 95;
+const CLAIM_FLOOR = 120;   // measured 130 (was 104 in 178, floor 95)
 
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 const POP = { consts: 99, ops: 999, tools: 999, sites: 9999, reads: 999, planes: 9,
-  opaque: 0, judged: 99, unresolved: 0 };
+  opaque: 0, judged: 999, unresolved: 0, ambiguous: 0, nonthrowing: 0 };
 
 // ── 1. THE ADDON'S DISPATCHER, READ RATHER THAN RE-SPELLED ───────────────────────────
 const DISPATCH = `
@@ -168,7 +168,7 @@ claim(said(caught, "BOUNDARY_TAUTOLOGY p.mjs:7"), "and the offender is named wit
 claim(said(caught, "_filesystem_scan"), "and the GDScript function that hard-wired it is named too");
 claim(judge(POP, []).failed === false, "a tree with no such claim passes");
 claim(said(judge(POP, []), "78") === false, "the ok line reports its own population, not a hard-coded number");
-claim(said(judge({ ...POP, judged: 5 }, []), "5 judged claim(s)"), "the ok line reports how many claims it actually judged");
+claim(said(judge({ ...POP, judged: 555 }, []), "555 judged claim(s)"), "the ok line reports how many claims it actually judged");
 claim(said(judge({ ...POP, unresolved: 12 }, []), "unresolved=12"),
   "🔴 what the gate COULD NOT SEE is printed on every run, green or red");
 
@@ -197,6 +197,24 @@ claim(judge({ ...POP, planes: 1 }, []).failed === true,
   "🔴 reading ONE dispatcher when there are two is a collapse — which is what 177 shipped");
 claim(said(judge({ ...POP, planes: 1 }, []), "BOUNDARY_PLANES_COLLAPSE"), "and it says so by name");
 claim(judge({ ...POP, planes: 2 }, []).failed === false, "…and reading both is not");
+
+// 🔴 THE SEVENTH, AND THE ONE THAT WAS MISSING FOR TWO SESSIONS (179). Every floor above
+// pins an INPUT — constants, arms, tools, sites, returns, planes. None pinned the OUTPUT.
+// All six could hold while `comparisons()` resolved not one receiver, and the gate would
+// print `ok — 0 judged claim(s), none compared against a constant` and exit 0. 178 §10.22
+// said an instrument's population is the least audited number it prints; `judged` IS that
+// number here, and it was the only population in the file with nothing under it.
+claim(judge({ ...POP, judged: 0 }, []).failed === true,
+  "🔴 a gate that resolved ZERO claims is a collapse, not a clean tree — and until 179 it printed `ok`");
+claim(said(judge({ ...POP, judged: 0 }, []), "BOUNDARY_JUDGED_COLLAPSE"), "and it is named separately from the six input floors");
+claim(judge({ ...POP, judged: JUDGED_FLOOR - 1 }, []).failed === true, "one below the floor reddens");
+claim(judge({ ...POP, judged: JUDGED_FLOOR }, []).failed === false, "…and exactly at it does not");
+claim(JUDGED_FLOOR >= 100,
+  "🔴 the judged floor is PINNED — setting it to zero reddens HERE rather than silently re-permitting the collapse it exists for");
+claim(said(judge(POP, []), "ambiguous=") && said(judge(POP, []), "nonthrowing="),
+  "🔴 both 179 refusals print on every run, green or red — an exclusion that is not counted is indistinguishable from coverage");
+claim(said(judge({ ...POP, ambiguous: 21, nonthrowing: 17 }, []), "ambiguous=21 nonthrowing=17"),
+  "…and they report their own numbers rather than a hard-coded pair");
 claim(said(judge({ ...POP, opaque: 4 }, []), "opaque=4"),
   "🔴 the operations whose replies could NOT be read are printed on every run, green or red");
 
@@ -415,7 +433,100 @@ claim(VIA.some((c) => c.tool === "runtime_inject_input" && c.field === "injected
 claim(comparisons("p.mjs", `const x = await inject({});\nx.injected === true;`).every((c) => c.tool === null),
   "…while the SAME source with no conduit map resolves to nothing, rather than guessing");
 
-// ── 13. 🆕 BOTH PLANES, END TO END ───────────────────────────────────────────────────
+// ── 13. 🆕 179: THE THROWING RULE, ON THE DIRECT SPELLING ────────────────────────────
+// 🔴 §12 ABOVE REFUSES `emit`, A WRAPPER OVER `raw()`. 178 SHIPPED WITH THE SAME RECEIVER
+// SPELLED OUT — `const r = await raw("runtime_node_add", …)` — RESOLVING FINE, AND JUDGED
+// SEVENTEEN OF THEM, every one asserting `.isError === true`. The premise this whole gate
+// rests on is "call() throws, so the _err paths never reach the comparison"; over a raw()
+// receiver that premise is FALSE and the claim really can fail. Same rule, same file, one
+// spelling exempt and the other not.
+const H = helpers("p.mjs", CONDUIT_SRC);
+claim(H.throwers.has("call") === true && H.throwers.has("raw") === false,
+  "🔴 `helpers()` separates the helper that throws on isError from the one that does not — the single fact both rules rest on");
+claim(H.defined.has("raw") && H.defined.has("emit") && H.defined.has("h") === false,
+  "…and reports only what is DEFINED here: `h` is called but never declared, so nothing is claimed about it");
+claim(helpers("p.mjs", `const call = async (n) => { const r = await go(n); if (r.bad) throw new Error("x"); return r; };`).throwers.size === 0,
+  "🔴 a helper that throws on something OTHER than isError is not a thrower for this purpose — the premise is about the error envelope, not about throwing");
+
+const RAWSRC = CONDUIT_SRC + `\nconst bad = await raw("runtime_node_add", { type: "Nope" });\nassert.equal(bad.isError, true, "must be an error");`;
+const RAWD = comparisons("p.mjs", RAWSRC, conduits("p.mjs", RAWSRC));
+claim(RAWD.length === 1 && RAWD[0].tool === null,
+  "🔴 a receiver from a DIRECT non-throwing helper resolves to nothing — the rule §12 applies to the hop, applied to the call");
+claim(RAWD[0].drop === "nonthrowing", "…and the refusal carries its reason, so it can be counted rather than vanish into `unresolved`");
+claim(RAWD[0].wouldBe === "runtime_node_add",
+  "🔴 …and what it WOULD have said, because a refusal count is useless without knowing whether it took a real tool away");
+const THRSRC = CONDUIT_SRC + `\nconst good = await call("runtime_node_add", { type: "Timer" });\nassert.equal(good.added, true, "reports added");`;
+claim(comparisons("p.mjs", THRSRC, conduits("p.mjs", THRSRC)).some((c) => c.tool === "runtime_node_add" && c.drop === null),
+  "…and the THROWING helper beside it in the same source still resolves — the rule is inert on everything it should be");
+claim(comparisons("p.mjs", `const r = await call("t", {});\nassert.equal(r.f, true);`).some((c) => c.tool === "t"),
+  "🔴 and an IMPORTED helper is not refused — refusing what cannot be read is a guess in the other direction");
+
+// ── 14. 🆕 179: THE BINDING MAP IS LEXICALLY SCOPED ──────────────────────────────────
+// 🔴 IT WAS ONE FLAT `Map<name, tool>` FOR A WHOLE FILE, AND LAST DECLARATION WON. Twenty
+// identifiers in the shipped tree are declared more than once — `r` in six files — nine
+// judged claims rested on one, and SIX were judged against an operation other than the one
+// that replied: `assert.equal(r.isError, true, "instantiating Object must still be
+// not_a_node")` was judged against `_node_remove`.
+//
+// 🔴 AND THE FIRST FIX WAS TO REFUSE EVERY REUSED NAME — the rule `toolOps()` and
+// `conduits()` already apply. The reverse sweep killed it: mutant G19 restores one of the
+// five defects 178 fixed, on a `const r` inside a cleanup loop, and the refusal made the
+// gate GREEN under it. A correct narrowing can still cost real coverage, and nothing but
+// the sweep could have said so.
+const TWOBLOCKS = comparisons("p.mjs", [
+  `for (const a of xs) {`,
+  `  const r = await call("runtime_node_add", { type: "Timer" });`,
+  `  assert.equal(r.added, true, "the add reply");`,
+  `}`,
+  `for (const b of ys) {`,
+  `  const r = await call("runtime_node_remove", { path: "y" });`,
+  `  assert.equal(r.removed, true, "the remove reply");`,
+  `}`,
+].join("\n"));
+claim(TWOBLOCKS.length === 2,
+  "two blocks, two declarations of `r`, two claims");
+claim(TWOBLOCKS.find((c) => c.field === "added")?.tool === "runtime_node_add"
+   && TWOBLOCKS.find((c) => c.field === "removed")?.tool === "runtime_node_remove",
+  "🔴 each `r` resolves to the declaration in ITS OWN block — before 179 both resolved to whichever was read last");
+const SHADOW = comparisons("p.mjs", [
+  `const r = await call("runtime_node_add", { type: "Timer" });`,
+  `{`,
+  `  const r = await call("runtime_node_remove", { path: "y" });`,
+  `  assert.equal(r.removed, true, "the inner one");`,
+  `}`,
+  `assert.equal(r.added, true, "the outer one");`,
+].join("\n"));
+claim(SHADOW.find((c) => c.field === "removed")?.tool === "runtime_node_remove"
+   && SHADOW.find((c) => c.field === "added")?.tool === "runtime_node_add",
+  "🔴 an inner declaration shadows the outer INSIDE its block and not outside it — the walk goes outward from the use site, not forward from the top of the file");
+const OUTER = comparisons("p.mjs", [
+  `const r = await call("runtime_node_add", { type: "Timer" });`,
+  `for (const a of xs) { assert.equal(r.added, true, "no inner declaration"); }`,
+].join("\n"));
+claim(OUTER.length === 1 && OUTER[0].tool === "runtime_node_add",
+  "…and a use with no declaration in its own scope still finds the enclosing one");
+
+// 🔴 A REASSIGNMENT IS THE ONE AMBIGUITY SCOPE CANNOT RESOLVE. Two `const`s of a name in
+// one block is a syntax error, so after scope resolution the ambiguity rule would be dead
+// code — except here, where nothing in the source says which reply the later claim is
+// about. This is what `ambiguous` counts, and it is 0 in the shipped tree.
+const REASSIGN = comparisons("p.mjs", [
+  `let r = await call("runtime_node_add", { type: "Timer" });`,
+  `r = await call("runtime_node_remove", { path: "y" });`,
+  `assert.equal(r.added, true, "which reply is this about?");`,
+].join("\n"));
+claim(REASSIGN.length === 1 && REASSIGN[0].tool === null && REASSIGN[0].drop === "ambiguous",
+  "🔴 a `let` reassigned to a SECOND tool in the same scope resolves to NEITHER, and says why");
+const MIX = comparisons("p.mjs", CONDUIT_SRC + [
+  ``,
+  `let r = await call("runtime_node_add", { type: "Timer" });`,
+  `r = await raw("runtime_node_add", { type: "Nope" });`,
+  `assert.equal(r.added, true, "the add reply");`,
+].join("\n"), conduits("p.mjs", CONDUIT_SRC));
+claim(MIX.some((c) => c.field === "added" && c.tool === null && c.drop === "ambiguous"),
+  "🔴 …and a name bound to a tool AND to a refused receiver is as ambiguous as two tools — the two rules compose rather than race");
+
+// ── 15. 🆕 BOTH PLANES, END TO END ───────────────────────────────────────────────────
 // 🔴 THE HOLE THAT HELD FOUR OF THE FIVE. `runtime_bridge.gd` has its own `_dispatch`,
 // its own `_ok`/`_err`, and 22 registered tools resolve into it. 177 read `operations.gd`
 // and printed `judged=78` as the population.
@@ -454,12 +565,63 @@ claim(said(live2, "planes=2/"), "the population line reports both planes were re
 claim(run(join(root2, "host"), join(root2, "addons", "breakpoint_mcp", "operations.gd")).failed === true,
   "🔴 and pointing it at ONE plane reddens on the PLANES floor rather than reporting a clean tree");
 
+// ── 16. 🆕 179: BOTH NEW REFUSALS, END TO END THROUGH run() ──────────────────────────
+// 🔴 EVERY CLAIM IN §13 AND §14 DRIVES `comparisons()` DIRECTLY, AND THAT IS NOT THE WIRE.
+// The refusal has to survive `scan()` — which is where the `wouldBe` filter lives — and
+// reach the population line `judge()` prints. 178's own lesson (G9/G10): a term only ever
+// exercised one level below the composition is a term the composition can drop.
+const root3 = mkdtempSync(join(tmpdir(), "boundary179-"));
+mkdirSync(join(root3, "host", "src"), { recursive: true });
+mkdirSync(join(root3, "addons", "breakpoint_mcp"), { recursive: true });
+writeFileSync(join(root3, "addons", "breakpoint_mcp", "operations.gd"),
+  'func _dispatch(op, params):\n\tmatch op:\n\t\t"editor.noop":\n\t\t\treturn _editor_noop(params)\n\nfunc _editor_noop(params: Dictionary) -> Dictionary:\n\treturn _ok({"seen": params.get("x")})\n');
+writeFileSync(join(root3, "addons", "breakpoint_mcp", "runtime_bridge.gd"),
+  'func _dispatch(op, params):\n\tmatch op:\n\t\t"runtime.node_add":\n\t\t\treturn _node_add(params)\n\t\t"runtime.node_remove":\n\t\t\treturn _node_remove(params)\n\nfunc _node_add(params: Dictionary) -> Dictionary:\n\tif bad:\n\t\treturn _err("x", "y")\n\treturn _ok({"added": true, "path": p})\n\nfunc _node_remove(params: Dictionary) -> Dictionary:\n\treturn _ok({"removed": true, "path": p})\n');
+writeFileSync(join(root3, "host", "src", "rt.ts"), [
+  'server.registerTool("runtime_node_add", { title: "x" }, async (a) => call("runtime.node_add", a));',
+  'server.registerTool("runtime_node_remove", { title: "x" }, async (a) => call("runtime.node_remove", a));',
+  "",
+].join("\n"));
+writeFileSync(join(root3, "host", "probe.mjs"), [
+  'const call = async (n, a) => { const r = await h(n, a); if (r.isError) throw new Error("x"); return r.structuredContent; };',
+  'const raw = async (n, a) => h(n, a);',
+  'const parseLedger = (src) => src.split("\\n");',
+  // (1) a raw() receiver naming a REGISTERED tool over a HARD-WIRED field. Without the
+  //     throwing rule this is a BOUNDARY_TAUTOLOGY; with it, one `nonthrowing` refusal.
+  'const bad = await raw("runtime_node_add", { type: "Nope" });',
+  'assert.equal(bad.added, true, "would be a tautology if raw() were followed");',
+  // (2) a non-throwing helper whose string argument was never a tool. Refused for the same
+  //     reason and counted for NEITHER — this is the pair that pins the `wouldBe` filter.
+  'const led = parseLedger("tool\\tpath");',
+  'assert.equal(led.length, 1, "not a bridge reply at all");',
+  // (3) one identifier REASSIGNED to a second tool in the same scope, over a field the
+  //     first operation hard-wires. Scope resolution cannot help here and must not guess.
+  'let amb = await call("runtime_node_add", { type: "Timer" });',
+  'amb = await call("runtime_node_remove", { path: "x" });',
+  'assert.equal(amb.added, true, "which reply is this about?");',
+  "",
+].join("\n"));
+const live3 = run(join(root3, "host"), [
+  join(root3, "addons", "breakpoint_mcp", "operations.gd"),
+  join(root3, "addons", "breakpoint_mcp", "runtime_bridge.gd"),
+]);
+claim(live3.lines.some((l) => /nonthrowing=1\b/.test(l)),
+  "🔴 the raw() refusal survives scan() and prints — and the `parseLedger` refusal beside it does NOT, because its string was never a registered tool");
+claim(live3.lines.some((l) => /ambiguous=1\b/.test(l)),
+  "🔴 and the REASSIGNED identifier is refused and counted, rather than judged against whichever binding was read last");
+claim(live3.lines.some((l) => /judged=0\//.test(l)),
+  "…and with both refusals applied this fixture resolves NOTHING — every receiver in it is one of the two shapes");
+claim(live3.failed === true && live3.lines.some((l) => l.includes("BOUNDARY_JUDGED_COLLAPSE")),
+  "🔴 which reddens on the JUDGED floor rather than printing `ok — 0 judged claim(s)`, as it would have before 179");
+claim(live3.lines.some((l) => l.includes("BOUNDARY_TAUTOLOGY")) === false,
+  "🔴 and NOT on a tautology — `bad.added === true` over a raw() receiver really can fail, and inventing a defect there is 177 §5 again");
+
 // ── the floor on this file's own population ──────────────────────────────────────────
 // 🔴 PINNED, BECAUSE AN UNPINNED CLAIM FLOOR IS A SWITCH — 176 §8's G11, which found this
 // exact literal deletable in `verdict_gate.selftest.mjs`. `if (ran < CLAIM_FLOOR)` is one
 // branch reading one constant, and nothing else in the file mentions it: setting it to 0
 // left every case green while the file still printed a passing line.
-claim(CLAIM_FLOOR >= 90, "🔴 the claim floor is pinned — setting it to zero reddens HERE, not silently");
+claim(CLAIM_FLOOR >= 118, "🔴 the claim floor is pinned — setting it to zero reddens HERE, not silently");
 if (ran < CLAIM_FLOOR) {
   console.log(`🔴 BOUNDARY_SELFTEST_COLLAPSE ${ran} < ${CLAIM_FLOOR} — cases went missing rather than failing.`);
   bad++;
