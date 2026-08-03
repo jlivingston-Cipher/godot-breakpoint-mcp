@@ -307,7 +307,14 @@ try {
   // branch an implementation can silently drop: Input.action_press(action) with no
   // strength is a legal call that satisfies every check except the value itself.
   const pressed = await inject({ kind: "action", action: BOUND, pressed: true, strength: 0.6 });
-  assert.equal(pressed.injected, true, "a successful injection reports injected:true");
+  // 🔴 `injected` IS A HARD-WIRED `true` ON ALL FOUR `_ok` PATHS of `_inject_input`, and
+  // `call()` throws on isError, so `pressed.injected === true` had exactly two outcomes:
+  // "true" and "never reached". The evidence that the injection LANDED is three lines
+  // down — the action goes pressed, at the strength the caller sent, seen as one edge.
+  // What is pinned here is the response SHAPE, which is the drift a documented constant
+  // is really exposed to: a rename, a type change, a dropped field. A SHAPE claim over a
+  // constant is honest; a VALUE claim over one is not (178 §4).
+  assert.equal(typeof pressed.injected, "boolean", "the reply must carry an `injected` flag");
   assert.equal(pressed.kind, "action", `the reply must echo the kind, got ${pressed.kind}`);
   const polls = await waitFor("bound_pressed", (v) => v === true, `${BOUND} must go pressed after an action injection`);
   near(await read("bound_strength"), 0.6, `${BOUND} must report the strength the caller SENT, not a default of 1.0`);

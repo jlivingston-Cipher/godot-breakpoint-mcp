@@ -336,7 +336,13 @@ try {
   const TIMER = "AddedTimer9137";
   const added = await call("runtime_node_add", { parent: "Host", type: "Timer", name: TIMER, confirm: true });
   MADE.push(`Host/${TIMER}`);
-  assert.equal(added.added, true, "a successful node_add reports added:true");
+  // 🔴 `added` IS A HARD-WIRED `true` on `_node_add`'s only `_ok` path, and `call()`
+  // throws on isError, so every `_err` path escapes before this line: the claim's two
+  // outcomes were "true" and "never reached". The two lines below are the real evidence
+  // and always were — `path` is COMPUTED by `_path_of` from the node the addon actually
+  // parented, and `type` is `child.get_class()` off the instance it built. This line is
+  // now a SHAPE pin over a documented constant, which is the drift it is exposed to.
+  assert.equal(typeof added.added, "boolean", "the reply must carry an `added` flag");
   assert.equal(added.path, `Host/${TIMER}`, `the reply must give the SCENE-RELATIVE path of the new node, got ${added.path}`);
   assert.equal(added.type, "Timer", `the reply must name the instantiated class, got ${added.type}`);
 
@@ -377,7 +383,7 @@ try {
   // The branch that a mocked test cannot touch and that a type: add cannot fake.
   const inst = await call("runtime_node_add", { parent: "Host", scene: PAYLOAD_SCENE, confirm: true });
   MADE.push(`Host/${PAYLOAD_ROOT}`);
-  assert.equal(inst.added, true, "instantiating a PackedScene reports added:true");
+  assert.equal(typeof inst.added, "boolean", "the reply must carry an `added` flag");   // SHAPE, not VALUE — see §2
   assert.equal(
     inst.path,
     `Host/${PAYLOAD_ROOT}`,
@@ -481,7 +487,10 @@ try {
   // parent must take both — a remove that detached only the named node would leave two
   // orphans resolvable at their old paths.
   const removed = await call("runtime_node_remove", { path: `Host/${PAYLOAD_ROOT}`, confirm: true });
-  assert.equal(removed.removed, true, "a successful node_remove reports removed:true");
+  // 🔴 `removed` is `_node_remove`'s hard-wired `true`, same shape as `added` above. The
+  // claim that the removal HAPPENED is the `waitAbsent` + `expectAbsent` pair below, and
+  // `path` is computed BEFORE the free, which is the one thing a caller cannot recompute.
+  assert.equal(typeof removed.removed, "boolean", "the reply must carry a `removed` flag");
   assert.equal(
     removed.path,
     `Host/${PAYLOAD_ROOT}`,
@@ -518,7 +527,9 @@ try {
     // call() throws on isError, so a cleanup that cannot run says so by name rather than
     // leaving the tree dirty for a pristine check that would then blame the wrong thing.
     const r = await call("runtime_node_remove", { path, confirm: true });
-    assert.equal(r.removed, true, `the probe must be able to clean up after itself: ${JSON.stringify(r)}`);
+    // call() already threw if the cleanup could not run, so `r.removed === true` asserted
+    // nothing this line reaches; `waitAbsent` below is what proves the node left the tree.
+    assert.equal(typeof r.removed, "boolean", `the reply must carry a \`removed\` flag: ${JSON.stringify(r)}`);
     await waitAbsent(path, "the probe's own cleanup must complete");
   }
   await expectAbsent(MADE, "the probe must leave nothing it created behind");

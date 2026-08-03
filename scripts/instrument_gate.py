@@ -233,20 +233,31 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "boundary_gate.mjs",
         "gate": ["node", "scripts/boundary_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 6,
+        "floor": 8,
         "why": "the tautology that cannot be seen from either side alone — a GDScript constant asserted in JS",
         "targets": {
             "export function dispatchMap(gdText) {": 'return new Map([["a.b", "_a_b"]]);',
-            "export function hardwired(gdText) {": 'return new Map([["_a_b", new Map([["f", "true"]])]]);',
+            "export function hardwired(gdText) {":
+                'return { fields: new Map([["_a_b", new Map([["f", "true"]])]]), opaque: [], reads: 9 };',
             "export function toolOps(sources) {": 'return new Map([["t", "a.b"]]);',
-            "export function comparisons(file, text) {":
-                'return [{ file, line: 1, field: "ok", lit: "true", tool: null, text: "" }];',
+            # 🆕 178. The conduit resolver blinded to "no helper is ever a conduit" — the
+            # shape 177 §10.18 declined to build and 178 measured a live defect behind.
+            "export function conduits(file, text) {": "return new Map();",
+            "export function comparisons(file, text, conduit = new Map()) {":
+                'return [{ file, line: 1, field: "ok", lit: "true", tool: null, text: "", idiom: "===" }];',
             "export function judge(pop, offenders) {":
                 'return { lines: ["BOUNDARY_GATE ok"], failed: false };',
             # 🔴 THE COLLAPSE TEST ITSELF. 176 §8's G12 extracted this shape precisely so
             # that a floor set to zero has a case that reddens; blinding it to `false`
             # switches all four floors off at once, and the self-test must notice.
             "export function collapsed(n, floor) {": "return false;",
+            # 🆕 178. The composition itself. `run()` and `report()` were extracted in 177
+            # so the sweep could reach them; `scan()` is the third of the three, and a
+            # blind that returns a healthy-looking population with an empty offender list
+            # is precisely the green lie both fixtures exist to catch.
+            "export function scan(host = HOST, gdPaths = GD) {":
+                'return { pop: { consts: 99, ops: 999, tools: 999, sites: 9999, reads: 999, '
+                'planes: 9, opaque: 0, judged: 9, unresolved: 0 }, offenders: [] };',
         },
     },
     {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// boundary_gate.mjs — session 177. THE TAUTOLOGY THAT LIVES ON THE OTHER SIDE OF THE BRIDGE.
+// boundary_gate.mjs — session 177, widened in 178. THE TAUTOLOGY ON THE OTHER SIDE OF THE BRIDGE.
 //
 // 🔴 THE DEFECT THIS EXISTS FOR, IN FULL:
 //
@@ -25,6 +25,43 @@
 // reached, so by the time a hard-wired field is read, the literal the addon typed is the
 // only value it can possibly hold. The claim's two outcomes are "true" and "unreachable".
 //
+// ── 178: THE POPULATION HAD FOUR HOLES, AND THEY HELD FIVE LIVE TAUTOLOGIES ───────────
+//
+// 177 shipped this gate reading ONE dispatcher, ONE return spelling and ONE comparison
+// idiom, and printed `judged=78` as though that were the population. It was not.
+//
+//   H1  ONE DISPATCHER.  The addon has two. `runtime_bridge.gd` carries its own
+//       `_dispatch`, its own `_ok`/`_err`, and 22 registered tools resolve into it. Every
+//       comparison over a runtime reply landed in `unresolved` — printed, and printed is
+//       not judged. FOUR of 178's five defects were in there.
+//   H2  ONE RETURN SPELLING.  `"ping": return _ok(_ping())` names the WRAPPER, so the arm
+//       resolved to `_ok` — truthy, so the claim COUNTED AS JUDGED and could never be
+//       flagged. Five arms, one live claim. And twelve handlers build their reply one hop
+//       away, which the `_ok({…})` reader could not see at all (177 §10.2).
+//   H3  ONE COMPARISON IDIOM.  `x.f === lit` is the minority spelling: `test-integration/`
+//       writes `assert.equal(x.f, lit)` roughly as often, and it is the SAME claim.
+//   H4  NO CONDUITS.  `const inject = (event) => call("runtime_inject_input", {event})` is
+//       one hop from a comparison to a tool. 177 §10.18 declined to follow it for the
+//       verdict finder on a measurement of +3 sites and 0 defects. Here it is +1 defect.
+//
+// 🔴 AND WIDENING A POPULATION IS WHERE FALSE POSITIVES COME FROM, so three rules were
+// added at the same time, each of which stopped an invented defect:
+//
+//   ABSENCE IS NOT SAMENESS.  `_compare_images` returns `"reason": "dimension_mismatch"`
+//   on one `_ok` path and has NO `reason` key on the other. "Every occurrence is the same
+//   literal" answered yes; the field is still falsifiable, because `undefined` is the
+//   other outcome. A field must be present on EVERY reply path, not merely consistent
+//   wherever it appears. That alone would have invented a defect in runtime-screenshot.
+//
+//   AN UNREADABLE RETURN POISONS ITS WHOLE OPERATION.  `_asset_gen_placeholder` returns
+//   `_ok(desc)` where `desc` is a local dict built line by line. If some return paths of
+//   an operation cannot be read, no field of that operation can be called constant on
+//   "every" path — so the operation yields nothing and is counted as `opaque`.
+//
+//   A CONDUIT IS FOLLOWED ONLY IF IT THROWS.  `raw()` does not throw on `isError`, so
+//   `r.emitted === true` over a raw() receiver really does separate success from failure.
+//   Two conduits in the tree bottom out in a non-throwing helper; both stay unjudged.
+//
 // ── WHAT THIS GATE DOES NOT DO, AND WHY ──────────────────────────────────────────────
 //
 // 🔴 IT DOES NOT MATCH FIELDS BY NAME, BECAUSE THE FIRST DRAFT DID AND INVENTED SIX.
@@ -35,14 +72,15 @@
 // `.type` is hard-wired by `_shader_create` and derived by `_resource_load`, and matching
 // on the name alone cannot tell those apart.
 //
-// That is 175 §3's defect, committed again in 176 §5, and committed a third time here by
+// That is 175 §3's defect, committed again in 176 §5, and committed a third time in 177 by
 // the session that read both. **A lesson recorded in a handoff is a lesson about the past
 // tense** (176 §11.21). So every comparison is bound to the call that PRODUCED its
-// receiver — inline `(await call("t")).f`, or `const x = await call("t", …)` then `x.f` —
-// and the tool is resolved to a GDScript function through two real lookups:
+// receiver — inline `(await call("t")).f`, `const x = await call("t", …)` then `x.f`, or
+// one hop through a throwing conduit — and the tool is resolved to a GDScript function
+// through two real lookups:
 //
 //   tool name --registerTool's own call("<op>") argument--> op string
-//   op string --the addon's dispatcher, read from operations.gd--> _gd_function
+//   op string --the addon's dispatchers, read from the .gd--> _gd_function
 //
 // A comparison whose receiver does not resolve is NOT JUDGED and is counted separately.
 // Silence about what an instrument could not see is the thing every session since 170 has
@@ -59,24 +97,46 @@ import ts from "typescript";
 
 // fileURLToPath, not .pathname — the repo lives under "Godot MCP" (174 §10).
 const HOST = fileURLToPath(new URL("../", import.meta.url));
-const GD = join(HOST, "../addons/breakpoint_mcp/operations.gd");
+
+// 🔴 BOTH DISPATCHERS, NAMED. 177 read the first and called the result "the population".
+export const PLANES = ["operations.gd", "runtime_bridge.gd"];
+const GD = PLANES.map((f) => join(HOST, "../addons/breakpoint_mcp", f));
 
 // A value that cannot vary: a GDScript literal with no identifier and no call in it.
 const LITERAL = /^(true|false|-?\d+(\.\d+)?|"[^"]*")$/;
 
-// ─────────────────────────────────────────────────────────── the addon: dispatcher ──
+// The two wrappers every handler ends in. Neither is a handler.
+const WRAPPERS = new Set(["_ok", "_err"]);
+
+// ───────────────────────────────────────────────────────── the addon: dispatchers ──
 /**
  * `"filesystem.scan":` / `return _filesystem_scan(params)` — the addon's own match
  * statement, read rather than re-spelled. Exported so the self-test can drive it with a
  * source that has no file behind it.
+ *
+ * 🔴 THE ONE HOP (178, H2). Five arms are spelled `"ping": return _ok(_ping())`. The next
+ * line names `_ok`, which is the WRAPPER, and 177 recorded it as the handler: truthy, so
+ * the claim counted as JUDGED, and `_ok` has no fields, so it could never be flagged.
+ * Judged-but-unjudgeable is the worst reading an instrument can print. When the returned
+ * function is a wrapper, the handler is its first argument — and if that is not a call to
+ * a `_function` either, the arm resolves to NOTHING rather than to a guess.
  */
 export function dispatchMap(gdText) {
   const out = new Map();
   const lines = gdText.split("\n");
   for (let i = 0; i < lines.length - 1; i++) {
     const k = lines[i].match(/^\s*"([\w.]+)":\s*$/);
-    const v = lines[i + 1].match(/^\s*return (_\w+)\(/);
-    if (k && v) out.set(k[1], v[1]);
+    if (!k) continue;
+    const v = lines[i + 1].match(/^\s*return (_\w+)\(([\s\S]*)$/);
+    if (!v) continue;
+    let gd = v[1];
+    if (gd === "_ok") {
+      const inner = v[2].match(/^(_\w+)\(/);
+      if (!inner) continue;                 // `_ok({…})` inline, or `_ok(local)` — no handler to name
+      gd = inner[1];
+    }
+    if (WRAPPERS.has(gd)) continue;         // `return _err(...)` is not a reply builder
+    out.set(k[1], gd);
   }
   return out;
 }
@@ -98,49 +158,113 @@ function splitTop(body) {
     .map((m) => ({ key: m[1], val: m[2].trim() }));
 }
 
+/** Every `func name(...)` and the lines of its body, in source order. */
+function bodies(lines) {
+  const out = new Map();
+  let fn = null;
+  for (const l of lines) {
+    const f = l.match(/^func (\w+)\(/);
+    if (f) { fn = f[1]; out.set(fn, []); continue; }
+    if (fn) out.get(fn).push(l);
+  }
+  return out;
+}
+
+// The two reply-dict spellings, each in its one-line and its multi-line form.
+const OK_DICT = { one: /_ok\(\{(.*)\}\)/, open: /_ok\(\{\s*$/, close: /^\s*\}\)/ };
+const PLAIN_DICT = { one: /^\s*return \{(.*)\}\s*$/, open: /^\s*return \{\s*$/, close: /^\s*\}\s*$/ };
+
+/** Read every dict of one spelling out of a function body. */
+function dictsIn(body, spell) {
+  const out = [];
+  for (let i = 0; i < body.length; i++) {
+    const one = body[i].match(spell.one);
+    if (one) { out.push(splitTop(one[1])); continue; }
+    if (spell.open.test(body[i])) {
+      let j = i + 1, buf = "";
+      while (j < body.length && !spell.close.test(body[j])) { buf += body[j] + "\n"; j++; }
+      out.push(splitTop(buf));
+      i = j;
+    }
+  }
+  return out;
+}
+
 /**
  * Which response fields are an unconditional literal on EVERY return path of an operation?
  *
  * 🔴 "EVERY RETURN PATH" IS THE WHOLE TEST, and it is why this is not a grep. An operation
  * with two `_ok(...)` returns — one literal, one derived — has a field that CAN vary, and
- * a claim over it is honest. Only a field that is the same literal at every `_ok` and
- * derived at none cannot carry information. `_err` returns are irrelevant: they never
- * reach a comparison, because `call()` throws on them.
+ * a claim over it is honest. `_err` returns are irrelevant: they never reach a comparison,
+ * because `call()` throws on them.
+ *
+ * 178 adds the two ways "every" was being read too loosely, each of which invented a
+ * defect before it was written down:
+ *
+ *   🔴 ABSENCE IS NOT SAMENESS. A key that appears on one reply path with a literal and is
+ *   MISSING from another is not a constant — `undefined` is the second outcome, so the
+ *   claim can fail. `_compare_images.reason` is exactly this and was flagged before the
+ *   `seen === rets.length` clause below.
+ *
+ *   🔴 AN UNREADABLE RETURN POISONS THE WHOLE OPERATION. `_asset_gen_placeholder` returns
+ *   `_ok(desc)`, a dict assembled line by line. "Literal on every path" cannot be answered
+ *   when a path cannot be read, so such an operation yields NOTHING and is reported as
+ *   `opaque`. An under-reach that prints its own size beats a guess.
+ *
+ * Returns { fields, opaque } — `opaque` naming the operations whose replies it could not
+ * read, and `reads` counting the reply dicts it DID read, which is what RETURN_FLOOR pins.
  */
 export function hardwired(gdText) {
   const lines = gdText.split("\n");
-  const returns = new Map();
-  let fn = null;
-  for (let i = 0; i < lines.length; i++) {
-    const f = lines[i].match(/^func (_\w+)\(/);
-    if (f) { fn = f[1]; returns.set(fn, []); continue; }
-    if (!fn) continue;
-    const one = lines[i].match(/_ok\(\{(.*)\}\)/);
-    if (one) { returns.get(fn).push(splitTop(one[1])); continue; }
-    if (/_ok\(\{\s*$/.test(lines[i])) {              // the multi-line dict spelling
-      let j = i + 1, buf = "";
-      while (j < lines.length && !/^\s*\}\)/.test(lines[j])) { buf += lines[j] + "\n"; j++; }
-      returns.get(fn).push(splitTop(buf));
-      i = j;
-    }
-  }
-  const out = new Map();
-  for (const [op, rets] of returns) {
-    if (!rets.length) continue;
+  const body = bodies(lines);
+  const targets = new Set(dispatchMap(gdText).values());
+  const fields = new Map();
+  const opaque = [];
+  let reads = 0;
+
+  for (const [fn, lns] of body) {
+    if (!fn.startsWith("_")) continue;
+    const rets = dictsIn(lns, OK_DICT);
+    // 🔴 THE ONE HOP, on the return side: `return _ok(_main_screen_state())` builds the
+    // reply in a function one call away. Read ITS plain `return {…}` dicts as reply dicts.
+    const delegated = lns.map((l) => l.match(/return _ok\((_\w+)\(/)).filter(Boolean).map((m) => m[1]);
+    for (const b of delegated) rets.push(...dictsIn(body.get(b) ?? [], PLAIN_DICT));
+    // A dispatcher arm may name the builder itself (`"ping": return _ok(_ping())`), in
+    // which case the builder's own plain returns ARE the operation's replies.
+    if (!rets.length && targets.has(fn)) rets.push(...dictsIn(lns, PLAIN_DICT));
+    // 🔴 HOW MANY REPLY RETURNS COULD NOT BE READ. `_asset_gen_placeholder` has three
+    // `return _ok(descN)` paths and none of them is a dict this reader can see. "Literal
+    // on EVERY path" is unanswerable when a path is invisible, so the operation yields
+    // nothing rather than a claim about the paths that happened to be legible. Counted
+    // and printed, because an under-reach that states its own size is not silence.
+    const okReturns = lns.filter((l) => /return _ok\(/.test(l)).length;
+    const readable = dictsIn(lns, OK_DICT).length
+      + lns.filter((l) => /return _ok\(_\w+\(/.test(l))
+           .filter((l) => dictsIn(body.get(l.match(/return _ok\((_\w+)\(/)[1]) ?? [], PLAIN_DICT).length > 0).length;
+    if (okReturns > 0 && readable < okReturns) { opaque.push(fn); continue; }
+    // 🔴 AND AN ARM TARGET THAT YIELDED NOTHING AT ALL IS OPAQUE, NOT ABSENT.
+    // `_screenshot_diff` ends `return _compare_images(...)` — a THIRD delegation spelling,
+    // one this reader does not follow. Before this line it fell out of the loop silently
+    // and its reply fields simply did not exist as far as any number printed. An
+    // under-reach that is not counted is indistinguishable from coverage.
+    if (!rets.length) { if (targets.has(fn)) opaque.push(fn); continue; }
+    reads += rets.length;
+
     const seen = new Map();
     for (const r of rets) for (const { key, val } of r) {
-      const e = seen.get(key) ?? { lits: new Set(), derived: 0 };
+      const e = seen.get(key) ?? { lits: new Set(), derived: 0, n: 0 };
       LITERAL.test(val) ? e.lits.add(val) : e.derived++;
+      e.n++;
       seen.set(key, e);
     }
-    const fields = new Map();
-    for (const [k, e] of seen) if (e.derived === 0 && e.lits.size === 1) fields.set(k, [...e.lits][0]);
-    if (fields.size) out.set(op, fields);
+    const f = new Map();
+    for (const [k, e] of seen) if (e.derived === 0 && e.lits.size === 1 && e.n === rets.length) f.set(k, [...e.lits][0]);
+    if (f.size) fields.set(fn, f);
   }
-  return out;
+  return { fields, opaque, reads };
 }
 
-// ───────────────────────────────────────────────────── the host: tool -> op string ──
+// ─────────────────────────────────────────── the host: tool -> op string ──
 /**
  * `server.registerTool("filesystem_scan", …, async () => call("filesystem.scan"))`.
  *
@@ -176,25 +300,97 @@ export function toolOps(sources) {
   return out;
 }
 
-// ──────────────────────────────────────────── the probes: comparisons, receiver-bound ──
-const down = (e) => { let v = e; while (ts.isAwaitExpression(v) || ts.isParenthesizedExpression(v)) v = v.expression; return v; };
-const toolOf = (e) => {
-  const d = down(e);
-  if (ts.isCallExpression(d)) {
-    const a = d.arguments[0];
-    if (a && ts.isStringLiteralLike(a)) return a.text;
+// ──────────────────────────────────────────────── the probes: conduits (178, H4) ──
+/**
+ * `const inject = (event) => call("runtime_inject_input", { event, confirm: true })` —
+ * one hop between a comparison and the tool that produced its receiver. 177 §3 measured
+ * this exact shape for the verdict finder and declined to follow it on +3 sites and 0
+ * defects; here it is worth one real defect, so it is followed.
+ *
+ * 🔴 BUT ONLY THROUGH A HELPER THAT THROWS ON `isError`, AND THAT IS THE WHOLE SAFETY
+ * ARGUMENT. The tautology exists because `call()` throws, so the error paths never reach
+ * the comparison. `raw()` does NOT throw: over a raw() receiver, `r.emitted === true`
+ * really does separate success from failure, and flagging it would be an invented defect.
+ * Two conduits in this tree bottom out in a non-throwing helper. Both stay unjudged.
+ *
+ * One hop, one file, and exactly one string-literal call inside the body — a helper that
+ * reaches two tools is dropped, for the same reason an ambiguous registration is.
+ */
+export function conduits(file, text) {
+  const s = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true,
+    /\.ts$/.test(file) ? ts.ScriptKind.TS : ts.ScriptKind.JS);
+  const bodyOf = new Map();
+  const collect = (n) => {
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer
+        && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer)))
+      bodyOf.set(n.name.text, n.initializer.body);
+    if (ts.isFunctionDeclaration(n) && n.name && n.body) bodyOf.set(n.name.text, n.body);
+    ts.forEachChild(n, collect);
+  };
+  collect(s);
+
+  const throwers = new Set();
+  for (const [name, body] of bodyOf) {
+    let t = false;
+    const f = (m) => { if (ts.isThrowStatement(m) && /isError/.test(body.getText(s))) t = true; ts.forEachChild(m, f); };
+    f(body);
+    if (t) throwers.add(name);
   }
-  return null;
+  const out = new Map();
+  for (const [name, body] of bodyOf) {
+    if (throwers.has(name)) continue;
+    const hits = [];
+    const f = (m) => {
+      if (ts.isCallExpression(m) && ts.isIdentifier(m.expression)) {
+        const a = m.arguments[0];
+        if (a && ts.isStringLiteralLike(a)) hits.push({ callee: m.expression.text, tool: a.text });
+      }
+      ts.forEachChild(m, f);
+    };
+    f(body);
+    if (hits.length === 1 && throwers.has(hits[0].callee)) out.set(name, hits[0].tool);
+  }
+  return out;
+}
+
+// ─────────────────────────────────── the probes: comparisons, receiver-bound ──
+const down = (e) => {
+  let v = e;
+  while (ts.isAwaitExpression(v) || ts.isParenthesizedExpression(v) || ts.isNonNullExpression(v)) v = v.expression;
+  return v;
 };
+// `r.structuredContent.path` and `r.sc.path` are the SAME claim as `r.path` — the host
+// envelope, not a field the addon wrote. Strip it so the receiver is the tool call again.
+const ENVELOPE = ["structuredContent", "sc", "result"];
+const strip = (e) => { let v = e; while (ts.isPropertyAccessExpression(v) && ENVELOPE.includes(v.name.text)) v = v.expression; return v; };
 
 /**
- * Every `<receiver>.<field> === <literal>` in one source, with the receiver resolved back
- * to the tool call that produced it. `resolved: null` means "not judged" and is reported.
+ * Every `<receiver>.<field> === <literal>` AND every `assert.equal(<receiver>.<field>,
+ * <literal>)` in one source, with the receiver resolved back to the tool call that
+ * produced it. `tool: null` means "not judged" and is counted and printed.
+ *
+ * 🔴 THE SECOND IDIOM IS NOT A CONVENIENCE (178, H3). 177 shipped reading `===` only and
+ * printed the result as the population. `test-integration/` writes `assert.equal(x.f, lit)`
+ * about as often as it writes `===`, and it is the same claim about the same reply — four
+ * of 178's five defects are spelled that way and none of them was visible.
  */
-export function comparisons(file, text) {
+export function comparisons(file, text, conduit = new Map()) {
   const s = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true,
     /\.ts$/.test(file) ? ts.ScriptKind.TS : ts.ScriptKind.JS);
   const lines = text.split("\n");
+  const toolOf = (e) => {
+    const d = down(e);
+    if (ts.isCallExpression(d)) {
+      // 🔴 THE CONDUIT IS CHECKED FIRST, AND THE SELF-TEST IS WHY. `rm("Host/Thing")` and
+      // `read("bound_strength")` are conduits whose first argument is a string that is NOT
+      // a tool name — taking it as one resolved the receiver to a tool nothing registers,
+      // which fails CLOSED (unjudged) and so would never have shown up as a red gate.
+      if (ts.isIdentifier(d.expression) && conduit.has(d.expression.text)) return conduit.get(d.expression.text);
+      const a = d.arguments[0];
+      if (a && ts.isStringLiteralLike(a)) return a.text;
+    }
+    return null;
+  };
   const bound = new Map();
   const bind = (n) => {
     if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
@@ -206,23 +402,29 @@ export function comparisons(file, text) {
   bind(s);
 
   const out = [];
+  const isLit = (b) => b.kind === ts.SyntaxKind.TrueKeyword || b.kind === ts.SyntaxKind.FalseKeyword
+    || ts.isNumericLiteral(b) || ts.isStringLiteralLike(b);
+  const push = (node, acc, litNode, idiom) => {
+    const recv = strip(down(acc.expression));
+    const line = s.getLineAndCharacterOfPosition(node.getStart(s)).line;
+    out.push({
+      file, line: line + 1, field: acc.name.text,
+      lit: litNode.getText(s).replace(/^["']|["']$/g, ""),
+      tool: toolOf(recv) ?? (ts.isIdentifier(recv) ? bound.get(recv.text) ?? null : null),
+      text: lines[line].trim(), idiom,
+    });
+  };
   const visit = (n) => {
     if (ts.isBinaryExpression(n)
         && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken].includes(n.operatorToken.kind)) {
       for (const [a, b] of [[n.left, n.right], [n.right, n.left]]) {
-        if (!ts.isPropertyAccessExpression(a)) continue;
-        const isLit = b.kind === ts.SyntaxKind.TrueKeyword || b.kind === ts.SyntaxKind.FalseKeyword
-          || ts.isNumericLiteral(b) || ts.isStringLiteralLike(b);
-        if (!isLit) continue;
-        const recv = a.expression;
-        const tool = toolOf(recv) ?? (ts.isIdentifier(recv) ? bound.get(recv.text) ?? null : null);
-        const line = s.getLineAndCharacterOfPosition(n.getStart(s)).line;
-        out.push({
-          file, line: line + 1, field: a.name.text,
-          lit: b.getText(s).replace(/^["']|["']$/g, ""),
-          tool, text: lines[line].trim(),
-        });
+        const acc = down(a);
+        if (ts.isPropertyAccessExpression(acc) && isLit(b)) push(n, acc, b, "===");
       }
+    }
+    if (ts.isCallExpression(n) && /(^|\.)(equal|strictEqual)$/.test(n.expression.getText(s)) && n.arguments.length >= 2) {
+      const acc = down(n.arguments[0]);
+      if (ts.isPropertyAccessExpression(acc) && isLit(n.arguments[1])) push(n, acc, n.arguments[1], "assert");
     }
     ts.forEachChild(n, visit);
   };
@@ -257,19 +459,26 @@ function walk(abs, rel = "", re = /\.(mjs|ts)$/) {
   return out;
 }
 
-// 🔴 FOUR FLOORS, BECAUSE THERE ARE FOUR WAYS THIS COLLAPSES INTO A GREEN LIE, and each
-// one alone leaves the other three reporting a clean tree. Measured on the tree this ships
-// with, then set below the measurement — a floor at the exact reading reddens on the next
-// honest edit, and a gate that reds on good work gets deleted.
+// 🔴 SIX FLOORS, BECAUSE THERE ARE SIX WAYS THIS COLLAPSES INTO A GREEN LIE, and each one
+// alone leaves the others reporting a clean tree. Measured on the tree this ships with,
+// then set below the measurement — a floor at the exact reading reddens on the next honest
+// edit, and a gate that reds on good work gets deleted.
 //
-//   CONST  `hardwired()` stops recognising `_ok({...})`      -> 0 constants, 0 offenders
-//   OP     `dispatchMap()` stops recognising the match arms  -> no tool resolves, 0 offenders
-//   TOOL   `toolOps()` stops recognising `registerTool`      -> no tool resolves, 0 offenders
-//   SITE   `comparisons()` stops recognising `x.f === lit`   -> 0 sites, 0 offenders
-export const CONST_FLOOR = 14;   // measured 17 fields across 17 operations
-export const OP_FLOOR = 140;     // measured 155 dispatcher arms
-export const TOOL_FLOOR = 150;   // measured 170 tools resolved to exactly one operation
-export const SITE_FLOOR = 800;   // measured 953 literal comparisons in the walked tree
+//   CONST   `hardwired()` stops recognising `_ok({...})`      -> 0 constants, 0 offenders
+//   OP      `dispatchMap()` stops recognising the match arms  -> no tool resolves
+//   TOOL    `toolOps()` stops recognising `registerTool`      -> no tool resolves
+//   SITE    `comparisons()` stops recognising the idioms      -> 0 sites, 0 offenders
+//   RETURN  🆕 the reply-dict READER goes quiet. 177 §10.2's hole exactly: CONST_FLOOR
+//           counts fields FOUND, not returns READ, so dropping the multi-line `_ok({`
+//           spelling loses twelve returns and every floor above stays green.
+//   PLANE   🆕 a dispatcher file stops resolving. 177 read one of the two and called the
+//           result the population; nothing would have reddened if it had read zero.
+export const CONST_FLOOR = 20;    // measured 25 fields across both planes
+export const OP_FLOOR = 150;      // measured 177 dispatcher arms across both planes
+export const TOOL_FLOOR = 150;    // measured 171 tools resolved to exactly one operation
+export const SITE_FLOOR = 1500;   // measured 1816 literal comparisons in the walked tree
+export const RETURN_FLOOR = 150;  // measured 187 reply dicts actually read
+export const PLANE_FLOOR = 2;     // operations.gd and runtime_bridge.gd
 
 /**
  * 🔴 THE COLLAPSE TEST, EXTRACTED AS A PURE FUNCTION — 176 §8's G12 shape. Pinning a
@@ -287,13 +496,16 @@ export function judge(pop, offenders) {
   const say = (s) => out.lines.push(s);
   say(`BOUNDARY_GATE consts=${pop.consts}/${CONST_FLOOR} ops=${pop.ops}/${OP_FLOOR} `
     + `tools=${pop.tools}/${TOOL_FLOOR} sites=${pop.sites}/${SITE_FLOOR} `
-    + `unresolved=${pop.unresolved} judged=${pop.judged} offenders=${offenders.length}`);
+    + `reads=${pop.reads}/${RETURN_FLOOR} planes=${pop.planes}/${PLANE_FLOOR} `
+    + `opaque=${pop.opaque} unresolved=${pop.unresolved} judged=${pop.judged} offenders=${offenders.length}`);
 
   for (const [what, n, floor, why] of [
-    ["CONSTS", pop.consts, CONST_FLOOR, "operations.gd stopped yielding hard-wired fields — the `_ok({…})` reader no longer matches"],
-    ["OPS", pop.ops, OP_FLOOR, "the addon's dispatcher stopped resolving — no reply can be traced to the function that built it"],
+    ["CONSTS", pop.consts, CONST_FLOOR, "the addon stopped yielding hard-wired fields — the `_ok({…})` reader no longer matches"],
+    ["OPS", pop.ops, OP_FLOOR, "a dispatcher stopped resolving — no reply can be traced to the function that built it"],
     ["TOOLS", pop.tools, TOOL_FLOOR, "registerTool stopped resolving to an operation string — every comparison becomes unjudgeable"],
     ["SITES", pop.sites, SITE_FLOOR, "no comparison against a literal was found at all — the finder, not the tree, went quiet"],
+    ["RETURNS", pop.reads, RETURN_FLOOR, "the reply-dict reader went quiet — a spelling it used to handle is now invisible, and no other floor can see that"],
+    ["PLANES", pop.planes, PLANE_FLOOR, "an addon dispatcher file stopped being read — 177 read one of two and printed the result as the population"],
   ]) {
     if (collapsed(n, floor)) {
       say(`🔴 BOUNDARY_${what}_COLLAPSE ${n} < ${floor} — ${why}.`);
@@ -306,28 +518,33 @@ export function judge(pop, offenders) {
     out.failed = true;
     say(`\n🔴 BOUNDARY_TAUTOLOGY ${d.file}:${d.line}`);
     say(`   ${d.text}`);
-    say(`   ${d.tool} -> ${d.op} -> ${d.gd}, and .${d.field} is ${d.lit} on EVERY return path`);
-    say(`   of that operation. call() throws on isError, so every other path escapes before`);
-    say(`   this line — the literal the addon typed is the only value this can hold. The`);
-    say(`   claim has two outcomes: "true", and "never reached". Assert something DERIVED`);
-    say(`   (a field the operation computes, or a read-back from the engine), or assert the`);
-    say(`   response SHAPE and write down that the value is a documented constant.`);
+    say(`   ${d.tool} -> ${d.op} -> ${d.gd} (${d.plane}), and .${d.field} is ${d.lit} on EVERY`);
+    say(`   return path of that operation. call() throws on isError, so every other path`);
+    say(`   escapes before this line — the literal the addon typed is the only value this`);
+    say(`   can hold. The claim has two outcomes: "true", and "never reached". Assert`);
+    say(`   something DERIVED (a field the operation computes, or a read-back from the`);
+    say(`   engine), or assert the response SHAPE and write down that it is a constant.`);
   }
 
   say(out.failed ? `\nBOUNDARY_GATE 🔴 FAILED` : `BOUNDARY_GATE ok — ${pop.judged} judged claim(s), none compared against a constant`);
   return out;
 }
 
-export function scan(host = HOST, gdPath = GD) {
-  const gdText = readFileSync(gdPath, "utf8");
-  const dispatch = dispatchMap(gdText);
-  const consts = hardwired(gdText);
+export function scan(host = HOST, gdPaths = GD) {
+  const paths = Array.isArray(gdPaths) ? gdPaths : [gdPaths];
+  const planes = [];
+  for (const p of paths) {
+    const text = readFileSync(p, "utf8");
+    const { fields, opaque, reads } = hardwired(text);
+    planes.push({ name: p.split("/").pop(), dispatch: dispatchMap(text), fields, opaque, reads });
+  }
   const tools = toolOps(walk(host, "src", /\.ts$/).map((f) => [f, readFileSync(join(host, f), "utf8")]));
 
   const sites = [];
   for (const f of walk(host)) {
     if (f.startsWith("src/")) continue;          // the registrations, not a claim site
-    sites.push(...comparisons(f, readFileSync(join(host, f), "utf8")));
+    const text = readFileSync(join(host, f), "utf8");
+    sites.push(...comparisons(f, text, conduits(f, text)));
   }
 
   const offenders = [];
@@ -335,19 +552,23 @@ export function scan(host = HOST, gdPath = GD) {
   for (const c of sites) {
     if (!c.tool) { unresolved++; continue; }
     const op = tools.get(c.tool) ?? (c.tool.includes(".") ? c.tool : null);
-    const gd = op ? dispatch.get(op) : null;
-    if (!gd) { unresolved++; continue; }
+    const plane = op ? planes.find((p) => p.dispatch.has(op)) : null;
+    if (!plane) { unresolved++; continue; }
     judged++;
-    const fields = consts.get(gd);
+    const gd = plane.dispatch.get(op);
+    const fields = plane.fields.get(gd);
     if (!fields || !fields.has(c.field)) continue;
     if (fields.get(c.field).replace(/^"|"$/g, "") !== c.lit) continue;
-    offenders.push({ ...c, op, gd, lit: fields.get(c.field) });
+    offenders.push({ ...c, op, gd, lit: fields.get(c.field), plane: plane.name });
   }
 
-  let constCount = 0;
-  for (const m of consts.values()) constCount += m.size;
+  let consts = 0, ops = 0, reads = 0, opaque = 0;
+  for (const p of planes) {
+    for (const m of p.fields.values()) consts += m.size;
+    ops += p.dispatch.size; reads += p.reads; opaque += p.opaque.length;
+  }
   return {
-    pop: { consts: constCount, ops: dispatch.size, tools: tools.size, sites: sites.length, judged, unresolved },
+    pop: { consts, ops, tools: tools.size, sites: sites.length, reads, opaque, planes: planes.length, judged, unresolved },
     offenders,
   };
 }
@@ -363,8 +584,8 @@ export function scan(host = HOST, gdPath = GD) {
 // Both halves now take their input as a parameter, so both are reachable from the
 // self-test: `report()` with a hand-built verdict, and `run()` against a fixture that
 // contains a real offender.
-export function run(host = HOST, gdPath = GD) {
-  const { pop, offenders } = scan(host, gdPath);
+export function run(host = HOST, gdPaths = GD) {
+  const { pop, offenders } = scan(host, gdPaths);
   return judge(pop, offenders);
 }
 
