@@ -18,6 +18,7 @@
 import {
   inspect, judge, scan, claimCallees, regionsOf, sectionBoundary,
   FILES_FLOOR, SEAL_FLOOR, CLAIM_SITE_FLOORS, NOT_A_PROBE, ANNOUNCED_REGIONS_FLOOR,
+  markerList, MARKER_HEADER_FILES_FLOOR, HEADER_FAMILY_FLOOR,
 } from "./seal_order_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -28,14 +29,14 @@ const claim = (cond, what) => {
 // 🔴 NAMED AND PINNED, for 176's reason, carried: a bare `if (ran < 40)` is read by one
 // branch and asserted by nothing, so the collapse detector can be switched off without a
 // single case noticing. This is the floor that protects the floors.
-const CLAIM_FLOOR = 80;
+const CLAIM_FLOOR = 95;
 
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 // Judge one hand-written source with every floor relaxed, so a case fails for its own
 // reason rather than for the roster's size.
 const J = (text, opts = {}) => judge([inspect("probe.integration.mjs", text)], {
   filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 }, roster: {},
-  announcedFloor: 0, ...opts,
+  announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, ...opts,
 });
 
 // ── 1. THE FINDER, WHICH IS THE HALF THAT HAD TO BE MEASURED ─────────────────────────
@@ -273,13 +274,13 @@ claim(said(judge(live, { filesFloor: live.length + 1 }), "SEAL_ORDER_ROSTER_COLL
 const liveSeals = live.reduce((n, f) => n + f.seals.length, 0);
 claim(judge(live, { sealFloor: liveSeals + 1 }).failed === true,
   "🔴 as does a seal floor above the seals found — every file present with a finder matching a fraction of them");
-claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {}, announcedFloor: 0 }).failed === false,
+claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {}, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === false,
   "and an empty population with floors of zero is not a failure — the floors are what make it one");
 // 🔴 WRITTEN WITHOUT `roster: {}` FIRST AND CAUGHT ITSELF ON THE FIRST RUN. The default
 // roster excuses one real file, so an EMPTY population makes that entry dead — the gate
 // was right and the case was wrong. Kept as a case, because it is the interaction the
 // two checks have with each other and nothing else asserts it.
-claim(judge([], { filesFloor: 0, sealFloor: 0, announcedFloor: 0 }).failed === true,
+claim(judge([], { filesFloor: 0, sealFloor: 0, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === true,
   "an empty population with the SHIPPED roster is a failure — every exemption in it is dead");
 
 // 🔴 THE COVERAGE FLOOR, WHICH IS THE ONE THIS SESSION ADDED AND THE ONE THE OTHER TWO
@@ -305,16 +306,16 @@ claim(said(judge(live, { announcedFloor: 10_000 }), "SEAL_ORDER_COVERAGE_COLLAPS
 // every other check in this file.
 const UNREADABLE = `population.seal("A", "ok");\n`;
 claim(judge([inspect("probe.integration.mjs", UNREADABLE)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {}, announcedFloor: 0 }).failed === true,
+  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {}, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === true,
   "🔴 a file whose claim idiom the finder cannot read is a FAILURE, not a clean file");
 claim(said(judge([inspect("probe.integration.mjs", UNREADABLE)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {}, announcedFloor: 0 }), "SEAL_ORDER_UNREADABLE"),
+  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {}, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }), "SEAL_ORDER_UNREADABLE"),
   "and it is named as an unreadable idiom rather than as zero offenders");
 claim(judge([inspect("probe.integration.mjs", CLEAN)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {}, announcedFloor: 0 }).failed === true,
+  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {}, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === true,
   "🔴 and a sealing file with NO floor entry at all fails — a new probe must declare what to find in it");
 claim(said(judge([inspect("probe.integration.mjs", CLEAN)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {}, announcedFloor: 0 }), "SEAL_ORDER_UNFLOORED"), "named UNFLOORED");
+  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {}, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }), "SEAL_ORDER_UNFLOORED"), "named UNFLOORED");
 
 // Every live file is floored, and every floor is under what the finder actually finds.
 for (const f of live) {
@@ -332,23 +333,23 @@ claim(said(judge(live, { roster: { "no-such-file.mjs": "why" } }), "SEAL_ORDER_R
 
 const cleanFile = inspect("probe.integration.mjs", CLEAN);
 claim(judge([cleanFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-  roster: { "probe.integration.mjs": "excused" }, announcedFloor: 0 }).failed === true,
+  roster: { "probe.integration.mjs": "excused" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === true,
   "🔴 an exemption for a file that trips NOTHING is a failure — a decision that stopped being one");
 claim(said(judge([cleanFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-  roster: { "probe.integration.mjs": "excused" }, announcedFloor: 0 }), "SEAL_ORDER_ROSTER_STALE"), "named ROSTER_STALE");
+  roster: { "probe.integration.mjs": "excused" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }), "SEAL_ORDER_ROSTER_STALE"), "named ROSTER_STALE");
 
 // 🔴 AND STALENESS IS JUDGED ON BOTH RULES, WHICH THE FIRST DRAFT GOT WRONG. A file that
 // trips only the UNANNOUNCED rule is still earning its exemption; reading only the shape
 // rule would have called it stale and told a maintainer to delete a live entry.
 claim(judge([inspect("probe.integration.mjs", UNANNOUNCED)],
   { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0 }).failed === false,
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === false,
   "🔴 an exemption earned by the SECOND rule alone is not stale");
 
 const dirtyFile = inspect("probe.integration.mjs", TRAILING);
 {
   const r = judge([dirtyFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0 });
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 });
   claim(r.failed === false, "an EARNED exemption suppresses the failure");
   claim(said(r, "exempt  probe.integration.mjs"),
     "🔴 and prints the excused file with its reason — an exemption nobody sees is an exemption nobody re-reads");
@@ -359,6 +360,67 @@ claim(Object.keys(NOT_A_PROBE).length === 1 && NOT_A_PROBE["_population.selftest
 claim(NOT_A_PROBE["_population.selftest.mjs"].length > 80,
   "and the reason is prose a reviewer can disagree with, not a word");
 
+// ── 4b. THE MARKER LIST, AND THE ASYMMETRY IS THE POINT ──────────────────────────────
+// 🔴 THE CASE THAT DECIDED THE RULE'S SHAPE IS THE ONE THAT MUST **NOT** FIRE. 186 §8
+// compared the grep-able header and the `Population` manifest as sets and reported zero
+// of six agreeing; 187 re-measured and every "phantom" turned out to be a line the probe
+// really prints. An equality rule would have demanded sixteen deletions of accurate
+// documentation. So: a family missing from the header is a failure, a header token that
+// is printed but is not a family is FINE, and a token that appears nowhere is a phantom.
+const MARKED = `
+// Markers (grep-able): P_PING / _ALPHA / _BETA / _RESULT.
+const population = new Population("P", {
+  families: [
+    "P_ALPHA", "P_BETA",
+  ],
+  scope: 2,
+});
+const assert = population.assert;
+console.log("P_PING ok");
+assert.ok(true);
+population.seal("P_ALPHA", "ok");
+
+// the second section
+assert.ok(true);
+population.seal("P_BETA", "ok");
+console.log("P_RESULT done");
+`;
+claim(J(MARKED).failed === false,
+  "🔴 a header listing two families plus a printed PING and RESULT is CLEAN — the header is a superset by design");
+claim(said(J(MARKED), "SEAL_ORDER_MARKERS"), "and the marker population is printed on a green run, not only on a red one");
+
+// `_PING` and `_RESULT` are excluded by being FINDABLE, not by a roster — so deleting the
+// line that prints one turns it into a phantom, which is the whole design in one case.
+const PHANTOM = MARKED.replace('console.log("P_PING ok");', "");
+claim(J(PHANTOM).failed === true,
+  "🔴 a header token that appears NOWHERE below the header is a phantom — no _PING roster, it is derived");
+claim(said(J(PHANTOM), "MARKER_PHANTOM"), "named MARKER_PHANTOM");
+
+const UNLISTED_FAMILY = MARKED.replace('"P_ALPHA", "P_BETA",', '"P_ALPHA", "P_BETA", "P_GAMMA",')
+  .replace('population.seal("P_BETA", "ok");', 'population.seal("P_BETA", "ok");\nassert.ok(true);\npopulation.seal("P_GAMMA", "ok");');
+claim(J(UNLISTED_FAMILY).failed === true,
+  "🔴 a family in the manifest and absent from the header is a section a reader greps for and does not find");
+claim(said(J(UNLISTED_FAMILY), "MARKER_UNLISTED"), "named MARKER_UNLISTED");
+
+// A file with no header is NOT a failure — it is the coverage this rule does not have,
+// and the floor below is the only thing that notices the population shrinking.
+claim(J(CLEAN).failed === false, "a sealing file carrying no grep-able header is out of scope, not in violation");
+claim(judge(live, { headerFilesFloor: 10_000 }).failed === true,
+  "🔴 a header-coverage floor above the files that carry one is a failure — 186 §6's one-sided floor, paid on the way in");
+claim(said(judge(live, { headerFilesFloor: 10_000 }), "MARKER_COVERAGE_COLLAPSE"), "named MARKER_COVERAGE_COLLAPSE");
+claim(judge(live, { headerFamilyFloor: 10_000 }).failed === true,
+  "🔴 and every header present with the manifests emptied is the collapse a FILE count cannot see");
+claim(said(judge(live, { headerFamilyFloor: 10_000 }), "MARKER_FAMILY_COLLAPSE"), "named MARKER_FAMILY_COLLAPSE");
+{
+  const carrying = live.filter((f) => f.markers !== null);
+  claim(carrying.length >= MARKER_HEADER_FILES_FLOOR,
+    `${carrying.length} live file(s) carry a grep-able header, floor is ${MARKER_HEADER_FILES_FLOOR}`);
+  claim(carrying.length < live.length,
+    "🔴 and the blind spot is NOT empty on the live tree — a rule with no measured gap is a rule nobody checked");
+  claim(carrying.some((f) => f.markers.listed.some((m) => !f.markers.declared.includes(m))),
+    "🔴 the live tree really does list markers that are not families — the case this rule refuses to call a defect");
+}
+
 // ── 5. THE SHIPPED VALUES, PINNED ────────────────────────────────────────────────────
 // 🔴 180 §7.3 / `floor_pin_gate.py`: a floor read by one branch and named by no claim is a
 // literal anyone can move. Pinning the KEY is not pinning the VALUE — 184 §7 paid that
@@ -367,7 +429,9 @@ claim(FILES_FLOOR === 10, `the shipped file floor is 10, not ${FILES_FLOOR}`);
 claim(SEAL_FLOOR === 95, `the shipped seal floor is 95, not ${SEAL_FLOOR}`);
 claim(Object.keys(CLAIM_SITE_FLOORS).length === 11, `eleven per-file floors ship, not ${Object.keys(CLAIM_SITE_FLOORS).length}`);
 claim(ANNOUNCED_REGIONS_FLOOR === 80, `the shipped coverage floor is 80, not ${ANNOUNCED_REGIONS_FLOOR}`);
-claim(CLAIM_FLOOR === 80, `the shipped claim floor is 80, not ${CLAIM_FLOOR}`);
+claim(MARKER_HEADER_FILES_FLOOR === 6, `the shipped marker-header coverage floor is 6, not ${MARKER_HEADER_FILES_FLOOR}`);
+claim(HEADER_FAMILY_FLOOR === 55, `the shipped header-family floor is 55, not ${HEADER_FAMILY_FLOOR}`);
+claim(CLAIM_FLOOR === 95, `the shipped claim floor is 95, not ${CLAIM_FLOOR}`);
 
 console.log(`\nSEAL_ORDER_SELFTEST ${ran - bad}/${ran} claims`);
 if (bad) { console.log(`🔴 SEAL_ORDER_SELFTEST FAILED — ${bad} of ${ran}`); process.exit(1); }

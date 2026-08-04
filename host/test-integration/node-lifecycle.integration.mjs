@@ -42,7 +42,8 @@
 //     proved by a node the probe itself parented under the payload.
 //
 // Markers (grep-able): NODE_LIVE_PING / _FIXTURE / _ADD_ERRORS / _TYPE / _AUTONAME /
-// _SCENE / _NESTED / _REMOVE_ERRORS / _ROOT_GUARD / _SUBTREE / _PRISTINE / _RESULT.
+// _SCENE / _NESTED / _REMOVE_ERRORS / _ROOT_GUARD / _SUBTREE / _NO_LEAK / _PRISTINE /
+// _RESULT.
 //
 // Requires res://tests/node_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads a

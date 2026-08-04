@@ -6,6 +6,58 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the two lists that were never the same list
+
+186 §8 asked 185's one-rule-two-spellings question of these probes and reported the answer
+as a defect class: six of the eleven sealing files print their markers in a grep-able
+header comment **and** declare them in the `Population` manifest, and **zero of six
+agreed** — eight families missing from a header, five markers "advertised that are not
+families", three of them called the residue of 184's own fix.
+
+🔴 **187 re-measured before writing the rule, and the second measurement killed the
+first.** `host/_to_delete/markerspike187.mjs` classified every header token on the axis
+that matters to a reader — *does grepping for it find anything?*
+
+```
+family AND printed                                              59
+printed, deliberately NOT a family (_PING, _RESULT, …)          16
+🔴 PHANTOM — in the header, neither a family nor in the file      0
+🔴 FAMILY ABSENT FROM ITS OWN HEADER                              2
+```
+
+Every "phantom" is a real, greppable line. `F6_PEERS_SPAWN`, `F6_PEERS_FROZEN`,
+`F6_PEERS_CONVERGE`, `NODE_LIVE_SCENE` and `RENDER_LIVE_SCENE` are all printed by their own
+probes. **The header is *what a reader can grep for* and the manifest is *what is sealed as
+a family*, and the header is a superset by design.** The equality rule 186 named would have
+demanded sixteen deletions of accurate documentation, or sixteen fake families to make a
+classifier happy.
+
+So the rule shipped is **asymmetric**, and it is a third rule in `seal_order_gate.mjs`
+rather than a new gate — same population, same instrument, and **no new CI step**:
+
+- **`MARKER_UNLISTED`** — every family in the manifest must appear in the header. Two did
+  not: `ANIM_LIVE_LEFT_CLEAN` and `NODE_LIVE_NO_LEAK`, each a whole section a reader greps
+  the documented list for and does not find. Both headers corrected.
+- **`MARKER_PHANTOM`** — every token in the header must be findable in the file below it.
+  **Measured at zero and shipped anyway**, because it is what excludes `_PING` and
+  `_RESULT` *by construction* rather than by a roster — 186's own instruction, and 174 §5's
+  reason: an exclusion that costs nothing to write is an exclusion nobody re-reads.
+
+**And its coverage is floored on the way in**, for the second session running.
+`MARKER_HEADER_FILES_FLOOR = 6` of eleven — five sealing files carry no header and this
+rule reads nothing in them, so a probe that *deletes* its header does not fail the rule, it
+removes itself from it. `HEADER_FAMILY_FLOOR = 55` catches the other half of the same
+collapse: every header still present with the manifests emptied. Both are swept by
+`floor_pin_gate.py` (41 → **43** targets) rather than exempted, because their runner is a
+self-test that touches nothing.
+
+The self-test grows 85 → **101 claims**, and the case that decided the rule's shape is the
+one that must **not** fire: a header listing two families plus a printed `_PING` and
+`_RESULT` is clean. Deleting the line that prints `_PING` turns it into a phantom — which
+is the entire design, stated as one case. Reverse sweep **pass=8 fail=0
+declared-green=0**, two of them un-fixing the two corrected headers so the edits are pinned
+by something that runs rather than by a reviewer's memory.
+
 ### Added — the checks that had never once been allowed to fail
 
 182 §11.3 asked what `CHECKS_RUN 20/20` actually proves, and it stayed open for four

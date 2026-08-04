@@ -85,6 +85,53 @@ export const SEAL_FLOOR = 95;
 // on the tree this ships with.
 export const ANNOUNCED_REGIONS_FLOOR = 80;
 
+// ── THE THIRD RULE (187) — THE HEADER LIST A READER GREPS ────────────────────────────
+//
+// 🔴 186 §8 ASKED THE ONE-RULE-TWO-SPELLINGS QUESTION OF THESE FILES AND GOT AN ANSWER
+// THAT WAS WRONG, AND THE WAY IT WAS WRONG IS THE REASON THIS RULE IS ONE-DIRECTIONAL.
+// Six of the eleven sealing probes print their markers in a grep-able header comment AND
+// declare them in the `Population` manifest, and 186 compared the two as SETS: 6 files
+// carrying a header, ZERO agreeing, 8 families missing and 5 markers "advertised that are
+// not families", three of them called the residue of 184's own fix.
+//
+// 187 re-measured before writing the rule (`host/_to_delete/markerspike187.mjs`) and the
+// second measurement killed the first:
+//
+//   family AND printed                                       59
+//   printed, deliberately NOT a family (_PING, _RESULT, …)    16
+//   🔴 PHANTOM — in the header, neither a family nor in the file at all       0
+//   🔴 FAMILY ABSENT FROM ITS OWN HEADER                                      2
+//
+// Every one of the "phantoms" is a real, greppable line: `F6_PEERS_SPAWN`,
+// `F6_PEERS_FROZEN`, `F6_PEERS_CONVERGE`, `NODE_LIVE_SCENE` and `RENDER_LIVE_SCENE` are
+// all printed by their own probes. THE TWO LISTS WERE NEVER THE SAME LIST — the header is
+// *what a reader can grep for* and the manifest is *what is sealed as a family*, and the
+// header is a superset by design. An equality rule would have demanded sixteen deletions
+// of accurate documentation, or sixteen fake families to make a classifier happy (184
+// §30's shape).
+//
+// So the rule is asymmetric, and each half is worth exactly what it catches:
+//
+//   MARKER_UNLISTED  every family in the manifest must appear in the header. Two did not
+//                    — `ANIM_LIVE_LEFT_CLEAN` and `NODE_LIVE_NO_LEAK` — and each is a
+//                    section a reader greps the documented list for and does not find.
+//   MARKER_PHANTOM   every token in the header must be FINDABLE in the file below it.
+//                    Measured at zero, and shipped anyway: it is what excludes `_PING`
+//                    and `_RESULT` BY CONSTRUCTION rather than by a roster (186 §10.3's
+//                    own instruction), and a roster is the thing that rots.
+//
+// 🔴 AND ITS COVERAGE IS FLOORED ON THE WAY IN, like the rule above it. Five of eleven
+// sealing files carry no header at all and this rule reads nothing in them; a probe that
+// DELETES its header does not fail — it removes itself, and the gate would print ok over
+// a shrinking population. 186 §6, paid on the way in for the second session running.
+export const MARKER_HEADER_FILES_FLOOR = 6;
+// The other half of the same collapse: every header still present and the manifests
+// emptied. Measured at 61 families across the six files that carry a header.
+export const HEADER_FAMILY_FLOOR = 55;
+
+/** The grep-able header block, if the file carries one. */
+export const MARKER_HEADER = /\/\/ Markers \(grep-able\):([\s\S]*?)\.\s*\n/;
+
 /** A line that announces the next section outright — the strong tier of the boundary. */
 export const SECTION_HEADER = /^\s*\/\/\s*(?:[-–—─=_*#]{4,}|\d+[a-z]?\s*[.):]\s+\S)/;
 /** Any comment line — the weak tier, used when the region has no header. */
@@ -192,6 +239,39 @@ export function claimCallees(src) {
   return { helpers, isClaimCall };
 }
 
+/**
+ * The two spellings of one file's marker list: the grep-able header and the `Population`
+ * manifest — plus whether each header token can be FOUND in the body below the header.
+ *
+ * 🔴 `findable` IS THE WHOLE DESIGN. It is what tells `INPUT_LIVE_PING` (a reachability
+ * banner the probe prints, documented in its own file as deliberately not a family) from
+ * a token the header advertises and the file does not contain. Deriving it means `_PING`
+ * and `_RESULT` need no roster entry, and 174 §5's rule is why that matters: an exclusion
+ * that costs nothing to write is an exclusion nobody re-reads.
+ *
+ * Returns null when the file carries no header — that is not a failure, it is the
+ * coverage this rule does not have, and `MARKER_HEADER_FILES_FLOOR` is what watches it.
+ */
+export function markerList(text) {
+  const hdr = text.match(MARKER_HEADER);
+  const pre = text.match(/new Population\(\s*"([A-Z0-9_]+)"/);
+  const fam = text.match(/families:\s*\[([\s\S]*?)\n\s*\]/);
+  if (!hdr) return null;
+  if (!pre || !fam) return { prefix: null, declared: [], listed: [], body: "" };
+
+  const prefix = pre[1];
+  const declared = [...fam[1].matchAll(/"([A-Z][A-Z0-9_]+)"/g)].map((m) => m[1]);
+  // The header writes them shorthand — `VERIFY_LIVE_PING / _STRUCT / _STRUCT_RED` — so a
+  // bare token opening with `_` is the prefix plus that token.
+  const listed = [...new Set(
+    [...hdr[1].replace(/\/\//g, " ").matchAll(/(_?[A-Z][A-Z0-9_]*)/g)]
+      .map((m) => (m[1].startsWith("_") ? prefix + m[1] : m[1]))
+      .filter((x) => x !== prefix && x.length > prefix.length),
+  )];
+  const body = text.slice(text.indexOf(hdr[0]) + hdr[0].length);
+  return { prefix, declared, listed, body };
+}
+
 /** Every claim site and every seal in one file, with line numbers. */
 export function inspect(file, text) {
   const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
@@ -220,7 +300,8 @@ export function inspect(file, text) {
   visit(src);
   claims.sort((a, b) => a.line - b.line);
   seals.sort((a, b) => a.line - b.line);
-  return { file, claims, seals, helpers: [...helpers].sort(), lines: text.split("\n") };
+  return { file, claims, seals, helpers: [...helpers].sort(), lines: text.split("\n"),
+           markers: markerList(text) };
 }
 
 /**
@@ -280,7 +361,7 @@ export const NOT_A_PROBE = {
  * every branch below is empty against a healthy tree, so inlining them would make them
  * untestable). `files` is a list of `inspect()` results.
  */
-export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR } = {}) {
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR } = {}) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const totalSeals = files.reduce((n, f) => n + f.seals.length, 0);
@@ -298,6 +379,29 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
   say(`SEAL_ORDER_REGIONS ${allRegions.length} inter-seal · announced ${announced.length}/${announcedFloor}`
       + ` (header ${announced.filter((r) => r.boundary.tier === "header").length})`
       + ` · announcing nothing ${silent.length} holding ${silentClaims} claim(s)`);
+
+  // 🔴 THE THIRD RULE'S POPULATION, COUNTED AND PRINTED ON GREEN RUNS FOR THE SAME
+  // REASON. The files WITHOUT a header are the blind spot, and a reader of a passing log
+  // is the only person who can act on it.
+  const withHeader = files.filter((f) => f.markers !== null);
+  const headerFamilies = withHeader.reduce((n, f) => n + f.markers.declared.length, 0);
+  say(`SEAL_ORDER_MARKERS ${withHeader.length}/${headerFilesFloor} file(s) carry a grep-able header`
+      + ` · ${headerFamilies}/${headerFamilyFloor} famil(ies) declared in them`
+      + ` · ${files.length - withHeader.length} file(s) carry none and are unread by this rule`);
+
+  if (withHeader.length < headerFilesFloor) {
+    say(`🔴 MARKER_COVERAGE_COLLAPSE ${withHeader.length} < ${headerFilesFloor} — a probe that DELETES its`);
+    say(`   grep-able header does not fail the marker rule, it REMOVES itself from it, and this`);
+    say(`   gate would print ok over a shrinking population. Same shape as the coverage floor`);
+    say(`   above it, and the same instruction: move the floor on purpose or restore the header.`);
+    out.failed = true;
+  }
+  if (headerFamilies < headerFamilyFloor) {
+    say(`🔴 MARKER_FAMILY_COLLAPSE ${headerFamilies} < ${headerFamilyFloor} — every header still present and`);
+    say(`   the manifests emptied is the collapse a FILE count cannot see, which is 172 §6's rule`);
+    say(`   about one floor per population rather than one floor per instrument.`);
+    out.failed = true;
+  }
 
   if (announced.length < announcedFloor) {
     say(`🔴 SEAL_ORDER_COVERAGE_COLLAPSE ${announced.length} < ${announcedFloor} — the UNANNOUNCED rule reads`);
@@ -348,6 +452,34 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
       say(`   cannot read. This file seals ${f.seals.length} section(s), so it is the second.`);
       say(`   Resolved claim helpers here: ${f.helpers.join(", ") || "(none)"}`);
       out.failed = true;
+    }
+
+    // 🔴 THE THIRD RULE, PER FILE, AND IT RUNS BEFORE THE EXEMPTION BELOW BECAUSE THE
+    // ONE EXEMPT FILE CARRIES NO HEADER AND IS THEREFORE ALREADY OUT OF SCOPE — an
+    // exemption that also happens to cover something is 175's dead-entry shape.
+    if (f.markers) {
+      const { declared, listed, body } = f.markers;
+      const inHeader = new Set(listed);
+      for (const d of declared) {
+        if (inHeader.has(d)) continue;
+        out.failed = true;
+        say(`\n🔴 MARKER_UNLISTED ${f.file}  ${d}`);
+        say(`   is a family in the Population manifest and is NOT in the file's own grep-able`);
+        say(`   header. The header is the list a reader greps; a family missing from it is a`);
+        say(`   whole section that reader will not find. Add it to the header comment.`);
+      }
+      for (const m of listed) {
+        if (body.includes(m)) continue;
+        out.failed = true;
+        say(`\n🔴 MARKER_PHANTOM ${f.file}  ${m}`);
+        say(`   is advertised in the grep-able header and appears NOWHERE below it. Grepping for`);
+        say(`   it finds only the advertisement. Either the marker was renamed and the header was`);
+        say(`   not, or a section was deleted and its entry survived — 184 §4's fix moved seals`);
+        say(`   and left this list behind, which is how the class was found.`);
+        say(`   🔴 Note what this rule does NOT say: a header token that is printed but is not a`);
+        say(`   family is FINE. \`_PING\` and \`_RESULT\` are banners these probes emit on purpose,`);
+        say(`   and they are excluded by being findable rather than by a roster anybody keeps.`);
+      }
     }
 
     const hits = [];
