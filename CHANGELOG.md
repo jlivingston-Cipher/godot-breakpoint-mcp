@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.64.0] — 2026-08-04
+
 ### Added — the statements that resisted, and the two lists that were never one number
 
 **The inherited number was wrong.** `control_gate.py` printed, on every green run, *"23 of
