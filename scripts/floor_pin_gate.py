@@ -164,6 +164,21 @@ DISCOVER_EXEMPT: dict[str, str] = {
                        "exists because LATE_CONSTRUCTED_FLOOR cannot see a roster shrink: deleting "
                        "the three caller-shape entries takes 82 constructed blinds to 70, which is "
                        "still above that floor. Same nesting reason as INSTRUMENT_FLOOR",
+    # 🆕 187 — control_gate.py's two, and they are the same nesting problem a third time.
+    # Its runner would be control_gate.py itself, which MUTATES THE WORKING TREE (it breaks
+    # example/project.godot, README.md, a lockfile field and a tool name in turn), so
+    # sweeping them here would run one tree-mutating gate inside another — 178 §11.4, the
+    # rule INSTRUMENT_FLOOR is exempt under four lines up.
+    "CONTROLLED_FLOOR": "control_gate.py's floor on the number of failure statements that have a "
+                        "positive control — pinned in-file by `_self_check()`, which fails if the "
+                        "value is not positive, because a zero would leave `controls_low` unable to "
+                        "bite and the gate green over an emptied CONTROLS table. Same nesting reason "
+                        "as INSTRUMENT_FLOOR",
+    "STATEMENT_FLOOR": "control_gate.py's floor on the DENOMINATOR — the count of errors.append "
+                       "statements in contract_check.py. It exists because '17 of 70' improves to "
+                       "'17 of 17' by deleting sixty-eight checks, so the numerator's floor cannot "
+                       "see the failure this one names. Pinned in the same `_self_check()`, same "
+                       "nesting reason as INSTRUMENT_FLOOR",
     "TARGET_FLOOR": "the same shape in scope_gate.py and in THIS file — a gate cannot pin the floor "
                     "over its own target list without reading the constant it is checking. scope_gate "
                     "asserts its branch bites; this file's is the one below, and a session that "

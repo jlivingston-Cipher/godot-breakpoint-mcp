@@ -6,6 +6,68 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the checks that had never once been allowed to fail
+
+182 §11.3 asked what `CHECKS_RUN 20/20` actually proves, and it stayed open for four
+sessions. 186 answered it — after re-asking it, because the question as written could not
+be answered at all:
+
+```
+70 errors.append/extend statement(s) in contract_check.py
+EXECUTED BY SOMETHING: 23 of 70      NEVER EXECUTED BY ANYTHING: 47
+five whole checks at zero: 17, 22, 3, 11c, host
+```
+
+`CHECKS_RUN` counts **blocks that reach their own end**. Two thirds of the failure
+statements inside those blocks had never run, and from outside, a check whose every failure
+statement is unexecuted is indistinguishable from a check that cannot fail.
+
+🔴 **The counter is not the fix, and a finer counter is the same mistake one level down.**
+A statement that only runs when the tree is broken cannot be covered by any run over a
+healthy tree, at any resolution. What covers it is a **positive control**: a mutation that
+breaks the tree the way the check says it is guarding against, asserted to make exactly
+that statement fire. `scope_gate.py` has been one for 25 enumerators since 172 — its
+blinded runs are where all 23 of the executed statements came from.
+
+`scripts/control_gate.py` is that idea pointed at the **subject** instead of the finder, as
+a step in the existing `test` job — **no 27th CI job, twenty-fifth session running.**
+
+**Seventeen controls, one per statement, across all five checks that were at zero.** The
+handoff's question was asked of each statement before a line of the gate was written —
+*what one-line tree edit should redden it?* — because the alternative finding was live and
+had an instruction attached: a statement with no such edit is a check that cannot fail, and
+should be **deleted rather than counted**. All seventeen had one; none qualified.
+
+Three properties are asserted per control, and the third is what makes it a control:
+
+- **the run goes red** — the check noticed;
+- **the run executed** — it printed the report marker, so red is a verdict and not a crash
+  on the way in (181's discriminator, `scope_gate.py`'s reason for the same line);
+- **the expected statement fired** — matched on a fingerprint that resolves, *statically*,
+  to exactly one `errors.append` in the file. Without this, any mutation that reddened the
+  run for any reason would count as covering whatever statement its row claims, and the
+  harness would be measuring itself.
+
+**Both ends of the ratio are floored.** `CONTROLLED_FLOOR = 17` catches a deleted row —
+every remaining row still passes, and the only thing that moves is a number nobody reads.
+`STATEMENT_FLOOR = 70` catches the other direction: *17 of 70* improves to *17 of 17* by
+deleting sixty-eight checks, and a ratio with only its numerator pinned gets better as the
+thing it measures gets smaller. Both are exempt in `floor_pin_gate.py` **with the reason
+written out** — their runner would be this gate, which mutates the working tree, and
+nesting one tree-mutating gate inside another is 178 §11.4 — and both are pinned in-file by
+a `_self_check()` that fails if either is not positive.
+
+**The blind spot is printed on green runs too.** 17 of 70 have a control here; 23 more are
+covered by `scope_gate.py` (stated, not re-derived — the shim that measures it is far too
+heavy for a CI step); **~30 statements are covered by nothing at all**, and that number is
+in the gate's own output rather than in a handoff.
+
+The reverse sweep is **pass=14 fail=0 declared-green=0**, and four of the fourteen matter
+more than the other ten: they un-fix `contract_check.py` itself — neutering the duplicate
+tool-name branch, the `uid://` autoload branch that CI killed in 90 seconds in session 148,
+check 22's own roster drift, and one failure statement *deleted outright*. A control table
+that stays green over a check with its detection removed is a table measuring its own rows.
+
 ## [1.62.0] — 2026-08-04
 
 ### Added — the section that existed in the source and had no marker of its own
