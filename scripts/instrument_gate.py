@@ -314,7 +314,8 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "seal_order_gate.mjs",
         "gate": ["node", "scripts/seal_order_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 7,   # 187: 6 -> 7, markerList admitted
+        "floor": 8,   # 190: 7 -> 8, assertAliases admitted
+                      # 187: 6 -> 7, markerList admitted
         "why": "the marker written above the claims it describes — invisible to every gate _population.mjs has",
         "targets": {
             "export function claimCallees(src) {":
@@ -324,13 +325,14 @@ INSTRUMENTS = [
             # returns something healthy-looking proves the finder.
             "export function inspect(file, text) {":
                 'return { file, claims: [], seals: [], helpers: [], lines: [] };',
-            # 🔴 THE SIGNATURE IS THE ANCHOR, AND IT HAS NOW MOVED IN THREE CONSECUTIVE
-            # SESSIONS (185 §8, 186 §6, 187) — every time a rule gained a floor. The gate
+            # 🔴 THE SIGNATURE IS THE ANCHOR, AND IT HAS NOW MOVED IN SIX CONSECUTIVE
+            # SESSIONS (185 §8, 186 §6, 187, 188, 189, 190) — every time a rule gained a
+            # floor or a ceiling, which is every session a rule was added. The gate
             # catches it every time and says SIGNATURE NOT FOUND rather than skipping
             # quietly, which is the only reason the target is still live. Do not soften
             # the match to a prefix: a prefix would survive the next parameter and stop
             # being a statement about the function that ships.
-            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING } = {}) {":
+            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING } = {}) {":
                 'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
             # 🆕 187 — THE THIRD RULE'S FINDER. `markerList` returning null for every file
             # empties the marker population entirely, and nothing but MARKER_HEADER_FILES_FLOOR
@@ -338,6 +340,13 @@ INSTRUMENTS = [
             # rather than to an empty object, because null IS the shape the function returns
             # for a file with no header — the failure mode, not an approximation of it.
             "export function markerList(text) {": "return null;",
+            # 🆕 190 — THE FIFTH RULE'S FINDER. It is the newest thing in this gate that
+            # can match nothing while every number stays plausible: blinded to `[]` the
+            # alias population reads 0, `0/1 unreadable` prints, and the whole rule
+            # reports a clean tree over a file it never looked at. That is the exact
+            # shape this instrument exists to name, and a rule whose finder is unswept is
+            # a rule with a floor and no population.
+            "export function assertAliases(src) {": "return [];",
             "export function scan(root = ROOT) {": "return [];",
             # 🆕 186 §3 — THE SECOND RULE'S TWO HALVES, BLINDED SEPARATELY BECAUSE THEY
             # COLLAPSE DIFFERENTLY. `sectionBoundary` returning null leaves every region

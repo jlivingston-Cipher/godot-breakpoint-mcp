@@ -214,6 +214,72 @@ export const REGION_FILES_FLOOR = 9;
 // floor became a ceiling the session the population was read.
 export const SILENT_REGIONS_CEILING = 5;
 
+// ── THE FIFTH RULE (190) — THE BINDING THE FINDER CANNOT READ ────────────────────────
+//
+// 189 §9.2 handed over a defect and an instruction attached to it: `_caller_shape.
+// harness.mjs` binds `const sassert = sealPop.assert` and wraps it in `sok()`, so its
+// SEVEN fixture claims are spelled `sassert.ok` — which `READS_AS_CLAIM` does not match,
+// because the character before `assert` is `s` and not a dot. The helper fixed point
+// cannot rescue it either: `sok` is only promoted if its body reaches a call the finder
+// ALREADY reads, and it does not. That file's whole seal section reports ZERO claim
+// sites, and `CLAIM_SITE_FLOORS` cannot see it because the file's other two shapes
+// supply 41 on their own. A per-SECTION collapse underneath a per-FILE floor.
+//
+// 🔴 THE INSTRUCTION WAS: DO NOT JUST WIDEN THE REGEX — MEASURE THE SHAPE FIRST. Measured
+// (`host/_to_delete/alias190.mjs`), across all thirty files in the directory:
+//
+//   ELEVEN files bind a population's `.assert` member. TEN of them — every probe that
+//   does it, and all nine bindings in `_population.selftest.mjs` — bind it to a name
+//   spelled exactly `assert`, which `^assert\.\w+$` reads. ONE binding in the entire
+//   population is invisible, and it is this one. ZERO PROBES HAVE THE SHAPE.
+//
+// So widening the regex would move `claim-sites`, every per-file floor under it and the
+// tautology gate's population, on account of one instrument's fixtures — 189 §12.25's
+// reason for naming it rather than doing it, now measured instead of suspected. The
+// fixture claims STAY deliberately unreadable. What changes is that they are DECLARED:
+// this rule counts the bindings the finder cannot read, fails outright if a PROBE ever
+// grows one, and pins the instruments' count from above.
+//
+// 🔴 A CEILING RATHER THAN A ROSTER, for 189 §12.24's reason — the harness trips nothing,
+// so a `NOT_A_PROBE` entry would fire `SEAL_ORDER_ROSTER_STALE` the moment it landed, and
+// an exemption keyed on a filename is a decision nobody re-reads. The ceiling re-earns
+// itself every run: a second unreadable binding anywhere is a blind spot nobody measured.
+export const ALIAS_BLIND_CEILING = 1;
+
+/**
+ * Every binding that holds a population's `.assert` member, and whether a call made
+ * through it is one the finder can read.
+ *
+ * Two spellings, because those are the two the directory uses: `const x = p.assert` and
+ * `const { assert: x } = p`. The readability question is asked of `READS_AS_CLAIM`
+ * itself rather than of a second regex — see its block.
+ */
+export function assertAliases(src) {
+  const found = [];
+  const visit = (n) => {
+    if (ts.isVariableDeclaration(n) && n.initializer) {
+      if (ts.isPropertyAccessExpression(n.initializer)
+          && n.initializer.name.text === "assert" && ts.isIdentifier(n.name)) {
+        found.push({ name: n.name.text, node: n });
+      }
+      if (ts.isObjectBindingPattern(n.name)) {
+        for (const el of n.name.elements) {
+          const prop = (el.propertyName ?? el.name).getText(src);
+          if (prop === "assert") found.push({ name: el.name.getText(src), node: el });
+        }
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return found.map((a) => ({
+    name: a.name,
+    line: src.getLineAndCharacterOfPosition(a.node.getStart(src)).line + 1,
+    // The question the finder will be asked at every call site through this binding.
+    readable: READS_AS_CLAIM(`${a.name}.ok`),
+  }));
+}
+
 /**
  * A region's paragraphs: runs of non-blank lines separated by blank lines.
  *
@@ -293,6 +359,20 @@ export function regionsOf(f) {
 }
 
 /**
+ * 🔴 WHAT THE FINDER CAN READ, AS ONE EXPORTED PREDICATE — `assert.equal(…)` where
+ * `assert` is the counting proxy, `population.claim()`, `p.assert.ok(…)`. Matched on the
+ * callee's TEXT because the proxy is bound by a dozen different names across the probes
+ * and a binding analysis would be a second population to keep correct.
+ *
+ * 🔴 IT IS EXPORTED BECAUSE THE FIFTH RULE ASKS THE SAME QUESTION FROM THE OTHER SIDE,
+ * and 178 §10.25's carried question is *which invariants are enforced in one place and
+ * asserted in another*. A blind-spot rule that re-spelled this regex would agree with the
+ * finder only until one of them was edited.
+ */
+export const READS_AS_CLAIM = (text) =>
+  /(^|\.)assert\.\w+$/.test(text) || /(^|\.)claim$/.test(text);
+
+/**
  * Every callee spelling that counts one claim, resolved PER FILE.
  *
  * 🔴 THE FINDER IS THE PART THAT HAD TO BE MEASURED, AND 171 §2 IS WHY: a file that
@@ -307,11 +387,7 @@ export function regionsOf(f) {
  * point. `CLAIM_SITE_FLOORS` below is the backstop for the case this still cannot read.
  */
 export function claimCallees(src) {
-  // `assert.equal(…)` where `assert` is the counting proxy, `population.claim()`,
-  // `p.assert.ok(…)`. Matched on the callee's TEXT because the proxy is bound by a
-  // dozen different names across the probes and a binding analysis would be a second
-  // population to keep correct.
-  const direct = (text) => /(^|\.)assert\.\w+$/.test(text) || /(^|\.)claim$/.test(text);
+  const direct = READS_AS_CLAIM;
   const helpers = new Set();
   let grew = true;
 
@@ -411,7 +487,7 @@ export function inspect(file, text) {
   claims.sort((a, b) => a.line - b.line);
   seals.sort((a, b) => a.line - b.line);
   return { file, claims, seals, helpers: [...helpers].sort(), lines: text.split("\n"),
-           markers: markerList(text) };
+           markers: markerList(text), aliases: assertAliases(src) };
 }
 
 /**
@@ -471,7 +547,7 @@ export const NOT_A_PROBE = {
  * every branch below is empty against a healthy tree, so inlining them would make them
  * untestable). `files` is a list of `inspect()` results.
  */
-export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING } = {}) {
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING } = {}) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const totalSeals = files.reduce((n, f) => n + f.seals.length, 0);
@@ -495,6 +571,7 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
       + ` · announced ${announced.length}/${announcedFloor}`
       + ` (header ${announced.filter((r) => r.boundary.tier === "header").length})`
       + ` · announcing nothing ${silent.length}/${silentCeiling} holding ${silentClaims} claim(s)`
+      + ` · claiming nothing ${allRegions.filter((r) => r.claims.length === 0).length}`
       + ` · ${files.length - regionFiles.length} instrument(s) excluded by name`);
 
   // 🔴 THE THIRD RULE'S POPULATION, COUNTED AND PRINTED ON GREEN RUNS FOR THE SAME
@@ -569,6 +646,64 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
     say(`   it. Two paragraphs of claims with no comment between them is a section break the`);
     say(`   author drew and announced with nothing, and \`seal()\` counts every one of them`);
     say(`   onto ${r.next.marker} regardless. Announce the second section, or seal the first.`);
+  }
+
+  // 🔴 THE FIFTH RULE'S OTHER HALF, AND THE SYMPTOM RATHER THAN THE CAUSE. 189 §9.2's
+  // exact words: `CLAIM_SITE_FLOORS` is a per-FILE floor and an unreadable idiom inside
+  // ONE seal section is a per-SECTION collapse, so the file's other sections go on
+  // satisfying the floor while a whole section reads as having claimed nothing.
+  //
+  // Measured before it was written (`_to_delete/alias190.mjs`, Q3): of the 89 inter-seal
+  // regions in the directory, SIX report zero claim sites and all six are in the two
+  // INSTRUMENTS — four fixture sections in `_population.selftest.mjs` and the two the
+  // `sassert` alias hides. ZERO PROBE SECTIONS ARE EMPTY. So over the population the
+  // region rules already use, this is green with no exclusions and it has teeth: it is
+  // what would have caught the harness had the harness been a probe.
+  const emptySections = allRegions.filter((r) => r.claims.length === 0);
+  for (const r of emptySections) {
+    out.failed = true;
+    say(`\n🔴 SEAL_ORDER_SECTION_SILENT ${r.file}:${r.from}-${r.to}`);
+    say(`   ${r.seal.marker} and ${r.next.marker} have NO claim site between them. A marker that`);
+    say(`   drains nothing is either a section that asserts nothing — in which case the marker`);
+    say(`   is reporting a family it never tested — or a section whose claim idiom this finder`);
+    say(`   cannot read, which is 171 §2 at a granularity the per-FILE floor cannot reach:`);
+    say(`   ${r.file}'s other sections keep satisfying \`CLAIM_SITE_FLOORS\` while this one`);
+    say(`   counts as nothing. Check the binding first — see SEAL_ORDER_ALIAS above.`);
+  }
+
+  // 🔴 THE FIFTH RULE (190). The finder reads a callee's TEXT, so a binding that holds a
+  // population's `.assert` under a name the text test does not match makes every call
+  // through it — and every wrapper of it — invisible. Counted and printed on green runs,
+  // 184 §3's reason: the blind spot's SIZE is the thing a reader of a passing log needs.
+  const aliases = files.flatMap((f) => (f.aliases ?? []).map((a) => ({ ...a, file: f.file })));
+  const blindAliases = aliases.filter((a) => !a.readable);
+  say(`SEAL_ORDER_ALIAS ${aliases.length} binding(s) hold a population's .assert`
+      + ` · ${blindAliases.length}/${aliasCeiling} unreadable by the claim finder`
+      + ` · ${blindAliases.filter((a) => inSections(a.file)).length} of them in a probe`);
+
+  for (const a of blindAliases.filter((a) => inSections(a.file))) {
+    // In a PROBE this is not a ceiling question. The measurement that licensed the
+    // ceiling found the shape in ZERO probes; one appearing is 171 §2's collapse at a
+    // granularity `CLAIM_SITE_FLOORS` cannot reach, because a probe's other sections
+    // keep satisfying its per-file floor while the aliased section reports nothing.
+    out.failed = true;
+    say(`\n🔴 SEAL_ORDER_ALIAS_BLIND ${a.file}:${a.line}  const ${a.name} = ….assert`);
+    say(`   Every claim made through \`${a.name}\` is invisible to this gate: the finder matches`);
+    say(`   the callee's TEXT against \`READS_AS_CLAIM\`, and \`${a.name}.ok\` fails it. The helper`);
+    say(`   fixed point cannot rescue a wrapper of it either — a helper is promoted only when`);
+    say(`   its body reaches a call the finder ALREADY reads. This file's per-file floor will`);
+    say(`   go on being satisfied by its other sections while these count as nothing.`);
+    say(`   Bind it as \`assert\` (which the finder reads), or claim through \`population.claim\`.`);
+  }
+  if (blindAliases.length > aliasCeiling) {
+    out.failed = true;
+    say(`\n🔴 SEAL_ORDER_ALIAS_UNREAD ${blindAliases.length} > ${aliasCeiling} binding(s) the claim finder`);
+    say(`   cannot read. The one on the tree this rule shipped with is \`sassert\` in the caller-`);
+    say(`   shape harness, whose fixture claims are unreadable ON PURPOSE — that file documents`);
+    say(`   the opposite idiom in its own words. A SECOND is a blind spot nobody has measured,`);
+    say(`   and it is pinned from above rather than rostered for 189's reason: a roster entry`);
+    say(`   for a file that trips nothing reads as a decision about a real case forever after.`);
+    for (const a of blindAliases) say(`   unreadable  ${a.file}:${a.line}  ${a.name}`);
   }
 
   if (files.length < filesFloor) {

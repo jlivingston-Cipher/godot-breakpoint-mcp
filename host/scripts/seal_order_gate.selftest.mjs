@@ -20,6 +20,7 @@ import {
   FILES_FLOOR, SEAL_FLOOR, CLAIM_SITE_FLOORS, NOT_A_PROBE, ANNOUNCED_REGIONS_FLOOR,
   markerList, MARKER_HEADER_FILES_FLOOR, HEADER_FAMILY_FLOOR, headerRequired,
   isProbe, paragraphsOf, REGION_FILES_FLOOR, SILENT_REGIONS_CEILING,
+  READS_AS_CLAIM, ALIAS_BLIND_CEILING, assertAliases,
 } from "./seal_order_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -30,7 +31,10 @@ const claim = (cond, what) => {
 // 🔴 NAMED AND PINNED, for 176's reason, carried: a bare `if (ran < 40)` is read by one
 // branch and asserted by nothing, so the collapse detector can be switched off without a
 // single case noticing. This is the floor that protects the floors.
-const CLAIM_FLOOR = 106;
+// The anchor is the count this file reached LAST session (137 in 189, 108 in 188), set a
+// couple below: a deletion that takes it back under where it already stood reddens, while
+// ordinary editing inside a case does not.
+const CLAIM_FLOOR = 135;
 
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 // Judge one hand-written source with every floor relaxed, so a case fails for its own
@@ -582,6 +586,120 @@ claim(said(judge(live, { headerFamilyFloor: 10_000 }), "MARKER_FAMILY_COLLAPSE")
     "🔴 the live tree really does list markers that are not families — the case this rule refuses to call a defect");
 }
 
+// ── 4c. THE FIFTH RULE — THE BINDING THE FINDER CANNOT READ (190) ────────────────────
+// 189 §9.2's defect: `const sassert = sealPop.assert` makes every call through it, and
+// every wrapper of it, invisible to a finder that matches the callee's TEXT. Leading with
+// the DISMISSAL, as this file's header requires: the shape that must NOT fire is the one
+// ten of the eleven live bindings actually use.
+const READABLE_ALIAS = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+
+assert.ok(b);
+population.seal("B", "ok");
+`;
+{
+  const got = inspect("probe.integration.mjs", READABLE_ALIAS);
+  claim(got.aliases.length === 1, `the binding is found, got ${got.aliases.length}`);
+  claim(got.aliases[0].readable === true,
+    "🔴 THE DISMISSAL: a binding spelled `assert` IS readable — `^assert\\.\\w+$` matches it, and this is what ten of the eleven live bindings do");
+  claim(J(READABLE_ALIAS).failed === false, "so it trips nothing");
+  claim(said(J(READABLE_ALIAS), "SEAL_ORDER_ALIAS"), "and the alias population is printed on a GREEN run — 184 §3");
+}
+
+// The harness's shape, reproduced: the alias, a wrapper over it, and claims through the
+// wrapper. Not one of them is counted, and that is the point of the case.
+const BLIND_ALIAS = `
+const sassert = population.assert;
+const sok = (cond, marker) => { sassert.ok(cond, marker); };
+sok(a, "A1");
+sok(b, "A2");
+population.seal("A", "ok");
+
+sok(c, "B1");
+population.seal("B", "ok");
+`;
+{
+  const got = inspect("probe.integration.mjs", BLIND_ALIAS);
+  claim(got.aliases.length === 1 && got.aliases[0].name === "sassert", "the aliased binding is found by name");
+  claim(got.aliases[0].readable === false, "🔴 and `sassert.ok` is NOT readable — the character before `assert` is `s`, not a dot");
+  claim(got.claims.length === 0,
+    `🔴 THE DEFECT ITSELF: four claims through the alias and the finder counts ${got.claims.length}`);
+  claim(!got.helpers.includes("sok"),
+    "🔴 and the helper fixed point cannot rescue the wrapper — a helper is promoted only if its body reaches a call the finder ALREADY reads");
+  const r = J(BLIND_ALIAS);
+  claim(r.failed === true, "🔴 a PROBE with an unreadable binding FAILS — the measured population had zero of them");
+  claim(said(r, "SEAL_ORDER_ALIAS_BLIND"), "named SEAL_ORDER_ALIAS_BLIND");
+}
+// 🔴 THE POPULATION HALF. In an INSTRUMENT the same binding is not a failure — it is the
+// one the harness ships and it is counted, not excused by name. A SECOND one is.
+{
+  const inst = judge([inspect("_x.harness.mjs", BLIND_ALIAS)], {
+    filesFloor: 1, sealFloor: 1, siteFloors: { "_x.harness.mjs": 0 }, roster: {},
+    announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0,
+    needsHeader: () => false, silentCeiling: 99,
+  });
+  claim(inst.failed === false, "the same binding in an instrument is counted, not failed — ceiling 1 covers it");
+  claim(said(inst, "1/1 unreadable"), "and it is reported as 1/1 against the ceiling");
+  const two = judge([inspect("_x.harness.mjs", BLIND_ALIAS), inspect("_y.harness.mjs", BLIND_ALIAS)], {
+    filesFloor: 1, sealFloor: 1, siteFloors: { "_x.harness.mjs": 0, "_y.harness.mjs": 0 }, roster: {},
+    announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0,
+    needsHeader: () => false, silentCeiling: 99,
+  });
+  claim(two.failed === true, "🔴 a SECOND unreadable binding is a blind spot nobody measured — the ceiling, not a roster");
+  claim(said(two, "SEAL_ORDER_ALIAS_UNREAD"), "named SEAL_ORDER_ALIAS_UNREAD");
+}
+// The one source of truth, asserted from both sides — 178 §10.25's question paid down.
+claim(READS_AS_CLAIM("assert.ok") && READS_AS_CLAIM("p.assert.equal") && READS_AS_CLAIM("population.claim"),
+  "the finder's own predicate reads the three live spellings");
+claim(!READS_AS_CLAIM("sassert.ok") && !READS_AS_CLAIM("myclaim"),
+  "🔴 and declines the two the alias rule exists for — one predicate, two rules, no second regex to drift");
+claim(ALIAS_BLIND_CEILING === 1, `the shipped alias ceiling is 1, not ${ALIAS_BLIND_CEILING}`);
+
+// ── 4d. THE SAME FINDING'S OTHER HALF — A SECTION THAT CLAIMS NOTHING ─────────────────
+// 189 §9.2: `CLAIM_SITE_FLOORS` is a per-FILE floor, so a section whose idiom the finder
+// cannot read is invisible while the file's OTHER sections keep the floor satisfied. The
+// dismissal first, again: a section with one claim in it is not empty.
+claim(J(CLEAN).failed === false, "a section holding claims trips nothing — the dismissal");
+const EMPTY_SECTION = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+
+// the second section
+population.seal("B", "ok");
+
+assert.ok(c);
+assert.ok(d);
+population.seal("C", "ok");
+`;
+{
+  const r = J(EMPTY_SECTION);
+  claim(r.failed === true, "🔴 two seals with NO claim site between them is a marker that drained nothing");
+  claim(said(r, "SEAL_ORDER_SECTION_SILENT"), "named SEAL_ORDER_SECTION_SILENT");
+  claim(said(r, "claiming nothing 1"), "and the count is printed, not only the finding");
+}
+// 🔴 THE PER-FILE FLOOR CANNOT SEE IT, WHICH IS THE WHOLE POINT OF THE RULE.
+{
+  const got = inspect("probe.integration.mjs", EMPTY_SECTION);
+  claim(got.claims.length === 3, `the file makes ${got.claims.length} claim sites, comfortably over a floor of 2`);
+  const floored = J(EMPTY_SECTION, { siteFloors: { "probe.integration.mjs": 2 } });
+  claim(!said(floored, "SEAL_ORDER_UNREADABLE"),
+    "🔴 and its per-FILE floor is SATISFIED — a per-file floor cannot see a per-section collapse");
+  claim(floored.failed === true, "so the section rule is the only thing that catches it");
+}
+// The population is the region rules' population: instruments are excluded by name, and
+// the live tree really has empty sections in them — a rule with no measured gap is a rule
+// nobody checked (the same claim 4b makes about headers).
+{
+  const wide = judge(live, { inSections: () => true, announcedFloor: 0, regionFilesFloor: 0, silentCeiling: 99 });
+  claim(wide.failed === true, "🔴 counting the instruments in, the live tree DOES have empty sections");
+  claim(said(wide, "SEAL_ORDER_SECTION_SILENT"), "and they are named — the exclusion is doing work, not decorating");
+  claim(judge(live, { announcedFloor: 0, silentCeiling: 99 }).failed === false,
+    "over probes only it is green, which is what the measurement said before the rule was written");
+}
+
 // ── 5. THE SHIPPED VALUES, PINNED ────────────────────────────────────────────────────
 // 🔴 180 §7.3 / `floor_pin_gate.py`: a floor read by one branch and named by no claim is a
 // literal anyone can move. Pinning the KEY is not pinning the VALUE — 184 §7 paid that
@@ -594,7 +712,7 @@ claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor
 claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);
 claim(REGION_FILES_FLOOR === 9, `the shipped region-scope floor is 9, not ${REGION_FILES_FLOOR}`);
 claim(SILENT_REGIONS_CEILING === 5, `the shipped silent-region CEILING is 5, not ${SILENT_REGIONS_CEILING}`);
-claim(CLAIM_FLOOR === 106, `the shipped claim floor is 106, not ${CLAIM_FLOOR}`);
+claim(CLAIM_FLOOR === 135, `the shipped claim floor is 135, not ${CLAIM_FLOOR}`);
 
 console.log(`\nSEAL_ORDER_SELFTEST ${ran - bad}/${ran} claims`);
 if (bad) { console.log(`🔴 SEAL_ORDER_SELFTEST FAILED — ${bad} of ${ran}`); process.exit(1); }
