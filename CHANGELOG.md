@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.70.0] — 2026-08-04
+
 ### Added — the message that blamed the engine
 
 193 §3 split `unsupported` into two populations and handed the rest over as a decision:
