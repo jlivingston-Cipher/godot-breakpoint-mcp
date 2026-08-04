@@ -60,6 +60,7 @@ async function callTask(name, args = {}) {
 
 console.log(`GODOT_BIN=${cfg.godotBin}  GODOT_PROJECT=${cfg.projectPath}`);
 
+// ============================================== 1. godot_version, end to end ===
 // 1) godot_version — the simplest real host<->Godot round trip.
 {
   const res = await call("godot_version");
@@ -68,6 +69,7 @@ console.log(`GODOT_BIN=${cfg.godotBin}  GODOT_PROJECT=${cfg.projectPath}`);
   assert.match(version, /\d+\.\d+/, `expected a version string, got: ${version}`);
 }
 
+// ============ 2. godot_run_headless_script, through the whole task lifecycle ===
 // 2) godot_run_headless_script (a D2 task tool) — run a tiny SceneTree script,
 //    capture its stdout, driven through the task lifecycle.
 {

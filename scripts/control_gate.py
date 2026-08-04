@@ -319,6 +319,56 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "static func encode", "static func  encode",
      "is not byte-identical across the tracked copies"),
 
+    # ── check 24c — the message must match the kind the site was classified as ───
+    # 193 §9.2's decision, built: keep the shipped `unsupported` code, make the SHAPE
+    # sites stop reading as statements about the caller's Godot build. Five statements,
+    # five controls, in the same commit as the check.
+    #
+    # 🔴 THE READER GOING BLIND, WHICH IS THE ONE THAT PASSES EVERYTHING SILENTLY. Wrap
+    # the message literal onto the next line and a per-line scan cannot see it — 193 §7.2's
+    # `emit_failed` exactly, one check later. All four arms below would pass on a site
+    # nobody read, so the unreadable case is its own error rather than a `continue`.
+    # 🔴 THE WRAP GOES AFTER THE COMMA, AND THAT IS THE WHOLE POINT OF THE ROW. Wrapping
+    # BEFORE `"unsupported"` takes the raise out of `_UNSUP_RE`'s reach too, so the site
+    # vanishes from the classifier entirely and `unsupported_shape` collapses — a different
+    # number, and 193 §32's rule says that makes it a different mutant. Splitting after the
+    # comma leaves the site classified and ONLY the message unreadable, which is the state
+    # this statement exists for.
+    ("24c.msg_unreadable", "24c", "sub", "addons/breakpoint_mcp/operations.gd",
+     '\t\treturn _err("unsupported", "%s has no texture',
+     '\t\treturn _err("unsupported",\n\t\t\t"%s has no texture',
+     "cannot read the message literal off the raise line"),
+    # 🔴 THE ARM THAT DOES THE WORK. Strip the class name the guard itself tests and the
+    # message still names the node, still avoids every capability word, and still tells
+    # the caller nothing they can act on. This is the state two of the four sites shipped
+    # in before this session.
+    # The three material sites carry the SAME sentence, so the anchor takes the line after
+    # it to name one of them — `_shadermaterial_create` is the one that builds the material.
+    ("24c.no_guard_class", "24c", "sub", "addons/breakpoint_mcp/operations.gd",
+     '"%s has no material slot. Pass a node that has one: any CanvasItem exposes CanvasItem.material, any GeometryInstance3D exposes GeometryInstance3D.material_override." % node.name)\n\tvar mat := ShaderMaterial.new()',
+     '"%s has no material slot" % node.name)\n\tvar mat := ShaderMaterial.new()',
+     "and the message names none of them"),
+    # 🔴 THE HARM, REPRODUCED AS ONE WORD. A shape site whose sentence reads as a build
+    # refusal is the whole reason this check exists: the agent concludes the engine cannot
+    # do it and stops, when the fix is to pass a different node.
+    ("24c.shape_sounds_capability", "24c", "sub", "addons/breakpoint_mcp/operations.gd",
+     "%s has no texture: only GPUParticles2D has one",
+     "%s has no texture: GPUParticles2D support is unavailable, only GPUParticles2D has one",
+     "reads as a CAPABILITY refusal"),
+    # A shape message with no subject: the caller cannot tell WHICH of their nodes was
+    # wrong, and a sentence with no subject reads as a sentence about the engine.
+    ("24c.shape_no_node", "24c", "sub", "addons/breakpoint_mcp/operations.gd",
+     '"%s has no texture: only GPUParticles2D has one, and GPUParticles3D draws meshes instead. Pass the path of a GPUParticles2D node." % node.name',
+     '"A GPUParticles2D is required here; GPUParticles3D draws meshes instead."',
+     "but the message never names that node"),
+    # 🔴 AND THE SYMMETRIC ARM, WHICH IS A PIN RATHER THAN A FIX — all four capability
+    # sites already pass it. A capability message that names the caller's node blames
+    # their scene for a property of the build.
+    ("24c.capability_names_node", "24c", "sub", "addons/breakpoint_mcp/operations.gd",
+     '\t\treturn _err("unsupported", "EditorSettings unavailable")',
+     '\t\treturn _err("unsupported", "EditorSettings unavailable for %s" % node.name)',
+     "but the message interpolates the caller's node name"),
+
     # ── check 17 — example/project.godot, the invariants an editor boot erases ────
     # Seven statements, seven controls, and the two that matter most are the ones a
     # local editor boot actually produces: the uid:// autoload rewrite (committed once,
@@ -509,7 +559,7 @@ UNFINGERPRINTABLE_FLOOR = 3
 # every remaining row still passes; the only thing that moves is a number nobody reads.
 # 186 §6 paid this on the way in for a new coverage number and the handoff's own note is
 # that the OLD one is still unfloored — so this one is floored on the way in too.
-CONTROLLED_FLOOR = 51          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
+CONTROLLED_FLOOR = 56          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
                                # 192: +7, check 23's statements — SIX by design and a
                                # SEVENTH the reverse sweep demanded (192 §6)
 
@@ -518,7 +568,7 @@ CONTROLLED_FLOOR = 51          # 187: 17 · 188: +24, the constructible half of 
 # assertion in this file would still hold. A ratio with only its numerator pinned is a
 # number that gets better as the thing it measures gets smaller — 175's rule, stated as a
 # floor instead of quoted.
-STATEMENT_FLOOR = 82           # 186 measured 70; 188 §3 added two; 192 added check 23's
+STATEMENT_FLOOR = 87           # 186 measured 70; 188 §3 added two; 192 added check 23's
                                # seven. It is supposed to grow
 
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
@@ -534,7 +584,7 @@ CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
                  # `24b` is the cross-copy half under its own section header, and the
                  # fingerprint resolver reads headers — the same reason `11b`/`11c` are
                  # named separately above rather than folded into `11`.
-                 "24", "24b")
+                 "24", "24b", "24c")
 
 
 def statements(src: str) -> list[tuple[int, str, str]]:

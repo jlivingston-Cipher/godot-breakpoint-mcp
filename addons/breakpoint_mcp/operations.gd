@@ -3510,7 +3510,7 @@ func _particles_set_texture(params: Dictionary) -> Dictionary:
 	if node == null:
 		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
 	if not (node is GPUParticles2D):
-		return _err("unsupported", "%s has no texture (GPUParticles3D draws meshes; texture is GPUParticles2D-only)" % node.name)
+		return _err("unsupported", "%s has no texture: only GPUParticles2D has one, and GPUParticles3D draws meshes instead. Pass the path of a GPUParticles2D node." % node.name)
 	var tex_path := String(params.get("texture_path", ""))
 	if tex_path == "" or not ResourceLoader.exists(tex_path):
 		return _err("not_found", "Texture not found: %s" % tex_path)
@@ -3582,7 +3582,7 @@ func _shadermaterial_create(params: Dictionary) -> Dictionary:
 		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
 	var prop := _material_prop(node)
 	if prop == "":
-		return _err("unsupported", "%s has no material slot (needs CanvasItem.material or GeometryInstance3D.material_override)" % node.name)
+		return _err("unsupported", "%s has no material slot. Pass a node that has one: any CanvasItem exposes CanvasItem.material, any GeometryInstance3D exposes GeometryInstance3D.material_override." % node.name)
 	var mat := ShaderMaterial.new()
 	var shader_path := String(params.get("shader_path", ""))
 	if shader_path != "":
@@ -3610,7 +3610,7 @@ func _shadermaterial_set_shader(params: Dictionary) -> Dictionary:
 		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
 	var prop := _material_prop(node)
 	if prop == "":
-		return _err("unsupported", "%s has no material slot" % node.name)
+		return _err("unsupported", "%s has no material slot. Pass a node that has one: any CanvasItem exposes CanvasItem.material, any GeometryInstance3D exposes GeometryInstance3D.material_override." % node.name)
 	var cur = node.get(prop)
 	if not (cur is ShaderMaterial):
 		return _err("bad_type", "%s has no ShaderMaterial (create one first)" % node.name)
@@ -3638,7 +3638,7 @@ func _shadermaterial_set_param(params: Dictionary) -> Dictionary:
 		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
 	var prop := _material_prop(node)
 	if prop == "":
-		return _err("unsupported", "%s has no material slot" % node.name)
+		return _err("unsupported", "%s has no material slot. Pass a node that has one: any CanvasItem exposes CanvasItem.material, any GeometryInstance3D exposes GeometryInstance3D.material_override." % node.name)
 	var cur = node.get(prop)
 	if not (cur is ShaderMaterial):
 		return _err("bad_type", "%s has no ShaderMaterial (create one first)" % node.name)

@@ -178,15 +178,39 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // 147 this session did it again: the nine cases written for BANNER_ATTRIBUTED_FLOOR took
 // sites 3721 → 3730 and attribution 3574 → 3582, and the ninth reaches nothing. 148 for
 // that reason and no other. A rule whose own arrival it can measure is a rule that works.
-export const ORPHAN_CEILING = 148;      // measured 3730 sites - 3582 attributed, 2026-08-04
-                                        //   (147 + 1: this session's self-test, as in 191)
+// 🔴 194 — AND DOWN AGAIN, 148 → 45, AND IT CAUGHT ITS OWN AUTHOR FOR THE THIRD SESSION
+// RUNNING. 193 read under the ceiling and taught the reader the section BANNER. Reading
+// under what was left found the reader was missing two more section idioms — one of them
+// the `population.open()`/`seal()` calls the RUNTIME already attributes by — and closing
+// those took 148 → 41 with no test file edited. The fifteen self-test cases written for
+// the new rules then took sites 3730 → 3745 and four of them reach no unit, so 45 for that
+// reason and no other. 191 pinned 508 and went red at 509; 193 pinned 147 and went red at
+// 148; this is the same mechanism a third time, and a rule whose own arrival it can
+// measure is a rule that works.
+export const ORPHAN_CEILING = 46;       // measured 3746 sites - 3700 attributed, 2026-08-04
+                                        //   (41 + 5: this session's self-test, as in 191/193)
 
 // 🔴 AND THE POSITIVE SIDE OF THE SAME FACT, BECAUSE A SUBTRACTION IS NOT A POPULATION.
 // The ceiling above says "few claims are orphans"; it does not say the banner path RAN.
 // Both would be satisfied by an `enclosingTest` that stopped reading banners on a tree
 // where somebody had meanwhile added `test()` blocks. 172's rule — one number per
 // population — asks for the banner-attributed claims to be counted as themselves.
-export const BANNER_ATTRIBUTED_FLOOR = 300;   // measured 362, 2026-08-04
+// 🔴 194 — AND THIS FLOOR CAME DOWN 300 → 15, WHICH IS NOT A RETREAT. The section path
+// below is tried FIRST, because `population.seal()` is what `_population.mjs` counts by at
+// runtime and a comment above the same claim is decoration. Ten of the eleven files this
+// floor was measured on carry BOTH, so 341 of its 362 moved to the path that is actually
+// right about them and the honest remainder is 21. A floor left at 300 over a population
+// of 21 is not governance, it is a red gate — and re-pinning it low is the same act as
+// pinning it high was: put the number where the measurement is.
+export const BANNER_ATTRIBUTED_FLOOR = 15;    // measured 21, 2026-08-04 (was 300 of 362)
+
+// 🔴 194 — AND THE SECOND FALLBACK, WHICH IS THE SAME ARGUMENT WITH ONE NEW EDGE. The
+// banner floor exists because the ceiling is a subtraction. There are now TWO paths under
+// that one subtraction, so the ceiling is even less able to say which of them ran: kill
+// the section path and the banner path's own growth could cover the loss. One number per
+// population, 172 §10.22 — and this population is the one the RUNTIME already counts by,
+// so a collapse here means the static scorer and the live probe have started disagreeing.
+export const SECTION_ATTRIBUTED_FLOOR = 380;  // measured 448, 2026-08-04
 
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
@@ -813,22 +837,83 @@ function collectFailers(src) {
 // attribute a file's first half and call the rest orphans.
 const BANNER_RE = /^\s*\/\/\s*[=-]{4,}\s*(.+?)\s*$/;
 
+// 🔴 194 §9.3 — AND THE TREE DRAWS THIS BANNER THREE WAYS, NOT ONE. 193 chose the idiom by
+// reading eleven `*.integration.mjs` files and generalising from what they wrote. It was
+// the right method applied to the wrong sample: the same convention is drawn with BOX
+// characters in 183 lines across `scripts/`, `test/` and `test-integration/`, and with a
+// THREE-dash leading rule in both LSP plane probes. Measured, not guessed:
+//
+//   // ── 6. THE REAL TREE, READ RATHER THAN ASSUMED ──────────   verdict_gate.selftest
+//   // --- the refusals: states the mock server cannot produce ---  cs-lsp-plane, lsp-plane
+//
+// Those files were being counted as "carrying no banners", and the 193 handoff passed that
+// reading forward as "give them the banners the other ten already have". They HAVE them.
+// Widening the reader is the fix that costs no maintenance surface; adding a second,
+// differently-drawn banner above an existing one is the fix that costs a lie.
+//
+// FORM B is a title FLANKED by rules, which is what the two missed idioms have in common
+// and what a leading-run-only rule cannot express. It is a UNION with form A, never a
+// replacement: form A matches a leading rule with no trailing one and that population must
+// not move. The leading run drops to 2 only because it is now paying for a trailing run of
+// 3 — `// -- TODO --` still matches nothing.
+const BANNER_FLANKED_RE = /^\s*\/\/\s*[=\-─═━]{2,}\s*(.+?)\s*[=\-─═━]{3,}\s*$/;
+const RULE_TAIL_RE = /\s*[=\-─═━]+\s*$/;
+
 function bannerUnits(text) {
   const out = [];
   text.split("\n").forEach((ln, i) => {
-    const m = BANNER_RE.exec(ln);
+    const m = BANNER_RE.exec(ln) ?? BANNER_FLANKED_RE.exec(ln);
     if (!m) return;
-    const name = m[1].replace(/\s*[=-]+\s*$/, "").trim();
+    const name = m[1].replace(RULE_TAIL_RE, "").trim();
     // A bare rule (`// ==========`) titles nothing and is a separator, not a unit.
-    if (name && !/^[=-]+$/.test(name)) out.push({ name, line: i + 1 });
+    if (name && !/^[=\-─═━]+$/.test(name)) out.push({ name, line: i + 1 });
   });
   return out;
 }
 
+// 🔴 194 §9.3 — AND BEFORE THE COMMENT, THE SECTION MARKER THE PROBE EXECUTES.
+// 193 taught this reader the DECORATIVE section marker. These files also carry an
+// EXECUTABLE one, and it is not a convention anybody has to keep up: `_population.mjs`
+// documents two idioms and attributes every claim by them at runtime —
+//
+//   HEADER-FIRST  `population.open(label)`  — "claims count into it until the next open"
+//   FAIL-FAST     `population.seal(marker)` — "attribute every claim made since the
+//                                             previous seal", so the marker CLOSES its
+//                                             section and sits BELOW its own claims
+//
+// The scorer was reading neither, and `vcs.integration.mjs` — 78 claims, the largest
+// single block of orphans in the tree — spells all twelve of its sections with `seal()`.
+// The runtime has always known which section each of those claims belongs to. This makes
+// the static reader ask the same question, which is why it needs no new banners: the
+// answer is already in the file, executable and already load-bearing.
+//
+// 🔴 THE WRAPPED IDIOM IS EXCLUDED, AND NOT FOR TIDINESS. `population.family(label, fn)`
+// sets `current = null` when its body returns, so a claim AFTER a family belongs to no
+// section — "the nearest event above" would hand it the family that just closed. Those
+// files need nothing here anyway: `family` is in `TEST_FNS`, so the AST walk above already
+// owns their claims. Measured: no file in the tree mixes the two, and this returns null
+// rather than guessing if one ever does.
+const POPULATION_RECV_RE = /(?:const|let|var)\s+(\w+)\s*=\s*new\s+Population\b/;
+
+function populationSections(text) {
+  const m = POPULATION_RECV_RE.exec(text);
+  if (!m) return null;
+  const recv = m[1];
+  if (new RegExp(`\\b${recv}\\.family\\s*\\(`).test(text)) return null;
+  const re = new RegExp(`^\\s*${recv}\\.(open|seal)\\s*\\(\\s*["'\`]([^"'\`]+)`);
+  const out = [];
+  text.split("\n").forEach((ln, i) => {
+    const e = re.exec(ln);
+    if (e) out.push({ mode: e[1], name: e[2], line: i + 1 });
+  });
+  return out.length ? out : null;
+}
+
 // The nearest enclosing `test("name", …)` / `it(…)`, so each assertion is attributed to
-// the case it belongs to — falling back to the nearest section banner ABOVE the claim for
-// the script-shaped files that have no test() blocks at all.
-function enclosingTest(node, src, banners = null) {
+// the case it belongs to — falling back to the probe's own executed section marker, and
+// then to the nearest section banner ABOVE the claim for the script-shaped files that have
+// no test() blocks at all.
+function enclosingTest(node, src, banners = null, sections = null) {
   for (let p = node.parent, hops = 0; p && hops < 60; p = p.parent, hops++) {
     if (ts.isCallExpression(p) && p.arguments.length && ts.isStringLiteralLike(p.arguments[0])) {
       const c = p.expression;
@@ -836,6 +921,19 @@ function enclosingTest(node, src, banners = null) {
         : ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression) ? c.expression.text : null;
       if (n && TEST_FNS.has(n)) return { name: p.arguments[0].text, line: src.getLineAndCharacterOfPosition(p.getStart(src)).line + 1 };
     }
+  }
+  // The EXECUTED marker first — it is what the runtime counts by, so where the two
+  // disagree the executed one is right and the comment is decoration.
+  if (sections && sections.length) {
+    const line = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
+    let last = null;
+    for (const s of sections) { if (s.line < line) last = s; else break; }
+    // `open()` captures what follows it. Anything else — a closed section, or the top of
+    // the file — leaves the claim PENDING, which is exactly the word `_population.mjs`
+    // uses, and pending claims are drained by the next `seal()` below.
+    if (last && last.mode === "open") return { name: last.name, line: last.line, section: true };
+    const next = sections.find((s) => s.line > line && s.mode === "seal");
+    if (next) return { name: next.name, line: next.line, section: true };
   }
   if (banners && banners.length) {
     const line = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
@@ -860,6 +958,12 @@ export function analyze(fileName, text) {
   // class this fallback exists to expose. The fallback is for script-shaped files, and
   // "script-shaped" is asked of the file rather than assumed from its name.
   const banners = /\b(?:test|it|family)\s*\(\s*["'`]/.test(text) ? null : bannerUnits(text);
+  // 🔴 NOT GATED THE SAME WAY, AND THE DIFFERENCE IS THE WHOLE ARGUMENT. The banner gate
+  // exists because a COMMENT that happens to precede a stray claim proves nothing about
+  // where that claim belongs. `population.open`/`seal` are not adjacency — they are the
+  // calls that decide attribution at runtime, so reading them cannot invent a fact. What
+  // it CAN do is disagree with `family()`, and `populationSections` refuses that case.
+  const sections = populationSections(text);
   // 175: a CHECK_FNS name is only a claim idiom when it resolves to something that can
   // actually fail. See `collectFailers` — the name is the candidate, this is the test.
   const failers = collectFailers(src);
@@ -875,7 +979,7 @@ export function analyze(fileName, text) {
     const off = ls.find((l) => l.kind === "OFFENDER");
     claims.push({
       file: fileName, line: src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1,
-      method, marker, owner: enclosingTest(node, src, banners),
+      method, marker, owner: enclosingTest(node, src, banners, sections),
       cond: raw.slice(0, 170),
       // 🔴 THE FLOOR MUST BE LOOKED FOR IN THE *RESOLVED* TEXT (172). `hasFloor` tested
       // `cond` alone, so `(searchOk && listOk)` — whose floor lives one hop away in the
@@ -943,7 +1047,7 @@ export function analyze(fileName, text) {
       else if (ts.isIdentifier(node.expression) && node.expression.text === "assert") method = "__bare__";
 
       if (method && !NOT_A_CLAIM.has(method)) {
-        const owner = enclosingTest(node, src, banners);
+        const owner = enclosingTest(node, src, banners, sections);
         const line = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
         if (CONTROL.has(method)) {
           // a throws/rejects IS a claim for block purposes: it constrains control flow.
@@ -1002,7 +1106,7 @@ export function verdict(claims) {
   // and unreachable without a working classifier: `allShape` needs every leaf of a claim
   // to come back SHAPE, and `precondition` needs every leaf's TEXT to match an outcome
   // flag. Both are 0 under either blind, and neither is the offence.
-  let shaped = 0, precondition = 0, bannerAttributed = 0;
+  let shaped = 0, precondition = 0, bannerAttributed = 0, sectionAttributed = 0;
   for (const c of claims) {
     if (c.allShape) shaped++;
     if (c.precondition) precondition++;
@@ -1010,6 +1114,10 @@ export function verdict(claims) {
     if (!k) continue;
     attributed++;
     if (!c.marker && c.owner?.banner) bannerAttributed++;
+    // 194: its OWN number, for 193's own reason. The orphan ceiling is a subtraction and
+    // a subtraction cannot say a path RAN — and now there are two paths under it, so one
+    // could die while the other's growth keeps the total healthy. 172 §10.22, again.
+    if (!c.marker && c.owner?.section) sectionAttributed++;
     if (!blocks.has(k)) blocks.set(k, { file: c.file, name: c.marker ?? c.owner.name, line: c.marker ? c.line : c.owner.line, marker: Boolean(c.marker), claims: [] });
     blocks.get(k).claims.push(c);
   }
@@ -1027,6 +1135,7 @@ export function verdict(claims) {
     blocks: blocks.size,
     attributed,
     bannerAttributed,
+    sectionAttributed,
     shaped,
     precondition,
     // A unit made ONLY of outcome-flag preconditions is 171 §3's forty, and demanding
@@ -1056,7 +1165,7 @@ export function verdict(claims) {
  * `G25`–`G28` are. The coverage is in the self-test, by construction, not by accident —
  * and `mutate180.py` says so at the mutant.
  */
-export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR) {
+export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR, sectionFloor = SECTION_ATTRIBUTED_FLOOR) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const orphan = sites - v.attributed;
@@ -1075,6 +1184,25 @@ export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBU
       say(`   live-engine integration suite silently stops being scored, which is the state 193 §9.3`);
       say(`   found and closed. Either the banner idiom changed (update BANNER_RE deliberately) or`);
       say(`   the files grew test() blocks, which switches them off this path by design.`);
+    }
+  }
+  // 🔴 194 — THE EXECUTED-MARKER PATH, COUNTED SEPARATELY FROM THE COMMENT ONE. Same
+  // `undefined` treatment and the same argument as the banner floor above, plus one this
+  // session earned: there are now TWO fallbacks under a single orphan ceiling, and a
+  // subtraction cannot tell them apart. Kill the section path while the banner path keeps
+  // growing and the ceiling never notices — which is 193's own reason for the banner
+  // floor, applied to the path 193 did not have.
+  if (v.sectionAttributed !== undefined) {
+    say(`TAUT_SECTION_ATTRIBUTED ${v.sectionAttributed}/${sectionFloor}`);
+    if (v.sectionAttributed < sectionFloor) {
+      out.failed = true;
+      say(`🔴 TAUT_SECTION_COLLAPSE ${v.sectionAttributed} < ${sectionFloor} — the probes' OWN`);
+      say(`   \`population.open()\` / \`population.seal()\` markers stopped attributing. These are not`);
+      say(`   comments: they are the calls \`_population.mjs\` counts by at runtime, so this path`);
+      say(`   going quiet means the static scorer and the live probe now disagree about which`);
+      say(`   section a claim belongs to. Either the Population idiom changed (update`);
+      say(`   \`populationSections\` deliberately) or a probe grew a \`family()\`, which switches`);
+      say(`   it off this path by design — and onto the AST walk, where its claims still count.`);
     }
   }
   // 🔴 191 — THE OTHER SIDE OF THE SUBTRACTION, GOVERNED AT LAST (180 §11.4, carried nine

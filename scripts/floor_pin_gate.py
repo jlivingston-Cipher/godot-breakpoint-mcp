@@ -52,13 +52,17 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 49   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
+TARGET_FLOOR = 50   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
                     #      189 §32's complaint that turns out to be wrong. That note asked
                     #      why this literal is not derived from the count the gate prints
                     #      one line below it. Because a floor that protects a LIST'S SIZE
                     #      cannot be read off that list: `TARGET_FLOOR = len(TARGETS)` is
                     #      satisfied by every deletion, which is exactly the event it
                     #      exists to catch. 176's rule, one level up.
+                    # 194: 49 -> 50 (SECTION_ATTRIBUTED_FLOOR — the SECOND fallback under
+                    #      the same subtraction. 193's argument, one path later: with two
+                    #      fallbacks under one ceiling, either can die while the other's
+                    #      growth keeps the total healthy)
                     # 193: 48 -> 49 (BANNER_ATTRIBUTED_FLOOR — the section-banner
                     #      fallback counted as its own population, because the ceiling
                     #      above it is a subtraction and a subtraction cannot say the
@@ -165,7 +169,14 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # 🔴 THE POSITIVE SIDE OF THE SAME FACT (193 §9.3). The ceiling says few claims are
     # orphans; it does not say the banner path RAN. Both would survive an `enclosingTest`
     # that stopped reading banners on a tree that had meanwhile grown `test()` blocks.
-    ("BANNER_ATTRIBUTED_FLOOR",  f"{S}/tautology_gate.mjs",          r"(export const BANNER_ATTRIBUTED_FLOOR = )300;",            [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🔴 194 — THE THIRD ANCHOR IN THIS TABLE TO EARN A `\d+`, AND FOR THE SAME REASON THE
+    # FIRST TWO DID. It embedded `300;` and this session took the floor to 15, so the anchor
+    # matched zero times on the first run — 192 §6's `CHECKS_RUN_FLOOR`, 193 §8's
+    # `ORPHAN_CEILING`, and now this. The pattern is not "some anchors are unlucky": an
+    # anchor that embeds a floor's VALUE is pinned to a number the tree is expected to move,
+    # and every floor in this table is such a number. See §9 in the handoff.
+    ("BANNER_ATTRIBUTED_FLOOR",  f"{S}/tautology_gate.mjs",          r"(export const BANNER_ATTRIBUTED_FLOOR = )\d+;",            [f"{S}/tautology_gate.selftest.mjs"]),
+    ("SECTION_ATTRIBUTED_FLOOR", f"{S}/tautology_gate.mjs",          r"(export const SECTION_ATTRIBUTED_FLOOR = )\d+;",           [f"{S}/tautology_gate.selftest.mjs"]),
     ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),

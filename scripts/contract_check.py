@@ -2895,6 +2895,7 @@ _UNSUP_RE = re.compile(r'_err\(\s*"unsupported"')
 
 unsupported_kinds: "dict[str, list[tuple[str, str, int]]]" = {"capability": [], "shape": []}
 _unsup_unclassified: "list[tuple[str, int, str]]" = []
+_unsup_detail: "dict[tuple[str, int], dict]" = {}
 for _name, _src in _GD_SRC.items():
     _lines = _src.split("\n")
     _fn = "<file scope>"
@@ -2941,6 +2942,13 @@ for _name, _src in _GD_SRC.items():
                 _probe_text = _guard + "\n" + _assign.group(1)
         _kind = "capability" if _CAPABILITY_PROBE_RE.search(_probe_text) else "shape"
         unsupported_kinds[_kind].append((_fn, _name, _i + 1))
+        # 24c reads the same three things this loop already computed, so the message rule
+        # and the kind rule are judged against ONE derivation rather than two that can
+        # disagree. Keyed by (file, line) so the tuple shape above -- which `_cap_funcs`
+        # and `_shape_funcs` unpack -- does not move.
+        _unsup_detail[(_name, _i + 1)] = {
+            "fn": _fn, "kind": _kind, "guard": _guard, "probe": _probe_text, "raise": _ln,
+        }
 
 for _name, _line, _why in _unsup_unclassified:
     errors.append(
@@ -2985,6 +2993,133 @@ for _method, _code, _rel in err_branch_bindings:
             f"to upgrade the engine when the fix is to name a different node. One word, two "
             f"meanings, and the message picked the wrong one."
         )
+
+# --- 24c: THE MESSAGE MUST MATCH THE KIND THE SITE WAS CLASSIFIED AS ---------
+#
+# 193 §9.2 handed this over as a DECISION rather than a build, and priced it as a rename.
+# The decision taken was KEEP THE CODE AND FIX THE MESSAGE: the shipped vocabulary does not
+# move -- `docs/TOOL_CATALOG.md` stays true, nothing branching on `unsupported` breaks --
+# but the sentence the caller reads stops sounding like a statement about their Godot build.
+#
+# 🔴 THE HARM WAS NEVER THE WORD ON THE WIRE. It is what the reader DOES next. Read
+# `unsupported` on `shadermaterial_create` against a message that says only
+# "Sprite2D has no material slot" and the reasonable inference is "this build cannot do
+# shader materials", so the caller stops. The correct read is "pick a node with a material
+# slot", and until this check the difference between those two lived nowhere but in prose.
+# Check 24 made the two populations countable; this makes the DIFFERENCE BETWEEN THEM
+# legible to the person on the other end.
+#
+# Four arms, each asked of the site's own DERIVED kind rather than of a roster of sites
+# (189 §12.24, carried -- a roster entry for a pair that trips nothing goes stale on
+# arrival). They read `_unsup_detail`, which the classifier above populated, so the message
+# rule and the kind rule cannot disagree about which site is which:
+#
+#   SHAPE       must name the caller's node           -- the subject is THEIR object
+#   SHAPE       must not read as a capability refusal -- no version claim, no "unavailable"
+#   SHAPE       must name a class the GUARD ITSELF TESTS -- it must say what to pass instead
+#   CAPABILITY  must NOT name the caller's node       -- the subject is the BUILD
+#
+# 🔴 THE THIRD ARM IS THE ONE THAT DOES WORK, AND IT IS DERIVED RATHER THAN A WORD LIST.
+# "The message must contain a capitalised word" is satisfied by "Pass" and would be vacuous
+# the day it shipped. What the message must contain is one of the class names the guard's
+# OWN predicate tests: `if not (node is GPUParticles2D)` demands `GPUParticles2D`;
+# `if prop == "":` resolves to `_material_prop(node)`, whose body tests `CanvasItem` and
+# `GeometryInstance3D`, and demands one of those. That cannot be satisfied by prose -- only
+# by naming the thing the caller has to go and get. It failed 2 of 4 before this session.
+#
+# 🔴 THE SECOND HOP IS DECLARED, NOT SNUCK IN. The kind classifier resolves ONE hop: the
+# identifier the guard tests, to its assignment. This arm needs the assignment's CALLEE
+# body, which is a second. It is bounded the same way -- a call to a `_`-prefixed function
+# defined in the same file, one level, no recursion -- and `shape_guard_classes` is floored
+# so a hop that stops resolving is a collapse rather than four arms quietly passing.
+_MSG_RE = re.compile(r'_err\(\s*"unsupported"\s*,\s*"((?:[^"\\]|\\.)*)"')
+_NODE_INTERP_RE = re.compile(r"%\s*node\.name\b")
+# The capability VOCABULARY, kept deliberately wider than `_VERSION_CLAIM_RE` above: that
+# one asks "is the host telling somebody to upgrade", this one asks "would a reader take
+# this sentence as being about the engine rather than about their node".
+_CAPABILITY_SENTENCE_RE = re.compile(
+    r"Godot\s+\d+\.\d+\+|requires\s+Godot|\bunavailable\b|\bnot\s+supported\b|"
+    r"\bthis\s+(?:Godot|build|engine)\b|\bunsupported\s+(?:on|by)\b",
+    re.I,
+)
+
+# func name -> body, per GDScript file. Built once; the second hop reads it.
+_GD_BODIES: "dict[str, dict[str, str]]" = {}
+for _name, _src in _GD_SRC.items():
+    _bodies: "dict[str, list[str]]" = {}
+    _cur = None
+    for _ln in _src.split("\n"):
+        _m = re.match(r"^func\s+(\w+)", _ln)
+        if _m:
+            _cur = _m.group(1)
+            _bodies[_cur] = []
+        elif _cur is not None:
+            _bodies[_cur].append(_ln)
+    _GD_BODIES[_name] = {k: "\n".join(v) for k, v in _bodies.items()}
+
+unsup_messages_read = 0
+shape_guard_classes = 0
+for (_file, _line), _d in sorted(_unsup_detail.items()):
+    _mm = _MSG_RE.search(_d["raise"])
+    if not _mm:
+        # 193 §7.2's shape exactly: `emit_failed`'s raise site WRAPS, and a per-line scan
+        # cannot see it. A message this check cannot read is a message it cannot judge, and
+        # silently passing four arms on it is the failure mode that finding was about.
+        errors.append(
+            f"{_file}:{_line} raises 'unsupported' and this check cannot read the message "
+            f"literal off the raise line, so all four kind-vs-message arms would pass it "
+            f"silently. Put the message literal on the raise line, or teach `_MSG_RE` the "
+            f"new shape deliberately — 193 §7.2 is the same defect one check earlier."
+        )
+        continue
+    unsup_messages_read += 1
+    _msg = _mm.group(1)
+    _names_node = bool(_NODE_INTERP_RE.search(_d["raise"]))
+
+    if _d["kind"] == "capability":
+        if _names_node:
+            errors.append(
+                f"{_file}:{_line} ({_d['fn']}) is a CAPABILITY-kind 'unsupported' — its "
+                f"guard reads engine/editor globals, so the answer is 'this Godot build "
+                f"cannot' — but the message interpolates the caller's node name. That "
+                f"blames their scene for a property of the build. Say what the build is "
+                f"missing, not which node they picked."
+            )
+        continue
+
+    # ── SHAPE ────────────────────────────────────────────────────────────────
+    if not _names_node:
+        errors.append(
+            f"{_file}:{_line} ({_d['fn']}) is a SHAPE-kind 'unsupported' — the guard reads "
+            f"the node the CALLER named, after a `bad_path` check on it has already passed "
+            f"— but the message never names that node. The caller cannot tell which of "
+            f"their nodes was wrong, and a message with no subject reads as a statement "
+            f"about the engine."
+        )
+    if _CAPABILITY_SENTENCE_RE.search(_msg):
+        errors.append(
+            f"{_file}:{_line} ({_d['fn']}) is a SHAPE-kind 'unsupported' but its message "
+            f"reads as a CAPABILITY refusal: {_msg!r}. An agent that reads this concludes "
+            f"the Godot build cannot do the thing and stops, when the fix is to pass a "
+            f"different node. The kind is right and the sentence is not."
+        )
+    # The classes the guard's own predicate tests, following at most one call.
+    _classes = set(re.findall(r"\bis\s+([A-Z]\w*)", _d["probe"]))
+    if not _classes:
+        for _callee in re.findall(r"\b(_\w+)\(", _d["probe"]):
+            _classes |= set(
+                re.findall(r"\bis\s+([A-Z]\w*)", _GD_BODIES.get(_file, {}).get(_callee, ""))
+            )
+    if _classes:
+        shape_guard_classes += 1
+        if not any(re.search(rf"\b{re.escape(_c)}\b", _msg) for _c in sorted(_classes)):
+            errors.append(
+                f"{_file}:{_line} ({_d['fn']}) is a SHAPE-kind 'unsupported' whose guard "
+                f"tests {sorted(_classes)}, and the message names none of them: {_msg!r}. "
+                f"The caller is told their node is wrong and not what a right one looks "
+                f"like — which is the whole difference between 'pick a node with a material "
+                f"slot' and 'this Godot cannot do shader materials'."
+            )
 
 # --- 24b: THE ADDON COPIES, COMPARED BY CONTENT RATHER THAN BY VERSION STAMP -
 #
@@ -3210,6 +3345,20 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 no host branch on 'unsupported' still carries a version-citing message, so the "
      "capability/shape rule is asserted about nothing. Either the message was reworded "
      "(fine — then this floor comes down deliberately) or the finder stopped reading it"),
+    # 🔴 24c's TWO POPULATIONS, AND THEY FAIL FOR DIFFERENT REASONS THAN THE KIND FLOORS
+    # ABOVE. `unsupported_capability`/`_shape` die when the CLASSIFIER breaks. These two
+    # die when the MESSAGE READER breaks while the classifier stays healthy — a raise site
+    # that wraps onto two lines (193 §7.2's `emit_failed`, exactly) reads as zero messages
+    # while all eight sites still classify, and every message arm passes on nothing.
+    ("xlang.unsup_messages_read", unsup_messages_read, 8,
+     "🔴 the message reader saw fewer 'unsupported' messages than the classifier saw "
+     "sites, so 24c's four arms are being asked of a subset. A raise site whose literal "
+     "moved off the raise line is invisible to a per-line scan and passes silently"),
+    ("xlang.shape_guard_classes", shape_guard_classes, 4,
+     "🔴 the guard-class derivation stopped resolving, so 'the message must name a class "
+     "the guard tests' is asserted about nothing — the arm that does the actual work goes "
+     "quiet without a single error. The second hop into the guard's callee is what this "
+     "counts, and it is the hop most likely to break when the addon is refactored"),
     # 🔴 THE CROSS-COPY POPULATION, AND IT IS THE FILES COMPARED RATHER THAN THE FILES
     # FOUND. A walk that started skipping `example-csharp/` would leave every remaining
     # file identical-by-construction and this check would pass by reading one copy.
