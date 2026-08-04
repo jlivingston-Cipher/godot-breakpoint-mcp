@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.68.0] — 2026-08-04
+
 ### Added — the vocabulary that crossed the wire, and the word that was raised eight times
 
 178 §10.25 named the cross-language invariants and four sessions carried them: the addon's
