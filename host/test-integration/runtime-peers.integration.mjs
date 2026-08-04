@@ -218,16 +218,22 @@ try {
     peer: ids[0],
   });
   const div = await call("runtime_peers_digest", { root: "." });
-  population.seal("F6_PEERS_DIVERGE", `converged=${div.converged} diverged_at=${JSON.stringify(div.diverged_at)}`);
+  // 🔴 184 §4: EVERY MARKER IN THIS PROBE WAS OFF BY ONE SECTION. `seal()` attributes every
+  // claim made since the PREVIOUS seal, so a marker written above its own assertions owns
+  // the section before it and hands its own to the next one. Nothing was unattributed —
+  // gate 6 cannot see this — but the report pointed at the wrong family: delete these three
+  // and it is `F6_PEERS_CEILING` that reads vacuous, one section past the one that broke.
+  // Measured across the tree: four claims, all here, all in this file.
   assert.equal(div.converged, false, "a skewed peer must NOT be reported as converged");
   assert.ok(Array.isArray(div.diverged_at) && div.diverged_at.includes("Marker"), "diverged_at must name the skewed node");
   assert.ok(!div.diverged_at.includes("."), "diverged_at must not name the nodes that still agree");
+  population.seal("F6_PEERS_DIVERGE", `converged=${div.converged} diverged_at=${JSON.stringify(div.diverged_at)}`);
 
   // ------------------------------------------------------------ 6. the ceiling
   const over = await raw("runtime_spawn_peers", { count: PEER_COUNT, scene: PROBE_SCENE });
-  population.seal("F6_PEERS_CEILING", `${PEER_COUNT} live + ${PEER_COUNT} more -> ${over.isError ? "refused" : "ALLOWED"}`);
   assert.ok(over.isError, `the ceiling must refuse a spawn past ${PEER_COUNT} live peers`);
   assert.match(textOf(over), /ceiling/i, "the refusal must explain the ceiling");
+  population.seal("F6_PEERS_CEILING", `${PEER_COUNT} live + ${PEER_COUNT} more -> ${over.isError ? "refused" : "ALLOWED"}`);
 
   // ------------------------------------- 7. stop a real child, then address it
   const stopped = await call("runtime_peer_stop", { id: ids[2] });
@@ -236,8 +242,13 @@ try {
   assert.ok(dead.isError, "a stopped peer must not answer");
   assert.match(textOf(dead), /stopped/i, "a stopped peer must say so, not report a generic unreachable bridge");
   const again = await call("runtime_peer_stop", { id: ids[2] });
-  population.seal("F6_PEERS_STOP", `${ids[2]} stopped, reports "${textOf(dead).slice(0, 60)}…", repeat stop = no-op`);
+  // 🔴 184 §4: THIS CLAIM WAS MADE AFTER ITS OWN SEAL, so the marker's detail line said
+  // `repeat stop = no-op` while the assertion behind those words belonged to no family at
+  // all — counted in the total, attributed to nothing, and visible only as an `unsealed=`
+  // number no gate read. The marker claimed coverage of a check it did not own. One line
+  // up, and the seal now means what it says.
   assert.ok(Array.isArray(again.stopped), "stopping an already-stopped peer must be a no-op, not an error");
+  population.seal("F6_PEERS_STOP", `${ids[2]} stopped, reports "${textOf(dead).slice(0, 60)}…", repeat stop = no-op`);
 
   console.log(
     `F6_PEERS_RESULT ${PEER_COUNT} real peers converged byte-equal over ${FRAMES} physics frames under a ${STAGGER_MS}ms stagger; ` +

@@ -52,7 +52,7 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 36   # 183: 30 -> 36 (2 caller-shape snapshot floors + 4 FILE_FLOORS)
+TARGET_FLOOR = 37   # 184: 36 -> 37 (the caller-shape POPULATION_LINES roster floor)
 #                     182: 25 -> 30 (HELPER, CONDUIT, SHAPED, PRECONDITION, CHECKS_RUN)
 
 # (label, file, regex whose group(1) ends immediately before the digits, runner argv)
@@ -93,7 +93,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("LEDGER_POPULATION.ledger", f"{T}/_path_ledger.mjs",            r"(live: 220, ledger: )220 ",                                [f"{T}/_path_ledger.selftest.mjs"]),
     ("pl.SELFTEST_CLAIM_FLOOR",  f"{T}/_path_ledger.selftest.mjs",   r"(const SELFTEST_CLAIM_FLOOR = )30;",                       [f"{T}/_path_ledger.selftest.mjs"]),
     ("ws.SELFTEST_CLAIM_FLOOR",  f"{T}/_workspace.selftest.mjs",     r"(const SELFTEST_CLAIM_FLOOR = )48;",                       [f"{T}/_workspace.selftest.mjs"]),
-    ("pop.SELFTEST_CLAIM_FLOOR", f"{T}/_population.selftest.mjs",    r"(const SELFTEST_CLAIM_FLOOR = )35;",                       [f"{T}/_population.selftest.mjs"]),
+    ("pop.SELFTEST_CLAIM_FLOOR", f"{T}/_population.selftest.mjs",    r"(const SELFTEST_CLAIM_FLOOR = )46;",                       [f"{T}/_population.selftest.mjs"]),
     # 🔴 182 — THE FIRST FLOOR IN THIS TABLE THAT IS NOT JAVASCRIPT. `scripts/` was walked
     # for `.mjs` only, so a Python floor was outside the DISCOVER half by construction and
     # nobody would have been told. That is the shape 174 §5 names: an exclusion nobody
@@ -106,6 +106,11 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # swept now has a swept twin — which is the point of the harness stated as a floor.
     ("SHAPE_SNAPSHOT_FILE_FLOOR", f"{T}/_caller_shape.harness.mjs",  r"(const SHAPE_SNAPSHOT_FILE_FLOOR = )70;",                  [f"{T}/_caller_shape.harness.mjs"]),
     ("SHAPE_SNAPSHOT_DIR_FLOOR",  f"{T}/_caller_shape.harness.mjs",  r"(const SHAPE_SNAPSHOT_DIR_FLOOR = )8;",                    [f"{T}/_caller_shape.harness.mjs"]),
+    # 🆕 184 — THE HARNESS'S OWN ROSTER, WHICH IS 183 §9's `LATE_LIVE` FINDING ONE FILE
+    # OVER: three Population instances drive three shapes, and deleting one took its claims
+    # with it while every other number still read ok. A roster AND a floor, so zeroing the
+    # floor has to redden the runner that reads it.
+    ("POPULATION_LINES_FLOOR",    f"{T}/_caller_shape.harness.mjs",  r"(const POPULATION_LINES_FLOOR = )3;",                      [f"{T}/_caller_shape.harness.mjs"]),
 ]
 
 # ── the DISCOVERY half ────────────────────────────────────────────────────────────
