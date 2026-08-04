@@ -2167,7 +2167,12 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 24  # +1 session 181: scripts/floor_pin_gate.py — the third
+SHEBANG_NONEXEC_EXPECTED = 26  # +2 session 185: host/scripts/seal_order_gate.mjs and its
+                               #   self-test — the marker written above its own claims
+                               #   (184 §10.3). Both invoked as `node <file>` from CI, so
+                               #   100644 is correct and this count is the only thing that
+                               #   would have noticed them arriving.
+                               # +1 session 181: scripts/floor_pin_gate.py — the third
                                #   blinding technique, pointed at the floors the other
                                #   two rest on (180 §11.3). 100644 like its two siblings:
                                #   CI invokes it as `python3 <file>`.

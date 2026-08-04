@@ -200,6 +200,24 @@ jobs:
         run: node scripts/boundary_gate.selftest.mjs
       - name: No claim is compared against a value the addon hard-wires (boundary gate)
         run: node scripts/boundary_gate.mjs
+      # 🔴 AND THE DEFECT `_population.mjs`'s OWN SIX GATES STRUCTURALLY CANNOT SEE — 184
+      # §5. `seal()` attributes every claim made since the PREVIOUS seal, so a marker
+      # written above its own assertions owns the section before it and hands its own to
+      # the next one. NOTHING goes unattributed when that happens, so gate 6 — the
+      # unsealed count 184 added — is blind to it by construction; what breaks is the
+      # report's AIM, one section off. 184 found four instances with a 40-line regex scan
+      # that called itself heuristic in its own docstring, fixed them, and left the class.
+      # 🔴 AND NO RUNTIME GATE CAN COVER IT EITHER, which is why this is a source scan: a
+      # seal drains what has ALREADY happened, so every claim it takes preceded it in
+      # time. 185 measured the call-site reading anyway before rejecting it — thirteen
+      # assert-making helpers are defined below the first seal of their own file, and a
+      # rule reading innermost stack frames would have called every claim they make a
+      # violation. Static, ~1s, no Godot and no ports: a step here rather than a 27th job
+      # (TWENTY-THIRD session running).
+      - name: The seal-order instrument, self-checked
+        run: node scripts/seal_order_gate.selftest.mjs
+      - name: No marker is written above the claims it describes (seal order gate)
+        run: node scripts/seal_order_gate.mjs
       - name: Every derived population collapses loudly (scope gate)
         run: python3 ../scripts/scope_gate.py
       # 🔴 AND THE SAME TECHNIQUE POINTED AT THE JS INSTRUMENTS — 172 §10.2, which named

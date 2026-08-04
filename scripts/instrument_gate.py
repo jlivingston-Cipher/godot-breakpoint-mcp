@@ -293,6 +293,38 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🆕 185. THE EIGHTH INSTRUMENT, AND THE FIRST WHOSE DEFECT NO RUNTIME GATE COULD
+        # HAVE SEEN. `seal()` attributes backwards, so a marker written above its own
+        # assertions misaims the report by one section — and because nothing goes
+        # UNATTRIBUTED when that happens, `_population.mjs`'s own six gates are blind to
+        # it by construction (184 §5). A seal also drains what has already happened, so
+        # the defect is in the source's reading and the instrument is a source scan.
+        #
+        # 🔴 `claimCallees` IS THE ONE WORTH READING. Blinded to "nothing is a claim", the
+        # gate finds zero claim sites in every file — and zero claim sites can never sit
+        # after a seal, so every trailing check passes. That is the exact shape 171 §2
+        # named and the reason CLAIM_SITE_FLOORS exists: the per-file floor is what turns
+        # a finder that stopped reading into a red run instead of a clean one.
+        "name": "seal_order_gate.mjs",
+        "src": HOST / "scripts" / "seal_order_gate.mjs",
+        "gate": ["node", "scripts/seal_order_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 4,
+        "why": "the marker written above the claims it describes — invisible to every gate _population.mjs has",
+        "targets": {
+            "export function claimCallees(src) {":
+                "return { helpers: new Set(), isClaimCall: () => false };",
+            # Blinded to a well-formed EMPTY file rather than to a throw — 176's rule for
+            # `discarded()`: a blind that returns nothing proves the floor, a blind that
+            # returns something healthy-looking proves the finder.
+            "export function inspect(file, text) {":
+                'return { file, claims: [], seals: [], helpers: [], lines: [] };',
+            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE } = {}) {":
+                'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
+            "export function scan(root = ROOT) {": "return [];",
+        },
+    },
+    {
         # The COMPILED walk rather than the .ts, so this step costs no tsc invocation:
         # `npm test` has already emitted dist-test/ by the time this runs.
         "name": "path-cohort (compiled walk)",

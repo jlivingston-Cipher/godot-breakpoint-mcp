@@ -161,6 +161,7 @@ export const NO_CLAIMS_EXPECTED = {
   "tautology_gate.mjs": "the classifier itself — its claims are in tautology_gate.selftest.mjs, now swept (175)",
   "verdict_gate.mjs": "the verdict classifier itself — its claims are in verdict_gate.selftest.mjs (175)",
   "boundary_gate.mjs": "the cross-boundary classifier — it reads GDScript constants and JS comparisons and asserts nothing itself; its 49 claims are in boundary_gate.selftest.mjs (177)",
+  "seal_order_gate.mjs": "the seal-order classifier — it reads probe sources for markers written above their own claims and asserts nothing itself; its 62 claims are in seal_order_gate.selftest.mjs (185)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
   "stage-addon.mjs": "a packaging step — copies the addon into the tarball. Its correctness is asserted by the packaging job, not by a claim here",
 
