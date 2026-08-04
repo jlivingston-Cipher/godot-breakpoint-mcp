@@ -6,6 +6,64 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the section that existed in the source and had no marker of its own
+
+185 shipped `seal_order_gate.mjs` and wrote down, in its own header and its own self-test,
+the case it could not see: a claim written a *paragraph* below its marker is drained by the
+next seal exactly as one written directly under it. 185 §10.2 asked the follow-up rather
+than assuming the class was closed:
+
+> The open question: is there any signal that separates "the author meant this for the
+> previous marker" from "this is the next section"? Start by measuring how many claims sit
+> between a seal and the next seal across the tree.
+
+**There is one, and three throwaway measurements were needed to find it** — the first
+candidate was wrong and the second was wrong about *why*:
+
+```
+sectionsignal186   rule-line / numbered headers      63 of 86 regions   9 claims above one
+headless186        read the 23 "headless" regions -> every one opens with a PROSE comment
+introcomment186    the first comment in the region  81 of 86 regions   8 claims above one
+```
+
+Neither candidate alone was right, and the disagreement is the finding: the two signals
+caught *different* defects. So the boundary of the next section is **its header if it has
+one and its first comment otherwise**, and a claim above that boundary was written in the
+section the seal just closed — however many blank lines are in between.
+
+🔴 **The header tier has to win where both exist, and that is asserted rather than
+assumed.** If a numbered header falls between two seals, seal B is inside the next numbered
+section by construction and everything above the header is in seal A's — a structural
+reading. A prose comment is only the idiom these files keep, and a claim can be introduced
+by its own paragraph while still sitting inside the section above. That is exactly
+`animation-lane`'s case, which the comment tier alone reads as clean.
+
+**Fourteen claims across four regions in two probes, and hand-reading all four found the
+same defect every time: a section that existed in the source, was commented and asserted
+like one, and had no marker of its own.**
+
+| probe | the section | was counted onto |
+|---|---|---|
+| `animation-lane` | the idempotent re-stop (#146) | `ANIM_LIVE_SWITCH` |
+| `verification-family` | the red control for `assert_node_state` | `VERIFY_LIVE_NODE_LIVE` |
+| `verification-family` | `present:false` and its inverse | `VERIFY_LIVE_TEXT_HIDDEN` |
+| `verification-family` | live retexting, with its restore claim | `VERIFY_LIVE_DIGEST` |
+
+`verification-family` gains `_NODE_RED`, `_TEXT_ABSENT` and `_TEXT_LIVE` — the file already
+had `_STRUCT_RED` and `_PERF_RED`, so the red control for the third tool was the sibling
+nobody noticed was missing. **`claims: 100` does not move**: three sections changed hands,
+none was added, and the exact claim total is what proves it.
+
+- **The rule's own coverage is floored** (`ANNOUNCED_REGIONS_FLOOR`, 83 of 89 regions
+  announced). Six regions announce themselves in no way at all and this rule reads nothing
+  in them — a probe that stops announcing its sections does not *fail* the rule, it removes
+  itself from it, and the gate would print ok over a shrinking population. 184 §10.6's
+  complaint about one-sided floors, paid on the way in rather than four sessions later.
+- **One claim, one finding.** A claim already named by the shape rule is not named again by
+  this one, or a reader who fixes the first report discovers the second on the next run.
+- **A stale exemption is now judged on both rules.** The first draft read only the shape
+  rule and would have told a maintainer to delete an entry the new rule was still earning.
+
 ## [1.61.0] — 2026-08-04
 
 ### Fixed — the argument that reaches the assertion, and the population it turned out to sit on

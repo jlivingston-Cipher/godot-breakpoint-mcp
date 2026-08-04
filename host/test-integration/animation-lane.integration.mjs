@@ -302,12 +302,15 @@ try {
   const afterStop = await call("runtime_anim_get_state", { path: "Anim" });
   assert.equal(afterStop.position, 0, "get_state should agree the playhead was rewound");
   assert.equal(afterStop.length, 0, "with nothing assigned there is no current length");
-  population.seal("ANIM_LIVE_STOP", `ok keep_state kept ${paused.position.toFixed(3)}s, default rewound to 0`);
 
   // Re-stopping an already-stopped player is a no-op, not an error (#146: a probe that
   // cannot safely repeat its own cleanup leaves state behind the moment anything fails).
+  // 🔴 186 §3: THE SEAL USED TO SIT ABOVE THIS PARAGRAPH, so the idempotent-stop claim was
+  // counted onto ANIM_LIVE_SWITCH — a marker about the animation library owning a claim
+  // about stopping. 185's gate could not see it: a blank line separates them.
   const reStop = await call("runtime_anim_stop", { path: "Anim", confirm: true });
   assert.equal(reStop.playing, false, "re-stopping an idle player should be a quiet no-op");
+  population.seal("ANIM_LIVE_STOP", `ok keep_state kept ${paused.position.toFixed(3)}s, default rewound to 0, re-stop a no-op`);
 
   // ============================== 4. the library holds more than one animation ===
   // `still` is 4s where drift is 8s, and that difference is the assertion: length and

@@ -28,13 +28,35 @@
 // they make a violation. So this gate is static, and it says why in a measurement rather
 // than in a preference.
 //
-// 🔴 WHAT IT ENFORCES IS AN IDIOM, NOT A PROOF, AND THE DIFFERENCE IS WORTH THE SENTENCE.
-// Between seal A and seal B every claim belongs to B — that is what the code does, and no
-// scan can know which of them the AUTHOR meant for A. What a scan CAN know is that these
-// probes separate their sections with a blank line, and that a claim written under a
-// marker with no blank line between them reads to a human as covered by that marker while
-// being counted onto the next one. The gate bans that shape. It does not catch a claim
-// placed a paragraph away, and saying so here is cheaper than a reader discovering it.
+// 🔴 WHAT THE FIRST RULE ENFORCES IS AN IDIOM, NOT A PROOF. Between seal A and seal B
+// every claim belongs to B — that is what the code does, and no scan can know which of
+// them the AUTHOR meant for A. What a scan CAN know is that these probes separate their
+// sections with a blank line, and that a claim written under a marker with no blank line
+// between them reads to a human as covered by that marker while being counted onto the
+// next one. `SEAL_ORDER_TRAILING` bans that shape.
+//
+// 🔴 AND THE SECOND RULE IS 185 §10.2, WHICH ASKED WHETHER ANY SIGNAL SEPARATES "THE
+// AUTHOR MEANT THIS FOR THE PREVIOUS MARKER" FROM "THIS IS THE NEXT SECTION". There is
+// one, and it was found by measuring rather than by guessing (`host/_to_delete/` —
+// sectionsignal186, headless186, introcomment186). These probes ANNOUNCE the next
+// section before asserting in it, in one of two idioms:
+//
+//   a numbered / ruled header    // ============== 4. the library holds more ===
+//   a prose paragraph comment    // The other direction, and the whole point of the pair:
+//
+// So the boundary of the next section is its header if it has one and its first comment
+// otherwise, and a claim ABOVE that boundary was written in the section the seal just
+// closed — however many blank lines are in between. That is `SEAL_ORDER_UNANNOUNCED`,
+// and the header tier is the strong one: if a numbered header falls BETWEEN two seals,
+// then seal B is inside the next numbered section by construction and everything above
+// the header is in seal A's, which is a structural reading rather than a preference.
+//
+// Measured before it was written: 86 inter-seal regions, 81 announced by a comment and
+// 63 of those by a header; **five regions announce nothing at all** and this rule is
+// blind to them by construction — floored rather than assumed, see
+// ANNOUNCED_REGIONS_FLOOR. Fourteen claims across four regions were above their own
+// section's announcement, in two probes, and hand-reading all four found the same defect
+// each time: a section that existed in the source and had no marker of its own.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,6 +76,64 @@ export const FILES_FLOOR = 10;
 // ships with; floored below that, because a probe legitimately losing a section should
 // be a CHANGELOG entry rather than a red gate.
 export const SEAL_FLOOR = 95;
+
+// 🔴 AND A FLOOR ON THIS RULE'S OWN COVERAGE, which is the collapse the other two floors
+// cannot see: every file present, every seal found, and the probes having quietly stopped
+// announcing their sections, so `SEAL_ORDER_UNANNOUNCED` inspects nothing and prints ok.
+// 184 §10.6's complaint, honoured on the way in rather than four sessions later: a number
+// floored from one side only is a number nobody can act on. Measured at 84 of 89 regions
+// on the tree this ships with.
+export const ANNOUNCED_REGIONS_FLOOR = 80;
+
+/** A line that announces the next section outright — the strong tier of the boundary. */
+export const SECTION_HEADER = /^\s*\/\/\s*(?:[-–—─=_*#]{4,}|\d+[a-z]?\s*[.):]\s+\S)/;
+/** Any comment line — the weak tier, used when the region has no header. */
+export const ANY_COMMENT = /^\s*(?:\/\/|\/\*)/;
+
+/**
+ * Where the section that seal B closes begins: its own header if it has one, its first
+ * comment otherwise, and `null` when it announces itself in no way at all.
+ *
+ * 🔴 THE TWO TIERS ARE NOT INTERCHANGEABLE AND THE ORDER MATTERS. A header is a declared
+ * boundary, so a claim above it is in the PREVIOUS numbered section as a matter of
+ * structure. A prose comment is only the idiom these files keep. Preferring the header
+ * where one exists is what catches a claim introduced by its own paragraph comment while
+ * still sitting inside the section above — 186 §3's animation-lane and _TEXT_OPTS cases,
+ * which the comment tier alone reads as clean.
+ */
+export function sectionBoundary(lines, from, to) {
+  let comment = null;
+  for (let ln = from; ln <= to; ln++) {
+    const text = lines[ln - 1] ?? "";
+    if (SECTION_HEADER.test(text)) return { line: ln, tier: "header" };
+    if (comment === null && ANY_COMMENT.test(text)) comment = ln;
+  }
+  return comment === null ? null : { line: comment, tier: "comment" };
+}
+
+/**
+ * Every (seal, next seal) region in one file. The LAST seal's region is deliberately
+ * absent: claims after the last seal belong to no section at all, which is the `unsealed`
+ * population `report()`'s gate 6 declares (184 §3). Two gates on one population is two
+ * populations.
+ */
+export function regionsOf(f) {
+  const out = [];
+  for (let i = 0; i < f.seals.length - 1; i++) {
+    const from = f.seals[i].endLine + 1;
+    const to = f.seals[i + 1].line - 1;
+    if (to < from) continue;
+    out.push({
+      seal: f.seals[i],
+      next: f.seals[i + 1],
+      from,
+      to,
+      boundary: sectionBoundary(f.lines, from, to),
+      claims: f.claims.filter((c) => c.line >= from && c.line <= to),
+    });
+  }
+  return out;
+}
 
 /**
  * Every callee spelling that counts one claim, resolved PER FILE.
@@ -200,13 +280,32 @@ export const NOT_A_PROBE = {
  * every branch below is empty against a healthy tree, so inlining them would make them
  * untestable). `files` is a list of `inspect()` results.
  */
-export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE } = {}) {
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR } = {}) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const totalSeals = files.reduce((n, f) => n + f.seals.length, 0);
   const totalClaims = files.reduce((n, f) => n + f.claims.length, 0);
 
+  // The second rule's population, counted before anything is judged so the coverage line
+  // prints on a healthy run too — 184 §3's lesson about `unsealed=`, which was invisible
+  // in the passing case and therefore in no log anyone could compare against.
+  const allRegions = files.flatMap((f) => regionsOf(f).map((r) => ({ ...r, file: f.file })));
+  const announced = allRegions.filter((r) => r.boundary !== null);
+  const silent = allRegions.filter((r) => r.boundary === null);
+  const silentClaims = silent.reduce((n, r) => n + r.claims.length, 0);
+
   say(`SEAL_ORDER_GATE files=${files.length}/${filesFloor} seals=${totalSeals}/${sealFloor} claim-sites=${totalClaims}`);
+  say(`SEAL_ORDER_REGIONS ${allRegions.length} inter-seal · announced ${announced.length}/${announcedFloor}`
+      + ` (header ${announced.filter((r) => r.boundary.tier === "header").length})`
+      + ` · announcing nothing ${silent.length} holding ${silentClaims} claim(s)`);
+
+  if (announced.length < announcedFloor) {
+    say(`🔴 SEAL_ORDER_COVERAGE_COLLAPSE ${announced.length} < ${announcedFloor} — the UNANNOUNCED rule reads`);
+    say(`   the boundary of the next section off a header or, failing that, the first comment.`);
+    say(`   Probes that stop announcing their sections do not fail this rule, they REMOVE`);
+    say(`   themselves from it, and the gate would print ok over a shrinking population.`);
+    out.failed = true;
+  }
 
   if (files.length < filesFloor) {
     say(`🔴 SEAL_ORDER_ROSTER_COLLAPSE ${files.length} < ${filesFloor} — the roster is DISCOVERED by`);
@@ -262,16 +361,29 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
       if (trailing.length) hits.push({ seal: s, trailing });
     }
 
+    // 🔴 THE SECOND RULE. A claim above the point at which the section it is counted onto
+    // announces itself was written in the section the seal just closed. Claims already
+    // named by the shape rule above are excluded: one claim, one finding, or a reader
+    // fixing the first report discovers the second only on the next run.
+    const named = new Set(hits.flatMap((h) => h.trailing.map((c) => c.line)));
+    const stranded = [];
+    for (const r of regionsOf(f)) {
+      if (r.boundary === null) continue;
+      const above = r.claims.filter((c) => c.line < r.boundary.line && !named.has(c.line));
+      if (above.length) stranded.push({ region: r, above });
+    }
+
     // 🔴 A STALE EXEMPTION IS A FAILURE, NOT A SPARE ONE. verdict_gate.mjs's
     // ROSTER_STALE, and the reason is the same: an excused file that would pass anyway
     // spends a reader's attention on a decision that has stopped being a decision, and
     // the NEXT reader inherits it as evidence that the shape is legitimate.
     if (roster[f.file]) {
-      if (!hits.length) {
+      if (!hits.length && !stranded.length) {
         say(`🔴 SEAL_ORDER_ROSTER_STALE ${f.file} is excused but trips nothing — remove the entry.`);
         out.failed = true;
       } else {
-        say(`   exempt  ${f.file} (${hits.length} site(s)) — ${roster[f.file].slice(0, 68)}…`);
+        say(`   exempt  ${f.file} (${hits.length} shape / ${stranded.length} unannounced site(s))`
+            + ` — ${roster[f.file].slice(0, 60)}…`);
       }
       continue;
     }
@@ -286,11 +398,24 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
       say(`   unsealed gate (184 §3) cannot see it; what breaks is the report's AIM — delete`);
       say(`   these claims and it is the NEXT marker that reads vacuous. Move the seal below them.`);
     }
+
+    for (const { region: r, above } of stranded) {
+      out.failed = true;
+      say(`\n🔴 SEAL_ORDER_UNANNOUNCED ${f.file}:${r.seal.line}  ${r.seal.marker}`);
+      say(`   ${r.next.marker} announces itself at :${r.boundary.line} (${r.boundary.tier}), and these are above it:`);
+      for (const c of above) say(`   claim at :${c.line}  ${c.callee}(…)  — counted onto ${r.next.marker}`);
+      say(`   Every one of them was written before the next section began and is drained by its`);
+      say(`   marker anyway. Nothing goes unattributed, so neither the unsealed gate (184 §3) nor`);
+      say(`   the shape rule above can see it — what breaks is the report's AIM. Each of the four`);
+      say(`   found in 186 §3 was the same thing: a section that existed in the source and had no`);
+      say(`   marker of its own. Seal it, or move the seal above it down past its own claims.`);
+    }
   }
 
   say(out.failed
     ? `\nSEAL_ORDER_GATE 🔴 FAILED`
-    : `SEAL_ORDER_GATE ok — ${totalSeals} seal(s) across ${files.length} file(s), every marker sits below its own claims`);
+    : `SEAL_ORDER_GATE ok — ${totalSeals} seal(s) across ${files.length} file(s), every marker sits below`
+      + ` its own claims and above none of the next section's`);
   return out;
 }
 
