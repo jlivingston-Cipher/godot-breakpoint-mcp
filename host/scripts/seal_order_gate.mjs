@@ -83,7 +83,12 @@ export const SEAL_FLOOR = 95;
 // 184 §10.6's complaint, honoured on the way in rather than four sessions later: a number
 // floored from one side only is a number nobody can act on. Measured at 84 of 89 regions
 // on the tree this ships with.
-export const ANNOUNCED_REGIONS_FLOOR = 80;
+// 🔴 189 — AND THE NUMBER MOVED DOWN BECAUSE THE POPULATION WAS NARROWED, NOT BECAUSE
+// COVERAGE FELL. The fourth rule's block below takes the two `_*` instruments out of the
+// region population: 89 → 82 regions, announced 83 → 77, and not one judged site lost
+// (both instruments contributed zero). Re-measured at 77 and floored a little under, the
+// same way this number was set the first time.
+export const ANNOUNCED_REGIONS_FLOOR = 73;
 
 // ── THE THIRD RULE (187) — THE HEADER LIST A READER GREPS ────────────────────────────
 //
@@ -147,7 +152,13 @@ export const ANNOUNCED_REGIONS_FLOOR = 80;
 // it already follows. So the rule is: EVERY SEALING FILE NOT NAMED `_*` MUST CARRY A
 // HEADER. A new probe is covered the moment it lands, an instrument is excluded by being
 // named like one, and nobody has to remember to update a list.
-export const headerRequired = (file) => !file.startsWith("_");
+// 🔴 189 — AND THE PREDICATE IS NOW NAMED FOR THE QUESTION IT ANSWERS, BECAUSE A SECOND
+// RULE NEEDED THE SAME ANSWER AND WAS ASKING A ROSTER FOR IT. `NOT_A_PROBE` below has
+// carried one hand-written entry since 175 whose written reason is *this file is not a
+// probe*; the directory has been able to derive that since 188 §6. One convention, two
+// rules, one spelling — see the fourth rule's block for what the roster keeps.
+export const isProbe = (file) => !file.startsWith("_");
+export const headerRequired = isProbe;
 
 // The floor stays, and it is now the OTHER half: `headerRequired` says which files are
 // judged, and this says how many must exist at all. Rename all nine probes to `_x` and
@@ -157,6 +168,76 @@ export const MARKER_HEADER_FILES_FLOOR = 9;
 // The other half of the same collapse: every header still present and the manifests
 // emptied. Measured at 61 across six files in 187; 91 across nine after 188 §6.
 export const HEADER_FAMILY_FLOOR = 85;
+
+// ── THE FOURTH RULE (189) — THE REGIONS THAT ANNOUNCED NOTHING ───────────────────────
+//
+// 186 §6 measured five regions that announce themselves in no way at all, floored them
+// and handed them over. 187 and 188 carried the note unchanged. 188 §9.3's instruction
+// was §6's method: READ them first, then derive the exclusion rather than listing it.
+//
+// Read — all six, in `host/_to_delete/silent189.mjs`, one at a time with the seals either
+// side and every claim inside. The reading split them 5/1, and the 1 is the finding:
+//
+//   FIVE ARE PROBE REGIONS AND EVERY ONE IS CORRECTLY ATTRIBUTED. `cs-dap-plane` ×2, a
+//   run of one-line path-guard cases where the seal's own marker is the announcement;
+//   `runtime-peers` (three for-loops, all about the step the next seal names);
+//   `runtime-screenshot` (the bad-reference case); `verification-family` (five claims,
+//   all about the RED expectation the next seal names). Nothing to fix in any of them.
+//
+//   🔴 THE SIXTH IS `_caller_shape.harness.mjs`, AND IT DOCUMENTS THE OPPOSITE IDIOM IN
+//   ITS OWN WORDS: *"Verified in the NEXT section on purpose: a claim made after the last
+//   seal belongs to no section and is counted in the total."* The premise all three rules
+//   above rest on — a claim between two seals was written for the second — is false there
+//   BY CONSTRUCTION, deliberately, because that file is a fixture for the counting
+//   machinery rather than a narrative of a live system.
+//
+// 🔴 AND `NOT_A_PROBE` HAD ALREADY SAID SO ABOUT THE OTHER INSTRUMENT, ONE FILE OVER.
+// Its single entry excuses `_population.selftest.mjs` with the written reason *"a blank
+// line between sections is a PROBE idiom and this file is not a probe"* — which is word
+// for word true of the harness, which is not in it. The roster was one name short and
+// nothing could see that: the harness gets away with it only because its fixture claims
+// are spelled `sassert.ok`, which the claim finder cannot read (189 §5).
+//
+// So the region population is now PROBE FILES ONLY, derived from the same `_*` convention
+// the header rule uses, and the two instruments contribute 7 of the 89 regions and ZERO
+// judged sites — a ratio over a population the gate chose for itself (188 §4's phrase).
+// `NOT_A_PROBE` keeps its entry and stays live: the TRAILING rule still runs over every
+// file and still trips three times in the self-test, so this narrows one rule, not three.
+export const REGION_FILES_FLOOR = 9;
+
+// 🔴 AND THE COUNT IS NOW FLOORED FROM BOTH SIDES, WHICH IS 180 §11.4's COMPLAINT ABOUT
+// ORPHANS ANSWERED SOMEWHERE ELSE — a number floored from one side only is a number
+// nobody can act on, and it has been carried for seven sessions. The five silent regions
+// were READ, one at a time, and that reading is what licenses the rule to pass over them.
+// A SIXTH is a region nobody has read, so it fails: read it, then either announce it or
+// raise the ceiling with the reading written down. That is 188 §6's move exactly — a
+// floor became a ceiling the session the population was read.
+export const SILENT_REGIONS_CEILING = 5;
+
+/**
+ * A region's paragraphs: runs of non-blank lines separated by blank lines.
+ *
+ * 🔴 THIS IS NOT A NEW IDIOM, IT IS THE ONE THE FIRST RULE ALREADY ENFORCES. Read the
+ * header: *these probes separate their sections with a blank line*, and
+ * `SEAL_ORDER_TRAILING` bans a claim written under a marker with no blank line between
+ * them. So the blank line is this gate's own section separator, and reading it inside a
+ * SILENT region asks the only question left there: did the author draw a section break
+ * with the separator and announce it with nothing?
+ *
+ * Measured across all 89 regions before the rule was written (`_to_delete/paras189.mjs`):
+ * every one of the six silent regions is a SINGLE unbroken paragraph, while 55 of the 83
+ * announced ones are not. It discriminates.
+ */
+export function paragraphsOf(lines, from, to) {
+  const out = [];
+  let cur = null;
+  for (let ln = from; ln <= to; ln++) {
+    if ((lines[ln - 1] ?? "").trim() === "") { cur = null; continue; }
+    if (!cur) { cur = { from: ln, to: ln }; out.push(cur); }
+    cur.to = ln;
+  }
+  return out;
+}
 
 /** The grep-able header block, if the file carries one. */
 export const MARKER_HEADER = /\/\/ Markers \(grep-able\):([\s\S]*?)\.\s*\n/;
@@ -390,7 +471,7 @@ export const NOT_A_PROBE = {
  * every branch below is empty against a healthy tree, so inlining them would make them
  * untestable). `files` is a list of `inspect()` results.
  */
-export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired } = {}) {
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING } = {}) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const totalSeals = files.reduce((n, f) => n + f.seals.length, 0);
@@ -399,15 +480,22 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
   // The second rule's population, counted before anything is judged so the coverage line
   // prints on a healthy run too — 184 §3's lesson about `unsealed=`, which was invisible
   // in the passing case and therefore in no log anyone could compare against.
-  const allRegions = files.flatMap((f) => regionsOf(f).map((r) => ({ ...r, file: f.file })));
+  // 🔴 189 — AND THE POPULATION IS PROBE FILES ONLY. See the fourth rule's block: the two
+  // `_*` instruments build FIXTURES between their seals, one of them says so in a comment
+  // and the other has a roster entry saying so, and neither has ever contributed a judged
+  // site. Counting them made every ratio below one over a population the gate chose.
+  const regionFiles = files.filter((f) => inSections(f.file));
+  const allRegions = regionFiles.flatMap((f) => regionsOf(f).map((r) => ({ ...r, file: f.file, lines: f.lines })));
   const announced = allRegions.filter((r) => r.boundary !== null);
   const silent = allRegions.filter((r) => r.boundary === null);
   const silentClaims = silent.reduce((n, r) => n + r.claims.length, 0);
 
   say(`SEAL_ORDER_GATE files=${files.length}/${filesFloor} seals=${totalSeals}/${sealFloor} claim-sites=${totalClaims}`);
-  say(`SEAL_ORDER_REGIONS ${allRegions.length} inter-seal · announced ${announced.length}/${announcedFloor}`
+  say(`SEAL_ORDER_REGIONS ${allRegions.length} inter-seal in ${regionFiles.length}/${regionFilesFloor} probe file(s)`
+      + ` · announced ${announced.length}/${announcedFloor}`
       + ` (header ${announced.filter((r) => r.boundary.tier === "header").length})`
-      + ` · announcing nothing ${silent.length} holding ${silentClaims} claim(s)`);
+      + ` · announcing nothing ${silent.length}/${silentCeiling} holding ${silentClaims} claim(s)`
+      + ` · ${files.length - regionFiles.length} instrument(s) excluded by name`);
 
   // 🔴 THE THIRD RULE'S POPULATION, COUNTED AND PRINTED ON GREEN RUNS FOR THE SAME
   // REASON. The files WITHOUT a header are the blind spot, and a reader of a passing log
@@ -438,6 +526,49 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
     say(`   Probes that stop announcing their sections do not fail this rule, they REMOVE`);
     say(`   themselves from it, and the gate would print ok over a shrinking population.`);
     out.failed = true;
+  }
+
+  // 🔴 THE OTHER HALF OF THE DERIVED EXCLUSION, exactly as `MARKER_HEADER_FILES_FLOOR` is
+  // the other half of `headerRequired`. Rename the nine probes to `_x` and the three rules
+  // above would judge nothing while reporting no offenders.
+  if (regionFiles.length < regionFilesFloor) {
+    say(`🔴 SEAL_ORDER_REGION_SCOPE_COLLAPSE ${regionFiles.length} < ${regionFilesFloor} — the region rules`);
+    say(`   exclude instruments by name (\`_*\`), which is free until the day a PROBE is named`);
+    say(`   like one. Then it leaves the population instead of failing in it, and this gate`);
+    say(`   reports no offenders over the files it stopped reading. 174 §5's exact defect.`);
+    out.failed = true;
+  }
+
+  // 🔴 THE FOURTH RULE. A silent region is one the UNANNOUNCED rule cannot read at all,
+  // and the five on this tree were read BY HAND (189 §3) — that reading is what licenses
+  // passing over them, so it is pinned from above. Both directions, which is 180 §11.4's
+  // seven-session-old complaint about a number floored from one side only.
+  if (silent.length > silentCeiling) {
+    say(`🔴 SEAL_ORDER_SILENT_UNREAD ${silent.length} > ${silentCeiling} region(s) announce themselves in no`);
+    say(`   way at all. The five on the tree this ships with were read one at a time and each`);
+    say(`   is correctly attributed; a sixth is a region NOBODY HAS READ, and the rule that`);
+    say(`   would judge it is blind to it by construction. Read it, then either announce the`);
+    say(`   section with a comment or raise this ceiling with the reading written down.`);
+    for (const r of silent) say(`   silent  ${r.file}:${r.from}-${r.to}  between ${r.seal.marker} and ${r.next.marker}`);
+    out.failed = true;
+  }
+  for (const r of silent) {
+    // The blank line is this gate's own section separator — `SEAL_ORDER_TRAILING` is
+    // built on it. Inside a region that announces nothing it is the only signal left.
+    const paras = paragraphsOf(r.lines ?? [], r.from, r.to);
+    const holding = paras.filter((p) => r.claims.some((c) => c.line >= p.from && c.line <= p.to));
+    if (holding.length < 2) continue;
+    out.failed = true;
+    say(`\n🔴 SEAL_ORDER_SILENT_SPLIT ${r.file}:${r.from}-${r.to}  between ${r.seal.marker} and ${r.next.marker}`);
+    say(`   announces nothing, and its claims fall in ${holding.length} blank-line-separated paragraphs:`);
+    for (const p of holding) {
+      const cs = r.claims.filter((c) => c.line >= p.from && c.line <= p.to);
+      say(`   :${p.from}-${p.to}  ${cs.length} claim(s) at ${cs.map((c) => c.line).join(", ")}`);
+    }
+    say(`   A blank line IS this gate's section separator — the shape rule above is built on`);
+    say(`   it. Two paragraphs of claims with no comment between them is a section break the`);
+    say(`   author drew and announced with nothing, and \`seal()\` counts every one of them`);
+    say(`   onto ${r.next.marker} regardless. Announce the second section, or seal the first.`);
   }
 
   if (files.length < filesFloor) {
@@ -538,9 +669,11 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
     // announces itself was written in the section the seal just closed. Claims already
     // named by the shape rule above are excluded: one claim, one finding, or a reader
     // fixing the first report discovers the second only on the next run.
+    // 🔴 189 — AND THE SAME EXCLUSION AS THE COUNT ABOVE, or the ratio and the judgement
+    // would be over two different populations, which is 188 §5's whole finding.
     const named = new Set(hits.flatMap((h) => h.trailing.map((c) => c.line)));
     const stranded = [];
-    for (const r of regionsOf(f)) {
+    for (const r of (inSections(f.file) ? regionsOf(f) : [])) {
       if (r.boundary === null) continue;
       const above = r.claims.filter((c) => c.line < r.boundary.line && !named.has(c.line));
       if (above.length) stranded.push({ region: r, above });

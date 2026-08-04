@@ -6,6 +6,55 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the regions that announced nothing, and the roster that was one name short
+
+`seal_order_gate.mjs`'s second rule reads the boundary of a section off its header or,
+failing that, its first comment, and a claim above that boundary was written in the section
+the seal just closed. **Six regions announce themselves in no way at all**, so the rule is
+blind to them by construction. 186 measured them and floored them; 187 and 188 carried the
+note unchanged.
+
+**Read first, and the reading split them 5/1.** Five are probe regions — `cs-dap-plane` ×2,
+`runtime-peers`, `runtime-screenshot`, `verification-family` — and every one is correctly
+attributed: a tight run of statements whose claims are all about the very thing the next
+seal names. Nothing to fix in any of them.
+
+🔴 **The sixth is `_caller_shape.harness.mjs`, and it documents the opposite idiom in its
+own words:** *"Verified in the NEXT section on purpose: a claim made after the last seal
+belongs to no section and is counted in the total."* The premise all three region rules rest
+on — a claim between two seals was written for the second — is false there deliberately,
+because that file is a fixture for the counting machinery rather than a narrative of a live
+system. And `NOT_A_PROBE` had already said exactly that about the *other* instrument, one
+file over, in prose: *"a blank line between sections is a PROBE idiom and this file is not a
+probe."* **The roster was one name short and nothing could see it** — the harness gets away
+with it only because its fixture claims are spelled `sassert.ok`, which the claim finder
+cannot read.
+
+So the region population is now **probe files only**, derived from the same `_*` convention
+188 §6 gave the header rule. 89 → 82 regions, announced 83 → 77, and **not one judged site
+lost**: both instruments contributed zero. The floor moved down because the population
+narrowed, not because coverage fell.
+
+**And the residue got a rule.** Measured across all 89 regions before it was written: every
+silent region is a *single unbroken paragraph*, while 55 of the 83 announced ones are not —
+so it discriminates. The blank line is already this gate's own section separator (the
+`SEAL_ORDER_TRAILING` rule is built on it), which makes a one-paragraph silent region
+unambiguous and a **multi-paragraph** one a section break the author drew with the separator
+and announced with nothing. That is `SEAL_ORDER_SILENT_SPLIT`: zero on this tree, planted in
+the self-test, and swept.
+
+`SILENT_REGIONS_CEILING = 5` holds the count from **above** — the first ceiling in
+`floor_pin_gate.py`'s table. The five were read one at a time and that reading is what
+licenses passing over them; a sixth is a region nobody has read. 180 §11.4's complaint about
+a number floored from one side only, seven sessions old, answered where it cost nothing.
+
+🔴 **The reverse sweep found two things the tree could not.** The exclusion was applied to
+the region *count* and to the per-file *judgement*, and restoring the judgement half changed
+no output at all — the one excused instrument happens to have no unannounced site, so that
+guard was dead code that would come alive on the day one grew. It is now asserted with the
+same source under two filenames. And a claim about the roster cannot be tested by neutering
+the claim; the mutant plants a probe *in* the roster instead.
+
 ## [1.64.0] — 2026-08-04
 
 ### Added — the statements that resisted, and the two lists that were never one number

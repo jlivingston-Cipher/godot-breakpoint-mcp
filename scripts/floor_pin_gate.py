@@ -52,7 +52,9 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 43   # 187: 41 -> 43 (the marker rule's MARKER_HEADER_FILES_FLOOR and
+TARGET_FLOOR = 45   # 189: 43 -> 45 (the region rule's REGION_FILES_FLOOR and the first
+                    #      CEILING in this table, SILENT_REGIONS_CEILING)
+                    # 187: 41 -> 43 (the marker rule's MARKER_HEADER_FILES_FLOOR and
                     #      HEADER_FAMILY_FLOOR, both swept by the seal-order self-test)
                     # 185: 37 -> 40 (the seal-order gate's FILES_FLOOR, SEAL_FLOOR and
                     #      its self-test's own CLAIM_FLOOR)
@@ -98,7 +100,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # walk finds because it is not exported.
     ("FILES_FLOOR",              f"{S}/seal_order_gate.mjs",         r"(export const FILES_FLOOR = )10;",                         [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SEAL_FLOOR",               f"{S}/seal_order_gate.mjs",         r"(export const SEAL_FLOOR = )95;",                          [f"{S}/seal_order_gate.selftest.mjs"]),
-    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )95;",                               [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )106;",                              [f"{S}/seal_order_gate.selftest.mjs"]),
     # 🆕 187 — the marker rule's two, and BOTH are swept here rather than exempted,
     # because their runner is a self-test that touches nothing. That is the difference
     # between these and control_gate.py's pair four entries down in DISCOVER_EXEMPT: the
@@ -108,7 +110,14 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # 186 §3: the coverage floor on the UNANNOUNCED rule's own population. It is the only
     # one of the three seal-order floors that measures how much of the tree the rule can
     # READ, so a probe dropping the section idiom shrinks it without failing anything else.
-    ("ANNOUNCED_REGIONS_FLOOR",  f"{S}/seal_order_gate.mjs",         r"(export const ANNOUNCED_REGIONS_FLOOR = )80;",             [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("ANNOUNCED_REGIONS_FLOOR",  f"{S}/seal_order_gate.mjs",         r"(export const ANNOUNCED_REGIONS_FLOOR = )73;",             [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 189 — THE FOURTH RULE'S PAIR, AND THE SECOND OF THEM IS A CEILING, WHICH IS THE
+    # FIRST ENTRY IN THIS TABLE HELD FROM ABOVE. The sweep does not care which direction a
+    # pinned literal is read in — it moves it and demands a red — so a ceiling costs the
+    # same one row a floor does, and 180 §11.4's seven-session complaint about a number
+    # floored from one side only cost nothing at all to answer here.
+    ("REGION_FILES_FLOOR",       f"{S}/seal_order_gate.mjs",         r"(export const REGION_FILES_FLOOR = )9;",                   [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("SILENT_REGIONS_CEILING",   f"{S}/seal_order_gate.mjs",         r"(export const SILENT_REGIONS_CEILING = )5;",               [f"{S}/seal_order_gate.selftest.mjs"]),
     ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),
