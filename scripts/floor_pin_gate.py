@@ -52,7 +52,9 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 37   # 184: 36 -> 37 (the caller-shape POPULATION_LINES roster floor)
+TARGET_FLOOR = 40   # 185: 37 -> 40 (the seal-order gate's FILES_FLOOR, SEAL_FLOOR and
+                    #      its self-test's own CLAIM_FLOOR)
+                    # 184: 36 -> 37 (the caller-shape POPULATION_LINES roster floor)
 #                     182: 25 -> 30 (HELPER, CONDUIT, SHAPED, PRECONDITION, CHECKS_RUN)
 
 # (label, file, regex whose group(1) ends immediately before the digits, runner argv)
@@ -87,6 +89,14 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("FILE_FLOORS.test-integration", f"{S}/tautology_gate.mjs",      r'(FILE_FLOORS = \{ test: 45, "test-integration": )28,',     [f"{S}/tautology_gate.selftest.mjs"]),
     ("FILE_FLOORS.scripts",          f"{S}/tautology_gate.mjs",      r'("test-integration": 28, scripts: )8,',                    [f"{S}/tautology_gate.selftest.mjs"]),
     ('FILE_FLOORS."."',              f"{S}/tautology_gate.mjs",      r'(scripts: 8, "\.": )12 \};',                               [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🆕 185 — THE SEAL-ORDER GATE'S THREE. `FILES_FLOOR` and `SEAL_FLOOR` were reported
+    # UNSWEPT by the DISCOVER half on this session's first run, which is 184 §7 happening
+    # again on a new file and is that fix still working. `so.CLAIM_FLOOR` is the
+    # self-test's own floor — the one that protects the other two, and the one no DISCOVER
+    # walk finds because it is not exported.
+    ("FILES_FLOOR",              f"{S}/seal_order_gate.mjs",         r"(export const FILES_FLOOR = )10;",                         [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("SEAL_FLOOR",               f"{S}/seal_order_gate.mjs",         r"(export const SEAL_FLOOR = )95;",                          [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )55;",                               [f"{S}/seal_order_gate.selftest.mjs"]),
     ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),

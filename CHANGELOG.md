@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the marker written above its own claims, gated where the defect actually lives
+
+184 §5 found four markers in `runtime-peers.integration.mjs` sealing the section *before*
+them: `Population.seal()` attributes every claim made since the **previous** seal, so a
+marker written above its own assertions owns the section before it and hands its own to the
+next one. Nothing goes unattributed when that happens — so `report()`'s sixth gate, the
+`unsealed` count 184 had just added, is blind to it by construction. What breaks is the
+report's **aim**: delete section 5's three claims and it is `F6_PEERS_CEILING` that reads
+vacuous, one section past the one that broke. 184 fixed the four instances with a 40-line
+regex scan that called itself heuristic in its own docstring, and left the class.
+
+`scripts/seal_order_gate.mjs`, with a self-test, both as steps in the existing `test` job —
+**no 27th CI job, twenty-third session running.**
+
+🔴 **And no runtime gate could have covered it, which is what decided the shape.** A seal
+drains what has *already* happened, so every claim it takes preceded it in time; the defect
+is entirely in the source's reading. The call-site reading was measured before being
+rejected rather than dismissed: the outermost own-file stack frame is the async IIFE's own
+invocation line and **vanishes across an `await`**, and the innermost is the *helper's body*
+line for any claim made inside one — of which there are **thirteen defined below the first
+seal of their own file**, across six probes. A rule reading innermost frames would have
+called every claim they make a violation.
+
+- **The finder had to be measured before the rule.** 171 §2: a file reporting zero claim
+  sites either makes none or asserts in an idiom the finder cannot read. `cs-dap-plane` is
+  the live proof — eleven seals and not one `assert.` call anywhere, because it keeps a
+  local `claim(name, cond)` arrow. So the finder resolves local claim helpers to a fixed
+  point, and `CLAIM_SITE_FLOORS` gives every file a measured floor: a probe whose idiom this
+  cannot read **reddens instead of passing at zero sites**.
+- **It catches the real thing.** Run against `runtime-peers.integration.mjs` at `df5e913` —
+  the commit before 184 fixed it — the gate reports **three markers and six claims**, where
+  the regex scan's two-line window found four.
+- **What it does not catch is written into its own self-test.** The rule bans a *shape*: a
+  claim under a marker with no blank line between them. The same defect a paragraph away is
+  invisible, and that dismissal is asserted as a case, so it cannot be discovered as a
+  surprise later.
+- **One exemption, and it costs a written reason** (174 §5). `_population.selftest.mjs`
+  builds fixtures one compressed line per section, so consecutive claims and seals are
+  separate fixtures rather than a section and its marker. It still counts toward the roster,
+  the seal floor and its own claim-site floor — an exemption should not buy a collapsed
+  finder. A dead entry and a *stale* one both fail the gate.
+
 ## [1.60.0] — 2026-08-04
 
 ### Fixed — the one number in the population line that nothing read, and the four sections it was hiding
