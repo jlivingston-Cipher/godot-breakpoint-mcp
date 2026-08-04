@@ -207,7 +207,15 @@ INSTRUMENTS = [
             # blind is a textual substitution, so a loosened anchor that matched two
             # overloads would blind the wrong one silently. The cost is a re-point per
             # parameter added, and the DISCOVER half is what makes that cost visible.
-            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR) {":
+            # 🔴 RE-POINTED A SECOND TIME, 194 — `sectionFloor` joined the signature the way
+            # `bannerFloor` did in 193, and this anchor went UNMATCHED again. 193 §12.27
+            # decided the anchor stays full-signature on purpose (a blind is a textual
+            # substitution, and a loosened anchor matching two overloads would blind the
+            # wrong one silently) and that decision still holds — but paying the same cost
+            # twice for the same reason is the shape 192 §6 fixed for VALUES with a `{V}`
+            # placeholder. A SIGNATURE is the same kind of derived literal and
+            # `derived_literal_problems` cannot see it. See §9 in the handoff.
+            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR, sectionFloor = SECTION_ATTRIBUTED_FLOOR) {":
                 "return { lines: [], failed: false };",
             # 🔴 180. THE WIRE, AND IT IS HERE BECAUSE THE REVERSE SWEEP CAUGHT IT GREEN.
             # `if (scope.failed) failed = true` inline in main() could be deleted with

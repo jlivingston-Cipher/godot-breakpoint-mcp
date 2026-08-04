@@ -6,6 +6,82 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the message that blamed the engine
+
+193 §3 split `unsupported` into two populations and handed the rest over as a decision:
+four SHAPE sites answer "the node you named is the wrong kind", which is what `bad_type`
+says at 47 other sites, and `docs/TOOL_CATALOG.md` documents that choice twice. The
+decision taken is **keep the code, fix the message** — the shipped vocabulary does not
+move, so the catalog stays true and nothing branching on `unsupported` breaks.
+
+🔴 **The harm was never the word on the wire; it is what the reader does next.** Read
+`unsupported` on `shadermaterial_create` against a message that says only
+`Sprite2D has no material slot` and the reasonable inference is *"this build cannot do
+shader materials"* — so the caller stops. The correct read is *"pick a node with a
+material slot"*, and until now the difference between those two lived nowhere but in prose.
+
+All four shape messages now name the caller's node, name the classes that would work, and
+avoid every capability word. **Check 24c** holds them there, with four arms asked of each
+site's own derived kind rather than of a roster:
+
+```
+SHAPE       must name the caller's node             the subject is THEIR object
+SHAPE       must not read as a capability refusal   no version claim, no "unavailable"
+SHAPE       must name a class the GUARD ITSELF TESTS  it must say what to pass instead
+CAPABILITY  must NOT name the caller's node         the subject is the BUILD
+```
+
+🔴 **The third arm is the one that does work, and it is derived rather than a word list.**
+"Contains a capitalised word" is satisfied by "Pass" and would be vacuous the day it
+shipped. What the message must contain is a class the guard's own predicate tests:
+`if not (node is GPUParticles2D)` demands `GPUParticles2D`; `if prop == "":` resolves to
+`_material_prop(node)`, whose body tests `CanvasItem` and `GeometryInstance3D`. That cannot
+be satisfied by prose — only by naming the thing the caller has to go and get. **It failed
+2 of 4 before this change.** A fifth statement covers the reader itself: a raise site whose
+message literal is not on the raise line is 193 §7.2's `emit_failed` exactly, and it would
+have passed all four arms silently.
+
+### Fixed — the probes' own section markers, which the scorer was not reading
+
+193 taught the tautology scorer the section BANNER and took the orphan ceiling 509 → 148.
+Reading under what was left found the reader was missing the idiom that matters most:
+`_population.mjs` attributes every claim at runtime by two calls, and the scorer read
+neither.
+
+```
+HEADER-FIRST  population.open(label)   claims count into it until the next open
+FAIL-FAST     population.seal(marker)  attributes every claim since the previous seal,
+                                       so the marker sits BELOW its own claims
+```
+
+`vcs.integration.mjs` spells all twelve of its sections with `seal()` — 78 claims, the
+largest single block of orphans in the tree. The runtime always knew which section each of
+them belonged to. **The scorer now asks the same question, so this closes without adding a
+single banner to a single test file.** The `family()` idiom is excluded by construction: it
+sets `current = null` on exit, so "nearest event above" would hand a post-family claim the
+section that already closed — and those files are already owned by the AST walk.
+
+🔴 **And the banner reader knew one of the three ways this tree draws a banner.** 193
+generalised from eleven files and was right about those eleven. The same convention is
+drawn with box characters in 183 lines across `scripts/`, `test/` and `test-integration/`,
+and with a three-dash leading rule in both LSP plane probes — `verdict_gate.selftest.mjs`,
+`cs-lsp-plane` and `lsp-plane` were being counted as carrying no banners while carrying
+them. A second form matches a title FLANKED by rules, as a union with the first, never a
+swap; `// -- TODO --` still matches nothing.
+
+```
+orphan 148 → 46 · attributed 3582 → 3700 · units 1688 → 1739
+sectionAttributed 448 (new floor 380) · bannerAttributed 362 → 21 (floor 300 → 15)
+vacuous 0 · every 0 · offender 0 — every newly-scored claim is clean
+```
+
+The banner floor came down because the section path is tried **first**: `population.seal()`
+is what the runtime counts by and a comment above the same claim is decoration. Ten of the
+eleven files that floor was measured on carry both, so 341 of its 362 moved to the path
+that is right about them. Two paths under one subtraction need two numbers — 172 §10.22 —
+so `SECTION_ATTRIBUTED_FLOOR` is the second, and killing either while the other grows is
+now a named failure rather than a quiet one.
+
 ## [1.69.0] — 2026-08-04
 
 ### Added — one word with two meanings, and the copies nobody compared
