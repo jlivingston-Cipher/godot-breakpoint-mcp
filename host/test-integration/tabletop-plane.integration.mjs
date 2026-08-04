@@ -79,6 +79,16 @@ const population = new Population("TT", {
   families: ["TT_LIVE", "TT_READ", "TT_WRITE", "TT_OVERWRITE", "TT_RPC"],
   scope: 5,
   claims: 50,         // 🔴 EXACT — 50 locally and in CI
+  // 🔴 184 §3: THE COMMENT ABOVE WAS THE ONLY THING SAYING THIS, AND A COMMENT IS NOT A
+  // GATE. Both banner claims are made before the first family opens, so they land in the
+  // unattributed bucket, print as `unsealed=`, and were read by nothing — while counting
+  // toward `claims: 50`. Declared, so the count is re-measured every run and a third one
+  // appearing is a failure rather than a number in a line nobody reads.
+  unsealed: 2,
+  unsealedWhy: "TT_GATE_PING is the reachability banner and TT_GATE_SURFACE the registration "
+             + "banner; both are made before the first family opens, on purpose, because "
+             + "neither describes a plane behaviour and a run that fails them never reaches "
+             + "a family at all",
 });
 function pass(marker, detail = "") { population.claim(); results.pass.push(marker); console.log(`${marker} OK ${detail}`.trimEnd()); }
 function fail(marker, detail = "") { population.claim(); results.fail.push(marker); console.log(`${marker} FAIL ${detail}`.trimEnd()); }

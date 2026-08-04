@@ -45,15 +45,36 @@ export class Population {
    *                 separately and on purpose: `families.length >= families.length`
    *                 is a tautology, and this file exists because of those.
    * @param claims   the coarse claim floor, measured, not guessed (169 §3)
+   * @param unsealed how many claims this probe makes OUTSIDE every section, DECLARED
+   *                 (184 §3). Default 0 — the shape almost every probe has.
+   * @param unsealedWhy the written reason, REQUIRED when `unsealed` is non-zero.
+   *
+   * 🔴 `unsealed` IS AN EXEMPTION, SO IT COSTS A WRITTEN REASON (183 §7's rule, which
+   * that session earned by deleting a filename-prefix filter that had exempted five
+   * files in silence since 174). A claim made outside every section is counted in the
+   * total and attributed to no family — so it holds the claim floor up on behalf of
+   * nothing, and until 184 the number was PRINTED as `unsealed=N` and read by no gate.
+   * Declaring it makes the exemption cost a sentence and makes the count re-measured
+   * every run; not declaring it means zero, which is the honest default.
    */
-  constructor(prefix, { families, scope, claims: claimFloor }) {
+  constructor(prefix, { families, scope, claims: claimFloor, unsealed = 0, unsealedWhy = "" }) {
     if (!prefix) throw new Error("Population: a marker prefix is required");
     if (!Array.isArray(families) || families.length === 0) throw new Error("Population: a family manifest is required");
     if (!Number.isInteger(scope) || !Number.isInteger(claimFloor)) throw new Error("Population: scope and claims floors must be integers");
+    if (!Number.isInteger(unsealed) || unsealed < 0) throw new Error("Population: the unsealed count must be a non-negative integer");
+    // 🔴 A NAME WOULD COST NOTHING AND BE INVISIBLE IN THE OUTPUT. This is the same
+    // shape as `NO_CLAIMS_EXPECTED` in `tautology_gate.mjs`: the exemption is allowed,
+    // and the price of it is a sentence somebody has to write and a later reader can
+    // disagree with.
+    if (unsealed > 0 && !String(unsealedWhy).trim()) {
+      throw new Error("Population: a non-zero unsealed count costs a written reason — pass `unsealedWhy` naming the claims that belong to no family");
+    }
     this.prefix = prefix;
     this.families = families;
     this.scopeFloor = scope;
     this.claimFloor = claimFloor;
+    this.unsealedDeclared = unsealed;
+    this.unsealedWhy = String(unsealedWhy).trim();
     this.total = 0;
     this.pending = 0;
     this.current = null;
@@ -221,10 +242,18 @@ export class Population {
     const failures = [];
 
     const roster = [...this.seen].map(([m, n]) => `${m}=${n}`).join(" ");
+    // 🔴 `unsealed=N` USED TO PRINT ONLY WHEN N WAS NON-ZERO, WHICH IS THE HALF OF THE
+    // DEFECT THE GATE BELOW CANNOT FIX. A number that appears only in the failing case
+    // is a number nobody ever sees in the passing case, so nobody knows what it should
+    // be — and a probe whose two banner claims silently stopped being made would lose
+    // the line entirely rather than change it. `N/declared`, printed whenever either
+    // side is non-zero, in the `read=N/floor` idiom 183 §8 settled on.
+    const unsealedField = (trailing || this.unsealedDeclared)
+      ? ` unsealed=${trailing}/${this.unsealedDeclared}` : "";
     console.log(
       `\n${this.prefix}_POPULATION claims=${this.total}/${this.claimFloor} ` +
       `families=${this.seen.size}/${this.families.length} vacuous=${this.vacuous.length} ` +
-      `partial=${this.partial.length}${trailing ? ` unsealed=${trailing}` : ""}${roster ? ` : ${roster}` : ""}`,
+      `partial=${this.partial.length}${unsealedField}${roster ? ` : ${roster}` : ""}`,
     );
 
     // 1. THE GATE'S OWN SCOPE (168 §6). A manifest silently emptied to nothing passes
@@ -258,6 +287,24 @@ export class Population {
     //    one, which the manifest alone cannot see.
     if (this.total < this.claimFloor) {
       failures.push(`${this.prefix}_POPULATION_FLOOR — THE SUITE GOT SMALLER, NOT GREENER: ${this.total} claim(s) ran, floor is ${this.claimFloor}`);
+    }
+
+    // 6. 🔴 AND THE ONE NUMBER IN THE LINE ABOVE THAT NOTHING READ (183 §12.3, and it
+    //    is 169's tautology inside the instrument built to catch it). A claim made
+    //    outside every section is real, is counted in `total`, and belongs to no
+    //    family — so it satisfies gate 5 on behalf of nothing while gates 2 and 3, which
+    //    only ever look at families, stay quiet. `tabletop-plane` legitimately makes two
+    //    of them and says so in a comment; the number was printed for a human and read
+    //    by no gate, so a probe whose unattributed claims grew from 2 to 20 would hold
+    //    its floor up with twenty claims that cover nothing at all.
+    //
+    //    EXACT, not `<=`: drift DOWNWARD is the banner claims quietly ceasing to be
+    //    made, which is the same defect pointed the other way. A run in which a family
+    //    threw files its `_THREW` marker here too — that marker belongs to no family by
+    //    170's structural fix, and saying so beside the failure that caused it is
+    //    correct rather than noise.
+    if (trailing !== this.unsealedDeclared) {
+      failures.push(`${this.prefix}_POPULATION_UNSEALED — ${trailing} claim(s) belong to NO family, ${this.unsealedDeclared} declared${this.unsealedWhy ? ` ("${this.unsealedWhy}")` : ""}: unattributed claims are counted in the total, so they hold the claim floor up on behalf of nothing`);
     }
 
     for (const f of failures) console.log(`  FAIL ${f}`);

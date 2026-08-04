@@ -6,6 +6,72 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the one number in the population line that nothing read, and the four sections it was hiding
+
+183 §12.3 handed this over as a one-liner: a claim made after the last seal belongs to no
+section, is counted in the total, and prints as `unsealed=N` — past all five of `report()`'s
+gates. **It is 169's tautology inside the instrument built to catch it.** The number was
+written for a human and consumed by nothing, so nobody had ever asked what it should be.
+
+`report()` gains a sixth gate, and the count is **declared** rather than assumed:
+
+```
+claims=61/61 families=11/11 vacuous=0 partial=0 unsealed=0/0
+```
+
+Exact on both sides. Upward drift is claims leaking out of their families to hold the claim
+floor up on behalf of nothing; downward drift is a banner claim quietly ceasing to be made.
+A non-zero declaration **costs a written reason** or the constructor refuses to build — 183 §7's
+rule, one file over: *"a filename prefix costs nothing and is invisible in the output."* And
+the field prints in the healthy case too, with both numbers; it used to appear only when
+non-zero, so the value a passing run should show was in no log anywhere.
+
+🔴 **Then the gate was pointed at the fourteen live probes, and four sections came back.**
+
+- **`animation-lane` and `verification-family` both end in a "left clean" section that no
+  marker sealed** — six claims and three claims respectively, the #146 restore checks that
+  stop a probe leaving a frozen clock or a mutated fixture behind for whatever runs next.
+  They counted toward `claims: 61` and `claims: 100` and belonged to no family, so deleting
+  *some* of them was invisible: only deleting enough to breach the total would have said
+  anything at all. Sealed as the sections they are, which also gives them vacuity coverage.
+- **`runtime-peers` asserted its idempotent-stop claim AFTER its own seal**, so the marker's
+  detail line read `repeat stop = no-op` while the assertion behind those words was
+  attributed to nothing.
+- **`tabletop-plane` legitimately makes two** — its reachability and registration banners —
+  and its own source said so in a *comment*. A comment is not a gate. Declared, with the
+  reason moved into the declaration, so a third one appearing is a failure.
+
+🔴 **And a fifth finding the new gate cannot see, measured while looking for it.** `seal()`
+attributes every claim made since the *previous* seal, so a marker written above its own
+assertions owns the section before it and hands its own to the next one. Every marker in
+`runtime-peers` was off by one section this way: nothing went unattributed, but delete section
+5's three claims and it is `F6_PEERS_CEILING` that reads vacuous — one section past the one
+that broke. Four claims, all in that file, all moved below their markers.
+
+### Added — the TALLY shape gets a live caller, and `claim(family)`'s explicit arm gets a witness
+
+183 §12.2. `claim()` has two arms: with an explicit family it attributes immediately, with
+none it is held until a marker drains it. `_caller_shape.harness.mjs` drove the WRAPPED-FAMILY
+and SEAL instances, both of which take the second arm — so the first, the one `lsp-plane` and
+`cs-lsp-plane` run on, **was exercised by nothing live at all**. Delete it and both instances
+stayed green.
+
+A third `Population` instance drives it, and its verdicts come from a Map this file builds at
+the same call sites: *counted* and *counted onto the family it named* are two verdicts rather
+than one. It also carries one banner claim on purpose, reproducing `tabletop-plane`'s shape,
+which is what puts the new gate on a live axis instead of only in the self-test — and its
+verification claims are made from **inside** a family, because a harness that made them
+outside every family would trip the very gate it is there to drive.
+
+🔴 **And the harness's own roster needed a floor, which is 183 §9 turned on this file.**
+Delete the tally instance and its entry from the roster — the same three lines `LATE_LIVE`
+took — and the harness drops from 43 claims to 31, prints two healthy population lines
+instead of three, and says nothing, because `claims: 20` has the headroom to absorb it.
+`POPULATION_LINES_FLOOR = 3`, one per shape `_population.mjs` has. `floor_pin_gate.py`
+discovered it unswept on the first run and then found it unpinned on the second: a floor
+cannot redden a roster that is still complete, so the value is pinned inside the run as well.
+Its `TARGET_FLOOR` goes 36 → 37.
+
 ## [1.59.0] — 2026-08-03
 
 ### Added — the live axis for the three instruments whose only caller boots the editor

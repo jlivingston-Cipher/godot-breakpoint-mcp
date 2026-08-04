@@ -61,8 +61,14 @@ const population = new Population("VERIFY_LIVE", {
     "VERIFY_LIVE_NODE_LIVE", "VERIFY_LIVE_NODE_BADPATH", "VERIFY_LIVE_PERF", "VERIFY_LIVE_PERF_RED",
     "VERIFY_LIVE_PERF_SKIP", "VERIFY_LIVE_TEXT", "VERIFY_LIVE_TEXT_HIDDEN", "VERIFY_LIVE_TEXT_REVEAL",
     "VERIFY_LIVE_TEXT_OPTS", "VERIFY_LIVE_DIGEST", "VERIFY_LIVE_DIGEST_OPTS",
+    // 🔴 184 §4: THE "LEFT CLEAN" SECTION WAS SEALED BY NOTHING — the same shape one probe
+    // over, found by the same gate. Its three claims re-assert the whole fixture through
+    // the tool that gated it, and they belonged to no family: counted toward `claims: 100`
+    // and reported only as an `unsealed=` number nothing read. A section is sealed like a
+    // section, so a run that stopped restoring the fixture is VACUOUS rather than quiet.
+    "VERIFY_LIVE_LEFT_CLEAN",
   ],
-  scope: 15,
+  scope: 16,
   claims: 100,        // 🔴 EXACT — 100 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
 });
 const assert = population.assert;
@@ -451,6 +457,7 @@ try {
   assert.equal(finalText.matches, 1, "the probe must leave VisibleLabel showing its original text");
   const finalHidden = await call("runtime_assert_node_state", { path: "HiddenLabel", expect: { visible: false } });
   assert.equal(finalHidden.ok, true, "the probe must leave HiddenLabel hidden");
+  population.seal("VERIFY_LIVE_LEFT_CLEAN", "ok counter=100 · label text restored · HiddenLabel still hidden");
 
   console.log(
     `VERIFY_LIVE_RESULT structure=4reasons node_state=live perf=both_directions screen_text=visibility_filter digest=${digest.node_count}nodes`,

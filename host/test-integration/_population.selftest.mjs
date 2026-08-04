@@ -146,12 +146,20 @@ check(gates(await (async () => {
 // The `_THREW` marker is itself a claim. While the family was still open it landed ON
 // the family, so a family that threw before asserting anything read as having spoken
 // once and VACUOUS stayed quiet — the exact shape this whole session is about.
+// 🔴 184: AND IT NOW SAYS SO TWICE, WHICH IS THE CORRECT READING OF 170's FIX. The `_THREW`
+// marker is a claim that belongs to no family BY CONSTRUCTION — that is precisely what 170
+// changed, closing the family before `onThrow` runs — so it lands in the unattributed
+// bucket and gate 6 names it there. This only ever happens on a run that is already red
+// (the family that threw is vacuous or partial), so the second line is information about
+// where the marker went rather than noise: an unattributed claim is reported as one
+// wherever it came from, and an exception for "the ones we like" is the exemption that
+// costs nothing.
 check(gates(await (async () => {
   const p = new Population("T", { families: ["A", "B"], scope: 2, claims: 1 });
   await p.family("A", async () => { throw new Error("before any claim"); }, () => p.claim());
   await p.family("B", async () => p.claim());
   return quiet(() => p.report());
-})()) === "VACUOUS", "FAMILY_THREW_IS_NOT_A_CLAIM the _THREW marker cannot satisfy the family it reports on");
+})()) === "UNSEALED,VACUOUS", "FAMILY_THREW_IS_NOT_A_CLAIM the _THREW marker cannot satisfy the family it reports on, and is reported as belonging to none");
 
 // ────────────────────────────────────── the gate's OWN scope (168 §6)
 console.log("\n-- scope --");
@@ -217,11 +225,106 @@ console.log("\n-- the counting proxy --");
 {
   // Claims made after the last seal are real and counted, but must never be able to
   // stand in for a family that went missing.
+  //
+  // 🔴 184: AND `UNSEALED` IS NOW ITSELF A GATE, so this case files two failures rather
+  // than one. Until this session the trailing count was printed as `unsealed=N` and read
+  // by NOTHING — the one number in `report()`'s line that no gate consumed, which is 169's
+  // tautology inside the instrument built to catch it. An unattributed claim is counted in
+  // the total, so it satisfies the claim FLOOR on behalf of no family at all.
   const p = new Population("T", { families: ["A", "B"], scope: 2, claims: 2 });
   const assert = p.assert;
   assert.ok(true); quiet(() => p.seal("A", "ok"));
   assert.ok(true);                          // <- never sealed
-  check(gates(quiet(() => p.report())) === "SILENT", "UNSEALED trailing claims count but do not satisfy a family");
+  check(gates(quiet(() => p.report())) === "SILENT,UNSEALED", "UNSEALED trailing claims count, do not satisfy a family, and are now reported as their own gate");
+}
+
+// ─────────────────────────── 🔴 the DECLARED unsealed count (184 §3, 183 §12.3)
+//
+// `tabletop-plane` makes exactly two claims outside every family — its reachability and
+// registration banners — and said so in a COMMENT while `report()` printed the count and
+// no gate read it. A comment is not a gate. The count is declared now, it costs a written
+// reason (183 §7's rule), and drift in EITHER direction is a failure: upward is claims
+// leaking out of their families to hold the floor up on behalf of nothing, downward is the
+// banner claims quietly ceasing to be made.
+console.log("\n-- the declared unsealed count --");
+
+check(gates(quiet(() => {
+  const p = new Population("T", { families: ["A"], scope: 1, claims: 2, unsealed: 1, unsealedWhy: "a banner claim, on purpose" });
+  p.claim("A");
+  p.claim();                                // <- the declared banner, outside every family
+  return p.report();
+})) === "", "DECLARED_UNSEALED_HEALTHY a declared banner claim trips no gate");
+
+check(gates(quiet(() => {
+  const p = new Population("T", { families: ["A"], scope: 1, claims: 2, unsealed: 1, unsealedWhy: "a banner claim, on purpose" });
+  p.claim("A");
+  p.claim(); p.claim();                     // <- a SECOND one appeared
+  return p.report();
+})) === "UNSEALED", "DECLARED_UNSEALED_GREW an undeclared extra claim outside every family is caught");
+
+check(gates(quiet(() => {
+  const p = new Population("T", { families: ["A"], scope: 1, claims: 1, unsealed: 1, unsealedWhy: "a banner claim, on purpose" });
+  p.claim("A");                             // <- the banner stopped being made
+  return p.report();
+})) === "UNSEALED", "DECLARED_UNSEALED_VANISHED a declared banner claim that stopped being made is caught");
+
+// 🔴 THE FLOOR IT WAS HOLDING UP ON BEHALF OF NOTHING. Two claims, floor two, one family
+// — and one of the two belongs to no family at all. Before 184 this read as a complete
+// run; the point of the gate is that the total can no longer be met by claims that cover
+// nothing.
+check(gates(quiet(() => {
+  const p = new Population("T", { families: ["A"], scope: 1, claims: 2 });
+  p.claim("A");
+  p.claim();
+  return p.report();
+})) === "UNSEALED", "UNDECLARED_UNSEALED_HOLDS_THE_FLOOR an unattributed claim can no longer satisfy the claim floor in silence");
+
+// 🔴 AND THE EXEMPTION COSTS A WRITTEN REASON, OR THE INSTRUMENT REFUSES TO RUN. 183 §7's
+// finding, one file over: "a filename prefix costs nothing and is invisible in the output".
+// A bare `unsealed: 2` would be exactly that — an exemption nobody has to justify and no
+// later reader can disagree with.
+for (const [name, opts] of [
+  ["a non-zero unsealed count with no reason", { families: ["A"], scope: 1, claims: 1, unsealed: 2 }],
+  ["a non-zero unsealed count with a blank reason", { families: ["A"], scope: 1, claims: 1, unsealed: 2, unsealedWhy: "   " }],
+  ["a negative unsealed count", { families: ["A"], scope: 1, claims: 1, unsealed: -1, unsealedWhy: "why" }],
+  ["a non-integer unsealed count", { families: ["A"], scope: 1, claims: 1, unsealed: 1.5, unsealedWhy: "why" }],
+]) {
+  let threw = false;
+  try { new Population("T", opts); } catch { threw = true; }
+  check(threw, `CONSTRUCT_REFUSES ${name}`);
+}
+check((() => {
+  const p = new Population("T", { families: ["A"], scope: 1, claims: 1 });
+  return p.unsealedDeclared === 0;
+})(), "UNSEALED_DEFAULTS_TO_ZERO not declaring one means none, which is the honest default");
+
+// 🔴 THE FIELD MUST PRINT IN THE HEALTHY CASE TOO, WITH BOTH NUMBERS. It used to appear
+// only when the count was non-zero, so the healthy value was in no log anywhere and a
+// reader could not tell a probe that stopped making its banner claims from one that never
+// had any. The absence of a number is not evidence about the number.
+{
+  const lines = [];
+  const realLogHere = console.log;
+  console.log = (...a) => lines.push(a.join(" "));
+  try {
+    const p = new Population("T", { families: ["A"], scope: 1, claims: 2, unsealed: 1, unsealedWhy: "a banner claim, on purpose" });
+    p.claim("A"); p.claim();
+    p.report();
+  } finally { console.log = realLogHere; }
+  check(lines.join("\n").includes("unsealed=1/1"),
+    "UNSEALED_FIELD_PRINTS_BOTH the measured count and the declared one are both in the line", lines.join(" ").slice(0, 80));
+}
+{
+  const lines = [];
+  const realLogHere = console.log;
+  console.log = (...a) => lines.push(a.join(" "));
+  try {
+    const p = new Population("T", { families: ["A"], scope: 1, claims: 1 });
+    p.claim("A");
+    p.report();
+  } finally { console.log = realLogHere; }
+  check(!lines.join("\n").includes("unsealed="),
+    "UNSEALED_FIELD_STAYS_ABSENT_AT_ZERO ...and a probe with none on either side keeps its line unchanged");
 }
 
 // ─────────────────────────────────── 🔴 reportOrDie — THE 173 BLIND SPOT, MEASURED
@@ -298,12 +401,12 @@ console.log("\n-- reportOrDie: the exit, not the report --");
 //
 // The self-test has a population of its own, for the same reason everything else
 // here does: a `for` loop that stopped iterating would take these claims with it.
-const SELFTEST_CLAIM_FLOOR = 35;
+const SELFTEST_CLAIM_FLOOR = 46;   // 184: 35 -> 46, measured 50
 // 🔴 AND THE FLOOR'S OWN VALUE IS PINNED (181, from 180 §11.3). The third instance of
 // the hole 180 §7.3 closed in `_path_ledger.selftest.mjs`: a `<` floor with nothing
 // asserting its VALUE zeroes in silence. Found by sweeping every floor in the tree
 // rather than by reading this file, which three sessions had already read.
-check(SELFTEST_CLAIM_FLOOR === 35, "SELFTEST_FLOOR_PINNED the claim floor is 35, not whatever it was last set to");
+check(SELFTEST_CLAIM_FLOOR === 46, "SELFTEST_FLOOR_PINNED the claim floor is 46, not whatever it was last set to");
 console.log(`\nPOP_SELFTEST_CLAIMS ${claims.length} (floor ${SELFTEST_CLAIM_FLOOR})`);
 if (claims.length < SELFTEST_CLAIM_FLOOR) {
   console.log(`  FAIL POP_SELFTEST_POPULATION — only ${claims.length} claim(s) ran, floor is ${SELFTEST_CLAIM_FLOOR}`);

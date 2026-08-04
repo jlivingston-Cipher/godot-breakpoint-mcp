@@ -73,8 +73,15 @@ const population = new Population("ANIM_LIVE", {
     "ANIM_LIVE_STATE", "ANIM_LIVE_ERRORS", "ANIM_LIVE_PLAY", "ANIM_LIVE_DRIVES",
     "ANIM_LIVE_PAUSE", "ANIM_LIVE_RESUME", "ANIM_LIVE_STOP", "ANIM_LIVE_SWITCH",
     "ANIM_LIVE_SPEED", "ANIM_LIVE_FROM_END",
+    // 🔴 184 §4: THE "LEFT CLEAN" SECTION WAS SEALED BY NOTHING, so its six claims — the
+    // #146 restore check, the one that stops this probe leaving a frozen clock behind for
+    // whatever runs next — belonged to no family, counted toward `claims: 61`, and were
+    // reported only as an `unsealed=` number no gate read. Delete all six and the total
+    // fell to 55 against a floor of 61, which the FLOOR would have caught; delete five of
+    // six and nothing anywhere noticed. It is a section, so it is sealed like one.
+    "ANIM_LIVE_LEFT_CLEAN",
   ],
-  scope: 10,
+  scope: 11,
   claims: 61,         // 🔴 EXACT — 61 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
 });
 const assert = population.assert;
@@ -406,6 +413,7 @@ try {
   await call("runtime_anim_stop", { path: "Anim", confirm: true });
   const settled = await call("runtime_anim_get_state", { path: "Anim" });
   assert.equal(settled.position, 0, "and it must still leave the playhead rewound");
+  population.seal("ANIM_LIVE_LEFT_CLEAN", "ok nothing playing · playhead rewound · library intact · clock ticking");
 
   console.log(
     `ANIM_LIVE_RESULT play=drives_scene stop=pause_vs_rewind speed=${(fast / slow).toFixed(2)}x from_end=observable errors=3tools`,

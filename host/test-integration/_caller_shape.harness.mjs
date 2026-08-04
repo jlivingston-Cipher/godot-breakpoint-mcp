@@ -56,7 +56,7 @@ import { Population } from "./_population.mjs";
 const pop = new Population("SHAPE", {
   families: ["SHAPE_TREE", "SHAPE_RESTORE", "SHAPE_PNG", "SHAPE_POP"],
   scope: 4,
-  claims: 20,   // measured 24
+  claims: 20,   // measured 29 (24 + the four verdicts SHAPE_POP takes on the tally instance + the roster-floor pin)
 });
 const assert = pop.assert;
 
@@ -155,6 +155,20 @@ function buildTree() {
 // the caller's would leave the t=0 half untestable while still reading `ok`.
 const SHAPE_SNAPSHOT_FILE_FLOOR = 70;
 const SHAPE_SNAPSHOT_DIR_FLOOR = 8;
+
+// 🔴 A ROSTER **AND** A FLOOR, WHICH IS 183 §9's FINDING TURNED ON THIS FILE. `LATE_LIVE`
+// was a list with nothing under it, so deleting three entries removed an entire axis while
+// every printed number still read ok. This roster has exactly that shape: delete the tally
+// instance and its entry below — 183 §9's "three lines" again — and the harness drops from
+// 42 claims to 31, prints two healthy population lines instead of three, and says nothing
+// at all, because `claims: 20` has the headroom to absorb it. `_population.mjs` has THREE
+// shapes and this file exists to drive all three.
+//
+// Declared here rather than beside the check that reads it, because the floor's own value
+// is pinned inside SHAPE_POP and a `const` at the bottom of the file is in its temporal
+// dead zone while the families run. Floors live with floors.
+const POPULATION_LINES = ["SHAPE_SEAL_POPULATION", "SHAPE_TALLY_POPULATION", "SHAPE_POPULATION"];
+const POPULATION_LINES_FLOOR = 3;   // 184: the WRAPPED-FAMILY, SEAL and TALLY shapes
 
 // ── a minimal PNG encoder, so the decoder has something real and KNOWN to read ────────
 const CRC_TABLE = (() => {
@@ -265,6 +279,12 @@ async function run() {
 
     ok(SHAPE_SNAPSHOT_FILE_FLOOR === 70, "SHAPE_FILE_FLOOR_PINNED", "the file floor is 70, not whatever it was last set to");
     ok(SHAPE_SNAPSHOT_DIR_FLOOR === 8, "SHAPE_DIR_FLOOR_PINNED", "the dir floor is 8, not whatever it was last set to");
+    // 🔴 AND THE ROSTER FLOOR, PINNED BY VALUE — `floor_pin_gate.py` is what said so. It
+    // zeroed `POPULATION_LINES_FLOOR` and this file STAYED GREEN, because a floor cannot
+    // redden a roster that is still complete: `3 >= 0` holds. The two halves catch
+    // different collapses (183 §9's conclusion about `LATE_LIVE`, one file over), so both
+    // are needed and only the value pin makes the floor itself un-zeroable.
+    ok(POPULATION_LINES_FLOOR === 3, "SHAPE_ROSTER_FLOOR_PINNED", "the roster floor is 3 — one per shape `_population.mjs` has");
 
     // The harness's own reading of the tree it just built — so a fixture that quietly
     // stopped being built is a failure here rather than a floor that stopped being met.
@@ -371,6 +391,27 @@ async function run() {
       "🔴 SHAPE_POP_COUNTED_EVERY_CLAIM", `the population counted ${pop.total}, this file made ${made}`);
     ok(pop.vacuous.length === 0, "SHAPE_POP_NO_VACUOUS", pop.vacuous.join(", "));
     ok(pop.partial.length === 0, "SHAPE_POP_NO_PARTIAL", pop.partial.map((p) => p.label).join(", "));
+
+    // 🔴 AND THE THIRD INSTANCE'S VERDICTS, TAKEN FROM INSIDE A FAMILY ON PURPOSE. The
+    // tally instance below ran before this family opened; its state is finished and can
+    // be read. These claims are made THROUGH `pop` and therefore land on SHAPE_POP —
+    // because a harness that made its verification claims outside every family would sit
+    // in the unattributed bucket and trip the very gate this session added.
+    ok(tallyPop.total === tallyMade,
+      "🔴 SHAPE_TALLY_COUNTED_EVERY_CLAIM", `the tally population counted ${tallyPop.total}, this file made ${tallyMade}`);
+    // 🔴 THE ARM NOTHING LIVE EXERCISED. `claim(family)` attributes immediately; the two
+    // instances above both take the OTHER arm, so a `claim()` that dropped the explicit
+    // family — falling through to `current`, which is null in this shape — left them both
+    // green. Compared as VALUES against a Map this file owns, so "counted" and "counted
+    // onto the right family" are two different verdicts rather than one.
+    eq([...tallyPop.seen].sort(), [...tallyTruth].sort(),
+      "🔴 SHAPE_TALLY_ATTRIBUTED_EXACTLY every claim landed on the family it named");
+    // 🔴 AND THE BANNER IS STILL HELD. One claim was made outside every family, exactly
+    // as `tabletop-plane` makes two; it must be counted in the total and attributed to
+    // nothing, which is the state `_POPULATION_UNSEALED` reads.
+    ok(tallyPop.pending === 1,
+      "🔴 SHAPE_TALLY_BANNER_UNATTRIBUTED", `${tallyPop.pending} claim(s) held for no family, the banner is exactly 1`);
+    ok(tallyPop.vacuous.length === 0, "SHAPE_TALLY_NO_VACUOUS", tallyPop.vacuous.join(", "));
   }, onThrow);
 }
 
@@ -396,8 +437,9 @@ function runSeal() {
   const drainedA = sealPop.seal("SHAPE_SEAL_A", "3 claim(s)");
 
   // Verified in the NEXT section on purpose: a claim made after the last seal belongs to
-  // no section, is counted in the total, and — 🔴 as of 183, see the handoff — is
-  // reported as `unsealed=` and gated by nothing.
+  // no section and is counted in the total. 🔴 184: it is also reported as `unsealed=N/M`
+  // and GATED — this instance declares none, so the seal that drains everything is the
+  // shape gate 6 requires of it; the tally instance below is the one that declares one.
   sok(drainedA === 3, "SHAPE_SEAL_A_DRAINED", `the seal drained ${drainedA}, three claims preceded it`);
   sok(sealPop.seen.get("SHAPE_SEAL_A") === 3, "SHAPE_SEAL_A_ATTRIBUTED", "the marker owns the three claims");
   const drainedB = sealPop.seal("SHAPE_SEAL_B", "2 claim(s)");
@@ -408,8 +450,79 @@ function runSeal() {
   sealPop.seal("SHAPE_SEAL_C", "2 claim(s)");
 }
 
+// ── the TALLY shape, the third of three, and the arm `claim(family)` had no witness for ─
+//
+// 🔴 183 §12.2. `claim()` has two arms: with an EXPLICIT family it attributes immediately,
+// with none it is held until a marker drains it. Both instances above take the second arm,
+// so the first — the one `lsp-plane` and `cs-lsp-plane` run on, `population.claim(marker)`
+// from inside a `check()` helper — was exercised by nothing live at all. Delete it and both
+// instances above stay green; the only thing that noticed was the self-test.
+//
+// 🔴 AND IT CARRIES A BANNER CLAIM ON PURPOSE (184 §3). `tabletop-plane` makes two claims
+// outside every family — its reachability and registration banners — and its own source
+// declared them in a COMMENT while `report()` printed the count and no gate read it.
+// Reproducing that shape here is what puts `_POPULATION_UNSEALED` on a live axis instead of
+// only in the self-test, and it is why this instance declares `unsealed` rather than
+// pretending a probe never has one.
+const tallyPop = new Population("SHAPE_TALLY", {
+  families: ["SHAPE_TALLY_A", "SHAPE_TALLY_B", "SHAPE_TALLY_C"],
+  scope: 3,
+  claims: 6,   // measured 7 — six attributed plus the banner
+  unsealed: 1,
+  unsealedWhy: "SHAPE_TALLY_BANNER is made before any family names itself, mirroring "
+             + "tabletop-plane's TT_GATE_PING — the shape this instance exists to reproduce",
+});
+
+// 🔴 THE GROUND TRUTH FOR THE ATTRIBUTION, COUNTED HERE. `report()`'s roster is the
+// instrument's own arithmetic; this Map is built at the same call sites from a line that
+// shares nothing with it, so "counted" and "counted onto the family it named" become two
+// verdicts rather than one. A `claim()` that counted every call but attributed them all to
+// one family would satisfy the total and fail this.
+const tallyTruth = new Map();
+let tallyMade = 0;
+
+// 🔴 EVERY CLAIM IS A VALUE AGAINST A KNOWN VALUE, AND `tautology_gate.mjs` IS WHY. The
+// first draft of this helper took a bare condition and was called with `tcheck(true, …)`
+// and `tcheck(1 + 1 === 2, …)` — three families in which every assertion was satisfied by
+// a wrong answer of the right type, which is precisely what that gate exists to reject,
+// and it rejected them the first time it read this file. A driver for `claim(family)` does
+// not need a subject to be a real claim; the instrument's OWN accumulating state is one,
+// with an answer known in advance at every step.
+//
+// 🔴 AND THE READING IS A THUNK, NOT A VALUE, because JavaScript evaluates arguments
+// BEFORE the call: passing `tallyPop.total` reads the counter one claim too early, which
+// is how the first run of this failed five of its six. The claim each expectation is about
+// is the one the expectation itself makes, so the read has to happen after it.
+const tcheck = (readActual, expected, family, marker) => {
+  tallyPop.claim(family);            // <- lsp-plane's line, verbatim: the explicit arm
+  tallyMade++;
+  tallyTruth.set(family, (tallyTruth.get(family) ?? 0) + 1);
+  const actual = readActual();
+  if (actual !== expected) fail(marker, `expected ${expected}, got ${actual}`);
+};
+
+function runTally() {
+  // The banner, outside every family and before any of them — TT_GATE_PING's shape.
+  tallyPop.claim();
+  tallyMade++;
+
+  // The claim is made FIRST inside `tcheck`, so each expectation below counts itself.
+  tcheck(() => tallyPop.total, 2, "SHAPE_TALLY_A", "SHAPE_TALLY_A1");
+  tcheck(() => tallyPop.seen.get("SHAPE_TALLY_A"), 2, "SHAPE_TALLY_A", "SHAPE_TALLY_A2");
+  // 🔴 THE READING THE OTHER TWO INSTANCES CANNOT MAKE: the banner is STILL held while
+  // attributed claims go past it, which is only true if `claim(family)` took the explicit
+  // arm every time rather than falling through to the pending bucket.
+  tcheck(() => tallyPop.pending, 1, "SHAPE_TALLY_B", "SHAPE_TALLY_B1");
+  tcheck(() => tallyPop.seen.get("SHAPE_TALLY_B"), 2, "SHAPE_TALLY_B", "SHAPE_TALLY_B2");
+  tcheck(() => tallyPop.seen.size, 3, "SHAPE_TALLY_C", "SHAPE_TALLY_C1");
+  tcheck(() => tallyPop.total, 7, "SHAPE_TALLY_C", "SHAPE_TALLY_C2");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────────────
+// 🔴 THE TALLY INSTANCE RUNS FIRST, because SHAPE_POP inside `run()` takes its verdicts
+// from the finished state — a population still being built has nothing to testify about.
 try {
+  runTally();
   await run();
   runSeal();
 } finally {
@@ -433,11 +546,30 @@ process.stdout.write = (chunk, ...rest) => { emitted.push(String(chunk)); return
 
 const sealFailures = sealPop.report();
 for (const f of sealFailures) fail("SHAPE_SEAL_POPULATION", f);
+// 🔴 THE DECLARED-UNSEALED PATH, TAKEN LIVE. The tally instance holds one claim that
+// belongs to no family and declares exactly one; `report()`'s sixth gate compares the two
+// and this fold is what makes a mismatch a failure of the harness rather than a line in a
+// log. A `report()` that stopped comparing them shows up as a mutant that stays green.
+const tallyFailures = tallyPop.report();
+for (const f of tallyFailures) fail("SHAPE_TALLY_POPULATION", f);
 const total = pop.reportOrDie();
 
 process.stdout.write = realWrite;
 const printed = emitted.join("");
-for (const prefix of ["SHAPE_SEAL_POPULATION", "SHAPE_POPULATION"]) {
+// 🔴 AND THE `unsealed=` FIELD ITSELF IS A MARKER NOW, so it is checked the same way the
+// population lines are: printed at all, and printed with BOTH numbers. Until 184 it
+// appeared only when non-zero, which meant the healthy value was never in any log and
+// nobody could tell a probe that stopped making its banner claims from one that never had
+// any. The absence of a number is not evidence about the number.
+if (!/\nSHAPE_TALLY_POPULATION claims=\d+\/\d+ families=\d+\/\d+ vacuous=\d+ partial=\d+ unsealed=1\/1\b/.test(printed)) {
+  fail("SHAPE_TALLY_UNSEALED_FIELD",
+    "the tally population line did not print `unsealed=1/1` — the measured count and the declared one are what gate 6 compares, and a field that prints only in the failing case is a field nobody reads in the passing one");
+}
+if (POPULATION_LINES.length < POPULATION_LINES_FLOOR) {
+  fail("SHAPE_ROSTER_FLOOR",
+    `the harness drives ${POPULATION_LINES.length} population line(s), floor is ${POPULATION_LINES_FLOOR} — an axis removed from the roster takes its claims with it and leaves every other number reading ok`);
+}
+for (const prefix of POPULATION_LINES) {
   if (!new RegExp(`\\n${prefix} claims=\\d+/\\d+ families=`).test(printed)) {
     fail(`${prefix}_LINE`,
       `report() returned without printing the ${prefix} line — the marker the CI job greps for is gone, and its absence is the only thing that would have said so`);
@@ -448,4 +580,4 @@ if (failures) {
   console.error(`::error::CALLER_SHAPE FAILED — ${failures} claim(s) did not hold; the late axis for _workspace/_png/_population is not trustworthy`);
   process.exit(1);
 }
-console.log(`\nCALLER_SHAPE ok every claim held (${total} + ${sealPop.total} claim(s) ran)`);
+console.log(`\nCALLER_SHAPE ok every claim held (${total} + ${sealPop.total} + ${tallyPop.total} claim(s) ran)`);
