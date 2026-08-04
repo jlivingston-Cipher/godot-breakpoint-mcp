@@ -244,7 +244,45 @@ export const SILENT_REGIONS_CEILING = 5;
 // so a `NOT_A_PROBE` entry would fire `SEAL_ORDER_ROSTER_STALE` the moment it landed, and
 // an exemption keyed on a filename is a decision nobody re-reads. The ceiling re-earns
 // itself every run: a second unreadable binding anywhere is a blind spot nobody measured.
-export const ALIAS_BLIND_CEILING = 1;
+//
+// ── 191: THE CEILING IS ZERO, AND THAT IS THE DECISION 190 §9.2 ASKED FOR ─────────────
+//
+// 190 shipped this at 1 and said so in its own words: the harness's seven fixture claims
+// were left unreadable "because §3's measurement licenses leaving it alone, not because
+// leaving it alone is right", and it warned that a ceiling nobody can ever act on is worse
+// than no ceiling at all. 191 acted on it. `_caller_shape.harness.mjs` now claims through
+// `sealPop.assert.ok` directly, which `READS_AS_CLAIM` reads, so `sok` is promoted by the
+// ordinary fixed point and the section is in the population like every other.
+//
+// 🔴 AND THE COST WAS NOT THE COST 190 PREDICTED. 190 §9.2 wrote "renaming `sassert` to any
+// name the finder reads would count seven more sites and cost nothing measured." Measured
+// (`_to_delete/idiom191.mjs`), the delta is **NINE**, not seven: the seven `sok(…)` call
+// sites, plus the `sealPop.assert.ok` inside `sok` itself, plus `runSeal()` — which the
+// fixed point promotes once its body reaches a readable call, exactly as it already
+// promotes `run` and `runTally` in the same file. `claim-sites` 595 → 604. The prediction
+// was not wrong about the direction, it was wrong about the number, and it was wrong
+// because it counted the FIXTURES rather than what the finder would find. That is 190
+// §29's own rule turned on 190: a carried item that names a fix has usually not been
+// measured, and this one named the fix AND the number.
+//
+// 🔴 ZERO IS A DIFFERENT KIND OF CONSTANT FROM 1, AND THAT IS WHY THE RULE SURVIVES IT.
+// 181 §5's problem — a ceiling whose healthy value is zero cannot prove it ever counted —
+// applies to a rule with no other axis. This one has two: `SEAL_ORDER_ALIAS` prints the
+// TOTAL binding population (18) on every green run, which is non-zero and floored by the
+// self-test, so a detector that stopped detecting shows up there rather than hiding behind
+// a satisfied zero. The reverse sweep plants exactly that mutant (`mutate191.py`, U1a).
+export const ALIAS_BLIND_CEILING = 0;
+
+/**
+ * The total binding population, floored — because `ALIAS_BLIND_CEILING` is now 0 and a
+ * ceiling at zero is satisfied by a detector that returns nothing at all (181 §5).
+ *
+ * 🔴 THIS IS THE OTHER SIDE 190 §30 SAID EVERY GREEN RULE NEEDS. "Zero unreadable
+ * bindings" is only honest if something separately witnessed that bindings were FOUND.
+ * Measured at 18 across the 11 roster files; floored below that so an ordinary refactor
+ * that removes one does not red, while `assertAliases` going quiet does.
+ */
+export const ALIAS_BINDINGS_FLOOR = 14;
 
 /**
  * Every binding that holds a population's `.assert` member, and whether a call made
@@ -501,7 +539,19 @@ export function inspect(file, text) {
  * set a little below, so ordinary editing does not redden a healthy file.
  */
 export const CLAIM_SITE_FLOORS = {
-  "_caller_shape.harness.mjs": 25,
+  // 🔴 191: 25 -> 45, AND THE REVERSE SWEEP IS WHY. `mutate191.py`'s E1 narrows
+  // `READS_AS_CLAIM` from `/(^|\.)assert\.\w+$/` to `/^assert\.\w+$/` — deleting the arm
+  // this file's seal section was moved onto — and NOTHING went red. The section's nine
+  // sites vanish, the file drops 50 -> 41, and 41 still cleared a floor of 25 with room
+  // to spare. That is 190 §4's own finding arriving by a second route: the per-file floor
+  // could not see the collapse when an ALIAS hid the section, and it could not see it when
+  // a narrowed PREDICATE hid it either.
+  //
+  // 🔴 SO THE FIX AND THE FLOOR ARE ONE COMMIT, NOT TWO. `ALIAS_BLIND_CEILING = 0` guards
+  // the revert-by-alias (C1); this guards the revert-by-predicate. Set at 45 — above the
+  // 41 the file reports with the seal section unread, below the 50 it reports today, so
+  // ordinary editing has five sites of room and losing the section has none.
+  "_caller_shape.harness.mjs": 45,
   "_population.selftest.mjs": 30,
   "animation-lane.integration.mjs": 45,
   "cs-dap-plane.integration.mjs": 30,
@@ -547,7 +597,7 @@ export const NOT_A_PROBE = {
  * every branch below is empty against a healthy tree, so inlining them would make them
  * untestable). `files` is a list of `inspect()` results.
  */
-export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING } = {}) {
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING, aliasFloor = ALIAS_BINDINGS_FLOOR } = {}) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const totalSeals = files.reduce((n, f) => n + f.seals.length, 0);
@@ -677,9 +727,21 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
   // 184 §3's reason: the blind spot's SIZE is the thing a reader of a passing log needs.
   const aliases = files.flatMap((f) => (f.aliases ?? []).map((a) => ({ ...a, file: f.file })));
   const blindAliases = aliases.filter((a) => !a.readable);
-  say(`SEAL_ORDER_ALIAS ${aliases.length} binding(s) hold a population's .assert`
+  say(`SEAL_ORDER_ALIAS ${aliases.length}/${aliasFloor} binding(s) hold a population's .assert`
       + ` · ${blindAliases.length}/${aliasCeiling} unreadable by the claim finder`
       + ` · ${blindAliases.filter((a) => inSections(a.file)).length} of them in a probe`);
+
+  // 🔴 THE FLOOR UNDER THE CEILING (191). With `ALIAS_BLIND_CEILING = 0` the unreadable
+  // count is satisfied by a detector that finds NOTHING, so the population it was counted
+  // out of has to be witnessed separately — 190 §30's rule ("a rule with zero offenders is
+  // only honest if its population was counted separately") applied to the rule 190 shipped.
+  if (aliases.length < aliasFloor) {
+    out.failed = true;
+    say(`🔴 SEAL_ORDER_ALIAS_COLLAPSE ${aliases.length} < ${aliasFloor} binding(s) found. The`);
+    say(`   unreadable count above is a CEILING AT ZERO, which \`assertAliases\` returning an`);
+    say(`   empty array satisfies perfectly. This floor is the only thing that can tell`);
+    say(`   "nothing is unreadable" from "nothing was read".`);
+  }
 
   for (const a of blindAliases.filter((a) => inSections(a.file))) {
     // In a PROBE this is not a ceiling question. The measurement that licensed the
@@ -698,11 +760,13 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
   if (blindAliases.length > aliasCeiling) {
     out.failed = true;
     say(`\n🔴 SEAL_ORDER_ALIAS_UNREAD ${blindAliases.length} > ${aliasCeiling} binding(s) the claim finder`);
-    say(`   cannot read. The one on the tree this rule shipped with is \`sassert\` in the caller-`);
-    say(`   shape harness, whose fixture claims are unreadable ON PURPOSE — that file documents`);
-    say(`   the opposite idiom in its own words. A SECOND is a blind spot nobody has measured,`);
-    say(`   and it is pinned from above rather than rostered for 189's reason: a roster entry`);
-    say(`   for a file that trips nothing reads as a decision about a real case forever after.`);
+    say(`   cannot read. 190 shipped this rule with the ceiling at 1, for \`sassert\` in the`);
+    say(`   caller-shape harness; 191 removed that binding and took the ceiling to ZERO, so the`);
+    say(`   tree now has no such shape anywhere and this is a NEW one. Bind it as \`assert\`, or`);
+    say(`   claim through \`population.claim\`, or call \`<population>.assert.<member>\` directly —`);
+    say(`   all three are spellings \`READS_AS_CLAIM\` reads, and the third is what the harness`);
+    say(`   uses now. Raising this ceiling is not the fix: the last time it was above zero the`);
+    say(`   entry documented itself as unreadable ON PURPOSE and still had to be undone.`);
     for (const a of blindAliases) say(`   unreadable  ${a.file}:${a.line}  ${a.name}`);
   }
 

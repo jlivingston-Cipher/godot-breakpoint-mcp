@@ -124,6 +124,40 @@ export const ATTRIBUTED_FLOOR = 2500;   // measured 2993 of 3465 claim sites rea
 export const SHAPED_FLOOR = 80;         // measured 116 claims whose leaves are EVERY one SHAPE
 export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every one an outcome flag
 
+// 🔴 191 — AND THE OTHER SIDE OF THE SAME SUBTRACTION, WHICH HAS BEEN PRINTED AND
+// UNGOVERNED FOR NINE SESSIONS. `orphan = sites - attributed` has been in this gate's
+// output since 170 and floored by nothing since; 180 §11.4 named it, and 181, 182, 183,
+// 186, 188, 189 and 190 all carried the same complaint forward without acting on it. It
+// read 472 when 180 wrote it down, 503 in 189, 507 in 190, and 508 today.
+//
+// 🔴 A NUMBER FLOORED FROM ONE SIDE ONLY IS A NUMBER NOBODY CAN ACT ON. `ATTRIBUTED_FLOOR`
+// pins how many claims REACH a unit, which bounds the orphans from above only if `sites`
+// is also pinned — and `sites` is free to grow, so every session's new claims could land
+// in the orphan pile and every floor in this file would stay green. That is precisely what
+// has been happening: the count has risen in six of the last nine sessions and no run has
+// ever gone red over it.
+//
+// 🔴 A CEILING, BECAUSE THE MOVE IS NOW WORKED THREE TIMES IN TWO FILES. 189 §5 turned a
+// count into `SILENT_REGIONS_CEILING`, 190 §4 did it again with `ALIAS_BLIND_CEILING`, and
+// 191 took that second one to zero. The shape is the same each time and the argument is
+// the same: a ceiling sits ON the live value, so it re-earns itself every run, and a rise
+// is a thing somebody has to look at and either fix or raise DELIBERATELY with the reading
+// written down. That is the opposite of a floor with slack, which is satisfied by drift.
+//
+// 🔴 AND IT IS PINNED EXACTLY, NOT WITH HEADROOM. Headroom here would be a licence to add
+// orphans up to the headroom without anyone reading one, which is the state this replaces.
+// Raising it is cheap and honest; drifting past it silently is what stops.
+//
+// 🔴 ITS FIRST ACT WAS TO CATCH ITS OWN AUTHOR, AND THAT IS THE READING. Pinned at 508 from
+// the tree as it stood, the very next run went red at 509 — because this gate scans
+// `scripts/` as well as the test directories, so writing the self-test cases for THIS RULE
+// added a claim site that reaches no unit. The ceiling was raised to 509 for that reason and
+// no other. It is the shortest possible demonstration of what the rule is for: a number that
+// had drifted 472 → 508 across nine sessions without a single red run could not drift one
+// further without somebody writing down why.
+export const ORPHAN_CEILING = 509;      // measured 3721 sites - 3212 attributed, 2026-08-04
+                                        //   (508 + 1: this rule's own self-test, see above)
+
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
 // assertion over more than one population needs one number per population." A DIRECTORY
@@ -938,11 +972,26 @@ export function verdict(claims) {
  * `G25`–`G28` are. The coverage is in the self-test, by construction, not by accident —
  * and `mutate180.py` says so at the mutant.
  */
-export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR) {
+export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const orphan = sites - v.attributed;
-  say(`TAUT_ATTRIBUTED units=${v.blocks}/${unitFloor} claims=${v.attributed}/${attrFloor} orphan=${orphan}`);
+  say(`TAUT_ATTRIBUTED units=${v.blocks}/${unitFloor} claims=${v.attributed}/${attrFloor} orphan=${orphan}/${orphanCeiling}`);
+  // 🔴 191 — THE OTHER SIDE OF THE SUBTRACTION, GOVERNED AT LAST (180 §11.4, carried nine
+  // sessions). See `ORPHAN_CEILING`. A rise is not a failure of the code under test; it is
+  // a claim nobody attributed, and the only thing that makes attribution a decision rather
+  // than a default is that going past this line stops the build.
+  if (orphan > orphanCeiling) {
+    out.failed = true;
+    say(`🔴 TAUT_ORPHAN_RISE ${orphan} > ${orphanCeiling} — ${orphan - orphanCeiling} claim site(s) reached`);
+    say(`   neither a marker nor a \`test()\` block, above the count this tree was pinned at.`);
+    say(`   \`vacuous\` is scored over the units that survive attribution, so an orphan is a claim`);
+    say(`   NO class in this gate can judge — it is counted by the finder and dropped by the`);
+    say(`   resolution step. Either give the new claim(s) a unit (a marker, or a \`test()\` block`);
+    say(`   around them), or raise ORPHAN_CEILING deliberately with the reading written down.`);
+    say(`   🔴 Raising it silently is what this rule exists to stop: the count went 472 → 508`);
+    say(`   across nine sessions with every floor in this file green the whole way.`);
+  }
   // 🔴 182 — THE CLASSIFIER'S OWN OUTPUT, ON ITS OWN LINE. Everything above counts what
   // the FINDER found; these two count what the CLASSIFIER decided, and `?? 0` is
   // deliberate: a verdict built before 182 reads as a COLLAPSE rather than as an
