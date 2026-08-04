@@ -162,7 +162,20 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # for `.mjs` only, so a Python floor was outside the DISCOVER half by construction and
     # nobody would have been told. That is the shape 174 §5 names: an exclusion nobody
     # wrote down is an exclusion nobody re-reads.
-    ("CHECKS_RUN_FLOOR",         "../scripts/contract_check.py",     r"(CHECKS_RUN_FLOOR = )20 ",                                 ["../scripts/contract_check.py"]),
+    # 🔴 192 — `\d+` RATHER THAN THE VALUE, AND THIS ROW ALONE. Adding check 23 to
+    # CHECKS_EXPECTED moved this floor 20 -> 21 and the anchor matched ZERO times:
+    # `FLOOR_PIN_ANCHOR CHECKS_RUN_FLOOR: matched 0 time(s)`. The guard worked; the anchor
+    # was wrong. It is the SECOND instrument this one edit broke — `control_gate.py`'s
+    # `22.floor` row went the same way and took the `{CHECKS}` placeholder — and the two
+    # together are a class: an instrument anchored on a number the tree DERIVES elsewhere
+    # is pinned to a moment (188 §2, one level up from the release ritual).
+    #
+    # WHY ONLY THIS ROW. Every other anchor here embeds the floor's OWN value, which moves
+    # only when somebody deliberately moves that floor — and the DISCOVER half catches
+    # that in the same run. This floor is the one value in the table asserted EQUAL to
+    # something else (`CHECKS_RUN_FLOOR != len(_expected_set)` is check 22's own first
+    # statement), so it moves for reasons that have nothing to do with this table.
+    ("CHECKS_RUN_FLOOR",         "../scripts/contract_check.py",     r"(CHECKS_RUN_FLOOR = )\d+ ",                                ["../scripts/contract_check.py"]),
     # 🆕 183 — AND THE FIRST TWO FLOORS THIS TABLE HAS EVER HELD THAT MIRROR AN EXEMPT
     # ONE. `AUTH_SNAPSHOT_FILE_FLOOR` / `_DIR_FLOOR` are four lines up in DISCOVER_EXEMPT
     # because no headless runner can redden a probe that boots the editor. These two are

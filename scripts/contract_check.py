@@ -279,9 +279,9 @@ errors.append(_WIRE_CANARY)
 # floored at a literal.
 CHECKS_EXPECTED = (
     "1&2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "11b", "11c",
-    "12", "13", "14", "15", "16", "17", "18/19", "20",
+    "12", "13", "14", "15", "16", "17", "18/19", "20", "23",
 )
-CHECKS_RUN_FLOOR = 20   # measured: twenty blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 21   # measured: twenty-one blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -2610,6 +2610,241 @@ else:
 # than no counter: it reports coverage that is not there.
 _ran("18/19")
 
+# --- 23: THE WIRE'S VOCABULARY — the cross-LANGUAGE half of 178 §10.25 ----------
+#
+# 🔴 NAMED "CLEARLY NEXT" FOR FOUR SESSIONS (178 §10.25 -> 189 §34 -> 190 §33 ->
+# 191 §9.2) AND NEVER MEASURED. 190 paid the WITHIN-file half by exporting
+# `READS_AS_CLAIM` so one predicate has one definition. This is the other half, and
+# measuring it first (`_to_delete/xlang192.mjs`) turned one sentence into two
+# populations that had been sharing a phrase:
+#
+#     the CODEC tag vocabulary   variant_json.gd encode()/decode()  <->  the tags
+#                                TypeScript CONSTRUCTS in tool arguments
+#     the ERROR CODE vocabulary  operations.gd `_err(code, ..)`     <->  the codes
+#                                TypeScript BRANCHES ON
+#
+# Checks 1 & 2 already compare the two languages — but they compare METHOD NAMES. The
+# PAYLOAD vocabulary crossing the same wire has never been compared by anything, which
+# is what "enforced in GDScript and asserted in TypeScript, with nothing comparing the
+# two" meant.
+#
+# 🔴 THE ERROR-CODE HALF IS THE ONE WITH TEETH, AND IT IS ALREADY LOAD-BEARING.
+# `tabletop.ts` catches a failed `scene.close` and re-throws it as `overwrite_unsupported`
+# — a REFUSAL — only when the addon's code is exactly `"unsupported"` (operations.gd's
+# `_scene_close`, Godot < 4.4). Rename that code on the GDScript side and the branch stops
+# firing: `board_create ... overwrite: true` silently APPENDS to the open stale tab, which
+# is the exact bug the guard exists to prevent. And `tabletop_guard.test.ts` would still
+# pass, because it constructs the thrown value itself:
+#
+#     throw Object.assign(new Error(".."), { code: "unsupported" })
+#
+# A test that manufactures the input it is testing against asserts TypeScript's behaviour
+# GIVEN a hypothesis about GDScript. Nothing checked the hypothesis. That is the tautology
+# class this repo already has a gate for, one language out.
+#
+# 🔴 THE FINDER FOR THE TS SIDE HAS A FALSE POSITIVE THAT WOULD HAVE SHIPPED. A naive
+# `code\s*===\s*"..."` matches `typeof e.code === "number"` in cli.ts and vcs.ts, so the
+# first draft reported `number` as "a code the addon never raises" — on a healthy tree.
+# A gate that cries wolf on the first run gets deleted, so the `typeof` form is excluded
+# explicitly. Node's own errno codes need no exclusion list: they are SCREAMING_CASE
+# (`ENOENT`, `ESRCH`) and addon codes are snake_case, so the character class separates
+# the two populations by construction rather than by a roster that would go stale.
+#
+# Numbered 23 because 21 and 22 are taken by the report-wire and checks-ran blocks, which
+# are NOT in CHECKS_EXPECTED — they gate the roster and cannot be members of it.
+
+_VJ = (ADDON / "variant_json.gd").read_text()
+_vj_enc, _vj_dec = _VJ.split("static func decode", 1)
+_vj_dec = _vj_dec[_vj_dec.index('match String(j["__type__"])'):]
+
+codec_emitted = set(re.findall(r'"__type__":\s*"(\w+)"', _vj_enc))
+codec_accepted = set(re.findall(r'^\t+"(\w+)":\s*$', _vj_dec, re.M))
+
+# What GDScript's decode() actually READS out of each tagged object. A tag whose NAME
+# matches but whose FIELDS do not decodes to a default-valued Variant — Vector2(0, 0)
+# for a payload carrying {x, z} — and every layer downstream reports success.
+#
+# 🔴 SCANNED LINE BY LINE, AND THE LEDGER BELOW IS WHY. The first draft did it with one
+# multi-line regex, `^\t+"(\w+)":$\n((?:^\t+(?!").*$\n)+)`, whose body arm is defeated by
+# its own backtracking: `\t+` gives back a tab so the `(?!")` lookahead no longer sees the
+# NEXT arm's quote, and arm one swallows the whole match block. It reported ONE arm of ten
+# and `SCOPE COLLAPSE xlang.codec_fields: 1 < floor 8` on the very first run — the floor
+# written in the same commit, catching the finder it was written to protect. An indent
+# level is a delimiter, so it is compared as one rather than matched.
+codec_fields: "dict[str, set[str]]" = {}
+_arm: "str | None" = None
+_arm_indent = 0
+for _ln in _vj_dec.split("\n"):
+    _stripped = _ln.strip()
+    _indent = len(_ln) - len(_ln.lstrip("\t"))
+    _hdr = re.match(r'^"(\w+)":$', _stripped)
+    if _hdr:
+        _arm, _arm_indent = _hdr.group(1), _indent
+        codec_fields[_arm] = set()
+    elif _arm is not None and _stripped and _indent <= _arm_indent:
+        _arm = None                                   # dedent — the arm ended
+    elif _arm is not None:
+        codec_fields[_arm] |= set(re.findall(r'j\.get\("(\w+)"', _ln))
+
+# 🔴 THE ONE-WAY PAIR, NAMED RATHER THAN TOLERATED. `Object` and `Unsupported` are
+# emitted by encode() and have no decode arm ON PURPOSE: neither can be reconstructed
+# from what the tag carries (a class name, a `str()` repr). The set is asserted EXACTLY
+# in both directions, so a THIRD one-way tag arriving by accident — the shape a new
+# encode branch takes when its decode arm is forgotten — is a failure and not a silent
+# member of a tolerated class.
+CODEC_ONEWAY = {"Object", "Unsupported"}
+
+_oneway_now = codec_emitted - codec_accepted
+for _tag in sorted(_oneway_now - CODEC_ONEWAY):
+    errors.append(
+        f"Codec tag {_tag!r} is emitted by variant_json.gd encode() and has no decode() "
+        f"arm, so a property carrying it round-trips to null and every layer above "
+        f"reports success. Add the decode arm, or name it in CODEC_ONEWAY with the "
+        f"reason it cannot be reconstructed."
+    )
+for _tag in sorted(codec_accepted - codec_emitted):
+    errors.append(
+        f"Codec tag {_tag!r} has a decode() arm that nothing in encode() can produce. "
+        f"A dead arm is indistinguishable from a live one until the day a caller needs "
+        f"it — remove it, or emit the tag."
+    )
+for _tag in sorted(CODEC_ONEWAY - _oneway_now):
+    errors.append(
+        f"CODEC_ONEWAY names {_tag!r} as deliberately one-way, but it is no longer both "
+        f"emitted and undecodable. The exemption is stale: either the decode arm arrived "
+        f"(drop it from CODEC_ONEWAY) or encode() stopped emitting it (drop it, and the "
+        f"encode branch it came from is gone too)."
+    )
+
+# The TypeScript side: tool arguments this host CONSTRUCTS and puts on the wire.
+ts_variant_tags: "list[tuple[str, str, str]]" = []
+for _f in sorted(HOST_SRC.rglob("*.ts")):
+    for _m in re.finditer(r'__type__:\s*"(\w+)"([^}]*)', _f.read_text()):
+        ts_variant_tags.append((_m.group(1), str(_f.relative_to(ROOT)), _m.group(2)))
+
+for _tag, _rel, _rest in ts_variant_tags:
+    if _tag not in codec_accepted:
+        errors.append(
+            f"{_rel} constructs a Variant tagged {_tag!r}, which variant_json.gd decode() "
+            f"cannot read. It reaches GDScript as a plain Dictionary (or null) and the "
+            f"property set silently does the wrong thing."
+        )
+        continue
+    # 🔴 KEYS ONLY, NEVER "identifiers appearing anywhere in the literal". The obvious
+    # shortcut — every \w+ in the object body — passes `{__type__:"Vector2", x: y}`,
+    # because `y` is present as a VALUE. That is the exact defect this statement exists
+    # to catch, so the finder that would miss it is not a shortcut, it is the bug.
+    # Shorthand (`{r, g, b, a}`) and explicit (`{class: cls}`) both name a key first.
+    _want = codec_fields.get(_tag, set())
+    _have = set()
+    for _piece in _rest.split(","):
+        _k = re.match(r'^\s*(\w+)\s*(?::|$)', _piece)
+        if _k:
+            _have.add(_k.group(1))
+    _missing = sorted(f for f in _want if f not in _have)
+    if _missing:
+        errors.append(
+            f"{_rel} constructs a {_tag!r} Variant without field(s) {_missing}, which "
+            f"decode() reads via j.get(). The tag NAME matches, so nothing rejects it — "
+            f"it decodes to a default-valued {_tag} and the call reports success."
+        )
+
+# The error-code vocabulary. One regex per side; the TS one excludes `typeof x.code ===`
+# (see above) and cannot match Node's SCREAMING_CASE errno codes by construction.
+addon_err_codes: "set[str]" = set()
+for _f in sorted(ADDON.glob("*.gd")):
+    for _m in re.finditer(r'(?:_err\(\s*|"code"\s*:\s*)"([a-z0-9_]+)"', _f.read_text()):
+        addon_err_codes.add(_m.group(1))
+
+# 🔴 ONE SCAN, ONE PREDICATE — and the reverse sweep is what forced it. The binding
+# comparison below started life with its own copy of this regex and its own `typeof`
+# guard, and mutant C5's anchor immediately reported `occurs 2 time(s)`: two definitions
+# of "a TypeScript branch on an addon error code", one of which the sweep could no longer
+# reach. That is 190 §4's finding — one predicate, one definition — arriving inside the
+# check written to enforce exactly that across a language boundary.
+ERR_BRANCH_RE = re.compile(r'(typeof\s+)?[\w\)\]\.\?]*\.code\s*===\s*"([a-z0-9_]+)"')
+_branch_hits: "list[tuple[str, str, str, int]]" = []        # (code, file, text, offset)
+for _f in sorted(HOST_SRC.rglob("*.ts")):
+    _t = _f.read_text()
+    for _m in ERR_BRANCH_RE.finditer(_t):
+        if _m.group(1):
+            continue    # `typeof e.code === "number"` — a TYPE test, not a code test
+        _branch_hits.append((_m.group(2), str(_f.relative_to(ROOT)), _t, _m.start()))
+
+ts_err_branches: "list[tuple[str, str]]" = [(c, r) for c, r, _t, _o in _branch_hits]
+
+for _code, _rel in ts_err_branches:
+    if _code not in addon_err_codes:
+        errors.append(
+            f"{_rel} branches on the addon error code {_code!r}, which no `_err(..)` in "
+            f"addons/breakpoint_mcp/ raises. The branch is dead: whatever it does instead "
+            f"of firing — refuse, degrade, re-throw — is what the host now does always, "
+            f"and a host-side test that constructs the error itself cannot tell."
+        )
+
+# 🔴 AND THE VOCABULARY TEST ABOVE IS NOT ENOUGH, WHICH THE REVERSE SWEEP PROVED RATHER
+# THAN ARGUED (192 §6, mutant C1). Renaming `_scene_close`'s `_err("unsupported", ..)` —
+# the ONE raise site `tabletop.ts`'s overwrite refusal depends on — left the run GREEN,
+# because `"unsupported"` is raised at seven OTHER sites and the addon's VOCABULARY never
+# moved. The membership test asks "does this word exist somewhere in GDScript"; the guard
+# needs "does the handler I am wrapping raise it".
+#
+# So the pair is resolved to the BINDING: the bridge method whose call the branch guards,
+# and the codes that method's handler can actually return. The method is the nearest
+# `emit(..)` / `call(..)` / `.request(..)` literal ABOVE the branch, which is the shape a
+# try/catch takes in every one of these sites; handler codes are the transitive closure
+# over the GDScript functions the dispatch arm names, because a code raised one helper
+# down is still a code that method returns and flagging it would be crying wolf.
+_GD_SRC = {p.name: p.read_text() for p in sorted(ADDON.glob("*.gd"))}
+_GD_ALL = "\n".join(_GD_SRC.values())
+_gd_bodies: "dict[str, str]" = {}
+for _m in re.finditer(r"^func (_?\w+)\(.*?(?=^func |\Z)", _GD_ALL, re.M | re.S):
+    _gd_bodies[_m.group(1)] = _m.group(0)
+
+
+def _codes_of(fn: str, seen: "set[str]|None" = None) -> "set[str]":
+    """Every `_err` code reachable from `fn`, following the helpers it calls."""
+    seen = seen if seen is not None else set()
+    if fn in seen or fn not in _gd_bodies:
+        return set()
+    seen.add(fn)
+    body = _gd_bodies[fn]
+    out = set(re.findall(r'_err\(\s*"([a-z0-9_]+)"', body))
+    for callee in set(re.findall(r"\b(_\w+)\(", body)):
+        out |= _codes_of(callee, seen)
+    return out
+
+
+gd_handler_codes: "dict[str, set[str]]" = {}
+for _m in re.finditer(r'^\t\t"([a-z_]+\.[a-z_]+)":\n((?:\t\t\t.*\n)+)', _GD_ALL, re.M):
+    _codes: "set[str]" = set()
+    for _fn in re.findall(r"\b(_\w+)\(", _m.group(2)):
+        _codes |= _codes_of(_fn)
+    gd_handler_codes[_m.group(1)] = _codes
+
+_BRIDGE_CALL_RE = re.compile(r'(?:emit|call|request)\(\s*"([a-z_]+\.[a-z_]+)"')
+err_branch_bindings: "list[tuple[str, str, str]]" = []      # (method, code, file)
+for _code, _rel, _t, _off in _branch_hits:
+    _above = [x.group(1) for x in _BRIDGE_CALL_RE.finditer(_t, 0, _off)]
+    if _above:
+        err_branch_bindings.append((_above[-1], _code, _rel))
+
+for _method, _code, _rel in err_branch_bindings:
+    _raises = gd_handler_codes.get(_method)
+    if _raises is None:
+        continue        # not a dispatch method — checks 1 & 2 own that failure, not this
+    if _code not in _raises:
+        errors.append(
+            f"{_rel} guards a {_method!r} call and branches on the error code {_code!r}, "
+            f"but that method's GDScript handler cannot return it (it raises "
+            f"{sorted(_raises) or 'nothing'}). The branch never fires, so whatever it does "
+            f"INSTEAD is what the host now does always — and the code may still be raised "
+            f"elsewhere in the addon, which is exactly why the vocabulary test above "
+            f"cannot see this."
+        )
+
+_ran("23")
+
 # --- 20: THE SCOPE LEDGER — one literal floor per derived population ---------
 #
 # 🔴 WHY THIS EXISTS, MEASURED RATHER THAN ARGUED (session 172, answering 171 §10.21:
@@ -2705,6 +2940,40 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "check 14's release ritual verifies no stamp — a half-bumped release passes"),
     ("modes.shebangs_confirmed", shebangs_confirmed, 2,
      "check 15 confirms no interpreter line and the exec-bit contract stops being read"),
+    # 🔴 CHECK 23's FIVE FINDERS. Every comparison in that block is a set difference or a
+    # membership test, and BOTH are satisfied instantly by an empty left-hand side. The
+    # codec pair is the sharpest: `emitted - accepted == CODEC_ONEWAY` is an equality, so
+    # blinding BOTH finders at once leaves `set() - set() == {..}` FALSE and reddens --
+    # but blinding either one alone is a silent pass in one direction. Floored separately
+    # for exactly that reason. One line per finder, never summed.
+    ("xlang.codec_emitted", len(codec_emitted), 10,
+     "check 23 stops seeing any tag encode() produces, so no tag can be found undecodable"),
+    ("xlang.codec_accepted", len(codec_accepted), 8,
+     "every emitted tag reads as one-way and only the CODEC_ONEWAY equality still bites"),
+    ("xlang.codec_fields", len(codec_fields), 8,
+     "the FIELD half goes quiet — a tag whose name matches and whose payload does not is "
+     "the failure that reports success, and it is the half a tag-name check never sees"),
+    ("xlang.ts_variant_tags", len(ts_variant_tags), 2,
+     "the host stops being read as a PRODUCER of tagged Variants and check 23's TS half "
+     "compares an empty set to a healthy GDScript side"),
+    ("xlang.addon_err_codes", len(addon_err_codes), 40,
+     "🔴 EVERY TypeScript branch on an addon error code reads as dead — or, with the "
+     "offender loop as written, none does: an empty right-hand side makes every `in` test "
+     "false and every branch an error, which is the LOUD failure. The floor is here for "
+     "the reverse: a finder trimmed to a subset that still contains 'unsupported'"),
+    ("xlang.ts_err_branches", len(ts_err_branches), 1,
+     "🔴 the overwrite guard stops being watched. `tabletop.ts` refuses a board overwrite "
+     "on a stale open tab ONLY when the addon answers 'unsupported'; with this finder "
+     "blind, renaming that code on the GDScript side is a silent append"),
+    # 🔴 THE BINDING FINDER, AND IT IS FLOORED BECAUSE THE SWEEP CAUGHT ITS ABSENCE. The
+    # vocabulary test above passed mutant C1 — the rename of the ONE raise site the guard
+    # depends on — because seven other sites keep the word alive. This population is the
+    # pairs actually resolved to a dispatch method; resolve none and the binding test has
+    # nothing to compare and says nothing, which is C1 surviving again by a quieter route.
+    ("xlang.err_branch_bindings", len(err_branch_bindings), 1,
+     "🔴 no TS branch resolves to the bridge method it guards, so the handler-level "
+     "comparison compares nothing and the vocabulary test is all that is left — which is "
+     "the exact state mutant C1 walked through"),
 ]
 scope_collapses = [(n, v, f, why) for (n, v, f, why) in SCOPE_LEDGER if v < f]
 for name, value, floor, why in scope_collapses:

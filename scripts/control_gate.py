@@ -112,8 +112,28 @@ def live_tests() -> str:
                    for p in sorted((ROOT / "host/test").rglob("*.ts"))))
 
 
+def live_checks() -> str:
+    """The size of contract_check.py's CHECKS_EXPECTED roster — 192, and it is the THIRD
+    member of the class 188 §2 opened rather than a new idea.
+
+    `22.floor` anchored on the LITERAL `CHECKS_RUN_FLOOR = 20`, and adding check 23 to the
+    roster moved it — the same failure `host.drift` had at the 1.63.0 cut, arriving from
+    the other direction: not a release outrunning the anchor, but the very act the control
+    exists to guard. A row that guards "a check went missing" cannot be pinned to how many
+    checks there are today.
+
+    Resolved against the ROSTER, never against `CHECKS_RUN_FLOOR` itself — the floor is
+    what the control mutates, and an anchor read off the mutated line would be trivially
+    self-satisfying and would take 180 §9.3's guard away.
+    """
+    m = re.search(r"CHECKS_EXPECTED = \((.*?)\)", (ROOT / "scripts/contract_check.py").read_text(), re.S)
+    return str(len(re.findall(r'"[^"]+"', m.group(1)))) if m else ""
+
+
 def resolve(s: str) -> str:
-    return s.replace("{V}", live_version()).replace("{TESTS}", live_tests())
+    return (s.replace("{V}", live_version())
+             .replace("{TESTS}", live_tests())
+             .replace("{CHECKS}", live_checks()))
 
 
 # ── 🔴 THE THREE DETECTORS BELOW ARE PURE FOR ONE REASON, AND MUTATE188 IS THE REASON ──
@@ -218,6 +238,57 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "> **npm {V} ·", "> **npm 0.0.0 ·",
      "Host version drift"),
 
+    # ── check 23 — the wire's vocabulary, across the language boundary ────────────
+    # SIX statements, SIX controls, registered in the SAME commit as the check. 191 §9.3
+    # has carried "thirty-one statements still have no control" for four sessions; a new
+    # check that ships uncontrolled makes that number worse while looking like progress.
+    #
+    # Each control names EXACTLY ONE statement, which took some arranging: the obvious
+    # mutation for "a tag emitted but not decodable" is to RENAME a tag in encode(), and
+    # that fires two statements at once (the new name is undecodable, the old name's
+    # decode arm is now dead). Every row below therefore ADDS a branch rather than
+    # renaming one — the shape a forgotten decode arm actually takes in the wild.
+    ("23.encode_only", "23", "sub", "addons/breakpoint_mcp/variant_json.gd",
+     "\t\tTYPE_QUATERNION:\n",
+     "\t\tTYPE_TRANSFORM3D:\n\t\t\treturn {\"__type__\": \"Transform3D\", \"m\": 0}\n\t\tTYPE_QUATERNION:\n",
+     "has no decode() arm"),
+    ("23.decode_only", "23", "sub", "addons/breakpoint_mcp/variant_json.gd",
+     "\t\t\t\t\"Resource\":\n",
+     "\t\t\t\t\"Transform3D\":\n\t\t\t\t\treturn null\n\t\t\t\t\"Resource\":\n",
+     "has a decode() arm that nothing in encode() can produce"),
+    # The exemption going STALE in the direction nobody expects: not by deleting the
+    # entry, but by the tag quietly becoming decodable and the entry staying put.
+    ("23.oneway_stale", "23", "sub", "addons/breakpoint_mcp/variant_json.gd",
+     "\t\t\t\t\"Resource\":\n",
+     "\t\t\t\t\"Object\":\n\t\t\t\t\treturn null\n\t\t\t\t\"Resource\":\n",
+     "as deliberately one-way, but it is no longer both"),
+    ("23.ts_tag", "23", "sub", "host/src/tools/tabletop.ts",
+     '{ __type__: "Color", r, g, b, a }', '{ __type__: "Colour", r, g, b, a }',
+     "cannot read. It reaches GDScript as a plain Dictionary"),
+    # 🔴 THE FIELD HALF. The tag name still matches, so every name-based check stays
+    # green; GDScript reads `j.get("y", 0.0)`, finds nothing, and builds Vector2(x, 0).
+    ("23.ts_fields", "23", "sub", "host/src/tools/tabletop.ts",
+     '{ __type__: "Vector2", x, y }', '{ __type__: "Vector2", x, z: y }',
+     "Variant without field(s)"),
+    # 🔴 THE ONE WITH CONSEQUENCES. This is the board-overwrite refusal: with the code
+    # renamed on either side the branch stops firing and `board_create overwrite:true`
+    # appends to the stale open tab instead of refusing. `tabletop_guard.test.ts` passes
+    # either way, because it constructs the thrown error itself.
+    ("23.err_branch", "23", "sub", "host/src/tools/tabletop.ts",
+     '?.code === "unsupported"', '?.code === "unsupported_v2"',
+     "branches on the addon error code"),
+    # 🔴 THE SEVENTH ROW EXISTS BECAUSE THE REVERSE SWEEP REFUTED THE SIXTH (192 §6). The
+    # row above mutates the HOST side, where the code becomes a word GDScript never says
+    # and the vocabulary test catches it. Mutant C1 mutated the ADDON side instead — the
+    # one `_scene_close` raise site the refusal actually depends on — and the run stayed
+    # GREEN, because `"unsupported"` is raised at seven other sites and the vocabulary
+    # never moved. Same defect, opposite side of the wire, and only the handler-level
+    # binding can see it. A control per SIDE, not per statement.
+    ("23.err_binding", "23", "sub", "addons/breakpoint_mcp/operations.gd",
+     'return _err("unsupported", "scene_close requires Godot 4.4+',
+     'return _err("unsupported_v2", "scene_close requires Godot 4.4+',
+     "but that method's GDScript handler cannot return it"),
+
     # ── check 17 — example/project.godot, the invariants an editor boot erases ────
     # Seven statements, seven controls, and the two that matter most are the ones a
     # local editor boot actually produces: the uid:// autoload rewrite (committed once,
@@ -250,7 +321,14 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     # notice a check going missing, and until this session not one of its four statements
     # had ever run. Its floor is moved DOWN rather than up, so that only the pin fires
     # and not the collapse branch beside it.
-    ("22.floor", "22", "src", "", "CHECKS_RUN_FLOOR = 20", "CHECKS_RUN_FLOOR = 19",
+    # 🔴 `{CHECKS}` FOR `host.drift`'s REASON, FOUND BY ADDING CHECK 23 (192 §4). This row
+    # shipped in 188 anchored on the literal `CHECKS_RUN_FLOOR = 20` and the very next
+    # check added to the roster moved it — a control that guards "a check went missing"
+    # pinned to how many checks existed the day it was written. `0` rather than "one less"
+    # for the same reason `host.drift` mutates to `0.0.0`: a value that is never the roster
+    # size cannot become correct by accident, and it still fires the pin and not the
+    # collapse branch beside it (21 < 0 is false).
+    ("22.floor", "22", "src", "", "CHECKS_RUN_FLOOR = {CHECKS}", "CHECKS_RUN_FLOOR = 0",
      "The floor exists to notice a check going missing"),
     ("22.collapse", "22", "src", "", '\n_ran("13")\n', "\n",
      "CHECKS_RUN collapsed"),
@@ -401,14 +479,17 @@ UNFINGERPRINTABLE_FLOOR = 3
 # every remaining row still passes; the only thing that moves is a number nobody reads.
 # 186 §6 paid this on the way in for a new coverage number and the handoff's own note is
 # that the OLD one is still unfloored — so this one is floored on the way in too.
-CONTROLLED_FLOOR = 41          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
+CONTROLLED_FLOOR = 48          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
+                               # 192: +7, check 23's statements — SIX by design and a
+                               # SEVENTH the reverse sweep demanded (192 §6)
 
 # 🔴 AND THE DENOMINATOR IS FLOORED TOO, WHICH IS THE HALF A COVERAGE RATIO ALWAYS MISSES.
 # "17 of 70" improves to "17 of 17" by DELETING sixty-eight failure statements, and every
 # assertion in this file would still hold. A ratio with only its numerator pinned is a
 # number that gets better as the thing it measures gets smaller — 175's rule, stated as a
 # floor instead of quoted.
-STATEMENT_FLOOR = 72           # 186 measured 70; 188 §3 added two. It is supposed to grow
+STATEMENT_FLOOR = 79           # 186 measured 70; 188 §3 added two; 192 added check 23's
+                               # seven. It is supposed to grow
 
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
 # both-halves lesson: the set catches a check renamed or swapped, the floor catches the
@@ -416,7 +497,9 @@ STATEMENT_FLOOR = 72           # 186 measured 70; 188 §3 added two. It is suppo
 CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
                  # 188: every check that gained at least one control this session
                  "1", "5", "9", "10", "11", "12", "13", "14", "15", "16",
-                 "addon", "roster", "shape", "why")
+                 "addon", "roster", "shape", "why",
+                 # 192: the cross-LANGUAGE check, closed on the way in rather than carried
+                 "23")
 
 
 def statements(src: str) -> list[tuple[int, str, str]]:
@@ -548,7 +631,7 @@ def _self_check() -> list[str]:
     # deleting this whole block. No self-check can assert its own presence, and that is
     # `floor_pin_gate.py`'s job one level up and the reverse sweep's at this one. It is a
     # real residual, not a solved problem.
-    values = (("{V}", live_version()), ("{TESTS}", live_tests()))
+    values = (("{V}", live_version()), ("{TESTS}", live_tests()), ("{CHECKS}", live_checks()))
     PLANTED = ("__planted__", "x", "sub", "x", f"npm {live_version() or 'x.y.z'} ·", "y", "z")
     audit, rows_read = derived_literal_problems([*CONTROLS, PLANTED], values)
     if rows_read != len(CONTROLS) + 1:
