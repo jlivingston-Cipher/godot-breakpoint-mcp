@@ -82,6 +82,15 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 //              `tautology_gate.selftest.mjs`'s HELPERS_NOT_ROSTERED case, which fails if
 //              either file ever grows a claim site.
 export const FLOORS = { test: 2100, "test-integration": 850, scripts: 90, ".": 10 };
+// 🆕 183 — AND A FLOOR ON THE FILE COUNT, WHICH IS THE HALF `FLOORS` CANNOT COVER.
+// `FLOORS` counts claim SITES, so a filter that quietly stopped reading five files is
+// invisible to it as long as the sites those files held stay under the headroom of the
+// ones that remain — which is 182 §8's finding about `CHECKS_RUN` (a roster needs to be a
+// roster AND a floor) in the directory walk instead of in the check list. 183 removed a
+// filename-prefix filter that had been excluding five files silently since 174; this is
+// what would have said so. Measured 47 / 30 / 8 / 12. `>=`, and a directory that
+// legitimately loses a file lowers the literal ON PURPOSE.
+export const FILE_FLOORS = { test: 45, "test-integration": 28, scripts: 8, ".": 12 };
 
 // 🔴 AND EVERY ONE OF THEM PINS AN INPUT. Session 180, answering 179 §11.2 — which asked
 // the question of five instruments and got one yes. `FLOORS` counts claim sites the
@@ -134,6 +143,17 @@ export const NO_CLAIMS_EXPECTED = {
   "csharp-dap.integration.mjs": "documented LOG-ONLY diagnostic — its only gate is reachability (170, measured)",
   "editor-lsp.integration.mjs": 'best-effort probe bank, its own header: "probe failures are never fatal — only an unreachable language server fails the job"',
   "editor-subscriptions.integration.mjs": 'event-push probe, its own header: "The reachability check is the gate (exit 1 if the addon is unreachable)"',
+
+  // ── the four helper MODULES, admitted 183 with the prefix filter ───────────────────
+  // 🔴 THESE WERE EXEMPT BY FILENAME UNTIL 183 AND THE EXEMPTION WAS INVISIBLE. Each is a
+  // library the probes import, not a suite; each has its claims in the `.selftest.mjs`
+  // beside it, which has been swept since 174. Writing the reason down is the whole
+  // change — the four files are read by the classifier now and are silent ON PURPOSE,
+  // which is a different fact from being unreadable, and the gate can tell them apart.
+  "_population.mjs": 'the claim counter itself — its own header: "Dependency-free… same as _png.mjs and _workspace.mjs". Its claims are in _population.selftest.mjs (321 lines)',
+  "_workspace.mjs": "the snapshot/restore/diff library AUTH_CLEAN is derived from; it asserts nothing itself, and its claims are in _workspace.selftest.mjs (58 of them)",
+  "_png.mjs": 'the PNG reader — its own header: "Deliberately NOT a general PNG library… returns null for anything else, so a caller can degrade rather than throw". Its claims are in _png.selftest.mjs',
+  "_path_ledger.mjs": "the live-vs-ledger comparison; a parser and a differ, asserting nothing. Its claims are in _path_ledger.selftest.mjs (39 of them)",
 
   // ── host/scripts, admitted 175 ─────────────────────────────────────────────────────
   // The gates themselves. A gate is a classifier, not a suite; its claims live in the
@@ -888,9 +908,23 @@ function main() {
     // shape this gate exists to catch, one level out from the claims it reads.
     // 175: `.` is a rostered directory now, and a DIRECTORY whose name ends in .ts or
     // .mjs would otherwise be read as a file and throw EISDIR.
+    //
+    // 🆕 183: AND 174 FIXED THE INSTANCE, NOT THE CLASS. The filter it left behind read
+    // `!f.startsWith("_") || f.endsWith(".selftest.mjs")` — a whitelist keyed on a NAMING
+    // CONVENTION, so every underscore-prefixed file shape that is not `.selftest.mjs` is
+    // exempt BY CONSTRUCTION and the scope line reads `files=21` either way. 183 added
+    // `_caller_shape.harness.mjs`, a file that is nothing but claims, and it would have
+    // been swept by nothing while the gate printed ok — which is the identical defect one
+    // gate over: `floor_pin_gate.py`'s DISCOVER walk was scoped to `.mjs` rather than to
+    // "is a floor", so a floor written in Python sat outside it (182 §9).
+    //
+    // 🔴 THE FIX IS TO INVERT IT, NOT TO ADD A SUFFIX. Sweep every .mjs/.ts, and let the
+    // only exemption be the one that costs a written reason — which the comment above
+    // already said was the difference that mattered and which NO_CLAIMS_EXPECTED already
+    // is. The four helper MODULES land there now, each quoting its own header. A rule
+    // scoped to the property cannot rot in the direction a rule scoped to a name does.
     const files = readdirSync(d).filter(
-      (f) => /\.(mjs|ts)$/.test(f) && (!f.startsWith("_") || f.endsWith(".selftest.mjs"))
-        && statSync(join(d, f)).isFile(),
+      (f) => /\.(mjs|ts)$/.test(f) && statSync(join(d, f)).isFile(),
     );
     let mine = [];
     const empty = [];
@@ -912,7 +946,17 @@ function main() {
     // line above sums twenty-one files; a file that fell to zero hides behind the other
     // twenty exactly as `test` hid behind `test-integration`. Measured on the tree 171
     // shipped: NINE of twenty-one at zero under a floor that read `ok`.
-    console.log(`TAUT_SCOPE_FILES ${dir.padEnd(11)} silent=${empty.length} exempt=${files.filter((f) => f in NO_CLAIMS_EXPECTED).length}`);
+    const fileFloor = FILE_FLOORS[dir];
+    console.log(`TAUT_SCOPE_FILES ${dir.padEnd(11)} silent=${empty.length} exempt=${files.filter((f) => f in NO_CLAIMS_EXPECTED).length} read=${files.length}/${fileFloor}`);
+    // 🆕 183 — THE FILE COUNT, FLOORED. See FILE_FLOORS. A directory walk that stopped
+    // reading files reports the same `silent=0` as one that read them all and found
+    // claims in every one; only the count can tell those apart.
+    if (files.length < fileFloor) {
+      failed = true;
+      console.log(`🔴 TAUT_SCOPE_FILES_COLLAPSE ${dir}: ${files.length} file(s) read, floor is ${fileFloor}.`);
+      console.log(`   Either sources were deleted, or the walk's filter stopped admitting them — and the second`);
+      console.log(`   is what a filename-prefix exemption did here, unseen, from 174 to 183.`);
+    }
     // 🔴 AND AN EXEMPTION THAT IS NO LONGER EARNED IS A PLACE TO HIDE. Check 16 in
     // `contract_check.py` fails both directions for this reason; so does this. A file
     // rostered as silent that has since grown claims keeps buying a silence it does not

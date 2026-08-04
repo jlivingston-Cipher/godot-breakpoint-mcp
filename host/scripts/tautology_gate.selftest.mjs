@@ -15,7 +15,7 @@
 // 🔴 THE CLAIM FLOOR IS A LITERAL. 170 §5's self-test caught its own miscount twice
 // because of exactly this line; if a case stops running, the count moves and this fails.
 import {
-  analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS,
+  analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS, FILE_FLOORS,
   judgeScope, combineFailed, UNIT_FLOOR, ATTRIBUTED_FLOOR,   // 180 — the output floor and its wire
   SHAPED_FLOOR, PRECONDITION_FLOOR,                          // 🆕 182 — the CLASSIFIER's own output
 } from "./tautology_gate.mjs";
@@ -275,6 +275,18 @@ claim(FLOORS.test === 2100 && FLOORS["test-integration"] === 850
   && FLOORS.scripts === 90 && FLOORS["."] === 10,
   "🔴 and each of the four VALUES is pinned — a rostered directory with a floor of 0 is not floored, "
   + `got ${JSON.stringify(FLOORS)}`);
+// 🆕 183 — THE SAME PAIR FOR `FILE_FLOORS`, AND THE PAIR IS THE POINT. `FLOORS` counts
+// claim SITES; `FILE_FLOORS` counts FILES READ, which is the only number that can see a
+// walk that stopped admitting sources. Written as two claims for 181's reason, one file
+// up: a roster pinned by KEY is not a roster pinned, and a floor of 0 is not a floor.
+claim(Object.keys(FILE_FLOORS).length === 4
+  && ["test", "test-integration", "scripts", "."].every((d) => d in FILE_FLOORS),
+  "the file-count floor covers the same four rostered directories — a directory with a claim-site "
+  + "floor and no file floor is half floored");
+claim(FILE_FLOORS.test === 45 && FILE_FLOORS["test-integration"] === 28
+  && FILE_FLOORS.scripts === 8 && FILE_FLOORS["."] === 12,
+  "🔴 and each of the four file-count VALUES is pinned — zeroing one re-permits the filename-prefix "
+  + `exemption 183 removed, in silence, got ${JSON.stringify(FILE_FLOORS)}`);
 // 🔴 `test/helpers` IS DELIBERATELY NOT ROSTERED, AND THIS IS THE ASSERTION THAT SAYS SO.
 // `readdirSync` is not recursive, so a SUBDIRECTORY of a rostered directory is unswept —
 // the fourth spelling of 174 §5's finding, after the filename prefix and the directory
@@ -399,7 +411,7 @@ claim(combineFailed(false, { failed: false }) === false, "a healthy run stays gr
 // ── the floor on this file itself (170 §5) ───────────────────────────────────────────
 // 🔴 IT CAUGHT ITS OWN MISCOUNT ON THE FIRST RUN — 170 §5's experience, verbatim: the
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
-const EXPECTED = 108;  // 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+const EXPECTED = 110;  // 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);

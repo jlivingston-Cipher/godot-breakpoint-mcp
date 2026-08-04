@@ -365,6 +365,17 @@ LATE_LIVE = {
     "_path_ledger.mjs": (["node", "scripts/path-cohort.mjs", "--summary"], None),
     "path-cohort (compiled walk)": (["node", "scripts/path-cohort.mjs", "--summary"],
                                     HOST / "dist" / "path-cohort.js"),
+    # 🆕 183 — 182 §11.2's REMAINING HALF. These three are imported only by probes that
+    # boot the editor under Xvfb, so until now their late blind ran against the SELF-TEST
+    # and the axis that found every 182 defect was unavailable to exactly the three files
+    # 181 §6's defect lived in. `_caller_shape.harness.mjs` is a headless SUBSTITUTE
+    # caller: it reproduces the one property the self-test structurally cannot have — a
+    # population floored at t=0 and a verdict re-derived at t=1 — over a temp tree and two
+    # PNGs it authored itself, and takes every verdict from a reading this gate never
+    # blinds. One command for all three, because one caller drives all three.
+    "_workspace.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
+    "_png.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
+    "_population.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
 }
 
 # 🔴 DECLARED GREEN, WITH A REASON EACH RATHER THAN A NAME EACH (174 §5) — AND THE GATE
@@ -384,6 +395,20 @@ LATE_DECLARED_GREEN = {
         "The branch is there for camelCase (`toPath`), which the live surface has none of. "
         "If one ever appears this declaration reddens, which is the point of re-measuring "
         "it every run rather than writing the exemption down once.",
+    # 🆕 183 — THE ONE GREEN OF TWELVE ON THE NEW LIVE AXIS, AND IT IS THE SAME CLASS AS
+    # `collapsed(n, floor)` ABOVE. 182 §11.27 asked the question this answers: is the
+    # blind constant a HEALTHY answer or a FAILING one, and which axis can therefore see
+    # it? Eleven of the twelve blinds the caller-shape harness constructs produce a wrong
+    # observable and are caught. This one cannot be.
+    ("_population.mjs", "_closeOpen()", "B:live"):
+        "`_closeOpen` exists to file a section that closed having asserted NOTHING, and a "
+        "healthy caller has no such section — so the function's entire output on a healthy "
+        "run is the empty set, which is exactly what the blind returns. Neither caller "
+        "depends on it for anything else: `family()` sets `this.current = null` itself "
+        "(170's structural fix), and `report()` reaches it with nothing open. The constant "
+        "IS the healthy answer, so NO live axis can ever judge this target however the "
+        "caller is shaped. Its coverage is `_population.selftest.mjs`, where a vacuous "
+        "section is constructible on purpose — the same split `collapsed(n, floor)` has.",
     ("tautology_gate.mjs", "export function combineFailed(failedSoFar, scope) {", "A:gate"):
         "a 2x2 truth table called three times with LITERAL fixtures, not once per member "
         "of a population. Only `combineFailed(false, {failed:true})` can distinguish the "
@@ -420,8 +445,17 @@ def run_counting(cmd, cwd) -> tuple[bool, int]:
 # filed as "not constructible", no problem is raised and the gate prints ok — the whole
 # second axis neutralised in silence, which is the exact defect it was built to find, one
 # level up. `>=`, and measured at 70 of 84 across both axes.
-LATE_CONSTRUCTED_FLOOR = 55
+LATE_CONSTRUCTED_FLOOR = 65   # 183: 55 -> 65, measured 82 of 102 across both axes
 LATE_CONSTRUCTED: list[str] = []
+
+# 🆕 183 — AND THE ROSTER ABOVE NEEDS ITS OWN FLOOR, WHICH IS THE HALF `LATE_CONSTRUCTED`
+# CANNOT COVER. Deleting the three `_caller_shape.harness.mjs` entries from LATE_LIVE
+# takes the constructed count from 82 to 70 — still clear of the floor above, because that
+# floor is a backstop on the INJECTOR and not on the roster. Two different collapses, so
+# two different numbers: 182 §8 reached the same conclusion about `CHECKS_RUN` and settled
+# it the same way — a roster AND a floor rather than either alone. `>=`, because the point
+# of the caller-shape harness is that this list grows.
+LATE_LIVE_FLOOR = 8
 
 
 def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, int, list[str]]:
@@ -520,6 +554,17 @@ def _self_check(floor: int) -> list[str]:
             f"LATE_CONSTRUCTED_FLOOR is {LATE_CONSTRUCTED_FLOOR}, which cannot treat an axis that "
             f"built ZERO late blinds as a collapse. That is the second axis switched off with one "
             f"digit, and every line it prints would still say ok"
+        )
+    # 🆕 183. THE LIVE-AXIS ROSTER'S FLOOR, PINNED BY ASSERTING ITS BRANCH BITES ON AN
+    # EMPTY ROSTER. Same shape as the two above and for the same reason: a floor of 0
+    # would let every `B:live` entry be deleted in silence, and the A:gate axis alone
+    # produced exactly one green in 51 — so the axis that finds things would be gone and
+    # every line would still read ok.
+    if not len(LATE_LIVE) >= LATE_LIVE_FLOOR or LATE_LIVE_FLOOR <= 0:
+        problems.append(
+            f"LATE_LIVE holds {len(LATE_LIVE)} live axis(es), floor is {LATE_LIVE_FLOOR} — the "
+            f"axis that found every 182 defect is the live one, and a roster that shrank takes "
+            f"its instruments back to the self-test without changing a single printed line"
         )
     return problems
 
@@ -658,6 +703,7 @@ def main() -> int:
     # `late()` that stopped injecting files every target as "not constructible", raises no
     # problem, and lets this gate print ok over an axis that measured nothing — the exact
     # failure the axis exists to find, in the axis itself.
+    print(f"INSTRUMENT_GATE_LATE_LIVE {len(LATE_LIVE)}/{LATE_LIVE_FLOOR}")
     print(f"INSTRUMENT_GATE_LATE_CONSTRUCTED {len(LATE_CONSTRUCTED)}/{LATE_CONSTRUCTED_FLOOR}")
     if len(LATE_CONSTRUCTED) < LATE_CONSTRUCTED_FLOOR:
         problems.append(

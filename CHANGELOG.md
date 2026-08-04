@@ -6,6 +6,71 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the live axis for the three instruments whose only caller boots the editor
+
+182 §11.2 handed over the remaining half of the late blind in one sentence: `_workspace.mjs`,
+`_png.mjs` and `_population.mjs` are imported only by probes that boot the Godot editor under
+Xvfb, so their late blind ran against the SELF-TEST — and the self-test cannot reproduce the
+caller's shape. The axis that found every defect in 182 was the live one, and it was
+unavailable to exactly the three files 181 §6's defect lived in.
+
+`host/test-integration/_caller_shape.harness.mjs` is that axis: a headless SUBSTITUTE caller
+that reproduces the one property a self-test structurally cannot have —
+
+```
+t=0   derive a population and FLOOR it          (snapshotDir -> 84 files >= 70)
+...   do the work the floor was permission for  (write 30, modify one, delete one)
+t=1   RE-DERIVE and take a verdict from that    (restoreDir + diffDir -> clean?)
+```
+
+— over a temp tree and two PNGs it authored itself. It is not the authoring probe and does
+not claim the probe's coverage; what it adds that the probe cannot have is GROUND TRUTH, so
+every verdict is taken from a reading `instrument_gate.py` never blinds: an independent
+`census()` with its own recursion and its own hash, an independent claim count, and an
+authored distinct-colour count. **12 late blinds are constructible on the new axis where
+there were 0. Eleven produce a wrong observable and are caught.**
+
+🔴 **The one green is a whole CLASS, and it is 182 §11.27's question answered.** `_closeOpen()`
+exists to file a section that closed having asserted nothing, and a healthy caller has none —
+so the function's entire output on a healthy run is the empty set, which is exactly what the
+blind returns. No live axis can ever judge it, however the caller is shaped, and its coverage
+has to be the self-test. Declared with that reason, and the gate fails if it starts reddening.
+
+🔴 **`report()` was the same shape until the harness checked the LINE rather than the return
+value.** Its failure list is empty on a healthy run too — but the caller depends on something
+else it does: it PRINTS the population line, and that line, not the return value, is what the
+CI job logs are grepped for. Nothing anywhere asserted that it prints.
+
+🔴 **`LATE_LIVE` needed a floor of its own, and the reverse sweep is why.** Deleting the three
+new entries takes the constructed count from 82 to 70 — still clear of `LATE_CONSTRUCTED_FLOOR`,
+because that floor is a backstop on the INJECTOR and not on the roster. Two collapses, two
+numbers: `LATE_LIVE_FLOOR = 8`, pinned in `_self_check()` by asserting the branch bites on an
+empty roster. `LATE_CONSTRUCTED_FLOOR` 55 → 65, measured 82.
+
+### Fixed — the tautology gate read files by NAME, so 174 fixed the instance and left the class
+
+The directory walk filtered `!f.startsWith("_") || f.endsWith(".selftest.mjs")` — a whitelist
+keyed on a NAMING CONVENTION. Every underscore-prefixed file that is not a `.selftest.mjs` was
+exempt by construction, the scope line read the same either way, and the gate's own comment
+four lines above said what was wrong with exactly that: *"NO_CLAIMS_EXPECTED costs a written
+reason; a filename prefix costs nothing and is invisible in the output."*
+
+This is 182 §9 one gate over — `floor_pin_gate.py`'s DISCOVER walk was scoped to `.mjs` rather
+than to "is a floor", so a Python floor sat outside it. **Same defect, second spelling: the
+discovery half scoped to a name instead of to the property.** A file added this session that
+is nothing but claims would have been swept by nothing while the gate printed ok.
+
+Inverted rather than extended: every `.mjs`/`.ts` is read, and the only exemption is the one
+that costs a written reason. The four helper modules are on `NO_CLAIMS_EXPECTED` now, each
+quoting its own header.
+
+🔴 **And the exclusion was invisible because nothing floored the FILE COUNT.** `FLOORS` counts
+claim SITES, so five files silently dropping out is absorbed by the headroom of the ones that
+remain — and an unread file cannot be reported as silent. `FILE_FLOORS = { test: 45,
+"test-integration": 28, scripts: 8, ".": 12 }`, measured 47 / 30 / 8 / 12, printed on
+`TAUT_SCOPE_FILES` as `read=N/floor`, pinned by key and by value in the self-test and swept by
+`floor_pin_gate.py`. Restoring the old filter now reddens the gate; before this it did not.
+
 ## [1.58.0] — 2026-08-03
 
 ### Added — the late blind, put to all 51 targets, and the four instruments that could answer once and stop
