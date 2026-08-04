@@ -155,8 +155,38 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // no other. It is the shortest possible demonstration of what the rule is for: a number that
 // had drifted 472 → 508 across nine sessions without a single red run could not drift one
 // further without somebody writing down why.
-export const ORPHAN_CEILING = 509;      // measured 3721 sites - 3212 attributed, 2026-08-04
-                                        //   (508 + 1: this rule's own self-test, see above)
+// 🔴 193 — AND THE CEILING CAME DOWN, BECAUSE SOMEBODY FINALLY READ UNDER IT. 191 pinned
+// it, 192 carried it forward saying "not one of them has been read", and reading them
+// answered the binary question BOTH ways: 77 legitimate banner claims and 432 in eleven
+// `*.integration.mjs` files that reach no unit AT ALL. The second half was not a licence
+// being used up — it was the live-engine integration suite going unscored for tautology,
+// because `vacuous` is scored over the units that survive attribution and an orphan
+// survives nothing. Teaching `enclosingTest` the section-banner idiom those files already
+// write attributed 362 of them; the 147 that remain are the legitimate class plus the five
+// script-shaped files that carry no banners either.
+//
+// 🔴 THE CEILING IS WHAT CATCHES THE FALLBACK DYING. Units and claims BOTH rose (1408 →
+// 1680, 3212 → 3574) and both floors have enough headroom that breaking the banner path
+// would leave them green — `UNIT_FLOOR` is 1200 and `ATTRIBUTED_FLOOR` is 2500. Only this
+// number moves the other way: kill the fallback and the orphans go straight back to 509,
+// which is 362 over. It is pinned EXACTLY for the same reason it was pinned exactly in
+// 191 — headroom here is a licence to add orphans nobody reads.
+//
+// 🔴 AND IT CAUGHT ITS OWN AUTHOR A SECOND TIME, WHICH IS THE SAME READING TWICE. 191 §5
+// pinned this at 508 and the very next run went red at 509, because writing the self-test
+// cases for the rule added a claim site in `scripts/` that reaches no unit. Pinning it at
+// 147 this session did it again: the nine cases written for BANNER_ATTRIBUTED_FLOOR took
+// sites 3721 → 3730 and attribution 3574 → 3582, and the ninth reaches nothing. 148 for
+// that reason and no other. A rule whose own arrival it can measure is a rule that works.
+export const ORPHAN_CEILING = 148;      // measured 3730 sites - 3582 attributed, 2026-08-04
+                                        //   (147 + 1: this session's self-test, as in 191)
+
+// 🔴 AND THE POSITIVE SIDE OF THE SAME FACT, BECAUSE A SUBTRACTION IS NOT A POPULATION.
+// The ceiling above says "few claims are orphans"; it does not say the banner path RAN.
+// Both would be satisfied by an `enclosingTest` that stopped reading banners on a tree
+// where somebody had meanwhile added `test()` blocks. 172's rule — one number per
+// population — asks for the banner-attributed claims to be counted as themselves.
+export const BANNER_ATTRIBUTED_FLOOR = 300;   // measured 362, 2026-08-04
 
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
@@ -756,9 +786,49 @@ function collectFailers(src) {
   return out;
 }
 
+// 🔴 193 §9.3 — THE SECTION BANNER, AND WHY THE ORPHAN CEILING HAD TO BE READ BEFORE THIS
+// COULD BE WRITTEN. 191 §5 turned `orphan = sites - attributed` into ORPHAN_CEILING = 509
+// and 192 carried it forward untouched, saying so: "pins 509; not one of them has been
+// read." Reading them answered the handoff's binary question BOTH ways, 85/15:
+//
+//   77 orphans / 12 files   the BANNER class, legitimate — self-tests asserting module
+//                           constants at file scope, outside any unit by nature
+//  432 orphans / 11 files   🔴 the GAP. Every `*.integration.mjs` where NOT ONE claim
+//                           reaches a unit. They use zero `node:test`: bare async scripts
+//                           with a `die()` helper, so `enclosingTest` finds nothing.
+//
+// 🔴 THE CONSEQUENCE IS THE WHOLE POINT. `vacuous`, `every` and `offender` are scored over
+// the units that survive attribution. An orphan is scored by nothing — so the live-engine
+// integration suite, the most expensive tests in this repo, was unscored for tautology.
+// The plane files escaped it only because they spell claims `check(cond, marker, detail)`,
+// which the marker path already reads.
+//
+// The fallback is the files' OWN existing convention, so it costs no new maintenance
+// surface — the same argument the marker path was given:
+//
+//     // ====================================== 2. `visible`, all THREE branches ===
+//
+// Anchored on the RULE CHARACTERS, not on a numbered prefix: several of these files number
+// their sections and several do not, and a rule that only read the numbered ones would
+// attribute a file's first half and call the rest orphans.
+const BANNER_RE = /^\s*\/\/\s*[=-]{4,}\s*(.+?)\s*$/;
+
+function bannerUnits(text) {
+  const out = [];
+  text.split("\n").forEach((ln, i) => {
+    const m = BANNER_RE.exec(ln);
+    if (!m) return;
+    const name = m[1].replace(/\s*[=-]+\s*$/, "").trim();
+    // A bare rule (`// ==========`) titles nothing and is a separator, not a unit.
+    if (name && !/^[=-]+$/.test(name)) out.push({ name, line: i + 1 });
+  });
+  return out;
+}
+
 // The nearest enclosing `test("name", …)` / `it(…)`, so each assertion is attributed to
-// the case it belongs to.
-function enclosingTest(node, src) {
+// the case it belongs to — falling back to the nearest section banner ABOVE the claim for
+// the script-shaped files that have no test() blocks at all.
+function enclosingTest(node, src, banners = null) {
   for (let p = node.parent, hops = 0; p && hops < 60; p = p.parent, hops++) {
     if (ts.isCallExpression(p) && p.arguments.length && ts.isStringLiteralLike(p.arguments[0])) {
       const c = p.expression;
@@ -766,6 +836,12 @@ function enclosingTest(node, src) {
         : ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression) ? c.expression.text : null;
       if (n && TEST_FNS.has(n)) return { name: p.arguments[0].text, line: src.getLineAndCharacterOfPosition(p.getStart(src)).line + 1 };
     }
+  }
+  if (banners && banners.length) {
+    const line = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
+    let owner = null;
+    for (const b of banners) { if (b.line < line) owner = b; else break; }
+    if (owner) return { name: owner.name, line: owner.line, banner: true };
   }
   return null;
 }
@@ -778,6 +854,12 @@ export function analyze(fileName, text) {
   );
   const consts = collectConsts(src);
   const asserters = collectAsserters(src);
+  // 🔴 ONLY WHERE THERE ARE NO test() BLOCKS AT ALL. A file that has both would get its
+  // stray file-scope claims swept under whichever banner happened to precede them, which
+  // turns the legitimate 77 (see `enclosingTest`) into fake attribution and hides the very
+  // class this fallback exists to expose. The fallback is for script-shaped files, and
+  // "script-shaped" is asked of the file rather than assumed from its name.
+  const banners = /\b(?:test|it|family)\s*\(\s*["'`]/.test(text) ? null : bannerUnits(text);
   // 175: a CHECK_FNS name is only a claim idiom when it resolves to something that can
   // actually fail. See `collectFailers` — the name is the candidate, this is the test.
   const failers = collectFailers(src);
@@ -793,7 +875,7 @@ export function analyze(fileName, text) {
     const off = ls.find((l) => l.kind === "OFFENDER");
     claims.push({
       file: fileName, line: src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1,
-      method, marker, owner: enclosingTest(node, src),
+      method, marker, owner: enclosingTest(node, src, banners),
       cond: raw.slice(0, 170),
       // 🔴 THE FLOOR MUST BE LOOKED FOR IN THE *RESOLVED* TEXT (172). `hasFloor` tested
       // `cond` alone, so `(searchOk && listOk)` — whose floor lives one hop away in the
@@ -861,7 +943,7 @@ export function analyze(fileName, text) {
       else if (ts.isIdentifier(node.expression) && node.expression.text === "assert") method = "__bare__";
 
       if (method && !NOT_A_CLAIM.has(method)) {
-        const owner = enclosingTest(node, src);
+        const owner = enclosingTest(node, src, banners);
         const line = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
         if (CONTROL.has(method)) {
           // a throws/rejects IS a claim for block purposes: it constrains control flow.
@@ -920,13 +1002,14 @@ export function verdict(claims) {
   // and unreachable without a working classifier: `allShape` needs every leaf of a claim
   // to come back SHAPE, and `precondition` needs every leaf's TEXT to match an outcome
   // flag. Both are 0 under either blind, and neither is the offence.
-  let shaped = 0, precondition = 0;
+  let shaped = 0, precondition = 0, bannerAttributed = 0;
   for (const c of claims) {
     if (c.allShape) shaped++;
     if (c.precondition) precondition++;
     const k = c.marker ? `${c.file}::${c.marker}` : c.owner ? `${c.file}::${c.owner.line}::${c.owner.name}` : null;
     if (!k) continue;
     attributed++;
+    if (!c.marker && c.owner?.banner) bannerAttributed++;
     if (!blocks.has(k)) blocks.set(k, { file: c.file, name: c.marker ?? c.owner.name, line: c.marker ? c.line : c.owner.line, marker: Boolean(c.marker), claims: [] });
     blocks.get(k).claims.push(c);
   }
@@ -943,6 +1026,7 @@ export function verdict(claims) {
   return {
     blocks: blocks.size,
     attributed,
+    bannerAttributed,
     shaped,
     precondition,
     // A unit made ONLY of outcome-flag preconditions is 171 §3's forty, and demanding
@@ -972,11 +1056,27 @@ export function verdict(claims) {
  * `G25`–`G28` are. The coverage is in the self-test, by construction, not by accident —
  * and `mutate180.py` says so at the mutant.
  */
-export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING) {
+export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const orphan = sites - v.attributed;
   say(`TAUT_ATTRIBUTED units=${v.blocks}/${unitFloor} claims=${v.attributed}/${attrFloor} orphan=${orphan}/${orphanCeiling}`);
+  // 🔴 193 — THE BANNER PATH, COUNTED AS ITSELF. `bannerAttributed` may be undefined when a
+  // self-test drives `judgeScope` with a hand-built verdict; treat that as "not measured"
+  // rather than as zero, because a fixture that does not exercise this path must not be
+  // able to redden it. The LIVE run always sets it.
+  if (v.bannerAttributed !== undefined) {
+    say(`TAUT_BANNER_ATTRIBUTED ${v.bannerAttributed}/${bannerFloor}`);
+    if (v.bannerAttributed < bannerFloor) {
+      out.failed = true;
+      say(`🔴 TAUT_BANNER_COLLAPSE ${v.bannerAttributed} < ${bannerFloor} — the section-banner`);
+      say(`   fallback stopped attributing. Those claims are not gone, they are ORPHANS again, and`);
+      say(`   \`vacuous\`/\`every\`/\`offender\` are scored over attributed units only — so the whole`);
+      say(`   live-engine integration suite silently stops being scored, which is the state 193 §9.3`);
+      say(`   found and closed. Either the banner idiom changed (update BANNER_RE deliberately) or`);
+      say(`   the files grew test() blocks, which switches them off this path by design.`);
+    }
+  }
   // 🔴 191 — THE OTHER SIDE OF THE SUBTRACTION, GOVERNED AT LAST (180 §11.4, carried nine
   // sessions). See `ORPHAN_CEILING`. A rise is not a failure of the code under test; it is
   // a claim nobody attributed, and the only thing that makes attribution a decision rather

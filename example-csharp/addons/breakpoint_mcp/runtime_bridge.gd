@@ -35,6 +35,12 @@ const MONITORS := {
 	"time/process": Performance.TIME_PROCESS,
 	"time/physics_process": Performance.TIME_PHYSICS_PROCESS,
 	"memory/static": Performance.MEMORY_STATIC,
+	# Total live ObjectDB instances — Nodes, Resources and BARE Objects alike, which is
+	# what makes it the only monitor here that can see a leaked non-Node. Added session
+	# 153 so the _node_add `not_a_node` leak fixed in the same commit is REGRESSION-LOCKED
+	# in CI rather than merely proved once on a laptop: node-lifecycle.integration.mjs
+	# drives that branch in bulk and watches this number.
+	"object/count": Performance.OBJECT_COUNT,
 	"object/node_count": Performance.OBJECT_NODE_COUNT,
 	"object/resource_count": Performance.OBJECT_RESOURCE_COUNT,
 	"render/total_objects_drawn": Performance.RENDER_TOTAL_OBJECTS_IN_FRAME,
@@ -456,7 +462,36 @@ func _emit_signal(params: Dictionary) -> Dictionary:
 	var call_args: Array = [sig]
 	for a in params.get("args", []):
 		call_args.append(Codec.decode(a))
-	node.callv("emit_signal", call_args)
+	# emit_signal RETURNS an Error, and discarding it made this tool answer
+	# {"emitted": true} for an emission the engine refused. The cause is an `args` count
+	# that does not match a CONNECTED callable's arity: the engine pushes its own
+	# "Method expected N argument(s), but called with M" into the GAME's log — not the
+	# caller's — and that callable never runs, so the caller fails at its NEXT assertion,
+	# arbitrarily far from the cause.
+	#
+	# 🔴 TWO non-OK codes, and only one of them is a failure. Measured identically on
+	# 4.3, 4.5 and 4.7:
+	#
+	#   OK (0)                    a connected callable ran
+	#   ERR_METHOD_NOT_FOUND (37) a callable IS connected and could not be invoked —
+	#                             the arity mismatch. This is the defect worth reporting.
+	#   ERR_UNAVAILABLE (2)       the signal exists but has NO connections at all.
+	#                             Emitting into the void is ordinary and must SUCCEED —
+	#                             rejecting it would break every game that emits a signal
+	#                             nothing happens to be listening to.
+	#
+	# 🔴 The honest consequence: arity is checkable ONLY when something is connected.
+	# With no listener, a wrong count also returns ERR_UNAVAILABLE (there is no callable
+	# whose arity could mismatch), so it is indistinguishable from a correct emission.
+	# That is a limit of what the engine reports, not something this tool can tighten,
+	# and the catalog says so rather than implying a guarantee that does not exist.
+	var err: int = node.callv("emit_signal", call_args)
+	if err != OK and err != ERR_UNAVAILABLE:
+		return _err(
+			"emit_failed",
+			"emit_signal(%s) with %d arg(s) failed: %s (%d). Check the count against the arity of the signal's connected callables."
+				% [sig, call_args.size() - 1, error_string(err), err]
+		)
 	return _ok({"emitted": true})
 
 
@@ -466,6 +501,14 @@ func _inject_input(params: Dictionary) -> Dictionary:
 	match kind:
 		"action":
 			var action := String(ev.get("action", ""))
+			# An action the InputMap does not know is NOT injectable. Input.action_press
+			# pushes its own engine error and returns, so without this guard the reply is
+			# {"injected": true} for a typo'd action name and the caller's NEXT assertion is
+			# where the failure surfaces — as far from the cause as it is possible to get.
+			# Found live, session 153, by the probe that first pointed this tool at a real
+			# InputMap. Covers both operands: an absent "action" key arrives here as "".
+			if not InputMap.has_action(action):
+				return _err("bad_action", "No such InputMap action: %s" % action)
 			if bool(ev.get("pressed", true)):
 				Input.action_press(action, float(ev.get("strength", 1.0)))
 			else:
@@ -891,6 +934,16 @@ func _node_add(params: Dictionary) -> Dictionary:
 			return _err("bad_type", "Cannot instantiate class: %s" % type_name)
 		var obj: Variant = ClassDB.instantiate(type_name)
 		if not (obj is Node):
+			# ClassDB.instantiate hands back an UNOWNED instance. A RefCounted subclass
+			# (Resource, Image, ...) releases itself when this reference goes out of scope;
+			# a bare Object does NOT, so returning here without freeing leaked one instance
+			# per call — which the engine reports only at exit, as "N ObjectDB instances
+			# were leaked". Proved session 152, measured session 153 at 51 leaked over 51
+			# calls and 0 with this branch in place.
+			# The RefCounted arm MUST be excluded: free() on a RefCounted is itself an error,
+			# which is why the safe-looking `Resource` case hid this for so long.
+			if obj is Object and not (obj is RefCounted):
+				(obj as Object).free()
 			return _err("not_a_node", "%s is not a Node" % type_name)
 		child = obj
 	if child == null:

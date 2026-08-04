@@ -52,13 +52,17 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 48   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
+TARGET_FLOOR = 49   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
                     #      189 §32's complaint that turns out to be wrong. That note asked
                     #      why this literal is not derived from the count the gate prints
                     #      one line below it. Because a floor that protects a LIST'S SIZE
                     #      cannot be read off that list: `TARGET_FLOOR = len(TARGETS)` is
                     #      satisfied by every deletion, which is exactly the event it
                     #      exists to catch. 176's rule, one level up.
+                    # 193: 48 -> 49 (BANNER_ATTRIBUTED_FLOOR — the section-banner
+                    #      fallback counted as its own population, because the ceiling
+                    #      above it is a subtraction and a subtraction cannot say the
+                    #      path RAN)
                     # 191: 46 -> 48 (ALIAS_BINDINGS_FLOOR — the floor UNDER the fifth
                     #      rule's ceiling, needed the moment that ceiling went to zero —
                     #      and ORPHAN_CEILING, 180 §11.4's nine-session complaint)
@@ -150,7 +154,18 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # attributed` was printed from 170 and floored by nothing; `ATTRIBUTED_FLOOR` bounds it
     # only if `sites` is pinned too, and `sites` is free to grow. A ceiling, for the same
     # reason as the two above, and pinned exactly rather than with headroom.
-    ("ORPHAN_CEILING",           f"{S}/tautology_gate.mjs",          r"(export const ORPHAN_CEILING = )509;",                     [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🔴 193 — THE ANCHOR TAKES `\d+`, AND THIS IS THE SECOND ROW IN THE TABLE TO EARN IT.
+    # 192 §6 gave `CHECKS_RUN_FLOOR` a `\d+` anchor because its value is asserted EQUAL to
+    # something the tree computes, so the act the control guards moves it. This ceiling is
+    # the other shape with the same consequence: it is pinned EXACTLY on the live orphan
+    # count, so every session that changes attribution moves it BY DESIGN — 509 → 147 → 148
+    # in one session here. An anchor embedding the value would test nothing the moment the
+    # rule it guards did its job, which is what it did on this session's first run.
+    ("ORPHAN_CEILING",           f"{S}/tautology_gate.mjs",          r"(export const ORPHAN_CEILING = )\d+;",                    [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🔴 THE POSITIVE SIDE OF THE SAME FACT (193 §9.3). The ceiling says few claims are
+    # orphans; it does not say the banner path RAN. Both would survive an `enclosingTest`
+    # that stopped reading banners on a tree that had meanwhile grown `test()` blocks.
+    ("BANNER_ATTRIBUTED_FLOOR",  f"{S}/tautology_gate.mjs",          r"(export const BANNER_ATTRIBUTED_FLOOR = )300;",            [f"{S}/tautology_gate.selftest.mjs"]),
     ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),

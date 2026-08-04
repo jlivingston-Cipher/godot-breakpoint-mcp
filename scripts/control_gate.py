@@ -289,6 +289,36 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      'return _err("unsupported_v2", "scene_close requires Godot 4.4+',
      "but that method's GDScript handler cannot return it"),
 
+    # ── check 24 — one word, two meanings, and the copies nobody compared ────────
+    # Three statements, three controls, in the same commit. 191 §9.3 has complained for
+    # four sessions that 31 statements have no control; 192 answered it by shipping check
+    # 23 covered, and a session that shipped 24 blind would make the complaint worse while
+    # looking like progress. CONTROL_GATE_BLIND stays at 31 for that reason.
+    #
+    # 🔴 THE CLASSIFIER LOSING A SITE. Not by deleting the raise — that is check 23's
+    # population — but by moving it out of reach of its own guard, which is what an
+    # early-return refactor does. The site is still raised, the vocabulary is unchanged,
+    # and only the KIND becomes unreadable.
+    ("24.unclassified", "24", "sub", "addons/breakpoint_mcp/operations.gd",
+     '\tif not EditorInterface.has_method("close_scene"):\n\t\treturn _err("unsupported", "scene_close requires Godot 4.4+',
+     '\tvar _gate := EditorInterface.has_method("close_scene")\n\t# 1\n\t# 2\n\t# 3\n\t# 4\n\t# 5\n\treturn _err("unsupported", "scene_close requires Godot 4.4+',
+     "and this check cannot tell which kind it is"),
+    # 🔴 THE ONE THE SPLIT EXISTS FOR, AND IT IS THE REVERSE OF 23.err_binding. That
+    # control renames the code so the branch binds to nothing; this one leaves the code
+    # alone and rebinds the branch to a SHAPE-kind handler. Every vocabulary test stays
+    # green — `unsupported` is still raised, still by a method the host calls — and the
+    # user-facing sentence becomes "upgrade Godot" for a node with no material slot.
+    ("24.kind_mismatch", "24", "sub", "host/src/tools/tabletop.ts",
+     'await emit("scene.close", { path: p });',
+     'await emit("shadermaterial.create", { path: p });',
+     "One word, two meanings, and the message picked the wrong one"),
+    # 🔴 THE DRIFT THIS CHECK WAS WRITTEN AFTER FINDING LIVE. `runtime_bridge.gd` really
+    # did differ between `addons/` and `example-csharp/addons/` by 53 lines, missing the
+    # `emit_failed` fix and the ObjectDB leak monitor. One byte reproduces the class.
+    ("24b.copy_drift", "24b", "sub", "example-csharp/addons/breakpoint_mcp/variant_json.gd",
+     "static func encode", "static func  encode",
+     "is not byte-identical across the tracked copies"),
+
     # ── check 17 — example/project.godot, the invariants an editor boot erases ────
     # Seven statements, seven controls, and the two that matter most are the ones a
     # local editor boot actually produces: the uid:// autoload rewrite (committed once,
@@ -479,7 +509,7 @@ UNFINGERPRINTABLE_FLOOR = 3
 # every remaining row still passes; the only thing that moves is a number nobody reads.
 # 186 §6 paid this on the way in for a new coverage number and the handoff's own note is
 # that the OLD one is still unfloored — so this one is floored on the way in too.
-CONTROLLED_FLOOR = 48          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
+CONTROLLED_FLOOR = 51          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
                                # 192: +7, check 23's statements — SIX by design and a
                                # SEVENTH the reverse sweep demanded (192 §6)
 
@@ -488,7 +518,7 @@ CONTROLLED_FLOOR = 48          # 187: 17 · 188: +24, the constructible half of 
 # assertion in this file would still hold. A ratio with only its numerator pinned is a
 # number that gets better as the thing it measures gets smaller — 175's rule, stated as a
 # floor instead of quoted.
-STATEMENT_FLOOR = 79           # 186 measured 70; 188 §3 added two; 192 added check 23's
+STATEMENT_FLOOR = 82           # 186 measured 70; 188 §3 added two; 192 added check 23's
                                # seven. It is supposed to grow
 
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
@@ -499,7 +529,12 @@ CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
                  "1", "5", "9", "10", "11", "12", "13", "14", "15", "16",
                  "addon", "roster", "shape", "why",
                  # 192: the cross-LANGUAGE check, closed on the way in rather than carried
-                 "23")
+                 "23",
+                 # 193: check 24 the same way — covered on arrival, so BLIND stays at 31.
+                 # `24b` is the cross-copy half under its own section header, and the
+                 # fingerprint resolver reads headers — the same reason `11b`/`11c` are
+                 # named separately above rather than folded into `11`.
+                 "24", "24b")
 
 
 def statements(src: str) -> list[tuple[int, str, str]]:

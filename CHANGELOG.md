@@ -6,6 +6,75 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — one word with two meanings, and the copies nobody compared
+
+192 §5 bound one TypeScript branch to one GDScript handler: for each branch, does the
+handler it guards actually raise the code? That is the forward direction. **Check 24 pays
+the reverse one** — 53 codes are raised and the host has an opinion about exactly one of
+them — and measuring it first turned a product question into a sharper one.
+
+`unsupported` is raised at eight sites, and they are two populations. They split by what
+the **guard condition tests**, four and four:
+
+```
+CAPABILITY  the guard reads only engine/editor globals — has_method(..), a null accessor
+            _main_screen_get  _main_screen_set  _scene_close  _editorsettings_get_set
+            → "this Godot build cannot"
+
+SHAPE       the guard reads the node the CALLER named, always after a `bad_path` check on
+            that same node has already passed
+            _particles_set_texture  _shadermaterial_create / _set_shader / _set_param
+            → "the node you picked is the wrong kind"
+```
+
+The host's one branch renders `unsupported` as *"closing a scene requires Godot 4.4+"*.
+That is correct **only** because 192's binding pins it to `_scene_close`. Bind the same
+branch to a shape-kind handler and the host tells a caller to upgrade Godot when the fix is
+to name a node with a material slot. Check 24 asserts exactly that: a branch whose message
+cites a Godot version must be bound to a capability-kind site.
+
+🔴 **The four shape codes are not renamed here.** `docs/TOOL_CATALOG.md` says "degrades to
+a clear `unsupported`" twice, for those exact sites — a documented choice on a shipped
+surface. The check makes the two populations countable and the rule that depends on them
+asserted, so a future rename is a decision rather than a drift.
+
+The classifier is derived, not rostered, and **its floor caught it on the first run**:
+`_editorsettings_get_set` writes `var es := EditorInterface.get_editor_settings()` above
+`if es == null:`, so the probe is on the previous line. The identifier the guard tests is
+resolved to its assignment — one hop, because one hop is what the tree uses.
+
+### Fixed — a shipped addon copy was missing two fixes, and nothing compared them
+
+192 §9.7 asked for one hash comparison over `variant_json.gd`'s four copies. Measuring the
+whole population instead found the predicted risk was not the real one — `variant_json.gd`
+is identical everywhere, and `host/addon/` is gitignored build output — while
+**`runtime_bridge.gd` differed between `addons/` and `example-csharp/addons/` by 53 lines.**
+
+The C# example's copy was missing the `object/count` ObjectDB leak monitor that
+`node-lifecycle.integration.mjs` watches, and the **entire `emit_failed` fix**: it called
+`node.callv("emit_signal", ..)` and discarded the Error, so `signal_emit` answered
+`{"emitted": true}` for an emission the engine refused. `emit_failed` is one of the 53
+codes check 23 counts — the cross-language check had been asserting a vocabulary one of the
+shipped copies did not have. The copy is re-synced and check 24b compares content across
+copies, with `.uid` files excluded by suffix rather than by a roster that would go stale.
+
+### Fixed — the live-engine integration suite was never scored for tautology
+
+191 turned `orphan = sites - attributed` into `ORPHAN_CEILING = 509`; 192 carried it forward
+saying "not one of them has been read". Reading them answered the question both ways, 85/15:
+77 legitimate banner claims, and **432 across eleven `*.integration.mjs` files where not one
+claim reached a unit**. Those files use zero `node:test` — bare async scripts with a `die()`
+helper — so `enclosingTest` found nothing, and `vacuous`/`every`/`offender` are scored over
+attributed units only. The most expensive tests in the repo were scored by nothing.
+
+`enclosingTest` now falls back to the **section-banner idiom those files already write**,
+which costs no new maintenance surface, and only where a file has no `test()` blocks at all.
+362 claims became attributed and the ceiling came down 509 → 148. All 362 score clean.
+
+`BANNER_ATTRIBUTED_FLOOR` counts the fallback as its own population, because the ceiling is
+a subtraction and a subtraction cannot say a path ran — mutant C3 kills banner attribution
+while the orphan count stays under its ceiling, and only that floor notices.
+
 ## [1.68.0] — 2026-08-04
 
 ### Added — the vocabulary that crossed the wire, and the word that was raised eight times
