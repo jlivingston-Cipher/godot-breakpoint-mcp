@@ -6,6 +6,55 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the argument that reaches the assertion, and the population it turned out to sit on
+
+184 §8 caught its own new code with its own reverse sweep and then declined to patch it:
+`tautology_gate.mjs` classifies the **assertion**, not the argument that reaches it. A helper
+whose guard is `actual !== expected` is read as a value comparison for *every* call site,
+however vacuous the operands are one frame up — so replacing a reading with a literal left
+the gate green. 184 wrote down what to measure first instead of shipping a rule on a hunch:
+
+> The question is not "flag constant operands" — that false-fails every honest
+> `assert.equal(count, 3)`. It is: for a helper that the gate treats as a claim site, can
+> anything tell whether its CALLERS vary the reading? Start by counting how many claim sites
+> in the tree are reached through a comparison helper rather than written inline.
+
+**Measured: 30 of 3591 — 0.8%, across three helpers in two files.** All three already vary
+their readings (21, 13 and 9 distinct arguments across their call sites), so the proposed
+proxy would have passed everything that exists and could only bite on a future regression.
+🔴 **So the helper is not the defect, and asking the shipped classifier directly said where
+the defect is:**
+
+```
+assert.equal(3, 3)     ->  SHAPE  "both sides are the same expression"   flagged
+assert.ok(84 !== 84)   ->  VALUE  "compared to a value"                  GREEN
+```
+
+**The rule already existed. It was enforced in one spelling and not the other** —
+`conditionOf`'s `equal` / `deepEqual` cases have tested identical sides since 169;
+`classifyLeaf`'s comparison branch never had it, and that branch is the path taken by every
+`assert.ok(a === b)`, every ternary condition and **every helper guard**. `notEqual` never
+had it in either spelling. That is 179's rule inside the instrument 179's rule was written
+for: *an instrument enforces its rules where they were written, not where its population
+comes from.*
+
+- **Both operands literal, not merely identical — and the tree is why.** Across 2006
+  comparisons exactly **one** has textually identical sides, and it is a *real claim*:
+  `_population.selftest.mjs:197` asserts `assert.ok === assert.ok`, where `assert` is a
+  memoising **Proxy**, so evaluating the same text twice need not give the same value. A
+  rule reading "identical sides are vacuous" would have reddened the single honest instance
+  of its own shape. A literal cannot be a proxy trap and cannot be the `x !== x` NaN idiom,
+  so both counterexamples are excluded **by construction** rather than by an exemption
+  anyone has to maintain.
+- **And the half the helper hides, which is G2 itself.** A call to a local pass/fail helper
+  where *every* non-marker argument is decided at authoring time is vacuous regardless of
+  the guard — the caller determined both sides. `tcheck(census(dir).files, 84)` is untouched;
+  `tcheck(84, 84)` is now flagged, and the report names the **call site's** arguments so the
+  reader is sent to the right frame.
+
+Measured cost on the tree: **zero sites** on both rules, `TAUT_VACUOUS 0` unchanged. 184's
+own framing was one word from the rule that works — **ALL** the operands, not **ANY**.
+
 ### Added — the marker written above its own claims, gated where the defect actually lives
 
 184 §5 found four markers in `runtime-peers.integration.mjs` sealing the section *before*

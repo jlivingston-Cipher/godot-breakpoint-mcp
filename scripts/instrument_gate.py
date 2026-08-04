@@ -180,7 +180,12 @@ INSTRUMENTS = [
             "export function classifyLeaf(node, src) {": 'return { kind: "VALUE", why: "blind", text: "" };',
             "export function leaves(node, src, out = [], depth = 0) {": "return out;",
             "function collectConsts(src) {": "return [];",
-            "function collectAsserters(src) {": "return new Map();",
+            # 🆕 185: `export` in the anchor. The word was added so 184 §10.2's
+            # measurement could import this map rather than re-derive it, and this
+            # gate reported the target UNMATCHED on the first run afterwards — which
+            # is the whole point of an unmatched target being a failure rather than a
+            # skip. A blind that stops applying is a blind that proves nothing.
+            "export function collectAsserters(src) {": "return new Map();",
             # 🔴 175's OWN FIX. This is the resolver that stopped a tool invoker called
             # `check` and a transcript reader called `assertOk` from fabricating seventeen
             # of the host root's twenty-four claim sites.

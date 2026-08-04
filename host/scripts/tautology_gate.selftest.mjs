@@ -408,10 +408,71 @@ claim(combineFailed(true, { failed: false }) === true,
   "…and it does not swallow a failure raised earlier in the run");
 claim(combineFailed(false, { failed: false }) === false, "a healthy run stays green");
 
+// ── 19. 🔴 THE ARGUMENT THAT REACHES THE ASSERTION (185, answering 184 §10.2) ────────
+//
+// 184 §8: this gate classifies the ASSERTION, not the argument that reaches it. Its own
+// reverse sweep predicted a `tcheck` whose reading was replaced by a literal would be
+// caught, and it was not — `actual !== expected` is a value comparison however vacuous
+// the operands are one frame up. 184 refused to patch it on a hunch and asked for the
+// population first. Measured (`host/_to_delete/laundered185.mjs`, `identical185.mjs`):
+//
+//   30 of 3591 claim sites reach the classifier through an asserter helper (0.8%),
+//   across THREE helpers in TWO files — too small to build a rule around; and
+//   2006 comparisons in the swept tree, ONE with textually identical sides, and that
+//   one is a REAL claim (`assert.ok === assert.ok` over a memoising Proxy).
+//
+// So the rule is not "the helper's callers must vary" and not "identical sides are
+// vacuous". It is: an operand DECIDED AT AUTHORING TIME on BOTH sides. 184's own framing
+// — "the question is not 'flag constant operands', that false-fails every honest
+// `assert.equal(count, 3)`" — is one word from the rule that works: ALL, not ANY.
+const EXPR = (body) => `import assert from "node:assert/strict";\ntest("t", () => {\n${body}\n});\n`;
+claim(V(EXPR(`  assert.ok(84 !== 84);`)).vacuous.length === 1,
+  "🔴 a literal-vs-literal comparison inside assert.ok() is vacuous — the EXPRESSION spelling of a rule "
+  + "the METHOD spelling has had since 169, and the branch 184's G2 mutant escaped through");
+claim(V(EXPR(`  assert.ok(census(d).files !== 84);`)).vacuous.length === 0,
+  "…and a reading compared to a literal is untouched — the false-fail 184 §10.2 was right to refuse");
+claim(V(EXPR(`  assert.equal(count, 3);`)).vacuous.length === 0,
+  "as is the honest method spelling of the same shape");
+claim(V(EXPR(`  assert.notEqual(3, 4);`)).vacuous.length === 1,
+  "🔴 notEqual is the third spelling and never had the check at all");
+claim(V(EXPR(`  assert.notEqual(r.value, 3);`)).vacuous.length === 0,
+  "…and it still constrains when one side is a reading");
+claim(V(EXPR(`  assert.ok(-1 < 0);`)).vacuous.length === 1,
+  "a RELATIONAL comparison between literals is decided at authoring time too, and `-1` is a "
+  + "prefix-unary over a literal rather than a literal — structural, not a text test (174 §6)");
+claim(V(EXPR(`  assert.ok(rows.length > 0);`)).vacuous.length === 0,
+  "…while a relational against a reading is the floor idiom the tree is full of");
+// 🔴 AND THE HALF THE HELPER HIDES, WHICH IS G2 ITSELF. The guard is the same text at
+// every call site, so nothing about it can distinguish a reading from a constant. The
+// call site can.
+const TCHECK = `function pass(m, d) {}\nfunction fail(m, d) {}\n`
+  + `const tcheck = (marker, actual, expected) => {\n  if (actual !== expected) return fail(marker, "got");\n  pass(marker, "ok");\n};\n`;
+claim(V(TCHECK + `tcheck("HONEST", census(dir).files, 84);`).vacuous.length === 0,
+  "a helper call supplying a READING and a literal is honest and stays green");
+claim(V(TCHECK + `tcheck("G2", 84, 84);`).vacuous.length === 1,
+  "🔴 and the same helper called with only literals is vacuous — 184's G2 mutant, caught at the site it was written");
+claim(A(TCHECK + `tcheck("G2", 84, 84);`)[0].leaves[0].why.includes("every argument to tcheck()"),
+  "…and the report names the CALL SITE's arguments, not the guard, so the reader is sent to the right frame");
+// 🔴 THE DISMISSAL THAT KEEPS THE RULE NARROW, AND IT IS THE ONE INSTANCE IN THE TREE.
+// `_population.selftest.mjs:197` asserts `assert.ok === assert.ok` — a real claim,
+// because that `assert` is a memoising Proxy and evaluating the same text twice need not
+// give the same value. A rule reading "identical sides" would have reddened the single
+// honest instance of its own shape and been deleted on the first green run.
+claim(V(EXPR(`  assert.ok(proxy.ok === proxy.ok);`)).vacuous.length === 0,
+  "🔴 identical PROPERTY ACCESSES are not literals — a getter or a Proxy trap can differ between evaluations");
+claim(V(EXPR(`  assert.ok(x !== x);`)).vacuous.length === 0,
+  "🔴 nor is `x !== x` — that is the NaN idiom, and an identifier is not decided at authoring time");
+claim(V(EXPR("  assert.ok(`a` !== `b`);")).vacuous.length === 1,
+  "a template literal with no substitution is decided at authoring time");
+claim(V(EXPR("  assert.ok(`${x}` !== `b`);")).vacuous.length === 0,
+  "…and one WITH a substitution is a reading");
+
 // ── the floor on this file itself (170 §5) ───────────────────────────────────────────
 // 🔴 IT CAUGHT ITS OWN MISCOUNT ON THE FIRST RUN — 170 §5's experience, verbatim: the
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
-const EXPECTED = 110;  // 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+// 🆕 185: WRITTEN AT 125 FROM A COUNT OF THE CASES AND CAUGHT ITSELF AT 124 ON THE FIRST
+// RUN — 170 §5's experience for the fourth time, and the reason the literal stays.
+const EXPECTED = 124;  // 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);
