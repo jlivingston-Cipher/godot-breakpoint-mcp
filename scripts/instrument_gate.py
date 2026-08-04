@@ -314,7 +314,7 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "seal_order_gate.mjs",
         "gate": ["node", "scripts/seal_order_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 6,
+        "floor": 7,   # 187: 6 -> 7, markerList admitted
         "why": "the marker written above the claims it describes — invisible to every gate _population.mjs has",
         "targets": {
             "export function claimCallees(src) {":
@@ -324,8 +324,20 @@ INSTRUMENTS = [
             # returns something healthy-looking proves the finder.
             "export function inspect(file, text) {":
                 'return { file, claims: [], seals: [], helpers: [], lines: [] };',
-            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR } = {}) {":
+            # 🔴 THE SIGNATURE IS THE ANCHOR, AND IT HAS NOW MOVED IN THREE CONSECUTIVE
+            # SESSIONS (185 §8, 186 §6, 187) — every time a rule gained a floor. The gate
+            # catches it every time and says SIGNATURE NOT FOUND rather than skipping
+            # quietly, which is the only reason the target is still live. Do not soften
+            # the match to a prefix: a prefix would survive the next parameter and stop
+            # being a statement about the function that ships.
+            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR } = {}) {":
                 'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
+            # 🆕 187 — THE THIRD RULE'S FINDER. `markerList` returning null for every file
+            # empties the marker population entirely, and nothing but MARKER_HEADER_FILES_FLOOR
+            # can tell that from a tree where no probe carries a header. Blinded to null
+            # rather than to an empty object, because null IS the shape the function returns
+            # for a file with no header — the failure mode, not an approximation of it.
+            "export function markerList(text) {": "return null;",
             "export function scan(root = ROOT) {": "return [];",
             # 🆕 186 §3 — THE SECOND RULE'S TWO HALVES, BLINDED SEPARATELY BECAUSE THEY
             # COLLAPSE DIFFERENTLY. `sectionBoundary` returning null leaves every region
