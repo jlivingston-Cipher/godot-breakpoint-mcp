@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.66.0] — 2026-08-04
+
 ### Added — the alias the finder could not read, and the section under the file's own floor
 
 189 handed over a defect with an instruction attached to it. `_caller_shape.harness.mjs`
