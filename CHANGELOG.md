@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.63.0] — 2026-08-04
+
 ### Added — the two lists that were never the same list
 
 186 §8 asked 185's one-rule-two-spellings question of these probes and reported the answer
