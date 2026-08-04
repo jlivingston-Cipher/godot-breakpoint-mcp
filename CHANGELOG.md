@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.67.0] — 2026-08-04
+
 ### Added — the idiom no gate could read, and the count nobody could act on
 
 190 closed a defect by measuring it and deciding not to fix it: `_caller_shape.harness.mjs`
