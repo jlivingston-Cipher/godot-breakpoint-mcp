@@ -6,6 +6,44 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the alias the finder could not read, and the section under the file's own floor
+
+189 handed over a defect with an instruction attached to it. `_caller_shape.harness.mjs`
+binds `const sassert = sealPop.assert` and wraps it in `sok()`, so its seven fixture claims
+are spelled `sassert.ok` — which the claim finder cannot read, because the character before
+`assert` is `s` and not a dot. The helper fixed point cannot rescue the wrapper either: a
+helper is promoted only when its body reaches a call the finder *already* reads. That whole
+seal section reports zero claim sites while `CLAIM_SITE_FLOORS` stays satisfied by the
+file's other two shapes. **A per-SECTION collapse underneath a per-FILE floor.**
+
+🔴 **The instruction was to measure the shape before widening anything, and the measurement
+is the finding.** Across all thirty files in `test-integration/`: **eleven bind a
+population's `.assert`, and ten of them bind it to a name spelled exactly `assert`**, which
+`^assert\.\w+$` reads. One binding in the whole directory is invisible, and **zero probes
+have the shape**. So the regex is untouched — widening it would move `claim-sites`, every
+per-file floor under it and the tautology gate's population on account of one instrument's
+fixtures. The fixture claims stay deliberately unreadable; what changes is that they are now
+**declared**.
+
+**`SEAL_ORDER_ALIAS_BLIND`** counts every binding that holds a `.assert` member and asks
+`READS_AS_CLAIM` — the finder's own predicate, now exported so the two cannot drift — whether
+a call through it would be read. In a **probe** an unreadable binding is a failure outright.
+In an instrument it is counted and held from above by `ALIAS_BLIND_CEILING = 1`: a ceiling
+rather than a roster, because the harness trips nothing and a roster entry for a file that
+trips nothing fires `SEAL_ORDER_ROSTER_STALE` the moment it lands.
+
+**`SEAL_ORDER_SECTION_SILENT`** is the same finding from the other side, at the granularity
+189 named. Measured first, again: of the 89 inter-seal regions, **six report zero claim sites
+and all six are in the two instruments** — four fixture sections plus the two the alias
+hides. Zero probe sections are empty, so over the population the region rules already use the
+rule is green with no exclusions and still has teeth. It is what would have caught the harness
+had the harness been a probe.
+
+The reverse sweep is fourteen mutants, and three of them are dismissals: a detector that calls
+every binding readable, one that calls every binding unreadable, and one that flags every
+region. A fourth mutates the shared predicate as **drift** rather than deletion — re-spelling
+it inside the finder — which is the cross-language question 178 asked, paid down in one file.
+
 ## [1.65.0] — 2026-08-04
 
 ### Added — the regions that announced nothing, and the roster that was one name short
