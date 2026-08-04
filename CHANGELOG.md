@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.62.0] — 2026-08-04
+
 ### Added — the section that existed in the source and had no marker of its own
 
 185 shipped `seal_order_gate.mjs` and wrote down, in its own header and its own self-test,
