@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.65.0] — 2026-08-04
+
 ### Added — the regions that announced nothing, and the roster that was one name short
 
 `seal_order_gate.mjs`'s second rule reads the boundary of a section off its header or,
