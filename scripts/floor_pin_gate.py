@@ -52,13 +52,16 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 46   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
+TARGET_FLOOR = 48   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
                     #      189 §32's complaint that turns out to be wrong. That note asked
                     #      why this literal is not derived from the count the gate prints
                     #      one line below it. Because a floor that protects a LIST'S SIZE
                     #      cannot be read off that list: `TARGET_FLOOR = len(TARGETS)` is
                     #      satisfied by every deletion, which is exactly the event it
                     #      exists to catch. 176's rule, one level up.
+                    # 191: 46 -> 48 (ALIAS_BINDINGS_FLOOR — the floor UNDER the fifth
+                    #      rule's ceiling, needed the moment that ceiling went to zero —
+                    #      and ORPHAN_CEILING, 180 §11.4's nine-session complaint)
                     # 190: 45 -> 46 (the fifth rule's ALIAS_BLIND_CEILING)
                     # 189: 43 -> 45 (the region rule's REGION_FILES_FLOOR and the first
                     #      CEILING in this table, SILENT_REGIONS_CEILING)
@@ -108,7 +111,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # walk finds because it is not exported.
     ("FILES_FLOOR",              f"{S}/seal_order_gate.mjs",         r"(export const FILES_FLOOR = )10;",                         [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SEAL_FLOOR",               f"{S}/seal_order_gate.mjs",         r"(export const SEAL_FLOOR = )95;",                          [f"{S}/seal_order_gate.selftest.mjs"]),
-    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )135;",                              [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )141;",                              [f"{S}/seal_order_gate.selftest.mjs"]),
     # 🆕 187 — the marker rule's two, and BOTH are swept here rather than exempted,
     # because their runner is a self-test that touches nothing. That is the difference
     # between these and control_gate.py's pair four entries down in DISCOVER_EXEMPT: the
@@ -132,7 +135,22 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # ZERO probes, so the finder was left alone and the blind spot was pinned instead.
     # A ceiling is the only shape that can pin a blind spot: a floor on it would be
     # satisfied by growing it.
-    ("ALIAS_BLIND_CEILING",      f"{S}/seal_order_gate.mjs",         r"(export const ALIAS_BLIND_CEILING = )1;",                  [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 191 — AND IT IS ZERO NOW. 190 shipped it at 1 for the one binding the harness held
+    # on purpose and warned, in its own §9.2, that a ceiling nobody can act on is worse than
+    # none. The harness now claims through `sealPop.assert.ok`, which the finder reads, so
+    # the tree holds no unreadable binding anywhere and the ceiling is a hard zero.
+    ("ALIAS_BLIND_CEILING",      f"{S}/seal_order_gate.mjs",         r"(export const ALIAS_BLIND_CEILING = )0;",                  [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 191 — THE FLOOR UNDER THAT CEILING, which is a DIFFERENT target and not a variant
+    # of it. A ceiling at zero is satisfied by a detector that finds nothing; only a floor
+    # on the total binding population can tell "nothing unreadable" from "nothing read".
+    # 190 §30's rule — a rule with zero offenders is honest only if its population was
+    # counted separately — with the counting itself pinned.
+    ("ALIAS_BINDINGS_FLOOR",     f"{S}/seal_order_gate.mjs",         r"(export const ALIAS_BINDINGS_FLOOR = )14;",                [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 191 — AND THE ONE 180 §11.4 ASKED FOR NINE SESSIONS AGO. `orphan = sites -
+    # attributed` was printed from 170 and floored by nothing; `ATTRIBUTED_FLOOR` bounds it
+    # only if `sites` is pinned too, and `sites` is free to grow. A ceiling, for the same
+    # reason as the two above, and pinned exactly rather than with headroom.
+    ("ORPHAN_CEILING",           f"{S}/tautology_gate.mjs",          r"(export const ORPHAN_CEILING = )509;",                     [f"{S}/tautology_gate.selftest.mjs"]),
     ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
     ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),
@@ -297,7 +315,23 @@ def main() -> int:
             return 1
     print(f"FLOOR_PIN_CONTROL ok — all {len(runners)} runner(s) pass unmutated")
 
-    # ── MUTATE: zero each floor's VALUE and require its runner to go red ───────────
+    # ── MUTATE: move each floor's VALUE and require its runner to go red ───────────
+    #
+    # 🔴 191 — AND THE MUTATION IS NOT ALWAYS "-> 0", BECAUSE THAT IS A NO-OP ON A
+    # CONSTANT ALREADY AT ZERO. This gate rewrote every target to `0` and asked whether
+    # the runner reddened. `ALIAS_BLIND_CEILING` went to zero this session — the tree
+    # holds no unreadable binding at all now — and the sweep dutifully reported it
+    # UNPINNED, having written the same digit that was already there and run an
+    # unmutated tree. The row was not weak; the INSTRUMENT could not express a mutation
+    # for it, which is 181 §5's problem ("a rule whose healthy value is zero cannot prove
+    # it ever counted") turning up inside the gate that exists to catch exactly that.
+    #
+    # 🔴 SO THE MUTANT IS DEFINED AS "A DIFFERENT VALUE", NOT AS "ZERO". Zero for anything
+    # non-zero — the strongest mutation, since it is the value a deleted floor decays to —
+    # and a large number for a constant already at zero, which is the same act read from
+    # the other side: a ceiling at zero that nobody pins can be raised to 999 and let
+    # everything through. Both directions ask one question: does anything assert this
+    # value? 184 §7's rule, which is that pinning the KEY is not pinning the VALUE.
     unpinned: list[str] = []
     for label, rel, rx, runner in TARGETS:
         p = HOST / rel
@@ -313,21 +347,32 @@ def main() -> int:
         start = end = m.end(1)
         while text[end].isdigit():
             end += 1
+        shipped = text[start:end]
+        mutant = "999999" if shipped.lstrip("0") == "" else "0"
         try:
-            p.write_text(text[:start] + "0" + text[end:])
+            p.write_text(text[:start] + mutant + text[end:])
+            # 🔴 ASSERT THE MUTATION IS ONE. A row whose shipped value equals its mutant
+            # tests nothing and would report `ok` — the exact failure this block fixes,
+            # re-armed so it cannot come back by a different route.
+            if p.read_text() == text:
+                failed = True
+                print(f"🔴 FLOOR_PIN_NOOP {label}: the mutant is byte-identical to the shipped tree.")
+                continue
             green = run(runner)
         finally:
             p.write_text(text)
         if green:
             unpinned.append(label)
-            print(f"🔴 FLOOR_PIN_UNPINNED {label} -> 0 and {Path(runner[0]).name} STAYS GREEN")
+            print(f"🔴 FLOOR_PIN_UNPINNED {label} -> {mutant} and {Path(runner[0]).name} STAYS GREEN")
         else:
-            print(f"  ok   {label:<28} -> 0 reddens {Path(runner[0]).name}")
+            print(f"  ok   {label:<28} -> {mutant:<6} reddens {Path(runner[0]).name}")
 
     print(f"FLOOR_PIN_UNPINNED_COUNT {len(unpinned)} of {len(TARGETS)}")
     if unpinned:
         failed = True
-        print("\n🔴 The floor(s) above can be set to ZERO with nothing going red. A floor whose own\n"
+        print("\n🔴 The floor(s) above can be MOVED with nothing going red — to zero if they ship\n"
+              "   non-zero, and to 999999 if they ship at zero (191: the second direction exists\n"
+              "   because writing `0` over a `0` is not a mutation). A floor whose own\n"
               "   value nobody asserts is not a floor — it is a number, and the run that deletes it\n"
               "   passes. Pin it in the self-test with an EXACT comparison, the way\n"
               "   `verdict_gate.selftest.mjs` writes `SUBJECT_FLOOR === 4`. A `>=` bound that the\n"
@@ -336,8 +381,8 @@ def main() -> int:
     if failed:
         print("\nFLOOR_PIN_GATE 🔴 FAILED")
         return 1
-    print(f"\nFLOOR_PIN_GATE ok — all {len(TARGETS)} floor(s) zeroed, each reddened its runner, "
-          f"and no unswept floor exists in the tree")
+    print(f"\nFLOOR_PIN_GATE ok — all {len(TARGETS)} floor(s) MOVED off their shipped value, each "
+          f"reddened its runner, and no unswept floor exists in the tree")
     return 0
 
 

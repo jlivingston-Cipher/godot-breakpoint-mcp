@@ -6,6 +6,57 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the idiom no gate could read, and the count nobody could act on
+
+190 closed a defect by measuring it and deciding not to fix it: `_caller_shape.harness.mjs`
+bound `const sassert = sealPop.assert`, wrapped it in `sok()`, and its seven fixture claims
+were invisible to a claim finder that matches the callee's *text*. The measurement found the
+shape in one binding of nineteen and in **zero probes**, so the finder was left alone and the
+blind spot was declared instead — `ALIAS_BLIND_CEILING = 1`. 190 §9.2 then handed over the
+question it had deliberately not answered: **should that file keep an idiom no gate can read
+at all, now that the alternative has been priced?**
+
+It should not. The harness claims through `sealPop.assert.ok` directly — a spelling
+`READS_AS_CLAIM` reads through its `\.assert\.` arm, which promotes `sok` by the ordinary
+fixed point, the same mechanism that already made `ok`, `eq` and `run` readable forty lines
+above it. **`ALIAS_BLIND_CEILING` is now 0**: the tree holds no unreadable binding anywhere,
+and the rule that was a counted exemption is a hard zero.
+
+🔴 **The cost was not the cost 190 predicted.** That handoff wrote "renaming `sassert` would
+count seven more sites and cost nothing measured." Measured, the delta is **nine** — the
+seven `sok(…)` sites, the `sealPop.assert.ok` inside `sok`, and `runSeal()`, which the fixed
+point promotes once its body reaches a readable call. `claim-sites` 595 → 604. A carried item
+that names a fix has usually not been measured, and this one named the fix *and* the number.
+
+Three rules land with it, each because something would otherwise be unguarded:
+
+* **`ALIAS_BINDINGS_FLOOR`** — a ceiling at zero is satisfied by a detector that finds
+  nothing at all. The total binding population (18) is now floored separately, so
+  "nothing unreadable" can be told from "nothing was read". 190 §30's rule applied to
+  190's own rule.
+* **`CLAIM_SITE_FLOORS["_caller_shape.harness.mjs"]` 25 → 45** — found by the reverse sweep.
+  Narrowing `READS_AS_CLAIM` to `/^assert\.\w+$/` drops the file 50 → 41 and **nothing went
+  red**, because 41 cleared a floor of 25. The alias ceiling guards the revert-by-alias; this
+  guards the revert-by-predicate. Same collapse, second route.
+* **`ORPHAN_CEILING`** — 180 §11.4's complaint, carried by nine handoffs. `orphan = sites -
+  attributed` has been printed since 170 and floored by nothing: `ATTRIBUTED_FLOOR` bounds it
+  only if `sites` is pinned too, and `sites` is free to grow. It read 472 when the complaint
+  was written and 509 today, with every floor in that gate green the whole way. Pinned
+  exactly, not with headroom.
+
+### Fixed — the gate that pins floors could not pin a floor at zero
+
+`floor_pin_gate.py` mutates each floor to `0` and requires its runner to redden. Writing `0`
+over a constant that already ships at `0` is not a mutation — it runs an unmutated tree and
+reports the row as **UNPINNED**. That is 181 §5's problem ("a rule whose healthy value is
+zero cannot prove it ever counted") sitting inside the gate built to catch exactly that, and
+it surfaced the moment `ALIAS_BLIND_CEILING` went to zero.
+
+The mutant is now defined as *a different value*: `0` for anything non-zero, a large number
+for a constant already at zero — the same question asked from the other side, since an
+unpinned ceiling at zero can be raised to let everything through. A no-op guard fails loudly
+rather than printing `ok` over a row it never touched.
+
 ## [1.66.0] — 2026-08-04
 
 ### Added — the alias the finder could not read, and the section under the file's own floor

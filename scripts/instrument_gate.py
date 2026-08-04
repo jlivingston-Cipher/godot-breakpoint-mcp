@@ -199,7 +199,7 @@ INSTRUMENTS = [
             # CLASSIFIER IS: `judgeScope` is the only thing standing between "attribution
             # resolved nothing" and `TAUT_GATE ok`. Blinded to a passing verdict it must
             # take the self-test red, or §18's twelve cases are proving nothing.
-            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR) {":
+            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING) {":
                 "return { lines: [], failed: false };",
             # 🔴 180. THE WIRE, AND IT IS HERE BECAUSE THE REVERSE SWEEP CAUGHT IT GREEN.
             # `if (scope.failed) failed = true` inline in main() could be deleted with
@@ -325,14 +325,16 @@ INSTRUMENTS = [
             # returns something healthy-looking proves the finder.
             "export function inspect(file, text) {":
                 'return { file, claims: [], seals: [], helpers: [], lines: [] };',
-            # 🔴 THE SIGNATURE IS THE ANCHOR, AND IT HAS NOW MOVED IN SIX CONSECUTIVE
-            # SESSIONS (185 §8, 186 §6, 187, 188, 189, 190) — every time a rule gained a
-            # floor or a ceiling, which is every session a rule was added. The gate
+            # 🔴 THE SIGNATURE IS THE ANCHOR, AND IT HAS NOW MOVED IN SEVEN CONSECUTIVE
+            # SESSIONS (185 §8, 186 §6, 187, 188, 189, 190, 191) — every time a rule gained
+            # a floor or a ceiling, which is every session a rule was added. 191 moved BOTH
+            # anchors in this file in one go, which is the first time that has happened.
+            # The gate
             # catches it every time and says SIGNATURE NOT FOUND rather than skipping
             # quietly, which is the only reason the target is still live. Do not soften
             # the match to a prefix: a prefix would survive the next parameter and stop
             # being a statement about the function that ships.
-            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING } = {}) {":
+            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING, aliasFloor = ALIAS_BINDINGS_FLOOR } = {}) {":
                 'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
             # 🆕 187 — THE THIRD RULE'S FINDER. `markerList` returning null for every file
             # empties the marker population entirely, and nothing but MARKER_HEADER_FILES_FLOOR

@@ -426,9 +426,27 @@ const sealPop = new Population("SHAPE_SEAL", {
   scope: 3,
   claims: 6,   // measured 7
 });
-const sassert = sealPop.assert;
 let sealMade = 0;
-const sok = (cond, marker, detail = "") => { sealMade++; sassert.ok(cond, `${marker} ${detail}`); };
+// 🔴 THE CLAIM GOES THROUGH `sealPop.assert` DIRECTLY, AND THAT IS THE POINT (191).
+// 190 §4 measured this file's old shape — `const sassert = sealPop.assert` wrapped in
+// `sok()` — and left it alone deliberately, declaring the blind spot with
+// `ALIAS_BLIND_CEILING = 1` rather than widening the claim finder for one instrument's
+// fixtures. 190 §9.2 then handed the DECISION over: should this file keep an idiom no gate
+// can read at all, now that the cost of the alternative is known?
+//
+// It should not, and the alternative costs nothing the measurement did not already price.
+// `sealPop.assert.ok` is a spelling `READS_AS_CLAIM` reads through its `\.assert\.` arm,
+// which promotes `sok` by the ordinary fixed point — the same mechanism that already made
+// `ok`/`eq`/`run` readable forty lines up. So the seven fixture claims join the population
+// every other section of this file is already in, the alias rule's ceiling goes to ZERO,
+// and this file stops being the one place in the directory where a gate is asked to trust
+// a comment instead of reading a call.
+//
+// 🔴 IT IS ALSO WHY THE ALIAS ABOVE (`const assert = pop.assert`, line 61) STAYS. That one
+// is spelled exactly `assert`, which the finder reads; ten of the eleven bindings in the
+// directory are spelled that way and this file already had one. The defect was never
+// "an alias" — it was an alias under a name the finder's TEXT test could not match.
+const sok = (cond, marker, detail = "") => { sealMade++; sealPop.assert.ok(cond, `${marker} ${detail}`); };
 
 function runSeal() {
   sok(true, "SHAPE_SEAL_A1 the seal shape counts a claim made before any marker prints");

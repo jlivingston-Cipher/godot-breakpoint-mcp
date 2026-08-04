@@ -20,7 +20,7 @@ import {
   FILES_FLOOR, SEAL_FLOOR, CLAIM_SITE_FLOORS, NOT_A_PROBE, ANNOUNCED_REGIONS_FLOOR,
   markerList, MARKER_HEADER_FILES_FLOOR, HEADER_FAMILY_FLOOR, headerRequired,
   isProbe, paragraphsOf, REGION_FILES_FLOOR, SILENT_REGIONS_CEILING,
-  READS_AS_CLAIM, ALIAS_BLIND_CEILING, assertAliases,
+  READS_AS_CLAIM, ALIAS_BLIND_CEILING, ALIAS_BINDINGS_FLOOR, assertAliases,
 } from "./seal_order_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -34,7 +34,7 @@ const claim = (cond, what) => {
 // The anchor is the count this file reached LAST session (137 in 189, 108 in 188), set a
 // couple below: a deletion that takes it back under where it already stood reddens, while
 // ordinary editing inside a case does not.
-const CLAIM_FLOOR = 135;
+const CLAIM_FLOOR = 141;
 
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 // Judge one hand-written source with every floor relaxed, so a case fails for its own
@@ -49,6 +49,11 @@ const J = (text, opts = {}) => judge([inspect("probe.integration.mjs", text)], {
   // rules judge it — which is what every case below wants — but its scope floor and its
   // silent ceiling are the live tree's numbers and would decide these cases instead.
   silentCeiling: 99,
+  // 191: and the alias POPULATION floor, for the third time in the same shape. A one-file
+  // fixture holds nought to two bindings; the live floor is 14 over eleven files, so it
+  // would red every case below for a reason none of them is about. Off here, exercised in
+  // its own block — where the point is precisely that a ceiling at zero needs it.
+  aliasFloor: 0,
   ...opts,
 });
 
@@ -287,8 +292,14 @@ claim(said(judge(live, { filesFloor: live.length + 1 }), "SEAL_ORDER_ROSTER_COLL
 const liveSeals = live.reduce((n, f) => n + f.seals.length, 0);
 claim(judge(live, { sealFloor: liveSeals + 1 }).failed === true,
   "🔴 as does a seal floor above the seals found — every file present with a finder matching a fraction of them");
-claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {}, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === false,
+claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {}, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, aliasFloor: 0 }).failed === false,
   "and an empty population with floors of zero is not a failure — the floors are what make it one");
+// 🔴 191 — AND THE SAME POPULATION AT THE LIVE ALIAS FLOOR IS. Kept next to the case above
+// because the pair is the point: "empty is fine when every floor is zero" is only
+// interesting if a NON-zero floor on the same empty population reddens, and `aliasFloor` is
+// the newest floor in the file — the one most likely to have been added as decoration.
+claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {}, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, aliasFloor: 1 }).failed === true,
+  "🔴 and the SAME empty population reddens on the alias floor alone — the newest floor is compared, not decorative");
 // 🔴 WRITTEN WITHOUT `roster: {}` FIRST AND CAUGHT ITSELF ON THE FIRST RUN. The default
 // roster excuses one real file, so an EMPTY population makes that entry dead — the gate
 // was right and the case was wrong. Kept as a case, because it is the interaction the
@@ -366,13 +377,13 @@ claim(said(judge([cleanFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "prob
 // rule would have called it stale and told a maintainer to delete a live entry.
 claim(judge([inspect("probe.integration.mjs", UNANNOUNCED)],
   { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false }).failed === false,
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false, aliasFloor: 0 }).failed === false,
   "🔴 an exemption earned by the SECOND rule alone is not stale");
 
 const dirtyFile = inspect("probe.integration.mjs", TRAILING);
 {
   const r = judge([dirtyFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false });
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false, aliasFloor: 0 });
   claim(r.failed === false, "an EARNED exemption suppresses the failure");
   claim(said(r, "exempt  probe.integration.mjs"),
     "🔴 and prints the excused file with its reason — an exemption nobody sees is an exemption nobody re-reads");
@@ -487,7 +498,7 @@ claim(judge(live, { inSections: () => false, regionFilesFloor: 0, announcedFloor
       announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false });
   const asInstrument = judge([inspect("_instrument.mjs", UNANNOUNCED)],
     { filesFloor: 1, sealFloor: 1, siteFloors: { "_instrument.mjs": 0 }, roster: {},
-      announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false });
+      announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false, aliasFloor: 0 });
   claim(asProbe.failed === true && said(asProbe, "SEAL_ORDER_UNANNOUNCED"),
     "the same source under a PROBE name is judged and reported");
   claim(asInstrument.failed === false,
@@ -632,30 +643,53 @@ population.seal("B", "ok");
   claim(r.failed === true, "🔴 a PROBE with an unreadable binding FAILS — the measured population had zero of them");
   claim(said(r, "SEAL_ORDER_ALIAS_BLIND"), "named SEAL_ORDER_ALIAS_BLIND");
 }
-// 🔴 THE POPULATION HALF. In an INSTRUMENT the same binding is not a failure — it is the
-// one the harness ships and it is counted, not excused by name. A SECOND one is.
+// 🔴 THE POPULATION HALF, AND 191 MOVED IT. 190 shipped `ALIAS_BLIND_CEILING = 1` because
+// the harness held one such binding on purpose; 191 removed that binding, so the ceiling is
+// ZERO and an unreadable binding in an INSTRUMENT is now a failure too — the same verdict a
+// probe already got, for the same reason, one population over.
+const INSTRUMENT_OPTS = (...names) => ({
+  filesFloor: 1, sealFloor: 1, siteFloors: Object.fromEntries(names.map((n) => [n, 0])), roster: {},
+  announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0,
+  needsHeader: () => false, silentCeiling: 99, aliasFloor: 0,
+});
 {
-  const inst = judge([inspect("_x.harness.mjs", BLIND_ALIAS)], {
-    filesFloor: 1, sealFloor: 1, siteFloors: { "_x.harness.mjs": 0 }, roster: {},
-    announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0,
-    needsHeader: () => false, silentCeiling: 99,
-  });
-  claim(inst.failed === false, "the same binding in an instrument is counted, not failed — ceiling 1 covers it");
-  claim(said(inst, "1/1 unreadable"), "and it is reported as 1/1 against the ceiling");
-  const two = judge([inspect("_x.harness.mjs", BLIND_ALIAS), inspect("_y.harness.mjs", BLIND_ALIAS)], {
-    filesFloor: 1, sealFloor: 1, siteFloors: { "_x.harness.mjs": 0, "_y.harness.mjs": 0 }, roster: {},
-    announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0,
-    needsHeader: () => false, silentCeiling: 99,
-  });
-  claim(two.failed === true, "🔴 a SECOND unreadable binding is a blind spot nobody measured — the ceiling, not a roster");
-  claim(said(two, "SEAL_ORDER_ALIAS_UNREAD"), "named SEAL_ORDER_ALIAS_UNREAD");
+  const inst = judge([inspect("_x.harness.mjs", BLIND_ALIAS)], INSTRUMENT_OPTS("_x.harness.mjs"));
+  claim(inst.failed === true,
+    "🔴 191: ONE unreadable binding in an instrument now fails — the ceiling is 0 and the live tree has none");
+  claim(said(inst, "1/0 unreadable"), "and it is reported as 1/0 against the ceiling");
+  claim(said(inst, "SEAL_ORDER_ALIAS_UNREAD"), "named SEAL_ORDER_ALIAS_UNREAD");
+  // The dismissal that keeps the move honest: under the ceiling 190 shipped, the SAME
+  // fixture passed. The rule did not get stricter by accident — the tree got cleaner first.
+  const under190 = judge([inspect("_x.harness.mjs", BLIND_ALIAS)],
+    { ...INSTRUMENT_OPTS("_x.harness.mjs"), aliasCeiling: 1 });
+  claim(under190.failed === false,
+    "🔴 and it passed under 190's ceiling of 1 — the constant is what changed, not the detector");
+}
+// 🔴 THE FLOOR UNDER THE CEILING (191). A ceiling at zero is satisfied by a detector that
+// finds nothing, so the population has to be witnessed separately — 190 §30's rule applied
+// to 190's own rule. Both sides asserted: the floor fires when the population is short, and
+// the READABLE fixture (which trips no ceiling at all) is what it fires on.
+{
+  const starved = judge([inspect("probe.integration.mjs", READABLE_ALIAS)],
+    { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 }, roster: {},
+      announcedFloor: 0, regionFilesFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0,
+      needsHeader: () => false, silentCeiling: 99, aliasFloor: 5 });
+  claim(starved.failed === true,
+    "🔴 one binding under a floor of five FAILS — this is the only rule that can tell `nothing unreadable` from `nothing read`");
+  claim(said(starved, "SEAL_ORDER_ALIAS_COLLAPSE"), "named SEAL_ORDER_ALIAS_COLLAPSE");
+  claim(J(READABLE_ALIAS, { aliasFloor: 1 }).failed === false,
+    "and the same fixture at a floor it meets trips nothing — the dismissal");
 }
 // The one source of truth, asserted from both sides — 178 §10.25's question paid down.
 claim(READS_AS_CLAIM("assert.ok") && READS_AS_CLAIM("p.assert.equal") && READS_AS_CLAIM("population.claim"),
   "the finder's own predicate reads the three live spellings");
+claim(READS_AS_CLAIM("sealPop.assert.ok"),
+  "🔴 191: and it reads the spelling the harness moved TO — `<population>.assert.<member>`, through the `\\.assert\\.` arm");
 claim(!READS_AS_CLAIM("sassert.ok") && !READS_AS_CLAIM("myclaim"),
   "🔴 and declines the two the alias rule exists for — one predicate, two rules, no second regex to drift");
-claim(ALIAS_BLIND_CEILING === 1, `the shipped alias ceiling is 1, not ${ALIAS_BLIND_CEILING}`);
+claim(ALIAS_BLIND_CEILING === 0, `the shipped alias ceiling is 0, not ${ALIAS_BLIND_CEILING}`);
+claim(ALIAS_BINDINGS_FLOOR > 0 && ALIAS_BINDINGS_FLOOR < 18,
+  `the shipped binding floor sits under the live population without touching it, got ${ALIAS_BINDINGS_FLOOR}`);
 
 // ── 4d. THE SAME FINDING'S OTHER HALF — A SECTION THAT CLAIMS NOTHING ─────────────────
 // 189 §9.2: `CLAIM_SITE_FLOORS` is a per-FILE floor, so a section whose idiom the finder
@@ -712,7 +746,7 @@ claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor
 claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);
 claim(REGION_FILES_FLOOR === 9, `the shipped region-scope floor is 9, not ${REGION_FILES_FLOOR}`);
 claim(SILENT_REGIONS_CEILING === 5, `the shipped silent-region CEILING is 5, not ${SILENT_REGIONS_CEILING}`);
-claim(CLAIM_FLOOR === 135, `the shipped claim floor is 135, not ${CLAIM_FLOOR}`);
+claim(CLAIM_FLOOR === 141, `the shipped claim floor is 141, not ${CLAIM_FLOOR}`);
 
 console.log(`\nSEAL_ORDER_SELFTEST ${ran - bad}/${ran} claims`);
 if (bad) { console.log(`🔴 SEAL_ORDER_SELFTEST FAILED — ${bad} of ${ran}`); process.exit(1); }

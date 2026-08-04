@@ -17,6 +17,7 @@
 import {
   analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS, FILE_FLOORS,
   judgeScope, combineFailed, UNIT_FLOOR, ATTRIBUTED_FLOOR,   // 180 — the output floor and its wire
+  ORPHAN_CEILING,                                            // 191 — the other side of the subtraction
   SHAPED_FLOOR, PRECONDITION_FLOOR,                          // 🆕 182 — the CLASSIFIER's own output
 } from "./tautology_gate.mjs";
 import { readdirSync, readFileSync } from "node:fs";
@@ -342,12 +343,39 @@ claim(judgeScope(S({ blocks: 1408, attributed: 1408 }), 3465).failed === true,
   "🔴 every unit intact, one claim each: the UNIT floor holds and the CLAIM floor catches it");
 claim(said(judgeScope(S({ blocks: 1408, attributed: 1408 }), 3465), "TAUT_ATTRIBUTION_COLLAPSE CLAIMS"),
   "…and it is named separately, because it is a different collapse");
-claim(judgeScope({ blocks: 0, attributed: 0 }, 3465, 0, 0, 0, 0).failed === false,
+claim(judgeScope({ blocks: 0, attributed: 0 }, 3465, 0, 0, 0, 0, 3465).failed === false,
   "the floors are parameters — a fixture can drive this from below, which the live tree cannot");
 claim(UNIT_FLOOR >= 1000 && ATTRIBUTED_FLOOR >= 2000,
   `🔴 the shipped floors are literals with headroom, not a rounding of zero (${UNIT_FLOOR}/${ATTRIBUTED_FLOOR})`);
 claim(said(judgeScope(S({ blocks: 1408, attributed: 2993 }), 3465), "orphan=472"),
   "a green run still prints the orphan count — §11.10's 472, no longer floored by nothing");
+
+// ── 191: AND THE ORPHAN COUNT IS FLOORED FROM THE OTHER SIDE AT LAST ─────────────────
+// 180 §11.4 asked for this and 181, 182, 183, 186, 188, 189 and 190 all carried it. The
+// count is `sites - attributed`, so it is bounded above only if BOTH are pinned — and
+// `sites` is free to grow, which is why it went 472 → 508 with every floor in this file
+// green the whole way. THE DISMISSAL FIRST, as this repo's self-tests do: the live shape
+// must not fire, or the rule is just a red build.
+claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3721).failed === false,
+  "🔴 THE DISMISSAL: the shipped tree sits exactly ON the ceiling and passes — 509 of 509");
+claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722).failed === true,
+  "🔴 and ONE more claim site that reaches no unit reddens — the drift that has run for nine sessions");
+claim(said(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722), "TAUT_ORPHAN_RISE"),
+  "…named TAUT_ORPHAN_RISE, not folded into an attribution collapse — a different failure");
+claim(said(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722), "510 > 509"),
+  "…and it prints both numbers, so the reading needed to raise it deliberately is in the log");
+// 🔴 THE ARM THE LIVE TREE CANNOT REACH: a rise caused by attribution FALLING rather than
+// by sites rising. Same subtraction, opposite input, and a ceiling reads them identically
+// — which is the property that makes it worth having, since `ATTRIBUTED_FLOOR` has 700 of
+// slack under it and would stay green through a drop of this size.
+claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).failed === true,
+  "🔴 attribution dropping 605 with sites unchanged reddens HERE while ATTRIBUTED_FLOOR (2500) stays green");
+claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("TAUT_ORPHAN_RISE"))
+  && !judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("COLLAPSE CLAIMS")),
+  "🔴 and ONLY this rule names it — the case that proves the ceiling is not a restatement of the floor");
+claim(ORPHAN_CEILING === 509, `the shipped orphan ceiling is 509, not ${ORPHAN_CEILING}`);
+claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 510).failed === false,
+  "and the ceiling is a PARAMETER — raising it is what a deliberate rise looks like, and it is reachable from a fixture");
 
 // 🔴 THE THIRD AND FOURTH POPULATIONS (182), AND THE COLLAPSE NEITHER OF THE FIRST TWO
 // CAN SEE. Every floor above — the four in FLOORS, UNITS, CLAIMS — counts what the FINDER
@@ -472,7 +500,7 @@ claim(V(EXPR("  assert.ok(`${x}` !== `b`);")).vacuous.length === 0,
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
 // 🆕 185: WRITTEN AT 125 FROM A COUNT OF THE CASES AND CAUGHT ITSELF AT 124 ON THE FIRST
 // RUN — 170 §5's experience for the fourth time, and the reason the literal stays.
-const EXPECTED = 124;  // 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+const EXPECTED = 132;  // 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);
