@@ -49,7 +49,7 @@
 //     same animation that sits at position 0 and playing==true.
 //
 // Markers (grep-able): ANIM_LIVE_PING / _STATE / _ERRORS / _PLAY / _DRIVES / _PAUSE /
-// _RESUME / _STOP / _SWITCH / _SPEED / _FROM_END / _RESULT.
+// _RESUME / _STOP / _SWITCH / _SPEED / _FROM_END / _LEFT_CLEAN / _RESULT.
 //
 // Requires res://tests/anim_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads a

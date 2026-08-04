@@ -52,7 +52,9 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 40   # 185: 37 -> 40 (the seal-order gate's FILES_FLOOR, SEAL_FLOOR and
+TARGET_FLOOR = 43   # 187: 41 -> 43 (the marker rule's MARKER_HEADER_FILES_FLOOR and
+                    #      HEADER_FAMILY_FLOOR, both swept by the seal-order self-test)
+                    # 185: 37 -> 40 (the seal-order gate's FILES_FLOOR, SEAL_FLOOR and
                     #      its self-test's own CLAIM_FLOOR)
                     # 184: 36 -> 37 (the caller-shape POPULATION_LINES roster floor)
 #                     182: 25 -> 30 (HELPER, CONDUIT, SHAPED, PRECONDITION, CHECKS_RUN)
@@ -96,7 +98,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # walk finds because it is not exported.
     ("FILES_FLOOR",              f"{S}/seal_order_gate.mjs",         r"(export const FILES_FLOOR = )10;",                         [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SEAL_FLOOR",               f"{S}/seal_order_gate.mjs",         r"(export const SEAL_FLOOR = )95;",                          [f"{S}/seal_order_gate.selftest.mjs"]),
-    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )80;",                               [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )95;",                               [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 187 — the marker rule's two, and BOTH are swept here rather than exempted,
+    # because their runner is a self-test that touches nothing. That is the difference
+    # between these and control_gate.py's pair four entries down in DISCOVER_EXEMPT: the
+    # exemption there is bought by tree mutation, not by the floor being any less real.
+    ("MARKER_HEADER_FILES_FLOOR", f"{S}/seal_order_gate.mjs",         r"(export const MARKER_HEADER_FILES_FLOOR = )6;",           [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("HEADER_FAMILY_FLOOR",      f"{S}/seal_order_gate.mjs",          r"(export const HEADER_FAMILY_FLOOR = )55;",                [f"{S}/seal_order_gate.selftest.mjs"]),
     # 186 §3: the coverage floor on the UNANNOUNCED rule's own population. It is the only
     # one of the three seal-order floors that measures how much of the tree the rule can
     # READ, so a probe dropping the section idiom shrinks it without failing anything else.
