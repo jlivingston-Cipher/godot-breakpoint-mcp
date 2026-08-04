@@ -247,3 +247,16 @@ jobs:
       # session running).
       - name: Every floor's own value is pinned (floor pin gate)
         run: python3 ../scripts/floor_pin_gate.py
+      # 🔴 AND THE FOURTH, POINTED AT THE STATEMENTS THE OTHER THREE CANNOT REACH — 182
+      # §11.3, measured in 186 and closed here. `CHECKS_RUN 20/20` counts BLOCKS that
+      # reach their own end; 186 counted the failure STATEMENTS inside those blocks and
+      # got 23 of 70 ever executed by anything, with FIVE WHOLE CHECKS — 17, 22, 3, 11c
+      # and `host` — at zero. A statement that only runs when the tree is broken cannot
+      # be covered by a run over a healthy tree, at any resolution: it needs a POSITIVE
+      # control, a mutation that makes exactly that statement fire. Seventeen of them,
+      # each asserted to redden contract_check, to reach the report (181's discriminator)
+      # and to print the one statement it names. ~60s, and it mutates the working tree,
+      # so it runs after every gate above it. A step, not a 27th job (TWENTY-FIFTH
+      # session running).
+      - name: Every check at zero can actually fail (control gate)
+        run: python3 ../scripts/control_gate.py

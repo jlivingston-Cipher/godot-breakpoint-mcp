@@ -2167,7 +2167,15 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 26  # +2 session 185: host/scripts/seal_order_gate.mjs and its
+SHEBANG_NONEXEC_EXPECTED = 27  # +1 session 187: scripts/control_gate.py — the FOURTH
+                               #   blinding technique, pointed at the failure statements
+                               #   the other three cannot reach (186 §10.2). 100644 like
+                               #   its three siblings; CI invokes it as `python3 <file>`.
+                               # 🔴 AND IT WAS CI THAT SAID SO, NOT THE LOCAL RUN. This
+                               #   population is TRACKED files, so a new script is
+                               #   invisible to every local gate until it is `git add`ed
+                               #   — the local contract_check ran green over it twice.
+                               # +2 session 185: host/scripts/seal_order_gate.mjs and its
                                #   self-test — the marker written above its own claims
                                #   (184 §10.3). Both invoked as `node <file>` from CI, so
                                #   100644 is correct and this count is the only thing that
