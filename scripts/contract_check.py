@@ -48,6 +48,7 @@ Verifies, without running Godot or Node, that the three layers agree:
 Exit code 0 = all hard checks pass; 1 = a hard check failed.
 """
 import json
+import hashlib
 import re
 import subprocess
 import sys
@@ -279,9 +280,9 @@ errors.append(_WIRE_CANARY)
 # floored at a literal.
 CHECKS_EXPECTED = (
     "1&2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "11b", "11c",
-    "12", "13", "14", "15", "16", "17", "18/19", "20", "23",
+    "12", "13", "14", "15", "16", "17", "18/19", "20", "23", "24",
 )
-CHECKS_RUN_FLOOR = 21   # measured: twenty-one blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 22   # measured: twenty-two blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -2845,6 +2846,221 @@ for _method, _code, _rel in err_branch_bindings:
 
 _ran("23")
 
+# --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
+#
+# 192 §5 bound ONE branch to ONE handler: for each TypeScript branch, does the handler it
+# guards actually raise the code? That is the FORWARD direction, and it is now guarded.
+#
+# 🔴 THE REVERSE DIRECTION IS THE ONE NOTHING ASKED. 53 codes are raised and the host has
+# an opinion about ONE of them. 192 §9.2 handed the question over as a product question --
+# "is any of those a refusal the host should be making?" -- and measuring it first turned
+# the question into a sharper one, which is the third session running that measuring first
+# has done that.
+#
+# `unsupported` is raised at 8 sites, and they are not one population. They split by what
+# the GUARD CONDITION TESTS, and the split is total -- four and four:
+#
+#   CAPABILITY   the guard reads only engine/editor globals -- has_method(..), a null
+#                EditorInterface accessor. The answer is "this Godot build cannot".
+#                  _main_screen_get  _main_screen_set  _scene_close  _editorsettings_get_set
+#
+#   SHAPE        the guard reads the NODE THE CALLER NAMED, always after a `bad_path`
+#                check on that same node has already passed. The answer is "the node you
+#                picked is the wrong kind" -- which is what `bad_type` says at 47 other
+#                sites in this same file.
+#                  _particles_set_texture  _shadermaterial_create
+#                  _shadermaterial_set_shader  _shadermaterial_set_param
+#
+# 🔴 THE HOST'S ONE BRANCH RENDERS `unsupported` AS A GODOT VERSION MESSAGE.
+# `tabletop.ts` answers "closing a scene requires Godot 4.4+". That is correct today only
+# because the binding pins it to `_scene_close`, which is capability-kind. Bind that same
+# branch to a shape-kind handler and the host tells a caller to upgrade Godot when the fix
+# is to pick a node with a material slot.
+#
+# 🔴 AND THE CODES ARE NOT RENAMED HERE, DELIBERATELY. `docs/TOOL_CATALOG.md` says
+# "degrades to a clear `unsupported`" twice, for exactly the shape sites. That is a
+# documented choice on a shipped surface, so it is steered rather than corrected in
+# passing. What this check does is make the two populations COUNTABLE and the host rule
+# that depends on the difference ASSERTED, so a future rename is a decision somebody takes
+# rather than a drift nobody sees.
+#
+# The classifier is DERIVED, not rostered (189 §12.24's reason, carried): a roster of
+# (site, kind) pairs that trips nothing goes stale on arrival. The derivation is floored
+# instead, so classifying nothing is a collapse rather than a silence.
+_CAPABILITY_PROBE_RE = re.compile(
+    r"\b(?:has_method|has_signal|has_feature|class_exists|get_editor_settings|"
+    r"_main_screen_root|get_editor_main_screen)\b"
+)
+_UNSUP_RE = re.compile(r'_err\(\s*"unsupported"')
+
+unsupported_kinds: "dict[str, list[tuple[str, str, int]]]" = {"capability": [], "shape": []}
+_unsup_unclassified: "list[tuple[str, int, str]]" = []
+for _name, _src in _GD_SRC.items():
+    _lines = _src.split("\n")
+    _fn = "<file scope>"
+    for _i, _ln in enumerate(_lines):
+        _fm = re.match(r"^func\s+(\w+)", _ln)
+        if _fm:
+            _fn = _fm.group(1)
+        if not _UNSUP_RE.search(_ln):
+            continue
+        # The guard is the nearest `if`/`elif` at or above the raise. Four lines covers
+        # every site in the tree; a widened window that started swallowing the PREVIOUS
+        # guard would move a site between kinds, and both kind counts are floored below.
+        _guard = ""
+        for _cand in reversed(_lines[max(0, _i - 4):_i + 1]):
+            if re.match(r"\s*(?:el)?if\b", _cand):
+                _guard = _cand
+                break
+        if not _guard:
+            _unsup_unclassified.append((_name, _i + 1, "no enclosing `if` within 4 lines"))
+            continue
+        # 🔴 THE GUARD LINE ALONE IS NOT THE CONDITION, AND THE FLOOR CAUGHT THAT ON THE
+        # FIRST RUN — `xlang.unsupported_capability: 3 < floor 4`, 192 §4's finding one
+        # check later. `_editorsettings_get_set` reads
+        #
+        #     var es := EditorInterface.get_editor_settings()
+        #     if es == null:
+        #
+        # so the probe is on the line ABOVE and the guard tests a local that stands for it.
+        # Widening to "any capability token anywhere in the window" would fix the count and
+        # break the rule: an unrelated preceding guard would drag a shape site across. So
+        # the IDENTIFIER the guard tests is resolved to its assignment instead, and only
+        # that assignment is read. `if prop == "":` resolves to `_material_prop(node)` and
+        # stays SHAPE; `if es == null:` resolves to `get_editor_settings()` and is
+        # CAPABILITY. One hop, because one hop is what the tree uses.
+        _probe_text = _guard
+        _ident = re.match(r"\s*(?:el)?if\s+(?:not\s+)?\(?\s*([A-Za-z_]\w*)\s*(?:==|!=|\bis\b|\))", _guard)
+        if _ident and not _CAPABILITY_PROBE_RE.search(_guard):
+            _assign = re.search(
+                rf"^\s*var\s+{re.escape(_ident.group(1))}\s*:?=\s*(.+)$",
+                "\n".join(_lines[max(0, _i - 4):_i + 1]),
+                re.M,
+            )
+            if _assign:
+                _probe_text = _guard + "\n" + _assign.group(1)
+        _kind = "capability" if _CAPABILITY_PROBE_RE.search(_probe_text) else "shape"
+        unsupported_kinds[_kind].append((_fn, _name, _i + 1))
+
+for _name, _line, _why in _unsup_unclassified:
+    errors.append(
+        f"{_name}:{_line} raises 'unsupported' and this check cannot tell which kind it is "
+        f"({_why}). A site the classifier cannot read is a site the host rule below cannot "
+        f"protect — give it an enclosing `if`, or give the classifier a reason to see it."
+    )
+
+# 🔴 THE HOST RULE THE SPLIT MAKES ASSERTABLE, AND IT IS 192'S BINDING RUN BACKWARDS. A
+# branch whose user-facing message cites a Godot version is telling the caller to upgrade
+# the engine. That sentence is true only if the handler the branch is BOUND to fails for a
+# capability reason. The binding says which handler; this says the message must match that
+# handler's kind.
+_VERSION_CLAIM_RE = re.compile(r"Godot\s+\d+\.\d+\+|requires\s+Godot", re.I)
+_cap_funcs = {fn for fn, _, _ in unsupported_kinds["capability"]}
+_shape_funcs = {fn for fn, _, _ in unsupported_kinds["shape"]}
+kind_checked_branches = 0
+for _method, _code, _rel in err_branch_bindings:
+    if _code != "unsupported" or gd_handler_codes.get(_method) is None:
+        continue
+    _t = (ROOT / _rel).read_text()
+    _m = re.search(re.escape(f'code === "{_code}"') + r"[\s\S]{0,900}?`([^`]*)`", _t)
+    if not _m or not _VERSION_CLAIM_RE.search(_m.group(1)):
+        continue
+    kind_checked_branches += 1
+    # Which GDScript functions does this dispatch arm reach, transitively? The SAME closure
+    # the binding already walks — one predicate, one definition (190 §4). `_codes_of`
+    # populates `seen` as it recurses, so the walk is reused rather than re-implemented.
+    _reached: "set[str]" = set()
+    for _arm in re.finditer(r'^\t\t"' + re.escape(_method) + r'":\n((?:\t\t\t.*\n)+)', _GD_ALL, re.M):
+        for _callee in re.findall(r"\b(_\w+)\(", _arm.group(1)):
+            _seen: "set[str]" = set()
+            _codes_of(_callee, _seen)
+            _reached |= _seen
+    if not (_reached & _cap_funcs):
+        _hit = sorted(_reached & _shape_funcs) or "no 'unsupported' site at all"
+        errors.append(
+            f"{_rel} guards a {_method!r} call, branches on 'unsupported', and answers the "
+            f"caller with a message citing a Godot version — but nothing {_method!r} reaches "
+            f"raises 'unsupported' for a CAPABILITY reason. It reaches {_hit}, which is the "
+            f"SHAPE kind: the caller named a node of the wrong type. The message tells them "
+            f"to upgrade the engine when the fix is to name a different node. One word, two "
+            f"meanings, and the message picked the wrong one."
+        )
+
+# --- 24b: THE ADDON COPIES, COMPARED BY CONTENT RATHER THAN BY VERSION STAMP -
+#
+# 192 §9.7 asked for one hash comparison over `variant_json.gd`'s four copies. Measuring
+# the whole population instead answered a bigger question and found a LIVE drift.
+#
+#   `variant_json.gd`    identical across every copy -- the predicted risk was not the real one
+#   `host/addon/`        GITIGNORED BUILD OUTPUT, so not a copy that can drift on its own.
+#                        Excluded by construction, the same way VERSION_SCAN_SKIP already
+#                        excludes it for check 14.
+#   `runtime_bridge.gd`  🔴 DIFFERS between `addons/` and `example-csharp/addons/`, today,
+#                        by 53 lines.
+#
+# The C# example's copy is missing `object/count` (the ObjectDB leak monitor added in 153,
+# which `node-lifecycle.integration.mjs` watches) and the WHOLE `emit_failed` fix -- it
+# calls `node.callv("emit_signal", ..)` and discards the Error, so `signal_emit` answers
+# `{"emitted": true}` for an emission the engine refused. That is the exact defect the repo
+# fixed, documented in the catalog, and then shipped a copy without.
+#
+# 🔴 AND `emit_failed` IS ONE OF THE 53 CODES CHECK 23 COUNTS. The cross-language check
+# reads `addons/breakpoint_mcp` only, so it has been asserting a vocabulary that one of the
+# shipped copies does not have. That is check 23's blind spot, named by its own sibling.
+#
+# `.uid` files are excluded BY CONSTRUCTION, not by roster: Godot generates a distinct UID
+# per project, so those files SHOULD differ, and a roster naming them would go stale the
+# moment a new script arrives. The suffix is the rule.
+ADDON_COPY_ROOTS = [
+    Path("addons/breakpoint_mcp"),
+    Path("example/addons/breakpoint_mcp"),
+    Path("example-csharp/addons/breakpoint_mcp"),
+]
+_tracked = set(
+    subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False
+    ).stdout.split("\n")
+)
+addon_copy_files: "dict[str, dict[str, str]]" = {}
+for _root in ADDON_COPY_ROOTS:
+    _abs = ROOT / _root
+    if not _abs.is_dir():
+        continue
+    for _f in sorted(_abs.rglob("*")):
+        if not _f.is_file() or _f.suffix == ".uid":
+            continue
+        _rel = str(_f.relative_to(ROOT))
+        if _rel not in _tracked:
+            continue
+        addon_copy_files.setdefault(_f.name, {})[str(_root)] = hashlib.md5(
+            _f.read_bytes()
+        ).hexdigest()
+
+addon_copy_compared = {n: m for n, m in addon_copy_files.items() if len(m) > 1}
+# 🔴 THREE POPULATIONS, BECAUSE THE REVERSE SWEEP KILLED THE FIRST ONE. `copies_compared`
+# alone was floored at 10 and mutant B2 -- dropping `example-csharp/` from the roots -- left
+# the run GREEN at 11, because `example/` carries every file the source tree does and the
+# count of files-in-more-than-one-copy never moved. A population that survives losing a
+# whole root is not measuring the comparison; it is measuring the source directory.
+# The PAIRS are what the comparison actually reads, and the ROOTS are what it read them
+# from. 171 §10.22 again: one number per population, and B2 is what "population" meant here.
+addon_copy_pairs = sum(len(_m) for _m in addon_copy_compared.values())
+addon_copy_roots_read = len({_r for _m in addon_copy_compared.values() for _r in _m})
+for _name, _m in sorted(addon_copy_compared.items()):
+    if len(set(_m.values())) == 1:
+        continue
+    _where = ", ".join(f"{r} {h[:8]}" for r, h in sorted(_m.items()))
+    errors.append(
+        f"The addon file {_name!r} is not byte-identical across the tracked copies "
+        f"({_where}). Every check in this file reads `addons/breakpoint_mcp` and nothing "
+        f"else, so a copy that has drifted is asserted about by nothing: check 23 counts a "
+        f"vocabulary the drifted copy may not have, and a user who opens that example "
+        f"project gets the older addon with no version stamp to say so. Re-sync the copy, "
+        f"or split it deliberately and give the split its own rule."
+    )
+
+_ran("24")
+
 # --- 20: THE SCOPE LEDGER — one literal floor per derived population ---------
 #
 # 🔴 WHY THIS EXISTS, MEASURED RATHER THAN ARGUED (session 172, answering 171 §10.21:
@@ -2974,6 +3190,42 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 no TS branch resolves to the bridge method it guards, so the handler-level "
      "comparison compares nothing and the vocabulary test is all that is left — which is "
      "the exact state mutant C1 walked through"),
+    # 🔴 BOTH KINDS ARE FLOORED, NOT JUST THE TOTAL. A classifier that stopped seeing the
+    # capability probes would file all eight sites as SHAPE, the total would be unchanged
+    # at eight, and the host rule below would start firing on a healthy tree — a gate that
+    # cries wolf gets disabled, which is how the `typeof` false positive nearly shipped in
+    # 192 §7. One number per population, 171 §10.22's rule, applied to a classifier.
+    ("xlang.unsupported_capability", len(unsupported_kinds["capability"]), 4,
+     "🔴 the classifier stopped recognising an engine-capability probe, so a site that "
+     "means 'this Godot build cannot' is filed as 'you named the wrong node' — and the "
+     "host rule that reads the kind starts refusing a message that is correct"),
+    ("xlang.unsupported_shape", len(unsupported_kinds["shape"]), 4,
+     "🔴 the reverse: every site reads as capability, so a version-citing host message "
+     "bound to a shape handler passes. That is the defect this check exists for, and it "
+     "would be invisible with only the total floored"),
+    # The host rule is only asserted where a branch actually cites a version. Floor the
+    # number of branches it REACHED, not the number of branches that exist: a rewording
+    # that drops the version claim silently un-asserts the rule, and this is what says so.
+    ("xlang.kind_checked_branches", kind_checked_branches, 1,
+     "🔴 no host branch on 'unsupported' still carries a version-citing message, so the "
+     "capability/shape rule is asserted about nothing. Either the message was reworded "
+     "(fine — then this floor comes down deliberately) or the finder stopped reading it"),
+    # 🔴 THE CROSS-COPY POPULATION, AND IT IS THE FILES COMPARED RATHER THAN THE FILES
+    # FOUND. A walk that started skipping `example-csharp/` would leave every remaining
+    # file identical-by-construction and this check would pass by reading one copy.
+    ("addon.copy_roots_read", addon_copy_roots_read, 3,
+     "🔴 the cross-copy walk read fewer addon roots than the tree has, so 'all copies "
+     "agree' is being said about a subset. Mutant B2 dropped a whole root and every other "
+     "number here stayed healthy — this is the one that notices"),
+    ("addon.copy_pairs", addon_copy_pairs, 22,
+     "🔴 the (file, copy) pairs actually compared collapsed. This is the population the "
+     "comparison READS; `copies_compared` counts only the files, and a file present in two "
+     "copies looks identical to a file present in three"),
+    ("addon.copies_compared", len(addon_copy_compared), 10,
+     "🔴 the cross-copy walk stopped finding files that exist in more than one addon "
+     "copy, so 'all copies agree' is being said about a population of one. The drift it "
+     "was written for — `runtime_bridge.gd`, 53 lines, two shipped fixes missing — is "
+     "exactly what a shrunken population hides"),
 ]
 scope_collapses = [(n, v, f, why) for (n, v, f, why) in SCOPE_LEDGER if v < f]
 for name, value, floor, why in scope_collapses:

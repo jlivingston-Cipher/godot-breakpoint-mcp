@@ -199,7 +199,15 @@ INSTRUMENTS = [
             # CLASSIFIER IS: `judgeScope` is the only thing standing between "attribution
             # resolved nothing" and `TAUT_GATE ok`. Blinded to a passing verdict it must
             # take the self-test red, or §18's twelve cases are proving nothing.
-            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING) {":
+            #
+            # 🔴 193 — AND THE ANCHOR MOVED AGAIN, WHICH IS 192 §32's QUESTION ANSWERED
+            # WITH A THIRD SHAPE. 192 asked which anchors embed a value the tree computes;
+            # this one embeds a SIGNATURE, and adding `bannerFloor` to it took the row to
+            # UNMATCHED on the first run. It stays a full-signature anchor on purpose: a
+            # blind is a textual substitution, so a loosened anchor that matched two
+            # overloads would blind the wrong one silently. The cost is a re-point per
+            # parameter added, and the DISCOVER half is what makes that cost visible.
+            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR) {":
                 "return { lines: [], failed: false };",
             # 🔴 180. THE WIRE, AND IT IS HERE BECAUSE THE REVERSE SWEEP CAUGHT IT GREEN.
             # `if (scope.failed) failed = true` inline in main() could be deleted with

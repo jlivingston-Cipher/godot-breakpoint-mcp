@@ -18,6 +18,7 @@ import {
   analyze, verdict, NO_CLAIMS_EXPECTED, FLOORS, FILE_FLOORS,
   judgeScope, combineFailed, UNIT_FLOOR, ATTRIBUTED_FLOOR,   // 180 — the output floor and its wire
   ORPHAN_CEILING,                                            // 191 — the other side of the subtraction
+  BANNER_ATTRIBUTED_FLOOR,                                   // 193 — the fallback, counted as itself
   SHAPED_FLOOR, PRECONDITION_FLOOR,                          // 🆕 182 — the CLASSIFIER's own output
 } from "./tautology_gate.mjs";
 import { readdirSync, readFileSync } from "node:fs";
@@ -318,22 +319,22 @@ claim(helperClaims.every(([, n]) => n === 0),
 claim(V(wrap(`  assert.equal(x, 1);\n  assert.equal(y, 2);`)).attributed === 2,
   "verdict() counts the claims that REACHED a unit — this gate's `judged`");
 claim(V(`import assert from "node:assert/strict";\nassert.equal(x, 1);\n`).attributed === 0,
-  "🔴 and a claim in neither a test() block nor a marker reaches no unit — 472 of 3465 take this path today");
+  "🔴 and a claim in neither a test() block nor a marker reaches no unit — 148 of 3730 take this path today");
 // 🔴 A FIXTURE VERDICT CARRIES ALL FOUR POPULATIONS (182). `judgeScope` reads
 // `v.shaped ?? 0`, so a fixture that omits them is a COLLAPSE rather than an exemption —
 // deliberately, because an absent population is the loudest case, not the quietest. `S`
 // supplies the shipped classification counts so each case below still varies exactly one
 // number, which is the only way a case can name what it caught.
 const S = (o) => ({ shaped: 116, precondition: 61, ...o });
-claim(judgeScope(S({ blocks: 1408, attributed: 2993 }), 3465).failed === false,
+claim(judgeScope(S({ blocks: 1408, attributed: 3317 }), 3465).failed === false,
   "the shipped population is above all four floors");
 claim(judgeScope(S({ blocks: 0, attributed: 0 }), 3465).failed === true,
   "🔴 attribution resolving NOTHING reddens — the case that exited 0 before 180");
 claim(said(judgeScope(S({ blocks: 0, attributed: 0 }), 3465), "TAUT_ATTRIBUTION_COLLAPSE UNITS"),
   "…and it is named as an attribution collapse, not as a claim-site one");
-claim(judgeScope(S({ blocks: UNIT_FLOOR - 1, attributed: 2993 }), 3465).failed === true,
+claim(judgeScope(S({ blocks: UNIT_FLOOR - 1, attributed: 3317 }), 3465).failed === true,
   "one unit below the floor reddens");
-claim(judgeScope(S({ blocks: UNIT_FLOOR, attributed: 2993 }), 3465).failed === false,
+claim(judgeScope(S({ blocks: UNIT_FLOOR, attributed: 3317 }), 3465).failed === false,
   "…and exactly at it does not");
 // 🔴 THE CASE A UNIT FLOOR ALONE CANNOT SEE, and the whole reason there are two numbers.
 // Measured live: keeping every unit but only its FIRST claim leaves units=1408/1200 `ok`
@@ -347,8 +348,8 @@ claim(judgeScope({ blocks: 0, attributed: 0 }, 3465, 0, 0, 0, 0, 3465).failed ==
   "the floors are parameters — a fixture can drive this from below, which the live tree cannot");
 claim(UNIT_FLOOR >= 1000 && ATTRIBUTED_FLOOR >= 2000,
   `🔴 the shipped floors are literals with headroom, not a rounding of zero (${UNIT_FLOOR}/${ATTRIBUTED_FLOOR})`);
-claim(said(judgeScope(S({ blocks: 1408, attributed: 2993 }), 3465), "orphan=472"),
-  "a green run still prints the orphan count — §11.10's 472, no longer floored by nothing");
+claim(said(judgeScope(S({ blocks: 1408, attributed: 3317 }), 3465), "orphan=148"),
+  "a green run still prints the orphan count — 148 since 193 read under it, no longer floored by nothing");
 
 // ── 191: AND THE ORPHAN COUNT IS FLOORED FROM THE OTHER SIDE AT LAST ─────────────────
 // 180 §11.4 asked for this and 181, 182, 183, 186, 188, 189 and 190 all carried it. The
@@ -356,13 +357,13 @@ claim(said(judgeScope(S({ blocks: 1408, attributed: 2993 }), 3465), "orphan=472"
 // `sites` is free to grow, which is why it went 472 → 508 with every floor in this file
 // green the whole way. THE DISMISSAL FIRST, as this repo's self-tests do: the live shape
 // must not fire, or the rule is just a red build.
-claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3721).failed === false,
-  "🔴 THE DISMISSAL: the shipped tree sits exactly ON the ceiling and passes — 509 of 509");
-claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722).failed === true,
+claim(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3722).failed === false,
+  "🔴 THE DISMISSAL: the shipped tree sits exactly ON the ceiling and passes — 148 of 148");
+claim(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3723).failed === true,
   "🔴 and ONE more claim site that reaches no unit reddens — the drift that has run for nine sessions");
-claim(said(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722), "TAUT_ORPHAN_RISE"),
+claim(said(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3723), "TAUT_ORPHAN_RISE"),
   "…named TAUT_ORPHAN_RISE, not folded into an attribution collapse — a different failure");
-claim(said(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722), "510 > 509"),
+claim(said(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3723), "149 > 148"),
   "…and it prints both numbers, so the reading needed to raise it deliberately is in the log");
 // 🔴 THE ARM THE LIVE TREE CANNOT REACH: a rise caused by attribution FALLING rather than
 // by sites rising. Same subtraction, opposite input, and a ceiling reads them identically
@@ -373,9 +374,44 @@ claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).failed === true,
 claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("TAUT_ORPHAN_RISE"))
   && !judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("COLLAPSE CLAIMS")),
   "🔴 and ONLY this rule names it — the case that proves the ceiling is not a restatement of the floor");
-claim(ORPHAN_CEILING === 509, `the shipped orphan ceiling is 509, not ${ORPHAN_CEILING}`);
-claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 510).failed === false,
+claim(ORPHAN_CEILING === 148, `the shipped orphan ceiling is 148, not ${ORPHAN_CEILING}`);
+claim(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3722, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 149).failed === false,
   "and the ceiling is a PARAMETER — raising it is what a deliberate rise looks like, and it is reachable from a fixture");
+
+// 🔴 193 — THE BANNER FALLBACK, AND THE ARM THAT PROVES THE CEILING ALONE IS NOT ENOUGH.
+// Reading under the 509 found that 432 of them were eleven `*.integration.mjs` files where
+// NOT ONE claim reached a unit — so `vacuous`/`every`/`offender`, which are scored over
+// attributed units, were scoring nothing at all over the most expensive tests in the repo.
+// The fallback reads the section banners those files already write, and attributes 362.
+//
+// THE DISMISSAL FIRST. The live shape must not fire.
+claim(judgeScope(S({ blocks: 1680, attributed: 3574, bannerAttributed: 362 }), 3722).failed === false,
+  "🔴 THE DISMISSAL: the shipped tree's 362 banner-attributed claims clear the floor of 300");
+claim(said(judgeScope(S({ blocks: 1680, attributed: 3574, bannerAttributed: 362 }), 3722), "TAUT_BANNER_ATTRIBUTED 362/300"),
+  "…and the number is PRINTED with its floor, so a drift is readable before it is a failure");
+claim(judgeScope(S({ blocks: 1680, attributed: 3574, bannerAttributed: 299 }), 3722).failed === true,
+  "🔴 one under the floor reddens — the fallback silently ceasing to attribute is the failure");
+claim(said(judgeScope(S({ blocks: 1680, attributed: 3574, bannerAttributed: 299 }), 3722), "TAUT_BANNER_COLLAPSE"),
+  "…named as its own class, not folded into an orphan rise");
+// 🔴 THE ARM THAT IS THE WHOLE ARGUMENT FOR THIS FLOOR EXISTING. A verdict where the banner
+// path has died but somebody has meanwhile ADDED enough test() blocks to keep the orphan
+// count under its ceiling: every other number in this file reads healthy, and only this one
+// says the integration suite stopped being scored. The ceiling cannot see this; a
+// subtraction never can.
+claim(judgeScope(S({ blocks: 1680, attributed: 3574, bannerAttributed: 0 }), 3722).failed === true,
+  "🔴 banner attribution at ZERO with orphan/units/claims all healthy still reddens — the case the ceiling is blind to");
+claim(!judgeScope(S({ blocks: 1680, attributed: 3574, bannerAttributed: 0 }), 3722).lines.some((l) => l.includes("TAUT_ORPHAN_RISE")),
+  "…and the orphan rule stays SILENT through it, which is what makes the two rules different rules");
+// 🔴 AND A FIXTURE THAT DOES NOT EXERCISE THE PATH MUST NOT BE ABLE TO REDDEN IT. Every
+// judgeScope case above this block builds a verdict with no `bannerAttributed` at all;
+// treating that as 0 would have turned all of them red and the floor would have been
+// weakened to fit, which is 188 §9's failure mode exactly.
+claim(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3722).failed === false,
+  "🔴 an unmeasured banner count is NOT a collapse — absent and zero are different readings");
+claim(!said(judgeScope(S({ blocks: 1680, attributed: 3574 }), 3722), "TAUT_BANNER_ATTRIBUTED"),
+  "…and nothing is printed for it either, so the log does not claim a measurement it did not take");
+claim(BANNER_ATTRIBUTED_FLOOR === 300 && BANNER_ATTRIBUTED_FLOOR < 362,
+  `🔴 the floor is a literal UNDER the live value, not a rounding of it (${BANNER_ATTRIBUTED_FLOOR} vs 362 measured)`);
 
 // 🔴 THE THIRD AND FOURTH POPULATIONS (182), AND THE COLLAPSE NEITHER OF THE FIRST TWO
 // CAN SEE. Every floor above — the four in FLOORS, UNITS, CLAIMS — counts what the FINDER
@@ -388,23 +424,23 @@ claim(judgeScope(S({ blocks: 1620, attributed: 3212 }), 3722, UNIT_FLOOR, ATTRIB
 // claim to come back SHAPE — and `precondition` needs every leaf's TEXT. Both are healthy
 // and non-zero on a clean tree (116 and 61), which `vacuous`, `every` and `offender` are
 // not: their healthy value is zero, so no floor can sit on them at all (181 §5).
-claim(judgeScope(S({ blocks: 1408, attributed: 2993, shaped: 0 }), 3465).failed === true,
+claim(judgeScope(S({ blocks: 1408, attributed: 3317, shaped: 0 }), 3465).failed === true,
   "🔴 a classifier that classified NOTHING as SHAPE reddens — the case that printed byte-identical output before 182");
-claim(said(judgeScope(S({ blocks: 1408, attributed: 2993, shaped: 0 }), 3465), "TAUT_ATTRIBUTION_COLLAPSE SHAPED"),
+claim(said(judgeScope(S({ blocks: 1408, attributed: 3317, shaped: 0 }), 3465), "TAUT_ATTRIBUTION_COLLAPSE SHAPED"),
   "…and it is named separately from the two attribution collapses");
-claim(judgeScope(S({ blocks: 1408, attributed: 2993, precondition: 0 }), 3465).failed === true,
+claim(judgeScope(S({ blocks: 1408, attributed: 3317, precondition: 0 }), 3465).failed === true,
   "🔴 and the same collapse read from the other side: no leaf TEXT resolved to an outcome flag");
-claim(said(judgeScope(S({ blocks: 1408, attributed: 2993, precondition: 0 }), 3465), "TAUT_ATTRIBUTION_COLLAPSE PRECONDITION"),
+claim(said(judgeScope(S({ blocks: 1408, attributed: 3317, precondition: 0 }), 3465), "TAUT_ATTRIBUTION_COLLAPSE PRECONDITION"),
   "…named separately again, because a kind collapse and a text collapse are different failures");
-claim(judgeScope(S({ blocks: 1408, attributed: 2993, shaped: SHAPED_FLOOR - 1 }), 3465).failed === true,
+claim(judgeScope(S({ blocks: 1408, attributed: 3317, shaped: SHAPED_FLOOR - 1 }), 3465).failed === true,
   "one below the shaped floor reddens");
-claim(judgeScope(S({ blocks: 1408, attributed: 2993, shaped: SHAPED_FLOOR }), 3465).failed === false,
+claim(judgeScope(S({ blocks: 1408, attributed: 3317, shaped: SHAPED_FLOOR }), 3465).failed === false,
   "…and exactly at it does not");
-claim(judgeScope(S({ blocks: 1408, attributed: 2993, precondition: PRECONDITION_FLOOR }), 3465).failed === false,
+claim(judgeScope(S({ blocks: 1408, attributed: 3317, precondition: PRECONDITION_FLOOR }), 3465).failed === false,
   "…and so does the precondition floor, at its own value");
 claim(SHAPED_FLOOR >= 50 && PRECONDITION_FLOOR >= 20,
   `🔴 both classification floors are literals with headroom, not a rounding of zero (${SHAPED_FLOOR}/${PRECONDITION_FLOOR})`);
-claim(said(judgeScope(S({ blocks: 1408, attributed: 2993 }), 3465), "TAUT_CLASSIFIED shaped=116/"),
+claim(said(judgeScope(S({ blocks: 1408, attributed: 3317 }), 3465), "TAUT_CLASSIFIED shaped=116/"),
   "the classification counts print on every run, green or red — a population nobody prints is a population nobody diffs");
 // 🔴 ABSENT IS A COLLAPSE, NOT AN EXEMPTION. A verdict built before 182 has neither
 // field, and `?? 0` makes that the loudest case rather than the quietest — which is the
@@ -413,11 +449,11 @@ claim(said(judgeScope(S({ blocks: 1408, attributed: 2993 }), 3465), "TAUT_CLASSI
 // caught green by `mutate182.py`'s G5 for exactly this reason: with both absent, either
 // row alone reddens the verdict, so the case proves only that ONE of the two defaults
 // bites and cannot say which.
-claim(judgeScope({ blocks: 1408, attributed: 2993 }, 3465).failed === true,
+claim(judgeScope({ blocks: 1408, attributed: 3317 }, 3465).failed === true,
   "🔴 a verdict carrying NO classification population at all fails rather than skipping");
-claim(said(judgeScope({ blocks: 1408, attributed: 2993, precondition: 61 }, 3465), "TAUT_ATTRIBUTION_COLLAPSE SHAPED"),
+claim(said(judgeScope({ blocks: 1408, attributed: 3317, precondition: 61 }, 3465), "TAUT_ATTRIBUTION_COLLAPSE SHAPED"),
   "…an absent SHAPED population alone collapses, by name");
-claim(said(judgeScope({ blocks: 1408, attributed: 2993, shaped: 116 }, 3465), "TAUT_ATTRIBUTION_COLLAPSE PRECONDITION"),
+claim(said(judgeScope({ blocks: 1408, attributed: 3317, shaped: 116 }, 3465), "TAUT_ATTRIBUTION_COLLAPSE PRECONDITION"),
   "…and an absent PRECONDITION population alone collapses, by its own name");
 // …and the two are produced by `verdict()` itself, from real source, not only asserted here.
 claim(V(wrap(`  assert.ok(typeof x === "string");`)).shaped === 1,
@@ -500,7 +536,7 @@ claim(V(EXPR("  assert.ok(`${x}` !== `b`);")).vacuous.length === 0,
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
 // 🆕 185: WRITTEN AT 125 FROM A COUNT OF THE CASES AND CAUGHT ITSELF AT 124 ON THE FIRST
 // RUN — 170 §5's experience for the fourth time, and the reason the literal stays.
-const EXPECTED = 132;  // 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+const EXPECTED = 141;  // 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);
