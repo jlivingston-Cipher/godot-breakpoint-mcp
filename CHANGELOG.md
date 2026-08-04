@@ -6,6 +6,54 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the vocabulary that crossed the wire, and the word that was raised eight times
+
+178 §10.25 named the cross-language invariants and four sessions carried them: the addon's
+`Codec` encodings and `_err` codes are enforced in GDScript and asserted in TypeScript, with
+nothing comparing the two. 190 paid the *within-file* half by exporting `READS_AS_CLAIM` so
+one predicate has one definition. **Check 23 pays the cross-LANGUAGE half.**
+
+Measuring first turned one sentence into two populations that had been sharing a phrase:
+
+```
+the CODEC tag vocabulary   encode() emits 12 · decode() accepts 10 · TypeScript builds 3
+the ERROR CODE vocabulary  operations.gd raises 53 · TypeScript branches on 1
+```
+
+Checks 1 & 2 already compare the two languages — but they compare **method names**. The
+payload vocabulary crossing the same wire had never been compared by anything.
+
+Check 23 asserts six things: a tag emitted with no decode arm (it round-trips to `null` and
+every layer reports success); a decode arm nothing emits; the one-way pair `{Object,
+Unsupported}` asserted **exactly** rather than tolerated, so a third one-way tag arriving by
+accident is a failure; a TypeScript-constructed tag GDScript cannot decode; a constructed tag
+whose **fields** don't cover what `decode()` reads — the tag name matches, so nothing rejects
+it and a `Vector2` payload carrying `{x, z}` decodes to `Vector2(x, 0)`; and a TypeScript
+branch on an error code no `_err(..)` raises.
+
+🔴 **The reverse sweep refuted the sixth and the check had to grow a seventh.** Mutant C1
+renamed the one `_scene_close` raise site `tabletop.ts`'s board-overwrite refusal depends on
+— and the run stayed **green**. `"unsupported"` is raised at eight sites, so the addon's
+*vocabulary* never moved. The membership test asks "does this word exist somewhere in
+GDScript"; the guard needs "does the handler I am wrapping raise it". So the pair is now
+resolved to the **binding** — the bridge method whose call the branch guards, against the
+transitive closure of `_err` codes that method's handler can return. `board_create` with
+`overwrite: true` silently appending to a stale open tab was one rename away, and
+`tabletop_guard.test.ts` passes either way because it constructs the thrown error itself.
+
+Seven statements, seven controls, registered in the same commit as the check — `covered`
+48 of 79, and `blind` stays at 31 rather than growing by seven.
+
+### Fixed — two instruments anchored on how many checks there were the day they were written
+
+Adding one name to `CHECKS_EXPECTED` broke the anchor in **two** separate gates, both pinned
+to the roster size: `control_gate.py`'s `22.floor` row (which guards "a check went missing")
+and `floor_pin_gate.py`'s `CHECKS_RUN_FLOOR` sweep, which reported `matched 0 time(s), not
+once — this row tests NOTHING`. Both guards worked; both anchors were wrong. The control row
+takes a `{CHECKS}` placeholder resolved against the roster — the third member of the class
+188 §2 opened — and the sweep anchor takes `\d+`, which is right for this row alone because
+it is the one floor in that table asserted equal to something else.
+
 ## [1.67.0] — 2026-08-04
 
 ### Added — the idiom no gate could read, and the count nobody could act on
