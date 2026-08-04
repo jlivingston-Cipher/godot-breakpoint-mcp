@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.69.0] — 2026-08-04
+
 ### Added — one word with two meanings, and the copies nobody compared
 
 192 §5 bound one TypeScript branch to one GDScript handler: for each branch, does the
