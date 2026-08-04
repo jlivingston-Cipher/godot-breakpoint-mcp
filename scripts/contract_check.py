@@ -171,6 +171,32 @@ RECIPE_ROSTER_REQUIRED: set[Path] = {
     ROOT / "README.md",
 }
 
+# Docs that MUST state a recipe COUNT, whether or not they currently do.
+#
+# 🔴 188 §3 — AND THIS ONE WAS FOUND BY FAILING TO BUILD A POSITIVE CONTROL FOR IT.
+# `control_gate.py` asks, per failure statement, *what one-line tree edit reddens this?*
+# The recipe-count statement below has no such edit, and the reason is not that the
+# statement is wrong: `doc_recipe_count_claims()` returned NOTHING. Every run had been
+# printing it —
+#
+#     Recipes : 8 registered · 1 doc roster(s) checked · 0 count claim(s) checked
+#
+# — and no gate read the zero. A comparison over an empty population cannot disagree
+# with anything, so the count half of check 12 has been inert since it was written, and
+# a ninth recipe could have shipped with no doc mentioning a number at all.
+#
+# 🔴 THE FIX ALREADY EXISTED IN THIS FILE, TWO CHECKS OVER, AND SIMPLY WAS NOT APPLIED
+# HERE — which is word for word what RESOURCE_COUNT_REQUIRED's own comment says about
+# check 10 borrowing RECIPE_ROSTER_REQUIRED. The two checks have now each supplied the
+# other's missing half: check 10 had a code-side roster and no doc-side count
+# requirement; check 12 had a doc-side ROSTER requirement and no COUNT requirement.
+# Every entry must also appear in RECIPE_DOCS or it is never scanned; asserted at the
+# check rather than left as a comment.
+RECIPE_COUNT_REQUIRED: set[Path] = {
+    ROOT / "README.md",
+    ROOT / "docs/USER_GUIDE.md",
+}
+
 # Three-digit counts that legitimately appear ON A LINE that also states a
 # surface count, but are NOT the full or secure-default surface — a plane total,
 # a tool-family size, a rival's ceiling. Deliberately EMPTY today: every
@@ -1925,6 +1951,27 @@ for f in RECIPE_DOCS:
         )
 
 recipe_count_claims, recipe_count_prose = doc_recipe_count_claims()
+
+# The count half of this check is only as good as its trigger — the same assertion
+# check 10 carries for RESOURCE_COUNT_REQUIRED, and the one check 12 was missing.
+misfiled_recipe_count = sorted(RECIPE_COUNT_REQUIRED - set(RECIPE_DOCS))
+if misfiled_recipe_count:
+    errors.append(
+        f"RECIPE_COUNT_REQUIRED names files absent from RECIPE_DOCS, so they are "
+        f"never scanned and the count requirement is inert: "
+        f"{[str(p.relative_to(ROOT)) for p in misfiled_recipe_count]}"
+    )
+recipe_claimed_in = {f for f, _ln, _n in recipe_count_claims}
+silent_recipe_required = sorted(RECIPE_COUNT_REQUIRED - recipe_claimed_in)
+if silent_recipe_required:
+    errors.append(
+        f"File(s) on RECIPE_COUNT_REQUIRED state no recipe count at all "
+        f"({len(recipe_set)} registered): "
+        f"{[str(p.relative_to(ROOT)) for p in silent_recipe_required]}. This is the "
+        f"state check 12 shipped in and stayed in: zero claims compared, printed on "
+        f"every green run as `0 count claim(s) checked` and read by nothing. Restate "
+        f"it in digits, or move the file to RECIPE_DOCS-only with a reason."
+    )
 bad_recipe_counts = [
     f"{f.relative_to(ROOT)}:{ln} says {n}"
     for f, ln, n in recipe_count_claims

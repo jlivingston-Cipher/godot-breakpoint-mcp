@@ -6,6 +6,86 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the statements that resisted, and the two lists that were never one number
+
+**The inherited number was wrong.** `control_gate.py` printed, on every green run, *"23 of
+those are covered by `scope_gate.py`'s blinded runs (**stated, not re-derived here**)"*. 186
+measured 23 statements executed by *anything*, with a recording shim; the comment restated
+that as 23 covered by `scope_gate` specifically, and the next handoff subtracted it to size
+the remaining work. Re-derived against `scope_gate`'s own twenty-five mutants: **19**. The
+residue was **34**, not ~30.
+
+🔴 **The fix is to derive it, and the measurement was already paid for.** `scope_gate.py`
+runs those twenty-five mutants every CI run and discarded every one of their outputs, keeping
+only the exit code. It now reads them, and prints `SCOPE_GATE_STATEMENTS` with a floor of its
+own. `control_gate.py` no longer asserts anybody else's coverage. 184's rule was *a number an
+instrument prints and no gate reads is an unasked question*; this is one turn further down —
+an **output** an instrument produces and no gate reads at all.
+
+**Twenty-four new controls, 17 → 41 of 72 statements, across nineteen checks.** Three
+families: roster-hygiene statements, where `contract_check.py`'s own roster *is* the subject;
+derived-side statements, where moving the code's number is the same disagreement as moving
+the prose and carries no literal to go stale; and tree edits, where the subject really is a
+shipped file.
+
+🔴 **And five statements resisted — none for the reason the handoff predicted.** It expected
+*no possible tree edit → the check cannot fail → delete it*. All five have obvious tree edits.
+
+- **check 12's recipe-count comparison had an empty population.** No doc stated a recipe
+  count at all, so `0 count claim(s) checked` printed on every green run and nothing could
+  disagree with anything. Check 10 carries `RESOURCE_COUNT_REQUIRED` for precisely this, and
+  check 12 — which supplied check 10 with its *roster* requirement — never got the *count*
+  one back. Not deleted and not counted: **given a population** (`RECIPE_COUNT_REQUIRED`).
+- **checks 18/19 derive their population from `git ls-files`, not from disk.** Moving a
+  `.uid` sidecar aside changes nothing; the file is still tracked. That is 187's own
+  corollary about the local `contract_check` and an unstaged file, answering its own question
+  one check over — and it is why both rows are roster edits rather than tree edits.
+- **three statements carry no string literal of their own** — the wire canary, and two that
+  forward a list built elsewhere. Every one has a tree edit that reddens it; what none can
+  have is a *fingerprint*, since the static resolver matches against the constants under the
+  call. They are invisible to this gate **by construction**, and are now counted and floored
+  rather than quietly subtracted.
+
+### Added — a header is required of a probe, and the exclusion is derived
+
+187 left five sealing files carrying no grep-able marker header, floored and printed but not
+closed, with one instruction: **read them first**, because two may be instruments and that
+would make this a roster-with-a-reason rather than five edits.
+
+Read. **Three are probes** — `cs-dap-plane`, `tree-shape` and `vcs` each declare a
+`Population`, seal 8–11 families and print every marker; they were missing a header for no
+reason beyond the order they were written in. All three now carry one. **Two are
+instruments**: `_caller_shape.harness.mjs` is 183's live axis, `_population.selftest.mjs` is
+the gate on the gate. Neither has families a reader would grep for.
+
+🔴 **So `markers === null` is now `MARKER_NO_HEADER` for a probe, and the exclusion is
+derived from the name.** The two instruments are the only two entries in the directory
+beginning with `_`, which is the convention every file in it already follows — so the rule is
+*every sealing file not named `_*` must carry a header*. A new probe is covered the moment it
+lands and nobody maintains a list. That is 187's `MARKER_PHANTOM` reasoning — findability
+rather than a roster — applied to files instead of tokens. Coverage **6/6 → 9/9** files,
+**61 → 91** families.
+
+### Fixed — anchors that a normal change outruns
+
+`host.drift` anchored on the literal `> **npm 1.62.0 ·` and cutting 1.63.0 moved it, so CI
+went red on the release commit itself. Anchors now carry `{V}` and `{TESTS}`, resolved
+against the **source of truth** rather than the file being mutated, and `_self_check()`
+refuses any row that spells either value out.
+
+### The reverse sweep, and what it caught
+
+**`MUTATE188` pass=17 fail=0 declared-green=0** — but **five mutants survived the first
+run**, and every one un-fixed a branch of *this session's own new code*. On a healthy tree
+those branches are empty, so deleting them was invisible to every live run and the gate
+stayed green over an instrument with its detection removed.
+
+The three detectors — the derived-literal rule, the exactly-once anchor guard, and the
+unfingerprintable set — are now pure functions, each fed an input in `_self_check()` that it
+**must** flag. That is 176's rule, which `gate_failed` was lifted out for, arriving one level
+down: at the detectors instead of at the verdict. 🔴 **The residual no self-check can close —
+deleting the whole block — is written into the file rather than left to be discovered.**
+
 ## [1.63.0] — 2026-08-04
 
 ### Added — the two lists that were never the same list

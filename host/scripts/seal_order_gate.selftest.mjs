@@ -18,7 +18,7 @@
 import {
   inspect, judge, scan, claimCallees, regionsOf, sectionBoundary,
   FILES_FLOOR, SEAL_FLOOR, CLAIM_SITE_FLOORS, NOT_A_PROBE, ANNOUNCED_REGIONS_FLOOR,
-  markerList, MARKER_HEADER_FILES_FLOOR, HEADER_FAMILY_FLOOR,
+  markerList, MARKER_HEADER_FILES_FLOOR, HEADER_FAMILY_FLOOR, headerRequired,
 } from "./seal_order_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -36,7 +36,11 @@ const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 // reason rather than for the roster's size.
 const J = (text, opts = {}) => judge([inspect("probe.integration.mjs", text)], {
   filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 }, roster: {},
-  announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, ...opts,
+  // 188 §6: the fixture is named like a probe, so the header rule would judge every case
+  // below. Off by default here and exercised explicitly in its own block — the same shape
+  // the floors already use, and it keeps each case about one rule.
+  announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false,
+  ...opts,
 });
 
 // ── 1. THE FINDER, WHICH IS THE HALF THAT HAD TO BE MEASURED ─────────────────────────
@@ -343,13 +347,13 @@ claim(said(judge([cleanFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "prob
 // rule would have called it stale and told a maintainer to delete a live entry.
 claim(judge([inspect("probe.integration.mjs", UNANNOUNCED)],
   { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 }).failed === false,
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false }).failed === false,
   "🔴 an exemption earned by the SECOND rule alone is not stale");
 
 const dirtyFile = inspect("probe.integration.mjs", TRAILING);
 {
   const r = judge([dirtyFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0 });
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0, headerFilesFloor: 0, headerFamilyFloor: 0, needsHeader: () => false });
   claim(r.failed === false, "an EARNED exemption suppresses the failure");
   claim(said(r, "exempt  probe.integration.mjs"),
     "🔴 and prints the excused file with its reason — an exemption nobody sees is an exemption nobody re-reads");
@@ -402,9 +406,27 @@ claim(J(UNLISTED_FAMILY).failed === true,
   "🔴 a family in the manifest and absent from the header is a section a reader greps for and does not find");
 claim(said(J(UNLISTED_FAMILY), "MARKER_UNLISTED"), "named MARKER_UNLISTED");
 
-// A file with no header is NOT a failure — it is the coverage this rule does not have,
-// and the floor below is the only thing that notices the population shrinking.
-claim(J(CLEAN).failed === false, "a sealing file carrying no grep-able header is out of scope, not in violation");
+// 🔴 188 §6 — AND THIS IS THE CLAIM THAT CHANGED SIDES. Until this session a file with no
+// header was out of scope: "not a failure, the coverage this rule does not have". Reading
+// the five that had none showed three were probes missing a header for no reason but the
+// order they were written in — so a missing header is now a failure for anything not
+// named like an instrument, and the exclusion is derived from the name rather than listed.
+claim(J(CLEAN, { needsHeader: () => false }).failed === false,
+  "an INSTRUMENT carrying no grep-able header is out of scope, not in violation");
+claim(J(CLEAN, { needsHeader: () => true }).failed === true,
+  "🔴 but a PROBE carrying no header is in violation — it was invisible to the rule, not exempt from it");
+claim(said(J(CLEAN, { needsHeader: () => true }), "MARKER_NO_HEADER"), "named MARKER_NO_HEADER");
+// The derivation itself, asserted rather than trusted: `_`-named files are excluded and
+// nothing else is. A roster would need this test too and would also need maintaining.
+claim(headerRequired("vcs.integration.mjs") === true, "a probe needs a header");
+claim(headerRequired("_population.selftest.mjs") === false, "an instrument does not");
+claim(headerRequired("_caller_shape.harness.mjs") === false, "nor does the caller-shape harness");
+// 🔴 AND THE LIVE TREE HAS EXACTLY THE TWO INSTRUMENTS THE RULE EXCLUDES. A third file
+// renamed to `_x` would quietly leave the rule's scope; this is what notices.
+claim(live.filter((f) => !headerRequired(f.file)).length === 2,
+  `two live sealing files are excluded by name, not ${live.filter((f) => !headerRequired(f.file)).length}`);
+claim(live.every((f) => !headerRequired(f.file) || f.markers !== null),
+  "every live file the rule requires a header of carries one");
 claim(judge(live, { headerFilesFloor: 10_000 }).failed === true,
   "🔴 a header-coverage floor above the files that carry one is a failure — 186 §6's one-sided floor, paid on the way in");
 claim(said(judge(live, { headerFilesFloor: 10_000 }), "MARKER_COVERAGE_COLLAPSE"), "named MARKER_COVERAGE_COLLAPSE");
@@ -429,8 +451,8 @@ claim(FILES_FLOOR === 10, `the shipped file floor is 10, not ${FILES_FLOOR}`);
 claim(SEAL_FLOOR === 95, `the shipped seal floor is 95, not ${SEAL_FLOOR}`);
 claim(Object.keys(CLAIM_SITE_FLOORS).length === 11, `eleven per-file floors ship, not ${Object.keys(CLAIM_SITE_FLOORS).length}`);
 claim(ANNOUNCED_REGIONS_FLOOR === 80, `the shipped coverage floor is 80, not ${ANNOUNCED_REGIONS_FLOOR}`);
-claim(MARKER_HEADER_FILES_FLOOR === 6, `the shipped marker-header coverage floor is 6, not ${MARKER_HEADER_FILES_FLOOR}`);
-claim(HEADER_FAMILY_FLOOR === 55, `the shipped header-family floor is 55, not ${HEADER_FAMILY_FLOOR}`);
+claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor is 9, not ${MARKER_HEADER_FILES_FLOOR}`);
+claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);
 claim(CLAIM_FLOOR === 95, `the shipped claim floor is 95, not ${CLAIM_FLOOR}`);
 
 console.log(`\nSEAL_ORDER_SELFTEST ${ran - bad}/${ran} claims`);

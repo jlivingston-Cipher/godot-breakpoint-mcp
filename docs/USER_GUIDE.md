@@ -844,6 +844,7 @@ gated, and should only be pointed at code you trust:
 Breakpoint has no "bring-your-own-tool" API, and that is a design position rather than an
 unfinished feature. The extension shape it does have is the **recipe**: a curated workflow
 exposed as an MCP prompt, which drives tools that already exist and adds none of its own.
+Breakpoint ships 8 recipes today.
 
 The reason the distinction matters is that every safety property described in this section is
 attached to a *tool*: the frozen output schema, the catalog entry, the risk annotation, the

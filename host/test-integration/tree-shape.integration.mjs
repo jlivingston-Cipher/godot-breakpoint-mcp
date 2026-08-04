@@ -49,6 +49,11 @@
 // NOT ASSERTED, DELIBERATELY: that a wrong-TYPE argument fails. Measured — Godot does not
 // type-check signal arguments; typed_sig(n: int) accepted a String and the handler ran.
 // The guard is arity only, and an assertion claiming otherwise would be false.
+//
+// Markers (grep-able): TREE_LIVE_DEPTH / TREE_LIVE_VISIBLE / TREE_LIVE_BOUND /
+// TREE_LIVE_GUARDS / TREE_LIVE_ARITY / TREE_LIVE_DECODE / TREE_LIVE_ZEROARG /
+// TREE_LIVE_NOLISTENER, plus the banners TREE_LIVE_PING / TREE_LIVE_ALL.
+// Exit status is the gate (the runtime-plane job in integration.yml).
 
 import { Population } from "./_population.mjs";
 

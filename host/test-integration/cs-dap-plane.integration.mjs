@@ -27,6 +27,12 @@
 // exits non-zero if the entry stop never lands, so the assertions underneath it cannot
 // pass vacuously. That is the same trap CS_LSP_LIVE_WARM guards on the LSP plane.
 //
+// Markers (grep-able): CS_DAP_SURFACE / CS_DAP_PHANTOM / CS_DAP_LIVE_STOPPED /
+// CS_DAP_LIVE_BREAKPOINT / CS_DAP_PATH_ESCAPE / CS_DAP_MISSING_FILE / CS_DAP_NOT_A_FILE /
+// CS_DAP_PATH_LEGAL / CS_DAP_EXC_FILTER / CS_DAP_ADAPTER_ERROR / CS_DAP_ATTACH_PID, plus
+// the banners CS_DAP_FIXTURE / CS_DAP_LIVE_WARM / CS_DAP_CAPS / CS_DAP_LIVE_ALL.
+// Exit status is the gate (the csharp-plane job in integration.yml).
+//
 // Requires netcoredbg via GODOT_CSDAP_CMD and a `dotnet` SDK on PATH.
 import { z } from "zod";
 import * as fs from "node:fs";

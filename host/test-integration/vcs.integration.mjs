@@ -49,6 +49,12 @@
 // Needs git and nothing else — no Godot, no port, no game, no matrix. Not part of
 // `npm test`; invoked directly by .github/workflows/integration.yml. Exits non-zero on any
 // failure.
+//
+// Markers (grep-able): VCS_LIVE_RENAME / VCS_LIVE_UNMERGED / VCS_LIVE_INITIAL /
+// VCS_LIVE_DETACHED / VCS_LIVE_REMOTE / VCS_LIVE_BLAME / VCS_LIVE_STASH_NOOP /
+// VCS_LIVE_RESTORE_ECHO / VCS_LIVE_BRANCH_PARTIAL / VCS_LIVE_REFUSALS / VCS_LIVE_NOREPO,
+// plus the banners VCS_LIVE_PING / VCS_LIVE_ALL.
+// Exit status is the gate (the vcs-plane job in integration.yml).
 import { Population } from "./_population.mjs";
 
 // 🔴 THE CLAIM POPULATION, COUNTED (169 §10 item 2). This probe used to end
