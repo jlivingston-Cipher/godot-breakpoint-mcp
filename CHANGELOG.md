@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.61.0] — 2026-08-04
+
 ### Fixed — the argument that reaches the assertion, and the population it turned out to sit on
 
 184 §8 caught its own new code with its own reverse sweep and then declined to patch it:
