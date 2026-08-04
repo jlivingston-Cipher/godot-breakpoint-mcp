@@ -35,8 +35,13 @@
 //     higher_better and object/node_count is lower_better, so a comparison stuck on
 //     one sign fails one of them.
 //
-// Markers (grep-able): VERIFY_LIVE_PING / _STRUCT / _STRUCT_RED / _NODE / _NODE_LIVE /
-// _PERF / _PERF_RED / _TEXT / _TEXT_HIDDEN / _TEXT_OPTS / _DIGEST / _RESULT.
+// Markers (grep-able): VERIFY_LIVE_PING / _STRUCT / _STRUCT_RED / _STRUCT_BASE / _NODE /
+// _NODE_RED / _NODE_LIVE / _NODE_BADPATH / _PERF / _PERF_RED / _PERF_SKIP / _TEXT /
+// _TEXT_ABSENT / _TEXT_HIDDEN / _TEXT_REVEAL / _TEXT_OPTS / _TEXT_LIVE / _DIGEST /
+// _DIGEST_OPTS / _LEFT_CLEAN / _RESULT.
+// 🔴 186 §5: THIS LIST IS A SECOND SPELLING OF THE MANIFEST BELOW AND NOTHING COMPARES
+// THEM. Six of the eleven sealing probes carry one; all six had drifted, this one by six
+// families. Measured, not yet gated — see the handoff.
 //
 // Requires res://tests/verify_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads
@@ -58,9 +63,18 @@ import { Population } from "./_population.mjs";
 const population = new Population("VERIFY_LIVE", {
   families: [
     "VERIFY_LIVE_STRUCT", "VERIFY_LIVE_STRUCT_RED", "VERIFY_LIVE_STRUCT_BASE", "VERIFY_LIVE_NODE",
+    // 🔴 186 §3: THREE FAMILIES THAT EXISTED AS SECTIONS AND NOT AS MARKERS. Each block
+    // below was written, commented and asserted as its own section, and each was drained
+    // by the NEXT marker because no seal closed it — the red control for node_state under
+    // _NODE_LIVE, the `present:false` mode under _TEXT_HIDDEN, the live-retext pair under
+    // _DIGEST. 185's gate is blind to all three: a blank line separates every one of them
+    // from the marker above. The claim TOTAL does not move; three sections stop being
+    // attributed to a marker that does not describe them.
+    "VERIFY_LIVE_NODE_RED",
     "VERIFY_LIVE_NODE_LIVE", "VERIFY_LIVE_NODE_BADPATH", "VERIFY_LIVE_PERF", "VERIFY_LIVE_PERF_RED",
-    "VERIFY_LIVE_PERF_SKIP", "VERIFY_LIVE_TEXT", "VERIFY_LIVE_TEXT_HIDDEN", "VERIFY_LIVE_TEXT_REVEAL",
-    "VERIFY_LIVE_TEXT_OPTS", "VERIFY_LIVE_DIGEST", "VERIFY_LIVE_DIGEST_OPTS",
+    "VERIFY_LIVE_PERF_SKIP", "VERIFY_LIVE_TEXT", "VERIFY_LIVE_TEXT_ABSENT", "VERIFY_LIVE_TEXT_HIDDEN",
+    "VERIFY_LIVE_TEXT_REVEAL", "VERIFY_LIVE_TEXT_OPTS", "VERIFY_LIVE_TEXT_LIVE",
+    "VERIFY_LIVE_DIGEST", "VERIFY_LIVE_DIGEST_OPTS",
     // 🔴 184 §4: THE "LEFT CLEAN" SECTION WAS SEALED BY NOTHING — the same shape one probe
     // over, found by the same gate. Its three claims re-assert the whole fixture through
     // the tool that gated it, and they belonged to no family: counted toward `claims: 100`
@@ -68,8 +82,9 @@ const population = new Population("VERIFY_LIVE", {
     // section, so a run that stopped restoring the fixture is VACUOUS rather than quiet.
     "VERIFY_LIVE_LEFT_CLEAN",
   ],
-  scope: 16,
+  scope: 19,
   claims: 100,        // 🔴 EXACT — 100 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
+                      //    UNMOVED by 186 §3: three sections changed hands, none was added.
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
@@ -209,6 +224,7 @@ try {
   assert.equal(nodeRed.mismatches[0].property, "counter", "the mismatch should name the property");
   assert.equal(nodeRed.mismatches[0].expected, 999, "the mismatch should echo what was expected");
   assert.equal(nodeRed.mismatches[0].actual, 100, "the mismatch should report the value actually read");
+  population.seal("VERIFY_LIVE_NODE_RED", "ok a wrong expectation reports property / expected / actual");
 
   // THE assertion a static implementation cannot satisfy. Change the property in the
   // live game and the SAME call must flip: green -> red on the old value, and green on
@@ -331,6 +347,8 @@ try {
   assert.equal(textOk.samples[0].text, "READY PLAYER ONE", "the sample should carry the text actually read off the node");
   population.seal("VERIFY_LIVE_TEXT", `ok matches=${textOk.matches} sample=${textOk.samples[0].path}`);
 
+  // `present:false` is its own mode rather than a negated match: the tool must pass for
+  // text nothing carries, report zero matches, and echo back the mode it ran in.
   const textAbsent = await call("runtime_assert_screen_text", { text: "ZZZ_NO_SUCH_TEXT_9137", present: false });
   assert.equal(textAbsent.ok, true, "text nothing carries should satisfy an absence assertion");
   assert.equal(textAbsent.matches, 0, "nothing should match");
@@ -341,6 +359,7 @@ try {
   const absentWrong = await call("runtime_assert_screen_text", { text: "READY PLAYER ONE", present: false });
   assert.equal(absentWrong.ok, false, "asserting the absence of text that is on screen must fail");
   assert.equal(absentWrong.matches, 1, "the match count is reported even when the verdict is a failure");
+  population.seal("VERIFY_LIVE_TEXT_ABSENT", "ok present:false satisfied by absent text and refused for present text");
 
   // ---- THE visibility filter, which is the reason HiddenLabel exists -------------
   // Section 2 already proved, through a different tool, that HiddenLabel holds this
@@ -397,6 +416,7 @@ try {
   await call("runtime_set_property", { path: "VisibleLabel", property: "text", value: "READY PLAYER ONE", confirm: true });
   const restoredText = await call("runtime_assert_screen_text", { text: "READY PLAYER ONE" });
   assert.equal(restoredText.matches, 1, "the probe must leave the label's text as it found it");
+  population.seal("VERIFY_LIVE_TEXT_LIVE", "ok retexting the node moves the match, and the text is restored");
 
   // ==================================== 5. runtime_state_digest ==============
 

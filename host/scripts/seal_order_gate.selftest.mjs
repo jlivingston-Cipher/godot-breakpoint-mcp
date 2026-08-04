@@ -16,8 +16,8 @@
 // and zero stale roster entries — every branch below is empty there. 174 §8 watched a
 // collector that was only ever asserted EMPTY lose its filter invisibly.
 import {
-  inspect, judge, scan, claimCallees,
-  FILES_FLOOR, SEAL_FLOOR, CLAIM_SITE_FLOORS, NOT_A_PROBE,
+  inspect, judge, scan, claimCallees, regionsOf, sectionBoundary,
+  FILES_FLOOR, SEAL_FLOOR, CLAIM_SITE_FLOORS, NOT_A_PROBE, ANNOUNCED_REGIONS_FLOOR,
 } from "./seal_order_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -28,13 +28,14 @@ const claim = (cond, what) => {
 // 🔴 NAMED AND PINNED, for 176's reason, carried: a bare `if (ran < 40)` is read by one
 // branch and asserted by nothing, so the collapse detector can be switched off without a
 // single case noticing. This is the floor that protects the floors.
-const CLAIM_FLOOR = 55;
+const CLAIM_FLOOR = 80;
 
 const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 // Judge one hand-written source with every floor relaxed, so a case fails for its own
 // reason rather than for the roster's size.
 const J = (text, opts = {}) => judge([inspect("probe.integration.mjs", text)], {
-  filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 }, roster: {}, ...opts,
+  filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 }, roster: {},
+  announcedFloor: 0, ...opts,
 });
 
 // ── 1. THE FINDER, WHICH IS THE HALF THAT HAD TO BE MEASURED ─────────────────────────
@@ -145,6 +146,122 @@ check("b", true);
 claim(J(VIA_HELPER).failed === true,
   "🔴 and the trailing claim is caught through a HELPER too — cs-dap-plane's whole idiom is that shape");
 
+// ── 2b. THE SECOND RULE (186 §3), AND ITS DISMISSALS FIRST ───────────────────────────
+// 185 §10.2 asked whether anything separates "the author meant this for the previous
+// marker" from "this is the next section". The answer measured off the tree: the next
+// section ANNOUNCES itself, with a numbered/ruled header where it has one and with its
+// first comment otherwise. A claim above that announcement is in the section the seal
+// just closed, however many blank lines are in between.
+{
+  const L = (s) => s.split("\n");
+  //                                   1   2                3           4
+  const withHeader = L(`\nassert.ok(a);\n// ==== 3. the next thing ====\nassert.ok(b);`);
+  claim(sectionBoundary(withHeader, 1, 4)?.line === 3, "the boundary is the section header's line");
+  claim(sectionBoundary(withHeader, 1, 4)?.tier === "header", "and it is reported as the HEADER tier");
+
+  //                             1   2                3                    4
+  const prose = L(`\nassert.ok(a);\n// what comes next\nassert.ok(b);`);
+  claim(sectionBoundary(prose, 1, 4)?.tier === "comment",
+    "with no header, the first prose comment is the boundary — the weak tier");
+
+  // 🔴 THE ORDER OF THE TIERS IS THE WHOLE POINT AND IS ASSERTED, NOT ASSUMED. A
+  // paragraph comment BEFORE the header does not win: the header is a declared section
+  // boundary and the comment is only an idiom. animation-lane's re-stop claim is exactly
+  // this shape — introduced by its own comment, still inside the section above.
+  const both = L(`\n// a paragraph of its own\nassert.ok(a);\n// ==== 4. next ====`);
+  claim(sectionBoundary(both, 1, 4)?.line === 4 && sectionBoundary(both, 1, 4)?.tier === "header",
+    "🔴 a header later in the region beats a comment earlier in it");
+
+  claim(sectionBoundary(L(`\nassert.ok(a);\nassert.ok(b);`), 1, 3) === null,
+    "a region announcing nothing at all has NO boundary — the blind spot, named");
+}
+
+const UNANNOUNCED = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+
+assert.ok(tail);
+
+// ================= 2. the next section =================
+assert.ok(b);
+population.seal("B", "ok");
+`;
+{
+  const r = J(UNANNOUNCED);
+  claim(r.failed === true, "🔴 a claim a paragraph below the marker but ABOVE the next section's header is caught");
+  claim(said(r, "SEAL_ORDER_UNANNOUNCED"), "and it is named SEAL_ORDER_UNANNOUNCED, not TRAILING");
+  claim(said(r, "counted onto B"), "naming the marker the claim actually lands on");
+  claim(said(r, "(header)"), "and which tier decided the boundary, because the two are not equally strong");
+}
+
+// 🔴 THE DISMISSAL THAT KEEPS THE RULE NARROW. The claim below sits UNDER the next
+// section's announcement, which is where a claim belonging to B is supposed to be. A rule
+// that flagged this would red every healthy region in the tree — all 83 of them.
+const BELOW_BOUNDARY = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+
+// ================= 2. the next section =================
+assert.ok(b);
+population.seal("B", "ok");
+`;
+claim(J(BELOW_BOUNDARY).failed === false,
+  "🔴 a claim BELOW the next section's announcement is where B's claims belong — not flagged");
+
+// 🔴 AND THE BLIND SPOT, ASSERTED SO IT CANNOT BE DISCOVERED LATER. Six regions on the
+// tree announce themselves in no way at all; this rule reads nothing in them. That is
+// what ANNOUNCED_REGIONS_FLOOR is for — the population can shrink, and shrinking is not
+// the same as passing.
+const NO_BOUNDARY = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+
+assert.ok(tail);
+population.seal("B", "ok");
+`;
+claim(J(NO_BOUNDARY).failed === false,
+  "a region that announces nothing is not judged — the rule has no boundary to read");
+claim(J(NO_BOUNDARY).lines.some((l) => l.includes("announcing nothing 1")),
+  "🔴 but it is COUNTED and printed, so a growing blind spot is visible rather than silent");
+
+// 🔴 ONE CLAIM, ONE FINDING. A claim in the seal's own paragraph is TRAILING; reporting
+// it again as UNANNOUNCED would send a reader who fixed the first report back for a
+// second run to discover the second.
+const BOTH_RULES = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+assert.ok(tail);
+
+// ================= 2. the next section =================
+assert.ok(b);
+population.seal("B", "ok");
+`;
+{
+  const r = J(BOTH_RULES);
+  claim(said(r, "SEAL_ORDER_TRAILING"), "the shape rule names the claim in the seal's own paragraph");
+  claim(!said(r, "SEAL_ORDER_UNANNOUNCED"), "🔴 and the second rule does not name it a second time");
+}
+
+// 🔴 THE LAST SEAL'S REGION IS NOT THIS GATE'S. Claims after the final seal belong to no
+// section and are `report()`'s `unsealed` population (184 §3). Two gates on one
+// population is two populations.
+const AFTER_LAST = `
+const assert = population.assert;
+assert.ok(a);
+population.seal("A", "ok");
+
+assert.ok(trailing);
+`;
+{
+  const f = inspect("probe.integration.mjs", AFTER_LAST);
+  claim(regionsOf(f).length === 0, "a file with one seal has no inter-seal region at all");
+  claim(J(AFTER_LAST).failed === false, "and a claim after the last seal is gate 6's, not this gate's");
+}
+
 // ── 3. THE FLOORS, EACH ASSERTED TO BITE ─────────────────────────────────────────────
 const live = scan();
 claim(live.length >= FILES_FLOOR, `the live roster holds ${live.length}, floor is ${FILES_FLOOR}`);
@@ -156,30 +273,48 @@ claim(said(judge(live, { filesFloor: live.length + 1 }), "SEAL_ORDER_ROSTER_COLL
 const liveSeals = live.reduce((n, f) => n + f.seals.length, 0);
 claim(judge(live, { sealFloor: liveSeals + 1 }).failed === true,
   "🔴 as does a seal floor above the seals found — every file present with a finder matching a fraction of them");
-claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {} }).failed === false,
+claim(judge([], { filesFloor: 0, sealFloor: 0, roster: {}, announcedFloor: 0 }).failed === false,
   "and an empty population with floors of zero is not a failure — the floors are what make it one");
 // 🔴 WRITTEN WITHOUT `roster: {}` FIRST AND CAUGHT ITSELF ON THE FIRST RUN. The default
 // roster excuses one real file, so an EMPTY population makes that entry dead — the gate
 // was right and the case was wrong. Kept as a case, because it is the interaction the
 // two checks have with each other and nothing else asserts it.
-claim(judge([], { filesFloor: 0, sealFloor: 0 }).failed === true,
+claim(judge([], { filesFloor: 0, sealFloor: 0, announcedFloor: 0 }).failed === true,
   "an empty population with the SHIPPED roster is a failure — every exemption in it is dead");
+
+// 🔴 THE COVERAGE FLOOR, WHICH IS THE ONE THIS SESSION ADDED AND THE ONE THE OTHER TWO
+// CANNOT SEE. Every file present, every seal found, and the probes having quietly
+// stopped announcing their sections: the UNANNOUNCED rule then reads nothing and the
+// gate prints ok over a population that shrank to nothing.
+claim(judge(live, { announcedFloor: 10_000 }).failed === true,
+  "🔴 a coverage floor above the announced regions is a failure — the rule's own population is floored");
+claim(said(judge(live, { announcedFloor: 10_000 }), "SEAL_ORDER_COVERAGE_COLLAPSE"), "named COVERAGE_COLLAPSE");
+{
+  const liveRegions = live.flatMap((f) => regionsOf(f));
+  const liveAnnounced = liveRegions.filter((r) => r.boundary !== null);
+  claim(liveAnnounced.length >= ANNOUNCED_REGIONS_FLOOR,
+    `the tree announces ${liveAnnounced.length} of ${liveRegions.length} regions, floor is ${ANNOUNCED_REGIONS_FLOOR}`);
+  claim(liveRegions.length > liveAnnounced.length,
+    "🔴 and the blind spot is NOT empty on the live tree — a rule with no measured gap is a rule nobody checked");
+  claim(liveAnnounced.some((r) => r.boundary.tier === "header") && liveAnnounced.some((r) => r.boundary.tier === "comment"),
+    "both tiers are exercised by the real tree, so neither branch is dead code");
+}
 
 // 🔴 THE PER-FILE FLOOR, WHICH IS THE ONE THAT STOPS THIS GATE PASSING A FILE IT CANNOT
 // READ. Zero claim sites can never sit after a seal, so an unreadable file is green on
 // every other check in this file.
 const UNREADABLE = `population.seal("A", "ok");\n`;
 claim(judge([inspect("probe.integration.mjs", UNREADABLE)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {} }).failed === true,
+  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {}, announcedFloor: 0 }).failed === true,
   "🔴 a file whose claim idiom the finder cannot read is a FAILURE, not a clean file");
 claim(said(judge([inspect("probe.integration.mjs", UNREADABLE)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {} }), "SEAL_ORDER_UNREADABLE"),
+  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 5 }, roster: {}, announcedFloor: 0 }), "SEAL_ORDER_UNREADABLE"),
   "and it is named as an unreadable idiom rather than as zero offenders");
 claim(judge([inspect("probe.integration.mjs", CLEAN)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {} }).failed === true,
+  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {}, announcedFloor: 0 }).failed === true,
   "🔴 and a sealing file with NO floor entry at all fails — a new probe must declare what to find in it");
 claim(said(judge([inspect("probe.integration.mjs", CLEAN)],
-  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {} }), "SEAL_ORDER_UNFLOORED"), "named UNFLOORED");
+  { filesFloor: 1, sealFloor: 1, siteFloors: {}, roster: {}, announcedFloor: 0 }), "SEAL_ORDER_UNFLOORED"), "named UNFLOORED");
 
 // Every live file is floored, and every floor is under what the finder actually finds.
 for (const f of live) {
@@ -197,15 +332,23 @@ claim(said(judge(live, { roster: { "no-such-file.mjs": "why" } }), "SEAL_ORDER_R
 
 const cleanFile = inspect("probe.integration.mjs", CLEAN);
 claim(judge([cleanFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-  roster: { "probe.integration.mjs": "excused" } }).failed === true,
+  roster: { "probe.integration.mjs": "excused" }, announcedFloor: 0 }).failed === true,
   "🔴 an exemption for a file that trips NOTHING is a failure — a decision that stopped being one");
 claim(said(judge([cleanFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-  roster: { "probe.integration.mjs": "excused" } }), "SEAL_ORDER_ROSTER_STALE"), "named ROSTER_STALE");
+  roster: { "probe.integration.mjs": "excused" }, announcedFloor: 0 }), "SEAL_ORDER_ROSTER_STALE"), "named ROSTER_STALE");
+
+// 🔴 AND STALENESS IS JUDGED ON BOTH RULES, WHICH THE FIRST DRAFT GOT WRONG. A file that
+// trips only the UNANNOUNCED rule is still earning its exemption; reading only the shape
+// rule would have called it stale and told a maintainer to delete a live entry.
+claim(judge([inspect("probe.integration.mjs", UNANNOUNCED)],
+  { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0 }).failed === false,
+  "🔴 an exemption earned by the SECOND rule alone is not stale");
 
 const dirtyFile = inspect("probe.integration.mjs", TRAILING);
 {
   const r = judge([dirtyFile], { filesFloor: 1, sealFloor: 1, siteFloors: { "probe.integration.mjs": 0 },
-    roster: { "probe.integration.mjs": "a real reason" } });
+    roster: { "probe.integration.mjs": "a real reason" }, announcedFloor: 0 });
   claim(r.failed === false, "an EARNED exemption suppresses the failure");
   claim(said(r, "exempt  probe.integration.mjs"),
     "🔴 and prints the excused file with its reason — an exemption nobody sees is an exemption nobody re-reads");
@@ -223,7 +366,8 @@ claim(NOT_A_PROBE["_population.selftest.mjs"].length > 80,
 claim(FILES_FLOOR === 10, `the shipped file floor is 10, not ${FILES_FLOOR}`);
 claim(SEAL_FLOOR === 95, `the shipped seal floor is 95, not ${SEAL_FLOOR}`);
 claim(Object.keys(CLAIM_SITE_FLOORS).length === 11, `eleven per-file floors ship, not ${Object.keys(CLAIM_SITE_FLOORS).length}`);
-claim(CLAIM_FLOOR === 55, `the shipped claim floor is 55, not ${CLAIM_FLOOR}`);
+claim(ANNOUNCED_REGIONS_FLOOR === 80, `the shipped coverage floor is 80, not ${ANNOUNCED_REGIONS_FLOOR}`);
+claim(CLAIM_FLOOR === 80, `the shipped claim floor is 80, not ${CLAIM_FLOOR}`);
 
 console.log(`\nSEAL_ORDER_SELFTEST ${ran - bad}/${ran} claims`);
 if (bad) { console.log(`🔴 SEAL_ORDER_SELFTEST FAILED — ${bad} of ${ran}`); process.exit(1); }

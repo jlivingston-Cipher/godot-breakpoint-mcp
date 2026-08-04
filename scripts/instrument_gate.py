@@ -314,7 +314,7 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "seal_order_gate.mjs",
         "gate": ["node", "scripts/seal_order_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 4,
+        "floor": 6,
         "why": "the marker written above the claims it describes — invisible to every gate _population.mjs has",
         "targets": {
             "export function claimCallees(src) {":
@@ -324,9 +324,16 @@ INSTRUMENTS = [
             # returns something healthy-looking proves the finder.
             "export function inspect(file, text) {":
                 'return { file, claims: [], seals: [], helpers: [], lines: [] };',
-            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE } = {}) {":
+            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR } = {}) {":
                 'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
             "export function scan(root = ROOT) {": "return [];",
+            # 🆕 186 §3 — THE SECOND RULE'S TWO HALVES, BLINDED SEPARATELY BECAUSE THEY
+            # COLLAPSE DIFFERENTLY. `sectionBoundary` returning null leaves every region
+            # in the population and unreadable; `regionsOf` returning [] removes the
+            # population itself. Only the coverage floor can tell either from a clean run,
+            # which is the whole reason that floor exists.
+            "export function sectionBoundary(lines, from, to) {": "return null;",
+            "export function regionsOf(f) {": "return [];",
         },
     },
     {
