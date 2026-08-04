@@ -74,6 +74,47 @@ REPORT_MARKER = "=== breakpoint-mcp static contract check ==="
 PROJ = "example/project.godot"
 AUTOLOAD = 'BreakpointRuntimeBridge="*res://addons/breakpoint_mcp/runtime_bridge.gd"'
 
+# ── 🔴 THE ANCHORS THAT A NORMAL CHANGE MOVES, AND WHY THEY ARE PLACEHOLDERS ──────
+#
+# 188 §2. `host.drift` shipped in 187 anchored on the literal `> **npm 1.62.0 ·`, and the
+# VERY NEXT COMMIT — the 1.63.0 release cut, six version fields across five files — moved
+# it. CI went red on the release itself with `CONTROL_GATE_ANCHOR host.drift: 0
+# occurrence(s) of the anchor in README.md`, and the local run had been green minutes
+# earlier because it ran BEFORE the bump.
+#
+# 🟢 THE ANCHOR ASSERTION IS WHY THAT WAS A FAILURE AND NOT A SILENT PASS (180 §9.3): a
+# control whose `old` no longer matches applies nothing and would otherwise report `ok`
+# over a mutation that never happened. So the guard worked. What was wrong is the anchor.
+#
+# 🔴 AND IT IS A CLASS, NOT ONE ROW. `11c.drift` anchors on `684-test suite`, which moves
+# the day anybody adds a test. Both rows embed a number the tree DERIVES elsewhere, so the
+# control is pinned to a moment rather than to the invariant it is testing. These
+# placeholders resolve against the SOURCE OF TRUTH — not against the file being mutated,
+# which would make the anchor trivially self-satisfying and take 180 §9.3's guard away.
+#
+#   {V}      the live host version, from host/package.json
+#   {TESTS}  the live count of test declarations under host/test — TEST_DECL_RE's
+#            population, which is exactly what check 11c compares the prose against
+#
+# `_self_check()` refuses any control whose LITERAL anchor embeds either number, so the
+# next author who types today's version into a row is told to use the placeholder instead
+# of finding out one release later.
+TEST_DECL_RE = re.compile(r"^[ \t]*(?:await[ \t]+)?(?:test|it)[ \t]*\(", re.M)
+
+
+def live_version() -> str:
+    m = re.search(r'^  "version": "([^"]+)",', (ROOT / "host/package.json").read_text(), re.M)
+    return m.group(1) if m else ""
+
+
+def live_tests() -> str:
+    return str(sum(len(TEST_DECL_RE.findall(p.read_text(encoding="utf-8")))
+                   for p in sorted((ROOT / "host/test").rglob("*.ts"))))
+
+
+def resolve(s: str) -> str:
+    return s.replace("{V}", live_version()).replace("{TESTS}", live_tests())
+
 # ── the controls ──────────────────────────────────────────────────────────────────
 #
 # (id, check, kind, target, old, new, fingerprint)
@@ -108,7 +149,7 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     ("11c.vacuous", "11c", "rename", "host/test", "", "",
      "Could not count any test declaration under host/test"),
     ("11c.drift", "11c", "sub", "README.md",
-     "684-test suite", "685-test suite",
+     "{TESTS}-test suite", "0-test suite",
      "Host test-suite size drift"),
 
     # ── check host — the release ritual's five files ──────────────────────────────
@@ -118,8 +159,11 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      '{\n  "name": "breakpoint-mcp",\n  "version":',
      '{\n  "name": "breakpoint-mcp",\n  "versionX":',
      "so check 14 cannot verify it"),
+    # 🔴 `0.0.0` RATHER THAN "the previous version", which is what shipped in 187 and what
+    # the release moved. A literal that is never any real version cannot become correct by
+    # accident, and the anchor tracks the bump instead of being outrun by it.
     ("host.drift", "host", "sub", "README.md",
-     "> **npm 1.62.0 ·", "> **npm 1.61.0 ·",
+     "> **npm {V} ·", "> **npm 0.0.0 ·",
      "Host version drift"),
 
     # ── check 17 — example/project.godot, the invariants an editor boot erases ────
@@ -273,6 +317,26 @@ def _self_check() -> list[str]:
             )
     if len(set(CHECKS_CLOSED)) != len(CHECKS_CLOSED):
         problems.append("CHECKS_CLOSED names a check twice — the roster cannot be compared")
+
+    # 🔴 THE RULE 188 PAID FOR. An anchor that embeds a number the tree DERIVES is a
+    # control pinned to a moment: `host.drift` was written as `> **npm 1.62.0 ·` and the
+    # next commit — the release cut — moved it, so CI went red on the release itself.
+    # Checked against the LITERAL row, before `resolve()` runs, so a row that spells the
+    # number out is caught and a row that uses the placeholder is not.
+    for name, value in (("{V}", live_version()), ("{TESTS}", live_tests())):
+        if not value:
+            problems.append(
+                f"{name} resolves to nothing — its source of truth moved, and every anchor "
+                f"using it would silently stop matching. Fix the derivation, not the rows."
+            )
+            continue
+        for cid, _c, _k, _t, old, new, _fp in CONTROLS:
+            if value in old or value in new:
+                problems.append(
+                    f"{cid}: the anchor embeds the live value {value!r}, which this tree "
+                    f"derives. Write {name} instead — a literal here is outrun by the next "
+                    f"release or the next test, and the row stops applying anything."
+                )
     return problems
 
 
@@ -377,6 +441,7 @@ def main() -> int:
     for cid, check, kind, target, old, new, fp in CONTROLS:
         if any(u.startswith(f"{cid}:") for u in unresolved):
             continue                      # already reported; running it would prove nothing
+        old, new = resolve(old), resolve(new)
         path = ROOT / target if target else CC
         try:
             if kind == "sub":

@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.63.0] — 2026-08-04
+
 ### Added — the two lists that were never the same list
 
 186 §8 asked 185's one-rule-two-spellings question of these probes and reported the answer
@@ -119,6 +121,36 @@ more than the other ten: they un-fix `contract_check.py` itself — neutering th
 tool-name branch, the `uid://` autoload branch that CI killed in 90 seconds in session 148,
 check 22's own roster drift, and one failure statement *deleted outright*. A control table
 that stays green over a check with its detection removed is a table measuring its own rows.
+
+### Fixed — the control the release itself broke
+
+🔴 **CI went red on this release commit, at the control gate #216 shipped one commit
+earlier.** `host.drift` — the control proving check 14 notices a stale version stamp —
+anchored on the literal `> **npm 1.62.0 ·` in `README.md`, and cutting 1.63.0 moved it:
+
+```
+🔴 CONTROL_GATE_ANCHOR host.drift: 0 occurrence(s) of the anchor in README.md
+```
+
+🟢 **The anchor assertion is why that was a failure rather than a silent pass.** A control
+whose `old` no longer matches applies nothing; without the exactly-once guard the sweep
+would have printed `ok` over a mutation it never made. The guard worked — the anchor was
+wrong.
+
+**And it is a class, not a row.** `11c.drift` anchors on `684-test suite`, which moves the
+day anybody adds a test. Both embedded a number the tree *derives* somewhere else, which
+pins the control to a moment instead of to the invariant it tests.
+
+Anchors may now carry `{V}` (the live host version, from `host/package.json`) and
+`{TESTS}` (the live count of `test(…)`/`it(…)` declarations under `host/test` — check
+11c's own population), resolved against the **source of truth** rather than against the
+file being mutated, which would make the anchor trivially self-satisfying and take the
+exactly-once guard away. `host.drift` now substitutes `0.0.0`, a literal that cannot
+become correct by accident, rather than "the previous version".
+
+🔴 **`_self_check()` refuses any row whose literal anchor embeds either derived value**, so
+the next author who types today's version into a control is told at authoring time instead
+of one release later.
 
 ## [1.62.0] — 2026-08-04
 
