@@ -260,6 +260,29 @@ const CHECK_FNS = new Set(["check", "_check", "assertOk", "claim", "verdict"]);
 const OUTCOME_FLAG = /\.(isError|threw)$/;
 const isPrecondition = (ls) => ls.length > 0 && ls.every((l) => OUTCOME_FLAG.test((l.text ?? "").trim()));
 
+// ──────────────────────────────────────── is this expression decided at authoring time? --
+// 🔴 185. A LITERAL, OR SOMETHING BUILT ONLY OUT OF LITERALS. The point of the narrowing
+// is what it EXCLUDES: an identifier is not literalish (so `assert.equal(count, 3)` is
+// untouched, which is the false-fail 184 §10.2 was right to refuse), and neither is a
+// property access (so `_population.selftest.mjs`'s `assert.ok === assert.ok` — a real
+// claim about a memoising Proxy — stays green). A template literal counts only when it
+// has no substitutions; `${x}` makes it a reading.
+//
+// Structural, not a text test, for 174 §6's reason: the class/function separation that
+// session needed was found in a PROPERTY rather than in a naming convention, and the same
+// discipline applies here — `-1` is a prefix-unary over a numeric literal, not a literal,
+// and a regex over source text would have had to guess.
+export function isLiteralish(node) {
+  if (!node) return false;
+  if (ts.isParenthesizedExpression(node)) return isLiteralish(node.expression);
+  if (ts.isPrefixUnaryExpression(node)) return isLiteralish(node.operand);
+  if (ts.isNumericLiteral(node) || ts.isBigIntLiteral(node) || ts.isStringLiteral(node)) return true;
+  if (ts.isNoSubstitutionTemplateLiteral(node)) return true;
+  const k = node.kind;
+  return k === ts.SyntaxKind.TrueKeyword || k === ts.SyntaxKind.FalseKeyword
+      || k === ts.SyntaxKind.NullKeyword;
+}
+
 // ─────────────────────────────────────────────── the leaf classifier (169's judgements) --
 // A leaf is SHAPE when it can be satisfied by a value that is the wrong ANSWER but the
 // right TYPE. A leaf is VALUE when satisfying it constrains WHAT the value is.
@@ -287,7 +310,41 @@ export function classifyLeaf(node, src) {
       if (lit === 0 && (op === ts.SyntaxKind.GreaterThanEqualsToken || op === ts.SyntaxKind.LessThanEqualsToken))
         return { kind: "SHAPE", why: "length >= 0 is vacuous", text: t(node) };
     }
+    // 🔴 185, AND IT IS 179's RULE INSIDE THE INSTRUMENT 179's RULE WAS WRITTEN FOR:
+    // AN INSTRUMENT ENFORCES ITS RULES WHERE THEY WERE WRITTEN, NOT WHERE ITS POPULATION
+    // COMES FROM. `conditionOf` below has tested `t(a) === t(b)` since 169 — for the
+    // METHOD spelling, `assert.equal(3, 3)`. This branch is the EXPRESSION spelling, and
+    // it never had the check. Measured against the shipped classifier:
+    //
+    //     assert.equal(3, 3)     -> SHAPE "both sides are the same expression"   flagged
+    //     assert.ok(84 !== 84)   -> VALUE "compared to a value"                  GREEN
+    //
+    // The second is the path taken by every `assert.ok(a === b)`, every ternary
+    // condition, and EVERY HELPER GUARD — which is where all thirty of the claim sites
+    // reached through an asserter helper are classified (184 §10.2, measured 185:
+    // 30 of 3591, `host/_to_delete/laundered185.mjs`). 184's G2 mutant replaced a call
+    // site's reading with a literal and this gate stayed green; this is the branch that
+    // was letting it.
+    //
+    // 🔴 BOTH SIDES LITERAL, NOT MERELY IDENTICAL, AND THE TREE IS WHY. Measured across
+    // 2006 comparisons (`host/_to_delete/identical185.mjs`): exactly ONE has textually
+    // identical sides, and it is a REAL CLAIM —
+    //
+    //     _population.selftest.mjs:197   assert.ok === assert.ok
+    //
+    // — because that file's `assert` is a memoising PROXY, so evaluating the same text
+    // twice need not give the same value. A rule reading "identical sides are vacuous"
+    // would have reddened the one honest instance in the tree and been deleted. A
+    // LITERAL cannot be a proxy trap, and cannot be the `x !== x` NaN idiom either, so
+    // both known counterexamples are excluded by construction rather than by an
+    // exemption somebody has to maintain. Measured cost on the tree today: zero sites.
+    if ((eq || ne) && isLiteralish(node.left) && isLiteralish(node.right)) {
+      return { kind: "SHAPE", why: "both operands are literals — the comparison is decided at authoring time", text: t(node) };
+    }
     if (eq || ne) return { kind: "VALUE", why: "compared to a value", text: t(node) };
+    if (isLiteralish(node.left) && isLiteralish(node.right)) {
+      return { kind: "SHAPE", why: "both operands are literals — the comparison is decided at authoring time", text: t(node) };
+    }
     return { kind: "VALUE", why: `relational (${ts.tokenToString(op)})`, text: t(node) };
   }
 
@@ -404,6 +461,13 @@ function conditionOf(method, args, src) {
 
     case "notEqual": case "notStrictEqual": {
       const [a, b] = args; if (!a || !b) return null;
+      // 🔴 185: THE THIRD SPELLING, WHICH NEVER HAD THE CHECK AT ALL. `equal` and
+      // `deepEqual` above have tested identical sides since 169; this case is their
+      // negation and was written without it. Kept to LITERALS for the reason the leaf
+      // classifier is — `assert.notEqual(x, x)` on a memoising proxy is a real claim,
+      // and `x !== x` is the NaN idiom.
+      if (isLiteralish(a) && isLiteralish(b))
+        return { leaves: [{ kind: "SHAPE", why: "both operands are literals — the comparison is decided at authoring time", text: `${t(a)} !== ${t(b)}` }], shown: `${t(a)} !== ${t(b)}` };
       if (nullish(b) || nullish(a))
         return { leaves: [{ kind: "SHAPE", why: `notEqual ${nullish(b) ? t(b) : t(a)} — presence only`, text: t(a) }], shown: `${t(a)} !== ${t(b)}` };
       return { leaves: [{ kind: "VALUE", why: "inequality against a value", text: t(b) }], shown: `${t(a)} !== ${t(b)}` };
@@ -509,7 +573,13 @@ function isDerived(text, consts, src, usePos) {
 // already makes for names, asked of a function instead. The guards are written in the
 // FAILING polarity (`if (bad) fail`); `leaves()` unwraps a leading `!` already and the
 // SHAPE/VALUE distinction does not depend on polarity, so the kinds carry over intact.
-function collectAsserters(src) {
+// 🔴 EXPORTED IN 185 FOR THE MEASUREMENT 184 §10.2 ASKED FOR, AND FOR verdict_gate.mjs's
+// REASON: "two spellings of the same population would be two populations, and the one
+// nobody re-read would drift." The question — how many claim sites are reached through a
+// helper whose CONDITION IS ITS OWN, rather than written at the call site — is a question
+// about exactly this map, and re-deriving it in a scratch script would have answered a
+// slightly different one. Behaviour is unchanged; the word `export` is the whole diff.
+export function collectAsserters(src) {
   const out = new Map();
   const guards = (body) => {
     const conds = [];
@@ -682,10 +752,10 @@ export function analyze(fileName, text) {
   // One shared scorer, so a probe claim and a unit claim are judged by the same rules.
   // `marker` is the probe's family name; it is the unit `_population.mjs` keys on, and
   // therefore the unit a probe's vacuity must be scored at.
-  const record = (node, method, conds, marker) => {
+  const record = (node, method, conds, marker, override = null) => {
     const list = Array.isArray(conds) ? conds : [conds];
     const raw = list.map((c) => c.getText(src)).join(" && ").replace(/\s+/g, " ");
-    const ls = resolveLeaves(list.flatMap((c) => leaves(c, src)), consts, src, node.getStart(src));
+    const ls = override ?? resolveLeaves(list.flatMap((c) => leaves(c, src)), consts, src, node.getStart(src));
     const off = ls.find((l) => l.kind === "OFFENDER");
     claims.push({
       file: fileName, line: src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1,
@@ -714,7 +784,34 @@ export function analyze(fileName, text) {
       const cond = node.arguments.find((a) => !ts.isStringLiteralLike(a));
       if (CHECK_FNS.has(callee) && failers.has(callee) && cond) record(node, callee, cond, marker?.text ?? null);
       // a call to a local pass/fail helper: the condition lives in its guard clauses
-      else if (asserters.has(callee) && marker) record(node, callee, asserters.get(callee), marker.text);
+      //
+      // 🔴 185 — AND THE CALL SITE IS ASKED ONE QUESTION FIRST, WHICH IS 184 §8's G2.
+      // The guard is the SAME TEXT for every call site of the helper, so classifying it
+      // says the same thing about all of them however vacuous the operands are one frame
+      // up: `tcheck(census(dir).files, 84)` and `tcheck(84, 84)` are indistinguishable
+      // here, and 184 committed the second shape's blindness one edit after this gate
+      // caught the honest first draft. The narrow, measurable question the call site CAN
+      // answer: did the caller supply anything the helper could not have known?
+      //
+      // 🔴 ALL of them, not ANY. 184 §10.2 refused the rule "flag constant operands"
+      // because it false-fails every honest `assert.equal(count, 3)` — and it was right;
+      // the working rule is one word away. `tcheck(census(dir).files, 84)` supplies a
+      // reading AND a literal and is untouched. Only a call where EVERY non-marker
+      // argument is decided at authoring time is a claim the helper cannot rescue.
+      //
+      // Measured before shipping (`host/_to_delete/laundered185.mjs`): 30 claim sites of
+      // 3591 reach the classifier through an asserter at all, across three helpers in two
+      // files, and ZERO of them pass only literals. The rule costs nothing on this tree
+      // and kills G2's mutant at the site it was written.
+      else if (asserters.has(callee) && marker) {
+        const supplied = node.arguments.filter((a) => !ts.isStringLiteralLike(a));
+        const decided = supplied.length > 0 && supplied.every((a) => isLiteralish(a));
+        record(node, callee, asserters.get(callee), marker.text, decided ? [{
+          kind: "SHAPE",
+          why: `every argument to ${callee}() is a literal — the helper compares two things the caller already decided`,
+          text: supplied.map((a) => a.getText(src)).join(", "),
+        }] : null);
+      }
     }
     if (ts.isConditionalExpression(node)) {
       const callee = (e) => (ts.isCallExpression(e) && ts.isIdentifier(e.expression) ? e.expression.text : null);
