@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.59.0] — 2026-08-03
+
 ### Added — the live axis for the three instruments whose only caller boots the editor
 
 182 §11.2 handed over the remaining half of the late blind in one sentence: `_workspace.mjs`,
