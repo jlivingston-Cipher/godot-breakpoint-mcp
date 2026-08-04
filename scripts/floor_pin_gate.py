@@ -103,8 +103,8 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # because their runner is a self-test that touches nothing. That is the difference
     # between these and control_gate.py's pair four entries down in DISCOVER_EXEMPT: the
     # exemption there is bought by tree mutation, not by the floor being any less real.
-    ("MARKER_HEADER_FILES_FLOOR", f"{S}/seal_order_gate.mjs",         r"(export const MARKER_HEADER_FILES_FLOOR = )6;",           [f"{S}/seal_order_gate.selftest.mjs"]),
-    ("HEADER_FAMILY_FLOOR",      f"{S}/seal_order_gate.mjs",          r"(export const HEADER_FAMILY_FLOOR = )55;",                [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("MARKER_HEADER_FILES_FLOOR", f"{S}/seal_order_gate.mjs",         r"(export const MARKER_HEADER_FILES_FLOOR = )9;",           [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("HEADER_FAMILY_FLOOR",      f"{S}/seal_order_gate.mjs",          r"(export const HEADER_FAMILY_FLOOR = )85;",                [f"{S}/seal_order_gate.selftest.mjs"]),
     # 186 §3: the coverage floor on the UNANNOUNCED rule's own population. It is the only
     # one of the three seal-order floors that measures how much of the tree the rule can
     # READ, so a probe dropping the section idiom shrinks it without failing anything else.
@@ -187,6 +187,17 @@ DISCOVER_EXEMPT: dict[str, str] = {
                        "'17 of 17' by deleting sixty-eight checks, so the numerator's floor cannot "
                        "see the failure this one names. Pinned in the same `_self_check()`, same "
                        "nesting reason as INSTRUMENT_FLOOR",
+    "UNFINGERPRINTABLE_FLOOR": "control_gate.py's floor on what it CANNOT see — the statements "
+                        "carrying no string literal of their own, which no fingerprint can ever "
+                        "name (188 §4). Floored from below so the set cannot shrink by rewording, "
+                        "and pinned in the same `_self_check()` as the two above it. Same nesting "
+                        "reason as INSTRUMENT_FLOOR: its runner mutates the working tree",
+    "STATEMENT_ATTRIB_FLOOR": "scope_gate.py's floor on how many of contract_check.py's failure "
+                        "statements its own twenty-five blinded runs EXECUTE (188 §5, re-derived "
+                        "at 19 after control_gate.py had stated 23 for two sessions). Not swept "
+                        "here because its runner is scope_gate.py itself, which writes a mutant "
+                        "copy of contract_check.py into scripts/ — the same nesting rule. Pinned "
+                        "in that file's `_self_check()`, which fails if it is not positive",
     "TARGET_FLOOR": "the same shape in scope_gate.py and in THIS file — a gate cannot pin the floor "
                     "over its own target list without reading the constant it is checking. scope_gate "
                     "asserts its branch bites; this file's is the one below, and a session that "

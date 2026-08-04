@@ -124,10 +124,39 @@ export const ANNOUNCED_REGIONS_FLOOR = 80;
 // sealing files carry no header at all and this rule reads nothing in them; a probe that
 // DELETES its header does not fail — it removes itself, and the gate would print ok over
 // a shrinking population. 186 §6, paid on the way in for the second session running.
-export const MARKER_HEADER_FILES_FLOOR = 6;
+// 🔴 188 §6 — AND THE FLOOR IS NOW A CEILING TOO, BECAUSE THE FIVE WERE READ.
+//
+// 187 §8.3 handed the blind spot over with an instruction: READ the five sealing files
+// that carry no header before deciding whether they should, because two of them are
+// instruments rather than probes and that would make this a roster-with-a-reason rather
+// than five edits — which is exactly what §5 had just turned into.
+//
+// Read. THREE are probes in every sense that matters here — `cs-dap-plane`, `tree-shape`
+// and `vcs` each declare a `Population`, seal 8–11 families and print every marker. They
+// were missing a header for no reason beyond the order they were written in, and all
+// three now carry one. TWO are not probes: `_caller_shape.harness.mjs` is 183's live axis
+// for three instruments, and `_population.selftest.mjs` is the gate on the gate. Neither
+// has families a reader would grep for; a header on them would document markers that are
+// not a section index.
+//
+// 🔴 THE EXCLUSION IS DERIVED, NOT LISTED, AND THAT IS 187 §5's RULE APPLIED TO FILES
+// INSTEAD OF TOKENS. `MARKER_PHANTOM` excludes `_PING` and `_RESULT` by asking whether
+// the token is findable, rather than by a roster that rots; the same question here is
+// *is this file a probe?*, and the directory already answers it — the two instruments are
+// the only two entries whose names begin with `_`, which is the convention every file in
+// it already follows. So the rule is: EVERY SEALING FILE NOT NAMED `_*` MUST CARRY A
+// HEADER. A new probe is covered the moment it lands, an instrument is excluded by being
+// named like one, and nobody has to remember to update a list.
+export const headerRequired = (file) => !file.startsWith("_");
+
+// The floor stays, and it is now the OTHER half: `headerRequired` says which files are
+// judged, and this says how many must exist at all. Rename all nine probes to `_x` and
+// the rule above would judge nothing while reporting no offenders — the derived exclusion
+// buys freedom from a roster and costs exactly this one number to keep honest.
+export const MARKER_HEADER_FILES_FLOOR = 9;
 // The other half of the same collapse: every header still present and the manifests
-// emptied. Measured at 61 families across the six files that carry a header.
-export const HEADER_FAMILY_FLOOR = 55;
+// emptied. Measured at 61 across six files in 187; 91 across nine after 188 §6.
+export const HEADER_FAMILY_FLOOR = 85;
 
 /** The grep-able header block, if the file carries one. */
 export const MARKER_HEADER = /\/\/ Markers \(grep-able\):([\s\S]*?)\.\s*\n/;
@@ -361,7 +390,7 @@ export const NOT_A_PROBE = {
  * every branch below is empty against a healthy tree, so inlining them would make them
  * untestable). `files` is a list of `inspect()` results.
  */
-export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR } = {}) {
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired } = {}) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const totalSeals = files.reduce((n, f) => n + f.seals.length, 0);
@@ -387,7 +416,7 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
   const headerFamilies = withHeader.reduce((n, f) => n + f.markers.declared.length, 0);
   say(`SEAL_ORDER_MARKERS ${withHeader.length}/${headerFilesFloor} file(s) carry a grep-able header`
       + ` · ${headerFamilies}/${headerFamilyFloor} famil(ies) declared in them`
-      + ` · ${files.length - withHeader.length} file(s) carry none and are unread by this rule`);
+      + ` · ${files.filter((f) => !needsHeader(f.file)).length} instrument(s) excluded by name`);
 
   if (withHeader.length < headerFilesFloor) {
     say(`🔴 MARKER_COVERAGE_COLLAPSE ${withHeader.length} < ${headerFilesFloor} — a probe that DELETES its`);
@@ -457,6 +486,18 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
     // 🔴 THE THIRD RULE, PER FILE, AND IT RUNS BEFORE THE EXEMPTION BELOW BECAUSE THE
     // ONE EXEMPT FILE CARRIES NO HEADER AND IS THEREFORE ALREADY OUT OF SCOPE — an
     // exemption that also happens to cover something is 175's dead-entry shape.
+    // 🔴 188 §6 — AND THE MISSING HEADER IS NOW A FAILURE FOR A PROBE. Until this session
+    // `markers === null` was silently out of scope: a probe could delete its header and
+    // remove itself from the rule rather than fail it, with only a floor watching the
+    // count. The exclusion is derived from the name, so nothing has to be remembered.
+    if (!f.markers && needsHeader(f.file)) {
+      out.failed = true;
+      say(`\n🔴 MARKER_NO_HEADER ${f.file} seals ${f.seals.length} section(s) and carries no`);
+      say(`   grep-able \`// Markers (grep-able): …\` header. A probe's header is the index a`);
+      say(`   reader greps to find a section; without one MARKER_UNLISTED reads nothing here,`);
+      say(`   so the file is not exempt from the rule — it is invisible to it. Instruments are`);
+      say(`   excluded by being named \`_*\`; if this file is one, rename it, do not list it.`);
+    }
     if (f.markers) {
       const { declared, listed, body } = f.markers;
       const inHeader = new Set(listed);

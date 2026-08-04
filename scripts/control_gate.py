@@ -115,6 +115,58 @@ def live_tests() -> str:
 def resolve(s: str) -> str:
     return s.replace("{V}", live_version()).replace("{TESTS}", live_tests())
 
+
+# ── 🔴 THE THREE DETECTORS BELOW ARE PURE FOR ONE REASON, AND MUTATE188 IS THE REASON ──
+#
+# Each was written inline first, and the reverse sweep declared three of them GREEN: on a
+# healthy tree every anchor matches exactly once, every row uses a placeholder and every
+# statement carries a literal, so each branch is EMPTY here and deleting it is invisible
+# to every live run. That is 176's rule — `gate_failed` was lifted out for exactly this —
+# arriving one level down, at the detectors instead of at the verdict.
+#
+# Lifted out, `_self_check()` can feed each one an input it MUST flag, so the branch is
+# asserted rather than merely present. The sweep's U1/U7/U8 are what these three answer.
+
+def derived_literal_problems(rows, values) -> tuple[list[str], int]:
+    """(problems, rows actually read) — anchors spelling out a number the tree derives.
+
+    🔴 THE SECOND RETURN VALUE IS NOT DECORATION. On a healthy tree `problems` is empty,
+    so an audit over ONE row and an audit over forty-two are the same observable, and
+    trimming the input is invisible — mutate188's U1. The count is what the caller pins.
+    """
+    rows = list(rows)
+    out: list[str] = []
+    for name, value in values:
+        if not value:
+            out.append(
+                f"{name} resolves to nothing — its source of truth moved, and every anchor "
+                f"using it would silently stop matching. Fix the derivation, not the rows."
+            )
+            continue
+        for cid, _c, _k, _t, old, new, _fp in rows:
+            if value in old or value in new:
+                out.append(
+                    f"{cid}: the anchor embeds the live value {value!r}, which this tree "
+                    f"derives. Write {name} instead — a literal here is outrun by the next "
+                    f"release or the next test, and the row stops applying anything."
+                )
+    return out, len(rows)
+
+
+def anchor_problem(text: str, old: str) -> int | None:
+    """The occurrence count, when it is not exactly one — 180 §9.3's trap.
+
+    Returns None when the anchor is applicable. A row whose anchor matches zero times
+    applies NOTHING, and without this the sweep prints `ok` over a mutation it never made.
+    """
+    n = text.count(old)
+    return None if n == 1 else n
+
+
+def unfingerprintable(stmts: list[tuple[int, str, str]]) -> list[int]:
+    """Statements carrying no string literal of their own, so no row can ever name one."""
+    return sorted({ln for ln, _lb, _b in stmts} - set(auto_fingerprints(stmts)))
+
 # ── the controls ──────────────────────────────────────────────────────────────────
 #
 # (id, check, kind, target, old, new, fingerprint)
@@ -206,7 +258,141 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "CHECKS_RUN roster drift"),
     ("22.twice", "22", "src", "", '\n_ran("13")\n', '\n_ran("13")\n_ran("13")\n',
      "CHECKS_RUN counted a name twice"),
+
+    # ══ 188 §4 — THE THIRTY-FOUR STATEMENTS COVERED BY NOTHING, MINUS WHAT RESISTED ══
+    #
+    # §8.2 handed these over with an instruction: do the cheap ones first and STOP at the
+    # first statement that resists, because 187 found none and the first is new
+    # information. Twenty-two of twenty-three candidates worked; the five that did not are
+    # in the note under CONTROLS_RESIST below, and not ONE of them resisted for the reason
+    # the handoff predicted.
+    #
+    # ── the ROSTER-HYGIENE family. These statements fire when contract_check's OWN roster
+    # disagrees with the tree, in one direction or the other. The roster IS the subject, so
+    # a `src` edit to it is precisely the mutation the statement describes — this is the
+    # same justification check 22's four rows carry, applied to a much larger family.
+    ("1.unfiled", "1", "src", "", '    TOOLS / "netcode.ts",\n', "",
+     "nor BRIDGE_SCAN_EXEMPT, so check 1 never sees them"),
+    ("10.unexpected", "10", "src", "", '    "godot://capabilities",\n', "",
+     "host/src registers MCP resources absent from EXPECTED_RESOURCE_URIS"),
+    ("10.misfiled", "10", "src", "", "RESOURCE_COUNT_REQUIRED: set[Path] = {\n",
+     'RESOURCE_COUNT_REQUIRED: set[Path] = {\n    ROOT / "docs/NO_SUCH_DOC.md",\n',
+     "RESOURCE_COUNT_REQUIRED names files absent from RESOURCE_DOCS"),
+    ("12.misfiled", "12", "src", "", "RECIPE_ROSTER_REQUIRED: set[Path] = {\n",
+     'RECIPE_ROSTER_REQUIRED: set[Path] = {\n    ROOT / "docs/NO_SUCH_DOC.md",\n',
+     "RECIPE_ROSTER_REQUIRED names files absent from RECIPE_DOCS"),
+    ("12.countmisfiled", "12", "src", "", "RECIPE_COUNT_REQUIRED: set[Path] = {\n",
+     'RECIPE_COUNT_REQUIRED: set[Path] = {\n    ROOT / "docs/NO_SUCH_DOC.md",\n',
+     "RECIPE_COUNT_REQUIRED names files absent from RECIPE_DOCS"),
+    ("16.unknown", "16", "src", "", "SHAPE_COVERAGE_EXEMPT: dict[str, str] = {}",
+     'SHAPE_COVERAGE_EXEMPT: dict[str, str] = {"__control_gate__": "a tool that does not exist"}',
+     "SHAPE_COVERAGE_EXEMPT names tool(s) that are not registered at all"),
+    ("13.exemptgone", "13", "src", "", '("docs/TOOL_CATALOG.md", "162-tool")',
+     '("docs/TOOL_CATALOG.md", "162000-tool")',
+     "which is no longer "),
+    ("roster.unlisted", "roster", "src", "",
+     '    Path("example/addons/breakpoint_mcp/plugin.cfg"),\n', "",
+     "copies exist that check 14's roster does not name"),
+    ("15.unexpected", "15", "src", "", '    Path("scripts/validate.sh"),\n', "",
+     "that check 15's exec roster does not name"),
+    ("15.notexec", "15", "src", "", "EXEC_ROSTER = {\n",
+     'EXEC_ROSTER = {\n    Path("README.md"),\n',
+     "It is meant to be run directly, but "),
+    ("14.norel", "14", "src", "",
+     '_one(r"^> \\*\\*npm [0-9.]+ · addon ([0-9]+\\.[0-9]+\\.[0-9]+) ", Path("README.md"), "addon version")',
+     '_one(r"^> \\*\\*npm [0-9.]+ · addon ([0-9]+\\.[0-9]+\\.[0-9]+) ", Path("README_NO_SUCH.md"), "addon version")',
+     "which does not exist. Every site on the "),
+    ("14.notone", "14", "src", "",
+     '_one(r"^- \\*\\*Version:\\*\\* host [0-9.]+ · addon ([0-9]+\\.[0-9]+\\.[0-9]+)", Path("docs/USER_GUIDE.md"), "addon version")',
+     '_one(r"^- \\*\\*NoSuchStamp:\\*\\* host [0-9.]+ · addon ([0-9]+\\.[0-9]+\\.[0-9]+)", Path("docs/USER_GUIDE.md"), "addon version")',
+     "Check 14 cannot verify a site it cannot locate"),
+    # 🔴 CHECKS 18/19 ARE GIT-DERIVED, AND THAT IS WHY BOTH OF THESE ARE ROSTER EDITS AND
+    # NOT TREE EDITS. Moving a `.uid` aside on disk changes nothing: the population comes
+    # from `git ls-files`, so the file is still tracked and check 18 stays green. That was
+    # measured, not assumed — the candidate that renamed `example-csharp/Player.cs.uid`
+    # RESISTED. It is 187 §31's corollary answering its own question, one check over.
+    ("18.nouid", "why", "src", "", '_UID_PROJECT_DIRS = ("example/", "example-csharp/")',
+     '_UID_PROJECT_DIRS = ("example/", "example-csharp/", "addons/")',
+     "have no tracked .uid sidecar"),
+    ("19.shipped", "why", "src", "",
+     'if p.suffix == ".uid" and str(p).startswith("addons/breakpoint_mcp/")',
+     'if p.suffix == ".uid" and str(p).startswith("example-csharp/addons/breakpoint_mcp/")',
+     "the distributable addon must not ship .uid sidecars"),
+    ("shape.nodef", "shape", "src", "",
+     '"generator result envelope": r"The shared generator result envelope',
+     '"generator result envelope": r"The NO SUCH generator result envelope',
+     "in a fenced json "),
+
+    # ── the DERIVED-SIDE family. The statement compares prose against a number the code
+    # derives. Moving the DERIVED side is the same disagreement as moving the prose, and
+    # unlike the prose it carries no literal for the next release to outrun — which is
+    # §2's whole lesson, applied on the way in rather than a release later.
+    ("11.countdrift", "11", "src", "", "total_tools = len(tool_set)\n",
+     "total_tools = len(tool_set) + 1\n",
+     "If one of these is a tool-FAMILY count that legitimately shares a line"),
+    ("addon.drift", "addon", "src", "",
+     'addon_version = _one(r\'^version="([^"]+)"\', ADDON_VERSION_SOURCE, "addon version")',
+     'addon_version = _one(r\'^version="([^"]+)"\', ADDON_VERSION_SOURCE, "addon version") + "x"',
+     "The addon copies must stay in lockstep"),
+
+    # ── the TREE family. Here the subject really is a shipped file, so the mutation is a
+    # text edit in it and nothing in contract_check.py moves.
+    ("5.badjson", "5", "sub", "docs/TOOL_CATALOG.md",
+     '"description": "A plain JSON scalar/array/object, OR a tagged Godot value.",',
+     '"description": "A plain JSON scalar/array/object, OR a tagged Godot value.",,',
+     "Invalid JSON block #"),
+    ("9.unannotated", "9", "sub", "host/src/annotations.ts",
+     '"asset_gen_placeholder", "asset_gen_sprite", "asset_gen_texture", "audio_bus_add",',
+     '"asset_gen_sprite", "asset_gen_texture", "audio_bus_add",',
+     "they would ship with no MCP risk hints"),
+    ("12.order", "12", "sub", "host/src/recipes.ts",
+     '\n  "recipe_2d_player_controller",\n  "recipe_wire_signal_and_assert",',
+     '\n  "recipe_wire_signal_and_assert",\n  "recipe_2d_player_controller",',
+     "Order is compared as well as membership"),
+    ("12.dupe", "12", "sub", "host/src/recipes.ts",
+     'server.registerPrompt(\n    "recipe_type_safe_edit",',
+     'server.registerPrompt(\n    "recipe_2d_player_controller",',
+     "Duplicate registerPrompt recipe names:"),
+    # 🔴 `recipe_type_safe_editx`, LOWER-CASE, AND THE FIRST DRAFT USED `...X` AND DID NOT
+    # REDDEN. `doc_recipe_mentions` matches `\brecipe_[a-z0-9_]+`, so an upper-case suffix
+    # leaves the original name still matching and the mention still found. The spike
+    # caught it; a hand-written row would have shipped as a control that controls nothing.
+    ("12.partial", "12", "sub", "README.md",
+     "- **`recipe_type_safe_edit`**", "- **`recipe_type_safe_editx`**",
+     "A hand-maintained roster allowed "),
+    # 188 §3's new statement, and the one that could not be controlled until it had a
+    # population at all: RECIPE_COUNT_REQUIRED did not exist when this row was drafted.
+    ("12.silentcount", "12", "sub", "README.md",
+     "Breakpoint ships 8 recipes", "Breakpoint ships eight recipes",
+     "state no recipe count at all"),
+    ("15.noshebang", "15", "sub", "scripts/validate.sh", "#!/", "##/",
+     "does not begin with `#!`"),
 ]
+
+# 🔴 THE FIVE THAT RESISTED, AND WHY NONE OF THEM IS THE CASE THE HANDOFF EXPECTED.
+#
+# §8.2's instruction was to stop at the first statement with no possible one-line tree
+# edit, because that is a check that cannot fail and should be DELETED rather than
+# counted. Five statements resisted and every one has an obvious tree edit. What they
+# lack is something else, and the three reasons are different from each other:
+#
+#   L1934  check 12's recipe-count comparison — AN EMPTY POPULATION. No doc stated a
+#          recipe count, so `0 count claim(s) checked` printed on every green run and
+#          nothing could disagree. Not deleted and not counted: GIVEN A POPULATION
+#          (RECIPE_COUNT_REQUIRED, 188 §3), after which `12.silentcount` above controls
+#          the new statement and the old one compares something.
+#
+#   L237   `errors.append(_WIRE_CANARY)` — NO LITERAL OF ITS OWN. Its argument is a Name.
+#   L1557  `errors.extend(shape_cov_errors)`      — forwards a list built elsewhere.
+#   L1828  `errors.append("\n      - ".join(exempt_errors))` — same shape.
+#          🔴 ALL THREE HAVE TREE EDITS THAT REDDEN THEM. What they cannot have is a
+#          FINGERPRINT: the static resolver matches against the string constants under
+#          the call, and these carry none, so no row could ever name exactly one of them.
+#          They are invisible to this gate BY CONSTRUCTION, which is a property of the
+#          instrument and not of the checks — and it is floored below rather than
+#          silently subtracted, because a gate that quietly drops what it cannot see
+#          reports a coverage ratio over a population it chose.
+UNFINGERPRINTABLE_FLOOR = 3
 
 # ── the three floors ──────────────────────────────────────────────────────────────
 #
@@ -215,19 +401,22 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
 # every remaining row still passes; the only thing that moves is a number nobody reads.
 # 186 §6 paid this on the way in for a new coverage number and the handoff's own note is
 # that the OLD one is still unfloored — so this one is floored on the way in too.
-CONTROLLED_FLOOR = 17          # 187: seventeen statements, the five checks that were at zero
+CONTROLLED_FLOOR = 41          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
 
 # 🔴 AND THE DENOMINATOR IS FLOORED TOO, WHICH IS THE HALF A COVERAGE RATIO ALWAYS MISSES.
 # "17 of 70" improves to "17 of 17" by DELETING sixty-eight failure statements, and every
 # assertion in this file would still hold. A ratio with only its numerator pinned is a
 # number that gets better as the thing it measures gets smaller — 175's rule, stated as a
 # floor instead of quoted.
-STATEMENT_FLOOR = 70           # 186 measured 70; it is supposed to grow
+STATEMENT_FLOOR = 72           # 186 measured 70; 188 §3 added two. It is supposed to grow
 
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
 # both-halves lesson: the set catches a check renamed or swapped, the floor catches the
 # roster itself being trimmed to match a smaller reality.
-CHECKS_CLOSED = ("3", "11c", "host", "17", "22")
+CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
+                 # 188: every check that gained at least one control this session
+                 "1", "5", "9", "10", "11", "12", "13", "14", "15", "16",
+                 "addon", "roster", "shape", "why")
 
 
 def statements(src: str) -> list[tuple[int, str, str]]:
@@ -265,18 +454,42 @@ def statements(src: str) -> list[tuple[int, str, str]]:
     return sorted(out)
 
 
+def auto_fingerprints(stmts: list[tuple[int, str, str]], minimum: int = 16) -> dict[int, str]:
+    """line -> the longest string literal that resolves to exactly ONE statement.
+
+    🔴 EXPORTED FOR `scope_gate.py`, WHICH IS WHY IT LIVES HERE. That gate already runs
+    twenty-five blinded copies of `contract_check.py` and throws every one of their
+    outputs away; giving it this table lets it DERIVE which statements its own mutants
+    execute, at zero marginal cost, instead of this file stating a number measured once in
+    186 with a shim and copied into a comment ever since (188 §5 — re-derived at 19, not
+    23). The uniqueness rule is the same one CONTROLS' hand-written fingerprints obey: a
+    literal two statements share proves nothing about either.
+    """
+    out: dict[int, str] = {}
+    for ln, _label, blob in stmts:
+        parts = sorted((p.strip() for p in re.split(r"\s{2,}|\n", blob)
+                        if len(p.strip()) >= minimum), key=len, reverse=True)
+        for p in parts:
+            if sum(1 for _l, _lb, b in stmts if p in b) == 1:
+                out[ln] = p
+                break
+    return out
+
+
 def gate_failed(unresolved: int, uncontrolled: int, controls_low: bool,
-                statements_low: bool, roster_drift: bool, unrestored: int) -> bool:
-    """This gate's verdict, as a PURE function of its six populations.
+                statements_low: bool, roster_drift: bool, unrestored: int,
+                unfingerprintable_low: bool = False) -> bool:
+    """This gate's verdict, as a PURE function of its SEVEN populations.
 
     🔴 EXTRACTED FOR `combineFailed`'s REASON (180 §7.1, 174 §8, and scope_gate.py's
     `gate_failed` beside it — the same defect five sessions running). On a healthy tree
-    every one of these six is already falsey, so no term is ever satisfied APART from the
+    every one of these is already falsey, so no term is ever satisfied APART from the
     others and deleting any single one is invisible to every live run. Lifted out, the
     truth table below can assert each one reaches the exit code alone.
     """
     return (bool(unresolved) or bool(uncontrolled) or controls_low
-            or statements_low or roster_drift or bool(unrestored))
+            or statements_low or roster_drift or bool(unrestored)
+            or unfingerprintable_low)
 
 
 def _self_check() -> list[str]:
@@ -301,6 +514,7 @@ def _self_check() -> list[str]:
         ("statements_low", (0, 0, False, True, False, 0)),
         ("roster_drift", (0, 0, False, False, True, 0)),
         ("unrestored", (0, 0, False, False, False, 1)),
+        ("unfingerprintable_low", (0, 0, False, False, False, 0, True)),
     )
     for label, args in alone:
         if not gate_failed(*args):
@@ -309,7 +523,8 @@ def _self_check() -> list[str]:
                 f"the exit code by itself, so the branch that feeds it deletes invisibly"
             )
     for name, value in (("CONTROLLED_FLOOR", CONTROLLED_FLOOR),
-                        ("STATEMENT_FLOOR", STATEMENT_FLOOR)):
+                        ("STATEMENT_FLOOR", STATEMENT_FLOOR),
+                        ("UNFINGERPRINTABLE_FLOOR", UNFINGERPRINTABLE_FLOOR)):
         if value <= 0:
             problems.append(
                 f"{name} is {value}. A floor at zero cannot bite, and this file is the only "
@@ -323,20 +538,62 @@ def _self_check() -> list[str]:
     # next commit — the release cut — moved it, so CI went red on the release itself.
     # Checked against the LITERAL row, before `resolve()` runs, so a row that spells the
     # number out is caught and a row that uses the placeholder is not.
-    for name, value in (("{V}", live_version()), ("{TESTS}", live_tests())):
-        if not value:
+    # 🔴 THE REAL ROWS AND THE PLANTED ONE GO THROUGH ONE CALL, ON PURPOSE. Audited
+    # separately, the live call appends nothing on a healthy tree and deleting it is
+    # invisible — mutate188's U1 proved exactly that, and it was the last mutant standing.
+    # Passing the planted row through the SAME call means a deletion takes the assertion
+    # with it and `audit` becomes a NameError rather than an empty list.
+    #
+    # 🔴 WHAT THIS STILL DOES NOT CATCH, WRITTEN DOWN RATHER THAN LEFT TO BE DISCOVERED:
+    # deleting this whole block. No self-check can assert its own presence, and that is
+    # `floor_pin_gate.py`'s job one level up and the reverse sweep's at this one. It is a
+    # real residual, not a solved problem.
+    values = (("{V}", live_version()), ("{TESTS}", live_tests()))
+    PLANTED = ("__planted__", "x", "sub", "x", f"npm {live_version() or 'x.y.z'} ·", "y", "z")
+    audit, rows_read = derived_literal_problems([*CONTROLS, PLANTED], values)
+    if rows_read != len(CONTROLS) + 1:
+        problems.append(
+            f"the anchor audit read {rows_read} row(s), not every control plus the planted "
+            f"one ({len(CONTROLS) + 1}). A trimmed input is silent on a healthy tree, so "
+            f"this count is the only thing that notices the rule covering less than it says."
+        )
+    if live_version() and not any(p.startswith("__planted__:") for p in audit):
+        problems.append(
+            "derived_literal_problems does NOT flag a row spelling out the live version. "
+            "That rule is the whole of §2 and on a healthy tree it never fires, so this "
+            "planted row is the only thing standing between it and a silent deletion."
+        )
+    problems += [p for p in audit if not p.startswith("__planted__:")]
+
+    # ── 🔴 AND EACH DETECTOR IS FED AN INPUT IT MUST FLAG, WHICH IS WHAT mutate188 ──
+    # BOUGHT. The sweep un-fixed three branches below and every one SURVIVED: on a healthy
+    # tree they are empty, so their deletion is invisible to every live run and the gate
+    # stayed green over an instrument with its detection removed. These four cases are the
+    # `alone` truth table one level down, at the detectors instead of at the verdict.
+    if live_version():
+        if derived_literal_problems([("clean", "x", "sub", "x", "npm {V} ·", "y", "z")], values)[0]:
+            problems.append("derived_literal_problems flags a row that uses the placeholder")
+    if anchor_problem("aXa", "X") is not None:
+        problems.append("anchor_problem rejects an anchor occurring exactly once")
+    for text, old, label in (("aa", "X", "zero"), ("XaX", "X", "two")):
+        if anchor_problem(text, old) is None:
             problems.append(
-                f"{name} resolves to nothing — its source of truth moved, and every anchor "
-                f"using it would silently stop matching. Fix the derivation, not the rows."
+                f"anchor_problem does NOT flag an anchor occurring {label} time(s). Without "
+                f"it the sweep reports ok over a mutation it never applied (180 §9.3), and "
+                f"every row's verdict becomes a statement about nothing."
             )
-            continue
-        for cid, _c, _k, _t, old, new, _fp in CONTROLS:
-            if value in old or value in new:
-                problems.append(
-                    f"{cid}: the anchor embeds the live value {value!r}, which this tree "
-                    f"derives. Write {name} instead — a literal here is outrun by the next "
-                    f"release or the next test, and the row stops applying anything."
-                )
+    # The uniqueness rule inside auto_fingerprints, which scope_gate.py's attribution rests
+    # on: a literal two statements share must be REJECTED, or a hit credits both.
+    shared = [(1, "a", "the shared sentence here"), (2, "b", "the shared sentence here")]
+    if auto_fingerprints(shared):
+        problems.append(
+            "auto_fingerprints picks a literal that two statements share — an attribution "
+            "built on it credits a statement that never fired (188 §5's whole basis)."
+        )
+    if unfingerprintable(shared) != [1, 2]:
+        problems.append("unfingerprintable does not report statements no row can name")
+    if unfingerprintable([(1, "a", "a literal long enough to be unique")]):
+        problems.append("unfingerprintable reports a statement that carries its own literal")
     return problems
 
 
@@ -446,8 +703,8 @@ def main() -> int:
         try:
             if kind == "sub":
                 text = ORIGINALS.setdefault(path, path.read_text(encoding="utf-8"))
-                n = text.count(old)
-                if n != 1:
+                n = anchor_problem(text, old)
+                if n is not None:
                     uncontrolled.append(f"{cid}: anchor occurs {n} time(s) in {target}, needs exactly 1")
                     print(f"🔴 CONTROL_GATE_ANCHOR {cid}: {n} occurrence(s) of the anchor in {target}")
                     continue
@@ -459,8 +716,8 @@ def main() -> int:
                 shutil.move(str(path), str(moved))
                 red, executed, out = run(CC)
             else:                          # "src" — the mutant copy, tree untouched
-                n = src.count(old)
-                if n != 1:
+                n = anchor_problem(src, old)
+                if n is not None:
                     uncontrolled.append(f"{cid}: source anchor occurs {n} time(s), needs exactly 1")
                     print(f"🔴 CONTROL_GATE_ANCHOR {cid}: {n} occurrence(s) in contract_check.py")
                     continue
@@ -507,21 +764,45 @@ def main() -> int:
     controlled = len(covered) - len(uncontrolled)
     print(f"\nCONTROL_GATE_COVERED {controlled} of {len(stmts)} failure statement(s) have a positive\n"
           f"   control here · checks closed: {' '.join(sorted(CHECKS_CLOSED))}")
-    # 🔴 NAMED, NOT DERIVED, AND SAID SO. `scope_gate.py`'s 25 blinded runs execute 23
-    # further statements (186 §7, measured with a recording shim that is far too heavy for
-    # a CI step). This gate does not re-derive that number and does not add it to the one
-    # above — the blind spot is the rest, and printing it on GREEN runs is 186 §6's rule:
-    # a coverage number that only appears when something is wrong is not a coverage number.
+
+    # 🔴 WHAT THIS GATE CANNOT SEE, COUNTED RATHER THAN SUBTRACTED (188 §4). A statement
+    # carrying no string constant of its own — the wire canary, and the two that forward a
+    # list built elsewhere — can never be named by a fingerprint that resolves to exactly
+    # one statement. That is a property of the INSTRUMENT, and a gate that quietly drops
+    # what it cannot read reports a ratio over a population it chose for itself. Floored
+    # from below so the set cannot shrink by rewording, and printed on green runs.
+    blind_to_rows = unfingerprintable(stmts)
+    unfingerprintable_low = len(blind_to_rows) < UNFINGERPRINTABLE_FLOOR
+    print(f"CONTROL_GATE_UNFINGERPRINTABLE {len(blind_to_rows)}/{UNFINGERPRINTABLE_FLOOR} "
+          f"statement(s) carry no literal of their own and can never be named by a row: "
+          f"{blind_to_rows}")
+    if unfingerprintable_low:
+        print(f"🔴 CONTROL_GATE_UNFINGERPRINTABLE_LOW {len(blind_to_rows)} < "
+              f"{UNFINGERPRINTABLE_FLOOR} — one of these gained a literal, or was deleted.\n"
+              f"   Either is fine and both are DELIBERATE: lower the floor in the same commit.")
+    # 🔴 AND THE STATED NUMBER IS GONE (188 §5). Until this session the line below read
+    # "…23 of those are covered by scope_gate.py's blinded runs (186 §7, STATED, NOT
+    # RE-DERIVED HERE), which leaves ~30 covered by nothing at all", and both numbers were
+    # wrong. 186 measured 23 statements executed by ANYTHING with a recording shim; the
+    # comment restated that as 23 covered by scope_gate specifically, and the subtraction
+    # was carried into a handoff as the size of the remaining work. Re-derived against
+    # scope_gate's own twenty-five mutants: 19. The residue was 34, not 30 — four
+    # statements were being credited to a source that does not cover them.
+    #
+    # So this gate no longer asserts anyone else's coverage. `scope_gate.py` DERIVES its
+    # own attribution now, from the outputs of runs it was already paying for, and prints
+    # SCOPE_GATE_STATEMENTS. Two lines, each owned by the gate that can measure it, beats
+    # one line quoting a number nobody re-ran.
     print(f"CONTROL_GATE_BLIND {len(stmts) - controlled} statement(s) have no positive control in this\n"
-          f"   file; 23 of those are covered by scope_gate.py's blinded runs (186 §7, stated, not\n"
-          f"   re-derived here), which leaves ~{len(stmts) - controlled - 23} covered by nothing at all")
+          f"   file. What ELSE reaches them is scope_gate.py's to measure and it prints\n"
+          f"   SCOPE_GATE_STATEMENTS from its own blinded runs — no number is stated here")
 
     if gate_failed(len(unresolved), len(uncontrolled), controls_low,
-                   statements_low, roster_drift, len(unrestored)):
+                   statements_low, roster_drift, len(unrestored), unfingerprintable_low):
         print("\nCONTROL_GATE 🔴 FAILED")
         return 1
     # 🔴 THE VERDICT NAMES WHAT IT VERIFIED (174 §5). Not "every check can fail" — this
-    # file has seventeen statements' worth of evidence and the rest of the file is
+    # file has one statement's worth of evidence per row and the rest of the file is
     # untested by it.
     print(f"\nCONTROL_GATE ok — all {len(CONTROLS)} control(s) applied, each reddened contract_check,\n"
           f"                  each reached the report, and each fired the one statement it names")

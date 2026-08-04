@@ -363,7 +363,7 @@ tool it always was.
 
 ## Recipes (free, curated task workflows)
 
-Breakpoint ships a set of **recipes** — short, opinionated workflows that drive its own
+Breakpoint ships 8 recipes — short, opinionated workflows that drive its own
 enforced tools to accomplish a common Godot task and then *verify* it. They're exposed as
 standard **MCP prompts** (discoverable via `prompts/list`), so a client can pull one on demand:
 

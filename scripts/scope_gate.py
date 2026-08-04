@@ -27,6 +27,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 🔴 ONE PARSER, NOT TWO. `statements()` is an AST walk that took three drafts in 186 to
+# get right; `auto_fingerprints()` enforces the same one-statement-per-literal rule
+# CONTROLS obeys by hand. A second copy here would drift from the gate whose number this
+# one is meant to complete. control_gate does NOT import this file, so the edge is acyclic.
+from control_gate import (  # noqa: E402
+    auto_fingerprints as cg_auto_fingerprints,
+    statements as cg_statements,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "scripts" / "contract_check.py"
 MUT = ROOT / "scripts" / "_scope_gate_mutant.py"
@@ -79,8 +89,24 @@ def targets(text: str) -> list[tuple[str, str, int]]:
 REPORT_MARKER = "=== breakpoint-mcp static contract check ==="
 
 
-def run(source: str) -> tuple[bool, bool]:
-    """(green, executed). The mutant is removed whatever happens.
+# 🔴 188 §5 — THE OUTPUT THIS GATE WAS ALREADY PAYING FOR AND THREW AWAY.
+#
+# `control_gate.py` printed, on every green run, "…23 of those are covered by
+# scope_gate.py's blinded runs (186 §7, STATED, NOT RE-DERIVED HERE)". Both halves of
+# that sentence were a problem. 186 measured 23 statements executed by ANYTHING, using a
+# recording shim; the comment restated it as 23 covered by THIS gate, and a handoff
+# subtracted it to size the remaining work. Re-derived here, against the twenty-five
+# mutants below: NINETEEN. The residue was 34, not ~30.
+#
+# The measurement costs nothing. This gate already runs each mutant as a subprocess and
+# already has its stdout in hand — it simply discarded it and kept the exit code. 184's
+# rule was "a number an instrument prints and no gate reads is an unasked question"; this
+# is one turn further down, an OUTPUT an instrument produces and no gate reads at all.
+STATEMENT_ATTRIB_FLOOR = 20    # 19 when re-derived; 20 once 188 §3 gave check 12 a population
+
+
+def run(source: str) -> tuple[bool, bool, str]:
+    """(green, executed, output). The mutant is removed whatever happens.
 
     🔴 `executed` EXISTS BECAUSE `green=False` HAD TWO CAUSES AND ONE OBSERVABLE (181).
 
@@ -115,10 +141,11 @@ def run(source: str) -> tuple[bool, bool]:
     finally:
         MUT.unlink(missing_ok=True)
     green = p.returncode == 0 and "ALL HARD CHECKS PASSED" in (p.stdout + p.stderr)
-    return green, REPORT_MARKER in p.stdout
+    return green, REPORT_MARKER in p.stdout, p.stdout + p.stderr
 
 
-def gate_failed(targets_low: bool, blind: int, never_ran: int) -> bool:
+def gate_failed(targets_low: bool, blind: int, never_ran: int,
+                attrib_low: bool = False) -> bool:
     """This gate's verdict, as a PURE function of its three populations.
 
     🔴 EXTRACTED FOR `combineFailed`'s REASON, ONE FILE OVER (180 §7.1, and 174 §8 / 176's
@@ -129,7 +156,7 @@ def gate_failed(targets_low: bool, blind: int, never_ran: int) -> bool:
     falsey, so the new term is never satisfied apart from the others and its deletion is
     invisible to every live run. Lifted out, the truth table below can assert it.
     """
-    return targets_low or bool(blind) or bool(never_ran)
+    return targets_low or bool(blind) or bool(never_ran) or attrib_low
 
 
 def _self_check() -> list[str]:
@@ -138,8 +165,13 @@ def _self_check() -> list[str]:
     problems = []
     if gate_failed(False, 0, 0):
         problems.append("gate_failed reports a failure over three healthy populations")
+    if STATEMENT_ATTRIB_FLOOR <= 0:
+        problems.append(
+            f"STATEMENT_ATTRIB_FLOOR is {STATEMENT_ATTRIB_FLOOR}. A floor at zero cannot bite, "
+            f"and this is the only place the attribution is pinned."
+        )
     for label, args in (("targets_low", (True, 0, 0)), ("blind", (False, 1, 0)),
-                        ("never_ran", (False, 0, 1))):
+                        ("never_ran", (False, 0, 1)), ("attrib_low", (False, 0, 0, True))):
         if not gate_failed(*args):
             problems.append(
                 f"gate_failed does not fail on {label} ALONE — that population cannot reach "
@@ -169,7 +201,7 @@ def main() -> int:
 
     # CONTROL. An unmutated copy MUST pass, or every 'caught' below is meaningless —
     # 171 §5's M4, which is the only reason the green mutants there could be believed.
-    control_green, control_ran = run(text)
+    control_green, control_ran, control_out = run(text)
     if not control_green:
         print("🔴 SCOPE_GATE_CONTROL an UNMUTATED copy does not pass — the harness is lying, stop.")
         return 1
@@ -181,11 +213,21 @@ def main() -> int:
     print("SCOPE_GATE_CONTROL ok — an unmutated copy passes AND prints the report marker,\n"
           "                       so both 'caught' and 'never ran' are distinguishable below")
 
+    # The attribution table, built once. A statement counts as reached by this gate when
+    # its own longest UNIQUE literal appears in a mutant's output — the same evidence
+    # control_gate.py accepts from its hand-written fingerprints, applied to all of them.
+    # Statements carrying no literal are absent from the table by construction and are
+    # counted separately there (CONTROL_GATE_UNFINGERPRINTABLE), never silently dropped.
+    stmts = cg_statements(text)
+    fps = cg_auto_fingerprints(stmts)
+    reached: set[int] = set()
+
     blind: list[str] = []
     never_ran: list[str] = []
     for name, empty, pos in sorted(found):
         mutant = text[:pos] + f"\n    return {empty}  # SCOPE_GATE" + text[pos:]
-        green, executed = run(mutant)
+        green, executed, out = run(mutant)
+        reached.update(ln for ln, fp in fps.items() if fp in out)
         if green:
             blind.append(name)
             print(f"🔴 SCOPE_GATE_BLIND {name} -> {empty}: the run is STILL GREEN")
@@ -196,6 +238,19 @@ def main() -> int:
             print(f"  ok   {name:<34} -> {empty:<14} blinded, run goes red")
 
     print(f"SCOPE_GATE_BLIND_COUNT {len(blind)} of {len(found)} · never-ran {len(never_ran)}")
+    attrib_low = len(reached) < STATEMENT_ATTRIB_FLOOR
+    print(f"SCOPE_GATE_STATEMENTS {len(reached)}/{STATEMENT_ATTRIB_FLOOR} of {len(stmts)} failure "
+          f"statement(s) in contract_check.py are\n"
+          f"                      EXECUTED by these blinded runs — derived from their output, not "
+          f"stated (188 §5)")
+    if attrib_low:
+        print(
+            f"🔴 SCOPE_GATE_ATTRIB_COLLAPSE {len(reached)} < {STATEMENT_ATTRIB_FLOOR} — these mutants\n"
+            "   reach fewer of contract_check.py's failure statements than when this floor was\n"
+            "   measured. Every 'ok' above can still print while the runs redden for a shallower\n"
+            "   reason than before, so this is the half the exit code cannot see. Lower it ON\n"
+            "   PURPOSE if an enumerator was retired; otherwise a check stopped reporting."
+        )
     if never_ran:
         print(
             f"\n🔴 {len(never_ran)} mutant(s) exited non-zero WITHOUT executing a single check, and\n"
@@ -215,7 +270,7 @@ def main() -> int:
             "   and `len(x) >= len(x)` is why it was on this list)."
         )
     # 🔴 ONE VERDICT, THROUGH THE FUNCTION THE SELF-CHECK PROVED (see gate_failed above).
-    if gate_failed(targets_low, len(blind), len(never_ran)):
+    if gate_failed(targets_low, len(blind), len(never_ran), attrib_low):
         print("\nSCOPE_GATE 🔴 FAILED")
         return 1
     # 🔴 THE VERDICT NAMES WHAT IT ACTUALLY VERIFIED (174 §5). The old wording —

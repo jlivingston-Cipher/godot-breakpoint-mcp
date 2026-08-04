@@ -330,7 +330,7 @@ INSTRUMENTS = [
             # quietly, which is the only reason the target is still live. Do not soften
             # the match to a prefix: a prefix would survive the next parameter and stop
             # being a statement about the function that ships.
-            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR } = {}) {":
+            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired } = {}) {":
                 'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
             # 🆕 187 — THE THIRD RULE'S FINDER. `markerList` returning null for every file
             # empties the marker population entirely, and nothing but MARKER_HEADER_FILES_FLOOR
