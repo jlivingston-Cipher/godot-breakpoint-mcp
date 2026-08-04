@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.60.0] — 2026-08-04
+
 ### Fixed — the one number in the population line that nothing read, and the four sections it was hiding
 
 183 §12.3 handed this over as a one-liner: a claim made after the last seal belongs to no
