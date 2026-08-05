@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.6] — 2026-08-05
+
 ### Fixed — the call, the shrink, and the number one file over
 
 201 declared two gaps green rather than closing them and handed both over, plus a third it
