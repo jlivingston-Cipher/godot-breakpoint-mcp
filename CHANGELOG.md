@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.3] — 2026-08-05
+
 ### Fixed — the reads that ran outside their claims, and the floors a name could not reach
 
 198 §9.2 handed over twelve declared crashes as the only open item with a written-down end
