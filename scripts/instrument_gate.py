@@ -589,6 +589,66 @@ LATE_LIVE = {
     "_population.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
 }
 
+# ── 🔴 198 §3 — THE LATE AXIS'S VERDICT MARKER, AND WHY IT IS NOT `VERDICT_MARKER` ──
+#
+# 197 §5 gave the PRIMARY axis a declared marker per instrument, proved on its control run.
+# The obvious way to pay 197 §8.3 was to hand the same dict to `run_counting`. 🔴 THE
+# CAPTURE REFUTED THAT BEFORE A LINE WAS WRITTEN: all EIGHT `B:live` controls run green
+# WITHOUT printing their instrument's marker, because the live caller is a DIFFERENT
+# COMMAND that prints a DIFFERENT REPORT. Reusing `VERDICT_MARKER` there would have
+# classified every red on the live axis as a crash — the axis that finds things, switched
+# to noise, by the fix meant to sharpen it.
+#
+# 🔴 SO THIS ROSTER IS KEYED BY THE COMMAND, NOT BY THE INSTRUMENT. Three instruments share
+# `_caller_shape.harness.mjs`; keyed by instrument the same string would be stored three
+# times and two copies could rot without anything reading them (180 §7.1's class).
+#
+# 🔴 AND THE CHOICE OF STRING WAS MADE AGAINST GROUND TRUTH, NOT AGAINST LOOKS. Two drafts
+# of the reader were refuted offline against one capture, at zero cost (197 §38):
+#
+#   draft 1  rank candidates by "how few reds would this call a crash", smallest first.
+#            🔴 WRONG DIRECTION: a marker printed EARLY survives a run that dies later, so
+#            the minimum is systematically the marker LEAST able to tell a catch from a
+#            crash. On `_caller_shape.harness.mjs` it picks `SHAPE_SEAL_A`, which calls all
+#            THREE genuine crashes a catch.
+#   draft 2  take the gate's final verdict line. 🔴 ALSO WRONG, the other way: `CALLER_SHAPE`
+#            is printed only on a GREEN run, so it calls SEVEN genuine catches a crash —
+#            197 §35 exactly, a discriminator exercised on one class only.
+#   draft 3  classify each captured run independently — node prints an uncaught exception as
+#            a stack-frame trace, which no gate report uses — and then keep the candidates
+#            that AGREE with that classification on every row. `SHAPE_POPULATION` is the
+#            only one of the six that does.
+LATE_VERDICT_MARKER: dict[str, str] = {
+    "node scripts/tautology_gate.mjs": "TAUT_GATE",
+    "node scripts/verdict_gate.mjs": "VERDICT_GATE",
+    "node scripts/boundary_gate.mjs": "BOUNDARY_GATE",
+    "node scripts/path-cohort.mjs --summary": "PATH_COHORT",
+    "node test-integration/_caller_shape.harness.mjs": "SHAPE_POPULATION",
+}
+
+# 🔴 THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
+# teeth (174 §5), for the axis that has different ones. The `A:gate` half needs NO roster of
+# its own: measured over all 55 red rows, the late axis crashes in EXACTLY the nine places
+# the primary axis does, because the crash is a property of the SELF-TEST's setup read and
+# not of which injector wrote the mutant. §8.2's nine call sites therefore pay both axes at
+# once, and this file reuses `CRASH_DECLARED` there rather than copying it.
+LATE_CRASH_DECLARED_B: dict[tuple[str, str], str] = {
+    ("_population.mjs", "{SIG:claim}"):
+        "`_caller_shape.harness.mjs`'s own `sok()` (line 449, reached from `runSeal`) asserts "
+        "`SHAPE_SEAL_A_DRAINED` OUTSIDE any claim, so a blinded `claim` makes the harness "
+        "throw an AssertionError rather than record one — the same setup-read shape as the "
+        "nine on the primary axis, one file over, in the substitute caller",
+    ("_population.mjs", "{SIG:seal}"):
+        "the same `sok()` on `SHAPE_SEAL_B_DRAINED`; a blinded `seal` drains 0",
+    ("_population.mjs", "{SIG:assert}"):
+        "the same `sok()` on `SHAPE_SEAL_A_DRAINED`, one level up — a blinded `assert` "
+        "records nothing for the seal to drain",
+}
+LATE_CRASH_CEILING_A = 9   # 🔴 CEILINGS, AND BOTH ARE SUPPOSED TO FALL. Two numbers rather
+LATE_CRASH_CEILING_B = 3   # than one sum: 194 §33 — two paths under one subtraction need
+#                            two numbers, and these two are fixed by editing DIFFERENT files
+#                            (the self-tests for A, the caller-shape harness for B).
+
 # 🔴 DECLARED GREEN, WITH A REASON EACH RATHER THAN A NAME EACH (174 §5) — AND THE GATE
 # FAILS IF ONE EVER STARTS REDDENING (181's `mutate181.py` idiom). A late blind that
 # leaves a gate green is not automatically a defect: two states produce it, and only one
@@ -646,11 +706,117 @@ def late(text: str, sig: str, empty: str) -> str | None:
             + text[brace + 1 :])
 
 
-def run_counting(cmd, cwd) -> tuple[bool, int]:
-    """(gate ran green, how many times the target was called)."""
+def late_marker(cmd, inst_name: str, axis: str) -> str:
+    """The string that says THIS COMMAND reached its own verdict.
+
+    `A:gate` runs `inst["gate"]` — one command per instrument — so `VERDICT_MARKER` is the
+    right key there and was already proved on that command's control by 197 §5. `B:live`
+    runs something else entirely and needs its own roster (see `LATE_VERDICT_MARKER`).
+
+    🔴 THE `"\\0"` FALLBACK FAILS LOUD, NOT QUIET. A command with no entry gets a marker
+    that can never appear, so every red over it is filed a CRASH and the gate reddens —
+    and `late_marker_roster_problems` has already said why. The alternative fallback,
+    "assume it reached its verdict", is the `returncode == 0` this whole change deletes.
+    """
+    if axis == "A:gate":
+        return VERDICT_MARKER.get(inst_name, "\0")
+    return LATE_VERDICT_MARKER.get(" ".join(cmd), "\0")
+
+
+def run_counting(cmd, cwd, marker: str) -> tuple[bool, bool, int, bool, int]:
+    """(green, REACHED ITS VERDICT, calls, THE HOOK LINE APPEARED, failures reported).
+
+    🔴 197 §8.3. This was `(p.returncode == 0, calls)` and carried BOTH defects 197 §5
+    fixed on the primary axis, plus a third that only exists here:
+
+      1. `red` had two causes and one observable — a late blind that CRASHES its gate read
+         exactly like one the gate CAUGHT. Measured: twelve rows across the two axes.
+      2. the failure COUNT was captured and thrown away, so the late axis had no blast
+         radius at all — 196 §3's defect, one file over.
+      3. 🔴 AND `max(hits) if hits else 0` MAPPED TWO STATES ONTO ONE NUMBER. The hook
+         writes its line from a `process.on("exit")` handler installed on the target's
+         FIRST call, so `hits == [1]` means "really called once" and `hits == []` means
+         THE HOOK NEVER RAN — the mutant did not load. Both landed in `calls <= 1`, both
+         were filed "a late blind is not constructible there", and NEITHER raised a
+         problem. That is 197 §3's SyntaxError reading as `ok`, on the other axis, in
+         softer language: `{SIG:judge}` was ALSO unloadable here for those 25 commits, and
+         this axis reported it as a target that simply is not called twice.
+    """
     p = subprocess.run(cmd, capture_output=True, text=True, cwd=str(cwd))
-    hits = [int(m) for m in re.findall(rf"{LATE_MARK} (\d+)", p.stdout + p.stderr)]
-    return (p.returncode == 0, max(hits) if hits else 0)
+    out = p.stdout + p.stderr
+    hits = [int(m) for m in re.findall(rf"{LATE_MARK} (\d+)", out)]
+    return (p.returncode == 0, marker in out, max(hits) if hits else 0,
+            bool(hits), failure_lines(out))
+
+
+# 🔴 THE MUTANTS THAT NEVER LOADED. Empty on a healthy tree — measured, all 118 mutant runs
+# across both axes produced a hook line — so this is a REGRESSION BACKSTOP and not a live
+# finding, and saying which it is matters: 197 §3's hole was exactly this shape and sat open
+# for twenty-five commits without a single row to show for itself.
+LATE_NOT_LOADED: list[tuple[str, str, str]] = []
+LATE_NOT_LOADED_CEILING = 0
+
+
+def not_loaded_problems(rows, ceiling: int) -> list[str]:
+    """🔴 FIXTURE-FED — this returns empty on a healthy tree and would delete invisibly."""
+    if len(rows) <= ceiling:
+        return []
+    problems = [
+        f"{inst} [{axis}]: `{sig}`'s mutant produced NO `{LATE_MARK}` line AT ALL. The hook "
+        f"is injected into the member's own body and writes from a process exit handler, so "
+        f"either the mutant NEVER LOADED — a SyntaxError, or a throw at import — or this "
+        f"target is never called on this axis. Both were filed 'not constructible' and "
+        f"reported in green until now, which is how a target that had not compiled since "
+        f"#211 read as ok for 25 commits (197 §3)"
+        for inst, sig, axis in rows
+    ]
+    problems.append(
+        f"INSTRUMENT_GATE_LATE_NOT_LOADED {len(rows)} > {ceiling} — a late mutant that does "
+        f"not load measures nothing and must not be counted as a target that is merely "
+        f"called once")
+    return problems
+
+
+def late_marker_roster_problems(live: dict, markers: dict) -> list[str]:
+    """Both halves (174 §5 / 182), for a roster keyed by COMMAND rather than instrument.
+
+    🔴 FIXTURE-FED for the same reason `marker_roster_problems` is: both lists are empty on
+    a healthy tree, so an inline version is deleted by anything and noticed by nothing.
+    """
+    cmds = {" ".join(cmd) for cmd, _alt in live.values()}
+    problems = []
+    for c in sorted(cmds - set(markers)):
+        problems.append(
+            f"the live late axis runs `{c}` with no LATE_VERDICT_MARKER — every red over it "
+            f"would be filed a crash, which is the 197 §5 defect with its sign flipped")
+    for c in sorted(set(markers) - cmds):
+        problems.append(
+            f"LATE_VERDICT_MARKER names `{c}`, which no instrument's live axis runs — a "
+            f"marker for a command that is gone is an exemption outliving its reason")
+    return problems
+
+
+# 🔴 THE LATE AXIS'S BLAST RADIUS, `A:gate` ONLY, AND THE MISSING HALF IS DELIBERATE.
+# Per instrument and never summed, for 172 §6's reason. `B:live` gets NO floor: four of its
+# five commands print no per-claim FAIL line at all — `tautology_gate.mjs`,
+# `verdict_gate.mjs`, `boundary_gate.mjs` and `path-cohort.mjs --summary` report by
+# collapsing a population, not by listing claims — so every floor there would be a floor at
+# ZERO, which this file already refuses one screen up. The number is PRINTED on that axis
+# and explicitly not compared, which is the honest half of 196 §33 rather than its defect.
+LATE_BLAST_FLOOR: dict[str, int] = {
+    "_population.mjs": 55,
+    "_path_ledger.mjs": 26,
+    "_workspace.mjs": 32,
+    "_png.mjs": 5,
+    "tautology_gate.mjs": 115,
+    "verdict_gate.mjs": 24,
+    "boundary_gate.mjs": 145,
+    "seal_order_gate.mjs": 120,
+    "path-cohort (compiled walk)": 48,
+}
+LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
+LATE_CRASHED_A: list[tuple[str, str]] = []
+LATE_CRASHED_B: list[tuple[str, str]] = []
 
 
 # 🔴 THE FLOOR ON THE HARNESS ITSELF, AND THE REVERSE SWEEP IS WHY IT EXISTS. Make
@@ -676,13 +842,26 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
     original = src.read_text()
     problems: list[str] = []
     green_undeclared: list[str] = []
+    marker = late_marker(cmd, inst["name"], axis)
     print(f"\n-- {inst['name']} [{axis}] — late blind · {' '.join(cmd)}")
     try:
-        ok, _ = run_counting(cmd, inst["cwd"])
+        ok, reached, _c, _h, _f = run_counting(cmd, inst["cwd"], marker)
         if not ok:
             return (0, 0, [
                 f"{inst['name']} [{axis}]: CONTROL FAILED — the unmutated gate does not pass "
                 f"under `{' '.join(cmd)}`, so every late-blind result below is meaningless"
+            ])
+        # 🔴 197 §5's CONTROL ASSERTION, ON THE AXIS IT DID NOT REACH. The marker is proved
+        # HERE, on a healthy tree, before a single mutant — because every "caught" and
+        # "crashed" judgement below rests on that one string, and a marker that stopped
+        # being printed would silently reclassify the whole axis. 197 §5 caught a real
+        # defect this way on its first CI run; this is the same assertion, one axis over.
+        if not reached:
+            return (0, 0, [
+                f"{inst['name']} [{axis}]: the UNMUTATED gate passes under "
+                f"`{' '.join(cmd)}` WITHOUT printing {marker!r}. Every crash/catch call "
+                f"below would rest on that string, so fix the marker before believing any "
+                f"of them — a marker proved only on the class it was chosen from is 197 §35"
             ])
         na = 0
         for sig, empty in inst["targets"].items():
@@ -697,8 +876,14 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
                 )
                 continue
             src.write_text(mutant)
-            green, calls = run_counting(cmd, inst["cwd"])
+            green, reached, calls, hook, fails = run_counting(cmd, inst["cwd"], marker)
             declared = LATE_DECLARED_GREEN.get((inst["name"], sig, axis))
+            # 🔴 THE HOOK BEFORE THE COUNT. `calls == 0` and "the hook never printed" were
+            # ONE bucket until now, and the second of them is a mutant that never ran.
+            if not hook:
+                LATE_NOT_LOADED.append((inst["name"], sig, axis))
+                print(f"   🔴 NEVER LOADED {sig[:52]}")
+                continue
             if calls <= 1:
                 # 🔴 NOT "defended" — NOT CONSTRUCTIBLE. The guard never fired, so the run
                 # is the control. Re-measured every time: a target called once today and
@@ -706,6 +891,20 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
                 na += 1
                 continue
             LATE_CONSTRUCTED.append(f"{inst['name']}[{axis}]::{sig[:40]}")
+            LATE_BLAST_OBSERVED[(inst["name"], axis)] = (
+                LATE_BLAST_OBSERVED.get((inst["name"], axis), 0) + fails)
+            # 🔴 RED WITHOUT A VERDICT IS NOT A CATCH, AND UNTIL NOW IT WAS COUNTED AS ONE.
+            # Filed to its axis's roster and taken OUT of the catch/green judgement below:
+            # a crash is not evidence the gate's floor bites, and it is not evidence a
+            # `LATE_DECLARED_GREEN` reason has expired either.
+            if not green and not reached:
+                (LATE_CRASHED_A if axis == "A:gate" else LATE_CRASHED_B).append(
+                    (inst["name"], sig))
+                key = (inst["name"], sig)
+                known = key in (CRASH_DECLARED if axis == "A:gate" else LATE_CRASH_DECLARED_B)
+                print(f"   {'declared-crash' if known else '🔴 CRASHED    '} "
+                      f"{sig[:48]}  calls={calls} fails={fails}")
+                continue
             if green and declared is None:
                 green_undeclared.append(f"{sig}  (called {calls}x)")
                 print(f"   🔴 STILL GREEN {sig[:58]}  calls={calls}")
@@ -719,7 +918,7 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
                     f"reason on file no longer holds — re-read it and delete the declaration: {declared}"
                 )
             else:
-                print(f"   ok            {sig[:58]}  calls={calls}")
+                print(f"   ok            {sig[:48]}  calls={calls} fails={fails}")
         print(f"   ({na} target(s) called once — a late blind is not constructible there)")
         return (len(green_undeclared), len(inst["targets"]), problems + [
             f"{inst['name']} [{axis}]: `{s}` can answer ONCE and return its empty for every "
@@ -816,6 +1015,44 @@ def _self_check(floor: int) -> list[str]:
         problems.append(
             "crash_problems does NOT enforce CRASH_CEILING — the roster could then grow one "
             "declared entry at a time and never be read as growing")
+    # ── 🆕 198 §3's DETECTORS, FED THE SAME WAY AND FOR THE SAME REASON ──────────────
+    # All three are empty on a healthy tree. `LATE_NOT_LOADED` is empty by MEASUREMENT
+    # rather than by construction — 118 mutant runs across both axes all produced a hook
+    # line — so it is a regression backstop with no live row to keep it honest, which is
+    # precisely the state 197 §3's hole was in for twenty-five commits.
+    if not_loaded_problems([], 0):
+        problems.append("not_loaded_problems flags a healthy sweep")
+    if not not_loaded_problems([("i", "s", "A:gate")], 0):
+        problems.append(
+            "not_loaded_problems does NOT flag a mutant that never loaded — a late blind "
+            "that fails to parse reports calls=0 and is filed 'not constructible', which "
+            "reads as a target nobody calls twice (197 §3, on the other axis)")
+    _LIVE = {"x": (["node", "a.mjs"], None)}
+    if late_marker_roster_problems(_LIVE, {"node a.mjs": "M"}):
+        problems.append("late_marker_roster_problems flags a complete roster")
+    if not late_marker_roster_problems(_LIVE, {}):
+        problems.append(
+            "late_marker_roster_problems does NOT flag a live command with no marker — its "
+            "runs would all be filed crashes, which is 197 §5's defect with the sign flipped")
+    if not late_marker_roster_problems({}, {"node gone.mjs": "M"}):
+        problems.append(
+            "late_marker_roster_problems does NOT flag a marker for a command nobody runs")
+    # 🔴 AND THE KEY ITSELF. Three instruments share one live caller, so a roster keyed by
+    # INSTRUMENT would hold the same string three times — this asserts the join, because a
+    # future edit to `LATE_LIVE`'s shape would otherwise silently make every lookup miss
+    # and every red on the live axis a crash.
+    if late_marker_roster_problems(
+            {"a": (["node", "s.mjs"], None), "b": (["node", "s.mjs"], None)},
+            {"node s.mjs": "M"}):
+        problems.append(
+            "late_marker_roster_problems does not treat two instruments sharing ONE live "
+            "command as one roster entry — the key is the command, not the instrument")
+    for _name, _v in LATE_BLAST_FLOOR.items():
+        if _v <= 0:
+            problems.append(
+                f"LATE_BLAST_FLOOR[{_name!r}] is {_v}. A floor at zero cannot bite, and this "
+                f"dict is invisible to floor_pin_gate.py's discovery half for the same reason "
+                f"BLAST_FLOOR is")
     if marker_roster_problems([{"name": "i"}], {"i": "M"}):
         problems.append("marker_roster_problems flags a complete roster")
     if not marker_roster_problems([{"name": "i"}], {}):
@@ -1315,6 +1552,38 @@ def main() -> int:
     # failure the axis exists to find, in the axis itself.
     print(f"INSTRUMENT_GATE_LATE_LIVE {len(LATE_LIVE)}/{LATE_LIVE_FLOOR}")
     print(f"INSTRUMENT_GATE_LATE_CONSTRUCTED {len(LATE_CONSTRUCTED)}/{LATE_CONSTRUCTED_FLOOR}")
+
+    # ── 🆕 198 §3 — WHAT THE LATE AXIS'S RUNNER NOW HAS IN HAND AND USED TO DISCARD ──
+    print(f"INSTRUMENT_GATE_LATE_NOT_LOADED {len(LATE_NOT_LOADED)}/{LATE_NOT_LOADED_CEILING}"
+          f" mutant(s) produced no {LATE_MARK} line at all")
+    problems.extend(not_loaded_problems(LATE_NOT_LOADED, LATE_NOT_LOADED_CEILING))
+    problems.extend(late_marker_roster_problems(LATE_LIVE, LATE_VERDICT_MARKER))
+    # 🔴 TWO ROSTERS AND TWO CEILINGS, NOT ONE SUM (194 §33). `A:gate`'s nine are fixed by
+    # editing the SELF-TESTS; `B:live`'s three are fixed by editing the caller-shape
+    # harness. One number would let either half grow while the other shrank.
+    print(f"INSTRUMENT_GATE_LATE_CRASHED [A:gate] {len(LATE_CRASHED_A)}/{LATE_CRASH_CEILING_A}"
+          f" · [B:live] {len(LATE_CRASHED_B)}/{LATE_CRASH_CEILING_B} — red WITHOUT the gate "
+          f"reaching its own verdict")
+    problems.extend(crash_problems(LATE_CRASHED_A, CRASH_DECLARED, LATE_CRASH_CEILING_A))
+    problems.extend(crash_problems(LATE_CRASHED_B, LATE_CRASH_DECLARED_B, LATE_CRASH_CEILING_B))
+    # 🔴 THE BLAST, PER INSTRUMENT AND PER AXIS, NEVER SUMMED (172 §6). `A:gate` is floored;
+    # `B:live` is printed and explicitly NOT floored — see LATE_BLAST_FLOOR for why, and
+    # note that saying so is the point: an uncompared number that does not admit it is one
+    # is 196 §33, and an uncompared number that does is a measurement with a reason.
+    for (name, axis), n in sorted(LATE_BLAST_OBSERVED.items()):
+        floor = LATE_BLAST_FLOOR.get(name) if axis == "A:gate" else None
+        if floor is None:
+            print(f"INSTRUMENT_GATE_LATE_BLAST {name} [{axis}]: {n} — NOT floored on this "
+                  f"axis, on purpose")
+            continue
+        print(f"INSTRUMENT_GATE_LATE_BLAST {name} [{axis}]: {n}/{floor}")
+        if n < floor:
+            problems.append(
+                f"{name} [{axis}]: the late axis produced {n} reported failure(s), floor is "
+                f"{floor} — its late blinds have stopped reddening what they used to, and "
+                f"'the gate went red' cannot tell you that on its own")
+    for stale in sorted(set(LATE_BLAST_FLOOR) - {i["name"] for i in INSTRUMENTS}):
+        problems.append(f"LATE_BLAST_FLOOR names {stale!r}, which is not an instrument")
     # 🆕 195. THE THIRD POPULATION OF THIS HARNESS, AND IT IS A DIFFERENT COLLAPSE FROM
     # BOTH ABOVE. `LATE_CONSTRUCTED` counts blinds that were BUILT; this counts anchors
     # that were RESOLVED. An author replacing one placeholder with the literal it resolves

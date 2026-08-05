@@ -285,6 +285,25 @@ DISCOVER_EXEMPT: dict[str, str] = {
                    "reason instead — its runner mutates the working tree — and pinned in-file by "
                    "`_self_check()`, which requires every value positive, plus a `main()` assertion "
                    "that the roster names every instrument and no others",
+    # 🆕 198 — instrument_gate.py's seventh and eighth, both on its LATE axis, same nesting
+    # reason as the six above. 197 §8.3 fixed `green()` on the primary axis and left
+    # `run_counting()` reading a return code; these two are what the fixed runner compares.
+    "LATE_BLAST_FLOOR": "🆕 198 — instrument_gate.py's PER-INSTRUMENT floors on the LATE axis's "
+                        "blast radius, the `A:gate` half only. A dict, read by 197's `{` widening, "
+                        "and exempt for INSTRUMENT_FLOOR's reason: its runner mutates the working "
+                        "tree. Pinned in-file by `_self_check()`, which requires every value "
+                        "positive, plus a `main()` assertion that no entry names a missing "
+                        "instrument. 🔴 THE `B:live` HALF IS DELIBERATELY ABSENT rather than "
+                        "pending: four of that axis's five commands report by collapsing a "
+                        "population and print no per-claim FAIL line at all, so every floor there "
+                        "would be a floor at zero — the shape this table's own entries refuse",
+    "LATE_NOT_LOADED_CEILING": "🆕 198 — instrument_gate.py's CEILING on late mutants that produced "
+                        "no `LATE_BLIND_CALLS` line AT ALL, meaning the mutant never loaded. It is "
+                        "ZERO and is measured zero: all 118 mutant runs across both axes hooked. "
+                        "🔴 A CEILING AT ZERO WITH NO LIVE ROW IS EXACTLY 197 §3's HOLE — a mutant "
+                        "that did not compile was filed 'not constructible' and reported green — "
+                        "so it is fed a one-row fixture in `_self_check()` rather than trusted to "
+                        "the tree, and exempt here for INSTRUMENT_FLOOR's nesting reason",
     "SIG_RESOLVED_FLOOR": "🆕 195 — instrument_gate.py's floor on how many of its target anchors are "
                        "`{SIG:name}` PLACEHOLDERS rather than literal signatures. It is a third "
                        "collapse the two floors above cannot see: replacing a placeholder with the "

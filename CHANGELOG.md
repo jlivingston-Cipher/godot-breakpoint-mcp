@@ -6,6 +6,72 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the axis that was still reading a return code, and the marker that had to be chosen against ground truth
+
+197 §5 gave `instrument_gate.py`'s PRIMARY axis three values where it had one — green,
+reached-its-own-verdict, and the failure count — after finding nine blinds that went red
+without their gate ever reaching a verdict, one of which had not compiled since #211. It did
+not reach the LATE axis. `run_counting()` was still, in full:
+
+```python
+p = subprocess.run(cmd, capture_output=True, text=True, cwd=str(cwd))
+hits = [int(m) for m in re.findall(rf"{LATE_MARK} (\d+)", p.stdout + p.stderr)]
+return (p.returncode == 0, max(hits) if hits else 0)
+```
+
+so it carried both defects 197 fixed, plus a third that only exists on this axis.
+
+**`red` had two causes and one observable, here too.** Measured over 85 red rows across the
+two late axes: **twelve** blinds crash their gate rather than failing it and were counted as
+catches. Nine of them are on the self-test axis and are **exactly** the nine already declared
+on the primary axis — the crash is a property of the self-test's setup read, not of which
+injector wrote the mutant — so that half reuses `CRASH_DECLARED` rather than copying it, and
+§8.2's nine call sites now pay both axes at once. The other three are on the live axis, in
+`_caller_shape.harness.mjs`'s own `sok()`, and are declared with their reasons.
+
+**The failure count was captured and discarded**, so the late axis had no blast radius at
+all. It now has one, per instrument and never summed. 🔴 The `B:live` half is deliberately
+**not** floored: four of that axis's five commands report by collapsing a population and
+print no per-claim `FAIL` line, so every floor there would be a floor at zero — the shape
+this file already refuses. The number is printed and says of itself that it is not compared.
+
+**And `max(hits) if hits else 0` mapped two states onto one number.** The counting hook is
+injected into the target's own body and writes from a `process.on("exit")` handler, so
+`hits == [1]` means "really called once" while `hits == []` means **the hook never ran** —
+the mutant did not load. Both landed in `calls <= 1`, both were filed *"a late blind is not
+constructible there"*, and neither raised a problem. That is #237's `SyntaxError` reading as
+`ok`, on the other axis, in softer language: `{SIG:judge}` was unloadable here too for those
+twenty-five commits, and this axis reported it as a target that simply is not called twice.
+🔴 The guard for it has **no live row** — all 118 mutant runs on a healthy tree hook — so it
+is a regression backstop fed by a fixture, and this entry says so rather than implying a
+catch.
+
+**🔴 The marker could not be the primary axis's, and the capture said so before a line was
+written.** All eight `B:live` controls run green *without* printing their instrument's
+marker, because the live caller is a different command printing a different report — so
+handing `VERDICT_MARKER` to the late runner would have called every red on the live axis a
+crash. `LATE_VERDICT_MARKER` is therefore keyed by the **command**, not the instrument (three
+instruments share one live caller), and the string for each was chosen against an independent
+classification of the captured runs rather than by inspection. Two drafts were refuted
+offline at zero cost: ranking candidates by the smallest crash roster picks
+`SHAPE_SEAL_A`, which calls all three genuine crashes a catch; taking the gate's final
+verdict line picks `CALLER_SHAPE`, which is printed only on a green run and calls seven
+genuine catches a crash. Both are now mutants in the reverse sweep, because nothing else in
+the tree can tell the right string from either wrong one.
+
+### Added — the floors, ceilings and rosters that make the above falsifiable
+
+```
+INSTRUMENT_GATE_LATE_CRASHED   [A:gate] 9/9 · [B:live] 3/3   two ceilings, never summed
+INSTRUMENT_GATE_LATE_NOT_LOADED            0/0               a mutant that never loaded
+INSTRUMENT_GATE_LATE_BLAST     9 per-instrument A:gate floors; B:live printed, not floored
+LATE_VERDICT_MARKER            5 commands, roster read in BOTH directions
+```
+
+`floor_pin_gate.py`'s discovery half found both new constants unswept on the first run and
+they are exempted by name with reasons, alongside the six `instrument_gate.py` constants that
+already were: its runner would be `instrument_gate.py`, which mutates the working tree.
+
 ## [1.72.1] — 2026-08-04
 
 ### Fixed — the target that had not compiled since #211, and the verdict nobody waited for
