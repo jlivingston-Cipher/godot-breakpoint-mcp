@@ -3279,6 +3279,21 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 check 11b resolves NOTHING and its warning DISAPPEARS — a gate that gets quieter as it goes blind"),
     ("recipes.registered", len(recipe_set), 6,
      "check 12's roster comparison has nothing on the code side to compare"),
+    # 🔴 THE THREE 197 §3 MEASURED AS MISSING, AND THE MEASUREMENT IS WHY THEY ARE HERE.
+    # `scope_gate.py` blinds all 25 enumerators in this file and asserts each one reddens
+    # the run. It never asked WHICH check reddened. Measured: 22 of the 25 redden check 20
+    # — this ledger — and THESE THREE DID NOT. Two were caught by a `Could not parse X`
+    # guard and one by check 12's roster comparison, all three incidental: delete this
+    # ledger entirely and scope_gate stays green over them. A gate whose subject is caught
+    # by something other than the gate is not covering it, it is being lucky near it.
+    ("recipes.names_constant", len(recipes_constant), 6,
+     "RECIPE_NAMES stops resolving, so check 12's ORDER half compares an empty list to the "
+     "registrations and agrees with a stale doc and the suite simultaneously"),
+    ("recipes.doc_mentions", sum(len(v) for v in recipe_doc_mentions.values()), 6,
+     "no doc names any recipe, so every roster file reads as complete by naming nothing"),
+    ("tools.privileged", len(priv_tools), 10,
+     "TOOL_CAPABILITIES resolves to nothing, so the secure-default surface is computed as "
+     "`len(registered) - 0` and every privileged tool reads as shipping by default"),
     ("shapes.inputs_parsed", len(code_inputs), 250,
      "🔴 CHECK 16's UNIVERSE — the population it floors coverage against. Empty here, nothing is uncovered"),
     ("shapes.inputs_compared", len(input_comparable), 250,
