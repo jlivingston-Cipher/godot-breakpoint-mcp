@@ -6,6 +6,58 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the floor a rename could not reach, and the ten the sum could not see
+
+199 §12.2 was the only open item with a written-down end state: rename `LEDGER_SCOPE` and
+`LEDGER_POPULATION` so `floor_pin_gate.py`'s discovery half can name them, and
+`UNDISCOVERABLE_CEILING` falls from 2 to 0. It fell. 🔴 **But the rename was not what did it,
+and measuring before acting is the only reason that was found.**
+
+`DISCOVER_RE` has two halves. 199 widened the NAME half twice and never touched the VALUE half,
+which accepted a digit or `{`. `Object.freeze({...})` is neither — so the renamed constants
+would have stayed exactly as undiscoverable, and the item would have read as done. Both edits,
+or neither works.
+
+🔴 **Dropping the value half entirely then found a floor this gate had never named.**
+`host/scripts/path-cohort.mjs` held `const FLOORS = [` from session 173: five literal floors, in
+a script CI runs on every push, appearing in **none** of the gate's three tables — not TARGETS,
+not `DISCOVER_EXEMPT`, not `UNDISCOVERABLE_DECLARED`. Outside the gate by construction, with no
+line anywhere saying so. Measured across both walked trees: 66 floor-shaped constants exist, 65
+were already accepted, and dropping the value test admits exactly one more.
+
+They could not have been pinned where they lay — that script opens an MCP transport at import,
+so nothing can import it to assert a literal. The five move into `_path_ledger.mjs` as
+`COHORT_FLOORS`, which is 179's rule (*an instrument enforces its rules where they were written,
+not where its population comes from*) paid by that file for the second time. Each is now pinned
+by value in the self-test and swept by its own TARGETS row. `TARGET_FLOOR` 51 → 57.
+
+🔴 **And the array left behind is no longer called `FLOORS`.** The gate reported it unswept on
+the first run after the widening — correctly. An exemption reading *"it holds no literal now"*
+would silently excuse a literal re-inlined there tomorrow; naming it `COHORT_ROWS` takes it out
+of the discovery half **because it is not a floor**, rather than in spite of being one.
+
+**Ten of the eleven `CLAIM_SITE_FLOORS` were pinned only by their sum** (199 §12.3). A sum
+cannot see a compensated change — one entry down, another up — which is the only shape a
+session lowering a floor on purpose would produce. All eleven are now pinned per key against an
+expected table, in both directions. That table is itself a floor-shaped constant and this gate
+reported it unswept on the run that first saw it, so it has a TARGETS row too.
+
+### Verification
+
+```
+mutate200.py    EXPECT_DISCRIMINATES 3/3 · pass=8 fail=0 declared-green=3 of 8
+                R1 the value half restored          -> RED   (the widening is falsifiable)
+                S1 compensated swap, sum unchanged  -> RED   (green before this session)
+floor_pin_gate  57/57 · unswept 0 · UNDISCOVERABLE 0 undeclared · 0/0 declared · CEILING 0
+tautology_gate  orphan 46/46 — a claim site written inside a loop body reddened as an
+                orphan and was UNROLLED rather than absorbed by raising the ceiling
+```
+
+Three mutants are **declared green**, each naming what is not measured rather than leaving it in
+a comment: the symmetric Python widening is defensive; re-inlining a cohort literal in the
+script is a real and currently invisible gap; and `UNDISCOVERABLE_CEILING` now bounds an empty
+roster, so `0 > 2` is false for every value it could hold.
+
 ## [1.72.3] — 2026-08-05
 
 ### Fixed — the reads that ran outside their claims, and the floors a name could not reach

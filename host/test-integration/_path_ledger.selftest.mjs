@@ -9,7 +9,7 @@
 // point at; `comparePathLedger` had none, so no amount of blinding could say anything
 // about it. Each case below is a population that is healthy, or one that collapsed in a
 // specific way, with the verdict written down before the code ran (169 §2's discipline).
-import { comparePathLedger as compareAtScale, parsePathLedger, ledgerScopeFailures, LEDGER_CANARIES, LEDGER_CLASSES, LEDGER_SCOPE, LEDGER_POPULATION } from "./_path_ledger.mjs";
+import { comparePathLedger as compareAtScale, parsePathLedger, ledgerScopeFailures, LEDGER_CANARIES, LEDGER_CLASSES, LEDGER_SCOPE_FLOORS, LEDGER_POPULATION_FLOORS, COHORT_FLOORS, COHORT_FLOOR_WHY } from "./_path_ledger.mjs";
 
 let failures = 0;
 const claims = [];
@@ -116,10 +116,10 @@ console.log("\n-- the blind enumerator, and the ledger regenerated from it --");
 // argument for this reason; the ledger gate, written five sessions later, had none.
 console.log("\n-- the gate's own populations --");
 {
-  check(LEDGER_CANARIES.length >= LEDGER_SCOPE.canaries,
-    "SCOPE_CANARY_FLOOR the canary list is at or above its literal floor", `${LEDGER_CANARIES.length}/${LEDGER_SCOPE.canaries}`);
-  check(LEDGER_CLASSES.length >= LEDGER_SCOPE.classes,
-    "SCOPE_CLASS_FLOOR the class list is at or above its literal floor", `${LEDGER_CLASSES.length}/${LEDGER_SCOPE.classes}`);
+  check(LEDGER_CANARIES.length >= LEDGER_SCOPE_FLOORS.canaries,
+    "SCOPE_CANARY_FLOOR the canary list is at or above its literal floor", `${LEDGER_CANARIES.length}/${LEDGER_SCOPE_FLOORS.canaries}`);
+  check(LEDGER_CLASSES.length >= LEDGER_SCOPE_FLOORS.classes,
+    "SCOPE_CLASS_FLOOR the class list is at or above its literal floor", `${LEDGER_CLASSES.length}/${LEDGER_SCOPE_FLOORS.classes}`);
   check(Object.isFrozen(LEDGER_CANARIES) && Object.isFrozen(LEDGER_CLASSES),
     "SCOPE_FROZEN neither population can be emptied at runtime by a probe that imports it");
 }
@@ -158,7 +158,7 @@ console.log("\n-- shapes --");
 // ─────────────────────────── 180: THE POPULATION THIS GATE COMPARES, floored at last
 //
 // 179 §11.2 asked five instruments whether every floor they hold can hold while the
-// number they exist to produce goes to zero. `LEDGER_SCOPE` floors this gate's OWN
+// number they exist to produce goes to zero. `LEDGER_SCOPE_FLOORS` floors this gate's OWN
 // roster; nothing floored `liveCount` or `ledgerCount`. The hole was already written in
 // prose above `LEDGER_CANARIES` — *"a session that REGENERATED the ledger from a blind
 // enumerator would take both green together"* — and had never been executed. It was, in
@@ -182,7 +182,7 @@ console.log("\n-- population (180) --");
 }
 {
   // ONE side at a time, because a shared total would let either hide behind the other.
-  const live = Array.from({ length: LEDGER_POPULATION.live }, (_, i) => ({ tool: `t${i}`, param: "path" }));
+  const live = Array.from({ length: LEDGER_POPULATION_FLOORS.live }, (_, i) => ({ tool: `t${i}`, param: "path" }));
   const full = ["# a ledger", ...live.map((r) => line(r.tool, r.param))].join("\n");
   check(compareAtScale(live, full).scope.length === 0, "POP_AT_THE_FLOOR exactly at both floors is quiet");
   check(compareAtScale(live.slice(1), full).scope.some((s) => s.includes("LIVE cohort")),
@@ -191,14 +191,62 @@ console.log("\n-- population (180) --");
   check(compareAtScale(live, short).scope.some((s) => s.includes("LEDGER holds")),
     "POP_LEDGER_ALONE …and one entry below on the LEDGER side alone reddens");
 }
-check(LEDGER_POPULATION.live >= 200 && LEDGER_POPULATION.ledger >= 200,
+check(LEDGER_POPULATION_FLOORS.live >= 200 && LEDGER_POPULATION_FLOORS.ledger >= 200,
   "POP_FLOOR_IS_A_LITERAL the shipped floor is a measured literal with headroom, not a rounding of zero",
-  `live=${LEDGER_POPULATION.live} ledger=${LEDGER_POPULATION.ledger}`);
-check(Object.isFrozen(LEDGER_POPULATION), "POP_FROZEN it cannot be lowered at runtime by a probe that imports it");
+  `live=${LEDGER_POPULATION_FLOORS.live} ledger=${LEDGER_POPULATION_FLOORS.ledger}`);
+check(Object.isFrozen(LEDGER_POPULATION_FLOORS), "POP_FROZEN it cannot be lowered at runtime by a probe that imports it");
 // 🔴 THE DEFAULT IS THE SHIPPED ONE. Every fixture above passes FIXTURE_SCALE; this is
 // the claim that stops the override from quietly becoming the norm.
 check(ledgerScopeFailures(LEDGER_CANARIES, LEDGER_CLASSES, 0, 0).length === 2,
-  "POP_DEFAULT_IS_SHIPPED called with no `pop`, the floors are LEDGER_POPULATION's — not zero");
+  "POP_DEFAULT_IS_SHIPPED called with no `pop`, the floors are LEDGER_POPULATION_FLOORS's — not zero");
+
+// ─────────────────────────────────── 🆕 200 §12.2 — THE FIVE COHORT FLOORS, BY VALUE
+//
+// 🔴 THESE FIVE HAD NEVER BEEN PINNED BY ANYTHING, IN ANY FILE, SINCE 173. They lived in
+// `scripts/path-cohort.mjs` as a bare `const FLOORS = [` and `floor_pin_gate.py` named
+// that file in NONE of its three tables — not TARGETS, not DISCOVER_EXEMPT, not
+// UNDISCOVERABLE_DECLARED. The discovery half's NAME side was widened twice in 199; its
+// VALUE side still accepted only a digit or `{`, so an ARRAY-valued floor was outside the
+// gate by construction with no line anywhere saying so. `_to_delete/discover200.py` is
+// the measurement, and it found exactly one such constant in the whole walked tree.
+//
+// 🔴 EACH IS PINNED SEPARATELY RATHER THAN AS ONE `deepEqual`. 194 §33: two paths under
+// one subtraction need two numbers, and five floors under one comparison need five
+// claims — a single structural equality reddens once and names nothing, so a session
+// reading the failure cannot tell which population stopped being defended.
+// 🔴 UNROLLED, AND `tautology_gate.mjs` IS WHY. The first draft wrote these five as a
+// `for (const [key, want, why] of [...])` loop, which is ONE claim SITE — and the gate
+// reddened it as an orphan: a site inside a loop body reaches neither a marker nor a
+// `test()` block, so no class in that gate can judge it and it is counted and dropped.
+// Five sites is also what 194 §33 asks for on its own terms. The ceiling was NOT raised
+// to absorb it; 191 §5's rule is that headroom is a licence to add orphans nobody reads.
+check(COHORT_FLOORS.tools === 285,
+  "COHORT_FLOOR_tools 285 — the surface itself; every count below is scoped to whatever this one admits",
+  `got ${COHORT_FLOORS.tools}`);
+check(COHORT_FLOORS.topLevelNamedPath === 120,
+  "COHORT_FLOOR_topLevelNamedPath 120 — the cohort enum163 discarded; 15 were escaping when it was measured",
+  `got ${COHORT_FLOORS.topLevelNamedPath}`);
+check(COHORT_FLOORS.topLevelOther === 124,
+  "COHORT_FLOOR_topLevelOther 124 — the compound names an exact-word test cannot match",
+  `got ${COHORT_FLOORS.topLevelOther}`);
+check(COHORT_FLOORS.nested === 6,
+  "COHORT_FLOOR_nested 6 — the cohort a top-level-only walk reports as zero while looking healthy",
+  `got ${COHORT_FLOORS.nested}`);
+check(COHORT_FLOORS.total === 250,
+  "COHORT_FLOOR_total 250 — the number three handoffs and two changelogs quoted wrong by 180 rows",
+  `got ${COHORT_FLOORS.total}`);
+// 🔴 AND THE ROSTER ITSELF. The five claims above redden on a value that CHANGED or a
+// key that VANISHED (`undefined === 285` is false). None of them can see a key being
+// ADDED, because none of them iterates the object. This is that direction — a sixth
+// floor appearing with nothing pinning it, which is the exact shape this whole section
+// exists because of.
+check(Object.keys(COHORT_FLOORS).length === 5,
+  "COHORT_FLOOR_ROSTER five cohort floors ship, not more and not fewer",
+  `${Object.keys(COHORT_FLOORS).length}: ${Object.keys(COHORT_FLOORS).join(", ")}`);
+check(Object.keys(COHORT_FLOOR_WHY).join("|") === Object.keys(COHORT_FLOORS).join("|"),
+  "COHORT_FLOOR_WHY_PARITY every floor carries a reason and every reason a floor (174 §5)");
+check(Object.isFrozen(COHORT_FLOORS) && Object.isFrozen(COHORT_FLOOR_WHY),
+  "COHORT_FLOORS_FROZEN neither can be lowered at runtime by a script that imports them");
 
 // ──────────────────────────────────────────────────────── population + summary
 //
