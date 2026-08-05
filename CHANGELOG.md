@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.7] — 2026-08-05
+
 ### Fixed — the calls nobody had counted, and the branch that never fired alone
 
 202 closed `U2` in `floor_pin_gate.py` — a predicate proved by a fixture is not a predicate
