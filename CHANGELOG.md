@@ -6,6 +6,67 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the target that had not compiled since #211, and the verdict nobody waited for
+
+196 §3 found `control_gate.py` computing a number, printing it inside an `ok` line, and
+comparing it to nothing since 187 — and 196 §8.3 handed over the observation that the
+defect belongs to a CLASS of mutation-based instrument, of which `scope_gate.py` and
+`instrument_gate.py` are the two remaining members. Both were asked the same question.
+
+**`instrument_gate.py` — `{SIG:judge}` on `seal_order_gate.mjs` has not been applied since
+#211, and the gate printed `ok` over it for 25 commits.** Both injectors anchored the
+blind on `text.find("{", idx)` — the first brace after the declaration. In #211
+`seal_order_gate.judge` gained a destructured options bag:
+
+```js
+export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, … } = {}) {
+```
+
+so the injection landed inside the parameter list, node exited 1 on
+`SyntaxError: Unexpected token '{'`, and `green()` — which was `return p.returncode == 0` —
+read that as a catch. The brace is now computed from the anchor rather than searched for,
+in one function both injectors call. Applied correctly, that blind reddens **39** claims;
+`seal_order_gate.mjs`'s blast total goes 127 → 166.
+
+**And `red` had three meanings with one observable.** `green()` captured the gate's whole
+output and returned a boolean, so "the gate caught the blind" and "the blind crashed the
+gate" were indistinguishable — 181 §4's `REPORT_MARKER` problem, fixed in `scope_gate` five
+sessions ago and carried in `control_gate` as `executed`, never applied here. Measured over
+the 59 blinds: **727 failure lines nothing read**, and **9 blinds that go red without their
+gate reaching its own verdict** — eight uncaught `TypeError`s in self-test *setup* plus the
+`judge` case above. Each instrument now declares a `VERDICT_MARKER`, proved on its own
+CONTROL run before any mutant is applied; the nine crashes are declared with their reasons
+under `CRASH_CEILING = 9`, a **ceiling** because moving those setup reads inside a claim is
+what should edit it.
+
+**`scope_gate.py` — three of its twenty-five blinds never reddened the scope ledger at
+all.** The file's docstring says the ledger closed these enumerators with literal floors
+and that this file is what keeps them closed. `doc_recipe_mentions`, `recipe_names_constant`
+and `privileged_tools` had **no ledger entry**: two went red on a `Could not parse X from Y`
+guard and one on check 12's roster comparison. Delete the entire ledger and the gate stayed
+green over them — caught by something near the gate rather than by the gate. The three
+missing `SCOPE_LEDGER` populations were added, and every row now declares both the exact
+number of `FAIL` lines it produces and the ledger population it must collapse, checked per
+row against `FAIL: SCOPE COLLAPSE <population>:` — an exact reader, so no diagnosis-only
+hedge is needed here.
+
+### Added — the floors and ceilings that make the above falsifiable
+
+```
+SCOPE_GATE_BLAST            53/45    FAIL lines across 25 blinds, every row declared
+SCOPE_GATE_LEDGER           29/24    ledger populations actually collapsed
+INSTRUMENT_GATE_BLAST       9 per-instrument floors, never summed (172 §6)
+INSTRUMENT_GATE_CRASHED      9/9     a CEILING, every entry declared with its reason
+FLOOR_PIN stale-exempt       0       the exemption table read in BOTH directions
+```
+
+`floor_pin_gate.py`'s discovery half was scoped to the word `FLOOR` — three ceilings sat in
+its target table by hand, and a fourth written today would have been outside the gate by
+construction. It now discovers `CEILING` too, and reads a dict-valued floor. It also reads
+`DISCOVER_EXEMPT` in the other direction: an exemption naming a constant that no longer
+exists anywhere is now a failure, because otherwise narrowing the discovery regex silently
+un-sweeps every constant of that shape while its exemptions still read as live.
+
 ## [1.72.0] — 2026-08-04
 
 ### Added — the number the gate had always printed and never read

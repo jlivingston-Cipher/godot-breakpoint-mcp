@@ -105,6 +105,133 @@ REPORT_MARKER = "=== breakpoint-mcp static contract check ==="
 STATEMENT_ATTRIB_FLOOR = 20    # 19 when re-derived; 20 once 188 §3 gave check 12 a population
 
 
+# ── 🔴 197 §4 — THE BLAST RADIUS, AND THE CLAIM THIS FILE'S DOCSTRING MAKES ────────
+#
+# 196 §3 found `control_gate.py` computing a FAIL-line count, printing it inside an `ok`
+# line, and comparing it to nothing since 187. 196 §8.3 handed over the observation that
+# the defect was a property of a CLASS of instrument and that this file is another member.
+# Measured here, over the 25 blinded runs:
+#
+#     53 FAIL lines across 25 rows · 8 rows redden MORE THAN ONE check
+#     🔴 3 of the 25 reddened NO SCOPE-LEDGER POPULATION AT ALL
+#
+# 🔴 AND THE THIRD LINE IS WORSE THAN THE SILENCE, BECAUSE OF WHAT THIS FILE CLAIMS.
+# The docstring above says the scope ledger closed these enumerators with literal floors
+# and that THIS FILE IS WHAT KEEPS THEM CLOSED. `doc_recipe_mentions`,
+# `recipe_names_constant` and `privileged_tools` had no ledger entry: two went red on a
+# `Could not parse X from Y` guard and one on check 12's roster comparison. Delete the
+# whole ledger and this gate stayed green over those three. A subject caught by something
+# other than the gate is not covered by it — it is being lucky near it. 197 added the three
+# missing ledger entries, and the roster below is what stops the class coming back.
+#
+# 🔴 THE VERDICT HERE RESTS ON TWO EXACT READERS, NOT ON A FUZZY ONE. control_gate had to
+# keep its attribution as diagnosis because literal-matching resolves 98 of 103 lines. This
+# gate needs no such hedge: `FAIL: SCOPE COLLAPSE <population>:` names its population in the
+# text, so "did the population this row feeds collapse" is answered exactly, for every row.
+LEDGER: dict[str, tuple[str, ...]] = {
+    "_tracked_modes": ("modes.shebangs_confirmed",),
+    "all_false_annotation_claims": ("families.allfalse_lines",),
+    "annotated_tools": ("annotations.roster",),
+    "annotation_class_claims": ("families.annclass_lines",),
+    "catalog_index_tools": ("catalog.index_tools",),
+    "catalog_json_blocks": ("catalog.json_blocks",),
+    "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
+    "doc_recipe_mentions": ("recipes.doc_mentions",),                 # 🆕 197
+    "doc_resource_claims": ("resources.doc_claims",),
+    "exempt_family_lines": ("families.exempt_lines",),
+    "host_bridge_calls": ("host.bridge_calls",),
+    "input_schema_shapes": ("shapes.inputs_compared", "shapes.inputs_parsed"),
+    "output_schema_shapes": ("shapes.outputs_compared", "shapes.outputs_parsed"),
+    "prefix_family_claims": ("families.prefix_glob_lines",),
+    "privileged_tools": ("tools.privileged",),                        # 🆕 197
+    "recipe_names_constant": ("recipes.names_constant",),             # 🆕 197
+    "registered_recipes": ("recipes.registered",),
+    "registered_resources": ("resources.registered",),
+    "registered_tools": ("tools.registered",),
+    "test_count_constants": ("counts.test_constants",),
+    "tool_count_claims": ("counts.tool_claims",),
+    "toolset_aliases": ("families.toolset_aliases",),
+    "toolset_claims": ("families.toolset_claims_resolved",),
+    "toolset_sizes": ("families.toolset_claims_resolved", "families.toolset_sizes"),
+    "uncaptured_tool_registrations": ("tools.registration_sites_scanned",),
+}
+
+# id -> the exact number of `FAIL:` lines that blind produces. Measured, not guessed.
+BLAST: dict[str, int] = {
+    "_tracked_modes": 4,                      # also: check 15
+    "all_false_annotation_claims": 1,
+    "annotated_tools": 2,                     # also: check 9
+    "annotation_class_claims": 1,
+    "catalog_index_tools": 2,                 # also: check 4
+    "catalog_json_blocks": 1,
+    "dispatch_methods": 3,                    # also: check 1
+    "doc_recipe_mentions": 2,                 # also: check 12
+    "doc_resource_claims": 2,                 # also: check 10
+    "exempt_family_lines": 1,
+    "host_bridge_calls": 1,
+    "input_schema_shapes": 2,
+    "output_schema_shapes": 2,
+    "prefix_family_claims": 1,
+    "privileged_tools": 3,                    # also: check 11 (the tool-count drift line)
+    "recipe_names_constant": 2,               # also: check 12
+    "registered_recipes": 4,                  # also: check 12
+    "registered_resources": 3,                # also: check 10
+    "registered_tools": 9,                    # also: checks 6 8 9 11 13
+    "test_count_constants": 1,
+    "tool_count_claims": 1,
+    "toolset_aliases": 1,
+    "toolset_claims": 1,
+    "toolset_sizes": 2,
+    "uncaptured_tool_registrations": 1,
+}
+
+SCOPE_BLAST_TOTAL_FLOOR = 45          # measured 53. Floored from BELOW for control_gate's reason:
+                                # the per-row equalities above get edited one row at a time,
+                                # and this is what notices the sweep going quieter overall
+LEDGER_COLLAPSE_FLOOR = 24      # measured 29 population-collapses across the 25 rows. The
+                                # per-row assertion is the gate; this is the aggregate that
+                                # notices the ledger being trimmed row by row to match
+
+COLLAPSE_RE = re.compile(r"^FAIL: SCOPE COLLAPSE ([\w.]+):", re.M)
+
+
+def collapsed_populations(out: str) -> set[str]:
+    """Every SCOPE-LEDGER population that reported a collapse in this run.
+
+    🔴 EXACT, NOT HEURISTIC. The population's name is in the text check 20 prints, so
+    there is nothing here to be 95% right about (196 §4's hedge, not needed here).
+    """
+    return set(COLLAPSE_RE.findall(out))
+
+
+def roster_problems(names: list[str], blast: dict, ledger: dict) -> list[str]:
+    """A target with no declaration, and a declaration with no target — both halves (182).
+
+    🔴 LIFTED OUT AND FIXTURE-FED (195 §8.4). On a healthy tree this returns [], so an
+    inline version deletes invisibly.
+    """
+    problems = []
+    for name in names:
+        if name not in blast:
+            problems.append(
+                f"{name} has no BLAST entry — a blind whose radius nothing is watching, which "
+                f"is how three rows stopped reddening the ledger without anyone noticing (197 §4)"
+            )
+        if name not in ledger:
+            problems.append(
+                f"{name} has no LEDGER entry — nothing says which population this blind is "
+                f"supposed to collapse, so ANY red run reads as proof the ledger caught it"
+            )
+    for name in blast:
+        if name not in names:
+            problems.append(f"BLAST names {name!r}, which is not a target — a stale entry "
+                            f"makes the roster look complete over a row that no longer exists")
+    for name in ledger:
+        if name not in names:
+            problems.append(f"LEDGER names {name!r}, which is not a target")
+    return problems
+
+
 def run(source: str) -> tuple[bool, bool, str]:
     """(green, executed, output). The mutant is removed whatever happens.
 
@@ -145,7 +272,9 @@ def run(source: str) -> tuple[bool, bool, str]:
 
 
 def gate_failed(targets_low: bool, blind: int, never_ran: int,
-                attrib_low: bool = False) -> bool:
+                attrib_low: bool = False, roster: int = 0, blast_drift: int = 0,
+                ledger_miss: int = 0, blast_low: bool = False,
+                collapse_low: bool = False) -> bool:
     """This gate's verdict, as a PURE function of its three populations.
 
     🔴 EXTRACTED FOR `combineFailed`'s REASON, ONE FILE OVER (180 §7.1, and 174 §8 / 176's
@@ -155,8 +284,14 @@ def gate_failed(targets_low: bool, blind: int, never_ran: int,
     intact and the run still green. On a healthy tree all three inputs are already
     falsey, so the new term is never satisfied apart from the others and its deletion is
     invisible to every live run. Lifted out, the truth table below can assert it.
+
+    🔴 197 ADDED FIVE MORE TERMS FOR THE SAME REASON. Every one of them is falsey on a
+    healthy tree, so every one of them deletes invisibly unless the table below asserts it
+    reaches this exit code ALONE.
     """
-    return targets_low or bool(blind) or bool(never_ran) or attrib_low
+    return (targets_low or bool(blind) or bool(never_ran) or attrib_low
+            or bool(roster) or bool(blast_drift) or bool(ledger_miss)
+            or blast_low or collapse_low)
 
 
 def _self_check() -> list[str]:
@@ -170,13 +305,54 @@ def _self_check() -> list[str]:
             f"STATEMENT_ATTRIB_FLOOR is {STATEMENT_ATTRIB_FLOOR}. A floor at zero cannot bite, "
             f"and this is the only place the attribution is pinned."
         )
+    for floor_name, floor in (("SCOPE_BLAST_TOTAL_FLOOR", SCOPE_BLAST_TOTAL_FLOOR),
+                              ("LEDGER_COLLAPSE_FLOOR", LEDGER_COLLAPSE_FLOOR)):
+        if floor <= 0:
+            problems.append(
+                f"{floor_name} is {floor}. A floor at zero cannot bite, and it is the only "
+                f"thing watching the per-row equalities being edited one row at a time."
+            )
     for label, args in (("targets_low", (True, 0, 0)), ("blind", (False, 1, 0)),
-                        ("never_ran", (False, 0, 1)), ("attrib_low", (False, 0, 0, True))):
+                        ("never_ran", (False, 0, 1)), ("attrib_low", (False, 0, 0, True)),
+                        ("roster", (False, 0, 0, False, 1)),
+                        ("blast_drift", (False, 0, 0, False, 0, 1)),
+                        ("ledger_miss", (False, 0, 0, False, 0, 0, 1)),
+                        ("blast_low", (False, 0, 0, False, 0, 0, 0, True)),
+                        ("collapse_low", (False, 0, 0, False, 0, 0, 0, False, True))):
         if not gate_failed(*args):
             problems.append(
                 f"gate_failed does not fail on {label} ALONE — that population cannot reach "
                 f"the exit code by itself, so the branch that feeds it deletes invisibly"
             )
+
+    # 🔴 THE 197 DETECTORS, FIXTURE-FED (195 §8.4's shape, applied on the way in). On a
+    # healthy tree both return empty, so an inline version deletes invisibly — the class
+    # 188's sweep proved live in control_gate three branches at a time.
+    if roster_problems(["a"], {"a": 1}, {"a": ("p",)}):
+        problems.append("roster_problems flags a complete roster")
+    if not roster_problems(["a"], {}, {"a": ("p",)}):
+        problems.append(
+            "roster_problems does NOT flag a target with no BLAST entry — a blind whose "
+            "radius nothing declares is exactly what 197 §4 found three of"
+        )
+    if not roster_problems(["a"], {"a": 1}, {}):
+        problems.append(
+            "roster_problems does NOT flag a target with no LEDGER entry — without one, "
+            "ANY red run reads as proof the ledger caught the blind"
+        )
+    if not roster_problems([], {"gone": 1}, {"gone": ("p",)}):
+        problems.append(
+            "roster_problems does NOT flag a declaration with no target — a stale entry "
+            "makes the roster look complete over a row that no longer exists"
+        )
+    if collapsed_populations("FAIL: SCOPE COLLAPSE families.exempt_lines: 0 < floor 1"
+                            ) != {"families.exempt_lines"}:
+        problems.append("collapsed_populations does not read a live SCOPE COLLAPSE line")
+    if collapsed_populations("FAIL: something else entirely"):
+        problems.append(
+            "collapsed_populations reads a population out of a line that names none — the "
+            "per-row ledger assertion would then pass on any red run at all"
+        )
     return problems
 
 
@@ -224,10 +400,26 @@ def main() -> int:
 
     blind: list[str] = []
     never_ran: list[str] = []
+    # 🔴 197 §4. The roster halves FIRST — a sweep over a roster with a hole in it would
+    # print 24 clean rows and say nothing about the twenty-fifth.
+    roster = roster_problems([n for n, _e, _p in found], BLAST, LEDGER)
+    for problem in roster:
+        print(f"🔴 SCOPE_GATE_ROSTER {problem}")
+
+    blast_drift: list[str] = []
+    ledger_miss: list[str] = []
+    blast_total = 0
+    collapses = 0
     for name, empty, pos in sorted(found):
         mutant = text[:pos] + f"\n    return {empty}  # SCOPE_GATE" + text[pos:]
         green, executed, out = run(mutant)
         reached.update(ln for ln, fp in fps.items() if fp in out)
+        fails = out.count("\nFAIL: ") + int(out.startswith("FAIL: "))
+        pops = collapsed_populations(out)
+        declared = BLAST.get(name)
+        want = set(LEDGER.get(name, ()))
+        blast_total += fails
+        collapses += len(pops & want)
         if green:
             blind.append(name)
             print(f"🔴 SCOPE_GATE_BLIND {name} -> {empty}: the run is STILL GREEN")
@@ -235,7 +427,24 @@ def main() -> int:
             never_ran.append(name)
             print(f"🔴 SCOPE_GATE_NEVER_RAN {name} -> {empty}: red, but the copy never reached the report")
         else:
-            print(f"  ok   {name:<34} -> {empty:<14} blinded, run goes red")
+            missing = want - pops
+            if declared is not None and fails != declared:
+                blast_drift.append(name)
+                print(f"🔴 SCOPE_GATE_BLAST {name}: declared {declared} FAIL line(s), observed "
+                      f"{fails}. The blind's radius moved. If a check was ADDED this row now "
+                      f"reddens it too and nobody was told — 196 §3, which is the whole reason "
+                      f"this number is compared. Update the BLAST entry ON PURPOSE, in the "
+                      f"commit that moved it. Populations that collapsed: {sorted(pops) or '-'}")
+            if missing:
+                ledger_miss.append(name)
+                print(f"🔴 SCOPE_GATE_LEDGER {name}: the run went red, but the SCOPE-LEDGER "
+                      f"population(s) this blind is supposed to collapse did NOT: "
+                      f"{sorted(missing)}. Something ELSE caught it — a parse guard, a count "
+                      f"drift — and the ledger floor this row exists to defend is unprotected. "
+                      f"Collapsed instead: {sorted(pops) or 'nothing at all'}")
+            if not missing and (declared is None or fails == declared):
+                print(f"  ok   {name:<34} -> {empty:<14} red · {fails} FAIL line(s), declared "
+                      f"{declared} · collapsed {' '.join(sorted(want))}")
 
     print(f"SCOPE_GATE_BLIND_COUNT {len(blind)} of {len(found)} · never-ran {len(never_ran)}")
     attrib_low = len(reached) < STATEMENT_ATTRIB_FLOOR
@@ -269,15 +478,44 @@ def main() -> int:
             "   of its collapse — never a floor derived from the same finder (check 16 did that,\n"
             "   and `len(x) >= len(x)` is why it was on this list)."
         )
+    # ── 🔴 197 §4. THE BLAST RADIUS AND THE LEDGER CLAIM, IN AGGREGATE ──────────────
+    # Two numbers, not one (194 §33): `blast_total` is what the blinds DO, and
+    # `collapses` is how much of that lands on the ledger this file exists to defend.
+    # Both are floored from below; the per-row assertions above are the gate.
+    blast_low = blast_total < SCOPE_BLAST_TOTAL_FLOOR
+    collapse_low = collapses < LEDGER_COLLAPSE_FLOOR
+    print(f"SCOPE_GATE_BLAST {blast_total}/{SCOPE_BLAST_TOTAL_FLOOR} FAIL line(s) across "
+          f"{len(found)} blind(s), every row's count DECLARED and compared")
+    print(f"SCOPE_GATE_LEDGER {collapses}/{LEDGER_COLLAPSE_FLOOR} scope-ledger population "
+          f"collapse(s) — every blind reddens the LEDGER,\n"
+          f"                  not merely the run (197 §4: three rows did not, and the "
+          f"ledger had no entry for them)")
+    if blast_low:
+        print(f"🔴 SCOPE_GATE_BLAST_LOW {blast_total} < {SCOPE_BLAST_TOTAL_FLOOR} — the blinds\n"
+              "   redden less than they did when this floor was measured. Each row's own\n"
+              "   equality is edited one row at a time; this is what notices the sweep\n"
+              "   getting quieter overall.")
+    if collapse_low:
+        print(f"🔴 SCOPE_GATE_LEDGER_LOW {collapses} < {LEDGER_COLLAPSE_FLOOR} — fewer\n"
+              "   ledger populations collapse than when this was measured, so more of what\n"
+              "   this gate reports as caught is being caught by something that is not the\n"
+              "   ledger. That is the state 197 §4 found and closed; do not re-enter it by\n"
+              "   lowering this number.")
+
     # 🔴 ONE VERDICT, THROUGH THE FUNCTION THE SELF-CHECK PROVED (see gate_failed above).
-    if gate_failed(targets_low, len(blind), len(never_ran), attrib_low):
+    if gate_failed(targets_low, len(blind), len(never_ran), attrib_low, len(roster),
+                   len(blast_drift), len(ledger_miss), blast_low, collapse_low):
         print("\nSCOPE_GATE 🔴 FAILED")
         return 1
     # 🔴 THE VERDICT NAMES WHAT IT ACTUALLY VERIFIED (174 §5). The old wording —
     # "every derived population collapses LOUDLY" — was the line printed over 25 mutants
     # that never ran, and it is the only line a reader of a green CI log ever sees.
     print(f"\nSCOPE_GATE ok — all {len(found)} enumerator(s) blinded, each EXECUTED a "
-          f"contract check and each went red")
+          f"contract check, each went red,\n"
+          f"                each reddened the exact number of FAIL lines it declares, and each "
+          f"collapsed the\n"
+          f"                SCOPE-LEDGER population it names — so the LEDGER is what caught it "
+          f"(197 §4)")
     return 0
 
 

@@ -621,14 +621,16 @@ LATE_DECLARED_GREEN = {
 
 
 def late(text: str, sig: str, empty: str) -> str | None:
-    """`empty` becomes the body from the SECOND call onwards. Same anchor as blind()."""
-    idx = text.find("\n  " + sig + " {")
-    if idx < 0:
-        idx = text.find("\n" + sig)
-        if idx < 0:
-            return None
-    brace = text.find("{", idx)
-    if brace < 0:
+    """`empty` becomes the body from the SECOND call onwards. Same anchor as blind().
+
+    🔴 AND THE SAME BRACE, VIA THE SAME FUNCTION (197 §5). This injector carried an
+    identical copy of `text.find("{", idx)`, so it had the identical destructured-parameter
+    bug — and on THIS axis the failure is quieter still, because a mutant that does not
+    parse reports `calls=0` and is filed as "not constructible", which raises no problem at
+    all. Two copies of one wrong line is 180 §7.1's class; there is now one.
+    """
+    brace = body_brace(text, sig)
+    if brace is None:
         return None
     return (text[: brace + 1]
             + f"\n    {LATE_HOOK} if(globalThis.__LB>1){{ {empty} }}  // INSTRUMENT_GATE LATE"
@@ -786,6 +788,56 @@ def _self_check(floor: int) -> list[str]:
             f"exactly what it names. It is only wrong one parameter later"
         )
 
+    # ── 🔴 197 §5's DETECTORS, FIXTURE-FED (195 §8.4's shape, applied on the way in) ──
+    # Every one of these returns empty on a healthy tree, so every one of them deletes
+    # invisibly without a fixture underneath it. `CRASH_CEILING` is asserted to BITE
+    # rather than pinned to its value, for the same reason the floors above are.
+    _k = ("i", "s")
+    if crash_problems([], {}, 1):
+        problems.append("crash_problems flags a healthy sweep")
+    if not crash_problems([_k], {}, 1):
+        problems.append(
+            "crash_problems does NOT flag an UNDECLARED crash — a blind that kills the gate "
+            "instead of failing it would read exactly like a catch, which is 181 §4")
+    if not crash_problems([], {_k: "why"}, 1):
+        problems.append(
+            "crash_problems does NOT flag a declaration that stopped crashing — an exemption "
+            "outliving its reason is 174 §5")
+    if not crash_problems([_k, ("i", "s2")], {_k: "w", ("i", "s2"): "w"}, 1):
+        problems.append(
+            "crash_problems does NOT enforce CRASH_CEILING — the roster could then grow one "
+            "declared entry at a time and never be read as growing")
+    if marker_roster_problems([{"name": "i"}], {"i": "M"}):
+        problems.append("marker_roster_problems flags a complete roster")
+    if not marker_roster_problems([{"name": "i"}], {}):
+        problems.append(
+            "marker_roster_problems does NOT flag an instrument with no VERDICT_MARKER — "
+            "without one every red run over it is unclassifiable again")
+    if not marker_roster_problems([], {"gone": "M"}):
+        problems.append("marker_roster_problems does NOT flag a marker with no instrument")
+    # The failure reader must COUNT, and must not INVENT. Three dialects, one fixture each,
+    # plus the clean case — a reader that counts noise makes every blast floor unfalsifiable.
+    if failure_lines("  FAIL SOME_MARKER a claim\n") != 1:
+        problems.append("failure_lines does not read the marker dialect")
+    if failure_lines("🔴 FAILED: a claim did not hold\n") != 1:
+        problems.append("failure_lines does not read the prose dialect")
+    if failure_lines("ℹ fail 3\n") != 3:
+        problems.append("failure_lines does not read the node:test dialect")
+    if failure_lines("everything is fine\n  ok   NOT_A_FAILURE\n"):
+        problems.append(
+            "failure_lines counts a failure in clean output — the blast floors would then be "
+            "met by noise and could never fall")
+    # 🔴 AND THE PER-INSTRUMENT FLOORS THEMSELVES. `floor_pin_gate.py` exempts `BLAST_FLOOR`
+    # BY NAME on the promise that this line exists — its DISCOVER regexes read literals and
+    # this is a dict, so nothing outside this file can see these values at all. A zero here
+    # is a floor that cannot bite, which is 176's G11 in a mapping instead of a constant.
+    for _name, _v in BLAST_FLOOR.items():
+        if _v <= 0:
+            problems.append(
+                f"BLAST_FLOOR[{_name!r}] is {_v}. A floor at zero cannot bite, and this dict is "
+                f"invisible to floor_pin_gate.py's discovery half — this assertion is the only "
+                f"thing standing between it and being quietly zeroed one instrument at a time")
+
     # ── 🆕 195. `{SIG:}`'s OWN THREE BRANCHES, EACH FED AN INPUT IT MUST ANSWER ──────
     #
     # 🔴 EVERY ONE OF THESE IS EMPTY ON A HEALTHY TREE, WHICH IS WHY THEY ARE HERE AND
@@ -868,23 +920,235 @@ def _self_check(floor: int) -> list[str]:
     return problems
 
 
-def green(inst: dict) -> bool:
-    """True when the instrument's gate runs GREEN."""
+# ── 🔴 197 §5 — THE VERDICT MARKER, WHICH IS 181 §4 ARRIVING HERE FIVE SESSIONS LATE ──
+#
+# `green()` was `p.returncode == 0`. It CAPTURED the gate's whole output and threw it away,
+# so `red` had two causes and one observable: the gate CAUGHT the blind, or the blind
+# CRASHED the gate. `scope_gate.py` fixed exactly this in 181 with `REPORT_MARKER`, and
+# `control_gate.py` carries it as `executed`; this file never got it. Measured over the 59
+# blinds: 727 failure lines nothing read, and NINE blinds that went red without the gate
+# ever reaching its own verdict — eight uncaught `TypeError`s and one file that did not
+# parse (§5's `judge`).
+#
+# 🔴 A DECLARED MARKER, ASSERTED ON THE CONTROL, RATHER THAN A DERIVED ONE. There are three
+# report dialects among these nine instruments and a reader that guesses which one an
+# instrument speaks is a reader that can be wrong — 196 §4's hedge. Declaring it costs one
+# string per instrument and the CONTROL run, which happens every sweep, is what proves the
+# string is right: a marker that stopped appearing on a HEALTHY run is caught before a
+# single mutant is applied.
+VERDICT_MARKER: dict[str, str] = {
+    "_population.mjs": "POP_SELFTEST",
+    "_path_ledger.mjs": "LEDGER_SELFTEST",
+    "_workspace.mjs": "WORKSPACE_SELFTEST",
+    "_png.mjs": "PNG_SELFTEST",
+    "tautology_gate.mjs": "TAUT_SELFTEST",
+    "verdict_gate.mjs": "VERDICT_SELFTEST",
+    "boundary_gate.mjs": "BOUNDARY_SELFTEST",
+    "seal_order_gate.mjs": "SEAL_ORDER_SELFTEST",
+    # node:test prints its own summary; `ℹ fail <n>` is the line that only exists when the
+    # runner reached the end of the run.
+    "path-cohort (compiled walk)": "ℹ fail ",
+}
+
+
+# 🔴 THE THREE DIALECTS, SUMMED RATHER THAN CLASSIFIED. A reader that decides which
+# dialect an instrument speaks is a reader that can be wrong, and a wrong classifier here
+# reports 0 failures for five of the nine — which is exactly what the first draft of the
+# measuring script did. The three patterns are disjoint, so adding them needs no classifier
+# and cannot mis-file a line (197 §5).
+A_FAIL = re.compile(r"^[ \t]*FAIL[ \t]+[A-Z][A-Z0-9_]+", re.M)      # the .selftest.mjs harnesses
+B_FAIL = re.compile(r"^🔴 FAILED: ", re.M)                          # the *_gate.mjs self-tests
+C_FAIL = re.compile(r"^ℹ fail (\d+)$", re.M)                        # node:test
+
+
+def failure_lines(out: str, _name: str = "") -> int:
+    """How many failures the gate REPORTED. Not the exit code — the count."""
+    c = C_FAIL.findall(out)
+    return len(A_FAIL.findall(out)) + len(B_FAIL.findall(out)) + (int(c[-1]) if c else 0)
+
+
+# 🔴 THE BLINDS THAT CRASH THEIR GATE INSTEAD OF FAILING IT, DECLARED WITH THEIR REASON.
+#
+# Eight of the fifty-nine make the self-test throw before it reaches its verdict. Every one
+# is a self-test that consumes the blinded member's return value in SETUP — outside the
+# claim wrapper that would have recorded a failure — so the process dies on a `TypeError`
+# instead. The blind IS caught in the weak sense that CI reddens, but the gate is
+# demonstrating that JavaScript throws on `undefined`, not that its floor bites. That is a
+# weaker claim than the `ok` line was making, so it is written down rather than counted.
+#
+# 🔴 THE SAME SHAPE AS `LATE_DECLARED_GREEN`, INCLUDING ITS TEETH (174 §5): a declared
+# crash that STOPS crashing is a structure change and reddens this gate, so an exemption
+# cannot outlive its reason. And `CRASH_CEILING` is a CEILING, not a floor — this list is
+# supposed to shrink, and the way to shrink it is to move the setup call inside the claim.
+CRASH_DECLARED: dict[tuple[str, str], str] = {
+    ("_workspace.mjs", "{SIG:walk}"):
+        "the self-test reads `snapshot.files.get(...).bytes` in setup; a blind `walk` "
+        "empties the map and the read throws before any claim runs",
+    ("_workspace.mjs", "{SIG:snapshotDir}"):
+        "same setup read, one level up — `snapshotDir` returns an empty map directly",
+    ("_workspace.mjs", "{SIG:restoreDir}"):
+        "the self-test indexes `removed[0].path` in setup to name what was restored",
+    ("_png.mjs", "{SIG:decodePng}"):
+        "`decodePng` returning null makes the setup read of `.width` throw",
+    ("tautology_gate.mjs", "{SIG:collectAsserters}"):
+        "the self-test reads `.leaves` off a lookup the blinded collector no longer fills",
+    ("tautology_gate.mjs", "{SIG:analyze}"):
+        "the self-test reads `.owner` off `analyze`'s result in setup",
+    ("seal_order_gate.mjs", "{SIG:inspect}"):
+        "the self-test reads `.declared` off the inspection record in setup",
+    ("seal_order_gate.mjs", "{SIG:assertAliases}"):
+        "the self-test reads `.readable` off the alias report in setup",
+    # 🔴 THIS ONE ARRIVED BY BEING FIXED. Before §5's injector fix it was a SyntaxError —
+    # never applied, and reported `ok` for 25 commits. Applied correctly it now reddens 39
+    # claims and THEN dies in `regionsIn()`, a setup helper on line 515 that does
+    # `r.lines.find(l => l.startsWith("SEAL_ORDER_REGIONS")).split(" ")` — a blinded
+    # `judge` prints no such line, so `.find` returns undefined outside any claim.
+    ("seal_order_gate.mjs", "{SIG:judge}"):
+        "`regionsIn()` reads the SEAL_ORDER_REGIONS line out of the report in setup; a "
+        "blinded judge prints none and the helper throws after 39 claims have already failed",
+}
+CRASH_CEILING = 9      # 🔴 A CEILING, AND IT IS SUPPOSED TO FALL. Every entry is one setup
+                       # read that belongs inside a claim; move it and the row becomes an
+                       # ordinary catch. It is a ceiling rather than a floor precisely so
+                       # that doing that work is what edits this number.
+
+
+def crash_problems(crashes: list, declared: dict, ceiling: int) -> list[str]:
+    """Undeclared crashes, and declarations that stopped crashing. Both halves (174 §5).
+
+    🔴 FIXTURE-FED, because on a healthy tree both halves are empty.
+    """
+    problems = []
+    for key in crashes:
+        if key not in declared:
+            problems.append(
+                f"{key[0]}: `{key[1]}` went RED WITHOUT the gate reaching its own verdict — "
+                f"the blind CRASHED it rather than failing it, so this row proves that "
+                f"JavaScript throws on an empty, not that the gate's floor bites. Move the "
+                f"setup read inside a claim, or declare it here with the reason"
+            )
+    for key in declared:
+        if key not in crashes:
+            problems.append(
+                f"{key[0]}: `{key[1]}` is DECLARED as crashing and now reaches the verdict. "
+                f"The reason on file no longer holds — delete the declaration and lower "
+                f"CRASH_CEILING in the same commit: {declared[key]}"
+            )
+    if len(crashes) > ceiling:
+        problems.append(
+            f"CRASH_CEILING {len(crashes)} > {ceiling} — more blinds crash their gate than "
+            f"when this was measured. This number is a CEILING and is supposed to fall"
+        )
+    return problems
+
+
+def marker_roster_problems(instruments, markers: dict) -> list[str]:
+    """An instrument with no marker, and a marker with no instrument (182's both halves).
+
+    🔴 FIXTURE-FED (195 §8.4): both lists are empty on a healthy tree, so an inline version
+    deletes invisibly.
+    """
+    names = [i["name"] for i in instruments]
+    problems = []
+    for n in names:
+        if n not in markers:
+            problems.append(
+                f"{n} has no VERDICT_MARKER — every red run over it is unclassifiable, so "
+                f"'the gate caught it' and 'the mutant crashed the gate' are one observable "
+                f"again (181 §4, and 197 §5 found nine live)"
+            )
+    for n in markers:
+        if n not in names:
+            problems.append(f"VERDICT_MARKER names {n!r}, which is not an instrument")
+    return problems
+
+
+def green(inst: dict) -> tuple[bool, bool, int]:
+    """(gate ran GREEN, the gate REACHED ITS OWN VERDICT, how many failures it reported).
+
+    🔴 THREE VALUES BECAUSE `red` HAD THREE MEANINGS AND ONE OBSERVABLE (197 §5, and 181
+    §4 before it, one file over). The third is the blast radius: a number this function has
+    always had in hand and always discarded — 196 §3, one turn worse, because control_gate
+    at least printed it.
+    """
     p = subprocess.run(inst["gate"], capture_output=True, text=True, cwd=str(inst["cwd"]))
-    return p.returncode == 0
+    out = p.stdout + p.stderr
+    return (p.returncode == 0, VERDICT_MARKER.get(inst["name"], "\0") in out,
+            failure_lines(out, inst["name"]))
+
+
+def body_brace(text: str, sig: str) -> int | None:
+    """Index of the `{` that opens the member's BODY — not the first `{` after its name.
+
+    🔴 197 §5. BOTH INJECTORS SAID `text.find("{", idx)`, AND FOR ONE TARGET THAT BRACE WAS
+    A DESTRUCTURING PATTERN IN THE PARAMETER LIST.
+
+        export function judge(files, { filesFloor = FILES_FLOOR, … } = {}) {
+
+    `seal_order_gate.judge` gained that options bag in #211. From then on the injection
+    landed INSIDE the parameter list, node exited 1 on `SyntaxError: Unexpected token '{'`,
+    `green()` read `returncode != 0` — and this gate printed `ok  {SIG:judge}` over a file
+    that does not compile, for 25 commits. The target was not merely failing to prove
+    anything: it was never applied, and nothing anywhere said so.
+
+    🔴 THE FIX IS TO COMPUTE THE BRACE FROM THE ANCHOR RATHER THAN SEARCH FOR IT. The
+    anchor `resolve_sig()` returns already carries the answer: an indented member is
+    matched with its ` {` appended, and a top-level declaration's anchor ENDS in `{`
+    (`_decl_re` requires a block-opening brace at end of line, which is why a call site can
+    never be anchored). The paren-depth walk below is a backstop for an anchor that
+    carries neither, and it too refuses to accept a brace inside a parameter list.
+    """
+    pat = "\n  " + sig + " {"
+    idx = text.find(pat)
+    if idx >= 0:
+        return idx + len(pat) - 1
+    idx = text.find("\n" + sig)
+    if idx < 0:
+        return None
+    stripped = sig.rstrip()
+    if stripped.endswith("{"):
+        return idx + len(stripped)      # 1 for the "\n", len(stripped)-1 for the brace
+    depth = 0
+    for i in range(idx, len(text)):
+        c = text[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        elif c == "{" and depth <= 0:
+            return i
+    return None
 
 
 def blind(text: str, sig: str, empty: str) -> str | None:
     """Inject `empty` as the first statement of the member whose signature is `sig`."""
-    idx = text.find("\n  " + sig + " {")
-    if idx < 0:
-        idx = text.find("\n" + sig)
-        if idx < 0:
-            return None
-    brace = text.find("{", idx)
-    if brace < 0:
+    brace = body_brace(text, sig)
+    if brace is None:
         return None
     return text[: brace + 1] + f"\n    {empty}  // INSTRUMENT_GATE" + text[brace + 1 :]
+
+
+# 🔴 197 §5 — WHAT THE BLINDS DO, ONE LINE PER INSTRUMENT AND NEVER SUMMED (172 §6).
+# A single total across all nine would let one instrument's sweep go quiet while the other
+# eight covered for it, which is the exact defect the per-instrument BLIND lines exist to
+# prevent. Floored from BELOW and with headroom, because these self-tests GROW: a per-row
+# equality would redden on every honest new claim, which is a gate that gets deleted.
+BLAST_FLOOR: dict[str, int] = {
+    "_population.mjs": 80,
+    "_path_ledger.mjs": 30,
+    "_workspace.mjs": 36,
+    "_png.mjs": 6,
+    "tautology_gate.mjs": 120,
+    "verdict_gate.mjs": 28,
+    "boundary_gate.mjs": 160,
+    # 🔴 127 BEFORE §5's INJECTOR FIX, 166 AFTER — the 39-claim difference is `{SIG:judge}`
+    # being applied for the first time since #211. The floor is set against the CORRECT
+    # number, so a regression to the broken injector would now be caught here as well.
+    "seal_order_gate.mjs": 140,
+    "path-cohort (compiled walk)": 50,
+}
+BLAST_OBSERVED: dict[str, int] = {}
+CRASHED: list[tuple[str, str]] = []
 
 
 def sweep(inst: dict) -> tuple[int, int, list[str]]:
@@ -916,9 +1180,26 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
 
     try:
         # CONTROL. 171 §5's M4: without it a 'caught' mutant means nothing at all.
-        if not green(inst):
+        ok, saw_verdict, ctrl_fails = green(inst)
+        if not ok:
             return (0, len(targets), [f"{inst['name']}: CONTROL FAILED — the unmutated gate does not pass, so this harness is lying"])
-        print("   CONTROL ok — unmutated, the gate passes")
+        # 🔴 197 §5. THE MARKER IS PROVED ON THE HEALTHY RUN, BEFORE A SINGLE MUTANT.
+        # A declared marker that no longer appears would silently reclassify every catch
+        # below as a crash — 181 §4's discriminator needing its own control, which
+        # scope_gate learned the same way (`SCOPE_GATE_MARKER`).
+        if not saw_verdict:
+            return (0, len(targets), [
+                f"{inst['name']}: the unmutated gate passes WITHOUT printing "
+                f"{VERDICT_MARKER.get(inst['name'])!r}. Every 'caught' and 'crashed' "
+                f"judgement below rests on that string; fix VERDICT_MARKER before believing "
+                f"a line of this sweep"])
+        if ctrl_fails:
+            return (0, len(targets), [
+                f"{inst['name']}: the unmutated gate reports {ctrl_fails} failure line(s) "
+                f"while exiting 0 — the failure reader and the exit code disagree on a "
+                f"HEALTHY tree, so the blast radius below is measuring something else"])
+        print("   CONTROL ok — unmutated, the gate passes, prints its verdict marker, "
+              "and reports 0 failure line(s)")
 
         still_green: list[str] = []
         for sig, empty in targets.items():
@@ -936,11 +1217,19 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
                 print(f"   🔴 UNMATCHED   {sig}")
                 continue
             src.write_text(mutant)
-            if green(inst):
+            mut_green, mut_verdict, fails = green(inst)
+            BLAST_OBSERVED[inst["name"]] = BLAST_OBSERVED.get(inst["name"], 0) + fails
+            if mut_green:
                 still_green.append(sig)
                 print(f"   🔴 STILL GREEN {sig}  ->  {empty[:44]}")
+            elif not mut_verdict:
+                # 🔴 RED, BUT THE GATE NEVER REACHED ITS OWN VERDICT (197 §5). Declared or
+                # not is `crash_problems`' call; this loop only records what happened.
+                CRASHED.append((inst["name"], sig))
+                mark = "declared-crash" if (inst["name"], sig) in CRASH_DECLARED else "🔴 CRASHED"
+                print(f"   {mark:<14} {sig[:52]}  no verdict, {fails} failure line(s)")
             else:
-                print(f"   ok            {sig}")
+                print(f"   ok            {sig[:52]}  red · {fails} failure line(s) reported")
         return (len(still_green), len(targets), problems + [
             f"{inst['name']}: `{s}` can return the empty its contract promises and the gate stays GREEN — "
             f"'found nothing' and 'did not look' are the same observable ({inst['why']})"
@@ -1031,6 +1320,36 @@ def main() -> int:
             f"exactly like a tree where nothing is called twice"
         )
 
+    # ── 🔴 197 §5. THE BLAST RADIUS, AND THE BLINDS THAT CRASH RATHER THAN FAIL ──────
+    # One line per instrument, never summed (172 §6). `green()` had every one of these
+    # numbers in hand on every run since this file was written, and returned a boolean.
+    print("")
+    for inst in INSTRUMENTS:
+        n = BLAST_OBSERVED.get(inst["name"], 0)
+        floor = BLAST_FLOOR.get(inst["name"])
+        print(f"INSTRUMENT_GATE_BLAST {inst['name']}: {n}/{floor} failure line(s) reported "
+              f"across its blinds")
+        if floor is None:
+            problems.append(
+                f"{inst['name']} has no BLAST_FLOOR — its sweep could stop reddening "
+                f"anything at all and every line above would still print ok")
+        elif n < floor:
+            problems.append(
+                f"{inst['name']}: BLAST {n} < {floor} — its blinds redden LESS than when this "
+                f"floor was measured. The per-instrument BLIND count cannot see this: a gate "
+                f"that still exits 1 while reporting half as many failures is a gate getting "
+                f"quieter, and 196 §3 is what that silence costs")
+    for stale in sorted(set(BLAST_FLOOR) - {i["name"] for i in INSTRUMENTS}):
+        problems.append(f"BLAST_FLOOR names {stale!r}, which is not an instrument")
+    print(f"INSTRUMENT_GATE_BLAST_TOTAL {sum(BLAST_OBSERVED.values())} across "
+          f"{len(INSTRUMENTS)} instrument(s) — PRINTED, NOT FLOORED\n"
+          f"                             (172 §6: the sum is the number that hides a collapse)")
+    print(f"INSTRUMENT_GATE_CRASHED {len(CRASHED)}/{CRASH_CEILING} blind(s) went red WITHOUT "
+          f"their gate reaching its own\n"
+          f"                        verdict — a CEILING, and every one declared with its reason")
+    problems.extend(crash_problems(CRASHED, CRASH_DECLARED, CRASH_CEILING))
+    problems.extend(marker_roster_problems(INSTRUMENTS, VERDICT_MARKER))
+
     if problems:
         print("")
         for p in problems:
@@ -1045,7 +1364,15 @@ def main() -> int:
         )
         return 1
 
-    print("\nINSTRUMENT_GATE ok — every instrument collapses LOUDLY")
+    # 🔴 THE VERDICT NAMES WHAT IT ACTUALLY VERIFIED (174 §5). "Every instrument collapses
+    # LOUDLY" was the line printed over nine blinds that crashed their gate rather than
+    # failing it, and over one that never compiled — for 25 commits.
+    print("\nINSTRUMENT_GATE ok — every instrument collapses LOUDLY: each blind reddened its "
+          "gate,\n"
+          "                    each gate REACHED ITS OWN VERDICT (or is one of the "
+          f"{len(CRASHED)} declared\n"
+          "                    crashes), and each instrument reported at least its floor of "
+          "failure lines")
     return 0
 
 
