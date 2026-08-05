@@ -828,7 +828,7 @@ LATE_CRASHED_B: list[tuple[str, str]] = []
 # filed as "not constructible", no problem is raised and the gate prints ok — the whole
 # second axis neutralised in silence, which is the exact defect it was built to find, one
 # level up. `>=`, and measured at 70 of 84 across both axes.
-LATE_CONSTRUCTED_FLOOR = 65   # 183: 55 -> 65, measured 82 of 102 across both axes
+LATE_CONSTRUCTED_FLOOR = 65   # governed by floor_pin_gate SIZE_LEDGER (§9.3)
 LATE_CONSTRUCTED: list[str] = []
 
 # 🆕 183 — AND THE ROSTER ABOVE NEEDS ITS OWN FLOOR, WHICH IS THE HALF `LATE_CONSTRUCTED`
@@ -1502,7 +1502,7 @@ def main() -> int:
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
     # would sweep nothing, report nothing and exit 0 — the exact shape it exists to
     # catch, one level up. taut169, again, again.
-    INSTRUMENT_FLOOR = 8   # 177: 7 -> 8, boundary_gate.mjs admitted
+    INSTRUMENT_FLOOR = 8   # governed by floor_pin_gate SIZE_LEDGER (§9.3)
     #                        176: 5 -> 7, tautology_gate.mjs and verdict_gate.mjs admitted
     print(f"INSTRUMENT_GATE instruments={len(INSTRUMENTS)} floor={INSTRUMENT_FLOOR}")
     problems.extend(_self_check(INSTRUMENT_FLOOR))

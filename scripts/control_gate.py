@@ -559,7 +559,7 @@ UNFINGERPRINTABLE_FLOOR = 3
 # every remaining row still passes; the only thing that moves is a number nobody reads.
 # 186 §6 paid this on the way in for a new coverage number and the handoff's own note is
 # that the OLD one is still unfloored — so this one is floored on the way in too.
-CONTROLLED_FLOOR = 56          # 187: 17 · 188: +24, the constructible half of the 34 (§4)
+CONTROLLED_FLOOR = 56          # governed by floor_pin_gate SIZE_LEDGER (§9.3)
                                # 192: +7, check 23's statements — SIX by design and a
                                # SEVENTH the reverse sweep demanded (192 §6)
 
@@ -568,7 +568,7 @@ CONTROLLED_FLOOR = 56          # 187: 17 · 188: +24, the constructible half of 
 # assertion in this file would still hold. A ratio with only its numerator pinned is a
 # number that gets better as the thing it measures gets smaller — 175's rule, stated as a
 # floor instead of quoted.
-STATEMENT_FLOOR = 87           # 186 measured 70; 188 §3 added two; 192 added check 23's
+STATEMENT_FLOOR = 87           # governed by floor_pin_gate SIZE_LEDGER (§9.3)
                                # seven. It is supposed to grow
 
 # ── 🔴 THE FOURTH POPULATION — 196 §4. WHAT ELSE EACH MUTATION REDDENS ─────────────
@@ -600,11 +600,11 @@ STATEMENT_FLOOR = 87           # 186 measured 70; 188 §3 added two; 192 added c
 # already computes and no new reader can be wrong about. The attribution is DIAGNOSIS:
 # printed when a row drifts, so the next author is told WHICH check arrived, and floored
 # in aggregate so it cannot quietly stop working.
-BLAST_TOTAL_FLOOR = 95         # measured 103 across the 56 rows. Floored from BELOW: a
+BLAST_TOTAL_FLOOR = 95         # measured ABOVE this; floored from BELOW so a row that stops
                                # mutation that stops reddening is a control going quiet,
                                # and the per-row equality above would be edited to match
                                # it one row at a time without this
-ALSO_ATTRIBUTED_FLOOR = 90     # measured 98 of 103. The DIAGNOSIS's own population — if
+ALSO_ATTRIBUTED_FLOOR = 90     # the DIAGNOSIS's own population, floored from BELOW — if
                                # the attributor silently stops resolving, the failure
                                # message stops naming the check that arrived
 
