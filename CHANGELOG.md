@@ -6,6 +6,66 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the mutation that could not reach the reader, and the numbers written in prose
+
+200 handed over three items. All three measured differently from how they were written, and
+measuring first (200 §33) is the only reason that was found.
+
+🔴 **A floor is defended where it is DECLARED and unread where it is USED.** `path-cohort.mjs`
+imports its five cohort floors from `_path_ledger.mjs`; re-inlining a literal there would be
+invisible, because the self-test still pins `COHORT_FLOORS.total` and the reverse sweep still
+zeroes it. 200's sweep declared that gap green as `C2` and 200 §35 asked which other
+instruments could stop reading an import silently.
+
+**Measured: six cross-file floor imports exist and five are a self-test importing from the
+gate it tests** — those *are* the declaration-site pins. Exactly one is a live consumer, and
+it is the one already named. The population is one, not six.
+
+🔴 **And the reason nothing catches it is the DIRECTION of the mutation.** Every row in
+`floor_pin_gate.py`'s sweep moves a floor toward zero, and for a `got >= floor` comparison
+zero is the value that makes a consumer trivially pass. The sweep is therefore structurally
+incapable of proving a consumer still reads the number — it can only prove the self-test does.
+`USE_TARGETS` **raises** each floor above the live value instead, and requires the consumer to
+refuse. All five reddened `path-cohort.mjs`; a re-inlined literal would keep it green.
+
+🔴 **`floor_pin_gate.py` had no `_self_check()`, and cited other files' by name in six
+exemption reasons.** `UNDISCOVERABLE_CEILING` bounded a roster that went empty, so
+`len(roster) > ceiling` was false for every value the ceiling could hold and raising it
+reddened nothing — 200's `U1`, which declared the gap rather than closing it. The branch is
+lifted into `ceiling_problems()` and fed a fixture: three declarations against a ceiling of two
+must bite, three against three must not, and zero against zero — today's live shape — must stay
+green. Four more branches are lifted and fixtured beside it.
+
+🔴 **A reason string is a number nobody compares.** Twelve of the exemption table's
+twenty-four reasons carried a non-citation digit-run, and four were the same defect in the same
+shape — a parenthetical a reader takes for the row's floor, which was the *live* measurement
+and had already drifted:
+
+```
+BLAST_TOTAL_FLOOR        said (103)        the constant holds  95
+SCOPE_BLAST_TOTAL_FLOOR  said (53)         the constant holds  45
+LEDGER_COLLAPSE_FLOOR    said (29)         the constant holds  24
+ALSO_ATTRIBUTED_FLOOR    said (98 of 103)  the constant holds  90
+```
+
+The rule is not *do not quote numbers*, it is *a number in prose must come from the tree*.
+`{FLOOR}` resolves from the row's own constant on every run — 188 §2's `{V}` idiom one table
+over — and everything else is spelled in words, which **seventeen of the twenty-four rows
+already did**: the rule is derived from the table's own house style rather than imposed on it.
+
+🔴 **The self-check caught its own author twice, on the first run.** The citation regex read
+three digits followed by any punctuation, so `103,` parsed as a session citation and the rule
+flagged nothing; and stripping `§` sections before citations turned every citation into a bare
+number. A citation is identified by what *follows* it, not by its range.
+
+### Verification
+
+```
+mutate201.py    EXPECT_DISCRIMINATES 4/4 · pass=9 fail=0 declared-green=2 of 9
+floor_pin_gate  57/57 pinned · 🆕 5/5 USE-site floors raised and each reddened its consumer
+                🆕 _self_check ok · 🆕 25 reasons read, 4 resolving `{FLOOR}`, 0 bare numbers
+```
+
 ## [1.72.4] — 2026-08-05
 
 ### Fixed — the floor a rename could not reach, and the ten the sum could not see
