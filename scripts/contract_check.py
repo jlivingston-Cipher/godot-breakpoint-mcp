@@ -2215,7 +2215,7 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 27  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 28  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
                                #   blinding technique, pointed at the failure statements
                                #   the other three cannot reach (186 §10.2). 100644 like
                                #   its three siblings; CI invokes it as `python3 <file>`.

@@ -25,6 +25,18 @@ jobs:
           python-version: '3.x'
       - name: Static parity check (no Godot / no registry needed)
         run: python3 scripts/contract_check.py
+      # 🔴 THE CEILING'S REFUSAL, PROVED WITHOUT THE REGISTRY — 206 §3.
+      # `scripts/registry_lag.py` is the reader 205 §8.3 asked for: it prints the
+      # registry-vs-tags distance at a release cut and refuses above LAG_CEILING. The
+      # LIVE half needs network and is only actionable at a cut, so it is NOT run here.
+      # This is the other half, and it is the half 204 §8.27 is about — *a check that
+      # has never refused has not been audited*. The selftest drives the pure reader over
+      # eight rows, FOUR of which must refuse, including the real 205 incident at lag 43.
+      # Without this step LAG_CEILING is a literal nobody re-derives, which is the class
+      # of artefact the file was written to replace. Pure stdlib, ~0.1s: a step here
+      # rather than a 27th job (FORTY-FOURTH session running).
+      - name: The registry-lag ceiling can still refuse (registry lag selftest)
+        run: python3 scripts/registry_lag.py --selftest
 
   build:
     name: real SDK build (node ${{ matrix.node }})
