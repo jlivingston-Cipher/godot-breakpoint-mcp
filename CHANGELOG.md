@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.2] — 2026-08-05
+
 ### Fixed — the axis that was still reading a return code, and the marker that had to be chosen against ground truth
 
 197 §5 gave `instrument_gate.py`'s PRIMARY axis three values where it had one — green,
