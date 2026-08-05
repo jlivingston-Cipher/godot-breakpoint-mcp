@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.5] — 2026-08-05
+
 ### Fixed — the mutation that could not reach the reader, and the numbers written in prose
 
 200 handed over three items. All three measured differently from how they were written, and
