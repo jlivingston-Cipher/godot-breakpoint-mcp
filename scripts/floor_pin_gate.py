@@ -253,6 +253,13 @@ DISCOVER_EXEMPT: dict[str, str] = {
                        "exists because LATE_CONSTRUCTED_FLOOR cannot see a roster shrink: deleting "
                        "the three caller-shape entries takes 82 constructed blinds to 70, which is "
                        "still above that floor. Same nesting reason as INSTRUMENT_FLOOR",
+    "SIG_RESOLVED_FLOOR": "🆕 195 — instrument_gate.py's floor on how many of its target anchors are "
+                       "`{SIG:name}` PLACEHOLDERS rather than literal signatures. It is a third "
+                       "collapse the two floors above cannot see: replacing a placeholder with the "
+                       "signature it resolves to today changes no printed line, no verdict and no "
+                       "blind — it only puts that row back on an expiry date, and the class arrived "
+                       "one row at a time. Pinned in the same `_self_check()`, which asserts the "
+                       "branch bites at 0. Same nesting reason as INSTRUMENT_FLOOR",
     # 🆕 187 — control_gate.py's two, and they are the same nesting problem a third time.
     # Its runner would be control_gate.py itself, which MUTATES THE WORKING TREE (it breaks
     # example/project.godot, README.md, a lockfile field and a tool name in turn), so
