@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.0] — 2026-08-04
+
 ### Added — the number the gate had always printed and never read
 
 195 §8.2 asked an **archive** question: which shipped claims in CHANGELOG entries 180–193
