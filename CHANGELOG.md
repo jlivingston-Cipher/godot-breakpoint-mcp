@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.71.0] — 2026-08-04
+
 ### Changed — the anchor that outran itself
 
 `instrument_gate.py` blinds 59 named members across eight instruments and requires each
