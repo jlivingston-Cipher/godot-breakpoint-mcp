@@ -19,7 +19,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { enumeratePathCohort, summarisePathCohort } from "../dist/path-cohort.js";
-import { comparePathLedger, LEDGER_CANARIES } from "../test-integration/_path_ledger.mjs";
+import { comparePathLedger, LEDGER_CANARIES, COHORT_FLOORS, COHORT_FLOOR_WHY } from "../test-integration/_path_ledger.mjs";
 
 const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = new Set(process.argv.slice(2));
@@ -73,16 +73,46 @@ if (!args.has("--summary")) {
 // LITERAL floors, ONE LINE PER POPULATION, each naming what its collapse would mean
 // (172 §6). `>=` not exact: every one of these is supposed to grow. Measured on the
 // full surface (`BREAKPOINT_PRIVILEGED_GROUPS=all`), session 173: 291/124/128/6/258.
-const FLOORS = [
-  ["tools", tools.length, 285, "the tool list itself came back short — every count below is scoped to a surface that is not the real one"],
-  ["top_level_named_path", sum.topLevelNamedPath, 120, "the cohort enum163 DISCARDED. 15 of these were escaping when it was measured"],
-  ["top_level_other", sum.topLevelOther, 124, "the compound names an exact-word test cannot match (`font_path`, `to_path`)"],
-  ["nested", sum.nested, 6, "the cohort enum163 could not see AT ALL — a top-level-only walk reports zero of these and looks healthy"],
-  ["total", sum.total, 250, "the number the handoffs quote. It was wrong by 180 rows once already"],
+//
+// 🔴 200 §12.2 — THE FIVE LITERALS NOW LIVE IN `_path_ledger.mjs` AND ARE IMPORTED.
+// They sat here as a bare `const FLOORS = [...]` from 173 to 199 and NOTHING pinned a
+// single one of their values: `floor_pin_gate.py` never mentioned this file in any of
+// its three tables, because its discovery half rejected an ARRAY-valued constant on the
+// VALUE side of the regex — a direction 199's two NAME-side widenings did not cover.
+// And they could not have been pinned where they lay: this file opens an MCP transport
+// at import, so no self-test can import it to assert a literal. Moving them is what
+// makes them assertable, which is 179's meta-rule — AN INSTRUMENT ENFORCES ITS RULES
+// WHERE THEY WERE WRITTEN, NOT WHERE ITS POPULATION COMES FROM — applied to this file
+// for the second time (`LEDGER_POPULATION_FLOORS` was the first, in 180).
+//
+// The SHAPE stays here, because the shape is this script's: which live number each floor
+// is compared against is a fact about the enumeration, not about the ledger.
+//
+// 🔴 AND IT IS NO LONGER CALLED `FLOORS`, WHICH IS NOT COSMETIC. `floor_pin_gate.py`
+// reported it unswept on the first run after the widening — correctly, under the old
+// name — and the honest answer is not an exemption reading "it holds no literal now".
+// An exemption would silently excuse a literal re-inlined here tomorrow. It holds
+// COMPARISON ROWS: `[name, live count, imported floor, reason]`. Naming it for what it
+// is takes it out of the discovery half BECAUSE IT IS NOT ONE, rather than in spite of
+// being one — which is the difference between a rename and a workaround.
+const COHORT_ROWS = [
+  ["tools", tools.length, COHORT_FLOORS.tools, COHORT_FLOOR_WHY.tools],
+  ["top_level_named_path", sum.topLevelNamedPath, COHORT_FLOORS.topLevelNamedPath, COHORT_FLOOR_WHY.topLevelNamedPath],
+  ["top_level_other", sum.topLevelOther, COHORT_FLOORS.topLevelOther, COHORT_FLOOR_WHY.topLevelOther],
+  ["nested", sum.nested, COHORT_FLOORS.nested, COHORT_FLOOR_WHY.nested],
+  ["total", sum.total, COHORT_FLOORS.total, COHORT_FLOOR_WHY.total],
 ];
+// 🔴 AND THE WIRING IS ASSERTED, because an import that silently resolves to `undefined`
+// makes `got >= undefined` false — which would redden, loudly — but `got >= NaN` is also
+// false and a typo'd KEY gives exactly that. Five keys, read once, before the loop.
+if (COHORT_ROWS.some(([name, , floor]) => typeof floor !== "number" || !Number.isFinite(floor))) {
+  console.error(`::error::PATH_COHORT_FLOOR wiring — a floor did not resolve to a finite number: ` +
+    COHORT_ROWS.map(([n, , f]) => `${n}=${f}`).join(" "));
+  process.exit(1);
+}
 
 const failures = [];
-for (const [name, got, floor, why] of FLOORS) {
+for (const [name, got, floor, why] of COHORT_ROWS) {
   console.log(`PATH_COHORT_FLOOR ${name} ${got}/${floor} ${got >= floor ? "ok" : "🔴 BELOW FLOOR"}`);
   if (got < floor) failures.push(`${name} ${got} < ${floor} — ${why}`);
 }

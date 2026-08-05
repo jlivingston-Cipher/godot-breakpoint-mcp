@@ -772,6 +772,51 @@ claim(Object.values(CLAIM_SITE_FLOORS).every((v) => v > 0),
   `every per-file floor is positive; a floor at zero is a key that ships without a value (184 §7)`);
 claim(Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0) === 475,
   `the eleven floors sum to 475, not ${Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0)} — the TOTAL is what notices one entry being lowered while another grows`);
+
+// 🆕 200 §12.3 — AND THE OTHER TEN, EACH BY ITS OWN VALUE.
+//
+// 🔴 THE SUM IS NOT A PIN, AND `mutate199.py`'s `S1` IS THE PROOF. That mutant lowers
+// 191's guard and COMPENSATES THE TOTAL — one entry down, another up — and 199 shipped
+// it precisely because nothing here could see it. The three claims above catch: a zeroed
+// entry (positivity), an added or removed key (the count), and an uncompensated change
+// (the sum). None of them catches a COMPENSATED one, which is the only shape a session
+// lowering a floor on purpose would produce.
+//
+// 🔴 A SUM AND A PER-KEY TABLE ARE TWO NUMBERS OVER DIFFERENT PARTITIONS, NOT ONE
+// NUMBER TWICE (194 §33), so the sum stays. It is now the cheap cross-check that this
+// table was transcribed correctly rather than the thing defending the values — if the
+// two ever disagree about what ships, one of them is stale and the run says which.
+//
+// 🔴 AND THE `=== 45` ABOVE STAYS TOO, for the reason 199 §10 refuted a draft that
+// weakened it: it is the one entry with a WRITTEN ARGUMENT for its exact value, and a
+// generated row cannot carry that argument. Two claims on one literal, one of which
+// explains itself.
+const SHIPPED_CLAIM_SITE_FLOORS = {
+  "_caller_shape.harness.mjs": 45,
+  "_population.selftest.mjs": 30,
+  "animation-lane.integration.mjs": 45,
+  "cs-dap-plane.integration.mjs": 30,
+  "inject-input.integration.mjs": 45,
+  "node-lifecycle.integration.mjs": 45,
+  "runtime-peers.integration.mjs": 20,
+  "runtime-screenshot.integration.mjs": 25,
+  "tree-shape.integration.mjs": 30,
+  "vcs.integration.mjs": 70,
+  "verification-family.integration.mjs": 90,
+};
+for (const [file, want] of Object.entries(SHIPPED_CLAIM_SITE_FLOORS)) {
+  claim(CLAIM_SITE_FLOORS[file] === want,
+    `${file}'s per-file floor is ${want}, not ${CLAIM_SITE_FLOORS[file]} — a compensated change to any one of these is invisible to the sum`);
+}
+// 🔴 BOTH DIRECTIONS. The loop above reddens on a key that CHANGED or VANISHED; this is
+// the one that reddens on a key that APPEARED, which the loop cannot see because it does
+// not iterate the shipped object. `length === 11` two screens up would also catch it —
+// and that redundancy is the point: it names the roster, this names the file.
+{
+  const extra = Object.keys(CLAIM_SITE_FLOORS).filter((k) => !(k in SHIPPED_CLAIM_SITE_FLOORS));
+  claim(extra.length === 0,
+    `every shipped per-file floor is pinned by value here; unpinned: ${extra.join(", ") || "none"}`);
+}
 claim(ANNOUNCED_REGIONS_FLOOR === 73, `the shipped coverage floor is 73, not ${ANNOUNCED_REGIONS_FLOOR}`);
 claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor is 9, not ${MARKER_HEADER_FILES_FLOOR}`);
 claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);

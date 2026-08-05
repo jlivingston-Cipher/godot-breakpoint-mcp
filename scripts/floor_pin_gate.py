@@ -52,7 +52,16 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 51   # 199: 50 -> 51 (CLAIM_SITE_FLOORS, found UNSWEPT by §9.4's widening
+TARGET_FLOOR = 57   # 200: 56 -> 57 (SHIPPED_CLAIM_SITE_FLOORS, §12.3's expected table —
+                    #      itself a floor-shaped constant of eleven literals, reported
+                    #      UNSWEPT by this gate on the first run after it was written)
+                    # 200: 51 -> 56 (COHORT_FLOORS' five values — `path-cohort.mjs`'s
+                    #      `const FLOORS = [` since 173, rejected by the DISCOVER half's
+                    #      VALUE side, so this gate had never named that file in ANY of
+                    #      its three tables. 199 §12.2 was priced as a rename; the rename
+                    #      was necessary, not sufficient, and dropping the value test is
+                    #      what found these. §12.2 of this session's handoff)
+                    # 199: 50 -> 51 (CLAIM_SITE_FLOORS, found UNSWEPT by §9.4's widening
                     #      on the very first run after it — the same return 197's CEILING
                     #      widening paid in 198, one direction over)
                     # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
@@ -194,10 +203,29 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # and every floor in this table is such a number. See §9 in the handoff.
     ("BANNER_ATTRIBUTED_FLOOR",  f"{S}/tautology_gate.mjs",          r"(export const BANNER_ATTRIBUTED_FLOOR = )\d+;",            [f"{S}/tautology_gate.selftest.mjs"]),
     ("SECTION_ATTRIBUTED_FLOOR", f"{S}/tautology_gate.mjs",          r"(export const SECTION_ATTRIBUTED_FLOOR = )\d+;",           [f"{S}/tautology_gate.selftest.mjs"]),
-    ("LEDGER_SCOPE.classes",     f"{T}/_path_ledger.mjs",            r"(LEDGER_SCOPE = Object\.freeze\(\{ classes: )7,",          [f"{T}/_path_ledger.selftest.mjs"]),
-    ("LEDGER_SCOPE.canaries",    f"{T}/_path_ledger.mjs",            r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
-    ("LEDGER_POPULATION.live",   f"{T}/_path_ledger.mjs",            r"(LEDGER_POPULATION = Object\.freeze\(\{ live: )220,",      [f"{T}/_path_ledger.selftest.mjs"]),
-    ("LEDGER_POPULATION.ledger", f"{T}/_path_ledger.mjs",            r"(live: 220, ledger: )220 ",                                [f"{T}/_path_ledger.selftest.mjs"]),
+    # 🆕 200 §12.2 — RENAMED so the DISCOVER walk can name them, which is what took
+    # `UNDISCOVERABLE_CEILING` to zero. The anchors move with the constants.
+    ("LEDGER_SCOPE_FLOORS.classes",     f"{T}/_path_ledger.mjs",     r"(LEDGER_SCOPE_FLOORS = Object\.freeze\(\{ classes: )7,",   [f"{T}/_path_ledger.selftest.mjs"]),
+    ("LEDGER_SCOPE_FLOORS.canaries",    f"{T}/_path_ledger.mjs",     r"(classes: 7, canaries: )2 ",                               [f"{T}/_path_ledger.selftest.mjs"]),
+    ("LEDGER_POPULATION_FLOORS.live",   f"{T}/_path_ledger.mjs",     r"(LEDGER_POPULATION_FLOORS = Object\.freeze\(\{ live: )220,", [f"{T}/_path_ledger.selftest.mjs"]),
+    ("LEDGER_POPULATION_FLOORS.ledger", f"{T}/_path_ledger.mjs",     r"(live: 220, ledger: )220 ",                                [f"{T}/_path_ledger.selftest.mjs"]),
+    # 🆕 200 §12.2 — THE FIVE THIS GATE HAD NEVER SEEN. They lived in
+    # `host/scripts/path-cohort.mjs` as `const FLOORS = [` from 173, and the DISCOVER
+    # half's VALUE side rejected an array, so this file appeared in NONE of the three
+    # tables. Moved into `_path_ledger.mjs` because that script opens an MCP transport at
+    # import and nothing could assert a literal where it lay — 179's meta-rule, which
+    # this same file already paid once for `LEDGER_POPULATION_FLOORS`.
+    ("COHORT_FLOORS.tools",             f"{T}/_path_ledger.mjs",     r"(COHORT_FLOORS = Object\.freeze\(\{\n  tools: )285,",      [f"{T}/_path_ledger.selftest.mjs"]),
+    ("COHORT_FLOORS.topLevelNamedPath", f"{T}/_path_ledger.mjs",     r"(topLevelNamedPath: )120,",                                [f"{T}/_path_ledger.selftest.mjs"]),
+    ("COHORT_FLOORS.topLevelOther",     f"{T}/_path_ledger.mjs",     r"(topLevelOther: )124,",                                    [f"{T}/_path_ledger.selftest.mjs"]),
+    ("COHORT_FLOORS.nested",            f"{T}/_path_ledger.mjs",     r"(  nested: )6,",                                           [f"{T}/_path_ledger.selftest.mjs"]),
+    ("COHORT_FLOORS.total",             f"{T}/_path_ledger.mjs",     r"(  total: )250,",                                          [f"{T}/_path_ledger.selftest.mjs"]),
+    # 🆕 200 §12.3 — THE EXPECTED TABLE THAT PINS THE OTHER TEN `CLAIM_SITE_FLOORS`.
+    # It is itself a floor-shaped constant holding eleven literals, so it is swept like
+    # any other: zero the 45 here and the per-key loop reddens its own self-test. This
+    # gate reported it unswept on the run that first saw it, which is the DISCOVER half
+    # doing exactly what it exists for, on a constant added ten minutes earlier.
+    ("so.SHIPPED_CLAIM_SITE_FLOORS", f"{S}/seal_order_gate.selftest.mjs", r'(SHIPPED_CLAIM_SITE_FLOORS = \{\n  "_caller_shape\.harness\.mjs": )45,', [f"{S}/seal_order_gate.selftest.mjs"]),
     ("pl.SELFTEST_CLAIM_FLOOR",  f"{T}/_path_ledger.selftest.mjs",   r"(const SELFTEST_CLAIM_FLOOR = )30;",                       [f"{T}/_path_ledger.selftest.mjs"]),
     ("ws.SELFTEST_CLAIM_FLOOR",  f"{T}/_workspace.selftest.mjs",     r"(const SELFTEST_CLAIM_FLOOR = )48;",                       [f"{T}/_workspace.selftest.mjs"]),
     ("pop.SELFTEST_CLAIM_FLOOR", f"{T}/_population.selftest.mjs",    r"(const SELFTEST_CLAIM_FLOOR = )46;",                       [f"{T}/_population.selftest.mjs"]),
@@ -260,8 +288,27 @@ DISCOVER_DIRS = [HOST / "scripts", HOST / "test-integration"]
 # 181 — still did not match, and the widening would have reported "nothing new found" over
 # a constant it was written to reach. Caught by the UNDISCOVERABLE check below, on the
 # first run after that check existed, which is what that check is for.
+#
+# 🔴 200 §12.2 — AND THE VALUE HALF IS GONE ENTIRELY, WHICH IS THE HALF 199 NEVER TOUCHED.
+# 199 §12.2 priced this session as "rename `LEDGER_SCOPE` and `LEDGER_POPULATION` so the
+# walk can see them". Measured first (`host/_to_delete/discover200.py`): the rename is
+# NECESSARY BUT NOT SUFFICIENT, because `Object.freeze({...})` is neither a digit nor `{`
+# and the renamed constant would still have been rejected — by the OTHER half. 199
+# widened the NAME side twice (`CEILING`, then plural + optional prefix) and left a value
+# shape nobody had asked about. That is 183 §12.29 in the direction the name does not
+# cover, one axis over: A DISCOVERY HALF SCOPED TO A SHAPE ROTS IN THE DIRECTION THE
+# SHAPE DOES NOT COVER, and the answer is to stop scoping by shape rather than to add
+# `Object\.freeze\(` and then `\[` and then the next one.
+#
+# 🔴 MEASURED BEFORE REMOVING IT, in both trees: 66 name-shaped constants exist, 65 were
+# already accepted, and dropping the value test admits exactly ONE more —
+# `const FLOORS = [` in `host/scripts/path-cohort.mjs`. Five literal floors, in a script
+# CI runs on every push, named in NONE of this gate's three tables. Not swept, not
+# exempt, not declared: outside the gate by construction, with no line anywhere saying
+# so. A constant whose NAME says it is a floor IS a floor, whatever it is bound to; the
+# tables below decide what to do about it, and that is their job rather than the regex's.
 DISCOVER_RE = re.compile(
-    r"^\s*(?:export )?const ((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*=\s*(?:\d|\{)", re.M)
+    r"^\s*(?:export )?const ((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*=", re.M)
 # 🔴 182 — AND THE SAME WALK IN PYTHON, BECAUSE THE FIRST DRAFT'S SCOPE WAS THE LANGUAGE
 # AND NOT THE PROPERTY. `scripts/*.mjs` was walked; `scripts/*.py` was not, so a floor
 # written in Python was outside this gate by construction and no line said so — the
@@ -272,8 +319,15 @@ DISCOVER_PY_DIRS = [ROOT / "scripts"]
 # instrument, never summed). Under `\d+` this half could not see it at all, so it would
 # have needed an exemption reading "the regex cannot read it" — which is an exclusion
 # bought by the excluder's own limitation. Accepting `{` costs one alternation.
+#
+# 🔴 200 §12.2 — AND ITS VALUE HALF GOES WITH THE OTHER ONE, SYMMETRICALLY. Nothing in
+# `scripts/*.py` is rejected by it today (measured: 0 of the 66), so this costs no new
+# work — and that is exactly why it is done in the same commit rather than "when it
+# bites". 199 §8 is the whole argument: the two walks were left asymmetric for two
+# sessions, 198 leaned on the PY side twice without paying it, and closing one side while
+# leaving the other narrow is how the asymmetry gets recreated on the next widening.
 DISCOVER_PY_RE = re.compile(
-    r"^\s*((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*[:=][^=]*?=?\s*(?:\d|\{)", re.M)
+    r"^\s*((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*[:=]", re.M)
 # The name shape both walks look for, as ONE definition — used again in `main()` to read
 # a TARGETS label. Two spellings of the same rule would drift (180 §7.1).
 FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?$")
@@ -290,20 +344,29 @@ FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?$")
 # in TARGETS — which, before this check, nothing anywhere would have said. 197 solved the
 # same problem for the `CEILING` widening with `stale-exempt`; this is that argument for
 # the half of the table that is swept rather than exempt.
-UNDISCOVERABLE_DECLARED: dict[tuple[str, str], str] = {
-    (f"{T}/_path_ledger.mjs", "LEDGER_SCOPE"):
-        "a two-key roster floor whose NAME carries no floor word — `{classes: 8, canaries: 2}`. "
-        "It is swept by four TARGETS rows and pinned by the self-test; what it is outside is "
-        "the DISCOVER walk, because that walk can only ask about names it can recognise",
-    (f"{T}/_path_ledger.mjs", "LEDGER_POPULATION"):
-        "the same shape one line down — `{live: 240, ledger: 240}`. Same reason, and the two "
-        "are declared separately rather than as one because they are two literals: 194 §33, "
-        "two paths under one subtraction need two numbers",
-}
-UNDISCOVERABLE_CEILING = 2   # 🔴 A CEILING AND IT IS SUPPOSED TO FALL — by renaming the
-                             # two constants, not by widening the walk to guess. A gate
-                             # that finds floors by name cannot be taught to find one that
-                             # does not say it is a floor; the constant is the thing to fix.
+#
+# 🟢 200 §12.2 — EMPTY, AND THE CEILING IS ZERO. `LEDGER_SCOPE` and `LEDGER_POPULATION`
+# were renamed to `LEDGER_SCOPE_FLOORS` and `LEDGER_POPULATION_FLOORS`, so the walk names
+# them like every other row. Emptied rather than kept as empty-with-a-comment, which is
+# 199 §12.42's decision about `CRASH_DECLARED` applied to the table it wrote next.
+#
+# 🔴 AND THE RENAME ALONE WAS NOT WHAT DID IT. 199 §12.2 was written as "the fix is
+# renaming the constants" and that was a surface reading of its own item: with the value
+# half still in place, `Object.freeze(` failed the OTHER half and the renamed constants
+# would have stayed exactly as undiscoverable. Both edits, or neither works — and the way
+# that was found was measuring the claim before acting on it, not after (199 §32).
+#
+# 🔴 THE TWO REASONS THAT USED TO BE HERE QUOTED VALUES THE TREE DID NOT HOLD:
+# `{classes: 8, canaries: 2}` against a shipped 7, and `{live: 240, ledger: 240}` against
+# a shipped 220. Written in 199, wrong on the day they were written, and nothing compared
+# them to anything — 199 §37's own rule (a number a gate prints and never compares) with
+# the number inside a PROSE REASON instead of an output line. Noted rather than fixed,
+# because the entries are gone; the class is §12 in this session's handoff.
+UNDISCOVERABLE_DECLARED: dict[tuple[str, str], str] = {}
+UNDISCOVERABLE_CEILING = 0   # 🔴 IT FELL, AS 199 SAID IT SHOULD, AND IT STAYS A CEILING:
+                             # a floor added tomorrow under a name the walk cannot read
+                             # reddens here on the commit that adds it, and the fix is
+                             # still the constant's name rather than a wider guess.
 
 # Floors that live in a file no headless runner exercises. Each needs a REASON, not a
 # name — 174 §5: an exclusion that costs nothing to write is one nobody re-reads.
@@ -462,7 +525,15 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "are working. Same nesting reason as TARGET_FLOOR below: the runner would be "
         "floor_pin_gate.py itself. Pinned in-file the same way — `len(UNDISCOVERABLE_DECLARED) "
         "> UNDISCOVERABLE_CEILING` sits directly against the roster it bounds, so a third "
-        "declaration added without raising the literal reddens on the next run.",
+        "declaration added without raising the literal reddens on the next run. "
+        "🔴 200 §12.2 — AND THAT LAST SENTENCE IS NOW HALF FALSE, WHICH IS WORTH THE WORDS. "
+        "The roster went EMPTY this session and the ceiling to 0, so `0 > 0` is false for "
+        "every value the ceiling could hold: raising this literal back to 2 reddens NOTHING. "
+        "A ceiling only bounds a roster that has members, and this one no longer does — "
+        "169's tautology with the polarity reversed, arriving the moment the thing it "
+        "bounds reached zero. `mutate200.py`'s U1 is that measured rather than argued. The "
+        "honest fix is a `_self_check()` pinning the literal, which this file has never had "
+        "for any of its checks (199 §12.7, §12.28) — declared here rather than half-done.",
     ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"):
         "THIS file's floor over its own target list — a gate cannot pin that without reading "
         "the constant it is checking, so it is pinned in-file: a session that deletes a "
