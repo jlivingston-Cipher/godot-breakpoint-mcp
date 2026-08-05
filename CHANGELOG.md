@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.1] — 2026-08-04
+
 ### Fixed — the target that had not compiled since #211, and the verdict nobody waited for
 
 196 §3 found `control_gate.py` computing a number, printing it inside an `ok` line, and
