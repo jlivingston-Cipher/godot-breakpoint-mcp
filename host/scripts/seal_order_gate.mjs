@@ -627,8 +627,16 @@ export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR,
   // 🔴 THE THIRD RULE'S POPULATION, COUNTED AND PRINTED ON GREEN RUNS FOR THE SAME
   // REASON. The files WITHOUT a header are the blind spot, and a reader of a passing log
   // is the only person who can act on it.
-  const withHeader = files.filter((f) => f.markers !== null);
-  const headerFamilies = withHeader.reduce((n, f) => n + f.markers.declared.length, 0);
+  // 🔴 199 §9.2 — THE ONE OF THE NINE THAT IS NOT IN A SELF-TEST, AND THE FILTER IS WHY.
+  // `!== null` is a strict test against ONE falsy value guarding a read that assumes a
+  // whole object: a record whose `markers` key is absent is `undefined`, passes the
+  // filter, and `.declared.length` throws — inside the gate, outside any claim, so the
+  // gate dies rather than reporting the five failures it had already found. Measured, not
+  // reasoned: a blinded `inspect` returns `{ file, claims, seals, helpers, lines }` with
+  // no `markers` key at all. `!= null` covers both spellings of absent, and the read
+  // below is defended in its own right so the filter and the reduce cannot drift apart.
+  const withHeader = files.filter((f) => f.markers != null);
+  const headerFamilies = withHeader.reduce((n, f) => n + (f.markers.declared?.length ?? 0), 0);
   say(`SEAL_ORDER_MARKERS ${withHeader.length}/${headerFilesFloor} file(s) carry a grep-able header`
       + ` · ${headerFamilies}/${headerFamilyFloor} famil(ies) declared in them`
       + ` · ${files.filter((f) => !needsHeader(f.file)).length} instrument(s) excluded by name`);
