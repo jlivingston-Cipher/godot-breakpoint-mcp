@@ -360,8 +360,14 @@ FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?$")
 # `{classes: 8, canaries: 2}` against a shipped 7, and `{live: 240, ledger: 240}` against
 # a shipped 220. Written in 199, wrong on the day they were written, and nothing compared
 # them to anything — 199 §37's own rule (a number a gate prints and never compares) with
-# the number inside a PROSE REASON instead of an output line. Noted rather than fixed,
-# because the entries are gone; the class is §12 in this session's handoff.
+# the number inside a PROSE REASON instead of an output line.
+#
+# 🟢 201 §10.4 — AND THAT IS NOW A CHECK RATHER THAN A NOTE. `REASON_DIGIT` below governs
+# every reason in BOTH tables: a digit-run in prose is legal only as a session citation or
+# as the `{FLOOR}` placeholder, which is resolved from the tree on every run and therefore
+# cannot be stale. This roster is empty today, so the rule is proved on a FIXTURE in
+# `_self_check()` rather than on a live population — the U1 lesson (a check whose
+# population is empty is passing for the wrong reason) applied to the table that taught it.
 UNDISCOVERABLE_DECLARED: dict[tuple[str, str], str] = {}
 UNDISCOVERABLE_CEILING = 0   # 🔴 IT FELL, AS 199 SAID IT SHOULD, AND IT STAYS A CEILING:
                              # a floor added tomorrow under a name the walk cannot read
@@ -401,7 +407,7 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
     # 178 §11.4's rule that the three mutating gates never run concurrently. Each is
     # instead pinned WHERE IT LIVES, and that is stated rather than assumed:
     ("../scripts/instrument_gate.py", "INSTRUMENT_FLOOR"): "instrument_gate.py's own roster floor — pinned in-file by `_self_check()`, "
-                        "which asserts the collapse branch BITES at 0 (176's G12 shape). Running it "
+                        "which asserts the collapse branch BITES at zero (176's G12 shape). Running it "
                         "here would nest one tree-mutating gate inside another (178 §11.4)",
     ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): "instrument_gate.py's floor on its own second axis — pinned in the "
                               "same `_self_check()`, which fails if it is not positive, because a "
@@ -410,12 +416,13 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
     ("../scripts/instrument_gate.py", "LATE_LIVE_FLOOR"): "🆕 183 — instrument_gate.py's floor on the LIVE-axis roster, pinned in the "
                        "same `_self_check()` by asserting the branch bites on an empty roster. It "
                        "exists because LATE_CONSTRUCTED_FLOOR cannot see a roster shrink: deleting "
-                       "the three caller-shape entries takes 82 constructed blinds to 70, which is "
-                       "still above that floor. Same nesting reason as INSTRUMENT_FLOOR",
+                       "the three caller-shape entries takes about an eighth off the constructed "
+                       "blinds and leaves the count comfortably above that floor. Same nesting "
+                       "reason as INSTRUMENT_FLOOR",
     # 🆕 197 — instrument_gate.py's fifth and sixth, same nesting reason as the four above.
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): "🆕 197 — instrument_gate.py's CEILING on how many blinds go red WITHOUT the "
                      "gate reaching its own verdict, i.e. crash it instead of failing it. It is the "
-                     "first thing this gate discovers under 197's `CEILING` widening rather than "
+                     "first thing this gate discovers under that session's `CEILING` widening rather than "
                      "under `FLOOR`, and it is exempt for INSTRUMENT_FLOOR's reason: its runner "
                      "would be instrument_gate.py, which mutates the working tree. Pinned in the "
                      "same `_self_check()`, which feeds `crash_problems` a two-crash fixture over a "
@@ -432,7 +439,7 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
     # reason as the six above. 197 §8.3 fixed `green()` on the primary axis and left
     # `run_counting()` reading a return code; these two are what the fixed runner compares.
     ("../scripts/instrument_gate.py", "LATE_BLAST_FLOOR"): "🆕 198 — instrument_gate.py's PER-INSTRUMENT floors on the LATE axis's "
-                        "blast radius, the `A:gate` half only. A dict, read by 197's `{` widening, "
+                        "blast radius, the `A:gate` half only. A dict, read by that session's `{` widening, "
                         "and exempt for INSTRUMENT_FLOOR's reason: its runner mutates the working "
                         "tree. Pinned in-file by `_self_check()`, which requires every value "
                         "positive, plus a `main()` assertion that no entry names a missing "
@@ -442,7 +449,7 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                         "would be a floor at zero — the shape this table's own entries refuse",
     ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): "🆕 198 — instrument_gate.py's CEILING on late mutants that produced "
                         "no `LATE_BLIND_CALLS` line AT ALL, meaning the mutant never loaded. It is "
-                        "ZERO and is measured zero: all 118 mutant runs across both axes hooked. "
+                        "ZERO and is measured zero: every mutant run across both axes hooked. "
                         "🔴 A CEILING AT ZERO WITH NO LIVE ROW IS EXACTLY 197 §3's HOLE — a mutant "
                         "that did not compile was filed 'not constructible' and reported green — "
                         "so it is fed a one-row fixture in `_self_check()` rather than trusted to "
@@ -453,7 +460,7 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                        "signature it resolves to today changes no printed line, no verdict and no "
                        "blind — it only puts that row back on an expiry date, and the class arrived "
                        "one row at a time. Pinned in the same `_self_check()`, which asserts the "
-                       "branch bites at 0. Same nesting reason as INSTRUMENT_FLOOR",
+                       "branch bites at zero. Same nesting reason as INSTRUMENT_FLOOR",
     # 🆕 187 — control_gate.py's two, and they are the same nesting problem a third time.
     # Its runner would be control_gate.py itself, which MUTATES THE WORKING TREE (it breaks
     # example/project.godot, README.md, a lockfile field and a tool name in turn), so
@@ -465,8 +472,9 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                         "bite and the gate green over an emptied CONTROLS table. Same nesting reason "
                         "as INSTRUMENT_FLOOR",
     ("../scripts/control_gate.py", "STATEMENT_FLOOR"): "control_gate.py's floor on the DENOMINATOR — the count of errors.append "
-                       "statements in contract_check.py. It exists because '17 of 70' improves to "
-                       "'17 of 17' by deleting sixty-eight checks, so the numerator's floor cannot "
+                       "statements in contract_check.py. It exists because a covered-of-total "
+                       "ratio improves to covered-of-covered by DELETING every statement the "
+                       "numerator does not reach, so the numerator's floor cannot "
                        "see the failure this one names. Pinned in the same `_self_check()`, same "
                        "nesting reason as INSTRUMENT_FLOOR",
     ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): "control_gate.py's floor on what it CANNOT see — the statements "
@@ -480,7 +488,7 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
     # EXPLAIN. Either can collapse while the other holds — a rewording that breaks the
     # attributor moves only the second, and a control going quiet moves only the first.
     ("../scripts/control_gate.py", "BLAST_TOTAL_FLOOR"): "🆕 196 — control_gate.py's floor on the TOTAL number of FAIL lines its "
-                        "fifty-six mutations produce (103). Every row now declares its own count "
+                        "fifty-six mutations produce, at {FLOOR}. Every row now declares its own count "
                         "and the gate compares them, but a per-row equality is edited one row at a "
                         "time: a control that stops reddening is absorbed by updating its "
                         "declaration, and nothing would notice the gate as a whole going quieter. "
@@ -494,27 +502,30 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
     # An exemption that reads as covering something it never mentioned is 174 §5 wearing
     # the right words, and the fix is on the constant rather than on the table.
     ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): "🆕 197 — scope_gate.py's floor on the TOTAL number of FAIL lines its "
-                        "twenty-five blinded runs produce (53). Same argument as control_gate's "
+                        "twenty-five blinded runs produce, at {FLOOR}. Same argument as control_gate's "
                         "BLAST_TOTAL_FLOOR below: each row declares its own count and the gate "
                         "compares them, but a per-row equality is edited one row at a time. Pinned "
                         "in scope_gate's own `_self_check()`, which fails if it is not positive",
     ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): "🆕 197 — scope_gate.py's floor on how many SCOPE-LEDGER populations "
-                        "its blinds actually collapse (29 across 25 rows). It is a DIFFERENT "
+                        "its blinds actually collapse, at {FLOOR} across twenty-five rows. It is a DIFFERENT "
                         "collapse from the one above and that is the whole finding: three rows "
                         "reddened the run without collapsing any ledger population at all, so they "
                         "were caught by a parse guard rather than by the ledger the gate exists to "
                         "defend. A FAIL-line total cannot see that; this number is what does. "
                         "Pinned in the same `_self_check()`",
     ("../scripts/control_gate.py", "ALSO_ATTRIBUTED_FLOOR"): "🆕 196 — control_gate.py's floor on its DIAGNOSIS rather than its "
-                        "verdict: how many of those FAIL lines resolve to a named check (98 of "
-                        "103). The verdict deliberately does NOT rest on this reader — it is 95% "
-                        "right and an assertion resting on it would be 194 §4 shipped — but the "
+                        "verdict: how many of those FAIL lines resolve to a named check, at "
+                        "{FLOOR}. The verdict deliberately does NOT rest on this reader — it is "
+                        "right about nineteen times in twenty and an assertion resting on it "
+                        "would be 194 §4 shipped — but the "
                         "failure message's ability to say WHICH check arrived does. Floored so the "
                         "attributor cannot quietly stop working while every row still passes. "
                         "Pinned in the same `_self_check()`, same nesting reason",
     ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): "scope_gate.py's floor on how many of contract_check.py's failure "
                         "statements its own twenty-five blinded runs EXECUTE (188 §5, re-derived "
-                        "at 19 after control_gate.py had stated 23 for two sessions). Not swept "
+                        "from scope_gate's own runs after control_gate.py had stated a higher "
+                        "number for two sessions, and raised once more when 188 §3 gave check "
+                        "twelve a population). Not swept "
                         "here because its runner is scope_gate.py itself, which writes a mutant "
                         "copy of contract_check.py into scripts/ — the same nesting rule. Pinned "
                         "in that file's `_self_check()`, which fails if it is not positive",
@@ -525,20 +536,29 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "are working. Same nesting reason as TARGET_FLOOR below: the runner would be "
         "floor_pin_gate.py itself. Pinned in-file the same way — `len(UNDISCOVERABLE_DECLARED) "
         "> UNDISCOVERABLE_CEILING` sits directly against the roster it bounds, so a third "
-        "declaration added without raising the literal reddens on the next run. "
-        "🔴 200 §12.2 — AND THAT LAST SENTENCE IS NOW HALF FALSE, WHICH IS WORTH THE WORDS. "
-        "The roster went EMPTY this session and the ceiling to 0, so `0 > 0` is false for "
-        "every value the ceiling could hold: raising this literal back to 2 reddens NOTHING. "
-        "A ceiling only bounds a roster that has members, and this one no longer does — "
-        "169's tautology with the polarity reversed, arriving the moment the thing it "
-        "bounds reached zero. `mutate200.py`'s U1 is that measured rather than argued. The "
-        "honest fix is a `_self_check()` pinning the literal, which this file has never had "
-        "for any of its checks (199 §12.7, §12.28) — declared here rather than half-done.",
+        "declaration added without raising the literal reddens on the next run — WHILE THE "
+        "ROSTER HAS MEMBERS. 200 §12.2 found that it has none: an empty roster makes the "
+        "comparison false for every value the ceiling could hold, so raising this literal "
+        "reddened nothing and `mutate200.py`'s U1 measured exactly that. "
+        "🟢 201 §10.3 — CLOSED, AND NOT BY THE ROSTER REFILLING. The branch is lifted into "
+        "`ceiling_problems()` and fed a fixture by this file's FIRST `_self_check()`, which "
+        "is what 199 §12.7 and §12.28 asked for: a roster of three against a ceiling of two "
+        "MUST bite, and the same roster against a ceiling of three must NOT. The check no "
+        "longer rests on the live population being non-empty, which is the general form of "
+        "the defect — a check with an empty population passes for the wrong reason.",
+    ("../scripts/floor_pin_gate.py", "USE_FLOOR"):
+        "🆕 201 §10.2 — THIS file's floor over its USE-SITE roster, the list of floors that "
+        "have a live CONSUMER rather than only a declaration-site pin. Same nesting reason "
+        "as TARGET_FLOOR below: its runner would be floor_pin_gate.py itself. Pinned in-file "
+        "by this file's FIRST `_self_check()`, which fails if the roster has shrunk below it "
+        "— because a use-site roster that quietly empties leaves every consumer unasked while "
+        "every declaration stays fully pinned, which is the exact asymmetry the roster exists "
+        "to close.",
     ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"):
         "THIS file's floor over its own target list — a gate cannot pin that without reading "
         "the constant it is checking, so it is pinned in-file: a session that deletes a "
         "TARGETS line without lowering it gets FLOOR_PIN_TARGETS_COLLAPSE, asserted twenty "
-        "lines into main(). 🔴 199: this row and the next one were ONE row under the old "
+        "lines into main(). 🔴 199 — this row and the next one were ONE row under the old "
         "bare-name key, and that is 197 §8.4's defect caught live — the prose happened to "
         "name both files, so the table was honest by accident and unstructured on purpose.",
     ("../scripts/scope_gate.py", "TARGET_FLOOR"):
@@ -547,6 +567,247 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "scope_gate.py, which writes a mutant copy of contract_check.py into scripts/. "
         "Pinned in that file's own `_self_check()`, which asserts the branch bites.",
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 🆕 201 §10.4 — A REASON STRING IS A NUMBER NOBODY COMPARES
+# ═══════════════════════════════════════════════════════════════════════════════════
+#
+# 199 wrote two `UNDISCOVERABLE_DECLARED` reasons quoting `{classes: 8, canaries: 2}`
+# and `{live: 240, ledger: 240}` against a shipped 7 and a shipped 220. Wrong on the day
+# they were written, compared by nothing, and found only because 200 read them by eye.
+# 200 §12.4 handed the class over: WHICH OTHER TABLES CARRY VALUES INSIDE PROSE?
+#
+# Measured before acting (200 §33). Twelve of the twenty-four rows above carried a
+# non-citation digit-run, and FOUR of them were the same defect in the same shape — a
+# parenthetical that a reader takes for THE ROW'S OWN FLOOR and which was in fact the
+# LIVE measurement, already drifted apart:
+#
+#     BLAST_TOTAL_FLOOR        said (103)       the constant holds 95
+#     SCOPE_BLAST_TOTAL_FLOOR  said (53)        the constant holds 45
+#     LEDGER_COLLAPSE_FLOOR    said (29)        the constant holds 24
+#     ALSO_ATTRIBUTED_FLOOR    said (98 of 103) the constant holds 90
+#
+# 🔴 THE RULE IS NOT "DO NOT QUOTE NUMBERS", IT IS "A NUMBER IN PROSE MUST COME FROM THE
+# TREE". `{FLOOR}` is resolved from the row's OWN constant on every run, so it cannot be
+# stale by construction — 188 §2's `{V}` idiom (a number inside a string, written as a
+# placeholder the tool substitutes) applied one table over. Everything that is NOT the
+# row's own value gets spelled in words, WHICH IS THIS TABLE'S OWN IDIOM RATHER THAN AN
+# IMPOSITION ON IT: seventeen of the twenty-four rows already wrote "fifty-six
+# mutations", "twenty-five blinded runs", "a two-crash fixture". 198's rule — an
+# exclusion should come from something the tree already carries — applied to a house
+# style instead of to a roster.
+#
+# A session citation is exempt because it is a POINTER, not a measurement: `199 §12.4`
+# names a document that does not change. Everything else is a claim about now.
+# 🔴 THE FIRST DRAFT OF THIS REGEX WAS WRONG AND THE SELF-CHECK BELOW CAUGHT IT ON THE
+# FIRST RUN — which is the cheapest possible evidence that `_self_check()` was worth
+# adding, and 199 §41's "the reader that was WRONG is the one worth keeping" paid on the
+# same commit that introduced the reader. It read `\d{3}` followed by ANY punctuation or
+# space, so `103,` parsed as a session citation and the rule flagged nothing at all.
+#
+# A citation is not identified by its RANGE — a measurement can be any number — it is
+# identified by what FOLLOWS it: a section sign, an em-dash introducing the finding, or
+# the possessive this codebase writes when it attributes a rule ("176's G12 shape"). A
+# bare `103, measured across the rows` has none of those and is a claim about now.
+REASON_CITE = re.compile(r"(?<!\d)(?:1[5-9]\d|20\d)(?=\s*(?:§|—|--|'|’))")
+REASON_SECTION = re.compile(r"§\s*\d+(?:\.\d+)*")
+REASON_PLACEHOLDER = re.compile(r"\{FLOOR\}")
+REASON_DIGIT = re.compile(r"(?<![\w])(\d+)")
+# A `{SIG:name}`-style literal quoted as prose is a NAME, not a number; so is a version
+# range inside backticks. Both are stripped before the digit test, and both are narrow
+# enough that a bare measurement cannot hide inside one.
+REASON_BACKTICKED = re.compile(r"`[^`]*`")
+
+_VALUE_CACHE: dict[tuple[str, str], int | None] = {}
+
+
+def reason_value(relfile: str, name: str) -> int | None:
+    """The CURRENT value of `name` in `relfile`, read from the tree on every run.
+
+    🔴 THIS IS THE WHOLE POINT OF `{FLOOR}`. A reason that quotes a literal is a claim
+    that was true when it was typed; a reason that quotes THIS is a claim that is true
+    when it is read. The four rows above are the measured cost of the difference."""
+    key = (relfile, name)
+    if key in _VALUE_CACHE:
+        return _VALUE_CACHE[key]
+    p = (HOST / relfile).resolve()
+    val: int | None = None
+    if p.exists():
+        t = p.read_text()
+        m = (re.search(rf"^{re.escape(name)}(?::\s*[^=\n]+)?\s*=\s*(\d+)", t, re.M)
+             or re.search(rf"^(?:export )?const {re.escape(name)}\s*=\s*(\d+)", t, re.M))
+        if m:
+            val = int(m.group(1))
+    _VALUE_CACHE[key] = val
+    return val
+
+
+def render_reason(relfile: str, name: str, reason: str) -> str:
+    v = reason_value(relfile, name)
+    return reason.replace("{FLOOR}", str(v) if v is not None else "🔴UNRESOLVED")
+
+
+def reason_problems(table: dict[tuple[str, str], str],
+                    label: str,
+                    resolve=reason_value) -> list[str]:
+    """Every reason in `table`, asked whether it carries an ungoverned number.
+
+    Lifted out of `main()` so `_self_check()` can feed it inputs it MUST flag — which is
+    the shape control_gate.py, scope_gate.py and instrument_gate.py all use and this file
+    has never had (199 §12.7, §12.28; 200 §12.3)."""
+    problems: list[str] = []
+    for (f, n), reason in table.items():
+        if "{FLOOR}" in reason and resolve(f, n) is None:
+            problems.append(
+                f"🔴 FLOOR_PIN_REASON_UNRESOLVED {label} {f}:{n} — its reason asks for "
+                f"`{{FLOOR}}` and the value cannot be read out of {f}. Either the constant "
+                f"was renamed (fix the key) or the reader stopped working, which is the "
+                f"dangerous half: an unresolved placeholder prints a marker rather than a "
+                f"wrong number, and that is deliberate.")
+        # 🔴 THE ORDER IS PART OF THE RULE. `REASON_SECTION` eats the `§` that
+        # `REASON_CITE` recognises the session number BY, so stripping sections first
+        # turns every citation into a bare number — the second defect the self-check
+        # below caught, on the same run as the first.
+        scrub = REASON_PLACEHOLDER.sub("", reason)
+        scrub = REASON_BACKTICKED.sub("", scrub)
+        scrub = REASON_CITE.sub("", scrub)
+        scrub = REASON_SECTION.sub("", scrub)
+        stray = REASON_DIGIT.findall(scrub)
+        if stray:
+            problems.append(
+                f"🔴 FLOOR_PIN_REASON_DIGIT {label} {f}:{n} — its reason states {stray} as "
+                f"bare digits. A number in prose is a measurement nobody compares (199's "
+                f"two declaration reasons were wrong on the day they were written). Write "
+                f"the row's OWN value as `{{FLOOR}}`, which is read from the tree on every "
+                f"run; spell anything else in words, which is what seventeen of these rows "
+                f"already do.")
+    return problems
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 🆕 201 §10.2 — THE MUTATION THAT COULD NOT REACH THE READER
+# ═══════════════════════════════════════════════════════════════════════════════════
+#
+# 200's sweep declared `C2` green and named what it left unmeasured: `path-cohort.mjs`
+# imports its five floors from `_path_ledger.mjs`, and RE-INLINING one there would be
+# invisible — the self-test still pins `COHORT_FLOORS.total` and the reverse sweep still
+# zeroes it, so both keep biting, but the script would be comparing against its own copy.
+# 200 §35 generalised it: A CONSTANT IS DEFENDED WHERE IT IS DECLARED AND UNREAD WHERE
+# IT IS USED, and asked which other instruments import a literal and could silently stop.
+#
+# 🔴 MEASURED: SIX cross-file floor imports exist, and FIVE are a self-test importing
+# from the gate it tests — those ARE the declaration-site pins. Exactly one is a live
+# CONSUMER, and it is the one 200 already named. The population is one, not six.
+#
+# 🔴 AND THE REASON NOTHING CATCHES IT IS THE DIRECTION OF THE MUTATION. Every row in
+# TARGETS is mutated toward ZERO (191: or toward 999999 if it ships at zero), and for a
+# `got >= floor` comparison ZERO IS THE VALUE THAT MAKES THE CONSUMER TRIVIALLY PASS. So
+# the existing sweep can only ever prove that the SELF-TEST notices; it is structurally
+# incapable of proving that the CONSUMER still reads the number. RAISING a floor above
+# the live value is the mutation that reddens a live consumer — and a consumer holding a
+# re-inlined literal stays GREEN through it, which is exactly the defect.
+#
+# (label, declaring file, regex whose group(1) ends immediately before the digits,
+#  consumer argv). The consumer must PASS unmutated and go RED when the floor is raised.
+USE_FLOOR = 5   # 201: this roster's own size. `>=`, because the day a second live
+                # consumer imports a floor it belongs here — and a roster that can
+                # shrink to nothing without anything noticing is the shape this whole
+                # file exists to refuse.
+COHORT = f"{T}/_path_ledger.mjs"
+CO = [f"{S}/path-cohort.mjs", "--summary"]
+USE_TARGETS: list[tuple[str, str, str, list[str]]] = [
+    ("use.COHORT_FLOORS.tools",              COHORT, r"(tools: )285,",             CO),
+    ("use.COHORT_FLOORS.topLevelNamedPath",  COHORT, r"(topLevelNamedPath: )120,", CO),
+    ("use.COHORT_FLOORS.topLevelOther",      COHORT, r"(topLevelOther: )124,",     CO),
+    ("use.COHORT_FLOORS.nested",             COHORT, r"(nested: )6,",              CO),
+    ("use.COHORT_FLOORS.total",              COHORT, r"(total: )250",              CO),
+]
+USE_RAISE = "999999"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# THE BRANCHES, LIFTED SO A FIXTURE CAN REACH THEM (199 §12.7 / 200 §12.3)
+# ═══════════════════════════════════════════════════════════════════════════════════
+#
+# Each of these was an `if` inside `main()`, reachable only by breaking the real tree.
+# control_gate.py's docstring says why that is not good enough: *lifted out,
+# `_self_check()` can feed each one an input it MUST flag, so the branch is proved
+# rather than assumed.* This file cited that sentence in six exemption reasons and had
+# never applied it to itself.
+def targets_collapse_problems(n_targets: int, floor: int) -> list[str]:
+    if n_targets >= floor:
+        return []
+    return [f"🔴 FLOOR_PIN_TARGETS_COLLAPSE {n_targets} < {floor} — this gate's own\n"
+            "   roster shrank. Either a floor was deleted (lower the literal on purpose), or a\n"
+            "   line was dropped and every floor below it is now unswept."]
+
+
+def ceiling_problems(declared: int, ceiling: int) -> list[str]:
+    """🔴 THE BRANCH 200's U1 SAID NOTHING COULD REACH.
+
+    `len(UNDISCOVERABLE_DECLARED) > UNDISCOVERABLE_CEILING` is false for EVERY ceiling
+    value once the roster is empty, so the live tree can no longer exercise it and
+    raising the literal reddens nothing. A fixture can, and does."""
+    if declared <= ceiling:
+        return []
+    return [f"🔴 FLOOR_PIN_UNDISCOVERABLE_CEILING {declared} > "
+            f"{ceiling} — this roster is a CEILING and is supposed to fall."]
+
+
+def _self_check() -> list[str]:
+    """This file's FIRST self-check (199 §12.7, §12.28 → 200 §12.3).
+
+    Every branch below is fed BOTH an input it must flag and one it must not, because a
+    predicate that returns a problem for everything passes the first half and is useless.
+    194 §4's rule: an assertion that cannot be wrong is not an assertion."""
+    bad: list[str] = []
+
+    # ── the ceiling, which the live tree can no longer exercise (200's U1) ──
+    if not ceiling_problems(3, 2):
+        bad.append("_self_check: ceiling_problems(3, 2) did not bite — the "
+                   "UNDISCOVERABLE_CEILING branch is dead and 200's U1 is still open")
+    if ceiling_problems(3, 3):
+        bad.append("_self_check: ceiling_problems(3, 3) bit on a roster AT its ceiling — "
+                   "the comparison is `>` and a roster at the ceiling is legal")
+    if ceiling_problems(0, 0):
+        bad.append("_self_check: ceiling_problems(0, 0) bit on an EMPTY roster — that is "
+                   "the live shape today and it must stay green")
+
+    # ── this gate's own roster floor ──
+    if not targets_collapse_problems(TARGET_FLOOR - 1, TARGET_FLOOR):
+        bad.append("_self_check: targets_collapse_problems did not bite one below the floor")
+    if targets_collapse_problems(TARGET_FLOOR, TARGET_FLOOR):
+        bad.append("_self_check: targets_collapse_problems bit AT the floor — the "
+                   "comparison is `<` and a roster at its floor is legal")
+
+    # ── the reason rule, proved on a FIXTURE rather than on the live tables ──
+    # 🔴 THIS IS THE U1 LESSON APPLIED FORWARD. `UNDISCOVERABLE_DECLARED` is EMPTY today,
+    # so running the rule over it proves nothing at all — the same "false for every value"
+    # shape, one table over. The fixtures below are the population that table does not have.
+    fx_ok = {("x.py", "A_FLOOR"): "spelled in words: twenty-five rows, and a citation 199 §4"}
+    fx_digit = {("x.py", "A_FLOOR"): "the floor is 103, measured across the rows"}
+    fx_ph = {("x.py", "A_FLOOR"): "the floor is {FLOOR}, measured across the rows"}
+    if reason_problems(fx_ok, "fixture", lambda f, n: 95):
+        bad.append("_self_check: reason_problems flagged a reason with no bare digits — "
+                   "the rule is over-wide and would force words onto session citations")
+    if not reason_problems(fx_digit, "fixture", lambda f, n: 95):
+        bad.append("_self_check: reason_problems did NOT flag a bare `103` in prose — the "
+                   "REASON_DIGIT branch is dead and 199's two wrong reasons could be "
+                   "re-typed today with nothing noticing")
+    if reason_problems(fx_ph, "fixture", lambda f, n: 95):
+        bad.append("_self_check: reason_problems flagged a `{FLOOR}` placeholder — the "
+                   "escape hatch does not work, so every row would be forced into words")
+    if not reason_problems(fx_ph, "fixture", lambda f, n: None):
+        bad.append("_self_check: reason_problems did NOT flag a `{FLOOR}` that resolves to "
+                   "nothing — an unresolvable placeholder would print a marker forever and "
+                   "no run would say why")
+
+    # ── the use-site roster's own floor ──
+    if len(USE_TARGETS) < USE_FLOOR:
+        bad.append(f"_self_check: USE_TARGETS shrank to {len(USE_TARGETS)} below "
+                   f"USE_FLOOR {USE_FLOOR} — a live consumer stopped being asked whether "
+                   f"it still reads the floor it imports")
+    return bad
 
 
 def run(argv: list[str]) -> bool:
@@ -573,13 +834,37 @@ def _restore() -> None:
 
 def main() -> int:
     failed = False
-    print(f"FLOOR_PIN_GATE targets={len(TARGETS)} floor={TARGET_FLOOR}")
+    print(f"FLOOR_PIN_GATE targets={len(TARGETS)} floor={TARGET_FLOOR} "
+          f"use-targets={len(USE_TARGETS)} use-floor={USE_FLOOR}")
 
-    if len(TARGETS) < TARGET_FLOOR:
-        print(f"🔴 FLOOR_PIN_TARGETS_COLLAPSE {len(TARGETS)} < {TARGET_FLOOR} — this gate's own\n"
-              "   roster shrank. Either a floor was deleted (lower the literal on purpose), or a\n"
-              "   line was dropped and every floor below it is now unswept.")
+    # ── 🆕 201 §10.3 — THIS FILE'S FIRST SELF-CHECK, BEFORE ANYTHING ELSE RUNS ──────
+    # It goes first for control_gate.py's reason: a gate whose own predicates are broken
+    # reports a clean tree, and every line below this one would be a claim made by an
+    # instrument that had not been asked whether it still works.
+    sc = _self_check()
+    for problem in sc:
+        print(f"🔴 FLOOR_PIN_SELFCHECK {problem}")
+    if sc:
+        print("\nFLOOR_PIN_GATE 🔴 FAILED — its own self-check did not pass, so nothing "
+              "below it means anything")
+        return 1
+    print("FLOOR_PIN_SELFCHECK ok — every lifted branch bit on an input it must flag and "
+          "stayed quiet on one it must not")
+
+    for problem in targets_collapse_problems(len(TARGETS), TARGET_FLOOR):
+        print(problem)
         failed = True
+
+    # ── 🆕 201 §10.4 — THE REASONS, ASKED WHETHER THEY QUOTE AN UNGOVERNED NUMBER ───
+    reason_bad = (reason_problems(DISCOVER_EXEMPT, "exempt")
+                  + reason_problems(UNDISCOVERABLE_DECLARED, "declared"))
+    for problem in reason_bad:
+        print(problem)
+        failed = True
+    print(f"FLOOR_PIN_REASON {len(DISCOVER_EXEMPT)} exempt + "
+          f"{len(UNDISCOVERABLE_DECLARED)} declared reason(s) read · "
+          f"{sum('{FLOOR}' in r for r in DISCOVER_EXEMPT.values())} resolve `{{FLOOR}}` "
+          f"from the tree · {len(reason_bad)} carrying a bare number")
 
     # ── DISCOVERY: is any floor in the tree missing from the table above? ──────────
     # 🔴 199 §9.3 — (FILE, NAME), DERIVED FROM THE TABLE'S OWN ROWS. Every TARGETS row
@@ -668,10 +953,9 @@ def main() -> int:
         print("🔴 FLOOR_PIN_UNDISCOVERABLE_STALE a constant declared unfindable is now found:\n"
               + "".join(f"     {n}\n" for n in stale_undisc)
               + "   Delete its declaration and lower UNDISCOVERABLE_CEILING in the same commit.")
-    if len(UNDISCOVERABLE_DECLARED) > UNDISCOVERABLE_CEILING:
+    for problem in ceiling_problems(len(UNDISCOVERABLE_DECLARED), UNDISCOVERABLE_CEILING):
         failed = True
-        print(f"🔴 FLOOR_PIN_UNDISCOVERABLE_CEILING {len(UNDISCOVERABLE_DECLARED)} > "
-              f"{UNDISCOVERABLE_CEILING} — this roster is a CEILING and is supposed to fall.")
+        print(problem)
     print(f"FLOOR_PIN_UNDISCOVERABLE {len(undiscoverable)} undeclared · "
           f"{len(UNDISCOVERABLE_DECLARED)}/{UNDISCOVERABLE_CEILING} declared — swept floors the "
           f"DISCOVER half cannot name")
@@ -754,6 +1038,61 @@ def main() -> int:
             print(f"  ok   {label:<28} -> {mutant:<6} reddens {Path(runner[0]).name}")
 
     print(f"FLOOR_PIN_UNPINNED_COUNT {len(unpinned)} of {len(TARGETS)}")
+
+    # ── 🆕 201 §10.2 — THE OTHER DIRECTION, POINTED AT THE USE SITE ────────────────
+    #
+    # Everything above mutates a floor DOWN and asks whether the pin notices. That can
+    # never reach a live consumer: `got >= 0` is true for every `got`, so a consumer
+    # reading a zeroed floor passes and reports nothing. RAISE it instead and the
+    # consumer must refuse — unless it is comparing against a literal of its own, which
+    # is `C2`, the gap 200's sweep declared green.
+    #
+    # 🔴 THE CONTROL COMES FIRST, for the reason the control above it does: a consumer
+    # that is red before the mutation makes every "reddens" below meaningless.
+    use_consumers = sorted({tuple(t[3]) for t in USE_TARGETS})
+    for c in use_consumers:
+        if not run(list(c)):
+            print(f"🔴 FLOOR_PIN_USE_CONTROL {c[0]} does not pass unmutated — the harness "
+                  f"is lying, stop.")
+            return 1
+    print(f"FLOOR_PIN_USE_CONTROL ok — all {len(use_consumers)} consumer(s) pass unmutated")
+
+    unread: list[str] = []
+    for label, rel, rx, consumer in USE_TARGETS:
+        p = HOST / rel
+        text = ORIGINALS.setdefault(p, p.read_text())
+        n = len(re.findall(rx, text))
+        if n != 1:
+            failed = True
+            print(f"🔴 FLOOR_PIN_USE_ANCHOR {label}: matched {n} time(s), not once — this "
+                  f"row tests NOTHING. Re-anchor it; do not delete the row.")
+            continue
+        m = re.search(rx, text)
+        start = end = m.end(1)
+        while text[end].isdigit():
+            end += 1
+        try:
+            p.write_text(text[:start] + USE_RAISE + text[end:])
+            green = run(list(consumer))
+        finally:
+            p.write_text(text)
+        if green:
+            unread.append(label)
+            print(f"🔴 FLOOR_PIN_UNREAD {label} -> {USE_RAISE} and "
+                  f"{Path(consumer[0]).name} STAYS GREEN")
+        else:
+            print(f"  ok   {label:<38} -> {USE_RAISE} reddens {Path(consumer[0]).name}")
+
+    print(f"FLOOR_PIN_UNREAD_COUNT {len(unread)} of {len(USE_TARGETS)}")
+    if unread:
+        failed = True
+        print("\n🔴 The floor(s) above can be RAISED ABOVE THE LIVE VALUE with the consumer\n"
+              "   that imports them staying green. That means the consumer is not reading the\n"
+              "   import: either it re-inlined a literal of its own, or the comparison was\n"
+              "   deleted. Both leave the DECLARATION fully pinned — the self-test still\n"
+              "   asserts the value and the sweep above still zeroes it — which is why this\n"
+              "   axis exists (200 §35: a constant is defended where it is DECLARED and\n"
+              "   unread where it is USED). Restore the import; do not lower the floor.")
     if unpinned:
         failed = True
         print("\n🔴 The floor(s) above can be MOVED with nothing going red — to zero if they ship\n"
@@ -768,7 +1107,9 @@ def main() -> int:
         print("\nFLOOR_PIN_GATE 🔴 FAILED")
         return 1
     print(f"\nFLOOR_PIN_GATE ok — all {len(TARGETS)} floor(s) MOVED off their shipped value, each "
-          f"reddened its runner, and no unswept floor exists in the tree")
+          f"reddened its runner, all {len(USE_TARGETS)} floor(s) with a live consumer were "
+          f"RAISED above it and each reddened that consumer, every reason is free of "
+          f"ungoverned numbers, and no unswept floor exists in the tree")
     return 0
 
 
