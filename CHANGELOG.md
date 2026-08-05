@@ -50,6 +50,15 @@ number of `FAIL` lines it produces and the ledger population it must collapse, c
 row against `FAIL: SCOPE COLLAPSE <population>:` — an exact reader, so no diagnosis-only
 hedge is needed here.
 
+**And the new control assertion caught a third defect on its first CI run.** `node --test`
+picks its reporter from whether stdout is a TTY — `spec` on a developer's terminal, `tap`
+in Actions — and the two print different summary lines (`ℹ fail 0` vs `# fail 0`). The
+`path-cohort` instrument's verdict marker and failure count were therefore
+environment-dependent: green on a Mac, unreadable in CI. `--test-reporter=spec` is now part
+of the gate command rather than a preference, so the dialect is a property of the command
+and not of the terminal. This is exactly what the CONTROL assertion exists to do, and it
+did it before a single mutant was applied.
+
 ### Added — the floors and ceilings that make the above falsifiable
 
 ```
