@@ -280,6 +280,25 @@ DISCOVER_EXEMPT: dict[str, str] = {
                         "name (188 §4). Floored from below so the set cannot shrink by rewording, "
                         "and pinned in the same `_self_check()` as the two above it. Same nesting "
                         "reason as INSTRUMENT_FLOOR: its runner mutates the working tree",
+    # 🆕 196 — control_gate.py's fourth and fifth, and they are TWO because 194 §33 said a
+    # subtraction over more than one contributor needs two numbers. `BLAST_TOTAL_FLOOR` is
+    # what the mutations DO; `ALSO_ATTRIBUTED_FLOOR` is how much of that the reader can
+    # EXPLAIN. Either can collapse while the other holds — a rewording that breaks the
+    # attributor moves only the second, and a control going quiet moves only the first.
+    "BLAST_TOTAL_FLOOR": "🆕 196 — control_gate.py's floor on the TOTAL number of FAIL lines its "
+                        "fifty-six mutations produce (103). Every row now declares its own count "
+                        "and the gate compares them, but a per-row equality is edited one row at a "
+                        "time: a control that stops reddening is absorbed by updating its "
+                        "declaration, and nothing would notice the gate as a whole going quieter. "
+                        "This is the number that notices. Pinned in the same `_self_check()`, same "
+                        "nesting reason as INSTRUMENT_FLOOR — its runner mutates the working tree",
+    "ALSO_ATTRIBUTED_FLOOR": "🆕 196 — control_gate.py's floor on its DIAGNOSIS rather than its "
+                        "verdict: how many of those FAIL lines resolve to a named check (98 of "
+                        "103). The verdict deliberately does NOT rest on this reader — it is 95% "
+                        "right and an assertion resting on it would be 194 §4 shipped — but the "
+                        "failure message's ability to say WHICH check arrived does. Floored so the "
+                        "attributor cannot quietly stop working while every row still passes. "
+                        "Pinned in the same `_self_check()`, same nesting reason",
     "STATEMENT_ATTRIB_FLOOR": "scope_gate.py's floor on how many of contract_check.py's failure "
                         "statements its own twenty-five blinded runs EXECUTE (188 §5, re-derived "
                         "at 19 after control_gate.py had stated 23 for two sessions). Not swept "

@@ -6,6 +6,59 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the number the gate had always printed and never read
+
+195 §8.2 asked an **archive** question: which shipped claims in CHANGELOG entries 180–193
+rest on a reverse-sweep mutant that edited `addons/` or a file with a tracked copy? 194 §6
+had found that such a mutant reddens check 24b whether or not it does anything else, and
+that its red run had been read as proof of the check it was written for. That scratch is
+gone, so the audit is impossible.
+
+**The same question asked of the SHIPPED instrument is answerable exactly, and the answer
+was sitting in its own output.** `control_gate.py` applies 56 mutations and asserts three
+properties of each: the run goes red, it reached the report, and the statement the row
+NAMES fired. It also computes `fails = out.count("\nFAIL: ")`, prints it inside the `ok`
+line, and compares it to nothing. Measured:
+
+```
+26 of 56 rows redden MORE THAN ONE failure statement
+18 of 56 rows redden a CHECK THEY DO NOT NAME
+check 24b   reddened by 10 rows that do not name it — every one of the ten
+            edits a file with tracked addon copies
+check 20    reddened by 8
+```
+
+`23.encode_only`, `23.decode_only` and `23.oneway_stale` were written in 192, **before
+check 24b existed**. 193 added 24b; each of them silently went from one FAIL line to two,
+and for three sessions nothing said so.
+
+Every control now declares its blast radius in a `BLAST` roster, and the gate compares the
+declaration to the observation. A check added since a row was written is now a loud,
+named failure in the commit that adds it:
+
+```
+🔴 CONTROL_GATE_BLAST 15.noshebang: declared 3, observed 2. This
+   mutation's blast radius moved. Checks it reddens that it does NOT name: ['20']
+```
+
+**The verdict rests on the count, not on the attribution, and that is deliberate.** The
+new `also_checks()` reader resolves 98 of 103 FAIL lines to a named check; the five it
+cannot are statements whose every literal is shared across checks. An assertion resting on
+a reader that is 95% right is 194 §4 shipped. So the count — a number this file already
+computed and no new reader can be wrong about — is the gate, and the attribution is the
+**diagnosis**, printed when a row drifts so the next author is told which check arrived.
+
+Two floors, not one, for 194 §33's reason — a subtraction over more than one contributor
+needs two numbers:
+
+| floor | what collapses without it |
+|---|---|
+| `BLAST_TOTAL_FLOOR` 103/95 | a control going quiet, absorbed by editing its own declaration one row at a time |
+| `ALSO_ATTRIBUTED_FLOOR` 98/90 | the attributor silently ceasing to resolve, while every row still passes |
+
+Three new detectors — the roster's two halves and the attributor's confession — are lifted
+out and fixture-fed, so none of them can be deleted invisibly on a healthy tree.
+
 ## [1.71.0] — 2026-08-04
 
 ### Changed — the anchor that outran itself
