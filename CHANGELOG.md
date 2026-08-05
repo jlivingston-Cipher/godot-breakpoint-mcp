@@ -6,6 +6,51 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the call, the shrink, and the number one file over
+
+201 declared two gaps green rather than closing them and handed both over, plus a third it
+named and deliberately did not take. All three are closed here, and the sweep that was meant
+to confirm the fixes refuted two of its own predictions on the way.
+
+🔴 **AN INSTRUMENT IS PROVED WHERE ITS LOGIC IS DECLARED AND UNPROVED WHERE IT IS INVOKED.**
+201 lifted five branches out of `floor_pin_gate.py`'s `main()` and fed each a fixture. Its
+own reverse sweep then found `U2`: delete the CALL and nothing reddens. The note blamed an
+empty population — but on a GREEN tree the same is true of all five, because a predicate
+that finds nothing reads exactly like a predicate nobody asked. **No mutation of the INPUT
+can reach any of them.** Patching the PREDICATE can: each is swapped for a stub returning a
+sentinel, and `collect_problems()` must surface that sentinel under the key that predicate
+feeds. The stub needs no population, which is why the empty table stops being special — the
+call site 201 could not reach is now proved exactly as well as the one reading twenty-five
+rows. A predicate rewired to the wrong key reddens too.
+
+🔴 **A ROSTER THAT SHRINKS BY AGREEMENT READS THE SAME AS ONE THAT SHRINKS BY ACCIDENT**
+(201's `D1`). Deleting a `USE_TARGETS` row *and* lowering `USE_FLOOR` to match reddened
+nothing. Measured before acting: **twenty-one** governed size constants across five gate
+files, not the two 201 named. `SIZE_LEDGER` is the second reader — every one of them carries
+its value and a sentence saying why, so lowering a floor takes two edits in two files and
+the second is nothing but the reason. An accidental shrink passes neither.
+
+🔴 **AND THE SAME TABLE CLOSED §9.4, WHICH IS WHY IT IS ONE MECHANISM AND NOT TWO.** 201 §5
+governed prose numbers in `floor_pin_gate.py`'s own tables and named the same defect in the
+other gates' declaration comments — `control_gate.py`'s `BLAST_TOTAL_FLOOR = 95  # measured
+103 across the 56 rows`, `scope_gate.py`'s `LEDGER_COLLAPSE_FLOOR = 24  # measured 29 ...` —
+without widening to them. Measured: **thirteen of twenty comments carried a non-citation
+digit-run**, and one had already drifted (`LATE_CONSTRUCTED_FLOOR` said eighty-two against a
+live eighty-nine). All thirteen rewritten, and the rule that stops a fourteenth is
+`reason_problems()` UNCHANGED, pointed at the live tree instead of at a table.
+
+🔴 **`reason_value` COULD NOT SEE AN INDENTED CONSTANT.** `INSTRUMENT_FLOOR` is declared
+inside `instrument_gate.py`'s `main()`, so a module-level-only reader skipped the one
+governed floor that is indented. Leading whitespace is not part of the claim.
+
+🟢 **AND THE SWEEP REFUTED TWO OF ITS OWN PREDICTIONS.** `M2` — breaking the comment reader
+so it finds nothing — was predicted RED and came back **green**: no comments read, no
+comments to flag. That is 201 §9.43's *a check with an empty population passes for the wrong
+reason*, arriving inside a check written the same day the rule was quoted. `COMMENT_FLOOR`
+is the floor it earned. `governed_sizes()` needed no such floor — emptying it turns every
+ledger row stale and reddens — and only running both mutants said which reader failed loud
+and which failed silent.
+
 ## [1.72.5] — 2026-08-05
 
 ### Fixed — the mutation that could not reach the reader, and the numbers written in prose

@@ -52,7 +52,7 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 57   # 200: 56 -> 57 (SHIPPED_CLAIM_SITE_FLOORS, §12.3's expected table —
+TARGET_FLOOR = 57   # governed by SIZE_LEDGER (§9.3). 200 §12.3 admitted
                     #      itself a floor-shaped constant of eleven literals, reported
                     #      UNSWEPT by this gate on the first run after it was written)
                     # 200: 51 -> 56 (COHORT_FLOORS' five values — `path-cohort.mjs`'s
@@ -369,7 +369,7 @@ FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?$")
 # `_self_check()` rather than on a live population — the U1 lesson (a check whose
 # population is empty is passing for the wrong reason) applied to the table that taught it.
 UNDISCOVERABLE_DECLARED: dict[tuple[str, str], str] = {}
-UNDISCOVERABLE_CEILING = 0   # 🔴 IT FELL, AS 199 SAID IT SHOULD, AND IT STAYS A CEILING:
+UNDISCOVERABLE_CEILING = 0   # 🔴 IT FELL, AS 199 — SAID IT SHOULD, AND IT STAYS ONE:
                              # a floor added tomorrow under a name the walk cannot read
                              # reddens here on the commit that adds it, and the fix is
                              # still the constant's name rather than a wider guess.
@@ -546,6 +546,14 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "MUST bite, and the same roster against a ceiling of three must NOT. The check no "
         "longer rests on the live population being non-empty, which is the general form of "
         "the defect — a check with an empty population passes for the wrong reason.",
+    ("../scripts/floor_pin_gate.py", "COMMENT_FLOOR"):
+        "🆕 202 §6 — THIS file's floor over the declaration comments its own reason rule "
+        "reads. Same nesting reason as the two below: its runner would be floor_pin_gate.py "
+        "itself. 🔴 AND IT COULD NOT BE A TARGETS ROW EVEN IF IT WERE NOT NESTED, which is "
+        "201 §32's direction lesson arriving inside the fix for it — every TARGETS row is "
+        "mutated toward zero, and `len(comments) < 0` is false, so zeroing this floor is "
+        "the mutation it survives for free. Pinned in-file by `_self_check()`, which feeds "
+        "`comment_problems()` an EMPTY set it must flag and a full clean set it must not.",
     ("../scripts/floor_pin_gate.py", "USE_FLOOR"):
         "🆕 201 §10.2 — THIS file's floor over its USE-SITE roster, the list of floors that "
         "have a live CONSUMER rather than only a declaration-site pin. Same nesting reason "
@@ -634,8 +642,15 @@ def reason_value(relfile: str, name: str) -> int | None:
     val: int | None = None
     if p.exists():
         t = p.read_text()
-        m = (re.search(rf"^{re.escape(name)}(?::\s*[^=\n]+)?\s*=\s*(\d+)", t, re.M)
-             or re.search(rf"^(?:export )?const {re.escape(name)}\s*=\s*(\d+)", t, re.M))
+        # 🔴 202 §5 — `^` WITHOUT `\s*` WAS A SECOND PREDICATE. `instrument_gate.py`
+        # declares INSTRUMENT_FLOOR inside `main()`, so a module-level-only reader
+        # silently skipped the one governed floor that is indented — and the SIZE_LEDGER
+        # scan below inherited the same blindness until this was widened. Excluding a
+        # real constant on a detail of its indentation is the shape this session found
+        # three times over: the backtick in the release roster, the `files` field, the
+        # producer map. Leading whitespace is not part of the claim.
+        m = (re.search(rf"^\s*{re.escape(name)}(?::\s*[^=\n]+)?\s*=\s*(\d+)", t, re.M)
+             or re.search(rf"^\s*(?:export )?const {re.escape(name)}\s*=\s*(\d+)", t, re.M))
         if m:
             val = int(m.group(1))
     _VALUE_CACHE[key] = val
@@ -709,7 +724,7 @@ def reason_problems(table: dict[tuple[str, str], str],
 #
 # (label, declaring file, regex whose group(1) ends immediately before the digits,
 #  consumer argv). The consumer must PASS unmutated and go RED when the floor is raised.
-USE_FLOOR = 5   # 201: this roster's own size. `>=`, because the day a second live
+USE_FLOOR = 5   # governed by SIZE_LEDGER (§9.3). `>=`, because the day a second live
                 # consumer imports a floor it belongs here — and a roster that can
                 # shrink to nothing without anything noticing is the shape this whole
                 # file exists to refuse.
@@ -723,6 +738,218 @@ USE_TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("use.COHORT_FLOORS.total",              COHORT, r"(total: )250",              CO),
 ]
 USE_RAISE = "999999"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 🆕 201 §9.3 + §9.4 — THE SIZE LEDGER: WHY A ROSTER IS THE SIZE IT IS
+# ═══════════════════════════════════════════════════════════════════════════════════
+#
+# 201's sweep declared `D1` green and named it: deleting a `USE_TARGETS` row AND lowering
+# `USE_FLOOR` to match reddens NOTHING. That is correct for a deliberate removal and
+# silent for an accidental one, and 201 §9.3 generalised it — the same is true of
+# `TARGET_FLOOR`, every `*_CEILING` and `CHECKS_EXPECTED`. **NO INSTRUMENT IN THIS TREE
+# READS WHY A ROSTER CHANGED SIZE.**
+#
+# 🔴 MEASURED FIRST (200 §33): TWENTY governed size constants across FIVE gate files,
+# not the two 201 §9.3 named and not the four §9.4 did.
+#
+# The ledger is the second reader. A governed constant may hold any value it likes, but
+# the value has to be written down HERE as well, next to a sentence saying why — so
+# lowering a floor takes two edits in two files and the second one is nothing but the
+# reason. An accidental shrink passes neither.
+#
+# 🔴 AND THE SAME TABLE CLOSES §9.4, WHICH IS WHY IT IS ONE MECHANISM AND NOT TWO.
+# §9.4 asked about `control_gate.py`'s `BLAST_TOTAL_FLOOR = 95  # measured 103 across the
+# 56 rows` and `scope_gate.py`'s `LEDGER_COLLAPSE_FLOOR = 24  # measured 29 ...` —
+# 201 §5's defect exactly, one table over, and 201 declined to widen the reason rule to
+# "every comment in every gate". It does not need to. These reasons go through
+# `reason_problems()` UNCHANGED, `{FLOOR}` resolves from the live constant, and the
+# ungoverned prose in the other gates' own comments is replaced by a pointer to the row
+# that governs it rather than by a second rule nobody would re-read.
+#
+# 🔴 THIRTEEN OF THE TWENTY COMMENTS CARRIED A NON-CITATION DIGIT-RUN, and one was
+# already stale on the day it was measured: `instrument_gate.py`'s LATE_CONSTRUCTED_FLOOR
+# said "measured 82 of 102" against a live LATE_CONSTRUCTED of eighty-nine. 201 §5 caught
+# the same number one file over and could not reach this one.
+SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (22, (
+        "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
+        "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
+        "has failed to obtain.")),
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (27, (
+        "The non-executable scripts, at `{FLOOR}`. Last raised by one when 187 — added "
+        "control_gate.py, the fourth gate.")),
+    ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): (3, (
+        "Statements carrying no literal of their own, so no row can ever name them. A "
+        "CEILING in spirit: it is supposed to fall, and `{FLOOR}` is where it stands.")),
+    ("../scripts/control_gate.py", "CONTROLLED_FLOOR"): (56, (
+        "Controls applied, at `{FLOOR}`. Seventeen when 187 — first measured it; 188 §4 "
+        "added the constructible half of the group it had named.")),
+    ("../scripts/control_gate.py", "STATEMENT_FLOOR"): (87, (
+        "Failure statements, at `{FLOOR}`. 186 — measured seventy; 188 §3 added two and "
+        "192 — added check twenty-three's.")),
+    ("../scripts/control_gate.py", "BLAST_TOTAL_FLOOR"): (95, (
+        "🔴 201 §5's DEFECT, ONE FILE OVER. Its own comment said the live blast was one "
+        "hundred and three — a measurement that drifts, written where nothing compares "
+        "it. Floored from BELOW at `{FLOOR}` so a row that stops reddening is caught.")),
+    ("../scripts/control_gate.py", "ALSO_ATTRIBUTED_FLOOR"): (90, (
+        "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
+        "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
+        "population is what it governs.")),
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (57, (
+        "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
+        "admitted the shipped claim-site floors.")),
+    ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
+        "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
+        "Its branch is unreachable from the live tree and is proved by fixture instead, "
+        "which is 200's U1 closed rather than declared.")),
+    ("../scripts/floor_pin_gate.py", "COMMENT_FLOOR"): (17, (
+        "🔴 THE ROW `M2` EARNED. Declaration comments the rule reads, at `{FLOOR}`. It "
+        "exists because breaking the reader emptied the population and the check went "
+        "GREEN — 201 §9.43 arriving inside a check written the same day it was quoted.")),
+    ("../scripts/floor_pin_gate.py", "USE_FLOOR"): (5, (
+        "🔴 THE ROW `D1` WAS ABOUT. Live consumers asked whether they still READ the "
+        "floor they import, at `{FLOOR}`. Deleting one of these rows and lowering this "
+        "literal to match is the shrink-by-agreement this whole table exists to read.")),
+    ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (55, (
+        "Resolved signatures, floored at `{FLOOR}` from below.")),
+    ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): (0, (
+        "A CEILING at `{FLOOR}`, supposed to fall and already at the bottom.")),
+    ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): (65, (
+        "🔴 THE ONE THAT WAS ALREADY STALE WHEN §9.4 MEASURED IT. Its comment quoted a "
+        "live constructed count that has since moved — 201 §5's finding, reaching a file "
+        "that session's rule could not govern. The floor itself is `{FLOOR}`, read from "
+        "the tree.")),
+    ("../scripts/instrument_gate.py", "LATE_LIVE_FLOOR"): (8, (
+        "The live late axis, floored at `{FLOOR}`.")),
+    ("../scripts/instrument_gate.py", "INSTRUMENT_FLOOR"): (8, (
+        "🔴 THE ONE AN INDENTATION HID. Declared inside `main()`, so a module-level-only "
+        "reader could not see it at all until 202 §5 widened `reason_value`. The roster "
+        "of instruments, at `{FLOOR}`; 177 — admitted boundary_gate.mjs as the eighth.")),
+    ("../scripts/instrument_gate.py", "CRASH_CEILING"): (0, (
+        "A CEILING at `{FLOOR}` and it has fallen to the bottom. It stays a ceiling "
+        "rather than becoming a floor for the reason its own comment gives.")),
+    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (25, (
+        "That gate's swept enumerators, at `{FLOOR}`.")),
+    ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): (20, (
+        "Attributed statements, at `{FLOOR}`. Nineteen when re-derived; raised by one "
+        "once 188 §3 gave check twelve a population.")),
+    ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): (45, (
+        "🔴 201 §5's DEFECT AGAIN, THIRD FILE. Its comment quoted the live blast, which "
+        "drifts. Floored from BELOW at `{FLOOR}` for control_gate's reason.")),
+    ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): (24, (
+        "🔴 FOURTH AND LAST OF THE SHAPE §9.4 NAMED. Its comment quoted the live "
+        "collapse count against the live row count, both moving. The floor is "
+        "`{FLOOR}`.")),
+}
+
+# The governed shape. A size constant is one whose NAME says it bounds a roster —
+# derived from the naming convention the five gates already share rather than from a
+# hand-written roster, which is 198's rule and the reason this table cannot quietly
+# stop covering a file.
+LEDGER_DECL = re.compile(
+    r"^\s*([A-Z][A-Z0-9_]*(?:FLOOR|CEILING|EXPECTED))\s*=\s*(-?\d+)\s*(?:#.*)?$", re.M)
+LEDGER_DIRS = [ROOT / "scripts"]
+
+
+def governed_sizes() -> dict[tuple[str, str], int]:
+    """Every governed size constant in the tree, keyed the way TARGETS keys them."""
+    out: dict[tuple[str, str], int] = {}
+    for d in LEDGER_DIRS:
+        for f in sorted(d.rglob("*.py")):
+            if "_to_delete" in f.parts:
+                continue
+            rel = "../" + str(f.relative_to(ROOT))
+            for name, val in LEDGER_DECL.findall(f.read_text()):
+                out[(rel, name)] = int(val)
+    return out
+
+
+# 🔴 201 §9.4 — AND THE COMMENT ON THE DECLARATION LINE ITSELF.
+# Rewriting the thirteen offenders is the fix; this is the gate that stops a fourteenth.
+# The rule is `reason_problems()` UNCHANGED, pointed at the live tree instead of at a
+# table — so the thing that governs a ledger reason and the thing that governs a floor's
+# own annotation are one rule, not two that can drift apart.
+#
+# 🔴 THE SCOPE IS THE INLINE COMMENT ON THE DECLARATION LINE, AND THAT IS A BOUNDARY,
+# NOT AN OVERSIGHT. Several of these constants carry continuation comments beneath them
+# — prose paragraphs about why the floor exists. Those are governed by nothing and this
+# session did not widen to them: it is a different population with a different shape, and
+# a rule that forces narrative prose into spelled-out words is a rule people route
+# around. Named in 202 §9 rather than left implied. What a reader takes for the
+# constant's own annotation is the line the constant is on.
+COMMENT_DECL = re.compile(
+    r"^\s*([A-Z][A-Z0-9_]*(?:FLOOR|CEILING|EXPECTED))\s*=\s*-?\d+\s*#\s*(.+)$", re.M)
+# 🔴 202 §6 — THIS FLOOR EXISTS BECAUSE THE SWEEP REFUTED A PREDICTION.
+# `M2` broke COMMENT_DECL so it matched nothing and the check went GREEN: no comments
+# read, no comments to flag. 201 §9.43's "a check with an empty population passes for
+# the wrong reason", arriving inside a check written in the same session that quoted the
+# rule — which is the cheapest possible argument for predicting every mutant's verdict
+# and then believing the tree over the prediction (201 §8's C3).
+#
+# `governed_sizes()` did NOT need this: emptying it turns every ledger row STALE and
+# reddens, which `L4` proves. The asymmetry is the point — one reader fails loud and one
+# failed silent, and only running both mutants said which was which.
+COMMENT_FLOOR = 17   # governed by SIZE_LEDGER (§9.3)
+
+
+def declaration_comments() -> dict[tuple[str, str], str]:
+    out: dict[tuple[str, str], str] = {}
+    for d in LEDGER_DIRS:
+        for f in sorted(d.rglob("*.py")):
+            if "_to_delete" in f.parts:
+                continue
+            rel = "../" + str(f.relative_to(ROOT))
+            for name, comment in COMMENT_DECL.findall(f.read_text()):
+                out[(rel, name)] = comment.strip()
+    return out
+
+
+def comment_problems(comments: dict[tuple[str, str], str]) -> list[str]:
+    """The reason rule, plus the floor `M2` proved it needed."""
+    problems: list[str] = []
+    if len(comments) < COMMENT_FLOOR:
+        problems.append(
+            f"🔴 FLOOR_PIN_COMMENT_COLLAPSE {len(comments)} < {COMMENT_FLOOR} — the "
+            f"reader that finds declaration comments stopped finding them. This check "
+            f"has NOTHING TO DISAGREE WITH and would pass for the wrong reason (201 "
+            f"§9.43). Either comments were legitimately deleted (lower the floor on "
+            f"purpose and say why in SIZE_LEDGER) or COMMENT_DECL was narrowed, which is "
+            f"the dangerous half — every comment it stopped reading went ungoverned in "
+            f"the same edit and this line is the only thing that would say so.")
+    return problems + reason_problems(comments, "comment")
+
+
+def ledger_problems(ledger: dict[tuple[str, str], tuple[int, str]],
+                    live: dict[tuple[str, str], int]) -> list[str]:
+    """🔴 201 §9.3 — READ WHY A ROSTER IS THE SIZE IT IS, IN BOTH DIRECTIONS.
+
+    Lifted so `_self_check()` can feed it inputs it MUST flag and inputs it must not —
+    the shape this file finally applied to itself in 201 §10.3."""
+    problems: list[str] = []
+    for key, value in sorted(live.items()):
+        if key not in ledger:
+            problems.append(
+                f"🔴 FLOOR_PIN_LEDGER_UNGOVERNED {key[0]}:{key[1]} = {value} — a size "
+                f"constant arrived with no ledger row. Add one saying why it is this "
+                f"size; a roster nobody has to explain is one that can shrink by "
+                f"accident, which is 201's D1.")
+        elif ledger[key][0] != value:
+            problems.append(
+                f"🔴 FLOOR_PIN_LEDGER_DRIFT {key[0]}:{key[1]} holds {value} and its "
+                f"ledger row says {ledger[key][0]}. If the change was DELIBERATE, update "
+                f"the row and say why in the same commit — that sentence is the only "
+                f"thing in this tree that tells a deliberate shrink from an accidental "
+                f"one. If it was not, this is the line that caught it.")
+    for key in sorted(ledger):
+        if key not in live:
+            problems.append(
+                f"🔴 FLOOR_PIN_LEDGER_STALE {key[0]}:{key[1]} has a ledger row and no "
+                f"constant. Either it was deleted (delete the row in the same commit) or "
+                f"the scan stopped being able to READ it — the more dangerous half, "
+                f"because every other constant of that shape went ungoverned with it "
+                f"(197's rule, and 202 §5's indentation is how it happens).")
+    return problems
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════
@@ -807,6 +1034,37 @@ def _self_check() -> list[str]:
         bad.append(f"_self_check: USE_TARGETS shrank to {len(USE_TARGETS)} below "
                    f"USE_FLOOR {USE_FLOOR} — a live consumer stopped being asked whether "
                    f"it still reads the floor it imports")
+
+    # ── 🆕 201 §9.2 — AND THE CALLS THEMSELVES, NOT JUST THE LOGIC ──────────────
+    # Everything above proves a PREDICATE. `U2` said nothing proves `main()` still
+    # RUNS one, because on a green tree a predicate that finds nothing reads exactly
+    # like a predicate nobody asked. Patched stubs make each call site observable
+    # without needing a population — which is why the empty table stops being special.
+    bad += _call_wiring_problems()
+
+    # ── 🆕 201 §9.3 — AND THE LEDGER'S OWN PREDICATE, ON A FIXTURE ──────────────
+    if not ledger_problems({("f.py", "A_FLOOR"): (3, "a reason")}, {("f.py", "A_FLOOR"): 2}):
+        bad.append("_self_check: ledger_problems did NOT flag a live value that "
+                   "disagrees with its ledger entry — a roster could shrink with the "
+                   "ledger still reading as though it had not")
+    if ledger_problems({("f.py", "A_FLOOR"): (3, "a reason")}, {("f.py", "A_FLOOR"): 3}):
+        bad.append("_self_check: ledger_problems flagged a value that AGREES with its "
+                   "ledger — the rule is over-wide and every run would be red")
+    if not ledger_problems({}, {("f.py", "A_FLOOR"): 3}):
+        bad.append("_self_check: ledger_problems did NOT flag a governed constant with "
+                   "no ledger entry at all — a new floor could arrive ungoverned")
+    if not ledger_problems({("gone.py", "B_FLOOR"): (1, "r")}, {}):
+        bad.append("_self_check: ledger_problems did NOT flag a ledger entry whose "
+                   "constant no longer exists — 197's other direction, unread here")
+
+    # ── 🆕 202 §6 — THE COMMENT FLOOR, WHICH `M2` PROVED THIS CHECK NEEDED ──────
+    if not comment_problems({}):
+        bad.append("_self_check: comment_problems stayed quiet on an EMPTY comment set — "
+                   "that is exactly how M2 passed, and 201 §9.43 is the rule it breaks")
+    if comment_problems({(f"f{i}.py", "A_FLOOR"): "spelled in words" for i in
+                         range(COMMENT_FLOOR)}):
+        bad.append("_self_check: comment_problems flagged a full set of clean comments — "
+                   "the floor is `<` and a population AT it is legal")
     return bad
 
 
@@ -832,6 +1090,122 @@ def _restore() -> None:
             p.write_text(t)
 
 
+CALL_SENTINEL = "🔴 FLOOR_PIN_CALL_WIRING sentinel — a patched predicate reached the report"
+
+
+def collect_problems() -> dict[str, list[str]]:
+    """🔴 201 §9.2 — EVERY LIFTED PREDICATE IS INVOKED HERE AND NOWHERE ELSE.
+
+    201 lifted five branches out of `main()` and fed each a fixture. 201's own reverse
+    sweep then declared `U2` green: **delete the CALL from `main()` and nothing reddens.**
+    The fixtures prove the FUNCTION; nothing proved the GATE still runs it. An instrument
+    proved where its logic is DECLARED and unproved where it is INVOKED is `C2` one level
+    up, and it is why this indirection exists.
+
+    🔴 AND THE REASON A MUTATION OF THE INPUT COULD NOT CLOSE IT. `U2`'s note was that
+    the live population is EMPTY — `ceiling_problems(0, 0)` returns `[]` whether it is
+    called or not, so no edit to `UNDISCOVERABLE_DECLARED` can make that call site
+    observable. On a GREEN tree the same is true of all four: a predicate that finds
+    nothing is indistinguishable from a predicate nobody asked. Mutating the INPUT can
+    never reach them.
+
+    🆕 PATCHING THE PREDICATE CAN. `_call_wiring_problems()` replaces each function with
+    a stub that returns a sentinel and requires that sentinel to arrive under its own key
+    — which needs no population at all, and is why the empty table stops being special.
+    Two `reason_problems` call sites are distinguished by their `label`, so the one whose
+    table is empty is proved exactly as well as the one whose table has 25 rows.
+
+    🔴 WHAT THIS DOES NOT CLOSE, STATED PLAINLY: `main()` calls THIS function, and that
+    one call is unproved for the same reason the five were. The regress is real. It is
+    now ONE call instead of five-plus-an-unreachable-hole, and `W1` in the reverse sweep
+    is the mutant that says so."""
+    return {
+        "targets": targets_collapse_problems(len(TARGETS), TARGET_FLOOR),
+        "reason": (reason_problems(DISCOVER_EXEMPT, "exempt")
+                   + reason_problems(UNDISCOVERABLE_DECLARED, "declared")),
+        "ceiling": ceiling_problems(len(UNDISCOVERABLE_DECLARED), UNDISCOVERABLE_CEILING),
+        "ledger": (ledger_problems(SIZE_LEDGER, governed_sizes())
+                   + reason_problems({k: v[1] for k, v in SIZE_LEDGER.items()}, "ledger")),
+        "comment": comment_problems(declaration_comments()),
+    }
+
+
+def _call_wiring_problems() -> list[str]:
+    """🔴 201 §9.2 — PROVE THE CALL, NOT THE LOGIC.
+
+    For each predicate, swap in a stub that returns the sentinel and require
+    `collect_problems()` to surface it under the key that predicate feeds. A deleted call
+    site loses its sentinel and this reddens; a call site rewired to the WRONG key
+    reddens too, because the key is part of the claim (199 §35).
+
+    The stub returns a problem unconditionally, so an EMPTY input table is no longer a
+    reason a call site cannot be observed — which is the whole of `U2`."""
+    import builtins  # noqa: F401  (kept local; this function is the only patcher)
+    g = globals()
+    bad: list[str] = []
+
+    # (key it must land under, name to patch, stub)
+    CASES: list[tuple[str, str, object]] = [
+        ("targets", "targets_collapse_problems", lambda *a, **k: [CALL_SENTINEL]),
+        ("ceiling", "ceiling_problems", lambda *a, **k: [CALL_SENTINEL]),
+        ("ledger", "ledger_problems", lambda *a, **k: [CALL_SENTINEL]),
+    ]
+    for key, fname, stub in CASES:
+        real = g[fname]
+        g[fname] = stub
+        try:
+            got = collect_problems()
+        finally:
+            g[fname] = real
+        if CALL_SENTINEL not in got.get(key, []):
+            bad.append(f"_call_wiring: main()'s report no longer carries {fname}() under "
+                       f"{key!r} — the predicate is intact and NOTHING CALLS IT. This is "
+                       f"201's U2: the fixture proves the function, this proves the gate "
+                       f"still runs it")
+        leaked = [k for k, v in got.items() if k != key and CALL_SENTINEL in v]
+        if leaked:
+            bad.append(f"_call_wiring: {fname}()'s result arrived under {leaked} as well "
+                       f"as {key!r} — a predicate feeding a key its reason is not about "
+                       f"is 199 §35, and the key is part of the claim")
+
+    # 🔴 THE TWO reason_problems CALL SITES, TOLD APART BY THEIR LABEL. One reads a table
+    # with 25 rows and one reads a table that is EMPTY. Under a mutation of the input the
+    # second is unreachable; under a patched predicate both are ordinary.
+    real = g["reason_problems"]
+    g["reason_problems"] = lambda table, label, *a, **k: [f"{CALL_SENTINEL} [{label}]"]
+    try:
+        got = collect_problems()
+    finally:
+        g["reason_problems"] = real
+    KEY_OF = {"exempt": "reason", "declared": "reason",
+              "ledger": "ledger", "comment": "comment"}
+    for label, key in KEY_OF.items():
+        if f"{CALL_SENTINEL} [{label}]" not in got.get(key, []):
+            bad.append(f"_call_wiring: reason_problems(..., {label!r}) is no longer "
+                       f"called — and for {label!r} in particular nothing else would ever "
+                       f"say so, because that table is empty and the predicate returns "
+                       f"[] whether it runs or not")
+
+    # 🔴 AND THE SCAN FEEDING THE LEDGER, WHICH IS A DIFFERENT CALL FROM THE PREDICATE
+    # THAT READS IT. `ledger_problems(SIZE_LEDGER, governed_sizes())` has TWO arguments
+    # and only one of them has been proved to arrive. Patching the scan to report a
+    # constant the ledger does not govern must produce a problem; if it does not, the
+    # scan's result is being computed and thrown away — 200 §35 in its third spelling,
+    # a value defended where it is produced and unread where it is consumed.
+    real = g["governed_sizes"]
+    g["governed_sizes"] = lambda: {("../scripts/nowhere.py", "FABRICATED_FLOOR"): 1}
+    try:
+        got = collect_problems()
+    finally:
+        g["governed_sizes"] = real
+    if not any("FABRICATED_FLOOR" in p for p in got.get("ledger", [])):
+        bad.append("_call_wiring: governed_sizes()'s result never reaches "
+                   "ledger_problems() — the tree is scanned and the answer discarded, so "
+                   "every governed constant could drift with the ledger still agreeing "
+                   "with itself")
+    return bad
+
+
 def main() -> int:
     failed = False
     print(f"FLOOR_PIN_GATE targets={len(TARGETS)} floor={TARGET_FLOOR} "
@@ -851,16 +1225,33 @@ def main() -> int:
     print("FLOOR_PIN_SELFCHECK ok — every lifted branch bit on an input it must flag and "
           "stayed quiet on one it must not")
 
-    for problem in targets_collapse_problems(len(TARGETS), TARGET_FLOOR):
+    # ── 🆕 201 §9.2 — ONE INVOCATION POINT, SO THE CALLS THEMSELVES CAN BE PROVED ──
+    probs = collect_problems()
+
+    for problem in probs["targets"]:
         print(problem)
         failed = True
 
     # ── 🆕 201 §10.4 — THE REASONS, ASKED WHETHER THEY QUOTE AN UNGOVERNED NUMBER ───
-    reason_bad = (reason_problems(DISCOVER_EXEMPT, "exempt")
-                  + reason_problems(UNDISCOVERABLE_DECLARED, "declared"))
+    reason_bad = probs["reason"]
     for problem in reason_bad:
         print(problem)
         failed = True
+    # ── 🆕 201 §9.3 + §9.4 — WHY EACH GOVERNED ROSTER IS THE SIZE IT IS ────────────
+    for problem in probs["ledger"]:
+        print(problem)
+        failed = True
+    for problem in probs["comment"]:
+        print(problem)
+        failed = True
+    _sizes = governed_sizes()
+    _comments = declaration_comments()
+    print(f"FLOOR_PIN_LEDGER {len(SIZE_LEDGER)} governed size constant(s) across "
+          f"{len({f for f, _ in SIZE_LEDGER})} file(s) · {len(_sizes)} found in the tree "
+          f"· {len(probs['ledger'])} ungoverned, drifted, stale or quoting a bare number")
+    print(f"FLOOR_PIN_COMMENT {len(_comments)} declaration comment(s) read · "
+          f"{len(probs['comment'])} quoting a number the tree does not govern")
+
     print(f"FLOOR_PIN_REASON {len(DISCOVER_EXEMPT)} exempt + "
           f"{len(UNDISCOVERABLE_DECLARED)} declared reason(s) read · "
           f"{sum('{FLOOR}' in r for r in DISCOVER_EXEMPT.values())} resolve `{{FLOOR}}` "
@@ -953,7 +1344,7 @@ def main() -> int:
         print("🔴 FLOOR_PIN_UNDISCOVERABLE_STALE a constant declared unfindable is now found:\n"
               + "".join(f"     {n}\n" for n in stale_undisc)
               + "   Delete its declaration and lower UNDISCOVERABLE_CEILING in the same commit.")
-    for problem in ceiling_problems(len(UNDISCOVERABLE_DECLARED), UNDISCOVERABLE_CEILING):
+    for problem in probs["ceiling"]:
         failed = True
         print(problem)
     print(f"FLOOR_PIN_UNDISCOVERABLE {len(undiscoverable)} undeclared · "

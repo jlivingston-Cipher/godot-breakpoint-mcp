@@ -102,7 +102,7 @@ REPORT_MARKER = "=== breakpoint-mcp static contract check ==="
 # already has its stdout in hand — it simply discarded it and kept the exit code. 184's
 # rule was "a number an instrument prints and no gate reads is an unasked question"; this
 # is one turn further down, an OUTPUT an instrument produces and no gate reads at all.
-STATEMENT_ATTRIB_FLOOR = 20    # 19 when re-derived; 20 once 188 §3 gave check 12 a population
+STATEMENT_ATTRIB_FLOOR = 20    # governed by floor_pin_gate SIZE_LEDGER (§9.3)
 
 
 # ── 🔴 197 §4 — THE BLAST RADIUS, AND THE CLAIM THIS FILE'S DOCSTRING MAKES ────────
@@ -185,10 +185,10 @@ BLAST: dict[str, int] = {
     "uncaptured_tool_registrations": 1,
 }
 
-SCOPE_BLAST_TOTAL_FLOOR = 45          # measured 53. Floored from BELOW for control_gate's reason:
+SCOPE_BLAST_TOTAL_FLOOR = 45          # measured ABOVE this. Floored from BELOW for control_gate's reason:
                                 # the per-row equalities above get edited one row at a time,
                                 # and this is what notices the sweep going quieter overall
-LEDGER_COLLAPSE_FLOOR = 24      # measured 29 population-collapses across the 25 rows. The
+LEDGER_COLLAPSE_FLOOR = 24      # measured ABOVE this, across every row. The
                                 # per-row assertion is the gate; this is the aggregate that
                                 # notices the ledger being trimmed row by row to match
 
