@@ -505,7 +505,16 @@ INSTRUMENTS = [
         # harness recompiled per mutation, restored the .ts and left the last mutant
         # sitting in dist-test/.
         "fresher_than": HOST / "src" / "path-cohort.ts",
-        "gate": ["node", "--test", "dist-test/test/path_cohort.test.js"],
+        # 🔴 `--test-reporter=spec` IS PART OF THE GATE, NOT A PREFERENCE (197 §5, found
+        # by CI). `node --test` picks its reporter from whether stdout is a TTY: `spec`
+        # on a developer's terminal, `tap` in Actions. The two print different summary
+        # lines — `ℹ fail 0` and `# fail 0` — so this instrument's VERDICT_MARKER and its
+        # failure count were both silently environment-dependent, green on a Mac and
+        # unreadable in CI. Pinning the reporter makes the dialect a property of the
+        # command rather than of the terminal. The CONTROL assertion is what caught it,
+        # on the first CI run, before a single mutant — which is the whole design.
+        "gate": ["node", "--test", "--test-reporter=spec",
+                 "dist-test/test/path_cohort.test.js"],
         "cwd": HOST,
         "floor": 8,
         "why": "the enumerator whose predecessor's number was wrong by 180 rows in two shipped changelogs",
@@ -822,7 +831,11 @@ def _self_check(floor: int) -> list[str]:
     if failure_lines("🔴 FAILED: a claim did not hold\n") != 1:
         problems.append("failure_lines does not read the prose dialect")
     if failure_lines("ℹ fail 3\n") != 3:
-        problems.append("failure_lines does not read the node:test dialect")
+        problems.append("failure_lines does not read the node:test SPEC dialect")
+    if failure_lines("# fail 3\n") != 3:
+        problems.append(
+            "failure_lines does not read the node:test TAP dialect — which is the one CI "
+            "gets, because node picks its reporter by whether stdout is a TTY (197 §5)")
     if failure_lines("everything is fine\n  ok   NOT_A_FAILURE\n"):
         problems.append(
             "failure_lines counts a failure in clean output — the blast floors would then be "
@@ -958,7 +971,11 @@ VERDICT_MARKER: dict[str, str] = {
 # and cannot mis-file a line (197 §5).
 A_FAIL = re.compile(r"^[ \t]*FAIL[ \t]+[A-Z][A-Z0-9_]+", re.M)      # the .selftest.mjs harnesses
 B_FAIL = re.compile(r"^🔴 FAILED: ", re.M)                          # the *_gate.mjs self-tests
-C_FAIL = re.compile(r"^ℹ fail (\d+)$", re.M)                        # node:test
+# 🔴 BOTH node:test SUMMARY SPELLINGS. `spec` prints `ℹ fail 0`, `tap` prints `# fail 0`,
+# and node picks between them by whether stdout is a TTY. The gate command now pins
+# `--test-reporter=spec` so the choice is not the terminal's to make, and this alternation
+# means a future instrument that forgets to pin it is merely read rather than read as zero.
+C_FAIL = re.compile(r"^(?:ℹ|#) fail (\d+)$", re.M)                  # node:test
 
 
 def failure_lines(out: str, _name: str = "") -> int:
