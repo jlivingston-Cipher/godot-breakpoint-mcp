@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.4] — 2026-08-05
+
 ### Fixed — the floor a rename could not reach, and the ten the sum could not see
 
 199 §12.2 was the only open item with a written-down end state: rename `LEDGER_SCOPE` and
