@@ -571,6 +571,43 @@ CONTROLLED_FLOOR = 56          # 187: 17 · 188: +24, the constructible half of 
 STATEMENT_FLOOR = 87           # 186 measured 70; 188 §3 added two; 192 added check 23's
                                # seven. It is supposed to grow
 
+# ── 🔴 THE FOURTH POPULATION — 196 §4. WHAT ELSE EACH MUTATION REDDENS ─────────────
+#
+# 194 §6 found that every scratch mutant editing a copied addon file reddens check 24b
+# whether or not it does anything else, and read the red run as proof of the check it was
+# written for. `carries=` was made mandatory for the SWEEPS. THIS GATE NEVER GOT IT — and
+# it is the instrument that runs in CI every session.
+#
+# Line ~904 computes `fails = out.count("\nFAIL: ")`. Line ~907 prints it inside an `ok`.
+# Nothing has ever compared it to anything. Measured this session, over the shipped table:
+#
+#     26 of 56 rows redden MORE THAN ONE failure statement
+#     18 of 56 rows redden a CHECK THEY DO NOT NAME
+#     check 24b — ADDED IN 193 — is reddened by TEN rows that do not name it, and every
+#                 one of those ten edits a file with tracked addon copies
+#     check 20  — the SCOPE COLLAPSE statement — by eight
+#
+# 🔴 SO THE ROWS' OWN CLAIMS ARE STILL SOUND: the third property (the named fingerprint
+# fired) is what makes this a control rather than a smoke test, and it held throughout.
+# What is NOT sound is the silence. When 193 added check 24b, ten rows went from N to N+1
+# FAIL lines and CI said nothing, because nothing here reads that number.
+#
+# 🔴 THE DECLARATION IS THE COUNT, NOT THE ATTRIBUTION, AND THAT IS DELIBERATE.
+# `also_checks()` below attributes 98 of 103 FAIL lines to a check; the five it cannot are
+# statements whose every literal is shared across checks. An assertion resting on that
+# reader would be an assertion resting on a reader that is 95% right — 194 §4's measuring
+# script, shipped. The VERDICT rests on `out.count("\nFAIL: ")`, a number this file
+# already computes and no new reader can be wrong about. The attribution is DIAGNOSIS:
+# printed when a row drifts, so the next author is told WHICH check arrived, and floored
+# in aggregate so it cannot quietly stop working.
+BLAST_TOTAL_FLOOR = 95         # measured 103 across the 56 rows. Floored from BELOW: a
+                               # mutation that stops reddening is a control going quiet,
+                               # and the per-row equality above would be edited to match
+                               # it one row at a time without this
+ALSO_ATTRIBUTED_FLOOR = 90     # measured 98 of 103. The DIAGNOSIS's own population — if
+                               # the attributor silently stops resolving, the failure
+                               # message stops naming the check that arrived
+
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
 # both-halves lesson: the set catches a check renamed or swapped, the floor catches the
 # roster itself being trimmed to match a smaller reality.
@@ -585,6 +622,164 @@ CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
                  # fingerprint resolver reads headers — the same reason `11b`/`11c` are
                  # named separately above rather than folded into `11`.
                  "24", "24b", "24c")
+
+
+# ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
+#
+# id -> the exact number of `FAIL:` lines that row's mutation produces. Measured, not
+# guessed; the roster is asserted to name every control and no others, so a row added
+# without a number is caught rather than defaulted.
+#
+# 🔴 A SIDE TABLE RATHER THAN AN EIGHTH TUPLE FIELD, ON PURPOSE. `scope_gate.py` imports
+# `statements` and `auto_fingerprints` from this file, `instrument_gate.py` anchors on
+# members here, and widening the CONTROLS tuple would move a shape three instruments read
+# in order to add a number none of them want. The roster-completeness assertion gives the
+# same "no row escapes" property at none of that cost.
+#
+# The comments name what ELSE each row reddens, as measured. They are COMMENTS on purpose
+# — see the note above BLAST_TOTAL_FLOOR for why the attribution is diagnosis and the
+# count is the gate.
+BLAST: dict[str, int] = {
+    "3.dupe": 7,                          # also: 6 8 9 11 13
+    "3.uncaptured": 7,                    # also: 8 9 11 11b 13
+    "11c.vacuous": 2,                     # also: 20
+    "11c.drift": 1,
+    "host.nofield": 1,
+    "host.drift": 1,
+    # 🔴 THESE THREE ARE 194 §6, SHIPPED. They edit variant_json.gd, which has tracked
+    # copies, and they were written in 192 — BEFORE check 24b existed. 193 added 24b and
+    # each of them silently went from 1 FAIL line to 2. Nothing said so for three sessions.
+    "23.encode_only": 2,                  # also: 24b
+    "23.decode_only": 2,                  # also: 24b
+    "23.oneway_stale": 2,                 # also: 24b
+    "23.ts_tag": 1,
+    "23.ts_fields": 1,
+    "23.err_branch": 3,                   # also: 20
+    "23.err_binding": 5,                  # also: 20 24 24b
+    "24.unclassified": 5,                 # also: 20 24b
+    "24.kind_mismatch": 1,
+    "24b.copy_drift": 1,
+    "24c.msg_unreadable": 4,              # also: 20 24b
+    "24c.no_guard_class": 2,              # also: 24b
+    "24c.shape_sounds_capability": 2,     # also: 24b
+    "24c.shape_no_node": 2,               # also: 24b
+    "24c.capability_names_node": 2,       # also: 24b
+    "17.missing": 1,
+    "17.nokey": 1,
+    "17.badvalue": 1,
+    "17.noautoload": 1,
+    "17.uid": 1,
+    "17.notres": 1,
+    "17.absent": 1,
+    "22.floor": 1,
+    "22.collapse": 2,
+    "22.drift": 1,
+    "22.twice": 1,
+    "1.unfiled": 1,
+    "10.unexpected": 1,
+    "10.misfiled": 2,
+    "12.misfiled": 1,
+    "12.countmisfiled": 2,
+    "16.unknown": 1,
+    "13.exemptgone": 2,                   # also: 20
+    "roster.unlisted": 1,
+    "15.unexpected": 2,                   # also: 20
+    "15.notexec": 2,
+    "14.norel": 1,
+    "14.notone": 1,
+    "18.nouid": 1,
+    "19.shipped": 1,
+    "shape.nodef": 2,
+    "11.countdrift": 2,                   # also: 13
+    "addon.drift": 1,
+    "5.badjson": 1,
+    "9.unannotated": 2,
+    "12.order": 1,
+    "12.dupe": 4,
+    "12.partial": 2,
+    "12.silentcount": 1,
+    "15.noshebang": 2,                    # also: 20
+}
+
+
+def blast_roster_problems(controls, blast: dict) -> list[str]:
+    """The roster halves 182 asked for: a row with no number, and a number with no row.
+
+    🔴 LIFTED OUT AND FIXTURE-FED (195 §8.4's shape). On a healthy tree both lists are
+    empty, so an inline version deletes invisibly — which is exactly the class 188's sweep
+    proved live in this file three branches at a time.
+    """
+    ids = [c[0] for c in controls]
+    problems = []
+    for cid in ids:
+        if cid not in blast:
+            problems.append(
+                f"{cid} has no BLAST entry. A control with no declared FAIL-line count is a "
+                f"mutation whose blast radius nothing is watching — which is how check 24b "
+                f"arrived in 193 and silently widened ten rows (196 §4)."
+            )
+    for cid in blast:
+        if cid not in ids:
+            problems.append(
+                f"BLAST names {cid!r}, which is not a control. A stale entry makes the "
+                f"roster look complete while covering a row that no longer exists."
+            )
+    return problems
+
+
+def check_literals(src: str) -> list[tuple[str, str]]:
+    """(literal, check label) for every string constant a failure statement can print.
+
+    🔴 THE CONSTANTS INDIVIDUALLY, NOT `statements()`' JOINED BLOB — and the difference is
+    why two drafts of this reader were wrong. `statements()` joins every constant under the
+    call with a single space, so for a message written as f-string parts the interpolations
+    vanish and the blob contains runs that never appear contiguously in the output:
+    `": ( ) is a SHAPE-kind …"` is not a substring of
+    `"operations.gd:3513 (_particles_set_texture) is a SHAPE-kind …"`. The individual
+    constants ARE the runs that appear verbatim.
+
+    A literal carried by statements in TWO DIFFERENT CHECKS is dropped — attribution here
+    is to the check, so a literal two statements of the SAME check share is still usable.
+    That is `auto_fingerprints`' uniqueness rule, relaxed exactly as far as the question is.
+    """
+    owner: dict[str, set] = {}
+    lines = src.split("\n")
+    headers, cur = {}, "(prologue)"
+    for i, line in enumerate(lines, 1):
+        m = re.match(r"# --- (\S+?)[:\s]", line)
+        if m:
+            cur = m.group(1)
+        headers[i] = cur
+    for node in ast.walk(ast.parse(src)):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in ("append", "extend")
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "errors"):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                    lit = sub.value.strip()
+                    if len(lit) >= 12:
+                        owner.setdefault(lit, set()).add(headers[node.lineno])
+    return sorted(((lit, next(iter(v))) for lit, v in owner.items() if len(v) == 1),
+                  key=lambda kv: -len(kv[0]))
+
+
+def also_checks(fail_lines: list[str], literals) -> tuple[list[str], int]:
+    """(checks reddened, FAIL lines this reader could not attribute).
+
+    DIAGNOSIS, NOT VERDICT. The second return value is the honest half: a reader that can
+    return an empty list for a run with four FAIL lines must say so, or "no other check"
+    and "I could not tell" become one observable (181 §4's REPORT_MARKER, one level down).
+    """
+    hit, unattributed = set(), 0
+    for line in fail_lines:
+        for lit, chk in literals:
+            if lit in line:
+                hit.add(chk)
+                break
+        else:
+            unattributed += 1
+    return sorted(hit), unattributed
 
 
 def statements(src: str) -> list[tuple[int, str, str]]:
@@ -646,8 +841,9 @@ def auto_fingerprints(stmts: list[tuple[int, str, str]], minimum: int = 16) -> d
 
 def gate_failed(unresolved: int, uncontrolled: int, controls_low: bool,
                 statements_low: bool, roster_drift: bool, unrestored: int,
-                unfingerprintable_low: bool = False) -> bool:
-    """This gate's verdict, as a PURE function of its SEVEN populations.
+                unfingerprintable_low: bool = False, blast_drift: int = 0,
+                blast_low: bool = False, also_low: bool = False) -> bool:
+    """This gate's verdict, as a PURE function of its TEN populations.
 
     🔴 EXTRACTED FOR `combineFailed`'s REASON (180 §7.1, 174 §8, and scope_gate.py's
     `gate_failed` beside it — the same defect five sessions running). On a healthy tree
@@ -657,7 +853,7 @@ def gate_failed(unresolved: int, uncontrolled: int, controls_low: bool,
     """
     return (bool(unresolved) or bool(uncontrolled) or controls_low
             or statements_low or roster_drift or bool(unrestored)
-            or unfingerprintable_low)
+            or unfingerprintable_low or bool(blast_drift) or blast_low or also_low)
 
 
 def _self_check() -> list[str]:
@@ -683,6 +879,9 @@ def _self_check() -> list[str]:
         ("roster_drift", (0, 0, False, False, True, 0)),
         ("unrestored", (0, 0, False, False, False, 1)),
         ("unfingerprintable_low", (0, 0, False, False, False, 0, True)),
+        ("blast_drift", (0, 0, False, False, False, 0, False, 1)),
+        ("blast_low", (0, 0, False, False, False, 0, False, 0, True)),
+        ("also_low", (0, 0, False, False, False, 0, False, 0, False, True)),
     )
     for label, args in alone:
         if not gate_failed(*args):
@@ -692,7 +891,9 @@ def _self_check() -> list[str]:
             )
     for name, value in (("CONTROLLED_FLOOR", CONTROLLED_FLOOR),
                         ("STATEMENT_FLOOR", STATEMENT_FLOOR),
-                        ("UNFINGERPRINTABLE_FLOOR", UNFINGERPRINTABLE_FLOOR)):
+                        ("UNFINGERPRINTABLE_FLOOR", UNFINGERPRINTABLE_FLOOR),
+                        ("BLAST_TOTAL_FLOOR", BLAST_TOTAL_FLOOR),
+                        ("ALSO_ATTRIBUTED_FLOOR", ALSO_ATTRIBUTED_FLOOR)):
         if value <= 0:
             problems.append(
                 f"{name} is {value}. A floor at zero cannot bite, and this file is the only "
@@ -762,6 +963,47 @@ def _self_check() -> list[str]:
         problems.append("unfingerprintable does not report statements no row can name")
     if unfingerprintable([(1, "a", "a literal long enough to be unique")]):
         problems.append("unfingerprintable reports a statement that carries its own literal")
+
+    # ── 🔴 196 §4's THREE DETECTORS, EACH FED AN INPUT IT MUST FLAG ────────────────
+    # Same construction as the four above, and the same reason: on a healthy tree
+    # `blast_roster_problems` returns [] and `also_checks` finds everything, so all three
+    # delete invisibly from every live run. The fixtures are what make them assertable.
+    _row = ("x", "c", "sub", "t", "o", "n", "f")
+    if blast_roster_problems([_row], {"x": 1}):
+        problems.append("blast_roster_problems flags a complete roster")
+    if not blast_roster_problems([_row], {}):
+        problems.append(
+            "blast_roster_problems does NOT flag a control with no declared FAIL count. "
+            "Without it a new row joins with its blast radius unwatched, which is exactly "
+            "how check 24b widened ten rows in 193 with nothing saying so (196 §4)."
+        )
+    if not blast_roster_problems([], {"gone": 1}):
+        problems.append(
+            "blast_roster_problems does NOT flag a BLAST entry with no control. A stale "
+            "entry makes the roster look complete over a row that was deleted."
+        )
+    # `also_checks` must both ATTRIBUTE and CONFESS. The second fixture is the one that
+    # matters: a reader returning [] for a line it could not read is indistinguishable
+    # from a reader reporting no other check.
+    _lits = [("the unmistakable sentence", "77")]
+    if also_checks(["FAIL: here is the unmistakable sentence, live"], _lits) != (["77"], 0):
+        problems.append("also_checks does not attribute a line carrying a check's own literal")
+    if also_checks(["FAIL: nothing it can read"], _lits) != ([], 1):
+        problems.append(
+            "also_checks does NOT count a FAIL line it could not attribute. Silence and "
+            "'no other check' would be one observable, and the diagnosis would read as a "
+            "clean result on a reader that had stopped working (181 §4, one level down)."
+        )
+    # And the check-level relaxation is deliberate, so it is asserted rather than assumed:
+    # a literal two statements of DIFFERENT checks share must be dropped.
+    _src = ('errors.append("the shared sentence here")\n'
+            '# --- 99: another check\n'
+            'errors.append("the shared sentence here")\n')
+    if any(lit == "the shared sentence here" for lit, _c in check_literals(_src)):
+        problems.append(
+            "check_literals keeps a literal two DIFFERENT checks share — an attribution "
+            "built on it names a check that never fired."
+        )
     return problems
 
 
@@ -863,6 +1105,18 @@ def main() -> int:
 
     # ── SWEEP: apply each control, require red + executed + the expected statement ──
     uncontrolled: list[str] = []
+    # 🔴 196 §4's four accumulators. `CHECK_LITERALS` is built ONCE, from the same source
+    # text the statements were parsed from — rebuilding it per row would read a MUTATED
+    # contract_check.py for the `src`-kind rows and attribute against a file that is not
+    # the one shipping.
+    CHECK_LITERALS = check_literals(src)
+    blast_drift: list[str] = []
+    blast_total = 0
+    also_attributed = 0
+    also_rows = 0
+    for problem in blast_roster_problems(CONTROLS, BLAST):
+        blast_drift.append(problem)
+        print(f"🔴 CONTROL_GATE_BLAST_ROSTER {problem}")
     for cid, check, kind, target, old, new, fp in CONTROLS:
         if any(u.startswith(f"{cid}:") for u in unresolved):
             continue                      # already reported; running it would prove nothing
@@ -901,10 +1155,29 @@ def main() -> int:
             MUT.unlink(missing_ok=True)
 
         fired = fp in out
-        fails = out.count("\nFAIL: ")
+        fail_lines = [l for l in out.split("\n") if l.startswith("FAIL: ")]
+        fails = len(fail_lines)
+        # 🔴 196 §4. The number this file has printed since 187 and compared to nothing.
+        declared = BLAST.get(cid)
+        blast_total += fails
+        if declared is not None and declared != fails:
+            others, unread = also_checks(fail_lines, CHECK_LITERALS)
+            others = [c for c in others if c != check]
+            blast_drift.append(f"{cid}: declared {declared} FAIL line(s), observed {fails}")
+            print(f"🔴 CONTROL_GATE_BLAST {cid}: declared {declared}, observed {fails}. This\n"
+                  f"   mutation's blast radius moved. Checks it reddens that it does NOT name:\n"
+                  f"   {others or '(none this reader could attribute)'}"
+                  f"{f' · {unread} FAIL line(s) unattributed' if unread else ''}\n"
+                  f"   A check added since this row was written now fires on it, or one stopped.\n"
+                  f"   Update the BLAST entry ON PURPOSE, in this commit — 194 §6 is what a row\n"
+                  f"   reddening a sibling silently costs the NEXT author, not this one.")
+        _o, _u = also_checks(fail_lines, CHECK_LITERALS)
+        also_attributed += fails - _u
+        if [c for c in _o if c != check]:
+            also_rows += 1
         if red and executed and fired:
             print(f"  ok   {cid:<15} check {check:<5} reddens, executes, fires its own statement "
-                  f"({fails} FAIL line(s))")
+                  f"({fails} FAIL line(s), declared {declared})")
             continue
         uncontrolled.append(f"{cid}: red={red} executed={executed} fired={fired}")
         if not red:
@@ -965,15 +1238,37 @@ def main() -> int:
           f"   file. What ELSE reaches them is scope_gate.py's to measure and it prints\n"
           f"   SCOPE_GATE_STATEMENTS from its own blinded runs — no number is stated here")
 
+    # ── 🔴 196 §4. THE BLAST RADIUS, AND THE DIAGNOSIS'S OWN POPULATION ────────────
+    # Two numbers, not one, for 194 §33's reason: `blast_total` is what the mutations
+    # actually did, `also_attributed` is how much of that the READER could explain. Either
+    # can collapse while the other holds, and a single ratio would hide whichever moved.
+    blast_low = blast_total < BLAST_TOTAL_FLOOR
+    also_low = also_attributed < ALSO_ATTRIBUTED_FLOOR
+    print(f"CONTROL_GATE_BLAST {blast_total}/{BLAST_TOTAL_FLOOR} FAIL line(s) across "
+          f"{len(CONTROLS)} control(s), every row's count DECLARED and compared · "
+          f"{also_rows} row(s) redden a check they do not name")
+    print(f"CONTROL_GATE_ALSO_ATTRIBUTED {also_attributed}/{ALSO_ATTRIBUTED_FLOOR} of those "
+          f"FAIL line(s) resolve to a check — the DIAGNOSIS, not the verdict")
+    if blast_low:
+        print(f"🔴 CONTROL_GATE_BLAST_LOW {blast_total} < {BLAST_TOTAL_FLOOR} — the mutations\n"
+              f"   collectively redden LESS than when this was measured. Per-row equality alone\n"
+              f"   would let that be absorbed one edited declaration at a time.")
+    if also_low:
+        print(f"🔴 CONTROL_GATE_ALSO_LOW {also_attributed} < {ALSO_ATTRIBUTED_FLOOR} — the\n"
+              f"   attributor resolves fewer FAIL lines than it did. The verdict does not rest on\n"
+              f"   it, but the failure message's ability to NAME the check that arrived does.")
+
     if gate_failed(len(unresolved), len(uncontrolled), controls_low,
-                   statements_low, roster_drift, len(unrestored), unfingerprintable_low):
+                   statements_low, roster_drift, len(unrestored), unfingerprintable_low,
+                   len(blast_drift), blast_low, also_low):
         print("\nCONTROL_GATE 🔴 FAILED")
         return 1
     # 🔴 THE VERDICT NAMES WHAT IT VERIFIED (174 §5). Not "every check can fail" — this
     # file has one statement's worth of evidence per row and the rest of the file is
     # untested by it.
     print(f"\nCONTROL_GATE ok — all {len(CONTROLS)} control(s) applied, each reddened contract_check,\n"
-          f"                  each reached the report, and each fired the one statement it names")
+          f"                  each reached the report, each fired the one statement it names,\n"
+          f"                  and each reddened exactly the number of statements it declares")
     return 0
 
 
