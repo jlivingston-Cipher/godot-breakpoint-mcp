@@ -869,6 +869,10 @@ def _self_check() -> list[str]:
     and this gate green over an empty table.
     """
     problems: list[str] = []
+    # 🆕 204 §5 — THE CALL WIRING, FIRST. Every fixture below proves a predicate WORKS;
+    # none of them proves this gate still CALLS it, and on a green tree no input can tell
+    # those apart (202 §4). Defined after this function, so the lookup is deferred.
+    problems.extend(_call_wiring_problems())
     if gate_failed(0, 0, False, False, False, 0):
         problems.append("gate_failed reports a failure over six healthy populations")
     alone = (
@@ -1033,6 +1037,78 @@ def run(script: Path) -> tuple[bool, bool, str]:
     return p.returncode != 0, REPORT_MARKER in p.stdout, p.stdout + p.stderr
 
 
+CALL_SENTINEL = "🔴 CONTROL_CALL_WIRING sentinel — a patched predicate reached the report"
+
+# 🔴 204 §5 — THE KEY ROSTER IS PART OF THE CLAIM (199 §35, and 203's `I4` one axis
+# over). `also_checks` is the OTHER unproved call in this file and it is NOT here — see
+# `_call_wiring_problems`. A key arriving without a declaration is a predicate whose
+# call nothing proves, inside the mechanism built to prove calls.
+SEAM_KEYS = ("blast_roster",)
+
+
+def collect_problems() -> dict[str, list[str]]:
+    """🔴 204 §5 — THE ONE INVOCATION POINT, SO THE CALL CAN BE PATCHED.
+
+    202 closed `U2` in `floor_pin_gate.py`, 203 ported it to `instrument_gate.py`, and
+    `measure203.py` measured what was left: TWO in this file. This is the one that lifts.
+    A predicate proved by a fixture is not a predicate proved to be CALLED, and on a
+    green tree no mutation of the INPUT can tell those apart.
+
+    🟢 NO ARGUMENTS, AND THAT IS A MEASUREMENT AND NOT A STYLE. `CONTROLS` and `BLAST`
+    are module tables; `scope_gate`'s twin takes its roster as a parameter because that
+    gate computes it inside `main()`. The two seams differ because the two populations
+    live in different places, which is the kind of thing 203 §6 asks to be declared
+    rather than implied.
+
+    The `for problem in ...` this feeds stayed exactly where it was: this changes where
+    the list comes from, not what is printed or in what order (202 §8)."""
+    return {"blast_roster": blast_roster_problems(CONTROLS, BLAST)}
+
+
+def _call_wiring_problems() -> list[str]:
+    """🔴 PROVE THE CALL, NOT THE LOGIC — AND NAME WHAT IS NOT IN HERE.
+
+    🔴 `also_checks` IS THE SECOND UNPROVED CALL IN THIS FILE AND IT IS NOT IN THE SEAM.
+    It is called TWICE from inside the sweep loop, on that loop's own `fail_lines`, so
+    lifting it means moving the loop — a different change with a different risk, priced
+    in 203 §8.2 and declined there and here. 202's "about thirty lines each" holds for
+    `blast_roster_problems` and does not hold for `also_checks`; the estimate is half
+    right and this comment is where it says so.
+
+    🔴 AND THE LEAK BRANCH IS DELIBERATELY NOT WRITTEN. 203 §6 shipped `I7` because a
+    branch of its new check had never fired alone. The corollary is that a ONE-KEY SEAM
+    HAS NO OTHER KEY TO LEAK INTO, so writing that branch here would ship a population
+    that is structurally empty — 201 §9.43's passes-for-the-wrong-reason, in the
+    instrument itself. `SEAM_KEYS` is what fires the day a second predicate arrives, and
+    that commit is the one in which the leak branch becomes writable and must be
+    written."""
+    g = globals()
+    bad: list[str] = []
+
+    keys = tuple(sorted(collect_problems().keys()))
+    if keys != tuple(sorted(SEAM_KEYS)):
+        bad.append(
+            f"_call_wiring: the seam returns {keys} and SEAM_KEYS declares "
+            f"{tuple(sorted(SEAM_KEYS))}. A key nobody declared is a predicate whose call "
+            f"nothing proves — and if the seam now has TWO keys, the leak branch this "
+            f"check does not carry has stopped being unwritable and must be written")
+
+    for key, fname in (("blast_roster", "blast_roster_problems"),):
+        real = g[fname]
+        g[fname] = lambda *a, **k: [CALL_SENTINEL]
+        try:
+            got = collect_problems()
+        finally:
+            g[fname] = real
+        if CALL_SENTINEL not in got.get(key, []):
+            bad.append(
+                f"_call_wiring: {fname}() no longer reaches the report under {key!r} — the "
+                f"predicate is intact and NOTHING CALLS IT. The three fixtures in "
+                f"`_self_check` prove the function; this proves the gate still runs it, and "
+                f"196 §4 is what a BLAST roster with a hole in it costs the next author")
+    return bad
+
+
 def main() -> int:
     src = CC.read_text(encoding="utf-8")
     stmts = statements(src)
@@ -1114,7 +1190,7 @@ def main() -> int:
     blast_total = 0
     also_attributed = 0
     also_rows = 0
-    for problem in blast_roster_problems(CONTROLS, BLAST):
+    for problem in collect_problems()["blast_roster"]:
         blast_drift.append(problem)
         print(f"🔴 CONTROL_GATE_BLAST_ROSTER {problem}")
     for cid, check, kind, target, old, new, fp in CONTROLS:

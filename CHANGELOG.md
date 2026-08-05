@@ -6,6 +6,43 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the last two call sites that would lift, and the branch that could not fire
+
+203 measured what 202 had only priced: **seven** unproved predicate calls across three
+gates, four of them closed in `instrument_gate.py`. This closes the two that 203 §8.2
+measured as cheap — `scope_gate.py`'s `roster_problems` and `control_gate.py`'s
+`blast_roster_problems` — each a single pre-sweep call, each lifted into a
+`collect_problems()` seam a stub can be patched into. A predicate proved by a fixture is
+not a predicate proved to be **called**, and on a green tree no mutation of the input can
+tell those apart.
+
+🔴 **AND THE THIRD IS STILL NOT TAKEN, WITH THE PRICE NAMED IN THE FILE.**
+`control_gate.py`'s `also_checks` is called twice from **inside the sweep loop**, on that
+loop's own `fail_lines`. Lifting it means moving the loop — a different change with a
+different risk. 202's "about thirty lines each" is half right, and
+`_call_wiring_problems`'s docstring is where it now says so.
+
+🔴 **ONE BRANCH IS DELIBERATELY NOT WRITTEN.** 203 shipped `I7` because the leak branch of
+its new check had never fired alone, and said a check that has never refused has not been
+audited. The corollary is that a **one-key seam has no other key to leak into** — writing
+that branch in these two gates would ship a population that is structurally empty, which
+is 201 §9.43's passes-for-the-wrong-reason inside the instrument itself.
+
+🟢 **`SEAM_KEYS` IS WHAT REPLACES IT.** The seam's key roster is declared and compared, so
+a second predicate joining reddens until it is declared — and that commit is the one in
+which the leak branch becomes writable and must be written. `mutate204.py`: 11 mutants,
+9 red, 2 declared-green, predictions agreeing 11/11, both gates restored byte-for-byte.
+
+🔴 **THE TWO SEAMS TAKE DIFFERENT ARGUMENTS AND THAT IS A MEASUREMENT.** `scope_gate`'s
+roster is computed inside `main()`, so the population comes in through the door;
+`control_gate`'s tables are module globals, so its seam takes nothing. Declared in both
+docstrings rather than left to be inferred from the signatures.
+
+Every `problems.extend` and every `for problem in ...` stayed exactly where it was —
+202 §8's rule, which is why `SCOPE_GATE`'s `BLAST 53/45`, `LEDGER 29/24` and
+`STATEMENTS 20/20`, and `CONTROL_GATE`'s `56/56`, `BLAST 103/95` and `ALSO 98/90`, did
+not move a digit.
+
 ## [1.72.7] — 2026-08-05
 
 ### Fixed — the calls nobody had counted, and the branch that never fired alone
