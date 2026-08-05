@@ -6,6 +6,35 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the distance nobody was measuring
+
+`scripts/registry_lag.py`. 205 closed a fifty-version npm backlog in one publish, and the
+failure it fixed was not "we did not publish once" — it was that nothing measured the gap
+for 42 sessions while the blocker was one stale line in a config file that nothing ever
+re-tested. This prints the registry-vs-tags distance and refuses above `LAG_CEILING`.
+It would have refused at 1.33.0, which is week one of the fifty.
+
+🔴 **A NETWORK FAILURE IS RED, NOT A SKIP, AND THAT IS THE WHOLE DESIGN.** The blocker that
+cost 42 sessions was a command whose error got written down as a standing decision instead
+of being re-run. A reader that goes quiet when it cannot see fails in exactly that way.
+Unreachable refuses; `--offline-declared` is the only way past it, and it puts the claim on
+the record instead of hiding it.
+
+🔴 **THE LIVE READING AND THE REFUSAL PROOF LIVE IN DIFFERENT PLACES.** The live read needs
+the registry and is only actionable at a release cut, so CI does not run it — a gate that
+reddens where nobody can act trains people to ignore it. `--selftest` is pure and runs as a
+step in the existing `contract-check` job (no 27th job, 44th session running). Nine rows,
+five of them refusing, the first being the real 205 incident at lag 43.
+
+🔴 **AND `floor_pin_gate.py` REFUSED THIS FILE TWICE BEFORE IT WAS RIGHT, WHICH IS THE POINT
+OF HAVING IT.** As first written, zeroing `TAG_FLOOR` reddened nothing: an empty tag list
+fell through to the never-tagged branch and returned the same `-1` for a different reason,
+so the table agreed with itself over a deleted floor — 180 §7.3's shape on a new file. The
+fix was to check the REASON and not only the distance. Then it objected again, because the
+self-test set the floor by ASSIGNING TO THE MODULE GLOBAL, putting three `TAG_FLOOR = ...`
+statements in a file that has one constant. `tag_floor` is a parameter now. A probe that
+rewrites a governed constant is the sharpest form of residue landing in its own population.
+
 ### Fixed — the last two call sites that would lift, and the branch that could not fire
 
 203 measured what 202 had only priced: **seven** unproved predicate calls across three

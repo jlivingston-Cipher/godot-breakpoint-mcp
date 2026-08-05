@@ -52,7 +52,11 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 57   # governed by SIZE_LEDGER (§9.3). 200 §12.3 admitted
+TARGET_FLOOR = 59   # governed by SIZE_LEDGER (§9.3). 206 §3 raised it by two for the
+                    #      registry-lag reader's TAG_FLOOR and LAG_CEILING, both reported
+                    #      UNSWEPT by the DISCOVER half on that file's first run — and
+                    #      TAG_FLOOR's pin was NOT load-bearing until this gate said so.
+                    # 200 §12.3 admitted
                     #      itself a floor-shaped constant of eleven literals, reported
                     #      UNSWEPT by this gate on the first run after it was written)
                     # 200: 51 -> 56 (COHORT_FLOORS' five values — `path-cohort.mjs`'s
@@ -132,6 +136,16 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("FILES_FLOOR",              f"{S}/seal_order_gate.mjs",         r"(export const FILES_FLOOR = )10;",                         [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SEAL_FLOOR",               f"{S}/seal_order_gate.mjs",         r"(export const SEAL_FLOOR = )95;",                          [f"{S}/seal_order_gate.selftest.mjs"]),
     ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )141;",                              [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 206 — THE REGISTRY-LAG READER'S TWO CONSTANTS. Reported UNSWEPT by the
+    # DISCOVER half on this file's FIRST run, which is 184 §7 happening again on a new
+    # file and is that fix still working. 🔴 AND THE REPORT WAS LOAD-BEARING: as first
+    # written, zeroing `TAG_FLOOR` reddened NOTHING — an empty tag list fell through to
+    # the never-tagged branch and returned the same -1 for a different reason, so the
+    # self-test agreed with itself over a deleted floor. The fix was to make the table
+    # check the REASON and to run the floor's own rows under the LIVE constant. 180
+    # §7.3's shape, found by the gate built for it rather than by reading.
+    ("TAG_FLOOR",                "../scripts/registry_lag.py",             r"(TAG_FLOOR = )100",                                        ["../scripts/registry_lag.py", "--selftest"]),
+    ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
     # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one
     # object literal, and it was outside this gate by construction on TWO counts: the .mjs
@@ -776,9 +790,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (27, (
-        "The non-executable scripts, at `{FLOOR}`. Last raised by one when 187 — added "
-        "control_gate.py, the fourth gate.")),
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (28, (
+        "The non-executable scripts, at `{FLOOR}`. Last raised by one when 206 §3 added "
+        "registry_lag.py — invoked as `python3 <file>` like every gate beside it, so the "
+        "non-executable mode is the correct one, and the exec bit it was first committed "
+        "with is what the other half of this same check caught.")),
     ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): (3, (
         "Statements carrying no literal of their own, so no row can ever name them. A "
         "CEILING in spirit: it is supposed to fall, and `{FLOOR}` is where it stands.")),
@@ -796,9 +812,10 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (57, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (59, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
-        "admitted the shipped claim-site floors.")),
+        "admitted the shipped claim-site floors, and by two when 206 §3 added the "
+        "registry-lag reader's pair.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "
@@ -811,6 +828,18 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 THE ROW `D1` WAS ABOUT. Live consumers asked whether they still READ the "
         "floor they import, at `{FLOOR}`. Deleting one of these rows and lowering this "
         "literal to match is the shrink-by-agreement this whole table exists to read.")),
+    ("../scripts/registry_lag.py", "TAG_FLOOR"): (100, (
+        "The tag corpus this reader divides by, at `{FLOOR}`. A distance counted in tags "
+        "says nothing when the tag list has collapsed, so that case refuses instead of "
+        "returning a comfortable zero — and the rows proving it run under the LIVE "
+        "constant, because passing the floor in as an argument is what makes zeroing it "
+        "redden at all.")),
+    ("../scripts/registry_lag.py", "LAG_CEILING"): (3, (
+        "A CEILING and a budget, at `{FLOOR}` — how many cut-but-unpublished tags this "
+        "repository will tolerate before a release cut refuses. Sized against the "
+        "incident it exists to catch: publishing stopped and the very next cut was "
+        "already one behind, so a ceiling this low refuses within the first week while "
+        "still admitting a same-session patch burst.")),
     ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (55, (
         "Resolved signatures, floored at `{FLOOR}` from below.")),
     ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): (0, (
