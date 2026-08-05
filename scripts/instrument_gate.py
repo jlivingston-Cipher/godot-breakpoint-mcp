@@ -626,28 +626,29 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     "node test-integration/_caller_shape.harness.mjs": "SHAPE_POPULATION",
 }
 
-# 🔴 THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
+# THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
 # teeth (174 §5), for the axis that has different ones. The `A:gate` half needs NO roster of
 # its own: measured over all 55 red rows, the late axis crashes in EXACTLY the nine places
 # the primary axis does, because the crash is a property of the SELF-TEST's setup read and
 # not of which injector wrote the mutant. §8.2's nine call sites therefore pay both axes at
 # once, and this file reuses `CRASH_DECLARED` there rather than copying it.
-LATE_CRASH_DECLARED_B: dict[tuple[str, str], str] = {
-    ("_population.mjs", "{SIG:claim}"):
-        "`_caller_shape.harness.mjs`'s own `sok()` (line 449, reached from `runSeal`) asserts "
-        "`SHAPE_SEAL_A_DRAINED` OUTSIDE any claim, so a blinded `claim` makes the harness "
-        "throw an AssertionError rather than record one — the same setup-read shape as the "
-        "nine on the primary axis, one file over, in the substitute caller",
-    ("_population.mjs", "{SIG:seal}"):
-        "the same `sok()` on `SHAPE_SEAL_B_DRAINED`; a blinded `seal` drains 0",
-    ("_population.mjs", "{SIG:assert}"):
-        "the same `sok()` on `SHAPE_SEAL_A_DRAINED`, one level up — a blinded `assert` "
-        "records nothing for the seal to drain",
-}
-LATE_CRASH_CEILING_A = 9   # 🔴 CEILINGS, AND BOTH ARE SUPPOSED TO FALL. Two numbers rather
-LATE_CRASH_CEILING_B = 3   # than one sum: 194 §33 — two paths under one subtraction need
-#                            two numbers, and these two are fixed by editing DIFFERENT files
-#                            (the self-tests for A, the caller-shape harness for B).
+#
+# 🟢 199: THE REUSE IS WHY BOTH HALVES WENT TO ZERO TOGETHER. Nine self-test edits emptied
+# `CRASH_DECLARED`, and `LATE_CRASH_CEILING_A` fell with it without a second measurement —
+# which is the return on 198's decision not to copy the roster.
+# 🟢 199 §9.2 — EMPTY, AND THE CEILINGS ARE AT ZERO. All three `B:live` rows died at
+# `_caller_shape.harness.mjs`'s `sok()` because `runSeal()` and `runTally()` were the two
+# of five sections running OUTSIDE the throw-catcher `pop.family(…)` gives the other
+# three. One `section()` wrapper, and all three now record a `_THREW` failure, print
+# `SHAPE_POPULATION`, and reach the verdict.
+LATE_CRASH_DECLARED_B: dict[tuple[str, str], str] = {}
+LATE_CRASH_CEILING_A = 0   # 🟢 BOTH CEILINGS FELL TO ZERO IN ONE COMMIT (198 §9.2's end
+LATE_CRASH_CEILING_B = 0   # state, reached). Kept as two numbers rather than one sum —
+#                            194 §33, and the reason is unchanged: the A half was paid by
+#                            editing the self-tests and the B half by editing the caller-
+#                            shape harness. A single zero would let either regress while
+#                            the other absorbed it. 🔴 THEY ARE STILL CEILINGS: any new
+#                            crash on either axis is now an UNDECLARED one and fails.
 
 # 🔴 DECLARED GREEN, WITH A REASON EACH RATHER THAN A NAME EACH (174 §5) — AND THE GATE
 # FAILS IF ONE EVER STARTS REDDENING (181's `mutate181.py` idiom). A late blind that
@@ -803,15 +804,18 @@ def late_marker_roster_problems(live: dict, markers: dict) -> list[str]:
 # collapsing a population, not by listing claims — so every floor there would be a floor at
 # ZERO, which this file already refuses one screen up. The number is PRINTED on that axis
 # and explicitly not compared, which is the honest half of 196 §33 rather than its defect.
+# 🟢 199 §9.2 — THE SAME FOUR MOVED HERE, FOR THE SAME REASON AND BY THE SAME MEASUREMENT.
+# Two ceilings falling to zero (`LATE_CRASH_CEILING_A/_B`) is what let these gates finish
+# their reports on the late axis too.
 LATE_BLAST_FLOOR: dict[str, int] = {
     "_population.mjs": 55,
     "_path_ledger.mjs": 26,
-    "_workspace.mjs": 32,
-    "_png.mjs": 5,
-    "tautology_gate.mjs": 115,
+    "_workspace.mjs": 85,     # 199: 32 -> 85, measured 96
+    "_png.mjs": 25,           # 199: 5 -> 25, measured 29
+    "tautology_gate.mjs": 158,  # 199: 115 -> 158, measured 175
     "verdict_gate.mjs": 24,
     "boundary_gate.mjs": 145,
-    "seal_order_gate.mjs": 120,
+    "seal_order_gate.mjs": 220,  # 199: 120 -> 220, measured 247
     "path-cohort (compiled walk)": 48,
 }
 LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
@@ -1234,37 +1238,30 @@ def failure_lines(out: str, _name: str = "") -> int:
 # crash that STOPS crashing is a structure change and reddens this gate, so an exemption
 # cannot outlive its reason. And `CRASH_CEILING` is a CEILING, not a floor — this list is
 # supposed to shrink, and the way to shrink it is to move the setup call inside the claim.
-CRASH_DECLARED: dict[tuple[str, str], str] = {
-    ("_workspace.mjs", "{SIG:walk}"):
-        "the self-test reads `snapshot.files.get(...).bytes` in setup; a blind `walk` "
-        "empties the map and the read throws before any claim runs",
-    ("_workspace.mjs", "{SIG:snapshotDir}"):
-        "same setup read, one level up — `snapshotDir` returns an empty map directly",
-    ("_workspace.mjs", "{SIG:restoreDir}"):
-        "the self-test indexes `removed[0].path` in setup to name what was restored",
-    ("_png.mjs", "{SIG:decodePng}"):
-        "`decodePng` returning null makes the setup read of `.width` throw",
-    ("tautology_gate.mjs", "{SIG:collectAsserters}"):
-        "the self-test reads `.leaves` off a lookup the blinded collector no longer fills",
-    ("tautology_gate.mjs", "{SIG:analyze}"):
-        "the self-test reads `.owner` off `analyze`'s result in setup",
-    ("seal_order_gate.mjs", "{SIG:inspect}"):
-        "the self-test reads `.declared` off the inspection record in setup",
-    ("seal_order_gate.mjs", "{SIG:assertAliases}"):
-        "the self-test reads `.readable` off the alias report in setup",
-    # 🔴 THIS ONE ARRIVED BY BEING FIXED. Before §5's injector fix it was a SyntaxError —
-    # never applied, and reported `ok` for 25 commits. Applied correctly it now reddens 39
-    # claims and THEN dies in `regionsIn()`, a setup helper on line 515 that does
-    # `r.lines.find(l => l.startsWith("SEAL_ORDER_REGIONS")).split(" ")` — a blinded
-    # `judge` prints no such line, so `.find` returns undefined outside any claim.
-    ("seal_order_gate.mjs", "{SIG:judge}"):
-        "`regionsIn()` reads the SEAL_ORDER_REGIONS line out of the report in setup; a "
-        "blinded judge prints none and the helper throws after 39 claims have already failed",
-}
-CRASH_CEILING = 9      # 🔴 A CEILING, AND IT IS SUPPOSED TO FALL. Every entry is one setup
-                       # read that belongs inside a claim; move it and the row becomes an
-                       # ordinary catch. It is a ceiling rather than a floor precisely so
-                       # that doing that work is what edits this number.
+#
+# 🟢 199 §9.2 — EMPTY. THE CEILING FELL TO ZERO, AND WHAT IT WAS HIDING WAS THE BLAST.
+# The nine were paid at TEN sites across SIX files, not the "twelve across five" the
+# handover priced: `_workspace.selftest.mjs:94` carried two rows, and one of the nine was
+# not in a self-test at all — `{SIG:inspect}` died in `seal_order_gate.mjs` itself, where
+# `files.filter((f) => f.markers !== null)` let a record with NO `markers` key through to
+# a `.declared.length`. A strict `!== null` guarding a read that assumes a whole object.
+#
+# 🔴 AND THE SITE LIST WAS A SURFACE, NOT A POPULATION. Fixing the ten exposed the next
+# unguarded read behind each of them, four rounds deep in two files: capture, fix,
+# re-capture, until nothing crashed. Twenty-two guards in the end, of which exactly one is
+# not a `?.` — `RESTORE_CONTENT` read a file a blinded restore never rewrote and threw
+# ENOENT, which no optional chain can reach.
+#
+# 🟢 THE PRICE OF THE CRASHES WAS 249 UNREPORTED FAILURES. Blast across the twelve rows
+# went 92 -> 341: every crash was truncating its own gate's report, so the axis was not
+# merely misclassifying nine rows, it was losing three quarters of the evidence in them.
+CRASH_DECLARED: dict[tuple[str, str], str] = {}
+CRASH_CEILING = 0      # 🟢 IT FELL. It stays a CEILING and not a floor for the reason it
+                       # always was one: the next crash to appear is an UNDECLARED crash
+                       # and fails this gate, rather than being absorbed by a number with
+                       # room in it. 🔴 DO NOT RE-DECLARE A ROW HERE TO GET GREEN — the
+                       # roster is for crashes that cannot be moved inside a claim, and
+                       # 199 measured that none of the twelve were.
 
 
 def crash_problems(crashes: list, declared: dict, ceiling: int) -> list[str]:
@@ -1387,18 +1384,25 @@ def blind(text: str, sig: str, empty: str) -> str | None:
 # eight covered for it, which is the exact defect the per-instrument BLIND lines exist to
 # prevent. Floored from BELOW and with headroom, because these self-tests GROW: a per-row
 # equality would redden on every honest new claim, which is a gate that gets deleted.
+# 🟢 199 §9.2 — FOUR OF THE NINE MOVED, AND THE CRASHES ARE WHY. A gate that dies partway
+# through reports only the failures it reached, so every declared crash was holding its
+# instrument's blast down. With the twelve reaching their verdicts the four instruments
+# that carried them measure 107/30/178/268 against floors of 36/6/120/140 — a floor three
+# to five times below its measurement is a floor that cannot bite, which is 198 §36's rule
+# arriving at the numbers it was written about. Raised with ~10% headroom, still from
+# BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
     "_population.mjs": 80,
     "_path_ledger.mjs": 30,
-    "_workspace.mjs": 36,
-    "_png.mjs": 6,
-    "tautology_gate.mjs": 120,
+    "_workspace.mjs": 95,     # 199: 36 -> 95, measured 107
+    "_png.mjs": 26,           # 199: 6 -> 26, measured 30
+    "tautology_gate.mjs": 160,  # 199: 120 -> 160, measured 178
     "verdict_gate.mjs": 28,
     "boundary_gate.mjs": 160,
     # 🔴 127 BEFORE §5's INJECTOR FIX, 166 AFTER — the 39-claim difference is `{SIG:judge}`
     # being applied for the first time since #211. The floor is set against the CORRECT
     # number, so a regression to the broken injector would now be caught here as well.
-    "seal_order_gate.mjs": 140,
+    "seal_order_gate.mjs": 240,   # 199: 140 -> 240, measured 268
     "path-cohort (compiled walk)": 50,
 }
 BLAST_OBSERVED: dict[str, int] = {}

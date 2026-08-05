@@ -123,9 +123,14 @@ claim(V(wrap(`  assert.ok((r as Reply).ok!);`)).vacuous.length === 1,
   "an `as` cast and a non-null assertion are compile-time claims and constrain nothing at runtime");
 
 // ── 9. ATTRIBUTION — a claim outside any test() belongs to no block ──────────────────
-claim(A(`import assert from "node:assert/strict";\nassert.ok(x);\n`)[0].owner === null,
+// 🔴 199 §9.2 — `[0]` ON A FINDER'S RESULT IS A READ THAT CAN MISS. A blinded `analyze`
+// returns no claims at all, and `[0].owner` threw here before any of the nineteen
+// failures below could be recorded. `?.[0]?.owner` fails the claim instead: `undefined`
+// is not `null`, which is the right answer — a finder that found nothing did not find a
+// module-scope assertion either.
+claim(A(`import assert from "node:assert/strict";\nassert.ok(x);\n`)?.[0]?.owner === null,
   "a module-scope assertion has no owning block");
-claim(A(wrap(`  assert.ok(x);`))[0].owner?.name === "a case", "a claim inside test() is attributed to it");
+claim(A(wrap(`  assert.ok(x);`))?.[0]?.owner?.name === "a case", "a claim inside test() is attributed to it");
 
 // ═══ 172 ═════════════════════════════════════════════════════════════════════════════
 // 🔴 THE FAILURE THIS SECTION EXISTS FOR IS THE ONE 171 COMMITTED. 171 did not extend
@@ -188,7 +193,7 @@ claim(V(probe(`check(typeof r.a === "string", "SAME", "");\ncheck(r.b === 3, "SA
   "one real claim under the marker defends the whole marker");
 claim(V(probe(`check(typeof r.a === "string", "ONE", "");\ncheck(r.b === 3, "TWO", "");`)).vacuous.length === 1,
   "🔴 and a DIFFERENT marker is a different unit — a neighbour's claim does not defend it");
-claim(A(`import assert from "node:assert/strict";\nawait family("F", async () => {\n  assert.equal(x, 1);\n});\n`)[0].owner?.name === "F",
+claim(A(`import assert from "node:assert/strict";\nawait family("F", async () => {\n  assert.equal(x, 1);\n});\n`)?.[0]?.owner?.name === "F",
   "family() attributes like test() — it is _population.mjs's block form");
 
 // ── 13. PRECONDITIONS, ASKED OF THE LEAVES RATHER THAN THE TEXT ─────────────────────
@@ -585,7 +590,11 @@ claim(V(TCHECK + `tcheck("HONEST", census(dir).files, 84);`).vacuous.length === 
   "a helper call supplying a READING and a literal is honest and stays green");
 claim(V(TCHECK + `tcheck("G2", 84, 84);`).vacuous.length === 1,
   "🔴 and the same helper called with only literals is vacuous — 184's G2 mutant, caught at the site it was written");
-claim(A(TCHECK + `tcheck("G2", 84, 84);`)[0].leaves[0].why.includes("every argument to tcheck()"),
+// 🔴 199 §9.2 — FOUR CHAINED READS, EVERY ONE ABLE TO MISS. A blinded `collectAsserters`
+// fills no lookup, so `[0].leaves` threw here and the two failures already recorded above
+// never reached a verdict line. Guarded end to end: `?.includes(…)` yields `undefined`,
+// the claim fails, and the gate says so.
+claim(A(TCHECK + `tcheck("G2", 84, 84);`)?.[0]?.leaves?.[0]?.why?.includes("every argument to tcheck()") === true,
   "…and the report names the CALL SITE's arguments, not the guard, so the reader is sent to the right frame");
 // 🔴 THE DISMISSAL THAT KEEPS THE RULE NARROW, AND IT IS THE ONE INSTANCE IN THE TREE.
 // `_population.selftest.mjs:197` asserts `assert.ok === assert.ok` — a real claim,

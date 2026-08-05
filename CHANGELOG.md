@@ -6,6 +6,56 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the reads that ran outside their claims, and the floors a name could not reach
+
+198 §9.2 handed over twelve declared crashes as the only open item with a written-down end
+state. That end state is reached: `CRASH_CEILING`, `LATE_CRASH_CEILING_A` and
+`LATE_CRASH_CEILING_B` are all **zero** and both rosters are empty. A blind that used to kill
+its gate now makes it report.
+
+**Twelve rows are nine sites across six files, not twelve across five.**
+`_workspace.selftest.mjs:94` carried two rows and `_caller_shape.harness.mjs:449` carried
+three. 🔴 One of the nine is not in a self-test at all: `{SIG:inspect}` dies inside the
+**shipped** `seal_order_gate.mjs`, where `files.filter((f) => f.markers !== null)` — a strict
+test against one falsy value — let a record with no `markers` key through to
+`.declared.length`.
+
+🔴 **And the site list was a surface, not a population.** Fixing the nine exposed the next
+unguarded read behind each; four rounds of capture-fix-recapture before nothing crashed.
+Twenty-two guards, of which exactly one is not a `?.` — a claim that read a file a blinded
+restore never rewrote and threw ENOENT, which no optional chain can reach.
+
+🔴 **The three live-axis rows were one edit.** `runSeal()` and `runTally()` were the two of
+five sections running outside the throw-catcher `pop.family(…, onThrow)` gives the other
+three, so an assertion failure killed the process before the population line printed.
+
+🟢 **The crashes were costing 249 unreported failures.** Blast across the twelve rows went
+92 → 341; four `BLAST_FLOOR`s and four `LATE_BLAST_FLOOR`s were sitting three to five times
+below their own measurement and are raised with headroom.
+
+**`floor_pin_gate.py`'s exemption table is keyed by `(file, name)`.** `TARGET_FLOOR` resolved
+to two files under one bare-name entry — 197 §8.4's defect, live. The same key change on the
+`known` side deletes a hand-written line that re-admitted `CLAIM_FLOOR` and
+`SELFTEST_CLAIM_FLOOR`, each of which names three files.
+
+**The `.mjs` discovery half now reads a dict-valued floor** — and a plural one, because every
+dict floor in that tree is plural and accepting `{` alone would have found nothing. It found
+`CLAIM_SITE_FLOORS` unswept on its first run, whose eleven values were pinned by nothing:
+`"_caller_shape.harness.mjs": 45` is 191's guard against a revert-by-predicate and could have
+gone to zero in silence.
+
+### Added — the check that makes a widened discovery regex falsifiable
+
+```
+FLOOR_PIN_UNDISCOVERABLE   0 undeclared · 2/2 declared
+```
+
+Every check in that gate asked whether a discovered floor is in the table. None asked the
+reverse, so narrowing either discovery regex reddened nothing — everything it stopped finding
+was already swept. Two floors are genuinely unnameable by the walk (`LEDGER_SCOPE`,
+`LEDGER_POPULATION`, whose names carry no floor word) and are declared with reasons under a
+ceiling meant to fall by renaming the constants.
+
 ## [1.72.2] — 2026-08-05
 
 ### Fixed — the axis that was still reading a return code, and the marker that had to be chosen against ground truth

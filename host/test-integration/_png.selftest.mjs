@@ -105,10 +105,15 @@ const rgb = decodePng(uniform(3, 2, [10, 20, 30]));
 // newly-rostered tree. It now asserts the shape it is named for.
 check(rgb !== null && rgb.width === 3 && rgb.height === 2 && rgb.channels === 3,
   "T_PNG_DECODES_AT_ALL", "a plain 8-bit RGB frame, described correctly");
-check(rgb.width === 3 && rgb.height === 2, "T_PNG_DIMENSIONS", `${rgb.width}x${rgb.height}`);
-check(rgb.channels === 3, "T_PNG_CHANNELS_RGB");
-check(rgb.pixels.length === 3 * 2 * 3, "T_PNG_PIXEL_BUFFER_SIZE", `${rgb.pixels.length} bytes`);
-check(rgb.pixels[0] === 10 && rgb.pixels[1] === 20 && rgb.pixels[2] === 30,
+// 🔴 199 §9.2 — `decodePng` RETURNS null FOR A FRAME IT CANNOT READ, AND null IS THE
+// FAILURE MODE THIS FILE IS FOR. The claim above states the shape and every claim below
+// used to read straight through it, so a decoder that returned null crashed the self-test
+// on line 108 instead of failing five named claims. Guarded, the same five now FAIL and
+// the gate reaches its own verdict.
+check(rgb?.width === 3 && rgb?.height === 2, "T_PNG_DIMENSIONS", `${rgb?.width}x${rgb?.height}`);
+check(rgb?.channels === 3, "T_PNG_CHANNELS_RGB");
+check(rgb?.pixels?.length === 3 * 2 * 3, "T_PNG_PIXEL_BUFFER_SIZE", `${rgb?.pixels?.length} bytes`);
+check(rgb?.pixels?.[0] === 10 && rgb.pixels[1] === 20 && rgb.pixels[2] === 30,
   "T_PNG_PIXEL_VALUES", "the first pixel is the colour that was encoded");
 const grey = decodePng(png(2, 1, 0, [[7, 9]]));
 check(grey && grey.channels === 1, "T_PNG_CHANNELS_GREY");
@@ -156,31 +161,31 @@ check(wrap && wrap.pixels[3] === 44, "T_PNG_FILTER_WRAPS_AT_256", `200 + 100 = $
 // 🔴 #143's failure, and the only result the header says it is "really here to
 // distinguish": a rasterizer that initialised and then drew nothing.
 const black = sampleDistinctColours(decodePng(uniform(40, 40, [0, 0, 0])));
-check(black.distinct === 1, "T_PNG_ALL_BLACK_IS_ONE_COLOUR", `distinct=${black.distinct}`);
+check(black?.distinct === 1, "T_PNG_ALL_BLACK_IS_ONE_COLOUR", `distinct=${black?.distinct}`);
 const white = sampleDistinctColours(decodePng(uniform(40, 40, [255, 255, 255])));
-check(white.distinct === 1, "T_PNG_ALL_WHITE_IS_ONE_COLOUR", "any single fill, not just black");
+check(white?.distinct === 1, "T_PNG_ALL_WHITE_IS_ONE_COLOUR", "any single fill, not just black");
 check(sampleDistinctColours(null) === null, "T_PNG_SAMPLE_NULL_DEGRADES", "a failed decode does not throw here");
 
 // A frame with real content. Rows differ, so a sparse grid still separates them.
 const varied = png(40, 40, 2,
   Array.from({ length: 40 }, (_, y) => Array.from({ length: 40 }, (_, x) => [x * 6, y * 6, 128]).flat()));
 const many = sampleDistinctColours(decodePng(varied));
-check(many.distinct > 1, "T_PNG_DREW_SOMETHING", `distinct=${many.distinct}`);
-check(many.distinct > 10, "T_PNG_DISTINCT_IS_A_REAL_COUNT",
-  `not merely >1 — a gradient reports ${many.distinct}, so the Set keys on the colour and not on the pixel index`);
+check(many?.distinct > 1, "T_PNG_DREW_SOMETHING", `distinct=${many?.distinct}`);
+check(many?.distinct > 10, "T_PNG_DISTINCT_IS_A_REAL_COUNT",
+  `not merely >1 — a gradient reports ${many?.distinct}, so the Set keys on the colour and not on the pixel index`);
 
 // 🔴 THE STRIDE IS A SAMPLE, AND A SAMPLE THAT MISSES EVERYTHING IS THE FAILURE MODE.
 // The header's argument is that a uniform frame is uniform EVERYWHERE, so a grid is as
 // decisive as a full scan. That holds only if the grid actually visits pixels.
-check(many.sampled === Math.ceil(40 / 7) ** 2, "T_PNG_SAMPLED_COUNT", `${many.sampled} at step 7 over 40x40`);
-check(sampleDistinctColours(decodePng(varied), 1).sampled === 1600,
+check(many?.sampled === Math.ceil(40 / 7) ** 2, "T_PNG_SAMPLED_COUNT", `${many?.sampled} at step 7 over 40x40`);
+check(sampleDistinctColours(decodePng(varied), 1)?.sampled === 1600,
   "T_PNG_STEP_1_IS_EVERY_PIXEL", "step 1 visits all 1600");
-check(sampleDistinctColours(decodePng(varied), 1).distinct >= many.distinct,
+check(sampleDistinctColours(decodePng(varied), 1)?.distinct >= many?.distinct,
   "T_PNG_FULL_SCAN_SEES_AT_LEAST_AS_MUCH", "the sparse grid never reports MORE colours than the full scan");
 // Greyscale has one channel; r, g and b must all come from it, or every grey frame
 // reads as distinct=1 whatever it contains.
 const greyRamp = decodePng(png(9, 1, 0, [[0, 30, 60, 90, 120, 150, 180, 210, 240]]));
-check(sampleDistinctColours(greyRamp, 1).distinct === 9, "T_PNG_GREY_RAMP_IS_NINE_COLOURS",
+check(sampleDistinctColours(greyRamp, 1)?.distinct === 9, "T_PNG_GREY_RAMP_IS_NINE_COLOURS",
   "a 1-channel frame is not silently uniform");
 
 console.log(`\nPNG_SELFTEST ${ran - bad}/${ran} claims`);

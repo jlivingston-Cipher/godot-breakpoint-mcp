@@ -539,10 +539,27 @@ function runTally() {
 // ─────────────────────────────────────────────────────────────────────────────────────
 // 🔴 THE TALLY INSTANCE RUNS FIRST, because SHAPE_POP inside `run()` takes its verdicts
 // from the finished state — a population still being built has nothing to testify about.
+// 🔴 199 §9.2 — TWO OF THE FIVE SECTIONS RAN OUTSIDE THE THROW-CATCHER THE OTHER THREE
+// HAVE, AND THAT IS THE WHOLE OF THE `B:live` CRASH FAMILY. Every `pop.family(…)` above
+// takes `onThrow` and records a `_THREW` failure; `runTally()` and `runSeal()` are bare
+// calls in this try, so an AssertionError inside either killed the process before
+// `report()` ran — no `SHAPE_POPULATION` line, no failure list, and `instrument_gate.py`
+// counting a crash as a catch for three of `_population.mjs`'s targets.
+//
+// 🔴 THE FIX IS THE IDIOM THE FILE ALREADY HAS, NOT A GUARD AT THE ASSERTION. Wrapping
+// `sok()` in a try/catch would have paid only `sok`'s throws and left every other read in
+// these two sections able to do the same thing; and it would have touched the one call
+// spelling 191 §4 deliberately left bare so `READS_AS_CLAIM` can see it. Catching at the
+// SECTION boundary is where the other three already catch, so the five sections finally
+// have one shape — and a throw anywhere inside either one now reaches the verdict.
+const section = (label, fn) => {
+  try { fn(); } catch (e) { onThrow(label, String(e?.message || e).slice(0, 200)); }
+};
+
 try {
-  runTally();
+  section("SHAPE_TALLY", runTally);
   await run();
-  runSeal();
+  section("SHAPE_SEAL", runSeal);
 } finally {
   try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch { /* scratch */ }
 }

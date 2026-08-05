@@ -52,7 +52,10 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 50   # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
+TARGET_FLOOR = 51   # 199: 50 -> 51 (CLAIM_SITE_FLOORS, found UNSWEPT by §9.4's widening
+                    #      on the very first run after it — the same return 197's CEILING
+                    #      widening paid in 198, one direction over)
+                    # 🔴 190 — AND IT IS MOVED BY HAND ON PURPOSE, which is the half of
                     #      189 §32's complaint that turns out to be wrong. That note asked
                     #      why this literal is not derived from the count the gate prints
                     #      one line below it. Because a floor that protects a LIST'S SIZE
@@ -120,6 +123,20 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("FILES_FLOOR",              f"{S}/seal_order_gate.mjs",         r"(export const FILES_FLOOR = )10;",                         [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SEAL_FLOOR",               f"{S}/seal_order_gate.mjs",         r"(export const SEAL_FLOOR = )95;",                          [f"{S}/seal_order_gate.selftest.mjs"]),
     ("so.CLAIM_FLOOR",           f"{S}/seal_order_gate.selftest.mjs", r"(const CLAIM_FLOOR = )141;",                              [f"{S}/seal_order_gate.selftest.mjs"]),
+    # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
+    # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one
+    # object literal, and it was outside this gate by construction on TWO counts: the .mjs
+    # walk required a `\d+` value (the .py walk had accepted `{` since 197) AND a SINGULAR
+    # name. Every dict-valued floor in the .mjs tree is plural, so the `{` widening alone
+    # would have found nothing and read as "already covered" — 183 §12.29's rule needing
+    # BOTH directions closed before the measurement means anything.
+    #
+    # 🔴 AND ITS VALUES WERE UNPINNED, WHICH IS THE FINDING. The self-test asserted the KEY
+    # COUNT (11) and the per-file comparison, and nothing asserted a VALUE — so
+    # `"_caller_shape.harness.mjs": 45` could go to 0 in silence, and that number is
+    # 191's guard against the revert-by-predicate its own reverse sweep found. Three
+    # claims added there in the same commit; this row is what proves they bite.
+    ("CLAIM_SITE_FLOORS",        f"{S}/seal_order_gate.mjs",         r'("_caller_shape\.harness\.mjs": )45,',                     [f"{S}/seal_order_gate.selftest.mjs"]),
     # 🆕 187 — the marker rule's two, and BOTH are swept here rather than exempted,
     # because their runner is a self-test that touches nothing. That is the difference
     # between these and control_gate.py's pair four entries down in DISCOVER_EXEMPT: the
@@ -229,8 +246,22 @@ DISCOVER_DIRS = [HOST / "scripts", HOST / "test-integration"]
 # opposite sides; the discovery half now says so. Measured before widening: 3 mjs ceilings
 # and 1 py ceiling exist, all four already swept or exempt, so this costs no new work and
 # closes the direction the name did not cover.
+# 🔴 199 §9.4 — AND THE `{` HALF, WHICH THE PY WALK HAS HAD SINCE 197 AND THIS ONE DID
+# NOT. 197 §8.5 handed the asymmetry over and 198 relied on the PY side twice without
+# paying it. TWO widenings, because measuring found the item's own description short by
+# one: accepting `{` is not enough on this side, since every dict-valued floor in the .mjs
+# tree is also PLURAL — `FLOORS`, `FILE_FLOORS`, `CLAIM_SITE_FLOORS`. A name-shape scoped
+# to the singular is 183 §12.29 one more time, and the plural is the direction it does not
+# cover. Measured before widening: 3 plural dict floors exist in the walked .mjs tree.
+#
+# 🔴 AND THE PREFIX IS OPTIONAL, WHICH THE FIRST DRAFT OF THIS WIDENING GOT WRONG.
+# `[A-Za-z_][A-Za-z0-9_]*(?:FLOOR|CEILING)S?` requires at least one character BEFORE the
+# floor word, so `FLOORS` — tautology_gate.mjs's own four-key roster, in TARGETS since
+# 181 — still did not match, and the widening would have reported "nothing new found" over
+# a constant it was written to reach. Caught by the UNDISCOVERABLE check below, on the
+# first run after that check existed, which is what that check is for.
 DISCOVER_RE = re.compile(
-    r"^\s*(?:export )?const ([A-Za-z_][A-Za-z0-9_]*(?:FLOOR|CEILING))\s*=\s*\d+", re.M)
+    r"^\s*(?:export )?const ((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*=\s*(?:\d|\{)", re.M)
 # 🔴 182 — AND THE SAME WALK IN PYTHON, BECAUSE THE FIRST DRAFT'S SCOPE WAS THE LANGUAGE
 # AND NOT THE PROPERTY. `scripts/*.mjs` was walked; `scripts/*.py` was not, so a floor
 # written in Python was outside this gate by construction and no line said so — the
@@ -242,42 +273,91 @@ DISCOVER_PY_DIRS = [ROOT / "scripts"]
 # have needed an exemption reading "the regex cannot read it" — which is an exclusion
 # bought by the excluder's own limitation. Accepting `{` costs one alternation.
 DISCOVER_PY_RE = re.compile(
-    r"^\s*([A-Za-z_][A-Za-z0-9_]*(?:FLOOR|CEILING))\s*[:=][^=]*?=?\s*(?:\d|\{)", re.M)
+    r"^\s*((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*[:=][^=]*?=?\s*(?:\d|\{)", re.M)
+# The name shape both walks look for, as ONE definition — used again in `main()` to read
+# a TARGETS label. Two spellings of the same rule would drift (180 §7.1).
+FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?$")
+
+# 🔴 199 §9.4 — THE FLOORS THIS GATE SWEEPS AND ITS DISCOVERY HALF CANNOT NAME.
+# The DISCOVER walk is scoped to a NAMING CONVENTION: a constant is findable only if its
+# name ENDS in FLOOR/FLOORS/CEILING/CEILINGS. Two entries in TARGETS do not, and they are
+# floors all the same — which means the discovery half's coverage of its own table was
+# never checked in either direction. `UNDISCOVERABLE` below is that check, and this is its
+# CEILING, declared with reasons in the shape 174 §5 requires.
+#
+# 🔴 IT IS ALSO WHAT MAKES THE TWO WIDENINGS ABOVE FALSIFIABLE. Narrow either regex back
+# and `FLOORS`, `FILE_FLOORS` and `CLAIM_SITE_FLOORS` stop being discovered while sitting
+# in TARGETS — which, before this check, nothing anywhere would have said. 197 solved the
+# same problem for the `CEILING` widening with `stale-exempt`; this is that argument for
+# the half of the table that is swept rather than exempt.
+UNDISCOVERABLE_DECLARED: dict[tuple[str, str], str] = {
+    (f"{T}/_path_ledger.mjs", "LEDGER_SCOPE"):
+        "a two-key roster floor whose NAME carries no floor word — `{classes: 8, canaries: 2}`. "
+        "It is swept by four TARGETS rows and pinned by the self-test; what it is outside is "
+        "the DISCOVER walk, because that walk can only ask about names it can recognise",
+    (f"{T}/_path_ledger.mjs", "LEDGER_POPULATION"):
+        "the same shape one line down — `{live: 240, ledger: 240}`. Same reason, and the two "
+        "are declared separately rather than as one because they are two literals: 194 §33, "
+        "two paths under one subtraction need two numbers",
+}
+UNDISCOVERABLE_CEILING = 2   # 🔴 A CEILING AND IT IS SUPPOSED TO FALL — by renaming the
+                             # two constants, not by widening the walk to guess. A gate
+                             # that finds floors by name cannot be taught to find one that
+                             # does not say it is a floor; the constant is the thing to fix.
 
 # Floors that live in a file no headless runner exercises. Each needs a REASON, not a
 # name — 174 §5: an exclusion that costs nothing to write is one nobody re-reads.
-DISCOVER_EXEMPT: dict[str, str] = {
-    "AUTH_SNAPSHOT_FILE_FLOOR": "authoring-plane.integration.mjs — boots the editor GUI under Xvfb; no headless runner can redden it",
-    "AUTH_SNAPSHOT_DIR_FLOOR": "same file, same reason",
-    "AUTH_FAMILY_FLOOR": "same file, same reason",
-    "AUTH_CLAIM_FLOOR": "same file, same reason",
-    "GD_DAP_CLAIM_FLOOR": "gdscript-dap-plane.integration.mjs — needs a real Godot binary and a live DAP session",
+#
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 🔴 199 §9.3 — KEYED BY (FILE, NAME), AND THE BARE-NAME VERSION HAD A LIVE COLLISION.
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 197 §8.4 named this and 198 made it worse by two without paying it. Measured before
+# changing the key rather than after: of the twenty-two exempt names, `TARGET_FLOOR`
+# resolves to TWO files — `floor_pin_gate.py` (this one) and `scope_gate.py` — and ONE
+# entry was excusing both. That entry's prose happens to name both files, so the table was
+# honest by luck; the STRUCTURE was not, and luck is not a property a gate can rest on.
+#
+# 🔴 AND THE SAME DEFECT WAS IN `known`, WHERE IT COSTS COVERAGE RATHER THAN HONESTY.
+# The discovery half compared bare names against a set built from TARGETS labels, plus a
+# hand-written `known |= {"SELFTEST_CLAIM_FLOOR", "CLAIM_FLOOR"}` because those two names
+# each appear in THREE files. All six sites happen to be in TARGETS today — so nothing was
+# unswept — but a seventh file declaring `CLAIM_FLOOR` would have been skipped in silence,
+# with no reason written anywhere, which is strictly worse than a wrong exemption. Keying
+# `known` by (file, name) DERIVES the pairs from the table's own rows and deletes that
+# hand-written line entirely: 198's rule that an exclusion should come from data the tree
+# already carries rather than from a roster somebody maintains.
+DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
+    (f"{T}/authoring-plane.integration.mjs", "AUTH_SNAPSHOT_FILE_FLOOR"): "authoring-plane.integration.mjs — boots the editor GUI under Xvfb; no headless runner can redden it",
+    (f"{T}/authoring-plane.integration.mjs", "AUTH_SNAPSHOT_DIR_FLOOR"): "same file, same reason",
+    (f"{T}/authoring-plane.integration.mjs", "AUTH_FAMILY_FLOOR"): "same file, same reason",
+    (f"{T}/authoring-plane.integration.mjs", "AUTH_CLAIM_FLOOR"): "same file, same reason",
+    (f"{T}/gdscript-dap-plane.integration.mjs", "GD_DAP_CLAIM_FLOOR"): "gdscript-dap-plane.integration.mjs — needs a real Godot binary and a live DAP session",
     # 🔴 182 — THE THREE A GATE HOLDS OVER ITS OWN ROSTER. Mutating one here would mean
     # running that gate as a step of this one: `instrument_gate.py` is 34s and mutates the
     # working tree, and `scope_gate.py` is 90s and does too, so nesting them would break
     # 178 §11.4's rule that the three mutating gates never run concurrently. Each is
     # instead pinned WHERE IT LIVES, and that is stated rather than assumed:
-    "INSTRUMENT_FLOOR": "instrument_gate.py's own roster floor — pinned in-file by `_self_check()`, "
+    ("../scripts/instrument_gate.py", "INSTRUMENT_FLOOR"): "instrument_gate.py's own roster floor — pinned in-file by `_self_check()`, "
                         "which asserts the collapse branch BITES at 0 (176's G12 shape). Running it "
                         "here would nest one tree-mutating gate inside another (178 §11.4)",
-    "LATE_CONSTRUCTED_FLOOR": "instrument_gate.py's floor on its own second axis — pinned in the "
+    ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): "instrument_gate.py's floor on its own second axis — pinned in the "
                               "same `_self_check()`, which fails if it is not positive, because a "
                               "zero would re-permit an injector that injects nothing. Same nesting "
                               "reason as INSTRUMENT_FLOOR",
-    "LATE_LIVE_FLOOR": "🆕 183 — instrument_gate.py's floor on the LIVE-axis roster, pinned in the "
+    ("../scripts/instrument_gate.py", "LATE_LIVE_FLOOR"): "🆕 183 — instrument_gate.py's floor on the LIVE-axis roster, pinned in the "
                        "same `_self_check()` by asserting the branch bites on an empty roster. It "
                        "exists because LATE_CONSTRUCTED_FLOOR cannot see a roster shrink: deleting "
                        "the three caller-shape entries takes 82 constructed blinds to 70, which is "
                        "still above that floor. Same nesting reason as INSTRUMENT_FLOOR",
     # 🆕 197 — instrument_gate.py's fifth and sixth, same nesting reason as the four above.
-    "CRASH_CEILING": "🆕 197 — instrument_gate.py's CEILING on how many blinds go red WITHOUT the "
+    ("../scripts/instrument_gate.py", "CRASH_CEILING"): "🆕 197 — instrument_gate.py's CEILING on how many blinds go red WITHOUT the "
                      "gate reaching its own verdict, i.e. crash it instead of failing it. It is the "
                      "first thing this gate discovers under 197's `CEILING` widening rather than "
                      "under `FLOOR`, and it is exempt for INSTRUMENT_FLOOR's reason: its runner "
                      "would be instrument_gate.py, which mutates the working tree. Pinned in the "
                      "same `_self_check()`, which feeds `crash_problems` a two-crash fixture over a "
                      "ceiling of one and requires it to bite",
-    "BLAST_FLOOR": "🆕 197 — instrument_gate.py's PER-INSTRUMENT floors on how many failure lines "
+    ("../scripts/instrument_gate.py", "BLAST_FLOOR"): "🆕 197 — instrument_gate.py's PER-INSTRUMENT floors on how many failure lines "
                    "each instrument's blinds actually produce (172 §6: one line each, never summed). "
                    "A DICT rather than a literal, which is why the PY regex above now accepts `{`: "
                    "an exemption reading 'the discovery regex cannot read it' would be an exclusion "
@@ -288,7 +368,7 @@ DISCOVER_EXEMPT: dict[str, str] = {
     # 🆕 198 — instrument_gate.py's seventh and eighth, both on its LATE axis, same nesting
     # reason as the six above. 197 §8.3 fixed `green()` on the primary axis and left
     # `run_counting()` reading a return code; these two are what the fixed runner compares.
-    "LATE_BLAST_FLOOR": "🆕 198 — instrument_gate.py's PER-INSTRUMENT floors on the LATE axis's "
+    ("../scripts/instrument_gate.py", "LATE_BLAST_FLOOR"): "🆕 198 — instrument_gate.py's PER-INSTRUMENT floors on the LATE axis's "
                         "blast radius, the `A:gate` half only. A dict, read by 197's `{` widening, "
                         "and exempt for INSTRUMENT_FLOOR's reason: its runner mutates the working "
                         "tree. Pinned in-file by `_self_check()`, which requires every value "
@@ -297,14 +377,14 @@ DISCOVER_EXEMPT: dict[str, str] = {
                         "pending: four of that axis's five commands report by collapsing a "
                         "population and print no per-claim FAIL line at all, so every floor there "
                         "would be a floor at zero — the shape this table's own entries refuse",
-    "LATE_NOT_LOADED_CEILING": "🆕 198 — instrument_gate.py's CEILING on late mutants that produced "
+    ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): "🆕 198 — instrument_gate.py's CEILING on late mutants that produced "
                         "no `LATE_BLIND_CALLS` line AT ALL, meaning the mutant never loaded. It is "
                         "ZERO and is measured zero: all 118 mutant runs across both axes hooked. "
                         "🔴 A CEILING AT ZERO WITH NO LIVE ROW IS EXACTLY 197 §3's HOLE — a mutant "
                         "that did not compile was filed 'not constructible' and reported green — "
                         "so it is fed a one-row fixture in `_self_check()` rather than trusted to "
                         "the tree, and exempt here for INSTRUMENT_FLOOR's nesting reason",
-    "SIG_RESOLVED_FLOOR": "🆕 195 — instrument_gate.py's floor on how many of its target anchors are "
+    ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): "🆕 195 — instrument_gate.py's floor on how many of its target anchors are "
                        "`{SIG:name}` PLACEHOLDERS rather than literal signatures. It is a third "
                        "collapse the two floors above cannot see: replacing a placeholder with the "
                        "signature it resolves to today changes no printed line, no verdict and no "
@@ -316,17 +396,17 @@ DISCOVER_EXEMPT: dict[str, str] = {
     # example/project.godot, README.md, a lockfile field and a tool name in turn), so
     # sweeping them here would run one tree-mutating gate inside another — 178 §11.4, the
     # rule INSTRUMENT_FLOOR is exempt under four lines up.
-    "CONTROLLED_FLOOR": "control_gate.py's floor on the number of failure statements that have a "
+    ("../scripts/control_gate.py", "CONTROLLED_FLOOR"): "control_gate.py's floor on the number of failure statements that have a "
                         "positive control — pinned in-file by `_self_check()`, which fails if the "
                         "value is not positive, because a zero would leave `controls_low` unable to "
                         "bite and the gate green over an emptied CONTROLS table. Same nesting reason "
                         "as INSTRUMENT_FLOOR",
-    "STATEMENT_FLOOR": "control_gate.py's floor on the DENOMINATOR — the count of errors.append "
+    ("../scripts/control_gate.py", "STATEMENT_FLOOR"): "control_gate.py's floor on the DENOMINATOR — the count of errors.append "
                        "statements in contract_check.py. It exists because '17 of 70' improves to "
                        "'17 of 17' by deleting sixty-eight checks, so the numerator's floor cannot "
                        "see the failure this one names. Pinned in the same `_self_check()`, same "
                        "nesting reason as INSTRUMENT_FLOOR",
-    "UNFINGERPRINTABLE_FLOOR": "control_gate.py's floor on what it CANNOT see — the statements "
+    ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): "control_gate.py's floor on what it CANNOT see — the statements "
                         "carrying no string literal of their own, which no fingerprint can ever "
                         "name (188 §4). Floored from below so the set cannot shrink by rewording, "
                         "and pinned in the same `_self_check()` as the two above it. Same nesting "
@@ -336,7 +416,7 @@ DISCOVER_EXEMPT: dict[str, str] = {
     # what the mutations DO; `ALSO_ATTRIBUTED_FLOOR` is how much of that the reader can
     # EXPLAIN. Either can collapse while the other holds — a rewording that breaks the
     # attributor moves only the second, and a control going quiet moves only the first.
-    "BLAST_TOTAL_FLOOR": "🆕 196 — control_gate.py's floor on the TOTAL number of FAIL lines its "
+    ("../scripts/control_gate.py", "BLAST_TOTAL_FLOOR"): "🆕 196 — control_gate.py's floor on the TOTAL number of FAIL lines its "
                         "fifty-six mutations produce (103). Every row now declares its own count "
                         "and the gate compares them, but a per-row equality is edited one row at a "
                         "time: a control that stops reddening is absorbed by updating its "
@@ -350,35 +430,51 @@ DISCOVER_EXEMPT: dict[str, str] = {
     # would have been silently covered by an exemption whose text names a different file.
     # An exemption that reads as covering something it never mentioned is 174 §5 wearing
     # the right words, and the fix is on the constant rather than on the table.
-    "SCOPE_BLAST_TOTAL_FLOOR": "🆕 197 — scope_gate.py's floor on the TOTAL number of FAIL lines its "
+    ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): "🆕 197 — scope_gate.py's floor on the TOTAL number of FAIL lines its "
                         "twenty-five blinded runs produce (53). Same argument as control_gate's "
                         "BLAST_TOTAL_FLOOR below: each row declares its own count and the gate "
                         "compares them, but a per-row equality is edited one row at a time. Pinned "
                         "in scope_gate's own `_self_check()`, which fails if it is not positive",
-    "LEDGER_COLLAPSE_FLOOR": "🆕 197 — scope_gate.py's floor on how many SCOPE-LEDGER populations "
+    ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): "🆕 197 — scope_gate.py's floor on how many SCOPE-LEDGER populations "
                         "its blinds actually collapse (29 across 25 rows). It is a DIFFERENT "
                         "collapse from the one above and that is the whole finding: three rows "
                         "reddened the run without collapsing any ledger population at all, so they "
                         "were caught by a parse guard rather than by the ledger the gate exists to "
                         "defend. A FAIL-line total cannot see that; this number is what does. "
                         "Pinned in the same `_self_check()`",
-    "ALSO_ATTRIBUTED_FLOOR": "🆕 196 — control_gate.py's floor on its DIAGNOSIS rather than its "
+    ("../scripts/control_gate.py", "ALSO_ATTRIBUTED_FLOOR"): "🆕 196 — control_gate.py's floor on its DIAGNOSIS rather than its "
                         "verdict: how many of those FAIL lines resolve to a named check (98 of "
                         "103). The verdict deliberately does NOT rest on this reader — it is 95% "
                         "right and an assertion resting on it would be 194 §4 shipped — but the "
                         "failure message's ability to say WHICH check arrived does. Floored so the "
                         "attributor cannot quietly stop working while every row still passes. "
                         "Pinned in the same `_self_check()`, same nesting reason",
-    "STATEMENT_ATTRIB_FLOOR": "scope_gate.py's floor on how many of contract_check.py's failure "
+    ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): "scope_gate.py's floor on how many of contract_check.py's failure "
                         "statements its own twenty-five blinded runs EXECUTE (188 §5, re-derived "
                         "at 19 after control_gate.py had stated 23 for two sessions). Not swept "
                         "here because its runner is scope_gate.py itself, which writes a mutant "
                         "copy of contract_check.py into scripts/ — the same nesting rule. Pinned "
                         "in that file's `_self_check()`, which fails if it is not positive",
-    "TARGET_FLOOR": "the same shape in scope_gate.py and in THIS file — a gate cannot pin the floor "
-                    "over its own target list without reading the constant it is checking. scope_gate "
-                    "asserts its branch bites; this file's is the one below, and a session that "
-                    "deletes a TARGETS line without lowering it gets FLOOR_PIN_TARGETS_COLLAPSE",
+    ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"):
+        "🆕 199 §9.4 — THIS file's ceiling on how many floors it sweeps that its own DISCOVER "
+        "half cannot NAME. It went unswept on the first run after it was written, by the "
+        "discovery half it was added to, which is the cheapest possible evidence that both "
+        "are working. Same nesting reason as TARGET_FLOOR below: the runner would be "
+        "floor_pin_gate.py itself. Pinned in-file the same way — `len(UNDISCOVERABLE_DECLARED) "
+        "> UNDISCOVERABLE_CEILING` sits directly against the roster it bounds, so a third "
+        "declaration added without raising the literal reddens on the next run.",
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"):
+        "THIS file's floor over its own target list — a gate cannot pin that without reading "
+        "the constant it is checking, so it is pinned in-file: a session that deletes a "
+        "TARGETS line without lowering it gets FLOOR_PIN_TARGETS_COLLAPSE, asserted twenty "
+        "lines into main(). 🔴 199: this row and the next one were ONE row under the old "
+        "bare-name key, and that is 197 §8.4's defect caught live — the prose happened to "
+        "name both files, so the table was honest by accident and unstructured on purpose.",
+    ("../scripts/scope_gate.py", "TARGET_FLOOR"):
+        "scope_gate.py's floor over ITS target list, the same shape and a different file. "
+        "Not swept here for the nesting reason INSTRUMENT_FLOOR carries: its runner is "
+        "scope_gate.py, which writes a mutant copy of contract_check.py into scripts/. "
+        "Pinned in that file's own `_self_check()`, which asserts the branch bites.",
 }
 
 
@@ -415,25 +511,39 @@ def main() -> int:
         failed = True
 
     # ── DISCOVERY: is any floor in the tree missing from the table above? ──────────
-    known = {lbl.split(".")[-1] for lbl, *_ in TARGETS} | {lbl for lbl, *_ in TARGETS}
-    known |= {"SELFTEST_CLAIM_FLOOR", "CLAIM_FLOOR"}   # covered under file-qualified labels
+    # 🔴 199 §9.3 — (FILE, NAME), DERIVED FROM THE TABLE'S OWN ROWS. Every TARGETS row
+    # already carries the file its floor lives in; the old `known` threw that away, kept
+    # the bare label, and then needed a hand-written line re-admitting `CLAIM_FLOOR` and
+    # `SELFTEST_CLAIM_FLOOR` because each appears in three files. That line is gone: the
+    # pairs come from the data, and a same-named floor in a file NOT in this table is now
+    # unswept and says so instead of being covered by a namesake three directories away.
+    # 🔴 AND THE SEGMENT IS PICKED BY SHAPE, NOT BY POSITION (199 §9.4). This table's
+    # labels carry a dot in TWO opposite conventions — `so.CLAIM_FLOOR` puts the FILE
+    # first and `FILE_FLOORS.test` puts the CONSTANT first — so `split(".")[-1]` reads
+    # the constant in one and a dict key in the other. Under the old singular regex that
+    # never showed, because no plural dict floor was discoverable at all; widening the
+    # regex is what made it matter. Every segment that LOOKS like a floor name is taken.
+    known = {(f, seg) for lbl, f, *_ in TARGETS
+             for seg in lbl.split(".") if FLOORISH.match(seg)}
     unswept: list[str] = []
     for d in DISCOVER_DIRS:
         for f in sorted(d.rglob("*.mjs")):
             if "_to_delete" in f.parts:
                 continue
+            rel = str(f.relative_to(HOST))
             for name in DISCOVER_RE.findall(f.read_text()):
-                if name in known or name in DISCOVER_EXEMPT:
+                if (rel, name) in known or (rel, name) in DISCOVER_EXEMPT:
                     continue
-                unswept.append(f"{f.relative_to(HOST)}:{name}")
+                unswept.append(f"{rel}:{name}")
     for d in DISCOVER_PY_DIRS:                        # 🆕 182 — the other language
         for f in sorted(d.rglob("*.py")):
             if "_to_delete" in f.parts:
                 continue
+            rel = "../" + str(f.relative_to(ROOT))    # the spelling TARGETS uses
             for name in DISCOVER_PY_RE.findall(f.read_text()):
-                if name in known or name in DISCOVER_EXEMPT:
+                if (rel, name) in known or (rel, name) in DISCOVER_EXEMPT:
                     continue
-                unswept.append(f"{f.relative_to(ROOT)}:{name}")
+                unswept.append(f"{rel}:{name}")
     # 🔴 197 — AND THE OTHER HALF OF THE EXEMPTION TABLE, WHICH DID NOT EXIST (182's rule,
     # unpaid here). `DISCOVER_EXEMPT` was read in ONE direction: a name found in the tree
     # and present here was skipped. A name present here and found NOWHERE was skipped too —
@@ -442,16 +552,58 @@ def main() -> int:
     # `CEILING` widening unfalsifiable: narrow the regex back to `FLOOR` and `CRASH_CEILING`
     # simply stops being discovered, with its exemption still sitting here reading as live.
     # 174 §5 is the rule and this is its enforcement: an exclusion nobody re-reads.
-    seen_names: set[str] = set()
+    #
+    # 🔴 199 §9.3 — AND THIS HALF GETS SHARPER UNDER THE NEW KEY, WHICH IS THE POINT.
+    # Under bare names it asked "does this name exist ANYWHERE the walk can see"; a floor
+    # that MOVED to another file kept its exemption alive and reading as though it still
+    # excused the original. Under (file, name) the exemption goes stale the moment the
+    # constant leaves the file its reason is about — which is when the reason stops being
+    # true, not whenever the name finally disappears from the tree.
+    seen: set[tuple[str, str]] = set()
     for d in DISCOVER_DIRS:
         for f in sorted(d.rglob("*.mjs")):
             if "_to_delete" not in f.parts:
-                seen_names.update(DISCOVER_RE.findall(f.read_text()))
+                rel = str(f.relative_to(HOST))
+                seen.update((rel, n) for n in DISCOVER_RE.findall(f.read_text()))
     for d in DISCOVER_PY_DIRS:
         for f in sorted(d.rglob("*.py")):
             if "_to_delete" not in f.parts:
-                seen_names.update(DISCOVER_PY_RE.findall(f.read_text()))
-    stale = sorted(n for n in DISCOVER_EXEMPT if n not in seen_names)
+                rel = "../" + str(f.relative_to(ROOT))
+                seen.update((rel, n) for n in DISCOVER_PY_RE.findall(f.read_text()))
+    stale = sorted(f"{f}:{n}" for f, n in DISCOVER_EXEMPT if (f, n) not in seen)
+
+    # ── 🆕 199 §9.4 — THE TABLE READ IN THE OTHER DIRECTION: CAN THE WALK SEE WHAT THIS
+    # GATE ALREADY SWEEPS? Everything above asks "is a discovered floor in the table". A
+    # floor in the TABLE that the walk CANNOT discover is the failure that makes every
+    # widening unfalsifiable — narrow a regex and nothing goes red, because the constants
+    # it stops finding are the ones already covered. Asked here, with a declared ceiling.
+    undiscoverable = sorted(
+        f"{fl}:{seg}"
+        for lbl, fl, *_ in TARGETS
+        for seg in ([s for s in lbl.split(".") if FLOORISH.match(s)] or [lbl.split(".")[0]])
+        if (fl, seg) not in seen and (fl, seg) not in UNDISCOVERABLE_DECLARED)
+    if undiscoverable:
+        failed = True
+        print("🔴 FLOOR_PIN_UNDISCOVERABLE this gate SWEEPS a floor its own DISCOVER half\n"
+              "   cannot find:\n"
+              + "".join(f"     {u}\n" for u in undiscoverable)
+              + "   Either a discovery regex was narrowed (widen it back — the floors it stopped\n"
+                "   finding in files NOT in this table went unswept in the same edit and nothing\n"
+                "   else would say so), or the constant was renamed to something the walk cannot\n"
+                "   recognise. Declare it in UNDISCOVERABLE_DECLARED with a reason if it is real.")
+    stale_undisc = sorted(f"{f}:{n}" for f, n in UNDISCOVERABLE_DECLARED if (f, n) in seen)
+    if stale_undisc:
+        failed = True
+        print("🔴 FLOOR_PIN_UNDISCOVERABLE_STALE a constant declared unfindable is now found:\n"
+              + "".join(f"     {n}\n" for n in stale_undisc)
+              + "   Delete its declaration and lower UNDISCOVERABLE_CEILING in the same commit.")
+    if len(UNDISCOVERABLE_DECLARED) > UNDISCOVERABLE_CEILING:
+        failed = True
+        print(f"🔴 FLOOR_PIN_UNDISCOVERABLE_CEILING {len(UNDISCOVERABLE_DECLARED)} > "
+              f"{UNDISCOVERABLE_CEILING} — this roster is a CEILING and is supposed to fall.")
+    print(f"FLOOR_PIN_UNDISCOVERABLE {len(undiscoverable)} undeclared · "
+          f"{len(UNDISCOVERABLE_DECLARED)}/{UNDISCOVERABLE_CEILING} declared — swept floors the "
+          f"DISCOVER half cannot name")
     print(f"FLOOR_PIN_DISCOVERED unswept={len(unswept)} exempt={len(DISCOVER_EXEMPT)} "
           f"stale-exempt={len(stale)}")
     if stale:

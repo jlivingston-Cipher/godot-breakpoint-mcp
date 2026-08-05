@@ -512,7 +512,12 @@ claim(judge(live, { inSections: () => false, regionFilesFloor: 0, announcedFloor
 {
   const wide = judge(live, { inSections: () => true, announcedFloor: 0, regionFilesFloor: 0, silentCeiling: 99 });
   const narrow = judge(live, { announcedFloor: 0, silentCeiling: 99 });
-  const regionsIn = (r) => Number(r.lines.find((l) => l.startsWith("SEAL_ORDER_REGIONS")).split(" ")[1]);
+  // 🔴 199 §9.2 — THE HELPER THE HANDOVER PRICED AS "RESTRUCTURE IT LAST", AND THE FIX IS
+  // ONE `?.`. `find` returns undefined when the report has no SEAL_ORDER_REGIONS line —
+  // which is exactly what a blinded `judge` prints — and `.split` threw there, AFTER
+  // thirty-nine claims had already failed. `Number(undefined)` is NaN, every comparison
+  // against NaN is false, and the two claims below fail instead of the file dying.
+  const regionsIn = (r) => Number(r.lines.find((l) => l.startsWith("SEAL_ORDER_REGIONS"))?.split(" ")[1]);
   claim(regionsIn(wide) > regionsIn(narrow),
     `the instruments contribute ${regionsIn(wide) - regionsIn(narrow)} region(s) the rules never judge`);
   claim(narrow.failed === false, "and removing them leaves the live tree green");
@@ -588,12 +593,16 @@ claim(judge(live, { headerFamilyFloor: 10_000 }).failed === true,
   "🔴 and every header present with the manifests emptied is the collapse a FILE count cannot see");
 claim(said(judge(live, { headerFamilyFloor: 10_000 }), "MARKER_FAMILY_COLLAPSE"), "named MARKER_FAMILY_COLLAPSE");
 {
-  const carrying = live.filter((f) => f.markers !== null);
+  // 🔴 199 §9.2 — THE SAME STRICT-null FILTER THE SHIPPED GATE HAD, IN ITS SELF-TEST.
+  // `!== null` lets a record whose `markers` key is ABSENT through, and the reads below
+  // assume a whole object. Fixed in both places in one commit, because a self-test
+  // carrying the defect it is meant to catch is the shape this tree keeps finding.
+  const carrying = live.filter((f) => f.markers != null);
   claim(carrying.length >= MARKER_HEADER_FILES_FLOOR,
     `${carrying.length} live file(s) carry a grep-able header, floor is ${MARKER_HEADER_FILES_FLOOR}`);
   claim(carrying.length < live.length,
     "🔴 and the blind spot is NOT empty on the live tree — a rule with no measured gap is a rule nobody checked");
-  claim(carrying.some((f) => f.markers.listed.some((m) => !f.markers.declared.includes(m))),
+  claim(carrying.some((f) => f.markers.listed?.some((m) => !f.markers.declared?.includes(m))),
     "🔴 the live tree really does list markers that are not families — the case this rule refuses to call a defect");
 }
 
@@ -612,8 +621,14 @@ population.seal("B", "ok");
 `;
 {
   const got = inspect("probe.integration.mjs", READABLE_ALIAS);
-  claim(got.aliases.length === 1, `the binding is found, got ${got.aliases.length}`);
-  claim(got.aliases[0].readable === true,
+  // 🔴 199 §9.2 — `aliases` IS A KEY THE BLINDED `inspect` DOES NOT RETURN AT ALL, so
+  // this is `undefined.length` and not an empty list. The distinction matters: a `?.` on
+  // the CONTAINER is what a missing key needs; a `?.` on the element is what an empty one
+  // needs. Both are here because both happen.
+  claim(got.aliases?.length === 1, `the binding is found, got ${got.aliases?.length}`);
+  // 🔴 199 §9.2 — the claim above already states the population is non-empty; this one
+  // indexed into it anyway. A blinded `assertAliases` returns `[]` and the read threw.
+  claim(got.aliases?.[0]?.readable === true,
     "🔴 THE DISMISSAL: a binding spelled `assert` IS readable — `^assert\\.\\w+$` matches it, and this is what ten of the eleven live bindings do");
   claim(J(READABLE_ALIAS).failed === false, "so it trips nothing");
   claim(said(J(READABLE_ALIAS), "SEAL_ORDER_ALIAS"), "and the alias population is printed on a GREEN run — 184 §3");
@@ -633,8 +648,8 @@ population.seal("B", "ok");
 `;
 {
   const got = inspect("probe.integration.mjs", BLIND_ALIAS);
-  claim(got.aliases.length === 1 && got.aliases[0].name === "sassert", "the aliased binding is found by name");
-  claim(got.aliases[0].readable === false, "🔴 and `sassert.ok` is NOT readable — the character before `assert` is `s`, not a dot");
+  claim(got.aliases?.length === 1 && got.aliases[0].name === "sassert", "the aliased binding is found by name");
+  claim(got.aliases?.[0]?.readable === false, "🔴 and `sassert.ok` is NOT readable — the character before `assert` is `s`, not a dot");
   claim(got.claims.length === 0,
     `🔴 THE DEFECT ITSELF: four claims through the alias and the finder counts ${got.claims.length}`);
   claim(!got.helpers.includes("sok"),
@@ -741,6 +756,22 @@ population.seal("C", "ok");
 claim(FILES_FLOOR === 10, `the shipped file floor is 10, not ${FILES_FLOOR}`);
 claim(SEAL_FLOOR === 95, `the shipped seal floor is 95, not ${SEAL_FLOOR}`);
 claim(Object.keys(CLAIM_SITE_FLOORS).length === 11, `eleven per-file floors ship, not ${Object.keys(CLAIM_SITE_FLOORS).length}`);
+// 🔴 199 §9.4 — AND THE VALUES, WHICH THE LINE ABOVE DOES NOT PIN AND SAYS SO TWO LINES
+// UP. `CLAIM_SITE_FLOORS` was invisible to floor_pin_gate.py until this session: its
+// discovery half read `.mjs` under a SINGULAR name shape and a `\d+` value, and every
+// dict-valued floor in this tree is plural. So eleven floors could be zeroed one digit at
+// a time with nothing anywhere noticing — including the one 191 reasoned about hardest.
+//
+// 🔴 THE 45 IS THE ONE THAT MATTERS AND IT IS PINNED BY VALUE. 191 set it above the 41
+// this file reports with its seal section unread and below the 50 it reports today,
+// precisely so that `mutate191.py`'s E1 — narrowing `READS_AS_CLAIM` to drop the arm the
+// seal section sits on — has nowhere to hide. Zero it and E1 goes green again.
+claim(CLAIM_SITE_FLOORS["_caller_shape.harness.mjs"] === 45,
+  `the harness's per-file floor is 45 — 191's revert-by-predicate guard — not ${CLAIM_SITE_FLOORS["_caller_shape.harness.mjs"]}`);
+claim(Object.values(CLAIM_SITE_FLOORS).every((v) => v > 0),
+  `every per-file floor is positive; a floor at zero is a key that ships without a value (184 §7)`);
+claim(Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0) === 475,
+  `the eleven floors sum to 475, not ${Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0)} — the TOTAL is what notices one entry being lowered while another grows`);
 claim(ANNOUNCED_REGIONS_FLOOR === 73, `the shipped coverage floor is 73, not ${ANNOUNCED_REGIONS_FLOOR}`);
 claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor is 9, not ${MARKER_HEADER_FILES_FLOOR}`);
 claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);

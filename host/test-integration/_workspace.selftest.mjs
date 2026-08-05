@@ -74,6 +74,15 @@ function onDisk(root, rel = "") {
   return out.sort();
 }
 const sorted = (xs) => [...xs].sort().join(",");
+/**
+ * 🔴 199 §9.2 — A FILESYSTEM READ IS A CLAIM'S SUBJECT, NOT ITS SCAFFOLDING. The two
+ * content claims below read a file that a BLINDED restore never rewrote, so
+ * `readFileSync` threw ENOENT outside `check()` and the self-test died with fourteen
+ * failures already recorded and its verdict line unwritten. This is the one member of the
+ * crash family that is NOT an unguarded property read — the failing operation is I/O, and
+ * a `?.` cannot reach it. Returning null makes the absence the claim's answer.
+ */
+const readOrNull = (p) => { try { return fs.readFileSync(p, "utf8"); } catch { return null; } };
 
 // ──────────────────────────────────────────────────── what the snapshot records
 console.log("\n-- snapshotDir: the population it holds --");
@@ -90,10 +99,16 @@ console.log("\n-- snapshotDir: the population it holds --");
   check(sorted(s.dirs) === ["nested", "nested/deep"].join(","), "SNAP_DIRS records every directory too", sorted(s.dirs));
   check(s.root === root, "SNAP_ROOT is carried on the snapshot, so restore cannot be pointed elsewhere");
 
+  // 🔴 THE LOOKUP MAY MISS, AND A MISS IS A FAILURE THIS FILE RECORDS RATHER THAN DIES ON
+  // (199 §9.2). `s.files` is empty whenever the enumerator underneath it is blinded, so
+  // `a` is undefined and every read below used to throw OUTSIDE `check()` — the gate
+  // demonstrating that JavaScript throws on undefined instead of demonstrating that its
+  // own claims bite. The detail arguments are guarded too: they are evaluated on the
+  // GREEN path as well, so an unguarded one crashes a passing run just as readily.
   const a = s.files.get("a.txt");
-  check(a.bytes instanceof Buffer && a.bytes.toString() === "alpha", "SNAP_KEEPS_BYTES a small file's contents are held for restore");
-  check(/^[0-9a-f]{64}$/.test(a.hash), "SNAP_HASHES with sha256, not a size or an mtime", a.hash.slice(0, 12) + "…");
-  check(a.size === 5, "SNAP_SIZE is the byte length", `${a.size}`);
+  check(a?.bytes instanceof Buffer && a.bytes.toString() === "alpha", "SNAP_KEEPS_BYTES a small file's contents are held for restore");
+  check(/^[0-9a-f]{64}$/.test(a?.hash ?? ""), "SNAP_HASHES with sha256, not a size or an mtime", String(a?.hash).slice(0, 12) + "…");
+  check(a?.size === 5, "SNAP_SIZE is the byte length", `${a?.size}`);
 }
 {
   // 🔴 THE CASE THAT MAKES A BLIND WALK DISTINGUISHABLE FROM A SMALL ONE. An empty
@@ -131,8 +146,8 @@ console.log("\n-- the file too large to hold --");
   fs.writeFileSync(big, Buffer.alloc(9 * 1024 * 1024, 7));
   const s = snapshotDir(root);
   const rec = s.files.get("big.bin");
-  check(rec.bytes === null, "BIG_NOT_HELD contents above the cap are not kept in memory");
-  check(rec.hash === `size:${9 * 1024 * 1024}`, "BIG_SENTINEL the hash is a size sentinel, not sha256", rec.hash);
+  check(rec?.bytes === null, "BIG_NOT_HELD contents above the cap are not kept in memory");
+  check(rec?.hash === `size:${9 * 1024 * 1024}`, "BIG_SENTINEL the hash is a size sentinel, not sha256", rec?.hash);
 
   fs.appendFileSync(big, "x");
   const r = restoreDir(s);
@@ -169,7 +184,7 @@ console.log("\n-- restoreDir: removes, rewrites, rmdirs --");
   // whole family is reports that describe an action rather than its result.
   check(sorted(onDisk(root)) === ["tracked.txt", "vanishes.txt"].join(","),
     "RESTORE_TRUE the tree on disk is the tree the snapshot recorded", sorted(onDisk(root)));
-  check(fs.readFileSync(path.join(root, "tracked.txt"), "utf8") === "original",
+  check(readOrNull(path.join(root, "tracked.txt")) === "original",
     "RESTORE_CONTENT ...and the rewritten file holds its original bytes");
 }
 
@@ -195,7 +210,7 @@ console.log("\n-- restoreDir: removes, rewrites, rmdirs --");
   put(root, "_auth_probe_1.tres", "the probe's");
   const r = restoreDir(s);
   check(r.removed.join(",") === "_auth_probe_1.tres", "RESTORE_SPARES_PREEXISTING only paths that appeared are removed", r.removed.join(","));
-  check(fs.readFileSync(path.join(root, "_auth_probe_MINE.tres"), "utf8").startsWith("a developer's"),
+  check(readOrNull(path.join(root, "_auth_probe_MINE.tres"))?.startsWith("a developer's") === true,
     "RESTORE_SPARES_LOOKALIKE ...even one named exactly like the artefacts the old glob matched");
   check(r.rmdir.length === 0, "RESTORE_SPARES_DIRS a pre-existing directory is not removed either");
 }
@@ -217,8 +232,12 @@ console.log("\n-- restoreDir: the failure collector, proved to collect --");
 
   const r = restoreDir(s);
   check(r.failed.length === 1, "FAILED_COLLECTS one entry, not an empty list", JSON.stringify(r.failed));
-  check(r.failed[0].path === "becomes-a-dir.txt", "FAILED_NAMES_THE_PATH so the report says which one", r.failed[0]?.path);
-  check(/^write:/.test(r.failed[0].why || ""), "FAILED_NAMES_THE_REASON and which operation could not be done", r.failed[0]?.why);
+  // 🔴 199 §9.2 — THE DETAIL ARGUMENTS WERE ALREADY GUARDED AND THE CONDITIONS WERE NOT,
+  // which is the tell: whoever wrote `r.failed[0]?.path` as the detail knew the index can
+  // miss, and the claim beside it still asserted through a bare `[0]`. A blinded
+  // `restoreDir` returns an empty collector and the read threw outside `check()`.
+  check(r.failed[0]?.path === "becomes-a-dir.txt", "FAILED_NAMES_THE_PATH so the report says which one", r.failed[0]?.path);
+  check(/^write:/.test(r.failed[0]?.why || ""), "FAILED_NAMES_THE_REASON and which operation could not be done", r.failed[0]?.why);
   check(r.rewritten.length === 0, "FAILED_NOT_ALSO_REWRITTEN a path cannot be both restored and failed");
 }
 
