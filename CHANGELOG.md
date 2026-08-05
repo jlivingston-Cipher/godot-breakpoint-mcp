@@ -6,6 +6,78 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the anchor that outran itself
+
+`instrument_gate.py` blinds 59 named members across eight instruments and requires each
+one's gate to go red. Every target was anchored on the member's **full signature literal** —
+precise, because a blind is a textual substitution, and outrun by every correct change that
+adds a parameter. Measured from git rather than from memory:
+
+```
+judge       (seal_order / boundary / verdict)   9 distinct commits — the seal_order
+                                                anchor moved in SEVEN consecutive sessions
+judgeScope  (tautology_gate)                    5 distinct commits, two of them 193 and 194
+comparisons (boundary_gate)                     3
+```
+
+Each was caught loudly as `SIGNATURE NOT FOUND` rather than skipped quietly, and none was a
+defect. The gate was working; the anchor was pinned to a moment rather than to the invariant.
+
+Targets are now written `{SIG:name}`. This is **not** a loosened prefix — 193 §12.27 refused
+that on the grounds that a prefix matching two same-named members would blind the wrong one
+silently, and that decision holds. The placeholder turns the two things the literal was
+really asserting into assertions of their own and drops the third:
+
+```
+0 declarations of `name`    ->  LOUD.  RESOLVES TO NOTHING — a renamed or deleted
+                                       member is still caught, which is the whole
+                                       reason a literal anchor was tolerable
+2+ declarations of `name`   ->  LOUD.  refuses to choose, and says which lines
+1 declaration               ->  the anchor, read off the live source
+the parameter list is EXACTLY this  ->  dropped, on purpose. It never guarded the
+                                       blind CONSTANT — a return shape is not in a
+                                       signature — and it was the only thing costing
+```
+
+🔴 **It resolves against the file being mutated, which 188 §2's `{V}` forbids for itself.**
+The difference is what the anchor claims. `{V}`'s row claims a value that lives in another
+file, so reading it off the file under mutation would be self-satisfying and would take
+180 §9.3's guard away. This anchor claims a named member exists **exactly once in the file
+about to be swept**, and both halves of that are asserted by the resolution rather than
+assumed by it.
+
+Measured before a line was written (194 §31 — *open the file the item names*):
+**59 targets · 59 resolve identically to the literal that ships · 0 ambiguous · 0 missing**.
+That is why the whole roster converts rather than the single row 194 §9.2 named: a discovery
+half scoped to one name rots in the direction the name does not cover (183 §12.29), and
+`judge` had already cost more than `judgeScope`.
+
+`literal_signature_problems` refuses a literal anchor **when the placeholder would resolve
+to it exactly** — `derived_literal_problems`' shape one file over, including its second
+return value, because on a healthy tree the problem list is empty and an audit over one
+target reads the same as an audit over fifty-nine. Where a name is ambiguous or absent the
+literal remains the only correct anchor and is still allowed.
+
+`INSTRUMENT_GATE_SIG 59/55` is a third population for this harness and a third collapse
+neither existing floor could see: replacing a placeholder with the signature it resolves to
+today changes no printed line, no verdict and no blind — it only puts that row back on an
+expiry date, which is how the class arrived, one row at a time. Registered in
+`floor_pin_gate.py`'s exempt table and pinned in `_self_check()`, because an exemption whose
+reason is not true is 174 §5 in the file that keeps citing it.
+
+**Reverse sweep: MUTATE195 pass=11 fail=0 declared-green=0**, with `carries=` mandatory
+(194 §9.3) and a new `expect=` — the mutated text must contain what the mutant says it
+changed, before anything runs. 194 §32: last session's H1 changed the file and ran a
+*different* mutation than the one it declared. The pair that is the claim:
+
+```
+C1   green   a tenth parameter joins judgeScope       ->  the gate stays GREEN
+C1b  red     the same parameter, literal anchor back  ->  SIGNATURE NOT FOUND
+```
+
+No surface change: 291 tools / 278 read / 13 write. No new tool, no response-field change,
+no new CI job. Addon untouched at 1.9.8.
+
 ## [1.70.0] — 2026-08-04
 
 ### Added — the message that blamed the engine

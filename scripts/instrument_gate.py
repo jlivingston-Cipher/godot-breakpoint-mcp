@@ -35,6 +35,128 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HOST = ROOT / "host"
 
+# ── 🔴 `{SIG:name}` — THE ANCHOR THAT STOPS BEING OUTRUN BY ITS OWN SIGNATURE ──────
+#
+# 195, and it is 188 §2's `{V}` arriving one class over rather than a new idea.
+#
+# Every target below is a FULL SIGNATURE LITERAL, and that is deliberate: a blind is a
+# textual substitution, so a loosened prefix anchor matching two same-named members would
+# blind the wrong one SILENTLY (193 §12.27, and the decision was right). The cost is a
+# re-point every time a parameter is added, and the tree has paid it out loud:
+#
+#     judge       (seal_order/boundary/verdict)   9 distinct commits — 7 consecutive
+#                                                 sessions for the seal_order one alone
+#     judgeScope  (tautology_gate)                5 distinct commits, TWO of them 193/194
+#     comparisons (boundary_gate)                 3
+#
+# 194 §9.2 named the build: resolve the signature instead of spelling it. The placeholder
+# does NOT loosen the match — it makes the two things the literal was really asserting
+# into assertions of their own, and drops the third:
+#
+#   EXISTENCE   0 declarations of `name`  -> LOUD. Removing or renaming the function is
+#               still caught, which is the whole reason the literal was tolerable.
+#   UNIQUENESS  2+ declarations of `name` -> LOUD. This is the case 193 §12.27 refused to
+#               let a prefix decide quietly; here it is refused rather than decided.
+#   TEXT        the parameter list is exactly this -> DROPPED, on purpose. It never
+#               guarded the blind CONSTANT (a return shape is not in a signature) and it
+#               is the only thing that was costing anything.
+#
+# 🔴 AND IT RESOLVES AGAINST THE FILE BEING MUTATED, WHICH `{V}` FORBIDS FOR ITSELF.
+# The difference is what the anchor claims. `{V}`'s row claims a value that lives in
+# another file, so reading it off the file under mutation would be self-satisfying and
+# would take 180 §9.3's guard away. This anchor claims that a named member EXISTS EXACTLY
+# ONCE in the file about to be swept — and both halves of that are asserted by the
+# resolution, not assumed by it. A resolver that finds nothing fails; one that finds two
+# fails. There is no reading of this file that makes either pass.
+#
+# Measured before a line of this was written (`host/_to_delete/sig195.py`):
+# 59 targets · 59 resolve identically to the literal that ships · 0 ambiguous · 0 missing.
+SIG_RE = re.compile(r"^\{SIG:(?P<name>[A-Za-z_$][\w$]*)\}$")
+
+
+def _decl_re(name: str) -> re.Pattern:
+    """A DECLARATION of `name`, not a call: it must open a block at end of line."""
+    return re.compile(
+        r"^(?P<indent>[ \t]*)"
+        r"(?:export[ \t]+)?(?:async[ \t]+)?(?:static[ \t]+)?(?:function[ \t]+)?"
+        r"(?:get[ \t]+|set[ \t]+)?"
+        + re.escape(name) + r"[ \t]*\(.*\)[ \t]*\{[ \t]*$")
+
+
+def resolve_sig(text: str, sig: str) -> tuple[str, str]:
+    """(anchor, problem) — exactly one of the two is empty.
+
+    A `sig` that is not a placeholder is returned unchanged, so a literal anchor still
+    works where it has to (see `literal_signature_problems`: the ONLY place it has to is
+    a name the resolver would refuse as ambiguous).
+    """
+    m = SIG_RE.match(sig)
+    if m is None:
+        return (sig, "")
+    name = m.group("name")
+    pat = _decl_re(name)
+    found = [(i + 1, ln) for i, ln in enumerate(text.split("\n")) if pat.match(ln)]
+    if not found:
+        return ("", f"{sig} RESOLVES TO NOTHING — no declaration of `{name}` in this file. "
+                    f"The member this target blinds was renamed or removed, and a target that "
+                    f"cannot be applied is a sweep reporting green over a mutation nobody made")
+    if len(found) > 1:
+        at = ", ".join(str(n) for n, _ in found)
+        return ("", f"{sig} matches {len(found)} declarations of `{name}` (lines {at}) — a "
+                    f"placeholder that picked one would blind the wrong member silently, which "
+                    f"is exactly what 193 §12.27 refused to let a loosened anchor do. Anchor "
+                    f"this target on the full signature literal instead, and say why here")
+    line = found[0][1]
+    indent = pat.match(line).group("indent")
+    if indent and indent != "  ":
+        return ("", f"{sig} resolves to a member indented {len(indent)} space(s); `blind()` "
+                    f"looks for exactly two. Fix the injector rather than the anchor")
+    # The two shapes `blind()`/`late()` search for, and which one is decided by the indent.
+    return (line.strip().rstrip("{").rstrip() if indent else line.rstrip(), "")
+
+
+# 🔴 THE POPULATION OF THE NEW MACHINERY, PINNED LIKE EVERY OTHER ONE IN THIS FILE.
+# A `resolve_sig` that stopped resolving would be caught by SIGNATURE NOT FOUND — but a
+# roster that quietly stopped USING it would not be caught by anything, and every printed
+# line would still read ok while the anchors went back to being literals one at a time.
+SIG_RESOLVED_FLOOR = 55
+SIG_RESOLVED: set[str] = set()
+
+
+def resolve_target(inst_name: str, text: str, sig: str) -> tuple[str, str]:
+    anchor, problem = resolve_sig(text, sig)
+    if not problem and SIG_RE.match(sig):
+        SIG_RESOLVED.add(f"{inst_name}::{sig}")
+    return (anchor, problem)
+
+
+def literal_signature_problems(inst_name: str, text: str, sigs) -> tuple[list[str], int]:
+    """(problems, targets read) — a literal anchor where `{SIG:}` would resolve to it.
+
+    🔴 THE SECOND RETURN VALUE IS NOT DECORATION, for `derived_literal_problems`' reason
+    one file over: on a healthy tree `problems` is empty, so an audit over one target and
+    an audit over fifty-nine are the same observable and trimming the input is invisible.
+    The count is what the caller pins.
+    """
+    sigs = list(sigs)
+    out: list[str] = []
+    for sig in sigs:
+        if SIG_RE.match(sig):
+            continue
+        m = re.match(r"^(?:export[ \t]+)?(?:async[ \t]+)?(?:static[ \t]+)?(?:function[ \t]+)?"
+                     r"(?:get[ \t]+|set[ \t]+)?(?P<name>[A-Za-z_$][\w$]*)[ \t]*\(", sig.strip())
+        if m is None:
+            continue
+        anchor, problem = resolve_sig(text, "{SIG:" + m.group("name") + "}")
+        if problem or anchor != sig:
+            continue   # ambiguous, absent, or a different member — the literal is the only way
+        out.append(
+            f"{inst_name}: `{sig[:60]}` is a LITERAL signature that {{SIG:{m.group('name')}}} "
+            f"resolves to exactly. Write the placeholder — a literal here is outrun by the next "
+            f"parameter, and this anchor class has cost a re-point in seven consecutive sessions"
+        )
+    return out, len(sigs)
+
 # ── the three instruments, each with the gate that is supposed to cover it ──────────
 #
 # 🔴 EACH FLOOR IS A LITERAL AND EACH INSTRUMENT GETS ITS OWN LINE (172 §6). The scope
@@ -53,15 +175,15 @@ INSTRUMENTS = [
         # returns the number it drained, `report` the failure list. Injecting it IS the
         # failure mode, not an approximation of it.
         "targets": {
-            "claim(family)": "return true;",
-            "open(label)": "return label;",
-            "_closeOpen()": "return;",
-            "async family(label, fn, onThrow)": "return { made: 0, threw: null };",
-            'seal(marker, detail = "")': "console.log(marker); return 0;",
-            "report()": "return [];",
+            "{SIG:claim}": "return true;",
+            "{SIG:open}": "return label;",
+            "{SIG:_closeOpen}": "return;",
+            "{SIG:family}": "return { made: 0, threw: null };",
+            "{SIG:seal}": "console.log(marker); return 0;",
+            "{SIG:report}": "return [];",
             # 🔴 THE ONE THAT WAS GREEN IN 173. Eleven of fourteen probes call ONLY this.
-            "reportOrDie()": "return 0;",
-            "get assert()": "return nodeAssert;",
+            "{SIG:reportOrDie}": "return 0;",
+            "{SIG:assert}": "return nodeAssert;",
         },
     },
     {
@@ -72,12 +194,12 @@ INSTRUMENTS = [
         "floor": 3,
         "why": "the comparison that decides whether the live path cohort and the ledger agree",
         "targets": {
-            "export function parsePathLedger(text) {": "return { entries: new Map(), badClass: [] };",
+            "{SIG:parsePathLedger}": "return { entries: new Map(), badClass: [] };",
             # 🔴 THE ONE 173's OWN REVERSE SWEEP ADDED. Its first draft inlined this
             # check, so the only case any test could construct was the healthy one and
             # `scope` was a collector asserted EMPTY and never proved to collect.
-            "export function ledgerScopeFailures(canaries = LEDGER_CANARIES, classes = LEDGER_CLASSES, live = null, ledger = null, pop = LEDGER_POPULATION) {": "return [];",
-            "export function comparePathLedger(liveRows, ledgerText, pop = LEDGER_POPULATION) {":
+            "{SIG:ledgerScopeFailures}": "return [];",
+            "{SIG:comparePathLedger}":
                 "return { unclassified: [], stale: [], badClass: [], lost: [], scope: [], "
                 "liveCount: 0, ledgerCount: 0, canaryCount: 0 };",
         },
@@ -103,20 +225,20 @@ INSTRUMENTS = [
         "why": "the snapshot/restore/diff that decides what AUTH_CLEAN's byte-identical means",
         "targets": {
             # 🔴 THE SHARED ENUMERATOR. Blinding this one is the seam itself.
-            "function walk(root, rel, files, dirs) {": "return;",
+            "{SIG:walk}": "return;",
             # 🔴 AND THE COMPARISON THAT CATCHES THE BLIND THIS ONE CANNOT CONSTRUCT (181).
             # Blinding `walk` above empties `snapshotDir` too, so the caller's
             # AUTH_SNAPSHOT_FILE_FLOOR = 70 catches it — which is why this entry was green
             # for the whole class while the LATE blind, the walk going quiet only on the
             # second and third calls, passed as `clean=true` over a polluted tree.
             # Measured: snapshot=6, restore removed=0, diff clean=true, artefact on disk.
-            "export function blindWalk(snap, nowFiles, missing) {": "return [];",
-            "export function snapshotDir(root) {": "return { root, files: new Map(), dirs: new Set() };",
-            "function liveHash(abs, size) {": "return null;",
-            "export function restoreDir(snap) {": "return { removed: [], rewritten: [], rmdir: [], failed: [] };",
-            "export function diffDir(snap) {":
+            "{SIG:blindWalk}": "return [];",
+            "{SIG:snapshotDir}": "return { root, files: new Map(), dirs: new Set() };",
+            "{SIG:liveHash}": "return null;",
+            "{SIG:restoreDir}": "return { removed: [], rewritten: [], rmdir: [], failed: [] };",
+            "{SIG:diffDir}":
                 "return { added: [], modified: [], missing: [], dirs: [], blind: [], clean: true };",
-            "export function describeDiff(d, limit = 6) {": 'return "nothing";',
+            "{SIG:describeDiff}": 'return "nothing";',
         },
     },
     {
@@ -139,18 +261,18 @@ INSTRUMENTS = [
         "floor": 3,
         "why": "the reader that decides whether a rendered frame contains anything at all",
         "targets": {
-            "export function decodePng(buf) {": "return null;",
+            "{SIG:decodePng}": "return null;",
             # 🔴 NOT `return {distinct: 1, …}` — 1 is the FAILING answer, and a blind that
             # injects a failure proves nothing about a gate that is supposed to catch it.
             # The constant has to be the answer a healthy frame gives.
-            "export function sampleDistinctColours(img, step = 7) {":
+            "{SIG:sampleDistinctColours}":
                 "return { distinct: 999, sampled: 999 };",
             # 🔴 THIS ONE NEEDED A NEW CASE TO BE CATCHABLE AT ALL. Every paeth assertion
             # in the first draft used a row where the predictor legitimately chooses `a`,
             # so `return a;` round-tripped all of them — a wrong answer of the right type,
             # in the test for the function whose job is to reject exactly that. The
             # PAETH_CHOOSES_ABOVE case exists because this target was written first.
-            "function paeth(a, b, c) {": "return a;",
+            "{SIG:paeth}": "return a;",
         },
     },
     {
@@ -177,52 +299,47 @@ INSTRUMENTS = [
             # The classifier itself. VALUE, not SHAPE — SHAPE is the FAILING answer, and
             # a blind that injects a failure proves nothing about a gate meant to catch it
             # (175's `_png.mjs` reasoning, same trap one file over).
-            "export function classifyLeaf(node, src) {": 'return { kind: "VALUE", why: "blind", text: "" };',
-            "export function leaves(node, src, out = [], depth = 0) {": "return out;",
-            "function collectConsts(src) {": "return [];",
+            "{SIG:classifyLeaf}": 'return { kind: "VALUE", why: "blind", text: "" };',
+            "{SIG:leaves}": "return out;",
+            "{SIG:collectConsts}": "return [];",
             # 🆕 185: `export` in the anchor. The word was added so 184 §10.2's
             # measurement could import this map rather than re-derive it, and this
             # gate reported the target UNMATCHED on the first run afterwards — which
             # is the whole point of an unmatched target being a failure rather than a
             # skip. A blind that stops applying is a blind that proves nothing.
-            "export function collectAsserters(src) {": "return new Map();",
+            "{SIG:collectAsserters}": "return new Map();",
             # 🔴 175's OWN FIX. This is the resolver that stopped a tool invoker called
             # `check` and a transcript reader called `assertOk` from fabricating seventeen
             # of the host root's twenty-four claim sites.
-            "function collectFailers(src) {": "return new Set();",
-            "export function analyze(fileName, text) {": "return [];",
+            "{SIG:collectFailers}": "return new Set();",
+            "{SIG:analyze}": "return [];",
             # 🆕 182: `shaped` and `precondition` are in the blind at their HEALTHY values
             # for the same reason `scan()`'s blind returns four subjects — a blind that
             # trips the new floors proves the floor, not the finder.
-            "export function verdict(claims) {": "return { blocks: 0, attributed: 0, shaped: 116, precondition: 61, vacuous: [], every: [], offender: [] };",
+            "{SIG:verdict}": "return { blocks: 0, attributed: 0, shaped: 116, precondition: 61, vacuous: [], every: [], offender: [] };",
             # 🔴 180. THE OUTPUT FLOOR, AND IT IS A BLIND TARGET FOR THE SAME REASON THE
             # CLASSIFIER IS: `judgeScope` is the only thing standing between "attribution
             # resolved nothing" and `TAUT_GATE ok`. Blinded to a passing verdict it must
             # take the self-test red, or §18's twelve cases are proving nothing.
             #
-            # 🔴 193 — AND THE ANCHOR MOVED AGAIN, WHICH IS 192 §32's QUESTION ANSWERED
-            # WITH A THIRD SHAPE. 192 asked which anchors embed a value the tree computes;
-            # this one embeds a SIGNATURE, and adding `bannerFloor` to it took the row to
-            # UNMATCHED on the first run. It stays a full-signature anchor on purpose: a
-            # blind is a textual substitution, so a loosened anchor that matched two
-            # overloads would blind the wrong one silently. The cost is a re-point per
-            # parameter added, and the DISCOVER half is what makes that cost visible.
-            # 🔴 RE-POINTED A SECOND TIME, 194 — `sectionFloor` joined the signature the way
-            # `bannerFloor` did in 193, and this anchor went UNMATCHED again. 193 §12.27
-            # decided the anchor stays full-signature on purpose (a blind is a textual
-            # substitution, and a loosened anchor matching two overloads would blind the
-            # wrong one silently) and that decision still holds — but paying the same cost
-            # twice for the same reason is the shape 192 §6 fixed for VALUES with a `{V}`
-            # placeholder. A SIGNATURE is the same kind of derived literal and
-            # `derived_literal_problems` cannot see it. See §9 in the handoff.
-            "export function judgeScope(v, sites, unitFloor = UNIT_FLOOR, attrFloor = ATTRIBUTED_FLOOR, shapedFloor = SHAPED_FLOOR, preFloor = PRECONDITION_FLOOR, orphanCeiling = ORPHAN_CEILING, bannerFloor = BANNER_ATTRIBUTED_FLOOR, sectionFloor = SECTION_ATTRIBUTED_FLOOR) {":
+            # 🔴 THIS IS THE ROW `{SIG:}` WAS BUILT FOR. It was re-pointed in 193
+            # (`bannerFloor` joined the signature) and again in 194 (`sectionFloor`), each
+            # time going UNMATCHED on the first run and each time costing a read of a
+            # nine-parameter literal to change nothing about what is being tested. 193
+            # §12.27's decision — do NOT loosen the match, because a prefix matching two
+            # members would blind the wrong one silently — is still the right decision and
+            # is why the placeholder REFUSES an ambiguous name rather than resolving it.
+            # What the literal was really asserting was existence and uniqueness, and both
+            # of those are now assertions instead of side effects. Measured: five distinct
+            # commits wrote this one anchor before it stopped being a literal.
+            "{SIG:judgeScope}":
                 "return { lines: [], failed: false };",
             # 🔴 180. THE WIRE, AND IT IS HERE BECAUSE THE REVERSE SWEEP CAUGHT IT GREEN.
             # `if (scope.failed) failed = true` inline in main() could be deleted with
             # every gate staying green — on a healthy tree the term is never satisfied
             # apart, which is 174 SS8 and verdict_gate's `combine()` a third time. Blinded
             # to "the scope verdict never reaches the exit code", the self-test must red.
-            "export function combineFailed(failedSoFar, scope) {": "return failedSoFar;",
+            "{SIG:combineFailed}": "return failedSoFar;",
         },
     },
     {
@@ -243,11 +360,11 @@ INSTRUMENTS = [
         "floor": 4,
         "why": "the gate for the ABSENCE of a check — the half no condition-grader can reach",
         "targets": {
-            "export function inspect(file, text) {":
+            "{SIG:inspect}":
                 'return { tools: [], readsVerdict: true, exitsNonZero: true, labelsAssert: false };',
-            "export function judge(subjects, roster = NOT_A_VERDICT, floor = SUBJECT_FLOOR) {":
+            "{SIG:judge}":
                 'return { lines: ["VERDICT_GATE ok"], failed: false };',
-            "export function scan() {":
+            "{SIG:scan}":
                 "return [{ f: \"a.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }, "
                 "{ f: \"b.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }, "
                 "{ f: \"c.mjs\", tools: [\"runtime_assert_x\"], readsVerdict: true, exitsNonZero: true }, "
@@ -255,7 +372,7 @@ INSTRUMENTS = [
             # 🔴 176's OWN NEW FINDER. `dropped: false` is the healthy answer — returning
             # an empty list would be caught by DISCARD_SITE_FLOOR, which proves the floor
             # rather than the finder, and those are different instruments.
-            "export function discarded(file, text) {":
+            "{SIG:discarded}":
                 'return [{ file, line: 1, tool: "runtime_assert_x", dropped: false }];',
         },
     },
@@ -280,34 +397,34 @@ INSTRUMENTS = [
         "floor": 9,   # 🆕 179: helpers() is the ninth, and the reader both 179 rules rest on
         "why": "the tautology that cannot be seen from either side alone — a GDScript constant asserted in JS",
         "targets": {
-            "export function dispatchMap(gdText) {": 'return new Map([["a.b", "_a_b"]]);',
-            "export function hardwired(gdText) {":
+            "{SIG:dispatchMap}": 'return new Map([["a.b", "_a_b"]]);',
+            "{SIG:hardwired}":
                 'return { fields: new Map([["_a_b", new Map([["f", "true"]])]]), opaque: [], reads: 9 };',
-            "export function toolOps(sources) {": 'return new Map([["t", "a.b"]]);',
+            "{SIG:toolOps}": 'return new Map([["t", "a.b"]]);',
             # 🆕 178. The conduit resolver blinded to "no helper is ever a conduit" — the
             # shape 177 §10.18 declined to build and 178 measured a live defect behind.
-            "export function conduits(file, text, h = helpers(file, text)) {": "return new Map();",
-            "export function comparisons(file, text, conduit = new Map(), h = helpers(file, text)) {":
+            "{SIG:conduits}": "return new Map();",
+            "{SIG:comparisons}":
                 'return [{ file, line: 1, field: "ok", lit: "true", tool: null, drop: null, wouldBe: null, text: "", idiom: "===" }];',
             # 🆕 179. The reader both 179 rules rest on: which locally-defined helpers throw
             # on `isError`. Blinded to "none of them", every direct receiver is refused as
             # nonthrowing and `judged` goes to zero — which is exactly what JUDGED_FLOOR is
             # for, and nothing else in the file could have caught it.
-            "export function helpers(file, text) {":
+            "{SIG:helpers}":
                 "return { s: null, bodyOf: new Map(), throwers: new Set(), defined: new Set() };",
-            "export function judge(pop, offenders) {":
+            "{SIG:judge}":
                 'return { lines: ["BOUNDARY_GATE ok"], failed: false };',
             # 🔴 THE COLLAPSE TEST ITSELF. 176 §8's G12 extracted this shape precisely so
             # that a floor set to zero has a case that reddens; blinding it to `false`
             # switches all four floors off at once, and the self-test must notice.
-            "export function collapsed(n, floor) {": "return false;",
+            "{SIG:collapsed}": "return false;",
             # 🆕 178. The composition itself. `run()` and `report()` were extracted in 177
             # so the sweep could reach them; `scan()` is the third of the three, and a
             # blind that returns a healthy-looking population with an empty offender list
             # is precisely the green lie both fixtures exist to catch.
             # 🆕 182: `helperDefs`/`conduitEntries` at HEALTHY values, same reasoning as
             # every other constant here — a blind that trips a floor proves the floor.
-            "export function scan(host = HOST, gdPaths = GD) {":
+            "{SIG:scan}":
                 'return { pop: { consts: 99, ops: 999, tools: 999, sites: 9999, reads: 999, '
                 'planes: 9, opaque: 0, judged: 9, unresolved: 0, helperDefs: 999, '
                 'conduitEntries: 99 }, offenders: [] };',
@@ -334,45 +451,47 @@ INSTRUMENTS = [
                       # 187: 6 -> 7, markerList admitted
         "why": "the marker written above the claims it describes — invisible to every gate _population.mjs has",
         "targets": {
-            "export function claimCallees(src) {":
+            "{SIG:claimCallees}":
                 "return { helpers: new Set(), isClaimCall: () => false };",
             # Blinded to a well-formed EMPTY file rather than to a throw — 176's rule for
             # `discarded()`: a blind that returns nothing proves the floor, a blind that
             # returns something healthy-looking proves the finder.
-            "export function inspect(file, text) {":
+            "{SIG:inspect}":
                 'return { file, claims: [], seals: [], helpers: [], lines: [] };',
-            # 🔴 THE SIGNATURE IS THE ANCHOR, AND IT HAS NOW MOVED IN SEVEN CONSECUTIVE
-            # SESSIONS (185 §8, 186 §6, 187, 188, 189, 190, 191) — every time a rule gained
-            # a floor or a ceiling, which is every session a rule was added. 191 moved BOTH
-            # anchors in this file in one go, which is the first time that has happened.
-            # The gate
-            # catches it every time and says SIGNATURE NOT FOUND rather than skipping
-            # quietly, which is the only reason the target is still live. Do not soften
-            # the match to a prefix: a prefix would survive the next parameter and stop
-            # being a statement about the function that ships.
-            "export function judge(files, { filesFloor = FILES_FLOOR, sealFloor = SEAL_FLOOR, siteFloors = CLAIM_SITE_FLOORS, roster = NOT_A_PROBE, announcedFloor = ANNOUNCED_REGIONS_FLOOR, headerFilesFloor = MARKER_HEADER_FILES_FLOOR, headerFamilyFloor = HEADER_FAMILY_FLOOR, needsHeader = headerRequired, inSections = isProbe, regionFilesFloor = REGION_FILES_FLOOR, silentCeiling = SILENT_REGIONS_CEILING, aliasCeiling = ALIAS_BLIND_CEILING, aliasFloor = ALIAS_BINDINGS_FLOOR } = {}) {":
+            # 🔴 THE MOST EXPENSIVE ANCHOR IN THE FILE, AND THE REASON `{SIG:}` COVERS THE
+            # WHOLE ROSTER RATHER THAN ONE ROW. Its thirteen-parameter literal MOVED IN
+            # SEVEN CONSECUTIVE SESSIONS (185 §8, 186 §6, 187, 188, 189, 190, 191) — every
+            # time a rule gained a floor or a ceiling, which is every session a rule was
+            # added; 191 moved BOTH anchors in this file at once. Every one of those was
+            # caught LOUDLY as SIGNATURE NOT FOUND rather than skipped, which is the only
+            # reason the target stayed live, and none of them was a defect.
+            # 🔴 STILL DO NOT SOFTEN THE MATCH TO A PREFIX. `{SIG:judge}` is not a prefix:
+            # it resolves to the single declaration of `judge` in THIS file and refuses —
+            # loudly — if there are none or more than one. A prefix would decide that case
+            # quietly, which is what 193 §12.27 rejected and this build does not do.
+            "{SIG:judge}":
                 'return { lines: ["SEAL_ORDER_GATE ok"], failed: false };',
             # 🆕 187 — THE THIRD RULE'S FINDER. `markerList` returning null for every file
             # empties the marker population entirely, and nothing but MARKER_HEADER_FILES_FLOOR
             # can tell that from a tree where no probe carries a header. Blinded to null
             # rather than to an empty object, because null IS the shape the function returns
             # for a file with no header — the failure mode, not an approximation of it.
-            "export function markerList(text) {": "return null;",
+            "{SIG:markerList}": "return null;",
             # 🆕 190 — THE FIFTH RULE'S FINDER. It is the newest thing in this gate that
             # can match nothing while every number stays plausible: blinded to `[]` the
             # alias population reads 0, `0/1 unreadable` prints, and the whole rule
             # reports a clean tree over a file it never looked at. That is the exact
             # shape this instrument exists to name, and a rule whose finder is unswept is
             # a rule with a floor and no population.
-            "export function assertAliases(src) {": "return [];",
-            "export function scan(root = ROOT) {": "return [];",
+            "{SIG:assertAliases}": "return [];",
+            "{SIG:scan}": "return [];",
             # 🆕 186 §3 — THE SECOND RULE'S TWO HALVES, BLINDED SEPARATELY BECAUSE THEY
             # COLLAPSE DIFFERENTLY. `sectionBoundary` returning null leaves every region
             # in the population and unreadable; `regionsOf` returning [] removes the
             # population itself. Only the coverage floor can tell either from a clean run,
             # which is the whole reason that floor exists.
-            "export function sectionBoundary(lines, from, to) {": "return null;",
-            "export function regionsOf(f) {": "return [];",
+            "{SIG:sectionBoundary}": "return null;",
+            "{SIG:regionsOf}": "return [];",
         },
     },
     {
@@ -391,14 +510,14 @@ INSTRUMENTS = [
         "floor": 8,
         "why": "the enumerator whose predecessor's number was wrong by 180 rows in two shipped changelogs",
         "targets": {
-            "function segments(name) {": "return [];",
-            "function nameLooksPathLike(name) {": "return false;",
-            "function branchesOf(node) {": "return [];",
-            "function isStringy(node) {": "return false;",
-            "function childMaps(node) {": "return [];",
-            "function describe(schema) {": 'return "";',
-            "function walk(tool, props, trail, depth, seen, sink) {": "return;",
-            "export function enumeratePathCohort(tools) {": "return [];",
+            "{SIG:segments}": "return [];",
+            "{SIG:nameLooksPathLike}": "return false;",
+            "{SIG:branchesOf}": "return [];",
+            "{SIG:isStringy}": "return false;",
+            "{SIG:childMaps}": "return [];",
+            "{SIG:describe}": 'return "";',
+            "{SIG:walk}": "return;",
+            "{SIG:enumeratePathCohort}": "return [];",
         },
     },
 ]
@@ -466,12 +585,12 @@ LATE_LIVE = {
 # leaves a gate green is not automatically a defect: two states produce it, and only one
 # of them is.
 LATE_DECLARED_GREEN = {
-    ("boundary_gate.mjs", "export function collapsed(n, floor) {", "B:live"):
+    ("boundary_gate.mjs", "{SIG:collapsed}", "B:live"):
         "the blind returns `false` — which is the CORRECT answer for all seven live "
         "populations of a healthy tree. There is no collapse for it to miss, so a green "
         "run says nothing about the collapse test. Its coverage is the self-test's "
         "`collapsed(0, 0) === true`, where a case with a known answer exists.",
-    ("path-cohort (compiled walk)", "function segments(name) {", "B:live"):
+    ("path-cohort (compiled walk)", "{SIG:segments}", "B:live"):
         "MEASURED, not assumed: of 258 live cohort rows, 0 reach the cohort through the "
         "segment branch — `hint_only=0 both=252 segments_only=0`, because every path-like "
         "parameter this surface publishes is snake_case and NAME_HINT matches it first. "
@@ -483,7 +602,7 @@ LATE_DECLARED_GREEN = {
     # blind constant a HEALTHY answer or a FAILING one, and which axis can therefore see
     # it? Eleven of the twelve blinds the caller-shape harness constructs produce a wrong
     # observable and are caught. This one cannot be.
-    ("_population.mjs", "_closeOpen()", "B:live"):
+    ("_population.mjs", "{SIG:_closeOpen}", "B:live"):
         "`_closeOpen` exists to file a section that closed having asserted NOTHING, and a "
         "healthy caller has no such section — so the function's entire output on a healthy "
         "run is the empty set, which is exactly what the blind returns. Neither caller "
@@ -492,7 +611,7 @@ LATE_DECLARED_GREEN = {
         "IS the healthy answer, so NO live axis can ever judge this target however the "
         "caller is shaped. Its coverage is `_population.selftest.mjs`, where a vacuous "
         "section is constructible on purpose — the same split `collapsed(n, floor)` has.",
-    ("tautology_gate.mjs", "export function combineFailed(failedSoFar, scope) {", "A:gate"):
+    ("tautology_gate.mjs", "{SIG:combineFailed}", "A:gate"):
         "a 2x2 truth table called three times with LITERAL fixtures, not once per member "
         "of a population. Only `combineFailed(false, {failed:true})` can distinguish the "
         "function from `failedSoFar`, and it is the FIRST case — so a late blind here "
@@ -556,7 +675,11 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
             ])
         na = 0
         for sig, empty in inst["targets"].items():
-            mutant = late(original, sig, empty)
+            anchor, sig_problem = resolve_target(inst["name"], original, sig)
+            if sig_problem:
+                problems.append(f"{inst['name']} [{axis}]: {sig_problem}")
+                continue
+            mutant = late(original, anchor, empty)
             if mutant is None:
                 problems.append(
                     f"{inst['name']} [{axis}]: SIGNATURE NOT FOUND {sig!r} for the late blind"
@@ -649,6 +772,99 @@ def _self_check(floor: int) -> list[str]:
             f"axis that found every 182 defect is the live one, and a roster that shrank takes "
             f"its instruments back to the self-test without changing a single printed line"
         )
+
+    # 🆕 195. THE THIRD FLOOR, PINNED THE SAME WAY AS THE TWO ABOVE AND FOR THE SAME
+    # REASON — `floor_pin_gate.py` exempts it BY NAME on the promise that this line
+    # exists, and an exemption whose reason is not true is 174 §5 in the file that keeps
+    # citing it. Asserting the VALUE would be circular; asserting the branch can still
+    # BITE is not.
+    if not SIG_RESOLVED_FLOOR > 0:
+        problems.append(
+            f"SIG_RESOLVED_FLOOR is {SIG_RESOLVED_FLOOR}, which cannot treat a roster where EVERY "
+            f"anchor went back to a literal signature as a collapse — and that roster passes every "
+            f"other line in this file, because a literal anchor resolves to itself and blinds "
+            f"exactly what it names. It is only wrong one parameter later"
+        )
+
+    # ── 🆕 195. `{SIG:}`'s OWN THREE BRANCHES, EACH FED AN INPUT IT MUST ANSWER ──────
+    #
+    # 🔴 EVERY ONE OF THESE IS EMPTY ON A HEALTHY TREE, WHICH IS WHY THEY ARE HERE AND
+    # NOT INLINE. 59 targets resolve, none is ambiguous, none is missing, and no literal
+    # survives — so `resolve_sig`'s two failure branches and every line of
+    # `literal_signature_problems` are unexecuted by the live run, and deleting any of
+    # them is invisible to it. That is control_gate's reasoning for lifting its three
+    # detectors out (188), arriving one file over: a branch that cannot be reached by the
+    # tree has to be reached by a fixture, or the sweep is entitled to declare it green.
+    ONE = "export function f(a, b = X) {\n  return 1;\n}\n"
+    TWO = "class K {\n  f(a) {\n    return 1;\n  }\n}\nexport function f(a) {\n  return 2;\n}\n"
+
+    anchor, problem = resolve_sig(ONE, "{SIG:f}")
+    if anchor != "export function f(a, b = X) {" or problem:
+        problems.append(
+            f"resolve_sig does not resolve a UNIQUE declaration: {anchor!r} / {problem!r}. "
+            f"Every target in this file is a placeholder, so a resolver that stopped "
+            f"resolving takes the whole sweep with it"
+        )
+    if not resolve_sig("export function g(a) {\n}\n", "{SIG:f}")[1]:
+        problems.append(
+            "resolve_sig accepts a name with NO declaration — the one thing the literal "
+            "anchors were keeping (removing the function is caught) would be gone, and "
+            "every target below would report on a mutation nobody made"
+        )
+    if not resolve_sig(TWO, "{SIG:f}")[1]:
+        problems.append(
+            "resolve_sig accepts an AMBIGUOUS name — it would pick one of two declarations "
+            "and blind the wrong member silently, which is exactly the case 193 §12.27 "
+            "refused to let a loosened anchor decide"
+        )
+    # 🔴 THE BRANCH WITH NO LIVE POPULATION AT ALL, AND IT GETS A FIXTURE FOR EXACTLY THAT
+    # REASON (179 §9's argument about floors, applied to an injector's reach). Every member
+    # in the roster sits at column 0 or at two spaces, so the refusal below is never
+    # executed by the tree — and a resolver that handed `blind()` an anchor it cannot find
+    # would report SIGNATURE NOT FOUND, which reads like a renamed function rather than
+    # like an injector that does not reach that far.
+    FOUR = "class K {\n    f(a) {\n      return 1;\n    }\n}\n"
+    if not resolve_sig(FOUR, "{SIG:f}")[1]:
+        problems.append(
+            "resolve_sig accepts a member `blind()` cannot reach — it looks for exactly two "
+            "spaces of indent, and an anchor resolved past that limit fails as a MISSING "
+            "signature, which is a different diagnosis from the true one"
+        )
+    if resolve_sig(ONE, "export function f(a, b = X) {") != ("export function f(a, b = X) {", ""):
+        problems.append(
+            "resolve_sig does not pass a LITERAL anchor through unchanged — an ambiguous "
+            "name has no other way to be anchored, and refusing the escape hatch would "
+            "force the loosened match this build exists to avoid"
+        )
+
+    lit, read = literal_signature_problems("fixture", ONE, ["export function f(a, b = X) {"])
+    if not lit:
+        problems.append(
+            "literal_signature_problems does NOT flag a literal that {SIG:} resolves to "
+            "exactly — the next author spells out a signature, the row works today, and "
+            "the re-point comes back one parameter later"
+        )
+    if read != 1:
+        problems.append(f"literal_signature_problems read {read} target(s) of 1 — the count is "
+                        f"what pins the audit, since its problem list is empty on a healthy tree")
+    if literal_signature_problems("fixture", ONE, ["{SIG:f}"])[0]:
+        problems.append("literal_signature_problems flags a target that already uses the placeholder")
+    if literal_signature_problems("fixture", TWO, ["export function f(a) {"])[0]:
+        problems.append(
+            "literal_signature_problems flags a literal whose name is AMBIGUOUS — that is "
+            "the one case where the literal is the only correct anchor, and refusing it "
+            "would leave no way to write the row at all"
+        )
+
+    for inst in INSTRUMENTS:
+        src = Path(inst["src"])
+        if not src.exists():
+            continue
+        lit, read = literal_signature_problems(inst["name"], src.read_text(), inst["targets"])
+        problems.extend(lit)
+        if read != len(inst["targets"]):
+            problems.append(f"{inst['name']}: the literal audit read {read} of "
+                            f"{len(inst['targets'])} target(s)")
     return problems
 
 
@@ -706,7 +922,12 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
 
         still_green: list[str] = []
         for sig, empty in targets.items():
-            mutant = blind(original, sig, empty)
+            anchor, sig_problem = resolve_target(inst["name"], original, sig)
+            if sig_problem:
+                problems.append(f"{inst['name']}: {sig_problem}")
+                print(f"   🔴 UNRESOLVED  {sig}")
+                continue
+            mutant = blind(original, anchor, empty)
             if mutant is None:
                 problems.append(
                     f"{inst['name']}: SIGNATURE NOT FOUND {sig!r} — this target has been silently skipped, "
@@ -788,6 +1009,20 @@ def main() -> int:
     # failure the axis exists to find, in the axis itself.
     print(f"INSTRUMENT_GATE_LATE_LIVE {len(LATE_LIVE)}/{LATE_LIVE_FLOOR}")
     print(f"INSTRUMENT_GATE_LATE_CONSTRUCTED {len(LATE_CONSTRUCTED)}/{LATE_CONSTRUCTED_FLOOR}")
+    # 🆕 195. THE THIRD POPULATION OF THIS HARNESS, AND IT IS A DIFFERENT COLLAPSE FROM
+    # BOTH ABOVE. `LATE_CONSTRUCTED` counts blinds that were BUILT; this counts anchors
+    # that were RESOLVED. An author replacing one placeholder with the literal it resolves
+    # to today changes no printed line and no verdict — the row simply goes back to being
+    # outrun by the next parameter, one row at a time, which is how the class arrived.
+    # `literal_signature_problems` refuses that edit and this number is what notices if
+    # the refusal stops being applied.
+    print(f"INSTRUMENT_GATE_SIG {len(SIG_RESOLVED)}/{SIG_RESOLVED_FLOOR}")
+    if len(SIG_RESOLVED) < SIG_RESOLVED_FLOOR:
+        problems.append(
+            f"INSTRUMENT_GATE resolved {len(SIG_RESOLVED)} `{{SIG:}}` anchor(s), floor is "
+            f"{SIG_RESOLVED_FLOOR} — targets have gone back to literal signatures, and a literal "
+            f"signature is an anchor with an expiry date nobody is told about"
+        )
     if len(LATE_CONSTRUCTED) < LATE_CONSTRUCTED_FLOOR:
         problems.append(
             f"INSTRUMENT_GATE_LATE built {len(LATE_CONSTRUCTED)} late blind(s), floor is "
