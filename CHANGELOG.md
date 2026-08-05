@@ -6,6 +6,51 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the calls nobody had counted, and the branch that never fired alone
+
+202 closed `U2` in `floor_pin_gate.py` — a predicate proved by a fixture is not a predicate
+proved to be **called**, and on a green tree no mutation of the *input* can tell those apart,
+because a predicate that finds nothing reads exactly like a predicate nobody asked. It named
+the mechanism as portable to the other three gates, priced it at "about thirty lines each",
+and left the population **unmeasured**.
+
+🔴 **MEASURED FIRST (200 §33). SEVEN unproved predicate calls across the three gates** —
+`control_gate.py` 2, `scope_gate.py` 1, `instrument_gate.py` 4 — and two more predicates
+reachable only through a `_self_check`. Not a guess, and not the same number in each gate.
+
+🔴 **THE FOUR IN `instrument_gate.py` ARE TAKEN HERE, AND THE CASE IS HARDER THAN THE ONE
+202 SOLVED.** `crash_problems` has **three** call sites. `floor_pin_gate.py`'s two
+`reason_problems` sites were told apart by a `label` argument that exists for the purpose;
+these three differ only by **which table they are handed**, so the stub is keyed on the
+identity of its first argument. That makes the check strictly sharper than the one it was
+ported from: a call site passing `LATE_CRASHED_A` where `LATE_CRASHED_B` was meant — the two
+rosters and two ceilings 194 §33 insisted stay separate — lands its sentinel under the wrong
+key and reddens. No label could have caught that.
+
+🔴 **THE STAGE IS AN ARGUMENT AND NOT A COMMENT.** This gate has two axes, and the second
+axis's tables do not exist when the first axis reports. A single seam over both would read
+`CRASHED` before the sweep that fills it and quietly report zero — the failure the axis
+exists to find, in the axis itself. `collect_problems(stage)` splits them, and an unknown
+stage raises rather than returning `{}`, because a whole axis switched off by a typo is
+172 §10.21 with a string for a disguise.
+
+Every `problems.extend` stayed exactly where it was. This changes where the lists come from,
+not what is printed or in what order — 202 §8's rule, which is why `INSTRUMENT_GATE`'s
+`SIG 59/55`, `LATE_CONSTRUCTED 89/65`, `CRASHED 0/0` and `BLAST_TOTAL 990` did not move.
+
+🔴 **AND THE SWEEP FOUND A BRANCH OF ITS OWN CHECK THAT HAD NEVER FIRED ALONE.** `I2` swaps
+two predicates onto each other's keys and trips *both* halves of the check at once, so the
+leak half had never been observed in isolation — a check that has never refused on its own
+has not been audited (203 §9.1, turned on the check written to answer it). `I7` feeds **one**
+predicate to **two** keys, which leaves the "no longer reaches" half satisfied and can only
+be caught by the leak half. It reddens.
+
+```
+mutate203.py   EXPECT_DISCRIMINATES 7/7 · pass=7 red=6 declared-green=1 · agreeing 7/7
+               I6 declared: _self_check no longer READS _call_wiring_problems() — the
+               residue no in-process probe can see, because the probe IS the bypass
+```
+
 ## [1.72.6] — 2026-08-05
 
 ### Fixed — the call, the shrink, and the number one file over

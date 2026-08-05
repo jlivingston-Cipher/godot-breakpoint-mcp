@@ -954,6 +954,10 @@ def scope_collapsed(n_instruments: int, floor: int) -> bool:
 def _self_check(floor: int) -> list[str]:
     """Run before the sweep. A harness whose own collapse detector is off is not a harness."""
     problems = []
+    # 🆕 203 §4 — THE CALL WIRING, FIRST. Every fixture below proves a predicate WORKS;
+    # none of them proves this gate still CALLS it, and on a green tree no input can tell
+    # those apart (202 §4). Defined after this function, so the lookup is deferred.
+    problems.extend(_call_wiring_problems())
     if not scope_collapsed(0, floor):
         problems.append(
             f"INSTRUMENT_GATE's own floor is {floor}, which does not treat an EMPTY instrument "
@@ -1497,6 +1501,106 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
         src.write_text(original)
 
 
+CALL_SENTINEL = "🔴 INSTRUMENT_CALL_WIRING sentinel — a patched predicate reached the report"
+
+
+def collect_problems(stage: str) -> dict[str, list[str]]:
+    """🔴 202 §9.4 — THE ONE INVOCATION POINT, SO THE CALLS CAN BE PATCHED.
+
+    202 closed `U2` in `floor_pin_gate.py`: a predicate proved by a fixture is NOT a
+    predicate proved to be CALLED, and on a green tree no mutation of the INPUT can tell
+    the two apart. The mechanism was named as portable and the population left unmeasured.
+    `measure203.py` measured it: SEVEN unproved predicate calls across the other three
+    gates, FOUR of them here.
+
+    🔴 THE STAGE IS AN ARGUMENT AND NOT A COMMENT. This gate has two axes and the second
+    axis's tables do not exist when the first axis reports — a single seam over both would
+    read `CRASHED` before the sweep that fills it and quietly report zero. Splitting by
+    stage keeps every `problems.extend` exactly where it was, which is 202 §8's rule: this
+    changes where the lists come from, not what is printed or in what order."""
+    if stage == "late":
+        return {
+            "not_loaded":   not_loaded_problems(LATE_NOT_LOADED, LATE_NOT_LOADED_CEILING),
+            "late_roster":  late_marker_roster_problems(LATE_LIVE, LATE_VERDICT_MARKER),
+            "crash_late_a": crash_problems(LATE_CRASHED_A, CRASH_DECLARED, LATE_CRASH_CEILING_A),
+            "crash_late_b": crash_problems(LATE_CRASHED_B, LATE_CRASH_DECLARED_B,
+                                           LATE_CRASH_CEILING_B),
+        }
+    if stage == "final":
+        return {
+            "crash":  crash_problems(CRASHED, CRASH_DECLARED, CRASH_CEILING),
+            "roster": marker_roster_problems(INSTRUMENTS, VERDICT_MARKER),
+        }
+    raise AssertionError(
+        f"collect_problems: unknown stage {stage!r}. A stage nobody defined returns no "
+        f"problems, which is a whole axis switched off by a typo — 172 §10.21's shape "
+        f"with a string for a disguise")
+
+
+def _call_wiring_problems() -> list[str]:
+    """🔴 PROVE THE CALL, NOT THE LOGIC. 202 §9.4 ported, and it is HARDER here.
+
+    Each predicate is swapped for a stub returning the sentinel, and `collect_problems()`
+    must surface that sentinel under the key that predicate feeds. The stub needs no
+    population, which is why an empty table stops being a reason a call site cannot be
+    observed — the whole of 201's `U2`.
+
+    🔴 `crash_problems` HAS THREE CALL SITES AND `floor_pin_gate.py` HAD NO SUCH CASE.
+    There its two `reason_problems` sites were told apart by a `label` argument that
+    exists for the purpose. Here the three sites differ only by WHICH TABLE they are
+    handed, so the stub is keyed on the identity of its first argument. That makes the
+    check strictly sharper: a call site passing the wrong table — `LATE_CRASHED_A` where
+    `LATE_CRASHED_B` was meant, the two ceilings 194 §33 insisted stay separate — lands
+    its sentinel under the wrong key and reddens, which no label could have caught."""
+    g = globals()
+    bad: list[str] = []
+
+    SIMPLE = [
+        ("late",  "not_loaded",  "not_loaded_problems"),
+        ("late",  "late_roster", "late_marker_roster_problems"),
+        ("final", "roster",      "marker_roster_problems"),
+    ]
+    for stage, key, fname in SIMPLE:
+        real = g[fname]
+        g[fname] = lambda *a, **k: [CALL_SENTINEL]
+        try:
+            got = collect_problems(stage)
+        finally:
+            g[fname] = real
+        if CALL_SENTINEL not in got.get(key, []):
+            bad.append(f"_call_wiring: {fname}() no longer reaches the report under {key!r} "
+                       f"in stage {stage!r} — the predicate is intact and NOTHING CALLS IT. "
+                       f"The fixture proves the function; this proves the gate still runs it")
+        leaked = [k for k, v in got.items() if k != key and CALL_SENTINEL in v]
+        if leaked:
+            bad.append(f"_call_wiring: {fname}()'s result arrived under {leaked} as well as "
+                       f"{key!r} — a predicate feeding a key its reason is not about is "
+                       f"199 §35, and the key is part of the claim")
+
+    # 🔴 THE THREE `crash_problems` CALL SITES, TOLD APART BY THE TABLE THEY ARE HANDED.
+    TABLE_KEY = {id(LATE_CRASHED_A): "crash_late_a", id(LATE_CRASHED_B): "crash_late_b",
+                 id(CRASHED): "crash"}
+    real = g["crash_problems"]
+    g["crash_problems"] = lambda crashes, *a, **k: [
+        f"{CALL_SENTINEL} [{TABLE_KEY.get(id(crashes), 'UNKNOWN TABLE')}]"]
+    try:
+        got = {**collect_problems("late"), **collect_problems("final")}
+    finally:
+        g["crash_problems"] = real
+    for key in ("crash_late_a", "crash_late_b", "crash"):
+        if f"{CALL_SENTINEL} [{key}]" not in got.get(key, []):
+            bad.append(f"_call_wiring: crash_problems() is no longer called with the table "
+                       f"{key!r} names. Either the call is gone, or it is being handed a "
+                       f"DIFFERENT table than the one its ceiling defends — and 194 §33 "
+                       f"split these into two rosters and two ceilings precisely so that "
+                       f"one half could not grow while the other shrank in silence")
+    if any("UNKNOWN TABLE" in p for v in got.values() for p in v):
+        bad.append("_call_wiring: crash_problems() was handed a table this check cannot "
+                   "name. A fourth call site was added and TABLE_KEY was not — the roster "
+                   "of call sites is part of the claim, exactly like the roster of keys")
+    return bad
+
+
 def main() -> int:
     problems: list[str] = []
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
@@ -1560,16 +1664,17 @@ def main() -> int:
     # ── 🆕 198 §3 — WHAT THE LATE AXIS'S RUNNER NOW HAS IN HAND AND USED TO DISCARD ──
     print(f"INSTRUMENT_GATE_LATE_NOT_LOADED {len(LATE_NOT_LOADED)}/{LATE_NOT_LOADED_CEILING}"
           f" mutant(s) produced no {LATE_MARK} line at all")
-    problems.extend(not_loaded_problems(LATE_NOT_LOADED, LATE_NOT_LOADED_CEILING))
-    problems.extend(late_marker_roster_problems(LATE_LIVE, LATE_VERDICT_MARKER))
+    _late = collect_problems("late")
+    problems.extend(_late["not_loaded"])
+    problems.extend(_late["late_roster"])
     # 🔴 TWO ROSTERS AND TWO CEILINGS, NOT ONE SUM (194 §33). `A:gate`'s nine are fixed by
     # editing the SELF-TESTS; `B:live`'s three are fixed by editing the caller-shape
     # harness. One number would let either half grow while the other shrank.
     print(f"INSTRUMENT_GATE_LATE_CRASHED [A:gate] {len(LATE_CRASHED_A)}/{LATE_CRASH_CEILING_A}"
           f" · [B:live] {len(LATE_CRASHED_B)}/{LATE_CRASH_CEILING_B} — red WITHOUT the gate "
           f"reaching its own verdict")
-    problems.extend(crash_problems(LATE_CRASHED_A, CRASH_DECLARED, LATE_CRASH_CEILING_A))
-    problems.extend(crash_problems(LATE_CRASHED_B, LATE_CRASH_DECLARED_B, LATE_CRASH_CEILING_B))
+    problems.extend(_late["crash_late_a"])
+    problems.extend(_late["crash_late_b"])
     # 🔴 THE BLAST, PER INSTRUMENT AND PER AXIS, NEVER SUMMED (172 §6). `A:gate` is floored;
     # `B:live` is printed and explicitly NOT floored — see LATE_BLAST_FLOOR for why, and
     # note that saying so is the point: an uncompared number that does not admit it is one
@@ -1637,8 +1742,9 @@ def main() -> int:
     print(f"INSTRUMENT_GATE_CRASHED {len(CRASHED)}/{CRASH_CEILING} blind(s) went red WITHOUT "
           f"their gate reaching its own\n"
           f"                        verdict — a CEILING, and every one declared with its reason")
-    problems.extend(crash_problems(CRASHED, CRASH_DECLARED, CRASH_CEILING))
-    problems.extend(marker_roster_problems(INSTRUMENTS, VERDICT_MARKER))
+    _final = collect_problems("final")
+    problems.extend(_final["crash"])
+    problems.extend(_final["roster"])
 
     if problems:
         print("")
