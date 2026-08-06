@@ -6,6 +6,45 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the rival's number, reproduced, and the projection that could not see itself
+
+206 §7.1 refused to let any claim quote the rival's published figure until it had been
+re-derived here. It has been. `regiellis/godot-mcp-go` v0.7.2 built, driven through
+`token-cost.mjs`, measured by the same `measure()` that governs this repo:
+
+```
+theirs, published    319 tools   ~202 KB     ~50,000 tokens (their 4 B/token)
+theirs, REPRODUCED   319 tools  202,327 B    ~51,000 tokens (their 4 B/token)
+```
+
+🟢 **IT REPRODUCES, AND TO THE BYTE.** All ten of their published per-group figures land,
+nine exactly; their two project-local commands are in the count; and the single-tool row
+they publish at "~1.9 KB / ~470 tokens" measures 1,891 B with no apparatus at all. The
+method they published — `initialize`, then `tools/list`, bytes of the payload — is this
+file's method. **The comparison is now honest in both directions.**
+
+🔴 **AND IT REFUTED WHAT 206 READ OUT OF IT.** 206 named input schemas as the real finding —
+38% of our surface, the heaviest component. Decomposed against a server whose schemas are
+70% of *its* surface: ours are **151,295 B against their 138,033 — nine percent apart, on
+twenty-eight FEWER tools.** The gap is four keys they do not ship at all — `outputSchema`,
+`annotations`, `execution`, `title` — **151,210 B, 38% of our surface and 79% of the entire
+gap.** `outputSchema` alone is a quarter of everything we send.
+
+🔴 **206's OWN `measure()` COULD NOT SEE ONE BYTE OF THEM.** It decomposed a tool into
+`name`, `description` and `inputSchema`, and the printer presented those three as the
+breakdown; on the real surface they are 60.9% of it. The other 39.1% was reported nowhere.
+`measure()` now walks **every key a tool actually carries**, with a structural frame as the
+only remainder by construction — so a field nobody named can no longer hide in the
+difference.
+
+Also: `SCHEMA_PER_TOOL_CEILING`, a third governed constant on the one component two servers
+can honestly be compared on (`BYTES_CEILING` moves whenever an optional key is added or
+dropped; this does not), and `token-cost.mjs --server <cmd> [args...]`, which drives **any**
+stdio MCP server through the same core. 🔴 **Our floors are NOT applied to a foreign
+surface** — a budget written for this repo has no jurisdiction over anyone else's, and a
+gate that reddens on a rival's choices is a gate nobody can act on. A dead, unreferenced
+copy of the self-test's first section was deleted from `token-cost.selftest.mjs`.
+
 ### Added — the cost nobody had measured, and it goes the wrong way
 
 `host/scripts/token-cost.mjs` + its self-test. 205 §8.6 said to measure the tool surface's
