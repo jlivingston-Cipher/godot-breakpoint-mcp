@@ -146,12 +146,15 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # check the REASON and to run the floor's own rows under the LIVE constant. 180
     # §7.3's shape, found by the gate built for it rather than by reading.
     ("TAG_FLOOR",                "../scripts/registry_lag.py",             r"(TAG_FLOOR = )100",                                        ["../scripts/registry_lag.py", "--selftest"]),
-    # 🆕 206 §4 — THE TOOL-SURFACE BUDGET. `BYTES_CEILING` is a ceiling that is ALREADY
-    # too high: the surface measures ~1,354 B/tool against a rival's published ~648, so
-    # it is here to stop drift while the surface is paid down rather than to bless the
-    # current size. `TOOL_FLOOR` is the usual collapse guard — a reader listing zero
-    # tools would otherwise report a wonderfully small surface and pass.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )410000;",                  [f"{S}/token-cost.selftest.mjs"]),
+    # 🆕 206 §4, LOWERED 208 — THE TOOL-SURFACE BUDGET. `BYTES_CEILING` is a ceiling that
+    # is ALREADY too high: the surface measures ~1,210 B/tool against a rival's measured
+    # ~634, so it is here to stop drift while the surface is paid down rather than to
+    # bless the current size. 🔴 208 LOWERED IT WITHOUT TRIMMING ANYTHING — two fields the
+    # SDK emits and nobody here authored left the wire, so the ceiling followed the
+    # surface down rather than the other way round. `TOOL_FLOOR` is the usual collapse
+    # guard — a reader listing zero tools would otherwise report a wonderfully small
+    # surface and pass.
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )366000;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPETITIVE CLAIM MAY HONESTLY QUOTE. The rival's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
@@ -159,8 +162,11 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # of it: our input schemas are within 9% of theirs on 28 FEWER tools, while four
     # optional keys they do not ship at all are 38% of our surface. `BYTES_CEILING`
     # moves when one of those four is added or dropped; this one does not, which is why
-    # the honest number needs its own floor.
-    ("SCHEMA_PER_TOOL_CEILING", f"{S}/token-cost.mjs",              r"(export const SCHEMA_PER_TOOL_CEILING = )545;",            [f"{S}/token-cost.selftest.mjs"]),
+    # the honest number needs its own floor. 🔴 208 PRICED THOSE FOUR AND THE ANSWER MOVED
+    # THIS ONE TOO: the input schema was carrying a dialect declaration nobody authored,
+    # so the quotable number fell 520 -> 468 B/tool against their 433 — the gap this
+    # governs is 1.08x where 207 measured 1.20x.
+    ("SCHEMA_PER_TOOL_CEILING", f"{S}/token-cost.mjs",              r"(export const SCHEMA_PER_TOOL_CEILING = )490;",            [f"{S}/token-cost.selftest.mjs"]),
     ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
     # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one

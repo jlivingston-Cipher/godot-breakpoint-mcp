@@ -6,6 +6,59 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — two fields nobody here wrote, deleted from the wire
+
+207 §7.1 asked what four optional MCP keys are worth and said to measure what a client
+actually does with each before proposing anything. Measured. Two of the four turned out
+not to be ours at all — the SDK emits them — and both say only what the protocol already
+says.
+
+🔴 **THE DIALECT DECLARATION, AND IT IS NOT A TRIM.** Every input and output schema shipped
+`"$schema": "http://json-schema.org/draft-07/schema#"`. Nobody in this repo writes it: the
+SDK converts our Zod through `zod-to-json-schema`, which defaults to draft-07 and takes no
+target on the Zod-v3 path. MCP fixes the DEFAULT dialect at 2020-12, obliges every
+implementation to support it, and treats a `$schema` field as an explicit switch to a
+dialect a peer **MUST reject gracefully if it does not support**. Measured against Ajv's
+2020-12 validator:
+
+```
+as shipped        580 of 580 schemas FAIL to compile
+declaration gone  580 of 580 compile · 0 semantic disagreements over 2,320 probes
+```
+
+The 30,160 B is the smaller half. The larger half is that this is the documented cause of
+a class of client breakage (`typescript-sdk#745`, and the Anthropic Messages API rejecting
+non-2020-12 tool schemas outright).
+
+**And `execution: {taskSupport:"forbidden"}` on the 288 non-task tools** — also SDK-
+hardcoded, also the spec's own value for an ABSENT field, in a field revision 2026-07-28
+deletes from `Tool` entirely. The three real task tools keep `"optional"`.
+
+```
+393,887 B -> 352,207 B   (-41,680, -10.6%)   input schemas 520 -> 468 B/tool
+```
+
+🔴 **THE STRIP IS FAIL-SAFE BY CONSTRUCTION.** Dropping `$schema` preserves meaning only
+while a schema stays inside the draft-07 ∩ 2020-12 intersection, so `dialectSensitive()`
+walks for the keywords where the dialects disagree and **keeps** the declaration if it
+finds one. It also distinguishes a keyword from a property NAMED like one — the first pass
+read `scene_get_dependencies`'s own output field as the `dependencies` keyword and would
+have declined to strip anything, a silent no-op wearing a fail-safe's face.
+
+`BYTES_CEILING` 410000 → 366000 and `SCHEMA_PER_TOOL_CEILING` 545 → 490 follow the surface
+down. Two new checks in `token-cost.mjs` refuse on any dialect declaration or any
+spec-default `taskSupport` reaching the wire — 🔴 **and neither has a constant behind it,
+deliberately: a ceiling is a budget you may spend, these are invariants you may not, and a
+knob for "how many schemas may declare a foreign dialect" would invite turning it up on the
+afternoon somebody wanted the build green.**
+
+🟡 **The other two keys were priced and KEPT.** `outputSchema` (101,374 B) is the only one
+of the four with a normative obligation on both sides — servers MUST conform, clients
+SHOULD validate — and both SDKs' clients throw on a mismatch. `title` (8,915 B) is the
+only one whose loss a person sees. `annotations` (30,446 B) stays whole: VS Code acts on
+`readOnlyHint` and `openWorldHint`, and that `destructiveHint`/`idempotentHint` have no
+reader today is a fact about August 2026, not about the fields.
+
 ### Changed — the rival's number, reproduced, and the projection that could not see itself
 
 206 §7.1 refused to let any claim quote the rival's published figure until it had been
