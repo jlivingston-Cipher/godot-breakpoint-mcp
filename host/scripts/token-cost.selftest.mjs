@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // The refusal proof for `token-cost.mjs`'s three governed constants — 206 §4, 207 §7.1.
 //
+// 🆕 208 added WIRE_DIALECT and WIRE_TASK_DEFAULT, which are the first two checks here
+// with NO constant behind them — floor_pin_gate cannot move a floor that is not a number,
+// so for those two this table is not a second opinion, it is the only one.
+//
 // 🔴 A SEPARATE FILE FOR `path-cohort.mjs`'s REASON. The instrument PRINTS; a printer has
 // no claim sites the tautology classifier can read, and exempting it while leaving its
 // constants unasserted would be an exemption that buys silence. This is where the claims
@@ -9,7 +13,7 @@
 //
 // 🔴 THE ROWS DRIVE THE PURE CORE, so the proof needs no server, no dist/ and no network.
 // That is the half 204 §8.27 is about — a check that has never refused has not been
-// audited. Five of the eight rows REFUSE.
+// audited. Eight of the twelve rows REFUSE.
 //
 // 🔴 207 DELETED A DEAD COPY OF SECTION 1 FROM THIS FILE. An unreferenced `function
 // selftest()` sat above the live proof, running nothing, printing nothing, and asserting
@@ -68,6 +72,24 @@ const SELFTEST = [
     mkSchemaTools(291, SCHEMA_PER_TOOL_CEILING), true, ""],
   ["🔴 one byte per tool over the schema ceiling — THE EDGE",
     mkSchemaTools(291, SCHEMA_PER_TOOL_CEILING + 1), false, "SCHEMA_PER_TOOL_CEILING"],
+  // 🆕 208 — THE TWO INVARIANTS, WHICH HAVE NO CONSTANT TO MOVE. floor_pin_gate proves a
+  // NUMBER can fire by moving it; nothing here is a number, so these rows are the only
+  // proof either check has ever refused, and they are the whole of 204 §8.27 for them.
+  ["🔴 ONE schema declaring its own dialect — THE DIALECT REFUSAL",
+    [{ name: "a_one", description: "d",
+       inputSchema: { $schema: "http://json-schema.org/draft-07/schema#", type: "object" } },
+     ...mkTools(TOOL_FLOOR, 10)], false, "WIRE_DIALECT"],
+  ["🔴 the declaration on the OUTPUT schema alone is still a declaration",
+    [{ name: "a_one", description: "d", inputSchema: { type: "object" },
+       outputSchema: { $schema: "http://json-schema.org/draft-07/schema#", type: "object" } },
+     ...mkTools(TOOL_FLOOR, 10)], false, "WIRE_DIALECT"],
+  ["🔴 ONE tool restating the spec's own taskSupport default — THE TASK REFUSAL",
+    [{ name: "a_one", description: "d", inputSchema: { type: "object" },
+       execution: { taskSupport: "forbidden" } }, ...mkTools(TOOL_FLOOR, 10)],
+    false, "WIRE_TASK_DEFAULT"],
+  ["a genuine taskSupport 'optional' is NOT the default and stays legal",
+    [{ name: "a_one", description: "d", inputSchema: { type: "object" },
+       execution: { taskSupport: "optional" } }, ...mkTools(TOOL_FLOOR, 10)], true, ""],
 ];
 
 // ── 1. THE FLOORS, DRIVEN OVER A TABLE THAT MUST CONTAIN REFUSALS ────────────────────
@@ -106,8 +128,8 @@ assert.ok(Number.isInteger(SCHEMA_PER_TOOL_CEILING) && SCHEMA_PER_TOOL_CEILING >
 const refusals = SELFTEST.filter((r) => !r[2]).length;
 console.log(`\n  ${SELFTEST.length} rows · ${refusals} REFUSE · `
   + `${bad ? `\u{1F534} ${bad} DISAGREE` : "\u{1F7E2} all agree"}`);
-assert.ok(refusals >= 3,
-  "fewer than three refusing rows — this table has stopped proving either constant can fire");
+assert.ok(refusals >= 6,
+  "fewer than six refusing rows — this table has stopped proving the floors can fire");
 
 // ── 4. THE DECOMPOSITION MUST LEAVE NOTHING UNNAMED — 207's FIX, ASSERTED ────────────
 // 🔴 THIS IS THE DEFECT 206 SHIPPED, WRITTEN DOWN AS A PROOF. `measure()` reported
@@ -138,6 +160,25 @@ assert.ok(three < mx.total,
   "name+description+inputSchema must not be presentable as the whole surface");
 console.log(`  🟢 per-key decomposition names ${mx.keys.length} keys · `
   + `frame ${mx.frame} B · the three named slices are ${((three / mx.total) * 100).toFixed(1)}% of it`);
+
+// ── 4b. THE TWO COUNTS ARE DERIVED FROM THE TOOLS, NOT ASSUMED ZERO ──────────────────
+// 🔴 SECTION 1 PROVES verdict() FIRES ON A NON-ZERO COUNT. It cannot prove measure()
+// ever PRODUCES one from a real shape — a counter wired to a typo reports zero forever
+// and every row above still passes, because they all pass their own literals through the
+// same broken walk. These two assert the walk finds what is actually there.
+const dirty = measure([
+  { name: "a_one", description: "d",
+    inputSchema: { $schema: "http://json-schema.org/draft-07/schema#", type: "object" },
+    execution: { taskSupport: "forbidden" } },
+  { name: "b_two", description: "d", inputSchema: { type: "object" },
+    execution: { taskSupport: "optional" } },
+]);
+assert.equal(dirty.dialects, 1, "measure() must count the schema that declares a dialect");
+assert.equal(dirty.taskDefault, 1, "measure() must count only the spec-default taskSupport");
+const clean = measure(mkTools(4, 10));
+assert.equal(clean.dialects, 0, "a surface with no declarations must count none");
+assert.equal(clean.taskDefault, 0, "a surface with no execution key must count none");
+console.log(`  🟢 wire counts derived from the tools · dirty ${dirty.dialects}/${dirty.taskDefault} · clean 0/0`);
 
 // ── 5. THE PER-TOOL SCHEMA NUMBER IS DERIVED, NOT STORED ─────────────────────────────
 // 🔴 A ceiling compared against a field that no longer tracks its source is 199 §34's

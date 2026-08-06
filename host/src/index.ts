@@ -11,6 +11,7 @@ import { StdioChannel } from "./stdio.js";
 import { DapClient } from "./dap.js";
 import { buildToolsets } from "./toolsets.js";
 import { registerRecipes } from "./recipes.js";
+import { applyWireDefaults } from "./wire-defaults.js";
 import { applyOutputSchemas } from "./schemas.js";
 import { applyAnnotations } from "./annotations.js";
 import { applyTimeoutCaveat } from "./timeout-caveat.js";
@@ -87,6 +88,16 @@ async function main(): Promise<void> {
     { name: "breakpoint-mcp", version: "1.72.8" },
     { capabilities: { ...TASK_CAPABILITIES, ...RESOURCE_CAPABILITIES }, taskStore },
   );
+
+  // 208 §7.1 — delete from the wire what the protocol already says: the SDK's
+  // draft-07 `$schema` inside every input/output schema (MCP's default dialect is
+  // 2020-12, and declaring another is an explicit switch a peer may reject), and
+  // `execution: {taskSupport:"forbidden"}` on the 288 non-task tools (the spec's own
+  // value for an ABSENT field, in a field revision 2026-07-28 deletes outright).
+  // Neither is authored here; both are SDK output. 🔴 FIRST of the apply* family and
+  // not merely early: McpServer installs its tools/list handler from inside the FIRST
+  // registerTool, so a wrapper added after any registration wraps nothing.
+  applyWireDefaults(server);
 
   // B1: enforce frozen output schemas on every structured tool. Must run before
   // any register*Tools call — it wraps server.registerTool.

@@ -82,7 +82,12 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // 🔴 NO NUMERIC SEPARATOR. `410_000` is invisible to floor_pin_gate's ledger scan,
 // which reads a plain integer — and an unreadable constant reports as a DELETED one,
 // the half that error message calls the more dangerous.
-export const BYTES_CEILING = 410000;
+// 🆕 208 — LOWERED FROM 410000, AND THE NOTE THIS COMMENT DEMANDS: nothing was trimmed.
+// Two fields the SDK emits and nobody here authored were deleted from the wire — the
+// draft-07 `$schema` inside every schema (30,160 B) and `taskSupport:"forbidden"` on the
+// 288 non-task tools (11,520 B). 393,887 -> 352,207 B. The headroom is the same ~4% the
+// old ceiling carried, measured against the new floor rather than inherited from it.
+export const BYTES_CEILING = 366000;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN
@@ -93,7 +98,10 @@ export const TOOL_FLOOR = 250;
 // aggregate. Measured 207 at five hundred and twenty bytes per tool against their four
 // hundred and thirty-three; the headroom is small ON PURPOSE, because this is the
 // number a claim would quote.
-export const SCHEMA_PER_TOOL_CEILING = 545;
+// 🆕 208 — 545 -> 490. The input schema shed its 52 B/tool dialect declaration, so the
+// number a claim would quote fell 520 -> 468 against their 433. 🔴 THE RATIO THIS GOVERNS
+// IS NOW 1.08x AND IT WAS 1.20x, which sharpens rather than softens 207 §4's finding.
+export const SCHEMA_PER_TOOL_CEILING = 490;
 
 // Measured once, tokenizer named, used ONLY for a human-readable estimate. Not governed.
 const BYTES_PER_TOKEN = 3.6;
@@ -137,6 +145,13 @@ export function measure(tools) {
   }
   const keyed = [...keys.values()].reduce((s, e) => s + e.b, 0);
   const schemas = bytes(tools.map((t) => t.inputSchema ?? {}));
+  // 🆕 208 — TWO COUNTS THAT SHOULD BE ZERO, and they are counts rather than budgets.
+  // A dialect declaration and a spec-default `taskSupport` are not expensive-but-earned
+  // bytes; they are bytes saying what the protocol already says. Measured here so the
+  // floors below can refuse on them, and reported for a foreign surface without judging.
+  const dialects = tools.filter(
+    (t) => t.inputSchema?.$schema !== undefined || t.outputSchema?.$schema !== undefined).length;
+  const taskDefault = tools.filter((t) => t.execution?.taskSupport === "forbidden").length;
   return {
     count: tools.length,
     total,
@@ -145,6 +160,8 @@ export function measure(tools) {
     schemas,
     schemaPerTool: tools.length ? Math.round(schemas / tools.length) : 0,
     perTool: tools.length ? Math.round(total / tools.length) : 0,
+    dialects,
+    taskDefault,
     families: [...fams.entries()].sort((a, b) => b[1].b - a[1].b),
     keys: [...keys.entries()].sort((a, b) => b[1].b - a[1].b),
     frame: total - keyed,
@@ -174,6 +191,32 @@ export function verdict(m) {
         `both servers carry — the four optional keys we ship and they do not are 38% of ` +
         `our surface and move the aggregate without moving this. Drift here is drift in ` +
         `the number a claim would quote.`);
+  // 🆕 208 — 🔴 NO CONSTANT FOR EITHER OF THESE, AND THE ABSENCE IS THE POINT. A ceiling
+  // is a budget you may spend; these two are invariants you may not. Giving a knob to
+  // "how many schemas may declare a foreign dialect" would invite turning it up on the
+  // afternoon somebody wanted the build green, and the value of the check is that there
+  // is no such afternoon.
+  if (m.count > 0 && m.dialects > 0)
+    problems.push(
+      `WIRE_DIALECT: ${m.dialects} of ${m.count} tool(s) ship a schema declaring its own ` +
+        `JSON Schema dialect. MCP fixes the default at 2020-12 and requires every ` +
+        `implementation to support it; a \`$schema\` field is an EXPLICIT SWITCH to a ` +
+        `dialect a peer is not obliged to support and MUST reject gracefully if it does ` +
+        `not. Measured 208: all 580 of our schemas failed to compile under a strict ` +
+        `2020-12 validator while the declaration was present, and all 580 compiled with ` +
+        `it removed, with ZERO semantic disagreement over 2,320 probes. If this fired, ` +
+        `either \`applyWireDefaults\` stopped running or a schema now genuinely needs ` +
+        `draft-07 — \`dialectSensitive()\` keeps the declaration in that second case, so ` +
+        `read the schema before reaching for this check.`);
+  if (m.count > 0 && m.taskDefault > 0)
+    problems.push(
+      `WIRE_TASK_DEFAULT: ${m.taskDefault} of ${m.count} tool(s) ship ` +
+        `\`execution:{taskSupport:"forbidden"}\` — the value the spec defines for an ` +
+        `ABSENT field ("clients MUST NOT attempt to invoke the tool as a task... This is ` +
+        `the default behavior"), in a field revision 2026-07-28 deletes from \`Tool\` ` +
+        `outright. Nobody here writes it; \`McpServer.registerTool\` hardcodes it. ` +
+        `\`applyWireDefaults\` removes it and leaves the three genuine "optional" tools ` +
+        `alone, so a non-zero count means that wrapper is no longer reaching the listing.`);
   return { ok: problems.length === 0, problems };
 }
 
@@ -287,7 +330,8 @@ if (!args.has("--summary")) {
 const v = verdict(all);
 console.log(`TOKEN_COST floors  tools ${all.count} >= ${TOOL_FLOOR} · `
   + `bytes ${all.total.toLocaleString()} <= ${BYTES_CEILING.toLocaleString()} · `
-  + `schema/tool ${all.schemaPerTool.toLocaleString()} <= ${SCHEMA_PER_TOOL_CEILING.toLocaleString()}`);
+  + `schema/tool ${all.schemaPerTool.toLocaleString()} <= ${SCHEMA_PER_TOOL_CEILING.toLocaleString()} · `
+  + `dialect declarations ${all.dialects} · spec-default taskSupport ${all.taskDefault}`);
 if (!v.ok) {
   for (const p of v.problems) console.error(`\n🔴 TOKEN_COST REFUSED — ${p}`);
   process.exit(1);
