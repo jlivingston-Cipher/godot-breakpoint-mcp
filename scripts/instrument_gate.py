@@ -75,12 +75,52 @@ SIG_RE = re.compile(r"^\{SIG:(?P<name>[A-Za-z_$][\w$]*)\}$")
 
 
 def _decl_re(name: str) -> re.Pattern:
-    """A DECLARATION of `name`, not a call: it must open a block at end of line."""
+    """A DECLARATION of `name` WHOSE BODY IS A BLOCK: it must open one at end of line.
+
+    🆕 212 §4 — AND AN ARROW CONST IS A DECLARATION. This pattern matched `function` forms
+    only, so `export const surface = (tools) => {` was unanchorable and every arrow-const
+    member of every instrument sat outside the sweep with nothing saying so.
+
+    🔴 MEASURED BEFORE THE WIDENING, NOT AFTER (`probe212_decl.py`): all 65 shipped
+    placeholder targets re-resolve IDENTICALLY under the pattern below — 0 changed, 0
+    newly ambiguous, and 0 literal anchors that `literal_signature_problems` would newly
+    report. It admits 36 members across 6 instruments. A widening that moved even one
+    existing resolution would have been a re-point disguised as a coverage increase.
+
+    🔴 THE `=> {` IS REQUIRED FOR THE SAME REASON THE `function` ARM REQUIRES `{`, and it
+    is the whole reason 211 §6.5's premise did not survive measurement: `blind()` injects
+    a STATEMENT, and a member with no block has nowhere to put one. Concise-body arrows
+    are `_concise_re` below, and they needed a second injector rather than a wider anchor.
+    """
+    n = re.escape(name)
     return re.compile(
-        r"^(?P<indent>[ \t]*)"
+        r"^(?P<indent>[ \t]*)(?:"
         r"(?:export[ \t]+)?(?:async[ \t]+)?(?:static[ \t]+)?(?:function[ \t]+)?"
-        r"(?:get[ \t]+|set[ \t]+)?"
-        + re.escape(name) + r"[ \t]*\(.*\)[ \t]*\{[ \t]*$")
+        r"(?:get[ \t]+|set[ \t]+)?" + n + r"[ \t]*\(.*\)[ \t]*\{[ \t]*$"
+        r"|(?:export[ \t]+)?(?:const|let|var)[ \t]+" + n +
+        r"[ \t]*=[ \t]*(?:async[ \t]+)?\(.*\)[ \t]*=>[ \t]*\{[ \t]*$"
+        r")")
+
+
+def _concise_re(name: str) -> re.Pattern:
+    """An arrow const whose body is an EXPRESSION rather than a block.
+
+    🔴 212 §4 — THIS IS THE SHAPE 211 §6.5 EXPECTED A WIDER `_decl_re` TO REACH, AND NO
+    WIDENING OF IT EVER COULD. `export const bytes = (v) => Buffer.byteLength(...)` has no
+    brace, so `body_brace()` returns None however the declaration line is matched: the
+    blocker was never the anchor, it was the INJECTOR. 211 §6 recorded `token-cost.mjs`
+    shipping "two of four intended targets" for this reason and named the widening as the
+    fix; measured this session, all SIX exported arrow consts across the eleven
+    instruments are this shape, so the widening alone admits ZERO exported members.
+
+    The `(?![ \t]*\{[ \t]*$)` is what keeps the two patterns disjoint — a block-bodied
+    arrow belongs to `_decl_re`, and a name matching both is refused as ambiguous rather
+    than resolved by whichever pattern is consulted first.
+    """
+    n = re.escape(name)
+    return re.compile(
+        r"^(?P<indent>[ \t]*)(?:export[ \t]+)?(?:const|let|var)[ \t]+" + n +
+        r"[ \t]*=[ \t]*(?:async[ \t]+)?\(.*\)[ \t]*=>(?![ \t]*\{[ \t]*$)")
 
 
 def resolve_sig(text: str, sig: str) -> tuple[str, str]:
@@ -94,8 +134,17 @@ def resolve_sig(text: str, sig: str) -> tuple[str, str]:
     if m is None:
         return (sig, "")
     name = m.group("name")
-    pat = _decl_re(name)
-    found = [(i + 1, ln) for i, ln in enumerate(text.split("\n")) if pat.match(ln)]
+    lines = text.split("\n")
+    block = [(i + 1, ln) for i, ln in enumerate(lines) if _decl_re(name).match(ln)]
+    concise = [(i + 1, ln) for i, ln in enumerate(lines) if _concise_re(name).match(ln)]
+    # 🆕 212 §4 — BOTH SHAPES, AND A NAME DECLARED IN BOTH IS AMBIGUOUS. Not because
+    # ambiguity is tidy, but for the reason the two-match branch below already gives: a
+    # resolver that picked one would blind the wrong member silently, which is what
+    # 193 §12.27 refused to let a loosened anchor do. Measured across all eleven
+    # instruments: 0 names are declared in both shapes today, so this branch is empty by
+    # measurement rather than by construction.
+    pat = _decl_re(name) if block else _concise_re(name)
+    found = block + concise
     if not found:
         return ("", f"{sig} RESOLVES TO NOTHING — no declaration of `{name}` in this file. "
                     f"The member this target blinds was renamed or removed, and a target that "
@@ -119,7 +168,10 @@ def resolve_sig(text: str, sig: str) -> tuple[str, str]:
 # A `resolve_sig` that stopped resolving would be caught by SIGNATURE NOT FOUND — but a
 # roster that quietly stopped USING it would not be caught by anything, and every printed
 # line would still read ok while the anchors went back to being literals one at a time.
-SIG_RESOLVED_FLOOR = 55
+# 🆕 212 §4: 55 -> 70, measured 78 — the widening and the new roster together added
+#            thirteen resolving placeholders, and a floor left at 55 would let the
+#            whole 212 admission be reverted one target at a time without a line.
+SIG_RESOLVED_FLOOR = 70
 SIG_RESOLVED: set[str] = set()
 
 
@@ -194,6 +246,11 @@ INSTRUMENTS = [
         "floor": 3,
         "why": "the comparison that decides whether the live path cohort and the ledger agree",
         "targets": {
+            "{SIG:ledgerKey}":
+                # 🆕 212 §4 — a concise-body arrow, unanchorable until `concise_blind`.
+                # Every (tool, param) pair collapsing to ONE key is the ledger losing
+                # its population without losing a row.
+                'return "COLLAPSED";',
             "{SIG:parsePathLedger}": "return { entries: new Map(), badClass: [] };",
             # 🔴 THE ONE 173's OWN REVERSE SWEEP ADDED. Its first draft inlined this
             # check, so the only case any test could construct was the healthy one and
@@ -296,6 +353,10 @@ INSTRUMENTS = [
         "floor": 9,
         "why": "the classifier that decides whether a repo-wide assertion could have failed",
         "targets": {
+            "{SIG:isLiteralish}":
+                # 🆕 212 §4 — nothing is a literal, so no leaf classifies as SHAPE and
+                # `TAUT_CLASSIFIED shaped=` empties under a floor that is supposed to bite.
+                "return false;",
             # The classifier itself. VALUE, not SHAPE — SHAPE is the FAILING answer, and
             # a blind that injects a failure proves nothing about a gate meant to catch it
             # (175's `_png.mjs` reasoning, same trap one file over).
@@ -360,6 +421,20 @@ INSTRUMENTS = [
         "floor": 4,
         "why": "the gate for the ABSENCE of a check — the half no condition-grader can reach",
         "targets": {
+            "{SIG:scanDiscarded}": "return [];",
+            # 🆕 212 §4 — a judge that never fails, and a combiner that drops BOTH
+            # halves. `combine` is the only place the two readers meet.
+            # 🔴 A LITERAL, AND THE ONLY ONE ADDED THIS SESSION. `{SIG:judgeDiscarded}`
+            # RESOLVES TO NOTHING: this declaration's parameter list spans two lines and
+            # `_decl_re` matches a single line ending in `{`. That is the resolver working
+            # — an unappliable target is a sweep reporting green over a mutation nobody
+            # made — and `literal_signature_problems` will not report this literal for the
+            # same reason, because the placeholder does not resolve to it. A multi-line
+            # signature widening is a real next item and is NOT scoped to this file.
+            "export function judgeDiscarded(sites, floor = DISCARD_SITE_FLOOR, dirFloor = DISCARD_DIR_FLOOR,\n"
+            "                               busiestFloor = DISCARD_BUSIEST_FLOOR) {":
+                "return { lines: [], failed: false };",
+            "{SIG:combine}": "return { lines: [], failed: false };",
             "{SIG:inspect}":
                 'return { tools: [], readsVerdict: true, exitsNonZero: true, labelsAssert: false };',
             "{SIG:judge}":
@@ -397,6 +472,11 @@ INSTRUMENTS = [
         "floor": 9,   # 🆕 179: helpers() is the ninth, and the reader both 179 rules rest on
         "why": "the tautology that cannot be seen from either side alone — a GDScript constant asserted in JS",
         "targets": {
+            "{SIG:run}": "return { lines: [], failed: false };",
+            # 🆕 212 §4 — 🔴 `report` RETURNS THE EXIT CODE. A blind here is the whole
+            # gate exiting 0 over its own failure lines, which is the loudest thing in
+            # this file that nothing was pointed at.
+            "{SIG:report}": "return 0;",
             "{SIG:dispatchMap}": 'return new Map([["a.b", "_a_b"]]);',
             "{SIG:hardwired}":
                 'return { fields: new Map([["_a_b", new Map([["f", "true"]])]]), opaque: [], reads: 9 };',
@@ -451,6 +531,22 @@ INSTRUMENTS = [
                       # 187: 6 -> 7, markerList admitted
         "why": "the marker written above the claims it describes — invisible to every gate _population.mjs has",
         "targets": {
+            # 🔴 NOT `return [];`, AND THE REASON IS A DEFECT THIS TARGET FOUND. Measured
+            # first with `[]`, then with the shape below: BOTH crashed the self-test —
+            # `ps[1].from` threw on a short array after the claims above it had already
+            # failed correctly, so the gate went red WITHOUT reaching its own verdict and
+            # the row proved that JavaScript throws rather than that the claims bite
+            # (197 §5). Fixed where it belongs, in `seal_order_gate.selftest.mjs`, and
+            # this target is a catch. One paragraph spanning the whole region is kept over
+            # `[]` regardless: it is the same collapse with the CONTRACT KEPT — every
+            # boundary the reader exists to find is gone and the caller still gets the
+            # shape it is typed against, which is a claim about the gate rather than
+            # about optional chaining.
+            "{SIG:paragraphsOf}": "return [{ from, to }];",
+            # 🆕 212 §4 — both concise-body arrows, both predicates that decide a
+            # POPULATION: nothing is a probe, and nothing reads as a claim.
+            "{SIG:isProbe}": "return false;",
+            "{SIG:READS_AS_CLAIM}": "return false;",
             "{SIG:claimCallees}":
                 "return { helpers: new Set(), isClaimCall: () => false };",
             # Blinded to a well-formed EMPTY file rather than to a throw — 176's rule for
@@ -519,6 +615,10 @@ INSTRUMENTS = [
         "floor": 8,
         "why": "the enumerator whose predecessor's number was wrong by 180 rows in two shipped changelogs",
         "targets": {
+            "{SIG:summarisePathCohort}":
+                # 🆕 212 §4 — the SHAPE is kept and every count but the total zeroed:
+                # a summary that answers structurally and says nothing.
+                "return { total: rows.length, topLevelNamedPath: 0, topLevelOther: 0, nested: 0 };",
             "{SIG:segments}": "return [];",
             "{SIG:nameLooksPathLike}": "return false;",
             "{SIG:branchesOf}": "return [];",
@@ -554,6 +654,9 @@ INSTRUMENTS = [
         "floor": 4,
         "why": "the classifier that decides whether a release moved the public API",
         "targets": {
+            # 🆕 212 §4 — every tool forbidden, so the taskSupport population the
+            # dialect refusal is computed over empties without the count moving.
+            '{SIG:effectiveTaskSupport}': 'return "forbidden";',
             # 🔴 THE HEALTHY ANSWER, NOT THE FAILING ONE (175's `_png.mjs` rule). PATCH
             # over a populated surface is what a clean release looks like, so a classifier
             # blinded to it is exactly the failure this gate exists to catch — and the
@@ -589,6 +692,13 @@ INSTRUMENTS = [
         "floor": 2,
         "why": "the budget reader whose numbers a ceiling decision is argued from",
         "targets": {
+            "{SIG:bytes}": "return 0;",
+            # 🆕 212 §4 — 🔴 THE TWO 211 §6 RECORDED AS UNREACHABLE, REACHED. Both are
+            # concise-body arrows; the widening 211 §6.5 proposed does not admit them
+            # and never could (see `_concise_re`). `bytes` returning 0 is a budget
+            # reader measuring an empty surface; `family` collapsing is the per-key
+            # decomposition losing every grouping while the total holds.
+            '{SIG:family}': 'return "other";',
             # 🔴 THE HEALTHY ANSWER, NOT A FAILING ONE (175's `_png.mjs` rule). A blind
             # returning a surface that BREACHES the ceiling would redden the self-test's
             # refusal rows for the right reason by accident. This one returns a plausible
@@ -614,6 +724,122 @@ INSTRUMENTS = [
         },
     },
 ]
+
+
+# ══ 🆕 212 §4 — THE ROSTER THAT COULD NOT REPORT ITS OWN OMISSIONS ═════════════════
+#
+# 🔴 EVERY MECHANISM IN THIS FILE MAKES A TARGET ROBUST. NOTHING ASKED WHETHER THE LIST
+# COVERS THE MODULE. `resolve_sig` refuses a target that resolves to nothing (EXISTENCE)
+# and one that resolves to two things (UNIQUENESS); `blind()` refuses one it cannot
+# apply; `BLAST_FLOOR` refuses a sweep that stopped reddening. All of them are about
+# targets that ARE written. A member nobody wrote a target for is invisible to all four,
+# and the sweep prints `ok` over an instrument half of which was never mutated.
+#
+# 🔴 MEASURED BEFORE THE CHECK EXISTED (`probe212_exported.py`): 45 exported callables
+# targeted across the eleven instruments and EIGHTEEN not — including seven plain
+# `function` declarations `_decl_re` could have anchored all along, and `report` in
+# `boundary_gate.mjs`, which RETURNS THE GATE'S EXIT CODE.
+#
+# 🔴 AND THIS IS WHY 211 §6 IS A ROSTER ROW AND NOT A PARAGRAPH. 211 §19: "when a session
+# declines to fix something and writes a comment saying so, the comment should be a
+# `problems.append` or a roster row with a reason, never a paragraph." `token-cost.mjs`
+# carried exactly such a paragraph about `bytes` and `family` for two sessions and it was
+# silent on every green run since. The exclusions below cost a written reason; the
+# absence of a member from both tables costs a failure.
+#
+# The population is DERIVED — "exported callable in the instrument's own source" — rather
+# than listed. A rule scoped to a property cannot rot in the direction a list does, which
+# is 183's lesson in `tautology_gate.mjs` and 182 §9's in `floor_pin_gate.py`.
+_EXPORT_FN = re.compile(r"^export[ \t]+(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)[ \t]*\(")
+_EXPORT_ARROW = re.compile(
+    r"^export[ \t]+(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[ \t]*=[ \t]*(?:async[ \t]+)?\(")
+
+NOT_A_TARGET: dict[tuple[str, str], str] = {
+    # 🔴 `main` IS THE INVOCATION, NOT A READER. Blinding it stops the gate producing any
+    # output at all, so it never prints its VERDICT_MARKER and the sweep files it as a
+    # CRASH — a judgement about this harness rather than about the instrument. The
+    # readers `main` calls are targeted individually, which is where the claim lives.
+    ("verdict_gate.mjs", "main"): "the invocation, not a reader — blinding it removes the "
+                                  "verdict marker and produces a crash rather than a catch",
+    ("boundary_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
+    ("seal_order_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
+    # 🔴 MEASURED BEFORE IT WAS DECLARED, WHICH IS THE DIFFERENCE BETWEEN A ROSTER ROW AND
+    # AN EXCUSE. `{SIG:surface}` was written as a target and swept: blinded to `return []`
+    # the gate STAYED GREEN on the A:gate axis, and on the late axis the mutant produced
+    # no LATE_BLIND_CALLS line at all. Both say the same thing — `wire_diff.selftest.mjs`
+    # NEVER CALLS IT. It cannot: `surface()` boots a built server over stdio and the
+    # self-test is fixture-driven by construction (206 §3), and `wire_diff.mjs` is in
+    # LATE_LIVE_NA so there is no live axis to reach it either. The only caller that
+    # exercises this member is the release script's check 8.
+    # 🔴 SO THE HONEST STATEMENT IS THAT THIS INSTRUMENT'S WIRE READER IS UNCOVERED BY CI,
+    # and it is written HERE — where a member appearing or a driver arriving reddens the
+    # roster — rather than in a paragraph that is silent on every green run (211 §19).
+    # Giving `wire_diff.mjs` a B:live axis against `host/dist/index.js` is the fix and is
+    # its own item: it needs a built server in the gate's own runtime budget.
+    ("wire_diff.mjs", "surface"):
+        "boots a built server over stdio; the self-test is fixture-driven by construction "
+        "(206 §3) and this instrument has no B:live axis, so NO gate this harness runs "
+        "calls it. Measured, not assumed: blinded to `return []` the A:gate axis stayed "
+        "GREEN and the late mutant never loaded. Its only live caller is the release "
+        "script's check 8. 🔴 A live axis against host/dist/index.js is the fix.",
+}
+
+
+def coverage_problems(instruments) -> list[str]:
+    """Every exported callable is a target or carries a written reason — 🆕 212 §4."""
+    problems: list[str] = []
+    declared = set(NOT_A_TARGET)
+    for inst in instruments:
+        src: Path = inst["src"]
+        if not src.exists():
+            continue
+        exported: list[str] = []
+        for ln in src.read_text().split("\n"):
+            m = _EXPORT_FN.match(ln) or _EXPORT_ARROW.match(ln)
+            if m:
+                exported.append(m.group(1))
+        # 🔴 LITERAL ANCHORS COUNT, AND THE FIRST RUN OF THIS CHECK PROVED WHY IT HAS TO
+        # SAY SO. `judgeDiscarded` is targeted by a two-line literal because its signature
+        # spans two lines and `_decl_re` is line-anchored; a coverage reader that only
+        # understood placeholders reported the one member in this file that IS swept as
+        # the one that is not. A check whose own population is read the wrong way is the
+        # defect it was written to find, one level up.
+        targeted = set()
+        for s in inst["targets"]:
+            if (m := SIG_RE.match(s)) is not None:
+                targeted.add(m.group("name"))
+                continue
+            m = re.match(r"^(?:export[ \t]+)?(?:async[ \t]+)?(?:static[ \t]+)?"
+                         r"(?:function[ \t]+)?(?:get[ \t]+|set[ \t]+)?"
+                         r"(?P<name>[A-Za-z_$][\w$]*)[ \t]*\(", s.strip())
+            if m is None:
+                m = re.match(r"^(?:export[ \t]+)?(?:const|let|var)[ \t]+"
+                             r"(?P<name>[A-Za-z_$][\w$]*)[ \t]*=", s.strip())
+            if m is not None:
+                targeted.add(m.group("name"))
+        missing = [n for n in sorted(set(exported))
+                   if n not in targeted and (inst["name"], n) not in NOT_A_TARGET]
+        excused = [n for n in sorted(set(exported)) if (inst["name"], n) in NOT_A_TARGET]
+        declared -= {(inst["name"], n) for n in exported}
+        print(f"INSTRUMENT_GATE_COVERAGE {inst['name']}: "
+              f"{len(set(exported)) - len(missing) - len(excused)}/{len(set(exported))} "
+              f"exported member(s) targeted · {len(excused)} declared NOT_A_TARGET")
+        for n in missing:
+            problems.append(
+                f"{inst['name']}: `{n}` is EXPORTED and is neither a target nor declared in "
+                f"NOT_A_TARGET. Nothing in this file can see that — EXISTENCE, UNIQUENESS, "
+                f"the injector's refusal and BLAST_FLOOR are all about targets that were "
+                f"WRITTEN. Add `{{SIG:{n}}}` with the empty its contract promises, or a "
+                f"NOT_A_TARGET row saying why there cannot be one")
+    # 🔴 AND THE OTHER HALF, WHICH IS THE ONE 211 §5 FOUND MISSING ON THE LATE AXIS: a
+    # roster naming something that is not there any more. An exclusion outliving its
+    # member is an exemption nobody re-argued.
+    for inst_name, member in sorted(declared):
+        problems.append(
+            f"NOT_A_TARGET declares {inst_name}::{member}, which is not an exported member "
+            f"of that instrument any more — a written reason outliving the thing it "
+            f"excused is an exemption nobody has re-argued")
+    return problems
 
 
 # ══ THE LATE BLIND — 182, answering 181 §11.2 ══════════════════════════════════════
@@ -739,6 +965,22 @@ LATE_CRASH_CEILING_B = 0   # state, reached). Kept as two numbers rather than on
 # leaves a gate green is not automatically a defect: two states produce it, and only one
 # of them is.
 LATE_DECLARED_GREEN = {
+    # 🆕 212 §4 — THE ONLY LATE GREEN THE NEW TARGETS PRODUCED, AND IT IS A STATEMENT
+    # ABOUT THE FLOORS RATHER THAN ABOUT THE MEMBER. `isLiteralish` is called 1227 times
+    # on the live tree. Blinding it from call 2 moves `TAUT_CLASSIFIED shaped=` and
+    # `precondition=` — both floored from BELOW with headroom (119/80 and 61/40 measured
+    # this session), so a collapse that starts after the first call lands INSIDE the
+    # headroom and no floor bites. The global blind DOES redden it, which is why the
+    # A:gate row above is a catch and this one is not.
+    # 🔴 THIS IS 205 §25's RATIO ARGUMENT IN MINIATURE: the coverage is real, it is just
+    # not re-read after the population is admitted. Closing it means a floor on the
+    # classification that is re-derived rather than accumulated — recorded, not built.
+    ("tautology_gate.mjs", "{SIG:isLiteralish}", "B:live"):
+        "the two counts it moves (shaped, precondition) are floored from below with "
+        "measured headroom, so a collapse from call 2 lands inside it. The GLOBAL blind "
+        "on the same member reddens the gate, so the member is covered and the LATE axis "
+        "is what is not. Re-measured every run: a floor raised to its live value would "
+        "make this declaration redden, which is the point of not writing it down once.",
     ("boundary_gate.mjs", "{SIG:collapsed}", "B:live"):
         "the blind returns `false` — which is the CORRECT answer for all seven live "
         "populations of a healthy tree. There is no collapse for it to miss, so a green "
@@ -785,7 +1027,7 @@ def late(text: str, sig: str, empty: str) -> str | None:
     """
     brace = body_brace(text, sig)
     if brace is None:
-        return None
+        return concise_blind(text, sig, empty, late_hook=True)
     return (text[: brace + 1]
             + f"\n    {LATE_HOOK} if(globalThis.__LB>1){{ {empty} }}  // INSTRUMENT_GATE LATE"
             + text[brace + 1 :])
@@ -893,20 +1135,20 @@ def late_marker_roster_problems(live: dict, markers: dict) -> list[str]:
 # their reports on the late axis too.
 LATE_BLAST_FLOOR: dict[str, int] = {
     "_population.mjs": 55,
-    "_path_ledger.mjs": 26,
+    "_path_ledger.mjs": 35,   # 212: 26 -> 35, measured 39
     "_workspace.mjs": 85,     # 199: 32 -> 85, measured 96
     "_png.mjs": 25,           # 199: 5 -> 25, measured 29
     "tautology_gate.mjs": 158,  # 199: 115 -> 158, measured 175
-    "verdict_gate.mjs": 24,
-    "boundary_gate.mjs": 145,
-    "seal_order_gate.mjs": 220,  # 199: 120 -> 220, measured 247
+    "verdict_gate.mjs": 44,   # 212: 24 -> 44, measured 49
+    "boundary_gate.mjs": 165,  # 212: 145 -> 165, measured 186
+    "seal_order_gate.mjs": 300,  # 212: 220 -> 300, measured 338
     "path-cohort (compiled walk)": 48,
     # 🆕 211 §5 — THE TWO ROWS WHOSE ABSENCE PRINTED "on purpose". Both measured below on
     # the [A:gate] axis, floored from BELOW like every row above. Neither was a decision;
     # `wire_diff.mjs` was added to the gate in 209 with a `BLAST_FLOOR` row and no late
     # twin, and nothing in this file compared the two rosters until now.
     "wire_diff.mjs": 120,
-    "token-cost.mjs": 8,
+    "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23
 }
 LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
 LATE_CRASHED_A: list[tuple[str, str]] = []
@@ -918,7 +1160,8 @@ LATE_CRASHED_B: list[tuple[str, str]] = []
 # filed as "not constructible", no problem is raised and the gate prints ok — the whole
 # second axis neutralised in silence, which is the exact defect it was built to find, one
 # level up. `>=`, and measured at 70 of 84 across both axes.
-LATE_CONSTRUCTED_FLOOR = 65   # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+LATE_CONSTRUCTED_FLOOR = 98   # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+#                               212: 65 -> 98, measured 109 late mutants constructed
 LATE_CONSTRUCTED: list[str] = []
 
 # 🆕 183 — AND THE ROSTER ABOVE NEEDS ITS OWN FLOOR, WHICH IS THE HALF `LATE_CONSTRUCTED`
@@ -985,6 +1228,19 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
                 )
                 continue
             src.write_text(mutant)
+            # 🆕 212 §4 — AND ON THIS AXIS TOO, ABOVE THE `not hook` BRANCH. A mutant that
+            # does not parse never loads, so it lands in LATE_NOT_LOADED — a bucket with a
+            # CEILING, which quietly absorbs a broken injector as though it were a target
+            # the harness could not construct. Those are different failures and only one
+            # of them is about the instrument.
+            syntax = parses(src)
+            if syntax:
+                problems.append(
+                    f"{inst['name']} [{axis}]: the late mutant for {sig!r} DOES NOT PARSE "
+                    f"— {syntax}. Without this it is filed as NEVER LOADED, under a "
+                    f"ceiling, and reads as a harness limitation rather than a defect")
+                print(f"   🔴 UNPARSEABLE {sig[:52]}")
+                continue
             green, reached, calls, hook, fails = run_counting(cmd, inst["cwd"], marker)
             declared = LATE_DECLARED_GREEN.get((inst["name"], sig, axis))
             # 🔴 THE HOOK BEFORE THE COUNT. `calls == 0` and "the hook never printed" were
@@ -1478,23 +1734,165 @@ def body_brace(text: str, sig: str) -> int | None:
     stripped = sig.rstrip()
     if stripped.endswith("{"):
         return idx + len(stripped)      # 1 for the "\n", len(stripped)-1 for the brace
+    # 🆕 212 §4 — AND THE BACKSTOP HAS TO STOP. 197 §5 fixed the case where this walk
+    # found a brace TOO EARLY (a destructuring pattern in the parameter list). The
+    # mirror case was still open and is worse: for an anchor with NO block of its own —
+    # a concise-body arrow, which is exactly what 211 §6.5 proposed anchoring — the walk
+    # ran off the end of the declaration and returned the opening brace of *whatever was
+    # declared next in the file*. `blind()` then injected a statement into a member
+    # nobody had named, the mutant PARSED, the gate went red for a reason belonging to a
+    # different function, and the sweep called it a catch.
+    #
+    # 🔴 MEASURED, NOT REASONED ABOUT: caught on the first smoke run of `concise_blind`
+    # against `token-cost.mjs::bytes`, whose injection landed in the declaration below
+    # it. No shipped target reaches this walk today — every anchor either ends in `{` or
+    # is matched with one appended — so it was latent, and it was waiting precisely for
+    # the widening that admits members without blocks.
+    #
+    # The rule is the statement's own boundary: a member's body brace cannot come after
+    # the declaration that opens it has ended. A `;` at depth 0 first means there is no
+    # block, which is a `concise_blind` case and NOT this function's to guess at.
+    # 🔴 AND IT HAS TO KNOW WHAT IT IS WALKING THROUGH, which is the third instance of
+    # this one walk being wrong about a brace. 197 §5: a `{` in a destructuring parameter
+    # list. Above: a `{` belonging to the NEXT declaration. And measured on the same smoke
+    # run, `_path_ledger.mjs::ledgerKey`:
+    #
+    #     export const ledgerKey = (tool, param) => `${tool}\t${param}`;
+    #
+    # the first `{` at paren-depth 0 is the one in `${tool}` — inside a TEMPLATE LITERAL.
+    # The injection landed in the interpolation and the mutant did not parse. Strings and
+    # templates are skipped now, and `parses()` is under all three: this walk is a
+    # heuristic and the only honest thing to do with a heuristic is check its output.
     depth = 0
-    for i in range(idx, len(text)):
+    quote: str | None = None
+    i = idx
+    while i < len(text):
         c = text[i]
-        if c == "(":
+        if quote is not None:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c in "\"'`":
+            quote = c
+        elif c == "(":
             depth += 1
         elif c == ")":
             depth -= 1
+        elif c == ";" and depth <= 0:
+            return None
         elif c == "{" and depth <= 0:
             return i
+        i += 1
     return None
+
+
+def initialiser_end(text: str, i: int) -> int | None:
+    """Index of the `;` that ends the initialiser starting at `i` — 🆕 212 §4.
+
+    🔴 A DEPTH WALK RATHER THAN A `find(";")`, AND 197 §5 IS WHY. That session found both
+    injectors computing a brace with `text.find("{", idx)` and landing inside a
+    destructuring parameter list; the mutant did not parse, node exited 1, and the gate
+    read the non-zero exit as a CATCH for 25 commits. A `;` inside a string, a template
+    literal or a nested call is the identical trap one punctuation mark over. Strings,
+    templates, comments and every bracket class are tracked, and an unterminated
+    initialiser returns None rather than a guess — `parses()` is the backstop under it.
+    """
+    depth = 0
+    quote: str | None = None
+    while i < len(text):
+        c = text[i]
+        if quote is not None:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c in "\"'`":
+            quote = c
+        elif c == "/" and text[i + 1 : i + 2] == "/":
+            i = text.find("\n", i)
+            if i < 0:
+                return None
+            continue
+        elif c == "/" and text[i + 1 : i + 2] == "*":
+            i = text.find("*/", i)
+            if i < 0:
+                return None
+            i += 2
+            continue
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth < 0:
+                return None
+        elif c == ";" and depth == 0:
+            return i
+        i += 1
+    return None
+
+
+def concise_blind(text: str, sig: str, empty: str, late_hook: bool = False) -> str | None:
+    """Give a concise-body arrow a BLOCK body, so `empty` has somewhere to go — 🆕 212 §4.
+
+    🔴 THE REWRITE PRESERVES THE STATEMENT VOCABULARY ON PURPOSE. Every target in this
+    file is written as a statement (`return { … };`), and a concise arrow needs an
+    EXPRESSION. Converting `=> EXPR;` into `=> { <statement> }` rather than substituting
+    an expression keeps one target dialect across both injectors — a second dialect would
+    be a target that reads correct against the wrong injector, which is the class this
+    file spent 197 §5 and 202 §9.4 removing.
+
+    The late form keeps the original expression as the call-1 answer, so the counter has
+    something honest to return before it starts lying.
+    """
+    idx = text.find("\n" + sig)
+    if idx < 0:
+        return None
+    arrow = text.find("=>", idx + 1)
+    if arrow < 0:
+        return None
+    end = initialiser_end(text, arrow + 2)
+    if end is None:
+        return None
+    if late_hook:
+        expr = text[arrow + 2 : end].strip()
+        body = (f"=> {{\n    {LATE_HOOK} if(globalThis.__LB>1){{ {empty} }}"
+                f"\n    return ({expr});\n}}")
+    else:
+        body = f"=> {{\n    {empty}  // INSTRUMENT_GATE\n}}"
+    return text[:arrow] + body + text[end:]
+
+
+def parses(path: Path) -> str:
+    """"" if the file is syntactically valid JavaScript, else the first error line.
+
+    🔴 212 §4 — THIS CLOSES THE CLASS 197 §5 FIXED ONE INSTANCE OF, AND THE FILE ALREADY
+    SAYS SO. `body_brace`'s docstring: the injection landed inside a parameter list, "node
+    exited 1 on SyntaxError, `green()` read `returncode != 0` — and this gate printed
+    `ok {SIG:judge}` over a file that does not compile, for 25 commits." 197 computed the
+    brace from the anchor so that PARTICULAR injection could not go wrong. Nothing was
+    added that could tell a syntax error from a catch, so the next injector — including
+    `concise_blind` above — inherits the same silence. A mutant that does not parse is not
+    evidence about an instrument; it is evidence about this harness, and it now says which.
+    """
+    p = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
+    if p.returncode == 0:
+        return ""
+    err = [ln for ln in (p.stderr + p.stdout).split("\n") if "Error" in ln]
+    return (err[0] if err else "node --check failed with no recognisable error line").strip()
 
 
 def blind(text: str, sig: str, empty: str) -> str | None:
     """Inject `empty` as the first statement of the member whose signature is `sig`."""
     brace = body_brace(text, sig)
     if brace is None:
-        return None
+        return concise_blind(text, sig, empty)
     return text[: brace + 1] + f"\n    {empty}  // INSTRUMENT_GATE" + text[brace + 1 :]
 
 
@@ -1512,23 +1910,30 @@ def blind(text: str, sig: str, empty: str) -> str | None:
 # BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
     "_population.mjs": 80,
-    "_path_ledger.mjs": 30,
+    "_path_ledger.mjs": 36,   # 212: 30 -> 36, measured 41 (+ledgerKey)
     "_workspace.mjs": 95,     # 199: 36 -> 95, measured 107
     "_png.mjs": 26,           # 199: 6 -> 26, measured 30
     "tautology_gate.mjs": 160,  # 199: 120 -> 160, measured 178
-    "verdict_gate.mjs": 28,
-    "boundary_gate.mjs": 160,
+    # # 🆕 212 §4: raised from BELOW with ~10% headroom after the coverage roster admitted
+    #          the untargeted exported members — 198 §36's rule, which is that a floor
+    #          well under its measurement is a floor that cannot bite.
+    "verdict_gate.mjs": 52,   # 212: 28 -> 52, measured 59 (+scanDiscarded, judgeDiscarded, combine)
+    "boundary_gate.mjs": 180,  # 212: 160 -> 180, measured 201 (+run, report)
     # 🔴 127 BEFORE §5's INJECTOR FIX, 166 AFTER — the 39-claim difference is `{SIG:judge}`
     # being applied for the first time since #211. The floor is set against the CORRECT
     # number, so a regression to the broken injector would now be caught here as well.
-    "seal_order_gate.mjs": 240,   # 199: 140 -> 240, measured 268
+    "seal_order_gate.mjs": 320,   # 212: 240 -> 320, measured 359 (+paragraphsOf, isProbe, READS_AS_CLAIM)
     "path-cohort (compiled walk)": 50,
     "wire_diff.mjs": 120,  # 209: measured 95 across four blinds, 0 crashed. 🆕 211 §4:
                            # measured 140 after the six symmetric-collapse rows and the
                            # value-carrying typeName rows landed — raised from below with
                            # the usual headroom rather than left at a number the file has
                            # outgrown, which is 198 §36's rule.
-    "token-cost.mjs": 8,   # 🆕 211 §6: measured 11 across its two anchorable members
+    # 🆕 212 §4 — 🔴 AND THIS ROW IS THE MEASUREMENT THAT ANSWERS 211 §6. It read
+    # "measured 11 across its two ANCHORABLE members"; there are four now, `bytes` and
+    # `family` reached by `concise_blind` rather than by the `_decl_re` widening 211 §6.5
+    # named. 11 -> 23, which is what the other two were worth.
+    "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23 across all four
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
@@ -1600,6 +2005,18 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
                 print(f"   🔴 UNMATCHED   {sig}")
                 continue
             src.write_text(mutant)
+            # 🆕 212 §4 — BEFORE THE GATE RUNS, NOT AFTER. See `parses()`: a mutant that
+            # does not compile reddens the gate for a reason that has nothing to do with
+            # the instrument, and every judgement below reads it as a catch.
+            syntax = parses(src)
+            if syntax:
+                problems.append(
+                    f"{inst['name']}: the mutant for {sig!r} DOES NOT PARSE — {syntax}. "
+                    f"The gate would have gone red and this sweep would have called it a "
+                    f"catch (197 §5, for 25 commits). Fix the injector or the anchor; a "
+                    f"target that cannot be APPLIED proves nothing about the instrument")
+                print(f"   🔴 UNPARSEABLE {sig[:52]}")
+                continue
             mut_green, mut_verdict, fails = green(inst)
             BLAST_OBSERVED[inst["name"]] = BLAST_OBSERVED.get(inst["name"], 0) + fails
             if mut_green:
@@ -1736,6 +2153,10 @@ def main() -> int:
             f"INSTRUMENT_GATE swept {len(INSTRUMENTS)} instrument(s), floor is {INSTRUMENT_FLOOR} — "
             f"a harness whose own target list collapsed sweeps nothing and exits 0"
         )
+
+    # 🆕 212 §4 — THE ROSTER'S OWN COVERAGE, BEFORE A SINGLE MUTANT. It is not about any
+    # one sweep's result; it is about whether the list those sweeps iterate is the module.
+    problems.extend(coverage_problems(INSTRUMENTS))
 
     for inst in INSTRUMENTS:
         n_green, n_targets, probs = sweep(inst)
