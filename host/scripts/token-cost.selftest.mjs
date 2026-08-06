@@ -1,17 +1,25 @@
 #!/usr/bin/env node
-// The refusal proof for `token-cost.mjs`'s two governed constants — 206 §4.
+// The refusal proof for `token-cost.mjs`'s three governed constants — 206 §4, 207 §7.1.
 //
 // 🔴 A SEPARATE FILE FOR `path-cohort.mjs`'s REASON. The instrument PRINTS; a printer has
 // no claim sites the tautology classifier can read, and exempting it while leaving its
 // constants unasserted would be an exemption that buys silence. This is where the claims
-// live, and it is what `floor_pin_gate.py` runs when it moves BYTES_CEILING and TOOL_FLOOR
-// off their shipped values.
+// live, and it is what `floor_pin_gate.py` runs when it moves BYTES_CEILING, TOOL_FLOOR
+// and SCHEMA_PER_TOOL_CEILING off their shipped values.
 //
 // 🔴 THE ROWS DRIVE THE PURE CORE, so the proof needs no server, no dist/ and no network.
 // That is the half 204 §8.27 is about — a check that has never refused has not been
-// audited. Four of the six rows REFUSE.
+// audited. Five of the eight rows REFUSE.
+//
+// 🔴 207 DELETED A DEAD COPY OF SECTION 1 FROM THIS FILE. An unreferenced `function
+// selftest()` sat above the live proof, running nothing, printing nothing, and asserting
+// nothing — a second table that would have gone stale silently while looking like
+// coverage. Found while adding to the file, not by any gate; noted so the class is on
+// record.
 import assert from "node:assert/strict";
-import { measure, verdict, BYTES_CEILING, TOOL_FLOOR } from "./token-cost.mjs";
+import {
+  measure, verdict, BYTES_CEILING, TOOL_FLOOR, SCHEMA_PER_TOOL_CEILING,
+} from "./token-cost.mjs";
 
 const mkTools = (n, descLen) =>
   Array.from({ length: n }, (_, i) => ({
@@ -19,6 +27,30 @@ const mkTools = (n, descLen) =>
     description: "d".repeat(descLen),
     inputSchema: { type: "object", properties: {} },
   }));
+
+// 🔴 THE SCHEMA ROWS ARE GROWN AGAINST THE LIVE CONSTANT, NOT AGAINST A NUMBER TYPED
+// BESIDE IT. 206 §3.2: a self-test that hard-codes what the constant is supposed to be
+// agrees with itself over a deleted floor. Padding one property description until
+// `measure()` REPORTS the target makes the row's meaning ("exactly at the ceiling",
+// "one byte over") true by construction whatever the ceiling is moved to.
+const mkSchemaTools = (n, targetPerTool) => {
+  const build = (pad) =>
+    Array.from({ length: n }, (_, i) => ({
+      name: `fam${i % 7}_tool${i}`,
+      description: "d",
+      inputSchema: {
+        type: "object",
+        properties: { p: { type: "string", description: "x".repeat(pad) } },
+      },
+    }));
+  let tools = build(0);
+  for (let pad = 0; pad <= targetPerTool + 64; pad += 1) {
+    tools = build(pad);
+    const got = measure(tools).schemaPerTool;
+    if (got >= targetPerTool) break;
+  }
+  return tools;
+};
 
 const SELFTEST = [
   // (name, tools, wantOk, wantProblemSubstring)
@@ -31,31 +63,12 @@ const SELFTEST = [
   ["🔴 a surface over budget — THE CEILING'S REFUSAL",
     mkTools(291, 2000), false, "BYTES_CEILING"],
   ["🔴 both at once names both", [], false, "TOOL_FLOOR"],
+  // 🆕 207 — the third constant, and its edge on both sides.
+  ["exactly at the schema ceiling stays legal",
+    mkSchemaTools(291, SCHEMA_PER_TOOL_CEILING), true, ""],
+  ["🔴 one byte per tool over the schema ceiling — THE EDGE",
+    mkSchemaTools(291, SCHEMA_PER_TOOL_CEILING + 1), false, "SCHEMA_PER_TOOL_CEILING"],
 ];
-
-function selftest() {
-  console.log("TOKEN_COST selftest — the floors' refusal, proved without a server");
-  let bad = 0;
-  for (const [name, tools, wantOk, want] of SELFTEST) {
-    const v = verdict(measure(tools));
-    const agree = v.ok === wantOk && (want === "" || v.problems.join(" ").includes(want));
-    if (!agree) bad += 1;
-    console.log(`  ${agree ? "🟢" : "🔴"} ${v.ok ? "PASS  " : "REFUSE"} ` +
-      `tools=${String(tools.length).padStart(4)} ${name}`);
-    if (!agree) console.log(`        want ${want || "ok"} · got ${JSON.stringify(v.problems)}`);
-  }
-  // ── 3. THE TABLE'S OWN SHAPE — A PROOF THAT CANNOT REFUSE IS NOT A PROOF ─────────────
-const refusals = SELFTEST.filter((r) => !r[2]).length;
-  console.log(`\n  ${SELFTEST.length} rows · ${refusals} REFUSE · ` +
-    `${bad ? `🔴 ${bad} DISAGREE` : "🟢 all agree"}`);
-  if (refusals < 3) {
-    console.log("  🔴 fewer than three refusing rows — this table has stopped proving " +
-      "that either constant can fire");
-    return 1;
-  }
-  return bad ? 1 : 0;
-}
-
 
 // ── 1. THE FLOORS, DRIVEN OVER A TABLE THAT MUST CONTAIN REFUSALS ────────────────────
 let bad = 0;
@@ -86,6 +99,8 @@ for (const [name, tools, wantOk, want] of SELFTEST) {
 // `count < undefined` false and the healthy rows keep passing. 172 §10.21's shape.
 assert.ok(Number.isInteger(TOOL_FLOOR) && TOOL_FLOOR > 0, "TOOL_FLOOR must be a positive integer");
 assert.ok(Number.isInteger(BYTES_CEILING) && BYTES_CEILING > 0, "BYTES_CEILING must be a positive integer");
+assert.ok(Number.isInteger(SCHEMA_PER_TOOL_CEILING) && SCHEMA_PER_TOOL_CEILING > 0,
+  "SCHEMA_PER_TOOL_CEILING must be a positive integer");
 
 // ── 3. THE TABLE'S OWN SHAPE — A PROOF THAT CANNOT REFUSE IS NOT A PROOF ─────────────
 const refusals = SELFTEST.filter((r) => !r[2]).length;
@@ -93,5 +108,45 @@ console.log(`\n  ${SELFTEST.length} rows · ${refusals} REFUSE · `
   + `${bad ? `\u{1F534} ${bad} DISAGREE` : "\u{1F7E2} all agree"}`);
 assert.ok(refusals >= 3,
   "fewer than three refusing rows — this table has stopped proving either constant can fire");
+
+// ── 4. THE DECOMPOSITION MUST LEAVE NOTHING UNNAMED — 207's FIX, ASSERTED ────────────
+// 🔴 THIS IS THE DEFECT 206 SHIPPED, WRITTEN DOWN AS A PROOF. `measure()` reported
+// `names`, `descs` and `schemas`, the printer presented them as the breakdown, and on the
+// real surface they accounted for 60.9% of it — the missing 39.1% was four optional MCP
+// keys nobody had named. A tool carrying a fourth key is the smallest case of that, and
+// these assertions fail if `keys` ever narrows back to a fixed list.
+const withExtras = [
+  { name: "a_one", description: "d", inputSchema: { type: "object" },
+    outputSchema: { type: "object", properties: { r: { type: "string" } } },
+    annotations: { readOnlyHint: true }, title: "A One" },
+  { name: "b_two", description: "dd", inputSchema: { type: "object" }, title: "B Two" },
+];
+const mx = measure(withExtras);
+const named = new Set(mx.keys.map(([k]) => k));
+for (const k of ["name", "description", "inputSchema", "outputSchema", "annotations", "title"]) {
+  assert.ok(named.has(k), `measure().keys must name every key a tool carries; missing ${k}`);
+}
+const keyed = mx.keys.reduce((s, [, e]) => s + e.b, 0);
+assert.equal(keyed + mx.frame, mx.total,
+  "per-key bytes plus the structural frame must account for the whole surface");
+assert.ok(mx.frame >= 0, "a negative frame means the per-key walk double-counted");
+// 🔴 AND THE THREE OLD SLICES MUST BE SHOWN TO BE A PROJECTION, not a decomposition —
+// if this ever stops holding, the difference has gone to zero and the 207 finding with it.
+const three = ["name", "description", "inputSchema"]
+  .reduce((s, k) => s + (mx.keys.find(([kk]) => kk === k)?.[1].b ?? 0), 0);
+assert.ok(three < mx.total,
+  "name+description+inputSchema must not be presentable as the whole surface");
+console.log(`  🟢 per-key decomposition names ${mx.keys.length} keys · `
+  + `frame ${mx.frame} B · the three named slices are ${((three / mx.total) * 100).toFixed(1)}% of it`);
+
+// ── 5. THE PER-TOOL SCHEMA NUMBER IS DERIVED, NOT STORED ─────────────────────────────
+// 🔴 A ceiling compared against a field that no longer tracks its source is 199 §34's
+// claim-not-a-fix. Doubling every schema must double the number the ceiling reads.
+const one = measure(mkSchemaTools(TOOL_FLOOR, 200));
+const two = measure(mkSchemaTools(TOOL_FLOOR, 400));
+assert.ok(two.schemaPerTool > one.schemaPerTool,
+  "schemaPerTool must move with the schemas it is derived from");
+assert.equal(measure([]).schemaPerTool, 0, "an empty surface must not divide by zero");
+
 if (bad) process.exit(1);
 console.log("TOKEN_COST_SELFTEST ok");

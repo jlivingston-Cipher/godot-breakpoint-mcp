@@ -153,6 +153,14 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # tools would otherwise report a wonderfully small surface and pass.
     ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )410000;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
+    # 🆕 207 §7.1 — THE COMPONENT A COMPETITIVE CLAIM MAY HONESTLY QUOTE. The rival's
+    # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
+    # their ten per-group numbers exact), and the reproduction refuted what 206 read out
+    # of it: our input schemas are within 9% of theirs on 28 FEWER tools, while four
+    # optional keys they do not ship at all are 38% of our surface. `BYTES_CEILING`
+    # moves when one of those four is added or dropped; this one does not, which is why
+    # the honest number needs its own floor.
+    ("SCHEMA_PER_TOOL_CEILING", f"{S}/token-cost.mjs",              r"(export const SCHEMA_PER_TOOL_CEILING = )545;",            [f"{S}/token-cost.selftest.mjs"]),
     ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
     # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one
