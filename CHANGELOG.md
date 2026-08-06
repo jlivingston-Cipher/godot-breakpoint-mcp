@@ -85,6 +85,52 @@ population is derived from the source rather than listed.
   that exercises the wire reader is the release script. Recorded as a roster row where a
   driver arriving will redden it, rather than as a comment that is silent on green runs.
 
+### Fixed — a claim that a collection is empty, in the three shapes that need three different floors
+
+`assert.deepEqual(x, [])` is this suite's commonest negative claim, and it is only evidence
+when something shows `x` *can* be non-empty. A reader built last session sorted forty-eight
+such claims and found seven whose chain bottomed out in the empty array literal the
+collection was initialised to. All seven were expected to take one template — the one
+`plane_path_guards.test.ts` already uses: refuse, assert the collection empty, run the legal
+case, assert it filled. Read against their own sources, one of them does. The other six are
+two different shapes, and the difference is the point.
+
+**The guarded channel, which does take the template.** "All four planes REFUSE an escaping
+path, and none of them reaches its transport" asserted `wire` was empty and never showed
+`wire` could fill — a plane whose handler wires nothing at all would have satisfied it just
+as well as four working guards. Each of the four planes now also runs a legal in-root path
+and must reach its transport. Per plane on purpose: one legal call floors the collection
+while leaving three of the four transports exactly as unproven as before.
+
+**The process trap, which cannot take it, and is exempted by name.** `unhandled` and
+`uncaught` in the launch-rejection tests on both debug planes are
+`process.on("unhandledRejection"/"uncaughtException")` sinks. A positive control for them
+would be a real uncaught exception injected into the shared test process — asserting the
+exact fault the test exists to deny. Their floor belongs instead on a companion binding that
+proves the failure path *ran*. `dap.test.ts` already had one; `csdap.test.ts` had only a
+state comparison standing in for it, and now listens for `start_failed` the same way. The
+reason is written at both sites so that a gate inherits this exemption deliberately rather
+than by regex.
+
+**The contradiction detector, where the floor is one level up.** `contradictory`, `egressing`
+and `bad` in the annotations tests fill only when a real defect exists, so none can carry a
+control of its own. What *can* go vacuous is the population and each half of the conjunction:
+an empty registry, or a hint that stopped being set anywhere, leaves them comparing `[]` to
+`[]`. Those are now floored separately, and the `confirm` probe is a named predicate shared
+by the floor and the loop rather than a repeated inline test. `openWorldHint` deliberately
+gets no non-emptiness floor and the asymmetry is written down: the surface is loopback-only
+and another test in the same file asserts the hint is false everywhere, so the floor the
+other two get would be a claim this codebase must refuse.
+
+### Fixed — a positive control standing over a binding the assertion never touches
+
+`dbg_scene_guard.test.ts` declares two `wire`s inside a single `test()`. The refusal loop
+asserts over the first; the legal restart written below the loop fills the second. `planeFor`
+is called fresh on every iteration, so what looked like a guarded claim followed by its own
+positive control was a floor under a different collection that happened to be spelled the
+same — and the loop's assertion had no floor at all. The legal restart now also runs inside
+the loop, against the same plane instance the refusal was measured on.
+
 ### Changed — the surface budget decision, recorded rather than spent
 
 `BYTES_CEILING` stays where it is, and the decision that governs its next move is now

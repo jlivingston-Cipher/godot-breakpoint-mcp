@@ -1081,6 +1081,14 @@ test("a launch/attach rejection is NOT an unhandled rejection and NOT an 'error'
     const res = (await rec.handler("dbg_attach")({})) as ToolResultLike;
     assert.equal(res.isError, true);
     await new Promise((r) => setTimeout(r, 30));
+    // 🔴 214 §7.5 EXEMPTION, STATED SO A GATE INHERITS IT DELIBERATELY RATHER THAN BY REGEX.
+    // `unhandled` and `uncaught` are PROCESS TRAPS: they fill only when Node is about to
+    // die. They cannot take plane_path_guards:196's template — the "legal case that proves
+    // the collection can fill" would be a real uncaughtException injected into the shared
+    // test process, i.e. asserting the exact fault this test denies. Their floor is
+    // therefore the line below, on a DIFFERENT binding: `events.length === 1` proves the
+    // failure path actually ran, so the two empty arrays are a silence that was reached and
+    // not a code path that never executed. A gate must exempt this class by NAME.
     assert.deepEqual(unhandled, [], "a rejected attach must not produce an unhandled rejection");
     assert.deepEqual(uncaught, [], "…nor an uncaught exception from an unlistened 'error' emit");
     assert.equal(events.length, 1, "the failure is announced on a distinct event name");

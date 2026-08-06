@@ -161,6 +161,16 @@ test("dbg_restart is wired to the same guard — the second call site", async ()
       assert.equal(r.isError, true, `dbg_restart: ${label} must be refused`);
       assert.match(textOf(r), reason, `dbg_restart: ${label} refused for the right reason`);
       assert.deepEqual(wire, [], `dbg_restart: ${label} must never reach the adapter`);
+      // 🔴 214 §4 — THE COUNTER-EXAMPLE THAT PROVED THE UNIT IS NOT THE BOUNDARY.
+      // The legal case below this loop is a positive control for the `wire` declared at the
+      // BOTTOM of this test, not for the one declared HERE. `planeFor` is called fresh every
+      // iteration, so the assertion above was floored by a binding it never touches, and a
+      // per-unit rule read it as defended. The floor has to be on THIS plane instance —
+      // same iteration, same binding — or it is a floor under a different collection that
+      // happens to be spelled `wire`.
+      const okr = await handlers.get("dbg_restart")!({ scene: "res://demo/demo.tscn" }, {});
+      assert.notEqual(okr.isError, true, `dbg_restart: ${label} — a legal scene must still restart on this same plane`);
+      assert.deepEqual(wire, ['restart "res://demo/demo.tscn"'], `dbg_restart: ${label} — THIS plane's wire can fill, so the emptiness above is the guard`);
     }
     // …and a legal override still restarts, so the second guard is not over-eager.
     const { handlers, wire } = planeFor(root);
