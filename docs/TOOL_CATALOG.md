@@ -2557,11 +2557,38 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```json
 { "type": "object", "properties": { "max_depth": { "type": "integer", "default": 64 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** same recursive `SceneNode` shape as `scene_get_tree`, plus live `visible`/`process_mode` fields.
+- **Output** `{ name, type, path, child_count, visible?, children?, engine_log? }` — the recursive `SceneNode` shape `scene_get_tree` returns, over the LIVE tree, plus the engine-error echo (D1a).
+
+### The engine-error echo (`engine_log`) — D1a
+
+Every runtime tool whose reply is the bridge's verbatim result carries an optional
+`engine_log` when — and only when — the engine emitted an **error** or **warning**
+*during that call*. The bridge reads its log ring's sequence number either side of the
+dispatch, so attribution is structural rather than a guess: everything appended in
+between belongs to this call and nothing else does.
+
+```json
+{ "engine_log": { "entries": [ { "seq": 41, "level": "error", "message": "Invalid access to property or key 'hp' (player.gd:12)" } ],
+                  "total": 1, "since_seq": 40 } }
+```
+
+- **`isError` is untouched.** A `push_error` during a call that returned what it was
+  asked for is a diagnostic, not a failed call.
+- **Absent, not empty.** Nothing to report means the field is not sent at all.
+- **`entries` is capped at 20; `total` is not.** A caller reading twenty cannot otherwise
+  tell twenty from two hundred.
+- 🔴 **Godot 4.5+ for engine messages.** The zero-config capture registers a scriptable
+  `Logger` via `OS.add_logger`, which does not exist before 4.5. On 4.3/4.4 the ring — and
+  therefore the echo — carries only what game code routes through `push_log` itself, so a
+  4.3 caller sees the field absent rather than wrong.
+- The five runtime tools that do **not** carry it — `runtime_screenshot`,
+  `runtime_await_condition`, `runtime_spawn_peers`, `runtime_peer_stop`,
+  `runtime_peers_digest` — build their reply rather than forwarding one, so there is no
+  single dispatch to attribute a log line to.
 
 ### `runtime_get_property` / `runtime_set_property` ✅ · (`set` is destructive)
 - **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
-- **Output** identical `{ path, property, value }` shape.
+- **Output** `{ path, property, value, engine_log? }` — the `node_get_property` shape plus the engine-error echo (D1a).
 
 ### `runtime_call_method` ✅ · destructive (arbitrary invocation)
 - **Input**
@@ -2574,7 +2601,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["return"], "properties": { "return": { "$ref": "#/$defs/Variant" } } }
+{ "type": "object", "required": ["return"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "return": { "$ref": "#/$defs/Variant" } } }
 ```
 
 ### `runtime_emit_signal` ✅ · destructive
@@ -2584,7 +2611,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```
 - **Output**
 ```json
-{ "type": "object", "properties": { "emitted": { "type": "boolean" } } }
+{ "type": "object", "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "emitted": { "type": "boolean" } } }
 ```
 - Errors: `bad_path` (no node at `path`) / `no_signal` (the node declares no such signal — including an omitted `signal`, which arrives as `""`) / `emit_failed` (a **connected** callable could not be invoked; the message carries the engine's own code by name and number). `emit_failed` means the length of `args` does not match the arity of a connected callable: Godot pushes `Method expected N argument(s), but called with M` into the *game's* log and that callable never runs, so before this was checked the tool answered `{"emitted": true}` for an emission that never reached anyone.
 - 🔴 **Two caveats on `emit_failed`, both measured on 4.3/4.5/4.7 and neither fixable here.** (1) **Arity only** — Godot does *not* type-check signal arguments, so an argument of the wrong type emits successfully and arrives as sent. (2) **Only when something is connected** — a signal with no connections returns `ERR_UNAVAILABLE`, which this tool reports as **success**, because emitting into the void is ordinary. A *wrong* argument count on an unconnected signal returns `ERR_UNAVAILABLE` too (there is no callable whose arity could mismatch), so it is indistinguishable from a correct emission and is **not** reported. Do not read `emitted: true` as "a handler ran".
@@ -2607,7 +2634,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["injected", "kind"], "properties": { "injected": { "type": "boolean" }, "kind": { "type": "string" } } }
+{ "type": "object", "required": ["injected", "kind"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "injected": { "type": "boolean" }, "kind": { "type": "string" } } }
 ```
 - Errors: `bad_action` (kind=action naming an action the project's InputMap does not define — including an omitted `action`) / `bad_kind` (an unrecognised or absent `kind`; unreachable through this tool, whose schema is an enum, but reachable by any client writing to the runtime socket directly). `kind=action` sets **InputMap state** and produces no `InputEvent`; the other three kinds go through `Input.parse_input_event` and are delivered as real events, so an action bound to the injected key **will** fire.
 
@@ -2618,7 +2645,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["monitors"], "properties": { "monitors": { "type": "object", "additionalProperties": { "type": "number" } } } }
+{ "type": "object", "required": ["monitors"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "monitors": { "type": "object", "additionalProperties": { "type": "number" } } } }
 ```
 - Allow-listed keys: `time/fps`, `time/process`, `time/physics_process`, `memory/static`, `object/count`, `object/node_count`, `object/resource_count`, `render/total_objects_drawn`, `render/total_draw_calls`, `render/video_mem_used`, `physics_3d/active_objects`, `physics_2d/active_objects`, `audio/output_latency`. Anything else is **skipped, not invented** — `runtime_assert_perf` reports it as `checked: 0` rather than as a passing comparison. `object/count` is the total live ObjectDB population, and the only one of the three object counters that can see a leaked non-Node.
 
@@ -2636,7 +2663,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["entries", "latest_seq"], "properties": { "entries": { "type": "array", "items": { "type": "object", "properties": { "seq": { "type": "integer" }, "level": { "type": "string" }, "message": { "type": "string" } } } }, "latest_seq": { "type": "integer" }, "capture": { "type": "boolean" } } }
+{ "type": "object", "required": ["entries", "latest_seq"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "entries": { "type": "array", "items": { "type": "object", "properties": { "seq": { "type": "integer" }, "level": { "type": "string" }, "message": { "type": "string" } } } }, "latest_seq": { "type": "integer" }, "capture": { "type": "boolean" } } }
 ```
 - **D6 zero-config capture (Godot 4.5+):** on 4.5 and newer the runtime bridge auto-registers a scriptable `Logger` (`OS.add_logger`) that funnels every `print()` / `push_warning` / `push_error` and engine message into this ring buffer — so the host reads the game's console with **no managed parent process**. Levels are `info` / `warning` / `error`. `capture` reports whether that hook is active; on Godot < 4.5 it is `false` and only explicit `BreakpointRuntimeBridge.push_log(...)` entries appear (unchanged behavior). Changes to the buffer push `godot://runtime/log` to subscribers (coalesced, one per frame).
 
@@ -2645,35 +2672,35 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "expect"], "properties": { "path": { "type": "string" }, "expect": { "type": "object", "description": "property name -> expected value (tagged-Variant JSON for complex types)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ path, ok, checked, mismatches[] }` — read-only. `ok` is true when every checked property matched (numeric fields within `tolerance`); each mismatch is `{ property, expected, actual }` with values in the tagged-Variant encoding.
+- **Output** `{ path, ok, checked, mismatches[], engine_log? }` — read-only. `ok` is true when every checked property matched (numeric fields within `tolerance`); each mismatch is `{ property, expected, actual }` with values in the tagged-Variant encoding.
 
 ### `runtime_assert_scene_structure` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["expect"], "properties": { "expect": { "type": "array", "items": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "absent": { "type": "boolean" } } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ ok, checked, failures[] }` — read-only. `ok` is true when every expectation held; each failure is `{ path, reason, expected?, actual? }` where `reason` is one of `missing` / `type_mismatch` / `expected_absent_but_present`.
+- **Output** `{ ok, checked, failures[], engine_log? }` — read-only. `ok` is true when every expectation held; each failure is `{ path, reason, expected?, actual? }` where `reason` is one of `missing` / `type_mismatch` / `expected_absent_but_present`.
 
 ### `runtime_assert_perf` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["baseline"], "properties": { "baseline": { "type": "object", "additionalProperties": { "type": "number" }, "description": "monitor key -> baseline value (captured earlier via runtime_get_monitors)" }, "tolerance": { "type": "number", "minimum": 0, "default": 0 }, "direction": { "type": "object", "additionalProperties": { "enum": ["higher_better", "lower_better"] } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ ok, checked, regressions[], monitors }` — read-only. `ok` is true when every checked monitor met its baseline within `tolerance`; each regression is `{ key, baseline, current, direction }`, and `monitors` maps every checked key to its current value. Direction defaults to `time/fps` higher-better and every other monitor lower-better, overridable per key. The baseline is supplied **inline** (capture it earlier via `runtime_get_monitors`), so the tool stays stateless and read-only — no in-plugin baseline store, no file writes.
+- **Output** `{ ok, checked, regressions[], monitors, engine_log? }` — read-only. `ok` is true when every checked monitor met its baseline within `tolerance`; each regression is `{ key, baseline, current, direction }`, and `monitors` maps every checked key to its current value. Direction defaults to `time/fps` higher-better and every other monitor lower-better, overridable per key. The baseline is supplied **inline** (capture it earlier via `runtime_get_monitors`), so the tool stays stateless and read-only — no in-plugin baseline store, no file writes.
 
 ### `runtime_assert_screen_text` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" }, "present": { "type": "boolean", "default": true }, "regex": { "type": "boolean", "default": false }, "case_sensitive": { "type": "boolean", "default": false }, "min_count": { "type": "integer", "minimum": 1 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ ok, matches, present, samples[] }` — read-only. Scans visible `Control` text in the live scene tree (no OCR): a node counts as a match when it is `visible_in_tree()` and its `text` property contains `text` (substring by default, or a regular expression when `regex:true`; `case_sensitive` defaults false). `ok` is true when the text is present (`present:true`, default) or absent (`present:false`); if `min_count` is given, `ok` requires at least that many matches. `matches` is the total count; `samples` lists up to 20 matching `{ path, text }`. Sees text on `Label` / `RichTextLabel` / `Button` / `LineEdit` / `TextEdit` / `CheckBox` / `LinkButton` and similar; does **not** see text drawn directly to the canvas or baked into textures.
+- **Output** `{ ok, matches, present, samples[], engine_log? }` — read-only. Scans visible `Control` text in the live scene tree (no OCR): a node counts as a match when it is `visible_in_tree()` and its `text` property contains `text` (substring by default, or a regular expression when `regex:true`; `case_sensitive` defaults false). `ok` is true when the text is present (`present:true`, default) or absent (`present:false`); if `min_count` is given, `ok` requires at least that many matches. `matches` is the total count; `samples` lists up to 20 matching `{ path, text }`. Sees text on `Label` / `RichTextLabel` / `Button` / `LineEdit` / `TextEdit` / `CheckBox` / `LinkButton` and similar; does **not** see text drawn directly to the canvas or baked into textures.
 
 ### `runtime_screenshot_diff` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["reference"], "properties": { "reference": { "type": "string", "description": "res:// or user:// path to the reference PNG" }, "tolerance": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }, "per_channel_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }, "region": { "type": "object", "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ ok, diff_ratio, differing_pixels, total_pixels, width, height, reference, reason? }` — read-only, **stats only**. Captures the current frame, loads `reference`, normalizes both to RGBA8, optionally crops both to `region`, then counts pixels whose per-channel delta exceeds `per_channel_threshold`. `diff_ratio` = differing / total; `ok` is true when `diff_ratio <= tolerance`. If the (post-crop) dimensions differ, returns `ok:false` with `reason:"dimension_mismatch"`. The diff is computed **engine-side** (`Image`), so the host stays dependency-free. Establish a reference by capturing `runtime_screenshot` and saving it as a project asset. **Future (gated):** an optional `write_diff` to save a highlighted diff image would be a file write — kept out of v1 to stay read-only.
+- **Output** `{ ok, diff_ratio, differing_pixels, total_pixels, width, height, reference, reason?, engine_log? }` — read-only, **stats only**. Captures the current frame, loads `reference`, normalizes both to RGBA8, optionally crops both to `region`, then counts pixels whose per-channel delta exceeds `per_channel_threshold`. `diff_ratio` = differing / total; `ok` is true when `diff_ratio <= tolerance`. If the (post-crop) dimensions differ, returns `ok:false` with `reason:"dimension_mismatch"`. The diff is computed **engine-side** (`Image`), so the host stays dependency-free. Establish a reference by capturing `runtime_screenshot` and saving it as a project asset. **Future (gated):** an optional `write_diff` to save a highlighted diff image would be a file write — kept out of v1 to stay read-only.
 
 ### `runtime_await_condition` ✅
 - **Input**
@@ -2700,7 +2727,7 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "custom_speed": { "type": "number", "default": 1.0 },
     "from_end": { "type": "boolean", "default": false }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ playing, current_animation, speed_scale }` — plays `animation` (or the currently-assigned one when omitted) on the live `AnimationPlayer`. Errors `not_animation_player` when `path` is another class and `no_animation` when the name is unknown.
+- **Output** `{ playing, current_animation, speed_scale, engine_log? }` — plays `animation` (or the currently-assigned one when omitted) on the live `AnimationPlayer`. Errors `not_animation_player` when `path` is another class and `no_animation` when the name is unknown.
 
 ### `runtime_anim_stop` ✅ · destructive (drives the running game)
 - **Input**
@@ -2710,14 +2737,14 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" },
     "keep_state": { "type": "boolean", "default": false, "description": "pause in place instead of stopping" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ playing, current_animation, position }` — `keep_state:true` pauses in place (`AnimationPlayer.pause()`), otherwise stops (`stop()`). `pause()`/`stop()` with no arguments are used so the tool is stable across Godot 4.2–4.5.
+- **Output** `{ playing, current_animation, position, engine_log? }` — `keep_state:true` pauses in place (`AnimationPlayer.pause()`), otherwise stops (`stop()`). `pause()`/`stop()` with no arguments are used so the tool is stable across Godot 4.2–4.5.
 
 ### `runtime_anim_get_state` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "description": "an AnimationPlayer node in the running scene" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ playing, current_animation, position, length, speed_scale, animations[] }` — read-only snapshot of a live `AnimationPlayer`; `animations` lists the available animation names.
+- **Output** `{ playing, current_animation, position, length, speed_scale, animations[], engine_log? }` — read-only snapshot of a live `AnimationPlayer`; `animations` lists the available animation names.
 
 ### `runtime_node_add` ✅ · destructive
 - **Input**
@@ -2729,42 +2756,42 @@ Restart the current C# debug session. Uses the DAP `restart` request when the ad
     "scene": { "type": "string", "description": "res:// PackedScene to instantiate (mutually exclusive with type)" },
     "name": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ added, path, type }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
+- **Output** `{ added, path, type, engine_log? }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
 
 ### `runtime_node_remove` ✅ · destructive
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ removed, path }` — `queue_free()`s the node. Refuses to remove the current scene root (`cannot_remove_root`).
+- **Output** `{ removed, path, engine_log? }` — `queue_free()`s the node. Refuses to remove the current scene root (`cannot_remove_root`).
 
 ### `runtime_time_scale` ✅ · destructive (alters the running game's clock)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["scale"], "properties": { "scale": { "type": "number", "minimum": 0, "description": "0 = freeze, 1 = normal, N = slow/fast" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ previous, current }` — sets `Engine.time_scale` (negative clamped to 0) and reports the prior and new values. Freeze with `scale:0`, then `runtime_step_frames` to advance deterministically.
+- **Output** `{ previous, current, engine_log? }` — sets `Engine.time_scale` (negative clamped to 0) and reports the prior and new values. Freeze with `scale:0`, then `runtime_step_frames` to advance deterministically.
 
 ### `runtime_step_frames` ✅ · destructive (drives the running game)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["frames"], "properties": { "frames": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["idle", "physics", "both"], "default": "idle" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ frames_advanced, frame_index }` — advances the game by exactly `frames` frames while otherwise frozen, ticking the idle loop (default), the physics loop, or both each step. Dispatched on the runtime bridge's **async lane** (it awaits engine frame signals; the bridge stays responsive because its autoload is `PROCESS_MODE_ALWAYS`) and restores the caller's prior pause state when done. `frame_index` is `Engine.get_process_frames()` after stepping. Pair with `runtime_time_scale{scale:0}` to freeze, then assert.
+- **Output** `{ frames_advanced, frame_index, engine_log? }` — advances the game by exactly `frames` frames while otherwise frozen, ticking the idle loop (default), the physics loop, or both each step. Dispatched on the runtime bridge's **async lane** (it awaits engine frame signals; the bridge stays responsive because its autoload is `PROCESS_MODE_ALWAYS`) and restores the caller's prior pause state when done. `frame_index` is `Engine.get_process_frames()` after stepping. Pair with `runtime_time_scale{scale:0}` to freeze, then assert.
 
 ### `runtime_state_digest` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["root"], "properties": { "root": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" } }, "max_depth": { "type": "integer", "minimum": 0, "default": 8 }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ digest, node_count }` — read-only. Walks the subtree at `root` (to `max_depth`, default 8) and emits `digest` as a stable-ordered map of node path → `{ field: value }`. Default fields are `position` / `global_position` / `rotation` / `scale` / `visible` / `modulate` (only those present on each node); pass `fields` to capture a specific set. Deterministic ordering makes it ideal for frame-by-frame comparison alongside `runtime_step_frames`.
+- **Output** `{ digest, node_count, engine_log? }` — read-only. Walks the subtree at `root` (to `max_depth`, default 8) and emits `digest` as a stable-ordered map of node path → `{ field: value }`. Default fields are `position` / `global_position` / `rotation` / `scale` / `visible` / `modulate` (only those present on each node); pass `fields` to capture a specific set. Deterministic ordering makes it ideal for frame-by-frame comparison alongside `runtime_step_frames`.
 
 ### `runtime_seed_rng` ✅ · destructive (changes RNG state)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["seed"], "properties": { "seed": { "type": "integer" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ seed }` — seeds the running game's **global** RNG via GDScript `seed()` so a playtest is reproducible. Note: affects only the global RNG (`randi`/`randf`), not per-instance `RandomNumberGenerator`s or physics determinism.
+- **Output** `{ seed, engine_log? }` — seeds the running game's **global** RNG via GDScript `seed()` so a playtest is reproducible. Note: affects only the global RNG (`randi`/`randf`), not per-instance `RandomNumberGenerator`s or physics determinism.
 
 ### `runtime_spawn_peers` ✅ · higher-trust (`code-execution`, dropped by default)
 - **Input**
