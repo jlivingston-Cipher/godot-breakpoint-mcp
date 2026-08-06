@@ -53,6 +53,28 @@ const REPO_DIR = path.dirname(HOST_DIR);
 // to refuse. Two servers that failed to start agree perfectly.
 export const SURFACE_FLOOR = 200;
 
+// 🆕 211 §4 — AND IT WAS NOT THE ONLY NUMBER THIS FILE NEEDED. The caption above says
+// "THE ONLY NUMBER IN THIS FILE" and it was a boast about the thing that was missing:
+// `SURFACE_FLOOR` floors the TOOL NAMES. Nothing floored the SCHEMA PATHS.
+//
+// 🔴 MEASURED, `probe211.mjs`: blind `shapeOf` on BOTH sides — which is the realistic
+// failure, because it is ONE function applied to both surfaces — and `os`/`ns` are empty
+// for every tool, both loops iterate zero times, `major` and `minor` stay empty, the
+// verdict is PATCH and the exit code is 0. `SURFACE_FLOOR` is fully satisfied by 291
+// tool NAMES. "The wire did not move" and "I read no schema" are the SAME OUTPUT — and
+// `release<N>.py` asserts `WIRE_VERDICT == BUMP` against that output.
+//
+// A one-sided collapse is loud: it reads as mass removal and classifies MAJOR. The
+// SYMMETRIC one is silent, and it is the one an SDK upgrade produces — `properties`
+// relocating under `$defs`, a wrapper envelope, a `$ref` indirection this walker does
+// not follow. `boundary_gate.mjs` ships `JUDGED_FLOOR` for exactly this shape and says
+// why: every other floor there pins an INPUT, and none of them pins the OUTPUT.
+//
+// Measured 2,451 paths on the DEFAULT surface (278 tools) and 2,576 privileged. Floored
+// from below against the smaller of the two, because the default is the one most clients
+// pay and the one this check must not stop reading first.
+export const SHAPE_FLOOR = 2000;
+
 // ── normalisation: what this repository AUTHORED, and nothing else ───────────────────
 // 🔴 `execution` IS NORMALISED, NOT DROPPED, AND THE DIFFERENCE IS THE POINT. The spec
 // makes an ABSENT `execution` mean `taskSupport: "forbidden"`, so absence and the
@@ -89,17 +111,54 @@ export function normalise(tool) {
 // 🔴 A STRING, NOT THE SUBTREE. Comparing schema subtrees verbatim makes every
 // description edit a type change, and a reader that calls everything a change tells you
 // nothing. This names the one property of a field a caller cannot ignore.
+// 🆕 211 §3 — AND THE VALUE IS PART OF THE TYPE WHEN THE VALUE IS ALL THERE IS.
+// The three lines this block replaces read `enum(${v.enum.length})`, `"const"` and
+// `anyOf(${v.anyOf.length})` — a COUNT of the branches and, for `const`, not even that.
+// Measured (`probe211.mjs`): `const:"v1"` -> `const:"v2"` and `enum:["a","b"]` ->
+// `enum:["x","y"]` both produce IDENTICAL shape maps, zero diffs, verdict PATCH, exit 0.
+// Every one of those breaks a validating caller, and `major` could not contain them.
+//
+// 🔴 THIS IS 210 §16's RULE POINTED AT CHECK 8 ITSELF. The reader's population was
+// "which JSON Schema keyword names this field", and the answer "the accepted values
+// changed" was not in it — by construction, and it looked like a clean PATCH rather
+// than an error. The one reader in the release that projects onto what a client
+// consumes could not see the narrowest thing a client consumes.
+//
+// A DIGEST rather than the members, and that is the same argument as the function's
+// original one: comparing subtrees verbatim makes every edit a change. A digest is
+// stable, bounded, and moves on exactly the event a caller cares about.
+const digest = (v) => {
+  const s = JSON.stringify(v);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+};
+
+// 🔴 THE CONSTRAINT KEYWORDS ARE THE SAME FINDING ONE KEYWORD OVER. `{type:"string"}`
+// answers `"string"` whether or not a `pattern` narrowed it, so TIGHTENING a live field
+// — `minimum` 0 -> 99, a new `pattern`, `maxLength` halved — classified as PATCH. These
+// are appended rather than replacing the type, so a widening still reads as the same
+// base type with a different constraint fingerprint and lands in `major` for a human.
+const CONSTRAINTS = ["pattern", "format", "minimum", "maximum", "exclusiveMinimum",
+  "exclusiveMaximum", "minLength", "maxLength", "minItems", "maxItems", "multipleOf",
+  "additionalProperties", "uniqueItems"];
+
 export function typeName(v) {
   if (!v || typeof v !== "object") return "unknown";
+  const narrowed = CONSTRAINTS.filter((k) => v[k] !== undefined);
+  const suffix = narrowed.length
+    ? `+${digest(Object.fromEntries(narrowed.map((k) => [k, v[k]])))}`
+    : "";
   if (v.type !== undefined) {
-    return Array.isArray(v.type) ? [...v.type].sort().join("|") : String(v.type);
+    const base = Array.isArray(v.type) ? [...v.type].sort().join("|") : String(v.type);
+    return base + suffix;
   }
-  if (Array.isArray(v.enum)) return `enum(${v.enum.length})`;
-  if (v.const !== undefined) return "const";
-  if (Array.isArray(v.anyOf)) return `anyOf(${v.anyOf.length})`;
-  if (Array.isArray(v.oneOf)) return `oneOf(${v.oneOf.length})`;
-  if (typeof v.$ref === "string") return `ref:${v.$ref}`;
-  return "unknown";
+  if (Array.isArray(v.enum)) return `enum(${v.enum.length}:${digest([...v.enum].sort())})${suffix}`;
+  if (v.const !== undefined) return `const(${digest(v.const)})${suffix}`;
+  if (Array.isArray(v.anyOf)) return `anyOf(${v.anyOf.length}:${digest(v.anyOf.map(typeName))})${suffix}`;
+  if (Array.isArray(v.oneOf)) return `oneOf(${v.oneOf.length}:${digest(v.oneOf.map(typeName))})${suffix}`;
+  if (typeof v.$ref === "string") return `ref:${v.$ref}${suffix}`;
+  return "unknown" + suffix;
 }
 
 // path -> { type, required }. Nested objects and array items are walked, because a
@@ -140,6 +199,7 @@ export function classify(before, after) {
   }
 
   const major = [], minor = [], patch = [];
+  let pathsBefore = 0, pathsAfter = 0;
   for (const n of b.keys()) if (!a.has(n)) major.push(`TOOL REMOVED  ${n}`);
   for (const n of a.keys()) if (!b.has(n)) minor.push(`TOOL ADDED  ${n}`);
 
@@ -156,6 +216,8 @@ export function classify(before, after) {
         continue;
       }
       const os = shapeOf(o[key]), ns = shapeOf(t[key]);
+      pathsBefore += os.size;
+      pathsAfter += ns.size;
       for (const [p, ov] of os) {
         const nv = ns.get(p);
         if (!nv) { major.push(`${n}: ${key}.${p} REMOVED`); continue; }
@@ -175,11 +237,29 @@ export function classify(before, after) {
     if (o.title !== t.title) patch.push(`${n}: title moved`);
   }
 
+  // 🆕 211 §4 — THE FLOOR ON WHAT WAS READ, NOT ON WHAT WAS FOUND. Placed AFTER the
+  // comparison because the count is a by-product of it, and refused as a THROW for the
+  // same reason `SURFACE_FLOOR` is: a reader that read nothing has not answered the
+  // question, and "PATCH" is an answer. 🔴 BOTH SIDES, because a symmetric collapse is
+  // the silent one — see the constant's own note.
+  if (pathsBefore < SHAPE_FLOOR || pathsAfter < SHAPE_FLOOR) {
+    throw new Error(
+      `WIRE_DIFF SHAPE POPULATION COLLAPSED — baseline read ${pathsBefore} schema path(s), `
+      + `current ${pathsAfter}, floor ${SHAPE_FLOOR}, across ${a.size} tool(s) that passed `
+      + `SURFACE_FLOOR. \`shapeOf\` descends \`properties\` and array \`items\` and nothing `
+      + `else: an SDK that relocates schemas under \`$defs\`, wraps them in an envelope, or `
+      + `moves to \`$ref\` indirection empties this population on BOTH sides at once and `
+      + `every comparison below silently becomes a no-op returning PATCH. Read one `
+      + `tools/list payload by hand and fix \`shapeOf\` before touching this floor — the `
+      + `verdict this file produces is what \`release<N>.py\` pins the bump to.`);
+  }
+
   const verdict = major.length ? "MAJOR" : minor.length ? "MINOR" : "PATCH";
   return {
     verdict, major, minor, patch,
     moved: major.length + minor.length + patch.length,
     counts: { before: b.size, after: a.size },
+    paths: { before: pathsBefore, after: pathsAfter, floor: SHAPE_FLOOR },
   };
 }
 

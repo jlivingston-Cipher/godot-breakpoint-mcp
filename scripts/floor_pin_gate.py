@@ -52,7 +52,14 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 64   # governed by SIZE_LEDGER (§9.3). 209 §2 raised it by three: the
+TARGET_FLOOR = 67   # governed by SIZE_LEDGER (§9.3). 211 §4 raised it by three: the
+                    #      wire classifier's SHAPE_FLOOR — the first floor in that file
+                    #      to pin its ANSWER rather than its input — and its self-test's
+                    #      own COLLAPSE_SHAPE_FLOOR, which counts the refusals rather
+                    #      than trusting a literal in a summary line; and §6 the
+                    #      budget reader's own claim floor, which it grew on the day
+                    #      it became an instrument roster entry.
+                    # 209 §2 raised it by three: the
                     #      wire-diff classifier's SURFACE_FLOOR and its self-test's
                     #      CLAIM_FLOOR, plus the discard gate's DISCARD_BUSIEST_FLOOR —
                     #      the shape floor that exists because the two size floors beside
@@ -105,6 +112,15 @@ TARGET_FLOOR = 64   # governed by SIZE_LEDGER (§9.3). 209 §2 raised it by thre
 # (label, file, regex whose group(1) ends immediately before the digits, runner argv)
 # The runner is the file that MUST go red when this floor's value is zeroed.
 TARGETS: list[tuple[str, str, str, list[str]]] = [
+    # 🆕 211 §4 — CHECK 8's SECOND FLOOR, AND THE FIRST ONE THAT PINS ITS ANSWER RATHER
+    # THAN ITS INPUT. `SURFACE_FLOOR` floors the tool NAMES; this floors the schema PATHS
+    # the classifier actually read. Moved off its value, `wire_diff.selftest.mjs`'s six
+    # symmetric-collapse rows stop refusing and the file reddens.
+    ("SHAPE_FLOOR",              f"{S}/wire_diff.mjs",               r"(export const SHAPE_FLOOR = )2000;",                       [f"{S}/wire_diff.selftest.mjs"]),
+    # 🆕 211 §6 — the budget reader's self-test grew a collapse detector of its own when
+    # it became a roster entry, and a collapse detector nothing moves is 176's G12 shape.
+    ("tc.CLAIM_FLOOR",           f"{S}/token-cost.selftest.mjs",     r"(const CLAIM_FLOOR = )18;",                                [f"{S}/token-cost.selftest.mjs"]),
+    ("wd.COLLAPSE_SHAPE_FLOOR",  f"{S}/wire_diff.selftest.mjs",      r"(const COLLAPSE_SHAPE_FLOOR = )6;",                        [f"{S}/wire_diff.selftest.mjs"]),
     ("SUBJECT_FLOOR",            f"{S}/verdict_gate.mjs",            r"(export const SUBJECT_FLOOR = )4;",                        [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_SITE_FLOOR",       f"{S}/verdict_gate.mjs",            r"(export const DISCARD_SITE_FLOOR = )55;",                  [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_DIR_FLOOR",        f"{S}/verdict_gate.mjs",            r"(export const DISCARD_DIR_FLOOR = )2;",                    [f"{S}/verdict_gate.selftest.mjs"]),
@@ -362,7 +378,8 @@ DISCOVER_DIRS = [HOST / "scripts", HOST / "test-integration"]
 # so. A constant whose NAME says it is a floor IS a floor, whatever it is bound to; the
 # tables below decide what to do about it, and that is their job rather than the regex's.
 DISCOVER_RE = re.compile(
-    r"^\s*(?:export )?const ((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*=", re.M)
+    r"^\s*(?:export )?const ((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?(?:_[A-Z0-9]+)*)\s*=",
+    re.M)
 # 🔴 182 — AND THE SAME WALK IN PYTHON, BECAUSE THE FIRST DRAFT'S SCOPE WAS THE LANGUAGE
 # AND NOT THE PROPERTY. `scripts/*.mjs` was walked; `scripts/*.py` was not, so a floor
 # written in Python was outside this gate by construction and no line said so — the
@@ -381,10 +398,23 @@ DISCOVER_PY_DIRS = [ROOT / "scripts"]
 # sessions, 198 leaned on the PY side twice without paying it, and closing one side while
 # leaving the other narrow is how the asymmetry gets recreated on the next widening.
 DISCOVER_PY_RE = re.compile(
-    r"^\s*((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?)\s*[:=]", re.M)
+    r"^\s*((?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?(?:_[A-Z0-9]+)*)\s*[:=]", re.M)
 # The name shape both walks look for, as ONE definition — used again in `main()` to read
 # a TARGETS label. Two spellings of the same rule would drift (180 §7.1).
-FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?$")
+# 🆕 211 §2 — AND THE CONVENTION WAS TERMINAL WHEN THE NAMES ARE NOT. Widened for a
+# PREFIX in 199 and for the plural in 199; nobody widened for a SUFFIX, and two live
+# ceilings sit past it. Measured (`probe211.py`): `LATE_CRASH_CEILING_A` and
+# `LATE_CRASH_CEILING_B` (instrument_gate.py:680-681, consumed at :1566) match NONE of
+# the three readers — not DISCOVER, not DISCOVER_PY, not SIZE_LEDGER — and appear in no
+# exemption table either. Not swept, not exempt, not declared: outside the gate with no
+# line anywhere saying so, which is the exact sentence DISCOVER_RE's own comment uses
+# about the case it was written to end.
+#
+# 🔴 THE DISCRIMINATOR WAS NEVER "ENDS IN", IT WAS "CONTAINS THE WORD". `_A`/`_B` is a
+# pair-of-measurements suffix, and a constant named `..._CEILING_A` is a ceiling by the
+# same argument the file already makes for `..._CEILING`: a constant whose NAME says it
+# is a floor IS a floor, whatever is appended to distinguish it from its twin.
+FLOORISH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*)?(?:FLOOR|CEILING)S?(?:_[A-Z0-9]+)*$")
 
 # 🔴 199 §9.4 — THE FLOORS THIS GATE SWEEPS AND ITS DISCOVERY HALF CANNOT NAME.
 # The DISCOVER walk is scoped to a NAMING CONVENTION: a constant is findable only if its
@@ -450,6 +480,21 @@ UNDISCOVERABLE_CEILING = 0   # 🔴 IT FELL, AS 199 — SAID IT SHOULD, AND IT S
 # hand-written line entirely: 198's rule that an exclusion should come from data the tree
 # already carries rather than from a roster somebody maintains.
 DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
+    # 🆕 211 §2 — THE PRICE OF THE SUFFIX WIDENING, PAID IN THE TABLE RATHER THAN IN THE
+    # REGEX. Admitting `..._A`/`..._B` also admits two names that CONTAIN the word and
+    # are not numbers at all. That is this file's own doctrine working as designed —
+    # "a constant whose NAME says it is a floor IS a floor, whatever it is bound to; the
+    # tables below decide what to do about it, and that is their job rather than the
+    # regex's" — so the two land here, with the reason a reader could not mistake for
+    # 'not done yet'. 🔴 NARROWING THE REGEX TO EXCLUDE THEM WOULD RE-EXCLUDE THE TWO
+    # LIVE CEILINGS IT WAS WIDENED FOR, which is the trade 199 §8 refuses.
+    (f"{S}/tautology_gate.mjs", "FLOOR_RE"): "🆕 211 — a REGEX, not a number: `FLOOR_RE` is the pattern tautology_gate uses "
+                "to decide whether a claim site sits under a floor. There is no value to mutate "
+                "off and no threshold to move; blinding it is the instrument gate's job and it "
+                "is already a `{SIG:}` target there",
+    (f"{T}/_path_ledger.mjs", "COHORT_FLOOR_WHY"): "🆕 211 — a STRING of prose explaining why the cohort floors are set where "
+                       "they are. The floors themselves (`COHORT_FLOORS`) are swept; this is their "
+                       "caption, and a caption has no refusal to prove",
     (f"{T}/authoring-plane.integration.mjs", "AUTH_SNAPSHOT_FILE_FLOOR"): "authoring-plane.integration.mjs — boots the editor GUI under Xvfb; no headless runner can redden it",
     (f"{T}/authoring-plane.integration.mjs", "AUTH_SNAPSHOT_DIR_FLOOR"): "same file, same reason",
     (f"{T}/authoring-plane.integration.mjs", "AUTH_FAMILY_FLOOR"): "same file, same reason",
@@ -474,6 +519,22 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                        "blinds and leaves the count comfortably above that floor. Same nesting "
                        "reason as INSTRUMENT_FLOOR",
     # 🆕 197 — instrument_gate.py's fifth and sixth, same nesting reason as the four above.
+    # 🆕 211 §2 — THE TWO THIS GATE COULD NOT SEE UNTIL THIS SESSION, and their exemption
+    # is the SAME one `CRASH_CEILING` below carries, arriving five sessions late for the
+    # only reason that matters: 🔴 THE DISCOVERY REGEX COULD NOT NAME THEM. 197 widened
+    # for `CEILING`, 199 for the plural and the prefix, 200 dropped the value half —
+    # every widening terminal, and these two end in `_A`/`_B`. Not swept, not exempt, not
+    # in SIZE_LEDGER, not in UNDISCOVERABLE_DECLARED: outside all three readers with no
+    # line anywhere saying so, which is the exact case DISCOVER_RE's comment says the
+    # tables exist to prevent. They are exempt HERE for the nesting reason, not for the
+    # naming one, and the naming one is fixed above.
+    ("../scripts/instrument_gate.py", "LATE_CRASH_CEILING_A"): "🆕 211 — instrument_gate.py's per-axis ceilings on late blinds that CRASH "
+                             "their gate rather than reddening it, kept as two numbers rather than one sum "
+                             "so an axis cannot borrow the other's headroom. Exempt for INSTRUMENT_FLOOR's "
+                             "reason — the runner would be instrument_gate.py, which mutates the working "
+                             "tree — and pinned in-file by `_self_check()`, which drives `crash_problems` "
+                             "over a two-crash fixture against a ceiling of one and requires it to bite",
+    ("../scripts/instrument_gate.py", "LATE_CRASH_CEILING_B"): "same constant one axis over, same pinning, same nesting reason",
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): "🆕 197 — instrument_gate.py's CEILING on how many blinds go red WITHOUT the "
                      "gate reaching its own verdict, i.e. crash it instead of failing it. It is the "
                      "first thing this gate discovers under that session's `CEILING` widening rather than "
@@ -671,7 +732,21 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
 # identified by what FOLLOWS it: a section sign, an em-dash introducing the finding, or
 # the possessive this codebase writes when it attributes a rule ("176's G12 shape"). A
 # bare `103, measured across the rows` has none of those and is a claim about now.
-REASON_CITE = re.compile(r"(?<!\d)(?:1[5-9]\d|20\d)(?=\s*(?:§|—|--|'|’))")
+# 🆕 211 §2 — AND THE RANGE WAS A CALENDAR WITH AN EXPIRY DATE IN IT. `(?:1[5-9]\d|20\d)`
+# recognises 150-209 and NOTHING ELSE. Measured (`probe211.py`): '209 §2' is read as a
+# citation and scrubbed; 🔴 '210 §2' and '211 §5' are not, so the digit survives the scrub
+# and `FLOOR_PIN_REASON_DIGIT` fires on the next session that cites itself in a reason —
+# which is the house style this gate's own reasons are written in. 209 was the last
+# session the window covered and 210 shipped without touching a reason, by luck.
+#
+# 🔴 THIS IS 210 §16's RULE ARRIVING AT THIS FILE. The comment above is right that a
+# citation is identified by what FOLLOWS it rather than by its range — and then the
+# pattern encodes a range anyway. The lookahead is the rule; three digits are enough to
+# separate a citation from the two-digit counts and one-digit indices this codebase
+# writes, and there is no session number this gate should refuse to let a reason cite.
+# A four-digit number followed by `§` is not a thing anyone writes, and if it ever is,
+# it is a citation too.
+REASON_CITE = re.compile(r"(?<!\d)\d{3,}(?=\s*(?:§|—|--|'|’))")
 REASON_SECTION = re.compile(r"§\s*\d+(?:\.\d+)*")
 REASON_PLACEHOLDER = re.compile(r"\{FLOOR\}")
 REASON_DIGIT = re.compile(r"(?<![\w])(\d+)")
@@ -865,12 +940,15 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (64, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (67, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
         "admitted the shipped claim-site floors, by two when 206 §3 added the "
         "registry-lag reader's pair, by two more when 206 §4 added the "
-        "tool-surface budget's, and by three when 209 §2 added the wire-diff "
-        "classifier's pair and the discard gate's shape floor.")),
+        "tool-surface budget's, by three when 209 §2 added the wire-diff "
+        "classifier's pair and the discard gate's shape floor, and by two when "
+        "211 §4 added that classifier's floor on its OWN ANSWER, the refusal "
+        "count its self-test used to print as a literal, and the budget reader's "
+        "claim floor.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "

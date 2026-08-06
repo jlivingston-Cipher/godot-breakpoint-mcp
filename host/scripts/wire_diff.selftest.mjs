@@ -17,7 +17,7 @@
 // gate" become one observable (181 §4). Every case goes through `claim()`, every risky
 // call through `safe()`, and the run reaches WIRE_DIFF_SELFTEST either way.
 import {
-  classify, normalise, shapeOf, typeName, effectiveTaskSupport, SURFACE_FLOOR,
+  classify, normalise, shapeOf, typeName, effectiveTaskSupport, SURFACE_FLOOR, SHAPE_FLOOR,
 } from "./wire_diff.mjs";
 
 let ran = 0, bad = 0;
@@ -26,7 +26,14 @@ const claim = (cond, what) => {
   if (!cond) { bad++; console.log(`🔴 FAILED: ${what}`); }
 };
 const safe = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
+// 🆕 211 §4 — COUNTED, BECAUSE THE SUMMARY LINE USED TO SAY "collapse refuses on 4
+// shapes" AS A LITERAL. It was true when it was typed and this session added three more
+// without it moving. A number printed beside a population it does not read is the same
+// defect `control_gate` refuses one file over; the fix is that `threw` is the only way a
+// collapse row can be written, so the count cannot drift from the rows again.
+let collapseShapes = 0;
 const threw = (fn, re) => {
+  collapseShapes++;
   try { fn(); return false; } catch (e) { return re.test(String(e?.message ?? e)); }
 };
 
@@ -38,12 +45,21 @@ const CLAIM_FLOOR = 50;
 // 🔴 GROWN AGAINST THE LIVE CONSTANT, not against a number typed beside it (206 §3.2).
 // A self-test that hard-codes what the floor is supposed to be agrees with itself over a
 // deleted floor.
+// 🆕 211 §4 — AND THE SAME ARGUMENT NOW APPLIES TO THE SECOND FLOOR. `pad` used to emit
+// ONE property per tool, so `pad(SURFACE_FLOOR)` cleared the tool floor and read 200
+// schema paths — below `SHAPE_FLOOR`, which is the point of that floor existing. The
+// width is DERIVED from the two constants rather than typed beside them, for the same
+// reason the height is: a padder that hard-codes eleven agrees with itself over a raised
+// floor, and the rows above would start refusing for a reason no row is named for.
+const PAD_PROPS = Math.ceil(SHAPE_FLOOR / SURFACE_FLOOR) + 1;
+const padProps = () => Object.fromEntries(
+  Array.from({ length: PAD_PROPS }, (_, j) => [`p${j}`, { type: "string" }]));
 const pad = (n, from = []) => [
   ...from,
   ...Array.from({ length: Math.max(0, n - from.length) }, (_, i) => ({
     name: `fam${i % 7}_pad${i}`,
     description: "d",
-    inputSchema: { type: "object", properties: { p: { type: "string" } } },
+    inputSchema: { type: "object", properties: padProps() },
   })),
 ];
 const BASE = pad(SURFACE_FLOOR);
@@ -175,8 +191,39 @@ claim(safe(() => classify(BASE, BASE))?.verdict === "PATCH",
 // ── 3. THE CONSTANT ITSELF, OR EVERY ROW ABOVE ASSERTS ABOUT NOTHING ─────────────────
 // 🔴 An undefined SURFACE_FLOOR makes every `size < undefined` false and the whole table
 // keeps passing. 172 §10.21's shape.
+// 🆕 211 §4 — THE SECOND FLOOR, AND THE ROW ABOVE CANNOT REACH IT EITHER. Every case in
+// this file so far compares two surfaces that PASSED `SURFACE_FLOOR`; the failure this
+// block is for is the one where they pass it and `shapeOf` reads nothing on EITHER side.
+// 🔴 SYMMETRIC ON PURPOSE. A one-sided emptying reads as mass removal and classifies
+// MAJOR, which is loud. The one that had to be constructed is the one where the same
+// broken reader ran over both payloads and they agreed perfectly — verdict PATCH, exit 0.
+const SHAPE_COLLAPSE = /WIRE_DIFF SHAPE POPULATION COLLAPSED/;
+const flat = (n) => Array.from({ length: n }, (_, i) => ({
+  name: `fam${i % 7}_pad${i}`,
+  description: "d",
+  // A schema `shapeOf` cannot descend: no `properties`, so no paths — which is precisely
+  // what an SDK moving to `$defs` or a wrapper envelope would leave behind.
+  inputSchema: { type: "object", $defs: { p: { type: "string" } } },
+}));
+claim(threw(() => classify(flat(SURFACE_FLOOR), flat(SURFACE_FLOOR)), SHAPE_COLLAPSE),
+  "🔴 a schema read that returns NOTHING on both sides must refuse, not answer PATCH");
+claim(safe(() => classify(flat(SURFACE_FLOOR), flat(SURFACE_FLOOR)))?.verdict !== "PATCH",
+  "🔴 and it must not be reachable as a verdict at all — PATCH here is the whole defect");
+claim(threw(() => classify(BASE, flat(SURFACE_FLOOR)), SHAPE_COLLAPSE),
+  "one side emptied must refuse too — the floor reads BOTH counts");
+claim(safe(() => classify(BASE, BASE))?.paths?.before >= SHAPE_FLOOR,
+  "a populated surface must report the path count it actually read");
+claim(safe(() => classify(BASE, BASE))?.paths?.floor === SHAPE_FLOOR,
+  "and it must report the floor it was judged against, so the pair can be read together");
+
 claim(Number.isInteger(SURFACE_FLOOR) && SURFACE_FLOOR > 0,
   "SURFACE_FLOOR must be a positive integer");
+// 🔴 THE SAME 172 §10.21 ARGUMENT. An undefined SHAPE_FLOOR makes every `n < undefined`
+// false and the six rows above keep passing over a floor that is not there.
+claim(Number.isInteger(SHAPE_FLOOR) && SHAPE_FLOOR > 0,
+  "SHAPE_FLOOR must be a positive integer");
+claim(PAD_PROPS * SURFACE_FLOOR >= SHAPE_FLOOR,
+  "the padder must actually clear the shape floor it is derived from");
 claim(Number.isInteger(CLAIM_FLOOR) && CLAIM_FLOOR > 0,
   "CLAIM_FLOOR must be a positive integer");
 
@@ -200,9 +247,33 @@ claim(safe(() => normalise({ name: "t", inputSchema: { properties: { $schema: { 
 
 claim(typeName({ type: "string" }) === "string", "a plain type is its own name");
 claim(typeName({ type: ["string", "null"] }) === "null|string", "a union must be order-stable");
-claim(typeName({ enum: [1, 2, 3] }) === "enum(3)", "an enum names its arity");
-claim(typeName({ anyOf: [{}, {}] }) === "anyOf(2)", "anyOf names its arity");
-claim(typeName({ const: 1 }) === "const", "a const is its own kind");
+// 🆕 211 §3 — ARITY WAS NOT ENOUGH, AND THESE THREE ROWS ARE WHY IT LOOKED LIKE IT WAS.
+// They asserted `enum(3)`, `anyOf(2)` and `const` — every one of them true, and every one
+// of them satisfied by a reader that cannot tell `["a","b"]` from `["x","y"]`. A row that
+// pins the count pins the count. The pairs below pin the DISTINCTION.
+claim(typeName({ enum: [1, 2, 3] }).startsWith("enum(3"), "an enum names its arity");
+claim(typeName({ anyOf: [{}, {}] }).startsWith("anyOf(2"), "anyOf names its arity");
+claim(typeName({ const: 1 }).startsWith("const("), "a const is its own kind");
+claim(typeName({ const: "v1" }) !== typeName({ const: "v2" }),
+  "🔴 two consts with different VALUES are different types to a caller");
+claim(typeName({ enum: ["a", "b"] }) !== typeName({ enum: ["x", "y"] }),
+  "🔴 two enums of equal arity and different MEMBERS are different types to a caller");
+claim(typeName({ enum: ["a", "b"] }) === typeName({ enum: ["b", "a"] }),
+  "…but member ORDER is not a wire event — the digest is over the sorted members");
+claim(typeName({ type: "string" }) !== typeName({ type: "string", pattern: "^a" }),
+  "🔴 a constraint that NARROWS an existing type is a caller-breaking change");
+claim(typeName({ type: "integer", minimum: 0 }) !== typeName({ type: "integer", minimum: 99 }),
+  "🔴 and so is moving one");
+claim(typeName({ type: "string" }) === typeName({ type: "string", description: "d" }),
+  "…while prose beside the type is still not one");
+claim(typeName({ anyOf: [{ type: "string" }, { type: "number" }] })
+  !== typeName({ anyOf: [{ type: "string" }, { type: "null" }] }),
+  "🔴 anyOf branches that were RETYPED at equal arity are a change");
+// 🔴 THE BOUND, ASSERTED. A digest that grew with the value would put a whole enum into
+// every diff line and make the reader's output unreadable — which is the argument the
+// original `enum(n)` was making, and it was right about that much.
+claim(typeName({ enum: Array.from({ length: 500 }, (_, i) => `member_${i}`) }).length < 40,
+  "the value fingerprint must stay bounded however large the value is");
 claim(typeName(undefined) === "unknown", "an absent schema node is unknown, not a crash");
 
 const sh = safe(() => shapeOf({
@@ -225,8 +296,21 @@ claim(majors >= 6,
 claim(nonPatch >= 10,
   `only ${nonPatch} non-PATCH row(s) — a classifier only ever asked for PATCH proves nothing`);
 
+// 🆕 211 §4 — AND THE COLLAPSE ROWS GET A FLOOR OF THEIR OWN, for the reason the file
+// already gives about `ran`: deleting them leaves every remaining row comparing two
+// populated surfaces, which is the one case that was never the problem.
+const COLLAPSE_SHAPE_FLOOR = 6;
+// 🔴 AND THE CONSTANT ITSELF, for the reason the two floors above already carry: a
+// `>=` against zero can never fire, so a floor moved to zero is a deleted floor wearing
+// a name. `floor_pin_gate` moves it and requires this file to redden.
+claim(Number.isInteger(COLLAPSE_SHAPE_FLOOR) && COLLAPSE_SHAPE_FLOOR > 0,
+  "COLLAPSE_SHAPE_FLOOR must be a positive integer");
+claim(collapseShapes >= COLLAPSE_SHAPE_FLOOR,
+  `only ${collapseShapes} collapse shape(s) constructed, floor ${COLLAPSE_SHAPE_FLOOR} — `
+  + `the refusals this file exists for have been deleted`);
+
 console.log(`\n  ${ROWS.length} rows · ${nonPatch} answer something other than PATCH `
-  + `(${majors} MAJOR) · collapse refuses on 4 shapes`);
+  + `(${majors} MAJOR) · collapse refuses on ${collapseShapes} shapes`);
 console.log(`WIRE_DIFF_SELFTEST ${ran - bad}/${ran} claims`);
 if (bad) { console.log(`🔴 WIRE_DIFF_SELFTEST FAILED — ${bad} of ${ran}`); process.exit(1); }
 // 🔴 THE COLLAPSE DETECTOR FOR THIS FILE ITSELF. Cases deleted, or a loop that stopped
