@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.73.1] — 2026-08-06
+
 ### Fixed — the release classifier could not see a value, and could not tell a clean read from no read
 
 `wire_diff.mjs` is check 8: the only reader in the release ritual that projects onto the
