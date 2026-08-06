@@ -91,7 +91,29 @@ test("the injected annotations match annotationsFor() for every tool", () => {
 test("no tool is both read-only and destructive, and no read-only tool claims openWorld", () => {
   const contradictory: string[] = [];
   const egressing: string[] = [];
-  for (const c of registerAll()) {
+  const calls = registerAll();
+  // 🔴 214 §7.5 named this claim as one that could copy plane_path_guards:196. It cannot.
+  // `contradictory` and `egressing` are initialised to [] and can only ever fill when a
+  // real bug exists, so NEITHER can carry a positive control of its own — forcing one
+  // would mean asserting the defect this test exists to deny. What CAN go vacuous here is
+  // the POPULATION and each half of the conjunction: an empty registry, or a hint that
+  // stopped being set anywhere, leaves both assertions below green having compared [] to
+  // []. Those are the floors, and they are deliberately not the same floor.
+  assert.equal(calls.length, EXPECTED_TOOL_COUNT);
+  assert.ok(
+    calls.some((c) => annOf(c)!.readOnlyHint),
+    "no tool is marked read-only — both predicates below are unreachable and prove nothing",
+  );
+  assert.ok(
+    calls.some((c) => annOf(c)!.destructiveHint),
+    "no tool is marked destructive — `contradictory` could not fill even if the rule were broken",
+  );
+  // 🔴 openWorldHint deliberately gets NO non-emptiness floor, and the asymmetry is the
+  // point: the surface is loopback-only and the last test in this file asserts the hint is
+  // false EVERYWHERE, so `some(openWorldHint)` would be a claim this codebase must refuse.
+  // `egressing`'s floor is that the field is a real boolean on every tool — which is
+  // exactly what the "ships all four hints" test above already proves.
+  for (const c of calls) {
     const a = annOf(c)!;
     if (a.readOnlyHint && a.destructiveHint) contradictory.push(c.name);
     if (a.readOnlyHint && a.openWorldHint) egressing.push(c.name);
@@ -104,10 +126,22 @@ test("every read-only tool is genuinely non-mutating: none is confirmation-gated
   // gate()-ed tools take an optional `confirm` input. A read-only tool must never
   // have one — if it does, either the hint or the gating is wrong.
   const bad: string[] = [];
-  for (const c of registerAll()) {
-    const a = annOf(c)!;
+  const calls = registerAll();
+  const isGated = (c: { config: Record<string, unknown> }) => {
     const shape = c.config.inputSchema as Record<string, unknown> | undefined;
-    if (a.readOnlyHint && shape && Object.prototype.hasOwnProperty.call(shape, "confirm")) bad.push(c.name);
+    return shape !== undefined && Object.prototype.hasOwnProperty.call(shape, "confirm");
+  };
+  // 🔴 Same shape as the test above, and the same reason it is not plane_path_guards:196:
+  // `bad` is an INTERSECTION, and an empty intersection is only evidence when BOTH sets are
+  // known non-empty. Floor them separately — a registry with no read-only tools left, or
+  // one that stopped emitting `confirm` inputs, would otherwise report "none is
+  // confirmation-gated" having intersected two empty sets.
+  assert.equal(calls.length, EXPECTED_TOOL_COUNT);
+  assert.ok(calls.some((c) => annOf(c)!.readOnlyHint), "no tool is marked read-only — the left half of the intersection is empty");
+  assert.ok(calls.some(isGated), "no tool takes a `confirm` input — this probe reads a field nothing sets");
+  for (const c of calls) {
+    const a = annOf(c)!;
+    if (a.readOnlyHint && isGated(c)) bad.push(c.name);
   }
   assert.deepEqual(bad, [], `tools marked read-only but confirmation-gated: ${bad.join(", ")}`);
 });

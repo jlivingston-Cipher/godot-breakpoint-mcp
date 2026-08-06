@@ -29,6 +29,10 @@ const GD: PlaneWording = {
 };
 const ANCHORED: PlaneWording = { ...GD, root: "the C# project root", anchoredOnly: true };
 
+/** lsp · cslsp · dap · csdap. Pinned so the reachability floor below cannot be satisfied
+ *  by a table that quietly lost a row — dbg_scene_guard's REFUSED_ROWS idiom. */
+const PLANE_ROWS = 4;
+
 /** A real root with a real sibling SHARING its string prefix — the sibling is the point. */
 function workspace(): { root: string; evil: string; cleanup: () => void } {
   const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "gcb-plane-")));
@@ -159,6 +163,7 @@ test("all four planes REFUSE an escaping path, and none of them reaches its tran
       ["dap.ts", collect(registerDapTools as never, dapStub, gdCfg), "dbg_set_breakpoints", /outside the Godot project root/],
       ["csdap.ts", collect(registerCsDapTools as never, dapStub, csCfg), "cs_dbg_set_breakpoints", /outside the C# project root/],
     ];
+    assert.equal(planes.length, PLANE_ROWS, "the plane table shrank — this test covers what it enumerates");
     for (const [plane, handlers, tool, reason] of planes) {
       const h = handlers.get(tool);
       assert.ok(h, `${plane} must register ${tool}`);
@@ -169,6 +174,32 @@ test("all four planes REFUSE an escaping path, and none of them reaches its tran
       assert.doesNotMatch(textOf(r), /^(LSP|DAP|C# DAP) error/, `${plane}: a refusal is not a backend error`);
     }
     assert.deepEqual(wire, [], "no escaping path may reach any transport");
+
+    // …and every one of the four planes CAN reach its transport, so the emptiness above is
+    // four guards doing their job and not a plane that is silently unreachable.
+    // 🔴 214 §7.5: without this, `wire` is initialised to [] and NOTHING in this unit ever
+    // showed it could fill — the assertion above would read green against a plane whose
+    // handler never wires anything at all. This is :196's shape (refuse, assert empty, then
+    // run the legal case and assert it filled), applied once PER PLANE rather than once for
+    // the unit: a single legal call would floor the collection while leaving three of the
+    // four transports exactly as unproven as before.
+    const legal = "res://inside.gd";
+    for (const [plane, handlers, tool] of planes) {
+      const before = wire.length;
+      await handlers.get(tool)!({ path: legal, lines: [1], line: 0, character: 0 }, {});
+      assert.ok(
+        wire.length > before,
+        `${plane}: a path INSIDE the root must reach the transport — ${tool} wired nothing, so the refusal above proves nothing`,
+      );
+    }
+    // 🔴 …and the same floor once more against a PINNED count rather than a running one.
+    // 215: the per-plane check above compares `wire.length` to `before` — a variable — so
+    // it is a floor a reader can follow and an instrument cannot: 214's finder resolves a
+    // control by the literal or named constant a size is compared to, and `before` is
+    // neither. That is a finder limitation, but `assert.equal(<boolean>, true)` was the
+    // shape this line had first, and THAT was simply bad. Pinned against PLANE_ROWS it is
+    // better code and readable by both.
+    assert.ok(wire.length >= PLANE_ROWS, `all ${PLANE_ROWS} planes must be reachable, got ${wire.length} wire entries`);
   } finally { cleanup(); }
 });
 

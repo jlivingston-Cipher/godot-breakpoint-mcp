@@ -742,12 +742,22 @@ test("cs_dbg_launch reports a launch the adapter rejected OUTRIGHT, and never em
   const uncaught: unknown[] = [];
   const onUncaught = (err: unknown) => uncaught.push(err);
   process.on("uncaughtException", onUncaught);
+  // 🔴 214 §7.5 EXEMPTION + THE FLOOR IT NEEDS. `uncaught` is a PROCESS TRAP: it fills only
+  // when Node is about to die, so it can never carry plane_path_guards:196's positive
+  // control — proving it "can be non-empty" would mean injecting a real uncaughtException
+  // into the shared test process. Its floor has to sit on a companion binding that proves
+  // the failure path RAN, which is what dap.test.ts gets from `events.length === 1`. This
+  // test had only `dap.state === "terminated"` for that, so the listener is added here to
+  // make the floor the same kind of thing on both planes rather than an inference.
+  const announced: unknown[] = [];
+  dap.on("start_failed", (e) => announced.push(e));
   try {
     const res = (await rec.handler("cs_dbg_launch")({ program: "/no/such/binary" })) as ToolResultLike;
     assert.equal(res.isError, true, "a launch the adapter rejected is not a running session");
     assert.match(res.content?.[0]?.text ?? "", /did not start the session/);
     assert.equal(dap.state, "terminated");
     await new Promise((r) => setTimeout(r, 20));
+    assert.equal(announced.length, 1, "the rejection is announced on start_failed — the path the empty `uncaught` below is a claim about");
     assert.deepEqual(uncaught, [], "the rejection must not surface as an unlistened 'error' emit");
   } finally {
     process.removeListener("uncaughtException", onUncaught);
