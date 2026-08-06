@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.8] — 2026-08-05
+
 ### Added — the distance nobody was measuring
 
 `scripts/registry_lag.py`. 205 closed a fifty-version npm backlog in one publish, and the
