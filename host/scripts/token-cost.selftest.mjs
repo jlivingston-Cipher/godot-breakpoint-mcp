@@ -176,6 +176,44 @@ claim(three < mx.total,
 console.log(`  🟢 per-key decomposition names ${mx.keys.length} keys · `
   + `frame ${mx.frame} B · the three named slices are ${((three / mx.total) * 100).toFixed(1)}% of it`);
 
+// ── 4c. 🆕 212 §4 — THE FAMILY DECOMPOSITION, WHICH NOTHING HERE ASSERTED ────────────
+// 🔴 FOUND BY `instrument_gate.py`, NOT BY READING THIS FILE. `family` is an exported
+// concise-body arrow, so no target could be anchored on it until 212 gave the harness a
+// second injector — and the first sweep that could reach it blinded it to
+// `return "other";` and THIS SELF-TEST STAYED GREEN, on both axes, 361,824 calls in.
+//
+// 🔴 AND NOTE WHAT SURVIVES THE BLIND. `measure().total` does not move by a byte, so
+// every claim in sections 1-4b passes: the bytes are all still counted, they are just all
+// counted into one bucket. `families` is what `report()` prints twelve rows of and what
+// any per-family budget argument would be made from — a decomposition that answers one
+// group for every tool is 207's defect exactly, one field over, and the total is again
+// the number that hides it.
+const famTools = [
+  { name: "editor_open", description: "d", inputSchema: { type: "object" } },
+  { name: "editor_save", description: "dd", inputSchema: { type: "object" } },
+  { name: "dbg_step", description: "d", inputSchema: { type: "object" } },
+  { name: "vcs_status", description: "d", inputSchema: { type: "object" } },
+  { name: "doctor", description: "d", inputSchema: { type: "object" } },
+];
+const fam = safe(() => measure(famTools), { families: [], total: 0 });
+const famNames = (fam.families ?? []).map(([f]) => f).sort();
+claim(famNames.length === 4,
+  `measure().families must hold one bucket per family — 4 expected from ${famTools.length} `
+  + `tools across editor/dbg/vcs/doctor, got ${famNames.length} [${famNames}]`);
+claim(JSON.stringify(famNames) === JSON.stringify(["dbg", "doctor", "editor", "vcs"]),
+  `the buckets must be DERIVED from each name, not a constant: [${famNames}]`);
+// 🔴 AND THE BYTES HAVE TO FOLLOW THE GROUPING, not just the labels. Two tools share
+// `editor` and one of them carries a longer description, so the editor bucket is strictly
+// the largest — a grouping that keeps the right names and attributes to the wrong bucket
+// passes the two claims above and fails this one.
+const famBytes = Object.fromEntries((fam.families ?? []).map(([f, e]) => [f, e.b]));
+claim(famBytes.editor > famBytes.dbg && famBytes.editor > famBytes.vcs,
+  `the two-tool editor family must outweigh the one-tool families: ${JSON.stringify(famBytes)}`);
+claim((fam.families ?? []).reduce((s, [, e]) => s + e.b, 0) > 0,
+  "a family decomposition summing to zero bytes has grouped nothing");
+console.log(`  🟢 family decomposition names ${famNames.length} bucket(s) `
+  + `[${famNames}] · bytes follow the grouping`);
+
 // ── 4b. THE TWO COUNTS ARE DERIVED FROM THE TOOLS, NOT ASSUMED ZERO ──────────────────
 // 🔴 SECTION 1 PROVES verdict() FIRES ON A NON-ZERO COUNT. It cannot prove measure()
 // ever PRODUCES one from a real shape — a counter wired to a typo reports zero forever

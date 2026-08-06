@@ -973,15 +973,24 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "incident it exists to catch: publishing stopped and the very next cut was "
         "already one behind, so a ceiling this low refuses within the first week while "
         "still admitting a same-session patch burst.")),
-    ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (55, (
-        "Resolved signatures, floored at `{FLOOR}` from below.")),
+    ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (70, (
+        "Resolved signatures, floored at `{FLOOR}` from below. 🆕 212 §4 — RAISED, and "
+        "DELIBERATE: `_decl_re` was widened to block-bodied arrow consts and "
+        "`concise_blind` added for the concise ones, and a new coverage reader turned "
+        "eighteen untargeted exported members into thirteen targets and five written "
+        "reasons. Measured seventy-eight against a floor that had been fifty-five since "
+        "the placeholder shipped; left there, the whole admission could be reverted one "
+        "target at a time without a line of output moving.")),
     ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): (0, (
         "A CEILING at `{FLOOR}`, supposed to fall and already at the bottom.")),
-    ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): (65, (
+    ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): (98, (
         "🔴 THE ONE THAT WAS ALREADY STALE WHEN §9.4 MEASURED IT. Its comment quoted a "
         "live constructed count that has since moved — 201 §5's finding, reaching a file "
         "that session's rule could not govern. The floor itself is `{FLOOR}`, read from "
-        "the tree.")),
+        "the tree. 🆕 212 §4 — RAISED, and DELIBERATE, for the same cause as "
+        "SIG_RESOLVED_FLOOR above: thirteen new targets are thirteen more late mutants "
+        "that construct. Measured one hundred and nine against a floor of sixty-five, a "
+        "gap wide enough for that entire admission to be deleted inside it.")),
     ("../scripts/instrument_gate.py", "LATE_LIVE_FLOOR"): (8, (
         "The live late axis, floored at `{FLOOR}`.")),
     ("../scripts/instrument_gate.py", "INSTRUMENT_FLOOR"): (8, (

@@ -6,6 +6,67 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the mutation harness could not tell a syntax error from a catch, and its target list could not report its own omissions
+
+`instrument_gate.py` blinds a member of each instrument and asserts the gate over it goes
+red. Four things it could not do have been fixed, and every one was measured before it was
+built rather than reasoned about.
+
+**A mutant that does not compile now says so.** 197 §5 found the injector landing inside a
+destructuring parameter list: node exited non-zero on a `SyntaxError`, the sweep read the
+non-zero exit as the gate catching the blind, and one target had been proving nothing for
+twenty-five commits. That session computed the brace from the anchor so *that* injection
+could not go wrong; nothing was added that could tell the two apart, so every later
+injector inherited the same silence. Each mutant is now parsed before its gate runs, on
+both axes — on the late axis an unparseable mutant was previously filed as NEVER LOADED,
+under a ceiling, where it read as a harness limitation rather than a defect.
+
+**Two declaration shapes the harness could not anchor.** `_decl_re` matched `function`
+forms only, so an arrow const was unanchorable; all sixty-five existing targets re-resolve
+identically under the widened pattern, and it admits thirty-six members. A concise-body
+arrow — `export const bytes = (v) => …` — is a separate case that no widening of a
+*declaration* pattern can reach, because the blocker is the injector: there is no block to
+inject a statement into. `concise_blind()` gives it one and preserves the original
+expression on the late axis, so the call counter still has an honest answer for call one.
+
+**And `body_brace()` was wrong about a brace in two more ways.** For an anchor with no
+block of its own the paren-depth backstop ran past the end of the declaration and returned
+the opening brace of whatever was declared next in the file — a statement injected into a
+member nobody had named, which parses. And it did not know a template literal from code,
+so in `` (tool, param) => `${tool}\t${param}` `` the first brace at depth zero is the one
+inside the interpolation. Both were found by running the new injector, not by reading.
+
+**The target list is checked against the module.** Every mechanism here made a target
+robust — a target that resolves to nothing fails, one that resolves to two things fails,
+one that cannot be applied fails — and all of them are about targets that were *written*.
+Nothing asked whether the list covered the instrument. Measured: eighteen exported
+callables across the eleven instruments were targeted by nothing, including `report` in
+`boundary_gate.mjs`, which returns the gate's exit code. Thirteen are now targets; five
+carry a written reason in a new roster, which is checked in both directions, and the
+population is derived from the source rather than listed.
+
+### Fixed — three things the new targets found on their first run
+
+- `token-cost.selftest.mjs` asserted nothing about `measure().families`. Blinded to one
+  bucket for every tool, the total does not move by a byte and every existing claim passes
+  — the same defect 207 fixed for the per-key decomposition, one field over.
+- `seal_order_gate.selftest.mjs` read `ps[1].from` without establishing that `ps` had two
+  entries. With `paragraphsOf` collapsed the claims above it failed correctly and then the
+  file threw, so the gate went red without reaching its own verdict: a row proving that
+  JavaScript throws on a short array rather than that the claims bite.
+- `wire_diff.mjs`'s `surface()` is called by no gate this harness runs. The self-test is
+  fixture-driven by construction and the instrument has no live axis, so the only caller
+  that exercises the wire reader is the release script. Recorded as a roster row where a
+  driver arriving will redden it, rather than as a comment that is silent on green runs.
+
+### Changed — the surface budget decision, recorded rather than spent
+
+`BYTES_CEILING` stays where it is, and the decision that governs its next move is now
+written on the constant: **B2** — one `editor_get_log` tool plus a `log_seq` integer,
+measured at just over five and a half thousand bytes against fifty-nine thousand for the
+shape that had been priced as *the* cost of the feature. The ceiling is not raised here,
+because this constant's own rule is that it is never raised without a note saying what
+bought the growth, and nothing has bought it yet.
 ## [1.73.1] — 2026-08-06
 
 ### Fixed — the release classifier could not see a value, and could not tell a clean read from no read

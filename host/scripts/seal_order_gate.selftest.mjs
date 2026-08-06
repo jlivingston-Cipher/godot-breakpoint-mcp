@@ -413,9 +413,17 @@ claim(Object.keys(NOT_A_PROBE).every((k) => !isProbe(k)),
   const L = `a\n\nb\nc\n\n\nd`.split("\n");
   const ps = paragraphsOf(L, 1, 7);
   claim(ps.length === 3, `three blank-line-separated paragraphs, got ${ps.length}`);
-  claim(ps[0].from === 1 && ps[0].to === 1, "the first is the single line above the blank");
-  claim(ps[1].from === 3 && ps[1].to === 4, "the second spans both of its lines");
-  claim(ps[2].from === 7 && ps[2].to === 7, "and two blank lines in a row are one separator, not two");
+  // 🆕 212 §4 — OPTIONAL CHAINING, AND IT IS NOT COSMETIC. Found by `instrument_gate.py`
+  // the first time a target could be anchored on `paragraphsOf`: blinded to a single
+  // paragraph spanning the region, the two claims above and below FAILED correctly — and
+  // then `ps[1].from` threw `TypeError: Cannot read properties of undefined`, node died
+  // mid-file, and the gate went red WITHOUT reaching its own verdict. 197 §5's whole
+  // point is that those are different observables: a crash proves JavaScript throws on a
+  // short array, not that this self-test's claims bite. Every failure is now REPORTED,
+  // and the rows after this block still run.
+  claim(ps[0]?.from === 1 && ps[0]?.to === 1, "the first is the single line above the blank");
+  claim(ps[1]?.from === 3 && ps[1]?.to === 4, "the second spans both of its lines");
+  claim(ps[2]?.from === 7 && ps[2]?.to === 7, "and two blank lines in a row are one separator, not two");
   claim(paragraphsOf(["a", "b"], 1, 2).length === 1, "an unbroken run is ONE paragraph — the live shape of all five");
   claim(paragraphsOf(["", ""], 1, 2).length === 0, "and a region of nothing but blanks holds none");
 }

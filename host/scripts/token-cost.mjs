@@ -87,6 +87,23 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // draft-07 `$schema` inside every schema (30,160 B) and `taskSupport:"forbidden"` on the
 // 288 non-task tools (11,520 B). 393,887 -> 352,207 B. The headroom is the same ~4% the
 // old ceiling carried, measured against the new floor rather than inherited from it.
+// 🆕 212 §5 — THE DECISION 211 §6.2 LEFT OPEN, TAKEN AND RECORDED: **B2**. One
+// `editor_get_log` tool plus a `log_seq` integer on the 153 tools that can emit, measured
+// at +5,627 B over today's surface — against +59,058 for D1a's nested `entries[]` shape
+// on the same 153, +13,311 for a flat `string[]`, and +731 for caller-side bracketing
+// with no correlator at all. 211 §3 priced all six; 210 §5 had priced ONE and reported it
+// as the cost of the feature.
+// 🔴 AND THE CEILING IS NOT RAISED HERE, ON PURPOSE. This comment's own rule, three
+// paragraphs up, is "never raised without a note saying what bought the growth" — and
+// nothing has bought it yet. Raising it now would hand D1b a budget it has not spent and
+// leave this constant measuring nothing until it does. The raise belongs in the commit
+// that ships the field, with the measured surface beside it, which is the same rule the
+// 410000 lowering followed in the other direction.
+// 🔴 AND `SCHEMA_PER_TOOL_CEILING` DOES NOT MOVE UNDER ANY OF THE SIX. `measure()` reads
+// `inputSchema` only and `engine_log`/`log_seq` are OUTPUT fields, so the one number a
+// competitive claim may honestly use — see the next constant — is unchanged at 468 by
+// every option. 210 §5's argument against the growth was computed on the AGGREGATE: on
+// exactly the share of the surface the next comment says a rival comparison may not quote.
 export const BYTES_CEILING = 366000;
 export const TOOL_FLOOR = 250;
 
