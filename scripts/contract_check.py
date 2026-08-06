@@ -2215,7 +2215,14 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 32  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 33  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # +1 session 213: scripts/registry_bytes.py — the
+                               #   reader that OPENS the published tarball instead
+                               #   of reading a version string about it (212 §6.3).
+                               #   Invoked as `python3 <file>` like every reader
+                               #   beside it, so 100644 is correct — and this count
+                               #   is again the only thing in the tree that would
+                               #   have noticed it arriving.
                                # +2 session 209: host/scripts/wire_diff.mjs and its
                                #   self-test — the release check that reads the WIRE
                                #   rather than a file (209 §2). Both invoked as
