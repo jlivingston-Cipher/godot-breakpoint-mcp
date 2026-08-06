@@ -6,6 +6,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.73.0] — 2026-08-06
+
+**Why this is a MINOR, and the first since 1.50.0.** `engine_log` is a new optional
+field on the `outputSchema` of 22 runtime tools. Nothing was removed, nothing was
+retyped, and no argument became required, so no conforming client breaks — that rules
+out MAJOR. But a field that is present where it was absent is a change a validating
+client can observe, which rules out PATCH. `wire_diff.mjs` read the `tools/list`
+payload at v1.72.9 against the one this release ships, at both privilege levels, and
+counted **147 additive schema paths across 21 tools in the secure default, 154 across
+the privileged surface, and 0 MAJOR** — 291 tools before and after, none added, none
+removed. The bump was decided from that; the release script asserts the two agree
+rather than taking the classifier's word for it.
+
 ### Added — the engine error that reaches the caller who caused it (D1a)
 
 The runtime bridge has kept a log ring for a long time and `runtime_get_log` has always
