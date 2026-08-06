@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.73.2] — 2026-08-06
+
 ### Added — the release ritual now opens the artifact it publishes
 
 `scripts/registry_bytes.py`. Until now the only check in the ritual that looked at what
