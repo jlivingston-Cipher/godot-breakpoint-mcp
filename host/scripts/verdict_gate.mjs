@@ -236,6 +236,23 @@ export const DISCARD_SITE_FLOOR = 55;
 // site floor alone stays green on a walk that stopped descending as long as the host
 // root still carries enough calls — and the host root carries 13 of the 61.
 export const DISCARD_DIR_FLOOR = 2;
+// 🆕 209 — AND A THIRD, BECAUSE THE FIRST TWO WERE TWO FILES FROM SILENCE AND NOBODY
+// COULD HAVE SEEN IT. `instrument_gate.py` blinds `discarded()` from its SECOND call
+// onwards to a healthy-looking single site, modelling a finder that stops finding and
+// reports a plausible placeholder. That blind produces roughly ONE SITE PER .mjs FILE
+// WALKED, so `DISCARD_SITE_FLOOR` catches it only while the tree has FEWER WALKABLE
+// FILES THAN THE FLOOR. Measured this session: main reddened at 53 fabricated sites
+// against a floor of 55, and adding two unrelated files to `host/scripts` — neither
+// carrying a single verdict call — took the fabricated total to 55 and the gate went
+// GREEN. 🔴 THE FLOOR'S BITE WAS AN ACCIDENT OF AN UNRELATED POPULATION'S SIZE, and it
+// had five files of margin left.
+//
+// 🔴 SO THIS ONE IS SCALE-FREE, WHICH IS THE WHOLE POINT. The real population is
+// CONCENTRATED — 61 sites live in NINE files and forty of them in one — while a
+// fabricated one is UNIFORM, exactly one per file however many files there are. Flooring
+// the busiest file separates those two shapes at any tree size, and it also catches the
+// walk that stops descending into the one file that carries most of the population.
+export const DISCARD_BUSIEST_FLOOR = 30;
 
 export function scanDiscarded(root = ROOT) {
   const sites = [];
@@ -244,13 +261,27 @@ export function scanDiscarded(root = ROOT) {
 }
 
 /** The discard judgement, as a pure function of its population (174 §8's reason). */
-export function judgeDiscarded(sites, floor = DISCARD_SITE_FLOOR, dirFloor = DISCARD_DIR_FLOOR) {
+export function judgeDiscarded(sites, floor = DISCARD_SITE_FLOOR, dirFloor = DISCARD_DIR_FLOOR,
+                               busiestFloor = DISCARD_BUSIEST_FLOOR) {
   const out = { lines: [], failed: false };
   const say = (s) => out.lines.push(s);
   const dropped = sites.filter((s) => s.dropped);
   const dirs = new Set(sites.map((s) => (s.file.includes("/") ? s.file.slice(0, s.file.lastIndexOf("/")) : ".")));
+  // 🆕 209 — THE SHAPE OF THE POPULATION, not its size. See DISCARD_BUSIEST_FLOOR.
+  const perFile = new Map();
+  for (const s of sites) perFile.set(s.file, (perFile.get(s.file) ?? 0) + 1);
+  const busiest = perFile.size ? Math.max(...perFile.values()) : 0;
 
-  say(`VERDICT_DISCARD sites=${sites.length} floor=${floor} dirs=${dirs.size}/${dirFloor} dropped=${dropped.length}`);
+  say(`VERDICT_DISCARD sites=${sites.length} floor=${floor} dirs=${dirs.size}/${dirFloor}`
+    + ` busiest=${busiest}/${busiestFloor} in ${perFile.size} file(s) dropped=${dropped.length}`);
+  if (busiest < busiestFloor) {
+    say(`🔴 VERDICT_DISCARD_SHAPE_COLLAPSE busiest file holds ${busiest} < ${busiestFloor} site(s)`);
+    say(`   across ${perFile.size} file(s). The real population is CONCENTRATED — forty of`);
+    say(`   the sixty-one live in one probe — and a finder that has gone blind reports a`);
+    say(`   UNIFORM one-per-file instead. The site floor cannot tell those apart once the`);
+    say(`   tree has more .mjs files than the floor, which it was five files away from.`);
+    out.failed = true;
+  }
   if (dirs.size < dirFloor) {
     say(`🔴 VERDICT_DISCARD_DIRS_COLLAPSE ${dirs.size} < ${dirFloor} — the walk reached ${[...dirs].join(", ") || "nothing"}.`);
     say(`   readdirSync is not recursive (175 §4); a walk that stops descending reports a`);

@@ -52,7 +52,12 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 61   # governed by SIZE_LEDGER (§9.3). 206 §4 raised it again for the
+TARGET_FLOOR = 64   # governed by SIZE_LEDGER (§9.3). 209 §2 raised it by three: the
+                    #      wire-diff classifier's SURFACE_FLOOR and its self-test's
+                    #      CLAIM_FLOOR, plus the discard gate's DISCARD_BUSIEST_FLOOR —
+                    #      the shape floor that exists because the two size floors beside
+                    #      it were two files away from never biting again.
+                    # 206 §4 raised it again for the
                     #      tool-surface budget's pair. 206 §3 raised it by two for the
                     #      registry-lag reader's TAG_FLOOR and LAG_CEILING, both reported
                     #      UNSWEPT by the DISCOVER half on that file's first run — and
@@ -103,6 +108,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("SUBJECT_FLOOR",            f"{S}/verdict_gate.mjs",            r"(export const SUBJECT_FLOOR = )4;",                        [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_SITE_FLOOR",       f"{S}/verdict_gate.mjs",            r"(export const DISCARD_SITE_FLOOR = )55;",                  [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_DIR_FLOOR",        f"{S}/verdict_gate.mjs",            r"(export const DISCARD_DIR_FLOOR = )2;",                    [f"{S}/verdict_gate.selftest.mjs"]),
+    # 🆕 209 — THE FLOOR THAT EXISTS BECAUSE THE TWO ABOVE WERE TWO FILES FROM SILENCE.
+    # `DISCARD_SITE_FLOOR` catches a blinded finder only while the tree holds fewer
+    # walkable .mjs files than the floor; this session's two new files crossed that line
+    # and the late blind went green. This one reads the population's SHAPE instead, so
+    # its bite does not depend on an unrelated count.
+    ("DISCARD_BUSIEST_FLOOR",    f"{S}/verdict_gate.mjs",            r"(export const DISCARD_BUSIEST_FLOOR = )30;",               [f"{S}/verdict_gate.selftest.mjs"]),
     ("vg.CLAIM_FLOOR",           f"{S}/verdict_gate.selftest.mjs",   r"(const CLAIM_FLOOR = )69;",                                [f"{S}/verdict_gate.selftest.mjs"]),
     ("CONST_FLOOR",              f"{S}/boundary_gate.mjs",           r"(export const CONST_FLOOR = )20;",                         [f"{S}/boundary_gate.selftest.mjs"]),
     ("OP_FLOOR",                 f"{S}/boundary_gate.mjs",           r"(export const OP_FLOOR = )150;",                           [f"{S}/boundary_gate.selftest.mjs"]),
@@ -295,6 +306,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # with it while every other number still read ok. A roster AND a floor, so zeroing the
     # floor has to redden the runner that reads it.
     ("POPULATION_LINES_FLOOR",    f"{T}/_caller_shape.harness.mjs",  r"(const POPULATION_LINES_FLOOR = )3;",                      [f"{T}/_caller_shape.harness.mjs"]),
+    # 🆕 209 — CHECK 8's ONLY NUMBER, AND IT GUARDS THE ONE SILENCE THE CLASSIFIER CANNOT
+    # REPORT ITS WAY OUT OF. `wire_diff.mjs` compares two `tools/list` payloads; two reads
+    # that both returned NOTHING agree perfectly and answer PATCH. Every other row in its
+    # self-test drives two populated surfaces, so this floor is the only thing between
+    # "the public API held still" and "neither server started", and moving it must redden.
+    ("SURFACE_FLOOR",             f"{S}/wire_diff.mjs",              r"(export const SURFACE_FLOOR = )200;",                      [f"{S}/wire_diff.selftest.mjs"]),
+    ("wd.CLAIM_FLOOR",            f"{S}/wire_diff.selftest.mjs",     r"(const CLAIM_FLOOR = )50;",                                [f"{S}/wire_diff.selftest.mjs"]),
 ]
 
 # ── the DISCOVERY half ────────────────────────────────────────────────────────────
@@ -807,13 +825,26 @@ USE_RAISE = "999999"
 # already stale on the day it was measured: `instrument_gate.py`'s LATE_CONSTRUCTED_FLOOR
 # said "measured 82 of 102" against a live LATE_CONSTRUCTED of eighty-nine. 201 §5 caught
 # the same number one file over and could not reach this one.
+#
+# 🔴 209 — AND THE DIVISION OF LABOUR THIS TABLE HAS WITH `TARGETS`, WRITTEN DOWN AT LAST.
+# 206 §21 named it and three handoffs carried it: `SIZE_LEDGER` governs the constants in
+# the PYTHON instruments (`../scripts/*.py`), `TARGETS` governs the ones in the JAVASCRIPT
+# instruments (`host/scripts/*.mjs`, `host/test-integration/*.mjs`). Nothing stated it
+# anywhere, so every session that moved a constant learned which table to edit by reading
+# a neighbouring comment and inferring — and 208's two re-anchored constants both lived in
+# `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
+# next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
     ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (22, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (30, (
-        "The non-executable scripts, at `{FLOOR}`. Last raised by one when 206 §3 added "
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (32, (
+        "The non-executable scripts, at `{FLOOR}`. Last raised by two when 209 §2 added "
+        "the wire-diff classifier and its self-test — and that check was the only reader "
+        "in the tree that noticed them, because its population is `git ls-files` and they "
+        "had been sitting untracked while every disk-walking gate ran green. Before that, "
+        "raised by one when 206 §3 added "
         "registry_lag.py — invoked as `python3 <file>` like every gate beside it, so the "
         "non-executable mode is the correct one, and the exec bit it was first committed "
         "with is what the other half of this same check caught.")),
@@ -834,11 +865,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (61, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (64, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
         "admitted the shipped claim-site floors, by two when 206 §3 added the "
-        "registry-lag reader's pair, and by two more when 206 §4 added the "
-        "tool-surface budget's.")),
+        "registry-lag reader's pair, by two more when 206 §4 added the "
+        "tool-surface budget's, and by three when 209 §2 added the wire-diff "
+        "classifier's pair and the discard gate's shape floor.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "

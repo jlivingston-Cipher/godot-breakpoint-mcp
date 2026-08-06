@@ -252,6 +252,14 @@ export const NO_CLAIMS_EXPECTED = {
   "seal_order_gate.mjs": "the seal-order classifier — it reads probe sources for markers written above their own claims and asserts nothing itself; its 62 claims are in seal_order_gate.selftest.mjs (185)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
   "token-cost.mjs": "a reporting tool that PRINTS the tool-surface cost; its two governed constants are asserted in token-cost.selftest.mjs",
+  // 🔴 209 — AND THIS ONE'S REASON HAS A CAVEAT THE OTHERS DO NOT, so it is written here
+  // rather than borrowed from the line above. `wire_diff.mjs` is not purely a printer: it
+  // REFUSES, throwing on a collapsed population. That refusal is a `throw`, not an
+  // `assert`, because it must reach a caller that catches it and prints the unreachable
+  // banner — so the classifier cannot read it, and calling this file "asserting nothing"
+  // would be false. It asserts one thing, in an idiom this gate does not grade, and the
+  // nineteen rows that grade it are in wire_diff.selftest.mjs.
+  "wire_diff.mjs": "the release wire classifier — it PRINTS a MINOR/PATCH/MAJOR verdict and REFUSES on a collapsed surface via `throw`, an idiom this gate does not read; its 19 rows and its SURFACE_FLOOR are asserted in wire_diff.selftest.mjs",
   "stage-addon.mjs": "a packaging step — copies the addon into the tarball. Its correctness is asserted by the packaging job, not by a claim here",
 
   // ── the host root, admitted 175 ────────────────────────────────────────────────────

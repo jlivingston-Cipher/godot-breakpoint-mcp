@@ -529,6 +529,41 @@ INSTRUMENTS = [
             "{SIG:enumeratePathCohort}": "return [];",
         },
     },
+    {
+        # 🆕 209 — CHECK 8's CLASSIFIER, AND IT GOES IN ON ITS FIRST DAY RATHER THAN ON
+        # THE SESSION SOMEBODY NOTICES IT IS MISSING. `token-cost.mjs` is the precedent
+        # NOT followed here: it has a self-test, it is read by CI, and it appears nowhere
+        # in this roster — an absence nothing declares, which is the shape every entry
+        # above was written to close.
+        #
+        # 🔴 AND THE BLIND IS WHAT FOUND THE DEFECT, BEFORE THIS ENTRY EXISTED. Asking
+        # "what would blinding `stripDialect` redden?" answered NOTHING — the function
+        # deleted every `$schema` key in the tool object and `classify` never compares a
+        # raw schema, so the strip changed no verdict while blinding the classifier to a
+        # tool's own property of that name. It is gone; the row that would have caught it
+        # is in the self-test. The instrument gate's question paid before the gate ran.
+        "name": "wire_diff.mjs",
+        "src": HOST / "scripts" / "wire_diff.mjs",
+        "gate": ["node", "scripts/wire_diff.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 4,
+        "why": "the classifier that decides whether a release moved the public API",
+        "targets": {
+            # 🔴 THE HEALTHY ANSWER, NOT THE FAILING ONE (175's `_png.mjs` rule). PATCH
+            # over a populated surface is what a clean release looks like, so a classifier
+            # blinded to it is exactly the failure this gate exists to catch — and the
+            # floor rows, which demand a THROW, redden on the same blind.
+            "{SIG:classify}":
+                "return { verdict: \"PATCH\", major: [], minor: [], patch: [], moved: 0, "
+                "counts: { before: 999, after: 999 } };",
+            "{SIG:shapeOf}": "return new Map();",
+            # 🔴 `\"string\"` AND NOT `\"unknown\"`: every type in the self-test's healthy
+            # rows resolves to a real name, so a constant that no schema ever produces
+            # would redden the table for being absurd rather than for being blind.
+            "{SIG:typeName}": 'return "string";',
+            "{SIG:normalise}": "return { taskSupport: \"forbidden\" };",
+        },
+    },
 ]
 
 
@@ -1206,6 +1241,11 @@ VERDICT_MARKER: dict[str, str] = {
     # node:test prints its own summary; `ℹ fail <n>` is the line that only exists when the
     # runner reached the end of the run.
     "path-cohort (compiled walk)": "ℹ fail ",
+    # 🆕 209 — check 8's classifier. 🔴 THE PREFIX, NOT `WIRE_DIFF_SELFTEST ok`: the
+    # marker's job is to say the run REACHED its own verdict, which a failing run does
+    # too. Pinning the passing spelling would have classified every genuine catch as a
+    # crash — 197 §5's discriminator needing a marker that survives the red path.
+    "wire_diff.mjs": "WIRE_DIFF_SELFTEST",
 }
 
 
@@ -1408,6 +1448,7 @@ BLAST_FLOOR: dict[str, int] = {
     # number, so a regression to the broken injector would now be caught here as well.
     "seal_order_gate.mjs": 240,   # 199: 140 -> 240, measured 268
     "path-cohort (compiled walk)": 50,
+    "wire_diff.mjs": 80,   # 209: measured 95 across four blinds, 0 crashed
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
