@@ -6,6 +6,41 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the cost nobody had measured, and it goes the wrong way
+
+`host/scripts/token-cost.mjs` + its self-test. 205 §8.6 said to measure the tool surface's
+token cost **before writing any claim about it**, because the competitive item behind it is
+a rival publishing a number we had never taken. Measured:
+
+```
+ours,  all groups   291 tools   393,887 B   1,354 B/tool
+ours,  default      278 tools   373,855 B   1,345 B/tool
+theirs (published)  319 tools  ~206,848 B    ~648 B/tool
+```
+
+🔴 **WE SHIP TWENTY-EIGHT FEWER TOOLS AND COST ROUGHLY TWICE AS MUCH PER TOOL.** The measurement
+refuted the premise it was taken under. 205 §5's "do not race the count" now has a companion:
+we would also lose on cost. **Input schemas are 38% of the whole surface** — more than double
+the descriptions — and five families run past 3,000 B/tool against a 1,354 median.
+
+🔴 **NO README CLAIM SHIPS OFF THIS.** Their figure is published, not reproduced; measuring
+ours one way and quoting theirs measured another is the "26 CI jobs" defect with someone
+else's number. Reproducing it against their server is the owed next step, and until then the
+number lives in an instrument rather than in prose.
+
+`BYTES_CEILING` is therefore a budget that is **already too high** — it exists to stop the
+number drifting further while it is paid down, and is meant to be LOWERED. `TOOL_FLOOR` is
+the collapse guard beside it: a reader that lists nothing reports a wonderfully small surface
+and passes.
+
+🔴 **AND FOUR GATES REFUSED IT BEFORE IT WAS RIGHT.** The tautology gate found the printer
+silent and took the `path-cohort.mjs` exemption plus a real self-test rather than an exemption
+alone; then found its six new claims unattributed and took section markers. `floor_pin_gate`
+found the ledger rows misfiled — `SIZE_LEDGER` governs the Python instruments and every `.mjs`
+floor in this tree is governed by `TARGETS` alone, and being the only `.mjs` rows in that table
+was the tell. It also could not READ `410_000`: a numeric separator makes a constant report as
+DELETED, which that error message itself calls the more dangerous half.
+
 ## [1.72.8] — 2026-08-05
 
 ### Added — the distance nobody was measuring
