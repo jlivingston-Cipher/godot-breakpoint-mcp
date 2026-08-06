@@ -52,7 +52,8 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 59   # governed by SIZE_LEDGER (§9.3). 206 §3 raised it by two for the
+TARGET_FLOOR = 61   # governed by SIZE_LEDGER (§9.3). 206 §4 raised it again for the
+                    #      tool-surface budget's pair. 206 §3 raised it by two for the
                     #      registry-lag reader's TAG_FLOOR and LAG_CEILING, both reported
                     #      UNSWEPT by the DISCOVER half on that file's first run — and
                     #      TAG_FLOOR's pin was NOT load-bearing until this gate said so.
@@ -145,6 +146,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # check the REASON and to run the floor's own rows under the LIVE constant. 180
     # §7.3's shape, found by the gate built for it rather than by reading.
     ("TAG_FLOOR",                "../scripts/registry_lag.py",             r"(TAG_FLOOR = )100",                                        ["../scripts/registry_lag.py", "--selftest"]),
+    # 🆕 206 §4 — THE TOOL-SURFACE BUDGET. `BYTES_CEILING` is a ceiling that is ALREADY
+    # too high: the surface measures ~1,354 B/tool against a rival's published ~648, so
+    # it is here to stop drift while the surface is paid down rather than to bless the
+    # current size. `TOOL_FLOOR` is the usual collapse guard — a reader listing zero
+    # tools would otherwise report a wonderfully small surface and pass.
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )410000;",                  [f"{S}/token-cost.selftest.mjs"]),
+    ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
     # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one
@@ -790,7 +798,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (28, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (30, (
         "The non-executable scripts, at `{FLOOR}`. Last raised by one when 206 §3 added "
         "registry_lag.py — invoked as `python3 <file>` like every gate beside it, so the "
         "non-executable mode is the correct one, and the exec bit it was first committed "
@@ -812,10 +820,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (59, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (61, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
-        "admitted the shipped claim-site floors, and by two when 206 §3 added the "
-        "registry-lag reader's pair.")),
+        "admitted the shipped claim-site floors, by two when 206 §3 added the "
+        "registry-lag reader's pair, and by two more when 206 §4 added the "
+        "tool-surface budget's.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "

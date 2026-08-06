@@ -251,6 +251,7 @@ export const NO_CLAIMS_EXPECTED = {
   "boundary_gate.mjs": "the cross-boundary classifier — it reads GDScript constants and JS comparisons and asserts nothing itself; its 49 claims are in boundary_gate.selftest.mjs (177)",
   "seal_order_gate.mjs": "the seal-order classifier — it reads probe sources for markers written above their own claims and asserts nothing itself; its 62 claims are in seal_order_gate.selftest.mjs (185)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
+  "token-cost.mjs": "a reporting tool that PRINTS the tool-surface cost; its two governed constants are asserted in token-cost.selftest.mjs",
   "stage-addon.mjs": "a packaging step — copies the addon into the tarball. Its correctness is asserted by the packaging job, not by a claim here",
 
   // ── the host root, admitted 175 ────────────────────────────────────────────────────
