@@ -52,7 +52,11 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 67   # governed by SIZE_LEDGER (§9.3). 211 §4 raised it by three: the
+TARGET_FLOOR = 68   # governed by SIZE_LEDGER (§9.3). 🆕 213 §2 raised it by one:
+                    #      the registry-BYTES reader's ENTRY_FLOOR — the floor under
+                    #      a comparison whose HEALTHY answer is "no differences",
+                    #      which two empty trees give by construction.
+                    #      211 §4 raised it by three: the
                     #      wire classifier's SHAPE_FLOOR — the first floor in that file
                     #      to pin its ANSWER rather than its input — and its self-test's
                     #      own COLLAPSE_SHAPE_FLOOR, which counts the refusals rather
@@ -195,6 +199,14 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # governs is 1.08x where 207 measured 1.20x.
     ("SCHEMA_PER_TOOL_CEILING", f"{S}/token-cost.mjs",              r"(export const SCHEMA_PER_TOOL_CEILING = )490;",            [f"{S}/token-cost.selftest.mjs"]),
     ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
+    # 🆕 213 §2 — THE REGISTRY-BYTES READER'S FLOOR. Its verdict is a COUNT OF
+    # DIFFERENCES and zero is the healthy reading, so 181 §5's problem applies to the
+    # POPULATION rather than to the answer: two EMPTY trees are byte-identical by
+    # construction, and an empty tree is exactly what a pack that failed quietly or an
+    # extraction into the wrong directory produces. `ENTRY_FLOOR` is what makes that
+    # green line mean the comparison happened at all. Its rows run under the LIVE
+    # constant for TAG_FLOOR's reason twenty lines up.
+    ("ENTRY_FLOOR",              "../scripts/registry_bytes.py",           r"(ENTRY_FLOOR = )60",                                       ["../scripts/registry_bytes.py", "--selftest"]),
     # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
     # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one
     # object literal, and it was outside this gate by construction on TWO counts: the .mjs
@@ -914,7 +926,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (32, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (33, (
         "The non-executable scripts, at `{FLOOR}`. Last raised by two when 209 §2 added "
         "the wire-diff classifier and its self-test — and that check was the only reader "
         "in the tree that noticed them, because its population is `git ls-files` and they "
@@ -940,7 +952,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (67, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (68, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
         "admitted the shipped claim-site floors, by two when 206 §3 added the "
         "registry-lag reader's pair, by two more when 206 §4 added the "
@@ -948,7 +960,8 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "classifier's pair and the discard gate's shape floor, and by two when "
         "211 §4 added that classifier's floor on its OWN ANSWER, the refusal "
         "count its self-test used to print as a literal, and the budget reader's "
-        "claim floor.")),
+        "claim floor, and by one when 213 §2 added the registry-BYTES reader's "
+        "ENTRY_FLOOR — the first floor in the tree whose population is a TARBALL.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "
@@ -973,6 +986,15 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "incident it exists to catch: publishing stopped and the very next cut was "
         "already one behind, so a ceiling this low refuses within the first week while "
         "still admitting a same-session patch burst.")),
+    ("../scripts/registry_bytes.py", "ENTRY_FLOOR"): (60, (
+        "The tarball population the registry-bytes comparator is allowed to answer "
+        "over, at `{FLOOR}`. Its healthy verdict is ZERO differences, so what can "
+        "collapse here is the population and not the answer — two empty trees are "
+        "byte-identical by construction, which is the tautology `tautology_gate.mjs` "
+        "refuses one directory over, written into the check that guards what users "
+        "install. The tarball shipped eighty-two entries at the version this floor "
+        "was first measured against, so `{FLOOR}` leaves room for it to shrink "
+        "honestly and none for it to vanish.")),
     ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (70, (
         "Resolved signatures, floored at `{FLOOR}` from below. 🆕 212 §4 — RAISED, and "
         "DELIBERATE: `_decl_re` was widened to block-bodied arrow consts and "

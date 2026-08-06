@@ -37,6 +37,15 @@ jobs:
       # rather than a 27th job (FORTY-FOURTH session running).
       - name: The registry-lag ceiling can still refuse (registry lag selftest)
         run: python3 scripts/registry_lag.py --selftest
+      # 🆕 213 §2 — `scripts/registry_bytes.py` is the reader 212 §6.3 asked for: the
+      # one that OPENS the published tarball rather than reading a version string
+      # about it. Its LIVE half needs the registry AND a version that matches this
+      # tree, so it is a release-time reader exactly like registry_lag's. `--selftest`
+      # is pure — no network, no npm — and drives the comparator over ten rows plus
+      # the extraction trap that says why it compares TREES and not `.tgz` bytes.
+      # ~1s. A step, not a 27th job (FIFTY-FIRST session running).
+      - name: The registry-bytes comparator can still refuse (registry bytes selftest)
+        run: python3 scripts/registry_bytes.py --selftest
       # 🔴 AND THE TOOL-SURFACE BUDGET'S REFUSAL, ALSO WITHOUT A SERVER — 206 §4.
       # 205 §8.6 said to measure the surface's token cost before writing any claim about
       # it. Measured: 291 tools, 393,887 B, ~1,354 B/tool against a rival's published

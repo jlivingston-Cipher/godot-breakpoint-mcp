@@ -6,6 +6,32 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the release ritual now opens the artifact it publishes
+
+`scripts/registry_bytes.py`. Until now the only check in the ritual that looked at what
+users actually install compared a **version string**: `npm view breakpoint-mcp version`
+against the local tags. Nothing had ever compared what the registry *serves* against what
+this repository *builds*. This reader packs the tree, downloads the published tarball,
+extracts both, and compares them entry by entry.
+
+It compares **extracted trees, never `.tgz` bytes**. gzip embeds an mtime and tar embeds
+one per member, so two byte-different tarballs can hold identical files; a sha over the
+tarball would turn a healthy publish red, and the first person to see that would learn to
+ignore it. The self-test builds exactly that pair and asserts both halves — that the bytes
+really do differ, and that the comparison says identical anyway.
+
+It also asserts something that had been true by luck. `npm publish` runs `prepublishOnly`
+(`npm run build && npm run stage-addon`); `npm pack` does not. So the tarball a human packs
+to inspect and the tarball npm ships are produced by two different processes, and every
+check that reads a packed tarball had been reading the first while claiming something about
+the second. The two are now packed and compared directly.
+
+The live half needs the registry and a version that matches this tree, so it runs at a
+release cut like the lag reader beside it. The comparator's refusals — a moved byte, an
+entry on one side only, a renamed entry, and a population that has collapsed to something
+two empty trees would satisfy — are proved by `--selftest`, which needs no network and runs
+in CI.
+
 ### Fixed — the mutation harness could not tell a syntax error from a catch, and its target list could not report its own omissions
 
 `instrument_gate.py` blinds a member of each instrument and asserts the gate over it goes
