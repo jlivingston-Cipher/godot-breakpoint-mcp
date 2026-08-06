@@ -6,6 +6,68 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the engine error that reaches the caller who caused it (D1a)
+
+The runtime bridge has kept a log ring for a long time and `runtime_get_log` has always
+served it. What nothing did was tie an entry to the **call that provoked it**: a caller
+had to notice something was wrong, go and read the log, and then guess which lines were
+its own. D1a has been "next" for four handoffs.
+
+Reading `_log_seq` either side of the dispatch answers it by construction — everything
+appended in between belongs to this call and nothing else does. Every runtime tool whose
+reply is the bridge's verbatim result now carries an optional `engine_log`:
+
+```json
+{ "engine_log": { "entries": [ { "seq": 41, "level": "error", "message": "Invalid access to property or key 'hp' (player.gd:12)" } ],
+                  "total": 1, "since_seq": 40 } }
+```
+
+- 🔴 **`isError` is untouched, deliberately.** A `push_error` during a call that returned
+  what it was asked for is a diagnostic, not a failed call. Promoting it would make every
+  noisy frame look like a broken tool and would change the meaning of a field callers
+  already branch on.
+- 🔴 **Absent, never `[]`.** 208 §4 measured that no SDK materialises a documented default,
+  so absent and explicitly-empty are different values to a client — and "nothing went
+  wrong" is worth saying with silence.
+- 🔴 **`entries` is capped at 20 and `total` is not.** A caller reading twenty cannot
+  otherwise tell twenty from two hundred, and the second is the case that matters.
+- **The async lane echoes too.** `runtime_step_frames` runs the game for N frames, so it
+  is the dispatch most able to provoke errors from code the caller never named.
+
+🔴 **DECLARED ON 22 TOOLS AND ON EXACTLY 22.** `structuredContent` is validated against
+`outputSchema` by both SDK clients, which throw on a mismatch, so a field the addon adds
+and `schemas.ts` does not declare breaks every conforming caller. The roster is **derived
+from the handlers** rather than typed: a tool gets the declaration if and only if its
+handler is a bare `call("runtime.…")`, i.e. its reply IS the bridge reply. The five that
+build their own — `runtime_screenshot`, `runtime_await_condition`, `runtime_spawn_peers`,
+`runtime_peer_stop`, `runtime_peers_digest` — would drop the field, so declaring it there
+would document something always absent. `engine_log_echo.test.ts` reads `runtime.ts` and
+refuses in both directions.
+
+🔴 **AND THE LIVE PROBE IS THE ONLY READER THAT CAN SEE THE FEATURE AT ALL, WHICH IS
+208 §6 ARRIVING ON PURPOSE THIS TIME.** The host adds no code to the request path — the
+field rides the bridge reply — so removing BOTH addon call sites leaves all 700 unit tests
+green. Measured, not assumed. `runtime-capture.integration.mjs` gains five claims against
+a real engine on 4.3, 4.5 and 4.7, and the pair that matters is a provoking call and a
+quiet one: `take_damage` push_logs a warning and must carry it; `runtime_get_monitors`
+provokes nothing and must come back with the field **absent**. Without the second, the
+first cannot tell attribution from "always attach the tail of the ring".
+
+The version arm is `push_error`, added to the example project as
+`provoke_engine_error()`. It travels Godot's own error path rather than the bridge's
+`push_log`, so it reaches the ring only through the 4.5+ scriptable `Logger`: on 4.5+ the
+caller's own response carries it; on 4.3/4.4 the field is asserted **absent**, so the
+degradation is proved deliberate rather than assumed.
+
+```
+wire surface   352,207 -> 360,699 B  (+8,492, +2.4%)  · 291 tools, none added
+check 8        WIRE_VERDICT MINOR — 147 additive schema paths across 21 tools, 0 MAJOR
+host tests     695 -> 700
+```
+
+The 8,492 B is what the declaration costs, and it is the price of the field being
+readable by a validating client rather than smuggled into a text blob.
+
 ## [1.72.9] — 2026-08-06
 
 ### Added — the release check that reads the wire, and two floors that were about to stop biting

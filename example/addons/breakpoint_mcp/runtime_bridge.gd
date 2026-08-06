@@ -14,6 +14,11 @@ extends Node
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const DEFAULT_PORT := 9081
 const LOG_CAP := 1000
+# D1a: how many error/warning entries one response may carry. A cap and not the
+# whole ring: a call that provokes a thousand warnings must not turn a 200-byte
+# reply into a 100 KB one. The `total` beside the list is what stops the cap
+# lying about how many there were.
+const ENGINE_LOG_CAP := 20
 # D6: source for the runtime-compiled Logger subclass (Godot 4.5+). Kept as a
 # string so `extends Logger` is only ever compiled where the class exists — the
 # addon stays parse-clean on Godot 4.3/4.4 (no Logger class).
@@ -235,9 +240,17 @@ func _handle_line(c: Dictionary, line: String) -> void:
 	if method in ASYNC_METHODS:
 		_dispatch_async(c, id, method, params)
 		return
+	# D1a: the engine-error echo. The ring already receives every push_error /
+	# push_warning and every engine message (via the 4.5+ Logger capture), but
+	# nothing tied one to the CALL that provoked it — a caller had to notice
+	# something was wrong, then go and read runtime.get_log, then guess which
+	# entries were its own. Reading _log_seq either side of the dispatch answers
+	# that by construction: everything appended in between belongs to this call.
+	var seq_before := _log_seq
 	var result := _dispatch(method, params)
 	var response := {"id": id}
 	response.merge(result)
+	_attach_engine_log(response, seq_before)
 	_send(peer, response)
 
 
@@ -304,6 +317,51 @@ func _on_captured_log(level: String, message: String) -> void:
 	_in_capture = true
 	push_log(level, message.strip_edges())
 	_in_capture = false
+
+
+## D1a: every `error`/`warning` ring entry appended AFTER `seq_before`, i.e. during
+## the dispatch this response belongs to. Written into `result` and not beside it:
+## the host resolves a reply as `msg.result`, so a sibling key is dropped on the
+## floor — and `structuredContent` must match the tool's `outputSchema` or a
+## conforming client throws, which is why `engine_log` is declared on all 26
+## runtime output schemas rather than smuggled in.
+##
+## `isError` IS DELIBERATELY UNTOUCHED. A push_error during a call that returned
+## what it was asked for is a DIAGNOSTIC, not a failed call; promoting it would
+## make every noisy frame look like a broken tool and would change the meaning of
+## a field callers already branch on.
+##
+## Absent when there is nothing, never `[]`: an optional field that is always
+## present carries no information, and 208 §4's finding is that absent and
+## explicitly-empty are NOT the same value to a client that never materialises
+## defaults.
+func _attach_engine_log(response: Dictionary, seq_before: int) -> void:
+	if not response.get("ok", false):
+		return  # a failed call already carries its own error; see the note above
+	var result: Variant = response.get("result")
+	if typeof(result) != TYPE_DICTIONARY:
+		return
+	var entries: Array = []
+	for e in _log:
+		if entries.size() >= ENGINE_LOG_CAP:
+			break
+		if int(e.get("seq", 0)) <= seq_before:
+			continue
+		var lvl := String(e.get("level", ""))
+		if lvl == "error" or lvl == "warning":
+			entries.append(e)
+	if entries.is_empty():
+		return
+	# 🔴 THE COUNT IS SEPARATE FROM THE LIST, because the list is CAPPED. A caller
+	# reading twenty entries cannot tell "twenty happened" from "hundreds happened
+	# and you are seeing the first twenty", and the second is the case that matters.
+	var total := 0
+	for e in _log:
+		if int(e.get("seq", 0)) > seq_before:
+			var lvl2 := String(e.get("level", ""))
+			if lvl2 == "error" or lvl2 == "warning":
+				total += 1
+	result["engine_log"] = {"entries": entries, "total": total, "since_seq": seq_before}
 
 
 # ----------------------------------------------------------- dispatch --------
@@ -972,6 +1030,12 @@ func _node_remove(params: Dictionary) -> Dictionary:
 ## as a bare (un-awaited) call from _handle_line so _process never blocks; it resumes on the
 ## engine's frame signals and sends when complete.
 func _dispatch_async(c: Dictionary, id: Variant, method: String, params: Dictionary) -> void:
+	# D1a: the async lane echoes too, and it is the lane that needs it MOST — a
+	# step_frames call runs the game for N frames, so it is the one dispatch here
+	# that can provoke errors from code the caller never named. Handing it the
+	# synchronous version's treatment is not symmetry for its own sake: a caller
+	# stepping frames to reproduce a bug is exactly the caller this feature is for.
+	var seq_before := _log_seq
 	var result: Dictionary
 	match method:
 		"runtime.step_frames":
@@ -982,6 +1046,7 @@ func _dispatch_async(c: Dictionary, id: Variant, method: String, params: Diction
 	if peer != null and peer.get_status() == StreamPeerTCP.STATUS_CONNECTED:
 		var response := {"id": id}
 		response.merge(result)
+		_attach_engine_log(response, seq_before)
 		_send(peer, response)
 
 

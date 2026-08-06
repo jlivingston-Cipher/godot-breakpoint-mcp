@@ -56,6 +56,31 @@ const runtimeNode: z.ZodType = z.lazy(() =>
   }),
 );
 
+/**
+ * D1a — the engine-error echo, declared once and spread into the 22 runtime
+ * tools whose `structuredContent` IS the bridge reply verbatim.
+ *
+ * 🔴 DECLARED RATHER THAN SMUGGLED. `structuredContent` is validated against
+ * `outputSchema` by both SDK clients, which THROW on a mismatch (208 §4), so a
+ * field the addon adds and this file does not declare breaks every conforming
+ * caller. The blast radius is the price of the feature, not an accident of it.
+ *
+ * 🔴 AND OPTIONAL, WITH THE ADDON OMITTING IT RATHER THAN SENDING `[]`. 208 §4
+ * measured that no SDK materialises a documented default, so absent and
+ * explicitly-empty are different values to a client — and "nothing went wrong"
+ * is worth saying with silence.
+ */
+const engineLog = {
+  engine_log: z
+    .object({
+      entries: z.array(z.object({ seq: z.number(), level: z.string(), message: z.string() })),
+      // The list is CAPPED at 20; this is how many there actually were.
+      total: z.number(),
+      since_seq: z.number(),
+    })
+    .optional(),
+};
+
 /** name -> ZodRawShape describing that tool's structuredContent. */
 export const outputSchemas: Record<string, z.ZodRawShape> = {
   // ---- Plane B: headless CLI (tools/cli.ts) ----
@@ -500,7 +525,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   cs_dbg_restart: { session_id: z.string(), method: z.string(), state: z.string() },
 
   // ---- Plane C: runtime bridge (tools/runtime.ts -> runtime_bridge.gd) ----
-  runtime_get_tree: {
+  runtime_get_tree: { ...engineLog,
     name: z.string(),
     type: z.string(),
     path: z.string(),
@@ -508,20 +533,20 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     visible: z.boolean().optional(),
     children: z.array(runtimeNode).optional(),
   },
-  runtime_get_property: { path: z.string(), property: z.string(), value: encodedValue },
-  runtime_set_property: { path: z.string(), property: z.string(), value: encodedValue },
-  runtime_call_method: { return: encodedValue },
-  runtime_emit_signal: { emitted: z.boolean() },
-  runtime_inject_input: { injected: z.boolean(), kind: z.string() },
-  runtime_get_monitors: { monitors: z.record(z.number()) },
-  runtime_get_log: {
+  runtime_get_property: { ...engineLog, path: z.string(), property: z.string(), value: encodedValue },
+  runtime_set_property: { ...engineLog, path: z.string(), property: z.string(), value: encodedValue },
+  runtime_call_method: { ...engineLog, return: encodedValue },
+  runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
+  runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string() },
+  runtime_get_monitors: { ...engineLog, monitors: z.record(z.number()) },
+  runtime_get_log: { ...engineLog,
     entries: z.array(z.object({ seq: z.number(), level: z.string(), message: z.string() })),
     latest_seq: z.number(),
     // D6: true when the Godot 4.5+ Logger capture is active (zero-config print()
     // capture, no managed parent). Optional so older addons still validate.
     capture: z.boolean().optional(),
   },
-  runtime_assert_node_state: {
+  runtime_assert_node_state: { ...engineLog,
     path: z.string(),
     ok: z.boolean(),
     checked: z.number(),
@@ -529,7 +554,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       z.object({ property: z.string(), expected: encodedValue, actual: encodedValue }),
     ),
   },
-  runtime_assert_scene_structure: {
+  runtime_assert_scene_structure: { ...engineLog,
     ok: z.boolean(),
     checked: z.number(),
     failures: z.array(
@@ -541,7 +566,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       }),
     ),
   },
-  runtime_assert_perf: {
+  runtime_assert_perf: { ...engineLog,
     ok: z.boolean(),
     checked: z.number(),
     regressions: z.array(
@@ -554,13 +579,13 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     ),
     monitors: z.record(z.number()),
   },
-  runtime_assert_screen_text: {
+  runtime_assert_screen_text: { ...engineLog,
     ok: z.boolean(),
     matches: z.number(),
     present: z.boolean(),
     samples: z.array(z.object({ path: z.string(), text: z.string() })),
   },
-  runtime_screenshot_diff: {
+  runtime_screenshot_diff: { ...engineLog,
     ok: z.boolean(),
     diff_ratio: z.number(),
     differing_pixels: z.number(),
@@ -572,9 +597,9 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
   // F8 additions: await/animation/node-lifecycle over the runtime bridge.
   runtime_await_condition: { met: z.boolean(), polls: z.number(), elapsed_ms: z.number(), value: encodedValue },
-  runtime_anim_play: { playing: z.boolean(), current_animation: z.string(), speed_scale: z.number() },
-  runtime_anim_stop: { playing: z.boolean(), current_animation: z.string(), position: z.number() },
-  runtime_anim_get_state: {
+  runtime_anim_play: { ...engineLog, playing: z.boolean(), current_animation: z.string(), speed_scale: z.number() },
+  runtime_anim_stop: { ...engineLog, playing: z.boolean(), current_animation: z.string(), position: z.number() },
+  runtime_anim_get_state: { ...engineLog,
     playing: z.boolean(),
     current_animation: z.string(),
     position: z.number(),
@@ -582,13 +607,13 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     speed_scale: z.number(),
     animations: z.array(z.string()),
   },
-  runtime_node_add: { added: z.boolean(), path: z.string(), type: z.string() },
-  runtime_node_remove: { removed: z.boolean(), path: z.string() },
+  runtime_node_add: { ...engineLog, added: z.boolean(), path: z.string(), type: z.string() },
+  runtime_node_remove: { ...engineLog, removed: z.boolean(), path: z.string() },
   // F4 additions: deterministic playtesting (time control / frame stepping / state digest / RNG seed).
-  runtime_time_scale: { previous: z.number(), current: z.number() },
-  runtime_step_frames: { frames_advanced: z.number(), frame_index: z.number() },
-  runtime_state_digest: { digest: z.record(z.record(encodedValue)), node_count: z.number() },
-  runtime_seed_rng: { seed: z.number() },
+  runtime_time_scale: { ...engineLog, previous: z.number(), current: z.number() },
+  runtime_step_frames: { ...engineLog, frames_advanced: z.number(), frame_index: z.number() },
+  runtime_state_digest: { ...engineLog, digest: z.record(z.record(encodedValue)), node_count: z.number() },
+  runtime_seed_rng: { ...engineLog, seed: z.number() },
   // F6 additions: multi-peer deterministic playtesting (spawn / stop / converge).
   runtime_spawn_peers: {
     peers: z.array(

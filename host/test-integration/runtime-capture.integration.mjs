@@ -24,10 +24,17 @@ import { Population } from "./_population.mjs";
 // and they live in a TWO-ARMED conditional: >=4.5 captures print(), <4.5 does not.
 // Both arms make three claims, so one family and one floor cover both — and an arm
 // that quietly stopped asserting is exactly what this catches.
+// 🆕 209 — D1A_ECHO joins it. The engine-error echo has TWO arms of its own and
+// they do not line up with D6's: `push_log` reaches the ring on EVERY version, so
+// the "a call that provoked something carries it" claim is version-independent,
+// while `push_error` reaches it only through the 4.5+ Logger — which is what makes
+// the SAME probe able to assert the feature on new engines and its DELIBERATE
+// silence on old ones. Both arms make five claims, so one floor covers both, and
+// an arm that quietly stopped asserting is what that floor catches.
 const population = new Population("D6_CAP", {
-  families: ["D6_CAP_RESULT"],
+  families: ["D6_CAP_RESULT", "D1A_ECHO_RESULT"],
   scope: 1,
-  claims: 3,
+  claims: 8,
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
@@ -120,6 +127,47 @@ if (capture) {
   assert.ok(pushLine, "the push_log() warning must still be present on <4.5");
   console.log(`D6_CAP_RESULT engine=no-capture push_log_seq=${pushLine.seq}`);
   console.log("✔ capture no-ops cleanly on <4.5; runtime_get_log still serves push_log entries");
+}
+
+// ── 🆕 209 — D1a: THE ENGINE-ERROR ECHO, BOTH DIRECTIONS ─────────────────────────────
+// 🔴 THE SECOND CALL IS THE ONE THAT MATTERS. Asserting only that a provoking call
+// carries an echo cannot tell attribution from "always attach the tail of the ring" —
+// both look identical on a game that has logged anything at all. A call that provokes
+// NOTHING must come back with the field ABSENT, and that pair is the whole claim.
+const quiet = await call("runtime_get_monitors", { keys: ["time/fps"] });
+const loud = await call("runtime_call_method", { path: ".", method: "take_damage", args: [3], confirm: true });
+await delay(200);
+const provoked = await call("runtime_call_method", { path: ".", method: "provoke_engine_error", confirm: true });
+
+population.open("D1A_ECHO_RESULT");
+// 1-2. Attribution, on every engine: `take_damage` push_log()s a WARNING, so its own
+// response must carry it — while a monitor read, which provokes nothing, must not.
+assert.equal(quiet.engine_log, undefined,
+  "a call that provoked nothing must OMIT engine_log entirely — absent, not an empty list");
+assert.ok(loud.engine_log, "take_damage push_log()s a warning, so its own response must carry engine_log");
+const warned = (loud.engine_log.entries ?? []).find(
+  (e) => e.level === "warning" && String(e.message).includes("took 3 damage"));
+assert.ok(warned, "the echo must carry THIS call's warning, not some earlier entry");
+// 3. `total` is not the capped list's length — it is what actually happened.
+assert.ok(loud.engine_log.total >= loud.engine_log.entries.length,
+  "total must be >= the capped entries it summarises");
+// 4. The window is the caller's, stated: everything echoed was appended after it.
+assert.ok(loud.engine_log.entries.every((e) => e.seq > loud.engine_log.since_seq),
+  "every echoed entry must post-date the since_seq the response reports");
+
+// 5. THE VERSION ARM. `push_error` is an ENGINE error, not a push_log, so it reaches
+// the ring only through the 4.5+ scriptable Logger.
+if (capture) {
+  const err = (provoked.engine_log?.entries ?? []).find(
+    (e) => e.level === "error" && String(e.message).includes("deliberate engine error"));
+  assert.ok(err, "on >=4.5 a push_error during the call must reach that call's own engine_log");
+  console.log(`D1A_ECHO_RESULT engine=capture provoked_seq=${err.seq} total=${provoked.engine_log.total}`);
+  console.log("✔ a push_error reached the response of the call that caused it, and isError stayed false");
+} else {
+  assert.equal(provoked.engine_log, undefined,
+    "on <4.5 there is no scriptable Logger, so a push_error reaches nothing and the field must be ABSENT");
+  console.log(`D1A_ECHO_RESULT engine=no-capture provoked=${JSON.stringify(provoked.return ?? provoked)}`);
+  console.log("✔ the echo degrades to silence on <4.5 rather than to something wrong");
 }
 
 runtime.close();

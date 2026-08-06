@@ -21,6 +21,18 @@ func _process(_delta: float) -> void:
 	counter += 0
 
 
+## D1a: a deliberate ENGINE error, on demand. `push_error` goes through Godot's
+## own error path — not through the bridge's push_log — so it reaches the runtime
+## log ring only where the scriptable Logger exists (4.5+). That makes it the one
+## provocation that can tell the two engine arms apart: on 4.5+ the caller's own
+## response carries it in `engine_log`; on 4.3/4.4 there is nothing to carry.
+## The method still RETURNS NORMALLY, which is the other half of the point —
+## `isError` must stay false while `engine_log` says something went wrong.
+func provoke_engine_error() -> String:
+	push_error("[example] deliberate engine error for the D1a echo")
+	return "provoked"
+
+
 func take_damage(amount: int) -> int:
 	# Put a breakpoint on the next line to validate the DAP plane.
 	counter -= amount
