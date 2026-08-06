@@ -531,10 +531,15 @@ INSTRUMENTS = [
     },
     {
         # 🆕 209 — CHECK 8's CLASSIFIER, AND IT GOES IN ON ITS FIRST DAY RATHER THAN ON
-        # THE SESSION SOMEBODY NOTICES IT IS MISSING. `token-cost.mjs` is the precedent
-        # NOT followed here: it has a self-test, it is read by CI, and it appears nowhere
-        # in this roster — an absence nothing declares, which is the shape every entry
-        # above was written to close.
+        # THE SESSION SOMEBODY NOTICES IT IS MISSING. `token-cost.mjs` was the precedent
+        # NOT followed here: it had a self-test, it was read by CI, and it appeared
+        # nowhere in this roster — an absence nothing declares, which is the shape every
+        # entry above was written to close.
+        # 🆕 211 §6 — AND THAT ABSENCE IS NOW AN ENTRY, two sessions after this comment
+        # named it. 🔴 THE LESSON IS NOT "add it sooner", IT IS THAT A PROSE CONFESSION
+        # DOES NOT RE-ASSERT ITSELF: this paragraph was true, correct, load-bearing and
+        # completely silent on every one of the fifty-odd green runs between 209 and 211.
+        # The missing-half checks added this session are the mechanical version of it.
         #
         # 🔴 AND THE BLIND IS WHAT FOUND THE DEFECT, BEFORE THIS ENTRY EXISTED. Asking
         # "what would blinding `stripDialect` redden?" answered NOTHING — the function
@@ -562,6 +567,50 @@ INSTRUMENTS = [
             # would redden the table for being absurd rather than for being blind.
             "{SIG:typeName}": 'return "string";',
             "{SIG:normalise}": "return { taskSupport: \"forbidden\" };",
+        },
+    },
+    {
+        # 🆕 211 §6 — 209 §9.6 NAMED THIS AND 210 CARRIED IT. `token-cost.mjs` has a
+        # headless self-test, three governed floors swept by `floor_pin_gate`, and a CI
+        # step — and it appeared in NO roster in this file. 🔴 THE FILE SAID SO ITSELF,
+        # in prose, beside the entry above: "it appears nowhere in this roster — an
+        # absence nothing declares." A confession is not a mechanism; nothing would have
+        # said it again on any run.
+        #
+        # 🔴 AND 211 §5 IS WHY IT IS NOT A HOUSEKEEPING ROW. Its numbers are what priced
+        # the `BYTES_CEILING` decision this session — `measure()` is the reader every
+        # option in that table was weighed with, and a `measure()` that had quietly
+        # stopped deriving `schemaPerTool` from its schemas would have made all six
+        # options agree.
+        "name": "token-cost.mjs",
+        "src": HOST / "scripts" / "token-cost.mjs",
+        "gate": ["node", "scripts/token-cost.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 2,
+        "why": "the budget reader whose numbers a ceiling decision is argued from",
+        "targets": {
+            # 🔴 THE HEALTHY ANSWER, NOT A FAILING ONE (175's `_png.mjs` rule). A blind
+            # returning a surface that BREACHES the ceiling would redden the self-test's
+            # refusal rows for the right reason by accident. This one returns a plausible
+            # in-budget measurement, so only the rows that assert the numbers are DERIVED
+            # can catch it — which is the half 199 §34 calls a claim rather than a fix.
+            "{SIG:measure}":
+                "return { count: 291, total: 360699, names: 0, descs: 0, schemas: 0, "
+                "schemaPerTool: 468, perTool: 1239, dialects: 0, taskDefault: 0, "
+                "families: [], keys: [], frame: 0 };",
+            # The refusal itself. `ok` with no problems is what a budget reader that has
+            # stopped reading looks like from the outside.
+            "{SIG:verdict}": "return { ok: true, problems: [] };",
+            # 🔴 `bytes` AND `family` ARE NOT TARGETS, AND THE REASON IS THE ANCHOR'S
+            # SHAPE RATHER THAN A JUDGEMENT ABOUT THEM. Both are arrow-function consts
+            # (`export const bytes = (v) => ...`), and `_decl_re` anchors a `function`
+            # declaration opening a block. Listed as targets they reported RESOLVES TO
+            # NOTHING on the first run — which is this gate working: an unappliable
+            # target is a sweep reporting green over a mutation nobody made. Said here
+            # rather than left as an absence, because that absence is what §5 above is
+            # about. 🔴 A WIDENING OF `_decl_re` TO ARROW CONSTS IS A REAL NEXT ITEM:
+            # it is not scoped to this file, and it would admit members in every
+            # instrument at once.
         },
     },
 ]
@@ -852,6 +901,12 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     "boundary_gate.mjs": 145,
     "seal_order_gate.mjs": 220,  # 199: 120 -> 220, measured 247
     "path-cohort (compiled walk)": 48,
+    # 🆕 211 §5 — THE TWO ROWS WHOSE ABSENCE PRINTED "on purpose". Both measured below on
+    # the [A:gate] axis, floored from BELOW like every row above. Neither was a decision;
+    # `wire_diff.mjs` was added to the gate in 209 with a `BLAST_FLOOR` row and no late
+    # twin, and nothing in this file compared the two rosters until now.
+    "wire_diff.mjs": 120,
+    "token-cost.mjs": 8,
 }
 LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
 LATE_CRASHED_A: list[tuple[str, str]] = []
@@ -874,6 +929,21 @@ LATE_CONSTRUCTED: list[str] = []
 # it the same way — a roster AND a floor rather than either alone. `>=`, because the point
 # of the caller-shape harness is that this list grows.
 LATE_LIVE_FLOOR = 8
+
+# 🆕 211 §5 — THE EXCLUSION, WRITTEN DOWN. Every instrument is now either in `LATE_LIVE`
+# or in here with a reason; the branch in `main()` refuses a name in neither. 🔴 THE
+# REASONS ARE ABOUT THE DRIVER, NOT ABOUT THE INSTRUMENT — "there is no second command
+# that exercises this file" is a fact anybody can check, where "not needed" is not.
+LATE_LIVE_NA: dict[str, str] = {
+    "seal_order_gate.mjs":
+        "its only driver is its own self-test; the gate and the live read are one command",
+    "wire_diff.mjs":
+        "the live axis needs a baseline ref built in a worktree, which is a release-time "
+        "cost this gate deliberately does not pay (the self-test drives the pure core)",
+    "token-cost.mjs":
+        "the same shape as wire_diff.mjs — the live read spawns a built server, and the "
+        "self-test drives `measure`/`verdict` without one, on purpose",
+}
 
 
 def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, int, list[str]]:
@@ -1246,6 +1316,11 @@ VERDICT_MARKER: dict[str, str] = {
     # too. Pinning the passing spelling would have classified every genuine catch as a
     # crash — 197 §5's discriminator needing a marker that survives the red path.
     "wire_diff.mjs": "WIRE_DIFF_SELFTEST",
+    # 🆕 211 §6 — the budget reader. Same prefix-not-"ok" rule as the row above, and it
+    # cost a change in that file: sections 2-5 asserted with a bare `node:assert`, which
+    # aborts before any verdict line, so a blind on `measure()` would have been an
+    # unclassifiable red rather than a catch. They go through `claim()` now.
+    "token-cost.mjs": "TOKEN_COST_SELFTEST",
 }
 
 
@@ -1448,7 +1523,12 @@ BLAST_FLOOR: dict[str, int] = {
     # number, so a regression to the broken injector would now be caught here as well.
     "seal_order_gate.mjs": 240,   # 199: 140 -> 240, measured 268
     "path-cohort (compiled walk)": 50,
-    "wire_diff.mjs": 80,   # 209: measured 95 across four blinds, 0 crashed
+    "wire_diff.mjs": 120,  # 209: measured 95 across four blinds, 0 crashed. 🆕 211 §4:
+                           # measured 140 after the six symmetric-collapse rows and the
+                           # value-carrying typeName rows landed — raised from below with
+                           # the usual headroom rather than left at a number the file has
+                           # outgrown, which is 198 §36's rule.
+    "token-cost.mjs": 8,   # 🆕 211 §6: measured 11 across its two anchorable members
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
@@ -1679,7 +1759,28 @@ def main() -> int:
         n_green, n_targets, probs = late_sweep(inst, inst["gate"], src, "A:gate")
         problems.extend(probs)
         print(f"INSTRUMENT_GATE_LATE {inst['name']} [A:gate]: {n_green} of {n_targets} STILL GREEN")
+        # 🆕 211 §5 — A BARE `continue` WAS A SKIPPED AXIS REPORTED IN GREEN, WHICH IS
+        # THE SENTENCE THIS BLOCK'S OWN NEXT BRANCH USES ABOUT A MISSING ARTEFACT.
+        # 🔴 MEASURED: ten instruments printed `[A:gate]`, EIGHT printed `[B:live]`, and
+        # `INSTRUMENT_GATE_LATE_LIVE 8/8` read clean — because `LATE_LIVE_FLOOR` floors
+        # the ROSTER against itself, not the instruments the roster is supposed to cover.
+        # `seal_order_gate.mjs` and `wire_diff.mjs` got one axis instead of two and no
+        # line said so. The file's own §592-595 argues the LIVE axis is the stronger one.
+        #
+        # Declared rather than demanded: some instruments genuinely have no live driver,
+        # and the honest shape is the one `LATE_BLAST_FLOOR`'s exclusion note uses — say
+        # it out loud in a table with a reason, so that a row going missing by accident
+        # is distinguishable from a row that was never applicable.
         if inst["name"] not in LATE_LIVE:
+            why = LATE_LIVE_NA.get(inst["name"])
+            if why is None:
+                problems.append(
+                    f"{inst['name']}: no LATE_LIVE entry and no LATE_LIVE_NA reason — it "
+                    f"gets the [A:gate] axis and silently not the [B:live] one, which is "
+                    f"the WEAKER of the two. Add the live driver, or declare why there "
+                    f"cannot be one")
+            else:
+                print(f"INSTRUMENT_GATE_LATE {inst['name']} [B:live]: NOT RUN — {why}")
             continue
         cmd, alt = LATE_LIVE[inst["name"]]
         live_src = alt or src
@@ -1734,6 +1835,29 @@ def main() -> int:
                 f"'the gate went red' cannot tell you that on its own")
     for stale in sorted(set(LATE_BLAST_FLOOR) - {i["name"] for i in INSTRUMENTS}):
         problems.append(f"LATE_BLAST_FLOOR names {stale!r}, which is not an instrument")
+    # 🆕 211 §5 — AND THE OTHER HALF, WHICH `BLAST_FLOOR` HAS HAD SINCE 183 AND THIS
+    # AXIS NEVER GOT. The loop above catches a roster naming something that is not an
+    # instrument. Nothing caught an INSTRUMENT the roster does not name.
+    #
+    # 🔴 MEASURED IN A GREEN RUN, NOT REASONED ABOUT. `LATE_BLAST_FLOOR` carried nine
+    # rows for ten instruments, and the missing one printed:
+    #
+    #     INSTRUMENT_GATE_LATE_BLAST wire_diff.mjs [A:gate]: 99 — NOT floored on this
+    #                                                            axis, on purpose
+    #
+    # It was not on purpose. `floor is None` means two different things on the two axes —
+    # on `B:live` it is the declared exclusion the comment above describes, and on
+    # `A:gate` it is nobody having written the row — and the printed line asserts the
+    # first one for both. 🔴 THAT IS 210 §16's RULE POINTED AT A REPORT RATHER THAN A
+    # READER: the line's population is "floors that exist", the answer "this row was
+    # never written" is not in it, and the output is a green sentence claiming intent.
+    for missing in sorted({i["name"] for i in INSTRUMENTS} - set(LATE_BLAST_FLOOR)):
+        problems.append(
+            f"{missing} has no LATE_BLAST_FLOOR — the late axis prints its blast as "
+            f"'NOT floored on this axis, on purpose', which is a sentence about the "
+            f"OTHER axis. An instrument whose late blinds stop reddening anything would "
+            f"read exactly the same. Measure it and add the row, or move it to a table "
+            f"that says out loud it is excluded")
     # 🆕 195. THE THIRD POPULATION OF THIS HARNESS, AND IT IS A DIFFERENT COLLAPSE FROM
     # BOTH ABOVE. `LATE_CONSTRUCTED` counts blinds that were BUILT; this counts anchors
     # that were RESOLVED. An author replacing one placeholder with the literal it resolves

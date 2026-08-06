@@ -6,6 +6,63 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the release classifier could not see a value, and could not tell a clean read from no read
+
+`wire_diff.mjs` is check 8: the only reader in the release ritual that projects onto the
+`tools/list` payload a client actually consumes, and the one the release script pins the
+MAJOR/MINOR/PATCH decision to. Two things it could not report have been fixed.
+
+**A schema's accepted values are part of its type.** `typeName()` answered `"const"` for
+every `const` regardless of its value, and `enum(n)` for every enum of arity *n*
+regardless of its members; a `type` with a `pattern`, `minimum` or `maxLength` answered
+the bare type name. Changing a `const` from `"v1"` to `"v2"`, swapping an enum's members
+at equal arity, or tightening a numeric bound therefore produced identical shape maps,
+zero reported differences and a verdict of `PATCH` — every one of them a change that
+breaks a validating caller. Values and constraints now contribute a bounded digest, so
+they land in `major` where they belong. Member *order* still does not, and a description
+beside a type still does not.
+
+**A reader that read nothing now says so.** `SURFACE_FLOOR` floored the number of tool
+*names*; nothing floored the number of schema *paths* the classifier actually walked.
+`shapeOf()` descends `properties` and array `items` and nothing else, and it is one
+function applied to both surfaces — so an SDK relocating schemas under `$defs`, wrapping
+them in an envelope, or moving to `$ref` indirection empties its population on both sides
+at once, every comparison silently becomes a no-op, and the verdict is `PATCH` with a
+clean exit. The new `SHAPE_FLOOR` refuses that case loudly. A one-sided collapse was
+always loud; the symmetric one was not.
+
+### Fixed — three gate rosters that could not report their own omissions
+
+- `instrument_gate.py` printed `NOT floored on this axis, on purpose` for any instrument
+  missing a `LATE_BLAST_FLOOR` row. On the `B:live` axis that sentence is true and
+  declared; on the floored `A:gate` axis it meant nobody had written the row, and
+  `wire_diff.mjs` had been reading that way since it joined the roster. The missing-half
+  check `BLAST_FLOOR` has carried since 183 now exists on the late axis too.
+- Instruments absent from `LATE_LIVE` were skipped via a bare `continue`: ten instruments
+  were swept on the `A:gate` axis and eight on the stronger `B:live` one, with the summary
+  reading `8/8`. Exclusions are now declared in `LATE_LIVE_NA` with a reason, and a name in
+  neither table is a failure.
+- `floor_pin_gate.py`'s discovery walk required a floor's name to *end* in
+  `FLOOR`/`CEILING`. `LATE_CRASH_CEILING_A` and `LATE_CRASH_CEILING_B` are live ceilings
+  and matched none of its three readers, nor any exemption table. The convention was never
+  "ends in" — it was "contains the word".
+
+### Fixed — a citation rule that expired
+
+`floor_pin_gate.py`'s `REASON_CITE` recognised session numbers 150–209 and nothing else,
+so the next reason written in the house style would have been read as an ungoverned
+measurement and failed the gate. A citation is identified by what follows it, not by its
+range, which is what the rule's own comment already said.
+
+### Added — `token-cost.mjs` is an instrument
+
+The budget reader has a self-test, three governed floors and a CI step, and appeared in no
+mutation roster; the omission was recorded in a code comment two sessions ago and nothing
+re-asserted it on any green run since. Its self-test's sections 2–5 asserted through a bare
+`node:assert`, which aborts before any verdict line and makes "the gate caught it" and "the
+mutant crashed the gate" one observable — they go through a non-throwing `claim()` now, and
+the file prints its verdict on both paths.
+
 ## [1.73.0] — 2026-08-06
 
 **Why this is a MINOR, and the first since 1.50.0.** `engine_log` is a new optional

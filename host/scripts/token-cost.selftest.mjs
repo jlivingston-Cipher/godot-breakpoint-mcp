@@ -92,6 +92,21 @@ const SELFTEST = [
        execution: { taskSupport: "optional" } }, ...mkTools(TOOL_FLOOR, 10)], true, ""],
 ];
 
+// 🆕 211 §6 — NOTHING BELOW THROWS, AND THAT IS THE INSTRUMENT GATE'S REQUIREMENT
+// RATHER THAN A STYLE. This file is a roster entry as of this session, and a bare
+// `assert` aborts the process — so a blinded `measure()` would kill the run before it
+// printed its verdict, and "the gate caught it" and "the mutant crashed the gate" become
+// one observable (181 §4). Section 1 already had this shape via try/catch; sections 2
+// through 5 did not, and every one of them was one blind away from an unclassifiable
+// red. 🔴 THE MARKER IS PRINTED ON BOTH PATHS, for 209's reason in `wire_diff.mjs`'s
+// row: a marker that only the passing run emits classifies every genuine catch as a crash.
+let ran = 0, claimBad = 0;
+const claim = (cond, what) => {
+  ran++;
+  if (!cond) { claimBad++; console.log(`🔴 FAILED: ${what}`); }
+};
+const safe = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
+
 // ── 1. THE FLOORS, DRIVEN OVER A TABLE THAT MUST CONTAIN REFUSALS ────────────────────
 let bad = 0;
 console.log("TOKEN_COST selftest — the floors' refusal, proved without a server");
@@ -119,16 +134,16 @@ for (const [name, tools, wantOk, want] of SELFTEST) {
 // 🔴 A row that drives `verdict()` proves the COMPARISON works. It cannot prove the
 // constant it compares against still exists — an undefined `TOOL_FLOOR` makes every
 // `count < undefined` false and the healthy rows keep passing. 172 §10.21's shape.
-assert.ok(Number.isInteger(TOOL_FLOOR) && TOOL_FLOOR > 0, "TOOL_FLOOR must be a positive integer");
-assert.ok(Number.isInteger(BYTES_CEILING) && BYTES_CEILING > 0, "BYTES_CEILING must be a positive integer");
-assert.ok(Number.isInteger(SCHEMA_PER_TOOL_CEILING) && SCHEMA_PER_TOOL_CEILING > 0,
+claim(Number.isInteger(TOOL_FLOOR) && TOOL_FLOOR > 0, "TOOL_FLOOR must be a positive integer");
+claim(Number.isInteger(BYTES_CEILING) && BYTES_CEILING > 0, "BYTES_CEILING must be a positive integer");
+claim(Number.isInteger(SCHEMA_PER_TOOL_CEILING) && SCHEMA_PER_TOOL_CEILING > 0,
   "SCHEMA_PER_TOOL_CEILING must be a positive integer");
 
 // ── 3. THE TABLE'S OWN SHAPE — A PROOF THAT CANNOT REFUSE IS NOT A PROOF ─────────────
 const refusals = SELFTEST.filter((r) => !r[2]).length;
 console.log(`\n  ${SELFTEST.length} rows · ${refusals} REFUSE · `
   + `${bad ? `\u{1F534} ${bad} DISAGREE` : "\u{1F7E2} all agree"}`);
-assert.ok(refusals >= 6,
+claim(refusals >= 6,
   "fewer than six refusing rows — this table has stopped proving the floors can fire");
 
 // ── 4. THE DECOMPOSITION MUST LEAVE NOTHING UNNAMED — 207's FIX, ASSERTED ────────────
@@ -143,20 +158,20 @@ const withExtras = [
     annotations: { readOnlyHint: true }, title: "A One" },
   { name: "b_two", description: "dd", inputSchema: { type: "object" }, title: "B Two" },
 ];
-const mx = measure(withExtras);
-const named = new Set(mx.keys.map(([k]) => k));
+const mx = safe(() => measure(withExtras), { keys: [], frame: 0, total: 0 });
+const named = new Set((mx.keys ?? []).map(([k]) => k));
 for (const k of ["name", "description", "inputSchema", "outputSchema", "annotations", "title"]) {
-  assert.ok(named.has(k), `measure().keys must name every key a tool carries; missing ${k}`);
+  claim(named.has(k), `measure().keys must name every key a tool carries; missing ${k}`);
 }
-const keyed = mx.keys.reduce((s, [, e]) => s + e.b, 0);
-assert.equal(keyed + mx.frame, mx.total,
+const keyed = (mx.keys ?? []).reduce((s, [, e]) => s + e.b, 0);
+claim(keyed + mx.frame === mx.total,
   "per-key bytes plus the structural frame must account for the whole surface");
-assert.ok(mx.frame >= 0, "a negative frame means the per-key walk double-counted");
+claim(mx.frame >= 0, "a negative frame means the per-key walk double-counted");
 // 🔴 AND THE THREE OLD SLICES MUST BE SHOWN TO BE A PROJECTION, not a decomposition —
 // if this ever stops holding, the difference has gone to zero and the 207 finding with it.
 const three = ["name", "description", "inputSchema"]
-  .reduce((s, k) => s + (mx.keys.find(([kk]) => kk === k)?.[1].b ?? 0), 0);
-assert.ok(three < mx.total,
+  .reduce((s, k) => s + ((mx.keys ?? []).find(([kk]) => kk === k)?.[1].b ?? 0), 0);
+claim(three < mx.total,
   "name+description+inputSchema must not be presentable as the whole surface");
 console.log(`  🟢 per-key decomposition names ${mx.keys.length} keys · `
   + `frame ${mx.frame} B · the three named slices are ${((three / mx.total) * 100).toFixed(1)}% of it`);
@@ -166,28 +181,52 @@ console.log(`  🟢 per-key decomposition names ${mx.keys.length} keys · `
 // ever PRODUCES one from a real shape — a counter wired to a typo reports zero forever
 // and every row above still passes, because they all pass their own literals through the
 // same broken walk. These two assert the walk finds what is actually there.
-const dirty = measure([
+const dirty = safe(() => measure([
   { name: "a_one", description: "d",
     inputSchema: { $schema: "http://json-schema.org/draft-07/schema#", type: "object" },
     execution: { taskSupport: "forbidden" } },
   { name: "b_two", description: "d", inputSchema: { type: "object" },
     execution: { taskSupport: "optional" } },
-]);
-assert.equal(dirty.dialects, 1, "measure() must count the schema that declares a dialect");
-assert.equal(dirty.taskDefault, 1, "measure() must count only the spec-default taskSupport");
-const clean = measure(mkTools(4, 10));
-assert.equal(clean.dialects, 0, "a surface with no declarations must count none");
-assert.equal(clean.taskDefault, 0, "a surface with no execution key must count none");
+]), {});
+claim(dirty.dialects === 1, "measure() must count the schema that declares a dialect");
+claim(dirty.taskDefault === 1, "measure() must count only the spec-default taskSupport");
+const clean = safe(() => measure(mkTools(4, 10)), {});
+claim(clean.dialects === 0, "a surface with no declarations must count none");
+claim(clean.taskDefault === 0, "a surface with no execution key must count none");
 console.log(`  🟢 wire counts derived from the tools · dirty ${dirty.dialects}/${dirty.taskDefault} · clean 0/0`);
 
 // ── 5. THE PER-TOOL SCHEMA NUMBER IS DERIVED, NOT STORED ─────────────────────────────
 // 🔴 A ceiling compared against a field that no longer tracks its source is 199 §34's
 // claim-not-a-fix. Doubling every schema must double the number the ceiling reads.
-const one = measure(mkSchemaTools(TOOL_FLOOR, 200));
-const two = measure(mkSchemaTools(TOOL_FLOOR, 400));
-assert.ok(two.schemaPerTool > one.schemaPerTool,
+const one = safe(() => measure(mkSchemaTools(TOOL_FLOOR, 200)), {});
+const two = safe(() => measure(mkSchemaTools(TOOL_FLOOR, 400)), {});
+claim(two.schemaPerTool > one.schemaPerTool,
   "schemaPerTool must move with the schemas it is derived from");
-assert.equal(measure([]).schemaPerTool, 0, "an empty surface must not divide by zero");
+claim(safe(() => measure([]).schemaPerTool, -1) === 0, "an empty surface must not divide by zero");
 
-if (bad) process.exit(1);
+// 🆕 211 §6 — THE VERDICT LINE, PRINTED BEFORE ANY EXIT AND ON BOTH PATHS. It is what
+// `instrument_gate.py`'s VERDICT_MARKER matches, and the prefix rather than the "ok"
+// spelling for the reason 209 gives one file over: a marker only the passing run emits
+// classifies every genuine catch as a crash.
+console.log(`TOKEN_COST_SELFTEST ${ran - claimBad}/${ran} claims · ${SELFTEST.length - bad}/${SELFTEST.length} rows`);
+// 🔴 THIS FILE'S OWN COLLAPSE DETECTOR. Claims deleted, or a section that stopped
+// running, leaves every assertion above vacuously satisfied and the file green.
+const CLAIM_FLOOR = 18;
+// 🔴 THE SAME 172 §10.21 SHAPE THE THREE CONSTANTS ABOVE CARRY. `ran < 0` is never
+// true, so zeroing this floor deletes the detector while leaving its name in place —
+// and the only thing that can say so is an assertion about the constant.
+if (!(Number.isInteger(CLAIM_FLOOR) && CLAIM_FLOOR > 0)) {
+  console.log("🔴 TOKEN_COST_SELFTEST CLAIM_FLOOR is not a positive integer — this "
+    + "file's collapse detector cannot fire");
+  process.exit(1);
+}
+if (ran < CLAIM_FLOOR) {
+  console.log(`🔴 TOKEN_COST_SELFTEST ran ${ran} claims, floor is ${CLAIM_FLOOR} — `
+    + `cases were deleted or stopped running`);
+  process.exit(1);
+}
+if (bad || claimBad) {
+  console.log(`🔴 TOKEN_COST_SELFTEST FAILED — ${bad} row(s), ${claimBad} claim(s)`);
+  process.exit(1);
+}
 console.log("TOKEN_COST_SELFTEST ok");
