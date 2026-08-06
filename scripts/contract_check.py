@@ -2215,14 +2215,21 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 30  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 32  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # +2 session 209: host/scripts/wire_diff.mjs and its
+                               #   self-test — the release check that reads the WIRE
+                               #   rather than a file (209 §2). Both invoked as
+                               #   `node <file>`, so 100644 is correct.
+                               # 🔴 AND THIS CHECK IS WHY THE POPULATION IS `git ls-files`
+                               #   AND NOT THE FILESYSTEM: both files sat in the tree
+                               #   UNTRACKED while every local gate ran green over them,
+                               #   and check 15 fired the moment they were `git add`ed.
+                               #   An untracked file is invisible to exactly the readers
+                               #   that ask git, and visible to every reader that walks
+                               #   the disk — 209 spent a while on the difference.
                                #   blinding technique, pointed at the failure statements
                                #   the other three cannot reach (186 §10.2). 100644 like
                                #   its three siblings; CI invokes it as `python3 <file>`.
-                               # 🔴 AND IT WAS CI THAT SAID SO, NOT THE LOCAL RUN. This
-                               #   population is TRACKED files, so a new script is
-                               #   invisible to every local gate until it is `git add`ed
-                               #   — the local contract_check ran green over it twice.
                                # +2 session 185: host/scripts/seal_order_gate.mjs and its
                                #   self-test — the marker written above its own claims
                                #   (184 §10.3). Both invoked as `node <file>` from CI, so

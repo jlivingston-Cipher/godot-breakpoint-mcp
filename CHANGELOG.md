@@ -6,6 +6,79 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.72.9] — 2026-08-06
+
+### Added — the release check that reads the wire, and two floors that were about to stop biting
+
+The standing release-scope question, asked for the tenth time: *"what does this reader
+PROJECT its population onto, and what is invisible in that projection?"* Nine cuts have
+answered it by going a level down or a level out. This one pointed it at all seven readers
+at once.
+
+🔴 **EVERY RELEASE CHECK PROJECTS ONTO A FILE.** Checks 1–7 read a constant roster in the
+changelog text, `git diff -- host/src`, the tarball's roots, its entry names in both
+directions, its entry bytes, and the published package. **Not one reads the WIRE** — the
+`tools/list` payload, which is the entire public API of an MCP server and the only thing
+the MINOR/PATCH question is about. The proxy is check 2, and on any release that contains
+work it goes red and hands the question to a human.
+
+Measured over the 33 release windows from 1.40.0, building every tag and reading its live
+surface:
+
+```
+v1.48.0..v1.49.0   check 2 RED    wire MOVED       agree
+v1.49.0..v1.50.0   check 2 RED    wire MOVED       agree
+v1.50.0..v1.72.8   check 2 GREEN  wire IDENTICAL   agree   (32 windows, byte-for-byte)
+v1.72.8..HEAD      check 2 RED    wire UNMOVED     🔴 DISAGREE
+```
+
+A disagreement population of one is thin and is not why this ships. 🔴 **The reason is
+structural, and #256 is the proof: check 2's population is source this repository AUTHORED,
+and the wire carries bytes it did NOT.** `$schema: draft-07` rode the wire for fifty
+releases, nobody here wrote it, and no check could see it. An SDK bump inside the declared
+caret range moves every schema on the wire with all seven checks green.
+
+`host/scripts/wire_diff.mjs` builds a baseline ref in a throwaway worktree against the
+CURRENT `node_modules` — one toolchain, two sources, so a dependency diff cannot wear an
+API diff's clothes — reads both surfaces over stdio at both privilege levels, and
+classifies. A removed tool, a removed or retyped property, a newly-required argument is
+MAJOR; a new tool or property is MINOR; prose is PATCH. It does not decide the release: it
+answers what the public API did and the caller asserts that against the bump, the same
+split `registry_lag.py` uses. Unreachable is RED.
+
+🔴 **AND `normalise()` SHIPPED WITHOUT THE FAIL-SAFE ITS FIRST DRAFT HAD, WHICH IS 208 §3
+ARRIVING INSIDE THE FILE WRITTEN TO HONOUR IT.** That draft deleted every key named
+`$schema` at any depth so #256's removal would not read as a change. It was dead —
+`classify` compares shapes and prose, never a raw schema object — and it was a blind spot:
+a tool's own input property named `$schema` would have been deleted before the walk saw it,
+and removing it later would have classified as PATCH. Found by asking what blinding the
+function would redden. Nothing.
+
+🔴 **AND THE ONE THIS SESSION DID NOT GO LOOKING FOR.** `instrument_gate.py` blinds
+`verdict_gate.mjs`'s `discarded()` from its second call onwards to a healthy-looking single
+site — which fabricates roughly ONE SITE PER `.mjs` FILE WALKED. `DISCARD_SITE_FLOOR = 55`
+therefore caught it only while the tree held fewer walkable files than the floor. Adding
+two files to `host/scripts` — neither carrying a single verdict call — took the fabricated
+total from 53 to 55 and **the gate went green**. The floor's bite was an accident of an
+unrelated population's size, and it had five files of margin left.
+
+`DISCARD_BUSIEST_FLOOR` reads the population's SHAPE instead of its size: the real
+population is concentrated — 61 sites in nine files, forty of them in one — while a
+fabricated one is uniform however large it grows. Ten thousand synthetic sites fail it.
+
+```
+wire_diff.selftest.mjs   19 rows · 15 answer something other than PATCH (10 MAJOR) · 62 claims
+instrument_gate          10 instruments · wire_diff 0 of 4 still green · blast 95
+floor_pin_gate           65 floors · SURFACE_FLOOR, CLAIM_FLOOR, DISCARD_BUSIEST_FLOOR pinned
+```
+
+`wire_diff.mjs` joins the blinding roster on its first day rather than on the session
+somebody notices it missing — `token-cost.mjs` is the precedent deliberately not followed
+there, an absence nothing declares. `SHEBANG_NONEXEC_EXPECTED` 30 → 32, and check 15 was
+the only reader in the tree that noticed the new files at all: its population is
+`git ls-files`, and they had sat untracked while every disk-walking gate ran green over
+them.
+
 ### Changed — two fields nobody here wrote, deleted from the wire
 
 207 §7.1 asked what four optional MCP keys are worth and said to measure what a client

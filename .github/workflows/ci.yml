@@ -265,6 +265,15 @@ jobs:
         run: node scripts/token-cost.selftest.mjs
       - name: The tool surface is within its declared budget (token cost)
         run: node scripts/token-cost.mjs --summary
+      # 🆕 209 §2 — CHECK 8's CLASSIFIER, AND ONLY ITS PURE HALF RUNS HERE. The live half
+      # builds a baseline tag in a throwaway worktree and drives two servers over stdio;
+      # it belongs to the release cut, which is the only moment a baseline ref means
+      # anything. But a check that runs ONLY at release time has been audited only at
+      # release time — so the classifier's nineteen rows, its collapse floor and its
+      # normalisers are proved here, on every push, with no worktree and no tags. Same
+      # split `registry_lag.py --selftest` uses one job over. ~1s. A step, not a 27th job.
+      - name: The release wire classifier can still refuse (wire diff selftest)
+        run: node scripts/wire_diff.selftest.mjs
       # 🔴 AND THE THIRD TECHNIQUE, POINTED AT THE FLOORS THE OTHER TWO REST ON — 180
       # §11.3. 180 §7.3 set `SELFTEST_CLAIM_FLOOR = 0` in one self-test and the file
       # stayed green; the sweep behind this step asked every floor in the tree the same

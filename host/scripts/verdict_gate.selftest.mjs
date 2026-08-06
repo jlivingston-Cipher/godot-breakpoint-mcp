@@ -19,7 +19,7 @@
 import {
   inspect, judge, scan, SUBJECT_FLOOR,
   discarded, scanDiscarded, judgeDiscarded, combine,
-  DISCARD_SITE_FLOOR, DISCARD_DIR_FLOOR, DISCARD_SKIP,
+  DISCARD_SITE_FLOOR, DISCARD_DIR_FLOOR, DISCARD_SKIP, DISCARD_BUSIEST_FLOOR,
 } from "./verdict_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -152,7 +152,12 @@ claim(one(`\nawait call("runtime_assert_x", {});`)?.line === 2,
 // ── 8. THE DISCARD JUDGEMENT, ON POPULATIONS THE TREE CANNOT PRODUCE ─────────────────
 const site = (o = {}) => ({ file: "a.mjs", line: 1, tool: "runtime_assert_x", dropped: false, ...o });
 const many = (n, o = {}) => Array.from({ length: n }, (_, i) => site({ line: i + 1, ...o }));
-const D = (sites, floor = 1, dirFloor = 1) => judgeDiscarded(sites, floor, dirFloor);
+// 🔴 209 — `busiest = 1` HERE FOR THE SAME REASON `floor = 1` IS. Every synthetic
+// population below is two or three hand-built sites; judging them against the SHIPPED
+// shape floor would redden all of them for being small, which is not what any of these
+// cases is about. The shipped floor is exercised on the live tree in section 9.
+const D = (sites, floor = 1, dirFloor = 1, busiest = 1) =>
+  judgeDiscarded(sites, floor, dirFloor, busiest);
 
 claim(D([site()]).failed === false, "a kept reply passes");
 claim(D([site({ dropped: true })]).failed === true, "a dropped reply fails");
@@ -202,6 +207,39 @@ claim(judgeDiscarded(liveSites, liveSites.length + 1).failed === true,
   "and the live population one above its own size collapses — the floor is compared, not decorative");
 claim(judgeDiscarded(liveSites, DISCARD_SITE_FLOOR, liveDirs.size + 1).failed === true,
   "as does one directory above the number the walk actually reached");
+
+// ── 🆕 9b. THE SHAPE FLOOR — 209, AND THE POPULATION THAT DEFEATS THE OTHER TWO ───────
+// 🔴 THIS IS THE CASE THE SITE FLOOR CANNOT SEE, MEASURED RATHER THAN IMAGINED.
+// `instrument_gate.py` blinds `discarded()` from its second call on to a healthy-looking
+// single site. On main that fabricated 53 sites against a floor of 55 and the gate went
+// red; two unrelated .mjs files added to `host/scripts` this session took it to 55 and
+// the gate went GREEN. The floor's bite was an accident of how many files the tree
+// happened to hold, and it had five files of margin left.
+const livePerFile = new Map();
+for (const s of liveSites) livePerFile.set(s.file, (livePerFile.get(s.file) ?? 0) + 1);
+const liveBusiest = Math.max(...livePerFile.values());
+claim(DISCARD_BUSIEST_FLOOR === 30, `the shipped shape floor is 30, not ${DISCARD_BUSIEST_FLOOR}`);
+claim(liveBusiest === 40, `the busiest live file holds 40 sites (got ${liveBusiest})`);
+claim(livePerFile.size === 9,
+  `and the whole population lives in 9 files (got ${livePerFile.size}) — CONCENTRATED, which is the discriminator`);
+claim(judgeDiscarded(liveSites, DISCARD_SITE_FLOOR, DISCARD_DIR_FLOOR, liveBusiest + 1).failed === true,
+  "one above the live busiest collapses — the shape floor is compared, not decorative");
+// 🔴 THE FABRICATED POPULATION ITSELF, BUILT TO PASS BOTH OLD FLOORS. Sixty sites, one
+// per file, spread over two directories: over the site floor, over the directory floor,
+// and caught by nothing until this session.
+const uniform = Array.from({ length: 60 }, (_, i) =>
+  site({ file: `${i % 2 ? "test-integration/" : ""}f${i}.mjs`, line: 1 }));
+claim(judgeDiscarded(uniform, DISCARD_SITE_FLOOR, DISCARD_DIR_FLOOR, 0).failed === false,
+  "🔴 60 uniform sites clear BOTH the site and directory floors — the silence, reproduced");
+claim(judgeDiscarded(uniform).failed === true,
+  "🔴 and the shape floor is the only thing in this gate that refuses them");
+claim(judgeDiscarded(uniform).lines.some((l) => l.includes("VERDICT_DISCARD_SHAPE_COLLAPSE")),
+  "and it says which floor refused, by name");
+// 🔴 AND SCALE-FREE, WHICH IS THE WHOLE POINT OF PICKING SHAPE OVER SIZE. Ten thousand
+// fabricated sites still fail; the site floor would have passed them for eternity.
+claim(judgeDiscarded(Array.from({ length: 10000 }, (_, i) =>
+  site({ file: `${i % 2 ? "test-integration/" : ""}g${i}.mjs`, line: 1 }))).failed === true,
+  "🔴 a uniform population of ANY size fails — the catch no longer depends on the tree's file count");
 
 // ── 10. THE WIRING, WHICH THE SHIPPED TREE CANNOT FALSIFY ────────────────────────────
 // 🔴 176's REVERSE SWEEP CAUGHT THIS INLINED IN main(). With nothing dropped on the real
