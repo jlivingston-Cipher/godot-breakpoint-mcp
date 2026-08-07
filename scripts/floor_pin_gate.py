@@ -945,8 +945,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (33, (
-        "The non-executable scripts, at `{FLOOR}`. Last raised by two when 209 §2 added "
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (34, (
+        "The non-executable scripts, at `{FLOOR}`. Raised by one when 216 §1 added "
+        "release_names.py — 🔴 AND THE SENTENCE BELOW PREDICTED THE EXACT WAY IT WOULD "
+        "BE FOUND. The local run passed while the new file was UNTRACKED and this check "
+        "refused the moment it was staged, because the population is `git ls-files` and "
+        "nothing else in the tree reads it. A gate whose warning was already written "
+        "down still collected. Before that, raised by two when 209 §2 added "
         "the wire-diff classifier and its self-test — and that check was the only reader "
         "in the tree that noticed them, because its population is `git ls-files` and they "
         "had been sitting untracked while every disk-walking gate ran green. Before that, "
