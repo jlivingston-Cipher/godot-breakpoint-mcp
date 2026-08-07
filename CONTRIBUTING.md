@@ -170,8 +170,21 @@ known and accepted rewrite — `git checkout -- example/project.godot`. Check
    `CHANGELOG.md` describing what changed and why.
 4. **Do not bump version stamps in a feature PR.** Feature and fix PRs leave the
    version numbers (in `host/package.json`, `addons/breakpoint_mcp/plugin.cfg`,
-   and elsewhere) unchanged; a maintainer re-stamps them together when a release
-   is cut.
+   and elsewhere) unchanged; a maintainer re-stamps them when a release is cut.
+
+   Two versions ship from this repository and they move on **different cadences**.
+   The host version moves at every cut. The **addon** version in
+   `addons/breakpoint_mcp/plugin.cfg` moves only when the addon itself changes —
+   so a release that touches no GDScript leaves it alone, on purpose.
+
+   That difference is why `scripts/release_names.py --assert-addon` exists.
+   `scripts/contract_check.py` asserts that every *copy* of the addon version
+   agrees with the canonical `plugin.cfg`; it has nothing to say about whether the
+   version **moved when the addon did**. Check 4 asks that question, and the
+   release ritual refuses a cut whose addon version has stopped naming the addon's
+   tree. If your PR changes anything under `addons/breakpoint_mcp/`, expect the
+   next cut to re-stamp that version — flag it in the PR description so the
+   maintainer does not have to rediscover it.
 5. Make sure the core checks pass locally: `npm run build`, `npm run typecheck`,
    `npm test`, and `python3 scripts/contract_check.py`.
 6. Open the pull request using the provided template, fill in the checklist, and
