@@ -52,7 +52,12 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 68   # governed by SIZE_LEDGER (§9.3). 🆕 213 §2 raised it by one:
+TARGET_FLOOR = 69   # governed by SIZE_LEDGER (§9.3). 🆕 216 §1 raised it by one:
+                    #      check 1's NAME_FLOOR, on the day check 1 stopped being a
+                    #      literal in gitignored scratch and became a tracked file —
+                    #      reported UNSWEPT by the DISCOVER half on that file's first
+                    #      run, the THIRD new reader in a row to be caught that way.
+                    # 213 §2 raised it by one:
                     #      the registry-BYTES reader's ENTRY_FLOOR — the floor under
                     #      a comparison whose HEALTHY answer is "no differences",
                     #      which two empty trees give by construction.
@@ -207,6 +212,20 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # green line mean the comparison happened at all. Its rows run under the LIVE
     # constant for TAG_FLOOR's reason twenty lines up.
     ("ENTRY_FLOOR",              "../scripts/registry_bytes.py",           r"(ENTRY_FLOOR = )60",                                       ["../scripts/registry_bytes.py", "--selftest"]),
+    # 🆕 216 §1 — CHECK 1's POPULATION FLOOR, on the day check 1 became a tracked file.
+    # Reported UNSWEPT by the DISCOVER half on this file's FIRST run — 184 §7 happening
+    # again on a new file, for the THIRD reader in a row, which is that fix still working.
+    # 🔴 AND THE REPORT WAS LOAD-BEARING TWICE OVER. It also named `FLOOR_COLLAPSED` and
+    # `MINOR_FLOOR`, which were REFUSAL CODES and not floors at all — floor-shaped only
+    # because they had been named after the floor they report. They are
+    # `POPULATION_COLLAPSED` and `MINOR_POPULATION` now. A gate that cannot tell a floor
+    # from a string named like one is right to ask, and the answer was to stop lying in
+    # the name rather than to widen an exemption table.
+    # 🔴 THIS FLOOR IS THE ONE 215 §3's FIRST DEFECT WAS MEASURED AGAINST, so its rows
+    # run under the LIVE constant for TAG_FLOOR's reason: the self-test's counterfactual
+    # compares the 1.73.2 block's two populations to `NAME_FLOOR` itself, and passing the
+    # floor in as an argument is what makes moving it redden at all.
+    ("NAME_FLOOR",               "../scripts/release_names.py",            r"(NAME_FLOOR = )5",                                         ["../scripts/release_names.py", "--selftest"]),
     # 🆕 199 §9.4 — THE FLOOR THIS GATE'S OWN DISCOVERY HALF COULD NOT SEE, FOUND THE RUN
     # AFTER THE REGEX WAS WIDENED. `CLAIM_SITE_FLOORS` is eleven per-file floors in one
     # object literal, and it was outside this gate by construction on TWO counts: the .mjs
@@ -926,8 +945,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (33, (
-        "The non-executable scripts, at `{FLOOR}`. Last raised by two when 209 §2 added "
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (34, (
+        "The non-executable scripts, at `{FLOOR}`. Raised by one when 216 §1 added "
+        "release_names.py — 🔴 AND THE SENTENCE BELOW PREDICTED THE EXACT WAY IT WOULD "
+        "BE FOUND. The local run passed while the new file was UNTRACKED and this check "
+        "refused the moment it was staged, because the population is `git ls-files` and "
+        "nothing else in the tree reads it. A gate whose warning was already written "
+        "down still collected. Before that, raised by two when 209 §2 added "
         "the wire-diff classifier and its self-test — and that check was the only reader "
         "in the tree that noticed them, because its population is `git ls-files` and they "
         "had been sitting untracked while every disk-walking gate ran green. Before that, "
@@ -952,7 +976,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (68, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (69, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
         "admitted the shipped claim-site floors, by two when 206 §3 added the "
         "registry-lag reader's pair, by two more when 206 §4 added the "
@@ -961,7 +985,10 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "211 §4 added that classifier's floor on its OWN ANSWER, the refusal "
         "count its self-test used to print as a literal, and the budget reader's "
         "claim floor, and by one when 213 §2 added the registry-BYTES reader's "
-        "ENTRY_FLOOR — the first floor in the tree whose population is a TARBALL.")),
+        "ENTRY_FLOOR — the first floor in the tree whose population is a TARBALL, "
+        "and by one when 216 §1 added check one's NAME_FLOOR, the first entry here "
+        "that arrived because a floor MOVED OUT of gitignored scratch rather than "
+        "because a new one was written.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "
@@ -986,6 +1013,18 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "incident it exists to catch: publishing stopped and the very next cut was "
         "already one behind, so a ceiling this low refuses within the first week while "
         "still admitting a same-session patch burst.")),
+    ("../scripts/release_names.py", "NAME_FLOOR"): (5, (
+        "The vocabulary a released CHANGELOG block must name before check one will "
+        "make a claim about it, at `{FLOOR}`. 🔴 215 §3 — THIS IS THE FLOOR THAT "
+        "ABORTED A REAL CUT, AND IT WAS RIGHT TO. The `1.73.2` block names one "
+        "SCREAMING constant "
+        "and five lower_snake identifiers; the arm counted only the first case, read a "
+        "population of one, and refused a release whose notes were not thin at all. "
+        "The floor is unchanged and the population it reads is what moved — so it is "
+        "sized against the same block it once rejected, which now reads six. Lowering "
+        "it to make an abort go away is the failure it exists to catch, and the "
+        "self-test's counterfactual compares BOTH populations to this literal so that "
+        "moving it reddens rather than quietly widening what counts as legible.")),
     ("../scripts/registry_bytes.py", "ENTRY_FLOOR"): (60, (
         "The tarball population the registry-bytes comparator is allowed to answer "
         "over, at `{FLOOR}`. Its healthy verdict is ZERO differences, so what can "

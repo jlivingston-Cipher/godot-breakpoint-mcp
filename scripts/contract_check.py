@@ -2215,7 +2215,19 @@ EXEC_ROSTER = {
 # shebang population, and it is expected to move whenever a demo/driver script
 # is added or removed. When it does, update this number in the same commit —
 # that is the prompt to re-read the sentence above and confirm it still holds.
-SHEBANG_NONEXEC_EXPECTED = 33  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 34  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # +1 session 216: scripts/release_names.py — check 1,
+                               #   out of the gitignored ritual and into the tree
+                               #   (215 §6.3). Invoked as `python3 <file>` like every
+                               #   reader beside it, so 100644 is correct.
+                               #   🔴 AND THIS CHECK CAUGHT IT ONLY AFTER `git add`,
+                               #   WHICH IS THE INTERESTING PART. The population is
+                               #   TRACKED files, so the same tree passed this check
+                               #   while the new file was untracked and failed it the
+                               #   moment it was staged. A local run before staging is
+                               #   a run against a different tree than the one that
+                               #   gets committed — CI found it, at the cost of a
+                               #   round trip.
                                # +1 session 213: scripts/registry_bytes.py — the
                                #   reader that OPENS the published tarball instead
                                #   of reading a version string about it (212 §6.3).
