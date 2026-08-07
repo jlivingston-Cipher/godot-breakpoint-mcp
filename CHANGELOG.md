@@ -71,6 +71,19 @@ shell-quoted `-m "…"`, so the line `TAG_DECL_RE` had to parse ended in a quote
 that git would never store. The body and the command are separate now, and the round trip
 asserts the command ships that body verbatim.
 
+`release_commit()` exists for a sharper reason: using the mechanism on its own release
+found that it declared the wrong commit. `--tag-cmd` read `HEAD`, and `HEAD` stops being
+the release commit as soon as anything else merges — which here took about an hour. The
+tag would have been created one commit past the cut and would have declared *itself* as
+the cut, so `tag_shadow()` would have read zero. That is `C2_TAG_LATE` laundered by the
+writer built to prevent it, and neither guard could see it: both commits ship the same
+version, which is exactly why the late direction was invisible in the first place.
+
+The release commit is now read as the commit where the shipped tree BECAME that version —
+still from the tree, still not a heuristic over commit subjects — and the emitted command
+names that commit explicitly rather than relying on `git tag` defaulting to `HEAD`. When no
+commit ships the version, `TAG_COMMIT_UNFINDABLE` says so instead of substituting `HEAD`.
+
 ## [1.73.3] — 2026-08-07
 
 ### Fixed — the release ritual's two name checks are in the repository, and the second one reads no notes

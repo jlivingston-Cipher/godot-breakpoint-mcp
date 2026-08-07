@@ -254,6 +254,7 @@ C2_TAG_MISPLACED = "C2_TAG_MISPLACED"
 # the last one that cannot answer.
 C2_TAG_LATE = "C2_TAG_LATE"
 TAG_TREE_DISAGREES = "TAG_TREE_DISAGREES"
+TAG_COMMIT_UNFINDABLE = "TAG_COMMIT_UNFINDABLE"
 TAG_OK = "TAG_OK"
 
 # 🔴 ONE SPELLING, WRITTEN AND READ. `tag_command()` emits this line and `tag_release_commit()`
@@ -692,6 +693,35 @@ def tag_shadow(previous: str, root: Path = ROOT) -> int | None:
         return None
 
 
+def release_commit(version: str, root: Path = ROOT) -> str | None:
+    """The commit at which the shipped tree BECAME `version`. None if there is none.
+
+    🔴 THIS EXISTS BECAUSE `--tag-cmd` READ HEAD, AND HEAD IS NOT THE RELEASE COMMIT FOR
+    LONG. 219 shipped the declaration mechanism and then tried to use it on its own cut:
+    by then one more PR had merged, so `--tag-cmd 1.73.3` would have declared THAT commit,
+    the tag would have been created there, and `tag_shadow()` would have read 0. 🔴 A TAG
+    ONE COMMIT LATE, DECLARING ITSELF ON-CUT — the exact failure the declaration exists to
+    catch, laundered by the writer that was supposed to prevent it. The tree guard cannot
+    see it either: both commits ship the same version, which is the whole reason the late
+    direction was invisible to `C2_TAG_MISPLACED` in the first place.
+
+    🔴 AND IT IS STILL NOT A HEURISTIC OVER MESSAGES. The release commit is the one where
+    the version LITERAL entered the shipped tree, which `git log -S` answers exactly.
+    `-S` matches both the commit that introduces the string and the one that removes it,
+    so the OLDEST match is the introduction — 217 §5 refused to close this direction
+    because naming the commit meant a `grep` over subjects; naming it from the tree does
+    not.
+    """
+    r = subprocess.run(
+        ["git", "log", "--format=%H", "-S", f'version: "{version}"',
+         "--", "host/src/index.ts"],
+        cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    shas = r.stdout.split()
+    return shas[-1] if shas else None
+
+
 def tag_message(version: str, sha: str) -> str:
     """The BODY git will store on the tag — the thing `tag_release_commit` reads back.
 
@@ -705,14 +735,25 @@ def tag_message(version: str, sha: str) -> str:
     return f"release: {version}\n\nrelease-commit: {sha}\n"
 
 
-def tag_command(version: str, sha: str, tree_version: str | None) -> tuple[str, str]:
+def tag_command(version: str, sha: str | None, tree_version: str | None) -> tuple[str, str]:
     """The annotated tag that declares its own release commit — PURE.
 
     🔴 GUARDED ON THE TREE, NOT ON THE NAME, and for the same reason `tag_tree_version`
     is: tagging v1.73.3 at a commit whose `host/src/index.ts` ships 1.73.2 is exactly the
     misplacement `C2_TAG_MISPLACED` catches ONE CUT LATER, when the window it broke is
     already unreadable. Catching it at the moment of tagging costs one comparison.
+
+    🔴 AND THE COMMAND NAMES THE COMMIT EXPLICITLY. `git tag -a v{version}` with no
+    commit-ish tags HEAD, so the emitted command was correct only while nothing had merged
+    since the cut — a window measured in minutes here. Naming `sha` makes the tag's
+    placement a property of what this function computed rather than of when it was run.
     """
+    if sha is None:
+        return TAG_COMMIT_UNFINDABLE, (
+            f"🔴 REFUSED — no commit in this history makes the shipped tree ship "
+            f"{version!r}. Either the version write is still uncommitted, or the release "
+            f"commit is on a branch this one cannot see. There is nothing to declare, and "
+            f"declaring HEAD instead is how a late tag is made to look like an on-cut one.")
     if tree_version != version:
         return TAG_TREE_DISAGREES, (
             f"🔴 REFUSED — this tree ships {tree_version!r}, not {version!r}. A tag names "
@@ -720,7 +761,7 @@ def tag_command(version: str, sha: str, tree_version: str | None) -> tuple[str, 
             f"that never shipped it, and the next ritual would refuse the window with "
             f"C2_TAG_MISPLACED without being able to say which commit was meant.")
     return TAG_OK, (
-        f"git tag -a v{version} -F - <<'MSG'\n{tag_message(version, sha)}MSG\n"
+        f"git tag -a v{version} {sha} -F - <<'MSG'\n{tag_message(version, sha)}MSG\n"
         f"git push origin v{version}")
 
 
@@ -945,6 +986,14 @@ TAG_SELFTEST = [
      "cmd", "1.73.3", TAG_OK),
     ("🔴 TAGGING A VERSION THIS TREE DOES NOT SHIP — caught at the tag, not one cut later",
      "cmd", "1.74.0", TAG_TREE_DISAGREES),
+    # 🆕 219 §2 — THE ROW FOR THE DEFECT THIS BRANCH FIXES. `--tag-cmd` declared HEAD, and
+    # by the time the mechanism was used on its own release HEAD was one commit past the
+    # cut — so the tag would have been placed late AND declared itself on-cut, which is
+    # `C2_TAG_LATE` laundered by the writer built to prevent it. `release_commit()` reads
+    # the commit where the tree BECAME the version; when there is none, there is nothing
+    # to declare and saying so is the only honest answer.
+    ("🔴 NO COMMIT MAKES THE TREE SHIP THIS VERSION — and HEAD is not a substitute for one",
+     "cmd-nosha", "1.99.0", TAG_COMMIT_UNFINDABLE),
 ]
 
 
@@ -1008,7 +1057,7 @@ def selftest() -> int:
                                       tag_tree_version="1.73.2", shadow=arg)
             detail = f"shadow={arg!r:<5}"
         else:
-            code, why = tag_command(arg, _SHA, "1.73.3")
+            code, why = tag_command(arg, None if kind == "cmd-nosha" else _SHA, "1.73.3")
             detail = f"tag v{arg:<8}"
         agree = code == want_code
         print(f"  {'🟢' if agree else '🔴'} {code:<22} {detail}  {name}")
@@ -1023,8 +1072,13 @@ def selftest() -> int:
     # the next cut's `C2_TAG_LATE` mean anything.
     parsed = TAG_DECL_RE.search(tag_message("1.73.3", _SHA))
     _, emitted = tag_command("1.73.3", _SHA, "1.73.3")
+    # 🆕 219 §2 — AND THE COMMAND MUST NAME THAT COMMIT AS THE TAG'S TARGET, not only in
+    # the message. `git tag -a v1.73.3` with no commit-ish tags HEAD, so a command whose
+    # message declares one commit while the tag lands on another is exactly the laundered
+    # late tag this whole mechanism exists to make impossible.
     round_trip = (parsed is not None and parsed.group(1) == _SHA
-                  and tag_message("1.73.3", _SHA) in emitted)
+                  and tag_message("1.73.3", _SHA) in emitted
+                  and f"git tag -a v1.73.3 {_SHA} " in emitted)
     print(f"\n  {'🟢' if round_trip else '🔴'} the round trip: the SHA `tag_command` writes "
           f"into the tag message is the SHA `tag_release_commit`'s pattern reads back "
           f"({parsed.group(1)[:12] + '…' if parsed else 'NOT PARSEABLE'}), and the body "
@@ -1118,21 +1172,30 @@ def main() -> int:
         return 0
 
     if a.tag_cmd:
-        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(ROOT),
-                              capture_output=True, text=True)
-        if head.returncode != 0:
-            print("🔴 RELEASE_NAMES REFUSED — `git rev-parse HEAD` failed; there is no "
-                  "commit to declare.", file=sys.stderr)
-            return 2
-        m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"',
-                      (ROOT / "host/src/index.ts").read_text())
-        code, text = tag_command(a.tag_cmd, head.stdout.strip(),
-                                 m.group(1) if m else None)
+        # 🔴 THE RELEASE COMMIT, NOT HEAD. Read the docstring on `release_commit()` — the
+        # first draft of this branch took HEAD and would have declared a commit one past
+        # the cut as being the cut, on this very release.
+        sha = release_commit(a.tag_cmd)
+        # And the tree guard reads the tree AT that commit, because that is the tree the
+        # tag will name. The working tree is a different question and can differ from it.
+        tree = None
+        if sha is not None:
+            r = subprocess.run(["git", "show", f"{sha}:host/src/index.ts"],
+                               cwd=str(ROOT), capture_output=True, text=True)
+            m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"', r.stdout) \
+                if r.returncode == 0 else None
+            tree = m.group(1) if m else None
+        code, text = tag_command(a.tag_cmd, sha, tree)
         if code != TAG_OK:
             print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {text}", file=sys.stderr)
             return 1
-        print(f"RELEASE_NAMES --tag-cmd  ·  v{a.tag_cmd} at {head.stdout.strip()[:12]}, "
-              f"declared in the tag's own message so the next cut can read the shadow")
+        behind = subprocess.run(["git", "rev-list", "--count", f"{sha}..HEAD"],
+                                cwd=str(ROOT), capture_output=True, text=True)
+        n = behind.stdout.strip() if behind.returncode == 0 else "?"
+        print(f"RELEASE_NAMES --tag-cmd  ·  v{a.tag_cmd} at {sha[:12]} — the commit where "
+              f"the shipped tree BECAME {a.tag_cmd}, {n} commit(s) back from HEAD")
+        print(f"               🟢 [{code}] the tag names that commit explicitly and "
+              f"declares it in its own message, so the next cut reads the shadow")
         print(f"\n{text}")
         return 0
 
