@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.73.3] — 2026-08-07
+
 ### Fixed — the release ritual's two name checks are in the repository, and the second one reads no notes
 
 Two checks that decide whether a release's bump is honest had been living in gitignored
