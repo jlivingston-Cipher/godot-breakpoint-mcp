@@ -6,6 +6,71 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — every emptiness claim in the suite is now defended, exempt, or floored, and a gate says which
+
+`assert.deepEqual(wire, [])` passes on a collection that CAN be non-empty and on one that
+never fills. Only the claim's own unit separates them, and until now nothing read that
+question in CI. `scripts/positive_control_gate.mjs` does: it resolves the asserted
+collection through its derivation chain, finds the enclosing unit from the same attribution
+`tautology_gate` uses, and asks whether anything in that unit proves the collection can
+hold something.
+
+It reports **three answers for "no", not one**, and that is what made it shippable. A
+boolean version of this reader calls a process trap a defect — `unhandled` and `uncaught`
+fill only when Node is about to die, so the "legal case" that would defend them is a real
+fault injected into the shared test process, i.e. asserting the exact thing the test
+denies. It also calls a floored intersection a defect, because an intersection can only
+fill when a real bug exists and what can go vacuous is the population it drains. Both would
+be overridden by hand on the first run, and an instrument overridden by hand is one nobody
+reads.
+
+Neither exemption is a roster. A trap is recognised structurally — every write into the
+collection happens inside a `process.on("uncaughtException"|"unhandledRejection")` callback
+— and it is exempt only when a companion binding in the same unit proves the fault path
+actually ran. Without that companion floor it is `PC_TRAP_UNFLOORED`, refused by name so it
+cannot hide inside `DEFECT_CEILING`. An accumulator is followed to the population it drains
+and is `population-floored` only when that population carries a control of its own. The
+live tree reads 21 defended, 3 exempt, 3 floored, 20 defects and 1 residue, with
+`CLAIM_FLOOR`, `FILE_FLOOR`, `DEFECT_CEILING` and `RESIDUE_CEILING` all pinned and asserted
+from both sides.
+
+The acceptance fixture is addressed by CONTENT, not by line. The scratch probe this was
+promoted from used nine hardcoded `file:line` paths and read 1 of 8 after one session of
+ordinary edits — four line drifts and two intended flips, none of them a regression and no
+way to tell them apart. A member is a file, a pattern for the claim's own text, and the
+verdict it must produce; a member whose site cannot be found at all is a different refusal
+from one whose verdict changed.
+
+Its self-test drives every branch from string literals with no tree, and carries the four
+defects found while promoting it — `Object.keys(X)` read as a derivation of the global, a
+destructured binding read as absent, a unit span that did not contain its own claim, and
+two collections matched to one control because both were spelled `[]` — as rows that go red
+if any of them returns.
+
+### Fixed — a tag now declares the commit it was cut from, so the shadow under it is measurable
+
+A tag placed one commit PAST its release commit hides that commit from every window that
+starts at the tag. Both release checks read such a window, and neither could see it: the
+tag's tree is entirely correct in this case, which is why `C2_TAG_MISPLACED` — which reads
+the tree — has never been able to find it. Answering it meant naming the previous release
+commit, which meant a heuristic over commit subjects, and a guess is not a gate.
+
+The fact is written at the moment only the tagger has it. `--tag-cmd` emits an annotated tag
+whose message declares the commit it names, `tag_release_commit()` reads that declaration
+back, and `tag_shadow()` turns it into a count with nothing inferred. A tag that declares
+nothing is reported as unmeasurable rather than passed — every tag in this repository today
+is lightweight, and that state ends by itself with the first tag this writes.
+
+`tag_command()` refuses with `TAG_TREE_DISAGREES` when the tree it would tag does not ship
+the version being tagged — the same misplacement caught at the moment of tagging instead of
+one cut later, when the window it broke is already unreadable.
+
+`tag_message()` exists because the self-test's round-trip assertion caught the writer and
+the reader disagreeing on their first run: the declaration was being emitted inside a
+shell-quoted `-m "…"`, so the line `TAG_DECL_RE` had to parse ended in a quote character
+that git would never store. The body and the command are separate now, and the round trip
+asserts the command ships that body verbatim.
+
 ## [1.73.3] — 2026-08-07
 
 ### Fixed — the release ritual's two name checks are in the repository, and the second one reads no notes

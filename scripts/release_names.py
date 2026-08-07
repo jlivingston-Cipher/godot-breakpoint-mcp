@@ -233,6 +233,34 @@ C2_SILENT = "C2_SILENT"
 C2_MINOR_NO_SUBSTANCE = "C2_MINOR_NO_SUBSTANCE"
 C2_TAG_MISPLACED = "C2_TAG_MISPLACED"
 
+# 🆕 219 — THE LATE-TAG DIRECTION, CLOSED BY MAKING THE TAG CARRY THE FACT.
+#
+# 217 §5 measured this direction and REFUSED to gate it, which was right: a tag placed one
+# commit PAST its release commit hides that commit from every window starting at the tag,
+# and finding "the previous release commit" meant a `grep` over commit subjects. A
+# heuristic is not a gate, and `v1.73.1` is a live example — one commit, nothing touching a
+# producer inside it, and nothing that could have said so.
+#
+# 🔴 SO THE RITUAL WRITES THE FACT INSTEAD OF THE READER INFERRING IT. `--tag-cmd` emits an
+# ANNOTATED tag whose message declares the commit it names; the next cut reads that
+# declaration back and the shadow is one `git rev-list --count` with nothing guessed. The
+# same shape as `tag_tree_version`, one level up: read what the tag SAYS about itself
+# rather than what its name implies.
+#
+# 🔴 AND A TAG THAT PREDATES THE CONVENTION IS NOT GREEN — IT IS UNANSWERABLE, AND SAYS SO.
+# Every tag on this repository today is lightweight and carries no message at all, so for
+# those the honest answer is "this cannot be measured here", printed, rather than a pass
+# that reads like one. That state ends by itself: the first tag written by `--tag-cmd` is
+# the last one that cannot answer.
+C2_TAG_LATE = "C2_TAG_LATE"
+TAG_TREE_DISAGREES = "TAG_TREE_DISAGREES"
+TAG_OK = "TAG_OK"
+
+# 🔴 ONE SPELLING, WRITTEN AND READ. `tag_command()` emits this line and `tag_release_commit()`
+# parses it, and the self-test asserts the round trip rather than trusting two literals to
+# stay the same — 203 §2's ONE LIST, applied to a wire format of one line.
+TAG_DECL_RE = re.compile(r"^release-commit:\s*([0-9a-f]{7,40})\s*$", re.M)
+
 # 🆕 217 — `--assert-map`'s codes, promoted from the ritual's check 3.
 MAP_OK = "MAP_OK"
 MAP_UNMAPPED = "MAP_UNMAPPED"
@@ -424,18 +452,26 @@ def split_window(diff_text: str, old: str, new: str) -> tuple[list[str], list[st
 
 
 def population(diff_text: str, old: str, new: str, bump: str,
-               tag_tree_version: str | None = None) -> tuple[str, str, dict]:
+               tag_tree_version: str | None = None,
+               shadow: int | None = None) -> tuple[str, str, dict]:
     """Check 2, as a PURE function of (window, versions, bump). Never raises.
 
     `tag_tree_version` is the version literal found in `host/src/index.ts` AT THE TAG
     the window starts from. It must be `old`: the tag is supposed to sit at or after
     the cut that wrote it. A tag placed EARLIER than its release commit drags that
     write into this window, which is the shape 216 §3 believed was universal.
+
+    🆕 219 — `shadow` is the OTHER direction, and it is a COUNT rather than a version
+    because the late case leaves the tag's tree entirely correct. A tag one commit past
+    its cut still ships the new version, which is precisely why 216 and 217 could both
+    read this window and see nothing wrong with it. `None` means the tag declares no
+    release commit at all, and that is neither a pass nor a refusal — it is a question
+    this window cannot answer, reported as one.
     """
     ritual_only, substantive = split_window(diff_text, old, new)
     d = {"ritual_only": ritual_only, "substantive": substantive,
          "moved": sorted(ritual_only + substantive),
-         "tag_tree_version": tag_tree_version}
+         "tag_tree_version": tag_tree_version, "shadow": shadow}
 
     if tag_tree_version is not None and tag_tree_version != old:
         return C2_TAG_MISPLACED, (
@@ -444,6 +480,16 @@ def population(diff_text: str, old: str, new: str, bump: str,
             f"this window either drags the previous release's version write in or "
             f"drops work that landed before the tag. Check 2 and check 1's MINOR arm "
             f"both read this window; neither is answerable until the tag is right."), d
+
+    if shadow:
+        return C2_TAG_LATE, (
+            f"🔴 v{old}'s tag DECLARES its release commit and sits {shadow} commit(s) "
+            f"PAST it. Everything in that gap shipped in v{old} and is invisible to this "
+            f"window and to check 1's MINOR arm — a producer that moved there cannot be "
+            f"seen by either reader, in this cut or in any later one. 🔴 THE TAG'S TREE "
+            f"IS CORRECT IN THIS CASE, which is why C2_TAG_MISPLACED cannot find it and "
+            f"why 217 §5 left the direction open: the fact needed is which commit the "
+            f"tag was FOR, and only the tagger knew it. Now the tag says."), d
 
     if bump == "MINOR" and not substantive:
         return C2_MINOR_NO_SUBSTANCE, (
@@ -609,6 +655,73 @@ def tag_tree_version(previous: str, root: Path = ROOT) -> str | None:
         return None
     m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"', r.stdout)
     return m.group(1) if m else None
+
+
+def tag_release_commit(previous: str, root: Path = ROOT) -> str | None:
+    """The release commit a tag DECLARES in its own message. None if it declares none.
+
+    🔴 A LIGHTWEIGHT TAG HAS NO MESSAGE, AND THAT IS NOT AN ERROR. `git tag -l --format`
+    returns an empty body for one, which is the honest "unanswerable" state and must not
+    be confused with a tag that declares a commit this reader failed to parse.
+    """
+    r = subprocess.run(["git", "tag", "-l", f"v{previous}", "--format=%(contents)"],
+                       cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    m = TAG_DECL_RE.search(r.stdout)
+    return m.group(1) if m else None
+
+
+def tag_shadow(previous: str, root: Path = ROOT) -> int | None:
+    """Commits between the release commit a tag declares and the tag itself.
+
+    0 — the tag is on its cut. >0 — that many commits shipped in v{previous} and are
+    invisible to every window that starts here. None — the tag declares nothing, so the
+    question cannot be answered and is reported rather than guessed.
+    """
+    sha = tag_release_commit(previous, root)
+    if sha is None:
+        return None
+    r = subprocess.run(["git", "rev-list", "--count", f"{sha}..v{previous}"],
+                       cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    try:
+        return int(r.stdout.strip())
+    except ValueError:
+        return None
+
+
+def tag_message(version: str, sha: str) -> str:
+    """The BODY git will store on the tag — the thing `tag_release_commit` reads back.
+
+    🔴 SPLIT OUT FROM THE SHELL COMMAND, AND THE ROUND-TRIP ASSERTION IS WHY. Written as
+    one string, the declaration ends with the closing quote of `-m "…"` and `TAG_DECL_RE`
+    could not parse its own writer's output — the shell's quoting is not part of what git
+    stores, so a reader pointed at the command was reading a different string from the one
+    it would meet on the tag. The self-test found that on its first run; nothing else
+    would have, until a `C2_TAG_LATE` failed to fire two releases from now.
+    """
+    return f"release: {version}\n\nrelease-commit: {sha}\n"
+
+
+def tag_command(version: str, sha: str, tree_version: str | None) -> tuple[str, str]:
+    """The annotated tag that declares its own release commit — PURE.
+
+    🔴 GUARDED ON THE TREE, NOT ON THE NAME, and for the same reason `tag_tree_version`
+    is: tagging v1.73.3 at a commit whose `host/src/index.ts` ships 1.73.2 is exactly the
+    misplacement `C2_TAG_MISPLACED` catches ONE CUT LATER, when the window it broke is
+    already unreadable. Catching it at the moment of tagging costs one comparison.
+    """
+    if tree_version != version:
+        return TAG_TREE_DISAGREES, (
+            f"🔴 REFUSED — this tree ships {tree_version!r}, not {version!r}. A tag names "
+            f"a cut; a cut is a tree. Tagging here would place v{version} on a commit "
+            f"that never shipped it, and the next ritual would refuse the window with "
+            f"C2_TAG_MISPLACED without being able to say which commit was meant.")
+    return TAG_OK, (
+        f"git tag -a v{version} -F - <<'MSG'\n{tag_message(version, sha)}MSG\n"
+        f"git push origin v{version}")
 
 
 def tarball_entries(host: Path | None = None) -> list[str]:
@@ -814,6 +927,27 @@ MAP_SELFTEST = [
 ]
 
 
+# ── 🆕 219 — the LATE-tag direction: the shadow arm, and the tag that declares it ──
+# 🔴 THE SHADOW ROWS AND THE COMMAND ROWS ARE ONE TABLE ON PURPOSE. They are the two
+# halves of a single fact — what the tagger knew and what the next cut reads — and the
+# round trip below is what proves they are the same fact and not two literals that happen
+# to agree today.
+# (name, kind, arg, want_code)
+TAG_SELFTEST = [
+    ("a tag that DECLARES its release commit and sits exactly on it", "shadow", 0, C2_SILENT),
+    ("🔴 ONE COMMIT PAST ITS OWN DECLARED RELEASE COMMIT — 217 §5's open direction, closed",
+     "shadow", 1, C2_TAG_LATE),
+    ("🔴 AND THREE PAST — the count is READ into the reason, not tested for truthiness",
+     "shadow", 3, C2_TAG_LATE),
+    ("🔴 A TAG THAT DECLARES NOTHING IS UNANSWERABLE — and must not refuse on that account",
+     "shadow", None, C2_SILENT),
+    ("the annotated tag command, when the tree ships the version being tagged",
+     "cmd", "1.73.3", TAG_OK),
+    ("🔴 TAGGING A VERSION THIS TREE DOES NOT SHIP — caught at the tag, not one cut later",
+     "cmd", "1.74.0", TAG_TREE_DISAGREES),
+]
+
+
 def selftest() -> int:
     bad = 0
     for name, rel, ship, bump, floor, win, want_code, want_c, want_a in SELFTEST:
@@ -866,13 +1000,47 @@ def selftest() -> int:
             bad += 1
             print(f"        want {want_code} · got {code} — {why}")
 
-    rows = len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST)
-    passing = {OK, C2_OK, C2_SILENT, MAP_OK}
+    print("\n  the LATE-tag direction — the shadow the tag declares about itself (🆕 219)")
+    _SHA = "0123456789abcdef0123456789abcdef01234567"
+    for name, kind, arg, want_code in TAG_SELFTEST:
+        if kind == "shadow":
+            code, why, d = population(_D_NOTHING, "1.73.2", "1.73.3", "PATCH",
+                                      tag_tree_version="1.73.2", shadow=arg)
+            detail = f"shadow={arg!r:<5}"
+        else:
+            code, why = tag_command(arg, _SHA, "1.73.3")
+            detail = f"tag v{arg:<8}"
+        agree = code == want_code
+        print(f"  {'🟢' if agree else '🔴'} {code:<22} {detail}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+
+    # 🔴 THE ROUND TRIP, AND IT IS THE POINT OF THE WHOLE MECHANISM. The writer emits a
+    # line and the reader parses one; asserting each against a literal would leave two
+    # spellings free to drift apart while both tables stayed green. This asserts that what
+    # `tag_command` WRITES is what `TAG_DECL_RE` READS, which is the only claim that makes
+    # the next cut's `C2_TAG_LATE` mean anything.
+    parsed = TAG_DECL_RE.search(tag_message("1.73.3", _SHA))
+    _, emitted = tag_command("1.73.3", _SHA, "1.73.3")
+    round_trip = (parsed is not None and parsed.group(1) == _SHA
+                  and tag_message("1.73.3", _SHA) in emitted)
+    print(f"\n  {'🟢' if round_trip else '🔴'} the round trip: the SHA `tag_command` writes "
+          f"into the tag message is the SHA `tag_release_commit`'s pattern reads back "
+          f"({parsed.group(1)[:12] + '…' if parsed else 'NOT PARSEABLE'}), and the body "
+          f"the command ships is that same message VERBATIM. Two literals that merely "
+          f"agree today are two literals.")
+    if not round_trip:
+        bad += 1
+
+    rows = len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
+    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK}
     seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
-            | {r[3] for r in MAP_SELFTEST})
+            | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST})
     refusals = (sum(1 for r in SELFTEST if r[6] not in passing)
                 + sum(1 for r in C2_SELFTEST if r[6] not in passing)
-                + sum(1 for r in MAP_SELFTEST if r[3] not in passing))
+                + sum(1 for r in MAP_SELFTEST if r[3] not in passing)
+                + sum(1 for r in TAG_SELFTEST if r[3] not in passing))
     print(f"\n  {rows} rows · {refusals} REFUSE · {len(seen)} distinct code(s) · "
           f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
     # 🔴 EVERY REFUSAL CODE MUST HAVE A ROW. A code with no row is a branch nobody
@@ -907,6 +1075,14 @@ def main() -> int:
     ap.add_argument("--assert-map", action="store_true",
                     help="check 3's tarball-roots-BOTH-WAYS assertion over "
                          "SHIPPED_SOURCE; needs `npm pack --dry-run`, no network")
+    # 🆕 219 — THE WRITER HALF OF THE LATE-TAG FIX, AND IT RUNS AFTER THE RELEASE COMMIT
+    # RATHER THAN AT THE CUT. At ritual time the commit being tagged does not exist yet,
+    # so the declaration cannot be made then; this is run once the release commit is on
+    # `main`, and it reads HEAD rather than being told what HEAD is.
+    ap.add_argument("--tag-cmd", metavar="VERSION",
+                    help="print the ANNOTATED `git tag` that declares this cut's release "
+                         "commit, so the NEXT cut reads the tag shadow instead of "
+                         "inferring it from commit messages")
     ap.add_argument("--version", help="the version being cut, e.g. 1.73.2")
     ap.add_argument("--previous", help="the previous released version")
     ap.add_argument("--date", help="the released block's date, e.g. 2026-08-06")
@@ -939,6 +1115,25 @@ def main() -> int:
             print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {why}", file=sys.stderr)
             return 1
         print(f"               🟢 {why}")
+        return 0
+
+    if a.tag_cmd:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(ROOT),
+                              capture_output=True, text=True)
+        if head.returncode != 0:
+            print("🔴 RELEASE_NAMES REFUSED — `git rev-parse HEAD` failed; there is no "
+                  "commit to declare.", file=sys.stderr)
+            return 2
+        m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"',
+                      (ROOT / "host/src/index.ts").read_text())
+        code, text = tag_command(a.tag_cmd, head.stdout.strip(),
+                                 m.group(1) if m else None)
+        if code != TAG_OK:
+            print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {text}", file=sys.stderr)
+            return 1
+        print(f"RELEASE_NAMES --tag-cmd  ·  v{a.tag_cmd} at {head.stdout.strip()[:12]}, "
+              f"declared in the tag's own message so the next cut can read the shadow")
+        print(f"\n{text}")
         return 0
 
     if not all([a.version, a.previous, a.date, a.bump]):
@@ -980,11 +1175,20 @@ def main() -> int:
     # been seen on a tree where check 1 was already red, which is how a second check
     # stays unaudited forever.
     tagv = tag_tree_version(a.previous)
+    shadow = tag_shadow(a.previous)
     c2_code, c2_why, c2 = population(raw, a.previous, a.version, a.bump,
-                                     tag_tree_version=tagv)
+                                     tag_tree_version=tagv, shadow=shadow)
     print(f"CHECK 2        v{a.previous} tree says {tagv!r} · moved {c2['moved']} · "
           f"{len(c2['ritual_only'])} written by the ritual, "
           f"{len(c2['substantive'])} not")
+    # 🆕 219 — REPORTED WHETHER OR NOT IT REFUSED, and the undeclared case is reported
+    # LOUDEST, because a question nobody can answer and a question answered "fine" look
+    # identical in a green run (217 §20).
+    print(f"               tag shadow: "
+          + (f"🔴 {shadow} commit(s) past its own declared release commit" if shadow
+             else "🟢 on the release commit it declares" if shadow == 0
+             else "🟡 UNMEASURABLE — v" + a.previous + " declares no release commit "
+                  "(a lightweight tag, written before `--tag-cmd` existed)"))
     if c2_code in (C2_OK, C2_SILENT):
         print(f"               🟢 [{c2_code}] {c2_why}")
     else:
