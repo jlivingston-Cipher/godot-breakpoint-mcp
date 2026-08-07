@@ -132,6 +132,23 @@ jobs:
           npm run stage-addon
           npm pack --dry-run 2>&1 | grep -q 'addon/breakpoint_mcp/plugin.cfg' || { echo "::error::pack: addon missing from tarball"; exit 1; }
           echo "ONBOARD_PACK_OK"
+      # 🆕 217 §2 — CHECK 3's BOTH-WAYS ASSERTION, OUT OF THE GITIGNORED RITUAL.
+      # 216 §6.4 named the gap and said it would be paid the same way 216 §6.3 was:
+      # `SHIPPED_SOURCE` moved to `scripts/release_names.py` and the ritual imports it,
+      # but the assertion OVER that map — every packed root maps to a declared source,
+      # and every declared source is still shipped — stayed in `host/_to_delete/`, a
+      # file that is not in this repository. It is `--assert-map` now.
+      # 🔴 IT GOES HERE AND NOT IN `contract-check` FOR ONE REASON: it needs a real
+      # `npm pack --dry-run`, and this job is the one that has already run
+      # `npm run stage-addon`, so the `addon` root actually exists. Run it anywhere
+      # else and it refuses with MAP_STALE for a reason that is about the runner and
+      # not about the tree.
+      # 🔴 AND IT NOW RUNS ON EVERY PUSH RATHER THAN ONCE A RELEASE. That is the whole
+      # value of the promotion: the ritual asked this question ~23 times, at the one
+      # moment when answering "no" is most expensive. ~1s, and a STEP — not a 27th job
+      # (FIFTY-FIFTH session running).
+      - name: Every shipped root maps to a declared source, both ways (release names)
+        run: python3 ../scripts/release_names.py --assert-map
       - name: Assert the resolved SDK is still 1.x
         # A v2 major changes the registerTool / import surface and needs the
         # migration in README before the package.json range is bumped.
