@@ -221,6 +221,16 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # green line mean the comparison happened at all. Its rows run under the LIVE
     # constant for TAG_FLOOR's reason twenty lines up.
     ("ENTRY_FLOOR",              "../scripts/registry_bytes.py",           r"(ENTRY_FLOOR = )60",                                       ["../scripts/registry_bytes.py", "--selftest"]),
+    # 🆕 220 — CHECK FIVE'S FLOOR, AND THE FIRST IN THIS ROSTER WHOSE POPULATION IS A
+    # SUBTREE OF ANOTHER FLOOR'S POPULATION. `ENTRY_FLOOR` one line up floors the whole
+    # package; this floors the ADDON INSIDE it. It has to be its own number rather than
+    # reusing sixty — the addon is twelve entries against the package's eighty-two, so
+    # sixty would refuse every healthy run, and a floor that cannot be met is a floor the
+    # first reader lowers to zero. 🔴 ITS COLLAPSE IS PROVED BY A PAIR, NOT A ROW:
+    # `_to_delete/mutate220.py`'s M3 empties the subtree and the live reader answers
+    # C5_ADDON_UNMEASURABLE; M4 empties it AND zeroes this constant, and the same empty
+    # comparison comes back C5_OK. The floor is the whole difference between them.
+    ("ADDON_ENTRY_FLOOR",        "../scripts/registry_bytes.py",           r"(ADDON_ENTRY_FLOOR = )10",                                 ["../scripts/registry_bytes.py", "--selftest"]),
     # 🆕 216 §1 — CHECK 1's POPULATION FLOOR, on the day check 1 became a tracked file.
     # Reported UNSWEPT by the DISCOVER half on this file's FIRST run — 184 §7 happening
     # again on a new file, for the THIRD reader in a row, which is that fix still working.
@@ -1047,6 +1057,15 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "install. The tarball shipped eighty-two entries at the version this floor "
         "was first measured against, so `{FLOOR}` leaves room for it to shrink "
         "honestly and none for it to vanish.")),
+    ("../scripts/registry_bytes.py", "ADDON_ENTRY_FLOOR"): (10, (
+        "The ADDON SUBTREE inside the published tarball, floored at `{FLOOR}` — check "
+        "five's population, and the first here that is a subtree of another floor's. "
+        "Its collapse mode is sharper than `ENTRY_FLOOR`'s because the two sides are "
+        "found BY PREFIX — `addon/breakpoint_mcp` in the tarball, `addons/breakpoint_mcp` "
+        "in the tree, one letter apart — and a prefix that has stopped matching yields "
+        "an empty subtree that agrees with every other empty subtree. Twelve entries "
+        "ship today, so `{FLOOR}` leaves room for one to be retired honestly and none "
+        "for the addon to vanish out of the artifact unnoticed.")),
     ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (70, (
         "Resolved signatures, floored at `{FLOOR}` from below. 🆕 212 §4 — RAISED, and "
         "DELIBERATE: `_decl_re` was widened to block-bodied arrow consts and "
