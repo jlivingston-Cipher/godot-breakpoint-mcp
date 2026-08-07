@@ -46,6 +46,22 @@ jobs:
       # ~1s. A step, not a 27th job (FIFTY-FIRST session running).
       - name: The registry-bytes comparator can still refuse (registry bytes selftest)
         run: python3 scripts/registry_bytes.py --selftest
+      # 🆕 216 §1 — `scripts/release_names.py` is CHECK 1, out of the gitignored ritual.
+      # 215 §3 found TWO real defects in it (a population floor that read only the
+      # SCREAMING case, and a lower_snake regex that could not see `body_brace()`) and
+      # fixed BOTH in `host/_to_delete/release215.py` — scratch, copied forward by hand,
+      # which is the file 211 §4's pre-written tautology also died in. 215 §6.3 priced
+      # that: *a real defect was found and fixed in a file that is not in the repository*.
+      # 🔴 AND PROMOTING IT FOUND A THIRD, IN THE ARM 215 DID NOT TOUCH: the ritual runs
+      # one arm per cut, so the two arms had never been driven over the same block, and
+      # they CONTRADICT each other about what a lower_snake name reaching shipped source
+      # means. The old MINOR arm PASSED on 1.73.2 — the release three handoffs wrongly
+      # called a MINOR. It now reads the DIFF WINDOW instead, and refuses.
+      # `--selftest` is pure — no tree, no npm, no network — and drives twelve rows, EIGHT
+      # of which refuse, plus the counterfactual that pins NAME_FLOOR against the real
+      # 1.73.2 block. ~0.1s. A step, not a 27th job (FIFTY-FOURTH session running).
+      - name: Check 1's refusals still fire (release names selftest)
+        run: python3 scripts/release_names.py --selftest
       # 🔴 AND THE TOOL-SURFACE BUDGET'S REFUSAL, ALSO WITHOUT A SERVER — 206 §4.
       # 205 §8.6 said to measure the surface's token cost before writing any claim about
       # it. Measured: 291 tools, 393,887 B, ~1,354 B/tool against a rival's published
