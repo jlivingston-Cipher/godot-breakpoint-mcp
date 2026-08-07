@@ -6,6 +6,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.73.4] — 2026-08-07
+
+### Fixed — check 1 read a documentation filename as an instrument constant
+
+`CONST_RE` is not scoped to backticks, on purpose — a constant named in running prose
+should count. But that also made it read the SCREAMING stem out of a **file path**, and this
+release's own notes name the two doc stamps that move with an addon re-stamp. The stem
+reaches shipped source (the doctor and init strings point users at the guide), so the PATCH
+arm read a leak and refused a cut that changed no product code at all.
+
+This is the third defect this check has surrendered by aborting a real cut, and the first
+where the check — not the notes — was wrong. 215 §3's rule is that the notes are usually at
+fault; here a path was being read as an identifier. The lookahead is exact rather than a
+guess: a SCREAMING run followed by a dot and a lowercase extension is a filename stem, and
+nobody writes a constant that way. A constant ending a sentence is untouched, because the
+lookahead requires the letters. Both directions are pinned by rows in the self-test, which
+runs in CI with no tree.
+
 ### Changed — the addon version is re-stamped to 1.9.9, and the debt check 4 measured is paid
 
 `1.9.8` was stamped at `035db57` (#188). Two addon commits landed after it — `782157c`

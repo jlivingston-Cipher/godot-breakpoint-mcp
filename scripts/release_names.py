@@ -208,7 +208,20 @@ NAME_FLOOR = 5
 
 # 🔴 THE UNDERSCORE IS REQUIRED IN BOTH — 202 §3. It is what keeps prose words out
 # of the roster ("THE", "AND") and ordinary lowercase words out of the API set.
-CONST_RE = re.compile(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b")
+# 🆕 220 — AND THE NEGATIVE LOOKAHEAD IS A THIRD DEFECT, FOUND THE WAY THE OTHER
+# TWO WERE: BY THE CHECK ABORTING A REAL CUT. `API_RE` below is scoped to BACKTICKS;
+# this one is not, and reads SCREAMING runs out of running prose — which is right for
+# `ENTRY_FLOOR` named mid-sentence and WRONG for the stem of a FILE PATH. 1.73.4's
+# notes said "the two doc stamps in `README.md` and `docs/USER_GUIDE.md`", and
+# `USER_GUIDE` reaches shipped source (the doctor and init strings point users at the
+# guide), so the PATCH arm read a LEAK and refused a cut that changed no product code
+# at all. 🔴 THE CHECK WAS WRONG, WHICH IS THE HALF 215 §3's LESSON DOES NOT COVER:
+# its rule is that the notes are usually at fault, and here a path was being read as an
+# identifier. The rule is exact rather than a guess — a SCREAMING run followed by a dot
+# and a lowercase extension is a FILENAME STEM, and nobody writes `ENTRY_FLOOR.md`. A
+# constant ending a sentence (`ENTRY_FLOOR.` then a space) is untouched, because the
+# lookahead requires the letters.
+CONST_RE = re.compile(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b(?!\.[a-z]{1,5}\b)")
 # 🔴 THE `(?:\(\))?` IS 215 §3's SECOND FIX AND IT IS NOT COSMETIC. Without it
 # `body_brace()` is invisible and `log_seq` is not, so the reader's blind spot is
 # "prose that names a function" — which is most prose about instrument work.
@@ -958,6 +971,16 @@ SELFTEST = [
      "", "PATCH", None, None, OK, 0, 5),
     ("🔴 A CONSTANT REACHING SHIPPED SOURCE — THE LEAK REFUSAL",
      "`BYTES_CEILING` moved, plus `a_b`, `c_d`, `e_f`, `g_h`, `i_j`.",
+     "const BYTES_CEILING = 4;", "PATCH", None, None, LEAK, 1, 5),
+    # 🆕 220 — THE PATH-STEM PAIR. Both directions, because a lookahead that ate
+    # too much would pass the first row and silently delete real constants in the second.
+    ("🔴 A DOC FILENAME IS NOT A CONSTANT — `docs/USER_GUIDE.md` aborted 1.73.4",
+     "The stamps in `README.md` and `docs/USER_GUIDE.md` moved, plus `a_b`, `c_d`, "
+     "`e_f`, `g_h`, `i_j`.",
+     "USER_GUIDE and TOOL_CATALOG appear in shipped source", "PATCH", None, None,
+     OK, 0, 5),
+    ("🔴 AND A CONSTANT ENDING A SENTENCE IS STILL ONE — the lookahead must not eat it",
+     "`BYTES_CEILING` moved. So did BYTES_CEILING. Plus `a_b`, `c_d`, `e_f`, `g_h`, `i_j`.",
      "const BYTES_CEILING = 4;", "PATCH", None, None, LEAK, 1, 5),
     ("🔴 A BLOCK TOO THIN TO READ — THE FLOOR'S REFUSAL",
      "Nothing much changed. `a_b` and `c_d`.", "", "PATCH", None, None,
