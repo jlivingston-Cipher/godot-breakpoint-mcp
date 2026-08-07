@@ -6,6 +6,47 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.73.4] — 2026-08-07
+
+### Fixed — check 1 read a documentation filename as an instrument constant
+
+`CONST_RE` is not scoped to backticks, on purpose — a constant named in running prose
+should count. But that also made it read the SCREAMING stem out of a **file path**, and this
+release's own notes name the two doc stamps that move with an addon re-stamp. The stem
+reaches shipped source (the doctor and init strings point users at the guide), so the PATCH
+arm read a leak and refused a cut that changed no product code at all.
+
+This is the third defect this check has surrendered by aborting a real cut, and the first
+where the check — not the notes — was wrong. 215 §3's rule is that the notes are usually at
+fault; here a path was being read as an identifier. The lookahead is exact rather than a
+guess: a SCREAMING run followed by a dot and a lowercase extension is a filename stem, and
+nobody writes a constant that way. A constant ending a sentence is untouched, because the
+lookahead requires the letters. Both directions are pinned by rows in the self-test, which
+runs in CI with no tree.
+
+### Changed — the addon version is re-stamped to 1.9.9, and the debt check 4 measured is paid
+
+`1.9.8` was stamped at `035db57` (#188). Two addon commits landed after it — `782157c`
+(#231, `operations.gd`) and `c5afeb5` (#258, `runtime_bridge.gd`), both behaviour changes —
+so three different trees answered to that one name: the one it was stamped on, the one the
+Asset Library serves, and `main`. `contract_check` was green throughout, because agreement
+between *copies* of a version is not the same question as whether the version still names
+anything.
+
+Check 4 has refused every cut since #272 until this landed. It is paid here rather than
+noted, and it is carried by a host cut rather than shipped alone: the addon rides inside the
+npm package, so an addon change with no host bump either never reaches npm users or puts two
+addons under one npm name (see check 5, #273).
+
+The stamp moves in the four places `contract_check` asserts against each other —
+`addons/breakpoint_mcp/plugin.cfg`, `addons/breakpoint_mcp/operations.gd`, and both
+`example/` copies — plus the two doc stamps in `README.md` and `docs/USER_GUIDE.md`.
+
+**The Asset Library still serves the old tree.** Accepted edit 23931 named a commit, not a
+branch, so re-stamping does not change what already-installed users have; that needs a new
+submission naming a commit from this release.
+
+
 ### Added — check 5: the addon *inside* the published tarball, against the commit it was cut from
 
 Check 4 asks whether the addon version still names the addon's tree. It reads the tree.
