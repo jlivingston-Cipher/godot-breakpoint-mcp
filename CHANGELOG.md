@@ -6,6 +6,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the addon version is re-stamped to 1.9.9, and the debt check 4 measured is paid
+
+`1.9.8` was stamped at `035db57` (#188). Two addon commits landed after it — `782157c`
+(#231, `operations.gd`) and `c5afeb5` (#258, `runtime_bridge.gd`), both behaviour changes —
+so three different trees answered to that one name: the one it was stamped on, the one the
+Asset Library serves, and `main`. `contract_check` was green throughout, because agreement
+between *copies* of a version is not the same question as whether the version still names
+anything.
+
+Check 4 has refused every cut since #272 until this landed. It is paid here rather than
+noted, and it is carried by a host cut rather than shipped alone: the addon rides inside the
+npm package, so an addon change with no host bump either never reaches npm users or puts two
+addons under one npm name (see check 5, #273).
+
+The stamp moves in the four places `contract_check` asserts against each other —
+`addons/breakpoint_mcp/plugin.cfg`, `addons/breakpoint_mcp/operations.gd`, and both
+`example/` copies — plus the two doc stamps in `README.md` and `docs/USER_GUIDE.md`.
+
+**The Asset Library still serves the old tree.** Accepted edit 23931 named a commit, not a
+branch, so re-stamping does not change what already-installed users have; that needs a new
+submission naming a commit from this release.
+
+
 ### Added — check 5: the addon *inside* the published tarball, against the commit it was cut from
 
 Check 4 asks whether the addon version still names the addon's tree. It reads the tree.
