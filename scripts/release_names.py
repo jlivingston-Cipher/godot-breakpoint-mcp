@@ -262,6 +262,38 @@ TAG_OK = "TAG_OK"
 # stay the same — 203 §2's ONE LIST, applied to a wire format of one line.
 TAG_DECL_RE = re.compile(r"^release-commit:\s*([0-9a-f]{7,40})\s*$", re.M)
 
+# 🆕 219 — CHECK 4'S CODES. THE ADDON VERSION IS NOT A FUNCTION OF THE ADDON.
+#
+# Measured this session against the live Asset Library (asset 5335): it serves
+# `version_string "1.9.8"` from `download_commit c3c3d51` = v1.72.7. `plugin.cfg` on `main`
+# also says `1.9.8`. 🔴 THREE DIFFERENT TREES ANSWER TO THAT ONE NAME — the commit where
+# it was stamped (#188), the commit the library serves (#231 already in it), and `main`
+# (#258 on top, sixty-five lines further). Users installing "1.9.8" get the middle one.
+#
+# 🔴 AND THE RITUAL IS WHY. It writes six version fields at a cut and `plugin.cfg` is not
+# one of them, because the addon is on its own cadence — so the host version moves every
+# release and the addon version moves only when somebody remembers. `contract_check` asserts
+# every COPY of the addon version agrees; nothing asserts that the version MOVED when the
+# addon did. That is `tag_tree_version`'s lesson one artifact over: a name is not a tree.
+#
+# 🔴 THIS IS A RELEASE-TIME READER AND NOT A CI STEP, ON PURPOSE. `main` is stale RIGHT NOW,
+# so wiring it to every push would ship a red tree; and the moment it actually matters is the
+# cut, which is when `plugin.cfg` would be re-stamped. The refusals are proved on every push
+# by `--selftest` regardless, which is the same split checks 1 and 2 already live under.
+C4_OK = "C4_OK"
+C4_ADDON_STALE = "C4_ADDON_STALE"
+C4_ADDON_UNFINDABLE = "C4_ADDON_UNFINDABLE"
+# 🔴 A REFUSAL ABOUT THE READER, NOT ABOUT THE TREE, AND THE MUTATION SWEEP IS WHY IT
+# EXISTS. Widening the window to `stamp~1..HEAD` — including the stamp commit's own
+# changes — left both the self-test and the live exit code unchanged, because the verdict
+# stayed STALE and only the reported detail moved. A boundary nothing pins is a boundary
+# that can be off by one for a year. The invariant is exact and cannot go stale: the stamp
+# commit is the boundary, so it must never appear INSIDE the window it opens.
+C4_WINDOW_INCLUDES_STAMP = "C4_WINDOW_INCLUDES_STAMP"
+
+ADDON_DIR = "addons/breakpoint_mcp"
+ADDON_CFG = f"{ADDON_DIR}/plugin.cfg"
+
 # 🆕 217 — `--assert-map`'s codes, promoted from the ritual's check 3.
 MAP_OK = "MAP_OK"
 MAP_UNMAPPED = "MAP_UNMAPPED"
@@ -693,6 +725,117 @@ def tag_shadow(previous: str, root: Path = ROOT) -> int | None:
         return None
 
 
+def addon_state(version: str, stamp: str | None,
+                moved: list[str], commits: list[str]) -> tuple[str, str, dict]:
+    """Check 4, as a PURE function of (version, stamp commit, what moved after it).
+
+    The question is not "do the copies of the addon version agree" — `contract_check` has
+    asked that since 2026-06 and it has been green throughout. It is "does the version
+    still name the tree it was stamped on".
+    """
+    d = {"version": version, "stamp": stamp, "moved": sorted(moved), "commits": list(commits)}
+    if stamp is None:
+        return C4_ADDON_UNFINDABLE, (
+            f"🔴 no commit in this history introduces `version=\"{version}\"` into "
+            f"{ADDON_CFG}. Either the stamp is uncommitted, or it landed on a branch this "
+            f"one cannot see. 🔴 THIS IS NOT A PASS: the question was not answered, and an "
+            f"unanswered question and a clean answer look identical in a green run."), d
+    if any(stamp.startswith(c) or c.startswith(stamp) for c in commits):
+        return C4_WINDOW_INCLUDES_STAMP, (
+            f"🔴 the window opened at {stamp[:12]} CONTAINS {stamp[:12]} — a boundary that "
+            f"includes itself. Every fact below it is then one commit wide of the truth, "
+            f"and the verdict can stay the same while the reason stops being right. This "
+            f"refuses the reader rather than the tree."), d
+    if not moved:
+        return C4_OK, (
+            f"the addon has not moved since `{version}` was stamped at {stamp[:12]}. The "
+            f"version names exactly one tree, which is the only thing that makes it a "
+            f"version rather than a label."), d
+    return C4_ADDON_STALE, (
+        f"🔴 the addon has moved in {len(commits)} commit(s) since `{version}` was stamped "
+        f"at {stamp[:12]}, touching {moved}. 🔴 MORE THAN ONE TREE ANSWERS TO "
+        f"`{version}` — the one it was stamped on, and this one. The Asset Library serves "
+        f"whichever commit its submission named, so a third can exist without either being "
+        f"wrong about itself. Re-stamp {ADDON_CFG} (and the copies `contract_check` "
+        f"asserts against it) in this cut, or the release ships a name that has stopped "
+        f"identifying anything."), d
+
+
+def _oldest(shas: list[str]) -> str | None:
+    """The introduction, out of `git log`'s newest-first list — PURE, so it can be pinned.
+
+    🔴 SPLIT OUT BECAUSE THE MUTATION SWEEP COULD NOT SEE THIS CHOICE. Flipping `[-1]` to
+    `[0]` changed nothing anywhere: every version the tree is currently asked about has
+    exactly ONE `-S` match, so newest and oldest are the same commit and the mutant was
+    equivalent on today's inputs. 🔴 IT IS NOT EQUIVALENT IN GENERAL. A SUPERSEDED version
+    has TWO matches — the commit that introduced the literal and the commit that removed it
+    — measured live: `version: "1.73.2"` matches both #269 and #265, and `version="1.9.7"`
+    matches both #188 and #183. Taking the newest returns the REMOVAL, so the first replay
+    of a past cut, or the first `--tag-cmd` for a version already superseded, gets a commit
+    that is not the release. A defect with no current input that reaches it is still a
+    defect; making the choice a pure function is what lets a table say so.
+    """
+    return shas[-1] if shas else None
+
+
+def _first_commit_introducing(needle: str, path: str, root: Path = ROOT) -> str | None:
+    """The OLDEST commit whose diff changes the number of occurrences of `needle` in `path`.
+
+    🔴 ONE IDIOM, TWO CALLERS, AND THE SECOND ONE IS WHY IT IS A FUNCTION. `-S` matches the
+    commit that introduces a literal AND the one that removes it, so the oldest match is the
+    introduction — a subtlety worth getting right once rather than twice. `release_commit`
+    asks it of the host version in `host/src/index.ts`; `addon_stamp_commit` asks it of the
+    addon version in `plugin.cfg`. Two literals over one rule is one of them wrong (203 §2).
+    """
+    r = subprocess.run(["git", "log", "--format=%H", "-S", needle, "--", path],
+                       cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    return _oldest(r.stdout.split())
+
+
+def addon_version(root: Path = ROOT) -> str | None:
+    """The addon's own version, from the canonical `plugin.cfg`. None if unreadable."""
+    try:
+        m = re.search(r'^version="([^"]+)"', (root / ADDON_CFG).read_text(), re.M)
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
+def addon_stamp_commit(version: str, root: Path = ROOT) -> str | None:
+    """The commit that stamped this addon version onto `plugin.cfg`."""
+    return _first_commit_introducing(f'version="{version}"', ADDON_CFG, root)
+
+
+def addon_moved_since(stamp: str, head: str = "HEAD",
+                      root: Path = ROOT) -> tuple[list[str], list[str]]:
+    """(files, commits) under the addon that moved AFTER `stamp`.
+
+    🔴 `stamp..head` EXCLUDES THE STAMP COMMIT'S OWN CHANGES, WHICH IS THE POINT. A cut that
+    re-stamps the version and touches the addon in the same commit has, by construction,
+    said what it shipped — the window opens after it.
+
+    🔴 ONE RANGE, TWO READERS — AND THE MUTATION SWEEP IS WHY IT IS A VARIABLE. The first
+    draft spelled `f"{stamp}..{head}"` twice, once for the file list and once for the commit
+    list, so widening one left the other where it was: `moved` and `commits` would then be
+    describing DIFFERENT WINDOWS while the verdict read as if they described one. That is
+    217's rule about check 1 and check 2 sharing a single `git diff`, one file over — two
+    readers agreeing about different windows is not agreement — and it was reintroduced here
+    within an hour of being written down.
+    """
+    rng = f"{stamp}..{head}"
+    files = subprocess.run(
+        ["git", "diff", "--name-only", rng, "--", ADDON_DIR],
+        cwd=str(root), capture_output=True, text=True)
+    commits = subprocess.run(
+        ["git", "log", "--format=%h", rng, "--", ADDON_DIR],
+        cwd=str(root), capture_output=True, text=True)
+    if files.returncode != 0 or commits.returncode != 0:
+        return [], []
+    return files.stdout.split(), commits.stdout.split()
+
+
 def release_commit(version: str, root: Path = ROOT) -> str | None:
     """The commit at which the shipped tree BECAME `version`. None if there is none.
 
@@ -706,20 +849,12 @@ def release_commit(version: str, root: Path = ROOT) -> str | None:
     direction was invisible to `C2_TAG_MISPLACED` in the first place.
 
     🔴 AND IT IS STILL NOT A HEURISTIC OVER MESSAGES. The release commit is the one where
-    the version LITERAL entered the shipped tree, which `git log -S` answers exactly.
-    `-S` matches both the commit that introduces the string and the one that removes it,
-    so the OLDEST match is the introduction — 217 §5 refused to close this direction
-    because naming the commit meant a `grep` over subjects; naming it from the tree does
-    not.
+    the version LITERAL entered the shipped tree, which `git log -S` answers exactly —
+    217 §5 refused to close this direction because naming the commit meant a `grep` over
+    subjects; naming it from the tree does not. The `-S` subtlety lives in
+    `_first_commit_introducing`, which check 4 asks the same question of one file over.
     """
-    r = subprocess.run(
-        ["git", "log", "--format=%H", "-S", f'version: "{version}"',
-         "--", "host/src/index.ts"],
-        cwd=str(root), capture_output=True, text=True)
-    if r.returncode != 0:
-        return None
-    shas = r.stdout.split()
-    return shas[-1] if shas else None
+    return _first_commit_introducing(f'version: "{version}"', "host/src/index.ts", root)
 
 
 def tag_message(version: str, sha: str) -> str:
@@ -997,6 +1132,38 @@ TAG_SELFTEST = [
 ]
 
 
+# ── 🆕 219 — check 4's table: does the addon version still name the addon's tree? ──
+# 🔴 THE PASSING ROW IS NOT THE INTERESTING ONE AND IS HERE ANYWAY. A gate that only ever
+# refuses constrains nothing either: the row below proves that re-stamping in the same cut
+# that moved the addon is READ AS CLEAN, which is the behaviour the fix asks for.
+# (name, stamp, moved, commits, want_code)
+ADDON_SELFTEST = [
+    ("the addon has not moved since its version was stamped — one name, one tree",
+     "aaaaaaaaaaaa", [], [], C4_OK),
+    ("🔴 ONE FILE MOVED AFTER THE STAMP — the live shape, and it has shipped",
+     "aaaaaaaaaaaa", [f"{ADDON_DIR}/runtime_bridge.gd"], ["c5afeb5"], C4_ADDON_STALE),
+    ("🔴 TWO FILES OVER TWO COMMITS — the count is read into the reason, not tested for truth",
+     "aaaaaaaaaaaa", [f"{ADDON_DIR}/operations.gd", f"{ADDON_DIR}/runtime_bridge.gd"],
+     ["c5afeb5", "782157c"], C4_ADDON_STALE),
+    ("🔴 NO COMMIT STAMPS THIS VERSION — unanswered, and an unanswered question is not a pass",
+     None, [], [], C4_ADDON_UNFINDABLE),
+    ("🔴 THE WINDOW CONTAINS ITS OWN BOUNDARY — a refusal about the READER, not the tree",
+     "aaaaaaaaaaaa", [f"{ADDON_DIR}/x.gd"], ["aaaaaaa", "c5afeb5"], C4_WINDOW_INCLUDES_STAMP),
+]
+
+# 🆕 219 §2 — the oldest-match choice, as a table, because a mutant flipping it was
+# EQUIVALENT on every input the live tree can currently produce. See `_oldest`.
+# (name, input, want)
+OLDEST_SELFTEST = [
+    ("no match at all is None, not a commit-shaped guess", [], None),
+    ("one match is that match — the shape every CURRENT version has", ["intro"], "intro"),
+    ("🔴 TWO MATCHES: git lists NEWEST first, so the introduction is the LAST",
+     ["removal", "intro"], "intro"),
+    ("🔴 AND THREE — a literal reintroduced after a revert still resolves to the first",
+     ["removal", "reintro", "intro"], "intro"),
+]
+
+
 def selftest() -> int:
     bad = 0
     for name, rel, ship, bump, floor, win, want_code, want_c, want_a in SELFTEST:
@@ -1087,14 +1254,35 @@ def selftest() -> int:
     if not round_trip:
         bad += 1
 
-    rows = len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
-    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK}
+    print("\n  check 4 — does the addon version still name the addon's tree? (🆕 219)")
+    for name, stamp, moved, commits, want_code in ADDON_SELFTEST:
+        code, why, d = addon_state("1.9.8", stamp, moved, commits)
+        agree = code == want_code
+        print(f"  {'🟢' if agree else '🔴'} {code:<22} moved={len(d['moved'])} "
+              f"commits={len(d['commits'])}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+
+    for name, shas, want in OLDEST_SELFTEST:
+        got = _oldest(shas)
+        agree = got == want
+        print(f"  {'🟢' if agree else '🔴'} {'_oldest':<22} {len(shas)} match(es) -> "
+              f"{got!r:<10} {name}")
+        if not agree:
+            bad += 1
+
+    rows = (len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
+            + len(ADDON_SELFTEST) + len(OLDEST_SELFTEST))
+    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK, C4_OK}
     seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
-            | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST})
+            | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST}
+            | {r[4] for r in ADDON_SELFTEST})
     refusals = (sum(1 for r in SELFTEST if r[6] not in passing)
                 + sum(1 for r in C2_SELFTEST if r[6] not in passing)
                 + sum(1 for r in MAP_SELFTEST if r[3] not in passing)
-                + sum(1 for r in TAG_SELFTEST if r[3] not in passing))
+                + sum(1 for r in TAG_SELFTEST if r[3] not in passing)
+                + sum(1 for r in ADDON_SELFTEST if r[4] not in passing))
     print(f"\n  {rows} rows · {refusals} REFUSE · {len(seen)} distinct code(s) · "
           f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
     # 🔴 EVERY REFUSAL CODE MUST HAVE A ROW. A code with no row is a branch nobody
@@ -1117,6 +1305,23 @@ def selftest() -> int:
     return 1 if bad else 0
 
 
+def _addon_live(head: str = "HEAD") -> tuple[str, str, dict]:
+    """Check 4 against the working tree and its history. One reader, two callers.
+
+    🔴 `--assert-addon` AND THE RITUAL CALL THE SAME FUNCTION, and that is deliberate: a
+    standalone mode that answered a slightly different question from the one the cut asks
+    is the second-list shape (203 §2) wearing a CLI flag.
+    """
+    v = addon_version()
+    if v is None:
+        return C4_ADDON_UNFINDABLE, (
+            f"🔴 {ADDON_CFG} has no readable `version=` line at all."), \
+            {"version": None, "stamp": None, "moved": [], "commits": []}
+    stamp = addon_stamp_commit(v)
+    moved, commits = addon_moved_since(stamp, head) if stamp else ([], [])
+    return addon_state(v, stamp, moved, commits)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="check 1 — the released block's names "
                                              "against the shipped corpus")
@@ -1129,6 +1334,12 @@ def main() -> int:
     ap.add_argument("--assert-map", action="store_true",
                     help="check 3's tarball-roots-BOTH-WAYS assertion over "
                          "SHIPPED_SOURCE; needs `npm pack --dry-run`, no network")
+    # 🆕 219 — CHECK 4, RUNNABLE ON ITS OWN because the moment it matters most is the Asset
+    # Library submission, which is not a cut and has no ritual of its own. The ritual runs
+    # it too; this is the same reader from the other door.
+    ap.add_argument("--assert-addon", action="store_true",
+                    help="check 4 — has the addon moved since its own version was "
+                         "stamped? reads git, no network")
     # 🆕 219 — THE WRITER HALF OF THE LATE-TAG FIX, AND IT RUNS AFTER THE RELEASE COMMIT
     # RATHER THAN AT THE CUT. At ritual time the commit being tagged does not exist yet,
     # so the declaration cannot be made then; this is run once the release commit is on
@@ -1169,6 +1380,17 @@ def main() -> int:
             print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {why}", file=sys.stderr)
             return 1
         print(f"               🟢 {why}")
+        return 0
+
+    if a.assert_addon:
+        code, why, d = _addon_live()
+        print(f"RELEASE_NAMES --assert-addon  ·  addon {d['version']} · stamped "
+              f"{(d['stamp'] or '?')[:12]} · {len(d['moved'])} file(s) moved since over "
+              f"{len(d['commits'])} commit(s)")
+        if code != C4_OK:
+            print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {why}", file=sys.stderr)
+            return 1
+        print(f"               🟢 [{code}] {why}")
         return 0
 
     if a.tag_cmd:
@@ -1257,10 +1479,23 @@ def main() -> int:
     else:
         print(f"\n🔴 RELEASE_NAMES REFUSED [{c2_code}]: {c2_why}", file=sys.stderr)
 
+    # 🆕 219 — CHECK 4, AND IT IS COLLECTED BEFORE ANYTHING RETURNS for the same reason
+    # check 2 is: a check that only ever runs on trees the checks above already passed is
+    # a check nobody has watched fire on a red one.
+    c4_code, c4_why, c4 = _addon_live(head=a.head_ref)
+    print(f"CHECK 4        addon {c4['version']} · stamped {(c4['stamp'] or '?')[:12]} · "
+          f"{len(c4['moved'])} file(s) moved since over {len(c4['commits'])} commit(s)")
+    if c4_code == C4_OK:
+        print(f"               🟢 [{c4_code}] {c4_why}")
+    else:
+        print(f"\n🔴 RELEASE_NAMES REFUSED [{c4_code}]: {c4_why}", file=sys.stderr)
+
     if code != OK:
         print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {why}", file=sys.stderr)
         return 1
     if c2_code not in (C2_OK, C2_SILENT):
+        return 1
+    if c4_code != C4_OK:
         return 1
     print(f"               🟢 {why}")
     return 0

@@ -6,6 +6,41 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a release refuses to ship an addon version that has stopped naming the addon
+
+Two versions ship from this repository on two cadences. The host version moves at every
+cut. The addon version in `addons/breakpoint_mcp/plugin.cfg` moves only when the addon
+changes — and nothing checked that it moved when the addon did.
+
+Measured against the live Asset Library: it serves `1.9.8` from the commit that submission
+named, `plugin.cfg` on `main` also says `1.9.8`, and the two are sixty-five lines apart.
+Going back further, `1.9.8` was stamped two addon commits ago, so **three different trees
+answer to that one name** — the one it was stamped on, the one users install, and the one
+in the repository. `contract_check` has asked whether every *copy* of the addon version
+agrees since the day it was written, and has been green throughout; agreement between
+copies is not the same question as whether the number still means anything.
+
+Check 4 asks the other one. `addon_state()` is pure over the version, the commit that
+stamped it, and what moved after — `C4_ADDON_STALE` when the addon has moved since,
+`C4_ADDON_UNFINDABLE` when no commit stamps the version at all, because an unanswered
+question and a clean answer look identical in a green run. The release ritual runs it and
+refuses the cut; `--assert-addon` runs the same reader standalone, for the Asset Library
+submission, which is not a cut and has no ritual of its own.
+
+`C4_WINDOW_INCLUDES_STAMP` refuses the READER rather than the tree: the stamp commit is the
+boundary of the window it opens, so finding it inside that window means every fact below is
+one commit wide of the truth. It exists because a mutation sweep widened the window by one
+and neither the self-test nor the live exit code noticed — the verdict stayed the same and
+only the reason moved.
+
+`_oldest()` is a pure function for the same reason. `git log -S` matches the commit that
+introduces a literal *and* the one that removes it, so the introduction is the last line;
+flipping that choice changed nothing anywhere, because every version the tree is currently
+asked about has exactly one match. It is not equivalent in general — a superseded version
+has two, measured live on both `1.73.2` and `1.9.7`, and the newest match is the removal.
+A defect no current input reaches is still a defect; making the choice a function is what
+lets a table say so.
+
 ### Added — every emptiness claim in the suite is now defended, exempt, or floored, and a gate says which
 
 `assert.deepEqual(wire, [])` passes on a collection that CAN be non-empty and on one that
