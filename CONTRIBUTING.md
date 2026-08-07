@@ -177,6 +177,27 @@ known and accepted rewrite — `git checkout -- example/project.godot`. Check
    `addons/breakpoint_mcp/plugin.cfg` moves only when the addon itself changes —
    so a release that touches no GDScript leaves it alone, on purpose.
 
+   **An addon re-stamp is always carried by a host cut.** That is not a convention;
+   it is what the artifact makes true, and it was measured rather than assumed. The
+   addon ships *inside* the npm package — `host/package.json` lists `addon/**/*` in
+   `files`, `prepublishOnly` runs `stage-addon`, and `host/scripts/stage-addon.mjs`
+   copies `addons/breakpoint_mcp/` into the package verbatim. Confirmed against the
+   registry: the published `breakpoint-mcp@1.73.2` tarball carries
+   `version="1.9.8"` in its own `plugin.cfg`.
+
+   So every addon change is a change to the published artifact, and the only name
+   npm has for that artifact is the **host** version. Two things follow, and they
+   point opposite ways:
+
+   - Re-stamping the addon *without* a host bump, on a tree whose host version is
+     already published, puts two different addons under one npm name.
+   - Leaving the host version alone means the addon change never reaches npm users
+     at all.
+
+   The **Asset Library** is the half that genuinely has its own cadence: it serves
+   whatever commit a submission named, so re-stamping does not change what already
+   installed users have until a new submission names a new commit.
+
    That difference is why `scripts/release_names.py --assert-addon` exists.
    `scripts/contract_check.py` asserts that every *copy* of the addon version
    agrees with the canonical `plugin.cfg`; it has nothing to say about whether the
@@ -185,6 +206,12 @@ known and accepted rewrite — `git checkout -- example/project.godot`. Check
    tree. If your PR changes anything under `addons/breakpoint_mcp/`, expect the
    next cut to re-stamp that version — flag it in the PR description so the
    maintainer does not have to rediscover it.
+
+   Check 4 reads the tree. **Check 5 reads the artifact** —
+   `scripts/registry_bytes.py` compares the addon *inside the published tarball*
+   against the addon at the commit that version was cut from. It is the only reader
+   that opens what users installed and the commit they installed it under, and it
+   runs after `npm publish` and before `git tag`.
 5. Make sure the core checks pass locally: `npm run build`, `npm run typecheck`,
    `npm test`, and `python3 scripts/contract_check.py`.
 6. Open the pull request using the provided template, fill in the checklist, and

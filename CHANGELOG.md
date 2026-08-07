@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — check 5: the addon *inside* the published tarball, against the commit it was cut from
+
+Check 4 asks whether the addon version still names the addon's tree. It reads the tree.
+Nothing read the artifact.
+
+The addon ships **inside** the npm package: `host/package.json` lists `addon/**/*` in
+`files`, `prepublishOnly` runs `stage-addon`, and `host/scripts/stage-addon.mjs` copies
+`addons/breakpoint_mcp/` into the package verbatim. Confirmed against the registry rather
+than inferred — the published `breakpoint-mcp@1.73.2` tarball carries `version="1.9.8"` in
+its own `plugin.cfg`.
+
+So the addon has a cadence npm cannot express, and the failure it allows is one no existing
+reader looks for. Re-stamping the addon without a host bump, on a tree whose host version is
+already published, puts two different addons under one npm name. Check 4 reads the tree and
+is green on it. Check 7 compares a version string and is green on it. `registry_bytes`'
+COMPARISON 2 compares the artifact against the *working tree* — which is where the new addon
+came from — and is green on it too.
+
+COMPARISON 3 compares the addon in the published tarball against the addon at the commit
+that version was cut from, through the same comparator and the same floor idiom as
+COMPARISONS 1 and 2. `C5_ARTIFACT_ADDON_DRIFT` when they differ, in both directions named
+separately; `C5_RELEASE_COMMIT_UNFINDABLE` when no commit makes the tree ship that version,
+because HEAD is not a substitute for a release commit; and `C5_ADDON_UNMEASURABLE` when the
+compared population falls under `ADDON_ENTRY_FLOOR`, which refuses the reader rather than
+the artifact — the two sides are found by prefix, `addon/breakpoint_mcp` in the tarball and
+`addons/breakpoint_mcp` in the tree, one letter apart, and a prefix that has stopped
+matching yields an empty subtree that agrees with every other empty subtree.
+
+The floor is its own constant rather than a reuse of `ENTRY_FLOOR`: the addon is twelve
+entries against the package's eighty-two, so the package floor would refuse every healthy
+run, and a floor that cannot be met is one the first reader lowers to zero.
+
+### Fixed — CONTRIBUTING described a cadence the artifact does not have
+
+The addon-cadence paragraph said the addon version moves independently of the host version.
+That is true of the Asset Library, which serves whatever commit a submission named. It is
+false of npm, where every addon change is a change to the published artifact and the only
+name npm has for that artifact is the host version. An addon re-stamp is therefore always
+carried by a host cut — not by convention, but because leaving the host version alone means
+the addon change never reaches npm users at all.
+
+
 ### Added — a release refuses to ship an addon version that has stopped naming the addon
 
 Two versions ship from this repository on two cadences. The host version moves at every
