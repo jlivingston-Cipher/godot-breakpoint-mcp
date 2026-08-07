@@ -250,6 +250,12 @@ export const NO_CLAIMS_EXPECTED = {
   "verdict_gate.mjs": "the verdict classifier itself — its claims are in verdict_gate.selftest.mjs (175)",
   "boundary_gate.mjs": "the cross-boundary classifier — it reads GDScript constants and JS comparisons and asserts nothing itself; its 49 claims are in boundary_gate.selftest.mjs (177)",
   "seal_order_gate.mjs": "the seal-order classifier — it reads probe sources for markers written above their own claims and asserts nothing itself; its 62 claims are in seal_order_gate.selftest.mjs (185)",
+  // 🆕 219 — the same shape as the four gates above and admitted for the same written
+  // reason, not by a filename rule. `positive_control_gate.mjs` reads every emptiness
+  // claim in the tree and decides whether its unit defends it; it asserts nothing itself,
+  // and its 43 claims — including the four defects found while promoting it out of scratch
+  // — are in positive_control_gate.selftest.mjs beside it, which IS classified.
+  "positive_control_gate.mjs": "the positive-control classifier — it reads assertion units and asserts nothing itself; its 43 claims are in positive_control_gate.selftest.mjs (219)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
   "token-cost.mjs": "a reporting tool that PRINTS the tool-surface cost; its two governed constants are asserted in token-cost.selftest.mjs",
   // 🔴 209 — AND THIS ONE'S REASON HAS A CAVEAT THE OTHERS DO NOT, so it is written here
@@ -285,7 +291,11 @@ const SHAPE_TYPEOF = new Set(["boolean", "number", "string", "object", "function
 // finder reported `AUTH_SCENE_DEPENDENCIES` and `AUTH_NESTED_PATH_LEGAL`, both of which
 // floor themselves this way, as unfloored `.every()`s. Same lesson as 171 §3's inline
 // floor: the best version of the fix must not be what the gate reports.
-const FLOOR_RE = /\.length|\.size|\bcount\b|\.byteLength|\.includes\s*\(|\.some\s*\(/;
+// 🆕 219 — EXPORTED, because `positive_control_gate.mjs` needs the same question
+// asked the same way. It had a byte-identical copy for one commit; two literals over one
+// population is one of them wrong (203 §2), and the copy would have been the wrong one
+// the first time this pattern learned a new self-flooring idiom.
+export const FLOOR_RE = /\.length|\.size|\bcount\b|\.byteLength|\.includes\s*\(|\.some\s*\(/;
 const DERIVING = /\.(filter|map|flatMap|flat|reduce|concat|entries|keys|values|from)\s*\(|\bObject\.(keys|values|entries)\b/;
 // `family` is `_population.mjs`'s block form and `authoring-plane`'s own — the probe
 // equivalent of `test()`, and the unit its manifest is keyed on.

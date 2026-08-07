@@ -129,6 +129,15 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # 🆕 211 §6 — the budget reader's self-test grew a collapse detector of its own when
     # it became a roster entry, and a collapse detector nothing moves is 176's G12 shape.
     ("tc.CLAIM_FLOOR",           f"{S}/token-cost.selftest.mjs",     r"(const CLAIM_FLOOR = )18;",                                [f"{S}/token-cost.selftest.mjs"]),
+    # 🆕 219 — the positive-control finder's four, and its self-test's own. All five
+    # are asserted BY NAME in `positive_control_gate.selftest.mjs` as well as driven from
+    # both sides (at the floor it passes, one past it refuses), so moving any of them off
+    # its shipped value reddens that file for two independent reasons rather than one.
+    ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.RESIDUE_CEILING",       f"{S}/positive_control_gate.mjs",   r"(export const RESIDUE_CEILING = )1;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.CLAIM_FLOOR_SELF",      f"{S}/positive_control_gate.selftest.mjs", r"(const CLAIM_FLOOR_SELF = )44;",                    [f"{S}/positive_control_gate.selftest.mjs"]),
     ("wd.COLLAPSE_SHAPE_FLOOR",  f"{S}/wire_diff.selftest.mjs",      r"(const COLLAPSE_SHAPE_FLOOR = )6;",                        [f"{S}/wire_diff.selftest.mjs"]),
     ("SUBJECT_FLOOR",            f"{S}/verdict_gate.mjs",            r"(export const SUBJECT_FLOOR = )4;",                        [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_SITE_FLOOR",       f"{S}/verdict_gate.mjs",            r"(export const DISCARD_SITE_FLOOR = )55;",                  [f"{S}/verdict_gate.selftest.mjs"]),
@@ -945,8 +954,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (34, (
-        "The non-executable scripts, at `{FLOOR}`. Raised by one when 216 §1 added "
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (36, (
+        "The non-executable scripts, at `{FLOOR}`. 🆕 Raised by TWO when 219 — the session "
+        "that promoted the positive-control finder and its self-test out of gitignored "
+        "scratch — added both. Each is invoked as `node <file>` like every gate beside it, "
+        "so the non-executable mode is the correct one, and this is the count moving for "
+        "exactly the reason it exists to move. Before that, raised by one when 216 §1 added "
         "release_names.py — 🔴 AND THE SENTENCE BELOW PREDICTED THE EXACT WAY IT WOULD "
         "BE FOUND. The local run passed while the new file was UNTRACKED and this check "
         "refused the moment it was staged, because the population is `git ls-files` and "

@@ -280,6 +280,24 @@ jobs:
         run: node scripts/seal_order_gate.selftest.mjs
       - name: No marker is written above the claims it describes (seal order gate)
         run: node scripts/seal_order_gate.mjs
+      # 🆕 219 — 215 §7.4/§7.5, four sessions after they were named. `assert.deepEqual(
+      # wire, [])` passes on a collection that CAN be non-empty and on one that never
+      # fills, and only the claim's own UNIT separates them. The reader lived in gitignored
+      # scratch for four sessions, in which four separate defects each produced a clean,
+      # plausible table (214 §5) — every one is now a refusal row in the self-test, and a
+      # mutation sweep caught all eight mutants it claims to catch.
+      # 🔴 IT REPORTS THREE ANSWERS FOR "NO", NOT ONE, and that is what made promotion
+      # possible: a boolean gate calls a process trap and a floored intersection defects,
+      # gets overridden by hand on its first run, and an instrument overridden by hand is
+      # one nobody reads (215 §4). Both exemptions are DERIVED from the source — a trap is
+      # a collector written only inside a `process.on("uncaughtException"|…)` callback AND
+      # floored on a companion binding; without that floor it is `PC_TRAP_UNFLOORED`, which
+      # cannot hide inside the defect ceiling. Static, no Godot, no ports, ~2s: a step here
+      # rather than a 27th job (FIFTY-SEVENTH session running).
+      - name: The positive-control finder, self-checked
+        run: node scripts/positive_control_gate.selftest.mjs
+      - name: Every emptiness claim is defended, exempt or floored (positive control gate)
+        run: node scripts/positive_control_gate.mjs
       - name: Every derived population collapses loudly (scope gate)
         run: python3 ../scripts/scope_gate.py
       # 🔴 AND THE SAME TECHNIQUE POINTED AT THE JS INSTRUMENTS — 172 §10.2, which named
