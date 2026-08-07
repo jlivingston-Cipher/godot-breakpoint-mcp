@@ -102,27 +102,84 @@ to read. `--selftest` is PURE: no network, no npm, no filesystem, and it runs on
 every push, which is the half that carries 204 §8.27, *a check that has never
 refused has not been audited*.
 
-🔴 AND ONE THING THIS FILE DOES NOT CLOSE. `SHIPPED_SOURCE` below is check 3's map
-and 203 §2's ONE LIST rule says there must be exactly one of it. The ritual's check 3
-asserts it against the real `npm pack --dry-run` roots BOTH WAYS; that assertion is
-still in the scratch file. The map is defined HERE so the promoted reader does not
-carry a second copy — 🔴 THE RITUAL MUST IMPORT IT FROM HERE, NOT REDEFINE IT, or
-203 §2 is broken by the very move that was supposed to protect it.
+🔴 AND 216's LAST PARAGRAPH IS CLOSED — `--assert-map`, BELOW. It said `SHIPPED_SOURCE`
+is check 3's map, that 203 §2's ONE LIST rule allows exactly one of it, and that the
+tarball-roots-BOTH-WAYS assertion over it was still in the gitignored ritual. It is
+here now, pure core plus a live half, and it runs in CI's `build` job beside the
+`npm pack --dry-run` that job already does. 🔴 THE RITUAL MUST STILL IMPORT THE MAP
+FROM HERE, NOT REDEFINE IT, or 203 §2 is broken by the very move that protected it.
+
+── CHECK 2, AND WHY 216 §3's DIAGNOSIS WAS WRONG ──────────────────────────────
+216 §3 wrote that check 2's population *"can NEVER be empty — the ritual's own version
+write is in it"*, that `NOT EMPTY this window` had *"been printed on every release and
+has never carried a bit of information"*, and shipped a split of that population into
+`N this script wrote / N did not`.
+
+🔴 IT IS NOT TRUE, AND THE REASON IS ONE LINE: `git diff v{OLD}..HEAD` COMPARES TWO
+COMMITS. The ritual's version write is still UNCOMMITTED when check 2 reads it, so it
+is not in that window and never was. 216 measured `v1.73.1..HEAD` *after* 1.73.2 had
+already merged — a different window than the one the check reads.
+
+🔴 MEASURED PROPERLY, AT `v{OLD}..parent(release commit)` — the window the ritual
+actually sees — over all five producers, for the last ten cuts:
+
+    1.73.2  0 files      1.72.7  0      1.72.4  0      1.72.1  0
+    1.73.1  0 files      1.72.6  0      1.72.3  0
+    1.73.0  5 files      1.72.5  0      1.72.2  0
+
+Empty on NINE of ten, and non-empty on exactly one — 1.73.0, the only real MINOR in
+the range. 🔴 SO THE LINE 216 CALLED "NEVER ABLE TO SAY NOTHING" HAS BEEN SAYING
+"NOTHING MOVED" NINE TIMES OUT OF TEN, CORRECTLY. What was missing was never the
+population. It was that nobody ever ASSERTED on it.
+
+🔴 AND THAT MAKES CHECK 2 THE NOTES-INDEPENDENT COMPLEMENT TO CHECK 1. Check 1's MINOR
+arm asks whether the identifiers THE NOTES NAME appear in the window, so notes that
+name the wrong things defeat it. This arm reads no notes at all: it asks whether ANY
+shipped producer moved. A MINOR whose producer window is empty ships nothing, whatever
+its notes say — `C2_MINOR_NO_SUBSTANCE`. The two can disagree, which is the only
+reason having both is worth anything (216 §2.1's rule, pointed the other way).
+
+🔴 THE VERSION-BUMP HUNK CLASSIFIER IS STILL HERE, FOR THE TWO WINDOWS THAT DO CARRY
+THE WRITE: a `--head-ref` replay of a historical cut ends AT the release commit, and a
+tag placed later than its release commit drags the write in. A changed hunk is the
+ritual's own write iff substituting the old version literal for the new one turns every
+removed line into exactly its added line — nothing else on that line may differ. That
+is the tightest test available and it needs no per-file pattern table.
+
+🔴 AND ONE HOLE THIS FILE REPORTS RATHER THAN CLOSES. Tags are not always placed on
+the release commit — `v1.73.1` points one commit PAST it, so #262 is invisible to every
+window starting at that tag. Nothing touching a producer has fallen into such a shadow
+yet. The direction that WOULD have made 216's story true — a tag placed EARLIER than
+its release commit, dragging the version write into the next window — IS gated:
+`C2_TAG_MISPLACED`, asserted from the tag's own tree.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 🔴 THE TARBALL POPULATION FLOOR IS IMPORTED, NOT RESTATED — 203 §2's ONE LIST rule
+# applied to a NUMBER. `--assert-map` below floors exactly the population
+# `registry_bytes.py` floors, for exactly its reason (`tarball_trap()`: two empty
+# collections agree by construction, so the roots-both-ways answer is a tautology
+# unless the entry list is real). A second literal here would be a second thing to
+# move. 🔴 THE IMPORT IS ALSO WHAT KEEPS `--selftest` PURE: `registry_bytes` and the
+# `registry_lag` it imports do no module-level work — measured at 217, both import in
+# ~0.015s with no network. If either ever grows a side effect, this line is where the
+# selftest stops being pure, and that is the thing to look at first.
+from registry_bytes import ENTRY_FLOOR  # noqa: E402
 
 # 🔴 CHECK 3's MAP — 203 §2's ONE LIST, and 204 §2's PRODUCERS. Check 6 is what
 # licenses reading the producer as a proxy for the product: with the shipped bytes
 # proved equal to their live sources, the source is a defensible reading of what
-# ships. The tarball-roots-both-ways assertion over this map lives in the ritual's
-# check 3; see the docstring's last paragraph for what that costs.
+# ships. 🆕 217 — THE TARBALL-ROOTS-BOTH-WAYS ASSERTION OVER THIS MAP IS `--assert-map`
+# BELOW, not in the ritual any more; 216 §6.4 named the promotion and this is it.
 SHIPPED_SOURCE = {
     "dist":         ("host/src", "*.ts"),              # tsc
     "addon":        ("addons/breakpoint_mcp", "*"),    # host/scripts/stage-addon.mjs
@@ -131,6 +188,15 @@ SHIPPED_SOURCE = {
     # 201 §2 — npm ships this REGARDLESS of `files`.
     "package.json": ("host/package.json", None),
 }
+
+# 🔴 THE TWO PRODUCER FILES THE RITUAL ITSELF EDITS ON EVERY CUT. Six version fields
+# across six files are written; only these two are inside `SHIPPED_SOURCE`, so only
+# these two can ever appear in check 2's window. 🔴 THIS IS A TUPLE OF PATHS AND NOT A
+# COUNT, ON PURPOSE — 216 §4 spent a `floor_pin_gate` run on two refusal codes that
+# were floor-shaped only because they had been named after the floor they report. A
+# name that says what a thing IS costs nothing; a name that says what it RESEMBLES
+# costs a gate run.
+RITUAL_VERSION_FILES = ("host/package.json", "host/src/index.ts")
 
 # 🔴 THE FLOOR, AND IT IS ON THE POPULATION READ, NOT ON THE ANSWER. A block naming
 # two identifiers is not evidence either way; five is the number the PATCH arm has
@@ -159,6 +225,20 @@ MINOR_POPULATION = "MINOR_POPULATION"
 MINOR_UNSUPPORTED = "MINOR_UNSUPPORTED"
 MINOR_NO_WINDOW = "MINOR_NO_WINDOW"
 NO_ARM = "NO_ARM"
+
+# 🆕 217 — CHECK 2's CODES. Same discipline: a named refusal so the table can prove
+# WHICH branch fired, not merely that one did.
+C2_OK = "C2_OK"
+C2_SILENT = "C2_SILENT"
+C2_MINOR_NO_SUBSTANCE = "C2_MINOR_NO_SUBSTANCE"
+C2_TAG_MISPLACED = "C2_TAG_MISPLACED"
+
+# 🆕 217 — `--assert-map`'s codes, promoted from the ritual's check 3.
+MAP_OK = "MAP_OK"
+MAP_UNMAPPED = "MAP_UNMAPPED"
+MAP_STALE = "MAP_STALE"
+MAP_MISSING_SOURCE = "MAP_MISSING_SOURCE"
+MAP_TARBALL_THIN = "MAP_TARBALL_THIN"
 
 
 def read_names(released: str) -> tuple[list[str], list[str]]:
@@ -267,6 +347,187 @@ def verdict(released: str, shipped_text: str, bump: str,
                     f"and nobody has written it (210 §9)"), d
 
 
+# ── CHECK 2, AS A PURE READER OVER A DIFF — 216 §6.3, on a corrected premise ───
+
+_FILE_RE = re.compile(r"^diff --git a/(\S+) b/\S+$")
+
+
+def parse_diff(diff_text: str) -> dict[str, list[tuple[list[str], list[str]]]]:
+    """`git diff --unified=0` text -> {path: [(removed, added), ...]} — pure.
+
+    🔴 A PATH WITH AN EMPTY HUNK LIST IS A REAL CHANGE, NOT A MISSING ONE. A rename or
+    a mode change produces a `diff --git` header and no `@@` at all, and `all()` over
+    an empty list is True — so a classifier that forgets this reports "the ritual wrote
+    it" about a file the ritual never touched. The empty list is preserved here and
+    handled explicitly in `split_window`; `a rename has no hunks` in the table below is
+    the row that reddens if either half is dropped.
+    """
+    files: dict[str, list[tuple[list[str], list[str]]]] = {}
+    path: str | None = None
+    cur: tuple[list[str], list[str]] | None = None
+    for line in diff_text.splitlines():
+        m = _FILE_RE.match(line)
+        if m:
+            path = m.group(1)
+            files.setdefault(path, [])
+            cur = None
+            continue
+        if path is None:
+            continue
+        if line.startswith("@@"):
+            cur = ([], [])
+            files[path].append(cur)
+            continue
+        # 🔴 THE `---`/`+++` HEADERS ARE OUTSIDE EVERY HUNK, so `cur is None` already
+        # excludes them and no startswith guard is needed here. That matters: a REMOVED
+        # line whose own content is `--` arrives as `---`, and a guard would silently
+        # drop it — a content-shaped-like-a-header bug of exactly the kind 216 §4 found
+        # in a name. Inside a hunk the first character is the only thing that is syntax.
+        if cur is None:
+            continue
+        if line.startswith("-"):
+            cur[0].append(line[1:])
+        elif line.startswith("+"):
+            cur[1].append(line[1:])
+    return files
+
+
+def is_version_bump_hunk(removed: list[str], added: list[str],
+                         old: str, new: str) -> bool:
+    """True iff this hunk is ONLY the version literal moving from `old` to `new`.
+
+    🔴 THE TEST IS SUBSTITUTION AND EQUALITY, NOT A PATTERN. `removed.replace(old, new)
+    == added` admits a line only when the version literal is the entire difference —
+    any other edit anywhere on that line breaks the equality and the hunk is
+    substantive. A regex over `"version": "..."` would have to be maintained per file
+    and would pass a line that changed the version AND something else.
+    """
+    if not removed or len(removed) != len(added):
+        return False
+    return all(old in r and r.replace(old, new) == a
+               for r, a in zip(removed, added))
+
+
+def split_window(diff_text: str, old: str, new: str) -> tuple[list[str], list[str]]:
+    """(ritual_only, substantive) file paths — pure.
+
+    A file is `ritual_only` iff it has at least one hunk and EVERY hunk is a version
+    bump. Everything else — including a header with no hunks at all — is substantive.
+    """
+    ritual_only, substantive = [], []
+    for path, hunks in sorted(parse_diff(diff_text).items()):
+        if hunks and all(is_version_bump_hunk(r, a, old, new) for r, a in hunks):
+            ritual_only.append(path)
+        else:
+            substantive.append(path)
+    return ritual_only, substantive
+
+
+def population(diff_text: str, old: str, new: str, bump: str,
+               tag_tree_version: str | None = None) -> tuple[str, str, dict]:
+    """Check 2, as a PURE function of (window, versions, bump). Never raises.
+
+    `tag_tree_version` is the version literal found in `host/src/index.ts` AT THE TAG
+    the window starts from. It must be `old`: the tag is supposed to sit at or after
+    the cut that wrote it. A tag placed EARLIER than its release commit drags that
+    write into this window, which is the shape 216 §3 believed was universal.
+    """
+    ritual_only, substantive = split_window(diff_text, old, new)
+    d = {"ritual_only": ritual_only, "substantive": substantive,
+         "moved": sorted(ritual_only + substantive),
+         "tag_tree_version": tag_tree_version}
+
+    if tag_tree_version is not None and tag_tree_version != old:
+        return C2_TAG_MISPLACED, (
+            f"🔴 the window starts at v{old} but that tag's tree says the shipped "
+            f"version is {tag_tree_version!r}. The tag is not on the cut it names, so "
+            f"this window either drags the previous release's version write in or "
+            f"drops work that landed before the tag. Check 2 and check 1's MINOR arm "
+            f"both read this window; neither is answerable until the tag is right."), d
+
+    if bump == "MINOR" and not substantive:
+        return C2_MINOR_NO_SUBSTANCE, (
+            f"🔴 MINOR claim is UNSUPPORTED BY THE TREE — nothing in the "
+            f"{len(SHIPPED_SOURCE)} shipped producers moved this window except "
+            f"{len(ritual_only)} file(s) this ritual wrote itself ({ritual_only}). A "
+            f"MINOR that ships no product change is a PATCH. 🔴 THIS READS NO NOTES AT "
+            f"ALL, which is why it is worth having beside check 1: check 1's MINOR arm "
+            f"can be satisfied by notes that name the right words, and this cannot."), d
+
+    if not substantive:
+        return C2_SILENT, (
+            f"0 producer file(s) moved that this ritual did not write "
+            f"({len(ritual_only)} it did: {ritual_only}). 🔴 THAT IS A REAL ZERO AND IT "
+            f"IS THE {bump} CLAIM, from an angle that reads neither the notes nor the "
+            f"wire — measured at 217, nine of the last ten cuts look exactly like "
+            f"this, and the tenth was the only MINOR."), d
+
+    return C2_OK, (
+        f"{len(substantive)} producer file(s) moved that this ritual did not write "
+        f"({substantive}); {len(ritual_only)} it did ({ritual_only}). The "
+        f"MINOR/PATCH question is real this window and check 8 reads the wire for it."), d
+
+
+# ── `--assert-map` — check 3's BOTH-WAYS assertion, promoted (216 §6.4) ────────
+
+def assert_map(tarball: list[str], exists=None,
+               entry_floor: int | None = None) -> tuple[str, str, dict]:
+    """The tarball's roots against SHIPPED_SOURCE, BOTH WAYS — pure given `exists`.
+
+    🔴 `exists` IS INJECTED SO THE TABLE CAN DRIVE THIS WITHOUT A TREE. The live half
+    passes a real filesystem probe; `--selftest` passes a set. Same argument as
+    `verdict`'s `shipped_text`: a check that can only be run by cutting a release is a
+    check whose refusals nobody has watched.
+    """
+    f = ENTRY_FLOOR if entry_floor is None else entry_floor
+    roots = sorted({e.split("/")[0] for e in tarball})
+    unmapped = [r for r in roots if r not in SHIPPED_SOURCE]
+    stale = [k for k in SHIPPED_SOURCE if k not in roots]
+    d = {"entries": len(tarball), "roots": roots, "unmapped": unmapped,
+         "stale": stale, "missing_source": [], "floor": f}
+
+    # 🔴 THE FLOOR FIRST, AND IT IS NOT DEFENSIVE PROGRAMMING. Both answers below are
+    # EMPTY when the tarball is empty — `unmapped` because there are no roots and
+    # `stale` only if the map is empty too. An answer that is clean by construction is
+    # `tarball_trap()`'s finding one file over, and 216 §2.4's: a control whose premise
+    # did not hold reports the same shape as one that passed.
+    if len(tarball) < f:
+        return MAP_TARBALL_THIN, (
+            f"🔴 the tarball has {len(tarball)} entr(y/ies), below the floor of {f}. "
+            f"The roots-both-ways answer is clean by construction on a population this "
+            f"small, so it is not an answer. Did `npm pack --dry-run` actually run, and "
+            f"did `npm run stage-addon` run before it?"), d
+
+    if unmapped:
+        return MAP_UNMAPPED, (
+            f"🔴 npm ships {len(unmapped)} top-level root(s) with NO declared source: "
+            f"{unmapped}. Add each to SHIPPED_SOURCE and re-ask the MINOR/PATCH "
+            f"question over it — an undeclared root is product that check 1, check 2 "
+            f"and the corpus are all blind to. 🔴 DO NOT DELETE THIS ASSERTION; it is "
+            f"the half check 8 cannot do, because the wire cannot name a file."), d
+
+    if stale:
+        return MAP_STALE, (
+            f"🔴 SHIPPED_SOURCE names {len(stale)} root(s) npm no longer ships: "
+            f"{stale}. Either `files` in host/package.json changed and the map did "
+            f"not, or the tarball was packed without `npm run stage-addon` and the "
+            f"`addon` root is simply absent. Both are worth stopping for."), d
+
+    if exists is not None:
+        missing = [f"{r} -> {SHIPPED_SOURCE[r][0]}"
+                   for r in roots if not exists(SHIPPED_SOURCE[r][0])]
+        d["missing_source"] = missing
+        if missing:
+            return MAP_MISSING_SOURCE, (
+                f"🔴 the map declares a source that is not on disk: {missing}. The "
+                f"corpus every name check reads is built from these paths, so a "
+                f"missing one silently shrinks what 'reaches shipped source' means."), d
+
+    return MAP_OK, (f"{len(tarball)} packed entr(y/ies) over {len(roots)} root(s) "
+                    f"{roots}; every root maps to a declared source and every declared "
+                    f"source is still shipped — both directions, floor {f}"), d
+
+
 # ── the live half — needs a released block, so it belongs to the cut ───────────
 
 def shipped_corpus(root: Path = ROOT) -> str:
@@ -304,15 +565,25 @@ def changed_window(previous: str, root: Path = ROOT, head: str = "HEAD") -> str:
     something into the product. A name appearing only in removed lines is a
     deletion, which is a claim about a different bump entirely.
 
-    🔴 AND IT INCLUDES THE RITUAL'S OWN VERSION WRITES, WHICH IS WHY THE ARM READS
-    NAMES AND NOT A LINE COUNT. `host/package.json` and `host/src/index.ts` both
-    carry a version literal the ritual itself edits, so this window is NEVER empty
-    on any release — measured at 216: the whole v1.73.1..v1.73.2 window over these
-    five producers is those two lines and nothing else. A check reading "did the
-    window move" would fire on every cut forever; a check reading "are any of the
-    block's names IN it" does not.
+    🔴 216 SAID THIS WINDOW IS NEVER EMPTY BECAUSE THE RITUAL'S OWN VERSION WRITES ARE
+    IN IT. THEY ARE NOT. `git diff A..B` compares two COMMITS and the ritual's write is
+    uncommitted when this runs, so at a cut it is invisible here — measured at 217 over
+    the last ten cuts, this window is EMPTY on nine of them. The arm still reads NAMES
+    and not a line count, because the two windows that DO carry the write are a
+    `--head-ref` replay and a misplaced tag, and on those a line count would fire for a
+    reason that has nothing to do with the release.
     """
-    import subprocess
+    return "\n".join(l[1:] for l in raw_window(previous, root, head).splitlines()
+                     if l.startswith("+") and not l.startswith("+++"))
+
+
+def raw_window(previous: str, root: Path = ROOT, head: str = "HEAD") -> str:
+    """The raw `git diff --unified=0` over the SHIPPED_SOURCE producers since v{previous}.
+
+    Check 1's MINOR arm reads the ADDED LINES of this; check 2 reads its FILE and HUNK
+    structure. 🔴 ONE `git diff`, TWO READERS — the two questions must be answered over
+    the same window or agreeing means nothing.
+    """
     srcs = [rel for rel, _ in SHIPPED_SOURCE.values()]
     r = subprocess.run(["git", "diff", "--unified=0", f"v{previous}..{head}",
                         "--", *srcs],
@@ -322,8 +593,40 @@ def changed_window(previous: str, root: Path = ROOT, head: str = "HEAD") -> str:
             f"🔴 RELEASE_NAMES REFUSED — could not read the diff window "
             f"v{previous}..{head}: {r.stderr.strip()}. This is RED and not a skip: "
             f"the MINOR arm's evidence IS this window.")
-    return "\n".join(l[1:] for l in r.stdout.splitlines()
-                     if l.startswith("+") and not l.startswith("+++"))
+    return r.stdout
+
+
+def tag_tree_version(previous: str, root: Path = ROOT) -> str | None:
+    """The version literal in `host/src/index.ts` AS OF tag v{previous}. None if unreadable.
+
+    🔴 READ FROM THE TAG'S OWN TREE, NOT FROM THE TAG NAME. The point is to catch a tag
+    that does not sit on the cut it is named after, so believing the name would answer
+    the question with the question.
+    """
+    r = subprocess.run(["git", "show", f"v{previous}:host/src/index.ts"],
+                       cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"', r.stdout)
+    return m.group(1) if m else None
+
+
+def tarball_entries(host: Path | None = None) -> list[str]:
+    """`npm pack --dry-run --json` -> the packed entry paths. Refuses loudly."""
+    h = (ROOT / "host") if host is None else host
+    r = subprocess.run(["npm", "pack", "--dry-run", "--json"], cwd=str(h),
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(
+            f"🔴 RELEASE_NAMES REFUSED — `npm pack --dry-run` failed in {h}: "
+            f"{r.stderr.strip()[:400]}")
+    try:
+        return [f["path"] for f in json.loads(r.stdout)[0]["files"]]
+    except (ValueError, KeyError, IndexError) as e:
+        raise SystemExit(
+            f"🔴 RELEASE_NAMES REFUSED — could not read `npm pack --json` output "
+            f"({e}). Refusing rather than answering over an empty entry list, which "
+            f"would be clean by construction.")
 
 
 # ── the refusal proof (204 §8.27 — a check that has never refused is unaudited) ──
@@ -396,6 +699,121 @@ SELFTEST = [
 ]
 
 
+# ── check 2's table — 🆕 217 ───────────────────────────────────────────────────
+#
+# 🔴 THE FIRST TWO ROWS ARE BOTH REAL AND THEY ARE DIFFERENT WINDOWS OF THE SAME CUT.
+# `_D_NOTHING` is what the ritual saw at 1.73.2: v1.73.1..HEAD before the write, and it
+# is EMPTY — which is what 216 §3 said was impossible. `_D_BUMP_ONLY` is the same cut's
+# window read AFTER the release merged, which is what 216 actually measured. Both are
+# verbatim; the disagreement between them IS the finding.
+
+_D_NOTHING = ""
+
+_D_BUMP_ONLY = """diff --git a/host/package.json b/host/package.json
+index 5b0a2b2..346d6c2 100644
+--- a/host/package.json
++++ b/host/package.json
+@@ -3 +3 @@
+-  "version": "1.73.1",
++  "version": "1.73.2",
+diff --git a/host/src/index.ts b/host/src/index.ts
+index 6c8cdaf..3bfd417 100644
+--- a/host/src/index.ts
++++ b/host/src/index.ts
+@@ -88 +88 @@ async function main(): Promise<void> {
+-    { name: "breakpoint-mcp", version: "1.73.1" },
++    { name: "breakpoint-mcp", version: "1.73.2" },
+"""
+
+_D_SUBSTANCE = _D_BUMP_ONLY + """diff --git a/host/src/schemas.ts b/host/src/schemas.ts
+index 1111111..2222222 100644
+--- a/host/src/schemas.ts
++++ b/host/src/schemas.ts
+@@ -12,0 +13 @@ export const shapes = {
++export const engine_log = z.object({ seq: z.number() });
+"""
+
+# 🔴 THE VERSION MOVED **AND SO DID SOMETHING ELSE, ON THE SAME LINE**. A regex over
+# `version: "..."` passes this and loses the `title` field forever. Substitution does not.
+_D_BUMP_PLUS = """diff --git a/host/src/index.ts b/host/src/index.ts
+index 6c8cdaf..3bfd417 100644
+--- a/host/src/index.ts
++++ b/host/src/index.ts
+@@ -88 +88 @@
+-    { name: "breakpoint-mcp", version: "1.73.1" },
++    { name: "breakpoint-mcp", version: "1.73.2", title: "Breakpoint" },
+"""
+
+# 🔴 A HEADER WITH NO `@@` AT ALL. `all()` over an empty hunk list is True, so a
+# classifier that forgets this calls a rename "the ritual wrote it".
+_D_RENAME = """diff --git a/host/src/old_name.ts b/host/src/new_name.ts
+similarity index 100%
+rename from host/src/old_name.ts
+rename to host/src/new_name.ts
+"""
+
+# (name, diff, old, new, bump, tag_version, want_code, want_ritual, want_substantive)
+C2_SELFTEST = [
+    ("🔴 1.73.2's REAL ritual window — EMPTY, which 216 §3 said was impossible",
+     _D_NOTHING, "1.73.1", "1.73.2", "PATCH", None, C2_SILENT, 0, 0),
+    ("the same cut read AFTER the merge — version writes only, still no substance",
+     _D_BUMP_ONLY, "1.73.1", "1.73.2", "PATCH", None, C2_SILENT, 2, 0),
+    ("🔴 A MINOR THAT SHIPS NOTHING — THE REFUSAL NOBODY HAS EVER MADE",
+     _D_BUMP_ONLY, "1.73.1", "1.73.2", "MINOR", None, C2_MINOR_NO_SUBSTANCE, 2, 0),
+    ("🔴 A MINOR WHOSE WINDOW IS EMPTY OUTRIGHT",
+     _D_NOTHING, "1.73.1", "1.73.2", "MINOR", None, C2_MINOR_NO_SUBSTANCE, 0, 0),
+    ("a healthy MINOR — a producer moved (the 1.73.0 shape)",
+     _D_SUBSTANCE, "1.73.1", "1.73.2", "MINOR", None, C2_OK, 2, 1),
+    ("🔴 THE VERSION LINE THAT CHANGED SOMETHING ELSE TOO — substitution, not a regex",
+     _D_BUMP_PLUS, "1.73.1", "1.73.2", "PATCH", None, C2_OK, 0, 1),
+    ("🔴 A RENAME HAS NO HUNKS — and `all()` over nothing is True",
+     _D_RENAME, "1.73.1", "1.73.2", "PATCH", None, C2_OK, 0, 1),
+    ("🔴 A TAG THAT IS NOT ON THE CUT IT NAMES — the window is unanswerable",
+     _D_NOTHING, "1.73.1", "1.73.2", "PATCH", "1.73.0", C2_TAG_MISPLACED, 0, 0),
+    ("a tag that IS on its cut passes the guard",
+     _D_NOTHING, "1.73.1", "1.73.2", "PATCH", "1.73.1", C2_SILENT, 0, 0),
+]
+
+
+# ── `--assert-map`'s table — 🆕 217 ────────────────────────────────────────────
+
+def _pack(*, extra=(), drop=(), n=70) -> list[str]:
+    """A synthetic packed-entry list. `n` sizes the `dist` root so the floor is drivable."""
+    out = []
+    if "dist" not in drop:
+        out += [f"dist/m{i}.js" for i in range(n)]
+    if "addon" not in drop:
+        out += ["addon/breakpoint_mcp/plugin.cfg", "addon/breakpoint_mcp/x.gd"]
+    for f in ("README.md", "LICENSE", "package.json"):
+        if f not in drop:
+            out.append(f)
+    return out + list(extra)
+
+
+_ALL_THERE = lambda rel: True  # noqa: E731
+
+# (name, tarball, exists, want_code)
+MAP_SELFTEST = [
+    ("the healthy shape — five roots, and BOTH directions clean",
+     _pack(), _ALL_THERE, MAP_OK),
+    ("🔴 AN UNDECLARED ROOT — npm ships something the map has never heard of",
+     _pack(extra=("bin/cli.js",)), _ALL_THERE, MAP_UNMAPPED),
+    ("🔴 A STALE MAP ENTRY — `addon` is absent (a pack with no stage-addon)",
+     _pack(drop=("addon",)), _ALL_THERE, MAP_STALE),
+    ("🔴 A DECLARED SOURCE THAT IS NOT ON DISK",
+     _pack(), lambda rel: rel != "host/LICENSE", MAP_MISSING_SOURCE),
+    ("🔴 AN EMPTY TARBALL ANSWERS BOTH DIRECTIONS CLEANLY — and that is not an answer",
+     [], _ALL_THERE, MAP_TARBALL_THIN),
+    # 🔴 THESE TWO RUN UNDER THE LIVE `ENTRY_FLOOR`, which is what makes moving it
+    # redden anything at all — registry_bytes.py's own split, one file over. At the
+    # floor it passes; one entry below it refuses.
+    ("a tarball exactly AT the imported ENTRY_FLOOR still answers",
+     _pack(n=ENTRY_FLOOR - 5), _ALL_THERE, MAP_OK),
+    ("🔴 ONE ENTRY BELOW THE FLOOR AND IT REFUSES",
+     _pack(n=ENTRY_FLOOR - 6), _ALL_THERE, MAP_TARBALL_THIN),
+]
+
+
 def selftest() -> int:
     bad = 0
     for name, rel, ship, bump, floor, win, want_code, want_c, want_a in SELFTEST:
@@ -426,19 +844,51 @@ def selftest() -> int:
     if not counterfactual_ok:
         bad += 1
 
-    refusals = sum(1 for r in SELFTEST if r[6] != OK)
-    codes = {r[6] for r in SELFTEST}
-    print(f"\n  {len(SELFTEST)} rows · {refusals} REFUSE · {len(codes)} distinct "
-          f"code(s) · {'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
+    print("\n  CHECK 2 — the producer window, which reads no notes at all (🆕 217)")
+    for name, diff, old, new, bump, tagv, want_code, want_r, want_s in C2_SELFTEST:
+        code, why, d = population(diff, old, new, bump, tag_tree_version=tagv)
+        agree = (code == want_code
+                 and len(d["ritual_only"]) == want_r
+                 and len(d["substantive"]) == want_s)
+        print(f"  {'🟢' if agree else '🔴'} {code:<22} ritual={len(d['ritual_only'])}/{want_r} "
+              f"subst={len(d['substantive'])}/{want_s}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+
+    print("\n  --assert-map — check 3's BOTH-WAYS assertion, promoted (🆕 217)")
+    for name, tar, exists, want_code in MAP_SELFTEST:
+        code, why, d = assert_map(tar, exists=exists)
+        agree = code == want_code
+        print(f"  {'🟢' if agree else '🔴'} {code:<22} entries={d['entries']:<4} "
+              f"roots={len(d['roots'])}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+
+    rows = len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST)
+    passing = {OK, C2_OK, C2_SILENT, MAP_OK}
+    seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
+            | {r[3] for r in MAP_SELFTEST})
+    refusals = (sum(1 for r in SELFTEST if r[6] not in passing)
+                + sum(1 for r in C2_SELFTEST if r[6] not in passing)
+                + sum(1 for r in MAP_SELFTEST if r[3] not in passing))
+    print(f"\n  {rows} rows · {refusals} REFUSE · {len(seen)} distinct code(s) · "
+          f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
     # 🔴 EVERY REFUSAL CODE MUST HAVE A ROW. A code with no row is a branch nobody
-    # has watched fire, which is the state this whole file exists to leave.
-    missing = {NO_BLOCK, POPULATION_COLLAPSED, LEAK, MINOR_POPULATION, MINOR_UNSUPPORTED,
-               MINOR_NO_WINDOW, NO_ARM} - codes
+    # has watched fire, which is the state this whole file exists to leave. 🆕 217 —
+    # THE SET IS DERIVED, NOT RETYPED: every module-level name ending in a refusal is
+    # collected below, so ADDING a code with no row reddens this without anyone
+    # remembering to extend a literal list. A hand-maintained set is a second list
+    # (203 §2) and the drift it permits is silence about a new branch.
+    declared = {v for k, v in sorted(globals().items())
+                if isinstance(v, str) and k == v and v not in passing}
+    missing = declared - seen
     if missing:
         print(f"  🔴 refusal code(s) with NO ROW: {sorted(missing)} — a branch with "
               f"no row is a branch nobody has seen fire")
         return 1
-    if refusals < 6:
+    if refusals < 12:
         print(f"  🔴 the table has stopped proving what it exists to prove "
               f"({refusals} refusing rows)")
         return 1
@@ -449,7 +899,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="check 1 — the released block's names "
                                              "against the shipped corpus")
     ap.add_argument("--selftest", action="store_true",
-                    help="drive the pure reader over its table; no fs, no network")
+                    help="drive the pure readers over their tables; no fs, no network")
+    # 🔴 THE ONE MODE THAT DOES NOT NEED A RELEASE. Checks 1 and 2 both read a window
+    # that only exists at a cut; the map assertion reads the TARBALL, which any build
+    # can produce — so this runs in CI's `build` job, beside the `npm pack --dry-run`
+    # that job already does, on every push rather than once a release.
+    ap.add_argument("--assert-map", action="store_true",
+                    help="check 3's tarball-roots-BOTH-WAYS assertion over "
+                         "SHIPPED_SOURCE; needs `npm pack --dry-run`, no network")
     ap.add_argument("--version", help="the version being cut, e.g. 1.73.2")
     ap.add_argument("--previous", help="the previous released version")
     ap.add_argument("--date", help="the released block's date, e.g. 2026-08-06")
@@ -468,8 +925,21 @@ def main() -> int:
     a = ap.parse_args()
 
     if a.selftest:
-        print("RELEASE_NAMES selftest — check 1's refusals, proved with no tree")
+        print("RELEASE_NAMES selftest — the refusals of checks 1, 2 and the map, "
+              "proved with no tree")
         return selftest()
+
+    if a.assert_map:
+        tarball = tarball_entries()
+        code, why, d = assert_map(tarball,
+                                  exists=lambda rel: (ROOT / rel).exists())
+        print(f"RELEASE_NAMES --assert-map  ·  {d['entries']} packed entr(y/ies) · "
+              f"roots {d['roots']} · floor {d['floor']} (imported from registry_bytes)")
+        if code != MAP_OK:
+            print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {why}", file=sys.stderr)
+            return 1
+        print(f"               🟢 {why}")
+        return 0
 
     if not all([a.version, a.previous, a.date, a.bump]):
         print("🔴 RELEASE_NAMES REFUSED — the live half needs --version, --previous, "
@@ -486,7 +956,12 @@ def main() -> int:
         return 1
 
     corpus = shipped_corpus()
-    window = changed_window(a.previous, head=a.head_ref)
+    # 🔴 ONE `git diff`, TWO READERS. Check 1's MINOR arm reads the ADDED LINES; check 2
+    # reads the FILE and HUNK structure of the same bytes. Two diffs would be two
+    # windows, and two checks agreeing about different windows is not agreement.
+    raw = raw_window(a.previous, head=a.head_ref)
+    window = "\n".join(l[1:] for l in raw.splitlines()
+                       if l.startswith("+") and not l.startswith("+++"))
     code, why, d = verdict(released, corpus, a.bump, changed_text=window)
     print(f"RELEASE_NAMES  {a.version} · {a.bump} · block {len(released):,} chars · "
           f"corpus {len(corpus):,} chars over {len(SHIPPED_SOURCE)} shipped roots")
@@ -497,8 +972,28 @@ def main() -> int:
     print(f"               window v{a.previous}..{a.head_ref} — "
           f"{len(window.splitlines())} added line(s) over the shipped roots · "
           f"in window {d['in_window']}")
+
+    # 🔴 CHECK 2 RUNS OVER THE SAME WINDOW AND IS REPORTED WHETHER OR NOT CHECK 1
+    # REFUSED, because the two answer different questions and the interesting case is
+    # exactly the one where they disagree. 🔴 BOTH VERDICTS ARE COLLECTED BEFORE EITHER
+    # RETURNS — an early `return` on check 1 would mean check 2's refusal had never
+    # been seen on a tree where check 1 was already red, which is how a second check
+    # stays unaudited forever.
+    tagv = tag_tree_version(a.previous)
+    c2_code, c2_why, c2 = population(raw, a.previous, a.version, a.bump,
+                                     tag_tree_version=tagv)
+    print(f"CHECK 2        v{a.previous} tree says {tagv!r} · moved {c2['moved']} · "
+          f"{len(c2['ritual_only'])} written by the ritual, "
+          f"{len(c2['substantive'])} not")
+    if c2_code in (C2_OK, C2_SILENT):
+        print(f"               🟢 [{c2_code}] {c2_why}")
+    else:
+        print(f"\n🔴 RELEASE_NAMES REFUSED [{c2_code}]: {c2_why}", file=sys.stderr)
+
     if code != OK:
         print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {why}", file=sys.stderr)
+        return 1
+    if c2_code not in (C2_OK, C2_SILENT):
         return 1
     print(f"               🟢 {why}")
     return 0
