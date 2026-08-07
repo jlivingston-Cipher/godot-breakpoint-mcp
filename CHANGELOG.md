@@ -6,6 +6,65 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the release ritual's two name checks are in the repository, and the second one reads no notes
+
+Two checks that decide whether a release's bump is honest had been living in gitignored
+scratch, copied forward by hand every session. Both are in `scripts/release_names.py` now,
+written as pure functions a table can drive, with a `--selftest` that proves every refusal
+without a tree. A check that survives only by being copied is not a check, it is a habit,
+and a habit loses whichever edit the next copier does not notice.
+
+Check 1 asks whether the identifiers a released block names appear in what that release
+actually changed, and promoting it out of scratch found three defects a healthy tree had
+been silent on for twenty-two releases. Its MINOR arm had been reading whether a name
+exists in shipped source, when the question is whether this release MOVED it — a name can
+sit in the product untouched for twenty cuts, which is how 1.73.2 passed that arm while
+being a PATCH. It reads the diff window now, via `raw_window()`. Its population floor
+counted only SCREAMING names, so a block that spelled its work in lower snake read as too
+thin to make any claim about; `NAME_FLOOR` is applied to both cases now, while the leak
+assertion still reads constants alone, because a lower_snake name reaching shipped source
+is expected and is evidence of nothing. And the pattern behind that roster could not see a
+function: it required the closing backtick to follow the name immediately, so
+`body_brace()` was invisible where `log_seq` was not.
+
+Check 2 asks a question that reads no notes at all — did any shipped producer move this
+window? — and so cannot be satisfied by notes that merely name the right words.
+`split_window()` divides the window into what the ritual's own version write produced and
+what it did not, and it decides that by SUBSTITUTION rather than by a pattern:
+`is_version_bump_hunk()` admits a hunk only when replacing the old version literal with
+the new one turns every removed line into exactly its added line, so a line that changed
+the version AND something else stays substantive instead of being classified away. A MINOR
+whose producers did not move is refused with `C2_MINOR_NO_SUBSTANCE`. A rename produces a
+diff header with no hunks at all and `all()` over nothing is true, so a file with zero
+hunks is substantive by construction rather than by luck.
+
+Both checks read ONE `git diff`. Two diffs would be two windows, and two checks agreeing
+about different windows is not agreement.
+
+A tag placed earlier than the cut it names drags the next release's version write into the
+following window. `tag_tree_version()` reads the shipped version out of the tag's own tree
+and refuses with `C2_TAG_MISPLACED` when it disagrees with the window's start — reading the
+tag's NAME would answer the question with the question. The opposite direction, a tag
+placed LATE, is measured and reported but not yet gated, because naming the previous
+release commit today means a heuristic over commit messages and a guess is not a gate.
+
+### Added — the tarball's roots are asserted on every push instead of once a release
+
+`--assert-map` runs the release ritual's map assertion — every root npm actually ships is
+declared in `SHIPPED_SOURCE`, every declared root is still shipped, and every declared
+source file exists — through `assert_map()` over `tarball_entries()`, from CI's build job,
+which is the job that has already staged the addon and can pack the tree. Anywhere else it
+refuses with `MAP_STALE`, for a reason about the runner rather than about the tree. It now
+answers on every push a question the ritual asked once a release, at the moment when
+answering "no" is most expensive.
+
+Its population floor is IMPORTED from `registry_bytes.py` rather than restated. Two
+literals over one population is one of them wrong.
+
+The set asserting that every refusal code has a row in the self-test is DERIVED from the
+module's own globals now. Hand-maintaining it made it a second list, and a second list is
+one that an eighth code can be left out of without anyone noticing.
+
 ## [1.73.2] — 2026-08-06
 
 ### Added — the release ritual now opens the artifact it publishes
