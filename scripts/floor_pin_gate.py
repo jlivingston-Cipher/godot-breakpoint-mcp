@@ -960,10 +960,15 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (22, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (23, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
-        "has failed to obtain.")),
+        "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
+        "ARRIVING: the numerals-no-reader-claims check was added to close the previous "
+        "session's finding, where two stale tool counts sat in the shipped README while "
+        "`contract_check.py` read that file at seven call sites and exited clean. The "
+        "floor moving is the deliberate half; the ledger row saying so in the same commit "
+        "is what tells it from a check that quietly went missing.")),
     ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (36, (
         "The non-executable scripts, at `{FLOOR}`. 🆕 Raised by TWO when 219 — the session "
         "that promoted the positive-control finder and its self-test out of gitignored "
