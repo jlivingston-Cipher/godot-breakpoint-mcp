@@ -58,6 +58,12 @@ EMPTY: dict[str, str] = {
     "tuple[list[str], list[tuple[Path, int, int, str]]]": "([], [])",
     "tuple[list[str], int]": "([], 0)",
     "tuple[list[str], list[tuple[Path, int, int, str]], int]": "([], [], 0)",
+    # 🆕 222 — `toolset_claims` grew a fourth return so check 25 can subtract what it
+    # resolved at (file, line, VALUE) rather than at (file, line). Without the row the
+    # function stops being blindable and TARGET_FLOOR catches it — which it did, on the
+    # first run after the signature moved.
+    "tuple[list[str], list[tuple[Path, int, int, str]], int, set[tuple[Path, int, int]]]":
+        "([], [], 0, set())",
 }
 
 # 🔴 THIS GATE DERIVES ITS OWN SCOPE, WHICH IS THE EXACT THING IT EXISTS TO DISTRUST.
@@ -150,9 +156,15 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "registered_tools": ("tools.registered",),
     "test_count_constants": ("counts.test_constants",),
     "tool_count_claims": ("counts.tool_claims",),
+    # 🆕 222 — BOTH READERS GAINED A SECOND CONSUMER, AND THE MAP HAS TO SAY SO. Check 25
+    # builds its derivable set from `toolset_sizes()` and expands it with
+    # `toolset_aliases()`, so blinding either one now collapses `prose.derivable_values`
+    # too. Left unstated, the extra collapse would arrive as an unexplained BLAST drift in
+    # some later session rather than as a declared consequence of this one.
     "toolset_aliases": ("families.toolset_aliases",),
     "toolset_claims": ("families.toolset_claims_resolved",),
-    "toolset_sizes": ("families.toolset_claims_resolved", "families.toolset_sizes"),
+    "toolset_sizes": ("families.toolset_claims_resolved", "families.toolset_sizes",
+                      "prose.derivable_values"),
     "uncaptured_tool_registrations": ("tools.registration_sites_scanned",),
 }
 
@@ -176,12 +188,26 @@ BLAST: dict[str, int] = {
     "recipe_names_constant": 2,               # also: check 12
     "registered_recipes": 4,                  # also: check 12
     "registered_resources": 3,                # also: check 10
-    "registered_tools": 9,                    # also: checks 6 8 9 11 13
+    # 🆕 222 — TEN, NOT NINE. Blinding the tool roster takes `total_tools` to zero, so the
+    # README's two count sentences that no reader claimed until this session — the ones
+    # 221 §4 found stale — now redden check 25 as well. The row moving is the new check
+    # reaching a population the old ones did not.
+    "registered_tools": 10,                   # also: checks 6 8 9 11 13 25
     "test_count_constants": 1,
     "tool_count_claims": 1,
-    "toolset_aliases": 1,
-    "toolset_claims": 1,
-    "toolset_sizes": 2,
+    # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
+    # case 196 §3 says this number exists to surface: check 25 reads both functions, so
+    # blinding `toolset_aliases` now also collapses `prose.derivable_values` (+1), and
+    # blinding `toolset_sizes` collapses that AND leaves check 25 reporting every family
+    # numeral in the README as underivable (+2). Declared in the commit that moved them.
+    # 🔴 AND THE THIRD ROW IS THE ONE THAT PROVES THE FOURTH RETURN IS LOAD-BEARING.
+    # Blinding `toolset_claims` empties the (file, line, VALUE) set check 25 subtracts, so
+    # the README's family numerals — `a` -> 148, `a,b` -> 154 — stop being claimed by
+    # anybody and check 25 reports them. That is the reader and the complement agreeing
+    # about the same blindness, which is exactly what the value-level handoff bought.
+    "toolset_aliases": 2,                     # also: check 25
+    "toolset_claims": 2,                      # also: check 25
+    "toolset_sizes": 4,                       # also: check 25
     "uncaptured_tool_registrations": 1,
 }
 

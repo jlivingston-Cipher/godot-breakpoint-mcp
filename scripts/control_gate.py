@@ -130,10 +130,32 @@ def live_checks() -> str:
     return str(len(re.findall(r'"[^"]+"', m.group(1)))) if m else ""
 
 
+def live_full() -> str:
+    """The FULL tool surface — the fourth member of 188 §2's class (222).
+
+    `25.prose` mutates a README sentence that states the tool count, and the count is the
+    number check 25 exists because the README got wrong. Spelled as a literal, the row
+    would be outrun by the next tool anybody registers — `host.drift` at the 1.63.0 cut
+    and `22.floor` at check 23, arriving a third time.
+
+    Derived the way `contract_check.py` derives it — the registration calls themselves —
+    and NOT from the README the row mutates, which would make the anchor trivially
+    self-satisfying and take 180 §9.3's guard away.
+    """
+    src = ROOT / "host/src"
+    n = 0
+    for p in sorted(src.rglob("*.ts")):
+        body = p.read_text(encoding="utf-8")
+        n += len(re.findall(r'registerTool\(\s*"[a-z0-9_]+"', body))
+        n += len(re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z0-9_]+"', body))
+    return str(n) if n else ""
+
+
 def resolve(s: str) -> str:
     return (s.replace("{V}", live_version())
              .replace("{TESTS}", live_tests())
-             .replace("{CHECKS}", live_checks()))
+             .replace("{CHECKS}", live_checks())
+             .replace("{FULL}", live_full()))
 
 
 # ── 🔴 THE THREE DETECTORS BELOW ARE PURE FOR ONE REASON, AND MUTATE188 IS THE REASON ──
@@ -368,6 +390,42 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      '\t\treturn _err("unsupported", "EditorSettings unavailable")',
      '\t\treturn _err("unsupported", "EditorSettings unavailable for %s" % node.name)',
      "but the message interpolates the caller's node name"),
+
+    # ── check 25 — the numerals no reader claimed ────────────────────────────────
+    # THREE statements, THREE controls, in the same commit as the check. 191 §9.3 has
+    # carried "thirty-one statements have no control" for several sessions; a new check
+    # that shipped uncontrolled would make that number worse while looking like progress.
+    #
+    # 🔴 THE ANCHOR CARRIES NO NUMBER AT ALL, WHICH IS THE POINT OF PICKING A HEADING.
+    # The mutation INSERTS a bare numeral into running prose rather than editing one that
+    # is already there — because every numeral already in README.md is now claimed by a
+    # reader or derivable, so editing one would fire a DIFFERENT statement (check 11's
+    # drift) and this row would be measuring its neighbour. `999` is a value no derivation
+    # in this tree can produce and no release can turn into the right answer, `host.drift`'s
+    # `0.0.0` rule. The sentence deliberately carries no `tools` word: with one, 11b's
+    # unresolved-prose WARN also fires, and a control whose blast radius includes a warning
+    # it does not name is 194 §6 waiting to happen.
+    ("25.prose", "25", "sub", "README.md",
+     "\n## Safety & trust model\n",
+     "\n## Safety & trust model\n\nThe axis is not 999.\n",
+     "Prose numeral(s) no reader claims"),
+    # 🔴 THE NEGATIVE DIRECTION HAS NO ROW HERE AND CANNOT HAVE ONE — every control in
+    # this file asserts a mutation REDDENS. So the scanner's must-not-flag half lives in
+    # `PROSE_NUMERAL_PINS` and runs on every contract_check invocation; THIS row is the
+    # control on that table, and the mutation is the exact failure 221 §5.2 named: a
+    # pattern that eats too much. Stripping both guards makes `342,113` yield 342 and 113
+    # and `~95,000` yield 000, so four pinned rows disagree at once.
+    ("25.eats_too_much", "25", "src", "",
+     'PROSE_NUMERAL_RE = re.compile(r"(?<!\\d)(?<![\\d][.,])(\\d{3})(?!\\d)(?![.,]\\d)")',
+     'PROSE_NUMERAL_RE = re.compile(r"(\\d{3})")',
+     "disagrees with its own pins"),
+    # The exemption going stale — check 12's vacuity rule, one check over. The roster is
+    # deliberately EMPTY on a healthy tree, so the only mutation that can reach this
+    # statement is one that puts an entry in it.
+    ("25.exempt_stale", "25", "src", "",
+     "PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {}",
+     'PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {("README.md", "no such sentence"): "control"}',
+     "PROSE_NUMERAL_EXEMPT entr(y/ies) that no longer match"),
 
     # ── check 17 — example/project.godot, the invariants an editor boot erases ────
     # Seven statements, seven controls, and the two that matter most are the ones a
@@ -621,7 +679,12 @@ CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
                  # `24b` is the cross-copy half under its own section header, and the
                  # fingerprint resolver reads headers — the same reason `11b`/`11c` are
                  # named separately above rather than folded into `11`.
-                 "24", "24b", "24c")
+                 "24", "24b", "24c",
+                 # 222: check 25 the same way — three statements, three rows, covered on
+                 # arrival so CONTROL_GATE_BLIND does not move for a check this session
+                 # added. A new check shipping uncontrolled makes 191 §9.3's number worse
+                 # while looking like progress.
+                 "25")
 
 
 # ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
@@ -640,8 +703,13 @@ CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
 # — see the note above BLAST_TOTAL_FLOOR for why the attribution is diagnosis and the
 # count is the gate.
 BLAST: dict[str, int] = {
-    "3.dupe": 7,                          # also: 6 8 9 11 13
-    "3.uncaptured": 7,                    # also: 8 9 11 11b 13
+    # 🔴 THESE THREE MOVED IN 222, AND THE MOVE IS THE CHECK WORKING. Each mutation shifts
+    # the live tool count, and until this session the README's two UNMARKED count sentences
+    # were outside every population — so the surface moving under them cost nothing. Check
+    # 25 now reads them, so each of these rows gains exactly one FAIL line. Declared here on
+    # purpose, in the same commit as the check, which is what 194 §6 asks for.
+    "3.dupe": 8,                          # also: 6 8 9 11 13 25
+    "3.uncaptured": 8,                    # also: 8 9 11 11b 13 25
     "11c.vacuous": 2,                     # also: 20
     "11c.drift": 1,
     "host.nofield": 1,
@@ -664,6 +732,14 @@ BLAST: dict[str, int] = {
     "24c.shape_sounds_capability": 2,     # also: 24b
     "24c.shape_no_node": 2,               # also: 24b
     "24c.capability_names_node": 2,       # also: 24b
+    # 222 — check 25. Measured on the run that registered them, not guessed.
+    "25.prose": 1,
+    # 🔴 TWO, NOT ONE, AND THE SECOND LINE IS THE POINT OF THE ROW. A scanner that eats too
+    # much disagrees with its pins AND starts reporting numerals that were never ours —
+    # `342,113` becomes 342 and 113. Both statements firing is the mutation's real
+    # signature; declaring 1 here would have hidden the half that reaches a user.
+    "25.eats_too_much": 2,                # also: 25 (the prose statement, on garbage input)
+    "25.exempt_stale": 1,
     "17.missing": 1,
     "17.nokey": 1,
     "17.badvalue": 1,
@@ -690,7 +766,7 @@ BLAST: dict[str, int] = {
     "18.nouid": 1,
     "19.shipped": 1,
     "shape.nodef": 2,
-    "11.countdrift": 2,                   # also: 13
+    "11.countdrift": 3,                   # also: 13 25 — see the 222 note at the top of BLAST
     "addon.drift": 1,
     "5.badjson": 1,
     "9.unannotated": 2,
@@ -921,7 +997,8 @@ def _self_check() -> list[str]:
     # deleting this whole block. No self-check can assert its own presence, and that is
     # `floor_pin_gate.py`'s job one level up and the reverse sweep's at this one. It is a
     # real residual, not a solved problem.
-    values = (("{V}", live_version()), ("{TESTS}", live_tests()), ("{CHECKS}", live_checks()))
+    values = (("{V}", live_version()), ("{TESTS}", live_tests()), ("{CHECKS}", live_checks()),
+              ("{FULL}", live_full()))
     PLANTED = ("__planted__", "x", "sub", "x", f"npm {live_version() or 'x.y.z'} ·", "y", "z")
     audit, rows_read = derived_literal_problems([*CONTROLS, PLANTED], values)
     if rows_read != len(CONTROLS) + 1:

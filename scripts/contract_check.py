@@ -280,9 +280,9 @@ errors.append(_WIRE_CANARY)
 # floored at a literal.
 CHECKS_EXPECTED = (
     "1&2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "11b", "11c",
-    "12", "13", "14", "15", "16", "17", "18/19", "20", "23", "24",
+    "12", "13", "14", "15", "16", "17", "18/19", "20", "23", "24", "25",
 )
-CHECKS_RUN_FLOOR = 22   # measured: twenty-two blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 23   # measured: twenty-three blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -729,9 +729,23 @@ def toolset_aliases() -> dict[str, list[str]]:
     return out
 
 
-def toolset_claims(files: list[Path]) -> "tuple[list[str], list[tuple[Path, int, int, str]], int]":
-    """(mismatches, unresolved, resolved) — exact check of `<ids>` -> N claims, plus
-    every other "N tools" phrase listed for a human to eyeball.
+def toolset_claims(files: list[Path]) -> "tuple[list[str], list[tuple[Path, int, int, str]], int, set[tuple[Path, int, int]]]":
+    """(mismatches, unresolved, resolved, resolved triples) — exact check of `<ids>` -> N
+    claims, plus every other "N tools" phrase listed for a human to eyeball.
+
+    🔴 THE SIGNATURE STAYS ON ONE LINE, AND THAT IS NOT FORMATTING. `scope_gate.py`'s
+    `targets()` matches `^def name(...) -> ret:$` on a SINGLE line; wrapped for width, this
+    function stops being a blindable target, `SCOPE_GATE_TARGETS_COLLAPSE` fires, and the
+    roster halves report it as a stale BLAST/LEDGER entry. Measured, this session, by
+    wrapping it: 24 targets against a floor of 25. An enumerator this file can no longer be
+    blinded through is an enumerator whose collapse nothing would notice.
+
+    🔴 THE FOURTH RETURN IS (file, line, VALUE) AND THE VALUE IS WHY IT EXISTS (222).
+    Check 25's population is the complement of what every reader here claimed, and a
+    LINE-granular complement masks a second numeral sharing a resolved line — which is
+    exactly `USER_GUIDE.md:463`, where `a,netcode,… -> 181` is resolved and the `148`
+    after it is not. Reporting the line alone would have handed check 25 a blind spot of
+    the same shape it was written to close.
 
     🔴 `resolved` IS THE SCOPE, AND IT WAS NOT REPORTED (172). Both returned lists are
     OFFENDER lists: empty means "nothing wrong", which is also what a finder that read
@@ -743,6 +757,7 @@ def toolset_claims(files: list[Path]) -> "tuple[list[str], list[tuple[Path, int,
     aliases = toolset_aliases()
     mismatches: list[str] = []
     resolved_lines: set[tuple[Path, int]] = set()
+    resolved_values: set[tuple[Path, int, int]] = set()
 
     for f in files:
         if not f.exists():
@@ -759,6 +774,7 @@ def toolset_claims(files: list[Path]) -> "tuple[list[str], list[tuple[Path, int,
             resolved_lines.add((f, ln))
             expect = sum(sizes[i] for i in dict.fromkeys(ids))
             claimed = int(m.group(2))
+            resolved_values.add((f, ln, claimed))
             if claimed != expect:
                 mismatches.append(
                     f"{f.relative_to(ROOT)}:{ln} says `{m.group(1)}` -> {claimed}, "
@@ -775,7 +791,7 @@ def toolset_claims(files: list[Path]) -> "tuple[list[str], list[tuple[Path, int,
             if (f, ln) in resolved_lines:
                 continue
             unresolved.append((f, ln, int(m.group(1)), _snip(m.group(0))))
-    return mismatches, unresolved, len(resolved_lines)
+    return mismatches, unresolved, len(resolved_lines), resolved_values
 
 
 # --- 13 helpers: prefix families, the all-false class, and a rival's ceiling -
@@ -1000,6 +1016,164 @@ def exempt_family_lines() -> tuple[list[str], set[tuple[Path, int]]]:
                 f"(reason on record: {why})"
             )
     return errors, resolved
+
+
+# --- 25 helpers: the numerals NO reader claimed ------------------------------
+# 🔴 EVERY COUNT READER ABOVE THIS LINE IS MARKER-GATED, AND 221 §4 IS WHAT THAT COSTS.
+# `TOTAL_CLAIM_RES` needs `full` / `all` / `entire surface` / `N-tool surface` / `N tools
+# in total` / `N tools + N MCP resources`; `SECURE_CLAIM_RES` needs a `secure-default`
+# beside the number; 11b needs a backticked toolset expression and an arrow; 13 needs a
+# glob or an annotation class in backticks. Two sentences in the shipped README carried
+# none of them:
+#
+#     README.md:119  "the tool *count* is not the axis — ours is 289 because that is
+#                     what a static contract check asserts"
+#     README.md:381  "Recipes also add no tools (the count stays 289)"
+#
+# Seven other sites in the same file said 291, this file read that file at SEVEN call
+# sites, and it exited 0 over both. A bare numeral in running prose carries no marker and
+# was therefore outside every population — and the first of the two is the line that tells
+# a rival's reader our count is not the axis.
+#
+# 🔴 THE SAME MISS, IN A DIFFERENT LANGUAGE, FOUND IN A RIVAL ON THE SAME DAY.
+# `godot-mcp-enhanced` runs `check-tool-count.mjs` in CI and its `README.md:142` still
+# drifts to 36/205, because that line is not in its regex table. Two projects, two count
+# gates, both reading a ROSTER OF PHRASINGS rather than the file, both drifting in the
+# sentence the roster did not name. The mechanism is right; the marker is what fails.
+#
+# 🔴 SO THIS CHECK IS THE INVERSE OF EVERY REGEX ABOVE IT, AND THE INVERSION IS THE POINT.
+# The others ask *does this claim-shaped phrase agree with the code?* This one asks the
+# complement — *is there a numeral here that no reader took?* — and refuses unless the
+# number is one this tree can DERIVE. The population is defined as what the readers did
+# NOT claim, so a reader added later shrinks it automatically and this check can never
+# become the thing it is watching for: a second roster to keep in sync by hand.
+#
+# 🔴 AND THE EXCLUDED SCOPE IS ADMITTED RATHER THAN PINNED (221 §5.2). Exactly two things
+# are outside the population, both stated and one of them COUNTED on every run:
+#   * `docs/TOOL_CATALOG.md` — PROSE_NUMERAL_EXCLUDED, reason on the entry, numerals
+#     counted and printed so the debt is a number every run instead of an absence.
+#   * two-digit numbers — check 13 owns the family class, and two digits collide with
+#     version strings (`1.21.1`) for the reason `tool_count_claims` already records.
+# An allowlist of blessed NUMBERS is refused here as it has been refused four times
+# already in this file (SUBGROUP_COUNTS, FAMILY_COUNT_EXEMPT, 11b's rejected subset-sum
+# filter, SHAPE_COVERAGE_EXEMPT): PROSE_NUMERAL_EXEMPT is keyed by EXACT TEXT, never by
+# value, and an entry that stops matching FAILS.
+
+# Live docs whose PROSE numerals this check owns. Fenced code blocks are NOT masked and
+# that is deliberate: a masked fence is an exclusion nobody counts, and today all three
+# files carry zero three-digit numerals inside a fence, so masking would buy silence for
+# a case that does not exist. If a shell example ever needs one, it goes in
+# PROSE_NUMERAL_EXEMPT with a reason — a visible edit, which is the whole idiom.
+PROSE_NUMERAL_DOCS = [
+    ROOT / "README.md",
+    ROOT / "host/README.md",
+    ROOT / "docs/USER_GUIDE.md",
+]
+
+# Live docs deliberately OUTSIDE the population, each with the reason. Their numerals are
+# counted and reported rather than allowlisted, so the exclusion is a number a reader can
+# argue with instead of a silence nobody can see.
+PROSE_NUMERAL_EXCLUDED: dict[Path, str] = {
+    ROOT / "docs/TOOL_CATALOG.md": (
+        "a per-GROUP reference rather than a claim page: its “(now **195**)” figures are "
+        "running totals AS OF a batch — the same append-only class CHANGELOG.md is "
+        "excluded from in checks 10 and 12 — and it additionally embeds JSON schema "
+        "defaults and quoted compiler output (`Renamer.cs line 151`). Bringing it in "
+        "means resolving six historical batch totals by hand first; until someone does, "
+        "the count below is the size of that debt."
+    ),
+}
+
+# (path relative to ROOT, exact text that must still be present on the line) -> why no
+# derivation in this tree can own the number. DELIBERATELY EMPTY, and strict-by-default is
+# the point — RECIPE_ROSTER_EXEMPT's rule, one check over. An entry that stops matching
+# FAILS, because an exemption for a sentence that is gone exempts nothing and hides the
+# next numeral written on that line.
+PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {}
+
+# Three digits, not two, and not four. The guards on both sides are load-bearing rather
+# than tidy: `342,113 B` must yield NEITHER 342 nor 113, `:6006` must yield nothing, and
+# `1.73.4` must not be read as a claim about anything.
+#
+# 🔴 A `.` OR `,` DISQUALIFIES ONLY WHEN A DIGIT IS ON ITS FAR SIDE, AND THE FIRST DRAFT
+# OF THIS LINE DID NOT SAY SO. It was `(?<![\d.,])(\d{3})(?![\d.,])`, which reads a
+# TRAILING FULL STOP as evidence of a decimal — so a stale count ending a sentence
+# ("…ours is 289.") was outside the population of the check written to find stale counts.
+# 🔴 NOTHING IN THIS FILE FOUND THAT. `control_gate.py`'s new `25.prose` row did, on its
+# first run, by inserting exactly that sentence and reporting CONTROL_GATE_GREEN — the
+# positive control refuting the check it was written to cover, which is the only outcome
+# that makes a control worth the tree mutation it costs. The pin below is that sentence.
+PROSE_NUMERAL_RE = re.compile(r"(?<!\d)(?<![\d][.,])(\d{3})(?!\d)(?![.,]\d)")
+
+# 🔴 THE NEGATIVE HALF, WHICH IS THE HALF A POSITIVE CONTROL CANNOT REACH (221 §5.2).
+# `control_gate.py` asserts that a mutation REDDENS a statement; every row it can express
+# is a positive. The failure mode this scanner actually has is the opposite one — a
+# pattern that eats too much and reddens on a number that was never ours — and the only
+# thing that catches it is a row asserting the scanner flags NOTHING. Both directions are
+# pinned here and evaluated on every run, not only under the sweep.
+#
+# (text, the numerals the scanner MUST return, why this row is in the table)
+PROSE_NUMERAL_PINS: "list[tuple[str, tuple[int, ...], str]]" = [
+    ("the tool *count* is not the axis — ours is 289 because that", (289,),
+     "🔴 README.md:119 verbatim — the defect this check exists for"),
+    ("Recipes also add no tools (the count stays 289) and cost nothing", (289,),
+     "🔴 README.md:381 verbatim — the same class inside parentheses"),
+    ("full 291 / secure-default 278 tools · 6 MCP resources", (291, 278),
+     "two numerals on one line are two rows, never one"),
+    ("**278 tools an agent can actually call**, not 291 with a warning label", (278, 291),
+     "the residual shape check 11 was built for, seen from this side"),
+    ("npm 1.73.4 · addon 1.9.9 · MIT", (),
+     "🔴 version strings. A left guard that dropped `.` reads `73` and `1.9.9`'s parts"),
+    ("278 tools = 342,113 B ≈ ~95,000 tokens", (278,),
+     "🔴 THE ROW 221 §5.2 NAMED: comma-grouped byte and token counts are not ours, and a "
+     "guard that dropped `,` returns 342, 113 and 000 from this one line"),
+    ("the DAP client dials `:6006`, on 0.5 s and 2.0 s timers", (),
+     "🔴 port numbers are four digits and a decimal is not an integer — both must miss"),
+    ("a measured **~86–98% upfront token reduction**", (),
+     "two-digit percentages are out of band, deliberately: check 13 owns that class"),
+    ("the 278/13 split", (278,),
+     "🔴 the privileged split — 278 is ours to derive, 13 is two digits and is not"),
+    ("`runtime_*`, 27 tools", (),
+     "two-digit family counts stay check 13's; a wider band would take them from it"),
+    ("The axis is not 999.", (999,),
+     "🔴 THE ROW A POSITIVE CONTROL WROTE. `25.prose` inserts this exact sentence and the "
+     "first draft of the scanner did not see it — a trailing full stop read as a decimal "
+     "point. A stale count ending a sentence was outside the population of the check "
+     "written to find stale counts, and only the control noticed"),
+    ("ours is 289. Everything else agrees", (289,),
+     "the same hole in the shape it would actually ship in — the defect sentence, ended"),
+]
+
+
+def prose_pin_problems() -> "tuple[list[str], int, int]":
+    """(disagreements, rows read, rows that pin the scanner to flag NOTHING).
+
+    The second and third returns are the scope, for `toolset_claims`'s reason (172): on a
+    healthy tree the disagreement list is empty, so a table of ten rows and a table
+    trimmed to one are the same observable — and a table trimmed to its POSITIVES is the
+    specific trim that would leave the eats-too-much direction unpinned.
+    """
+    problems: list[str] = []
+    negatives = 0
+    for text, expected, why in PROSE_NUMERAL_PINS:
+        if not expected:
+            negatives += 1
+        got = tuple(int(x) for x in PROSE_NUMERAL_RE.findall(text))
+        if got != expected:
+            problems.append(f"{text!r} -> {got}, pinned {expected} — {why}")
+    return problems, len(PROSE_NUMERAL_PINS), negatives
+
+
+def prose_numerals(path: Path) -> "list[tuple[int, int, str]]":
+    """(line, value, the whole line) for every three-digit numeral in a doc's prose."""
+    if not path.exists():
+        return []
+    text = _mask_continuations(path.read_text(encoding="utf-8"), path.suffix)
+    out: list[tuple[int, int, str]] = []
+    for ln, line in enumerate(text.splitlines(), 1):
+        for m in PROSE_NUMERAL_RE.finditer(line):
+            out.append((ln, int(m.group(1)), line.strip()))
+    return out
 
 
 def catalog_index_tools() -> set[str]:
@@ -1812,7 +1986,12 @@ _ran("11c")
 # So a resolved mismatch now FAILS. The eyeball list below is still warn-only,
 # and that half of the original rule stands: an UNRESOLVED prose count is not
 # verified, and gating on it would mean guessing which number a sentence meant.
-family_mismatches, family_unresolved, family_resolved_count = toolset_claims(TOOL_COUNT_FILES)
+(
+    family_mismatches,
+    family_unresolved,
+    family_resolved_count,
+    family_resolved_values,
+) = toolset_claims(TOOL_COUNT_FILES)
 surface_claim_keys = {(f, ln) for f, ln, _k, _n, _s in count_claims}
 family_unresolved = [c for c in family_unresolved if (c[0], c[1]) not in surface_claim_keys]
 
@@ -1879,6 +2058,127 @@ if bad_constants:
     )
 
 _ran("13")
+
+# --- 25: THE NUMERALS NO READER CLAIMED (222, closing 221 §4) ---------------
+# The inverse of every count reader above. Reasoning and admitted scope are on the
+# helpers; what happens here is the complement itself.
+#
+# 🔴 RUNS AFTER 11, 11b, 11c AND 13, AND THE ORDER IS THE DESIGN. The population is
+# "every three-digit prose numeral MINUS everything a reader took", so it can only be
+# computed once every reader has spoken. Move this block above any of them and it starts
+# reporting numerals that are, in fact, gated — a gate that cries wolf gets deleted, which
+# is the same fate SCOPE_LEDGER's own note warns about from the other direction.
+prose_pin_bad, prose_pins_read, prose_pins_negative = prose_pin_problems()
+if prose_pin_bad:
+    errors.append(
+        "The prose-numeral scanner disagrees with its own pins, so check 25 is reading a "
+        "different population than the one it is documented to read:\n      - "
+        + "\n      - ".join(prose_pin_bad) +
+        "\n      Half these rows pin the scanner to flag NOTHING. That half is not "
+        "decoration: a positive control can only assert that a mutation REDDENS a "
+        "statement, so the eats-too-much direction — a byte count, a port, a version "
+        "string read as a surface claim — has no other cover in this tree."
+    )
+
+# What the readers actually claimed, at (file, line, VALUE) granularity wherever the
+# reader can say which number it took.
+prose_claimed_values: set[tuple[Path, int, int]] = {
+    (f, ln, n) for f, ln, _k, n, _s in count_claims
+}
+prose_claimed_values |= {(f, ln, n) for f, ln, n, _s in test_count_claims}
+prose_claimed_values |= family_resolved_values
+# 🔴 AND THE ONE PLACE COVERAGE IS ONLY LINE-DEEP, COUNTED RATHER THAN HIDDEN. Check 13's
+# four readers (glob, all-false, annotation class, rival ceiling) report the LINE they
+# resolved, not the value, so a second numeral sharing such a line is skipped here. Today
+# that is zero numerals across the three gated docs — printed below, so the day it stops
+# being zero is a diff and not a silence.
+prose_line_only_lines = prefix_lines | allfalse_lines | annclass_lines | exempt_lines
+
+# Every number this tree can DERIVE. Nothing is rostered: the surface three come from the
+# registration walk, the suite size from the test declarations, the family sizes from
+# toolsets.ts, and the alias sums from config.ts's own expansion. A numeral that equals
+# none of them is a numeral no part of this repo can produce.
+_prose_sizes = toolset_sizes()
+DERIVED_NUMERALS: set[int] = {
+    total_tools,
+    secure_default_tools,
+    privileged_count,
+    host_test_count,
+    *_prose_sizes.values(),
+}
+for _ids in toolset_aliases().values():
+    DERIVED_NUMERALS.add(sum(_prose_sizes.get(i, 0) for i in dict.fromkeys(_ids)))
+DERIVED_NUMERALS.discard(0)
+
+prose_read = 0
+prose_line_only = 0
+prose_exempt_hits: dict[tuple[str, str], int] = {}
+prose_bad: list[str] = []
+for _f in PROSE_NUMERAL_DOCS:
+    for _ln, _n, _line in prose_numerals(_f):
+        prose_read += 1
+        if (_f, _ln, _n) in prose_claimed_values:
+            continue
+        if (_f, _ln) in prose_line_only_lines:
+            prose_line_only += 1
+            continue
+        _key = next(
+            (
+                (rel, needle)
+                for (rel, needle) in PROSE_NUMERAL_EXEMPT
+                if ROOT / rel == _f and needle in _line
+            ),
+            None,
+        )
+        if _key is not None:
+            prose_exempt_hits[_key] = prose_exempt_hits.get(_key, 0) + 1
+            continue
+        if _n in DERIVED_NUMERALS:
+            continue
+        prose_bad.append(
+            f"{_f.relative_to(ROOT)}:{_ln} states {_n}, which no reader claims and no "
+            f"derivation produces — “{_line[:110]}”"
+        )
+
+if prose_bad:
+    errors.append(
+        "Prose numeral(s) no reader claims and no derivation produces — this is the class "
+        "that left README.md:119 and :381 saying 289 while seven other sites in the same "
+        f"file said {total_tools}, with this file reading README.md at seven call sites "
+        "and exiting 0 over both:\n      - " + "\n      - ".join(prose_bad) +
+        f"\n      Derivable today: full {total_tools} · secure-default "
+        f"{secure_default_tools} · privileged {privileged_count} · suite {host_test_count} "
+        f"· every toolset size and alias sum. Correct the prose. If the number genuinely "
+        f"is not this tree's to derive, add it to PROSE_NUMERAL_EXEMPT keyed by the EXACT "
+        f"text it sits in, with the reason — never by its value, because a blessed value "
+        f"silences the next drift that happens to land on it."
+    )
+
+# The exemption's vacuity rule, in the direction check 12 established: an entry that no
+# longer matches exempts nothing and hides the next numeral written on that line.
+stale_prose_exempt = [
+    f"PROSE_NUMERAL_EXEMPT names {rel} “{needle}”, which no gated doc still carries "
+    f"(reason on record: {why})"
+    for (rel, needle), why in PROSE_NUMERAL_EXEMPT.items()
+    if prose_exempt_hits.get((rel, needle), 0) == 0
+]
+if stale_prose_exempt:
+    # 🔴 THE MESSAGE CARRIES ITS OWN LITERAL, AND THAT IS NOT COSMETIC. `exempt_family_lines`
+    # forwards a list built elsewhere — `errors.append("…".join(x))` — and is one of the
+    # statements `control_gate.py` counts as UNFINGERPRINTABLE: no row can ever name it,
+    # because there is no string constant in it to name. Copying that shape here would have
+    # shipped a statement this session's own control could not address.
+    errors.append(
+        "PROSE_NUMERAL_EXEMPT entr(y/ies) that no longer match:\n      - "
+        + "\n      - ".join(stale_prose_exempt)
+    )
+
+# The admitted scope, as a number rather than an absence.
+prose_excluded_count = sum(
+    len(prose_numerals(_f)) for _f in PROSE_NUMERAL_EXCLUDED
+)
+
+_ran("25")
 
 # --- 12: recipe roster — code <-> live docs ---------------------------------
 # The third instance of checks 10 and 11's drift class, and the one that had
@@ -3305,6 +3605,23 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "check 11b can no longer expand an alias, so every aliased toolset claim silently drops to 'unverified'"),
     ("families.toolset_claims_resolved", family_resolved_count, 3,
      "🔴 check 11b resolves NOTHING and its warning DISAPPEARS — a gate that gets quieter as it goes blind"),
+    # 🔴 CHECK 25's THREE POPULATIONS, AND EVERY ONE OF THEM IS A FINDER THAT GOES QUIET
+    # RATHER THAN LOUD WHEN IT BREAKS. `prose_bad` is an OFFENDER list: empty is the
+    # healthy state AND the blind state, which is the exact shape 172 measured across
+    # fourteen finders in this file. One line per population, never summed (171 §10.22).
+    ("prose.numerals_read", prose_read, 25,
+     "🔴 check 25 reads NO numeral out of the three gated docs, so 'every numeral is "
+     "accounted for' is said about an empty set — and the two 289s it was written for "
+     "would be back inside a population of nothing"),
+    ("prose.derivable_values", len(DERIVED_NUMERALS), 8,
+     "the derivation collapses and EVERY unclaimed numeral reads as undeliverable — the "
+     "LOUD direction, floored here for the reverse: a set trimmed to a subset that still "
+     "contains the full count would pass the surface numbers and fail the family ones"),
+    ("prose.pins_negative", prose_pins_negative, 4,
+     "🔴 THE PIN TABLE LOSES ITS NEGATIVE HALF — the rows asserting the scanner flags "
+     "NOTHING on a byte count, a port, a version string, a two-digit percentage. A "
+     "positive control cannot cover that direction, so nothing else in this tree would "
+     "notice a pattern that started eating too much"),
     ("recipes.registered", len(recipe_set), 6,
      "check 12's roster comparison has nothing on the code side to compare"),
     # 🔴 THE THREE 197 §3 MEASURED AS MISSING, AND THE MEASUREMENT IS WHY THEY ARE HERE.
@@ -3457,6 +3774,19 @@ print(
 print(
     f"Host test suite         : {host_test_count} test(s) declared under host/test "
     f"· {len(test_count_claims)} doc claim(s) checked"
+)
+print(
+    f"Prose numerals          : {prose_read} read across {len(PROSE_NUMERAL_DOCS)} doc(s) "
+    f"· {len(DERIVED_NUMERALS)} derivable value(s) · {prose_pins_read} pin(s) "
+    f"({prose_pins_negative} negative) · {len(PROSE_NUMERAL_EXEMPT)} exempt"
+)
+# 🔴 THE ADMITTED SCOPE, PRINTED AS A NUMBER ON GREEN RUNS (221 §5.2). What a gate does
+# NOT cover is invisible by construction; the only way it stays arguable is if the size of
+# the exclusion appears next to the size of the population every single run.
+print(
+    f"  …not covered          : {prose_excluded_count} numeral(s) in "
+    f"{', '.join(str(p.relative_to(ROOT)) for p in PROSE_NUMERAL_EXCLUDED)} "
+    f"· {prose_line_only} covered only line-deep by check 13"
 )
 print(
     f"Recipes                 : {len(recipe_set)} registered · {recipe_rosters_checked} "

@@ -116,7 +116,7 @@ symbols, and a surface that is safe to hand an agent by default:
 
 This describes capability classes, not specific projects. Several servers are strong at
 authoring, some are actively adding debuggers, and if authoring is all you need there are good
-alternatives in the Asset Library. The tool *count* is not the axis — ours is 289 because that
+alternatives in the Asset Library. The tool *count* is not the axis — ours is 291 because that
 is what a static contract check asserts, and every one is schema-frozen and annotated.
 
 ### Why a Node host?
@@ -378,7 +378,7 @@ standard **MCP prompts** (discoverable via `prompts/list`), so a client can pull
 
 Recipes are skills which ride on top of typed, schema-validated, undoable tools — so the
 contract is executed by the server, not merely described in prose which a model might
-misapply. Recipes also add no tools (the count stays 289) and cost nothing until pulled.
+misapply. Recipes also add no tools (the count stays 291) and cost nothing until pulled.
 
 ### Recipes are the extension point — and the open hatch is a deliberate decline
 
