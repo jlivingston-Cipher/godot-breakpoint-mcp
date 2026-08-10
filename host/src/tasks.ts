@@ -11,7 +11,7 @@ import { log } from "./logger.js";
  * Long, run-to-completion tools (headless export / import / script runs) used to
  * emit ad-hoc `notifications/progress`. They now register under the spec's task
  * model: a call creates a task, returns a handle immediately, and the client
- * drives it with tasks/get (poll), tasks/result (await), and tasks/cancel
+ * drives it with tasks/get (poll) and tasks/cancel
  * (stop). Plain, non-task clients are unaffected — the SDK auto-creates a task,
  * polls it to completion, and returns the result synchronously.
  */
@@ -25,7 +25,9 @@ export const TASK_POLL_INTERVAL_MS = 500;
 /**
  * Server capabilities advertising the task-execution model for tools/call.
  * Passed to the McpServer constructor so the SDK installs the tasks/get,
- * tasks/result, tasks/list and tasks/cancel request handlers.
+ * tasks/result, tasks/list and tasks/cancel request handlers. tasks/result and
+ * tasks/list are removed in protocol revision 2026-07-28; the handlers stay while we
+ * negotiate 2025-11-25, but no shipped tool description advertises them.
  */
 export const TASK_CAPABILITIES = {
   tasks: { requests: { tools: { call: {} } } },

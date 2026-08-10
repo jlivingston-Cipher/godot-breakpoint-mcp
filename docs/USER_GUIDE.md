@@ -473,7 +473,7 @@ scripts or test suites. It also includes **managed-process capture**
 
 Long-running jobs — `godot_export`, `godot_import`, and `godot_run_headless_script` — run
 on the formal **MCP task model**: a task-aware client creates the job and then polls it,
-awaits its result, or cancels it (`tasks/get` / `tasks/result` / `tasks/cancel`). A plain
+or cancels it (`tasks/get` / `tasks/cancel`). A plain
 client still gets the blocking result, exactly as before.
 
 ### Plane C — Runtime Bridge (`runtime_*`, 27 tools)
