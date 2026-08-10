@@ -1058,6 +1058,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (38, (
+        "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
+        "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
+        "`node <file>`, so the non-executable mode is correct — but the COUNT is "
+        "prose, and prose goes stale in silence. It moves only when such a file is "
+        "added or removed, and the comment beside EXEC_ROSTER records each move with "
+        "its reason. Session 224 §2 added the method-ledger reader.")),
     ("../scripts/registry_bytes.py", "ENTRY_FLOOR"): (60, (
         "The tarball population the registry-bytes comparator is allowed to answer "
         "over, at `{FLOOR}`. Its healthy verdict is ZERO differences, so what can "

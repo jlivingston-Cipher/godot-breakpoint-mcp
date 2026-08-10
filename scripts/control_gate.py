@@ -416,15 +416,21 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     # pattern that eats too much. Stripping both guards makes `342,113` yield 342 and 113
     # and `~95,000` yield 000, so four pinned rows disagree at once.
     ("25.eats_too_much", "25", "src", "",
-     'PROSE_NUMERAL_RE = re.compile(r"(?<!\\d)(?<![\\d][.,])(\\d{3})(?!\\d)(?![.,]\\d)")',
-     'PROSE_NUMERAL_RE = re.compile(r"(\\d{3})")',
+     'r"(?<![\\dA-Za-z])(?<![\\d][.,])(\\d{3})(?![\\dA-Za-z])(?![.,]\\d)"',
+     'r"(\\d{3})"',
      "disagrees with its own pins"),
-    # The exemption going stale — check 12's vacuity rule, one check over. The roster is
-    # deliberately EMPTY on a healthy tree, so the only mutation that can reach this
-    # statement is one that puts an entry in it.
+    # The exemption going stale — check 12's vacuity rule, one check over.
+    #
+    # 🔴 THIS ROW CHANGED SHAPE IN 224, AND THE CHANGE IS THE INTERESTING PART. The
+    # roster was EMPTY for as long as it existed, so the only mutation that could reach
+    # the vacuity statement was one that INVENTED an entry — a control over a rule that
+    # had never governed anything. D2's cost table gave the table its first live entry
+    # (a rival's measurements, which this tree can re-derive but cannot DERIVE), so the
+    # mutation is now the real one: break the sentence the live entry is keyed to and
+    # the check must notice that it exempts nothing.
     ("25.exempt_stale", "25", "src", "",
-     "PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {}",
-     'PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {("README.md", "no such sentence"): "control"}',
+     '("README.md", "An authoring-focused server we re-measured")',
+     '("README.md", "An authoring-focused server nobody has ever written")',
      "PROSE_NUMERAL_EXEMPT entr(y/ies) that no longer match"),
 
     # ── check 17 — example/project.godot, the invariants an editor boot erases ────
@@ -739,7 +745,13 @@ BLAST: dict[str, int] = {
     # `342,113` becomes 342 and 113. Both statements firing is the mutation's real
     # signature; declaring 1 here would have hidden the half that reaches a user.
     "25.eats_too_much": 2,                # also: 25 (the prose statement, on garbage input)
-    "25.exempt_stale": 1,
+    # 🔴 TWO, NOT ONE, SINCE 224 GAVE THE TABLE A LIVE ENTRY. Breaking the key the
+    # entry is written against no longer only reports a vacuous exemption — the
+    # numerals that exemption was covering fall straight back into check 25 and are
+    # refused as unclaimed. That second line is the row EARNING its keep: it proves
+    # the exemption is load-bearing rather than decorative, which is exactly what a
+    # control over an empty roster could never show.
+    "25.exempt_stale": 2,
     "17.missing": 1,
     "17.nokey": 1,
     "17.badvalue": 1,

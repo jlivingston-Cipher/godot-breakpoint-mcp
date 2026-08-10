@@ -20,7 +20,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
       inputSchema: {
         class_name: z.string().describe("Resource subclass to instantiate, e.g. StyleBoxFlat, Theme, GDScript"),
         to_path: z.string().describe("Destination res:// path, e.g. res://styles/panel.tres"),
-        properties: z.record(z.any()).optional().describe("Initial property values (JSON scalars or __type__-tagged Variants)"),
+        properties: z.record(z.string(), z.any()).optional().describe("Initial property values (JSON scalars or __type__-tagged Variants)"),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
@@ -163,7 +163,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         "Update import parameters in an asset's .import metadata and trigger a reimport. DESTRUCTIVE (rewrites metadata + reimports) — gated by confirmation. Errors not_found when the path is not a file, not_imported when the file has no .import sidecar. `settings` echoes every key set; `changed` lists only those whose stored value actually moved, so a no-op is distinguishable from a real edit.",
       inputSchema: {
         path: z.string().describe("Asset res:// path"),
-        settings: z.record(z.any()).describe("Import params to set (name -> JSON scalar or __type__-tagged Variant)"),
+        settings: z.record(z.string(), z.any()).describe("Import params to set (name -> JSON scalar or __type__-tagged Variant)"),
         reimport: z.boolean().optional().describe("Reimport after writing (default true)"),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },

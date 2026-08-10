@@ -6,7 +6,7 @@ import { loadConfig } from "../src/config.js";
 
 /** Tools that return image content with no structuredContent — deliberately schema-exempt. */
 const IMAGE_TOOLS = ["screenshot_editor", "runtime_screenshot"];
-const EXPECTED_TOOL_COUNT = 291;
+const EXPECTED_TOOL_COUNT = 292;
 /** The 5 resources the `resources` TOOLSET registers. The wired server exposes a
  *  6th (`godot://capabilities`, always-on, wired by index.ts) — see resources.test.ts. */
 const TOOLSET_RESOURCES = ["scene-tree", "editor-state", "runtime-tree", "runtime-log", "class-doc"];

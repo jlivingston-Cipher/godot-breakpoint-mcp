@@ -26,8 +26,8 @@
  * DROP them at registration when their group isn't enabled — so a default
  * session's advertised surface omits the high-blast tools entirely
  * (least-privilege by construction, mirroring `godot-agent-loop`). The full
- * 291-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
- * group back in; the secure-default surface is 291 − 13 = 278 tools.
+ * 292-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
+ * group back in; the secure-default surface is 292 − 13 = 279 tools.
  *
  * A tool with NO capability tag is always registered. Semantics are a UNION: a
  * tool tagged with more than one group is registered when ANY of its groups is
@@ -88,6 +88,18 @@ export const TOOL_CAPABILITIES: Readonly<Record<string, readonly CapabilityGroup
   // leaderboard_scaffold / cloudsave_scaffold / auth_scaffold — that write the
   // same kind of generated GDScript and were never privileged.
 };
+
+/**
+ * How many tools the secure default drops, DERIVED rather than restated.
+ *
+ * 🔴 `breakpoint-mcp init` printed "drops the 14 code-execution + network tools"
+ * for as long as this group has had thirteen members — a wrong number in the first
+ * thing a new user reads, on the subject the secure default exists to explain.
+ * Check 25 reads three-digit numerals and this one is two digits; check 11 claims
+ * tool TOTALS and this is a subset of one. NO READER OWNED IT, which is 222 §2's
+ * finding arriving one instrument over, in a string we print to a terminal.
+ */
+export const PRIVILEGED_TOOL_COUNT = Object.keys(TOOL_CAPABILITIES).length;
 
 /**
  * Parse the raw BREAKPOINT_PRIVILEGED_GROUPS env into a normalized token list

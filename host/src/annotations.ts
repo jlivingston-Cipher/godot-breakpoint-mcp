@@ -61,7 +61,7 @@ export interface ToolAnnotations {
 
 /** Tools that mutate nothing. */
 const READ_ONLY: readonly string[] = [
-  "anim_get_track_keys", "anim_list", "backend_detect", "class_reference", "classdb_get_class", "cs_code_action",
+  "anim_get_track_keys", "anim_list", "backend_detect", "breakpoint_doctor", "class_reference", "classdb_get_class", "cs_code_action",
   "cs_completion", "cs_dbg_scopes", "cs_dbg_stack_trace", "cs_dbg_variables", "cs_definition", "cs_diagnostics",
   "cs_document_symbols", "cs_hover", "cs_references", "cs_signature_help", "cs_workspace_symbols", "dbg_scopes",
   "dbg_stack_trace", "dbg_variables", "docs_search", "editor_get_state", "editor_ping", "example_snippet",
@@ -110,7 +110,7 @@ const IDEMPOTENT: readonly string[] = [
   "area_set_gravity", "area_set_monitoring", "asset_gen_configure", "asset_gen_placeholder",
   "audio_bus_set_volume", "audio_set_bus_layout", "audio_set_stream", "auth_scaffold", "backend_configure",
   "backend_detect", "board_create", "board_place", "board_tile_create", "board_tile_place",
-  "body_set_collision_layer", "body_set_collision_mask", "body_set_physics_material", "card_template_create",
+  "body_set_collision_layer", "body_set_collision_mask", "body_set_physics_material", "breakpoint_doctor", "card_template_create",
   "class_reference", "classdb_get_class", "cloudsave_scaffold", "control_set_anchors", "control_set_layout_preset",
   "control_set_size_flags", "control_set_theme", "cs_code_action", "cs_completion", "cs_dbg_attach",
   "cs_dbg_scopes", "cs_dbg_set_breakpoints", "cs_dbg_set_exception_breakpoints", "cs_dbg_set_variable",
@@ -176,7 +176,7 @@ export const ALL_ANNOTATED: readonly string[] = [
   "audio_bus_set_volume", "audio_player_create", "audio_set_bus_layout", "audio_set_stream", "auth_scaffold",
   "backend_configure", "backend_detect", "board_create", "board_place", "board_tile_create", "board_tile_place",
   "body_create", "body_set_collision_layer", "body_set_collision_mask", "body_set_physics_material",
-  "camera_create", "card_deck_from_table", "card_hand_layout", "card_instance", "card_set_face",
+  "breakpoint_doctor", "camera_create", "card_deck_from_table", "card_hand_layout", "card_instance", "card_set_face",
   "card_template_create", "class_reference", "classdb_get_class", "cloudsave_scaffold", "collisionpolygon_add",
   "collisionshape_add", "container_add_child", "control_create", "control_set_anchors",
   "control_set_layout_preset", "control_set_size_flags", "control_set_theme", "cs_code_action", "cs_completion",

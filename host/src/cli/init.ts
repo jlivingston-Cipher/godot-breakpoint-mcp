@@ -15,7 +15,12 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "./args.js";
 import { CLIENT_IDS, clientInfo, mergeClientConfig, serverEntry, snippet } from "./clients.js";
 import { DEFAULT_REPO, fetchAddonFromGitHub, type FetchLike } from "./github.js";
-import { CAPABILITY_GROUPS, parsePrivilegedGroups, selectPrivilegedGroups } from "../capabilities.js";
+import {
+  CAPABILITY_GROUPS,
+  PRIVILEGED_TOOL_COUNT,
+  parsePrivilegedGroups,
+  selectPrivilegedGroups,
+} from "../capabilities.js";
 
 /**
  * Resolve the guided trust preset into a validated BREAKPOINT_PRIVILEGED_GROUPS
@@ -305,10 +310,10 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
   // Trust groups — surface the secure default so even a bare `init` teaches it.
   say("");
   if (privilegedGroups) {
-    say(`Higher-trust tool groups enabled: ${privilegedGroups} — the full 291-tool surface loads.`);
+    say(`Higher-trust tool groups enabled: ${privilegedGroups} — the full 292-tool surface loads.`);
   } else {
     say("Higher-trust tool groups are OFF by default (the secure default). The assistant loads the");
-    say("everyday authoring/debug surface and drops the 14 code-execution + network tools (e.g.");
+    say(`everyday authoring/debug surface and drops the ${PRIVILEGED_TOOL_COUNT} code-execution + network tools (e.g.`);
     say("godot_run_headless_script, the *_call_method / dbg_evaluate tools, asset-gen, backend_*).");
     say("Enable them by re-running with `--trust full` (or `--privileged-groups code-execution,network`),");
     say("or set BREAKPOINT_PRIVILEGED_GROUPS in the server env. The `godot://capabilities` resource and");

@@ -7,7 +7,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 - **Version:** host 1.73.4 · addon 1.9.9
 - **License:** MIT
-- **What it exposes:** full 291 tools (secure-default 278 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -377,8 +377,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 278 tools**. Opt in
-to load the **full 291**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 279 tools**. Opt in
+to load the **full 292**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -473,7 +473,7 @@ scripts or test suites. It also includes **managed-process capture**
 
 Long-running jobs — `godot_export`, `godot_import`, and `godot_run_headless_script` — run
 on the formal **MCP task model**: a task-aware client creates the job and then polls it,
-or cancels it (`tasks/get` / `tasks/cancel`). A plain
+or cancels it while it runs. A plain
 client still gets the blocking result, exactly as before.
 
 ### Plane C — Runtime Bridge (`runtime_*`, 27 tools)
@@ -522,7 +522,7 @@ on demand:
 | `godot://class/{name}` | `ClassDB` docs for a class (editor bridge; URI template). |
 | `godot://capabilities` | The capability groups, their enabled/disabled state, and the tools each gates (host; **always on** — registered unconditionally, even when the `resources` toolset is filtered out, so a dropped high-trust tool is never a silent gap). |
 
-Clients can **subscribe** (`resources/subscribe`) and be pushed a
+Clients can **subscribe** to a resource and be pushed a
 `notifications/resources/updated` when a subscribed resource changes — for example when the
 editor selection or edited scene changes, or when the running game's SceneTree gains,
 loses, or renames a node. Rapid changes are coalesced per URI (see
@@ -595,7 +595,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **291 tools** in total (the secure-default surface is **278** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **292 tools** in total (the secure-default surface is **279** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -1021,7 +1021,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-291 tools (secure-default 278) and 6 resources. The exhaustive per-tool schemas are in
+292 tools (secure-default 279) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

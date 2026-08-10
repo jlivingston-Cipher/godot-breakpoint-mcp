@@ -1910,7 +1910,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       inputSchema: {
         template_path: z.string().describe("Card template scene, e.g. res://ui/cards/Card.tscn"),
         parent: z.string().describe("Node path to parent the instance under (in the open scene); \".\" for the root"),
-        data: z.record(z.union([z.string(), z.number(), z.boolean()])).describe("Slot name → value; a texture slot takes a res:// path"),
+        data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).describe("Slot name → value; a texture slot takes a res:// path"),
         position: z.object({ x: z.number(), y: z.number() }).optional().describe("Local position of the instance"),
         face_up: z.boolean().optional().describe("Show the face (default true); false shows the back on two-sided cards"),
         name: z.string().optional().describe("Optional node name for the instance"),
@@ -1942,7 +1942,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         template_path: z.string().describe("Card template scene, e.g. res://ui/cards/Card.tscn"),
         parent: z.string().describe("Container node path the cards are instanced under; \".\" for the root"),
         cards: z.array(z.object({
-          data: z.record(z.union([z.string(), z.number(), z.boolean()])).describe("Slot name → value for this card"),
+          data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).describe("Slot name → value for this card"),
           face_up: z.boolean().optional().describe("Show the face (default true)"),
         })).min(1).describe("One entry per card to instance"),
         mode: z.enum(["row", "fan", "stack", "grid"]).describe("Arrangement mode"),
@@ -1977,7 +1977,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         parent: z.string().describe("Container node path the cards are instanced under; \".\" for the root"),
         table_path: z.string().describe("CSV or JSON table on disk (res:// or absolute); format auto-detected by extension unless `format` set"),
         format: z.enum(["csv", "json"]).optional().describe("Override the table format"),
-        column_map: z.record(z.string()).describe("Slot name → column expression (a bare {column} or a composed \"{a} · {b}\")"),
+        column_map: z.record(z.string(), z.string()).describe("Slot name → column expression (a bare {column} or a composed \"{a} · {b}\")"),
         filter: z.object({
           column: z.string(),
           equals: z.union([z.string(), z.number(), z.boolean()]),
@@ -2269,7 +2269,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       inputSchema: {
         template_path: z.string().describe("Piece template scene, e.g. res://ui/pieces/Piece.tscn"),
         parent: z.string().describe("Node path to parent the instance under (in the open scene); \".\" for the root"),
-        data: z.record(z.union([z.string(), z.number(), z.boolean()])).describe("Slot name → value (art takes a res:// path; color a #RRGGBB; label a string)"),
+        data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).describe("Slot name → value (art takes a res:// path; color a #RRGGBB; label a string)"),
         position: z.object({ x: z.number(), y: z.number() }).optional().describe("Local position of the instance (ignored when place_on snaps it to a cell)"),
         face_up: z.boolean().optional().describe("Show the face (default true); false shows the back on two-sided pieces"),
         name: z.string().optional().describe("Optional node name for the instance"),
@@ -2340,7 +2340,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         node: z.string().describe("Node path (in the open scene) to make draggable; \".\" for the root"),
         script_path: z.string().describe("Where to save the generated drag script, e.g. res://ui/interact/Draggable.gd"),
         mode: z.enum(["control", "node2d"]).describe("control→Control _get_drag_data DnD; node2d→Area2D hit region + pointer handler"),
-        payload: z.record(z.union([z.string(), z.number(), z.boolean()])).optional().describe("Neutral data the drag carries (bound into the script as a Dictionary); default empty"),
+        payload: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe("Neutral data the drag carries (bound into the script as a Dictionary); default empty"),
         preview: z.boolean().optional().describe("control mode: show a translucent drag preview (default false)"),
         button: z.number().int().nonnegative().optional().describe("node2d mode: mouse button index that begins the drag (default 1 = left)"),
         action: z.string().optional().describe("node2d mode: input action name registered for the drag button (default \"drag\")"),
