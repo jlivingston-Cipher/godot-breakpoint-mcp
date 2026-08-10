@@ -13,100 +13,180 @@
  *   host -> MCP client           ->  `JSON.stringify(Infinity)` is `null`
  *
  * The answer is yes, and it needs no engine edge case at all: a client sending
- * `"baseline": 1e999` to `runtime_assert_perf` round-trips through the addon as `inf` and
- * comes back on the wire as `1e99999`. Three defects follow, and only the first is the
- * question that was asked:
+ * `"baseline": 1e999` to `runtime_assert_perf` round-trips through the addon as `inf`.
  *
- *  1. Under zod 4, `runtime_get_monitors` would start REFUSING a response whose reading
- *     happened to be non-finite — the silent-in-production break, confirmed.
- *  2. NaN is a LIVE defect under zod 3 today: it arrives as `null`, and `z.number()`
- *     refuses `null` under both majors, so one bad key kills the whole response.
- *  3. 🔴 The worst of the three is neither. When zod 3 ACCEPTS `Infinity`, the host
- *     re-serialises its own result to the MCP client, and `JSON.stringify(Infinity)` is
- *     `null`. **The tool reports success and hands back `null` where a number belongs.**
- *     Validation passed and the value is gone — the reporting-honesty class 224 §6 named.
+ * 🔴 226 §2 — AND THE FIRST CONTAINMENT WAS SCOPED TO A ROSTER OF TWO. Session 225 put
+ * this walk at the single `JSON.parse` in `bridge.ts`, which is the right place, and then
+ * widened exactly the two schemas it had been thinking about. Measured off the shipped
+ * wire rather than the roster:
  *
- * WHY THE FIX IS HERE AND NOT IN `schemas.ts`. A schema that accepted non-finite values
- * would have to be written with `z.custom`, which carries no JSON Schema representation —
- * the emitted `outputSchema` a client validates against would degrade from "number" to
- * "anything", trading a host-side refusal for a client-side one. Normalising at the single
- * `JSON.parse` boundary in `bridge.ts` leaves every shipped schema a plain
- * `z.number().nullable()`: representable, and byte-identical in meaning under zod 3 and
- * zod 4. **That is the property the migration turns on, so `finiteness.test.ts` asserts it
- * against both majors rather than assuming it.**
+ *     bridge-routed tools carrying >=1 non-nullable number field    93
+ *     their non-nullable number field paths                        243
+ *     of those, declaring `non_finite`                                2
  *
- * WHAT IS DELIBERATELY NOT DONE. The numeric contract is not redefined. A reading stays a
- * number or `null` — which is what the addon already emits — so arithmetic on these fields
- * keeps working and older clients are unaffected. What changes is that a value lost to
- * non-finiteness now SAYS SO, in `non_finite`, instead of being indistinguishable from a
- * monitor that genuinely read zero-or-absent.
+ * Replacing a non-finite reading with `null` on the other 91 turns a silent wrong value
+ * into a HARD SCHEMA REFUSAL whose message blames the shape — `current: Expected number,
+ * received null` — and the `non_finite` roster that would have explained it is destroyed
+ * by the very parse that fails, because those 91 schemas do not declare the key. That is
+ * 225 §5's own finding one layer out: a coherent, specific message about the wrong cause.
+ *
+ * SO THE POLICY IS SPLIT, AND BOTH HALVES ARE DERIVED RATHER THAN CHOSEN:
+ *
+ *  - DEFAULT — REFUSE, NAMING THE PATH AND THE VALUE. A non-finite number anywhere in a
+ *    bridge reply rejects the call with code `non_finite` and a message that says which
+ *    dotted path carried it and what it was. Loud, accurate, and — because no schema
+ *    moves — invisible to `tools/list`. This is a strictly better failure than either
+ *    1.73.4 (silent `null` on the wire) or the first containment (a shape complaint).
+ *
+ *  - TOLERANT — PRUNE AND ROSTER, for the tools whose whole job is a partial reading.
+ *    `NON_FINITE_TOLERANT` below is the only place that set is written down, and
+ *    `finiteness.test.ts` asserts it equals the set of shipped schemas declaring
+ *    `non_finite`, in BOTH directions. A tool cannot join one without joining the other.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO: widen a number to `number | null`. 225's note said
+ * "the numeric contract is not redefined … older clients are unaffected"; `wire_diff.mjs`
+ * classified that same change MAJOR at four field paths. The prose and the classifier
+ * disagreed and the classifier was right. Nothing here moves a declared type — every
+ * shipped `outputSchema` is byte-identical to v1.73.4 except for the OPTIONAL
+ * `non_finite` roster added to the two tolerant tools, which is what took the cut's
+ * classification from MAJOR back to MINOR.
  */
 
-/** The key a normalised reply carries when something was replaced. Optional in the schemas. */
+/** The key a tolerant reply carries when something was pruned. Optional in the schemas. */
 export const NON_FINITE_KEY = "non_finite";
+
+/**
+ * The tools that report a PARTIAL reading rather than refusing, keyed to the addon method
+ * `bridge.ts` matches on.
+ *
+ * 🔴 THIS IS THE ONLY WRITTEN-DOWN COPY OF THAT SET. `finiteness.test.ts` asserts, both
+ * ways, that its keys are exactly the shipped schemas declaring `non_finite` and that
+ * every method value is actually called by `tools/runtime.ts` — so the set cannot drift
+ * from the wire, and a rename cannot orphan an entry. 225 §9's carried finding is that
+ * every scope is prose until something derives it; this one is asserted against two
+ * independent readers.
+ */
+export const NON_FINITE_TOLERANT: ReadonlyMap<string, string> = new Map([
+  ["runtime_get_monitors", "runtime.get_monitors"],
+  ["runtime_assert_perf", "runtime.assert_perf"],
+]);
+
+/** The addon methods whose replies are pruned instead of refused. */
+export const TOLERANT_METHODS: ReadonlySet<string> = new Set(NON_FINITE_TOLERANT.values());
 
 /** How deep the walk goes. Bridge replies are shallow; the cap is a runaway guard, and it
  *  is asserted rather than assumed — see `finiteness.test.ts`'s depth case. */
 const MAX_DEPTH = 64;
 
-export interface Normalised {
-  /** The value with every non-finite number replaced by `null`. */
-  value: unknown;
-  /** Dotted paths of what was replaced, in encounter order. Empty on the normal path. */
-  nonFinite: string[];
+/** One non-finite number, and where it was. */
+export interface NonFiniteHit {
+  /** Dotted path from the reply root, e.g. `monitors.time/fps` or `regressions[0].current`. */
+  path: string;
+  /** `Infinity`, `-Infinity` or `NaN` — the value as a client-readable word. */
+  value: string;
+}
+
+/** `Infinity` / `-Infinity` / `NaN` as a word. `String(NaN)` is already "NaN". */
+function word(n: number): string {
+  return Number.isNaN(n) ? "NaN" : n > 0 ? "Infinity" : "-Infinity";
 }
 
 /**
- * Replace every non-finite number with `null`, recording where. Returns the input
- * unchanged (and an empty list) when there is nothing to do, which is every real reply —
- * so the normal path allocates nothing and the cost is one walk.
+ * Every non-finite number in `value`, in encounter order. Pure: allocates one array and
+ * never copies the input, so the normal path — which is every real reply — costs one walk
+ * and returns the empty list.
  */
-export function normaliseNonFinite(value: unknown): Normalised {
-  const nonFinite: string[] = [];
+export function findNonFinite(value: unknown): NonFiniteHit[] {
+  const hits: NonFiniteHit[] = [];
 
-  const walk = (v: unknown, path: string, depth: number): unknown => {
+  const walk = (v: unknown, path: string, depth: number): void => {
     if (typeof v === "number") {
-      if (Number.isFinite(v)) return v;
-      nonFinite.push(path || "(root)");
-      return null;
+      if (!Number.isFinite(v)) hits.push({ path: path || "(root)", value: word(v) });
+      return;
     }
-    if (v === null || typeof v !== "object" || depth >= MAX_DEPTH) return v;
+    if (v === null || typeof v !== "object" || depth >= MAX_DEPTH) return;
     if (Array.isArray(v)) {
-      let changed = false;
-      const out = v.map((item, i) => {
-        const next = walk(item, `${path}[${i}]`, depth + 1);
-        if (next !== item) changed = true;
-        return next;
-      });
-      return changed ? out : v;
+      v.forEach((item, i) => walk(item, `${path}[${i}]`, depth + 1));
+      return;
     }
-    let changed = false;
-    const out: Record<string, unknown> = {};
     for (const [k, item] of Object.entries(v as Record<string, unknown>)) {
-      const next = walk(item, path ? `${path}.${k}` : k, depth + 1);
-      if (next !== item) changed = true;
-      out[k] = next;
+      walk(item, path ? `${path}.${k}` : k, depth + 1);
     }
-    return changed ? out : v;
   };
 
-  const normalised = walk(value, "", 0);
-  return { value: normalised, nonFinite };
+  walk(value, "", 0);
+  return hits;
 }
 
 /**
- * Normalise a bridge reply's `result` and, when anything was replaced, attach the
- * `non_finite` roster to it.
- *
- * 🔴 THE ROSTER IS ONLY ATTACHED WHEN IT IS NON-EMPTY. An always-present empty array
- * would be a new required field on every shipped tool for a case that never fires; an
- * absent one is `undefined`, which is what `.optional()` means. And it is attached to the
- * RESULT rather than reported out of band because a caller that cannot see which key was
- * lost is in exactly the position defect 3 above put them.
+ * The refusal message. It names the paths and the values, because the whole point of
+ * refusing here rather than at the schema is that the schema cannot say either.
+ * Capped so a pathological reply cannot produce an unbounded error string; the cap is
+ * asserted in `finiteness.test.ts` rather than trusted.
  */
-export function containNonFinite(result: unknown): unknown {
-  const { value, nonFinite } = normaliseNonFinite(result);
-  if (nonFinite.length === 0) return result;
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
-  return { ...(value as Record<string, unknown>), [NON_FINITE_KEY]: nonFinite };
+export const MESSAGE_CAP = 8;
+
+export function describeNonFinite(hits: readonly NonFiniteHit[]): string {
+  const shown = hits.slice(0, MESSAGE_CAP).map((h) => `${h.path}=${h.value}`).join(", ");
+  const rest = hits.length > MESSAGE_CAP ? ` (+${hits.length - MESSAGE_CAP} more)` : "";
+  return (
+    `The engine returned ${hits.length} non-finite number(s) this reply: ${shown}${rest}. ` +
+    `JSON cannot carry them — Godot stringifies INF as 1e99999 and NAN as null — so the ` +
+    `call is refused rather than reported as a success with the value silently missing.`
+  );
+}
+
+/**
+ * Drop every non-finite value from a flat monitor record, returning what survived and the
+ * keys that did not. The declared type of the record does not move: a reading that is not
+ * a number is ABSENT, not `null`, and `non_finite` is where it says so.
+ */
+export function pruneRecord(rec: unknown): { kept: Record<string, number>; dropped: string[] } {
+  const kept: Record<string, number> = {};
+  const dropped: string[] = [];
+  if (rec === null || typeof rec !== "object" || Array.isArray(rec)) return { kept, dropped };
+  for (const [k, v] of Object.entries(rec as Record<string, unknown>)) {
+    if (typeof v === "number" && Number.isFinite(v)) kept[k] = v;
+    else dropped.push(k);
+  }
+  return { kept, dropped };
+}
+
+/**
+ * The tolerant policy for the two partial-reading tools: prune `monitors`, drop any
+ * comparison row that cannot be compared, and roster every key that left.
+ *
+ * 🔴 A DROPPED COMPARISON IS NOT A PASSED ONE. `ok` and `checked` are left exactly as the
+ * addon computed them — this host does not re-decide the assertion — but a key that could
+ * not be read appears in `non_finite`, so a caller reading `ok: true` alongside a
+ * non-empty roster can see that the two statements are about different key sets.
+ */
+export function tolerate(result: unknown): unknown {
+  if (result === null || typeof result !== "object" || Array.isArray(result)) return result;
+  const src = result as Record<string, unknown>;
+  const roster = new Set<string>();
+  const out: Record<string, unknown> = { ...src };
+
+  if ("monitors" in src) {
+    const { kept, dropped } = pruneRecord(src.monitors);
+    if (dropped.length) {
+      out.monitors = kept;
+      dropped.forEach((k) => roster.add(k));
+    }
+  }
+
+  if (Array.isArray(src.regressions)) {
+    const rows = src.regressions as Array<Record<string, unknown>>;
+    const survivors = rows.filter((row) => {
+      const bad = ["baseline", "current"].some(
+        (f) => typeof row?.[f] === "number" && !Number.isFinite(row[f] as number),
+      );
+      if (bad) roster.add(typeof row?.key === "string" ? row.key : "(unnamed)");
+      return !bad;
+    });
+    if (survivors.length !== rows.length) out.regressions = survivors;
+  }
+
+  if (roster.size === 0) return result;
+  return { ...out, [NON_FINITE_KEY]: [...roster] };
 }

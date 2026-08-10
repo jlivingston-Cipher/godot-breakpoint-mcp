@@ -336,8 +336,14 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         "Capture the baseline earlier with runtime_get_monitors and pass it back inline. Pass direction is inferred " +
         "(time/fps is higher-better; every other monitor is lower-better) unless overridden per key.",
       inputSchema: {
+        // 🔴 226 §2 — `.finite()` REFUSES `1e999` AT THE DOOR AND MOVES NO BYTE ON THE
+        // WIRE. `zodToJsonSchema` emits `{"type":"number"}` for both forms, measured, so
+        // this narrows what the host accepts without changing what it advertises. Before
+        // it, a well-formed call carrying `1e999` reached `float(baseline[key])` in
+        // runtime_bridge.gd as `inf` and came back as `1e99999` — the one non-finite path
+        // in this tree that needed no engine edge case at all.
         baseline: z
-          .record(z.string(), z.number())
+          .record(z.string(), z.number().finite())
           .describe("Monitor key -> baseline value (capture earlier via runtime_get_monitors)"),
         tolerance: z
           .number()

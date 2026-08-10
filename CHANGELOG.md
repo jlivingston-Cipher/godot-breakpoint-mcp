@@ -6,6 +6,121 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.74.0] — 2026-08-10
+
+**Why this is a MINOR, and why it very nearly was not.** `wire_diff.mjs` read the
+`tools/list` payload at v1.73.4 against the one this release ships, at both privilege
+levels. The first reading was **MAJOR — four field paths retyped**, and the note in
+`finiteness.ts` claiming the opposite (*"the numeric contract is not redefined … older
+clients are unaffected"*) was prose written next to a change nobody had classified. The
+containment was narrowed until the classifier agreed with the bump rather than the other
+way round: **278 → 279 tools in the secure default and 291 → 292 privileged, 0 MAJOR, 3
+MINOR, 2–3 PATCH.** The three MINOR entries are `breakpoint_doctor` arriving and the
+optional `non_finite` roster on two tools; nothing was removed, nothing retyped, no
+argument became required.
+
+🔴 **Nothing in the release ritual asked that question.** `wire_diff.mjs` has run only as
+a self-test in CI since 1.73.0; the classifier that exists precisely to decide MINOR from
+MAJOR is not wired to the bump it decides. Run by hand here. See the handoff's NEXT list.
+
+### Added — `breakpoint_doctor`, the diagnostic the person who needs it cannot reach
+
+`breakpoint-mcp doctor` has shipped for many versions and answers exactly the question a
+broken setup raises. It is a **terminal** command, and a user whose bridge is not running
+is not in a terminal — they are in a conversation, watching an `editor_*` call fail with a
+connect error and no way to tell which of the addon, the editor, the port or the secret is
+the wrong one. The assistant could not look. Now it can: same `runDoctorChecks` the CLI
+drives, so the two cannot disagree, taking the already-loaded server `Config` rather than
+calling `loadConfig()` — `runDoctor` mutates `process.env.GODOT_PROJECT` before loading,
+and doing that inside a tool handler would reconfigure the live server out from under
+every other tool. D4, carried since 205.
+
+### Fixed — non-finite engine floats, and the 91 tools the first fix did not declare
+
+Measured on Godot 4.7 headless, every hop: Godot stringifies `INF` as **`1e99999`**, which
+is **valid JSON**, so `JSON.parse` hands back a real `Infinity`; zod 3 accepts it, zod 4
+refuses it, and `JSON.stringify(Infinity)` is `null` either way. Three defects follow, and
+the one that was asked about is the least of them:
+
+1. Under zod 4, `runtime_get_monitors` starts refusing a non-finite reading outright.
+2. `NaN` is a live defect today — it arrives as `null`, which both majors refuse, so one
+   bad key kills the whole response.
+3. 🔴 **The worst is neither.** When zod 3 *accepts* `Infinity`, the host re-serialises to
+   the client and the value becomes `null`. **The tool reports success and hands back
+   `null` where a number belongs.** Validation passed; the reading is gone.
+
+It needs no engine edge case at all: `"baseline": 1e999` in a `runtime_assert_perf`
+request round-trips through `float(baseline[key])` in `runtime_bridge.gd` as `inf`.
+
+**The containment is at the single `JSON.parse` in `bridge.ts`, and the policy is
+per-method.** Measured off the shipped wire rather than a roster: **93 bridge-routed tools
+carry 243 non-nullable number field paths, and two of them declare `non_finite`.** So:
+
+- **Every other method REFUSES**, with code `non_finite` and a message naming the dotted
+  path and the value — `current=Infinity`. Loud, accurate, and no schema moves. The
+  measured example is `runtime_time_scale`, which echoes `Engine.time_scale`: a client
+  that set it to `1e999` used to get `current: null` back under a schema that said
+  `number`, and now gets a refusal that says which field and what was in it.
+- **`runtime_get_monitors` and `runtime_assert_perf` PRUNE and ROSTER.** A reading that is
+  not a number is **absent** from `monitors`, not `null`, and its key is named in the new
+  optional `non_finite` array. A comparison row that cannot be made is dropped and its key
+  rostered; `ok` and `checked` stay exactly as the addon computed them, because this host
+  does not re-decide the assertion.
+- `NON_FINITE_TOLERANT` is the only written-down copy of that set, and
+  `finiteness.test.ts` asserts **both ways** that its keys are exactly the schemas
+  declaring `non_finite`, and that every method in it is really called by
+  `tools/runtime.ts` — so a rename cannot orphan an entry and neither half can move alone.
+
+🔴 **Writing `null` into those slots is what the first attempt did, and on 91 of the 93 it
+made things worse rather than better** — a hard schema refusal whose message blames the
+shape (`current: Expected number, received null`) while the roster that would have
+explained it is destroyed by the very parse that fails, because those 91 schemas do not
+declare the key. A right-shaped wrong answer, which is the failure class this project has
+been chasing since 225 §5.
+
+### Changed — `runtime_assert_perf`'s `baseline` is refused at the door
+
+`z.record(z.string(), z.number().finite())`. `1e999` no longer reaches the engine at all.
+Measured, and asserted in the suite against the **real emitter** rather than a library
+call: two tools registered side by side and listed through the SDK produce byte-identical
+`inputSchema`, so `.finite()` narrows what the host accepts without moving what it
+advertises. That property is what keeps this release a MINOR.
+
+### Changed — record schemas take zod 4's two-argument form
+
+`z.record(value)` is a zod 3 spelling; zod 4 requires the key type. `runtime_state_digest`,
+`runtime_peers_digest` and `resource_get_import_settings` now pass it explicitly. Measured
+as wire-neutral — `wire_diff.mjs` classifies none of the three — so this is migration prep
+that costs consumers nothing, alongside the SDK and zod floor moving to `^1.29.0` and
+`^3.25.76`. The zod-4 half of the finiteness suite runs through the `zod/v4` subpath of
+that installed zod 3, which is the migration path the spike recommended, so the suite is
+also the first live evidence that the subpath resolves and behaves as the new major.
+
+### Internal — four gates, and the scopes they stopped taking on trust
+
+Not shipped to npm consumers; recorded because each closed a case where an instrument
+reported on a population somebody had chosen by hand.
+
+- **`scripts/_gate_lock.py` and `scripts/mutation_lock_gate.py`** — `flock` over the
+  tree-mutating gates, with the guarded population **derived from the source** (every
+  `scripts/*.py` with a write-shaped call, leaving only by being provably confined to a
+  `tempfile` root). It corrected the previous roster in both directions: `floor_pin_gate.py`
+  was omitted and rewrites five tracked files, `scope_gate.py` was included and mutates
+  nothing. The lock also arms SIGTERM/SIGHUP/SIGINT handlers that `sys.exit()`, so a killed
+  gate unwinds its `finally` blocks instead of leaving a mutant in the tree. `kill -9`
+  still can not be caught.
+- **`scripts/terminology_gate.py`** — sweeps every tracked text file and parses its term
+  list out of the policy rather than carrying a copy. The previous sweep read nine
+  documents and reported zero; 24 occurrences were live in five source files, two of which
+  printed one on a green run.
+- **`docs/TOOL_CATALOG.md` admitted to the prose-numeral check** — 20 excluded numerals to
+  0, six fossilised running batch totals deleted rather than pinned, fenced blocks masked
+  with the masked count printed.
+- **`scripts/assetlib_sweep.py` reads the Asset Library edit queue.** `/asset/{id}` serves
+  only the accepted version, so a submitted-and-pending edit was byte-indistinguishable
+  from never having submitted one — eight sessions read the live entry correctly and drew
+  the wrong conclusion.
+
 ## [1.73.4] — 2026-08-07
 
 ### Fixed — check 1 read a documentation filename as an instrument constant

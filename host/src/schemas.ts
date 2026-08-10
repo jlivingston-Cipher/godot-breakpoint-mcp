@@ -552,11 +552,12 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
   runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string() },
   // `monitors` values are `Performance.get_monitor()` readings, so they are engine floats
-  // and can be non-finite. `bridge.ts` normalises those to `null` at the parse boundary and
-  // names them in `non_finite` — see finiteness.ts. The value stays a plain number so the
-  // emitted JSON Schema keeps its type and arithmetic on it keeps working.
+  // and can be non-finite. 🔴 226 §2: a reading that is not a number is ABSENT from
+  // `monitors` and named in `non_finite` — it is NOT `null`. The value type does not move,
+  // so this schema is byte-identical to v1.73.4 apart from the optional roster, and
+  // arithmetic over `Object.values(monitors)` keeps working on every key it can see.
   runtime_get_monitors: { ...engineLog,
-    monitors: z.record(z.string(), z.number().nullable()),
+    monitors: z.record(z.string(), z.number()),
     non_finite: z.array(z.string()).optional(),
   },
   runtime_get_log: { ...engineLog,
@@ -586,22 +587,26 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       }),
     ),
   },
-  // Same source as runtime_get_monitors for `current`/`monitors`. 🔴 `baseline` is the
+  // Same source as runtime_get_monitors for `current`/`monitors`. 🔴 `baseline` was the
   // CLIENT's own number echoed back through the addon (`float(baseline[key])` in
-  // runtime_bridge.gd), and `1e999` in a request parses to `inf` in GDScript — so this is
-  // the field reachable from a well-formed call with no engine edge case at all.
+  // runtime_bridge.gd), and `1e999` in a request parses to `inf` in GDScript — the field
+  // reachable from a well-formed call with no engine edge case at all. 226 §2 closes that
+  // at the DOOR instead: the input schema now takes `z.number().finite()`, which refuses
+  // `1e999` on the way in and emits an identical JSON Schema, so neither side of this
+  // tool's wire moves. A row that cannot be compared is DROPPED and its key named in
+  // `non_finite`; `ok` and `checked` stay exactly as the addon computed them.
   runtime_assert_perf: { ...engineLog,
     ok: z.boolean(),
     checked: z.number(),
     regressions: z.array(
       z.object({
         key: z.string(),
-        baseline: z.number().nullable(),
-        current: z.number().nullable(),
+        baseline: z.number(),
+        current: z.number(),
         direction: z.string(),
       }),
     ),
-    monitors: z.record(z.string(), z.number().nullable()),
+    monitors: z.record(z.string(), z.number()),
     non_finite: z.array(z.string()).optional(),
   },
   runtime_assert_screen_text: { ...engineLog,
