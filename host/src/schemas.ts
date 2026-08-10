@@ -551,7 +551,14 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_call_method: { ...engineLog, return: encodedValue },
   runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
   runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string() },
-  runtime_get_monitors: { ...engineLog, monitors: z.record(z.string(), z.number()) },
+  // `monitors` values are `Performance.get_monitor()` readings, so they are engine floats
+  // and can be non-finite. `bridge.ts` normalises those to `null` at the parse boundary and
+  // names them in `non_finite` — see finiteness.ts. The value stays a plain number so the
+  // emitted JSON Schema keeps its type and arithmetic on it keeps working.
+  runtime_get_monitors: { ...engineLog,
+    monitors: z.record(z.string(), z.number().nullable()),
+    non_finite: z.array(z.string()).optional(),
+  },
   runtime_get_log: { ...engineLog,
     entries: z.array(z.object({ seq: z.number(), level: z.string(), message: z.string() })),
     latest_seq: z.number(),
@@ -579,18 +586,23 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       }),
     ),
   },
+  // Same source as runtime_get_monitors for `current`/`monitors`. 🔴 `baseline` is the
+  // CLIENT's own number echoed back through the addon (`float(baseline[key])` in
+  // runtime_bridge.gd), and `1e999` in a request parses to `inf` in GDScript — so this is
+  // the field reachable from a well-formed call with no engine edge case at all.
   runtime_assert_perf: { ...engineLog,
     ok: z.boolean(),
     checked: z.number(),
     regressions: z.array(
       z.object({
         key: z.string(),
-        baseline: z.number(),
-        current: z.number(),
+        baseline: z.number().nullable(),
+        current: z.number().nullable(),
         direction: z.string(),
       }),
     ),
-    monitors: z.record(z.string(), z.number()),
+    monitors: z.record(z.string(), z.number().nullable()),
+    non_finite: z.array(z.string()).optional(),
   },
   runtime_assert_screen_text: { ...engineLog,
     ok: z.boolean(),

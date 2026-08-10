@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Measure what a server's tool surface COSTS a client, in bytes — 205 §8.6 / D2,
-// and 207 §7.1, which is where the rival's number stopped being a quotation.
+// and 207 §7.1, which is where the alternative's number stopped being a quotation.
 //
 // 🔴 206 SHIPPED A COMPARISON IT COULD NOT REPRODUCE, AND SAID SO. Their figure —
 // `godot-mcp-go`, 2026-08-05, "319 tools ≈ 202 KB ≈ ~50,000 tokens" — was PUBLISHED,
@@ -53,10 +53,10 @@
 //   node scripts/token-cost.selftest.mjs    # the floors' refusal, no server needed
 //
 // 🔴 `--server` IS WHY THE COMPARISON CAN STAY HONEST. It drives a foreign server through
-// the SAME core, so a rival figure is re-derived rather than quoted — the "26 CI jobs"
+// the SAME core, so an alternative's figure is re-derived rather than quoted — the "26 CI jobs"
 // defect (205 §2) is only avoidable with someone else's number if you can take it
 // yourself. OUR FLOORS ARE NOT APPLIED TO A FOREIGN SURFACE: a budget written for this
-// repo has no jurisdiction over anyone else's, and a gate that reddens on a rival's
+// repo has no jurisdiction over anyone else's, and a gate that reddens on an alternative's
 // choices is a gate nobody can act on (206 §3's rule, pointed outward).
 //
 // 🔴 THIS FILE PRINTS; IT DOES NOT ASSERT, which is why the tautology gate exempts it
@@ -103,13 +103,13 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // `inputSchema` only and `engine_log`/`log_seq` are OUTPUT fields, so the one number a
 // competitive claim may honestly use — see the next constant — is unchanged at 468 by
 // every option. 210 §5's argument against the growth was computed on the AGGREGATE: on
-// exactly the share of the surface the next comment says a rival comparison may not quote.
+// exactly the share of the surface the next comment says a comparison may not quote.
 export const BYTES_CEILING = 366000;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN
 // CEILING. `BYTES_CEILING` governs the whole surface, which means it moves when an
-// optional key is added or dropped — and four of ours are optional MCP fields the rival
+// optional key is added or dropped — and four of ours are optional MCP fields the alternative
 // ships none of. The input schema is the one field both carry, so it is the one number a
 // competitive claim may honestly use, and the one that must not drift behind the
 // aggregate. Measured 207 at five hundred and twenty bytes per tool against their four
@@ -197,14 +197,14 @@ export function verdict(m) {
     problems.push(
       `BYTES_CEILING: the tool surface is ${m.total.toLocaleString()} B, ceiling ` +
         `${BYTES_CEILING.toLocaleString()} B. This budget is ALREADY too high relative ` +
-        `to what rivals publish — it is here to stop the number drifting further, so ` +
+        `to what the alternatives publish — it is here to stop the number drifting further, so ` +
         `LOWER it as the surface is paid down; raise it only with a note saying what ` +
         `bought the growth.`);
   if (m.count >= TOOL_FLOOR && m.schemaPerTool > SCHEMA_PER_TOOL_CEILING)
     problems.push(
       `SCHEMA_PER_TOOL_CEILING: input schemas cost ${m.schemaPerTool.toLocaleString()} B ` +
         `per tool, ceiling ${SCHEMA_PER_TOOL_CEILING.toLocaleString()} B. This is the ` +
-        `ONE component a rival comparison can honestly use, because it is the only field ` +
+        `ONE component a comparison can honestly use, because it is the only field ` +
         `both servers carry — the four optional keys we ship and they do not are 38% of ` +
         `our surface and move the aggregate without moving this. Drift here is drift in ` +
         `the number a claim would quote.`);
@@ -239,7 +239,7 @@ export function verdict(m) {
 
 // ── live read ─────────────────────────────────────────────────────────────────
 // 🔴 THE COMMAND IS A PARAMETER, NOT A CONSTANT, and that is the whole of `--server`.
-// A rival's figure re-derived by this code is evidence; the same figure quoted from
+// An alternative's figure re-derived by this code is evidence; the same figure quoted from
 // their README is a claim about their measurement, not about their server.
 async function surface({ command, args, cwd, env }) {
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
@@ -332,7 +332,7 @@ report("default (no BREAKPOINT_PRIVILEGED_GROUPS)", def);
 report("all groups (BREAKPOINT_PRIVILEGED_GROUPS=all)", all);
 
 if (!args.has("--summary")) {
-  console.log("PER-FAMILY (all groups), heaviest first — the breakdown the rival published");
+  console.log("PER-FAMILY (all groups), heaviest first — the breakdown the alternative published");
   console.log("  family            tools     bytes    share   bytes/tool");
   for (const [f, e] of all.families) {
     console.log(`  ${f.padEnd(16)}  ${String(e.n).padStart(5)}  ${String(e.b).padStart(8)}`

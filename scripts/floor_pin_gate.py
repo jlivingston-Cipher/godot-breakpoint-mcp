@@ -46,6 +46,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gate_lock import acquire  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 HOST = ROOT / "host"
 S, T = "scripts", "test-integration"
@@ -133,6 +136,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # are asserted BY NAME in `positive_control_gate.selftest.mjs` as well as driven from
     # both sides (at the floor it passes, one past it refuses), so moving any of them off
     # its shipped value reddens that file for two independent reasons rather than one.
+    # 🆕 225 — THE TWO GATES THIS SESSION ADDED. Both floors are used only as
+    # `len(x) < FLOOR`, so ZEROING THEM MAKES THE GATE MORE PERMISSIVE, not less — the
+    # mutation that this sweep applies is exactly the one those two gates would not
+    # notice on their own. Each selftest therefore asserts its own literal against the
+    # live tree, which is what turns an unfalsifiable floor into a pinned one.
+    ("mutlock.GUARDED_FLOOR",   "../scripts/mutation_lock_gate.py", r"(GUARDED_FLOOR = )4",                                      ["../scripts/mutation_lock_gate.py", "--selftest"]),
+    ("term.TERM_FLOOR",         "../scripts/terminology_gate.py",   r"(TERM_FLOOR = )1",                                         ["../scripts/terminology_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -192,7 +202,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # §7.3's shape, found by the gate built for it rather than by reading.
     ("TAG_FLOOR",                "../scripts/registry_lag.py",             r"(TAG_FLOOR = )100",                                        ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 206 §4, LOWERED 208 — THE TOOL-SURFACE BUDGET. `BYTES_CEILING` is a ceiling that
-    # is ALREADY too high: the surface measures ~1,210 B/tool against a rival's measured
+    # is ALREADY too high: the surface measures ~1,210 B/tool against an alternative's measured
     # ~634, so it is here to stop drift while the surface is paid down rather than to
     # bless the current size. 🔴 208 LOWERED IT WITHOUT TRIMMING ANYTHING — two fields the
     # SDK emits and nobody here authored left the wire, so the ceiling followed the
@@ -201,7 +211,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # surface and pass.
     ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )366000;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
-    # 🆕 207 §7.1 — THE COMPONENT A COMPETITIVE CLAIM MAY HONESTLY QUOTE. The rival's
+    # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
     # their ten per-group numbers exact), and the reproduction refuted what 206 read out
     # of it: our input schemas are within 9% of theirs on 28 FEWER tools, while four
@@ -1058,13 +1068,34 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (38, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (40, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
         "prose, and prose goes stale in silence. It moves only when such a file is "
         "added or removed, and the comment beside EXEC_ROSTER records each move with "
-        "its reason. Session 224 §2 added the method-ledger reader.")),
+        "its reason. The session before last added the method-ledger reader. The current "
+        "one raised it by TWO — the mutation-lock gate and the terminology gate — and the "
+        "shebang check refused both within minutes of them being staged, the third session "
+        "running that this check has caught its own author. `_gate_lock.py` is a module "
+        "rather than an entry point, carries no shebang, and correctly does not move "
+        "this number.")),
+    ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (4, (
+        "The tree-mutating gates that must take the lock, at `{FLOOR}` — control, "
+        "floor-pin, instrument and scope. 🔴 The population is DERIVED from the source "
+        "rather than listed, so this floor guards the deriver rather than a roster: if "
+        "the write-shaped-call finder stops finding writes, every remaining file is "
+        "'guarded' by never having been looked at, and the gate goes green over a tree "
+        "with no lock in it. The handoff that raised this named THREE of the four and "
+        "omitted floor-pin, the one that shares a mutated file with control — the "
+        "reason this number is measured rather than typed.")),
+    ("../scripts/terminology_gate.py", "TERM_FLOOR"): (1, (
+        "Retired terms parsed out of the landscape policy's first rule, at `{FLOOR}`. The "
+        "gate does not carry its own copy of the vocabulary — it reads the rule — so a "
+        "reworded policy would leave the parser matching nothing and the sweep would "
+        "pass over the whole tree finding none. That is the shape this floor exists "
+        "for: an unparseable rule is not an empty rule. It moves the day that rule retires "
+        "a second word outright.")),
     ("../scripts/registry_bytes.py", "ENTRY_FLOOR"): (60, (
         "The tarball population the registry-bytes comparator is allowed to answer "
         "over, at `{FLOOR}`. Its healthy verdict is ZERO differences, so what can "
@@ -1488,6 +1519,11 @@ def _call_wiring_problems() -> list[str]:
 
 
 def main() -> int:
+    # 🔴 224 §6.6 — BEFORE THE SELF-CHECK, NOT AFTER. This gate rewrites TRACKED
+    # files and restores them in a `finally`; a second one running now would read
+    # and write the same tree. A self-check that ran first would be reading
+    # somebody else's mutant and would report it as a defect in this repository.
+    acquire("floor_pin_gate.py")
     failed = False
     print(f"FLOOR_PIN_GATE targets={len(TARGETS)} floor={TARGET_FLOOR} "
           f"use-targets={len(USE_TARGETS)} use-floor={USE_FLOOR}")

@@ -55,7 +55,7 @@ interface Entry {
 /**
  * Hard ceiling on simultaneously live peers.
  *
- * Four, not the eight a rival offers. Four headless Godot instances is already a
+ * Four, not the eight an alternative offers. Four headless Godot instances is already a
  * heavy CI runner, the convergence cases that matter are covered at four, and
  * every extra instance multiplies the flake surface of the one feature whose
  * entire selling point is that it does NOT flake. Raise it on evidence, never

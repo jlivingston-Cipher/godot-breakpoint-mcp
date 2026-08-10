@@ -89,6 +89,14 @@ jobs:
         run: python3 scripts/spec_conformance.py --selftest
       - name: No shipped string names a method the spec removed (spec conformance)
         run: python3 scripts/spec_conformance.py --check
+      # 🆕 225 — RULE 1's VOCABULARY, ENFORCED WHERE 223's SWEEP DID NOT REACH. That
+      # session rewrote nine documents and reported zero residual terms; the word was
+      # still in five source files, two of which PRINTED it on a green run. Pure stdlib,
+      # reads its term list out of the policy document rather than carrying a copy.
+      - name: The terminology parser can still refuse (terminology selftest)
+        run: python3 scripts/terminology_gate.py --selftest
+      - name: No shipped file uses a retired term (terminology gate)
+        run: python3 scripts/terminology_gate.py
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own
@@ -382,3 +390,11 @@ jobs:
       # session running).
       - name: Every check at zero can actually fail (control gate)
         run: python3 ../scripts/control_gate.py
+      # 🆕 225 — 224 §6.6: two mutating gates run at once rewrote each other's tree and
+      # produced a red that was entirely the harness. This is the LAST gate step because
+      # it spawns the four above it to prove each refuses while the lock is held; each
+      # child exits in ~40ms because the refusal happens before any work.
+      - name: The mutation-lock deriver can still refuse (mutation lock selftest)
+        run: python3 ../scripts/mutation_lock_gate.py --selftest
+      - name: Every tree mutator takes the lock (mutation lock gate)
+        run: python3 ../scripts/mutation_lock_gate.py

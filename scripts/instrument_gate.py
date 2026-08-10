@@ -32,6 +32,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gate_lock import acquire  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 HOST = ROOT / "host"
 
@@ -2140,6 +2143,11 @@ def _call_wiring_problems() -> list[str]:
 
 
 def main() -> int:
+    # 🔴 224 §6.6 — BEFORE THE SELF-CHECK, NOT AFTER. This gate rewrites TRACKED
+    # files and restores them in a `finally`; a second one running now would read
+    # and write the same tree. A self-check that ran first would be reading
+    # somebody else's mutant and would report it as a defect in this repository.
+    acquire("instrument_gate.py")
     problems: list[str] = []
     # 🔴 THIS GATE'S OWN SCOPE, FIRST. An INSTRUMENTS list quietly emptied to nothing
     # would sweep nothing, report nothing and exit 0 — the exact shape it exists to
