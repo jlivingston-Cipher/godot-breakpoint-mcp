@@ -136,7 +136,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       title: "Export project",
       description:
         "Headless export using an export preset. Runs to completion and returns exit code + logs. Can be slow — " +
-        "exposed as an MCP task, so task-aware clients can poll, await, or cancel it (tasks/get, tasks/result, tasks/cancel).",
+        "exposed as an MCP task, so task-aware clients can poll or cancel it (tasks/get, tasks/cancel).",
       inputSchema: {
         preset: z.string().describe("Export preset name as defined in export_presets.cfg"),
         output_path: z.string().describe("Output file path for the exported build"),
@@ -179,7 +179,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       title: "Import assets",
       description:
         "Headless (re)import of project assets. Runs to completion and returns exit code + logs. " +
-        "Exposed as an MCP task (poll/await/cancel via tasks/get, tasks/result, tasks/cancel).",
+        "Exposed as an MCP task (poll/cancel via tasks/get, tasks/cancel).",
       inputSchema: {
         timeout_ms: z.number().int().positive().optional().describe("Max run time (default 600000)"),
       },
@@ -203,7 +203,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       description:
         "Run a GDScript in headless mode (godot --headless -s <script>). Use this to invoke test runners " +
         "(GdUnit4 / GUT) or any batch tool. Returns exit code + logs. Exposed as an MCP task, so a long test " +
-        "run can be polled, awaited, or cancelled (tasks/get, tasks/result, tasks/cancel).",
+        "run can be polled or cancelled (tasks/get, tasks/cancel).",
       inputSchema: {
         script_path: z.string().describe("Script to execute, e.g. res://addons/gdUnit4/bin/GdUnitCmdTool.gd"),
         args: z.array(z.string()).optional().describe("Extra CLI args passed after the script"),

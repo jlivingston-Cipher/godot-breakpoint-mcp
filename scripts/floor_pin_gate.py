@@ -969,8 +969,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`contract_check.py` read that file at seven call sites and exited clean. The "
         "floor moving is the deliberate half; the ledger row saying so in the same commit "
         "is what tells it from a check that quietly went missing.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (36, (
-        "The non-executable scripts, at `{FLOOR}`. 🆕 Raised by TWO when 219 — the session "
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (37, (
+        "The non-executable scripts, at `{FLOOR}`. 🆕 Raised by ONE when the session that "
+        "added `scripts/assetlib_sweep.py` — the Asset Library sweep — staged it. It carries "
+        "a shebang and is committed non-executable like every other `scripts/*.py` in this "
+        "tree; the single gate committed executable is the outlier here, not the convention. "
+        "So it belongs in this population, and the check refused within minutes of the file "
+        "being staged. Before that, raised by TWO when 219 — the session "
         "that promoted the positive-control finder and its self-test out of gitignored "
         "scratch — added both. Each is invoked as `node <file>` like every gate beside it, "
         "so the non-executable mode is the correct one, and this is the count moving for "

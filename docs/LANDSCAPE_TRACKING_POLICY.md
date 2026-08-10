@@ -1,0 +1,120 @@
+# Landscape tracking policy
+
+**Effective 2026-08-09. Supersedes the ad-hoc practice of sessions 100–222.**
+
+This file governs how Breakpoint MCP tracks the rest of the Godot AI/MCP landscape, and
+how we write about it. It is short on purpose: four rules, each of which exists because
+the previous practice failed in a specific, identifiable way.
+
+---
+
+## Rule 1 — Terminology: **alternative MCP servers**
+
+The house term for other projects in this space is **"alternative MCP servers"** — short
+form **"the alternatives"**, or simply the project's own name.
+
+The word **"rival"** is retired, along with "competitor" used pejoratively, "threat",
+"enemy", "beat", "kill", and "attack line". Filenames use `ALTERNATIVES`, not `RIVALS`.
+
+Two qualifications keep the term accurate:
+
+- Several tracked entries are **in-editor AI addons**, not MCP servers — they never open a
+  socket and cannot be driven by an MCP client. Call those **in-editor AI addons**. Using
+  "alternative MCP server" for something that is not one is exactly the kind of imprecision
+  this policy exists to prevent.
+- A few entries are **adjacent** (runtime bridges, asset-generation bridges) or have been
+  **ruled out of category** entirely. The roster records which, and those rulings stand
+  until new evidence overturns them.
+
+**Why.** We are not in competition with these projects. We maintain and improve Breakpoint
+so that adopting it is the most compelling choice for the greatest number of users. That is
+a statement about our own work, and it is measured against users' needs — not against
+anyone else's scoreboard. Language that frames the field as a fight produces analysis
+that optimises for the fight.
+
+## Rule 2 — The roster is permanent, and every sweep covers all of it
+
+`docs/alternative_mcp_roster.json` holds **every product that has appeared in any prior
+competitive-analysis sweep.** Entries are never dropped. A product that stops moving is
+marked `dormant`; one ruled out of category keeps its ruling so a later sweep does not
+re-litigate a settled question.
+
+Every sweep covers the **whole roster**, in two tiers:
+
+| | Condition | What the sweep owes it |
+|---|---|---|
+| **No change** | Live version and modify date match what the roster recorded, and the repository HEAD has not moved since `last_analysed` | A line stating **no change since `<last_analysed>`, with the evidence** — the commit SHA and version compared. Nothing more. |
+| **Moved** | Either has changed | A **source-level pass**: clone at HEAD, read the diff since `last_analysed`, re-derive counts from source, and update the roster entry. |
+
+**Counts are never taken from a README.** Derive from registration tables and dispatch
+maps, and cross-check with a second independent derivation. Record both.
+
+**Why.** Prior sweeps covered three or four projects each and carried the rest forward
+unverified, with the carried section honestly flagged as stale. The 2026-08-09 sweep found
+that one carried project had shipped a debugger 48 hours after the document that said the
+category could not. The fix is not to read everything deeply every time — it is to make
+"nothing changed" a *measured* result rather than an *unexamined* one.
+
+## Rule 3 — The Asset Library is swept mechanically, not by memory
+
+`scripts/assetlib_sweep.py` queries the live Asset Library API and reports, on every run:
+
+- tracked entries that **moved** since their last source-level pass,
+- entries in the Asset Library matching an AI/MCP signal that are **not in the roster at
+  all** — the leg that catches what manual monitoring misses,
+- and **the number of discovery hits its relevance filter dropped**, so the excluded scope
+  is something a reader can argue with rather than something nobody can see.
+
+The population is defined by the **live query**, minus what the roster already tracks.
+Adding a product to the roster shrinks the new-entries list automatically; it can never
+grow the population. This is deliberately the same shape as `contract_check.py`'s check 25:
+a gate that reads a roster is a gate over a population somebody chose.
+
+Run it at every sweep, and independently at least monthly.
+
+**Why.** The first run of this script found **three Asset Library MCP entries that no prior
+sweep had ever tracked**, one of which ships its own DAP and LSP clients. Seven months of
+attentive manual monitoring missed them.
+
+## Rule 4 — Write about our capability, not about anyone's deficiency
+
+Every sweep and every piece of public material follows this:
+
+- **Maximise accurate positive statements about what Breakpoint does.** Concrete and
+  verifiable beats superlative: *"step into, step out, scopes, watch expressions, variable
+  writes, exception breakpoints, and conditional/hit-count/logpoint negotiation — for
+  GDScript and C#"* is stronger than *"the best debugger"*, and it survives contact with
+  someone checking.
+- **Minimise negative statements about the alternatives.** State what a project does; note
+  what it does not do only where a user choosing between them would actually need to know,
+  and state it as a factual absence, without adjectives.
+- **Credit good work explicitly.** Several of these projects are better than us at things
+  we care about — onboarding friction, context cost, CI breadth, spec currency. Saying so
+  is how the analysis stays useful to us.
+- **Prefer "only" claims that are about depth, not existence.** Existence claims decay: the
+  moment someone ships the feature, the claim is false and any material carrying it is
+  wrong. Depth-and-coverage claims are durable and are the ones actually true.
+- **No claim about the category may be asserted from a sample.** "Exhaustive grep across
+  all four repositories" is a measurement of four repositories on one day. Write it that
+  way.
+
+**Why.** A recommendation is a claim with a delay fuse. The 2026-08-05 sweep recommended
+the public line *"the only Godot MCP server with a debugger at all"*; it was false within
+48 hours. It was never shipped, but only because nobody had copied it out yet.
+
+---
+
+## What a sweep produces
+
+A dated `COMPETITIVE_ANALYSIS_<date>_ALTERNATIVES.md` in the shared folder containing:
+
+1. Our own baseline, **measured that session**, never carried from a handoff.
+2. The **full roster table** — every entry, with `no change` or `moved` and the evidence.
+3. Source-level sections for the entries that moved, and for anything new.
+4. The Asset Library sweep output, including the dropped-as-irrelevant count.
+5. Capability findings stated per Rule 4.
+6. A verification note: what was cloned, at which SHA, what could not be determined.
+7. Roster updates written back to `docs/alternative_mcp_roster.json` in the same session.
+
+Point 7 is not optional. A sweep that does not update the roster makes the next sweep
+re-derive everything it just learned.

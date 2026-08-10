@@ -2517,7 +2517,10 @@ EXEC_ROSTER = {
 # that is the prompt to re-read the sentence above and confirm it still holds.
 # 🆕 219: 34 -> 36. `positive_control_gate.mjs` and its self-test, both invoked as
 # `node <file>` and both committed 100644, which is what this population is for.
-SHEBANG_NONEXEC_EXPECTED = 36  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+# 🆕 223: 36 -> 37. `scripts/assetlib_sweep.py`, invoked as `python3 <file>` and
+# committed 100644 like every other scripts/*.py in the tree — contract_check.py at
+# 100755 is the outlier here, not the rule.
+SHEBANG_NONEXEC_EXPECTED = 37  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
                                # +1 session 216: scripts/release_names.py — check 1,
                                #   out of the gitignored ritual and into the tree
                                #   (215 §6.3). Invoked as `python3 <file>` like every
