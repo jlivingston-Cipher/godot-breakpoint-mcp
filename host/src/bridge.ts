@@ -2,12 +2,14 @@ import net from "node:net";
 import { randomUUID } from "node:crypto";
 import { log } from "./logger.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
-import { containNonFinite } from "./finiteness.js";
+import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS } from "./finiteness.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
   timer: NodeJS.Timeout;
+  /** The method this reply answers — read only to pick the non-finite policy. */
+  method: string;
 }
 
 /**
@@ -244,10 +246,22 @@ export class BridgeClient {
       // 🔴 THE ONE PLACE A NON-FINITE ENGINE FLOAT CAN ENTER THE HOST. Godot stringifies
       // INF as `1e99999`, which is valid JSON, so `JSON.parse` above hands back a real
       // `Infinity` — accepted by zod 3, refused by zod 4, and turned into `null` by our
-      // own re-serialisation to the client either way. Contained here rather than in
-      // `schemas.ts` so every shipped schema stays a representable `z.number()`; see
-      // finiteness.ts for the four-hop measurement.
-      p.resolve(containNonFinite(msg.result ?? {}));
+      // own re-serialisation to the client either way.
+      //
+      // 🔴 226 §2: THE POLICY IS PER-METHOD AND IT IS NOT A NULL. Two methods report a
+      // partial reading and prune; every other method REFUSES, naming the path and the
+      // value. Writing `null` into a `z.number()` slot — which is what the first
+      // containment did on 91 tools that never declared it — fails the schema with a
+      // message about the shape, and takes the roster that would have explained it down
+      // with the parse. See finiteness.ts for the population and the measurement.
+      const result = msg.result ?? {};
+      if (TOLERANT_METHODS.has(p.method)) {
+        p.resolve(tolerate(result));
+      } else {
+        const hits = findNonFinite(result);
+        if (hits.length) p.reject(new BridgeError("non_finite", describeNonFinite(hits)));
+        else p.resolve(result);
+      }
     } else {
       const e = msg.error ?? { code: "unknown", message: "Unknown bridge error" };
       p.reject(new BridgeError(e.code, e.message));
@@ -300,7 +314,7 @@ export class BridgeClient {
         this.ledger.note(id, method, timeoutMs);
         reject(new BridgeError("timeout", `Bridge request '${method}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       socket.write(payload, (err) => {
         if (err) {
           clearTimeout(timer);
