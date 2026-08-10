@@ -84,6 +84,19 @@ const engineLog = {
 /** name -> ZodRawShape describing that tool's structuredContent. */
 export const outputSchemas: Record<string, z.ZodRawShape> = {
   // ---- Plane B: headless CLI (tools/cli.ts) ----
+  breakpoint_doctor: {
+    ok: z.boolean(),
+    failed: z.number(),
+    checks: z.array(
+      z.object({
+        name: z.string(),
+        status: z.string(),
+        severity: z.string(),
+        detail: z.string(),
+        hint: z.string().optional(),
+      }),
+    ),
+  },
   godot_version: { version: z.string(), raw: capturedRaw },
   godot_launch_editor: { launched: z.boolean(), pid: z.number().nullable(), project: z.string() },
   godot_run_project: { running: z.boolean(), pid: z.number().nullable(), scene: z.string().nullable() },
@@ -219,7 +232,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   resource_duplicate: { duplicated: z.string(), from: z.string(), deep: z.boolean() },
   resource_get_property: { path: z.string(), property: z.string(), value: encodedValue },
   resource_set_property: { path: z.string(), property: z.string(), value: encodedValue },
-  resource_get_import_settings: { path: z.string(), imported: z.boolean(), importer: z.string(), settings: z.record(encodedValue) },
+  resource_get_import_settings: { path: z.string(), imported: z.boolean(), importer: z.string(), settings: z.record(z.string(), encodedValue) },
   // `changed` (1.46.0) is narrower than `settings`: `settings` lists every key the call
   // SET, `changed` only those whose stored value actually moved. Setting a key to the
   // value it already held reported `reimported: true` with the sidecar's bytes unmoved
@@ -538,7 +551,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_call_method: { ...engineLog, return: encodedValue },
   runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
   runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string() },
-  runtime_get_monitors: { ...engineLog, monitors: z.record(z.number()) },
+  runtime_get_monitors: { ...engineLog, monitors: z.record(z.string(), z.number()) },
   runtime_get_log: { ...engineLog,
     entries: z.array(z.object({ seq: z.number(), level: z.string(), message: z.string() })),
     latest_seq: z.number(),
@@ -577,7 +590,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
         direction: z.string(),
       }),
     ),
-    monitors: z.record(z.number()),
+    monitors: z.record(z.string(), z.number()),
   },
   runtime_assert_screen_text: { ...engineLog,
     ok: z.boolean(),
@@ -612,7 +625,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // F4 additions: deterministic playtesting (time control / frame stepping / state digest / RNG seed).
   runtime_time_scale: { ...engineLog, previous: z.number(), current: z.number() },
   runtime_step_frames: { ...engineLog, frames_advanced: z.number(), frame_index: z.number() },
-  runtime_state_digest: { ...engineLog, digest: z.record(z.record(encodedValue)), node_count: z.number() },
+  runtime_state_digest: { ...engineLog, digest: z.record(z.string(), z.record(z.string(), encodedValue)), node_count: z.number() },
   runtime_seed_rng: { ...engineLog, seed: z.number() },
   // F6 additions: multi-peer deterministic playtesting (spawn / stop / converge).
   runtime_spawn_peers: {
@@ -630,7 +643,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_peer_stop: { stopped: z.array(z.string()) },
   runtime_peers_digest: {
     digests: z.array(
-      z.object({ id: z.string(), digest: z.record(z.record(encodedValue)), node_count: z.number() }),
+      z.object({ id: z.string(), digest: z.record(z.string(), z.record(z.string(), encodedValue)), node_count: z.number() }),
     ),
     converged: z.boolean(),
     diverged_at: z.array(z.string()).nullable(),

@@ -14,7 +14,7 @@ import { buildToolsets } from "../src/toolsets.js";
 import { TASK_CAPABILITIES, taskStore } from "../src/tasks.js";
 import { loadConfig } from "../src/config.js";
 
-const EXPECTED_TOOL_COUNT = 291;
+const EXPECTED_TOOL_COUNT = 292;
 const require = createRequire(import.meta.url);
 
 // ── 1. THE FAIL-SAFE, WHICH IS THE ONLY REASON THE STRIP IS SAFE AT ALL ──────────────
@@ -47,7 +47,7 @@ test("🔴 KEEPS the declaration when a keyword the two dialects disagree on is 
 
 test("🔴 a property NAMED like a keyword is not a keyword — the false positive that would have kept the declaration on the whole surface", () => {
   // `scene_get_dependencies` really does return a field called `dependencies`. A walker
-  // that cannot tell an author's vocabulary from the protocol's reads 291 tools as
+  // that cannot tell an author's vocabulary from the protocol's reads 292 tools as
   // dialect-bound and strips nothing, which is a silent no-op wearing a fail-safe's face.
   const s = {
     $schema: SDK_DIALECT, type: "object",

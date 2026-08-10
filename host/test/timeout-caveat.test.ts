@@ -19,7 +19,7 @@ const timeoutEnvelope = (method = "node.add", ms = 15000) => ({
 
 test("read-only tools get NO caveat", () => {
   const readOnly = ANNOTATED_TOOLS.filter((n) => annotationsFor(n).readOnlyHint);
-  assert.equal(readOnly.length, 93, "the read-only set is the one this decision was sized against");
+  assert.equal(readOnly.length, 94, "the read-only set is the one this decision was sized against");
   for (const name of readOnly) {
     assert.equal(caveatFor(name), null, `${name} is read-only — a stale read is not a hazard`);
   }

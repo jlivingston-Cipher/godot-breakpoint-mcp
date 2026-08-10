@@ -5,7 +5,7 @@ import { applyOutputSchemas } from "../src/schemas.js";
 import { loadConfig } from "../src/config.js";
 import { ANNOTATED_TOOLS, annotationsFor, applyAnnotations, type ToolAnnotations } from "../src/annotations.js";
 
-const EXPECTED_TOOL_COUNT = 291;
+const EXPECTED_TOOL_COUNT = 292;
 
 /**
  * Register the whole surface against a recorder exactly as index.ts does —
@@ -195,7 +195,7 @@ test("annotationsFor() returns an all-false block for an unknown tool name", () 
 //
 // 🔴 A BROADER GATE WAS TRIED FIRST AND MEASURED OUT. Modelling "what would a consumer
 // guess from the name?" and recording every disagreement as a reasoned exception sounds
-// like the path-cohort ledger applied to annotations. Measured: 149 of 291 tools
+// like the path-cohort ledger applied to annotations. Measured: 149 of 292 tools
 // disagreed, because the model flagged every LSP reader (`gd_hover`, `cs_definition`) —
 // it was measuring the regex, not the annotations. A 149-row hand-maintained exception
 // table is worse than no table. The rules below are the narrow, high-precision subset

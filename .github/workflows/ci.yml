@@ -19,7 +19,13 @@ jobs:
     name: contract check (host↔addon↔catalog parity)
     runs-on: ubuntu-latest
     steps:
+      # 🔴 fetch-depth: 0 — check 4 (`release_names.py --assert-addon`, below) walks
+      # git history to ask whether the addon has moved since its own version was
+      # stamped. The default shallow clone has no history to walk, which is why the
+      # promotion 220 §8.10 called a one-line change was two.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
@@ -62,14 +68,32 @@ jobs:
       # 1.73.2 block. ~0.1s. A step, not a 27th job (FIFTY-FOURTH session running).
       - name: Check 1's refusals still fire (release names selftest)
         run: python3 scripts/release_names.py --selftest
-      # 🔴 AND THE TOOL-SURFACE BUDGET'S REFUSAL, ALSO WITHOUT A SERVER — 206 §4.
-      # 205 §8.6 said to measure the surface's token cost before writing any claim about
-      # it. Measured: 291 tools, 393,887 B, ~1,354 B/tool against a rival's published
-      # ~648 B/tool over 319 tools -- WE SHIP FEWER TOOLS AND COST ROUGHLY TWICE AS MUCH.
-      # BYTES_CEILING is therefore a budget that is already too high, and exists so the
-      # number cannot drift further unnoticed while it is paid down. This step proves the
-      # ceiling and the collapse floor can still fire; the LIVE read needs a built dist/
-      # and runs in the test job below. Pure node, ~0.1s: a step, not a 27th job.
+      # 🔴 CHECK 4, PROMOTED — 220 §8.10, CARRIED FOR FIVE SESSIONS AS "the cheapest
+      # item on this list". It asks whether the addon has MOVED since its own version
+      # was stamped, which is the question that matters most at an Asset Library
+      # submission — and a submission is not a cut, so the release ritual that also
+      # runs this reader never fires there. Reads git, no network. Its siblings
+      # `--selftest` (above) and `--assert-map` (build job) were promoted long ago;
+      # this one was written runnable-on-its-own in 219 and then wired to nothing.
+      - name: Check 4 — the addon version still names the addon's tree (release names)
+        run: python3 scripts/release_names.py --assert-addon
+      # 🆕 THE SPEC-CONFORMANCE LEDGER — 223 §6.2 (B2 / M0 / D11). 223 fixed eleven
+      # shipped strings naming methods revision 2026-07-28 deletes, and a human found
+      # them by reading a changelog. This reader finds them mechanically: it classifies
+      # every method-shaped string in the shipped surface against what each published
+      # revision actually defines, and refuses on one a client would read and believe.
+      # OFFLINE by construction — the ledger is checked in, so CI never depends on
+      # github.com being up; `--refresh` re-derives it from upstream and lives on the
+      # sdk-drift schedule instead. Pure stdlib, ~0.3s. A step, not a 27th job.
+      - name: The scanner's own refusals still fire (spec conformance selftest)
+        run: python3 scripts/spec_conformance.py --selftest
+      - name: No shipped string names a method the spec removed (spec conformance)
+        run: python3 scripts/spec_conformance.py --check
+      # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
+      # fixed by deletion. Eight lines here described the token-cost selftest, quoting
+      # pre-208 figures; the step itself has always lived in the `test` job, whose own
+      # comment pointed back at "the selftest in the contract-check job". Nothing in
+      # this tree reads a workflow file, so no gate caught either half of that.
 
   build:
     name: real SDK build (node ${{ matrix.node }})

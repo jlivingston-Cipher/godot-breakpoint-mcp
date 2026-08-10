@@ -8,6 +8,7 @@ import { registerTaskTool } from "../tasks.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
+import { runDoctorChecks } from "../cli/doctor.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -136,7 +137,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       title: "Export project",
       description:
         "Headless export using an export preset. Runs to completion and returns exit code + logs. Can be slow — " +
-        "exposed as an MCP task, so task-aware clients can poll or cancel it (tasks/get, tasks/cancel).",
+        "exposed as an MCP task, so a task-aware client can poll it or cancel it while it runs.",
       inputSchema: {
         preset: z.string().describe("Export preset name as defined in export_presets.cfg"),
         output_path: z.string().describe("Output file path for the exported build"),
@@ -179,7 +180,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       title: "Import assets",
       description:
         "Headless (re)import of project assets. Runs to completion and returns exit code + logs. " +
-        "Exposed as an MCP task (poll/cancel via tasks/get, tasks/cancel).",
+        "Exposed as an MCP task, so a task-aware client can poll it or cancel it while it runs.",
       inputSchema: {
         timeout_ms: z.number().int().positive().optional().describe("Max run time (default 600000)"),
       },
@@ -203,7 +204,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       description:
         "Run a GDScript in headless mode (godot --headless -s <script>). Use this to invoke test runners " +
         "(GdUnit4 / GUT) or any batch tool. Returns exit code + logs. Exposed as an MCP task, so a long test " +
-        "run can be polled or cancelled (tasks/get, tasks/cancel).",
+        "run can be polled or cancelled while it is in flight.",
       inputSchema: {
         script_path: z.string().describe("Script to execute, e.g. res://addons/gdUnit4/bin/GdUnitCmdTool.gd"),
         args: z.array(z.string()).optional().describe("Extra CLI args passed after the script"),
@@ -230,6 +231,52 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timed_out: r.timedOut,
         stdout: tail(r.stdout),
         stderr: tail(r.stderr),
+      });
+    },
+  );
+
+  // 🔴 D4, CARRIED SINCE 205 — THE DIAGNOSTIC THE PERSON WHO NEEDS IT CANNOT REACH.
+  // `breakpoint-mcp doctor` has shipped for many versions and answers exactly this
+  // question. It is a TERMINAL command, and a user whose bridge is not running is
+  // not in a terminal — they are in a conversation, watching an editor_* tool fail
+  // with a connect error and no idea which of the addon, the editor, the port or
+  // the secret is the one that is wrong. The assistant could not look. Now it can.
+  //
+  // Same `runDoctorChecks` the CLI drives, so the two can never disagree. It takes
+  // the ALREADY-LOADED server Config rather than calling loadConfig() — `runDoctor`
+  // mutates process.env.GODOT_PROJECT before loading, and doing that inside a tool
+  // handler would reconfigure the live server out from under every other tool.
+  server.registerTool(
+    "breakpoint_doctor",
+    {
+      title: "Diagnose the setup",
+      description:
+        "Check this Breakpoint MCP setup end to end: the Godot binary, the editor addon's install and " +
+        "enable state, the capability groups in force, and the editor/runtime/LSP/DAP bridges. Returns a " +
+        "per-check status with a hint for anything wrong. Read-only — run it first when an editor_*, " +
+        "runtime_*, gd_* or dbg_* tool fails to connect.",
+      inputSchema: {
+        require_live: z
+          .boolean()
+          .optional()
+          .describe("Treat an unreachable bridge as a failure rather than information (default false)"),
+        include_csharp: z
+          .boolean()
+          .optional()
+          .describe("Also probe OmniSharp / netcoredbg on PATH (the C# planes)"),
+        timeout_ms: z.number().int().positive().optional().describe("Per-bridge connect timeout (default 1500)"),
+      },
+    },
+    async ({ require_live, include_csharp, timeout_ms }) => {
+      const report = await runDoctorChecks(cfg, {
+        timeoutMs: timeout_ms ?? 1500,
+        requireLive: require_live ?? false,
+        includeCsharp: include_csharp ?? false,
+      });
+      return ok({
+        ok: report.ok,
+        failed: report.checks.filter((c) => c.status === "fail").length,
+        checks: report.checks,
       });
     },
   );

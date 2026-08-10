@@ -286,7 +286,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       inputSchema: {
         path: z.string().describe("Node path (relative to the current scene; '/root/...' absolute allowed)"),
         expect: z
-          .record(z.any())
+          .record(z.string(), z.any())
           .describe("Map of property name -> expected value (JSON; use the tagged-Variant form for complex types like Vector2/Color)"),
         tolerance: z
           .number()
@@ -337,7 +337,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         "(time/fps is higher-better; every other monitor is lower-better) unless overridden per key.",
       inputSchema: {
         baseline: z
-          .record(z.number())
+          .record(z.string(), z.number())
           .describe("Monitor key -> baseline value (capture earlier via runtime_get_monitors)"),
         tolerance: z
           .number()
@@ -345,7 +345,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
           .optional()
           .describe("Fractional tolerance applied to each comparison (default 0 = exact)"),
         direction: z
-          .record(z.enum(["higher_better", "lower_better"]))
+          .record(z.string(), z.enum(["higher_better", "lower_better"]))
           .optional()
           .describe("Per-key override of the pass direction (defaults: time/fps higher_better, else lower_better)"),
         ...peerField,

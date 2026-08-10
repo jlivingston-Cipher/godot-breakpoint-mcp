@@ -1089,7 +1089,19 @@ PROSE_NUMERAL_EXCLUDED: dict[Path, str] = {
 # the point — RECIPE_ROSTER_EXEMPT's rule, one check over. An entry that stops matching
 # FAILS, because an exemption for a sentence that is gone exempts nothing and hides the
 # next numeral written on that line.
-PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {}
+PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {
+    ("README.md", "An authoring-focused server we re-measured"): (
+        "🔴 THE FIRST LIVE ENTRY IN THIS TABLE, AND IT IS THE ONE THE TABLE WAS BUILT "
+        "FOR. D2's other half publishes what our tool surface costs, and a comparison "
+        "with one number in it is not a comparison. The row's tool count and its "
+        "bytes-per-tool are measurements of SOMEBODY ELSE'S SERVER: this tree can "
+        "re-derive them — `token-cost.mjs --server` does exactly that, which is why the "
+        "figures are ours to publish at all — but it cannot DERIVE them, because "
+        "nothing here decides how many tools another project ships. Keyed by the "
+        "sentence rather than by the values, so the day that row is re-measured against "
+        "a different server the exemption stops matching and this check says so."
+    ),
+}
 
 # Three digits, not two, and not four. The guards on both sides are load-bearing rather
 # than tidy: `342,113 B` must yield NEITHER 342 nor 113, `:6006` must yield nothing, and
@@ -1103,7 +1115,14 @@ PROSE_NUMERAL_EXEMPT: dict[tuple[str, str], str] = {}
 # first run, by inserting exactly that sentence and reporting CONTROL_GATE_GREEN — the
 # positive control refuting the check it was written to cover, which is the only outcome
 # that makes a control worth the tree mutation it costs. The pin below is that sentence.
-PROSE_NUMERAL_RE = re.compile(r"(?<!\d)(?<![\d][.,])(\d{3})(?!\d)(?![.,]\d)")
+# 🔴 THE LETTER GUARDS ARE 224's, AND A LIVE DEFECT FOUND THEM. Publishing the
+# token-cost table put the word `cl100k_base` into README.md — a tokenizer's name —
+# and this scanner read `100` out of the middle of it and refused the line. A
+# three-digit run welded to a letter is part of an identifier, not a claim anybody
+# can restate, and no reader was ever going to own it. Pinned below, both sides.
+PROSE_NUMERAL_RE = re.compile(
+    r"(?<![\dA-Za-z])(?<![\d][.,])(\d{3})(?![\dA-Za-z])(?![.,]\d)"
+)
 
 # 🔴 THE NEGATIVE HALF, WHICH IS THE HALF A POSITIVE CONTROL CANNOT REACH (221 §5.2).
 # `control_gate.py` asserts that a mutation REDDENS a statement; every row it can express
@@ -1142,6 +1161,13 @@ PROSE_NUMERAL_PINS: "list[tuple[str, tuple[int, ...], str]]" = [
      "written to find stale counts, and only the control noticed"),
     ("ours is 289. Everything else agrees", (289,),
      "the same hole in the shape it would actually ship in — the defect sentence, ended"),
+    ("derived at ~3.6 bytes/token (cl100k_base, measured on the full surface)", (),
+     "🔴 THE ROW A LIVE REFUSAL WROTE. `cl100k_base` is a tokenizer's NAME and this "
+     "scanner read the three digits out of its middle, refusing the cost table on the "
+     "session that published it. A numeral welded to a letter belongs to an identifier"),
+    ("the 279-tool default weighs 343,463 B", (279,),
+     "🔴 the letter guard must not cost the check its actual job: a real surface count "
+     "on the same line as a comma-grouped byte count is still exactly one row"),
 ]
 
 
@@ -2520,7 +2546,10 @@ EXEC_ROSTER = {
 # 🆕 223: 36 -> 37. `scripts/assetlib_sweep.py`, invoked as `python3 <file>` and
 # committed 100644 like every other scripts/*.py in the tree — contract_check.py at
 # 100755 is the outlier here, not the rule.
-SHEBANG_NONEXEC_EXPECTED = 37  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 38  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # +1 session 224: scripts/spec_conformance.py — the
+                               # method-ledger reader. Committed 100644 and invoked as
+                               # `python3 <file>`, like every other gate in scripts/.
                                # +1 session 216: scripts/release_names.py — check 1,
                                #   out of the gitignored ritual and into the tree
                                #   (215 §6.3). Invoked as `python3 <file>` like every

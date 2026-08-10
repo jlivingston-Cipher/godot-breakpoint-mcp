@@ -31,3 +31,25 @@ jobs:
         run: npm ls @modelcontextprotocol/sdk || true
       - name: Build against it
         run: npm run build
+
+  # 🆕 224 — THE TWO READERS THAT NEED THE NETWORK, ON THE ONLY SCHEDULE THAT CAN
+  # AFFORD THEM. `assetlib_sweep.py --check` shipped in 223 and was wired to nothing
+  # (223 §6.13, "SIXTY-FIRST SESSION RUNNING"); `spec_conformance.py --refresh` asks
+  # whether the checked-in method ledger still matches the specification repository.
+  # Both dial third-party hosts, so neither belongs in the merge path — a landscape
+  # reader that can fail because godotengine.org is slow is a flaky gate, and this
+  # workflow is already the declared home for informational early warning. The
+  # OFFLINE halves of both are merge-blocking in ci.yml; these are the halves that
+  # tell us the offline data has gone stale.
+  landscape-drift:
+    name: landscape + spec ledger still match upstream
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: The MCP method ledger still matches the specification repository
+        run: python3 scripts/spec_conformance.py --refresh
+      - name: The Asset Library roster still covers every MCP-shaped entry
+        run: python3 scripts/assetlib_sweep.py --check

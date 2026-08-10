@@ -25,9 +25,19 @@ export const TASK_POLL_INTERVAL_MS = 500;
 /**
  * Server capabilities advertising the task-execution model for tools/call.
  * Passed to the McpServer constructor so the SDK installs the tasks/get,
- * tasks/result, tasks/list and tasks/cancel request handlers. tasks/result and
- * tasks/list are removed in protocol revision 2026-07-28; the handlers stay while we
- * negotiate 2025-11-25, but no shipped tool description advertises them.
+ * tasks/result, tasks/list and tasks/cancel request handlers.
+ *
+ * Revision 2026-07-28 removes all four from CORE: tasks/result and tasks/list have
+ * no successor anywhere, while tasks/get and tasks/cancel survive only inside the
+ * io.modelcontextprotocol/tasks extension. The handlers stay while we negotiate
+ * 2025-11-25 — they are the SDK's, and this comment is not shipped to a client.
+ *
+ * 🔴 THIS COMMENT USED TO ASSERT "no shipped tool description advertises them".
+ * Nothing checked that, and it was ALREADY FALSE for tasks/get and tasks/cancel on
+ * the day it was written — three descriptions in tools/cli.ts named both. An
+ * exemption a gate cannot verify is a promise. scripts/spec_conformance.py now
+ * measures the claim instead of restating it, and refuses on a shipped string that
+ * names a method the current revision removed.
  */
 export const TASK_CAPABILITIES = {
   tasks: { requests: { tools: { call: {} } } },
@@ -116,7 +126,8 @@ function errorResult(message: string): TaskWorkerResult {
  * ToolTaskHandler. createTask registers the task, launches the work in the
  * background, and returns the handle immediately; the background settle stores
  * the result — which the SDK turns into a notifications/tasks/status update and
- * uses to satisfy any pending tasks/result long-poll.
+ * uses to satisfy any pending tasks/result long-poll. Both names are 2025-11-25's;
+ * see TASK_CAPABILITIES above for what 2026-07-28 does to them.
  */
 function makeTaskHandler<Args>(name: string, worker: TaskWorker<Args>) {
   const shape = outputSchemas[name];

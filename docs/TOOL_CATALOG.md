@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **291 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **292 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -47,6 +47,35 @@ Complete tool contract for the bridge — **291 tools + 6 MCP resources, all imp
 ---
 
 # Plane B — Headless CLI  (✅ implemented; works without the editor running)
+
+### `breakpoint_doctor` ✅
+Check this setup end to end — the Godot binary, the editor addon's install and enable state, the capability groups in force, and the editor/runtime/LSP/DAP bridges. Returns a per-check status with a hint for anything wrong. The same `runDoctorChecks` the `breakpoint-mcp doctor` CLI drives, so the two can never disagree — but reachable from inside the session, which is where the person who needs it actually is.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false,
+  "properties": {
+    "require_live": { "type": "boolean" },
+    "include_csharp": { "type": "boolean" },
+    "timeout_ms": { "type": "integer" }
+  } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["ok", "failed", "checks"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "failed": { "type": "number" },
+    "checks": { "type": "array", "items": { "type": "object",
+      "required": ["name", "status", "severity", "detail"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "detail": { "type": "string" },
+        "hint": { "type": "string" }
+      } } }
+  } }
+```
 
 ### `godot_version` ✅
 Return the version string of the configured Godot binary.
@@ -99,7 +128,7 @@ Run the project (detached), optionally from a specific scene. **Refuses when the
 ```
 
 ### `godot_export` ✅  · destructive (writes build artifacts)
-Headless export via an export preset. Runs to completion; can be slow. Exposed as an MCP task (D2): task-aware clients poll/cancel it via `tasks/get` / `tasks/cancel`; plain clients still get a synchronous result.
+Headless export via an export preset. Runs to completion; can be slow. Exposed as an MCP task (D2): a task-aware client polls or cancels it while it runs; plain clients still get a synchronous result.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -125,7 +154,7 @@ Headless export via an export preset. Runs to completion; can be slow. Exposed a
 ```
 
 ### `godot_import` ✅
-Headless (re)import of project assets. Exposed as an MCP task (D2): poll/cancel via `tasks/get` / `tasks/cancel`; plain clients still get a synchronous result.
+Headless (re)import of project assets. Exposed as an MCP task (D2): a task-aware client polls or cancels it while it runs; plain clients still get a synchronous result.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -143,7 +172,7 @@ Headless (re)import of project assets. Exposed as an MCP task (D2): poll/cancel 
 ```
 
 ### `godot_run_headless_script` ✅
-Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT test runners or batch tools. Exposed as an MCP task (D2): a long test run can be polled/cancelled via `tasks/get` / `tasks/cancel`; plain clients still get a synchronous result.
+Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT test runners or batch tools. Exposed as an MCP task (D2): a long test run can be polled or cancelled while it is in flight; plain clients still get a synchronous result.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -4152,7 +4181,7 @@ Mark a node as a drop target that validates an incoming payload and emits a sign
 
 Every tool flagged **destructive** accepts an optional `confirm: boolean`. When it is omitted, the host issues an MCP **elicitation** (a client-side confirmation prompt) before executing: on *accept* it proceeds; on *decline/cancel* it returns a non-error "cancelled" result. If the client does not support elicitation, the tool blocks and instructs the caller to re-invoke with `confirm: true` — so a destructive op is never executed silently. Gated tools: `node_delete`, `project_set_setting`, `scene_new`, `gd_rename` (when `apply=true`), `cs_rename` (when `apply=true`), `dbg_evaluate`, `dbg_set_variable`, `dbg_goto`, `runtime_set_property`, `runtime_call_method`, `runtime_emit_signal`, `runtime_inject_input`.
 
-The long-running tools (`godot_export`, `godot_import`, `godot_run_headless_script`) run under the formal MCP **task-execution model** (D2), registered with `taskSupport: 'optional'`. A task-aware client calls the tool with a `task` augmentation to get a task handle back immediately, then drives it with `tasks/get` (poll status) and `tasks/cancel` (stop the run — which aborts the underlying headless Godot process). A plain client that omits the `task` augmentation is unaffected: the host auto-creates a task, polls it to completion, and returns the result synchronously, exactly as before.
+The long-running tools (`godot_export`, `godot_import`, `godot_run_headless_script`) run under the formal MCP **task-execution model** (D2), registered with `taskSupport: 'optional'`. A task-aware client calls the tool with a `task` augmentation to get a task handle back immediately, then drives it with the task methods its negotiated revision defines — polling status, and cancelling to stop the run, which aborts the underlying headless Godot process. The verbs are the client’s side of the wire and they move between revisions, so this page names the capability rather than the RPC. A plain client that omits the `task` augmentation is unaffected: the host auto-creates a task, polls it to completion, and returns the result synchronously, exactly as before.
 
 ---
 
@@ -4222,8 +4251,8 @@ Read-mostly context Claude can pull on demand (clients may subscribe). Each degr
 
 ## Resource subscriptions (D3)
 
-The server advertises the `resources.subscribe` capability. A client may `resources/subscribe` (and
-`resources/unsubscribe`) any of the URIs above; the host then pushes `notifications/resources/updated`
+The server advertises the `resources.subscribe` capability. A client may subscribe to (and unsubscribe
+from) any of the URIs above; the host then pushes `notifications/resources/updated`
 for a URI when its underlying source changes, so a subscriber re-reads only when needed instead of
 polling. Change signals come from two sources. The **editor addon**: changing the node selection
 updates `godot://editor-state`, and switching the edited scene updates both `godot://editor-state`
@@ -4243,6 +4272,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 
 | Tool | Plane | Status | Destructive |
 |---|---|---|---|
+| `breakpoint_doctor` | B / CLI | ✅ | – |
 | `godot_version` | B / CLI | ✅ | – |
 | `godot_launch_editor` | B / CLI | ✅ | – |
 | `godot_run_project` | B / CLI | ✅ | – |
@@ -4540,4 +4570,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | N / Editor | ✅ | ✔ writes files |
 
-**291 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**292 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

@@ -123,7 +123,7 @@ async function main(): Promise<void> {
   // Capability groups — a risk-based axis over the toolsets. `code-execution` is
   // OFF by default; a disabled group's tools are DROPPED at
   // registration (omitted from tools/list), so the secure-default surface is
-  // 291 − 13 = 278 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
+  // 292 − 13 = 279 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
   // server.registerTool AFTER applyOutputSchemas (schema wrapper stays innermost).
   const privilegedGroups = selectPrivilegedGroups(config.privilegedGroups, (unknown) =>
     log(`ignoring unknown BREAKPOINT_PRIVILEGED_GROUPS token(s): ${unknown.join(", ")}`),
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
   // The A/B/C/D planes ARE the grouping. Build the ordered toolset registry
   // (the single source of truth, shared with the registration tests) and
   // register only the selected groups. Default (BREAKPOINT_TOOLSETS unset) =
-  // every group → the full 291-tool surface, byte-identical to before. A filter
+  // every group → the full 292-tool surface, byte-identical to before. A filter
   // lets a client that can't defer tools, or a user who wants a smaller default
   // menu, load only the planes a project needs (GitHub-MCP `--toolsets` style).
   let processes: { killAll: () => void } | undefined;
@@ -177,7 +177,7 @@ async function main(): Promise<void> {
   }
 
   // Recipes: a free, curated task-recipe layer exposed as MCP prompts (discoverable
-  // via prompts/list). Adds NO tools — the 291-tool count is unchanged — and drives
+  // via prompts/list). Adds NO tools — the 292-tool count is unchanged — and drives
   // the enforced tools above, so it's a skill-pack layer over typed/undoable tools.
   registerRecipes(server);
 
@@ -243,6 +243,8 @@ function printUsage(): void {
       "  --dry-run           Print what would change without writing anything.",
       "  --from-github [ref] Fetch the editor addon from GitHub at [ref] (default: this package's version tag) instead of the bundled copy.",
       "  --repo <owner/repo> With --from-github, the source repo (default: jlivingston-Cipher/godot-breakpoint-mcp).",
+      "  --trust <level>     secure | full. `full` enables every higher-trust group (default: secure).",
+      "  --privileged-groups <a,b>  Enable named higher-trust groups instead of all of them.",
       "",
       "doctor options:",
       "  --project <dir>     Project to check (default: $GODOT_PROJECT or the current directory).",
