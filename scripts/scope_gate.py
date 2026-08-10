@@ -28,6 +28,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gate_lock import acquire  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 🔴 ONE PARSER, NOT TWO. `statements()` is an AST walk that took three drafts in 186 to
 # get right; `auto_fingerprints()` enforces the same one-statement-per-literal rule
 # CONTROLS obeys by hand. A second copy here would drift from the gate whose number this
@@ -179,7 +182,13 @@ BLAST: dict[str, int] = {
     "dispatch_methods": 3,                    # also: check 1
     "doc_recipe_mentions": 2,                 # also: check 12
     "doc_resource_claims": 2,                 # also: check 10
-    "exempt_family_lines": 1,
+    # 🆕 225 — TWO, NOT ONE, AND THE GATE FOUND IT RATHER THAN THE AUTHOR. Admitting
+    # `docs/TOOL_CATALOG.md` into check 25's population put its "godot-mcp-pro's 162-tool
+    # ceiling" sentence in reach of a SECOND reader. Blinding the family exemption used to
+    # redden check 13 alone; now check 25 sees an unclaimed 162 on the same line and
+    # reddens too. The blind's radius genuinely moved, in the commit that moved it — which
+    # is the whole contract this table encodes (196 §3).
+    "exempt_family_lines": 2,                 # also: check 25
     "host_bridge_calls": 1,
     "input_schema_shapes": 2,
     "output_schema_shapes": 2,
@@ -457,6 +466,11 @@ def _call_wiring_problems() -> list[str]:
 
 
 def main() -> int:
+    # 🔴 224 §6.6 — BEFORE THE SELF-CHECK, NOT AFTER. This gate rewrites TRACKED
+    # files and restores them in a `finally`; a second one running now would read
+    # and write the same tree. A self-check that ran first would be reading
+    # somebody else's mutant and would report it as a defect in this repository.
+    acquire("scope_gate.py")
     text = SRC.read_text()
     found = targets(text)
     print(f"SCOPE_GATE targets={len(found)} floor={TARGET_FLOOR}")

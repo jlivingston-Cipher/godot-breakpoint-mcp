@@ -102,6 +102,36 @@ def discover() -> tuple[dict[int, dict], int, int]:
     return relevant, len(seen), len(seen) - len(relevant)
 
 
+
+def our_pending_edits() -> list[dict]:
+    """Edits we have SUBMITTED for our own asset that the library has not accepted yet.
+
+    🔴 225 — THE READING NINE SESSIONS OF HANDOFFS COULD NOT MAKE. `/asset/{id}` serves
+    the ACCEPTED version and nothing else, so a submitted-and-pending edit is
+    byte-indistinguishable from never having submitted one. Sessions 217 through 224 each
+    re-read the live entry, each correctly saw 1.9.8, and each concluded the card had not
+    been submitted — the last of them printing "NINTH SESSION RUNNING" on a day when edit
+    23974 had been sitting in the queue since 2026-08-09 22:09:03.
+
+    Nobody was careless. **The instrument could not see the state it was being asked
+    about**, and prose filled the gap — 224 §7.15's finding, arriving in the one place
+    that session did not look. `/asset/edit?asset={id}` is the endpoint that can see it.
+
+    Failure is not fatal: this is a courtesy reading about our own submission, and a
+    sweep that dies because one extra endpoint moved would be worse than one that says
+    it could not look.
+    """
+    try:
+        res = get(f"{API}/asset/edit?asset={SELF_ASSET_ID}&status=new")
+    except Exception as e:                        # noqa: BLE001 — see the docstring
+        return [{"error": str(e)}]
+    return [
+        {"edit_id": e.get("edit_id"), "submitted": e.get("submit_date"),
+         "version": e.get("version_string") or "(unchanged)", "status": e.get("status", "new")}
+        for e in res.get("result", [])
+    ]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
@@ -130,6 +160,8 @@ def main() -> int:
         same = row["recorded_version"] == row["live_version"] and \
             row["recorded_modify"] == row["live_modify"]
         (held if same else moved).append(row)
+
+    pending = our_pending_edits()
 
     relevant, seen_total, dropped = discover()
     new = {i: a for i, a in relevant.items() if i not in tracked}
@@ -207,6 +239,17 @@ def main() -> int:
             )
         for r in gone:
             print(f"    UNREACHABLE {r['asset_id']}  {r['name']}: {r['error']}")
+        for r in pending:
+            if "error" in r:
+                print(f"    PENDING ?   could not read our own edit queue: {r['error']}")
+            else:
+                print(
+                    f"    PENDING {r['edit_id']}  our asset {SELF_ASSET_ID}: submitted "
+                    f"{r['submitted']} · {r['version']} · awaiting review — the live entry "
+                    f"will keep serving the OLD version until this is accepted"
+                )
+        if not pending:
+            print(f"    (no edit pending on our own asset {SELF_ASSET_ID})")
 
     if args.check and (moved or new_mcp):
         print(

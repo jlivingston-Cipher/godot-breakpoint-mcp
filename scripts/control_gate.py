@@ -61,6 +61,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gate_lock import acquire  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 CC = ROOT / "scripts" / "contract_check.py"
 MUT = ROOT / "scripts" / "_control_gate_mutant.py"
@@ -425,7 +428,7 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     # roster was EMPTY for as long as it existed, so the only mutation that could reach
     # the vacuity statement was one that INVENTED an entry — a control over a rule that
     # had never governed anything. D2's cost table gave the table its first live entry
-    # (a rival's measurements, which this tree can re-derive but cannot DERIVE), so the
+    # (an alternative's measurements, which this tree can re-derive but cannot DERIVE), so the
     # mutation is now the real one: break the sentence the live entry is keyed to and
     # the check must notice that it exempts nothing.
     ("25.exempt_stale", "25", "src", "",
@@ -769,7 +772,12 @@ BLAST: dict[str, int] = {
     "12.misfiled": 1,
     "12.countmisfiled": 2,
     "16.unknown": 1,
-    "13.exemptgone": 2,                   # also: 20
+    # 🆕 225 — THREE, AND IT IS THE SAME MOVEMENT `scope_gate.py`'s `exempt_family_lines`
+    # row records one instrument over. Breaking check 13's family exemption for
+    # `docs/TOOL_CATALOG.md` used to redden 13 and 20; now that check 25 reads that file
+    # too, the unclaimed `162` on the same line reddens 25 as well. Two gates observed one
+    # radius change independently, which is the only reason to keep both numbers.
+    "13.exemptgone": 3,                   # also: 20, 25
     "roster.unlisted": 1,
     "15.unexpected": 2,                   # also: 20
     "15.notexec": 2,
@@ -1199,6 +1207,11 @@ def _call_wiring_problems() -> list[str]:
 
 
 def main() -> int:
+    # 🔴 224 §6.6 — BEFORE THE SELF-CHECK, NOT AFTER. This gate rewrites TRACKED
+    # files and restores them in a `finally`; a second one running now would read
+    # and write the same tree. A self-check that ran first would be reading
+    # somebody else's mutant and would report it as a defect in this repository.
+    acquire("control_gate.py")
     src = CC.read_text(encoding="utf-8")
     stmts = statements(src)
     print(f"CONTROL_GATE controls={len(CONTROLS)} floor={CONTROLLED_FLOOR} "

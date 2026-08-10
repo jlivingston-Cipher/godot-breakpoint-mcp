@@ -48,3 +48,4 @@ _to_delete/
 # it leaves behind was committed once by a `git add -A`.
 __pycache__/
 *.py[cod]
+.gate_mutation.lock

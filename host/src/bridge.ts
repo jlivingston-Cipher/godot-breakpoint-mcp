@@ -2,6 +2,7 @@ import net from "node:net";
 import { randomUUID } from "node:crypto";
 import { log } from "./logger.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
+import { containNonFinite } from "./finiteness.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -240,7 +241,13 @@ export class BridgeClient {
     this.pending.delete(id);
     clearTimeout(p.timer);
     if (msg.ok) {
-      p.resolve(msg.result ?? {});
+      // 🔴 THE ONE PLACE A NON-FINITE ENGINE FLOAT CAN ENTER THE HOST. Godot stringifies
+      // INF as `1e99999`, which is valid JSON, so `JSON.parse` above hands back a real
+      // `Infinity` — accepted by zod 3, refused by zod 4, and turned into `null` by our
+      // own re-serialisation to the client either way. Contained here rather than in
+      // `schemas.ts` so every shipped schema stays a representable `z.number()`; see
+      // finiteness.ts for the four-hop measurement.
+      p.resolve(containNonFinite(msg.result ?? {}));
     } else {
       const e = msg.error ?? { code: "unknown", message: "Unknown bridge error" };
       p.reject(new BridgeError(e.code, e.message));
