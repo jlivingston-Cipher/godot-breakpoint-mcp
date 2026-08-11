@@ -2508,6 +2508,68 @@ for label, got in (("`.version`", lock_root), ('`.packages[""].version`', lock_s
             f"Regenerate the lockfile with a modern npm (lockfileVersion 2+)."
         )
 
+# 🆕 227 — AND THE OTHER SIX FIELDS OF THE SAME OBJECT, WHICH NOTHING READ.
+#
+# 226 §4: `#276` moved `host/package.json` to `@modelcontextprotocol/sdk ^1.29.0` /
+# `zod ^3.25.76` and never regenerated the lockfile, so `packages[""].dependencies`
+# carried `^1.17.0` / `^3.23.8` THROUGH THREE MERGES AND TWO PUBLISHED RELEASES,
+# 1.73.4 among them. It was found by `npm ci` rewriting two lines — a tool doing its
+# job, not a check.
+#
+# 🔴 AND THE READER WAS ALREADY STANDING ON IT. Check 14 has parsed
+# `packages[""]` since 1.25.0 to read ONE key out of it. `npm` mirrors the manifest's
+# whole install contract into that object — this tree's copy carries `name`,
+# `version`, `dependencies`, `devDependencies`, `engines`, `bin` and `license` — and
+# the check read `version` and walked past the other six. Two copies of one fact,
+# one reader holding one of them (226 §4).
+#
+# 🔴 THE POPULATION IS DERIVED FROM THE LOCKFILE'S OWN OBJECT, NOT ROSTERED. A list
+# naming `dependencies` and `devDependencies` would be the four lines 226 asked for
+# and would go blind the day npm mirrors a seventh key — the shape 226 §17 named:
+# a hand-chosen roster inside the one true place. Every key `packages[""]` and the
+# manifest BOTH carry must agree; a key in one and not the other is reported rather
+# than skipped, because that asymmetry is npm's format moving under this reader and
+# a silent pass would be the reader agreeing with a comparison it did not make.
+#
+# 🔴 `engines` IS IN HERE AND IT IS NOT INCIDENTAL. It is the field the SDK-v2
+# migration moves (`node >=18` -> `>=20`), the one `release_names.py`'s new MAJOR arm
+# reads as breaking evidence, and it would have drifted exactly the way the two
+# dependency ranges did.
+manifest = json.loads(_text(Path("host/package.json")))
+lock_pkg = lock.get("packages", {}).get("", {})
+mirrored = sorted(set(lock_pkg) & set(manifest))
+lock_only = sorted(set(lock_pkg) - set(manifest))
+if len(mirrored) < 5:
+    errors.append(
+        f"host/package-lock.json's `packages[\"\"]` mirrors only {len(mirrored)} "
+        f"manifest key(s) ({mirrored}) — this tree's lockfile has always carried at "
+        f"least name, version, dependencies, devDependencies and engines. A "
+        f"population this thin means the lockfile format moved or the parse did, and "
+        f"an empty comparison agrees with everything (226 §4)."
+    )
+drifted = [
+    f"`{k}` is {json.dumps(lock_pkg[k], sort_keys=True)} in the lockfile and "
+    f"{json.dumps(manifest[k], sort_keys=True)} in the manifest"
+    for k in mirrored if lock_pkg[k] != manifest[k]
+]
+if drifted:
+    errors.append(
+        "host/package-lock.json's `packages[\"\"]` has drifted from "
+        "host/package.json: " + "; ".join(drifted)
+        + ". npm writes that object FROM the manifest, so a difference means the "
+        "manifest was edited and the lockfile was never regenerated — run "
+        "`npm ci --include=dev` (or `npm install`) in host/. This is how "
+        "`@modelcontextprotocol/sdk ^1.17.0` and `zod ^3.23.8` survived three merges "
+        "and two published releases under a manifest that said otherwise (226 §4)."
+    )
+if lock_only:
+    errors.append(
+        f"host/package-lock.json's `packages[\"\"]` carries {lock_only}, which "
+        f"host/package.json does not. npm mirrors that object from the manifest, so a "
+        f"key on only one side is the format moving under this check rather than a "
+        f"value being wrong — read both files before deciding which one to change."
+    )
+
 host_sites = [
     ("host/package-lock.json .version", lock_root),
     ('host/package-lock.json .packages[""].version', lock_self),

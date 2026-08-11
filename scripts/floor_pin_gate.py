@@ -143,6 +143,11 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # live tree, which is what turns an unfalsifiable floor into a pinned one.
     ("mutlock.GUARDED_FLOOR",   "../scripts/mutation_lock_gate.py", r"(GUARDED_FLOOR = )4",                                      ["../scripts/mutation_lock_gate.py", "--selftest"]),
     ("term.TERM_FLOOR",         "../scripts/terminology_gate.py",   r"(TERM_FLOOR = )1",                                         ["../scripts/terminology_gate.py", "--selftest"]),
+    # 🆕 227 — THE SPEC SCANNER'S, AND IT IS THE SAME SHAPE AS THE TWO ABOVE: used only
+    # as `files_read < FLOOR`, so zeroing it makes the gate MORE permissive and the live
+    # `--check` cannot notice. Its `--selftest` therefore asserts the literal against the
+    # live tree from both sides, which is what makes this row a pin rather than a visit.
+    ("spec.SCANNED_FLOOR",      "../scripts/spec_conformance.py",   r"(SCANNED_FLOOR = )120",                                    ["../scripts/spec_conformance.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1096,6 +1101,20 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "pass over the whole tree finding none. That is the shape this floor exists "
         "for: an unparseable rule is not an empty rule. It moves the day that rule retires "
         "a second word outright.")),
+    # 🆕 227 — THE SPEC SCANNER'S POPULATION, WHICH BECAME FLOORABLE THE DAY IT STOPPED
+    # BEING A ROSTER. 224 §7.6 carried "SCANNED is still a roster" for three handoffs;
+    # deriving it from `git ls-files` is the fix and this floor is the fix's own bill.
+    ("../scripts/spec_conformance.py", "SCANNED_FLOOR"): (120, (
+        "The tracked files the spec scanner reads, at `{FLOOR}`. A roster of five paths "
+        "either exists or raises; a derived population's failure mode is an EMPTY LIST — "
+        "not a checkout, no git on PATH, a cwd that moved — and an empty population "
+        "finds no nonconformant string by construction and exits green. That is exactly "
+        "`ENTRY_FLOOR`'s argument below, arriving in a second file for the same reason: "
+        "the answer this gate reports healthy is ZERO findings, so the thing that can "
+        "collapse is never the answer, only the population. It sits well beneath the "
+        "live read because the difference between them is the declared exclusion list, "
+        "and a floor tracking its own population would have to move every time somebody "
+        "writes a doc. It moves when a whole suffix or a whole tree joins the scan.")),
     ("../scripts/registry_bytes.py", "ENTRY_FLOOR"): (60, (
         "The tarball population the registry-bytes comparator is allowed to answer "
         "over, at `{FLOOR}`. Its healthy verdict is ZERO differences, so what can "

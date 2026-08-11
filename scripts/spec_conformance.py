@@ -57,6 +57,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -73,15 +74,46 @@ EXT_TASKS_RAW = (
     "ext-tasks/main/schema/draft/schema.ts"
 )
 
-# Files whose prose reaches a user or a model.  Directories are walked.
-SCANNED = [
-    "host/src",
-    "docs",
-    "addons",
-    "README.md",
-    "host/README.md",
-]
+# Files whose prose reaches a user or a model — EVERY TRACKED ONE, minus the
+# exclusions declared below.
+#
+# 🆕 227 — AND THIS FILE'S OWN DOCSTRING IS WHAT CONVICTED THE THING IT REPLACES.
+# Twenty lines up: *"a gate reading a roster is a gate over a population somebody
+# chose, and an instrument that ships its own list of things to look for reproduces
+# the defect it was built to catch."*  That was written about the LEDGER, in a file
+# whose FILES came from a five-entry list nobody had re-measured since it was typed.
+# 224 §7.6 named it, 225 and 226 carried it, and the measurement is why it took a
+# third handoff to look:
+#
+#     tracked files with a scanned suffix        238
+#     read by the five-entry roster               83
+#     declared EXCLUDED, with reasons             54
+#     🔴 NEITHER — invisible, unreasoned         101
+#
+# 🔴 AND THE INVISIBLE HALF CONTAINED THE POPULATION THIS GATE GOVERNS.
+# `example/addons/breakpoint_mcp/` is a maintained copy of the shipped addon —
+# `contract_check` check 14 asserts its version tracks the canonical one file for
+# file — and its `plugin.gd`, `bridge_server.gd` and `runtime_bridge.gd` carry
+# `notifications/resources/updated` while `operations.gd` carries `tools/knowledge`.
+# The same strings, in the same words, in a copy the gate could not see. A roster
+# does not have to be wrong to be blind; it only has to be older than the tree.
+#
+# 🔴 THE POPULATION IS `git ls-files`, WHICH IS `terminology_gate.py`'s ANSWER AND
+# `floor_pin_gate.py`'s: a file that is tracked is a file that ships or documents,
+# and one that is not tracked cannot reach anybody. New directories join the
+# population by existing rather than by being remembered.
 SCANNED_SUFFIXES = (".ts", ".md", ".gd", ".mjs")
+
+# 🔴 THE COLLAPSE FLOOR, AND IT IS NOT DECORATION. The old roster named five paths
+# that either exist or raise; the derived population is a subprocess whose failure
+# mode is an EMPTY LIST — no git, a tarball rather than a checkout, a cwd that moved
+# — and an empty population produces zero findings and a green run. That is the
+# `tarball_trap()` shape (registry_bytes.py) arriving in this file the moment the
+# roster left it: two empty collections agree by construction.
+SCANNED_FLOOR = 120   # governed by SIZE_LEDGER — `{FLOOR}` file(s), set well beneath
+                      # the live read because the gap between them is the declared
+                      # exclusions, and a floor that tracks its own population is a
+                      # floor that has to move whenever a doc is written.
 
 # 🔴 DELIBERATELY OUTSIDE THE POPULATION, EACH WITH THE REASON, AND EACH COUNTED
 # RATHER THAN SILENCED.  An exclusion is something a reader can argue with only
@@ -96,6 +128,18 @@ EXCLUDED = {
     "host/test": (
         "tests name methods in order to assert on them; a test that stopped "
         "mentioning a removed method would stop testing the removal."
+    ),
+    # 🆕 227 — ADMITTED BY THE DERIVATION AND EXCLUDED FOR host/test's OWN REASON.
+    # Thirty integration files, and the roster never had to decide about them because
+    # it never reached them. 🔴 ONE OF THEM ALSO SHOWS WHY THE DECISION IS NOT
+    # COSMETIC: `cs-lsp-plane.integration.mjs:105` holds the JavaScript regex
+    # `/unsupported by the connected C# language server/i`, and the SHAPE reads the
+    # trailing flag as `server/i` — a method-shaped string that is a regex delimiter.
+    # The exclusion is for the host/test reason and this is a second, narrower one:
+    # a scanner reading source that is not prose will read syntax as vocabulary.
+    "host/test-integration": (
+        "integration tests, and host/test's reason applies unchanged — they name "
+        "methods in order to drive and assert on them."
     ),
 }
 
@@ -256,19 +300,28 @@ def load_ledger() -> dict:
         return json.load(f)
 
 
+def tracked_candidates(root: str = ROOT) -> "list[str]":
+    """Every TRACKED file with a scanned suffix, repo-relative and sorted. PURE-ish.
+
+    🔴 `git ls-files` AND NOT `os.walk`, and the difference is the point. A walk finds
+    `node_modules`, `dist`, `.godot` and every developer's scratch, so it needs a skip
+    list — and a skip list is the roster this function exists to delete, wearing a
+    different name. Tracked-ness is the tree's own answer to "does this ship".
+    """
+    r = subprocess.run(["git", "ls-files"], capture_output=True, text=True, cwd=root)
+    if r.returncode != 0:
+        return []
+    return sorted(f for f in r.stdout.split("\n")
+                  if f.endswith(SCANNED_SUFFIXES))
+
+
+def is_excluded(rel: str) -> bool:
+    """Is this repo-relative path inside a DECLARED exclusion? PURE."""
+    return any(rel == e or rel.startswith(e + "/") for e in EXCLUDED)
+
+
 def scanned_files() -> "list[str]":
-    out = []
-    for entry in SCANNED:
-        p = os.path.join(ROOT, entry)
-        if os.path.isfile(p):
-            out.append(p)
-            continue
-        for base, dirs, names in os.walk(p):
-            dirs[:] = [d for d in dirs if d not in ("node_modules", "dist", "__pycache__")]
-            for n in sorted(names):
-                if n.endswith(SCANNED_SUFFIXES):
-                    out.append(os.path.join(base, n))
-    return sorted(out)
+    return [os.path.join(ROOT, f) for f in tracked_candidates()]
 
 
 def classify(line: str, method: str, suffix: str = ".ts") -> str:
@@ -375,6 +428,26 @@ def main() -> int:
         )
         return 1
     if args.selftest:
+        # 🆕 227 — THE FLOOR IS PINNED HERE, AGAINST THE LIVE TREE, AND IT HAS TO BE.
+        # `SCANNED_FLOOR` is used only as `files_read < FLOOR`, so ZEROING IT MAKES THE
+        # GATE MORE PERMISSIVE — the mutation `floor_pin_gate.py` applies is precisely
+        # the one a lower-bound check cannot notice about itself. 225's two gates paid
+        # this same bill and the note there says why: an unfalsifiable floor is a
+        # number, not a check. 🔴 BOTH DIRECTIONS: a floor beneath a third of the
+        # candidates is decoration, and one above what is actually read would refuse
+        # every run — and would do it at the next cut rather than here.
+        cands = tracked_candidates()
+        read = [f for f in cands if not is_excluded(f)]
+        low, high = len(cands) // 3, len(read)
+        floor_ok = low <= SCANNED_FLOOR <= high
+        print(f"  {'🟢' if floor_ok else '🔴'} SCANNED_FLOOR = {SCANNED_FLOOR}, and the "
+              f"live tree reads {len(read)} of {len(cands)} tracked candidate(s) — the "
+              f"floor must sit in [{low}, {high}]: high enough that zeroing it reddens "
+              f"here, low enough that it is not tracking the population it floors.")
+        if not floor_ok:
+            print("🔴 SPEC_CONFORMANCE FLOOR UNPINNED — see the line above.",
+                  file=sys.stderr)
+            return 1
         print(
             f"SPEC_CONFORMANCE selftest ok — {pins_read} pin(s), {pins_negative} of "
             f"them negative, shape and class both pinned on every row"
@@ -397,9 +470,10 @@ def main() -> int:
     excluded_hits = 0
     files_read = 0
 
-    for path in scanned_files():
-        rel = os.path.relpath(path, ROOT)
-        if any(rel == e or rel.startswith(e + os.sep) for e in EXCLUDED):
+    candidates = tracked_candidates()
+    for rel in candidates:
+        path = os.path.join(ROOT, rel)
+        if is_excluded(rel):
             excluded_hits += len(hits(path))
             continue
         files_read += 1
@@ -431,7 +505,16 @@ def main() -> int:
     else:
         print(f"Spec conformance — current revision {current} · we negotiate "
               f"{ledger['declared']['revision']}")
+        # 🆕 227 — THE DERIVATION, PRINTED AS THREE NUMBERS THAT MUST ADD UP. A reader
+        # can now argue with the population without reading this file: candidates come
+        # from `git ls-files`, the excluded count is the declared list's cost, and the
+        # difference is what was read. Under the roster the third number existed and
+        # the first two did not, so nothing said what was NOT being read.
+        print(f"  tracked candidates   : {len(candidates)} "
+              f"({', '.join(SCANNED_SUFFIXES)}) · floor {SCANNED_FLOOR}")
         print(f"  files read           : {files_read}")
+        print(f"  excluded by roster   : {len(candidates) - files_read} file(s) in "
+              f"{', '.join(EXCLUDED)}")
         print(f"  SHIPPED (prose)      : {counts['shipped']}   <- the refusal population")
         print(f"  wire tokens          : {counts['wire']}")
         print(f"  stderr log strings   : {counts['log']}")
@@ -449,6 +532,21 @@ def main() -> int:
             print(f"  🔴 {f}")
         for u in unclassified:
             print(f"  🔴 UNCLASSIFIED {u}")
+
+    # 🆕 227 — THE COLLAPSE, REFUSED AFTER THE REPORT AND BEFORE THE VERDICT. Placed
+    # here rather than at the top so a collapsed run still PRINTS its three numbers —
+    # the reader needs to see which of the two went to zero, the candidates or the
+    # exclusions. 🔴 AND IT REFUSES ON `--check` ONLY FOR THE SAME REASON THE FINDINGS
+    # DO: the report mode is a reader, and a reader that exits 1 cannot be piped.
+    if files_read < SCANNED_FLOOR:
+        print(f"\n🔴 SPEC_CONFORMANCE POPULATION COLLAPSED — read {files_read} file(s) "
+              f"of {len(candidates)} tracked candidate(s), floor {SCANNED_FLOOR}. "
+              f"`git ls-files` returned nothing usable (not a checkout? cwd moved?) or "
+              f"the exclusion list has swallowed the tree. A population this small "
+              f"finds no nonconformant string BY CONSTRUCTION, and a green run over it "
+              f"means nothing at all.", file=sys.stderr)
+        if args.check:
+            return 1
 
     if findings or unclassified:
         if args.check:

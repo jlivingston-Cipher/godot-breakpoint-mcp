@@ -212,6 +212,21 @@ known and accepted rewrite — `git checkout -- example/project.godot`. Check
    against the addon at the commit that version was cut from. It is the only reader
    that opens what users installed and the commit they installed it under, and it
    runs after `npm publish` and before `git tag`.
+
+   **Check 8 reads the wire, and it is the one that decides whether your change is a
+   MINOR.** `host/scripts/wire_diff.mjs` builds the previous tag, starts both servers,
+   pages `tools/list` out of each, and classifies the difference — a removed field or a
+   changed type is MAJOR, new surface is MINOR, prose is PATCH. Every other release
+   check projects onto a *file*; this one projects onto the public API, which is the
+   only thing a version number is a statement about. `scripts/release_names.py` runs it
+   at every cut and **refuses a bump beneath its verdict**, so a schema you widen or
+   narrow in a feature PR is what sets the next release's number. There is no way to
+   skip it: if the classifier cannot answer, the cut stops.
+
+   A **MAJOR** needs breaking evidence and cannot be claimed without it. Two things
+   count, both derived: check 8 reading MAJOR on the wire, or `host/package.json`'s
+   `engines` narrowing — the install contract, which breaks consumers without moving a
+   single schema.
 5. Make sure the core checks pass locally: `npm run build`, `npm run typecheck`,
    `npm test`, and `python3 scripts/contract_check.py`.
 6. Open the pull request using the provided template, fill in the checklist, and
