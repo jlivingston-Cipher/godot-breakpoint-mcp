@@ -108,6 +108,27 @@ jobs:
         run: python3 scripts/terminology_gate.py --selftest
       - name: No shipped file uses a retired term (terminology gate)
         run: python3 scripts/terminology_gate.py
+      # 🆕 230 — 229 §5.2 / NEXT 3, THE ONLY ITEM ON THAT LIST WITH A MEASURED PRECEDENT.
+      # `pyflakes` reported the duplicate `SIZE_LEDGER` key that opened session 229 for as
+      # long as it has existed; 228 spent a session finding it by reading and 229 built a
+      # bespoke reader for it. Eleven instruments in this tree and that defect was one
+      # `pip install` away the whole time.
+      # 🔴 IT IS A CLASS ROSTER AND NOT A TOTAL, AND THAT IS THE WHOLE DESIGN. Measured on
+      # the live tree pyflakes reports SIX findings in TWO classes and every one is
+      # cosmetic — the defect that motivated the item is already fixed. A ceiling on the
+      # TOTAL would therefore be satisfied by a tree that deleted one f-string and grew a
+      # duplicate key: six before, six after, green. That is 229 §2's collapsible
+      # population in a third file, so each class carries its own ceiling and an
+      # UNDECLARED class reddens on sight whatever the total does.
+      # 🔴 AND A MISSING LINTER IS RED, NOT A SKIP — `registry_lag.py`'s reason, three
+      # steps up: a reader that goes quiet when it cannot see is how a standing decision
+      # gets written down in place of a command nobody re-ran. ~1s. A step, not a 27th job.
+      - name: Install the one off-the-shelf tool this repository runs
+        run: pip install pyflakes
+      - name: The lint roster can still refuse (lint ceiling selftest)
+        run: python3 scripts/lint_ceiling.py --selftest
+      - name: No new class of linter finding, and no declared class grew (lint ceiling)
+        run: python3 scripts/lint_ceiling.py
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own

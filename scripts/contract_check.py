@@ -2705,7 +2705,12 @@ EXEC_ROSTER = {
 # 🆕 223: 36 -> 37. `scripts/assetlib_sweep.py`, invoked as `python3 <file>` and
 # committed 100644 like every other scripts/*.py in the tree — contract_check.py at
 # 100755 is the outlier here, not the rule.
-SHEBANG_NONEXEC_EXPECTED = 41  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 42  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+#                              # 🆕 230: 41 -> 42. scripts/lint_ceiling.py, invoked as
+#                              # `python3 <file>` like every gate beside it. 🔴 THIS CHECK
+#                              # CAUGHT THE NEW FILE ON THE FIRST RUN AFTER `git add`,
+#                              # which is 228 §6.9's ordering finding paying for itself a
+#                              # second session running.
 #                              # 🆕 228: 40 -> 41. scripts/tree_quiet.py, invoked as
 #                              # `python3 <file>` like every gate beside it. The hook that
 #                              # calls it is EXECUTABLE and is on EXEC_ROSTER instead —

@@ -150,6 +150,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `--check` cannot notice. Its `--selftest` therefore asserts the literal against the
     # live tree from both sides, which is what makes this row a pin rather than a visit.
     ("spec.SCANNED_FLOOR",      "../scripts/spec_conformance.py",   r"(SCANNED_FLOOR = )120",                                    ["../scripts/spec_conformance.py", "--selftest"]),
+    # 🆕 230 — THE LINT CEILING'S ONE NUMBER, AND IT IS THE SAME SHAPE AS THE THREE ABOVE:
+    # read only as `files_read < FLOOR`, so zeroing it makes the gate MORE permissive and
+    # the live run cannot notice. Its `--selftest` asserts the literal against the live
+    # `git ls-files` count from both sides. 🔴 The roster it guards is `CLASS_CEILING`,
+    # which is exempt below for the reason a dict of prose reasons is not a threshold.
+    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )15",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -559,6 +565,12 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                 "to decide whether a claim site sits under a floor. There is no value to mutate "
                 "off and no threshold to move; blinding it is the instrument gate's job and it "
                 "is already a `{SIG:}` target there",
+    ("../scripts/lint_ceiling.py", "CLASS_CEILING"): "🆕 230 — a DICT of pyflakes message classes mapped to (ceiling, prose reason), "
+                "not a threshold. There is no single value to mutate off: the sweep would have to "
+                "pick one row, and every row's refusal is already driven from both sides in that "
+                "file's `--selftest` — including the case a total would miss, six findings before "
+                "and six after with one of them a duplicate key. Its POPULATION floor "
+                "(`PY_FILE_FLOOR`) is swept in SIZE_LEDGER above",
     (f"{T}/_path_ledger.mjs", "COHORT_FLOOR_WHY"): "🆕 211 — a STRING of prose explaining why the cohort floors are set where "
                        "they are. The floors themselves (`COHORT_FLOORS`) are swept; this is their "
                        "caption, and a caption has no refusal to prove",
@@ -1007,6 +1019,14 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`contract_check.py` read that file at seven call sites and exited clean. The "
         "floor moving is the deliberate half; the ledger row saying so in the same commit "
         "is what tells it from a check that quietly went missing.")),
+    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (15, (
+        "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
+        "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
+        "same set today and the floor is what says so if they stop being. It moves when a "
+        "script is ADDED or DELETED on purpose — this row and the file arrived in the same "
+        "commit, so its first value counts itself. 🔴 A linter with nothing to read prints "
+        "a clean tree in the same words as a clean tree, which is why the population is "
+        "floored and not just the findings.")),
     ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): (3, (
         "Statements carrying no literal of their own, so no row can ever name them. A "
         "CEILING in spirit: it is supposed to fall, and `{FLOOR}` is where it stands.")),
@@ -1094,7 +1114,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (41, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (42, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
