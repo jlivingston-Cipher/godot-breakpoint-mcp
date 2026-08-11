@@ -34,7 +34,8 @@ it a read before you jump in.
 | `addons/breakpoint_mcp/` | The GDScript editor/runtime addon that runs inside Godot (`operations.gd`, `runtime_bridge.gd`, and friends). |
 | `example/addons/breakpoint_mcp/` | A **byte-identical mirror** of the addon, bundled with the example project so it can be enabled and driven directly. This copy must always match `addons/breakpoint_mcp/` exactly. |
 | `docs/` | Documentation, including `docs/TOOL_CATALOG.md` (the authoritative tool catalog) and `docs/RUNBOOK.md` (the interactive per-plane validation steps). |
-| `scripts/` | Helper scripts: `contract_check.py` (static parity check) and `validate.sh` (a smoke/setup helper). |
+| `scripts/` | Helper scripts: `contract_check.py` (static parity check), `tree_quiet.py` (is a gate rewriting the tree right now?) and `validate.sh` (a smoke/setup helper). |
+| `.githooks/` | `pre-commit`, which refuses a commit taken out of a tree a gate is mid-way through rewriting. Install with `python3 scripts/tree_quiet.py --install-hook`. |
 
 ## Setting up and building
 
@@ -52,6 +53,33 @@ npm test        # compiles the suite and runs it with node --test
 integration tests through Node's built-in test runner — no Godot editor
 required. If all four steps pass locally, you have run the same core checks CI
 runs on every push.
+
+### First, point git at the repository's hooks
+
+```bash
+python3 scripts/tree_quiet.py --install-hook     # sets core.hooksPath to .githooks
+```
+
+Several gates in `scripts/` **rewrite tracked files while they run** and put them back
+when they finish — that is how they prove a check can actually fail. While one is in
+flight the working tree is not the tree you wrote, and anything read out of it (a
+`git diff`, a `git add`, a patch, a commit) can carry a live mutation into a deliverable.
+That has happened, in a shipped patch, and it was caught by a human noticing the file
+count was wrong.
+
+`scripts/tree_quiet.py` answers the question directly and the hook asks it for you at
+every `git commit`:
+
+```bash
+python3 scripts/tree_quiet.py            # 🟢 quiet · 🔴 a gate is mutating · 🔴 one did not finish
+python3 scripts/tree_quiet.py --recover  # put back what a killed gate left behind
+```
+
+It refuses only on a path that moved *while a gate held the lock* — your own uncommitted
+work is not a refusal, and never needs a flag to get past it. The one thing it cannot do
+from inside the repository is install itself: `core.hooksPath` lives in `.git/config`,
+which is not tracked, so the line above is a real step and every gate prints a reminder
+while it is missing.
 
 ### The static contract check
 

@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gate_lock import acquire  # noqa: E402
+from _gate_lock import acquire, run_and_settle  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 🔴 ONE PARSER, NOT TWO. `statements()` is an AST walk that took three drafts in 186 to
@@ -173,7 +173,11 @@ LEDGER: dict[str, tuple[str, ...]] = {
 
 # id -> the exact number of `FAIL:` lines that blind produces. Measured, not guessed.
 BLAST: dict[str, int] = {
-    "_tracked_modes": 4,                      # also: check 15
+    # 🆕 228: 4 -> 5. `.githooks/pre-commit` joined check 15's EXEC_ROSTER, and blinding
+    # the mode reader reports one FAIL per roster member it can no longer see — so a third
+    # member is a fifth line. The radius moved because the ROSTER grew, which is the one
+    # cause this number is supposed to make visible.
+    "_tracked_modes": 5,                      # also: check 15
     "all_false_annotation_claims": 1,
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,
@@ -634,4 +638,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 🆕 228 — `run_and_settle` and not `main`: the mutation record has to close on
+    # EVERY exit path, and this file has more than one. See _gate_lock.run_and_settle.
+    sys.exit(run_and_settle("scope_gate.py", main))

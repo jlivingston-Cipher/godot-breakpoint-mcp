@@ -47,7 +47,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gate_lock import acquire  # noqa: E402
+from _gate_lock import acquire, run_and_settle  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST = ROOT / "host"
@@ -141,7 +141,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # mutation that this sweep applies is exactly the one those two gates would not
     # notice on their own. Each selftest therefore asserts its own literal against the
     # live tree, which is what turns an unfalsifiable floor into a pinned one.
-    ("mutlock.GUARDED_FLOOR",   "../scripts/mutation_lock_gate.py", r"(GUARDED_FLOOR = )4",                                      ["../scripts/mutation_lock_gate.py", "--selftest"]),
+    ("mutlock.GUARDED_FLOOR",   "../scripts/mutation_lock_gate.py", r"(GUARDED_FLOOR = )5",                                      ["../scripts/mutation_lock_gate.py", "--selftest"]),
     ("term.TERM_FLOOR",         "../scripts/terminology_gate.py",   r"(TERM_FLOOR = )1",                                         ["../scripts/terminology_gate.py", "--selftest"]),
     # 🆕 227 — THE SPEC SCANNER'S, AND IT IS THE SAME SHAPE AS THE TWO ABOVE: used only
     # as `files_read < FLOOR`, so zeroing it makes the gate MORE permissive and the live
@@ -1073,7 +1073,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (40, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (41, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
@@ -1084,16 +1084,23 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "shebang check refused both within minutes of them being staged, the third session "
         "running that this check has caught its own author. `_gate_lock.py` is a module "
         "rather than an entry point, carries no shebang, and correctly does not move "
-        "this number.")),
-    ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (4, (
+        "this number. The session that shipped the tree-quiet reader raised it by ONE "
+        "again, and its `pre-commit` hook went to EXEC_ROSTER instead — git EXECUTES a "
+        "hook rather than handing it to an interpreter, so that one file is in the other "
+        "population for a reason the mode itself carries.")),
+    ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (5, (
         "The tree-mutating gates that must take the lock, at `{FLOOR}` — control, "
-        "floor-pin, instrument and scope. 🔴 The population is DERIVED from the source "
+        "floor-pin, instrument, scope, and the tree-quiet reader's own `--recover`. "
+        "🔴 The population is DERIVED from the source "
         "rather than listed, so this floor guards the deriver rather than a roster: if "
         "the write-shaped-call finder stops finding writes, every remaining file is "
         "'guarded' by never having been looked at, and the gate goes green over a tree "
         "with no lock in it. The handoff that raised this named THREE of the four and "
         "omitted floor-pin, the one that shares a mutated file with control — the "
-        "reason this number is measured rather than typed.")),
+        "reason this number is measured rather than typed. The session that shipped the "
+        "tree-quiet reader raised it again and did not CHOOSE to: that file was written "
+        "as a READER, and the deriver classified it UNGUARDED on its first run because "
+        "`--recover` rewrites tracked files. The gate found its mutation first.")),
     ("../scripts/terminology_gate.py", "TERM_FLOOR"): (1, (
         "Retired terms parsed out of the landscape policy's first rule, at `{FLOOR}`. The "
         "gate does not carry its own copy of the vocabulary — it reads the rule — so a "
@@ -1841,4 +1848,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 🆕 228 — `run_and_settle` and not `main`: the mutation record has to close on
+    # EVERY exit path, and this file has more than one. See _gate_lock.run_and_settle.
+    sys.exit(run_and_settle("floor_pin_gate.py", main))

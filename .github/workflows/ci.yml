@@ -405,7 +405,15 @@ jobs:
       # produced a red that was entirely the harness. This is the LAST gate step because
       # it spawns the four above it to prove each refuses while the lock is held; each
       # child exits in ~40ms because the refusal happens before any work.
+      # 🆕 228 — THE READER'S OWN TABLE, AND IT IS THE SMALLER OF THE TWO CLAIMS. This
+      # step proves `tree_quiet.py` can classify thirteen fixtures; it says nothing about
+      # whether any reader consults it. The step BELOW is the one that does — the
+      # mutation-lock gate spawns this file, and `.githooks/pre-commit`, against a real
+      # held lock on this tree. 227 §15 is the whole reason both lines are here and the
+      # difference between them is written down.
+      - name: The tree-quiet reader can still refuse (tree quiet selftest)
+        run: python3 ../scripts/tree_quiet.py --selftest
       - name: The mutation-lock deriver can still refuse (mutation lock selftest)
         run: python3 ../scripts/mutation_lock_gate.py --selftest
-      - name: Every tree mutator takes the lock (mutation lock gate)
+      - name: Every tree mutator takes the lock, closes its record, and every reader refuses beside one (mutation lock gate)
         run: python3 ../scripts/mutation_lock_gate.py
