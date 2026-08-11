@@ -39,20 +39,22 @@ That is a claim about today's tree, so it is asserted rather than assumed — se
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gate_lock import REFUSAL, REFUSAL_EXIT, acquire  # noqa: E402,F401
+from _gate_lock import (MUTATING, MUTATING_EXIT, REFUSAL,  # noqa: E402,F401
+                        REFUSAL_EXIT, acquire, run_and_settle)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 
 # Governed by floor_pin_gate's SIZE_LEDGER. Raised deliberately when a mutator is added;
 # a collapse here means the deriver stopped finding writes, not that the tree got safer.
-GUARDED_FLOOR = 4
+GUARDED_FLOOR = 5
 
 WRITE_CALLS = {"write_text", "write_bytes"}
 # 🔴 THESE ARE MODULE FUNCTIONS AND THE MODULE IS PART OF THE MATCH. The first draft keyed
@@ -145,14 +147,27 @@ def write_sites(path: Path) -> tuple[list[str], list[str]]:
     return unconfined, confined
 
 
-def acquires(path: Path) -> bool:
-    """The file calls `acquire(...)`. Read from the AST rather than by substring so a
+def calls(path: Path, name: str) -> bool:
+    """The file calls `name(...)`. Read from the AST rather than by substring so a
     mention in a docstring or a comment cannot satisfy it — a gate whose evidence is a
     word in prose is the class 224 §3.2 deleted."""
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "acquire":
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name:
             return True
     return False
+
+
+def acquires(path: Path) -> bool:
+    return calls(path, "acquire")
+
+
+def settles(path: Path) -> bool:
+    """🆕 228 — the OTHER half of taking the lock, and it is derived for the same reason
+    the first half is. `acquire()` opens a mutation record; `run_and_settle()` is what
+    closes it, and a gate that opens one and never closes it leaves every LATER run
+    comparing itself against a baseline nobody retired. A prose note asking the next
+    author to remember is 224 §7.6's roster with a smaller population."""
+    return calls(path, "run_and_settle")
 
 
 def classify() -> tuple[dict[str, list[str]], int, int]:
@@ -180,6 +195,16 @@ def classify() -> tuple[dict[str, list[str]], int, int]:
 
 # ── the controls ───────────────────────────────────────────────────────────────────────
 
+# 🆕 228 — HOW A MEMBER OF THE POPULATION IS INVOKED, WHICH IS NOT THE POPULATION.
+# `tree_quiet.py` is guarded because `--recover` rewrites tracked files; run with no
+# arguments it is a READER and refuses with a reader's marker. Spawning it bare and
+# demanding `GATE_LOCK_HELD` measures the wrong entry point — 🔴 and it went red exactly
+# that way before this table existed, which is why the table is a table and not a
+# comment. Keys are checked against the derived population below, so a stale entry
+# cannot make the roster look complete over a file that has left it.
+MUTATING_ARGV: dict[str, list[str]] = {"tree_quiet.py": ["--recover"]}
+
+
 def refuses_under_lock(script: Path) -> tuple[bool, str]:
     """Run it while this process holds the lock. It must refuse, fast, with the marker.
 
@@ -187,31 +212,84 @@ def refuses_under_lock(script: Path) -> tuple[bool, str]:
     this proves it is REACHED — 197 §4's distinction, and the reason `_call_wiring` exists
     in three of the four gates below.
     """
-    p = subprocess.run([sys.executable, str(script)], capture_output=True, text=True,
-                       cwd=str(ROOT), timeout=120)
+    argv = MUTATING_ARGV.get(script.name, [])
+    p = subprocess.run([sys.executable, str(script), *argv], capture_output=True,
+                       text=True, cwd=str(ROOT), timeout=120)
     if p.returncode != REFUSAL_EXIT:
         return False, f"exit {p.returncode}, wanted {REFUSAL_EXIT} — it did not refuse"
     if REFUSAL not in p.stdout:
         return False, "refused without the marker — the exit code alone does not say why"
-    return True, "refused"
+    return True, "refused" + (f" ({' '.join(argv)})" if argv else "")
 
 
-def negative_control(script: Path) -> tuple[bool, str]:
-    """Delete the `acquire(...)` line from a COPY and assert the classifier notices.
+def negative_control(script: Path, token: str = "acquire(",
+                     predicate=None) -> tuple[bool, str]:
+    """Delete the call line from a COPY and assert the classifier notices.
 
     🔴 Without this, `acquires()` returning True for every file — a predicate stuck on —
     would produce a fully green gate over a tree with no lock in it at all. That is the
     shape `positive_control_gate.mjs` exists for, asked of this file's own predicate.
+
+    🆕 228 — PARAMETERISED, BECAUSE THE SECOND PREDICATE IS A SECOND PREDICATE. `settles`
+    is as capable of being stuck on as `acquires` was, and a control that covers one of
+    two identical readers covers one of two identical readers (196 §4).
+
+    🔴 228 — AND THE MUTATION IS A RENAME NOW, NOT A DELETION, BECAUSE THE DELETION DID
+    NOT COMPILE. `run_and_settle(...)` is the only statement in its `if __name__` block;
+    dropping the line left a bare `if` and `ast.parse` raised. `calls()` would have had to
+    swallow that to return an answer, and a swallowed SyntaxError is a classifier saying
+    "no call here" about a file that is not a file — 181's `executed` distinction, in the
+    control rather than in the subject. A rename keeps the mutant PARSEABLE, so a False
+    from the predicate can only mean the predicate looked and did not find it.
     """
+    predicate = predicate or acquires
     src = script.read_text(encoding="utf-8")
-    stripped = "\n".join(ln for ln in src.splitlines() if not ln.strip().startswith("acquire("))
-    if stripped == src:
-        return False, "no `acquire(` line to remove — the mutation is not a mutation"
+    renamed = src.replace(token, "NOT_" + token)
+    if renamed == src:
+        return False, f"no `{token}` call to rename — the mutation is not a mutation"
     tmp = Path(tempfile.mkdtemp(prefix="mutlock_neg_")) / script.name
-    tmp.write_text(stripped, encoding="utf-8")
-    still = acquires(tmp)
-    return (not still), ("classifier still calls it guarded — it is not reading the call"
-                         if still else "classifier calls it unguarded, as it must")
+    tmp.write_text(renamed, encoding="utf-8")
+    try:
+        still = predicate(tmp)
+    except SyntaxError as exc:
+        return False, f"the mutant did not parse ({exc.lineno}) — this row measures the harness"
+    return (not still), ("classifier still reads the call — it is not reading the call"
+                         if still else "classifier stops reading it, as it must")
+
+
+# ── 🆕 228 — the READER's side, and it is a live control or it is nothing ───────────────
+
+def reader_refuses_under_lock() -> tuple[bool, str]:
+    """Spawn `tree_quiet.py` while THIS process holds the lock. It must refuse.
+
+    🔴 THIS IS THE ROW 227 §15 IS ABOUT. `tree_quiet.py --selftest` proves the comparison
+    can classify fixtures; that is a claim about the READER. This proves that on THIS
+    tree, at this moment, with a real mutator holding the real lock, a real reader says
+    no — which is a claim about the SUBJECT, and it is the only one of the two that would
+    have stopped 227 §7.2.
+    """
+    p = subprocess.run([sys.executable, str(SCRIPTS / "tree_quiet.py")],
+                       capture_output=True, text=True, cwd=str(ROOT), timeout=120)
+    if p.returncode != MUTATING_EXIT:
+        return False, f"exit {p.returncode}, wanted {MUTATING_EXIT} — it did not refuse"
+    if MUTATING not in p.stdout:
+        return False, "refused without the marker — the exit code alone does not say why"
+    return True, "refused while a mutator held the lock"
+
+
+def hook_refuses_under_lock() -> tuple[bool, str]:
+    """And the hook, not just the script it calls. 🔴 A HOOK THAT SWALLOWS THE EXIT CODE
+    IS A HOOK THAT PRINTS A WARNING, and the two are one `set -e` apart."""
+    hook = ROOT / ".githooks" / "pre-commit"
+    if not hook.exists():
+        return False, "no .githooks/pre-commit — the one reader a human walks into is gone"
+    if not os.access(hook, os.X_OK):
+        return False, "the hook is not executable, so git would skip it silently"
+    p = subprocess.run([str(hook)], capture_output=True, text=True, cwd=str(ROOT),
+                       timeout=120)
+    if p.returncode == 0:
+        return False, "the hook exited 0 while the lock was HELD — it swallows the refusal"
+    return True, f"refused with exit {p.returncode}"
 
 
 def _js_mutators() -> tuple[list[str], int]:
@@ -342,23 +420,57 @@ def main() -> int:
           f"which is why no JS instrument is in the population above")
 
     # ── the live controls: written is not reached ─────────────────────────────────────
+    guarded_names = [line.split(" ")[0] for line in groups["guarded"]]
+    for name in sorted(set(MUTATING_ARGV) - set(guarded_names)):
+        bad += 1
+        print(f"🔴 MUTATION_LOCK_ARGV {name!r} has an entry in MUTATING_ARGV and is not in "
+              f"the derived\n   population — a stale row makes the control roster look "
+              f"complete over a file that left it.")
     print("MUTATION_LOCK controls — each guarded gate, spawned while the lock is HELD")
-    for line in groups["guarded"]:
-        name = line.split(" ")[0]
+    for name in guarded_names:
         ok, why = refuses_under_lock(SCRIPTS / name)
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {name:<24} {why}")
 
+    # ── 🆕 228 — OPENING A RECORD AND CLOSING ONE ARE TWO CALLS ────────────────────────
+    # The population is every file that takes the lock, derived exactly as `guarded` is —
+    # and it is NOT the same set: `mutation_lock_gate.py` acquires and mutates nothing, so
+    # it is temp-only above and in here. A gate that acquires without settling leaves a
+    # baseline behind that the NEXT gate compares itself against.
+    openers = sorted(p.name for p in SCRIPTS.glob("*.py")
+                     if not p.name.startswith("_gate_lock") and acquires(p))
+    unsettled = [n for n in openers if not settles(SCRIPTS / n)]
+    print(f"MUTATION_LOCK record — {len(openers)} file(s) take the lock, "
+          f"{len(openers) - len(unsettled)} close their record")
+    for name in unsettled:
+        bad += 1
+        print(f"  🔴 UNSETTLED  {name} calls acquire() and never run_and_settle(). Its "
+              f"mutation record\n"
+              f"                stays open after a CLEAN exit, so the next gate reads a "
+              f"baseline that\n"
+              f"                expired — and a SIGKILL's real damage becomes "
+              f"indistinguishable from it.")
+
+    print("MUTATION_LOCK reader controls — the lock is HELD; what does a READER say?")
+    for label, fn in (("tree_quiet.py", reader_refuses_under_lock),
+                      (".githooks/pre-commit", hook_refuses_under_lock)):
+        ok, why = fn()
+        bad += 0 if ok else 1
+        print(f"  {'🟢' if ok else '🔴'} {label:<24} {why}")
+
     print("MUTATION_LOCK negative control — the classifier reads the CALL, not the file")
     if groups["guarded"]:
         first = groups["guarded"][0].split(" ")[0]
-        ok, why = negative_control(SCRIPTS / first)
-        bad += 0 if ok else 1
-        print(f"  {'🟢' if ok else '🔴'} {first:<24} {why}")
+        for token, predicate in (("acquire(", acquires), ("run_and_settle(", settles)):
+            ok, why = negative_control(SCRIPTS / first, token, predicate)
+            bad += 0 if ok else 1
+            print(f"  {'🟢' if ok else '🔴'} {first + ' ' + token:<24} {why}")
 
-    print(f"MUTATION_LOCK {'ok — every tree mutator refuses to run beside another' if not bad else f'🔴 FAILED ({bad})'}")
+    print(f"MUTATION_LOCK {'ok — every tree mutator refuses to run beside another, closes its record, and every reader refuses beside one' if not bad else f'🔴 FAILED ({bad})'}")
     return 1 if bad else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 🆕 228 — `run_and_settle` and not `main`: the mutation record has to close on
+    # EVERY exit path, and this file has more than one. See _gate_lock.run_and_settle.
+    sys.exit(run_and_settle("mutation_lock_gate.py", main))

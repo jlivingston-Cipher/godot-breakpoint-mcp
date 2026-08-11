@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# 🆕 228 — the one place a human's own `git` walks into the reader.
+#
+# 227 §7.2: a session cut a patch while `control_gate.py` was mid-sweep and shipped a
+# live control inside it. `scripts/tree_quiet.py` is the question that failure had no
+# way to ask; this hook is the answer being asked WITHOUT anybody remembering to.
+#
+# 🔴 IT REFUSES RATHER THAN WARNS. A warning printed above a successful commit is read
+# after the commit exists, which is 227 §15's shape: a real signal answering a smaller
+# question than the one the reader thinks it answered.
+#
+# Bypass is `git commit --no-verify`, which git owns and this repository cannot take
+# away. That is a different thing from a `--force` of our own: it is not in our
+# vocabulary, it does not appear in our help, and nobody reaches it by accident.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+python3 "$ROOT/scripts/tree_quiet.py" --hook
+code=$?
+if [ "$code" -ne 0 ]; then
+  echo
+  echo "pre-commit: refusing to commit a tree a gate is halfway through, or one it"
+  echo "            never finished putting back. Nothing was committed."
+  exit "$code"
+fi
+exit 0

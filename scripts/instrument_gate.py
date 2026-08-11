@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gate_lock import acquire  # noqa: E402
+from _gate_lock import acquire, run_and_settle  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST = ROOT / "host"
@@ -2367,4 +2367,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 🆕 228 — `run_and_settle` and not `main`: the mutation record has to close on
+    # EVERY exit path, and this file has more than one. See _gate_lock.run_and_settle.
+    sys.exit(run_and_settle("instrument_gate.py", main))

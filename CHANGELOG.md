@@ -6,6 +6,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a reader can ask whether the tree is being rewritten under it
+
+- **`scripts/tree_quiet.py`** answers the question session 227 §7.2 had no way to put:
+  *is a gate rewriting tracked files right now, and did the last one finish?* A session
+  cut a patch with `git diff` while `control_gate.py` was mid-sweep and shipped a live
+  control — `npm 0.0.0` in the README badge — inside the deliverable. `_gate_lock.py`
+  knew the whole time; every mutator consults it and no reader ever had.
+  `.githooks/pre-commit` is where a human's own `git commit` walks into the answer, and
+  `python3 scripts/tree_quiet.py --install-hook` points git at it.
+- **The mutation record survives `SIGKILL`, which the lock itself cannot.** `flock` is
+  released by the kernel however the holder dies, so a killed gate leaves a free lock
+  over a mutated tree and the next run reports the leftover as a finding. The lock file
+  now carries the `git status` BASELINE the holder started from, and the next acquirer
+  refuses on the comparison — naming the files, not a flag. A holder killed between
+  mutations leaves a tree that matches its own baseline and costs nobody a keystroke.
+- **`tree_quiet.py --recover` puts the bytes back**, including the ones git cannot: a
+  file that was already carrying uncommitted work when a gate mutated it was previously
+  unrecoverable, because the original lived in the dead process's memory. The guard's
+  escape is a restore, never deleting the lock file.
+
 ### Added — the release ritual reads the wire, and a MAJOR can finally be cut
 
 - **Check 8 is wired into the cut.** `host/scripts/wire_diff.mjs` — the only reader in

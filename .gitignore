@@ -49,3 +49,10 @@ _to_delete/
 __pycache__/
 *.py[cod]
 .gate_mutation.lock
+# 🆕 228 — two scratch directories beside the lock, both write-only safety nets.
+#   .gate_mutation.d/     the baseline bytes of files that were ALREADY dirty when a
+#                         mutating gate started — the only copy of your uncommitted work
+#                         while a gate is rewriting it (`_gate_lock.STASH_DIR`).
+#   .gate_mutation.undo/  what `tree_quiet.py --recover` found immediately before it put
+#                         anything back, so the recovery itself is never one-way.
+.gate_mutation.*/

@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gate_lock import acquire  # noqa: E402
+from _gate_lock import acquire, run_and_settle  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 🔴 ONE PARSER, NOT TWO. `statements()` is an AST walk that took three drafts in 186 to
@@ -634,4 +634,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 🆕 228 — `run_and_settle` and not `main`: the mutation record has to close on
+    # EVERY exit path, and this file has more than one. See _gate_lock.run_and_settle.
+    sys.exit(run_and_settle("scope_gate.py", main))
