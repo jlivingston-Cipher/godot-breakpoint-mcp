@@ -178,6 +178,118 @@ export function shapeOf(schema, prefix = "", out = new Map()) {
   return out;
 }
 
+// ══ 🆕 233 — THE DISCOVER HALF, AND `CONSTRAINTS` IS THE ROSTER IT IS ABOUT ══════════
+//
+// 🔴 A KEYWORD THIS LIST DOES NOT NAME MAKES TWO DIFFERENT SCHEMAS PRODUCE THE SAME NAME.
+// `typeName` narrows on `CONSTRAINTS` and on nothing else, so `{type:"object",
+// minProperties:1}` and `{type:"object", minProperties:9}` are one string to it — and
+// `classify` compares STRINGS. The failure is not "a constraint goes unreported": it is
+// **`WIRE_VERDICT PATCH` over a change that breaks callers**, printed by the one reader
+// in this repository whose whole subject is the public API. Every other roster here fails
+// loud; this one fails by agreeing with itself.
+//
+// 🔴 MEASURED OVER THE LIVE WIRE BEFORE A LINE OF THIS WAS WRITTEN — 279 tools, 3,282
+// schema nodes, 17 distinct keys, and **zero** that `typeName` cannot read. So the live
+// population is EMPTY and the rule is proved on fixtures rather than on a population,
+// which is `instrument_gate.py`'s U1 lesson arriving in a fourth file. An empty answer
+// from a healthy tree is the one result that says nothing about the reader.
+//
+// 🔴 AND EVERY KEY IS IN EXACTLY ONE OF THREE TABLES, because "the rest" is not a
+// category a reader can argue with. Read for identity, read for structure, or declared
+// not to constrain a value — with the reason, per row.
+export const NOT_A_CONSTRAINT = {
+  description: "prose. It moves what a MODEL sees, which is real and is why PATCH exists as "
+    + "a verdict at all, but it breaks no caller — the split this whole file is about",
+  title: "prose, the same class as description",
+  $comment: "prose, and not emitted to clients by any conformant reader",
+  $schema: "the dialect declaration. #256 is the reason it is named rather than ignored: it "
+    + "rode the wire for fifty releases and nobody here wrote it, so it is the SDK's byte "
+    + "and a change to it is an SDK event this reader must not attribute to us",
+  default: "advisory. A caller that omits the property gets the server's behaviour either "
+    + "way; the schema stating it does not change what the server accepts",
+  examples: "documentation, carried alongside the schema and read by no validator",
+  deprecated: "an annotation. It marks a member for future removal; the removal is the "
+    + "caller-visible event and `shapeOf` reports it as one when it happens",
+  readOnly: "an annotation about direction, not about the values accepted",
+  writeOnly: "an annotation about direction, not about the values accepted",
+};
+// Read by `typeName` for IDENTITY rather than for narrowing, and by `shapeOf` for the walk.
+export const STRUCTURAL = ["type", "enum", "const", "anyOf", "oneOf", "$ref",
+  "properties", "required", "items"];
+// 🔴 TWO FLOORS, NEVER A SUM (172 §6). A surface that fails to start yields zero nodes and
+// every key is trivially accounted for; a surface that still yields 3,282 nodes while the
+// key walk stops descending into `properties` reads seventeen keys off the top level only,
+// and the node count cannot see it. Floored from BELOW (198 §36).
+export const KEY_FLOOR = 10;
+export const NODE_FLOOR = 1500;
+
+/** Every key on every schema node reachable from the wire, with how often it occurs. */
+export function schemaKeys(tools) {
+  const keys = new Map();
+  let nodes = 0;
+  const visit = (v) => {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return;
+    nodes++;
+    for (const k of Object.keys(v)) keys.set(k, (keys.get(k) ?? 0) + 1);
+    for (const [k, c] of Object.entries(v)) {
+      if (k === "properties" && c && typeof c === "object") Object.values(c).forEach(visit);
+      else if (["items", "additionalProperties", "not", "if", "then", "else",
+        "contains", "propertyNames"].includes(k)) visit(c);
+      else if (["anyOf", "oneOf", "allOf", "prefixItems"].includes(k) && Array.isArray(c)) c.forEach(visit);
+    }
+  };
+  for (const t of tools ?? []) { visit(t?.inputSchema); visit(t?.outputSchema); }
+  return { keys, nodes };
+}
+
+/**
+ * PURE over its inputs (174 §8), so the self-test can hand it a wire that cannot exist.
+ * On a healthy tree every list below is empty, which is exactly when a collector's filter
+ * deletes invisibly.
+ */
+export function keyProblems({ keys, nodes }, constraints = CONSTRAINTS, structural = STRUCTURAL, excused = NOT_A_CONSTRAINT, keyFloor = KEY_FLOOR, nodeFloor = NODE_FLOOR, name = typeName) {
+  const problems = [];
+  const read = new Set([...constraints, ...structural]);
+  for (const k of [...keys.keys()].sort()) {
+    if (read.has(k) || k in excused) continue;
+    problems.push(`WIRE_DIFF_KEY UNREAD ${JSON.stringify(k)} — it appears on ${keys.get(k)} `
+      + `schema node(s) and typeName() narrows on none of it, so two schemas differing ONLY `
+      + `in it produce the same name and classify() reports PATCH over a change a caller `
+      + `can feel. Add it to CONSTRAINTS, or a row to NOT_A_CONSTRAINT saying why it cannot `
+      + `narrow what the server accepts`);
+  }
+  for (const k of Object.keys(excused).sort()) {
+    if (read.has(k)) {
+      problems.push(`WIRE_DIFF_KEY BOTH ${JSON.stringify(k)} — declared not to constrain a `
+        + `value AND read as one. One of the two is wrong and this file cannot decide which`);
+    }
+  }
+  // 🔴 THE POSITIVE CONTROL ON THE ROSTER ITSELF, which is what makes the list above a
+  // claim rather than a hope: every declared constraint must actually MOVE the name when
+  // its value moves. A row nobody proved is a row `typeName` may already be ignoring.
+  for (const k of constraints) {
+    if (name({ type: "object", [k]: 1 }) === name({ type: "object", [k]: 99 })) {
+      problems.push(`WIRE_DIFF_KEY UNPROVED ${JSON.stringify(k)} — CONSTRAINTS names it and `
+        + `typeName() gives the SAME name to two schemas that differ in it. The roster says `
+        + `this keyword is read and the reader does not read it`);
+    }
+  }
+  if (nodes < nodeFloor) {
+    // 🔴 THE OBSERVATION, NOT A CAUSE (228 §7.17): the surface may have shrunk, or the
+    // walk may have stopped descending, and a count cannot separate those.
+    problems.push(`WIRE_DIFF_KEY NODE_FLOOR ${nodes} < ${nodeFloor} — fewer schema nodes than `
+      + `the floor. The surface may have shrunk or this walk may have stopped descending into `
+      + `it; either way every key above is read off a population too small to contain the one `
+      + `that matters`);
+  }
+  if (keys.size < keyFloor) {
+    problems.push(`WIRE_DIFF_KEY KEY_FLOOR ${keys.size} < ${keyFloor} distinct key(s) over `
+      + `${nodes} node(s) — the walk may be reading fewer kinds of node, or Object.keys may `
+      + `be reaching none of them, and the node count above cannot see the second`);
+  }
+  return problems;
+}
+
 // ── the classification ───────────────────────────────────────────────────────────────
 // MAJOR — a caller that worked against the baseline can now fail: something it reads or
 //         sends is gone, changed type, or became mandatory.
@@ -316,6 +428,53 @@ if (IS_MAIN) await main();
 
 async function main() {
   const argv = process.argv.slice(2);
+  // 🆕 233 — THE DISCOVER MODE, AND IT NEEDS NO BASELINE. It asks about the wire that is
+  // here now, not about a difference, so it costs one server start rather than a worktree
+  // and a compile. That is why it can be a CI step where the classifier cannot be — and
+  // why this instrument now has a [B:live] axis (instrument_gate.py's LATE_LIVE).
+  if (argv.includes("--discover")) {
+    const here = path.join(HOST_DIR, "dist", "index.js");
+    if (!fs.existsSync(here)) {
+      console.error(`🔴 WIRE_DIFF_KEY UNREACHABLE — no build at ${here}; run \`npm run build\``);
+      process.exit(2);
+    }
+    const tools = await surface(here, { BREAKPOINT_PRIVILEGED_GROUPS: "all" });
+    const read = schemaKeys(tools);
+    const problems = keyProblems(read);
+    // 🔴 AND THE CLASSIFIER ITSELF, OVER THE ONE BASELINE THAT IS ALWAYS AVAILABLE: this
+    // surface. A reader compared with itself must answer PATCH, move nothing, and clear
+    // both of its own collapse floors — and a `classify`, `shapeOf` or `normalise` that
+    // went quiet cannot do all three. That is what makes this step a live axis for the
+    // classifier and not only for the key roster (232 §5.6's argument, paid rather than
+    // declared). `effectiveTaskSupport` is the one member a SYMMETRIC comparison cannot
+    // reach — both sides forbid identically — and it carries the declared-green row.
+    let self;
+    try {
+      self = classify(tools, tools);
+      if (self.verdict !== "PATCH" || self.moved !== 0) {
+        problems.push(`WIRE_DIFF_KEY SELF ${self.verdict} moved=${self.moved} — the classifier `
+          + `reports a CHANGE between this surface and itself. Nothing moved; the reader did`);
+      }
+      if (!(self.paths?.after >= SHAPE_FLOOR) || self.paths.before !== self.paths.after) {
+        problems.push(`WIRE_DIFF_KEY SELF_PATHS ${self.paths?.after} schema path(s), floor `
+          + `${SHAPE_FLOOR} — the shape walk went quiet over a surface of ${tools.length} `
+          + `tool(s). A classifier that reads no paths compares nothing and reports PATCH`);
+      }
+    } catch (e) {
+      problems.push(`WIRE_DIFF_KEY SELF threw over its own surface — ${e.message}`);
+    }
+    console.log(`WIRE_DIFF_KEY ${tools.length} tool(s) · ${read.nodes} schema node(s) · `
+      + `${read.keys.size} distinct key(s) · ${CONSTRAINTS.length} narrowed · `
+      + `${Object.keys(NOT_A_CONSTRAINT).length} excused · ${problems.length} problem(s) `
+      + `(floors ${NODE_FLOOR}/${KEY_FLOOR}) · self ${self?.verdict ?? "THREW"} `
+      + `moved=${self?.moved ?? "-"} paths=${self?.paths?.after ?? 0}/${SHAPE_FLOOR}`);
+    for (const m of problems) console.log(`🔴 ${m}.`);
+    console.log(problems.length
+      ? "WIRE_DIFF_KEY 🔴 FAILED"
+      : "WIRE_DIFF_KEY ok — every key on the wire is one typeName narrows on, one shapeOf "
+        + "walks, or one declared unable to constrain a value");
+    process.exit(problems.length ? 1 : 0);
+  }
   const bi = argv.indexOf("--baseline");
   const described = run("git", ["describe", "--tags", "--abbrev=0"], REPO_DIR);
   const ref = bi >= 0 ? argv[bi + 1] : described.stdout.trim();

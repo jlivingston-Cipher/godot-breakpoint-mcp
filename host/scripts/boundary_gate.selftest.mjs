@@ -19,6 +19,9 @@ import {
   CONST_FLOOR, OP_FLOOR, TOOL_FLOOR, SITE_FLOOR, RETURN_FLOOR, PLANE_FLOOR, JUDGED_FLOOR,
   HELPER_FLOOR, CONDUIT_FLOOR,   // 🆕 182 — the two derived once per FILE
   BOUNDARY_SKIP, PLANES,
+  // 🆕 233 — the discover half
+  dispatcherShaped, planeWalk, discoveryProblems, PLANE_EXEMPT,
+  PLANE_WALK_FLOOR, PLANE_DISPATCH_FLOOR, ADDON_DIR,
 } from "./boundary_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -660,6 +663,70 @@ claim(live3.failed === true && live3.lines.some((l) => l.includes("BOUNDARY_JUDG
   "🔴 which reddens on the JUDGED floor rather than printing `ok — 0 judged claim(s)`, as it would have before 179");
 claim(live3.lines.some((l) => l.includes("BOUNDARY_TAUTOLOGY")) === false,
   "🔴 and NOT on a tautology — `bad.added === true` over a raw() receiver really can fail, and inventing a defect there is 177 §5 again");
+
+// ── 🆕 233 — THE DISCOVER HALF, DRIVEN FROM BOTH SIDES ───────────────────────────────
+// 🔴 EVERY REFUSAL BELOW IS FED A TREE THAT CANNOT EXIST, because the live population is
+// healthy and a collector only ever run over a healthy population loses its filter
+// invisibly (174 §8). The rule is proved HERE; the live walk one file over only reports.
+const OPS_SRC = '\t\t"scene.open":\n\t\t\treturn _scene_open(params)\n\nfunc _scene_open(params: Dictionary) -> Dictionary:\n\treturn _ok({})\n';
+claim(dispatcherShaped(OPS_SRC) === true,
+  "🔴 dispatcherShaped reads a file that maps an operation string onto a params handler");
+claim(dispatcherShaped('\t\t"scene.open":\n\t\t\treturn _scene_open(params)\n') === false,
+  "🔴 …and NOT one with dispatch arms and no handler definition — both halves, never one");
+claim(dispatcherShaped("func _scene_open(params: Dictionary) -> Dictionary:\n\treturn _ok({})\n") === false,
+  "🔴 …and NOT one with handlers and no dispatch arms — a helper file is not a plane");
+claim(dispatcherShaped("extends Node\nvar x := 1\n") === false,
+  "…and not a plain script, which is the case eight of the ten addon files are in");
+
+const HEALTHY = [["a.gd", true], ["b.gd", true], ["c.gd", false], ["d.gd", false],
+  ["e.gd", false], ["f.gd", false]];
+claim(discoveryProblems(HEALTHY, ["a.gd", "b.gd"], {}, 6, 2).length === 0,
+  "discoveryProblems is silent over a walk whose every dispatcher is rostered");
+claim(discoveryProblems([...HEALTHY, ["z.gd", true]], ["a.gd", "b.gd"], {}, 6, 2)
+  .some((m) => m.includes("UNDECLARED z.gd")),
+  "🔴 …and REFUSES a third dispatcher nothing rosters — the whole of 233 §5.2: PLANE_FLOOR is satisfied by a tree that grew one");
+claim(discoveryProblems([...HEALTHY, ["z.gd", true]], ["a.gd", "b.gd"], { "z.gd": "why" }, 6, 2).length === 0,
+  "…and accepts it once a row with a reason exists, which is what the exemption table is for");
+claim(discoveryProblems(HEALTHY, ["a.gd", "b.gd"], { "gone.gd": "why" }, 6, 2)
+  .some((m) => m.includes("STALE_EXEMPT gone.gd")),
+  "🔴 …and refuses a reason for a file the walk cannot find — an exclusion outliving its subject (174 §5)");
+claim(discoveryProblems(HEALTHY, ["a.gd", "b.gd"], { "a.gd": "why" }, 6, 2)
+  .some((m) => m.includes("EXEMPT_IS_PLANE a.gd")),
+  "🔴 …and refuses a file that is BOTH graded and excused — one of the two is wrong and this file cannot decide which");
+claim(discoveryProblems(HEALTHY, ["a.gd", "b.gd", "vanished.gd"], {}, 6, 2)
+  .some((m) => m.includes("MISSING_PLANE vanished.gd")),
+  "🔴 …and refuses a ROSTERED plane the walk cannot reach — the coverage is checked in both directions or it rots in the one nobody reads");
+claim(discoveryProblems([["a.gd", true], ["b.gd", false], ["c.gd", false], ["d.gd", false],
+  ["e.gd", false], ["f.gd", false]], ["a.gd", "b.gd"], {}, 6, 1)
+  .some((m) => m.includes("UNSHAPED_PLANE b.gd")),
+  "🔴 …and refuses a graded plane the SHAPE READER no longer recognises — which is the state that makes every UNDECLARED above impossible to report");
+claim(discoveryProblems(HEALTHY.slice(0, 3), ["a.gd", "b.gd"], {}, 6, 2)
+  .some((m) => m.includes("WALK_FLOOR 3 < 6")),
+  "🔴 …and refuses a walk that shrank, without asserting WHICH of the two causes it is (228 §7.17)");
+claim(discoveryProblems(HEALTHY.map(([n]) => [n, false]), [], {}, 6, 2)
+  .some((m) => m.includes("DISPATCH_FLOOR 0 < 2")),
+  "🔴 …and refuses a walk that still reads six files while recognising none as a dispatcher — the second floor, never a sum (172 §6)");
+claim(discoveryProblems([], [], {}, 6, 2).length > 0,
+  "🔴 …and does NOT pass over an EMPTY walk, which is the shape that makes every check above vacuous");
+
+// 🔴 AND THE WALK AGAINST THE FILE IT SHIPS AGAINST. The fixtures prove the predicate;
+// this proves the reader still reaches the real addon — 202 §9.4's argument, one layer out.
+const LIVE_WALK = planeWalk();
+claim(LIVE_WALK.length >= PLANE_WALK_FLOOR,
+  "🔴 planeWalk reaches the canonical addon directory, not a path that moved");
+claim(LIVE_WALK.filter(([, d]) => d).map(([n]) => n).join(",") === [...PLANES].sort().join(","),
+  "🔴 …and the shape reader names EXACTLY the two files PLANES names — the two discriminators agree on the live tree, which is why the exemption table is empty");
+claim(planeWalk("/nonexistent/addons").length === 0,
+  "…and a walk pointed at a directory that is not there returns nothing rather than throwing — the floor is what reports it");
+// 🔴 AND THE LIVE COMPOSITION, which is what makes RAISING either floor redden HERE and
+// not only in the gate's own run — `floor_pin_gate.py` mutates toward zero, so the two
+// assertions are needed in both directions (225's rule).
+claim(discoveryProblems(planeWalk(), PLANES, PLANE_EXEMPT).length === 0,
+  "🔴 the live addon walk, the live roster and the empty exemption table agree — raise either discover floor above its live value and this line is what reddens");
+claim(PLANE_WALK_FLOOR > 0 && PLANE_DISPATCH_FLOOR > 0,
+  "🔴 both discover floors are pinned above zero — a floor at zero cannot bite, and the only symptom is a roster that stops being checked");
+claim(Object.keys(PLANE_EXEMPT).length === 0 && typeof ADDON_DIR === "string",
+  "the exemption table is empty, so the rule above is proved on fixtures and not on a population (the U1 lesson)");
 
 // ── the floor on this file's own population ──────────────────────────────────────────
 // 🔴 PINNED, BECAUSE AN UNPINNED CLAIM FLOOR IS A SWITCH — 176 §8's G11, which found this

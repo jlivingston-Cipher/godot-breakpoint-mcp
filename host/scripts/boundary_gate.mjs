@@ -90,7 +90,7 @@
 // `"image/png"` unconditionally and that is fine — a constant in a response is only a
 // defect when something DRESSES IT AS EVIDENCE. The population is the intersection, not
 // the constants.
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -745,9 +745,147 @@ export function scan(host = HOST, gdPaths = GD) {
 // Both halves now take their input as a parameter, so both are reachable from the
 // self-test: `report()` with a hand-built verdict, and `run()` against a fixture that
 // contains a real offender.
+// ══ 🆕 233 — THE DISCOVER HALF, AND `PLANES` IS THE ROSTER IT IS ABOUT ═══════════════
+//
+// 🔴 `PLANES` IS TWO FILE NAMES AND THE ADDON HAS EIGHT `.gd` FILES. Every floor in this gate is
+// about a reader going quiet over the population it already reads; not one of them can
+// see a population that GREW. `PLANE_FLOOR = 2` catches `operations.gd` becoming
+// unreadable and is satisfied, permanently, by a tree that ships a third dispatcher — the
+// gate would grade two of three and print `ok` about the two, which is 232 §5.1's finding
+// with `INSTRUMENTS` swapped for `PLANES`.
+//
+// 🔴 THE DISCRIMINATOR IS THE DISPATCHER SHAPE, MEASURED — NOT A NAME. A plane is a file
+// that maps an operation string onto a handler: it carries `"noun.verb":` arms AND
+// `func _noun_verb(params…)` definitions. Measured over the live addon, the two halves
+// agree exactly and name exactly the two files `PLANES` names:
+//
+//     addons/breakpoint_mcp/*.gd             8 file(s)
+//     dispatch keys AND params handlers      operations.gd (154/146), runtime_bridge.gd (24/22)
+//     dispatch keys and no handlers          none
+//     handlers and no dispatch keys          none
+//
+// The alternative was a suffix or a directory convention, refused for `instrument_gate.py`'s
+// reason one gate over: a rule scoped to a SPELLING rots in the direction the spelling
+// does not cover (183 §12.29).
+//
+// 🔴 AND THE WALK IS SCOPED TO THE CANONICAL ADDON, WHICH IS A LIMIT WITH A REASON RATHER
+// THAN A SILENCE. `example/addons/breakpoint_mcp/` and `example-csharp/addons/breakpoint_mcp/`
+// hold copies, and contract check 24b asserts they are BYTE-IDENTICAL to this one. A
+// dispatcher that appeared in a copy and not here is that check's refusal, not this one's;
+// widening the walk would put the same file in the population three times and make the
+// dispatch floor mean a third of what it says.
+export const ADDON_DIR = join(HOST, "..", "addons", "breakpoint_mcp");
+const DISPATCH_KEY = /^\s*"[a-z_]+\.[a-z_0-9]+"\s*:/m;
+const HANDLER_DEF = /^func _[a-z_0-9]+\(\s*params/m;
+
+/** Does this GDScript file map operation strings onto handlers? Both halves, never one. */
+export function dispatcherShaped(text) {
+  return DISPATCH_KEY.test(text) && HANDLER_DEF.test(text);
+}
+
+// 🔴 EMPTY, AND THE RULE IS THEREFORE PROVED ON FIXTURES RATHER THAN ON A POPULATION —
+// the U1 lesson `instrument_gate.py`'s `DISCOVER_EXEMPT` states in full. A row here needs
+// a REASON a reader can check, not a name (174 §5).
+export const PLANE_EXEMPT = {};
+
+// 🔴 TWO FLOORS, NEVER A SUM (172 §6). A walk pointed at a directory that moved reads
+// zero files and every check below passes over nothing; a walk that still reads ten while
+// `dispatcherShaped` stops recognising an arm is the same collapse one layer in, and the
+// file count cannot see it. Measured: 10 walked, 2 dispatcher-shaped. Floored from BELOW
+// (198 §36) so a plane being ADDED never reddens a healthy tree — only being missed does.
+export const PLANE_WALK_FLOOR = 6;
+export const PLANE_DISPATCH_FLOOR = 2;
+
+/** (name, is-it-dispatcher-shaped) for every .gd in the canonical addon directory. */
+export function planeWalk(dir = ADDON_DIR) {
+  let names;
+  try {
+    names = readdirSync(dir).filter((f) => f.endsWith(".gd")).sort();
+  } catch {
+    return [];
+  }
+  return names.map((n) => [n, dispatcherShaped(readFileSync(join(dir, n), "utf8"))]);
+}
+
+/**
+ * PURE over its inputs (174 §8), so the self-test can hand it a tree that cannot exist.
+ * A collector only ever asserted over the healthy population loses its filter invisibly.
+ */
+export function discoveryProblems(files, planes, exempt, walkFloor = PLANE_WALK_FLOOR, dispatchFloor = PLANE_DISPATCH_FLOOR) {
+  const problems = [];
+  const walked = new Set(files.map(([n]) => n));
+  const shaped = files.filter(([, d]) => d).map(([n]) => n);
+  const roster = new Set(planes);
+
+  for (const n of shaped) {
+    if (roster.has(n) || n in exempt) continue;
+    problems.push(`BOUNDARY_DISCOVER UNDECLARED ${n} — it maps operation strings onto `
+      + `params handlers, so it is a dispatcher this gate grades claims against, and it is `
+      + `neither in PLANES nor a row in PLANE_EXEMPT. Nothing else in this file can see `
+      + `that: every floor here is about the files already being read. Add it to PLANES, `
+      + `or the row with a reason`);
+  }
+  for (const n of Object.keys(exempt).sort()) {
+    if (!walked.has(n)) {
+      problems.push(`BOUNDARY_DISCOVER STALE_EXEMPT ${n} — declared exempt, and the walk `
+        + `cannot find it. An exclusion outliving its subject is one nobody re-argued (174 §5)`);
+    } else if (roster.has(n)) {
+      problems.push(`BOUNDARY_DISCOVER EXEMPT_IS_PLANE ${n} — it is graded as a plane AND `
+        + `carries a reason for not being one. One of the two is wrong and this file cannot `
+        + `decide which`);
+    }
+  }
+  // 🔴 THE OTHER DIRECTION, because a walk's coverage of its own roster rots in whichever
+  // direction nobody reads (232 §4, `floor_pin_gate.py`'s UNDISCOVERABLE).
+  for (const n of planes) {
+    if (!walked.has(n)) {
+      problems.push(`BOUNDARY_DISCOVER MISSING_PLANE ${n} — PLANES names it and the walk `
+        + `over the canonical addon cannot find it. The roster and the tree disagree, and `
+        + `the gate reads the roster`);
+    } else if (!shaped.includes(n)) {
+      problems.push(`BOUNDARY_DISCOVER UNSHAPED_PLANE ${n} — graded as a dispatcher and the `
+        + `walk does not recognise it as one. Either the file stopped dispatching, or `
+        + `dispatcherShaped stopped reading its idiom; a name cannot separate those, and the `
+        + `second makes every UNDECLARED above impossible to report`);
+    }
+  }
+  // 🔴 THE OBSERVATION, NOT A CAUSE (228 §7.17). A count cannot tell a directory that lost
+  // files from a walk that stopped reaching them.
+  if (files.length < walkFloor) {
+    problems.push(`BOUNDARY_DISCOVER WALK_FLOOR ${files.length} < ${walkFloor} — fewer .gd `
+      + `files than the floor. The addon may have lost them or the walk may have stopped `
+      + `reaching them; either way a discovery half over a population this small reports `
+      + `nothing undeclared and passes`);
+  }
+  if (shaped.length < dispatchFloor) {
+    problems.push(`BOUNDARY_DISCOVER DISPATCH_FLOOR ${shaped.length} < ${dispatchFloor} — `
+      + `fewer dispatcher-shaped files than the floor, over ${files.length} file(s) read. `
+      + `Planes may have merged, or dispatcherShaped may have stopped matching; the count `
+      + `cannot separate those, and the file count above cannot see the second at all`);
+  }
+  return problems;
+}
+
 export function run(host = HOST, gdPaths = GD) {
   const { pop, offenders } = scan(host, gdPaths);
-  return judge(pop, offenders);
+  const r = judge(pop, offenders);
+  // 🔴 THE DISCOVERY HALF REPORTS INTO THE SAME VERDICT, not beside it. A line printed
+  // next to a `failed` that never moves is 184's "a number an instrument prints and no
+  // gate reads is an unasked question".
+  const walked = planeWalk();
+  const problems = discoveryProblems(walked, PLANES, PLANE_EXEMPT);
+  // 🔴 SPLICED IN ABOVE THE VERDICT, not appended below it. A refusal printed under an
+  // `ok —` line is a report that contradicts its own last sentence, and the last sentence
+  // is what a CI log is read for.
+  const verdict = r.lines.pop();
+  r.lines.push(`BOUNDARY_GATE_DISCOVER ${walked.length} .gd walked · `
+    + `${walked.filter(([, d]) => d).length} dispatcher-shaped · ${PLANES.length} plane(s) · `
+    + `${Object.keys(PLANE_EXEMPT).length} exempt · ${problems.length} problem(s) `
+    + `(floors ${PLANE_WALK_FLOOR}/${PLANE_DISPATCH_FLOOR})`);
+  for (const m of problems) r.lines.push(`🔴 ${m}.`);
+  r.failed = r.failed || problems.length > 0;
+  r.lines.push(r.failed ? `\nBOUNDARY_GATE 🔴 FAILED` : verdict);
+  return r;
 }
 
 export function report(r, log = console.log) {
