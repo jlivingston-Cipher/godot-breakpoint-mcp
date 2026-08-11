@@ -6,6 +6,40 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the release ritual reads the wire, and a MAJOR can finally be cut
+
+- **Check 8 is wired into the cut.** `host/scripts/wire_diff.mjs` — the only reader in
+  the release ritual that projects onto the `tools/list` payload rather than onto a file
+  — was written in session 209 and had classified nothing since, running in CI only as
+  its own self-test. `scripts/release_names.py` now runs it at every cut and refuses a
+  bump beneath its verdict. Run by hand against 1.74.0 it read **MAJOR** where the
+  shipped source said older clients were unaffected; that cut was narrowed before it
+  shipped, and nothing in the tree had asked for the reading that saved it. Unreachable
+  is red and there is no skip flag.
+- **Check 1 has a MAJOR arm.** Absent since session 210 and a dated blocker for the
+  SDK-v2 migration, because a MAJOR's claim is about a *caller* and no reader of this
+  repository's own text can see one. Its evidence is derived from two artifacts at two
+  refs: check 8's verdict, or `host/package.json`'s `engines` narrowing — the install
+  contract, which breaks every consumer without moving a schema.
+- **`registry_bytes.py --assert-auth`** asks whether this machine can publish *before*
+  the version files are touched: `npm whoami` plus `npm owner ls`, no writes. A dead
+  token stopped the 1.74.0 cut mid-ritual, and `npm publish` reports that state as
+  **404** — which reads as "no such package" and means "authenticated as nobody".
+
+### Fixed
+
+- **`contract_check` check 14 reads the whole lockfile mirror**, not two version fields
+  of it. `packages[""]` mirrors seven manifest keys and the check read one of them
+  twice, so `@modelcontextprotocol/sdk ^1.17.0` and `zod ^3.23.8` survived three merges
+  and two published releases under a manifest that said otherwise. The population is
+  derived from the lockfile's own object rather than rostered, so `engines` is covered
+  by the same four lines.
+- **`spec_conformance.py`'s scanned population is derived from `git ls-files`**, not a
+  five-entry roster. The roster read 83 of 238 tracked candidates and declared 54
+  excluded, leaving 101 files invisible — among them the maintained `example/` copy of
+  the shipped addon, carrying the same method strings the gate governs in the canonical
+  copy. Now 154 files, with `host/test-integration` excluded for `host/test`'s reason.
+
 ## [1.74.0] — 2026-08-10
 
 **Why this is a MINOR, and why it very nearly was not.** `wire_diff.mjs` read the

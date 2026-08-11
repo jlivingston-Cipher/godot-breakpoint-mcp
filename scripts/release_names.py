@@ -239,6 +239,24 @@ MINOR_UNSUPPORTED = "MINOR_UNSUPPORTED"
 MINOR_NO_WINDOW = "MINOR_NO_WINDOW"
 NO_ARM = "NO_ARM"
 
+# 🆕 227 — THE MAJOR ARM'S CODES. 210 §9 left this arm unwritten and four handoffs
+# carried it as a dated blocker; `NO_ARM` above is the refusal it has been returning
+# instead. 🔴 IT COULD NOT HAVE BEEN WRITTEN BEFORE CHECK 8, and that is the whole
+# reason it went unwritten rather than the reason anyone gave. The PATCH arm asks
+# where names LIVE and the MINOR arm asks what MOVED; both are answerable from this
+# repository's own text. A MAJOR's claim is not about this repository at all — it is
+# that SOMETHING THAT WORKED AGAINST THE PREVIOUS RELEASE CAN NOW FAIL, which is a
+# claim about a caller, and no reader of our source can see a caller. The wire can.
+#
+# 🔴 THE SUBSTANCE HALF IS THE MINOR ARM'S, SHARED RATHER THAN COPIED. A MAJOR
+# contains product work by definition, so its floor and window questions are the same
+# questions — but the CODES are distinct, because a refusal that prints "MINOR claim
+# is UNSUPPORTED" on a MAJOR cut is a reader describing a release it is not reading.
+MAJOR_POPULATION = "MAJOR_POPULATION"
+MAJOR_UNSUPPORTED = "MAJOR_UNSUPPORTED"
+MAJOR_NO_WINDOW = "MAJOR_NO_WINDOW"
+MAJOR_NOT_BREAKING = "MAJOR_NOT_BREAKING"
+
 # 🆕 217 — CHECK 2's CODES. Same discipline: a named refusal so the table can prove
 # WHICH branch fired, not merely that one did.
 C2_OK = "C2_OK"
@@ -315,6 +333,118 @@ MAP_MISSING_SOURCE = "MAP_MISSING_SOURCE"
 MAP_TARBALL_THIN = "MAP_TARBALL_THIN"
 
 
+# 🆕 227 — CHECK 8'S CODES, AND THE REASON THIS FILE IS WHERE THEY LIVE.
+#
+# 🔴 THE INSTRUMENT EXISTED, WAS CORRECT, RAN GREEN IN CI, AND WAS NOT ATTACHED TO THE
+# DECISION IT WAS BUILT FOR. `host/scripts/wire_diff.mjs` was written in 209 against the
+# observation that checks 1-7 all *"PROJECT ONTO A FILE"* and none onto the wire — the
+# `tools/list` payload, which is the entire public API of an MCP server and the only
+# thing a MINOR/PATCH/MAJOR claim is actually ABOUT. Since 1.73.0 it has run in CI only
+# as `wire_diff.selftest.mjs`: the classifier proving it can classify FIXTURES, on every
+# push, while classifying no release. 226 §2 ran it BY HAND against the 1.74.0 cut and it
+# said MAJOR — four field paths — where the shipped source's own docstring said *"older
+# clients are unaffected"*. The cut was narrowed to a real MINOR before it shipped. 🔴 THE
+# ONLY REASON THAT HAPPENED IS THAT SOMEBODY RAN A PROGRAM NOTHING ASKED THEM TO RUN.
+#
+# 🔴 A GREEN SELF-TEST LINE IS WHAT MADE IT LOOK ANSWERED. That is the failure worth
+# naming, because it is not "we lacked an instrument" — it is harder to see than that.
+# The gate existed and was passing; it was answering a SMALLER question. 226 §16.
+#
+# 🔴 AND IT GOES HERE, NOT IN THE RITUAL, BECAUSE THE RITUAL IS GITIGNORED SCRATCH.
+# `host/_to_delete/release<N>.py` is copied forward by hand every session — 215 §6.3's
+# bill, paid twice already, and the argument that pulled checks 1, 2, 3 and 4 into this
+# file. A check wired into a file that is copied by hand is a check the next copier can
+# drop, which is the same class of failure as never wiring it at all.
+#
+# 🔴 THERE IS NO SKIP FLAG, DELIBERATELY. `--no-wire` would be the humane thing to add
+# the first time the baseline build is slow, and it would return this check to exactly
+# the state 209 left it in: available, correct, and not consulted.
+C8_OK = "C8_OK"
+C8_BENEATH = "C8_BENEATH"
+C8_UNREACHABLE = "C8_UNREACHABLE"
+C8_NOT_A_VERDICT = "C8_NOT_A_VERDICT"
+
+# PATCH < MINOR < MAJOR. The rank is `wire_diff.mjs`'s own, restated here because the
+# two files cannot import each other across the language boundary — and the round trip
+# is asserted in SELFTEST instead of trusted, the same way `TAG_DECL_RE` is.
+WIRE_RANK = {"PATCH": 0, "MINOR": 1, "MAJOR": 2}
+
+
+def wire_floor(wire: str | None, bump: str) -> tuple[str, str, dict]:
+    """Check 8, PURE: may this bump be claimed over what the wire actually did?
+
+    🔴 A FLOOR, NOT AN EQUALITY, AND THE ASYMMETRY IS THE DESIGN. Claiming LESS than
+    the wire did is the defect — 1.74.0 was a MAJOR wearing a MINOR's name, and every
+    caller that trusted the number would have been told the schemas held still. Claiming
+    MORE is not a defect: a behaviour change that moves no schema is a real MINOR the
+    classifier is blind to by construction, and a reader that refused it would be
+    demanding the wire agree with a question it was never asked. So the high side is
+    REPORTED and the low side REFUSES.
+
+    🔴 UNREACHABLE IS RED. `wire_diff.mjs` says so in its own words — *"a baseline that
+    will not build is not evidence that the public API held still"* — and this is that
+    sentence with an exit code behind it.
+    """
+    d = {"wire": wire, "bump": bump,
+         "rank_wire": WIRE_RANK.get(wire or ""), "rank_bump": WIRE_RANK.get(bump)}
+    if wire is None:
+        return C8_UNREACHABLE, (
+            "🔴 check 8 could not read the wire, and that is a REFUSAL rather than a "
+            "skip. The classifier needs BOTH surfaces: a baseline ref that still "
+            "builds, and a CURRENT build at host/dist — run `npm run build` before "
+            "the cut. A release that cannot say what its public API did is not a "
+            "release anybody can size."), d
+    if wire not in WIRE_RANK or bump not in WIRE_RANK:
+        return C8_NOT_A_VERDICT, (
+            f"🔴 check 8 read {wire!r} against bump {bump!r} and one of them is not a "
+            f"verdict this reader knows ({sorted(WIRE_RANK)}). `wire_diff.mjs`'s output "
+            f"format has moved, or the parse did. Do NOT treat an unparseable answer as "
+            f"a passing one — that is the whole shape of the thing this check exists "
+            f"to catch."), d
+    if WIRE_RANK[wire] > WIRE_RANK[bump]:
+        return C8_BENEATH, (
+            f"🔴 THE BUMP IS BENEATH THE WIRE — this cut claims {bump} and the public "
+            f"API did {wire}. That is 1.74.0's shape exactly (226 §2): a MAJOR under a "
+            f"MINOR name, caught by hand because nothing asked. Read the classifier's "
+            f"own MAJOR lines: either the bump is wrong, or the change is, and no third "
+            f"reading of this exists."), d
+    exact = WIRE_RANK[wire] == WIRE_RANK[bump]
+    return C8_OK, (
+        f"the wire did {wire} and the cut claims {bump}"
+        + ("" if exact else
+           f" — ABOVE the wire, which is legal and worth reading: a {bump} whose "
+           f"schemas did not move is behaviour the classifier cannot see, so the "
+           f"claim rests on the notes and check 2 rather than on this")), d
+
+
+def major_evidence(wire: str | None,
+                   engines: tuple[dict | None, dict | None] | None) -> list[str]:
+    """What could make a MAJOR true, derived — never claimed. PURE.
+
+    🔴 TWO SOURCES, AND THE SECOND ONE IS WHY THIS IS NOT JUST `wire == "MAJOR"`.
+    The first draft of the MAJOR arm required the classifier's MAJOR and nothing else,
+    and it would have REFUSED THE EXACT RELEASE THIS ARM EXISTS TO UNBLOCK: the SDK-v2
+    migration's `engines.node` `>=18` -> `>=20` (226 item 12) breaks every consumer on
+    Node 18 and moves NOT ONE SCHEMA. The wire would have said PATCH and the arm would
+    have said "a MAJOR that breaks nothing" — a check refusing a real major because its
+    one instrument is blind to install contracts.
+
+    🔴 SO THE BREAKING SURFACE IS THE WIRE **AND** THE INSTALL CONTRACT. `engines` is
+    the manifest field a consumer's package manager enforces; narrowing it is a
+    breaking change delivered without touching a single tool. Both halves are derived
+    from artifacts — `tools/list` and `host/package.json` at two refs — so neither can
+    be satisfied by writing a sentence in the changelog.
+    """
+    out = []
+    if wire == "MAJOR":
+        out.append("check 8's classifier read MAJOR on the wire")
+    if engines is not None:
+        before, after = engines
+        if before != after:
+            out.append(f"the install contract moved: engines {before} -> {after}")
+    return out
+
+
 def read_names(released: str) -> tuple[list[str], list[str]]:
     """The whole vocabulary of a released block, split by CASE — pure.
 
@@ -328,7 +458,10 @@ def read_names(released: str) -> tuple[list[str], list[str]]:
 
 def verdict(released: str, shipped_text: str, bump: str,
             floor: int | None = None,
-            changed_text: str | None = None) -> tuple[str, str, dict]:
+            changed_text: str | None = None,
+            wire: str | None = None,
+            engines: tuple[dict | None, dict | None] | None = None,
+            ) -> tuple[str, str, dict]:
     """Check 1, as a PURE function of (block, corpus, bump). Never raises.
 
     🔴 IT RETURNS A REFUSAL RATHER THAN ASSERTING, so the table below can drive it.
@@ -378,30 +511,39 @@ def verdict(released: str, shipped_text: str, bump: str,
             f"lower_snake name(s) DO reach shipped source ({reaching}) and that is "
             f"EXPECTED, not a leak"), d
 
-    if bump == "MINOR":
+    if bump in ("MINOR", "MAJOR"):
+        # 🆕 227 — ONE SUBSTANCE TEST, TWO ARMS, THREE CODES EACH. A MAJOR contains
+        # product work by definition, so its floor and window questions ARE the MINOR
+        # arm's questions and sharing the implementation is 203 §2's ONE LIST rule
+        # applied to a branch. The codes stay distinct so the table can still prove
+        # WHICH arm refused — and so a refusal never describes a release it is not
+        # reading.
+        pop_code, window_code, unsupported_code = (
+            (MINOR_POPULATION, MINOR_NO_WINDOW, MINOR_UNSUPPORTED) if bump == "MINOR"
+            else (MAJOR_POPULATION, MAJOR_NO_WINDOW, MAJOR_UNSUPPORTED))
         # 🔴 THE MIRROR OF THE PATCH ARM'S FLOOR, AND IT READS `api` ALONE ON
         # PURPOSE: a MINOR's claim is about identifiers reaching the product, and
         # the codebase spells those in lower snake. A MINOR whose block names only
         # constants has not described product work.
         if len(api) < f:
-            return MINOR_POPULATION, (
-                f"check 1's MINOR population collapsed to {len(api)} name(s): "
+            return pop_code, (
+                f"check 1's {bump} population collapsed to {len(api)} name(s): "
                 f"{api} — floor is {f}. A release block this thin cannot support a "
-                f"MINOR claim; re-read it by hand."), d
+                f"{bump} claim; re-read it by hand."), d
         # 🔴 NO WINDOW, NO CLAIM. Passing here would be passing on a comparison
         # that was not made — registry_bytes.py's rule, and the shape of the
         # 42-session blocker: an answer that could not be computed, recorded as
         # though it had been.
         if in_window is None:
-            return MINOR_NO_WINDOW, (
-                "🔴 the MINOR arm needs the DIFF WINDOW and was given none. The "
+            return window_code, (
+                f"🔴 the {bump} arm needs the DIFF WINDOW and was given none. The "
                 "question is not whether these names exist in the product, it is "
                 "whether this release MOVED them; without the window there is "
                 "nothing to answer it with. Pass changed_text (the live half "
                 "computes it from --previous)."), d
         if not in_window:
-            return MINOR_UNSUPPORTED, (
-                f"🔴 MINOR claim is UNSUPPORTED BY THE NOTES — none of the "
+            return unsupported_code, (
+                f"🔴 {bump} claim is UNSUPPORTED BY THE NOTES — none of the "
                 f"{len(api)} identifier(s) the released block names appears in "
                 f"what CHANGED in the {len(SHIPPED_SOURCE)} shipped roots this "
                 f"window: {api}. {len(reaching)} of them do reach shipped source "
@@ -410,15 +552,40 @@ def verdict(released: str, shipped_text: str, bump: str,
                 f"how 1.73.2 passed this arm while being a PATCH (215 §2). Check 8 "
                 f"says the wire moved and the notes describe something that did "
                 f"not ship. One of the two is wrong. Do NOT delete this check."), d
-        return OK, (f"{len(api)} identifier(s) named, {len(in_window)} of them "
-                    f"appear in what CHANGED in the shipped roots ({in_window}); "
-                    f"{len(reaching)} reach shipped source at all ({reaching})"), d
+        if bump == "MINOR":
+            return OK, (f"{len(api)} identifier(s) named, {len(in_window)} of them "
+                        f"appear in what CHANGED in the shipped roots ({in_window}); "
+                        f"{len(reaching)} reach shipped source at all ({reaching})"), d
 
-    # 🔴 A MAJOR HAS NO ARM AND NOBODY HAS WRITTEN ONE — 210 §9. Refusing is the
-    # honest answer; passing would be a check that stops asking on the one bump
-    # where the question matters most.
-    return NO_ARM, (f"BUMP {bump!r} has no check 1 arm — a MAJOR needs a third one "
-                    f"and nobody has written it (210 §9)"), d
+        # 🆕 227 — AND THE HALF THAT IS ONLY A MAJOR'S. Everything above proves the
+        # release SHIPPED something; this asks whether what it shipped BREAKS anybody,
+        # which is the entire difference between the two bumps and the one question no
+        # reader of this repository's own text can answer. 🔴 THE EVIDENCE IS DERIVED
+        # FROM ARTIFACTS AT TWO REFS — the wire and the install contract — so a MAJOR
+        # cannot be talked into existence by the notes that claim it.
+        breaking = major_evidence(wire, engines)
+        d["breaking"] = breaking
+        if not breaking:
+            return MAJOR_NOT_BREAKING, (
+                f"🔴 MAJOR claim has NO BREAKING EVIDENCE. The notes describe real "
+                f"work — {len(in_window)} named identifier(s) moved in the shipped "
+                f"roots — but check 8 read the wire as {wire!r} and the install "
+                f"contract did not move ({engines!r}). A release that adds surface "
+                f"without removing or narrowing any is a MINOR however large it "
+                f"felt to write. 🔴 If it IS breaking, the break is in neither place "
+                f"this arm can see: say where, in the notes, and widen "
+                f"`major_evidence` to read it — do not lower the bar to admit an "
+                f"unmeasured one."), d
+        return OK, (f"{len(api)} identifier(s) named, {len(in_window)} of them appear "
+                    f"in what CHANGED in the shipped roots ({in_window}); and the "
+                    f"MAJOR is EVIDENCED, not claimed — {'; '.join(breaking)}"), d
+
+    # 🔴 AND THIS IS NO LONGER THE MAJOR'S REFUSAL — 210 §9 IS CLOSED ABOVE. It stays
+    # because the argument that put it here was never about MAJOR: `--bump` is
+    # argparse-constrained today and a fourth bump word arriving from a caller that is
+    # not argparse must land on a refusal rather than on the end of a function.
+    return NO_ARM, (f"BUMP {bump!r} has no check 1 arm — the three this file knows are "
+                    f"{sorted(WIRE_RANK)} (the MAJOR arm is 227's; 210 §9 is closed)"), d
 
 
 # ── CHECK 2, AS A PURE READER OVER A DIFF — 216 §6.3, on a corrected premise ───
@@ -686,6 +853,83 @@ def raw_window(previous: str, root: Path = ROOT, head: str = "HEAD") -> str:
             f"v{previous}..{head}: {r.stderr.strip()}. This is RED and not a skip: "
             f"the MINOR arm's evidence IS this window.")
     return r.stdout
+
+
+# 🆕 227 — CHECK 8's LIVE HALF. ONE SPELLING, WRITTEN THERE AND READ HERE: this pattern
+# is the whole interface between the two files, and SELFTEST drives the classifier's own
+# emitted line through it rather than trusting a literal — `TAG_DECL_RE`'s argument,
+# across a language boundary this time.
+WIRE_VERDICT_RE = re.compile(r"^WIRE_VERDICT\s+([A-Z]+)\s*$", re.M)
+WIRE_DIFF_REL = "scripts/wire_diff.mjs"
+
+# 🔴 GENEROUS, AND IT IS NOT A GUESS. The classifier checks out the baseline into a
+# worktree, compiles it with `tsc`, then starts TWO servers per privilege level and
+# pages `tools/list` out of each. Measured this session on the 1.74.0 baseline: ~90s
+# in a warm container, and a cold `tsc` on a laptop is several times that. A timeout
+# that fires on a slow machine turns this check into a coin toss, and a coin toss is
+# how a check gets a `--no-wire` flag added to it.
+WIRE_TIMEOUT_S = 900
+
+
+def wire_read(previous: str, root: Path = ROOT,
+              timeout: int = WIRE_TIMEOUT_S) -> tuple[str | None, str]:
+    """Run the classifier against v{previous} and read its verdict. (verdict, transcript).
+
+    🔴 NONE IS THE HONEST ANSWER FOR EVERY WAY THIS CAN FAIL, and `wire_floor` turns
+    every one of them RED. A baseline that will not build, a missing current build, a
+    node that is not installed, a timeout — none of them is evidence that the public
+    API held still, and each of them has at some point been somebody's argument for
+    skipping a check.
+    """
+    cmd = ["node", WIRE_DIFF_REL, "--baseline", f"v{previous}", "--summary"]
+    try:
+        r = subprocess.run(cmd, cwd=str(root / "host"),
+                           capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None, (f"$ {' '.join(cmd)}\n🔴 TIMED OUT after {timeout}s — the baseline "
+                      f"build or one of the two servers never finished.")
+    except OSError as e:                                    # node absent, cwd gone
+        return None, f"$ {' '.join(cmd)}\n🔴 could not run it: {e}"
+    transcript = f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}".rstrip()
+    if r.returncode != 0:
+        return None, transcript
+    m = WIRE_VERDICT_RE.search(r.stdout)
+    return (m.group(1) if m else None), transcript
+
+
+def engines_window(previous: str, root: Path = ROOT,
+                   head: str = "HEAD") -> tuple[dict | None, dict | None] | None:
+    """`host/package.json`'s `engines` at v{previous} and at `head`. None if unreadable.
+
+    🔴 THE INSTALL CONTRACT, READ AT TWO REFS RATHER THAN DIFFED AS TEXT. A regex over
+    the diff window would have to recognise `"node": ">=20"` as an `engines` line
+    without seeing the key it sits under; two parses and a `!=` cannot be wrong about
+    that. 🔴 AND `head` IS READ FROM THE TREE WHEN IT IS HEAD, because at a cut the
+    manifest edit is still uncommitted — the same fact 216 §3 got wrong about check 2.
+    """
+    def at(ref: str) -> dict | None:
+        r = subprocess.run(["git", "show", f"{ref}:host/package.json"],
+                           cwd=str(root), capture_output=True, text=True)
+        if r.returncode != 0:
+            return None
+        try:
+            return json.loads(r.stdout).get("engines")
+        except ValueError:
+            return None
+
+    before = at(f"v{previous}")
+    if before is None:
+        return None
+    if head == "HEAD":
+        try:
+            after = json.loads((root / "host" / "package.json").read_text()).get("engines")
+        except (OSError, ValueError):
+            return None
+    else:
+        after = at(head)
+        if after is None:
+            return None
+    return before, after
 
 
 def tag_tree_version(previous: str, root: Path = ROOT) -> str | None:
@@ -1004,10 +1248,70 @@ SELFTEST = [
      MINOR_UNSUPPORTED, 0, 5),
     ("🔴 A MINOR BLOCK TOO THIN — THE MINOR FLOOR'S REFUSAL",
      "`a_b`, `c_d`.", "a_b", "MINOR", None, "+ a_b", MINOR_POPULATION, 0, 2),
-    ("🔴 A MAJOR HAS NO ARM — 210 §9",
-     _B1732, _SHIPPED, "MAJOR", None, None, NO_ARM, 1, 5),
+    ("🔴 A FOURTH BUMP WORD STILL HAS NO ARM — the refusal 210 §9 left, kept",
+     _B1732, _SHIPPED, "REWRITE", None, None, NO_ARM, 1, 5),
     ("🔴 AN EMPTY BLOCK IS A REFUSAL, NOT A PASS",
      "   \n  ", "", "PATCH", None, None, NO_BLOCK, 0, 0),
+]
+
+# 🆕 227 — THE MAJOR ARM'S TABLE. Same nine columns plus the two evidence sources, kept
+# separate from SELFTEST because every row here needs them and threading two more
+# `None`s through fourteen rows above would be noise pretending to be structure.
+#
+# 🔴 ROW 2 IS THE ONE THIS ARM EXISTS FOR AND IT IS THE ONE A FIRST DRAFT GETS WRONG:
+# `engines` narrows, no schema moves, the wire says PATCH, and it is a REAL MAJOR. An
+# arm keyed on the classifier alone refuses the SDK-v2 migration — the exact release
+# 226 item 5 named as the reason to write this arm at all.
+#
+# 🔴 AND ROW 4 IS ITS NEGATIVE. Notes describing real work, both evidence sources
+# silent: a MINOR that felt large. If this row ever passes, the arm has stopped asking.
+_MAJOR_BLOCK = "`engine_log`, `runtime_get_log`, `push_error`, `a_b`, `c_d`."
+_E18 = {"node": ">=18"}
+_E20 = {"node": ">=20"}
+
+MAJOR_SELFTEST = [
+    ("a MAJOR the WIRE evidences — 1.74.0's shape, cut as what it was",
+     _MAJOR_BLOCK, "+ export const engine_log = ...", "MAJOR", (_E18, _E18), OK),
+    ("🔴 a MAJOR NO CLASSIFIER CAN SEE — engines >=18 -> >=20, and the wire says PATCH",
+     _MAJOR_BLOCK, "+ export const engine_log = ...", "PATCH", (_E18, _E20), OK),
+    ("both at once — the SDK-v2 shape, wire and install contract together",
+     _MAJOR_BLOCK, "+ export const engine_log = ...", "MAJOR", (_E18, _E20), OK),
+    ("🔴 REAL WORK, NOTHING BROKEN — a MINOR that felt large",
+     _MAJOR_BLOCK, "+ export const engine_log = ...", "MINOR", (_E18, _E18),
+     MAJOR_NOT_BREAKING),
+    ("🔴 A MAJOR WITH NO WINDOW — refuses to claim, does not pass",
+     _MAJOR_BLOCK, None, "MAJOR", (_E18, _E18), MAJOR_NO_WINDOW),
+    ("🔴 A MAJOR WHOSE NAMES SHIP NOTHING — the window is empty",
+     _MAJOR_BLOCK, "", "MAJOR", (_E18, _E20), MAJOR_UNSUPPORTED),
+    # 🔴 BOTH EVIDENCE SOURCES LOUD AND THE ARM STILL REFUSES. Evidence answers "is
+    # this breaking"; it cannot answer "did anybody describe it". A second row differing
+    # only in its evidence was written here and deleted — it restated this one, and a
+    # row that agrees with its neighbour by construction reads as coverage.
+    ("🔴 EVIDENCE CANNOT SUBSTITUTE FOR SUBSTANCE — wire MAJOR, engines moved, "
+     "notes too thin to read",
+     "`a_b`, `c_d`.", "+ a_b", "MAJOR", (_E18, _E20), MAJOR_POPULATION),
+]
+
+# 🆕 227 — CHECK 8's TABLE. The floor is asymmetric on purpose and rows 3 and 4 are the
+# pair that proves it: BENEATH refuses, ABOVE passes and says so.
+#
+# 🔴 THE LAST TWO ROWS ARE THE ONES THAT MATTER MOST. `None` is every way the classifier
+# can fail to answer — a baseline that will not build, no current build, a timeout, node
+# missing — and a reader that treated any of them as PATCH would be exactly the state
+# this check was written to end: a green line answering a smaller question.
+C8_SELFTEST = [
+    ("PATCH claimed, wire held still — the ordinary green", "PATCH", "PATCH", C8_OK),
+    ("MINOR claimed, wire added surface", "MINOR", "MINOR", C8_OK),
+    ("🔴 1.74.0 — MINOR CLAIMED, WIRE SAID MAJOR. THE CUT THIS CHECK EXISTS FOR",
+     "MAJOR", "MINOR", C8_BENEATH),
+    ("🔴 PATCH claimed, wire added surface — a MINOR under a PATCH name",
+     "MINOR", "PATCH", C8_BENEATH),
+    ("ABOVE the wire is LEGAL — a MINOR whose schemas did not move",
+     "PATCH", "MINOR", C8_OK),
+    ("ABOVE by two — a MAJOR the classifier cannot see (engines)", "PATCH", "MAJOR", C8_OK),
+    ("🔴 UNREACHABLE IS RED, NOT A SKIP", None, "PATCH", C8_UNREACHABLE),
+    ("🔴 AN UNPARSEABLE ANSWER IS NOT A PASSING ONE", "PROBABLY", "PATCH",
+     C8_NOT_A_VERDICT),
 ]
 
 
@@ -1217,6 +1521,62 @@ def selftest() -> int:
     if not counterfactual_ok:
         bad += 1
 
+    print("\n  CHECK 1's MAJOR ARM — 210 §9's third arm, and it needed check 8 (🆕 227)")
+    for name, rel, win, wire, eng, want_code in MAJOR_SELFTEST:
+        code, why, d = verdict(rel, "", "MAJOR", changed_text=win, wire=wire, engines=eng)
+        agree = code == want_code
+        print(f"  {'🟢' if agree else '🔴'} {code:<22} wire={str(wire):<6} "
+              f"breaking={len(d.get('breaking') or [])}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+
+    # 🔴 THE ARM'S COUNTERFACTUAL, AND IT IS THE ONE A SIMPLIFIER WILL REACH FOR.
+    # `major_evidence` looks like it wants to be `wire == "MAJOR"`. Written that way it
+    # refuses the SDK-v2 migration — a real major that moves no schema — which is the
+    # release 226 item 5 named as the reason to write this arm. Asserted here so the
+    # simplification reddens rather than merely being wrong on a release nobody has cut.
+    engines_only = major_evidence("PATCH", (_E18, _E20))
+    wire_only = major_evidence("MAJOR", (_E18, _E18))
+    both_silent = major_evidence("MINOR", (_E18, _E18))
+    two_sources_ok = bool(engines_only) and bool(wire_only) and not both_silent
+    print(f"\n  {'🟢' if two_sources_ok else '🔴'} the two sources are INDEPENDENT: a "
+          f"narrowed `engines` alone evidences a MAJOR ({engines_only}), a MAJOR wire "
+          f"alone evidences one ({wire_only}), and neither firing is not a MAJOR. "
+          f"Collapse this to `wire == \"MAJOR\"` and the SDK-v2 bump becomes uncuttable.")
+    if not two_sources_ok:
+        bad += 1
+
+    print("\n  CHECK 8 — the wire, and the bump it is a statement ABOUT (🆕 227)")
+    for name, wire, bump, want_code in C8_SELFTEST:
+        code, why, d = wire_floor(wire, bump)
+        agree = code == want_code
+        print(f"  {'🟢' if agree else '🔴'} {code:<22} wire={str(wire):<9} "
+              f"bump={bump:<6} {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+
+    # 🔴 THE CROSS-LANGUAGE ROUND TRIP, AND IT IS `TAG_DECL_RE`'s ARGUMENT ONE FILE OVER.
+    # `wire_diff.mjs` PRINTS a line and this file PARSES one; two literals that merely
+    # agree today are two literals, and this pair cannot even be checked by a type. The
+    # classifier's own emitting line is read out of its source and driven through the
+    # pattern that has to match it — so renaming the output on either side reddens here
+    # rather than at a cut, six weeks later, as a silent C8_NOT_A_VERDICT.
+    wd = (ROOT / "host" / WIRE_DIFF_REL)
+    emitter_ok = False
+    if wd.exists():
+        m = re.search(r'console\.log\(`(WIRE_VERDICT [^`]+)`\)', wd.read_text())
+        if m:
+            sample = m.group(1).replace("${worst}", "MAJOR")
+            hit = WIRE_VERDICT_RE.search(sample)
+            emitter_ok = hit is not None and hit.group(1) == "MAJOR"
+    print(f"\n  {'🟢' if emitter_ok else '🔴'} the round trip: the line "
+          f"`{WIRE_DIFF_REL}` actually PRINTS is the line `WIRE_VERDICT_RE` reads back. "
+          f"A classifier whose output format moves must redden HERE, not at a cut.")
+    if not emitter_ok:
+        bad += 1
+
     print("\n  CHECK 2 — the producer window, which reads no notes at all (🆕 217)")
     for name, diff, old, new, bump, tagv, want_code, want_r, want_s in C2_SELFTEST:
         code, why, d = population(diff, old, new, bump, tag_tree_version=tagv)
@@ -1296,16 +1656,20 @@ def selftest() -> int:
             bad += 1
 
     rows = (len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
-            + len(ADDON_SELFTEST) + len(OLDEST_SELFTEST))
-    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK, C4_OK}
+            + len(ADDON_SELFTEST) + len(OLDEST_SELFTEST) + len(MAJOR_SELFTEST)
+            + len(C8_SELFTEST))
+    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK, C4_OK, C8_OK}
     seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
             | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST}
-            | {r[4] for r in ADDON_SELFTEST})
+            | {r[4] for r in ADDON_SELFTEST} | {r[5] for r in MAJOR_SELFTEST}
+            | {r[3] for r in C8_SELFTEST})
     refusals = (sum(1 for r in SELFTEST if r[6] not in passing)
                 + sum(1 for r in C2_SELFTEST if r[6] not in passing)
                 + sum(1 for r in MAP_SELFTEST if r[3] not in passing)
                 + sum(1 for r in TAG_SELFTEST if r[3] not in passing)
-                + sum(1 for r in ADDON_SELFTEST if r[4] not in passing))
+                + sum(1 for r in ADDON_SELFTEST if r[4] not in passing)
+                + sum(1 for r in MAJOR_SELFTEST if r[5] not in passing)
+                + sum(1 for r in C8_SELFTEST if r[3] not in passing))
     print(f"\n  {rows} rows · {refusals} REFUSE · {len(seen)} distinct code(s) · "
           f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
     # 🔴 EVERY REFUSAL CODE MUST HAVE A ROW. A code with no row is a branch nobody
@@ -1465,7 +1829,16 @@ def main() -> int:
     raw = raw_window(a.previous, head=a.head_ref)
     window = "\n".join(l[1:] for l in raw.splitlines()
                        if l.startswith("+") and not l.startswith("+++"))
-    code, why, d = verdict(released, corpus, a.bump, changed_text=window)
+    # 🆕 227 — CHECK 8 RUNS BEFORE CHECK 1, because check 1's MAJOR arm READS ITS
+    # VERDICT. 🔴 THE SAME FACT, TWO DIRECTIONS, AND THAT IS NOT A CONTRADICTION: check
+    # 8 refuses a bump BENEATH the wire, and the MAJOR arm accepts the wire as evidence
+    # FOR one. A MAJOR wire under a MINOR name is 1.74.0; a MAJOR wire under a MAJOR
+    # name is the thing the number is supposed to mean.
+    wire, wire_log = wire_read(a.previous)
+    engines = engines_window(a.previous, head=a.head_ref)
+    c8_code, c8_why, c8 = wire_floor(wire, a.bump)
+    code, why, d = verdict(released, corpus, a.bump, changed_text=window,
+                           wire=wire, engines=engines)
     print(f"RELEASE_NAMES  {a.version} · {a.bump} · block {len(released):,} chars · "
           f"corpus {len(corpus):,} chars over {len(SHIPPED_SOURCE)} shipped roots")
     print(f"               constants {d['constants']}")
@@ -1475,6 +1848,24 @@ def main() -> int:
     print(f"               window v{a.previous}..{a.head_ref} — "
           f"{len(window.splitlines())} added line(s) over the shipped roots · "
           f"in window {d['in_window']}")
+    if d.get("breaking") is not None:
+        print(f"               breaking evidence: "
+              + ("; ".join(d["breaking"]) if d["breaking"] else "🔴 NONE"))
+
+    # 🆕 227 — CHECK 8, REPORTED BEFORE ANYTHING RETURNS, for the reason checks 2 and 4
+    # are: a check that only ever runs on trees the checks above already passed is a
+    # check nobody has watched fire on a red one.
+    print(f"CHECK 8        wire v{a.previous} -> working tree: {wire or '🔴 UNREADABLE'}"
+          f" · bump {a.bump} · engines {engines[0] if engines else '?'} -> "
+          f"{engines[1] if engines else '?'}")
+    if c8_code == C8_OK:
+        print(f"               🟢 [{c8_code}] {c8_why}")
+    else:
+        # 🔴 THE CLASSIFIER'S OWN OUTPUT, ON THE REFUSAL PATH ONLY. A verdict is one
+        # word and the field paths behind it are what a human acts on; printing them on
+        # every green cut would bury the four lines that matter under two hundred.
+        print(f"\n{wire_log}", file=sys.stderr)
+        print(f"\n🔴 RELEASE_NAMES REFUSED [{c8_code}]: {c8_why}", file=sys.stderr)
 
     # 🔴 CHECK 2 RUNS OVER THE SAME WINDOW AND IS REPORTED WHETHER OR NOT CHECK 1
     # REFUSED, because the two answer different questions and the interesting case is
@@ -1519,6 +1910,8 @@ def main() -> int:
     if c2_code not in (C2_OK, C2_SILENT):
         return 1
     if c4_code != C4_OK:
+        return 1
+    if c8_code != C8_OK:
         return 1
     print(f"               🟢 {why}")
     return 0

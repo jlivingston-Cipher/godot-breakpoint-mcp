@@ -49,6 +49,11 @@ jobs:
       # tree, so it is a release-time reader exactly like registry_lag's. `--selftest`
       # is pure — no network, no npm — and drives the comparator over ten rows plus
       # the extraction trap that says why it compares TREES and not `.tgz` bytes.
+      # 🆕 227 — AND THE PUBLISH PRECONDITION'S TABLES. `--assert-auth` asks whether this
+      # machine can publish at all (226 §5's dead token, which stopped a cut mid-ritual
+      # and was the SECOND time credentials did); its live half needs credentials CI
+      # does not have and must not, so only its pure halves run here — the four auth
+      # states, and the npm-output parse the live tree corrected within the hour.
       # ~1s. A step, not a 27th job (FIFTY-FIRST session running).
       - name: The registry-bytes comparator can still refuse (registry bytes selftest)
         run: python3 scripts/registry_bytes.py --selftest
@@ -63,9 +68,15 @@ jobs:
       # they CONTRADICT each other about what a lower_snake name reaching shipped source
       # means. The old MINOR arm PASSED on 1.73.2 — the release three handoffs wrongly
       # called a MINOR. It now reads the DIFF WINDOW instead, and refuses.
-      # `--selftest` is pure — no tree, no npm, no network — and drives twelve rows, EIGHT
-      # of which refuse, plus the counterfactual that pins NAME_FLOOR against the real
-      # 1.73.2 block. ~0.1s. A step, not a 27th job (FIFTY-FOURTH session running).
+      # `--selftest` is pure — no npm, no network — and drives every refusal this file
+      # can make, plus three counterfactuals: NAME_FLOOR against the real 1.73.2 block,
+      # the tag round trip, and 🆕 227's CROSS-LANGUAGE round trip between the line
+      # `host/scripts/wire_diff.mjs` prints and the pattern check 8 reads.
+      # 🆕 227 — AND CHECK 8 AND CHECK 1's MAJOR ARM ARE IN IT NOW. The wire classifier's
+      # LIVE half needs a baseline build and a compiled server, so it stays release-time
+      # like registry_lag's; its PURE half — does this bump cover what the wire did —
+      # runs on every push exactly like the rest.
+      # ~0.1s. A step, not a 27th job (FIFTY-FIFTH session running).
       - name: Check 1's refusals still fire (release names selftest)
         run: python3 scripts/release_names.py --selftest
       # 🔴 CHECK 4, PROMOTED — 220 §8.10, CARRIED FOR FIVE SESSIONS AS "the cheapest

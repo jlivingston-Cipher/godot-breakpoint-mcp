@@ -454,6 +454,30 @@ def selftest() -> int:
             bad += 1
             print(f"        want {want_code} / {want_msg!r} · got {code} / {why!r}")
 
+    print("\n  the publish precondition — 226 §5's dead token, asked BEFORE the cut (🆕 227)")
+    for name, user, owners, want_code in AUTH_SELFTEST:
+        code, why, d = auth_state(user, owners, "breakpoint-mcp")
+        agree = code == want_code
+        print(f"  {'🟢' if agree else '🔴'} {code:<24} whoami={str(user):<14} "
+              f"owners={str(owners):<28} {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} · got {code} — {why}")
+    for name, out, want_user, want_owners in PARSE_SELFTEST:
+        gu, go = parse_whoami(out), parse_owners(out)
+        agree = gu == want_user and go == want_owners
+        print(f"  {'🟢' if agree else '🔴'} {'npm output parse':<24} "
+              f"user={str(gu):<14} owners={str(go):<28} {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_user!r}/{want_owners!r} · got {gu!r}/{go!r}")
+
+    auth_codes = {r[3] for r in AUTH_SELFTEST}
+    if len(auth_codes) < 4:
+        print(f"  🔴 the auth table has stopped proving what it exists to prove "
+              f"({len(auth_codes)} distinct code(s) of 4)")
+        return 1
+
     print("\n  🔴 the extraction trap — why this reader does not sha the .tgz:")
     trap = tarball_trap()
     bad += trap
@@ -480,6 +504,170 @@ def selftest() -> int:
               f"no refusing row is a constant nobody re-derives")
         return 1
     return 1 if bad else 0
+
+
+# ── 🆕 227 — THE PRECONDITION, BECAUSE A DEAD TOKEN STOPPED A CUT MID-RITUAL ─────────
+#
+# 226 §5: the stored `~/.npmrc` token had expired and NOTHING IN THE TREE KNEW until the
+# ritual reached for it. `npm whoami` returned 401 and `npm publish` returned
+# **404 PUT /breakpoint-mcp** — which is npm's spelling of "authenticated as nobody",
+# not of "no such package", and is therefore a message that sends a reader to look for
+# the wrong problem. It was the SECOND time credentials have stopped a release: 1.72.7's
+# 50-version backlog had been recorded as blocked since session 162 and turned out to be
+# a stale `_authToken` as well, carried for forty-two sessions as an infrastructure
+# problem nobody could reproduce.
+#
+# 🔴 THE FIX IS NOT A RETRY, IT IS AN ORDERING. Everything else in the release ritual is
+# a precondition — check 1 before the write, checks 2 and 4 before the merge, check 8
+# before the bump is believed. Authentication was the one step whose failure could only
+# be discovered by attempting the irreversible thing. This makes it answerable BEFORE.
+#
+# 🔴 AND IT ASKS THE SECOND QUESTION TOO, WHICH IS THE ONE A `whoami` ALONE MISSES.
+# Being logged in as SOMEBODY is not being able to publish THIS package: an account that
+# is not an owner gets a 403 at exactly the same point in the ritual, with a different
+# number and the same consequence. One reader, both questions, before the cut.
+AUTH_OK = "AUTH_OK"
+AUTH_ANONYMOUS = "AUTH_ANONYMOUS"
+AUTH_NOT_AN_OWNER = "AUTH_NOT_AN_OWNER"
+AUTH_OWNERS_UNREADABLE = "AUTH_OWNERS_UNREADABLE"
+
+
+def auth_state(user: str | None, owners: list[str] | None,
+               pkg: str) -> tuple[str, str, dict]:
+    """Can this machine publish `pkg` RIGHT NOW? PURE — never raises, never touches npm.
+
+    🔴 `None` MEANS UNANSWERED AND UNANSWERED IS RED, in both arguments and for the
+    reason it is red everywhere else in this file: a reader that could not make its
+    comparison must say so rather than pass on the comparison it did not make.
+    """
+    d = {"user": user, "owners": owners, "package": pkg}
+    if not user:
+        return AUTH_ANONYMOUS, (
+            f"🔴 `npm whoami` names nobody — this machine cannot publish {pkg}. That is "
+            f"226 §5's dead token, and the thing to know about it is what it looks like "
+            f"if you skip this check: `npm publish` answers **404 PUT /{pkg}**, which "
+            f"reads as 'no such package' and is really 'authenticated as nobody'. Log "
+            f"in (`npm login`) and run this again BEFORE touching the version files."), d
+    if owners is None:
+        return AUTH_OWNERS_UNREADABLE, (
+            f"🔴 authenticated as `{user}`, but the owner list for {pkg} could not be "
+            f"read. Unreachable is RED: 'I could not check whether you may publish' is "
+            f"not 'you may publish', and the difference is discovered at the PUT."), d
+    if user not in owners:
+        return AUTH_NOT_AN_OWNER, (
+            f"🔴 authenticated as `{user}`, who is NOT an owner of {pkg} "
+            f"(owners: {owners}). The publish would reach the registry and come back "
+            f"403 — logged in, and still unable to ship. This is the half a bare "
+            f"`npm whoami` cannot answer."), d
+    return AUTH_OK, (f"authenticated as `{user}`, who is one of {len(owners)} owner(s) "
+                     f"of {pkg} — the publish will not fail on credentials"), d
+
+
+# (name, whoami, owners, want_code)
+AUTH_SELFTEST = [
+    ("the healthy shape — logged in as an owner", "jlivingston",
+     ["jlivingston"], AUTH_OK),
+    ("one owner of several", "jlivingston", ["someone", "jlivingston"], AUTH_OK),
+    ("🔴 226 §5 — THE DEAD TOKEN. `npm whoami` 401, and `npm publish` says 404",
+     None, ["jlivingston"], AUTH_ANONYMOUS),
+    ("🔴 AN EMPTY STRING IS NOT A USERNAME — whoami printing nothing is anonymous",
+     "", ["jlivingston"], AUTH_ANONYMOUS),
+    ("🔴 LOGGED IN AND STILL UNABLE TO SHIP — the 403 a whoami cannot see",
+     "somebody-else", ["jlivingston"], AUTH_NOT_AN_OWNER),
+    ("🔴 THE OWNER LIST UNREADABLE — 'I could not check' is not 'yes'",
+     "jlivingston", None, AUTH_OWNERS_UNREADABLE),
+    # 🔴 AND AN EMPTY OWNER LIST IS NOT THE SAME AS AN UNREADABLE ONE. npm answers a
+    # package with no owners with an empty list; treating that as a pass would be the
+    # two-empty-collections-agree shape this whole file is built against.
+    ("🔴 NOBODY OWNS IT — an empty list is a real answer, and the answer is no",
+     "jlivingston", [], AUTH_NOT_AN_OWNER),
+]
+
+
+# 🔴 THE PARSE IS ITS OWN FUNCTION AND ITS OWN TABLE, BECAUSE THE FIRST DRAFT GOT IT
+# WRONG AND THE LIVE TREE SAID SO WITHIN THE HOUR. That draft combined stdout and stderr
+# and took the last line. Run against the real account, `npm` had a version notice to
+# deliver — `npm notice` — and the last line of the combined stream WAS THE NOTICE. The
+# reader would have called the publishing account `npm notice`, found it absent from the
+# owner list, and refused the release with AUTH_NOT_AN_OWNER: a right-shaped wrong
+# answer naming the wrong cause, which is 226 §3's finding turning up in the code written
+# to close 226 §5. 🔴 NPM SAYS EVERYTHING CONVERSATIONAL ON STDERR AND ITS ANSWER ON
+# STDOUT. The answer is what this reads; stderr is kept for the human on the refusal path.
+def parse_whoami(out: str) -> str | None:
+    """The account name out of `npm whoami`'s STDOUT. PURE.
+
+    🔴 STRICT, AND THE STRICTNESS IS THE FIX. `npm whoami` prints ONE line holding ONE
+    token; anything else on stdout means the assumption behind this reader is wrong, and
+    the safe answer to that is `None` — which refuses — rather than the most
+    username-looking substring available. Guessing is how the first draft produced an
+    account named `npm notice` and blamed the owner list for it.
+    """
+    lines = [l.strip() for l in out.splitlines() if l.strip()]
+    if len(lines) != 1 or len(lines[0].split()) != 1:
+        return None
+    return lines[0]
+
+
+def parse_owners(out: str) -> list[str]:
+    """The account names out of `npm owner ls`'s STDOUT. PURE.
+
+    Each line is `name <email>`; the name is what npm compares a publisher against and
+    the email is not. A line with no first token is not an owner.
+    """
+    return [l.split()[0] for l in out.splitlines() if l.split()]
+
+
+# (name, stdout, want_user, want_owners)
+PARSE_SELFTEST = [
+    ("the ordinary answer — one line, one token", "jlivingston-cipher\n",
+     "jlivingston-cipher", ["jlivingston-cipher"]),
+    ("blank lines are not answers", "\n\njlivingston-cipher\n\n", "jlivingston-cipher",
+     ["jlivingston-cipher"]),
+    ("🔴 NO OUTPUT AT ALL IS None, NOT AN EMPTY NAME", "   \n  \n", None, []),
+    # 🔴 THE ROW THE LIVE TREE WROTE. If npm ever puts a notice on stdout, or a proxy
+    # prepends a banner, the strict parse answers None and the check REFUSES with npm's
+    # own words printed underneath — instead of inventing an account and blaming the
+    # owner list, which is what the first draft did.
+    ("🔴 A NOTICE ON STDOUT IS NOT A USERNAME — refuse, do not guess",
+     "npm notice\njlivingston-cipher\n", None, ["npm", "jlivingston-cipher"]),
+    # 🔴 AND THE TWO PARSERS ARE NOT INTERCHANGEABLE. Owner output is `name <email>` and
+    # whoami output is a bare token; feeding one to the other must not quietly work.
+    ("owner lines carry an email the comparison ignores — and are NOT whoami output",
+     "alice <a@x.io>\nbob <b@x.io>\n", None, ["alice", "bob"]),
+]
+
+
+def _npm(args: list[str], why: str) -> tuple[int, str, str]:
+    """Run npm and hand back (code, stdout, stderr). Never raises — the caller decides."""
+    try:
+        r = subprocess.run(["npm", *args], cwd=str(HOST),
+                           capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return 1, "", f"🔴 `npm {' '.join(args)}` ({why}) could not run: {e}"
+    return r.returncode, r.stdout, r.stderr.strip()
+
+
+def assert_auth() -> int:
+    """The live half. Two npm calls, no writes, and it is safe to run at any time."""
+    # 🔴 `PKG` IS IMPORTED, NOT RE-READ. 203 §2's ONE LIST — the package name already
+    # has a home in `registry_lag.py` and this file already imports it; a second parse
+    # of `package.json` here would be a second spelling free to drift.
+    pkg = PKG
+    wc, wout, werr = _npm(["whoami"], "who is this machine")
+    user = parse_whoami(wout) if wc == 0 else None
+    oc, oout, _ = _npm(["owner", "ls", pkg], "who may publish it")
+    owners = parse_owners(oout) if oc == 0 else None
+    code, why, d = auth_state(user, owners, pkg)
+    print(f"REGISTRY_BYTES --assert-auth  ·  {pkg} · whoami "
+          f"{'`' + user + '`' if user else '🔴 nobody'} · owners "
+          f"{owners if owners is not None else '🔴 unreadable'}")
+    if code != AUTH_OK:
+        print(f"\n🔴 REGISTRY_BYTES REFUSED [{code}]: {why}", file=sys.stderr)
+        if code == AUTH_ANONYMOUS:
+            print(f"   npm said: {werr or wout or '(nothing)'}", file=sys.stderr)
+        return 1
+    print(f"               🟢 [{code}] {why}")
+    return 0
 
 
 def _pack(cwd: Path, spec: str | None, why: str) -> dict[str, str]:
@@ -643,8 +831,17 @@ def main() -> int:
     ap.add_argument("--selftest", action="store_true",
                     help="drive the pure comparator over its table, plus the "
                          "extraction trap; no network, no npm")
+    # 🆕 227 — THE ONE MODE THAT RUNS BEFORE A RELEASE RATHER THAN AFTER ONE. Everything
+    # else in this file reads a PUBLISHED artifact and therefore cannot run until the
+    # irreversible step has happened; this asks whether that step CAN happen. Two npm
+    # reads, no writes, safe at any time — run it first, not when the publish fails.
+    ap.add_argument("--assert-auth", action="store_true",
+                    help="can this machine publish this package at all? "
+                         "`npm whoami` + `npm owner ls`, no writes")
     a = ap.parse_args()
-    return selftest() if a.selftest else verify()
+    if a.selftest:
+        return selftest()
+    return assert_auth() if a.assert_auth else verify()
 
 
 if __name__ == "__main__":
