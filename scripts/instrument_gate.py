@@ -755,6 +755,35 @@ INSTRUMENTS = [
             # instrument at once.
         },
     },
+    {
+        # 🆕 232 — THE THIRTEENTH, AND THE ONE THIS FILE COULD NOT SEE. 231 §5.1 recorded
+        # `instrument_gate.py` printing `ok — every instrument collapses loudly` over
+        # eleven instruments on the run that introduced the twelfth, and named the cause:
+        # its population is a TYPED ROSTER with no DISCOVER half. The half below this
+        # entry is that fix, and this entry is what its FIRST RUN found — an 818-line
+        # export-bearing module with a headless self-test, both of which CI has run on
+        # every push since 219, never once blinded.
+        #
+        # 🔴 AND IT IS THE POSITIVE CONTROL. The reader whose entire job is to catch
+        # collections that can never be non-empty was itself never asked whether IT can
+        # go quiet. `classify()` returning `[]` is the exact defect this instrument
+        # exists to name, in the file that names it.
+        "name": "positive_control_gate.mjs",
+        "src": HOST / "scripts" / "positive_control_gate.mjs",
+        "gate": ["node", "scripts/positive_control_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 3,   # every one of the three targets must be swept
+        "why": "the reader that decides whether an empty collection was ever proved able "
+               "to be non-empty",
+        # The empty each member's own contract promises, read off the returns rather than
+        # guessed: `classify` and `acceptance` return arrays of rows, `judge` returns
+        # `{lines, failed, codes}` and `failed:false` is the shape that passes silently.
+        "targets": {
+            "{SIG:classify}": "return [];",
+            "{SIG:acceptance}": "return [];",
+            "{SIG:judge}": "return { lines: [], failed: false, codes: [] };",
+        },
+    },
 ]
 
 
@@ -837,6 +866,23 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     ("wire_invisible_gate.mjs", "measureVisibility"):
         "the loop over `emitPair`; it cannot be exercised without a server either, and "
         "`audit` — which is what decides the verdict from its result — IS targeted.",
+    # 🆕 232 — THE THIRTEENTH INSTRUMENT'S TWO, AND BOTH WERE MEASURED BEFORE BEING
+    # WRITTEN HERE. `positive_control_gate.selftest.mjs` imports `classify`, `judge` and
+    # `acceptance` and NOTHING ELSE — read off its import list, not guessed — so a blind
+    # on either member below cannot redden the A:gate axis whatever it returns.
+    # 🔴 AND UNLIKE THE FOUR ROWS ABOVE, THESE TWO ARE COVERED — by the B:live axis this
+    # instrument ships with, `node scripts/positive_control_gate.mjs`, which CI runs on
+    # every push and which this gate BLINDS. `scan` is the tree walk that feeds it; a
+    # late blind there takes the population to nothing and PC_POPULATION/PC_FILES fire.
+    # The row is here because the A:gate axis cannot reach them, not because nothing can.
+    ("positive_control_gate.mjs", "scan"):
+        "the real-tree walk: `positive_control_gate.selftest.mjs` is fixture-driven by "
+        "construction (it drives `classify`/`judge` over source text with no tree at all), "
+        "so the A:gate axis cannot reach it. 🟢 The B:live axis DOES — `node "
+        "scripts/positive_control_gate.mjs` is in LATE_LIVE and blinds this member.",
+    ("positive_control_gate.mjs", "main"):
+        "the invocation, not a reader — see verdict_gate.mjs::main. The three readers it "
+        "calls are targeted individually and `scan` is reached by the live axis.",
 }
 
 
@@ -952,6 +998,13 @@ LATE_LIVE = {
     "_workspace.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
     "_png.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
     "_population.mjs": (["node", "test-integration/_caller_shape.harness.mjs"], None),
+    # 🆕 232 — AND THIS ONE GETS THE STRONGER AXIS RATHER THAN A LATE_LIVE_NA ROW,
+    # because the reason those rows have to give is "there is no second command that
+    # exercises this file" and here there plainly is one: CI runs the gate for real
+    # (`node scripts/positive_control_gate.mjs`, ci.yml) one step after it runs the
+    # self-test. Declaring it NA would have been an exclusion bought with a sentence
+    # anybody could check and find false — 211 §5's whole point about the reasons.
+    "positive_control_gate.mjs": (["node", "scripts/positive_control_gate.mjs"], None),
 }
 
 # ── 🔴 198 §3 — THE LATE AXIS'S VERDICT MARKER, AND WHY IT IS NOT `VERDICT_MARKER` ──
@@ -989,6 +1042,11 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     "node scripts/boundary_gate.mjs": "BOUNDARY_GATE",
     "node scripts/path-cohort.mjs --summary": "PATH_COHORT",
     "node test-integration/_caller_shape.harness.mjs": "SHAPE_POPULATION",
+    # 🆕 232 — `POSITIVE_CONTROL <n> claim(s) over <m> file(s)` is `judge()`'s FIRST say()
+    # line and is emitted before any verdict branch, so it survives the red path — which
+    # is the property draft 2 above failed and the reason this is not `POSITIVE_CONTROL_GATE`
+    # (printed only when nothing failed).
+    "node scripts/positive_control_gate.mjs": "POSITIVE_CONTROL ",
 }
 
 # THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
@@ -1210,6 +1268,11 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # tree. The count is small because this proof reports one line per failed claim and
     # the five blinded members are read by 27 claims, not by 157.
     "wire_invisible_gate.mjs": 16,
+    # 🆕 232 — MEASURED AT THIRTY-ONE ON THIS AXIS after the self-test stopped crashing,
+    # floored from BELOW with 198 §36's headroom. Lower than the primary axis for the
+    # reason 231's row one line up gives: the late injector blinds from the SECOND call,
+    # so the claims reading a member once still pass and only the repeated readers fail.
+    "positive_control_gate.mjs": 26,  # 232: measured 31 on [A:gate]
 }
 LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
 LATE_CRASHED_A: list[tuple[str, str]] = []
@@ -1252,6 +1315,196 @@ LATE_LIVE_NA: dict[str, str] = {
         "command IS the gate — `node scripts/wire_invisible_gate.mjs` runs the same "
         "`audit` the self-test drives, over the real declarations rather than fixtures",
 }
+
+
+# ══ THE DISCOVER HALF — 232, answering 231 §5.1 ════════════════════════════════════
+#
+# 🔴 THE GATE THAT GRADES EVERY INSTRUMENT WAS THE ONE GATE THAT COULD NOT NOTICE A NEW
+# ONE. 231 §5.1: this file printed `ok — every instrument collapses loudly` over ELEVEN
+# instruments on the run that introduced the twelfth, and it was right about all eleven.
+# `floor_pin_gate.py` refused that same commit's floors unprompted twenty minutes earlier,
+# because it WALKS THE TREE where this one READ A LIST. A typed roster cannot report what
+# joined; that is not a defect in any row, it is the absence of this half.
+#
+# 🔴 THE DISCRIMINATOR IS A STRUCTURAL PROPERTY, MEASURED — NOT A NAME SHAPE. An
+# instrument is a MODULE: something another file imports, whose members a blind can reach
+# and whose collapse would be silent. A file that exports nothing has no member to inject
+# into — `blind()` would have nowhere to put the statement — so it cannot be an instrument
+# whatever it is called. The alternative on offer was the suffix (`.selftest.mjs`,
+# `.integration.mjs`), and it is refused for the reason `floor_pin_gate.py`'s own history
+# gives three times over: a rule scoped to a SPELLING rots in the direction the spelling
+# does not cover (183 §12.29, 197, 199, 200 §12.2).
+#
+# 🔴 BOTH CANDIDATE DISCRIMINATORS WERE MEASURED BEFORE ONE WAS CHOSEN, and they agree
+# exactly (`/tmp/probe232/census.py`, over the live tree):
+#
+#     48 .mjs file(s) walked · 11 instruments · 11 named as an instrument's gate
+#     12 export-bearing · 12 imported by >= 1 tracked file
+#     A) exports and is neither instrument nor gate  ->  positive_control_gate.mjs
+#     B) imported and is neither instrument nor gate ->  positive_control_gate.mjs
+#     C) instruments that export nothing             ->  none
+#     D) instruments nobody imports                  ->  none
+#
+# ONE file, found by both readings, and it is an 818-line reader with a headless self-test
+# that CI has run on every push since 219 without ever being blinded. It is the entry
+# above rather than a row in DISCOVER_EXEMPT below, which is what a discovery half is for.
+#
+# 🔴 AND THE WALK IS SCOPED TO THE TWO DIRECTORIES, WHICH IS ITSELF A LIMIT WITH A ROW.
+# The twelfth instrument's swept file is `host/dist-test/src/path-cohort.js` — a BUILD
+# ARTEFACT compiled from `src/path-cohort.ts`, outside both dirs. Rather than widen the
+# walk to `src/` (a population of hundreds, none of which is an instrument today) the
+# other direction is checked instead: every instrument the walk CANNOT reach must be
+# declared below with a reason, and a declaration for one it CAN reach is stale and
+# refuses. That is `floor_pin_gate.py`'s UNDISCOVERABLE check, one file over — the
+# discovery half's coverage of its own roster, asked in both directions.
+DISCOVER_DIRS = [HOST / "scripts", HOST / "test-integration"]
+MODULE_RE = re.compile(r"^export[ \t]", re.M)
+
+# 🔴 EMPTY, AND THE RULE IS PROVED ON A FIXTURE RATHER THAN ON A POPULATION (the U1
+# lesson: a check whose population is empty is passing for the wrong reason). Nothing in
+# the walk today is an export-bearing file that is neither an instrument nor a gate — the
+# one that was is now the thirteenth entry. A row here needs the shape 174 §5 requires: a
+# REASON, not a name, and one a reader can check rather than agree with.
+DISCOVER_EXEMPT: dict[str, str] = {}
+
+# The instruments whose swept file the walk above cannot see, each with the reason.
+DISCOVER_OUTSIDE_WALK: dict[str, str] = {
+    "path-cohort (compiled walk)":
+        "its swept file is `host/dist-test/src/path-cohort.js`, a BUILD ARTEFACT compiled "
+        "from `src/path-cohort.ts` by `npm test`. The walk is scoped to the two .mjs "
+        "directories on purpose: widening it to `src/` would admit hundreds of modules, "
+        "none of which is an instrument, and every one of which would need a row here. "
+        "The TypeScript source is covered by `tsc --strict` and by the unit gate this "
+        "entry names; what is uncovered is nothing, because the artefact IS swept — it is "
+        "only unreachable by THIS walk.",
+}
+
+# 🔴 TWO FLOORS, NOT ONE SUM (172 §6). A walk pointed at a directory that no longer
+# exists returns nothing and every downstream check passes over an empty population;
+# a walk that still reads 48 files while the MODULE reader silently stops recognising
+# exports is the same collapse one layer in, and the file count cannot see it.
+# Measured before they were set: 48 files walked, 12 export-bearing. Floored from BELOW
+# (198 §36) so growth never reddens a healthy tree.
+DISCOVER_FLOOR = 30
+DISCOVER_MODULE_FLOOR = 8
+
+
+def discover_walk(dirs) -> list[tuple[str, bool]]:
+    """(path relative to ROOT, does it export anything) for every .mjs in `dirs`."""
+    out: list[tuple[str, bool]] = []
+    for d in dirs:
+        if not d.exists():
+            continue
+        for f in sorted(d.glob("*.mjs")):
+            out.append((str(f.relative_to(ROOT)), bool(MODULE_RE.search(f.read_text()))))
+    return out
+
+
+def gate_scripts(instruments) -> set[str]:
+    """Every file the ROSTER ITSELF names as a runner — derived, never re-typed.
+
+    198's rule, and 199 §9.3's reason for it: an exclusion built from data the tree
+    already carries cannot drift away from the thing it excludes. A `.selftest.mjs` is
+    not an instrument because it is the GATE, and the only trustworthy statement of
+    which files those are is the `gate` command each entry already declares. The live
+    drivers in `LATE_LIVE` are read the same way — `_caller_shape.harness.mjs` is a
+    caller this file constructs mutants for, not a member it blinds.
+    """
+    out: set[str] = set()
+    for inst in instruments:
+        for a in inst["gate"]:
+            if a.endswith((".mjs", ".js")):
+                out.add(str((Path(inst["cwd"]) / a).resolve().relative_to(ROOT)))
+    for cmd, _alt in LATE_LIVE.values():
+        for a in cmd:
+            if a.endswith((".mjs", ".js")):
+                out.add(str((HOST / a).resolve().relative_to(ROOT)))
+    return out
+
+
+def discovery_problems(files, instruments, exempt, outside, walk_floor, module_floor,
+                       gates) -> tuple[list[str], dict]:
+    """PURE over its inputs, so the self-check can hand it a tree that cannot exist.
+
+    174 §8's rule: a collector only ever asserted over the healthy population loses its
+    filter invisibly. Every refusal below is driven from both sides in `_self_check`.
+    """
+    problems: list[str] = []
+    inst_path = {}
+    for i in instruments:
+        try:
+            inst_path[str(Path(i["src"]).resolve().relative_to(ROOT))] = i["name"]
+        except ValueError:
+            inst_path[str(Path(i["src"]))] = i["name"]
+    walked = {p for p, _ in files}
+    modules = [p for p, exports in files if exports]
+
+    for p in sorted(modules):
+        if p in inst_path or p in gates or p in exempt:
+            continue
+        problems.append(
+            f"INSTRUMENT_GATE_DISCOVER UNDECLARED {p} — it EXPORTS members, so another "
+            f"file can import it and a blind can reach it, and it is neither an entry in "
+            f"INSTRUMENTS nor a gate this roster names nor a row in DISCOVER_EXEMPT. "
+            f"Nothing else in this file can see that: every other check here is about "
+            f"instruments that were WRITTEN DOWN. Add the entry, or the row with a reason")
+    for p in sorted(exempt):
+        if p not in walked:
+            problems.append(
+                f"INSTRUMENT_GATE_DISCOVER STALE_EXEMPT {p} — declared exempt, and the walk "
+                f"cannot find it. An exclusion outliving its subject is an exemption nobody "
+                f"has re-argued (174 §5)")
+        elif p in inst_path:
+            problems.append(
+                f"INSTRUMENT_GATE_DISCOVER EXEMPT_IS_INSTRUMENT {p} — it is swept as "
+                f"`{inst_path[p]}` AND carries a reason for not being swept. One of the two "
+                f"is wrong and this file cannot decide which")
+    if len(files) < walk_floor:
+        problems.append(
+            # 🔴 THE OBSERVATION, NOT A CAUSE (228 §7.17). This population is DERIVED from a
+            # directory walk, and a count cannot tell a tree that really lost files from a
+            # walk that stopped reaching them — the first draft of this line asserted the
+            # second and `floor_pin_gate.py` refused it on the run that added it.
+            f"INSTRUMENT_GATE_DISCOVER WALK_FLOOR {len(files)} < {walk_floor} — fewer files "
+            f"than the floor. The tree may have lost them, or the walk may have stopped "
+            f"reaching them, and a count cannot separate those; either way a discovery half "
+            f"over a population this small reports nothing undeclared and passes, which is "
+            f"this gate's own 231 §5.1 one layer down")
+    if len(modules) < module_floor:
+        problems.append(
+            f"INSTRUMENT_GATE_DISCOVER MODULE_FLOOR {len(modules)} < {module_floor} — fewer "
+            f"export-bearing files than the floor, over {len(files)} file(s) read. Modules "
+            f"may have been deleted or merged, or MODULE_RE may have stopped recognising "
+            f"them; the count cannot separate those. Both leave every file reading as an "
+            f"executable, and the file count above cannot see it — which is why this is a "
+            f"second floor and never a sum (172 §6)")
+    for name, path in sorted((v, k) for k, v in inst_path.items()):
+        if path in walked or name in outside:
+            continue
+        problems.append(
+            f"INSTRUMENT_GATE_DISCOVER OUTSIDE_WALK {name} ({path}) — swept by this gate and "
+            f"unreachable by its own DISCOVER walk, with no row saying why. The walk's "
+            f"coverage of the roster has to be checked in BOTH directions or it rots in the "
+            f"one nobody reads (floor_pin_gate.py's UNDISCOVERABLE, one file over)")
+    for name in sorted(outside):
+        path = next((p for p, n in inst_path.items() if n == name), None)
+        if path is None:
+            problems.append(
+                f"INSTRUMENT_GATE_DISCOVER OUTSIDE_STALE {name} — declared unreachable by the "
+                f"walk, and no instrument of that name is swept at all")
+        elif path in walked:
+            problems.append(
+                f"INSTRUMENT_GATE_DISCOVER OUTSIDE_STALE {name} — declared unreachable by the "
+                f"walk, which now reaches it at {path}. The reason has outlived the fact")
+    stats = {
+        "files": len(files), "modules": len(modules),
+        "instruments": sum(1 for p in walked if p in inst_path),
+        "gates": sum(1 for p in walked if p in gates),
+        "exempt": len(exempt),
+        "undeclared": sum(1 for m in problems if "UNDECLARED" in m),
+        "outside": len(outside),
+    }
+    return problems, stats
 
 
 def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, int, list[str]]:
@@ -1601,6 +1854,90 @@ def _self_check(floor: int) -> list[str]:
         if read != len(inst["targets"]):
             problems.append(f"{inst['name']}: the literal audit read {read} of "
                             f"{len(inst['targets'])} target(s)")
+    # ══ 🆕 232 — THE DISCOVER HALF, DRIVEN ON FIXTURES ═══════════════════════════════
+    # 🔴 EVERY REFUSAL FROM BOTH SIDES, because a discovery half that cannot refuse is
+    # the shape 231 §5.1 found in this very file: a green line over a population it was
+    # not reading. The fixtures are a tree that does not exist, which is the only way to
+    # drive `STALE_EXEMPT` and `OUTSIDE_STALE` at all (174 §8).
+    _D_INST = [{"name": "i.mjs", "src": ROOT / "host" / "scripts" / "i.mjs",
+                "gate": ["node", "scripts/i.selftest.mjs"], "cwd": HOST}]
+    _D_GATES = {"host/scripts/i.selftest.mjs"}
+    _D_OK = [("host/scripts/i.mjs", True),
+             ("host/scripts/i.selftest.mjs", False),
+             ("host/test-integration/probe.integration.mjs", False)]
+
+    def _disc(files, exempt=None, outside=None, walk=1, mod=1):
+        return discovery_problems(files, _D_INST, exempt or {}, outside or {},
+                                  walk, mod, _D_GATES)[0]
+
+    if _disc(_D_OK):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER refused a healthy fixture — an instrument, its gate "
+            "and an export-free probe. A discovery half that reds on the shape the tree "
+            "actually has cannot be run, and one nobody runs refuses nothing")
+    # 🔴 THE ONE THAT MATTERS — a module joins the tree and nobody writes it down.
+    if not _disc(_D_OK + [("host/scripts/new.mjs", True)]):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER stayed quiet over an export-bearing file that is "
+            "neither an instrument, nor a gate, nor exempt — which is 231 §5.1 exactly, "
+            "in the half written to end it")
+    # 🔴 AND THE DISCRIMINATOR HAS TO DISCRIMINATE. The same new file exporting NOTHING is
+    # an executable: there is no member to blind, so demanding a row for it would make the
+    # table 36 rows of noise and 174 §5's argument says nobody would re-read one of them.
+    if _disc(_D_OK + [("host/scripts/new.mjs", False)]):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER demanded a row for a file that exports nothing — the "
+            "rule would then be about file COUNT rather than about modules, and every probe "
+            "and self-test in the tree would need an excuse")
+    if not _disc(_D_OK, exempt={"host/scripts/gone.mjs": "why"}):
+        problems.append("INSTRUMENT_GATE_DISCOVER kept an exemption for a file the walk cannot find")
+    if not _disc(_D_OK, exempt={"host/scripts/i.mjs": "why"}):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER accepted a file that is BOTH swept and excused from "
+            "being swept — the two rows contradict and this gate must not pick one")
+    # 🔴 THE FLOORS, AND THE COLLAPSE EACH ONE ALONE CANNOT SEE.
+    if not _disc([], walk=1, mod=1):
+        problems.append("INSTRUMENT_GATE_DISCOVER passed over an EMPTY walk")
+    if not _disc([(p, False) for p, _ in _D_OK] * 4, walk=1, mod=1):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER passed with 12 file(s) read and ZERO recognised as "
+            "modules — the file floor is satisfied and the module reader is dead, which is "
+            "the collapse the second floor exists for")
+    # 🔴 231 §5.5's TRAP, IN THE FILE THAT RECORDED IT. `len(x) < 0` never fires, so a
+    # floor at zero is a check that cannot refuse anything and reads green forever.
+    for _label, _f in (("DISCOVER_FLOOR", DISCOVER_FLOOR),
+                       ("DISCOVER_MODULE_FLOOR", DISCOVER_MODULE_FLOOR)):
+        if not isinstance(_f, int) or _f <= 0:
+            problems.append(
+                f"{_label} is {_f!r} — a floor at or below zero refuses nothing, and the "
+                f"comparison it is read by can never fire (231 §5.5, live in this file)")
+    # 🔴 THE ROSTER'S OTHER DIRECTION — an instrument the walk cannot reach.
+    if not _disc([("host/scripts/i.selftest.mjs", False)]):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER stayed quiet about an instrument its own walk cannot "
+            "reach and no row declares — the coverage question asked in one direction only")
+    # 🔴 THE FIRST DRAFT OF THIS CASE PROVED THE WRONG REFUSAL — a walk holding only the
+    # self-test has ZERO modules, so `MODULE_FLOOR` fired and the case would have passed
+    # while saying nothing about out-of-walk rows at all. It carries an exempt module now,
+    # so the only thing left to refuse is the thing under test.
+    if _disc([("host/scripts/i.selftest.mjs", False), ("host/scripts/m.mjs", True)],
+             exempt={"host/scripts/m.mjs": "a reason"}, outside={"i.mjs": "declared"}):
+        problems.append("INSTRUMENT_GATE_DISCOVER refused a DECLARED out-of-walk instrument")
+    if not _disc(_D_OK, outside={"i.mjs": "declared"}):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER kept an out-of-walk reason for an instrument the walk "
+            "now reaches — a reason outliving its fact")
+    if not _disc(_D_OK, outside={"ghost.mjs": "declared"}):
+        problems.append(
+            "INSTRUMENT_GATE_DISCOVER kept an out-of-walk row for an instrument nothing sweeps")
+    # 🔴 AND THE GATE SET IS DERIVED, NOT TYPED (198). Emptying the roster must empty it:
+    # a hand-written set would keep excusing self-tests for instruments that no longer exist.
+    if ("host/scripts/i.selftest.mjs" not in gate_scripts(_D_INST)
+            or "host/scripts/i.selftest.mjs" in gate_scripts([])):
+        problems.append(
+            "gate_scripts() does not derive its answer from the roster it is handed — an "
+            "exclusion that survives its own table is a roster nobody maintains (198)")
+
     return problems
 
 
@@ -1647,6 +1984,12 @@ VERDICT_MARKER: dict[str, str] = {
     # `claim()` and every risky call through `safe()`, so a blinded member reaches the
     # verdict line and is classified as a CATCH rather than as an unclassifiable crash.
     "wire_invisible_gate.mjs": "WIRE_INVISIBLE_SELFTEST",
+    # 🆕 232 — the positive control's own proof. Same prefix-not-"ok" rule as the four
+    # rows above: that file prints `POSITIVE_CONTROL_SELFTEST ok — …` green and
+    # `🔴 POSITIVE_CONTROL_SELFTEST — n of m claim(s) FAILED` red, so the prefix is the
+    # thing that says the run REACHED its verdict rather than the thing that says it
+    # passed. Its failures are the `🔴 FAILED: ` dialect (B_FAIL), already read.
+    "positive_control_gate.mjs": "POSITIVE_CONTROL_SELFTEST",
 }
 
 
@@ -2005,6 +2348,13 @@ BLAST_FLOOR: dict[str, int] = {
     # named. 11 -> 23, which is what the other two were worth.
     "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23 across all four
     "wire_invisible_gate.mjs": 18,  # 231: measured 22 across its five blinds, 0 crashed
+    # 🆕 232 — MEASURED BY HAND BEFORE THE ROW WAS WRITTEN, and the first measurement was
+    # of a file that CRASHED rather than failed: `classify` and `acceptance` blinded took
+    # this proof down before its verdict line, so the numbers the first sweep printed were
+    # about JavaScript and not about the gate (197 §5). After `safe`/`jg`/`ac` landed in
+    # the self-test the three blinds report twenty-one, five and seven failure lines.
+    # Floored from BELOW at 198 §36's usual headroom.
+    "positive_control_gate.mjs": 28,  # 232: measured 33 across its three blinds, 0 crashed
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
@@ -2233,6 +2583,22 @@ def main() -> int:
     # 🆕 212 §4 — THE ROSTER'S OWN COVERAGE, BEFORE A SINGLE MUTANT. It is not about any
     # one sweep's result; it is about whether the list those sweeps iterate is the module.
     problems.extend(coverage_problems(INSTRUMENTS))
+
+    # 🆕 232 — AND THE HALF THAT ASKS WHAT JOINED THE TREE (231 §5.1). `coverage_problems`
+    # above reads DOWN from the roster — every exported member of every instrument named.
+    # This one reads UP from the tree, and the difference is the entire finding of 231 §20:
+    # a roster can be complete about everything it contains and blind to everything it
+    # does not. Its first run found `positive_control_gate.mjs`.
+    _disc_files = discover_walk(DISCOVER_DIRS)
+    _disc_problems, _disc = discovery_problems(
+        _disc_files, INSTRUMENTS, DISCOVER_EXEMPT, DISCOVER_OUTSIDE_WALK,
+        DISCOVER_FLOOR, DISCOVER_MODULE_FLOOR, gate_scripts(INSTRUMENTS))
+    print(f"INSTRUMENT_GATE_DISCOVER {_disc['files']} file(s) walked · "
+          f"{_disc['modules']} export-bearing · {_disc['instruments']} instrument(s) · "
+          f"{_disc['gates']} gate/driver(s) · {_disc['exempt']} exempt · "
+          f"{_disc['outside']} outside the walk · {_disc['undeclared']} UNDECLARED "
+          f"(floors {DISCOVER_FLOOR}/{DISCOVER_MODULE_FLOOR})")
+    problems.extend(_disc_problems)
 
     for inst in INSTRUMENTS:
         n_green, n_targets, probs = sweep(inst)

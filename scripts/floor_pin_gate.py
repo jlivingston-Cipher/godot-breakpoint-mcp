@@ -626,6 +626,19 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                              "tree — and pinned in-file by `_self_check()`, which drives `crash_problems` "
                              "over a two-crash fixture against a ceiling of one and requires it to bite",
     ("../scripts/instrument_gate.py", "LATE_CRASH_CEILING_B"): "same constant one axis over, same pinning, same nesting reason",
+    # 🆕 232 — THE TWO FLOORS THE DISCOVER HALF BROUGHT WITH IT (231 §5.1's item, built).
+    # Same nesting reason as the six rows above — the runner would be instrument_gate.py,
+    # which mutates the working tree (178 §11.4) — and both are pinned in-file by
+    # `_self_check()`, which drives the walk over fixtures a healthy tree cannot produce.
+    ("../scripts/instrument_gate.py", "DISCOVER_FLOOR"): "🆕 232 — instrument_gate.py's floor on the files its own DISCOVER walk reaches. "
+                        "Pinned in `_self_check()`, which runs the walk over an EMPTY population and "
+                        "requires the refusal to bite, and which also refuses the floor itself at or "
+                        "below zero (231 §5.5's trap, recorded in the session that hit it)",
+    ("../scripts/instrument_gate.py", "DISCOVER_MODULE_FLOOR"): "🆕 232 — the same walk's floor on the EXPORT-BEARING half, kept as a second "
+                               "number rather than folded into the row above: a walk that still reads every "
+                               "file while its module reader dies is a collapse the file count cannot see "
+                               "(172 §6, never a sum). Pinned in the same `_self_check()` on a fixture whose "
+                               "files all export nothing",
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): "🆕 197 — instrument_gate.py's CEILING on how many blinds go red WITHOUT the "
                      "gate reaching its own verdict, i.e. crash it instead of failing it. It is the "
                      "first thing this gate discovers under that session's `CEILING` widening rather than "
@@ -1228,6 +1241,14 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 THE ONE AN INDENTATION HID. Declared inside `main()`, so a module-level-only "
         "reader could not see it at all until 202 §5 widened `reason_value`. The roster "
         "of instruments, at `{FLOOR}`; 177 — admitted boundary_gate.mjs as the eighth.")),
+    ("../scripts/instrument_gate.py", "DISCOVER_FLOOR"): (30, (
+        "🆕 232 — the DISCOVER walk's file population, at `{FLOOR}` and floored from "
+        "BELOW (198 §36). The half 231 §5.1 named: this gate read a typed roster and had "
+        "no way to notice an instrument joining the tree, which is how it printed ok over "
+        "eleven on the run that introduced the twelfth.")),
+    ("../scripts/instrument_gate.py", "DISCOVER_MODULE_FLOOR"): (8, (
+        "🆕 232 — the export-bearing half of the same walk, at `{FLOOR}`. Two floors and "
+        "never one sum, for the reason 172 §6 gives about per-instrument floors.")),
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): (0, (
         "A CEILING at `{FLOOR}` and it has fallen to the bottom. It stays a ceiling "
         "rather than becoming a floor for the reason its own comment gives.")),
