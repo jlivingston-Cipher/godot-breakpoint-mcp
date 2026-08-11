@@ -676,6 +676,35 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🆕 231 — THE TWELFTH, ADDED IN THE COMMIT THAT SHIPPED IT RATHER THAN IN A
+        # LATER ONE. 🔴 AND THE REASON IS THE PARAGRAPH ABOVE, WHICH SAYS A PROSE
+        # CONFESSION DOES NOT RE-ASSERT ITSELF: this gate's population is a HAND-WRITTEN
+        # roster with no discovery half, so `wire_invisible_gate.mjs` passed it in silence
+        # on the run that introduced it — the gate said `ok — every instrument collapses
+        # loudly` over eleven, and the twelfth was simply not a member. `floor_pin_gate`
+        # would have caught the same omission in its own domain, because it HAS a DISCOVER
+        # half; this file does not, and the difference is named in 231's handoff.
+        "name": "wire_invisible_gate.mjs",
+        "src": HOST / "scripts" / "wire_invisible_gate.mjs",
+        "gate": ["node", "scripts/wire_invisible_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 3,
+        "why": "the roster over refinements the emitter drops — the rules no wire carries",
+        "targets": {
+            # 🔴 THE HEALTHY ANSWER, NOT A FAILING ONE (175's `_png.mjs` rule). "No
+            # problem" is what a clean tree looks like, so an auditor blinded to it is
+            # precisely this gate's subject.
+            "{SIG:audit}": "return [];",
+            # 🔴 THE MEASUREMENT'S OWN MOVING PART. A strip that removes nothing makes
+            # every class compare equal to itself and read INVISIBLE — the blind that
+            # would turn a measurement into a tautology.
+            "{SIG:stripCheck}": "return node;",
+            "{SIG:walkNode}": "return out;",
+            "{SIG:walkSurface}": "return [];",
+            "{SIG:siteKey}": 'return "a site";',
+        },
+    },
+    {
         # 🆕 211 §6 — 209 §9.6 NAMED THIS AND 210 CARRIED IT. `token-cost.mjs` has a
         # headless self-test, three governed floors swept by `floor_pin_gate`, and a CI
         # step — and it appeared in NO roster in this file. 🔴 THE FILE SAID SO ITSELF,
@@ -785,6 +814,29 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "calls it. Measured, not assumed: blinded to `return []` the A:gate axis stayed "
         "GREEN and the late mutant never loaded. Its only live caller is the release "
         "script's check 8. 🔴 A live axis against host/dist/index.js is the fix.",
+    # 🆕 231 — THE SAME SPLIT ONE INSTRUMENT OVER, AND IT IS THE SAME THREE SENTENCES.
+    # `wire_invisible_gate.mjs` has a PURE half (`audit`, `walkNode`, `walkSurface`,
+    # `stripCheck`, `siteKey` — all targeted above) and a LIVE half that needs `host/dist`
+    # and an in-memory MCP pair. The self-test drives the pure half by construction, so a
+    # blind on any of these three cannot redden it — measured, not assumed: the gate
+    # refused all three as untargeted on this file's first run and each was checked before
+    # being written down here rather than after.
+    # 🔴 THE HONEST STATEMENT IS THAT THIS INSTRUMENT'S LIVE READER IS COVERED BY THE CI
+    # STEP AND NOT BY THIS HARNESS. `node scripts/wire_invisible_gate.mjs` runs in the
+    # host-tests job after the dist build and exercises all three on every push; what no
+    # gate here does is BLIND them and require a red. That is the same item `wire_diff.mjs`
+    # carries above, and it is one item rather than two.
+    ("wire_invisible_gate.mjs", "recordSurface"):
+        "records the surface out of `host/dist` — the self-test is fixture-driven by "
+        "construction and this instrument has no B:live axis, so no gate this harness runs "
+        "calls it. The CI step `node scripts/wire_invisible_gate.mjs` does, unblinded.",
+    ("wire_invisible_gate.mjs", "emitPair"):
+        "spawns an in-memory MCP server pair to read `tools/list` — same shape as "
+        "wire_diff.mjs::surface, and unreachable from a fixture-driven proof for the same "
+        "reason.",
+    ("wire_invisible_gate.mjs", "measureVisibility"):
+        "the loop over `emitPair`; it cannot be exercised without a server either, and "
+        "`audit` — which is what decides the verdict from its result — IS targeted.",
 }
 
 
@@ -1152,6 +1204,12 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # twin, and nothing in this file compared the two rosters until now.
     "wire_diff.mjs": 120,
     "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23
+    # 🆕 231 — MEASURED AT 20 ON THIS AXIS AND FLOORED FROM BELOW, which is 198 §36's rule
+    # and the reason the first draft of this row (40, guessed from the sibling above
+    # before the sweep ran) would have been wrong in the direction that reddens a healthy
+    # tree. The count is small because this proof reports one line per failed claim and
+    # the five blinded members are read by 27 claims, not by 157.
+    "wire_invisible_gate.mjs": 16,
 }
 LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
 LATE_CRASHED_A: list[tuple[str, str]] = []
@@ -1189,6 +1247,10 @@ LATE_LIVE_NA: dict[str, str] = {
     "token-cost.mjs":
         "the same shape as wire_diff.mjs — the live read spawns a built server, and the "
         "self-test drives `measure`/`verdict` without one, on purpose",
+    "wire_invisible_gate.mjs":
+        "its live half needs `host/dist/` and reads the surface in-process, so the second "
+        "command IS the gate — `node scripts/wire_invisible_gate.mjs` runs the same "
+        "`audit` the self-test drives, over the real declarations rather than fixtures",
 }
 
 
@@ -1580,6 +1642,11 @@ VERDICT_MARKER: dict[str, str] = {
     # aborts before any verdict line, so a blind on `measure()` would have been an
     # unclassifiable red rather than a catch. They go through `claim()` now.
     "token-cost.mjs": "TOKEN_COST_SELFTEST",
+    # 🆕 231 — the wire-invisible roster. Same prefix-not-"ok" rule as the two rows above,
+    # and the reason it holds here for free: every case in that self-test goes through
+    # `claim()` and every risky call through `safe()`, so a blinded member reaches the
+    # verdict line and is classified as a CATCH rather than as an unclassifiable crash.
+    "wire_invisible_gate.mjs": "WIRE_INVISIBLE_SELFTEST",
 }
 
 
@@ -1937,6 +2004,7 @@ BLAST_FLOOR: dict[str, int] = {
     # `family` reached by `concise_blind` rather than by the `_decl_re` widening 211 §6.5
     # named. 11 -> 23, which is what the other two were worth.
     "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23 across all four
+    "wire_invisible_gate.mjs": 18,  # 231: measured 22 across its five blinds, 0 crashed
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []

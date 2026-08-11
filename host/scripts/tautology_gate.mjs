@@ -266,6 +266,13 @@ export const NO_CLAIMS_EXPECTED = {
   // would be false. It asserts one thing, in an idiom this gate does not grade, and the
   // nineteen rows that grade it are in wire_diff.selftest.mjs.
   "wire_diff.mjs": "the release wire classifier — it PRINTS a MINOR/PATCH/MAJOR verdict and REFUSES on a collapsed surface via `throw`, an idiom this gate does not read; its 19 rows and its SURFACE_FLOOR are asserted in wire_diff.selftest.mjs",
+  // 🆕 231 — AND THIS ONE'S REASON IS THE ONE ABOVE WITH THE THROW TAKEN OUT.
+  // `wire_invisible_gate.mjs` REPORTS: it walks the zod, measures each refinement against
+  // the emitter, prints a roster and returns an exit code. Its refusals are `audit`'s
+  // return value rather than a condition this classifier can grade, and the 27 claims that
+  // grade them — including the one where a site is added and another deleted at an
+  // unchanged count — are in wire_invisible_gate.selftest.mjs, which IS classified.
+  "wire_invisible_gate.mjs": "the wire-invisible refinement roster — it walks the zod declarations, measures each class against the emitter and PRINTS which the wire drops, returning an exit code rather than asserting; its 27 claims and its two floors are asserted in wire_invisible_gate.selftest.mjs",
   "stage-addon.mjs": "a packaging step — copies the addon into the tarball. Its correctness is asserted by the packaging job, not by a claim here",
 
   // ── the host root, admitted 175 ────────────────────────────────────────────────────

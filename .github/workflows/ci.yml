@@ -398,6 +398,18 @@ jobs:
       # split `registry_lag.py --selftest` uses one job over. ~1s. A step, not a 27th job.
       - name: The release wire classifier can still refuse (wire diff selftest)
         run: node scripts/wire_diff.selftest.mjs
+      # 🆕 231 §2 — AND THE READER FOR WHAT CHECK 8 CANNOT SEE. `wire_diff.mjs` compares
+      # two `tools/list` payloads, so a validation rule neither payload carries is outside
+      # it by construction — 230 §4 measured one such rule live (`.finite()` on
+      # runtime_assert_perf's `baseline`, which emits `{"type":"number"}` either way). The
+      # roster reads the ZOD rather than the wire and names the SITE rather than counting
+      # the population, because a count goes green when one site is deleted and another
+      # appears. The selftest is pure and runs first; the live half needs the dist/ built
+      # above. ~1s each.
+      - name: The wire-invisible roster can still refuse (wire invisible selftest)
+        run: node scripts/wire_invisible_gate.selftest.mjs
+      - name: Every refinement the emitter drops is rostered at its site (wire invisible gate)
+        run: node scripts/wire_invisible_gate.mjs
       # 🔴 AND THE THIRD TECHNIQUE, POINTED AT THE FLOORS THE OTHER TWO REST ON — 180
       # §11.3. 180 §7.3 set `SELFTEST_CLAIM_FLOOR = 0` in one self-test and the file
       # stayed green; the sweep behind this step asked every floor in the tree the same

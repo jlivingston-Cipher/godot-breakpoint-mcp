@@ -402,6 +402,18 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # "the public API held still" and "neither server started", and moving it must redden.
     ("SURFACE_FLOOR",             f"{S}/wire_diff.mjs",              r"(export const SURFACE_FLOOR = )200;",                      [f"{S}/wire_diff.selftest.mjs"]),
     ("wd.CLAIM_FLOOR",            f"{S}/wire_diff.selftest.mjs",     r"(const CLAIM_FLOOR = )50;",                                [f"{S}/wire_diff.selftest.mjs"]),
+    # 🆕 231 — AND THE SAME SILENCE ONE READER OVER, WHERE IT IS TWO SILENCES RATHER THAN
+    # ONE. `wire_invisible_gate.mjs` walks the ZOD instead of the wire, so it can collapse
+    # in two independent ways: the surface fails to load (no tools, `TOOL_FLOOR`) or the
+    # walker stops descending (every tool registered, no refinements read, `FACT_FLOOR`) —
+    # 211 §4's finding, which is why `wire_diff.mjs` above needed a second floor too.
+    # 🔴 BOTH ARE PROVED BEHAVIOURALLY RATHER THAN ASSERTED. Their self-test rows require
+    # the gate to REFUSE an empty population, so a floor moved to 0 refuses nothing and
+    # the row that expects a refusal fails — no `> 0` claim needed to make the mutation
+    # visible, which is 180 §7.3's trap closed at the input instead of beside it.
+    ("wig.TOOL_FLOOR",            f"{S}/wire_invisible_gate.mjs",    r"(export const TOOL_FLOOR = )200;",                         [f"{S}/wire_invisible_gate.selftest.mjs"]),
+    ("wig.FACT_FLOOR",            f"{S}/wire_invisible_gate.mjs",    r"(export const FACT_FLOOR = )200;",                         [f"{S}/wire_invisible_gate.selftest.mjs"]),
+    ("wig.CLAIM_FLOOR",           f"{S}/wire_invisible_gate.selftest.mjs", r"(const CLAIM_FLOOR = )22;",                          [f"{S}/wire_invisible_gate.selftest.mjs"]),
 ]
 
 # ── the DISCOVERY half ────────────────────────────────────────────────────────────
@@ -1114,7 +1126,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (42, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (44, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
