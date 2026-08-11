@@ -1257,8 +1257,14 @@ def main() -> int:
     for problem in unresolved:
         print(f"🔴 CONTROL_GATE_UNRESOLVED {problem}")
     if unresolved:
-        print("   A fingerprint that no longer resolves means the message was reworded and this row\n"
-              "   has stopped testing anything. Re-anchor it on the new text; do not delete the row.")
+        # 🔴 229 §7.4 — WHAT WAS MEASURED IS THAT THE STRING IS NOT THERE. This used to
+        # say the message "was reworded", which is one of at least four ways to produce
+        # that same observation, and the only one the author had in mind.
+        print("   What was measured is that the fingerprint matches no failure statement in\n"
+              "   contract_check.py. The message may have been reworded, the statement may have\n"
+              "   been deleted, the check may have been renamed out from under the row, or the\n"
+              "   fingerprint may never have been unique. Read the row against the file before\n"
+              "   choosing. Re-anchor it on the live text; do not delete the row.")
 
     closed = {c for _cid, c, *_ in CONTROLS}
     roster_drift = closed != set(CHECKS_CLOSED)
