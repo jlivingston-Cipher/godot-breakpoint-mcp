@@ -2682,6 +2682,13 @@ _ran("14")
 EXEC_ROSTER = {
     Path("scripts/contract_check.py"),
     Path("scripts/validate.sh"),
+    # 🆕 228 — the pre-commit hook. git EXECUTES this file rather than passing it to an
+    # interpreter, so 100755 is not a preference here, it is the only mode at which the
+    # hook runs at all — and a hook git silently skips is 227 §7.2 back with a green
+    # commit over it. 🔴 THIS CHECK CAUGHT IT IN CI AND NOT LOCALLY, because the local
+    # run happened BEFORE `git add` and the population is the INDEX. Same shape as the
+    # comment two blocks down, now on the executable side as well.
+    Path(".githooks/pre-commit"),
 }
 
 # The "twelve" above was PROSE — the one number in this file that nothing
@@ -2698,7 +2705,11 @@ EXEC_ROSTER = {
 # 🆕 223: 36 -> 37. `scripts/assetlib_sweep.py`, invoked as `python3 <file>` and
 # committed 100644 like every other scripts/*.py in the tree — contract_check.py at
 # 100755 is the outlier here, not the rule.
-SHEBANG_NONEXEC_EXPECTED = 40  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 41  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+#                              # 🆕 228: 40 -> 41. scripts/tree_quiet.py, invoked as
+#                              # `python3 <file>` like every gate beside it. The hook that
+#                              # calls it is EXECUTABLE and is on EXEC_ROSTER instead —
+#                              # two new entry points this session, one in each population.
 #                              # 225: 38 -> 40, mutation_lock_gate.py + terminology_gate.py.
 #                              # Check 15 refused both within minutes of `git add`, exactly
 #                              # as 223 §5 and 216's comment record it doing to those
@@ -3838,7 +3849,13 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "check 7 compares zero output shapes to the catalog and reports parity"),
     ("versions.sites_checked", version_sites_checked, 8,
      "check 14's release ritual verifies no stamp — a half-bumped release passes"),
-    ("modes.shebangs_confirmed", shebangs_confirmed, 2,
+    # 🆕 228: 2 -> 3, and the CONTROLS are what asked for it. `.githooks/pre-commit`
+    # joined EXEC_ROSTER, so `15.unexpected` and `15.noshebang` — which take one roster
+    # member out — left TWO confirmed behind and no longer crossed a floor of two.
+    # `control_gate.py` reported both blast radii shrinking from 2 to 1 in the same run.
+    # 🔴 A FLOOR THAT DOES NOT RISE WITH ITS POPULATION STOPS BEING A FLOOR QUIETLY: the
+    # roster would have grown to ten while a mutation removing one of them stayed green.
+    ("modes.shebangs_confirmed", shebangs_confirmed, 3,
      "check 15 confirms no interpreter line and the exec-bit contract stops being read"),
     # 🔴 CHECK 23's FIVE FINDERS. Every comparison in that block is a set difference or a
     # membership test, and BOTH are satisfied instantly by an empty left-hand side. The

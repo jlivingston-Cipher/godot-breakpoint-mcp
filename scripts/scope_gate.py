@@ -173,7 +173,11 @@ LEDGER: dict[str, tuple[str, ...]] = {
 
 # id -> the exact number of `FAIL:` lines that blind produces. Measured, not guessed.
 BLAST: dict[str, int] = {
-    "_tracked_modes": 4,                      # also: check 15
+    # 🆕 228: 4 -> 5. `.githooks/pre-commit` joined check 15's EXEC_ROSTER, and blinding
+    # the mode reader reports one FAIL per roster member it can no longer see — so a third
+    # member is a fifth line. The radius moved because the ROSTER grew, which is the one
+    # cause this number is supposed to make visible.
+    "_tracked_modes": 5,                      # also: check 15
     "all_false_annotation_claims": 1,
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,

@@ -1073,7 +1073,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (40, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (41, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
@@ -1084,7 +1084,10 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "shebang check refused both within minutes of them being staged, the third session "
         "running that this check has caught its own author. `_gate_lock.py` is a module "
         "rather than an entry point, carries no shebang, and correctly does not move "
-        "this number.")),
+        "this number. The session that shipped the tree-quiet reader raised it by ONE "
+        "again, and its `pre-commit` hook went to EXEC_ROSTER instead — git EXECUTES a "
+        "hook rather than handing it to an interpreter, so that one file is in the other "
+        "population for a reason the mode itself carries.")),
     ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (5, (
         "The tree-mutating gates that must take the lock, at `{FLOOR}` — control, "
         "floor-pin, instrument, scope, and the tree-quiet reader's own `--recover`. "
