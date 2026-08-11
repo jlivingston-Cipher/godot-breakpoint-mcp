@@ -50,6 +50,32 @@ const said = (r, needle) => r.lines.some((l) => l.includes(needle));
 const row = (verdict, extra = {}) => ({ file: "test/x.test.ts", line: 1, unit: "u", claim: "c", verdict, ...extra });
 const many = (verdict, n, extra = {}) => Array.from({ length: n }, () => row(verdict, extra));
 
+// ── 🆕 232 — A BLINDED MEMBER MUST FAIL THIS PROOF, NOT ABORT IT ──────────────────────
+// `instrument_gate.py` admitted this file as its thirteenth instrument, and its FIRST
+// sweep refused two of the three blinds — not because they stayed green, but because they
+// CRASHED. `classify` blinded to `[]` makes `one(...)` null and the next line calls
+// `judge([null])`; `acceptance` blinded to `[]` makes `acceptance(…)[0]` undefined. Both
+// throw while the ARGUMENT is being built, so this file died before printing a verdict
+// line and the harness could say only "JavaScript throws on an empty" — 197 §5's
+// discriminator, and 198 §9.2's fix one file over.
+//
+// 🔴 THE FALLBACK IS A SYMBOL, WHICH IS EQUAL TO NOTHING. A fabricated `false`/`[]` would
+// satisfy some comparison somewhere and turn a crash into a PASS; `CRASHED` matches no
+// verdict, no code and no boolean, so every positive claim reading it fails and says so.
+const safe = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
+const CRASHED = Symbol("crashed");
+const jg = (...a) => safe(() => judge(...a), { lines: [], failed: CRASHED, codes: [CRASHED] });
+// 🔴 AND THE FIRST DRAFT OF `ac` GUARDED THE THROW AND NOT THE EMPTY — in the file whose
+// entire subject is collections that are empty for more than one reason. `acceptance`
+// blinded to `[]` does not throw: it returns, and the crash happens one character later
+// at `[0].ok`, OUTSIDE the wrapper. Measured, not reasoned about: the sweep still filed
+// this member as a CRASH after the wrapper was in place. An empty result IS the blind,
+// so it takes the same answer a throw does.
+const ac = (...a) => {
+  const r = safe(() => acceptance(...a), null);
+  return Array.isArray(r) && r.length ? r : [{ ok: CRASHED, code: CRASHED }];
+};
+
 // ── 1. THE BOUNDARY — THE WHOLE REASON THIS READER EXISTS ────────────────────────────
 // 213 §3: `assert.deepEqual(wire, [])` twice, same spelling, same binding name. A
 // FILE-wide search calls both defended (212's reading); a CLAIM-scoped one calls both
@@ -196,7 +222,7 @@ const TRAP_BARE = ts(`
 const bareRow = one("test/tb.test.ts", TRAP_BARE);
 claim(bareRow?.verdict === DEFECT && bareRow?.trapUnfloored === true,
   "🔴 a trap with NO companion floor is NOT exempt — it is a defect, and a named one");
-claim(said(judge([bareRow], FILE_FLOOR, []), PC_TRAP_UNFLOORED),
+claim(said(jg([bareRow], FILE_FLOOR, []), PC_TRAP_UNFLOORED),
   `…and the judge refuses it as ${PC_TRAP_UNFLOORED} rather than counting it toward the ceiling`);
 
 // A collector filled from an ORDINARY listener is not a trap. The exemption is for the
@@ -271,21 +297,21 @@ claim(one("scripts/o.mjs", ORPHAN)?.verdict === RESIDUE,
 // ── 9. THE JUDGE — EVERY REFUSAL BY NAME, OVER POPULATIONS THE TREE CANNOT PRODUCE ───
 // 174 §8 watched a collector that was only ever asserted EMPTY lose its filter invisibly.
 // These are the parameters that make each branch reachable at all.
-claim(judge(many(DEFENDED, CLAIM_FLOOR), FILE_FLOOR, []).failed === false,
+claim(jg(many(DEFENDED, CLAIM_FLOOR), FILE_FLOOR, []).failed === false,
   "a healthy population at both floors passes");
-claim(said(judge(many(DEFENDED, CLAIM_FLOOR - 1), FILE_FLOOR, []), PC_POPULATION),
+claim(said(jg(many(DEFENDED, CLAIM_FLOOR - 1), FILE_FLOOR, []), PC_POPULATION),
   `one claim below the floor is ${PC_POPULATION} — the floor is compared, not decorative`);
-claim(said(judge([], FILE_FLOOR, []), PC_POPULATION),
+claim(said(jg([], FILE_FLOOR, []), PC_POPULATION),
   "and an EMPTY population is a collapse, not a pass (170 §4)");
-claim(said(judge(many(DEFENDED, CLAIM_FLOOR), FILE_FLOOR - 1, []), PC_FILES),
+claim(said(jg(many(DEFENDED, CLAIM_FLOOR), FILE_FLOOR - 1, []), PC_FILES),
   `one file below the floor is ${PC_FILES} — claim sites alone cannot see a walk that stopped`);
-claim(said(judge(many(DEFECT, DEFECT_CEILING + 1), FILE_FLOOR, []), PC_UNDEFENDED_EXCESS),
+claim(said(jg(many(DEFECT, DEFECT_CEILING + 1), FILE_FLOOR, []), PC_UNDEFENDED_EXCESS),
   `one defect above the ceiling is ${PC_UNDEFENDED_EXCESS}`);
-claim(!said(judge(many(DEFECT, DEFECT_CEILING).concat(many(DEFENDED, CLAIM_FLOOR)), FILE_FLOOR, []), PC_UNDEFENDED_EXCESS),
-  "…and AT the ceiling it does not fire — the twenty that ship today are not a failure");
-claim(said(judge(many(RESIDUE, RESIDUE_CEILING + 1).concat(many(DEFENDED, CLAIM_FLOOR)), FILE_FLOOR, []), PC_UNREADABLE_EXCESS),
+claim(safe(() => !said(judge(many(DEFECT, DEFECT_CEILING).concat(many(DEFENDED, CLAIM_FLOOR)), FILE_FLOOR, []), PC_UNDEFENDED_EXCESS),
+  false), "…and AT the ceiling it does not fire — the twenty that ship today are not a failure");
+claim(said(jg(many(RESIDUE, RESIDUE_CEILING + 1).concat(many(DEFENDED, CLAIM_FLOOR)), FILE_FLOOR, []), PC_UNREADABLE_EXCESS),
   `one residue above the ceiling is ${PC_UNREADABLE_EXCESS} — a reader that stopped reading says so`);
-claim(judge(many(DEFENDED, CLAIM_FLOOR), FILE_FLOOR, []).codes.length === 0,
+claim(jg(many(DEFENDED, CLAIM_FLOOR), FILE_FLOOR, []).codes.length === 0,
   "🔴 and the green case emits NO code at all — two defects returning one value is how a zero stays green");
 
 // ── 10. THE ACCEPTANCE FIXTURE — CONTENT-ADDRESSED, AND ITS TWO FAILURES ARE DIFFERENT ─
@@ -297,16 +323,16 @@ const FIX = [{ file: "test/x.test.ts", verdict: DEFENDED, claim: /^assert\.deepE
 const HIT = [row(DEFENDED, { claim: "assert.deepEqual(wire, [])" })];
 const MISS = [row(DEFECT, { claim: "assert.deepEqual(wire, [])" })];
 const GONE = [row(DEFENDED, { claim: "assert.deepEqual(bridge, [])" })];
-claim(acceptance(HIT, FIX)[0].ok === true, "a member whose measured verdict matches holds");
-claim(acceptance([{ ...HIT[0], line: 999 }], FIX)[0].ok === true,
+claim(ac(HIT, FIX)[0].ok === true, "a member whose measured verdict matches holds");
+claim(ac([{ ...HIT[0], line: 999 }], FIX)[0].ok === true,
   "🔴 …and it holds at a DIFFERENT LINE — line drift is not a finding, which is the whole point");
-claim(acceptance(MISS, FIX)[0].code === PC_ACCEPTANCE,
+claim(ac(MISS, FIX)[0].code === PC_ACCEPTANCE,
   `a member whose verdict changed is ${PC_ACCEPTANCE}`);
-claim(acceptance(GONE, FIX)[0].code === PC_ACCEPTANCE_MISSING,
+claim(ac(GONE, FIX)[0].code === PC_ACCEPTANCE_MISSING,
   `a member whose SITE is gone is ${PC_ACCEPTANCE_MISSING} — a different event, named differently`);
-claim(said(judge(many(DEFENDED, CLAIM_FLOOR).concat(GONE), FILE_FLOOR, FIX), PC_ACCEPTANCE_MISSING),
+claim(said(jg(many(DEFENDED, CLAIM_FLOOR).concat(GONE), FILE_FLOOR, FIX), PC_ACCEPTANCE_MISSING),
   "…and the judge refuses on it: a fixture that cannot find its own members is not passing");
-claim(judge(many(DEFENDED, CLAIM_FLOOR).concat(HIT), FILE_FLOOR, FIX).failed === false,
+claim(jg(many(DEFENDED, CLAIM_FLOOR).concat(HIT), FILE_FLOOR, FIX).failed === false,
   "while the matching case is green all the way through the judge");
 
 // 🔴 THE SHIPPED FIXTURE, READ RATHER THAN ASSUMED. A list of members that are all one
