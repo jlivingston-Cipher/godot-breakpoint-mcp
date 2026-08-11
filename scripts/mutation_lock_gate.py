@@ -408,9 +408,20 @@ def main() -> int:
 
     if len(groups["guarded"]) < GUARDED_FLOOR:
         bad += 1
-        print(f"🔴 MUTATION_LOCK_COLLAPSE {len(groups['guarded'])} < {GUARDED_FLOOR} — the deriver "
-              f"stopped finding mutators. That is this gate going blind, not the tree getting "
-              f"safer; every file below would be 'guarded' by never being looked at.")
+        # 🔴 229 §7.4 — THE OBSERVATION, THEN THE CAUSES, AND NOT ONE OF THEM ASSERTED.
+        # This sentence used to read "the deriver stopped finding mutators. That is this
+        # gate going blind, NOT the tree getting safer" — a refusal that fires correctly
+        # and then denies a live alternative. `len(groups["guarded"])` is a COUNT. Delete
+        # a mutating gate on purpose and it drops for the other reason, and the message
+        # would have been false on the commit that did it. 228 §7.17: the comparison knows
+        # less than the message claims, and that gap is where every wrong cause comes from.
+        print(f"🔴 MUTATION_LOCK_COLLAPSE {len(groups['guarded'])} < {GUARDED_FLOOR} — fewer "
+              f"guarded mutators than when this floor was measured. Either a mutating gate "
+              f"was deleted (lower the floor in the same commit and name it), or the "
+              f"write-shaped-call finder stopped recognising a write. This line cannot tell "
+              f"them apart — both arrive as the same number — and the second is the "
+              f"dangerous half: every file it stopped reading is then 'guarded' by never "
+              f"having been looked at.")
 
     js_bad, js_confined = _js_mutators()
     for problem in js_bad:

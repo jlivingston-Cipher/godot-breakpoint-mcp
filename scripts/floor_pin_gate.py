@@ -40,10 +40,12 @@ Run: python3 scripts/floor_pin_gate.py   (a CI step beside the scope and instrum
 """
 from __future__ import annotations
 
+import ast
 import atexit
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -734,6 +736,27 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "mutated toward zero, and `len(comments) < 0` is false, so zeroing this floor is "
         "the mutation it survives for free. Pinned in-file by `_self_check()`, which feeds "
         "`comment_problems()` an EMPTY set it must flag and a full clean set it must not.",
+    ("../scripts/floor_pin_gate.py", "SHORTFALL_FLOOR"):
+        "🆕 229 §7.4 — THIS file's floor over the shortfall refusals its own cause rule "
+        "reads, exempt for the same paired reason as the row below: nested, because its "
+        "runner would be floor_pin_gate.py itself, and directional, because every TARGETS "
+        "row is mutated toward zero and this comparison cannot bite at zero. `_self_check()` "
+        "covers both halves — the predicate is fed a refusal that ASSERTS one cause and "
+        "must flag it, one that LISTS two and one that asserts NONE and must stay quiet on "
+        "both, and an empty population below the floor it must flag; and the reader in "
+        "front of it is pointed at a written file holding one refusal and one line that is "
+        "not one, so a finder that stopped finding is caught where a zeroed literal is not.",
+    ("../scripts/floor_pin_gate.py", "LITERAL_KEY_FLOOR"):
+        "🆕 229 §6b — THIS file's floor over the constant keys its repeat-key reader gets "
+        "through, and it is exempt for BOTH of the reasons the two rows below give at once. "
+        "Nested: its runner would be floor_pin_gate.py itself. And direction: every TARGETS "
+        "row is mutated toward zero, and a floor at zero is the one value this comparison "
+        "cannot bite on, so the mutation that matters here is the one that empties the "
+        "READER rather than the one that empties the number. `_self_check()` does both — it "
+        "feeds `repeat_key_problems()` a population one below the floor that it must flag "
+        "and one AT the floor that it must not, and it points `literal_keys()` at a written "
+        "directory holding a clean literal, a duplicated key and a file that does not parse, "
+        "so a walk that stopped walking is caught where a zeroed literal never would be.",
     ("../scripts/floor_pin_gate.py", "USE_FLOOR"):
         "🆕 201 §10.2 — THIS file's floor over its USE-SITE roster, the list of floors that "
         "have a live CONSUMER rather than only a declaration-site pin. Same nesting reason "
@@ -984,29 +1007,6 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`contract_check.py` read that file at seven call sites and exited clean. The "
         "floor moving is the deliberate half; the ledger row saying so in the same commit "
         "is what tells it from a check that quietly went missing.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (37, (
-        "The non-executable scripts, at `{FLOOR}`. 🆕 Raised by ONE when the session that "
-        "added `scripts/assetlib_sweep.py` — the Asset Library sweep — staged it. It carries "
-        "a shebang and is committed non-executable like every other `scripts/*.py` in this "
-        "tree; the single gate committed executable is the outlier here, not the convention. "
-        "So it belongs in this population, and the check refused within minutes of the file "
-        "being staged. Before that, raised by TWO when 219 — the session "
-        "that promoted the positive-control finder and its self-test out of gitignored "
-        "scratch — added both. Each is invoked as `node <file>` like every gate beside it, "
-        "so the non-executable mode is the correct one, and this is the count moving for "
-        "exactly the reason it exists to move. Before that, raised by one when 216 §1 added "
-        "release_names.py — 🔴 AND THE SENTENCE BELOW PREDICTED THE EXACT WAY IT WOULD "
-        "BE FOUND. The local run passed while the new file was UNTRACKED and this check "
-        "refused the moment it was staged, because the population is `git ls-files` and "
-        "nothing else in the tree reads it. A gate whose warning was already written "
-        "down still collected. Before that, raised by two when 209 §2 added "
-        "the wire-diff classifier and its self-test — and that check was the only reader "
-        "in the tree that noticed them, because its population is `git ls-files` and they "
-        "had been sitting untracked while every disk-walking gate ran green. Before that, "
-        "raised by one when 206 §3 added "
-        "registry_lag.py — invoked as `python3 <file>` like every gate beside it, so the "
-        "non-executable mode is the correct one, and the exec bit it was first committed "
-        "with is what the other half of this same check caught.")),
     ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): (3, (
         "Statements carrying no literal of their own, so no row can ever name them. A "
         "CEILING in spirit: it is supposed to fall, and `{FLOOR}` is where it stands.")),
@@ -1045,6 +1045,27 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 THE ROW `M2` EARNED. Declaration comments the rule reads, at `{FLOOR}`. It "
         "exists because breaking the reader emptied the population and the check went "
         "GREEN — 201 §9.43 arriving inside a check written the same day it was quoted.")),
+    ("../scripts/floor_pin_gate.py", "SHORTFALL_FLOOR"): (15, (
+        "The shortfall refusals in `scripts/` this file reads before asking whether each "
+        "one's sentence is its measurement, at `{FLOOR}`. Its healthy answer is ZERO "
+        "refusals asserting a cause, so — like the row below it and `SCANNED_FLOOR` one "
+        "file over — what can collapse is the population and never the answer: a finder "
+        "that stopped recognising a collapse marker reports no offenders and is "
+        "indistinguishable from a tree that has none. It sits beneath the live read "
+        "because the population moves whenever a gate gains a floor, and a floor that "
+        "tracks what it measures has stopped being one. It moves when a whole family of "
+        "refusal — a new marker shape — joins the sweep.")),
+    ("../scripts/floor_pin_gate.py", "LITERAL_KEY_FLOOR"): (500, (
+        "🔴 THE ROW THAT EXISTS BECAUSE THIS TABLE HAD A ROW NOTHING COULD READ. The "
+        "constant keys read out of every dict/set literal in `scripts/`, at `{FLOOR}`. "
+        "The repeat check's healthy answer is ZERO, so what can collapse here is the "
+        "POPULATION and never the answer — the same argument `SCANNED_FLOOR` and "
+        "`ENTRY_FLOOR` each make one file over, arriving here because a duplicate key in "
+        "THIS table is what put the check in the tree. It sits well beneath the live "
+        "read on purpose: a floor that tracked its own population would move every time "
+        "somebody adds a row to any roster in this directory, and a floor that moves "
+        "with what it measures has stopped being one. It moves when a whole tree joins "
+        "the scan.")),
     ("../scripts/floor_pin_gate.py", "USE_FLOOR"): (5, (
         "🔴 THE ROW `D1` WAS ABOUT. Live consumers asked whether they still READ the "
         "floor they import, at `{FLOOR}`. Deleting one of these rows and lowering this "
@@ -1087,7 +1108,18 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "this number. The session that shipped the tree-quiet reader raised it by ONE "
         "again, and its `pre-commit` hook went to EXEC_ROSTER instead — git EXECUTES a "
         "hook rather than handing it to an interpreter, so that one file is in the other "
-        "population for a reason the mode itself carries.")),
+        "population for a reason the mode itself carries. "
+        "🔴 AND THIS ROW ABSORBED A SECOND ONE WITH THE SAME KEY. This table carried "
+        "`SHEBANG_NONEXEC_EXPECTED` TWICE — an earlier row, at a lower value, with its "
+        "own paragraph. Python keeps the LAST, so that paragraph had never been read by "
+        "anything: not by this rule, not by the digit rule, not by the line that prints "
+        "how many constants are governed. Its history is folded in here. The Asset "
+        "Library sweep, the promoted positive-control finder and its self-test, the "
+        "release-name reader, the wire-diff classifier and its self-test, and the "
+        "registry-lag reader each raised this count on the commit that staged them, and "
+        "in every one of those cases the check refused within minutes of the staging "
+        "rather than at the local run before it — the population is `git ls-files` and "
+        "nothing else in the tree reads it.")),
     ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (5, (
         "The tree-mutating gates that must take the lock, at `{FLOOR}` — control, "
         "floor-pin, instrument, scope, and the tree-quiet reader's own `--recover`. "
@@ -1188,6 +1220,303 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
 LEDGER_DECL = re.compile(
     r"^\s*([A-Z][A-Z0-9_]*(?:FLOOR|CEILING|EXPECTED))\s*=\s*(-?\d+)\s*(?:#.*)?$", re.M)
 LEDGER_DIRS = [ROOT / "scripts"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 🆕 229 — A TABLE WITH TWO ROWS UNDER ONE KEY, AND THE ROW NOBODY HAS EVER READ
+# ═══════════════════════════════════════════════════════════════════════════════════
+#
+# 228 §6b MEASURED IT RATHER THAN SUSPECTING IT. `SIZE_LEDGER` carried the key
+# `('../scripts/contract_check.py', 'SHEBANG_NONEXEC_EXPECTED')` twice — once with its
+# own paragraph, once with the value the tree actually ships. Python keeps the LAST, so
+# the first row's reason had never been read by ANYTHING: not by `reason_problems`, not
+# by the digit rule, not by `ledger_problems`, and not by the line that prints how many
+# constants this file governs. That line said one fewer than the source carries, and no
+# reader in the tree could say why.
+#
+# 🔴 THE FAILURE IS NOT THAT A ROW WAS WRONG. IT IS THAT A ROW WAS UNREACHABLE. Every
+# rule this file applies to a ledger row is applied to the SURVIVING row, so a duplicate
+# is a row that is exempt from all of them while LOOKING like coverage — 174 §5's
+# exemption nobody re-reads, written by accident instead of on purpose, and the only
+# instrument that could ever notice is one that reads the SOURCE rather than the dict.
+#
+# 🔴 AND THE POPULATION IS EVERY LITERAL IN `scripts/`, NOT `SIZE_LEDGER`. 228 §7.18 is
+# the reason: the population a guard NAMES and the population it PROTECTS are different
+# sets, and a repeat-key check written only for the table that happened to have the
+# defect is a guard complete over its own title. `CONTROLS`, `BLAST`, `SCOPE_LEDGER`,
+# `TARGETS`, `EXEC_ROSTER` and every roster beside them collapse the same way for the
+# same reason. This reads the AST of every one of them.
+LITERAL_KEY_FLOOR = 500   # governed by SIZE_LEDGER (§9.3)
+
+
+def _rel(f: Path) -> str:
+    """Repo-relative when the file is in the repo, absolute when it is a fixture — a
+    reader that raises on its own self-check's temporary directory is a reader whose
+    proof cannot be run."""
+    try:
+        return str(f.relative_to(ROOT))
+    except ValueError:
+        return str(f)
+
+
+def literal_keys(dirs=None) -> list[tuple[str, int, str, list[int]]]:
+    """Every constant key in every dict/set LITERAL under `dirs`, with its lines.
+
+    Returns one row per (file, literal, key) that appears MORE THAN ONCE, plus — as the
+    second element of the pair — the total number of constant keys read, which is the
+    population this reader can go blind on."""
+    repeats: list[tuple[str, int, str, list[int]]] = []
+    for d in (dirs if dirs is not None else LEDGER_DIRS):
+        for f in sorted(Path(d).rglob("*.py")):
+            if "_to_delete" in f.parts:
+                continue
+            try:
+                tree = ast.parse(f.read_text())
+            except SyntaxError:
+                # 🔴 NOT SWALLOWED — 228 §6.5. A classifier that answers "no repeat here"
+                # about a file it could not parse is saying nothing about a file that is
+                # not a file. It is a FINDING, in the same list as a duplicate.
+                repeats.append((_rel(f), 0, "<unparseable>", []))
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.Dict, ast.Set)):
+                    continue
+                elts = node.keys if isinstance(node, ast.Dict) else node.elts
+                seen: dict[str, list[int]] = {}
+                for k in elts:
+                    if k is None:
+                        continue
+                    try:
+                        key = repr(ast.literal_eval(k))
+                    except (ValueError, TypeError, SyntaxError, MemoryError):
+                        continue
+                    seen.setdefault(key, []).append(k.lineno)
+                for key, lines in seen.items():
+                    if len(lines) > 1:
+                        repeats.append((_rel(f), node.lineno, key, lines))
+    return repeats
+
+
+def literal_key_count(dirs=None) -> int:
+    """How many constant keys the reader above actually read. Its healthy answer is ZERO
+    repeats, so what can collapse here is the POPULATION and never the answer — which is
+    `SCANNED_FLOOR`'s argument and `ENTRY_FLOOR`'s, arriving in a third file."""
+    n = 0
+    for d in (dirs if dirs is not None else LEDGER_DIRS):
+        for f in sorted(Path(d).rglob("*.py")):
+            if "_to_delete" in f.parts:
+                continue
+            try:
+                tree = ast.parse(f.read_text())
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Dict, ast.Set)):
+                    elts = node.keys if isinstance(node, ast.Dict) else node.elts
+                    for k in elts:
+                        if k is None:
+                            continue
+                        try:
+                            ast.literal_eval(k)
+                        except (ValueError, TypeError, SyntaxError, MemoryError):
+                            continue
+                        n += 1
+    return n
+
+
+def repeat_key_problems(repeats: list, read: int, floor: int) -> list[str]:
+    """Two branches, and the second is the one 201 §9.43 exists for: a reader that stops
+    reading finds no repeats and is indistinguishable from a tree that has none."""
+    problems: list[str] = []
+    for rel, lineno, key, lines in repeats:
+        if key == "<unparseable>":
+            problems.append(
+                f"🔴 FLOOR_PIN_LITERAL_UNPARSEABLE {rel} — this reader could not parse it, "
+                f"so it has said NOTHING about that file's tables. Silence here reads "
+                f"exactly like a clean answer, which is the one thing a classifier may "
+                f"not do (181 §4).")
+            continue
+        problems.append(
+            f"🔴 FLOOR_PIN_LITERAL_REPEAT {rel}: the literal at line {lineno} carries the "
+            f"key {key} at lines {lines}. Python keeps the LAST, so every row above it "
+            f"under that key is UNREACHABLE — read by no rule in this file and counted by "
+            f"no line it prints, while still looking like a row. Delete the dead one, or "
+            f"fold what it says into the one that survives.")
+    if read < floor:
+        problems.append(
+            f"🔴 FLOOR_PIN_LITERAL_COLLAPSE {read} < {floor} — the reader above read fewer "
+            f"constant keys than when this floor was measured. Either literals were "
+            f"deleted from scripts/, or the walk stopped reaching them; this count cannot "
+            f"tell them apart. Under the second, a repeat total of zero is not a tree "
+            f"with no duplicates, and the two print the same line.")
+    return problems
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# 🆕 229 §7.4 — EVERY SHORTFALL REFUSAL, ASKED WHETHER ITS SENTENCE IS ITS MEASUREMENT
+# ═══════════════════════════════════════════════════════════════════════════════════
+#
+# 228 §7.17 handed this over as the sharpest item on its list: *the comparison knows less
+# than the message claims, and that gap is where every wrong cause comes from.* Its own
+# `diverged()` returns PATHS and cannot know who moved them, and the first draft of the
+# refusal said "it was killed mid-sweep" anyway — because that was the story in the
+# author's head while the comparison was being written. Six instances in three sessions.
+#
+# 🔴 THE SWEEP MEASURED SOMETHING DIFFERENT FROM WHAT THE HANDOFF PREDICTED, AND THE
+# DIFFERENCE IS THE RULE. Of every shortfall refusal in `scripts/`, most name NO cause at
+# all — they restate the comparison and stop, which is the ideal shape — and most of the
+# rest name TWO. Only a handful named one. What separates them is not care. It is what
+# the population is made of:
+#
+#   * a LITERAL population — `len(CONTROLS) < FLOOR` — has exactly one way to shrink,
+#     because there is no reader between the source and the number. Naming the cause
+#     there IS the measurement, and a message that offered alternatives would be
+#     inventing them.
+#   * a DERIVED population — anything a finder, a walk or a regex produces — has at
+#     least two, always, and they are indistinguishable from inside the comparison: the
+#     thing really shrank, or the finder stopped finding it.
+#
+# So the rule is not "name two causes". It is: **a derived population's shortfall may
+# state its observation, or list its causes, but may not assert one of them.** The roster
+# below is the literal-population half, declared with the literal that makes each one
+# measured — and it is a roster with a POPULATION, not an empty escape hatch, which is
+# 226's rule about exemptions that cost nothing to write.
+SHORTFALL_FLOOR = 15   # governed by SIZE_LEDGER (§9.3)
+
+SHORTFALL_MARK = re.compile(r"_COLLAPSE\b|_LOW\b|COLLAPSED\b|\{[^{}]*\} < \{[^{}]*\}|shrank")
+# A closed vocabulary on purpose. Every entry is a PREDICATION about how the world got
+# this way — not a restatement of the comparison, and not a statement of consequence.
+CAUSE_CLAIM = re.compile(
+    r"stopped \w+ing|stopped being|was deleted|were deleted|was dropped|was renamed|"
+    r"was reworded|means the |means that |went missing|has gone|got deleted", re.I)
+# 🔴 `, or ` IS IN HERE AND `or` ALONE IS NOT. "a floor or a ceiling" is a noun phrase;
+# "…, or the finder stopped recognising it" is a second cause. The comma is what tells
+# them apart, and getting that wrong in the permissive direction would make this rule
+# agree with everything (226 §4).
+ALTERNATION = re.compile(r"\beither\b|, or |\botherwise\b|\bor whose\b|\bboth\b", re.I)
+
+# The shortfalls whose population is a LITERAL, keyed the way the message is found and
+# declared with the literal that makes one cause the measured one.
+MEASURED_CAUSE: dict[tuple[str, str], str] = {
+    ("scripts/control_gate.py", "CONTROL_GATE_CONTROLS_COLLAPSE"):
+        "`CONTROLS` is a list literal in this file and the comparison is `len()` of it. "
+        "There is no finder between the source and the number, so a shortfall has exactly "
+        "one cause and naming it is the measurement. Offering an alternative here would "
+        "be inventing one.",
+    ("scripts/floor_pin_gate.py", "USE_TARGETS"):
+        "`USE_TARGETS` is a list literal in this file, read by `len()` in this file's own "
+        "self-check. Same shape as the row above: the only way it shrinks is a deleted "
+        "line, and the sentence says so because that is what was measured.",
+}
+
+
+def shortfall_refusals(dirs=None) -> list[tuple[str, int, str]]:
+    """(file, line, text) for every shortfall refusal printed or appended in scripts/.
+
+    A refusal is 'shortfall' when it carries a collapse marker or a `{} < {}` comparison —
+    the family whose whole job is to notice a population getting smaller, and the family
+    228 §7.17 was about."""
+    out: list[tuple[str, int, str]] = []
+    for d in (dirs if dirs is not None else LEDGER_DIRS):
+        for f in sorted(Path(d).rglob("*.py")):
+            if "_to_delete" in f.parts:
+                continue
+            try:
+                tree = ast.parse(f.read_text())
+            except SyntaxError:
+                out.append((_rel(f), 0, "<unparseable>"))
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                fn = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+                if fn not in ("print", "append", "extend"):
+                    continue
+                for a in node.args:
+                    text = _flatten_str(a)
+                    if text and SHORTFALL_MARK.search(text):
+                        out.append((_rel(f), node.lineno, text))
+    return out
+
+
+def _flatten_str(node) -> str | None:
+    """A string literal, an f-string or a `+` chain of either, with the interpolations
+    rendered as `{}` — the text a reader sees, minus the values."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(v.value if isinstance(v, ast.Constant) and isinstance(v.value, str)
+                       else "{}" for v in node.values)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _flatten_str(node.left), _flatten_str(node.right)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
+def _declared_measured(rel: str, text: str) -> bool:
+    return any(f == rel and token in text for (f, token) in MEASURED_CAUSE)
+
+
+def shortfall_problems(refusals: list, floor: int) -> list[str]:
+    """Two branches, and the population floor is the second — a finder that stops finding
+    shortfall refusals reports none that assert a cause and reads exactly like a tree
+    where none do (201 §9.43, and the reason every reader in this file has a floor)."""
+    problems: list[str] = []
+    for rel, line, text in refusals:
+        if text == "<unparseable>":
+            problems.append(
+                f"🔴 FLOOR_PIN_SHORTFALL_UNPARSEABLE {rel} — this reader could not parse "
+                f"it, so it has said NOTHING about that file's refusals (181 §4).")
+            continue
+        if not CAUSE_CLAIM.search(text) or ALTERNATION.search(text):
+            continue
+        if _declared_measured(rel, text):
+            continue
+        problems.append(
+            f"🔴 FLOOR_PIN_SHORTFALL_CAUSE {rel}:{line} — a shortfall refusal over a "
+            f"DERIVED population asserts ONE cause: “{_excerpt(text)}”. The comparison "
+            f"that produced it is a count, and a count cannot tell a population that "
+            f"really shrank from a finder that stopped finding it. State the observation, "
+            f"or list the causes and say which caller rules one out (228 §7.17). If the "
+            f"population really is a literal, declare it in MEASURED_CAUSE with the "
+            f"literal that makes one cause the measured one.")
+    if len(refusals) < floor:
+        problems.append(
+            f"🔴 FLOOR_PIN_SHORTFALL_COLLAPSE {len(refusals)} < {floor} — this reader "
+            f"found fewer shortfall refusals than when its floor was measured. Either "
+            f"refusals were deleted, or the reader stopped recognising one, and zero "
+            f"cause-asserting refusals over a population that collapsed is the shape this "
+            f"whole file exists to refuse.")
+    return problems
+
+
+def measured_cause_stale(refusals: list) -> list[str]:
+    """🔴 THE ROSTER'S OWN DEAD ROWS, AND IT IS A SEPARATE PREDICATE ON PURPOSE. An
+    exemption that outlives the message it was written for is 174 §5, and this file
+    already refuses one shape of it in `stale-exempt`. It is lifted out of
+    `shortfall_problems` so the rule above can be proved on FIXTURES without every
+    fixture reading as a roster that went stale — the two questions have different
+    populations and folding them together made the self-check unable to ask either."""
+    problems: list[str] = []
+    for (f_, token), _reason in MEASURED_CAUSE.items():
+        if not any(rel == f_ and token in text for rel, _l, text in refusals):
+            problems.append(
+                f"🔴 FLOOR_PIN_SHORTFALL_STALE MEASURED_CAUSE declares {f_}:{token} and no "
+                f"shortfall refusal there carries it. Either the message moved or the "
+                f"reader stopped finding it — and until one is established the row is an "
+                f"exemption with nothing under it, which is the one thing this table may "
+                f"not be.")
+    return problems
+
+
+def _excerpt(text: str) -> str:
+    """The clause that carries the claim, so the refusal quotes the sentence it is about
+    rather than making the reader go and find it."""
+    m = CAUSE_CLAIM.search(text)
+    flat = " ".join(text.split())
+    start = max(0, len(" ".join(text[:m.start()].split())) - 40)
+    return flat[start:start + 130].strip()
 
 
 def governed_sizes() -> dict[tuple[str, str], int]:
@@ -1403,6 +1732,93 @@ def _self_check() -> list[str]:
                          range(COMMENT_FLOOR)}):
         bad.append("_self_check: comment_problems flagged a full set of clean comments — "
                    "the floor is `<` and a population AT it is legal")
+
+    # ── 🆕 229 §6b — THE REPEAT-KEY RULE, ON FIXTURES, BOTH DIRECTIONS ──────────
+    # The live tree's healthy answer is an EMPTY list, so running the rule over it
+    # proves exactly nothing — the `U1` shape again, three predicates later.
+    fx_rep = [("f.py", 9, "'K'", [9, 12])]
+    if not repeat_key_problems(fx_rep, LITERAL_KEY_FLOOR, LITERAL_KEY_FLOOR):
+        bad.append("_self_check: repeat_key_problems did NOT flag a key appearing twice "
+                   "in one literal — the branch is dead and 228 §6b could be re-typed "
+                   "today with this gate printing a clean line over it")
+    if repeat_key_problems([], LITERAL_KEY_FLOOR, LITERAL_KEY_FLOOR):
+        bad.append("_self_check: repeat_key_problems flagged a table with NO repeats and "
+                   "a population at its floor — the rule is over-wide and the comparison "
+                   "is `<`, so a population AT the floor is legal")
+    if not repeat_key_problems([], LITERAL_KEY_FLOOR - 1, LITERAL_KEY_FLOOR):
+        bad.append("_self_check: repeat_key_problems did NOT flag a population one below "
+                   "its floor — zero repeats over a collapsed read is a reader that "
+                   "stopped reading, and nothing else would say so")
+    if not repeat_key_problems([("f.py", 0, "<unparseable>", [])], LITERAL_KEY_FLOOR,
+                               LITERAL_KEY_FLOOR):
+        bad.append("_self_check: repeat_key_problems treated an UNPARSEABLE file as a "
+                   "clean answer — 228 §6.5's swallowed SyntaxError, in the reader "
+                   "rather than in the control")
+
+    # 🔴 AND THE READER ITSELF, ON A DIRECTORY WRITTEN FOR IT. A predicate proved on
+    # fixtures says nothing about whether the AST walk in front of it can SEE a repeat:
+    # 228 §6.5 is the same distinction one level down, where the classifier answered
+    # about a file it had never parsed.
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "clean.py").write_text("T = {'a': 1, 'b': 2}\nS = {'x', 'y'}\n")
+        if literal_keys([d]):
+            bad.append("_self_check: literal_keys() found a repeat in a literal that has "
+                       "none — every run would be red")
+        if literal_key_count([d]) != 4:
+            bad.append("_self_check: literal_key_count() miscounted a fixture whose keys "
+                       "can be counted by hand — the population line is not measuring "
+                       "what it says")
+        (d / "dupe.py").write_text("T = {'a': 1, 'a': 2}\n")
+        if not literal_keys([d]):
+            bad.append("_self_check: literal_keys() did NOT see a key written twice in "
+                       "one dict literal — the walk is blind and the predicate above it "
+                       "would never be given anything to flag")
+        (d / "broken.py").write_text("def f(:\n")
+        if not any(k == "<unparseable>" for _, _, k, _ in literal_keys([d])):
+            bad.append("_self_check: literal_keys() swallowed a SyntaxError and reported "
+                       "nothing about a file it could not read (228 §6.5)")
+
+    # ── 🆕 229 §7.4 — THE SHORTFALL RULE, BOTH DIRECTIONS, ON FIXTURES ──────────
+    ASSERTS = [("f.py", 1, "🔴 X_COLLAPSE {} < {} — the finder stopped finding them.")]
+    LISTS = [("f.py", 1, "🔴 X_COLLAPSE {} < {} — either a row was deleted, or the "
+                         "finder stopped finding them.")]
+    STATES = [("f.py", 1, "🔴 X_COLLAPSE {} < {} — fewer rows than when this was measured.")]
+    if not shortfall_problems(ASSERTS, 0):
+        bad.append("_self_check: shortfall_problems did NOT flag a derived shortfall that "
+                   "asserts one cause — the branch is dead and 228 §7.17 could be "
+                   "re-typed today with this gate green over it")
+    if shortfall_problems(LISTS, 0):
+        bad.append("_self_check: shortfall_problems flagged a refusal that LISTS its "
+                   "causes — the rule is over-wide and the house idiom would become "
+                   "the violation")
+    if shortfall_problems(STATES, 0):
+        bad.append("_self_check: shortfall_problems flagged a refusal that states its "
+                   "observation and asserts nothing — that is the ideal shape, and a "
+                   "rule that refuses it teaches authors to add causes they cannot "
+                   "support")
+    if not shortfall_problems([], SHORTFALL_FLOOR):
+        bad.append("_self_check: shortfall_problems stayed quiet on an EMPTY population "
+                   "below its floor — a reader that stopped reading finds no refusal "
+                   "asserting a cause, which is 201 §9.43 in this file's newest rule")
+    if not shortfall_problems([("f.py", 0, "<unparseable>")], 0):
+        bad.append("_self_check: shortfall_problems treated an UNPARSEABLE file as a "
+                   "clean answer (228 §6.5)")
+    if not measured_cause_stale([]):
+        bad.append("_self_check: measured_cause_stale stayed quiet over an EMPTY "
+                   "population while MEASURED_CAUSE declares rows — every exemption in "
+                   "it could outlive its message with nothing saying so (174 §5)")
+    # and the reader in front of it, on a written directory
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "r.py").write_text(
+            'n = 1\nprint(f"🔴 A_COLLAPSE {n} < {n} — fewer than measured.")\n'
+            'print("nothing to do with floors at all")\n')
+        found = shortfall_refusals([d])
+        if len(found) != 1:
+            bad.append(f"_self_check: shortfall_refusals() read {len(found)} refusal(s) "
+                       f"out of a fixture holding exactly one — the finder this rule "
+                       f"stands on is not reading what it says it reads")
     return bad
 
 
@@ -1465,6 +1881,10 @@ def collect_problems() -> dict[str, list[str]]:
         "ledger": (ledger_problems(SIZE_LEDGER, governed_sizes())
                    + reason_problems({k: v[1] for k, v in SIZE_LEDGER.items()}, "ledger")),
         "comment": comment_problems(declaration_comments()),
+        "repeat": repeat_key_problems(literal_keys(), literal_key_count(),
+                                      LITERAL_KEY_FLOOR),
+        "shortfall": (shortfall_problems(shortfall_refusals(), SHORTFALL_FLOOR)
+                      + measured_cause_stale(shortfall_refusals())),
     }
 
 
@@ -1487,6 +1907,8 @@ def _call_wiring_problems() -> list[str]:
         ("targets", "targets_collapse_problems", lambda *a, **k: [CALL_SENTINEL]),
         ("ceiling", "ceiling_problems", lambda *a, **k: [CALL_SENTINEL]),
         ("ledger", "ledger_problems", lambda *a, **k: [CALL_SENTINEL]),
+        ("repeat", "repeat_key_problems", lambda *a, **k: [CALL_SENTINEL]),
+        ("shortfall", "shortfall_problems", lambda *a, **k: [CALL_SENTINEL]),
     ]
     for key, fname, stub in CASES:
         real = g[fname]
@@ -1541,6 +1963,49 @@ def _call_wiring_problems() -> list[str]:
                    "ledger_problems() — the tree is scanned and the answer discarded, so "
                    "every governed constant could drift with the ledger still agreeing "
                    "with itself")
+
+    # 🆕 229 — AND THE TWO READERS BEHIND THE REPEAT CHECK, FOR THE SAME REASON.
+    # `repeat_key_problems(literal_keys(), literal_key_count(), FLOOR)` has THREE
+    # arguments and the sentinel above proves only that the predicate is called. On a
+    # green tree `literal_keys()` returns [] and `literal_key_count()` is above its
+    # floor, so BOTH could be computed and thrown away with the report unchanged — which
+    # is exactly the shape 200 §35 named and `governed_sizes` is guarded against.
+    real = g["literal_keys"]
+    g["literal_keys"] = lambda *a, **k: [("nowhere/fabricated.py", 1, "'FABRICATED_KEY'",
+                                          [1, 2])]
+    try:
+        got = collect_problems()
+    finally:
+        g["literal_keys"] = real
+    if not any("FABRICATED_KEY" in p for p in got.get("repeat", [])):
+        bad.append("_call_wiring: literal_keys()'s result never reaches "
+                   "repeat_key_problems() — every table in scripts/ could carry a "
+                   "duplicate key with this gate still printing a clean repeat line")
+    real = g["literal_key_count"]
+    g["literal_key_count"] = lambda *a, **k: 0
+    try:
+        got = collect_problems()
+    finally:
+        g["literal_key_count"] = real
+    if not any("LITERAL_COLLAPSE" in p for p in got.get("repeat", [])):
+        bad.append("_call_wiring: literal_key_count()'s result never reaches "
+                   "repeat_key_problems() — the population could collapse to nothing "
+                   "with the repeat check reporting zero repeats and meaning it")
+
+    # 🆕 229 §7.4 — AND THE READER BEHIND THE SHORTFALL RULE. On a green tree it returns
+    # a list with nothing to flag, so it can be computed and discarded with the report
+    # byte-identical — 200 §35 for the third time in this function.
+    real = g["shortfall_refusals"]
+    g["shortfall_refusals"] = lambda *a, **k: [
+        ("nowhere/fabricated.py", 1, "🔴 X_COLLAPSE {} < {} — the finder stopped finding it.")]
+    try:
+        got = collect_problems()
+    finally:
+        g["shortfall_refusals"] = real
+    if not any("fabricated.py" in p for p in got.get("shortfall", [])):
+        bad.append("_call_wiring: shortfall_refusals()'s result never reaches "
+                   "shortfall_problems() — every refusal in scripts/ could assert a cause "
+                   "its comparison cannot support with this gate still green")
     return bad
 
 
@@ -1587,6 +2052,14 @@ def main() -> int:
     for problem in probs["comment"]:
         print(problem)
         failed = True
+    # ── 🆕 229 §6b — AND WHETHER ANY GOVERNED TABLE HAS A ROW NOTHING CAN REACH ────
+    for problem in probs["repeat"]:
+        print(problem)
+        failed = True
+    # ── 🆕 229 §7.4 — AND WHETHER EACH SHORTFALL REFUSAL'S SENTENCE IS ITS MEASUREMENT ─
+    for problem in probs["shortfall"]:
+        print(problem)
+        failed = True
     _sizes = governed_sizes()
     _comments = declaration_comments()
     print(f"FLOOR_PIN_LEDGER {len(SIZE_LEDGER)} governed size constant(s) across "
@@ -1594,6 +2067,13 @@ def main() -> int:
           f"· {len(probs['ledger'])} ungoverned, drifted, stale or quoting a bare number")
     print(f"FLOOR_PIN_COMMENT {len(_comments)} declaration comment(s) read · "
           f"{len(probs['comment'])} quoting a number the tree does not govern")
+    _short = shortfall_refusals()
+    print(f"FLOOR_PIN_SHORTFALL {len(_short)} shortfall refusal(s) read · floor "
+          f"{SHORTFALL_FLOOR} · {len(MEASURED_CAUSE)} declared measured-cause · "
+          f"{len(probs['shortfall'])} asserting a cause their comparison cannot support")
+    print(f"FLOOR_PIN_LITERAL {literal_key_count()} constant key(s) read across every "
+          f"dict/set literal in scripts/ · floor {LITERAL_KEY_FLOOR} · "
+          f"{len(probs['repeat'])} unreachable row(s) or unparseable file(s)")
 
     print(f"FLOOR_PIN_REASON {len(DISCOVER_EXEMPT)} exempt + "
           f"{len(UNDISCOVERABLE_DECLARED)} declared reason(s) read · "
