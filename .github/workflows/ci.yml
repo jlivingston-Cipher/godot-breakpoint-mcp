@@ -398,6 +398,14 @@ jobs:
       # split `registry_lag.py --selftest` uses one job over. ~1s. A step, not a 27th job.
       - name: The release wire classifier can still refuse (wire diff selftest)
         run: node scripts/wire_diff.selftest.mjs
+      # 🆕 233 — AND THE HALF THAT NEEDS NO BASELINE, WHICH IS WHY IT CAN RUN HERE. The
+      # classifier compares two schemas by NAME, and `typeName` builds that name out of a
+      # thirteen-keyword roster — so a keyword the roster omits makes two different schemas
+      # one string and turns a MAJOR into `PATCH`. This asks the wire what keys it actually
+      # carries and refuses one nothing reads. One server start against the `dist/` built
+      # above, no worktree, no tags. ~3s.
+      - name: Every key on the wire is one the classifier can read (wire diff discover)
+        run: node scripts/wire_diff.mjs --discover
       # 🆕 231 §2 — AND THE READER FOR WHAT CHECK 8 CANNOT SEE. `wire_diff.mjs` compares
       # two `tools/list` payloads, so a validation rule neither payload carries is outside
       # it by construction — 230 §4 measured one such rule live (`.finite()` on

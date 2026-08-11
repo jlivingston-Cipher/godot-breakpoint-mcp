@@ -511,6 +511,15 @@ INSTRUMENTS = [
                 'return { pop: { consts: 99, ops: 999, tools: 999, sites: 9999, reads: 999, '
                 'planes: 9, opaque: 0, judged: 9, unresolved: 0, helperDefs: 999, '
                 'conduitEntries: 99 }, offenders: [] };',
+            # 🆕 233 — THE DISCOVER HALF'S THREE MEMBERS. Each empty is the one its own
+            # contract promises, so injecting it IS the failure mode: the shape reader
+            # answering "nothing dispatches", the walk answering "the directory is empty",
+            # and the collector answering "nothing is wrong". The first two trip the two
+            # discover floors; the third is what the self-test's twelve fixtures are for,
+            # and it is DECLARED GREEN on the live axis below for exactly that reason.
+            "{SIG:dispatcherShaped}": "return false;",
+            "{SIG:planeWalk}": "return [];",
+            "{SIG:discoveryProblems}": "return [];",
         },
     },
     {
@@ -673,6 +682,12 @@ INSTRUMENTS = [
             # would redden the table for being absurd rather than for being blind.
             "{SIG:typeName}": 'return "string";',
             "{SIG:normalise}": "return { taskSupport: \"forbidden\" };",
+            # 🆕 233 — THE KEY DISCOVER HALF'S TWO. `schemaKeys` blinded is a walk that
+            # descends into nothing; `keyProblems` blinded is a collector that finds
+            # nothing, and its live population is EMPTY today — so the first trips both
+            # discover floors and the second is covered by the self-test's twelve fixtures.
+            "{SIG:schemaKeys}": "return { keys: new Map(), nodes: 0 };",
+            "{SIG:keyProblems}": "return [];",
         },
     },
     {
@@ -1005,6 +1020,31 @@ LATE_LIVE = {
     # self-test. Declaring it NA would have been an exclusion bought with a sentence
     # anybody could check and find false — 211 §5's whole point about the reasons.
     "positive_control_gate.mjs": (["node", "scripts/positive_control_gate.mjs"], None),
+    # 🆕 233 — THE THREE ROWS `LATE_LIVE_NA` WAS BUYING WITH A SENTENCE THE TREE
+    # CONTRADICTED. 232 §5.6 decided the rule for `positive_control_gate.mjs`: an NA row
+    # has to say "there is no second command that exercises this file", so a row is false
+    # the moment ci.yml runs one. Asked of the OTHER THREE rows — which is 232 §6.2's
+    # discover question pointed at this roster rather than at INSTRUMENTS — all three were
+    # false, and had been for as long as their steps have existed:
+    #
+    #     seal_order_gate.mjs      ci.yml:346  node scripts/seal_order_gate.mjs
+    #     token-cost.mjs           ci.yml:391  node scripts/token-cost.mjs --summary
+    #     wire_invisible_gate.mjs  ci.yml:412  node scripts/wire_invisible_gate.mjs
+    #
+    # 🔴 AND TWO OF THE THREE REASONS NAMED THE COMMAND WHILE DENYING IT. `token-cost.mjs`
+    # said "the live read spawns a built server … on purpose" and `wire_invisible_gate.mjs`
+    # said "the second command IS the gate — `node scripts/wire_invisible_gate.mjs`". Both
+    # sentences are about a command CI runs on every push. The exclusion was not wrong
+    # about the FACT; it was an exclusion written where an axis was available.
+    "seal_order_gate.mjs": (["node", "scripts/seal_order_gate.mjs"], None),
+    "token-cost.mjs": (["node", "scripts/token-cost.mjs", "--summary"], None),
+    "wire_invisible_gate.mjs": (["node", "scripts/wire_invisible_gate.mjs"], None),
+    # 🆕 233 — THE FOURTH ROW, AND IT LEFT `LATE_LIVE_NA` BY THE REASON EXPIRING RATHER
+    # THAN BY BEING WRONG. Its excuse was the baseline worktree, which is a real cost and
+    # is why the classifier cannot be a per-push step. `--discover` is the half that does
+    # not pay it: one server start against the `dist/` CI already builds, asking the live
+    # wire what keys it carries. The axis was not unavailable — it was unbuilt.
+    "wire_diff.mjs": (["node", "scripts/wire_diff.mjs", "--discover"], None),
 }
 
 # ── 🔴 198 §3 — THE LATE AXIS'S VERDICT MARKER, AND WHY IT IS NOT `VERDICT_MARKER` ──
@@ -1047,6 +1087,14 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     # is the property draft 2 above failed and the reason this is not `POSITIVE_CONTROL_GATE`
     # (printed only when nothing failed).
     "node scripts/positive_control_gate.mjs": "POSITIVE_CONTROL ",
+    # 🆕 233 — ALL THREE CHOSEN BY DRAFT 3's RULE ABOVE, NOT BY LOOKS. Each is the FIRST
+    # line its command prints and it is emitted before any verdict branch, so it survives
+    # the red path (draft 2's failure) and it is absent from a stack-frame trace (draft 1's
+    # failure). The census line, never the `ok —` line.
+    "node scripts/seal_order_gate.mjs": "SEAL_ORDER_GATE files=",
+    "node scripts/token-cost.mjs --summary": "TOKEN_COST ",
+    "node scripts/wire_invisible_gate.mjs": "WIRE_INVISIBLE_SURFACE ",
+    "node scripts/wire_diff.mjs --discover": "WIRE_DIFF_KEY ",
 }
 
 # THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
@@ -1094,6 +1142,56 @@ LATE_DECLARED_GREEN = {
         "on the same member reddens the gate, so the member is covered and the LATE axis "
         "is what is not. Re-measured every run: a floor raised to its live value would "
         "make this declaration redden, which is the point of not writing it down once.",
+    # 🆕 233 — THE DISCOVER COLLECTOR, AND IT IS THE SAME CLASS AS `collapsed` BELOW: the
+    # live population is HEALTHY, so a blind that reports nothing is reporting the truth.
+    # There is no undeclared plane for it to miss — measured every run, `planeWalk()` reads
+    # eight `.gd` and the shape reader names exactly the two `PLANES` names — so a green
+    # here says nothing about the refusal. Its coverage is the self-test's twelve fixtures,
+    # where a tree that cannot exist has a known answer. 🔴 THE MOMENT A THIRD DISPATCHER
+    # SHIPS THIS DECLARATION REDDENS, which is the point of re-measuring it every run
+    # rather than writing the exemption down once.
+    ("boundary_gate.mjs", "{SIG:discoveryProblems}", "B:live"):
+        "the live walk is healthy — eight .gd, two dispatcher-shaped, both rostered, the "
+        "exemption table empty — so there is no problem for it to report and a blind that "
+        "reports none is correct. Its coverage is the twelve fixtures in "
+        "`boundary_gate.selftest.mjs`, which is the axis where a case with a known answer "
+        "exists. A third dispatcher, or a stale exempt row, makes this declaration redden.",
+    # 🆕 233 — THE FOUR THE NEW LIVE AXES CANNOT REACH, EVERY ONE MEASURED RATHER THAN
+    # REASONED ABOUT (198 §36's rule for this table). Three instruments gained a [B:live]
+    # axis this session because ci.yml was already running the command; a fourth gained one
+    # that had to be built. The axis being available is not the same as the axis reaching
+    # every member, and the honest shape is to say WHICH ones and WHY, per row, rather than
+    # to leave the instrument on the weaker axis entirely (211 §5).
+    ("seal_order_gate.mjs", "{SIG:paragraphsOf}", "B:live"):
+        "MEASURED: five calls on the live tree, and the gate's own floors are read ONCE, "
+        "at the top of the run, before the fourth of them. Blinding from call 2 leaves "
+        "`SEAL_ORDER_GATE files=/seals=` already printed and every downstream population "
+        "already floored. The GLOBAL blind on the same member reddens both axes, so the "
+        "member is covered and it is the LATE axis that is not — the same statement about "
+        "floors rather than about the member that `isLiteralish` carries below.",
+    ("token-cost.mjs", "{SIG:bytes}", "B:live"):
+        "MEASURED at 7,433 calls, and the budget verdict is a CEILING: blinding from call "
+        "2 makes the surface look SMALLER, which is the direction a budget gate is built "
+        "not to refuse. A late blind that under-reports cannot trip a ceiling, and saying "
+        "so is more honest than a floor here would be — the number this file prints is "
+        "argued from, and `verdict` is the member that decides, which this axis DOES redden.",
+    ("token-cost.mjs", "{SIG:family}", "B:live"):
+        "the same direction as `bytes` above and for the same reason: the per-family "
+        "decomposition shrinking cannot push a total over a ceiling. Its coverage is the "
+        "[A:gate] axis, where `token-cost.selftest.mjs` asserts the decomposition sums to "
+        "the whole and reddens on the first missing family.",
+    ("token-cost.mjs", "{SIG:measure}", "B:live"):
+        "MEASURED at exactly TWO calls — one per privilege view — so a blind 'from the "
+        "second call' reaches only the privileged view, whose total is compared against "
+        "nothing on this command. `--summary` prints both and refuses on the default view "
+        "alone. The [A:gate] axis blinds it globally and reddens.",
+    ("wire_diff.mjs", "{SIG:effectiveTaskSupport}", "B:live"):
+        "the live axis compares this surface WITH ITSELF, and a symmetric comparison "
+        "cannot see a member that answers identically on both sides — every tool reads "
+        "`forbidden`, and `forbidden === forbidden`. That is a property of the baseline "
+        "this command can afford (there is only one surface), not of the member: the "
+        "[A:gate] axis reddens it, and so would the release-time classifier against a real "
+        "ref. It is the one of five that the self-comparison structurally cannot reach.",
     ("boundary_gate.mjs", "{SIG:collapsed}", "B:live"):
         "the blind returns `false` — which is the CORRECT answer for all seven live "
         "populations of a healthy tree. There is no collapse for it to miss, so a green "
@@ -1236,6 +1334,70 @@ def late_marker_roster_problems(live: dict, markers: dict) -> list[str]:
     return problems
 
 
+# ── 🆕 233 — THE EXCLUSION THAT IS RE-DERIVED INSTEAD OF RE-READ ──────────────────────
+#
+# 🔴 A `LATE_LIVE_NA` ROW IS A CLAIM ABOUT THE TREE, AND UNTIL NOW IT WAS THE ONLY CLAIM
+# IN THIS FILE THAT NOTHING RE-DERIVED. The sentence each row has to say is 232 §5.6's:
+# *there is no second command that exercises this file*. Three of the four rows said it
+# while ci.yml ran exactly such a command, and two of them NAMED the command inside the
+# sentence denying it. Nothing could see that, because the reason was prose and prose is
+# read by people who already believe it.
+#
+# 🔴 THE DERIVATION IS THE INSTRUMENT'S OWN SOURCE FILE, NOT A NAME SHAPE. An instrument's
+# gate is `x.selftest.mjs`; a SECOND command that exercises the same file is a `run:` step
+# invoking `x.mjs` itself. Both halves come from data the tree already carries — `inst`
+# supplies the source and the gate, ci.yml supplies the steps — so this cannot drift away
+# from either the way a written-down exemption does (198's rule, 199 §9.3's reason).
+#
+# 🔴 AND THE WALK IS FLOORED, because a regex that stops matching returns an empty set and
+# every row then passes for the wrong reason — which is this gate's own U1, and the exact
+# shape `DISCOVER_EXEMPT` is fixture-proved against one screen down.
+CI_YML = ROOT / ".github" / "workflows" / "ci.yml"
+CI_RUN_RE = re.compile(r"^\s*-?\s*run:\s*(node\s+[^\n]+)$", re.M)
+CI_COMMAND_FLOOR = 8
+
+
+def ci_node_commands(text: str) -> set[str]:
+    """Every single-line `run: node …` step in ci.yml, whitespace-normalised."""
+    return {" ".join(m.group(1).split()) for m in CI_RUN_RE.finditer(text)}
+
+
+def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
+                        floor: int = CI_COMMAND_FLOOR) -> list[str]:
+    """PURE over its inputs (174 §8), so the self-check can hand it a tree that cannot exist."""
+    problems: list[str] = []
+    if len(ci_cmds) < floor:
+        # 🔴 THE OBSERVATION, NOT A CAUSE (228 §7.17). ci.yml may have lost steps, or the
+        # reader may have stopped matching them — a count cannot separate those, and both
+        # leave every row below passing over an empty population.
+        problems.append(
+            f"LATE_LIVE_NA_CI read {len(ci_cmds)} node step(s) from ci.yml, floor {floor} — "
+            f"the workflow may have lost them or CI_RUN_RE may have stopped matching, and a "
+            f"count cannot separate those. Either way every NA row below is checked against "
+            f"nothing and passes")
+    by_name = {i["name"]: i for i in instruments}
+    for name, _why in sorted(na.items()):
+        inst = by_name.get(name)
+        if inst is None:
+            problems.append(
+                f"LATE_LIVE_NA names {name!r}, which is not an instrument — an exclusion "
+                f"outliving its subject (174 §5)")
+            continue
+        gate = " ".join(inst["gate"])
+        src_name = Path(inst["src"]).name
+        second = sorted(c for c in ci_cmds
+                        if c != gate and len(c.split()) > 1
+                        and Path(c.split()[1]).name == src_name)
+        if second:
+            problems.append(
+                f"LATE_LIVE_NA_CI {name}: the row says no second command exercises this "
+                f"file, and ci.yml runs `{second[0]}`. An instrument CI already drives for "
+                f"real gets the [B:live] axis — the STRONGER of the two — at no new cost; "
+                f"an NA row here buys an exemption with a sentence the tree contradicts "
+                f"(232 §5.6, 211 §5)")
+    return problems
+
+
 # 🔴 THE LATE AXIS'S BLAST RADIUS, `A:gate` ONLY, AND THE MISSING HALF IS DELIBERATE.
 # Per instrument and never summed, for 172 §6's reason. `B:live` gets NO floor: four of its
 # five commands print no per-claim FAIL line at all — `tautology_gate.mjs`,
@@ -1301,20 +1463,26 @@ LATE_LIVE_FLOOR = 8
 # or in here with a reason; the branch in `main()` refuses a name in neither. 🔴 THE
 # REASONS ARE ABOUT THE DRIVER, NOT ABOUT THE INSTRUMENT — "there is no second command
 # that exercises this file" is a fact anybody can check, where "not needed" is not.
-LATE_LIVE_NA: dict[str, str] = {
-    "seal_order_gate.mjs":
-        "its only driver is its own self-test; the gate and the live read are one command",
-    "wire_diff.mjs":
-        "the live axis needs a baseline ref built in a worktree, which is a release-time "
-        "cost this gate deliberately does not pay (the self-test drives the pure core)",
-    "token-cost.mjs":
-        "the same shape as wire_diff.mjs — the live read spawns a built server, and the "
-        "self-test drives `measure`/`verdict` without one, on purpose",
-    "wire_invisible_gate.mjs":
-        "its live half needs `host/dist/` and reads the surface in-process, so the second "
-        "command IS the gate — `node scripts/wire_invisible_gate.mjs` runs the same "
-        "`audit` the self-test drives, over the real declarations rather than fixtures",
-}
+# 🆕 233 — ONE ROW, DOWN FROM FOUR, AND THE THREE THAT LEFT WERE MEASURED OUT RATHER THAN
+# ARGUED OUT. Every remaining row must say the thing 232 §5.6 requires — that no second
+# command exercises this file — and that sentence is now checked against ci.yml rather
+# than trusted: `LATE_LIVE_NA_CI` below refuses a row whose instrument CI runs a second
+# command for. The three rows that left had been false since the steps that falsify them
+# were written, and nothing in this file could see it, because the excuse was READ and
+# never RE-DERIVED. That is 232's finding one roster over: complete about what it
+# contains, blind to what the tree says about it.
+# 🔴 EMPTY, AND IT EMPTIED IN THE SAME COMMIT THAT LEARNED TO CHECK IT. Three rows were
+# refuted by ci.yml (§5.1). The fourth — `wire_diff.mjs` — said "the live axis needs a
+# baseline ref built in a worktree", and that was true of the command it had; this session
+# gave it one that does not (`--discover`, which reads the wire that is here now and asks
+# what keys it carries), so the reason expired the moment the step was written and the row
+# went with it. **Every instrument in this tree now gets the STRONGER of the two axes.**
+#
+# 🔴 SO THE RULE ABOVE IS PROVED ON FIXTURES AND NOT ON A POPULATION — `instrument_gate.py`
+# arriving at its own U1 for the third table in two sessions. `_self_check` drives both
+# branches of the NA path over a tree that cannot exist, because an empty table is the one
+# state in which "this check passes" and "this check is switched off" look identical.
+LATE_LIVE_NA: dict[str, str] = {}
 
 
 # ══ THE DISCOVER HALF — 232, answering 231 §5.1 ════════════════════════════════════
@@ -1734,6 +1902,45 @@ def _self_check(floor: int) -> list[str]:
         problems.append(
             "late_marker_roster_problems does not treat two instruments sharing ONE live "
             "command as one roster entry — the key is the command, not the instrument")
+    # 🆕 233 — `late_na_ci_problems`, DRIVEN FROM BOTH SIDES AND FROM THE FLOOR.
+    _NA_INST = [{"name": "x.mjs", "src": Path("/r/scripts/x.mjs"),
+                 "gate": ["node", "scripts/x.selftest.mjs"]}]
+    _NA_CI = {"node scripts/x.selftest.mjs", "node scripts/a.mjs", "node scripts/b.mjs",
+              "node scripts/c.mjs", "node scripts/d.mjs", "node scripts/e.mjs",
+              "node scripts/f.mjs", "node scripts/g.mjs"}
+    if late_na_ci_problems({"x.mjs": "why"}, _NA_INST, _NA_CI, floor=8):
+        problems.append(
+            "late_na_ci_problems flags an NA row whose instrument CI runs only the GATE "
+            "for — the self-test is the gate, not a second command, and calling it one "
+            "would empty LATE_LIVE_NA of rows that are true")
+    if not late_na_ci_problems({"x.mjs": "why"}, _NA_INST,
+                               _NA_CI | {"node scripts/x.mjs"}, floor=8):
+        problems.append(
+            "late_na_ci_problems does NOT flag an NA row for a file ci.yml runs a second "
+            "command over — which is the whole of 233 §5.1: three rows said no such "
+            "command existed while CI ran it on every push")
+    if not late_na_ci_problems({"gone.mjs": "why"}, _NA_INST, _NA_CI, floor=8):
+        problems.append(
+            "late_na_ci_problems does NOT flag an NA row naming something that is not an "
+            "instrument — an exclusion outliving its subject (174 §5)")
+    if not late_na_ci_problems({}, _NA_INST, set(), floor=8):
+        problems.append(
+            "late_na_ci_problems passes over an EMPTY ci.yml read — a reader that stopped "
+            "matching checks every row against nothing and reports no problem, which is "
+            "this file's own U1 (172 §10.21)")
+    # 🔴 AND THE FLOOR ITSELF, which a zero would make unable to bite (198 §36's rule
+    # applied to the guard rather than to the population).
+    if CI_COMMAND_FLOOR <= 0:
+        problems.append(
+            f"CI_COMMAND_FLOOR is {CI_COMMAND_FLOOR}. A floor at zero cannot bite, and the "
+            f"only symptom is an NA roster that stops being checked")
+    # 🔴 AND THE READER OVER THE REAL FILE — a regex proved on a fixture is not a regex
+    # proved to match ci.yml's actual indentation (202 §9.4's argument, one layer out).
+    if CI_YML.exists() and len(ci_node_commands(CI_YML.read_text(encoding="utf-8"))) < CI_COMMAND_FLOOR:
+        problems.append(
+            "CI_RUN_RE reads fewer node steps out of the LIVE ci.yml than the floor — the "
+            "fixtures above prove the predicate, this proves it against the file it ships "
+            "against")
     for _name, _v in LATE_BLAST_FLOOR.items():
         if _v <= 0:
             problems.append(
@@ -2481,6 +2688,10 @@ def collect_problems(stage: str) -> dict[str, list[str]]:
         return {
             "not_loaded":   not_loaded_problems(LATE_NOT_LOADED, LATE_NOT_LOADED_CEILING),
             "late_roster":  late_marker_roster_problems(LATE_LIVE, LATE_VERDICT_MARKER),
+            "late_na_ci":   late_na_ci_problems(
+                LATE_LIVE_NA, INSTRUMENTS,
+                ci_node_commands(CI_YML.read_text(encoding="utf-8"))
+                if CI_YML.exists() else set()),
             "crash_late_a": crash_problems(LATE_CRASHED_A, CRASH_DECLARED, LATE_CRASH_CEILING_A),
             "crash_late_b": crash_problems(LATE_CRASHED_B, LATE_CRASH_DECLARED_B,
                                            LATE_CRASH_CEILING_B),
@@ -2517,6 +2728,7 @@ def _call_wiring_problems() -> list[str]:
     SIMPLE = [
         ("late",  "not_loaded",  "not_loaded_problems"),
         ("late",  "late_roster", "late_marker_roster_problems"),
+        ("late",  "late_na_ci",  "late_na_ci_problems"),
         ("final", "roster",      "marker_roster_problems"),
     ]
     for stage, key, fname in SIMPLE:

@@ -18,6 +18,8 @@
 // call through `safe()`, and the run reaches WIRE_DIFF_SELFTEST either way.
 import {
   classify, normalise, shapeOf, typeName, effectiveTaskSupport, SURFACE_FLOOR, SHAPE_FLOOR,
+  // 🆕 233 — the discover half
+  schemaKeys, keyProblems, NOT_A_CONSTRAINT, STRUCTURAL, KEY_FLOOR, NODE_FLOOR,
 } from "./wire_diff.mjs";
 
 let ran = 0, bad = 0;
@@ -308,6 +310,55 @@ claim(Number.isInteger(COLLAPSE_SHAPE_FLOOR) && COLLAPSE_SHAPE_FLOOR > 0,
 claim(collapseShapes >= COLLAPSE_SHAPE_FLOOR,
   `only ${collapseShapes} collapse shape(s) constructed, floor ${COLLAPSE_SHAPE_FLOOR} — `
   + `the refusals this file exists for have been deleted`);
+
+// ── 🆕 233 — THE KEY DISCOVER HALF, DRIVEN FROM BOTH SIDES ───────────────────────────
+// 🔴 THE FAILURE MODE FIRST, DEMONSTRATED RATHER THAN DESCRIBED. This is the sentence the
+// whole half exists for, and it is a claim rather than a comment because a comment cannot
+// stop being true.
+claim(typeName({ type: "object", minProperties: 1 }) === typeName({ type: "object", minProperties: 9 }),
+  "🔴 typeName gives ONE name to two schemas differing in a keyword CONSTRAINTS omits — so classify() would call that PATCH, which is the defect the discover half refuses");
+claim(typeName({ type: "string", minLength: 1 }) !== typeName({ type: "string", minLength: 9 }),
+  "…and a DIFFERENT name when the keyword is one it narrows on — the positive control that makes the line above a finding rather than a property of typeName");
+
+const WIRE = (...schemas) => schemas.map((s, i) => ({ name: `t${i}`, inputSchema: s }));
+const K1 = schemaKeys(WIRE({ type: "object", properties: { a: { type: "string", minLength: 2 } } }));
+claim(K1.keys.get("minLength") === 1 && K1.keys.get("type") === 2,
+  "🔴 schemaKeys descends THROUGH `properties` — a walk that read the top level only would report seventeen keys and miss every constraint on the wire");
+claim(schemaKeys(WIRE({ type: "array", items: { type: "string", pattern: "^a" } })).keys.has("pattern"),
+  "…and through `items`, which is where every array element's constraints live");
+claim(schemaKeys([]).nodes === 0 && schemaKeys(undefined).nodes === 0,
+  "…and answers ZERO over an empty wire rather than throwing, so the floor is what reports it");
+
+// Ten distinct keys, because `KEY_FLOOR` is ten and a fixture below the floor would make
+// every case here red for the wrong reason — 174 §8's rule applied to the fixture itself.
+const HEALTHY = {
+  keys: new Map([["type", 3000], ["description", 900], ["properties", 700], ["required", 600],
+    ["items", 250], ["enum", 60], ["minimum", 50], ["minLength", 3], ["pattern", 8],
+    ["additionalProperties", 700]]),
+  nodes: 3000,
+};
+claim(keyProblems(HEALTHY).length === 0,
+  "keyProblems is silent over a wire whose every key is narrowed, structural, or excused");
+claim(keyProblems({ keys: new Map([...HEALTHY.keys, ["minProperties", 4]]), nodes: 3000 })
+  .some((m) => m.includes('UNREAD "minProperties"')),
+  "🔴 …and REFUSES a keyword on the wire that typeName cannot read — 233 §5.4, and the population that makes it necessary is EMPTY today");
+claim(keyProblems({ keys: new Map([...HEALTHY.keys, ["minProperties", 4]]), nodes: 3000 },
+  undefined, undefined, { ...NOT_A_CONSTRAINT, minProperties: "a reason" }).length === 0,
+  "…and accepts it once a row with a reason exists, which is what the excused table is for");
+claim(keyProblems(HEALTHY, undefined, undefined, { ...NOT_A_CONSTRAINT, minLength: "both" })
+  .some((m) => m.includes('BOTH "minLength"')),
+  "🔴 …and refuses a key that is BOTH narrowed and excused from narrowing");
+claim(keyProblems(HEALTHY, undefined, undefined, undefined, undefined, undefined,
+  () => "same").some((m) => m.includes("UNPROVED")),
+  "🔴 …and refuses a CONSTRAINTS row the reader does not actually read — the positive control on the roster, which is what makes the list a claim rather than a hope");
+claim(keyProblems({ keys: HEALTHY.keys, nodes: 4 }).some((m) => m.includes("NODE_FLOOR 4")),
+  "🔴 …and refuses a surface that collapsed, without asserting which of the two causes it is (228 §7.17)");
+claim(keyProblems({ keys: new Map([["type", 3000]]), nodes: 3000 }).some((m) => m.includes("KEY_FLOOR 1")),
+  "🔴 …and refuses 3,000 nodes yielding ONE key — the second floor, which the node count cannot see (172 §6)");
+claim(keyProblems({ keys: new Map(), nodes: 0 }).length > 0,
+  "🔴 …and does NOT pass over an EMPTY read, which is the shape that makes every case above vacuous");
+claim(KEY_FLOOR > 0 && NODE_FLOOR > 0 && STRUCTURAL.includes("properties"),
+  "both key floors are pinned above zero and the structural roster still names the walk's own keys");
 
 console.log(`\n  ${ROWS.length} rows · ${nonPatch} answer something other than PATCH `
   + `(${majors} MAJOR) · collapse refuses on ${collapseShapes} shapes`);

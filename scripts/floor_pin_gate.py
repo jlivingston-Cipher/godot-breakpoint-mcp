@@ -131,6 +131,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # the classifier actually read. Moved off its value, `wire_diff.selftest.mjs`'s six
     # symmetric-collapse rows stop refusing and the file reddens.
     ("SHAPE_FLOOR",              f"{S}/wire_diff.mjs",               r"(export const SHAPE_FLOOR = )2000;",                       [f"{S}/wire_diff.selftest.mjs"]),
+    # 🆕 233 — CHECK 8's THIRD AND FOURTH, AND THEY FLOOR THE READER'S VOCABULARY RATHER
+    # THAN ITS POPULATION. `SURFACE_FLOOR` pins the tool names and `SHAPE_FLOOR` the
+    # schema paths; neither can see a KEYWORD the classifier cannot read, which is the
+    # failure that turns a MAJOR into `PATCH`. Zeroed, both go permissive and only the
+    # self-test's own assertion bites.
+    ("KEY_FLOOR",                f"{S}/wire_diff.mjs",               r"(export const KEY_FLOOR = )10;",                           [f"{S}/wire_diff.selftest.mjs"]),
+    ("NODE_FLOOR",               f"{S}/wire_diff.mjs",               r"(export const NODE_FLOOR = )1500;",                        [f"{S}/wire_diff.selftest.mjs"]),
     # 🆕 211 §6 — the budget reader's self-test grew a collapse detector of its own when
     # it became a roster entry, and a collapse detector nothing moves is 176's G12 shape.
     ("tc.CLAIM_FLOOR",           f"{S}/token-cost.selftest.mjs",     r"(const CLAIM_FLOOR = )18;",                                [f"{S}/token-cost.selftest.mjs"]),
@@ -145,6 +152,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # live tree, which is what turns an unfalsifiable floor into a pinned one.
     ("mutlock.GUARDED_FLOOR",   "../scripts/mutation_lock_gate.py", r"(GUARDED_FLOOR = )5",                                      ["../scripts/mutation_lock_gate.py", "--selftest"]),
     ("term.TERM_FLOOR",         "../scripts/terminology_gate.py",   r"(TERM_FLOOR = )1",                                         ["../scripts/terminology_gate.py", "--selftest"]),
+    # 🆕 233 — THE SUFFIX DISCOVER HALF'S TWO, AND THEY ARE `TERM_FLOOR`'s SHAPE EXACTLY:
+    # both are used only as `len(x) < FLOOR`, so ZEROING THEM MAKES THE GATE MORE
+    # PERMISSIVE and its live run cannot notice. `--selftest` asserts each literal above
+    # zero against the live tree, which is what turns an unfalsifiable floor into a
+    # pinned one (225's rule, third file).
+    ("term.TRACKED_FLOOR",      "../scripts/terminology_gate.py",   r"(TRACKED_FLOOR = )250",                                    ["../scripts/terminology_gate.py", "--selftest"]),
+    ("term.SUFFIX_FLOOR",       "../scripts/terminology_gate.py",   r"(SUFFIX_FLOOR = )10",                                      ["../scripts/terminology_gate.py", "--selftest"]),
     # 🆕 227 — THE SPEC SCANNER'S, AND IT IS THE SAME SHAPE AS THE TWO ABOVE: used only
     # as `files_read < FLOOR`, so zeroing it makes the gate MORE permissive and the live
     # `--check` cannot notice. Its `--selftest` therefore asserts the literal against the
@@ -178,6 +192,13 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("SITE_FLOOR",               f"{S}/boundary_gate.mjs",           r"(export const SITE_FLOOR = )1500;",                        [f"{S}/boundary_gate.selftest.mjs"]),
     ("RETURN_FLOOR",             f"{S}/boundary_gate.mjs",           r"(export const RETURN_FLOOR = )150;",                       [f"{S}/boundary_gate.selftest.mjs"]),
     ("PLANE_FLOOR",              f"{S}/boundary_gate.mjs",           r"(export const PLANE_FLOOR = )2;",                          [f"{S}/boundary_gate.selftest.mjs"]),
+    # 🆕 233 — THE DISCOVER HALF'S TWO, AND THE OLD `PLANE_FLOOR` ONE LINE UP IS WHY THEY
+    # EXIST: it pins how many planes are READ and is satisfied, permanently, by a tree
+    # that ships a third dispatcher nobody grades. These floor the WALK and the SHAPE
+    # READER — two numbers, never a sum (172 §6), because a walk that reads eight files
+    # while `dispatcherShaped` recognises none is the same collapse one layer in.
+    ("PLANE_WALK_FLOOR",         f"{S}/boundary_gate.mjs",           r"(export const PLANE_WALK_FLOOR = )6;",                     [f"{S}/boundary_gate.selftest.mjs"]),
+    ("PLANE_DISPATCH_FLOOR",     f"{S}/boundary_gate.mjs",           r"(export const PLANE_DISPATCH_FLOOR = )2;",                 [f"{S}/boundary_gate.selftest.mjs"]),
     ("JUDGED_FLOOR",             f"{S}/boundary_gate.mjs",           r"(export const JUDGED_FLOOR = )150;",                       [f"{S}/boundary_gate.selftest.mjs"]),
     ("HELPER_FLOOR",             f"{S}/boundary_gate.mjs",           r"(export const HELPER_FLOOR = )350;",                       [f"{S}/boundary_gate.selftest.mjs"]),
     ("CONDUIT_FLOOR",            f"{S}/boundary_gate.mjs",           r"(export const CONDUIT_FLOOR = )15;",                       [f"{S}/boundary_gate.selftest.mjs"]),
@@ -603,6 +624,16 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                               "same `_self_check()`, which fails if it is not positive, because a "
                               "zero would re-permit an injector that injects nothing. Same nesting "
                               "reason as INSTRUMENT_FLOOR",
+    # 🆕 233 — THE SEVENTH, AND ITS SUBJECT IS AN EXCLUSION RATHER THAN A POPULATION.
+    # `CI_COMMAND_FLOOR` floors how many `run: node …` steps the reader finds in ci.yml
+    # before it is allowed to believe any `LATE_LIVE_NA` row; a regex that stopped
+    # matching would check every excuse against nothing and pass. Pinned in-file by
+    # `_self_check()` in both directions — the literal above zero, and the LIVE ci.yml
+    # read against it — for INSTRUMENT_FLOOR's nesting reason.
+    ("../scripts/instrument_gate.py", "CI_COMMAND_FLOOR"): "🆕 233 — instrument_gate.py's floor on how many node steps it reads out of "
+                        "ci.yml before trusting a LATE_LIVE_NA row. Pinned in-file by `_self_check()`, "
+                        "which fails if it is not positive AND if the live workflow yields fewer than "
+                        "it. Same nesting reason as INSTRUMENT_FLOOR",
     ("../scripts/instrument_gate.py", "LATE_LIVE_FLOOR"): "🆕 183 — instrument_gate.py's floor on the LIVE-axis roster, pinned in the "
                        "same `_self_check()` by asserting the branch bites on an empty roster. It "
                        "exists because LATE_CONSTRUCTED_FLOOR cannot see a roster shrink: deleting "
@@ -1052,6 +1083,17 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "commit, so its first value counts itself. 🔴 A linter with nothing to read prints "
         "a clean tree in the same words as a clean tree, which is why the population is "
         "floored and not just the findings.")),
+    # 🆕 233 — instrument_gate.py's floor on its READ OF ci.yml, not on a population of
+    # its own. Every `LATE_LIVE_NA` row is a claim that no second command exercises an
+    # instrument, and until this session nothing re-derived it: three of the four rows
+    # were false, and two named the very command they denied. This is the floor under
+    # that derivation.
+    ("../scripts/instrument_gate.py", "CI_COMMAND_FLOOR"): (8, (
+        "`run: node …` steps read out of ci.yml, at `{FLOOR}` against twenty-one live. Floored "
+        "from BELOW: steps being added never reddens, and what it catches is `CI_RUN_RE` "
+        "ceasing to match — which would check every NA row against an empty set and pass, "
+        "restoring exactly the silence that let three false rows stand. It moves the day "
+        "the workflow drops below eight node steps on purpose.")),
     ("../scripts/control_gate.py", "UNFINGERPRINTABLE_FLOOR"): (3, (
         "Statements carrying no literal of their own, so no row can ever name them. A "
         "CEILING in spirit: it is supposed to fall, and `{FLOOR}` is where it stands.")),
@@ -1178,6 +1220,24 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "tree-quiet reader raised it again and did not CHOOSE to: that file was written "
         "as a READER, and the deriver classified it UNGUARDED on its first run because "
         "`--recover` rewrites tracked files. The gate found its mutation first.")),
+    # 🆕 233 — THE SUFFIX DISCOVER HALF'S TWO. `TERM_FLOOR` above governs the VOCABULARY;
+    # these govern the POPULATION the vocabulary is swept over, which until this session
+    # was a written-down set of nine suffixes filtering a `git ls-files` walk. 80 of 354
+    # tracked files carried a suffix nobody had listed — including the `plugin.cfg` whose
+    # `description=` the Asset Library publishes verbatim — and the gate printed
+    # `0 retired term(s)` about a population it never opened.
+    ("../scripts/terminology_gate.py", "TRACKED_FLOOR"): (250, (
+        "Tracked paths `git ls-files` returns, at `{FLOOR}` against three hundred and fifty-four live. Floored from "
+        "BELOW so files being ADDED never reddens a healthy tree; what it catches is the "
+        "walk going quiet, because an empty listing makes every suffix trivially accounted "
+        "for and the discover half passes over nothing. It moves when the repository "
+        "genuinely loses a quarter of its files, which is not a thing that happens by "
+        "accident.")),
+    ("../scripts/terminology_gate.py", "SUFFIX_FLOOR"): (10, (
+        "DISTINCT suffixes across those paths, at `{FLOOR}` against twenty-one live, and it is a "
+        "SECOND floor rather than a share of the first (172 §6). A walk that still returns "
+        "every tracked path while `Path.suffix` stops resolving reads as one enormous extensionless "
+        "population — the path count above cannot see that, and only this can.")),
     ("../scripts/terminology_gate.py", "TERM_FLOOR"): (1, (
         "Retired terms parsed out of the landscape policy's first rule, at `{FLOOR}`. The "
         "gate does not carry its own copy of the vocabulary — it reads the rule — so a "
