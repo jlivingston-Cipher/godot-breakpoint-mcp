@@ -122,7 +122,8 @@ CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 # population that stopped parsing and this one does not. 75 today; the value is the
 # measurement and it only ever goes up, because the blocks it counts are already written.
 # 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
-ALIAS_SPELLING_FLOOR = 75
+# 🆕 240 — 75 -> 76, the same move again: 239's block is the thirteenth.
+ALIAS_SPELLING_FLOOR = 76
 READER_FLOOR = 24        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
@@ -806,6 +807,18 @@ def previous_main(session: "int | None") -> "tuple[str, str]":
     return (shas[0], "")
 
 
+def block_main(session: int) -> "tuple[str, str]":
+    """(the SHA that block's own `main` row names, problem) — from the population."""
+    hit = next((t for s, t in BLOCK_POPULATION if s == session), None)
+    if hit is None:
+        return ("", f"block {session} is not in `BLOCK_POPULATION`, so this reader "
+                    f"cannot say which tree it was verified against")
+    shas = main_shas(status_block(hit)[0])
+    if not shas:
+        return ("", f"block {session}'s `main` row carries no SHA")
+    return (shas[0], "")
+
+
 def moved_interval(block: "list[str]", session: "int | None" = None,
                    root: Path = ROOT) -> "tuple[int, str]":
     """(commits between the previous block's main and this one's, problem) — TREE.
@@ -1445,6 +1458,87 @@ def measure(keys: "set[str]", log: str, run_cheap: bool, run_slow: bool, run_loc
     return out, unmeasured, notes
 
 
+# 🔴 THE `>` IS NOT DECORATION AND THE FIRST DRAFT DROPPED IT. Every handoff in this
+# series opens with a BLOCKQUOTE, so the natural place to write the declaration is a line
+# beginning `> `, and a reader anchored on `^\s*ritual` reports UNDECLARED there — which
+# reads as a session that skipped the ritual rather than one that announced it in the
+# most prominent line of its own document. Caught by this file's own self-test on the day
+# the mode was written, which is the seventh session running that a fixture is faster
+# than the author.
+TIER_DECLARE_RE = re.compile(r"^[>\s]*ritual\s+(TIER[01])\b", re.I | re.M)
+TIER_RUN_RE = re.compile(r"^HANDOFF_OPEN\b.*?\bTIER0\b.*?INHERITED FROM (\d+) AT (\S+)",
+                         re.M)
+
+
+def tier_problems(text: str, log: str, session: "int | None"
+                  ) -> "tuple[list[str], list[str]]":
+    """The opening tier, declared in the document and read back out of the run.
+
+    🔴 A TIER IS A CLAIM ABOUT WHAT THIS SESSION DID NOT DO, WHICH IS THE ONLY KIND OF
+    CLAIM THIS FILE HAS NEVER HAD TO CHECK. Every other row here compares a number the
+    block printed against the instrument that printed it. `ritual TIER0` says twenty-nine
+    counters were INHERITED rather than measured — an absence, and an absence looks
+    exactly like a session that ran the full ritual and forgot to say so, and exactly like
+    a session that skipped it and said nothing. So the declaration is REQUIRED in both
+    directions and TIER0 is read back out of the log the same way `724/724` is.
+    """
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    m = TIER_DECLARE_RE.search(text)
+    if not m:
+        problems.append(
+            "🔴 TIER_UNDECLARED — this document does not say which tier its OPENING ran "
+            "at. Write `ritual TIER0` or `ritual TIER1`. A block that does not say cannot "
+            "be told from one that inherited twenty-nine counters in silence, and the "
+            "whole argument for the cheap tier is that it announces itself.")
+        return (problems, notes)
+    tier = m.group(1).upper()
+    if tier == TIER1:
+        notes.append("ritual TIER1 — the opening ran the full replay, so every counter "
+                     "below was re-measured rather than inherited")
+        return (problems, notes)
+
+    if not log:
+        notes.append("ritual TIER0 declared and no --measured log was supplied, so the "
+                     "declaration is READ and not checked")
+        return (problems, notes)
+    run = TIER_RUN_RE.search(log)
+    if not run:
+        problems.append(
+            "🔴 TIER_UNSUPPORTED — the document declares `ritual TIER0` and the measured "
+            "log carries no `HANDOFF_OPEN ... TIER0 ... INHERITED FROM <n> AT <sha>` "
+            "line. The cheap tier is only honest because it refuses on a tree it cannot "
+            "match; a TIER0 nobody ran is a TIER0 that never checked anything.")
+        return (problems, notes)
+    from_session, at_sha = int(run.group(1)), run.group(2)
+    if session is not None and from_session != session - 1:
+        problems.append(
+            f"🔴 TIER0_PREDECESSOR — block {session} inherited from {from_session}. The "
+            f"tier inherits the PREVIOUS session's verification, and a block that "
+            f"inherited from further back skipped the sessions between it and its own "
+            f"evidence.")
+    # 🔴 AND THE ENDPOINT IS THE INHERITED BLOCK'S OWN MAIN ROW, NOT `previous_main`'s.
+    # The first draft reached for `previous_main(session)`, which answers *the SHA main
+    # stood at when this session OPENED* — 238's SHA for a block inheriting from 239. It
+    # is one row off, in the direction that makes an honest document refuse, and it is
+    # 239 §2's own shape: a reader borrowing an endpoint that was computed for a
+    # different question. The tier inherits what block N-1 SHIPPED, so the endpoint is
+    # block N-1's main row.
+    want, why = block_main(from_session)
+    if why:
+        notes.append(f"TIER0_SHA unchecked — {why}")
+    elif not (want.startswith(at_sha) or at_sha.startswith(want)):
+        problems.append(
+            f"🔴 TIER0_SHA — the opening inherited at {at_sha} and `BLOCK_POPULATION` "
+            f"says block {from_session} stood at {want}. The whole justification for "
+            f"inheriting a counter is that the tree did not move; two answers about "
+            f"which tree that was is the justification failing.")
+    else:
+        notes.append(f"ritual TIER0 — {len(COUNTER_READERS)} tree counters inherited "
+                     f"from {from_session} at {at_sha}, header re-read live")
+    return (problems, notes)
+
+
 def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
           run_locked: bool, run_network: bool = False
           ) -> "tuple[list[str], list[str], int, int, int, int]":
@@ -1461,6 +1555,8 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     problems.extend(r_problems)
 
     session, how = block_session(handoff.name, block)
+    t_problems, t_notes = tier_problems(text, log, session)
+    problems.extend(t_problems)
     notes_session = [f"block session {session} — read from {how}"] if session is not None \
         else [f"SINCE rows fell back to OPTIONAL — {how}, so no block-number comparison "
               f"happened and this run cannot tell a dropped counter from a counter the "
@@ -1981,6 +2077,28 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · wire_invisible 27 + live · lint_ceiling 16 files
 >               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
 >               · handoff 201 claims · 26 CI jobs
+> ```
+"""),
+    # 🆕 240 — THE THIRTEENTH. 239 shipped the counter that makes this step ask for
+    # itself: `git.moved` reads its endpoint out of this table, so a session whose
+    # predecessor is missing gets UNREAD with the block named rather than a number.
+    (239, """> ```
+> main                 ef4e875 — the number that could only ever be one (#293)      MOVED +1
+>                      831ce40 — the aliases nothing walked (#292)
+> branch 239           0dd01dc session239-the-number-that-could-only-ever-be-one
+>                      🟢 PUSHED · PR #293 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 93 · 41 governed · 827 keys · 26 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 207 claims · 26 CI jobs
 > ```
 """),
 ]
@@ -2949,6 +3067,77 @@ def selftest() -> int:
             failed += 1
             print(f"  🔴 HISTORY {sess} claimed {claimed}, tree {actual} — {why}")
 
+    # ── 🔴 THE OPENING TIER, AND EVERY BRANCH OF IT GETS A NEGATIVE CONTROL ───────────
+    #
+    # The cheap tier's whole safety argument is that it REFUSES on a tree it cannot
+    # match. A `tier_trigger` that answered TIER0 for everything would look identical on
+    # every green session and would be 239 §2's defect exactly — a reader that could only
+    # ever return one answer — in the mode built by the session that quotes it. So the
+    # trigger is asserted against fixtures where each refusal is the only thing wrong,
+    # and the declaration reader is asserted in both directions.
+    TIER_PINS: "list[tuple[str, str, str, str]]" = [
+        ("ritual TIER0 — inherited from 239", TIER0, "", "the plain declaration"),
+        ("> ritual TIER1 · full replay at open", TIER1, "", "blockquoted, with a rider"),
+        ("  RITUAL tier0 ", TIER0, "", "🔴 CASE AND LEADING SPACE. The declaration is "
+         "written by a human in a document nothing formats, and a reader anchored on one "
+         "casing reports UNDECLARED — which reads as a session that skipped the ritual "
+         "rather than one that shouted it."),
+        ("the ritual tiering work is described in §3", None, "",
+         "🔴 PROSE ABOUT THE TIER IS NOT A DECLARATION. A handoff whose SUBJECT is this "
+         "mode names it in every paragraph, and a loose scanner would read its own §3 as "
+         "the declaration — 236 §1's defect, where a document quoting a broken replay "
+         "read as a document running it."),
+    ]
+    for text, expected, _unused, why in TIER_PINS:
+        claims += 1
+        got = declared_tier(text)
+        if got != expected:
+            failed += 1
+            print(f"  🔴 TIER_DECLARE {text!r} -> {got!r}, pinned {expected!r} — {why}")
+
+    # the document half, with a log
+    # 🔴 THE FIXTURE INHERITS FROM 238, NOT 239, AND THE REASON IS THE CONVENTION ITSELF.
+    # A session adds the PREVIOUS block to `BLOCK_POPULATION`, so the newest block in the
+    # table is always one behind the newest block that exists — and `TIER0_SHA` can only
+    # check a session whose predecessor is in the table. A fixture written against the
+    # very newest block reports UNCHECKED and looks exactly like a fixture that passed.
+    TIER0_LOG = ("HANDOFF_OPEN HANDOFF_SESSION238.md · TIER0 · 29 counter atom(s) "
+                 "INHERITED FROM 238 AT 831ce40 · 6 header atom(s) · 6 re-read\n")
+    for doc, log, sess, token, why in [
+        ("no declaration anywhere", "", None, "TIER_UNDECLARED",
+         "a document that says nothing about its tier passed"),
+        ("ritual TIER0", "npm test\n# pass 724\n", 239, "TIER_UNSUPPORTED",
+         "🔴 A TIER0 NOBODY RAN. The declaration is an absence-claim, so the only thing "
+         "standing behind it is the line the mode prints; a log without it is a session "
+         "that declared the saving and never took the check."),
+        ("ritual TIER0", TIER0_LOG.replace("FROM 238", "FROM 236"), 239,
+         "TIER0_PREDECESSOR",
+         "inheriting from two sessions back skipped the block in between and passed"),
+        ("ritual TIER0", TIER0_LOG.replace("831ce40", "deadbee"), 239, "TIER0_SHA",
+         "the log inherited at a SHA the population does not give for that block, and "
+         "the mismatch passed"),
+    ]:
+        claims += 1
+        got, _n = tier_problems(doc, log, sess)
+        if not any(token in p for p in got):
+            failed += 1
+            print(f"  🔴 {token} — {why}. Got: "
+                  + ("; ".join(p[:80] for p in got) if got else "NOTHING"))
+
+    # and the positive control, because every refusal above is worthless if the honest
+    # document also refuses
+    claims += 1
+    got, _n = tier_problems("ritual TIER0", TIER0_LOG, 239)
+    if got:
+        failed += 1
+        print(f"  🔴 TIER0_CLEAN — an honest TIER0 document with the matching log "
+              f"refused: {'; '.join(p[:100] for p in got)}")
+    claims += 1
+    got, notes = tier_problems("ritual TIER1", "", 239)
+    if got or not any("TIER1" in n for n in notes):
+        failed += 1
+        print("  🔴 TIER1_CLEAN — a TIER1 declaration needs no log and must not refuse")
+
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed")
     return 1 if failed else 0
 
@@ -3076,9 +3265,158 @@ def tree_state(root: Path = ROOT) -> str:
     return f"{sha} clean" if not dirt else f"{sha} DIRTY ({len(dirt)} file(s))"
 
 
+# ══ THE OPENING TIER ══════════════════════════════════════════════════════════════════
+#
+# 🔴 THE OPENING RITUAL RE-MEASURED A TREE NOBODY HAD TOUCHED SINCE IT WAS LAST MEASURED.
+# Every session opened by running the whole replay against the previous session's block:
+# `npm ci`, the 724-test suite, twenty gates including the mutating three, and
+# `--patterns`. Timed in a container at 239's tree that is ~8.5 minutes of compute, of
+# which four commands are 72% (`instrument_gate.py` 192s, `control_gate.py` 70s,
+# `--patterns` 70s, `floor_pin_gate.py` 61s). It found nothing five sessions running, and
+# 239 §4 said why in its own words: *"five clean blocks in a row is not evidence about
+# this counter and never was."*
+#
+# THE REASON IS STRUCTURAL AND IT IS NOT ABOUT CARE. Every counter on the VERIFIED line is
+# a measurement of the TREE. The session that wrote the block ran them against the commit
+# it shipped and recorded the answers. If `HEAD` is that commit and the tree is clean,
+# those counters were already measured on this exact tree — re-deriving them asks a
+# question whose answer is written in the document being checked. That is 239 §20's own
+# test (*"can the document being checked move both ends at once"*) applied to the ritual
+# rather than to a reader.
+#
+# WHAT IS NOT INHERITABLE, AND IT IS EXACTLY THE HEADER. `npm.lag`, `npm.tags`,
+# `gh.issues`, `gh.prs` and `git.moved` are facts about the WORLD — a registry, a
+# forge, a remote — and the world moves between sessions while the tree does not. So the
+# split this mode makes is not a compromise between cost and rigour; it is the line
+# between a claim the tree can still answer and a claim only the network can. The header
+# is six readers and seconds of network.
+#
+# 🔴 AND THE CONTROL ON THE INHERITANCE ALREADY EXISTS, WHICH IS WHY THIS IS NOT A HOLE.
+# A session that ships runs the full ritual at CLOSE, against its own block. Any counter
+# that is a fact about the MACHINE rather than the tree — 239 §5.2's class, a green that
+# is true of one disk — shows up there as a disagreement on a tree whose source did not
+# move, and that is a finding rather than a false red. Tier 0 does not assert the counters
+# are right. It asserts something weaker and true: **session N verified them against this
+# exact tree, and this is that tree.** The output says `INHERITED FROM <n> AT <sha>` and
+# never `ok`, because a mode that printed the same word as a full run would be a mode that
+# quietly redefined it.
+
+TIER0, TIER1 = "TIER0", "TIER1"
+
+
+def tier_trigger(prev: Path, root: Path = ROOT) -> "tuple[str, str, str, str]":
+    """(required tier, HEAD sha, the block's sha, why) for opening against `prev`.
+
+    The trigger is measured, never declared: a session cannot elect the cheap tier by
+    saying so. `TIER1` is required whenever this reader cannot show that the tree in
+    front of it is the tree the previous block was verified against.
+    """
+    def git(*a: str) -> str:
+        p = subprocess.run(("git", *a), cwd=root, capture_output=True, text=True)
+        return p.stdout.strip()
+
+    head = git("rev-parse", "--short", "HEAD") or "?"
+    dirt = [ln for ln in git("status", "--porcelain").split("\n") if ln.strip()]
+    block, why = status_block(prev.read_text(encoding="utf-8"))
+    if why:
+        return (TIER1, head, "?", f"the previous block did not parse — {why}")
+    shas = main_shas(block)
+    if not shas:
+        return (TIER1, head, "?", "the previous block's `main` row carries no SHA, so "
+                                  "there is nothing to compare this tree against")
+    claimed = shas[0]
+    if dirt:
+        return (TIER1, head, claimed,
+                f"the working tree is DIRTY ({len(dirt)} file(s)) — the counters on the "
+                f"block were measured against a clean {claimed} and this is not it")
+    n = min(len(head), len(claimed))
+    if head[:n] != claimed[:n]:
+        return (TIER1, head, claimed,
+                f"HEAD is {head} and the block was verified at {claimed}. Every counter "
+                f"on the VERIFIED line is a measurement of the tree, and this is a "
+                f"different tree")
+    return (TIER0, head, claimed, "")
+
+
+def open_tier(prev: Path, run_network: bool, root: Path = ROOT) -> int:
+    """Tier 0: bind every counter atom without running an instrument, re-read the world."""
+    tier, head, claimed, why = tier_trigger(prev, root)
+    text = prev.read_text(encoding="utf-8")
+    session = None
+    m = SESSION_RE.search(prev.name)
+    if m:
+        session = int(m.group(1))
+
+    if tier == TIER1:
+        print(f"HANDOFF_OPEN TIER1_REQUIRED — {why}")
+        print(f"🔴 the cheap tier is not available here. Run the full replay: the "
+              f"counters on {prev.name}'s block cannot be inherited onto a tree they "
+              f"were not measured against.")
+        return 1
+
+    # ── the counter line: bound, floored, and NOT re-run ──────────────────────────────
+    block, _ = status_block(text)
+    atoms, why2 = counter_atoms(block)
+    if why2:
+        print(f"🔴 HANDOFF_OPEN {why2}")
+        return 1
+    problems: "list[str]" = []
+    keys: "set[str]" = set()
+    for a in atoms:
+        key, problem = bind(a)
+        if key:
+            keys.add(key)
+        else:
+            problems.append(f"🔴 {problem}")
+    if len(atoms) < CLAIM_FLOOR:
+        problems.append(f"🔴 CLAIM_FLOOR {len(atoms)} atom(s) < {CLAIM_FLOOR} — a block "
+                        f"this reader parsed down to nothing agrees with everything")
+    # the DROPPED-counter direction still holds at this tier: it is a property of the
+    # block's text, not of any instrument, and it is the half that catches a session
+    # quietly ceasing to report a field.
+    unreached = [k for k, _a, _n, _c, _cw, _e, _co, need, _w in COUNTER_READERS
+                 if k not in keys and needed(need, session) == REQUIRED]
+    for k in unreached:
+        problems.append(f"🔴 DROPPED COUNTER — no atom in the block reaches `{k}`, and "
+                        f"that reader is REQUIRED for session {session}")
+
+    # ── the header: re-read, because the world moves and the tree does not ────────────
+    h_problems, h_notes, h_atoms, h_compared = check_header(block, "", run_network,
+                                                            session)
+    for n in h_notes:
+        print(f"  · {n}")
+    problems.extend(h_problems)
+
+    print(f"HANDOFF_OPEN {prev.name} · TIER0 · {len(atoms)} counter atom(s) INHERITED "
+          f"FROM {session} AT {claimed} · {h_atoms} header atom(s) · {h_compared} "
+          f"re-read against the world")
+    for p in problems:
+        print(p)
+    if problems:
+        print(f"🔴 HANDOFF_OPEN refused — {len(problems)} problem(s).")
+        return 1
+    print(f"🟢 HANDOFF_OPEN ok — HEAD is {head}, the tree is clean, and it is the tree "
+          f"session {session} verified these counters against. They are INHERITED, not "
+          f"re-measured: the full replay runs at CLOSE, against the block this session "
+          f"writes, and that is where a counter which is a fact about the machine rather "
+          f"than the tree will disagree.")
+    return 0
+
+
+def declared_tier(text: str) -> "str | None":
+    m = TIER_DECLARE_RE.search(text)
+    return m.group(1).upper() if m else None
+
+
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return selftest()
+    if "--open" in argv:
+        rest = [a for a in argv[argv.index("--open") + 1:] if not a.startswith("--")]
+        if not rest:
+            print("🔴 --open needs the PREVIOUS session's handoff")
+            return 2
+        return open_tier(Path(rest[0]).resolve(), run_network="--network" in argv)
     log = ""
     if "--measured" in argv:
         log = Path(argv[argv.index("--measured") + 1]).read_text(encoding="utf-8")

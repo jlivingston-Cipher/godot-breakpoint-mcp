@@ -129,6 +129,24 @@ jobs:
         run: python3 scripts/lint_ceiling.py --selftest
       - name: No new class of linter finding, and no declared class grew (lint ceiling)
         run: python3 scripts/lint_ceiling.py
+      # 🆕 240 — THE QUEUE, WHICH WAS THE ONE TABLE IN THIS TREE NOTHING READ.
+      # `handoff_gate.py` binds every counter a status block prints to the instrument
+      # that printed it and refuses over one disagreement. It parses the block, the
+      # header and the replay. It has never parsed §6 — and §6 is the list of what this
+      # project intends to do. Measured over 220–239 that list held 20–25 items and never
+      # drained: every session closed the two items the session before it had created and
+      # carried the rest, so the review charter's P0 sat open for thirty-four sessions
+      # while four consecutive handoffs reported closing work.
+      # 🔴 IT IS IN CI RATHER THAN IN THE AUTHORING RITUAL FOR THE REASON 238 §2 GAVE
+      # ABOUT `BLOCK_POPULATION`: `.gitignore` carries `HANDOFF*.md`, so anything that
+      # lives only in a handoff is unreadable on exactly the two machines nobody watches.
+      # The queue is not a record of what one session measured — it is the state of the
+      # project — so it belongs in the tree. ~0.1s, stdlib only. A step, not a job.
+      - name: The queue parser can still refuse (queue gate selftest)
+        run: python3 scripts/queue_gate.py --selftest
+      - name: No item is past the ceiling undecided, no schedule has lapsed, and no
+          session closed only what it invented (queue gate)
+        run: python3 scripts/queue_gate.py
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own
