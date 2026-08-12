@@ -97,6 +97,7 @@ which is that nobody ran the replay in the order the replay is written.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -154,9 +155,15 @@ COUNTER_RE = re.compile(
     r"(?<![\dA-Za-z])(?<![\d][.,])(\d+)(?![\dA-Za-z])(?![.,]\d)"
 )
 
-# The counter line and its continuations. A block's counters begin at the line carrying
-# `VERIFIED` and run to the end of the fence, every continuation starting with `·`.
-VERIFIED_RE = re.compile(r"^\s*(?:[🟢🔴🆕]\s*)?\*{0,2}VERIFIED\b", re.U)
+# 🔴 236 §2 — THE OLD SPELLING OF THIS PATTERN BEGAN `^\s*`, AND 235's OWN BLOCK
+# HIJACKED IT. `counter_atoms` took the FIRST line matching, so a note whose text wrapped
+# onto the word `VERIFIED` — 235 §3's *"the field sits ABOVE the / VERIFIED line"* —
+# opened the counter line eleven lines early: the run swallowed three lines of prose,
+# `724/724` ended up inside an atom that bound to nothing, and `host.suite` was reported
+# DROPPED. The failure is noisy rather than silent, which is why 235 shipped the prose
+# reworded and left the parser alone. The fix is not a better sentence: position is
+# structural, so the anchor is column 0 and `_runs` decides what a line at column 0 is.
+VERIFIED_RE = re.compile(r"^(?:[🟢🔴🆕]\s*)?\*{0,2}VERIFIED\b", re.U)
 
 
 # ── THE ROSTER ────────────────────────────────────────────────────────────────────────
@@ -265,12 +272,14 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
 
     # ── lint_ceiling.py ───────────────────────────────────────────────────────────────
     ("lint.files", r"\blint_?ceiling\b", 1, ("python3", "scripts/lint_ceiling.py"), ROOT,
-     r"^LINT_CEILING pyflakes over (\d+) tracked \.py file", CHEAP, REQUIRED,
-     "🔴 READ OFF THE HEADER LINE, WHICH PRINTS ON A REFUSAL TOO — deliberately. 234 §5 "
-     "found this gate cannot tell `pyflakes` clean from `pyflakes` absent: with the "
-     "module missing it reports `0 finding(s)`, refuses on STALE_CLASS, and offers three "
-     "candidate causes, none of them the real one. The file count is honest either way, "
-     "so this row keeps working while that defect is open, and says so."),
+     r"^LINT_CEILING (?:pyflakes over |files=)(\d+)\b", CHEAP, REQUIRED,
+     "🔴 236 §4 — THIS ROW USED TO READ ONE HEADER LINE AND CLAIM IT PRINTS ON BOTH "
+     "PATHS, IN THE SESSION THAT GAVE THE INSTRUMENT A SECOND ONE. 235 §5 taught "
+     "`lint_ceiling.py` to see an absent `pyflakes` and its refusal prints `LINT_CEILING "
+     "files=16 floor=16` — not the `pyflakes over 16 tracked .py file(s)` this pattern "
+     "was anchored on — so on every machine without the module the counter went UNREAD "
+     "under a reason that pointed at the wrong file. Both spellings are read now, "
+     "because the FILE COUNT is honest on both paths and that is what this row claims."),
 
     # ── the CI surface ────────────────────────────────────────────────────────────────
     ("ci.checks", r"\bCI\b", 1, None, ROOT, "", CHEAP, REQUIRED,
@@ -453,6 +462,9 @@ PROVENANCE: "dict[str, str]" = {
     "npm.tags": REMOTE,     # origin's tag list — NOT `git tag`, which is CLONE and wrong
     "npm.lag": REMOTE,      # registry_lag.py dials npm
     "ci.green": TREE,       # derived from .github/workflows, like `ci.checks`
+    "git.moved": TREE,      # `rev-list a..b` over two SHAs the block itself prints
+    "gh.issues": REMOTE,    # GitHub's tracker — no local question has this answer
+    "gh.prs": REMOTE,
 }
 
 # 🔴 THE TOKENS IN THE HEADER THAT ARE NOT COUNTERS, EACH WITH THE REASON IT IS NOT ONE.
@@ -465,15 +477,18 @@ HEADER_EXEMPT: "list[tuple[str, str]]" = [
                   "breaking visibly"),
     (r"\bPR #\d+\b", "the same number naming the branch's own PR"),
     (r"\bbranch \d+\b", "the session number — this file's own name, not a measurement"),
-    (r"\bMOVED [+-]\d+\b", "commits main moved by, which is a fact about the interval "
-                           "between two sessions and not about either tree. It is "
-                           "checkable and it is not checked here, because the gate runs "
-                           "on ONE tree and this counter needs the previous one"),
-    (r"\b\d+ open (issues|PRs)\b", "a fact about GitHub's issue tracker. `gh` can answer "
-                                   "it and this gate has no reader that does; the row is "
-                                   "here so that absence is a declared one rather than a "
-                                   "counter nobody noticed was unchecked"),
 ]
+
+# 🔴 236 §3 — TWO ROWS LEFT THIS TABLE, AND BOTH REASONS WERE FALSE ABOUT THE BLOCK THEY
+# WERE WRITTEN INTO. `MOVED +n` was exempt because *"the gate runs on ONE tree and this
+# counter needs the previous one"* — and the previous tree's SHA is printed on the main
+# row's own continuation line, two lines above the exemption, in every block since 227.
+# `n open issues` was exempt because *"`gh` can answer it and this gate has no reader
+# that does"*, which is a true sentence about the file and a description of a missing
+# twenty lines rather than of a counter that cannot be read. 235 §25 named the class —
+# *"a reason covering PART of its population reads exactly like a reason covering all of
+# it"* — and this is the same shape once more: an exemption whose reason describes the
+# READER's state, not the counter's nature. Both are read now.
 
 # 🔴 AND THE FIRST DRAFT OF THE PARAGRAPH ABOVE CLAIMED THIS GATE DIALS NOTHING, WHILE
 # THE FUNCTION TWENTY LINES DOWN CALLED `git ls-remote`. That is 234 §4.1 exactly — an
@@ -497,19 +512,76 @@ NETWORK = "NETWORK"
 # continue whichever came last.
 NOTE_RE = re.compile(r"^[🟢🔴🟡🆕]", re.U)
 
+ROW, NOTE, COUNTER = "ROW", "NOTE", "COUNTER"
 
-def header_rows(block: "list[str]") -> "tuple[list[str], list[str]]":
-    """(the labelled rows above VERIFIED, the note lines) — see `NOTE_RE`."""
-    stop = next((i for i, ln in enumerate(block) if VERIFIED_RE.match(ln)), len(block))
-    rows: "list[str]" = []
-    notes: "list[str]" = []
-    in_note = False
-    for line in block[:stop]:
+
+def _split_atoms(lines: "list[str]") -> "list[str]":
+    """The `·`-separated atoms of a run, with its VERIFIED marker removed."""
+    joined = re.sub(r"^\s*(?:[🟢🔴🆕]\s*)?\*{0,2}VERIFIED(?:\s+AFTER\s+THE\s+CHANGE)?\*{0,2}",
+                    "", " ".join(lines), flags=re.U)
+    return [a for a in (x.strip(" *`") for x in joined.split("·")) if a]
+
+
+def _runs(block: "list[str]") -> "list[tuple[str, list[str]]]":
+    """[(kind, lines)] — the block split into runs, structurally and with no vocabulary.
+
+    🔴 235 NEXT 3 — ONE CLASSIFICATION, READ BY BOTH HALVES. 235 built the note/row split
+    for the header and left `counter_atoms` scanning for the first line matching
+    `VERIFIED_RE` anywhere, so the two halves disagreed about where the header ended: a
+    prose line that WRAPPED onto the word `VERIFIED` opened the counter line inside a
+    note, and the same block was parsed one way above and another way below. There is
+    only one rule now and it is about position: a line at column 0 OPENS a run — COUNTER
+    if the marker is there rather than merely mentioned, NOTE if it opens with a verdict
+    emoji, ROW otherwise — and an INDENTED line continues whatever run came last.
+    """
+    runs: "list[tuple[str, list[str]]]" = []
+    for line in block:
         if not line.strip():
             continue
-        if line[:1] not in (" ", "\t"):
-            in_note = bool(NOTE_RE.match(line.strip()))
-        (notes if in_note else rows).append(line)
+        if line[:1] in (" ", "\t") and runs:
+            runs[-1][1].append(line)
+            continue
+        kind = (COUNTER if VERIFIED_RE.match(line)
+                else NOTE if NOTE_RE.match(line) else ROW)
+        runs.append((kind, [line]))
+    return runs
+
+
+def counter_run(block: "list[str]") -> "tuple[list[str], str]":
+    """(the counter line and its continuations, problem) — exactly one is empty.
+
+    🔴 A CANDIDATE THAT CARRIES NO COUNTERS IS NOT THE COUNTER LINE, and two that do is
+    an ambiguity this file refuses rather than resolves — `bind`'s rule, one level up.
+    Taking the first would be the same defect the position rule just fixed, arriving
+    through a different door.
+    """
+    live = [(kind, lines) for kind, lines in _runs(block) if kind == COUNTER
+            and any(COUNTER_RE.search(a) for a in _split_atoms(lines))]
+    if not live:
+        opened = [ln for kind, lines in _runs(block) if kind == COUNTER
+                  for ln in lines[:1]]
+        if opened:
+            return ([], f"the VERIFIED line carries no counters at all: {opened[0]!r} — "
+                        f"a block whose counter line is empty is claiming nothing, and a "
+                        f"parser that returned zero atoms here would agree with it")
+        return ([], "no VERIFIED line in the status block — every block since 227 carries "
+                    "one and a session that dropped it would be reporting nothing while "
+                    "this reader reported no disagreements")
+    if len(live) > 1:
+        return ([], f"{len(live)} lines in this block open a counter run "
+                    f"({', '.join(ln[0][:40] for _k, ln in live)}) — a parser that took "
+                    f"the first would read half the claims and call the block checked")
+    return (live[0][1], "")
+
+
+def header_rows(block: "list[str]") -> "tuple[list[str], list[str]]":
+    """(the labelled rows above the counter line, the note lines) — see `_runs`."""
+    rows: "list[str]" = []
+    notes: "list[str]" = []
+    for kind, lines in _runs(block):
+        if kind == COUNTER:
+            break
+        (notes if kind == NOTE else rows).extend(lines)
     return (rows, notes)
 
 
@@ -572,6 +644,74 @@ def origin_tags(root: Path = ROOT) -> "tuple[int, list[str], str]":
     return (len(remote), only_here, "")
 
 
+# 🔴 A HEX RUN WITH NO DIGIT IN IT IS AN ENGLISH WORD. `deadbeef`, `facade`, `decade` and
+# `added` are all `[0-9a-f]+`, and the main row is a SHA followed by a commit subject —
+# so the second "SHA" a bare hex pattern finds is whichever word of the subject line
+# happens to be spelled in hex. The digit is what makes it an identifier; a real short
+# SHA with no digit at all is one run in seventy thousand, and it fails LOUDLY here (the
+# row reads as carrying one endpoint) rather than quietly comparing the wrong interval.
+SHA_RE = re.compile(r"\b(?=[0-9a-f]{7,40}\b)[0-9a-f]*\d[0-9a-f]*\b")
+
+
+def moved_interval(block: "list[str]", root: Path = ROOT) -> "tuple[int, str]":
+    """(commits between the two SHAs on the main row, problem) — TREE, offline.
+
+    🔴 235 NEXT 6 SAID THIS COUNTER NEEDS THE PREVIOUS TREE AND THE GATE HAS ONE TREE.
+    Both halves are true and the conclusion was not: the interval's other endpoint is
+    printed by the block itself, on the main row's continuation line, because every
+    block since 227 lists the commit main moved FROM directly under the one it moved TO.
+    A clone holds both objects, so `rev-list old..new` answers it with no network, no
+    previous handoff, and no second checkout — and the exemption was standing in for a
+    reader nobody had tried to write.
+    """
+    run = next((lines for kind, lines in _runs(block)
+                if kind == ROW and lines[0].startswith("main")), None)
+    if run is None:
+        return (-1, "no `main` row in this block")
+    shas = [s for ln in run for s in SHA_RE.findall(ln)]
+    if len(shas) < 2:
+        return (-1, f"the main row carries {len(shas)} SHA(s) and an interval needs two "
+                    f"— the commit main moved TO, and the one it moved FROM on the "
+                    f"continuation line under it")
+    new, old = shas[0], shas[1]
+    p = subprocess.run(("git", "rev-list", "--count", f"{old}..{new}"),
+                       cwd=root, capture_output=True, text=True)
+    if p.returncode != 0:
+        return (-1, f"`git rev-list {old}..{new}` exited {p.returncode}: "
+                    f"{(p.stderr or '').strip()[:120]} — this checkout does not hold "
+                    f"both commits, which is a fact about the clone and not about the "
+                    f"claim")
+    return (int(p.stdout.strip() or 0), "")
+
+
+def gh_open(kind: str, root: Path = ROOT) -> "tuple[int, str]":
+    """(open issues or PRs on origin, problem) — NETWORK.
+
+    🔴 AN ABSENT TOOL IS NOT A ZERO, AND THAT IS THIS SESSION'S OTHER FINDING (236 §4).
+    235 §5 taught `lint_ceiling.py` that `pyflakes` missing and a clean tree are
+    different observations; a reader that shelled out to `gh` and read the length of an
+    empty parse would make exactly that mistake on the counter whose correct value is
+    almost always 0. Every failure path here returns a problem, and a problem prints
+    UNREAD rather than agreeing with the block.
+    """
+    try:
+        p = subprocess.run(("gh", kind, "list", "--state", "open", "--json", "number",
+                            "-L", "200"), cwd=root, capture_output=True, text=True,
+                           timeout=60)
+    except FileNotFoundError:
+        return (-1, "`gh` is not installed for this run — the tool never ran, which is "
+                    "not the same observation as zero open items")
+    except (OSError, subprocess.SubprocessError) as e:
+        return (-1, f"`gh {kind} list` could not run: {e}")
+    if p.returncode != 0:
+        first = next((ln for ln in (p.stderr or p.stdout).split("\n") if ln.strip()), "")
+        return (-1, f"`gh {kind} list` exited {p.returncode}: {first.strip()[:160]}")
+    try:
+        return (len(json.loads(p.stdout or "[]")), "")
+    except ValueError as e:
+        return (-1, f"`gh {kind} list --json` did not return JSON: {e}")
+
+
 # (key, alias, n, extract-from-log, reason). The header's roster is separate from
 # `COUNTER_READERS` on purpose: these counters are not read off an instrument's stdout in
 # the same way, they have different provenance, and folding them in would have put CLONE
@@ -592,6 +732,19 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
      "`26/26 green` on the branch line is the same derivation `ci.checks` already does "
      "for the VERIFIED line's `26 CI jobs`, restated as a ratio — so it is checked "
      "against the same reader, and both halves must equal it."),
+    ("git.moved", r"\bMOVED\b", 1, "",
+     "🆕 `MOVED +1` — commits between the SHA main moved FROM and the one it moved TO, "
+     "both of which the block prints on the main row. It was exempt until 236 for a "
+     "reason that described the gate rather than the counter; `rev-list old..new` is "
+     "TREE, offline, and the same number in every clone."),
+    ("gh.issues", r"\bopen issues\b", 1, r"^GH_OPEN_ISSUES (\d+)$",
+     "🆕 `0 open issues` — NETWORK, `gh issue list --state open`. A counter whose "
+     "correct value is almost always zero is the one an absent tool imitates perfectly, "
+     "so every failure path prints UNREAD with the reason rather than a number."),
+    ("gh.prs", r"\bopen PRs\b", 1, r"^GH_OPEN_PRS (\d+)$",
+     "🆕 `0 open PRs` — the same reader against `gh pr list`. Separate row rather than a "
+     "pair in one, because the block prints them as two atoms and a reader that read "
+     "both from one call would report a disagreement in whichever field came first."),
 ]
 
 HEADER_FLOOR = 2   # governed by floor_pin_gate's SIZE_LEDGER
@@ -624,6 +777,23 @@ def check_header(block: "list[str]", log: str, run_network: bool
         if key == "ci.green":
             total, _skipped = ci_check_runs()
             got = (total, total)
+        elif key == "git.moved":
+            n_moved, prob = moved_interval(block)
+            if prob:
+                notes.append(f"git.moved: UNREAD — {prob}")
+                continue
+            got = (n_moved,)
+        elif key in ("gh.issues", "gh.prs"):
+            # NETWORK, and the log is read FIRST so a session that already ran `gh` does
+            # not have to dial again — the same shape `npm.tags` uses for ORIGIN_TAGS.
+            if extract and log and (m := re.search(extract, log, re.M)) is not None:
+                got = tuple(int(g) for g in m.groups())
+            elif run_network:
+                n_open, prob = gh_open("issue" if key == "gh.issues" else "pr")
+                if prob:
+                    notes.append(f"{key}: UNREAD — {prob}")
+                    continue
+                got = (n_open,)
         elif key == "npm.tags":
             # 🔴 NETWORK, AND UNREAD IS NOT GREEN. The clone's count is reported beside
             # it because the difference IS the finding, but it is never the comparison.
@@ -651,6 +821,10 @@ def check_header(block: "list[str]", log: str, run_network: bool
                 unread = (f"pass --network, or supply `ORIGIN_TAGS <n>` in the measured "
                           f"log. This checkout reads {clone_tags()} and that is a fact "
                           f"about the checkout, not the claim on the npm line")
+            elif key in ("gh.issues", "gh.prs"):
+                unread = (f"pass --network to ask `gh`, or supply "
+                          f"`{'GH_OPEN_ISSUES' if key == 'gh.issues' else 'GH_OPEN_PRS'}"
+                          f" <n>` in the measured log. Nothing in the tree answers it")
             else:
                 unread = "no --measured log carries it"
             notes.append(f"{key}: UNREAD — {unread}")
@@ -675,6 +849,84 @@ def check_header(block: "list[str]", log: str, run_network: bool
     return (problems, notes, len(atoms), compared)
 
 
+# ── 🔴 236 §1 — THE REPLAY, WHICH IS A CLAIM ABOUT A PROCEDURE ────────────────────────
+#
+# 235 §24: *"an instrument that works is not an instrument that runs … ask of every
+# instrument: has anyone executed the procedure as written, rather than a procedure that
+# resembles it?"* — written one section above a replay that cannot be executed as
+# written. 235 §8.1 prints `npm test | tail -20 > run.log`, then runs the three MUTATING
+# gates to the TERMINAL, then `handoff_gate.py --measured run.log`. Ten of the block's
+# counters come only from those three, `run.log` cannot carry them, and the last command
+# of the printed ritual refuses with ten UNMEASURED. Verified by running it: the refusal
+# is this session's first output.
+#
+# So the same fix as §1's, one document out. The finding is not that 235 was careless —
+# it caught this exact class in 234 and wrote the paragraph about it — but that a replay
+# is PROSE, and prose about what a procedure does goes stale silently while the tree
+# beside it is checked in both directions. This is the replay, checked: every counter the
+# roster can only get from a log has to reach that log, and the file the gate is told to
+# read has to be the file the ritual wrote.
+REPLAY_MEASURED_RE = re.compile(r"handoff_gate\.py[^\n]*?--measured\s+(\S+)")
+
+
+def replay_problems(text: str) -> "tuple[list[str], list[str]]":
+    """(problems, notes) for the handoff's own replay block."""
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    hits = REPLAY_MEASURED_RE.findall(text)
+    if not hits:
+        if "handoff_gate.py" in text:
+            notes.append("replay: the document runs `handoff_gate.py` with no "
+                         "`--measured`, so every MUTATING counter it claims is UNREAD")
+        else:
+            notes.append("replay: this document prints no `handoff_gate.py` invocation — "
+                         "a handoff nobody runs the gate against is unchecked, and the "
+                         "next session cannot tell which it is")
+        return (problems, notes)
+    log = hits[-1].strip("`'\"")
+    base = log.rsplit("/", 1)[-1]
+    lines = [ln for ln in text.split("\n") if base in ln]
+
+    for key, _alias, _n, cmd, _cwd, _ex, cost, _need, _why in COUNTER_READERS:
+        if cost not in (MUTATING, SLOW) or cmd is None:
+            continue
+        token = next((c.rsplit("/", 1)[-1] for c in reversed(cmd)
+                      if c.endswith((".py", ".mjs"))), " ".join(cmd))
+        printed = [ln for ln in text.split("\n")
+                   if token in ln and "handoff_gate.py" not in ln]
+        if not printed:
+            problems.append(
+                f"🔴 REPLAY — `{key}` is {cost}: this gate never runs it, and the replay "
+                f"does not run it either. The block's counter came from somewhere the "
+                f"document does not print, which is a procedure nobody can repeat.")
+        elif not any(base in ln for ln in printed):
+            problems.append(
+                f"🔴 REPLAY — `{key}` is {cost} and its counter can ONLY come from "
+                f"`--measured {log}`, but every line running `{token}` sends its output "
+                f"to the terminal. Run as written, the last command of this replay "
+                f"refuses with `{key}` UNMEASURED. Route it into {base} "
+                f"(`| tee -a {base}`, or `>> {base}`).")
+
+    # 🔴 THE FIRST WRITE MAY TRUNCATE AND NO LATER ONE MAY, and the index that matters is
+    # among the lines that ROUTE — 235's §1 discusses `--measured run.log` in prose three
+    # sections above the replay, and a rule counting raw mentions would have called the
+    # replay's own first redirect a clobber of a sentence.
+    routing = [i for i, ln in enumerate(lines)
+               if re.search(rf">>?\s*\S*{re.escape(base)}", ln)
+               or re.search(rf"\btee\s+(?:-a\s+)?\S*{re.escape(base)}", ln)]
+    truncating = [i for i, ln in enumerate(lines)
+                  if re.search(rf">(?!>)\s*\S*{re.escape(base)}", ln)
+                  or re.search(rf"\btee\s+(?!-a)\S*{re.escape(base)}", ln)]
+    late = [i for i in truncating if routing and i != routing[0]]
+    if late:
+        problems.append(
+            f"🔴 REPLAY — {base} is TRUNCATED by a later line ({lines[late[0]].strip()[:70]!r}) "
+            f"after an earlier line had already written to it. Everything captured "
+            f"before it is gone by the time the gate reads the file, and the counters it "
+            f"carried go UNMEASURED with no sign that they were ever measured.")
+    return (problems, notes)
+
+
 # ── THE PARSER ────────────────────────────────────────────────────────────────────────
 
 def status_block(text: str) -> "tuple[list[str], str]":
@@ -692,17 +944,11 @@ def status_block(text: str) -> "tuple[list[str], str]":
 
 
 def counter_atoms(block: "list[str]") -> "tuple[list[str], str]":
-    """(the `·`-separated atoms of the VERIFIED line and its continuations, problem)."""
-    start = next((i for i, ln in enumerate(block) if VERIFIED_RE.match(ln)), None)
-    if start is None:
-        return ([], "no VERIFIED line in the status block — every block since 227 carries "
-                    "one and a session that dropped it would be reporting nothing while "
-                    "this reader reported no disagreements")
-    joined = " ".join(block[start:])
-    joined = re.sub(r"^\s*(?:[🟢🔴🆕]\s*)?\*{0,2}VERIFIED(?:\s+AFTER\s+THE\s+CHANGE)?\*{0,2}",
-                    "", joined, flags=re.U)
-    atoms = [a.strip(" *`") for a in joined.split("·")]
-    return ([a for a in atoms if a and COUNTER_RE.search(a)], "")
+    """(the `·`-separated atoms of the counter line and its continuations, problem)."""
+    lines, why = counter_run(block)
+    if why:
+        return ([], why)
+    return ([a for a in _split_atoms(lines) if COUNTER_RE.search(a)], "")
 
 
 def bind(atom: str) -> "tuple[str, str]":
@@ -736,7 +982,7 @@ def measure(keys: "set[str]", log: str, run_cheap: bool, run_slow: bool, run_loc
     out: "dict[str, tuple[int, ...]]" = {}
     unmeasured: "list[str]" = []
     notes: "list[str]" = []
-    cache: "dict[tuple[str, ...], str]" = {}
+    cache: "dict[tuple[str, ...], tuple[int, str]]" = {}
     for key, _alias, n, cmd, cwd, extract, cost, _need, _why in COUNTER_READERS:
         if key not in keys:
             continue
@@ -754,12 +1000,31 @@ def measure(keys: "set[str]", log: str, run_cheap: bool, run_slow: bool, run_loc
                 notes.append(f"{key}: running `{' '.join(cmd)}` — LOCKED, it takes "
                              f"`_gate_lock` and restores the tree on every exit path")
             if cmd not in cache:
-                p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-                cache[cmd] = p.stdout + p.stderr
-            m = re.search(extract, cache[cmd], re.M | re.S)
+                try:
+                    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+                    cache[cmd] = (p.returncode, p.stdout + p.stderr)
+                except FileNotFoundError as e:
+                    cache[cmd] = (-1, f"{e}")
+            rc, printed = cache[cmd]
+            m = re.search(extract, printed, re.M | re.S)
             if m is None:
-                notes.append(f"{key}: ran `{' '.join(cmd)}` and its pattern matched "
-                             f"nothing — the instrument's own line moved")
+                # 🔴 236 §4 — "THE INSTRUMENT'S OWN LINE MOVED" IS ONE CAUSE OF THREE AND
+                # THIS READER USED TO PRINT IT FOR ALL OF THEM. The exit code was thrown
+                # away, so an instrument that REFUSED — `lint_ceiling.py` on a machine
+                # with no `pyflakes`, which is every fresh container 235's own practice
+                # moves the gates into — was reported as a pattern that no longer
+                # matches. That is 235 §5's defect exactly, one file out: a refusal with
+                # a plausible reason that is not the live one, printed by the reader
+                # written to catch it. The verdict was always right; only the reason was
+                # wrong, and a wrong reason is what sends the next session to the wrong
+                # file.
+                first = next((ln for ln in printed.split("\n")
+                              if ln.strip() and not ln.startswith(" ")), "")
+                notes.append(
+                    f"{key}: ran `{' '.join(cmd)}` and its pattern matched nothing — "
+                    + ("the instrument's own line moved (it exited 0)" if rc == 0 else
+                       f"IT EXITED {rc}, so this is a REFUSAL and not a moved line. "
+                       f"First line: {first.strip()[:160]!r}"))
         if m is None:
             unmeasured.append(key)
             continue
@@ -775,12 +1040,15 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
           ) -> "tuple[list[str], list[str], int, int, int, int]":
     """(problems, notes, atoms read, compared, header atoms, header compared)."""
     problems: "list[str]" = []
-    block, why = status_block(handoff.read_text(encoding="utf-8"))
+    text = handoff.read_text(encoding="utf-8")
+    block, why = status_block(text)
     if why:
         return ([f"🔴 {why}"], [], 0, 0, 0, 0)
     atoms, why = counter_atoms(block)
     if why:
         return ([f"🔴 {why}"], [], 0, 0, 0, 0)
+    r_problems, r_notes = replay_problems(text)
+    problems.extend(r_problems)
 
     h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network)
     problems.extend(h_problems)
@@ -828,7 +1096,8 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     if len(COUNTER_READERS) < READER_FLOOR:
         problems.append(f"🔴 READER_FLOOR — {len(COUNTER_READERS)} reader(s), floor "
                         f"{READER_FLOOR}.")
-    return (problems, notes + h_notes, len(atoms), compared, h_atoms, h_compared)
+    return (problems, notes + h_notes + r_notes, len(atoms), compared, h_atoms,
+            h_compared)
 
 
 # ── THE SELF-TEST ─────────────────────────────────────────────────────────────────────
@@ -982,6 +1251,68 @@ REAL_HEADER = """> ```
 """
 
 
+# 🔴 235's OWN HEADER, WITH §3's NOTE AS IT WAS FIRST WRITTEN — the input that hijacked
+# the parser, kept verbatim rather than reworded, because 235 shipped the PROSE changed
+# and the reader unchanged and said so: *"the fix is structural and this session already
+# built half of it … the prose was reworded to ship."* A fixture that used the reworded
+# sentence would assert nothing.
+HIJACK_HEADER = """> ```
+> main                 7d6e9bf — the log the reader could not finish (#289)       MOVED +1
+>                      bcc0b85 — the table that read itself back (#288)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 115 · 0 open issues · 0 open PRs
+> 🔴 `tags 121` WAS THE EXCEPTION AND NOTHING COULD SEE IT — the field sits ABOVE the
+>    VERIFIED line, and the reader started at it. Origin holds 115; six tags were
+>    never pushed.
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · floor_pin 92 · 40 governed · 820 keys · 25 shortfalls
+> ```
+"""
+
+# 🔴 235 §8.1's REPLAY, VERBATIM, AND IT IS THE NEGATIVE CONTROL. Every line is real and
+# the block is captioned *"Replay, verified against the committed tree"*. Run in the
+# order it prints, its last command refuses: `run.log` holds twenty lines of `npm test`
+# and the three MUTATING gates above it printed to the terminal. Like `HISTORY_PINS`,
+# this is an input nobody could tune to pass — it is already written down, and what it
+# does is already known.
+REAL_REPLAY = """```bash
+cd host && npm ci --include=dev && npm run build
+npm test | tail -20 > run.log                        # -> 724/724
+
+python3 ../scripts/handoff_gate.py --selftest        # -> 133/133 claims, 0 failed
+python3 ../scripts/contract_check.py         # -> ALL HARD CHECKS PASSED (23/23)
+
+# the mutating three — one at a time (178 §11.4), in the CONTAINER
+python3 ../scripts/instrument_gate.py   # -> instruments=13 · LATE_LIVE 13/8 · CRASHED 0/0
+python3 ../scripts/scope_gate.py        # -> 25 enumerator(s)
+python3 ../scripts/control_gate.py      # -> 59 control(s) · BLIND 34
+
+# and the block above, read back off the instruments that printed it
+python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION235.md --measured run.log --network
+```
+"""
+
+# The same ritual with the output routed where the gate is told to read it.
+FIXED_REPLAY = """```bash
+npm test | tail -20 > run.log                        # -> 724/724
+python3 ../scripts/instrument_gate.py   | tee -a run.log
+python3 ../scripts/scope_gate.py        | tee -a run.log
+python3 ../scripts/control_gate.py      | tee -a run.log
+python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION236.md --measured run.log --network
+```
+"""
+
+# 🔴 `lint_ceiling.py`'s TWO HEADER LINES, CAPTURED FROM THE TWO RUNS. Same tree, same
+# command, same counter — one machine has `pyflakes` and one does not. 235 gave the
+# instrument the second spelling and told this file's roster the header was unchanged.
+LINT_HEADERS: "list[tuple[str, str]]" = [
+    ("LINT_CEILING pyflakes over 16 tracked .py file(s) · floor 16 · 6 finding(s) in "
+     "2 class(es) · 2 declared", "the module is installed"),
+    ("LINT_CEILING files=16 floor=16", "🔴 THE REFUSAL PATH — 235 §5's own output, which "
+     "the shipped pattern could not read, on every machine without pyflakes"),
+]
+
+
 def selftest() -> int:
     claims = failed = 0
 
@@ -1077,10 +1408,20 @@ def selftest() -> int:
     got_keys = sorted(
         next((r[0] for r in HEADER_READERS if re.search(r[1], cleaned, re.I)), f"?{raw}")
         for raw, cleaned in h_atoms)
-    if got_keys != ["ci.green", "npm.lag", "npm.tags"]:
+    if got_keys != ["ci.green", "gh.issues", "gh.prs", "git.moved", "npm.lag", "npm.tags"]:
         failed += 1
-        print(f"  🔴 HEADER_BIND {got_keys}, pinned ['ci.green', 'npm.lag', 'npm.tags'] "
-              f"— atoms {h_atoms}")
+        print(f"  🔴 HEADER_BIND {got_keys}, pinned ['ci.green', 'gh.issues', 'gh.prs', "
+              f"'git.moved', 'npm.lag', 'npm.tags'] — atoms {h_atoms}")
+
+    # 🔴 AND THE HEADER'S ALIASES MUST BE MUTUALLY EXCLUSIVE, which `check_header` does
+    # assert on every run and nothing pinned until 236 widened the roster from three rows
+    # to six. `MOVED` and `unmoved`, `open issues` and `open PRs` are one edit apart.
+    for raw, cleaned in h_atoms:
+        claims += 1
+        hits = [k for k, alias, *_ in HEADER_READERS if re.search(alias, cleaned, re.I)]
+        if len(hits) != 1:
+            failed += 1
+            print(f"  🔴 HEADER_AMBIGUOUS {raw!r} -> {hits}")
 
     # 🔴 THE COUNTER THE COMPARISON READS IS THE CLEANED ONE. `PR #288 MERGED, 26/26
     # green` carries three numerals; an exempt table that ran on the ATOM and a
@@ -1207,6 +1548,113 @@ def selftest() -> int:
         print(f"  🔴 READER_FLOOR {READER_FLOOR} is not in "
               f"({len(COUNTER_READERS) - family}, {len(COUNTER_READERS)}] — the lower "
               f"bound is the roster with its largest family ({family} rows) deleted")
+
+    # ── 🔴 235 NEXT 3 — THE NOTE THAT HIJACKED THE COUNTER LINE ───────────────────────
+    hij, _hw = status_block(HIJACK_HEADER)
+    hij_atoms, hij_why = counter_atoms(hij)
+    hij_rows, hij_notes = header_rows(hij)
+
+    claims += 1
+    if hij_why or len(hij_atoms) != 8 or bind(hij_atoms[0])[0] != "host.suite":
+        failed += 1
+        print(f"  🔴 HIJACK {hij_why or f'{len(hij_atoms)} atom(s), pinned 8'} — a prose "
+              f"line wrapping onto the word VERIFIED opened the counter line early, "
+              f"swallowed three lines of notes into the first atom and reported "
+              f"`host.suite` DROPPED: {hij_atoms[:2]}")
+
+    # the other half of the same defect: the header scan stopped at the hijacked line, so
+    # the npm row above the REAL counter line went unread on a block that carried it
+    claims += 1
+    if len(hij_rows) != 4 or len(hij_notes) != 3 or not any("npm" in r for r in hij_rows):
+        failed += 1
+        print(f"  🔴 HIJACK_HEADER {len(hij_rows)} row(s)/{len(hij_notes)} note(s), "
+              f"pinned 4/3 — rows {hij_rows}")
+
+    # 🔴 AMBIGUITY IS REFUSED HERE TOO. Two counter runs in one block is a session that
+    # pasted a second block; taking the first would read half the claims and call it done.
+    claims += 1
+    _a, two_why = counter_atoms(["🟢 VERIFIED   724/724 · scope 25",
+                                 "🟢 VERIFIED AFTER THE CHANGE   contract 23/23"])
+    claims += 1
+    _b, empty_why = counter_atoms(["🟢 VERIFIED AFTER THE CHANGE", "main   c27953d"])
+    if not two_why:
+        failed += 1
+        print("  🔴 TWO_COUNTER_LINES a block with two counter runs returned no problem")
+    if not empty_why:
+        failed += 1
+        print("  🔴 EMPTY_COUNTER_LINE a VERIFIED line carrying no counters returned no "
+              "problem — a parse of nothing agrees with everything")
+
+    # ── 🔴 235 NEXT 6 — THE INTERVAL, AGAINST THE REAL COMMITS ────────────────────────
+    #
+    # 234's header names bcc0b85 and c27953d and claims `MOVED +1`; both are in this
+    # repository and `rev-list` answers 1. The exemption said this needed the previous
+    # tree. It needed the previous SHA, which the block prints.
+    claims += 1
+    got_moved, moved_why = moved_interval(real_block)
+    if moved_why or got_moved != 1:
+        failed += 1
+        print(f"  🔴 MOVED_REAL {moved_why or got_moved}, pinned 1 — 234's header names "
+              f"both endpoints and this clone holds both commits")
+
+    # 🔴 AND THE SUBJECT LINE MUST NOT SUPPLY THE SECOND ENDPOINT. A commit subject is
+    # English, and English contains hex: a bare `[0-9a-f]{7,40}` reads `deadbeef` out of
+    # the very sentence that names the commit, then compares an interval between a SHA
+    # and a word.
+    claims += 1
+    decoy = ["main   7d6e9bf — the deadbeef the facade decade added (#289)   MOVED +1"]
+    if SHA_RE.findall(decoy[0]) != ["7d6e9bf"]:
+        failed += 1
+        print(f"  🔴 SHA_WORDS {SHA_RE.findall(decoy[0])}, pinned ['7d6e9bf'] — a hex run "
+              f"with no digit is a word, and the main row's second one decides `MOVED`")
+
+    # and a main row with ONE sha is UNREAD rather than a number invented from one end
+    claims += 1
+    one_end, one_why = moved_interval(status_block(REAL_BLOCK)[0])
+    if not one_why or one_end != -1:
+        failed += 1
+        print(f"  🔴 MOVED_ONE_END {one_end}/{one_why!r} — 233's header prints a single "
+              f"SHA on the main row and an interval needs two")
+
+    # ── 🔴 236 §4 — BOTH OF `lint_ceiling.py`'s HEADER LINES ──────────────────────────
+    lint_extract = next(r[5] for r in COUNTER_READERS if r[0] == "lint.files")
+    for header, why in LINT_HEADERS:
+        claims += 1
+        m = re.search(lint_extract, header, re.M | re.S)
+        if m is None or m.groups() != ("16",):
+            failed += 1
+            print(f"  🔴 LINT_HEADER {header[:44]!r} -> "
+                  f"{m.groups() if m else None}, pinned ('16',) — {why}")
+
+    # ── 🔴 236 §1 — THE REPLAY THAT COULD NOT BE RUN AS WRITTEN ───────────────────────
+    claims += 1
+    real_problems, _rn = replay_problems(REAL_REPLAY)
+    hit_keys = {k for k in ("scope.enumerators", "control.controls", "instrument.across")
+                if any(f"`{k}`" in p for p in real_problems)}
+    if hit_keys != {"scope.enumerators", "control.controls", "instrument.across"}:
+        failed += 1
+        print(f"  🔴 REPLAY_REAL 235 §8.1's replay produced {len(real_problems)} "
+              f"problem(s) naming {sorted(hit_keys)} — it prints the three MUTATING "
+              f"gates to the terminal and then tells the gate to read run.log")
+
+    claims += 1
+    fixed_problems, _fn = replay_problems(FIXED_REPLAY)
+    if fixed_problems:
+        failed += 1
+        print(f"  🔴 REPLAY_FIXED a replay that routes every MUTATING gate into the "
+              f"measured log still refused: {fixed_problems}")
+
+    # 🔴 AND THE TRUNCATING REDIRECT, which is the same defect with the right commands in
+    # the wrong order — everything captured before it is gone when the gate reads it.
+    claims += 1
+    clobber = FIXED_REPLAY.replace(
+        "python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION236.md",
+        "npm test | tail -20 > run.log\npython3 ../scripts/handoff_gate.py "
+        "../HANDOFF_SESSION236.md")
+    if not any("TRUNCATED" in p for p in replay_problems(clobber)[0]):
+        failed += 1
+        print("  🔴 REPLAY_TRUNCATE a second `> run.log` after the appends was not "
+              "refused — it deletes measurements that were really taken")
 
     # 🔴 THE HISTORY CONTROL
     for sess, claimed, actual, why in HISTORY_PINS:
