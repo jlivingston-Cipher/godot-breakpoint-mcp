@@ -181,6 +181,11 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # zeroed. 184 §7: pinning the key is not pinning the value.
     ("handoff.CLAIM_FLOOR",     "../scripts/handoff_gate.py",       r"(CLAIM_FLOOR = )15",                                       ["../scripts/handoff_gate.py", "--selftest"]),
     ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )24",                                      ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 235 §3 — the HEADER half's parse, pinned the same way and for the same reason:
+    # `counter_atoms` starts at `VERIFIED`, so the four labelled rows above it went
+    # unread while this file's own `NUMERAL_PINS` carried a fixture for the npm line. A
+    # header parse that stops matching reads zero atoms and agrees with `tags 121`.
+    ("handoff.HEADER_FLOOR",    "../scripts/handoff_gate.py",       r"(HEADER_FLOOR = )2",                                       ["../scripts/handoff_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1101,6 +1106,18 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
         "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one.")),
+    ("../scripts/handoff_gate.py", "HEADER_FLOOR"): (2, (
+        "🆕 235 §3 — the counter-bearing atoms the block's LABELLED ROWS must yield, at "
+        "`{FLOOR}`. It is small because the header is small: every block in this series "
+        "puts `lag` and `tags` on one npm line and nothing else there is a counter, so "
+        "`{FLOOR}` is the whole population and not a margin. Both bounds are real "
+        "parses, like "
+        "`CLAIM_FLOOR`'s — `--selftest` reads 234's header verbatim (three atoms, seven "
+        "lines of prose it must NOT read) and a header stripped to its version row "
+        "(none), and asserts the floor admits the first and refuses the second. It moves "
+        "when the header gains or loses a row, which is a session changing the block's "
+        "SHAPE rather than its numbers — the one change this reader could not otherwise "
+        "tell from a parser that stopped matching.")),
     ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (16, (
         "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
         "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
