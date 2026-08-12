@@ -117,6 +117,11 @@ HOST = ROOT / "host"
 # is `CLAIM_FLOOR`; `READER_FLOOR` is here because a roster silently shrinking would make
 # the DROPPED-counter direction unenforceable without making anything red.
 CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
+# 🔴 238 §2 — THE DISTINCT ATOM SPELLINGS THE ELEVEN REAL BLOCKS CARRY. It floors the
+# alias walk from BELOW, because `ALIAS_POPULATION` and `ALIAS_UNUSED` both go green on a
+# population that stopped parsing and this one does not. 71 today; the value is the
+# measurement and it only ever goes up, because the blocks it counts are already written.
+ALIAS_SPELLING_FLOOR = 71
 READER_FLOOR = 24        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
@@ -563,11 +568,30 @@ PROVENANCE: "dict[str, str]" = {
 # This is the table 234's excluding paragraph was standing in for, and unlike a paragraph
 # it goes stale loudly: `HEADER_EXEMPT_UNUSED` refuses a row that matched nothing across
 # the real blocks the self-test walks.
+#
+# 🔴 238 §2 — AND THE FIRST TWO ROWS WERE ONE ROW WRITTEN TWICE, NARROWLY, AND THE GAP
+# BETWEEN THEM REFUSED A CORRECT BLOCK. They were `\(#\d+\)` — *"a PR number in a commit
+# subject"* — and `\bPR #\d+\b` — *"the same number naming the branch's own PR"*: two
+# spellings of the ONE place each was observed, in the blocks that were in front of the
+# author. 231's branch row cites a SECOND PR by bare number — `PR #285 OPEN, based on
+# #284 (stacked)` — and `284` is in neither shape, so it survived the table, bound to no
+# header reader, and 231 was refused as an UNREADABLE HEADER CLAIM on a row that was
+# right. The exemption that covers all three is a property of the COUNTER and not of the
+# sentence around it: a `#`-prefixed number is assigned by GitHub, nothing in this tree
+# prints one, and no counter this half reads is ever spelled with a `#`.
 HEADER_EXEMPT: "list[tuple[str, str]]" = [
-    (r"\(#\d+\)", "a PR number in a commit subject — GitHub assigns it, no instrument "
-                  "prints it, and a session cannot restate it wrongly without the link "
-                  "breaking visibly"),
-    (r"\bPR #\d+\b", "the same number naming the branch's own PR"),
+    (r"#\d+", "🔴 A `#`-PREFIXED NUMBER, ANYWHERE IN A ROW. GitHub assigns it, no "
+              "instrument prints it, and a session cannot restate it wrongly without the "
+              "link breaking visibly. It replaces the two narrower spellings this table "
+              "shipped with — `\\(#\\d+\\)` for the commit subject and `\\bPR #\\d+\\b` "
+              "for the branch row — which between them covered every citation the author "
+              "had in front of them and none of the one 231 wrote four sessions earlier."),
+    (r"\b\d+'s\b", "🔴 A POSSESSIVE NUMERAL IS A CITATION OF ANOTHER SESSION, NOT A "
+                   "COUNT. 231's `PR #284 OPEN (230's Owed item, cleared)` names session "
+                   "230 inside a LABELLED ROW, which is 235 §3's note-line problem one "
+                   "row up: prose that cites another session's work, in a line the "
+                   "comparison reads as claims about this one. No counter this half "
+                   "reads is ever possessive."),
     (r"\bbranch \d+\b", "the session number — this file's own name, not a measurement"),
 ]
 
@@ -842,6 +866,64 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
 HEADER_FLOOR = 2   # governed by floor_pin_gate's SIZE_LEDGER
 
 
+# ── 🔴 238 §2 — TWO CLAIMS THE BLOCK WROTE WITHOUT A SEPARATOR ────────────────────────
+#
+# 236 gave the header a `gh.issues` row and a `gh.prs` row, and said why they were two:
+# *"Separate row rather than a pair in one, because THE BLOCK PRINTS THEM AS TWO ATOMS
+# and a reader that read both from one call would report a disagreement in whichever
+# field came first."* Measured over the eleven real blocks, that sentence is true of six
+# and false of five. 227–231 print the pair as ONE atom — `0 open issues / 0 open PRs`,
+# separated by a slash rather than the `·` this parser splits on — and 232 is where the
+# spelling changed. Run against those five, `check_header` refuses with *"binds to 2
+# header readers — narrow the aliases"*, which is advice nobody can take: the atom really
+# does carry both counters, and an alias narrow enough to miss one would stop reading the
+# counter it was written for. 236 built the roster against the blocks in front of it, and
+# the rule it produced reddens correct work — 237 §1's finding exactly, in the other half
+# of this file, found the same way: by measuring instead of reading.
+#
+# 🔴 AND THIS IS NOT `bind()`'s AMBIGUITY, WHICH STAYS REFUSED. `807 keys` matching both
+# `floor_pin.literal` and `wire_diff.key` is two readers claiming THE SAME SPAN: one of
+# them is wrong and no rule here can say which, so refusing is the only honest answer.
+# Two readers matching DISJOINT spans of one atom are not ambiguous at all — the block
+# concatenated two atoms and left out the `·`. The distinction is measurable, so it is
+# measured, and everything that fails the measurement keeps the old refusal.
+def split_compound(cleaned: str, rows: "list[tuple]"
+                   ) -> "tuple[list[tuple[tuple, str]] | None, str]":
+    """([(reader row, its piece of the atom)], problem) — one of the two is empty.
+
+    🔴 THE NUMERAL BELONGS TO THE LABEL THAT FOLLOWS IT. `0 open issues / 0 open PRs`
+    cut at the second alias's own start puts BOTH zeroes in the first piece and leaves
+    the second with none, which is how the first draft of this function silently gave
+    `gh.prs` an empty claim. So each cut is made at the last numeral standing between the
+    previous alias's end and this one's start, and every piece is then checked to carry
+    at least one numeral and the pieces together to carry all of them. A split that
+    cannot account for every numeral exactly once is not a split; it is a guess about
+    which reader owns which number, and this file refuses guesses in this position.
+    """
+    hits = [(r, m) for r in rows if (m := re.search(r[1], cleaned, re.I)) is not None]
+    if len(hits) < 2:
+        return (None, "not a compound atom")
+    hits.sort(key=lambda hm: hm[1].start())
+    spans = [m.span() for _r, m in hits]
+    for (_a, b), (c, d) in zip(spans, spans[1:]):
+        if c < b:
+            return (None, f"two aliases match OVERLAPPING spans ({b} > {c}) — that is "
+                          f"`bind()`'s ambiguity and not a pair of atoms run together")
+    cuts = [0]
+    for i in range(1, len(hits)):
+        lead = list(COUNTER_RE.finditer(cleaned[spans[i - 1][1]:spans[i][0]]))
+        cuts.append(spans[i - 1][1] + lead[-1].start() if lead else spans[i][0])
+    cuts.append(len(cleaned))
+    pieces = [cleaned[cuts[i]:cuts[i + 1]] for i in range(len(hits))]
+    counts = [len(COUNTER_RE.findall(p)) for p in pieces]
+    if any(c < 1 for c in counts):
+        return (None, f"a piece carries no numeral ({list(zip(pieces, counts))}) — the "
+                      f"atom names two readers and cannot say what either one claims")
+    if sum(counts) != len(COUNTER_RE.findall(cleaned)):
+        return (None, "the pieces do not carry every numeral in the atom exactly once")
+    return ([(r, p) for (r, _m), p in zip(hits, pieces)], "")
+
+
 def check_header(block: "list[str]", log: str, run_network: bool
                  ) -> "tuple[list[str], list[str], int, int]":
     """(problems, notes, atoms read, counters compared) for the lines above VERIFIED."""
@@ -849,7 +931,12 @@ def check_header(block: "list[str]", log: str, run_network: bool
     notes: "list[str]" = []
     atoms, fired = header_atoms(block)
 
-    compared = 0
+    # 🔴 238 §2 — RESOLVE FIRST, COMPARE SECOND, and a compound atom becomes two claims
+    # rather than one refusal. Every entry below is (the atom as the block wrote it, the
+    # text this claim is read from, the reader) — for an atom naming one reader the
+    # second and third are what they always were, and for one naming two the piece is
+    # that reader's own share of it.
+    claims: "list[tuple[str, str, tuple]]" = []
     for raw, cleaned in atoms:
         hits = [r for r in HEADER_READERS if re.search(r[1], cleaned, re.I)]
         if not hits:
@@ -860,10 +947,23 @@ def check_header(block: "list[str]", log: str, run_network: bool
                 f"no instrument prints it.")
             continue
         if len(hits) > 1:
-            problems.append(f"🔴 {raw!r} binds to {len(hits)} header readers "
-                            f"({', '.join(h[0] for h in hits)}) — narrow the aliases")
+            split, why_not = split_compound(cleaned, HEADER_READERS)
+            if split is None:
+                problems.append(
+                    f"🔴 {raw!r} binds to {len(hits)} header readers "
+                    f"({', '.join(h[0] for h in hits)}) and is not two atoms run "
+                    f"together: {why_not}. Narrow the aliases, or give the block a `·`.")
+                continue
+            notes.append(f"header: {raw!r} is ONE atom carrying "
+                         f"{len(split)} claims — 227–231's spelling, split into "
+                         + " and ".join(f"{r[0]}={p.strip()!r}" for r, p in split))
+            claims.extend((raw, p, r) for r, p in split)
             continue
-        key, _alias, n, extract, why = hits[0]
+        claims.append((raw, cleaned, hits[0]))
+
+    compared = 0
+    for raw, cleaned, row in claims:
+        key, _alias, n, extract, why = row
         claimed = tuple(int(x) for x in COUNTER_RE.findall(cleaned))
         got: "tuple[int, ...] | None" = None
         if key == "ci.green":
@@ -1039,25 +1139,72 @@ def replay_problems(text: str) -> "tuple[list[str], list[str]]":
     base = log.rsplit("/", 1)[-1]
     lines = [ln for ln in text.split("\n") if base in ln]
 
+    # ── 🔴 238 §3 — THE ROUTING QUESTION, ASKED OF EVERY ROW THAT RUNS SOMETHING ──────
+    #
+    # 237 NEXT 3: *"`REPLAY` asks its routing question of ten rows and not of twenty-
+    # eight. A CHEAP row escapes because `measure()` will re-run it live, which is true
+    # and is not the same as the log carrying what the replay says it captures. Widen the
+    # routing rule to every row with a `cmd`, or state in the reason why CHEAP is exempt —
+    # and it will be the exemption's own shape, since the reason describes the READER's
+    # ability rather than the counter."* Measured before building: 28 rows carry a `cmd`
+    # and 10 were asked. The exemption is not written; the rule is widened.
+    #
+    # 🔴 THE TWO HALVES ARE NOT THE SAME QUESTION AND ONLY ONE OF THEM WIDENS. "The
+    # replay never runs this instrument at all" is a refusal only where the counter can
+    # come from nowhere else — MUTATING and SLOW — because a session that legitimately
+    # prints a partial replay has not thereby lost a CHEAP counter `measure()` re-runs.
+    # "The replay RUNS it and throws its output away" is a defect for every row, and it
+    # is §7.2's own standing rule — *"ROUTE EVERY GATE INTO THE MEASURED LOG"* — which
+    # has been carried as prose since 235 with nothing reading it.
+    #
+    # 🔴 AND THE UNIT IS THE SEGMENT, NOT THE LINE, WHICH IS THE WHOLE OF 237 §5.2. `node
+    # scripts/wire_invisible_gate.selftest.mjs && node scripts/wire_invisible_gate.mjs |
+    # tee -a run.log` routes the SECOND command; `wire_invisible.cases` reads the FIRST.
+    # The line carries the log's name, so a rule that asked `is {base} on this line` — the
+    # rule that shipped — called it routed. 237 found this by hand, wrote it down as a
+    # NEXT, and shipped the replay that does it.
     for key, _alias, _n, cmd, _cwd, _ex, cost, _need, _why in COUNTER_READERS:
-        if cost not in (MUTATING, SLOW) or cmd is None:
+        if cmd is None:
             continue
         token = next((c.rsplit("/", 1)[-1] for c in reversed(cmd)
                       if c.endswith((".py", ".mjs"))), " ".join(cmd))
-        printed = [ln for ln in text.split("\n")
-                   if token in ln and "handoff_gate.py" not in ln]
-        if not printed:
-            problems.append(
-                f"🔴 REPLAY — `{key}` is {cost}: this gate never runs it, and the replay "
-                f"does not run it either. The block's counter came from somewhere the "
-                f"document does not print, which is a procedure nobody can repeat.")
-        elif not any(base in ln for ln in printed):
+        # the reader's own `--measured` invocation is not an instrument run — and it is
+        # excluded by what it IS rather than by the file it lives in, so `handoff.claims`
+        # (whose instrument is this file, in `--selftest`) is asked the question too.
+        running = [ln for ln in text.split("\n")
+                   if token in ln and not REPLAY_MEASURED_RE.search(ln)]
+        segments = [seg for ln in running for seg in CHAINED_RE.split(ln)
+                    if token in seg]
+        routed = [seg for seg in segments
+                  if re.search(rf">>?\s*\S*{re.escape(base)}", seg)
+                  or re.search(rf"\btee\s+(?:-a\s+)?\S*{re.escape(base)}", seg)]
+        if not running:
+            if cost in (MUTATING, SLOW):
+                problems.append(
+                    f"🔴 REPLAY — `{key}` is {cost}: this gate never runs it, and the "
+                    f"replay does not run it either. The block's counter came from "
+                    f"somewhere the document does not print, which is a procedure "
+                    f"nobody can repeat.")
+            continue
+        if routed:
+            continue
+        if cost in (MUTATING, SLOW):
             problems.append(
                 f"🔴 REPLAY — `{key}` is {cost} and its counter can ONLY come from "
-                f"`--measured {log}`, but every line running `{token}` sends its output "
-                f"to the terminal. Run as written, the last command of this replay "
-                f"refuses with `{key}` UNMEASURED. Route it into {base} "
+                f"`--measured {log}`, but no command running `{token}` sends its output "
+                f"there. Run as written, the last command of this replay refuses with "
+                f"`{key}` UNMEASURED. Route it into {base} "
                 f"(`| tee -a {base}`, or `>> {base}`).")
+        else:
+            problems.append(
+                f"🔴 REPLAY — this replay runs `{token}` and routes none of it into "
+                f"{base}: {segments[0].strip()[:70]!r}. `{key}` is {cost}, so "
+                f"`measure()` will re-run it live and the block will be right — and that "
+                f"is a fact about THIS READER's abilities, not about the procedure. The "
+                f"log is what the next session repeats the measurement from, and a "
+                f"replay whose log does not carry what it appears to capture is a "
+                f"procedure that only works while somebody remembers the difference. "
+                f"§7.2: route every gate into the measured log.")
 
     # 🔴 THE FIRST WRITE MAY TRUNCATE AND NO LATER ONE MAY, and the index that matters is
     # among the lines that ROUTE — 235's §1 discusses `--measured run.log` in prose three
@@ -1483,6 +1630,275 @@ HIJACK_HEADER = """> ```
 > ```
 """
 
+# ── 🔴 238 §2 — THE ELEVEN BLOCKS, VERBATIM, AND THEY ARE THE POPULATION NOW ──────────
+#
+# 237 NEXT 2: *"`--patterns` covers the extract and not the alias. Every row has a `cmd`,
+# an `extract` and an `alias`, and only two of the three are now asserted against
+# something real. The alias is what binds a block's ATOM to the row, it is a pattern over
+# English, and `BIND_PINS` are hand-written atoms rather than atoms taken from the blocks
+# that exist. The population is 227–236's ten counter lines, they parse today, and
+# nothing walks them."*
+#
+# 🔴 THE COUNT WAS RIGHT AND THE COVERAGE CLAIM WAS TOO KIND TO ITSELF. Measured before
+# building: 227–237 is eleven counter lines carrying 222 atoms in 71 distinct spellings,
+# and `BIND_PINS` reaches 32 of the 71 — one of its 33 pins (`handoff 87 claims`) is a
+# spelling no block has ever carried. So the hand-written table covers 45% of the English
+# the aliases actually have to read, and the missing 55% is where the drift lives:
+# `floor_pin.literal` alone has been spelled seven ways, `term.swept` five, `lint.files`
+# four.
+#
+# 🔴 AND THE POPULATION HAS TO BE IN THE FILE. `.gitignore` carries `HANDOFF*.md`, so a
+# walk of the directory measures eleven blocks on the authoring machine, ZERO in CI and
+# ZERO in a fresh clone — a coverage claim that evaporates on exactly the two machines
+# nobody is watching. `HISTORY_PINS`, `REAL_BLOCK` and `SINCE_POPULATION` already solved
+# this by embedding their inputs; this is the same answer at the population's full size,
+# and `SINCE_POPULATION` now reads out of it rather than keeping its own four copies.
+#
+# These are not shaped to pass. 227 is seven atoms and three header rows; 231 is the
+# block with two stacked PRs whose branch row cites `#284` twice; 232 is where the `gh`
+# pair stopped being one atom; 233 carries the `807 keys` history already pinned above;
+# 234–237 carry all six SINCE counters. Every one of them was written before the rule
+# that reads it.
+
+BLOCK_POPULATION: "list[tuple[int, str]]" = [
+    (227, """> ```
+> main / origin/main   cf18a41 — the instrument that was built for the decision, attached to it (#281)
+> host / addon         1.74.0 / 1.9.9   🟢 addon debt still paid, unmoved since its stamp
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues / 0 open PRs
+> 🟢 226's STATUS BLOCK ACCURATE IN EVERY FIELD — ELEVENTH SESSION RUNNING
+> 🟢 CHECK 8 IS IN THE RITUAL. No skip flag. Unreachable is RED. Driven live, both ways.
+> 🟢 CHECK 1 HAS ITS MAJOR ARM — 210 §9 CLOSED, and the SDK-v2 bump is now cuttable.
+> 🔴 A FIRST DRAFT OF THAT ARM WOULD HAVE REFUSED THE RELEASE IT EXISTS TO UNBLOCK.
+> 🟢 CHECK 14 READS THE WHOLE LOCKFILE MIRROR — and REFUSES the 1.74.0 release commit.
+> 🟢 spec_conformance READS 154 FILES, NOT 83. The roster's blind half held the addon.
+> 🔴 THE LIVE TREE CORRECTED THIS SESSION'S OWN NEW CODE WITHIN THE HOUR.
+> 🟢 VERIFIED   61 rows/33 refusals · contract 23/23 · floor_pin 79 · scope 25 · control 59 · 724/724 · 26 CI
+> ```
+"""),
+    (228, """> ```
+> main / origin/main   b5e625e — the question no reader had to ask (#282)
+> host / addon         1.74.0 / 1.9.9   🟢 addon debt still paid, unmoved since its stamp
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues / 0 open PRs
+> 🟢 227's STATUS BLOCK ACCURATE IN EVERY FIELD — TWELFTH SESSION RUNNING
+> 🟢 A READER CAN ASK. `tree_quiet.py`, three markers, three exit codes, wired to a hook.
+> 🟢 THE RECORD SURVIVES SIGKILL — a BASELINE, not a flag, so a clean tree self-clears.
+> 🔴 THE FIRST MARKER WOULD HAVE TRAINED ITS USER TO DELETE THE LOCK FILE.
+> 🔴 THE FIRST REFUSAL NAMED A CAUSE THAT HAD NOT HAPPENED — 226 §3, THIRD SESSION.
+> 🔴 THE FIRST `--recover` WOULD HAVE DESTROYED THE WORK IT WAS RUN TO PROTECT.
+> 🟢 `mutation_lock_gate` CALLED THE NEW READER AN UNGUARDED MUTATOR, AND IT WAS RIGHT.
+> 🔴 AND IT CAUGHT THE SESSION TWICE — both times a hand editing a tree mid-gate.
+> 🟢 VERIFIED   tree_quiet 13 · contract 23/23 · floor_pin 79 · scope 25 · control 59
+>               · mutlock 5 guarded / 6 records / 2 reader controls · 724/724 · 26 CI
+> ```
+"""),
+    (229, """> ```
+> main / origin/main   b46477e — the sentence and the evidence (#283)
+> host / addon         1.74.0 / 1.9.9   🟢 addon debt still paid, unmoved since its stamp
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues / 0 open PRs
+> 🟢 228's STATUS BLOCK ACCURATE IN EVERY FIELD — THIRTEENTH SESSION RUNNING
+> 🟢 THE DEAD LEDGER ROW IS GONE AND ITS HISTORY SURVIVED — 30 rows became 31 governed
+> 🟢 A DUPLICATE KEY IN ANY LITERAL IN scripts/ NOW REDDENS — 682 keys, not one table
+> 🔴 THE ADDON'S 135 REFUSALS ARE CLEAN. THE CLASS WAS NEVER WHERE 228 EXPECTED IT.
+> 🔴 THE RULE IS NOT "NAME TWO CAUSES" — IT IS DERIVED vs LITERAL POPULATION.
+> 🔴 pyflakes HAS KNOWN ABOUT THE DUPLICATE KEY ALL ALONG. NOTHING HERE RUNS pyflakes.
+> 🟢 VERIFIED   floor_pin 79 · 31/31 governed · 682 keys · 20 shortfalls · unswept 0
+>               · contract 23/23 · scope 25 · control 59 · instrument ok · term 266
+>               · mutlock 5/6/2 · tree_quiet 13 · 724/724 · 26 CI
+> ```
+"""),
+    (230, """> ```
+> main                 b46477e — the sentence and the evidence (#283)   UNMOVED
+> branch               14c44c3 session230-the-tool-that-was-already-built
+>                      🔴 COMMITTED, NOT PUSHED — no PR opened (see §6.1)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues / 0 open PRs
+> 🟢 229's STATUS BLOCK ACCURATE IN EVERY FIELD — FOURTEENTH SESSION RUNNING
+> 🔴 THE LINTER ITEM'S PRECEDENT WAS REAL AND ITS POPULATION IS ZERO. Six findings,
+>    two classes, no defects — the one defect pyflakes ever found here is already fixed.
+> 🔴 SO THE SHIP IS A CLASS ROSTER, NOT A CEILING. A total would go green on a tree
+>    that deleted one f-string and grew a duplicate key.
+> 🔴 §6.4's SPIKE ANSWERED — 18,252 lines emitted, 0 typed, and EXACTLY 3 facts in the
+>    whole repository that the wire cannot carry.
+> 🟢 A MUTATING GATE WAS KILLED MID-RUN BY THE ENVIRONMENT AND THE TREE RECOVERED CLEAN.
+> 🟢 VERIFIED AFTER THE CHANGE   floor_pin 80 · 32/32 governed · 688 keys · 21 shortfalls
+>               · unswept 0 · exempt 33 · contract 23/23 · scope 25 · control 59
+>               · instrument ok · term 267 · mutlock 5 + 9 cases · release_names 61/33
+>               · tree_quiet 13 · 724/724 · lint_ceiling 14 cases + live ok · 26 CI
+> ```
+"""),
+    (231, """> ```
+> main                 b46477e — the sentence and the evidence (#283)   UNMOVED
+> branch 230           14c44c3 session230-the-tool-that-was-already-built
+>                      🟢 PUSHED · PR #284 OPEN (230's Owed item, cleared)
+> branch 231           30a2045 session231-the-rule-neither-emission-carries
+>                      🟢 PUSHED · PR #285 OPEN, based on #284 (stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues / 2 open PRs (ours)
+> 🟢 230's STATUS BLOCK ACCURATE IN EVERY FIELD — FIFTEENTH SESSION RUNNING
+> 🔴 THE `.finite()` POPULATION IS ONE CALL SITE, NOT THREE. 230's figure was
+>    `grep -rooF '.finite()' | wc -l`; two of the three hits are comments about the one.
+> 🔴 SO A FLOOR OF THREE WOULD HAVE PINNED TWO COMMENTS — and stayed green on a fourth
+>    refinement added beside a deleted comment. 230 §2's own argument, in 230's own item.
+> 🟢 MEASURED OFF THE ZOD: 292 tools · 310 refinements · 6 classes · EXACTLY ONE the
+>    emitter drops. Every other class verified ON the wire by stripping it, not assumed.
+> 🔴 `instrument_gate.py` HAS NO DISCOVERY HALF — the twelfth instrument was outside it
+>    and the gate said `ok`. `floor_pin_gate.py` caught the same file's floors unprompted.
+> 🟢 THE BRIDGE DROPPED MID-SESSION AGAIN AND THE TREE WAS CLEAN — second session running.
+> 🟢 VERIFIED AFTER THE CHANGE   floor_pin 83 · 32/32 governed · 707 keys · 21 shortfalls
+>               · unswept 0 · exempt 33 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 12 · term 269 · mutlock 5 + 9 cases
+>               · release_names 61/33 · tree_quiet 13 · 724/724 · lint_ceiling 14 + live
+>               · wire_invisible 27 cases + live ok · 26 CI
+> ```
+"""),
+    (232, """> ```
+> main                 741e717 — the rule neither emission carries (#285)   MOVED +2
+>                      19f9b2d — the tool that was already built (#284)
+> branch 232           ce34b87 session232-the-roster-that-could-not-see-what-joined
+>                      🟢 PUSHED · PR #286 OPEN, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues / 1 open PR (ours)
+> 🟢 231's STATUS BLOCK ACCURATE IN EVERY FIELD — SIXTEENTH SESSION RUNNING
+> 🔴 #285 DID NOT AUTO-RETARGET. GitHub only does that when the base branch is DELETED and
+>    this repo keeps branches; retargeting by hand turned it CONFLICTING on 230's own edits.
+> 🟢 REBASED --onto origin/main, AND THE REBASED TREE WAS BYTE-IDENTICAL (eb2c93c, diff 0).
+> 🔴 THE DISCOVER HALF'S FIRST RUN NAMED `positive_control_gate.mjs` — 818 lines, five
+>    exported members, a headless self-test, in CI since 219, never blinded.
+> 🔴 AND BLINDING IT CRASHED THE PROOF TWICE — `classify` and `acceptance` took the
+>    self-test down before its verdict line. Fixed in the self-test, not in the ceiling.
+> 🔴 AND MY OWN FIRST GUARD CAUGHT THE THROW AND NOT THE EMPTY, in the file whose whole
+>    subject is collections that are empty for more than one reason.
+> 🟢 VERIFIED AFTER THE CHANGE   discover 48/12/12/18 · 0 undeclared · floor_pin 83
+>               · 34 governed · 707 keys · 23 shortfalls · unswept 0 · exempt 35
+>               · contract 23/23 · scope 25 · control 59 · instrument ok across 13
+>               · 0 crashes · blast 33/28 · late blast 31/26 · term 269 · taut 4012
+>               · 724/724 · lint_ceiling 15 files · wire_invisible 27 + live · 26 CI
+> ```
+"""),
+    (233, """> ```
+> main                 c27953d — the excuses the tree contradicted (#287)          MOVED +2
+>                      e9d6ba2 — the roster that could not see what joined (#286)
+> branch 233           191eca9 session233-the-excuses-the-tree-contradicted
+>                      🟢 PUSHED · PR #287 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🔴 232's STATUS BLOCK WAS WRONG IN ONE FIELD — THE FIRST IN SEVENTEEN SESSIONS.
+>    `707 keys` under "VERIFIED AFTER THE CHANGE" is the value at `741e717`, BEFORE the
+>    change. Measured at all three points: 682 -> 707 -> 747. Every other field held.
+> 🔴 THREE `LATE_LIVE_NA` ROWS WERE FALSE, AND TWO NAMED THE COMMAND THEY DENIED.
+> 🟢 `LATE_LIVE_NA` IS NOW EMPTY — ALL THIRTEEN INSTRUMENTS HAVE THE STRONGER AXIS (13/8).
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · floor_pin 89 · 37 governed · 807 keys
+>               · 25 shortfalls · unswept 0 · exempt 36 · term 275 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 15 files · 26 CI jobs
+> ```
+"""),
+    (234, """> ```
+> main                 bcc0b85 — the table that read itself back (#288)          MOVED +1
+>                      c27953d — the excuses the tree contradicted (#287)
+> branch 234           c5e124b session234-the-table-that-read-itself-back
+>                      🟢 PUSHED · PR #288 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🔴 233's STATUS BLOCK WAS WRONG IN ONE FIELD — AND IT IS 232's FIELD, ONE SESSION LATER.
+>    `807 keys` is a value this tree has never held. Measured at four points and
+>    deterministic: 741e717 -> 707, e9d6ba2 -> 747, 191eca9 and c27953d -> 814.
+> 🟢 EVERY OTHER FIELD OF 233's BLOCK HELD, including the twelve 234 had to derive.
+> 🔴 TWO OF THEM COULD ONLY BE VERIFIED BY RECONSTRUCTION — `26 CI jobs` is neither the
+>    job count nor the matrix expansion, and `wire_invisible 27 + live` is a SELF-TEST.
+> 🟢 THE HANDOFF READER SHIPS. 29 readers · 106 atoms across 227–233 · 0 unreadable.
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 91 · 39 governed · 816 keys · 25 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 89 claims · 26 CI jobs
+> ```
+"""),
+    (235, """> ```
+> main                 7d6e9bf — the log the reader could not finish (#289)       MOVED +1
+>                      bcc0b85 — the table that read itself back (#288)
+> branch 235           92a8ca2 session235-the-log-the-reader-could-not-finish
+>                      🟢 PUSHED · PR #289 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 115 · 0 open issues · 0 open PRs
+> 🟢 234's STATUS BLOCK HELD IN EVERY FIELD — 29 atoms, 29 readers, 29 compared, on
+>    bcc0b85. Two blocks in a row went red on one counter each; this one did not.
+> 🔴 `tags 121` WAS THE EXCEPTION AND NOTHING COULD SEE IT — the field sits above the
+>    counter line, and the reader started at it. Origin holds 115; six tags were
+>    never pushed. THE npm ROW IS READ NOW, AND `tags` IS READ OFF ORIGIN.
+> 🔴 THE RITUAL 234 WROTE COULD NOT BE COMPLETED AS WRITTEN — see §1.
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 92 · 40 governed · 820 keys · 25 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 133 claims · 26 CI jobs
+> ```
+"""),
+    (236, """> ```
+> main                 192bd55 — the replay that could not be run (#290)             MOVED +1
+>                      7d6e9bf — the log the reader could not finish (#289)
+> branch 236           e7a29fc session236-the-replay-that-could-not-be-run
+>                      🟢 PUSHED · PR #290 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 235's STATUS BLOCK HELD IN EVERY FIELD — 29 atoms, 29 readers, 29 compared, on
+>    7d6e9bf, and the header half read 3 of 3. Second block in a row that verified clean.
+> 🔴 235 §8.1's REPLAY REFUSES ON ITS OWN LAST LINE. Ten counters come only from the three
+>    MUTATING gates; the replay prints them to the terminal and then reads run.log.
+> 🟢 THE SIX TAGS ARE PUSHED — origin holds 121 now, and the number is the same on every
+>    machine for the first time since 1.13.0.
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 92 · 40 governed · 826 keys · 25 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 151 claims · 26 CI jobs
+> ```
+"""),
+    (237, """> ```
+> main                 0a8c64a — the rules that were only ever sentences (#291)     MOVED +1
+>                      192bd55 — the replay that could not be run (#290)
+> branch 237           69662af session237-the-rules-that-were-only-ever-sentences
+>                      🟢 PUSHED · PR #291 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 236's STATUS BLOCK HELD IN EVERY FIELD — 29 atoms, 29 readers, 29 compared, on
+>    192bd55, and the header half read 6 of 6 for the first time (236 built the last three).
+> 🔴 236 §8.4's PROMOTION WAS WRONG BY ONE BLOCK IN TWO ROWS. `232` carries `discover` and
+>    `0 undeclared`; `233` DROPS both. The run carrying all six is 234–236, three long.
+> 🔴 EIGHTEEN READER PATTERNS HAD NO FIXTURE THAT RAN THE COMMAND THEY NAME, and four
+>    replay-order rules lived only in §9.2's prose. Both are checked now.
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 92 · 40 governed · 826 keys · 26 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 180 claims · 26 CI jobs
+> ```
+"""),
+]
+
 # ── 🔴 237 §3 — THE POPULATION THE `SINCE` BOUNDARIES WERE MEASURED OVER ──────────────
 #
 # Four real counter lines, verbatim, spanning the two sessions where every boundary sits.
@@ -1498,38 +1914,7 @@ HIJACK_HEADER = """> ```
 # does NOT carry it — a boundary set too late, or set at all on a counter that was always
 # universal, is an exemption covering nothing, which is the class 236 §4 deleted two of
 # from `HEADER_EXEMPT` and the one this table would otherwise re-introduce a file over.
-SINCE_POPULATION: "list[tuple[int, str]]" = [
-    (231, """> ```
-> 🟢 VERIFIED AFTER THE CHANGE   floor_pin 83 · 32/32 governed · 707 keys · 21 shortfalls
->               · unswept 0 · exempt 33 · contract 23/23 · scope 25 · control 59
->               · instrument ok across 12 · term 269 · mutlock 5 + 9 cases
->               · release_names 61/33 · tree_quiet 13 · 724/724 · lint_ceiling 14 + live
->               · wire_invisible 27 cases + live ok · 26 CI
-> ```
-"""),
-    (232, """> ```
-> 🟢 VERIFIED AFTER THE CHANGE   discover 48/12/12/18 · 0 undeclared · floor_pin 83
->               · 34 governed · 707 keys · 23 shortfalls · unswept 0 · exempt 35
->               · contract 23/23 · scope 25 · control 59 · instrument ok across 13
->               · 0 crashes · blast 33/28 · term 269 · taut 4012
->               · 724/724 · lint_ceiling 15 files · wire_invisible 27 + live · 26 CI
-> ```
-"""),
-    (233, REAL_BLOCK),
-    (236, """> ```
-> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
->               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
->               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
->               · floor_pin 92 · 40 governed · 826 keys · 25 shortfalls
->               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
->               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
->               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
->               · wire_invisible 27 + live · lint_ceiling 16 files
->               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
->               · handoff 151 claims · 26 CI jobs
-> ```
-"""),
-]
+SINCE_POPULATION: "list[tuple[int, str]]" = BLOCK_POPULATION
 
 
 def block_keys(text: str) -> "set[str]":
@@ -1619,6 +2004,51 @@ REPLAY_NEGATIVES: "list[tuple[str, str, str]]" = [
      "AFTER the gate has already read it"),
 ]
 
+# 🔴 237 §7.1's REPLAY, VERBATIM, AND IT IS THE NEGATIVE CONTROL FOR THE SEGMENT HALF.
+# A file that was really written (`host/replay237.sh`) and really run, top to bottom,
+# whose log really answered the gate — and which routes the wrong half of three of its
+# own lines. 237 found that by hand and wrote it down as NEXT 3; this is the input, kept
+# as it shipped, so the rule is asserted against the defect rather than against a shape
+# invented after the rule existed. Exactly ONE row reads a command in an unrouted
+# segment: `wire_invisible.cases` reads the selftest, and the `| tee` binds to the gate.
+SEGMENT_REPLAY = """```bash
+cd host && npm ci --include=dev && npm run build
+python3 -m pyflakes --version || pip install pyflakes --break-system-packages   # §2
+
+npm test | tail -20 > run.log                                    # -> 724/724
+
+python3 ../scripts/handoff_gate.py --selftest        | tee -a run.log
+node scripts/boundary_gate.selftest.mjs && node scripts/boundary_gate.mjs        | tee -a run.log
+node scripts/wire_diff.selftest.mjs && node scripts/wire_diff.mjs --discover     | tee -a run.log
+node scripts/wire_invisible_gate.selftest.mjs && node scripts/wire_invisible_gate.mjs | tee -a run.log
+node scripts/tautology_gate.mjs                      | tee -a run.log
+node scripts/seal_order_gate.mjs                     | tee -a run.log
+python3 ../scripts/terminology_gate.py               | tee -a run.log
+python3 ../scripts/registry_lag.py                   | tee -a run.log
+python3 ../scripts/lint_ceiling.py                   | tee -a run.log
+python3 ../scripts/floor_pin_gate.py                 | tee -a run.log
+python3 ../scripts/mutation_lock_gate.py             | tee -a run.log
+python3 ../scripts/tree_quiet.py                     | tee -a run.log
+python3 ../scripts/contract_check.py                 | tee -a run.log
+
+python3 ../scripts/instrument_gate.py                | tee -a run.log
+python3 ../scripts/scope_gate.py                     | tee -a run.log
+python3 ../scripts/control_gate.py                   | tee -a run.log
+
+python3 ../scripts/handoff_gate.py --patterns --measured run.log | tee -a run.log
+
+python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION237.md --measured run.log --network
+```
+"""
+
+# the same replay with ONE documented edit — the self-test moved onto a line of its own,
+# routed, which is what 238's §7.1 does. Nothing else changes.
+SEGMENT_FIXED = SEGMENT_REPLAY.replace(
+    "node scripts/wire_invisible_gate.selftest.mjs && "
+    "node scripts/wire_invisible_gate.mjs | tee -a run.log",
+    "node scripts/wire_invisible_gate.selftest.mjs        | tee -a run.log\n"
+    "node scripts/wire_invisible_gate.mjs                 | tee -a run.log")
+
 # 🔴 `lint_ceiling.py`'s TWO HEADER LINES, CAPTURED FROM THE TWO RUNS. Same tree, same
 # command, same counter — one machine has `pyflakes` and one does not. 235 gave the
 # instrument the second spelling and told this file's roster the header was unchanged.
@@ -1665,6 +2095,169 @@ def selftest() -> int:
         if len(hits) != 1:
             failed += 1
             print(f"  🔴 AMBIGUOUS {atom!r} -> {hits}")
+
+    # ── 🔴 238 §2 — THE ALIAS, AGAINST EVERY BLOCK THAT EXISTS ────────────────────────
+    #
+    # 237 NEXT 2's third of the row. `cmd` and `extract` are asserted against a live
+    # instrument by `--patterns`; the alias needs no instrument at all — it needs the
+    # English real blocks are written in — so it belongs HERE, where the population is
+    # embedded and CI reads it on a machine with nothing installed. That partition is the
+    # answer to *"only two of the three are asserted against something real"*, and it is
+    # written down rather than implied, because an unstated partition is how the alias
+    # ended up being the one nothing covered.
+    #
+    # 🔴 EVERY ATOM OF EVERY REAL COUNTER LINE BINDS TO EXACTLY ONE READER. 222 of them
+    # across eleven blocks, against 33 hand-written pins — and `bind()` already refuses
+    # both failure modes, so what this adds is not a rule but a POPULATION: the rule has
+    # been correct about 45% of the spellings it has to read and silent about the rest.
+    unbound: "list[str]" = []
+    ambiguous: "list[str]" = []
+    seen_atoms = 0
+    reached: "set[str]" = set()
+    spellings: "set[str]" = set()
+    for sess, text in BLOCK_POPULATION:
+        pop_block, why_p = status_block(text)
+        pop_atoms, why_a = counter_atoms(pop_block)
+        claims += 1
+        if why_p or why_a or len(pop_atoms) < 7:
+            failed += 1
+            print(f"  🔴 BLOCK_PARSE {sess} — {why_p or why_a or f'{len(pop_atoms)} atom(s)'}"
+                  f". A block this file cannot parse contributes no coverage and says "
+                  f"nothing about it; 227 is the smallest real one and carries seven")
+            continue
+        seen_atoms += len(pop_atoms)
+        for a in pop_atoms:
+            spellings.add(a)
+            key, problem = bind(a)
+            if key:
+                reached.add(key)
+            elif "binds to NO reader" in problem:
+                unbound.append(f"{sess}: {a!r}")
+            else:
+                ambiguous.append(f"{sess}: {a!r}")
+
+    claims += 1
+    if unbound or ambiguous:
+        failed += 1
+        print(f"  🔴 ALIAS_POPULATION {len(unbound)} atom(s) bind to NO reader and "
+              f"{len(ambiguous)} bind to more than one, over {seen_atoms} atom(s) in "
+              f"{len(BLOCK_POPULATION)} real blocks.\n"
+              f"     unbound: {unbound[:6]}\n     ambiguous: {ambiguous[:6]}\n"
+              f"     An alias narrowed to fix today's block un-reads every earlier one "
+              f"that spelled the counter differently, and the earlier ones are already "
+              f"written and cannot be re-worded.")
+
+    # 🔴 AND THE COVERAGE CLAIM IS THE OTHER DIRECTION, WHICH `ROSTER` MAKES AGAINST THE
+    # PINS. A reader reachable only from a hand-written atom is a reader no session has
+    # ever actually used — the roster's own DISCOVER half, asked of the roster.
+    claims += 1
+    never_used = [k for k, *_ in COUNTER_READERS if k not in reached]
+    if never_used:
+        failed += 1
+        print(f"  🔴 ALIAS_UNUSED {never_used} — no atom in any of the "
+              f"{len(BLOCK_POPULATION)} real blocks reaches these rows. Either the "
+              f"counter is spelled in a way the alias cannot see, or the row reads a "
+              f"counter no handoff has ever carried and `BIND_PINS` is the only thing "
+              f"keeping it alive")
+
+    # 🔴 THE SPELLING FLOOR, WHICH IS WHAT MAKES THE TWO CLAIMS ABOVE HARD TO SATISFY BY
+    # SHRINKING. Both go green if the population stops parsing; this one goes red. 71
+    # distinct spellings today over 29 readers — the drift is the measurement, not an
+    # anecdote, and an alias edit that costs the roster a spelling reddens here first.
+    # 🔴 AND IT IS PINNED FROM BOTH SIDES BY TWO REAL WALKS, which is 184 §7's rule and
+    # the one `floor_pin_gate.py` refuses this row without. Below: the spellings of the
+    # NEWEST BLOCK ALONE — a floor at or under that is satisfied by a walk that read the
+    # block in front of the author and stopped, which is the exact shrinkage this floor
+    # exists to catch. Above: all eleven. Zeroing the floor fails the first bound and
+    # raising it past the population fails the second, so the value is asserted rather
+    # than merely present.
+    newest = set(counter_atoms(status_block(BLOCK_POPULATION[-1][1])[0])[0])
+    claims += 1
+    if not (len(newest) < ALIAS_SPELLING_FLOOR <= len(spellings)):
+        failed += 1
+        print(f"  🔴 ALIAS_SPELLINGS floor {ALIAS_SPELLING_FLOOR} is not in "
+              f"({len(newest)}, {len(spellings)}] — {len(spellings)} distinct atom "
+              f"spelling(s) over {len(BLOCK_POPULATION)} blocks and {len(newest)} in the "
+              f"newest one alone. `ALIAS_POPULATION` and `ALIAS_UNUSED` are both "
+              f"satisfied by a population that stopped parsing; this is the one that is "
+              f"not, and a floor inside one block's spellings would not be either")
+
+    # 🔴 THE PINS ARE NOT THE POPULATION AND THIS SAYS BY HOW MUCH. Not a refusal — a
+    # hand-written pin naming a spelling no block carries is legitimate, and `handoff 87
+    # claims` is one — but a number printed rather than a feeling, because 237's finding
+    # is that an instruction carrying a count is owed the count.
+    invented = [a for a, _e, _w in BIND_PINS if a not in spellings]
+    print(f"  · ALIAS_COVERAGE {len(spellings)} spelling(s) in {len(BLOCK_POPULATION)} "
+          f"real blocks · {seen_atoms} atom(s) · {len(BIND_PINS)} pin(s) reaching "
+          f"{len(BIND_PINS) - len(invented)} of them · {len(invented)} pin(s) no block "
+          f"carries: {invented}")
+
+    # 🔴 AND THE HEADER HALF, WHICH IS WHERE THE WALK FOUND SOMETHING. Every header atom
+    # of every real block resolves — after `HEADER_EXEMPT`, and after a compound atom is
+    # split — to exactly one reader each. Before 238 this was five refusals across
+    # 227–231 on blocks that were correct.
+    h_unresolved: "list[str]" = []
+    h_reached: "set[str]" = set()
+    for sess, text in BLOCK_POPULATION:
+        pop_block, _pw = status_block(text)
+        for raw, cleaned in header_atoms(pop_block)[0]:
+            hits = [r for r in HEADER_READERS if re.search(r[1], cleaned, re.I)]
+            if len(hits) == 1:
+                h_reached.add(hits[0][0])
+                continue
+            split, why_not = split_compound(cleaned, HEADER_READERS) if hits else (None, "")
+            if split is None:
+                h_unresolved.append(f"{sess}: {raw!r} -> "
+                                    f"{[r[0] for r in hits]} ({why_not or 'no reader'})")
+            else:
+                h_reached |= {r[0] for r, _p in split}
+
+    claims += 1
+    if h_unresolved:
+        failed += 1
+        print(f"  🔴 HEADER_ALIAS_POPULATION {len(h_unresolved)} header atom(s) across "
+              f"the real blocks resolve to no reader or to more than one:\n     "
+              + "\n     ".join(h_unresolved[:6])
+              + "\n     A header roster built against the blocks in front of its author "
+                "refuses the ones behind them, which is 237 §1's finding in the other "
+                "half of this file.")
+
+    claims += 1
+    h_never = [k for k, *_ in HEADER_READERS if k not in h_reached]
+    if h_never:
+        failed += 1
+        print(f"  🔴 HEADER_ALIAS_UNUSED {h_never} — no header atom in any real block "
+              f"reaches these rows")
+
+    # 🔴 THE SPLIT'S NEGATIVE, AND IT IS 231's OWN ATOM WITH ONE DOCUMENTED EDIT — the
+    # `2` removed. Two aliases still match, the spans are still disjoint, and the second
+    # piece now carries no numeral: the atom names two readers and cannot say what one of
+    # them claims. That must REFUSE, because a split that quietly gave `gh.prs` an empty
+    # claim would compare nothing and print `compared` one higher, which is the silent
+    # green this whole file is against.
+    claims += 1
+    ok_split, _w = split_compound("0 open issues / 2 open PRs (ours)", HEADER_READERS)
+    bad_split, bad_why = split_compound("0 open issues / open PRs (ours)", HEADER_READERS)
+    if (ok_split is None or [r[0] for r, _p in ok_split] != ["gh.issues", "gh.prs"]
+            or bad_split is not None or "no numeral" not in bad_why):
+        failed += 1
+        print(f"  🔴 SPLIT_COMPOUND 231's atom -> "
+              f"{[r[0] for r, _p in ok_split] if ok_split else None}, pinned "
+              f"['gh.issues', 'gh.prs']; the same atom with one numeral removed -> "
+              f"{bad_why!r}, pinned a refusal naming the empty piece")
+
+    # 🔴 AND `bind()`'s AMBIGUITY IS UNTOUCHED. The counter line does NOT split: `807
+    # keys` reaching two readers means one of them is wrong about the same span, and
+    # nothing here can say which. A session that read the paragraph above and generalised
+    # it one function further would have resolved that collision by position, which is
+    # the mistake `resolve_sig` was written against.
+    claims += 1
+    collision = "wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread"
+    if bind(collision)[0] != "wire_diff.key" or bind("807 keys")[0] != "floor_pin.literal":
+        failed += 1
+        print(f"  🔴 BIND_UNSPLIT {collision!r} -> {bind(collision)[0]!r} and '807 keys' "
+              f"-> {bind('807 keys')[0]!r} — the counter line resolves this collision by "
+              f"a negative lookahead, not by splitting, and it must stay that way")
 
     # ── 🔴 235 §1 — THE EXTRACT THAT COULD NOT FINISH ─────────────────────────────────
     #
@@ -1752,13 +2345,26 @@ def selftest() -> int:
         print(f"  🔴 HEADER_CLEAN {ci_atom!r} -> "
               f"{tuple(int(x) for x in COUNTER_RE.findall(ci_atom))}, pinned (26, 26)")
 
-    # both directions on the exemption table, over the real block
+    # 🔴 BOTH DIRECTIONS ON THE EXEMPTION TABLE, OVER ALL ELEVEN BLOCKS — AND THE COMMENT
+    # ABOVE THIS TABLE HAS SAID SO SINCE 236 WHILE THE CODE READ ONE. *"`HEADER_EXEMPT_
+    # UNUSED` refuses a row that matched nothing across THE REAL BLOCKS THE SELF-TEST
+    # WALKS"* — the self-test walked 234's header alone, so a row covering a spelling
+    # only 231 uses looked like a row covering nothing. 238's `\b\d+'s\b` is exactly that
+    # row: it fires on one block out of eleven, which is a reason that is true rather
+    # than a reason that is popular. A sentence describing a wider population than the
+    # loop beneath it is this session's whole subject, and it was in the comment above
+    # the table the subject is about.
+    exempt_fired: "set[str]" = set()
+    for _sess, text in BLOCK_POPULATION:
+        pop_block, _pw = status_block(text)
+        exempt_fired |= header_atoms(pop_block)[1]
     for pat, why in HEADER_EXEMPT:
         claims += 1
-        if pat not in fired:
+        if pat not in exempt_fired:
             failed += 1
-            print(f"  🔴 HEADER_EXEMPT_UNUSED {pat} matched nothing in 234's header — an "
-                  f"exemption nobody re-derives is 233 §18's class ({why[:50]}…)")
+            print(f"  🔴 HEADER_EXEMPT_UNUSED {pat} matched nothing in any of the "
+                  f"{len(BLOCK_POPULATION)} real headers — an exemption nobody "
+                  f"re-derives is 233 §18's class ({why[:50]}…)")
 
     # 🔴 AND NO EXEMPT ROW MAY SWALLOW A REAL COUNTER. The table removes text before the
     # comparison reads it, so a row too wide silently deletes a claim — the DROPPED
@@ -2097,6 +2703,41 @@ def selftest() -> int:
     # both directions on the ORDER table itself: a rule no negative reaches is a rule
     # somebody can loosen without a fixture noticing (`ROSTER`'s argument, one table over)
     claims += 1
+    # ── 🔴 238 §3 — THE SEGMENT HALF, AGAINST 237's OWN REPLAY ────────────────────────
+    #
+    # Both directions over one real input. The negative is the replay 237 shipped, whose
+    # `&&` routes the gate and not the self-test the row reads; the positive is that text
+    # with the one edit 238 §7.1 makes. A rule that fired on neither would be the claim
+    # asserted against nothing this file keeps shipping, and a rule that fired on BOTH
+    # would be a rule about `&&` rather than about which command the log carries.
+    claims += 1
+    seg_problems, _sn = replay_problems(SEGMENT_REPLAY)
+    seg_routing = [p for p in seg_problems if "routes none of it into" in p]
+    if len(seg_routing) != 1 or "wire_invisible_gate.selftest.mjs" not in seg_routing[0]:
+        failed += 1
+        print(f"  🔴 REPLAY_SEGMENT 237 §7.1's replay produced {len(seg_routing)} routing "
+              f"refusal(s), pinned exactly 1 naming `wire_invisible_gate.selftest.mjs` — "
+              f"the `| tee` binds to the second command of an `&&` and the row reads the "
+              f"first: {seg_routing}")
+
+    claims += 1
+    fixed_problems, _fn = replay_problems(SEGMENT_FIXED)
+    if fixed_problems:
+        failed += 1
+        print(f"  🔴 REPLAY_SEGMENT_FIXED the same replay with the self-test on a routed "
+              f"line of its own still refuses — {fixed_problems}")
+
+    # 🔴 AND THE WIDENING IS A MEASUREMENT, NOT A SENTENCE. 237 NEXT 3 counted ten rows
+    # asked of twenty-eight; a later edit that quietly drops a cost class out of the loop
+    # would leave the paragraph above true and the rule narrow again.
+    claims += 1
+    asked = [k for k, _a, _n, cm, *_r in COUNTER_READERS if cm is not None]
+    if len(asked) != len(COUNTER_READERS) - 1:
+        failed += 1
+        print(f"  🔴 REPLAY_ROUTING_POPULATION {len(asked)} row(s) carry a `cmd` out of "
+              f"{len(COUNTER_READERS)}, and exactly one row (`ci.checks`) is derived — "
+              f"the routing question is asked of every row that runs something")
+
     reached = {w for _e, _i, w in REPLAY_NEGATIVES}
     unreached = [ln for _e, ln, _w in REPLAY_ORDER if ln not in reached]
     if unreached:
