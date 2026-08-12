@@ -43,8 +43,10 @@
 |---|---|---|---|---|---|---|
 | header-unmoved-unread | OPEN | 239 | — | — | `UNMOVED` is the same counter with no digit in it and nothing has ever read it | — |
 | population-reach-floor | OPEN | 239 | — | — | Nothing floors how far back `BLOCK_POPULATION` must reach, only how wide it is | — |
+| queue-claims-unread | OPEN | 240 | — | — | `QUEUE_SELFTEST n claims` is a counter no roster reads — the reader cannot be added until a real block carries the atom, and 240's block is the first that will | — |
 | queue-unread | DONE | 240 | 240 | — | The Open section is the one table in the tree no gate reads | — |
 | ritual-tier | DONE | 240 | 240 | — | The opening ritual re-measures a tree nobody has touched since it was last measured | — |
+| queue-kill-loophole | DONE | 240 | 240 | — | `QUEUE_NOT_ONLY_NEWEST` counted a KILL as a closure, so the first session under it satisfied the claim by abandoning five items | — |
 | discover-rosters | SCHEDULED | 233 | — | 241 | Ask the DISCOVER question of `SCOPE_LEDGER` (47), `CHECKS_EXPECTED` (23), `PROSE_NUMERAL_PINS` (14) | — |
 | blind-py-gates | SCHEDULED | 234 | — | 241 | Blind the seventeen tracked `.py` gates — none is swept by the instrument that asks whether an instrument collapses loudly | — |
 | lint-roster-py-only | SCHEDULED | 230 | — | 242 | The lint roster covers `*.py` and nothing else; the carried `.mjs` number is wrong by ~16x (~1,014, not 63) | — |
@@ -76,10 +78,18 @@
 | `QUEUE_FIELDS` | a state missing the field it requires, or carrying one it must not — an `OPEN` row with a `closed` session is a contradiction, not a note |
 | `QUEUE_AGE_CEILING` | an `OPEN` row older than `AGE_CEILING` sessions |
 | `QUEUE_SCHEDULE_HONOURED` | a `SCHEDULED` row whose `target` has passed and which is still not closed |
-| `QUEUE_NOT_ONLY_NEWEST` | a session that closed items and closed **only** items it created itself |
+| `QUEUE_NOT_ONLY_NEWEST` | a session that closed items and **finished** none it did not itself create — a `KILLED` row does not answer it |
 
-🔴 **`QUEUE_NOT_ONLY_NEWEST` IS THE ONE THAT BREAKS THE LOOP, AND IT IS THE ONE A READER
-SHOULD BE MOST SUSPICIOUS OF.** It is satisfiable by closing a trivial old row, and a
-session that wants to game it can. It is not a guarantee that the queue drains; it is a
-refusal to let a session report a closed queue item when every item it closed was one it
-had just invented. That was true of sessions 236 through 239 and no instrument said so.
+🔴 **`QUEUE_NOT_ONLY_NEWEST` IS THE ONE THAT BREAKS THE LOOP, AND ITS FIRST DRAFT WAS
+SATISFIED BY THE SESSION THAT WROTE IT WITHOUT ANYBODY GAMING ANYTHING.** That draft
+counted any old row closed at the head, and session 240 closed its own two inventions and
+**killed five ancient items it had no intention of doing** — five decisions, no progress,
+green. The caveat printed here said it was *"satisfiable by closing a trivial old row"*;
+it took one session for the file to demonstrate its own warning. Only `DONE` counts now.
+A kill is a decision, and `AGE_CEILING` is the row that asks for a decision; this row asks
+for work finished.
+
+It is still not a guarantee that the queue drains, and a session that wants to game it
+still can by finishing something trivial. It refuses exactly one thing: a session
+reporting closed queue items when nothing it finished was work it inherited. That was
+true of 236 through 239 and no instrument said a word.
