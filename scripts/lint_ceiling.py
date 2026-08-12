@@ -270,22 +270,25 @@ def _selftest() -> int:
           f"{'a missing module exits 1 with an empty stdout — the shape of findings':<66} "
           f"rc={p.returncode}")
 
-    # and the reader must call that an ERROR, not a clean tree
-    for spec, want, why in [
-        ("pyflakes", False, "the real module is importable here, so the probe stays quiet"),
-        ("pyflakes_absent_control_xyz", True,
-         "🔴 AND A MODULE THAT IS NOT THERE MUST BE NAMED — the cause list that shipped "
-         "did not contain the live cause"),
-    ]:
-        got = importlib.util.find_spec(spec) is None
-        ok = got == want
-        bad += 0 if ok else 1
-        print(f"  {'🟢' if ok else '🔴'} {why[:66]:<66} -> absent={got}")
+    # 🔴 AND THE MODULE THAT IS NOT THERE MUST BE NAMED. Only the negative direction is
+    # asserted here, and the reason is this session's own subject arriving in its own
+    # self-test: the first draft ALSO pinned `find_spec("pyflakes") is None == False` —
+    # "the real module is importable here" — which is not a claim about this reader at
+    # all. It is a claim about the machine. It passed on the container that had just
+    # installed pyflakes and reddened `host tests` on CI, where that job does not, and
+    # `FLOOR_PIN_CONTROL` reported the runner failing UNMUTATED. 235 §3's finding, in
+    # 235's own fixture, four hours later.
+    got = importlib.util.find_spec("pyflakes_absent_control_xyz") is None
+    bad += 0 if got else 1
+    print(f"  {'🟢' if got else '🔴'} "
+          f"{'a module that is not there is reported absent':<66} -> absent={got}")
 
-    # 🔴 THE LIVE HALF, AND IT IS THE ONE THAT WOULD HAVE FIRED IN 234's CONTAINER.
-    # `pyflakes_absent()` is what stands between `run_pyflakes` and the three wrong
-    # causes; if it ever returns None on an interpreter without the module, the gate is
-    # back where 234 found it.
+    # 🔴 THE LIVE HALF, AND IT IS THE ONE THAT WOULD HAVE FIRED IN 234's CONTAINER —
+    # AGREEMENT, NOT INSTALLATION. `pyflakes_absent()` must say ABSENT exactly when the
+    # interpreter cannot import it and stay quiet exactly when it can; that claim holds
+    # on a machine with the module and on one without, which is what makes it a claim
+    # about this reader. If it ever returns None on an interpreter without the module,
+    # the gate is back where 234 found it.
     live_reason = pyflakes_absent()
     ok = (live_reason is None) == (importlib.util.find_spec("pyflakes") is not None)
     bad += 0 if ok else 1
