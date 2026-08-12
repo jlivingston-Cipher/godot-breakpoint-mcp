@@ -117,11 +117,12 @@ HOST = ROOT / "host"
 # is `CLAIM_FLOOR`; `READER_FLOOR` is here because a roster silently shrinking would make
 # the DROPPED-counter direction unenforceable without making anything red.
 CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
-# 🔴 238 §2 — THE DISTINCT ATOM SPELLINGS THE ELEVEN REAL BLOCKS CARRY. It floors the
+# 🔴 238 §2 — THE DISTINCT ATOM SPELLINGS THE TWELVE REAL BLOCKS CARRY. It floors the
 # alias walk from BELOW, because `ALIAS_POPULATION` and `ALIAS_UNUSED` both go green on a
-# population that stopped parsing and this one does not. 71 today; the value is the
+# population that stopped parsing and this one does not. 75 today; the value is the
 # measurement and it only ever goes up, because the blocks it counts are already written.
-ALIAS_SPELLING_FLOOR = 71
+# 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
+ALIAS_SPELLING_FLOOR = 75
 READER_FLOOR = 24        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
@@ -559,7 +560,8 @@ PROVENANCE: "dict[str, str]" = {
     "npm.tags": REMOTE,     # origin's tag list — NOT `git tag`, which is CLONE and wrong
     "npm.lag": REMOTE,      # registry_lag.py dials npm
     "ci.green": TREE,       # derived from .github/workflows, like `ci.checks`
-    "git.moved": TREE,      # `rev-list a..b` over two SHAs the block itself prints
+    "git.moved": TREE,      # `rev-list prev..this` — the PREVIOUS block's main, and this
+                            # one's. Two SHAs off one row was 239 §2's tautology.
     "gh.issues": REMOTE,    # GitHub's tracker — no local question has this answer
     "gh.prs": REMOTE,
 }
@@ -769,27 +771,60 @@ def origin_tags(root: Path = ROOT) -> "tuple[int, list[str], str]":
 SHA_RE = re.compile(r"\b(?=[0-9a-f]{7,40}\b)[0-9a-f]*\d[0-9a-f]*\b")
 
 
-def moved_interval(block: "list[str]", root: Path = ROOT) -> "tuple[int, str]":
-    """(commits between the two SHAs on the main row, problem) — TREE, offline.
-
-    🔴 235 NEXT 6 SAID THIS COUNTER NEEDS THE PREVIOUS TREE AND THE GATE HAS ONE TREE.
-    Both halves are true and the conclusion was not: the interval's other endpoint is
-    printed by the block itself, on the main row's continuation line, because every
-    block since 227 lists the commit main moved FROM directly under the one it moved TO.
-    A clone holds both objects, so `rev-list old..new` answers it with no network, no
-    previous handoff, and no second checkout — and the exemption was standing in for a
-    reader nobody had tried to write.
-    """
+def main_shas(block: "list[str]") -> "list[str]":
+    """Every SHA on the block's `main` row, newest first — [] if it has no such row."""
     run = next((lines for kind, lines in _runs(block)
                 if kind == ROW and lines[0].startswith("main")), None)
-    if run is None:
+    return [] if run is None else [s for ln in run for s in SHA_RE.findall(ln)]
+
+
+def previous_main(session: "int | None") -> "tuple[str, str]":
+    """(the SHA main stood at when this session OPENED, problem) — from the population.
+
+    🔴 239 §2 — THE OTHER ENDPOINT IS THE PREVIOUS BLOCK'S, AND 238 PUT IT IN THIS FILE.
+    236 read it off the continuation line under the main row; measured over twelve real
+    blocks, that line is the main SHA's own PARENT in every one of them, so the interval
+    it bounded was `parent..commit` — which is 1 by construction, for any block that
+    prints its history correctly. 235 NEXT 6 said the counter needs the previous tree and
+    the gate has one tree; the half nobody revisited is that a previous BLOCK is not a
+    previous tree, and `BLOCK_POPULATION` has held every one of them since 238.
+    """
+    if session is None:
+        return ("", "this block is not dated, so the population cannot say which block "
+                    "precedes it — and the interval's other endpoint is that block's "
+                    "main row")
+    earlier = [(s, t) for s, t in BLOCK_POPULATION if s < session]
+    if not earlier:
+        return ("", f"no block before {session} is in `BLOCK_POPULATION` — the endpoint "
+                    f"main moved FROM is the previous block's own main row, and adding "
+                    f"a block to that table is the step 238 NEXT 3 said nothing asks for")
+    prev_sess, text = earlier[-1]
+    shas = main_shas(status_block(text)[0])
+    if not shas:
+        return ("", f"{prev_sess}'s block is in the population and its `main` row "
+                    f"carries no SHA, so it cannot supply an endpoint")
+    return (shas[0], "")
+
+
+def moved_interval(block: "list[str]", session: "int | None" = None,
+                   root: Path = ROOT) -> "tuple[int, str]":
+    """(commits between the previous block's main and this one's, problem) — TREE.
+
+    🔴 239 §2 — THE READER THIS REPLACES COULD ONLY EVER ANSWER 1. It bounded the
+    interval with the main row's own two SHAs, and the second one is the first one's
+    parent in all twelve real blocks — so `MOVED +1` agreed with a tautology and the two
+    blocks that moved main twice (232, 233) were the only ones it could contradict. Both
+    were right and both would have been refused. The endpoint that makes this a
+    measurement comes from the block BEFORE this one, which is a fact about the tree and
+    not about the sentence: still offline, still the same number in every full clone.
+    """
+    shas = main_shas(block)
+    if not shas:
         return (-1, "no `main` row in this block")
-    shas = [s for ln in run for s in SHA_RE.findall(ln)]
-    if len(shas) < 2:
-        return (-1, f"the main row carries {len(shas)} SHA(s) and an interval needs two "
-                    f"— the commit main moved TO, and the one it moved FROM on the "
-                    f"continuation line under it")
-    new, old = shas[0], shas[1]
+    new = shas[0]
+    old, why = previous_main(session)
+    if why:
+        return (-1, why)
     p = subprocess.run(("git", "rev-list", "--count", f"{old}..{new}"),
                        cwd=root, capture_output=True, text=True)
     if p.returncode != 0:
@@ -798,6 +833,23 @@ def moved_interval(block: "list[str]", root: Path = ROOT) -> "tuple[int, str]":
                     f"both commits, which is a fact about the clone and not about the "
                     f"claim")
     return (int(p.stdout.strip() or 0), "")
+
+
+def parent_of(sha: str, root: Path = ROOT) -> "tuple[str, str]":
+    """(the short SHA of `sha`'s first parent, problem) — TREE, offline.
+
+    🔴 THE CLAIM THE OLD `MOVED` READER WAS ACTUALLY MAKING, WRITTEN DOWN AS ITS OWN.
+    `rev-list parent..commit` is 1 whatever the two commits are, so the number told
+    nobody anything; what the main row's two lines really assert is that the second is
+    the first's parent, and THAT can be false. It is a different claim from `MOVED`, it
+    is checked separately below, and neither one stands in for the other.
+    """
+    p = subprocess.run(("git", "rev-parse", "--short", f"{sha}^"),
+                       cwd=root, capture_output=True, text=True)
+    if p.returncode != 0:
+        return ("", f"`git rev-parse {sha}^` exited {p.returncode}: "
+                    f"{(p.stderr or '').strip()[:120]}")
+    return (p.stdout.strip(), "")
 
 
 def gh_open(kind: str, root: Path = ROOT) -> "tuple[int, str]":
@@ -849,10 +901,11 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
      "for the VERIFIED line's `26 CI jobs`, restated as a ratio — so it is checked "
      "against the same reader, and both halves must equal it."),
     ("git.moved", r"\bMOVED\b", 1, "",
-     "🆕 `MOVED +1` — commits between the SHA main moved FROM and the one it moved TO, "
-     "both of which the block prints on the main row. It was exempt until 236 for a "
-     "reason that described the gate rather than the counter; `rev-list old..new` is "
-     "TREE, offline, and the same number in every clone."),
+     "🆕 239 §2 — `MOVED +1` — commits between the SHA main stood at when the session "
+     "OPENED and the one it stands at now. The first endpoint is the PREVIOUS block's "
+     "main row, read out of `BLOCK_POPULATION`; 236 read it off this block's own "
+     "continuation line, which is the main SHA's parent in all twelve real blocks and "
+     "made the answer 1 by construction. Still TREE, still offline."),
     ("gh.issues", r"\bopen issues\b", 1, r"^GH_OPEN_ISSUES (\d+)$",
      "🆕 `0 open issues` — NETWORK, `gh issue list --state open`. A counter whose "
      "correct value is almost always zero is the one an absent tool imitates perfectly, "
@@ -924,9 +977,16 @@ def split_compound(cleaned: str, rows: "list[tuple]"
     return ([(r, p) for (r, _m), p in zip(hits, pieces)], "")
 
 
-def check_header(block: "list[str]", log: str, run_network: bool
+def check_header(block: "list[str]", log: str, run_network: bool,
+                 session: "int | None" = None
                  ) -> "tuple[list[str], list[str], int, int]":
-    """(problems, notes, atoms read, counters compared) for the lines above VERIFIED."""
+    """(problems, notes, atoms read, counters compared) for the lines above VERIFIED.
+
+    🔴 239 §2 — `session` IS AN INPUT TO A COUNTER NOW, NOT JUST TO `needed()`. `MOVED`
+    is an interval between two blocks, so the reader has to know which block it is
+    reading; a block that cannot say answers UNREAD rather than a number derived from
+    one end of it.
+    """
     problems: "list[str]" = []
     notes: "list[str]" = []
     atoms, fired = header_atoms(block)
@@ -970,7 +1030,7 @@ def check_header(block: "list[str]", log: str, run_network: bool
             total, _skipped = ci_check_runs()
             got = (total, total)
         elif key == "git.moved":
-            n_moved, prob = moved_interval(block)
+            n_moved, prob = moved_interval(block, session)
             if prob:
                 notes.append(f"git.moved: UNREAD — {prob}")
                 continue
@@ -1406,7 +1466,8 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
               f"happened and this run cannot tell a dropped counter from a counter the "
               f"session predates"]
 
-    h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network)
+    h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network,
+                                                            session)
     problems.extend(h_problems)
 
     bound: "dict[str, tuple[str, tuple[int, ...]]]" = {}
@@ -1895,6 +1956,31 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · wire_invisible 27 + live · lint_ceiling 16 files
 >               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
 >               · handoff 180 claims · 26 CI jobs
+> ```
+"""),
+    # 🆕 239 — THE TWELFTH BLOCK, WHICH IS 238 NEXT 3's WHOLE ITEM. *"Every claim the
+    # alias walk makes is satisfiable by a population that stops growing, and a block
+    # added to `BLOCK_POPULATION` is a manual step nothing asks for."* Nothing asked for
+    # it; `git.moved` does now, because a session's own `MOVED` row cannot be read
+    # without the previous block's main SHA, and the reader names the block that is
+    # missing when it is. A table that stops growing now stops ANSWERING.
+    (238, """> ```
+> main                 831ce40 — the aliases nothing walked (#292)                  MOVED +1
+>                      0a8c64a — the rules that were only ever sentences (#291)
+> branch 238           7ffaa02 session238-the-aliases-nothing-walked
+>                      🟢 PUSHED · PR #292 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 93 · 41 governed · 827 keys · 26 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 201 claims · 26 CI jobs
 > ```
 """),
 ]
@@ -2508,10 +2594,14 @@ def selftest() -> int:
         print("  🔴 EMPTY_COUNTER_LINE a VERIFIED line carrying no counters returned no "
               "problem — a parse of nothing agrees with everything")
 
-    # ── 🔴 235 NEXT 6 — THE INTERVAL, AGAINST THE REAL COMMITS ────────────────────────
+    # ── 🔴 239 §2 — THE INTERVAL, AGAINST THE REAL COMMITS AND THE REAL POPULATION ────
     #
-    # 234's header names bcc0b85 and c27953d and claims `MOVED +1`. The exemption said
-    # this needed the previous TREE; it needed the previous SHA, which the block prints.
+    # 234's header names bcc0b85 and c27953d and claims `MOVED +1`. 236 read both
+    # endpoints off that one row and 238 believed the row disagreed with 232's block;
+    # measured, the row cannot disagree with anything. c27953d is bcc0b85's PARENT — as
+    # is every continuation line in all twelve real blocks — so `rev-list` over the pair
+    # answers 1 whatever the session did, and the only block shape it could ever refuse
+    # is one claiming `+2`. Both blocks that claim it (232, 233) are CORRECT.
     #
     # 🔴 AND THE FIRST VERSION OF THIS CLAIM WAS A CLAIM ABOUT THE MACHINE — 235 §6.3, ONE
     # SESSION LATER, IN THE SESSION THAT QUOTES IT. It asserted `rev-list` answers 1,
@@ -2521,27 +2611,116 @@ def selftest() -> int:
     # about the reader and holds everywhere; the LIVE half asserts a number where the
     # objects are and a REFUSAL where they are not, and never a number invented from one.
     claims += 1
-    main_run = next((lines for kind, lines in _runs(real_block)
-                     if kind == ROW and lines[0].startswith("main")), [])
-    ends = [s for ln in main_run for s in SHA_RE.findall(ln)][:2]
+    ends = main_shas(real_block)[:2]
     if ends != ["bcc0b85", "c27953d"]:
         failed += 1
-        print(f"  🔴 MOVED_PARSE {ends}, pinned ['bcc0b85', 'c27953d'] — the endpoints "
-              f"are the main row's own two SHAs, newest first")
+        print(f"  🔴 MOVED_PARSE {ends}, pinned ['bcc0b85', 'c27953d'] — the main row's "
+              f"own two SHAs, newest first. The FIRST is this counter's endpoint; the "
+              f"second is read by `MOVED_PARENT` below and by nothing else")
 
-    claims += 1
     have = all(subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
                               capture_output=True).returncode == 0 for s in ends)
-    got_moved, moved_why = moved_interval(real_block)
+    claims += 1
+    got_moved, moved_why = moved_interval(real_block, 234)
     if have and (moved_why or got_moved != 1):
         failed += 1
-        print(f"  🔴 MOVED_LIVE {moved_why or got_moved}, pinned 1 — this checkout holds "
-              f"both endpoints and `rev-list bcc0b85..c27953d` is 1")
+        print(f"  🔴 MOVED_LIVE {moved_why or got_moved}, pinned 1 — 233's block puts "
+              f"main at c27953d and 234's at bcc0b85, so the session moved it once")
     if not have and (not moved_why or got_moved != -1):
         failed += 1
         print(f"  🔴 MOVED_SHALLOW {got_moved}/{moved_why!r} — a checkout missing an "
               f"endpoint must make this UNREAD with the reason, not a number: a shallow "
               f"clone is a fact about the machine and the claim is about the interval")
+
+    # 🔴 AND THE CLAIM THE OLD READER WAS REALLY MAKING, NOW MAKING IT ON ITS OWN. The
+    # continuation line is the main SHA's parent — true of every block, and the only
+    # thing `rev-list old..new` over one row was ever able to test. As its own claim it
+    # can fail; as a counter it could not.
+    claims += 1
+    if have:
+        par, par_why = parent_of(ends[0])
+        if par_why or not par.startswith(ends[1][:7]) and not ends[1].startswith(par[:7]):
+            failed += 1
+            print(f"  🔴 MOVED_PARENT {par or par_why!r}, pinned {ends[1]!r} — the "
+                  f"continuation line under the main row is that commit's parent, which "
+                  f"is why an interval bounded by both was 1 in every block ever written")
+
+    # 🔴 AND A COUNTER THAT ANSWERS THE SAME NUMBER FOR EVERY BLOCK IS NOT READING THEM.
+    # This is the control the old reader had no way to pass: over the population it
+    # returned 1, twelve times, including for the two blocks whose sessions moved main
+    # twice. Distinct values are the measurement — 0 for the two UNMOVED sessions, 1 for
+    # the seven single-merge ones, 2 for 232 and 233 — and one value is a constant with a
+    # `git` call in front of it. Not floored: the assertion is that the set is not a
+    # singleton, which no session can satisfy by shrinking the population to nothing.
+    pop_moved: "dict[int, int]" = {}
+    pop_unread: "list[str]" = []
+    for sess, text in BLOCK_POPULATION:
+        pop_block = status_block(text)[0]
+        ends_p = main_shas(pop_block)[:2]
+        if not ends_p or not all(
+                subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
+                               capture_output=True).returncode == 0 for s in ends_p):
+            continue
+        n_p, why_p = moved_interval(pop_block, sess)
+        if why_p:
+            pop_unread.append(f"{sess}: {why_p[:60]}")
+        else:
+            pop_moved[sess] = n_p
+
+    claims += 1
+    if pop_moved and len(set(pop_moved.values())) < 2:
+        failed += 1
+        print(f"  🔴 MOVED_CONSTANT {sorted(set(pop_moved.values()))} across "
+              f"{len(pop_moved)} block(s) — a reader that answers one number for every "
+              f"block in the population is agreeing with a printing convention, not "
+              f"measuring an interval. 236's read `parent..commit` and answered 1 for "
+              f"twelve blocks; the two that moved main twice were the only ones it could "
+              f"contradict, and both were right")
+
+    # 🔴 AND EVERY BLOCK THAT CLAIMS A NUMBER MUST GET ITS OWN NUMBER BACK. The walk 238
+    # NEXT 2 asked for, over twelve blocks instead of the one in front of the author.
+    claims += 1
+    disagreed = []
+    for sess, text in BLOCK_POPULATION:
+        if sess not in pop_moved:
+            continue
+        pop_block = status_block(text)[0]
+        atom = next((c for _r, c in header_atoms(pop_block)[0] if "MOVED" in c), "")
+        want = tuple(int(x) for x in COUNTER_RE.findall(atom)) if atom else ()
+        if want and want != (pop_moved[sess],):
+            disagreed.append(f"{sess}: block says {want}, tree says {pop_moved[sess]}")
+    if disagreed:
+        failed += 1
+        print(f"  🔴 MOVED_POPULATION {disagreed} — 238 NEXT 2 asked whether 232's "
+              f"`MOVED +2` was wrong or the reader was. Measured over every block the "
+              f"table holds, and any row here is one or the other")
+
+    # 🔴 AND A SINGLE SHA ON THE MAIN ROW IS ENOUGH NOW, WHICH IS THE WHOLE CHANGE. 233's
+    # block prints one, claims `MOVED +2`, and was UNREAD until this session for needing
+    # a second endpoint it never needed: 232's block has it. The pin is 2 — the number
+    # 233 wrote, from a tree that never agreed with it before.
+    claims += 1
+    one_end, one_why = moved_interval(status_block(REAL_BLOCK)[0], 233)
+    trimmed = main_shas(status_block(REAL_BLOCK)[0])
+    if len(trimmed) == 1 and have and (one_why or one_end != 2):
+        failed += 1
+        print(f"  🔴 MOVED_ONE_END {one_end}/{one_why!r}, pinned 2 — one SHA on the main "
+              f"row and the other endpoint in the population is the readable case, not "
+              f"the refused one")
+
+    # 🔴 AND UNDATED, OR UNPRECEDED, IS UNREAD WITH THE REASON. A block whose session the
+    # file cannot name has no previous block; a session earlier than everything in the
+    # table has none either, and that is 238 NEXT 3's manual step made loud — a table
+    # that stops growing stops answering rather than quietly answering 1.
+    for sess_arg, label in ((None, "MOVED_UNDATED"), (BLOCK_POPULATION[0][0],
+                                                      "MOVED_NO_PREVIOUS")):
+        claims += 1
+        n_u, why_u = moved_interval(real_block, sess_arg)
+        if not why_u or n_u != -1:
+            failed += 1
+            print(f"  🔴 {label} {n_u}/{why_u!r} — the endpoint main moved FROM is "
+                  f"another block's row, and a run that cannot name that block must say "
+                  f"so rather than read this one twice")
 
     # 🔴 AND THE SUBJECT LINE MUST NOT SUPPLY THE SECOND ENDPOINT. A commit subject is
     # English, and English contains hex: a bare `[0-9a-f]{7,40}` reads `deadbeef` out of
@@ -2553,14 +2732,6 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 SHA_WORDS {SHA_RE.findall(decoy[0])}, pinned ['7d6e9bf'] — a hex run "
               f"with no digit is a word, and the main row's second one decides `MOVED`")
-
-    # and a main row with ONE sha is UNREAD rather than a number invented from one end
-    claims += 1
-    one_end, one_why = moved_interval(status_block(REAL_BLOCK)[0])
-    if not one_why or one_end != -1:
-        failed += 1
-        print(f"  🔴 MOVED_ONE_END {one_end}/{one_why!r} — 233's header prints a single "
-              f"SHA on the main row and an interval needs two")
 
     # ── 🔴 236 §4 — BOTH OF `lint_ceiling.py`'s HEADER LINES ──────────────────────────
     lint_extract = next(r[5] for r in COUNTER_READERS if r[0] == "lint.files")
