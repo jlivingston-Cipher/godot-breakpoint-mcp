@@ -869,10 +869,36 @@ def check_header(block: "list[str]", log: str, run_network: bool
 REPLAY_MEASURED_RE = re.compile(r"handoff_gate\.py[^\n]*?--measured\s+(\S+)")
 
 
+def fenced(text: str) -> "list[str]":
+    """Every ``` fenced block's body, in order."""
+    out: "list[str]" = []
+    cur: "list[str]" = []
+    inside = False
+    for line in text.split("\n"):
+        if line.strip().startswith("```"):
+            if inside:
+                out.append("\n".join(cur))
+                cur = []
+            inside = not inside
+            continue
+        if inside:
+            cur.append(line)
+    return out
+
+
 def replay_problems(text: str) -> "tuple[list[str], list[str]]":
-    """(problems, notes) for the handoff's own replay block."""
+    """(problems, notes) for the handoff's own replay block.
+
+    🔴 THE POPULATION IS THE FENCE, NOT THE DOCUMENT, AND THE FIRST DRAFT GOT IT WRONG IN
+    THE WAY THIS FILE KEEPS GETTING THINGS WRONG. Scanning every line made a handoff that
+    QUOTES the previous session's broken replay — which is what a handoff reporting this
+    defect does — read as a document that RUNS it, and 236's own §1 reddened §9's correct
+    replay by citing the line it was correcting. Prose about a command is not the command.
+    """
     problems: "list[str]" = []
     notes: "list[str]" = []
+    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
+    text = blocks[-1] if blocks else text
     hits = REPLAY_MEASURED_RE.findall(text)
     if not hits:
         if "handoff_gate.py" in text:
@@ -1636,6 +1662,19 @@ def selftest() -> int:
         print(f"  🔴 REPLAY_REAL 235 §8.1's replay produced {len(real_problems)} "
               f"problem(s) naming {sorted(hit_keys)} — it prints the three MUTATING "
               f"gates to the terminal and then tells the gate to read run.log")
+
+    # 🔴 AND A HANDOFF THAT QUOTES THE BROKEN REPLAY IS NOT A HANDOFF THAT RUNS IT. This
+    # is the shape of the document reporting the defect: 235's replay cited in §1, the
+    # session's own corrected one in §9. The replay a handoff SHIPS is the last fenced
+    # block carrying a `--measured` invocation; everything above it is prose about it.
+    claims += 1
+    quoting = ("## §1 — the replay 235 printed\n\n" + REAL_REPLAY
+               + "\n## §9 — the replay this session ran\n\n" + FIXED_REPLAY)
+    quoted_problems, _qn = replay_problems(quoting)
+    if quoted_problems:
+        failed += 1
+        print(f"  🔴 REPLAY_QUOTED a handoff quoting the previous session's broken "
+              f"replay above its own correct one was refused: {quoted_problems}")
 
     claims += 1
     fixed_problems, _fn = replay_problems(FIXED_REPLAY)
