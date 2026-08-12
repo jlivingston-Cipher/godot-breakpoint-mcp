@@ -1613,15 +1613,38 @@ def selftest() -> int:
 
     # ── 🔴 235 NEXT 6 — THE INTERVAL, AGAINST THE REAL COMMITS ────────────────────────
     #
-    # 234's header names bcc0b85 and c27953d and claims `MOVED +1`; both are in this
-    # repository and `rev-list` answers 1. The exemption said this needed the previous
-    # tree. It needed the previous SHA, which the block prints.
+    # 234's header names bcc0b85 and c27953d and claims `MOVED +1`. The exemption said
+    # this needed the previous TREE; it needed the previous SHA, which the block prints.
+    #
+    # 🔴 AND THE FIRST VERSION OF THIS CLAIM WAS A CLAIM ABOUT THE MACHINE — 235 §6.3, ONE
+    # SESSION LATER, IN THE SESSION THAT QUOTES IT. It asserted `rev-list` answers 1,
+    # which is true on any full clone and false on CI, where `actions/checkout` fetches
+    # one commit and neither endpoint exists. It went red there and nowhere else. So the
+    # claim that survives is the same one 235 landed on: AGREEMENT. The PARSE half is
+    # about the reader and holds everywhere; the LIVE half asserts a number where the
+    # objects are and a REFUSAL where they are not, and never a number invented from one.
     claims += 1
-    got_moved, moved_why = moved_interval(real_block)
-    if moved_why or got_moved != 1:
+    main_run = next((lines for kind, lines in _runs(real_block)
+                     if kind == ROW and lines[0].startswith("main")), [])
+    ends = [s for ln in main_run for s in SHA_RE.findall(ln)][:2]
+    if ends != ["bcc0b85", "c27953d"]:
         failed += 1
-        print(f"  🔴 MOVED_REAL {moved_why or got_moved}, pinned 1 — 234's header names "
-              f"both endpoints and this clone holds both commits")
+        print(f"  🔴 MOVED_PARSE {ends}, pinned ['bcc0b85', 'c27953d'] — the endpoints "
+              f"are the main row's own two SHAs, newest first")
+
+    claims += 1
+    have = all(subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
+                              capture_output=True).returncode == 0 for s in ends)
+    got_moved, moved_why = moved_interval(real_block)
+    if have and (moved_why or got_moved != 1):
+        failed += 1
+        print(f"  🔴 MOVED_LIVE {moved_why or got_moved}, pinned 1 — this checkout holds "
+              f"both endpoints and `rev-list bcc0b85..c27953d` is 1")
+    if not have and (not moved_why or got_moved != -1):
+        failed += 1
+        print(f"  🔴 MOVED_SHALLOW {got_moved}/{moved_why!r} — a checkout missing an "
+              f"endpoint must make this UNREAD with the reason, not a number: a shallow "
+              f"clone is a fact about the machine and the claim is about the interval")
 
     # 🔴 AND THE SUBJECT LINE MUST NOT SUPPLY THE SECOND ENDPOINT. A commit subject is
     # English, and English contains hex: a bare `[0-9a-f]{7,40}` reads `deadbeef` out of
