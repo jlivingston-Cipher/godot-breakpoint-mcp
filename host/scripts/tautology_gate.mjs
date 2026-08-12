@@ -258,6 +258,16 @@ export const NO_CLAIMS_EXPECTED = {
   "positive_control_gate.mjs": "the positive-control classifier — it reads assertion units and asserts nothing itself; its 43 claims are in positive_control_gate.selftest.mjs (219)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
   "token-cost.mjs": "a reporting tool that PRINTS the tool-surface cost; its two governed constants are asserted in token-cost.selftest.mjs",
+
+  // 🆕 241 — THE TWO P0 REPORTERS, admitted for `token-cost.mjs`'s written reason and not
+  // by any filename rule. Both PRINT an inventory the code review consumes; neither
+  // decides anything, which is the point — `docs/CODE_REVIEW_P0_INVENTORY.md` §6 records
+  // that a cluster is a CANDIDATE, not a verdict. 🔴 AND THE SELFTESTS ARE NOT A
+  // FORMALITY: `p0_testdup.selftest.mjs` found a live defect in its own subject on the
+  // run that introduced it — the clusterer was reading `assert.equal(…)` as subject
+  // `equal`, so the key count this document published was wrong until the fixture said so.
+  "p0_complexity.mjs": "the complexity reporter — it PRINTS cyclomatic/cognitive/nesting per function and asserts nothing itself; its 12 claims are in p0_complexity.selftest.mjs (241)",
+  "p0_testdup.mjs": "the test-duplication clusterer — it PRINTS (subject | oracle | shape) clusters as CANDIDATES and asserts nothing itself; its 14 claims, including a negative control on the `async` subject defect, are in p0_testdup.selftest.mjs (241)",
   // 🔴 209 — AND THIS ONE'S REASON HAS A CAVEAT THE OTHERS DO NOT, so it is written here
   // rather than borrowed from the line above. `wire_diff.mjs` is not purely a printer: it
   // REFUSES, throwing on a collapsed population. That refusal is a `throw`, not an

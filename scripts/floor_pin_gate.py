@@ -169,7 +169,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # the live run cannot notice. Its `--selftest` asserts the literal against the live
     # `git ls-files` count from both sides. 🔴 The roster it guards is `CLASS_CEILING`,
     # which is exempt below for the reason a dict of prose reasons is not a threshold.
-    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )17",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )18",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 234 — THE HANDOFF READER'S TWO, AND THEY FLOOR THE TWO WAYS IT CAN GO QUIET.
     # `CLAIM_FLOOR` is the parse: a reader whose regexes stop matching the block reads
     # zero atoms, disagrees with nothing and prints ok, which is `scope_gate.py`'s quiet
@@ -1164,14 +1164,14 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
         "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
         "whole subject is work nobody is doing.")),
-    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (17, (
+    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (18, (
         "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
         "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
         "same set today and the floor is what says so if they stop being. It moves when a "
         "script is ADDED or DELETED on purpose — this row and the file arrived in the same "
         "commit, so its first value counts itself. 🔴 A linter with nothing to read prints "
         "a clean tree in the same words as a clean tree, which is why the population is "
-        "floored and not just the findings. 🆕 RAISED BY ONE THIS SESSION, WHICH IS THE DELIBERATE HALF: `handoff_gate.py` joined the tree and the population is `git ls-files`, so the floor moving in the same commit as the file is what tells that from a walk that quietly stopped reaching one.")),
+        "floored and not just the findings. 🆕 RAISED BY ONE THIS SESSION, WHICH IS THE DELIBERATE HALF: `handoff_gate.py` joined the tree and the population is `git ls-files`, so the floor moving in the same commit as the file is what tells that from a walk that quietly stopped reaching one. 🆕 241 — RAISED BY ONE AGAIN, AND THIS TIME THE FILE JOINING THE POPULATION IS A LINTER'S SUBJECT RATHER THAN A GATE: `p0_comments.py`, the P0 comment classifier. It is worth writing down that the equality caught it before a reader did, because the inventory that file produces reports the opposite fact one plane over — the scripts here are lint-governed and the shipped TypeScript has no lint configuration of any kind. The population this tree DOES lint counts itself exactly; the one it ships does not count itself at all.")),
     # 🆕 233 — instrument_gate.py's floor on its READ OF ci.yml, not on a population of
     # its own. Every `LATE_LIVE_NA` row is a claim that no second command exercises an
     # instrument, and until this session nothing re-derived it: three of the four rows
@@ -1270,7 +1270,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (46, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (47, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
@@ -1295,7 +1295,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "registry-lag reader each raised this count on the commit that staged them, and "
         "in every one of those cases the check refused within minutes of the staging "
         "rather than at the local run before it — the population is `git ls-files` and "
-        "nothing else in the tree reads it.")),
+        "nothing else in the tree reads it. "
+        "🆕 241 — RAISED BY ONE FOR THE P0 COMMENT CLASSIFIER, and the deliberate half is "
+        "worth naming: the file joining this population is the one that walks every "
+        "comment in the tree and sorts it into five buckets. It was caught by a shebang "
+        "on its own first line and by an equality on a linter's file count, both within "
+        "minutes of `git add` — the ordering rule doing what it was written for rather "
+        "than a coincidence worth admiring.")),
     ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (5, (
         "The tree-mutating gates that must take the lock, at `{FLOOR}` — control, "
         "floor-pin, instrument, scope, and the tree-quiet reader's own `--recover`. "

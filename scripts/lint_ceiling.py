@@ -50,7 +50,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-PY_FILE_FLOOR = 17      # governed by floor_pin_gate's SIZE_LEDGER
+PY_FILE_FLOOR = 18      # governed by floor_pin_gate's SIZE_LEDGER
+                        # 🆕 241: 17 -> 18, `scripts/p0_comments.py`. 🔴 THIS IS AN
+                        # EQUALITY, NOT A FLOOR, and that is why it caught the new file
+                        # instead of shrugging at it: a `>=` would have let an eighteenth
+                        # tracked `.py` join the tree unlinted and said nothing. §4 of the
+                        # P0 inventory is the same argument one plane over — these
+                        # eighteen scripts are lint-governed and the 68 files of shipped
+                        # TypeScript have no lint config at all — so the one population
+                        # this tree DOES lint had better keep counting itself exactly.
                         # 🆕 240: 16 -> 17, `scripts/queue_gate.py`.
 
 # 🔴 THE ROSTER IS THE GATE. Each row is a class `pyflakes` reports today, the number of

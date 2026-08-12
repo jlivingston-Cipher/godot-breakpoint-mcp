@@ -2714,7 +2714,16 @@ EXEC_ROSTER = {
 # WITHIN A MINUTE OF `git add` — and 234's new file is the one that reads a handoff's
 # counters back off the instruments, so the check catching it is the argument for it
 # arriving from the other side.
-SHEBANG_NONEXEC_EXPECTED = 46  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 47  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # 🆕 241: 46 -> 47, `scripts/p0_comments.py` — the P0
+                               # comment classifier, invoked as `python3 <file>` like
+                               # every gate beside it. 🔴 AND IT FIRED ON THE SESSION
+                               # WHOSE SUBJECT IS A COMMENT INVENTORY: the file this
+                               # check caught is the one that classifies every comment in
+                               # the tree, and it was caught BY a comment sitting beside a
+                               # literal — the exact shape its own `describes-other-code`
+                               # bucket counts 1,339 of. 228 §6.9's ordering is what makes
+                               # that possible: run after `git add`, not before.
                                # 🆕 240: 45 -> 46, `scripts/queue_gate.py`.
 #                              # 🆕 230: 41 -> 42. scripts/lint_ceiling.py, invoked as
 #                              # `python3 <file>` like every gate beside it. 🔴 THIS CHECK
