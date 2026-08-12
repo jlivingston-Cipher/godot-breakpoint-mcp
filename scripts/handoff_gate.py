@@ -83,6 +83,7 @@ Run:  python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md
       python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --measured run.log --network
       python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --no-locked
       python3 scripts/handoff_gate.py --selftest
+      python3 scripts/handoff_gate.py --patterns [--measured run.log]   (237 §1)
       python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --read   (parse only)
 
 🔴 THE MEASURED LOG'S ORDER IS NOT FREE — 235 §1. `host.suite` reads `# tests` and
@@ -181,8 +182,79 @@ VERIFIED_RE = re.compile(r"^(?:[🟢🔴🆕]\s*)?\*{0,2}VERIFIED\b", re.U)
 #
 # need:  REQUIRED  a block that omits this counter has dropped it
 #        OPTIONAL  legitimately absent from some blocks, with the reason saying when
+#        SINCE(n)  REQUIRED of blocks numbered n and later, OPTIONAL before — see below
 CHEAP, LOCKED, SLOW, MUTATING = "CHEAP", "LOCKED", "SLOW", "MUTATING"
 REQUIRED, OPTIONAL = "REQUIRED", "OPTIONAL"
+
+# ── 🔴 237 §3 — OPTIONAL IS TWO CLAIMS WEARING ONE WORD ───────────────────────────────
+#
+# `release_names.rows` is OPTIONAL because a session that cut no release has nothing for
+# that instrument to read: the counter is absent for a reason that recurs, and always
+# will. `instrument.blast` was OPTIONAL because 227–231 predate the axis: absent for a
+# reason that STOPPED being true in 232 and can never become true again. The first is a
+# property of the counter; the second is a date, and a date written as a permanent
+# exemption is 233 §18's stale reason with nothing to make it loud. 234 NEXT 6 named it,
+# 235 and 236 carried it untouched, and the row that says so is `instrument.late_live`'s
+# own reason — *"a row that stays OPTIONAL after its counter is universal is this file's
+# own stale-reason class — promote it once 234 and later are the population."*
+#
+# 🔴 AND THE PROMOTION 236 §8.4 ASKED FOR WOULD HAVE BEEN WRONG BY ONE BLOCK IN TWO ROWS,
+# BECAUSE IT WAS COUNTED FROM PROSE. *"Six readers are OPTIONAL because 227–232 predate
+# their axes, and 236 is the fourth block in a row to carry all of them"* — measured over
+# the real blocks, 232 carries `discover 48/12/12/18` and `0 undeclared` and **233 drops
+# both**, so the run of blocks carrying all six is 234–236 and it is three long, not
+# four. Two of the six are not new axes at all: they are counters a later session stopped
+# restating, which is the DROPPED-counter direction this file exists to catch, and a
+# blanket `REQUIRED` at 233 would have reddened a block that was correct about its own
+# session. So the boundary is per row and it is the measurement, not the sentence.
+SINCE_RE = re.compile(r"^SINCE (\d+)$")
+
+
+def SINCE(n: int) -> str:
+    """REQUIRED of blocks numbered n and later, OPTIONAL of the ones before it.
+
+    `n` is the first session from which EVERY block carries the counter — not the session
+    that introduced it. The two differ whenever a later block dropped the field, which is
+    exactly the case a flat promotion gets wrong.
+    """
+    return f"SINCE {n}"
+
+
+def needed(need: str, session: "int | None") -> str:
+    """REQUIRED or OPTIONAL for the block in hand.
+
+    🔴 AN UNKNOWN SESSION FALLS BACK TO OPTIONAL AND SAYS SO. A `SINCE` row read against a
+    block whose number nobody could find is a comparison that did not happen; treating it
+    as REQUIRED would refuse a correct 229 handed over under another name, and treating it
+    as REQUIRED-and-silent is the green-over-an-unread-counter this file is about.
+    """
+    m = SINCE_RE.match(need)
+    if m is None:
+        return need
+    return OPTIONAL if session is None else (
+        REQUIRED if session >= int(m.group(1)) else OPTIONAL)
+
+
+SESSION_RE = re.compile(r"HANDOFF_SESSION(\d+)", re.I)
+BRANCH_RE = re.compile(r"^branch (\d+)\b")
+
+
+def block_session(name: str, block: "list[str]") -> "tuple[int | None, str]":
+    """(the session this block belongs to, where the number was read).
+
+    The file's own name first, then the block's `branch n` row — which `HEADER_EXEMPT`
+    already declares is the session number and not a measurement. Both are the document's
+    own claim about itself, and a document that makes neither is not dated.
+    """
+    m = SESSION_RE.search(name)
+    if m is not None:
+        return (int(m.group(1)), f"the file name {name!r}")
+    for line in block:
+        m = BRANCH_RE.match(line)
+        if m is not None:
+            return (int(m.group(1)), f"the block's own {line.strip()[:20]!r} row")
+    return (None, f"neither {name!r} nor any `branch n` row in the block carries a "
+                  f"session number")
 
 # (key, alias, n, cmd, cwd, extract, cost, need, reason)
 COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, str, str, str]]" = [
@@ -298,9 +370,16 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     # it had never heard of. A roster complete for the block in front of it is 224 §7.6's
     # shape — a sweep whose file set is curated reports zero for the files somebody
     # thought of — so the population is every counter that has appeared in a real status
-    # block, and the five rows below are what that walk found. All OPTIONAL: they are
+    # block, and the five rows below are what that walk found. All five were OPTIONAL:
     # absent from 233 for the good reason that its session did not run those instruments,
     # and a REQUIRED row here would redden every correct handoff that omits one.
+    #
+    # 🔴 237 §3 — AND THAT REASON IS TRUE OF THREE OF THEM AND FALSE OF TWO. `mutlock`,
+    # `tree_quiet` and `release_names` are absent whenever a session did not run those
+    # instruments; that recurs, and always will. `discover` and `undeclared` are absent
+    # from 233 and from nothing since — 234, 235 and 236 all carry them — so their
+    # absence was one session's omission rather than a property of the counter, and the
+    # rows are `SINCE(234)`.
     ("mutlock.guarded", r"\bmutlock\b", 2,
      ("python3", "scripts/mutation_lock_gate.py", "--selftest"), ROOT,
      r"floor=\d+ live=(\d+)[\s\S]*?MUTATION_LOCK selftest ok — (\d+) case", LOCKED, OPTIONAL,
@@ -334,15 +413,19 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     # time this session a rule caught code from its own commit.
     ("instrument.discover", r"^discover\b", 4, ("python3", "scripts/instrument_gate.py"), ROOT,
      r"^INSTRUMENT_GATE_DISCOVER (\d+) file\(s\) walked · (\d+) export-bearing · (\d+) "
-     r"instrument\(s\) · (\d+) gate/driver", MUTATING, OPTIONAL,
+     r"instrument\(s\) · (\d+) gate/driver", MUTATING, SINCE(234),
      "🆕 232's discover half. `discover 48/12/12/18` — four numbers, no nouns, and the "
      "fourth has since moved to 22, which is what a counter restated as a bare tuple "
-     "costs a later reader."),
+     "costs a later reader. 🔴 SINCE 234 AND NOT 233, WHICH IS THE WHOLE REASON THE "
+     "BOUNDARY IS MEASURED: 232 carries this counter and 233 DROPS it. It is not a new "
+     "axis 227–232 predate — it is a field one later block stopped restating, and 236 "
+     "§8.4 counted it among the six anyway."),
     ("instrument.undeclared", r"\bundeclared\b", 1, ("python3", "scripts/instrument_gate.py"),
-     ROOT, r"· (\d+) UNDECLARED", MUTATING, OPTIONAL,
+     ROOT, r"· (\d+) UNDECLARED", MUTATING, SINCE(234),
      "`0 undeclared` — 232 gave it its own atom, which is the right shape: it is the "
      "discover half's whole verdict and burying it inside a tuple would hide the one "
-     "number that can go non-zero."),
+     "number that can go non-zero. SINCE 234 for `instrument.discover`'s reason — the "
+     "two were introduced together in 232 and dropped together in 233."),
 
     # ── this file ─────────────────────────────────────────────────────────────────────
     ("handoff.claims", r"\bhandoff\b", 1, ("python3", "scripts/handoff_gate.py", "--selftest"),
@@ -371,24 +454,33 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      "population — and the synthesis is why a reader anchored on the handoff's own words "
      "would have found nothing to compare against."),
     ("instrument.late_live", r"\blate_?live\b", 2, ("python3", "scripts/instrument_gate.py"), ROOT,
-     r"^INSTRUMENT_GATE_LATE_LIVE (\d+)/(\d+)", MUTATING, OPTIONAL,
-     "🆕 233 — `LATE_LIVE 13/8`. OPTIONAL because the axis is new: 227–232's blocks "
-     "predate it and would redden on a REQUIRED row for a counter that did not exist. "
-     "🔴 A ROW THAT STAYS OPTIONAL AFTER ITS COUNTER IS UNIVERSAL IS THIS FILE'S OWN "
-     "STALE-REASON CLASS (233 §18) — promote it once 234 and later are the population."),
+     r"^INSTRUMENT_GATE_LATE_LIVE (\d+)/(\d+)", MUTATING, SINCE(233),
+     "🆕 233 — `LATE_LIVE 13/8`. The axis is new: 227–232's blocks predate it and would "
+     "redden on a flat REQUIRED row for a counter that did not exist. 🟢 AND THIS ROW "
+     "ASKED FOR ITS OWN PROMOTION — *\"a row that stays OPTIONAL after its counter is "
+     "universal is this file\'s own stale-reason class (233 §18) — promote it once 234 "
+     "and later are the population\"* — carried untouched by 234, 235 and 236. 233 is "
+     "the first block that carries it and every block since carries it, so 233 is the "
+     "boundary and the reason is a date the row now states instead of describing."),
     ("instrument.crashed", r"\bcrash", 1, ("python3", "scripts/instrument_gate.py"), ROOT,
-     r"^INSTRUMENT_GATE_CRASHED (\d+)/\d+", MUTATING, OPTIONAL,
-     "`0 crashes`. OPTIONAL for the same reason as `late_live` — 227–231 do not carry it."),
+     r"^INSTRUMENT_GATE_CRASHED (\d+)/\d+", MUTATING, SINCE(232),
+     "`0 crashes` — 227–231 do not carry it, 232 introduced it and no block since has "
+     "dropped it. A session earlier than `late_live`\'s by one, which is why the "
+     "boundary is a per-row measurement rather than the one date 236 §8.4 proposed."),
     ("instrument.blast", r"\bblast\b(?!.*\blate\b)", 1, ("python3", "scripts/instrument_gate.py"),
-     ROOT, r"^INSTRUMENT_GATE_BLAST_TOTAL (\d+)", MUTATING, OPTIONAL,
+     ROOT, r"^INSTRUMENT_GATE_BLAST_TOTAL (\d+)", MUTATING, SINCE(232),
      "🔴 `blast 1383` IS A TOTAL AND 232's `blast 33/28` IS A SINGLE INSTRUMENT'S PAIR — "
      "the same word for two different measurements, one session apart. This row reads the "
      "TOTAL, which is what 233 meant, and the lookahead keeps it off `late blast`. That "
      "two blocks can spell incompatible things identically is the argument for binding on "
-     "a pattern and then REFUSING ambiguity rather than resolving it."),
+     "a pattern and then REFUSING ambiguity rather than resolving it. SINCE 232 — the "
+     "block that spelled it the OTHER way is the one that introduced it, and the "
+     "boundary is about the field\'s presence, which is all the DROPPED direction "
+     "claims; the spelling is what the alias and `n` are for."),
     ("instrument.not_loaded", r"not-?loaded", 1, ("python3", "scripts/instrument_gate.py"), ROOT,
-     r"^INSTRUMENT_GATE_LATE_NOT_LOADED (\d+)/\d+", MUTATING, OPTIONAL,
-     "`late not-loaded 0`. OPTIONAL — 233 is the first block to carry it."),
+     r"^INSTRUMENT_GATE_LATE_NOT_LOADED (\d+)/\d+", MUTATING, SINCE(233),
+     "`late not-loaded 0` — 233 is the first block to carry it and every block since "
+     "carries it."),
 ]
 
 
@@ -868,6 +960,40 @@ def check_header(block: "list[str]", log: str, run_network: bool
 # read has to be the file the ritual wrote.
 REPLAY_MEASURED_RE = re.compile(r"handoff_gate\.py[^\n]*?--measured\s+(\S+)")
 
+# ── 🔴 237 §2 — AND ROUTING IS NOT ORDER ──────────────────────────────────────────────
+#
+# 236 shipped the routing half and said so in its own NEXT: *"`REPLAY` checks routing,
+# not order. `npm test` must run before `instrument_gate.py` in a fresh tree (§9's own
+# standing rule, 178 §11.4's one-at-a-time rule) and nothing asserts it. The replay is a
+# table now; it is not yet a DAG."* Every rule below is already written down in §9.2 as
+# a standing rule, in prose, where the only thing that reads it is the next session's
+# attention — which is 236 §21's finding exactly: *"ask of every sentence in a handoff
+# that describes what an instrument does: which run would redden if it stopped being
+# true?"* For these four the answer was none. It is this reader now.
+#
+# (earlier, later, why) — both tokens have to APPEAR for a rule to have an opinion. A
+# replay that runs neither is not out of order, and a rule that fired on absence would
+# refuse every partial replay a session legitimately prints.
+REPLAY_ORDER: "list[tuple[str, str, str]]" = [
+    ("npm test", "instrument_gate.py",
+     "🔴 `npm test` EMITS `dist-test/`, WHICH IS PART OF THE POPULATION `instrument_gate"
+     ".py` WALKS. Run the other way round in a fresh tree — every container, under 235's "
+     "own practice — the instrument counts a tree that has not been built yet and prints "
+     "a smaller `instruments=n` than the block claims. §9.2 has carried this as a "
+     "standing rule since 233 and nothing has ever checked it."),
+    ("pyflakes", "lint_ceiling.py",
+     "🔴 WITHOUT `pyflakes` THE INSTRUMENT REFUSES AND `lint.files` GOES UNREAD — 236 §5, "
+     "which is the defect that produced this session's whole NEXT 2. A replay that runs "
+     "`lint_ceiling.py` in a container it never installed the module into is a replay "
+     "whose log cannot answer the gate, and the reason it prints names the wrong file."),
+]
+
+# 🔴 178 §11.4 — ONE MUTATING GATE AT A TIME. Two on a line share `_gate_lock`'s window
+# and the second one's population includes the first one's scratch; the rule is in §9.2's
+# prose, in the replay's own comment (`# the mutating three — one at a time`), and in
+# nothing that runs.
+CHAINED_RE = re.compile(r"&&|\|\||;")
+
 
 def fenced(text: str) -> "list[str]":
     """Every ``` fenced block's body, in order."""
@@ -950,6 +1076,57 @@ def replay_problems(text: str) -> "tuple[list[str], list[str]]":
             f"after an earlier line had already written to it. Everything captured "
             f"before it is gone by the time the gate reads the file, and the counters it "
             f"carried go UNMEASURED with no sign that they were ever measured.")
+
+    # ── 🔴 237 §2 — THE ORDER HALF ────────────────────────────────────────────────────
+    all_lines = text.split("\n")
+
+    def first(token: str) -> int:
+        return next((i for i, ln in enumerate(all_lines) if token in ln), -1)
+
+    for earlier, later, why in REPLAY_ORDER:
+        i_late, i_early = first(later), first(earlier)
+        if i_late < 0:
+            continue
+        if i_early < 0:
+            problems.append(
+                f"🔴 REPLAY — this replay runs `{later}` and never runs `{earlier}`. "
+                f"{why}")
+        elif i_early > i_late:
+            problems.append(
+                f"🔴 REPLAY — `{earlier}` is printed at line {i_early + 1}, AFTER "
+                f"`{later}` at line {i_late + 1}, and this replay is a file somebody "
+                f"runs top to bottom. {why}")
+
+    # 🔴 AND THE READER IS THE LAST THING THAT TOUCHES THE LOG. A line that appends after
+    # `--measured` has been read is a measurement the gate could not see — the truncation
+    # rule's twin, and the one a session adds by appending a gate it forgot.
+    i_reader = next((i for i, ln in enumerate(all_lines)
+                     if REPLAY_MEASURED_RE.search(ln)), -1)
+    trailing = [i for i, ln in enumerate(all_lines)
+                if i > i_reader >= 0 and re.search(
+                    rf">>?\s*\S*{re.escape(base)}|\btee\s+(?:-a\s+)?\S*{re.escape(base)}",
+                    ln)]
+    if trailing:
+        problems.append(
+            f"🔴 REPLAY — {base} is written to at line {trailing[0] + 1} "
+            f"({all_lines[trailing[0]].strip()[:70]!r}), AFTER the gate has already read "
+            f"it at line {i_reader + 1}. The counter that line captures is measured and "
+            f"unread, which is the same silence as never measuring it — and it is the "
+            f"shape a session produces by appending one more gate to the end.")
+
+    # 🔴 178 §11.4 — and the mutating gates one at a time, on lines of their own
+    mutating = [c[-1].rsplit("/", 1)[-1]
+                for k, _a, _n, c, _w, _e, cost, _nd, _wh in COUNTER_READERS
+                if cost == MUTATING and c is not None]
+    for i, ln in enumerate(all_lines):
+        named = sorted({t for t in mutating if t in ln})
+        if len(named) > 1 and CHAINED_RE.search(ln):
+            problems.append(
+                f"🔴 REPLAY — line {i + 1} runs {len(named)} MUTATING gates in one "
+                f"command ({', '.join(named)}): {ln.strip()[:70]!r}. 178 §11.4 — one at "
+                f"a time. They mutate the tree under `_gate_lock` and restore it, so the "
+                f"second one's population is the first one's scratch, and the replay's "
+                f"own comment says `one at a time` in a line nothing reads.")
     return (problems, notes)
 
 
@@ -1076,6 +1253,12 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     r_problems, r_notes = replay_problems(text)
     problems.extend(r_problems)
 
+    session, how = block_session(handoff.name, block)
+    notes_session = [f"block session {session} — read from {how}"] if session is not None \
+        else [f"SINCE rows fell back to OPTIONAL — {how}, so no block-number comparison "
+              f"happened and this run cannot tell a dropped counter from a counter the "
+              f"session predates"]
+
     h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network)
     problems.extend(h_problems)
 
@@ -1089,10 +1272,15 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
 
     # ── the second direction: a counter the block DROPPED ─────────────────────────────
     for key, _alias, _n, _cmd, _cwd, _ex, _cost, need, why in COUNTER_READERS:
-        if need == REQUIRED and key not in bound:
+        if needed(need, session) == REQUIRED and key not in bound:
+            since = SINCE_RE.match(need)
+            when = (f" It is REQUIRED of block {session} because every block from "
+                    f"{since.group(1)} onward carries it — measured, not assumed."
+                    if since else "")
             problems.append(f"🔴 DROPPED COUNTER — `{key}` has a reader and this block "
                             f"does not claim it. Nothing else in this tree would notice "
-                            f"a status block quietly ceasing to report a field. ({why})")
+                            f"a status block quietly ceasing to report a field.{when} "
+                            f"({why})")
 
     measured, unmeasured, notes = measure(set(bound), log, run_cheap, run_slow,
                                          run_locked)
@@ -1122,8 +1310,8 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     if len(COUNTER_READERS) < READER_FLOOR:
         problems.append(f"🔴 READER_FLOOR — {len(COUNTER_READERS)} reader(s), floor "
                         f"{READER_FLOOR}.")
-    return (problems, notes + h_notes + r_notes, len(atoms), compared, h_atoms,
-            h_compared)
+    return (problems, notes_session + notes + h_notes + r_notes, len(atoms), compared,
+            h_atoms, h_compared)
 
 
 # ── THE SELF-TEST ─────────────────────────────────────────────────────────────────────
@@ -1295,6 +1483,66 @@ HIJACK_HEADER = """> ```
 > ```
 """
 
+# ── 🔴 237 §3 — THE POPULATION THE `SINCE` BOUNDARIES WERE MEASURED OVER ──────────────
+#
+# Four real counter lines, verbatim, spanning the two sessions where every boundary sits.
+# The handoffs are not tracked (`.gitignore`: `HANDOFF*.md`), so a walk of the directory
+# would measure nothing in CI and nothing in a fresh clone — the population has to be IN
+# the file, the way `HISTORY_PINS` and `REAL_BLOCK` already are. These are not shaped to
+# pass: 231 is the last block before the axes exist, 232 introduces four of the six,
+# 233 carries two of those four and DROPS the other two, and 236 carries all six.
+#
+# 🔴 THE `SINCE` CLAIM IS ASSERTED IN BOTH DIRECTIONS OVER THIS TABLE. Forward: a row
+# REQUIRED at n is carried by every block here numbered n or later — a boundary set too
+# early reddens a block that was correct. Backward: at least one block earlier than n
+# does NOT carry it — a boundary set too late, or set at all on a counter that was always
+# universal, is an exemption covering nothing, which is the class 236 §4 deleted two of
+# from `HEADER_EXEMPT` and the one this table would otherwise re-introduce a file over.
+SINCE_POPULATION: "list[tuple[int, str]]" = [
+    (231, """> ```
+> 🟢 VERIFIED AFTER THE CHANGE   floor_pin 83 · 32/32 governed · 707 keys · 21 shortfalls
+>               · unswept 0 · exempt 33 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 12 · term 269 · mutlock 5 + 9 cases
+>               · release_names 61/33 · tree_quiet 13 · 724/724 · lint_ceiling 14 + live
+>               · wire_invisible 27 cases + live ok · 26 CI
+> ```
+"""),
+    (232, """> ```
+> 🟢 VERIFIED AFTER THE CHANGE   discover 48/12/12/18 · 0 undeclared · floor_pin 83
+>               · 34 governed · 707 keys · 23 shortfalls · unswept 0 · exempt 35
+>               · contract 23/23 · scope 25 · control 59 · instrument ok across 13
+>               · 0 crashes · blast 33/28 · term 269 · taut 4012
+>               · 724/724 · lint_ceiling 15 files · wire_invisible 27 + live · 26 CI
+> ```
+"""),
+    (233, REAL_BLOCK),
+    (236, """> ```
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 92 · 40 governed · 826 keys · 25 shortfalls
+>               · unswept 0 · exempt 36 · term 276 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 16 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 151 claims · 26 CI jobs
+> ```
+"""),
+]
+
+
+def block_keys(text: str) -> "set[str]":
+    """The reader keys a block's counter line claims — the roster's own parse, reused."""
+    block, why = status_block(text)
+    if why:
+        return set()
+    atoms, why = counter_atoms(block)
+    if why:
+        return set()
+    return {k for k in (bind(a)[0] for a in atoms) if k}
+
+
 # 🔴 235 §8.1's REPLAY, VERBATIM, AND IT IS THE NEGATIVE CONTROL. Every line is real and
 # the block is captioned *"Replay, verified against the committed tree"*. Run in the
 # order it prints, its last command refuses: `run.log` holds twenty lines of `npm test`
@@ -1327,6 +1575,49 @@ python3 ../scripts/control_gate.py      | tee -a run.log
 python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION236.md --measured run.log --network
 ```
 """
+
+# 🔴 236 §9.1's REPLAY, VERBATIM, AND IT IS THE POSITIVE CONTROL FOR THE ORDER HALF.
+# Captioned *"Replay, executed verbatim against the committed tree"* — a file that was
+# really written and really run, top to bottom, whose log really answered the gate. It is
+# the only fixture here that satisfies every rule, and each negative below is this text
+# with ONE documented edit, so a rule that stopped firing has nothing else to blame.
+SHIPPED_REPLAY = """```bash
+cd host && npm ci --include=dev && npm run build
+python3 -m pyflakes --version || pip install pyflakes --break-system-packages   # §5
+
+npm test | tail -20 > run.log                                    # -> 724/724
+
+python3 ../scripts/handoff_gate.py --selftest        | tee -a run.log
+node scripts/tautology_gate.mjs                      | tee -a run.log
+python3 ../scripts/lint_ceiling.py                   | tee -a run.log
+python3 ../scripts/contract_check.py                 | tee -a run.log
+
+# the mutating three — one at a time (178 §11.4), in the CONTAINER, into the SAME log
+python3 ../scripts/instrument_gate.py                | tee -a run.log
+python3 ../scripts/scope_gate.py                     | tee -a run.log
+python3 ../scripts/control_gate.py                   | tee -a run.log
+
+# and the block above, read back off the instruments that printed it
+python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION236.md --measured run.log --network
+```
+"""
+
+# (the edit, what it breaks, the word the refusal has to carry). One line moved or joined
+# per row — nothing invented, nothing removed — so every ORDER rule is asserted against a
+# real input in both directions. A rule with no row here is 237 §2's own subject arriving
+# one file later: a claim asserted against nothing.
+REPLAY_NEGATIVES: "list[tuple[str, str, str]]" = [
+    ("npm test | tail -20 > run.log                                    # -> 724/724\n",
+     "", "instrument_gate.py"),
+    ("python3 -m pyflakes --version || pip install pyflakes "
+     "--break-system-packages   # §5\n", "", "lint_ceiling.py"),
+    ("python3 ../scripts/scope_gate.py                     | tee -a run.log",
+     "python3 ../scripts/scope_gate.py | tee -a run.log && "
+     "python3 ../scripts/control_gate.py | tee -a run.log", "MUTATING gates"),
+    ("--measured run.log --network\n",
+     "--measured run.log --network\nnode scripts/seal_order_gate.mjs | tee -a run.log\n",
+     "AFTER the gate has already read it"),
+]
 
 # 🔴 `lint_ceiling.py`'s TWO HEADER LINES, CAPTURED FROM THE TWO RUNS. Same tree, same
 # command, same counter — one machine has `pyflakes` and one does not. 235 gave the
@@ -1718,6 +2009,126 @@ def selftest() -> int:
         print("  🔴 REPLAY_TRUNCATE a second `> run.log` after the appends was not "
               "refused — it deletes measurements that were really taken")
 
+    # ── 🔴 237 §3 — THE `SINCE` BOUNDARIES, BOTH DIRECTIONS, OVER FOUR REAL BLOCKS ────
+    carried = {sess: block_keys(text) for sess, text in SINCE_POPULATION}
+
+    # the population itself has to be readable, or every claim below passes on empty sets
+    claims += 1
+    thin = [s for s, ks in carried.items() if len(ks) < 5]
+    if thin:
+        failed += 1
+        print(f"  🔴 SINCE_POPULATION block(s) {thin} parsed to fewer than five bound "
+              f"counters — a population that stopped parsing agrees with every boundary "
+              f"in the table, which is the shape both claims below are guarding")
+
+    for key, _alias, _n, _cmd, _cwd, _ex, _cost, need, _why in COUNTER_READERS:
+        m = SINCE_RE.match(need)
+        if m is None:
+            continue
+        n = int(m.group(1))
+        claims += 1
+        missing = sorted(s for s, ks in carried.items() if s >= n and key not in ks)
+        if missing:
+            failed += 1
+            print(f"  🔴 SINCE_FORWARD `{key}` is REQUIRED from {n} and block(s) "
+                  f"{missing} do not carry it — a boundary set too early refuses a "
+                  f"handoff that was correct about its own session, which is the "
+                  f"DROPPED-counter direction firing on a counter that was never there")
+        claims += 1
+        absent = sorted(s for s, ks in carried.items() if s < n and key not in ks)
+        if not absent:
+            failed += 1
+            print(f"  🔴 SINCE_BACKWARD `{key}` is REQUIRED from {n} and every earlier "
+                  f"block in the population carries it too — the boundary excuses "
+                  f"nothing, so the row is plainly REQUIRED and the date is a reason "
+                  f"nobody can re-derive (236 §4's class, one table over)")
+
+    # 🔴 AND THE FALLBACK IS OPTIONAL, WHICH IS THE HALF THAT COULD HAVE BEEN SILENT.
+    # A block whose number nobody found is a block no `SINCE` row was compared against;
+    # REQUIRED there would refuse correct old handoffs read under another name.
+    since_rows = [(k, nd) for k, _a, _n, _c, _w, _e, _co, nd, _wh in COUNTER_READERS
+                  if SINCE_RE.match(nd)]
+    claims += 1
+    if len(since_rows) != 6:
+        failed += 1
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 6 — "
+              f"237 §3 measured six and the table is the only record of which")
+    for key, nd in since_rows:
+        claims += 1
+        n = int(SINCE_RE.match(nd).group(1))
+        if (needed(nd, None), needed(nd, n), needed(nd, n - 1)) != (
+                OPTIONAL, REQUIRED, OPTIONAL):
+            failed += 1
+            print(f"  🔴 SINCE_NEEDED `{key}` {nd} -> undated {needed(nd, None)}, at {n} "
+                  f"{needed(nd, n)}, at {n - 1} {needed(nd, n - 1)}")
+
+    # the session number is read from the file's name, and from the block when the name
+    # does not carry one — 234's header prints `branch 234` and nothing else dates it
+    claims += 1
+    named = block_session("HANDOFF_SESSION236.md", [])
+    branched = block_session("run.log", status_block(REAL_HEADER)[0])
+    undated = block_session("run.log", status_block(REAL_BLOCK)[0])
+    if (named[0], branched[0], undated[0]) != (236, 234, None):
+        failed += 1
+        print(f"  🔴 SINCE_SESSION {named[0]}/{branched[0]}/{undated[0]}, pinned "
+              f"236/234/None — the name first, then the block's own `branch n` row, "
+              f"and a block with neither is not dated rather than dated zero")
+
+    # ── 🔴 237 §2 — THE ORDER RULES, AGAINST THE REPLAY THAT WAS REALLY RUN ───────────
+    claims += 1
+    shipped_problems, _sn = replay_problems(SHIPPED_REPLAY)
+    if shipped_problems:
+        failed += 1
+        print(f"  🔴 REPLAY_SHIPPED 236 §9.1's replay — written as a file, executed top "
+              f"to bottom, and the log it wrote answered the gate — was refused: "
+              f"{shipped_problems}")
+
+    for edit, into, word in REPLAY_NEGATIVES:
+        claims += 1
+        assert edit in SHIPPED_REPLAY, edit
+        broken = SHIPPED_REPLAY.replace(edit, into)
+        if not any(word in p for p in replay_problems(broken)[0]):
+            failed += 1
+            print(f"  🔴 REPLAY_ORDER 236 §9.1's replay with {edit.strip()[:44]!r} "
+                  f"{'removed' if not into else 'rewritten'} was NOT refused with "
+                  f"{word!r} — the rule is asserted against nothing, which is this "
+                  f"session's other finding one table over")
+
+    # both directions on the ORDER table itself: a rule no negative reaches is a rule
+    # somebody can loosen without a fixture noticing (`ROSTER`'s argument, one table over)
+    claims += 1
+    reached = {w for _e, _i, w in REPLAY_NEGATIVES}
+    unreached = [ln for _e, ln, _w in REPLAY_ORDER if ln not in reached]
+    if unreached:
+        failed += 1
+        print(f"  🔴 REPLAY_ORDER_UNREACHED {unreached} — every ORDER row needs a "
+              f"negative derived from the real replay, or the rule is prose again")
+
+    # ── 🔴 237 §1 — `--patterns` REACHES EVERY ROW, AND THE PARTITION IS THE CLAIM ────
+    #
+    # The mode's whole value is that it is exhaustive over the roster; a row whose cost is
+    # none of the four classes falls out of every branch and is never asserted against its
+    # instrument, silently, which is the defect the mode exists to catch arriving in the
+    # mode itself. Static, so `--selftest` can hold it without measuring anything.
+    claims += 1
+    stray = [(k, c) for k, _a, _n, _cm, _cw, _e, c, _nd, _wh in COUNTER_READERS
+             if c not in (CHEAP, LOCKED, SLOW, MUTATING)]
+    if stray:
+        failed += 1
+        print(f"  🔴 PATTERNS_PARTITION {stray} — a cost class `patterns()` has no branch "
+              f"for is a row it skips without saying so")
+
+    claims += 1
+    runnable = [k for k, _a, _n, cm, _cw, _e, c, _nd, _wh in COUNTER_READERS
+                if cm is not None and c in (CHEAP, LOCKED)]
+    if len(runnable) < 14:
+        failed += 1
+        print(f"  🔴 PATTERNS_LIVE {len(runnable)} row(s) can be run live and 236 NEXT 2 "
+              f"counted fourteen — the observation, not a diagnosis. EITHER rows left "
+              f"CHEAP/LOCKED for a cost class this mode cannot run, OR a row's `cmd` "
+              f"went None, OR the population really shrank; a count cannot tell them "
+              f"apart and the per-row lines `--patterns` prints can")
+
     # 🔴 THE HISTORY CONTROL
     for sess, claimed, actual, why in HISTORY_PINS:
         claims += 1
@@ -1728,6 +2139,111 @@ def selftest() -> int:
 
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed")
     return 1 if failed else 0
+
+
+# ── 🔴 237 §1 — THE READERS' PATTERNS, ASSERTED AGAINST THEIR INSTRUMENTS ─────────────
+#
+# 236 NEXT 2, and it is the item 236 §5 was the evidence for: *"`lint.files` was anchored
+# on a line its instrument had stopped printing on one of its two paths, and the only
+# thing that found it was a container without `pyflakes`. Fourteen rows carry a `cmd` and
+# an `extract`; a claim that each extract matches its instrument's live output would have
+# caught this the session it shipped."*
+#
+# 🔴 IT CANNOT LIVE IN `--selftest`, AND THAT EXCLUSION IS THE POINT RATHER THAN AN
+# OBSTACLE. `handoff.claims` runs `handoff_gate.py --selftest` as a subprocess to read its
+# own counter back; a self-test that measured would recurse, so it *"measures nothing and
+# returns before this roster is consulted"* — deliberate, correct, load-bearing, and
+# named in 236 §22 as the same shape as the two exemptions 236 deleted: *"the question is
+# what else covers the excluded half, and today the answer is running it, by hand, once."*
+# This is the answer. A mode of its own, over the half `--selftest` declares out of
+# scope, that runs the instruments and reads their real output back through the real
+# patterns — and a run of it says which rows it could not reach rather than counting them
+# green, because a coverage claim that hides its own gaps is the defect one level up.
+def patterns(log: str) -> int:
+    """Every reader's `extract` against its instrument's LIVE output. 0 if none disagreed.
+
+    CHEAP and LOCKED rows are run here. SLOW and MUTATING rows are never run from this
+    file — `npm test` costs minutes and the mutating three rewrite the tree — so they are
+    read out of `--measured` when a log is supplied and reported UNCOVERED when it is not.
+    """
+    live = mismatched = from_log = uncovered = derived = 0
+    problems: "list[str]" = []
+    cache: "dict[tuple[str, ...], tuple[int, str]]" = {}
+
+    for key, _alias, n, cmd, cwd, extract, cost, _need, _why in COUNTER_READERS:
+        if cmd is None:
+            derived += 1
+            print(f"  · {key:<24} DERIVED — no instrument prints this counter; "
+                  f"`ci_check_runs()` computes it and the roster says so")
+            continue
+        if cost in (SLOW, MUTATING):
+            m = re.search(extract, log, re.M | re.S) if log else None
+            if m is None:
+                uncovered += 1
+                print(f"  · {key:<24} UNCOVERED — {cost}, never run from here. Supply "
+                      f"`--measured <log>` from a replay that ran it")
+                continue
+            from_log += 1
+            if len(m.groups()) != n:
+                mismatched += 1
+                problems.append(
+                    f"🔴 PATTERN `{key}` matched the measured log and returned "
+                    f"{len(m.groups())} number(s), and the row declares {n}")
+            else:
+                print(f"  · {key:<24} 🟢 from the measured log -> {m.groups()}")
+            continue
+
+        if cmd not in cache:
+            try:
+                p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+                cache[cmd] = (p.returncode, p.stdout + p.stderr)
+            except (OSError, subprocess.SubprocessError) as e:
+                cache[cmd] = (-1, f"{e}")
+        rc, printed = cache[cmd]
+        live += 1
+        m = re.search(extract, printed, re.M | re.S)
+        if m is None:
+            mismatched += 1
+            first = next((ln for ln in printed.split("\n")
+                          if ln.strip() and not ln.startswith(" ")), "")
+            problems.append(
+                f"🔴 PATTERN `{key}` — `{' '.join(cmd)}` ran and this row's extract "
+                f"{extract!r} matched nothing in its output.\n"
+                f"     It exited {rc}, so this is "
+                + ("a line that MOVED — the instrument is green and printing something "
+                   "else than the row was anchored on"
+                   if rc == 0 else
+                   "a REFUSAL, and a refusing instrument is a counter nobody can read "
+                   "back today — 236 §5's class")
+                + f"\n     first line: {first.strip()[:150]!r}")
+        elif len(m.groups()) != n:
+            mismatched += 1
+            problems.append(
+                f"🔴 PATTERN `{key}` — the row declares {n} number(s) and the extract "
+                f"returned {len(m.groups())}: {m.groups()}. `measure()` compares tuples, "
+                f"so this row reads a claim of a different width than the block's")
+        else:
+            print(f"  · {key:<24} 🟢 {' '.join(cmd)} -> {m.groups()}")
+
+    for p in problems:
+        print(p)
+    total = live + from_log
+    print(f"HANDOFF_PATTERNS {total - mismatched}/{total} extract(s) matched their "
+          f"instrument · {live} run live · {from_log} off the measured log · "
+          f"{uncovered} UNCOVERED · {derived} derived · {len(COUNTER_READERS)} row(s)")
+    if mismatched:
+        print(f"🔴 HANDOFF_PATTERNS refused — {mismatched} row(s). A reader anchored on a "
+              f"line its instrument no longer prints reports the counter UNREAD, and "
+              f"UNREAD is what a session reads as `nothing to see`.")
+        return 1
+    if uncovered:
+        print(f"🟡 HANDOFF_PATTERNS ok over what it could reach — {uncovered} row(s) are "
+              f"SLOW or MUTATING and no measured log carried them. They are named above "
+              f"rather than counted green.")
+        return 0
+    print("🟢 HANDOFF_PATTERNS ok — every row's extract matched what its instrument "
+          "really printed on this tree, with the width the row declares.")
+    return 0
 
 
 def tree_state(root: Path = ROOT) -> str:
@@ -1751,6 +2267,11 @@ def tree_state(root: Path = ROOT) -> str:
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return selftest()
+    log = ""
+    if "--measured" in argv:
+        log = Path(argv[argv.index("--measured") + 1]).read_text(encoding="utf-8")
+    if "--patterns" in argv:
+        return patterns(log)
     paths = [a for a in argv[1:] if not a.startswith("--")]
     if not paths:
         print(__doc__.strip().split("Run:")[-1])
@@ -1759,9 +2280,6 @@ def main(argv: "list[str]") -> int:
     if not handoff.is_file():
         print(f"🔴 no such handoff: {handoff}")
         return 1
-    log = ""
-    if "--measured" in argv:
-        log = Path(argv[argv.index("--measured") + 1]).read_text(encoding="utf-8")
     read_only = "--read" in argv
 
     if read_only:

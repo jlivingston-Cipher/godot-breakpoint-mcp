@@ -417,6 +417,18 @@ jobs:
       # ~1s, no build, no server.
       - name: The handoff reader still reads (handoff gate self-test)
         run: python3 ../scripts/handoff_gate.py --selftest
+      # 🆕 237 §1 — AND THE HALF THE SELF-TEST DECLARES OUT OF SCOPE. `--selftest`
+      # measures nothing on purpose: `handoff.claims` runs it as a subprocess to read its
+      # own counter back, so a self-test that measured would recurse. Correct, and it
+      # leaves eighteen patterns asserted against nothing — 236 §5 anchored `lint.files`
+      # on a header line its instrument had stopped printing on one of its two paths, and
+      # the only thing that ever found it was a container without `pyflakes`. This step
+      # runs each CHEAP and LOCKED instrument and reads its real output back through the
+      # real pattern. It is a fresh checkout with no `pyflakes`, which is exactly the
+      # machine the shipped anchor could not read — so the refusal path is the one CI
+      # takes. The MUTATING rows stay UNCOVERED here and the step SAYS which. ~20s.
+      - name: Each reader's pattern still matches its instrument (handoff gate patterns)
+        run: python3 ../scripts/handoff_gate.py --patterns
       # 🆕 231 §2 — AND THE READER FOR WHAT CHECK 8 CANNOT SEE. `wire_diff.mjs` compares
       # two `tools/list` payloads, so a validation rule neither payload carries is outside
       # it by construction — 230 §4 measured one such rule live (`.finite()` on
