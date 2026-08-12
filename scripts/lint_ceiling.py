@@ -50,7 +50,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-PY_FILE_FLOOR = 16      # governed by floor_pin_gate's SIZE_LEDGER
+PY_FILE_FLOOR = 17      # governed by floor_pin_gate's SIZE_LEDGER
+                        # 🆕 240: 16 -> 17, `scripts/queue_gate.py`.
 
 # 🔴 THE ROSTER IS THE GATE. Each row is a class `pyflakes` reports today, the number of
 # occurrences it was measured at, and why that number is allowed to stand. A class absent

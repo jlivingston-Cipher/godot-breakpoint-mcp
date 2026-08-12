@@ -2714,7 +2714,8 @@ EXEC_ROSTER = {
 # WITHIN A MINUTE OF `git add` — and 234's new file is the one that reads a handoff's
 # counters back off the instruments, so the check catching it is the argument for it
 # arriving from the other side.
-SHEBANG_NONEXEC_EXPECTED = 45  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 46  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # 🆕 240: 45 -> 46, `scripts/queue_gate.py`.
 #                              # 🆕 230: 41 -> 42. scripts/lint_ceiling.py, invoked as
 #                              # `python3 <file>` like every gate beside it. 🔴 THIS CHECK
 #                              # CAUGHT THE NEW FILE ON THE FIRST RUN AFTER `git add`,

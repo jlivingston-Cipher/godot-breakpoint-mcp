@@ -169,7 +169,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # the live run cannot notice. Its `--selftest` asserts the literal against the live
     # `git ls-files` count from both sides. 🔴 The roster it guards is `CLASS_CEILING`,
     # which is exempt below for the reason a dict of prose reasons is not a threshold.
-    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )16",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )17",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 234 — THE HANDOFF READER'S TWO, AND THEY FLOOR THE TWO WAYS IT CAN GO QUIET.
     # `CLAIM_FLOOR` is the parse: a reader whose regexes stop matching the block reads
     # zero atoms, disagrees with nothing and prints ok, which is `scope_gate.py`'s quiet
@@ -189,7 +189,18 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # 🆕 238 §2 — the alias walk's population, pinned the same way and for the reason the
     # other two floors exist: `ALIAS_POPULATION` and `ALIAS_UNUSED` are both SATISFIED by
     # eleven blocks that stopped parsing, so the coverage claim needs a floor that is not.
-    ("handoff.ALIAS_SPELLING_FLOOR", "../scripts/handoff_gate.py",   r"(ALIAS_SPELLING_FLOOR = )75",                              ["../scripts/handoff_gate.py", "--selftest"]),
+    ("handoff.ALIAS_SPELLING_FLOOR", "../scripts/handoff_gate.py",   r"(ALIAS_SPELLING_FLOOR = )76",                              ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 240 — THE QUEUE GATE'S TWO, AND THEY ARE THE FIRST FLOORS IN THIS TABLE THAT PIN
+    # A POLICY RATHER THAN A POPULATION. `AGE_CEILING` is the number of sessions an item
+    # may sit OPEN before a decision is owed, and a session that found its own queue red
+    # could clear it by editing one integer — which is why it is swept from here and
+    # pinned ABSOLUTELY in `queue_gate.py --selftest` (a row opened at 232 is admitted at
+    # head 240 and one opened at 231 is refused, by session number rather than by
+    # arithmetic on the constant). `QUEUE_ROW_FLOOR` is `len(rows) < FLOOR`, so zeroing
+    # it makes the gate MORE permissive and its live run cannot notice — `TERM_FLOOR`'s
+    # shape exactly.
+    ("queue.AGE_CEILING",       "../scripts/queue_gate.py",         r"(AGE_CEILING = )8",                                        ["../scripts/queue_gate.py", "--selftest"]),
+    ("queue.QUEUE_ROW_FLOOR",   "../scripts/queue_gate.py",         r"(QUEUE_ROW_FLOOR = )20",                                   ["../scripts/queue_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1110,8 +1121,8 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
         "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one.")),
-    ("../scripts/handoff_gate.py", "ALIAS_SPELLING_FLOOR"): (75, (
-        "🆕 238 §2 — the DISTINCT atom spellings the twelve real status blocks carry, at "
+    ("../scripts/handoff_gate.py", "ALIAS_SPELLING_FLOOR"): (76, (
+        "🆕 238 §2 — the DISTINCT atom spellings every real status block carries, at "
         "`{FLOOR}`. It exists because the two claims it guards can both be satisfied by "
         "shrinking: `ALIAS_POPULATION` finds no unbound atom and `ALIAS_UNUSED` finds no "
         "unreached reader in a population that stopped parsing, and neither says so. "
@@ -1135,7 +1146,25 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "when the header gains or loses a row, which is a session changing the block's "
         "SHAPE rather than its numbers — the one change this reader could not otherwise "
         "tell from a parser that stopped matching.")),
-    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (16, (
+    ("../scripts/queue_gate.py", "AGE_CEILING"): (8, (
+        "🆕 240 — the sessions an item may sit OPEN before a decision is owed, at "
+        "`{FLOOR}`. It is a POLICY and not a measurement, which makes it the one "
+        "constant in this table a session has a motive to move: a queue that goes red "
+        "is cleared either by deciding something or by editing this integer. So it is "
+        "swept, and it is pinned absolutely rather than relatively — `--selftest` names "
+        "two sessions by number rather than deriving its "
+        "fixtures from the constant, because fixtures derived from a floor hold at every "
+        "value of it including the zero this sweep writes. It moves when the project "
+        "decides it can carry undecided work for longer, and the ledger row saying so is "
+        "what tells that from a session quietly buying itself room.")),
+    ("../scripts/queue_gate.py", "QUEUE_ROW_FLOOR"): (20, (
+        "🆕 240 — the rows `QUEUE.md` must yield before this reader is entitled to an "
+        "opinion, at `{FLOOR}`. Closed rows STAY in the table — they are the only record "
+        "that a decision was taken — so the count only ever goes up, and every claim the "
+        "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
+        "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
+        "whole subject is work nobody is doing.")),
+    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (17, (
         "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
         "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
         "same set today and the floor is what says so if they stop being. It moves when a "
@@ -1241,7 +1270,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (45, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (46, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
