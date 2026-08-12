@@ -406,6 +406,17 @@ jobs:
       # above, no worktree, no tags. ~3s.
       - name: Every key on the wire is one the classifier can read (wire diff discover)
         run: node scripts/wire_diff.mjs --discover
+      # 🆕 234 §1 — THE READER FOR THE ONE TABLE IN THIS TREE NOTHING READ BACK. A
+      # handoff's status block is two dozen claims about what these gates printed, it is
+      # the first thing the next session stands on, and `FLOOR_PIN_LITERAL` was restated
+      # wrongly in two consecutive blocks — the second by the session that caught the
+      # first and wrote the paragraph about it. The handoffs are not tracked, so CI cannot
+      # check a real one; what it CAN check is that the reader still parses, still binds
+      # every atom of seven real blocks to exactly one instrument, and still refuses an
+      # ambiguous roster. The live half is an authoring step (`tree_quiet.py`'s shape).
+      # ~1s, no build, no server.
+      - name: The handoff reader still reads (handoff gate self-test)
+        run: python3 ../scripts/handoff_gate.py --selftest
       # 🆕 231 §2 — AND THE READER FOR WHAT CHECK 8 CANNOT SEE. `wire_diff.mjs` compares
       # two `tools/list` payloads, so a validation rule neither payload carries is outside
       # it by construction — 230 §4 measured one such rule live (`.finite()` on

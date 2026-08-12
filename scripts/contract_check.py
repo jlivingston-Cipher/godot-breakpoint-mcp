@@ -2709,7 +2709,12 @@ EXEC_ROSTER = {
 # as `node <file>` and both committed 100644 — the same pair-shaped move 219 records above,
 # and the second session running that this check has read a new file within a minute of
 # `git add` because it was run after staging rather than before (228 §6.9).
-SHEBANG_NONEXEC_EXPECTED = 44  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+# 🆕 234: 44 -> 45. `scripts/handoff_gate.py`, invoked as `python3 <file>` like every gate
+# beside it. 🔴 THIRD SESSION RUNNING THAT THIS CHECK HAS READ THIS SESSION'S OWN NEW FILE
+# WITHIN A MINUTE OF `git add` — and 234's new file is the one that reads a handoff's
+# counters back off the instruments, so the check catching it is the argument for it
+# arriving from the other side.
+SHEBANG_NONEXEC_EXPECTED = 45  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
 #                              # 🆕 230: 41 -> 42. scripts/lint_ceiling.py, invoked as
 #                              # `python3 <file>` like every gate beside it. 🔴 THIS CHECK
 #                              # CAUGHT THE NEW FILE ON THE FIRST RUN AFTER `git add`,

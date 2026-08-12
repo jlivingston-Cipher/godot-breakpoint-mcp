@@ -169,7 +169,18 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # the live run cannot notice. Its `--selftest` asserts the literal against the live
     # `git ls-files` count from both sides. 🔴 The roster it guards is `CLASS_CEILING`,
     # which is exempt below for the reason a dict of prose reasons is not a threshold.
-    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )15",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )16",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
+    # 🆕 234 — THE HANDOFF READER'S TWO, AND THEY FLOOR THE TWO WAYS IT CAN GO QUIET.
+    # `CLAIM_FLOOR` is the parse: a reader whose regexes stop matching the block reads
+    # zero atoms, disagrees with nothing and prints ok, which is `scope_gate.py`'s quiet
+    # pass inside the one instrument whose subject is claims nobody checks. `READER_FLOOR`
+    # is the roster: the DROPPED-COUNTER direction is only enforceable while the rows that
+    # enforce it exist. 🔴 BOTH ARE PINNED FROM ABOVE AS WELL AS BELOW by `--selftest`,
+    # against two real parses rather than a constant — 233's own block (23 atoms) and a
+    # headline-only fixture (7) — so a floor RAISED out of range fails as loudly as one
+    # zeroed. 184 §7: pinning the key is not pinning the value.
+    ("handoff.CLAIM_FLOOR",     "../scripts/handoff_gate.py",       r"(CLAIM_FLOOR = )15",                                       ["../scripts/handoff_gate.py", "--selftest"]),
+    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )24",                                      ["../scripts/handoff_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1075,14 +1086,29 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`contract_check.py` read that file at seven call sites and exited clean. The "
         "floor moving is the deliberate half; the ledger row saying so in the same commit "
         "is what tells it from a check that quietly went missing.")),
-    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (15, (
+    ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
+        "🆕 234 — the atoms a status block must yield before this reader is entitled to "
+        "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "
+        "parses rather than judgements: `--selftest` reads 233's own counter line and a "
+        "block reduced to its headline counters, and asserts the floor admits the first "
+        "and refuses the second. It moves "
+        "when the block's counter line gains or loses a whole class of field — which is a "
+        "session ADDING an instrument, and the ledger row saying so in the same commit is "
+        "what tells that from a parser that quietly stopped matching.")),
+    ("../scripts/handoff_gate.py", "READER_FLOOR"): (24, (
+        "🆕 234 — the counter readers, at `{FLOOR}`. The lower bound is the roster with "
+        "its largest single-instrument family deleted (six rows read floor_pin_gate.py), "
+        "because a roster that lost a family would still look populated and the "
+        "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
+        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one.")),
+    ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (16, (
         "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
         "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
         "same set today and the floor is what says so if they stop being. It moves when a "
         "script is ADDED or DELETED on purpose — this row and the file arrived in the same "
         "commit, so its first value counts itself. 🔴 A linter with nothing to read prints "
         "a clean tree in the same words as a clean tree, which is why the population is "
-        "floored and not just the findings.")),
+        "floored and not just the findings. 🆕 RAISED BY ONE THIS SESSION, WHICH IS THE DELIBERATE HALF: `handoff_gate.py` joined the tree and the population is `git ls-files`, so the floor moving in the same commit as the file is what tells that from a walk that quietly stopped reaching one.")),
     # 🆕 233 — instrument_gate.py's floor on its READ OF ci.yml, not on a population of
     # its own. Every `LATE_LIVE_NA` row is a claim that no second command exercises an
     # instrument, and until this session nothing re-derived it: three of the four rows
@@ -1181,7 +1207,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (44, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (45, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
