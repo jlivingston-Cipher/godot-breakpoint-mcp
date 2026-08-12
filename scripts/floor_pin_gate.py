@@ -186,6 +186,10 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # unread while this file's own `NUMERAL_PINS` carried a fixture for the npm line. A
     # header parse that stops matching reads zero atoms and agrees with `tags 121`.
     ("handoff.HEADER_FLOOR",    "../scripts/handoff_gate.py",       r"(HEADER_FLOOR = )2",                                       ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 238 §2 — the alias walk's population, pinned the same way and for the reason the
+    # other two floors exist: `ALIAS_POPULATION` and `ALIAS_UNUSED` are both SATISFIED by
+    # eleven blocks that stopped parsing, so the coverage claim needs a floor that is not.
+    ("handoff.ALIAS_SPELLING_FLOOR", "../scripts/handoff_gate.py",   r"(ALIAS_SPELLING_FLOOR = )71",                              ["../scripts/handoff_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1106,6 +1110,19 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
         "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one.")),
+    ("../scripts/handoff_gate.py", "ALIAS_SPELLING_FLOOR"): (71, (
+        "🆕 238 §2 — the DISTINCT atom spellings the eleven real status blocks carry, at "
+        "`{FLOOR}`. It exists because the two claims it guards can both be satisfied by "
+        "shrinking: `ALIAS_POPULATION` finds no unbound atom and `ALIAS_UNUSED` finds no "
+        "unreached reader in a population that stopped parsing, and neither says so. "
+        "This one goes RED there. Both bounds are real walks, like `CLAIM_FLOOR`'s — the "
+        "newest block's spellings below, all eleven blocks' above — because a floor "
+        "inside what ONE block carries is satisfied by a walk that read the block in "
+        "front of its author and stopped, which is the shrinkage the row is for. "
+        "`{FLOOR}` is a measurement of text already written, so it only ever moves UP, "
+        "when a session adds a block or an instrument. A commit that lowers it is a "
+        "commit that lost a spelling an alias used to read, and the ledger row saying so "
+        "is what tells that from a walk that quietly stopped reaching one.")),
     ("../scripts/handoff_gate.py", "HEADER_FLOOR"): (2, (
         "🆕 235 §3 — the counter-bearing atoms the block's LABELLED ROWS must yield, at "
         "`{FLOOR}`. It is small because the header is small: every block in this series "
