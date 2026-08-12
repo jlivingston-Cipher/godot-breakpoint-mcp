@@ -1610,7 +1610,43 @@ MODULE_RE = re.compile(r"^export[ \t]", re.M)
 # the walk today is an export-bearing file that is neither an instrument nor a gate — the
 # one that was is now the thirteenth entry. A row here needs the shape 174 §5 requires: a
 # REASON, not a name, and one a reader can check rather than agree with.
-DISCOVER_EXEMPT: dict[str, str] = {}
+DISCOVER_EXEMPT: dict[str, str] = {
+    # 🆕 241 — THE TWO P0 REPORTERS, DECLARED RATHER THAN BLINDED, AND THE ROW SAYS WHICH.
+    #
+    # 🔴 THIS IS THE FIRST USE OF THIS TABLE AND IT IS AN IOU, NOT A JUDGEMENT THAT THEY
+    # DO NOT NEED SWEEPING. Both export members, both have headless self-tests, and both
+    # BELONG in `INSTRUMENTS` — the entries were written, and what stopped them was the
+    # late axis rather than the gate one: `LATE_LIVE` needs a second command that goes RED
+    # when a member is blinded, and a reporter that PRINTS cannot. `p0_complexity.mjs`
+    # with `measureFunction` blinded prints `functions measured: 1095` and exits 0, in
+    # green, which is the exact observable the late axis exists to refuse. Declaring
+    # `LATE_LIVE_NA` instead would have been false by 232 §5.6's rule — there IS a second
+    # command, it just cannot fail — so the honest move is this row plus the queue.
+    #
+    # 🔴 AND THE REASON THIS IS NOT `token-cost.mjs`'s SITUATION (211 §6), which is the
+    # precedent a reader will reach for: that file sat outside every roster in this
+    # gate for ten sessions and the only thing that said so was a sentence in a comment
+    # beside another entry. This absence is in the table the DISCOVER half reads, and it
+    # is `p0-reporters-unblinded` in `QUEUE.md`, which `queue_gate.py` refuses to let sit
+    # past the ceiling. A confession is not a mechanism; a queue row that a gate reads is.
+    #
+    # What is covered meanwhile, so the size of the gap is not left to be guessed:
+    # twenty-six claims across the two self-tests, run by `npm test`; every export
+    # reached; and a negative control on the `async` subject defect. What is NOT covered
+    # is the only question this gate asks — whether those claims would go red if the
+    # thing they measure stopped measuring.
+    "host/scripts/p0_complexity.mjs":
+        "the P0 complexity reporter. Its twelve claims are in p0_complexity.selftest.mjs "
+        "beside it, including NESTED_FUNCTIONS_ARE_THEIR_OWN_ROW — the claim that keeps "
+        "an 813-line branchless registration body out of P3's top forty. Unblinded "
+        "because its live command PRINTS and cannot redden; see p0-reporters-unblinded.",
+    "host/scripts/p0_testdup.mjs":
+        "the P0 test-duplication clusterer. Its fourteen claims are in "
+        "p0_testdup.selftest.mjs beside it, and that fixture already caught this file "
+        "reading `assert.equal(...)` as the subject `equal` — the second of two subject "
+        "defects it shipped with, and the reason the published key count moved 457 -> "
+        "467. Unblinded for the same reason as the row above; see p0-reporters-unblinded.",
+}
 
 # The instruments whose swept file the walk above cannot see, each with the reason.
 DISCOVER_OUTSIDE_WALK: dict[str, str] = {
