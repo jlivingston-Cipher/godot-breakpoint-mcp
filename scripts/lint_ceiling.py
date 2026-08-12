@@ -42,6 +42,7 @@ WHAT THIS GATE IS NOT:
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import subprocess
 import sys
@@ -89,10 +90,37 @@ def classify(message: str) -> str:
     return re.sub(r"\b\d+\b", "N", re.sub(r"'[^']*'", "'X'", message)).strip()
 
 
+def pyflakes_absent() -> str | None:
+    """The reason `pyflakes` cannot speak, or None if it can.
+
+    🔴 235 §2 / 234 §4.6 — `python3 -m pyflakes` EXITS 1 WITH AN EMPTY STDOUT WHEN THE
+    MODULE IS MISSING, and 1 is also how it reports findings. The shipped classifier read
+    the return code alone, so an absent tool and a clean tree were the same observation:
+    `0 finding(s)`, then `LINT_STALE_CLASS` on both declared rows, then three candidate
+    causes — *the findings were fixed, the tool stopped reporting that class, or this
+    reader stopped classifying it that way* — **and the actual cause was not among them.**
+    It fails safe, so this was never about the verdict; it is about sending the next
+    session to look for a defect in a roster that is correct.
+
+    Reproduced this session and it is not hypothetical: 234's whole practice moved the
+    gates into a fresh cloud container, and a fresh container has no `pyflakes`. The gate
+    refused with the wrong reason on the FIRST run of the session that adopted the
+    practice. 233 §18's rule, one gate over: a reason has to be checkable, and a cause
+    list that omits the live cause is worse than no cause list.
+    """
+    if importlib.util.find_spec("pyflakes") is None:
+        return (f"`pyflakes` is NOT INSTALLED for {sys.executable}. This is not a clean "
+                f"tree and not a stale roster — the tool never ran. `pip install "
+                f"pyflakes` (it is this gate's only dependency), then re-read the rows.")
+    return None
+
+
 def run_pyflakes(files: list[str]) -> tuple[list[tuple[str, str]], str | None]:
     """((file, message) …, error). `error` is not None when the TOOL could not speak."""
     if not files:
         return [], "nothing to lint — the file walk returned no tracked .py at all"
+    if (why := pyflakes_absent()) is not None:
+        return [], why
     try:
         p = subprocess.run([sys.executable, "-m", "pyflakes", *files],
                            capture_output=True, text=True, cwd=str(ROOT))
@@ -100,6 +128,16 @@ def run_pyflakes(files: list[str]) -> tuple[list[tuple[str, str]], str | None]:
         return [], f"could not execute pyflakes: {e}"
     if p.returncode not in (0, 1):
         return [], (f"pyflakes exited {p.returncode} — {(p.stderr or '').strip()[:200]}")
+    # 🔴 THE SECOND HALF, AND IT IS NOT REDUNDANT WITH THE PROBE ABOVE. `find_spec` finds
+    # an importable module; it does not find a BROKEN one. A module that raises on import
+    # exits 1 with an empty stdout and a traceback on stderr — the same observation as a
+    # clean tree, arriving by a route the probe cannot see. Exit 1 means findings, and
+    # findings go to stdout; exit 1 with nothing on stdout and something on stderr is the
+    # tool failing to speak, whatever the reason.
+    if p.returncode == 1 and not p.stdout.strip() and p.stderr.strip():
+        return [], (f"pyflakes exited 1 with an empty stdout and this on stderr — the "
+                    f"tool did not run, it did not report a clean tree:\n"
+                    f"   {(p.stderr or '').strip()[:300]}")
     out: list[tuple[str, str]] = []
     for line in p.stdout.splitlines():
         m = re.match(r"^(.*?):\d+:\d+: (.*)$", line)
@@ -215,6 +253,44 @@ def _selftest() -> int:
     ok = bool(problems([], CLASS_CEILING, PY_FILE_FLOOR - 1, PY_FILE_FLOOR))
     bad += 0 if ok else 1
     print(f"  {'🟢' if ok else '🔴'} {'and one BELOW it refuses':<66} -> {ok}")
+
+    # ── 🔴 235 §2 — AN ABSENT TOOL IS NOT A CLEAN TREE ────────────────────────────────
+    #
+    # The control is a module that certainly does not exist, run the way the real one is
+    # run. It reproduces the absence exactly — exit 1, empty stdout, `No module named` on
+    # stderr — which is the observation the shipped classifier could not tell from a tree
+    # with nothing to report. Asserted on the RETURN of the reader rather than on a
+    # message, because what went wrong was the return: `([], None)` says *clean*.
+    p = subprocess.run([sys.executable, "-m", "pyflakes_absent_control_xyz",
+                        "scripts/lint_ceiling.py"],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    absent_shape = (p.returncode == 1 and not p.stdout.strip() and bool(p.stderr.strip()))
+    bad += 0 if absent_shape else 1
+    print(f"  {'🟢' if absent_shape else '🔴'} "
+          f"{'a missing module exits 1 with an empty stdout — the shape of findings':<66} "
+          f"rc={p.returncode}")
+
+    # and the reader must call that an ERROR, not a clean tree
+    for spec, want, why in [
+        ("pyflakes", False, "the real module is importable here, so the probe stays quiet"),
+        ("pyflakes_absent_control_xyz", True,
+         "🔴 AND A MODULE THAT IS NOT THERE MUST BE NAMED — the cause list that shipped "
+         "did not contain the live cause"),
+    ]:
+        got = importlib.util.find_spec(spec) is None
+        ok = got == want
+        bad += 0 if ok else 1
+        print(f"  {'🟢' if ok else '🔴'} {why[:66]:<66} -> absent={got}")
+
+    # 🔴 THE LIVE HALF, AND IT IS THE ONE THAT WOULD HAVE FIRED IN 234's CONTAINER.
+    # `pyflakes_absent()` is what stands between `run_pyflakes` and the three wrong
+    # causes; if it ever returns None on an interpreter without the module, the gate is
+    # back where 234 found it.
+    live_reason = pyflakes_absent()
+    ok = (live_reason is None) == (importlib.util.find_spec("pyflakes") is not None)
+    bad += 0 if ok else 1
+    print(f"  {'🟢' if ok else '🔴'} {'pyflakes_absent() agrees with the interpreter':<66} "
+          f"-> {'installed' if live_reason is None else 'ABSENT'}")
 
     print(f"LINT_CEILING selftest {'ok' if not bad else f'🔴 {bad} FAILED'}")
     return 1 if bad else 0

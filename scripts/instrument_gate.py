@@ -105,6 +105,66 @@ def _decl_re(name: str) -> re.Pattern:
         r")")
 
 
+# 🔴 A KEYWORD IS NOT A NAME, AND THE PROBE FOUND ONE BEFORE THE CODE DID. Measured over
+# the thirteen instruments, the "declaration whose parameter list wraps" shape matches
+# TWO sites and only one is a declaration: the other is a `for (` header in
+# `tautology_gate.mjs` whose condition runs to a second line. A widening that admitted it
+# would resolve `{SIG:for}` to a loop and blind a statement into somebody's iteration.
+_NOT_A_NAME = frozenset(("for", "if", "while", "switch", "catch", "with", "return",
+                         "typeof", "do", "else", "function", "new", "await", "yield"))
+
+
+def _decl_span(text: str, name: str) -> "list[tuple[int, str]]":
+    """[(1-based line, the WHOLE declaration)] for a parameter list that WRAPS.
+
+    🆕 235 §4 / 234 NEXT 3 (233 NEXT 2, 232 NEXT 13, 205 §7) — `_decl_re` MATCHES ONE
+    LINE, so a declaration whose parameters run onto a second cannot be a placeholder.
+    Measured before this was written (`probe235_decl.py`, 212's discipline): 92 targets,
+    91 placeholders and 1 literal, 92/92 resolving and 0 ambiguous — and the ONE literal
+    in the whole roster is here for exactly this reason:
+
+        export function judgeDiscarded(sites, floor = DISCARD_SITE_FLOOR, dirFloor = …,
+                                       busiestFloor = DISCARD_BUSIEST_FLOOR) {
+
+    🔴 THE WIDENING ADMITS EXACTLY ONE MEMBER AND MOVES NONE. It is consulted ONLY where
+    `_decl_re` and `_concise_re` both find nothing, so no existing resolution can change
+    — which is not an argument, it is the reason the probe ran first: all 92 anchors are
+    byte-identical before and after. That measurement is a PROBE's, not this tree's, and
+    saying so is the point — what the tree checks on every run is `_self_check`'s two
+    claims (a keyword is not a name, a single-line declaration never reaches this path)
+    and `literal_signature_problems`, which reported the literal below on the first run
+    after the widening. The before/after equality is written down in 235 §4 with the
+    probe that produced it, because a docstring that claims a `--selftest` this file does
+    not have is 234 §4.1 for the third session running.
+
+    🔴 AND WHAT IT REPLACES IS THE HAZARD. A two-line literal anchor is matched by exact
+    text: reindent the continuation, or rename one default, and the target still
+    "resolves" — literals are returned unchanged — while the blind it names silently
+    stops applying. A sweep reporting green over a mutation nobody made is this gate's
+    own subject, and it was sitting in its own roster.
+    """
+    if name in _NOT_A_NAME:
+        return []
+    n = re.escape(name)
+    open_re = re.compile(
+        r"^(?P<indent>[ \t]*)(?:export[ \t]+)?(?:async[ \t]+)?(?:static[ \t]+)?"
+        r"(?:function[ \t]+)?(?:get[ \t]+|set[ \t]+)?" + n + r"[ \t]*\([^)]*$")
+    close_re = re.compile(r"^[ \t]*[^()]*\)[ \t]*\{[ \t]*$")
+    lines = text.split("\n")
+    out: "list[tuple[int, str]]" = []
+    for i, ln in enumerate(lines):
+        if not open_re.match(ln):
+            continue
+        for j in range(i + 1, min(i + 10, len(lines))):
+            if close_re.match(lines[j]):
+                out.append((i + 1, "\n".join(lines[i:j + 1])))
+                break
+            # a blank line or a line already opening a block means this was not one
+            if not lines[j].strip() or lines[j].rstrip().endswith("{"):
+                break
+    return out
+
+
 def _concise_re(name: str) -> re.Pattern:
     """An arrow const whose body is an EXPRESSION rather than a block.
 
@@ -148,6 +208,23 @@ def resolve_sig(text: str, sig: str) -> tuple[str, str]:
     # measurement rather than by construction.
     pat = _decl_re(name) if block else _concise_re(name)
     found = block + concise
+    # 🆕 235 §4 — THE WRAPPED PARAMETER LIST, CONSULTED ONLY WHERE BOTH OTHERS FOUND
+    # NOTHING. Placed here rather than beside them so that no name resolvable today can
+    # reach it: the third shape cannot move an existing anchor if it is never asked about
+    # one. Measured — 92/92 targets resolve byte-identically across this change.
+    spanned = _decl_span(text, name) if not found else []
+    if spanned:
+        if len(spanned) > 1:
+            at = ", ".join(str(n) for n, _ in spanned)
+            return ("", f"{sig} matches {len(spanned)} wrapped declarations of `{name}` "
+                        f"(lines {at}) — same refusal as the single-line case, and for "
+                        f"the same reason")
+        line_no, whole = spanned[0]
+        indent = re.match(r"^[ \t]*", whole).group(0)
+        if indent and indent != "  ":
+            return ("", f"{sig} resolves to a wrapped member indented {len(indent)} "
+                        f"space(s); `blind()` looks for exactly two")
+        return (whole, "")
     if not found:
         return ("", f"{sig} RESOLVES TO NOTHING — no declaration of `{name}` in this file. "
                     f"The member this target blinds was renamed or removed, and a target that "
@@ -427,16 +504,16 @@ INSTRUMENTS = [
             "{SIG:scanDiscarded}": "return [];",
             # 🆕 212 §4 — a judge that never fails, and a combiner that drops BOTH
             # halves. `combine` is the only place the two readers meet.
-            # 🔴 A LITERAL, AND THE ONLY ONE ADDED THIS SESSION. `{SIG:judgeDiscarded}`
-            # RESOLVES TO NOTHING: this declaration's parameter list spans two lines and
-            # `_decl_re` matches a single line ending in `{`. That is the resolver working
-            # — an unappliable target is a sweep reporting green over a mutation nobody
-            # made — and `literal_signature_problems` will not report this literal for the
-            # same reason, because the placeholder does not resolve to it. A multi-line
-            # signature widening is a real next item and is NOT scoped to this file.
-            "export function judgeDiscarded(sites, floor = DISCARD_SITE_FLOOR, dirFloor = DISCARD_DIR_FLOOR,\n"
-            "                               busiestFloor = DISCARD_BUSIEST_FLOOR) {":
-                "return { lines: [], failed: false };",
+            # 🆕 235 §4 — AND IT IS A PLACEHOLDER NOW, WHICH MAKES THE ROSTER 92/92
+            # PLACEHOLDERS AND ZERO LITERALS. 212 §4 wrote here that `{SIG:judgeDiscarded}`
+            # RESOLVES TO NOTHING because the parameter list spans two lines, called the
+            # widening "a real next item", and shipped the two-line literal instead —
+            # where it sat for seven sessions as the only exact-text anchor in the tree,
+            # one reindent away from a blind that silently stops applying. `_decl_span`
+            # reaches it now, and `literal_signature_problems` REPORTED THIS LITERAL on
+            # the first run after the widening rather than being told to: the placeholder
+            # resolves to it byte-for-byte, which is the condition that check exists for.
+            "{SIG:judgeDiscarded}": "return { lines: [], failed: false };",
             "{SIG:combine}": "return { lines: [], failed: false };",
             "{SIG:inspect}":
                 'return { tools: [], readsVerdict: true, exitsNonZero: true, labelsAssert: false };',
@@ -1805,6 +1882,28 @@ def _self_check(floor: int) -> list[str]:
     # none of them proves this gate still CALLS it, and on a green tree no input can tell
     # those apart (202 §4). Defined after this function, so the lookup is deferred.
     problems.extend(_call_wiring_problems())
+
+    # 🆕 235 §4 — THE THIRD ANCHOR SHAPE, AND THE TWO THINGS THE WIDENING MUST NOT DO.
+    # `_decl_span` reaches a declaration whose parameter list wraps; the risk of any
+    # widening is that it MOVES an anchor that already resolved, or admits something that
+    # is not a declaration at all. Both are asserted on the live tree rather than on a
+    # fixture, because both were found on the live tree: the probe measured 92/92 targets
+    # byte-identical across this change, and the `for (` header in `tautology_gate.mjs`
+    # is the thing a keyword guard exists for.
+    for kw in ("for", "if", "while", "switch"):
+        if _decl_span("  " + kw + " (a,\n       b) {\n", kw):
+            problems.append(
+                f"`_decl_span` resolved the keyword `{kw}` as a declaration. A widening "
+                f"that admits a loop header would blind a statement into somebody's "
+                f"iteration — measured: `tautology_gate.mjs` has exactly this shape")
+    # a single-line declaration must NEVER reach the wrapped path — that is what keeps
+    # the widening from re-pointing the 91 anchors that already resolved
+    _one_line = "export function f(a, b) {\n  return a;\n}\n"
+    if _decl_span(_one_line, "f"):
+        problems.append(
+            "`_decl_span` matched a single-line declaration. It is consulted only where "
+            "`_decl_re` and `_concise_re` find nothing, and a shape that reaches both "
+            "would make the resolution order load-bearing")
     if not scope_collapsed(0, floor):
         problems.append(
             f"INSTRUMENT_GATE's own floor is {floor}, which does not treat an EMPTY instrument "

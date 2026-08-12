@@ -78,11 +78,21 @@ WHAT IT REFUSES TO PRETEND IT MEASURED:
   default because the replay runs it in this position anyway, `--no-locked` declines it,
   and the run says which lock it took rather than leaving a reader to find out.
 
-Run:  python3 scripts/handoff_gate.py ../HANDOFF_SESSION234.md
-      python3 scripts/handoff_gate.py ../HANDOFF_SESSION234.md --measured run.log
-      python3 scripts/handoff_gate.py ../HANDOFF_SESSION234.md --no-locked
+Run:  python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md
+      python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --measured run.log
+      python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --measured run.log --network
+      python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --no-locked
       python3 scripts/handoff_gate.py --selftest
-      python3 scripts/handoff_gate.py ../HANDOFF_SESSION234.md --read   (parse only)
+      python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --read   (parse only)
+
+🔴 THE MEASURED LOG'S ORDER IS NOT FREE — 235 §1. `host.suite` reads `# tests` and
+`# pass` out of `npm test`'s own output, and the extract spans lines. It is linear now
+and it was not: the shipped pattern was exponential in the lines AFTER the match, so a
+log with `npm test` FIRST — the order 234 §6.1's replay prints — never returned, while
+the same commands captured with `npm test` LAST answered in a millisecond. Both halves
+are pinned by `--selftest` now (`EXTRACT_SHAPE`, `EXTRACT_BUDGET`), so the order no
+longer matters; the note stays because the defect was invisible for exactly one reason,
+which is that nobody ran the replay in the order the replay is written.
 """
 
 from __future__ import annotations
@@ -90,6 +100,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,6 +116,32 @@ HOST = ROOT / "host"
 # the DROPPED-counter direction unenforceable without making anything red.
 CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 READER_FLOOR = 24        # governed by floor_pin_gate's SIZE_LEDGER
+
+# ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
+#
+# 🔴 235 §1 — THE READER HUNG ON THE ONLY LOG THAT COULD SATISFY IT, AND NOTHING WAS RED.
+# `host.suite` is the one REQUIRED counter that cannot be run cheaply, so `--measured` is
+# the only practical way to read it back — and the only log that carries `# tests` is
+# `npm test`'s own output, which is 4,801 lines. Its extract was `^# tests (\d+)\n(?:.*\n
+# )*?# pass (\d+)$` under `re.S`: a quantified group containing a quantifier over an atom
+# that matched newlines. It answers in 80ms with 20 lines of trailing text, 5s with 26,
+# and never with 30. 234 §6.1's replay prints `npm test` FIRST and the gate LAST; the
+# session that wrote it captured them the other way round, which put `# pass` five lines
+# from EOF and made an exponential pattern look instant. **The order in the replay block
+# and the order in the run that verified it were not the same order.**
+#
+# So both directions, because the timing alone is a fact about one pattern and the shape
+# is the class: `EXTRACT_SHAPE` refuses a nested quantifier in ANY extract, statically,
+# and `EXTRACT_BUDGET_S` is a live reproduction of the one pattern that spans lines. A
+# structural rule with no reproduction is a lint nobody trusts; a reproduction with no
+# structural rule catches this pattern and not the next one.
+EXTRACT_BUDGET_S = 2.0
+EXTRACT_TRAILING_LINES = 4000
+
+# a quantified GROUP whose body itself carries a quantifier — `(?:.*\n)*?`, `(\d+ )+`.
+# This is the shape, not the flag: `re.S` is what let it reach across lines, but the
+# exponent is the nesting, and a pattern with `[\s\S]*?` has none.
+NESTED_QUANTIFIER_RE = re.compile(r"\((?:\?[:=!][^()]*|[^()?][^()]*)?[*+][^()]*\)\s*[*+]")
 
 # 🔴 THE SAME GUARDS AS `PROSE_NUMERAL_RE`, AND FOR THE SAME REASONS, WITH ONE WIDENING.
 # check 11 reads three digits exactly because its subject is tool counts in a README;
@@ -143,8 +180,15 @@ REQUIRED, OPTIONAL = "REQUIRED", "OPTIONAL"
 # (key, alias, n, cmd, cwd, extract, cost, need, reason)
 COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, str, str, str]]" = [
     # ── the host suite ────────────────────────────────────────────────────────────────
+    # 🔴 235 §1 — THE `(?:.*\n)*?` THIS PATTERN SHIPPED WITH WAS EXPONENTIAL, AND IT IS
+    # THE ONLY READER THAT SPANS LINES. `measure()` searches under `re.S`, so `.` matched
+    # `\n` and the quantified group could partition the trailing text every possible way:
+    # a NESTED quantifier over a newline-matching atom. Measured on `# tests 724\n# suites
+    # 1\n# pass 724\n` plus N junk lines — 20 lines 0.08s, 24 lines 1.3s, 26 lines 5.0s,
+    # 30 lines no answer in twenty minutes. `[\s\S]*?` is the same language with no
+    # nesting, and it is linear: 5,000 trailing lines resolve in under a millisecond.
     ("host.suite", r"^\d+/\d+$", 2, ("npm", "test"), HOST,
-     r"^# tests (\d+)\n(?:.*\n)*?# pass (\d+)$", SLOW, REQUIRED,
+     r"^# tests (\d+)$[\s\S]*?^# pass (\d+)$", SLOW, REQUIRED,
      "🔴 THE ONE ATOM WITH NO LABEL AT ALL. Every block since 227 spells the host suite "
      "as a bare `724/724`, so the alias is the SHAPE — a lone ratio — and that is exactly "
      "as fragile as it sounds. It is here rather than exempted because a bare ratio is "
@@ -375,6 +419,262 @@ def ci_check_runs(root: Path = ROOT) -> "tuple[int, list[str]]":
     return total, skipped
 
 
+# ── THE HEADER HALF ───────────────────────────────────────────────────────────────────
+#
+# 🔴 235 §3 — THE GATE'S OWN SCANNER SELF-TEST READS A LINE THE GATE NEVER CHECKS.
+# `counter_atoms` starts at `VERIFIED`, so the four lines above it — main, branch, host /
+# addon, npm — are parsed and dropped. `NUMERAL_PINS` nonetheless carries
+# `("npm 🟢 1.74.0 · lag 0 · tags 121", (0, 121))`: a fixture proving the scanner reads
+# exactly those two counters, in a file that then never asks anything about them.
+#
+# 234 EXCLUDED THAT HALF FOR A GOOD REASON AND THE REASON DOES NOT COVER ALL OF IT.
+# The reason is written in this file's own self-test — *"a reader that swept the whole
+# fence would bind them to nothing and report two unreadable claims on every correct
+# handoff — a gate that cries on green."* True of SHAs, versions, PR numbers and session
+# numbers, which no instrument prints and nobody can restate wrongly in the sense that
+# matters. It is NOT true of `lag`, `tags` and `26/26 green`, which are counters in
+# exactly the sense the VERIFIED line's are. So the header is read with its own roster
+# and its own EXEMPT table, and the exclusion becomes a claim rather than a silence.
+#
+# 🔴 AND THE FIRST COUNTER IT READ WAS WRONG — MEASURED, NOT ARGUED. `tags 121` is the
+# authoring machine's `git tag`. Origin has 115: six tags (v1.13.0, v1.15.0, v1.16.0,
+# v1.17.0, v1.18.0, v1.18.1) exist only on that disk and were never pushed. Every block
+# that carried the number carried a fact about one laptop on the line that describes the
+# published package. 234 §4.8 named this class — *"any counter that reads GIT CONFIG,
+# remotes, hooks or file modes is a fact about the clone"* — listed four kinds, did not
+# list tags, and closed with the gap this table fills: *"nothing distinguishes the two
+# classes of counter."*
+TREE, CLONE, REMOTE = "TREE", "CLONE", "REMOTE"
+
+# Every reader key's PROVENANCE — what the counter is a fact ABOUT. Asserted in both
+# directions by the self-test: a key here with no reader is a stale row, a reader with no
+# key here is a counter whose subject nobody declared.
+PROVENANCE: "dict[str, str]" = {
+    "npm.tags": REMOTE,     # origin's tag list — NOT `git tag`, which is CLONE and wrong
+    "npm.lag": REMOTE,      # registry_lag.py dials npm
+    "ci.green": TREE,       # derived from .github/workflows, like `ci.checks`
+}
+
+# 🔴 THE TOKENS IN THE HEADER THAT ARE NOT COUNTERS, EACH WITH THE REASON IT IS NOT ONE.
+# This is the table 234's excluding paragraph was standing in for, and unlike a paragraph
+# it goes stale loudly: `HEADER_EXEMPT_UNUSED` refuses a row that matched nothing across
+# the real blocks the self-test walks.
+HEADER_EXEMPT: "list[tuple[str, str]]" = [
+    (r"\(#\d+\)", "a PR number in a commit subject — GitHub assigns it, no instrument "
+                  "prints it, and a session cannot restate it wrongly without the link "
+                  "breaking visibly"),
+    (r"\bPR #\d+\b", "the same number naming the branch's own PR"),
+    (r"\bbranch \d+\b", "the session number — this file's own name, not a measurement"),
+    (r"\bMOVED [+-]\d+\b", "commits main moved by, which is a fact about the interval "
+                           "between two sessions and not about either tree. It is "
+                           "checkable and it is not checked here, because the gate runs "
+                           "on ONE tree and this counter needs the previous one"),
+    (r"\b\d+ open (issues|PRs)\b", "a fact about GitHub's issue tracker. `gh` can answer "
+                                   "it and this gate has no reader that does; the row is "
+                                   "here so that absence is a declared one rather than a "
+                                   "counter nobody noticed was unchecked"),
+]
+
+# 🔴 AND THE FIRST DRAFT OF THE PARAGRAPH ABOVE CLAIMED THIS GATE DIALS NOTHING, WHILE
+# THE FUNCTION TWENTY LINES DOWN CALLED `git ls-remote`. That is 234 §4.1 exactly — an
+# exclusion written as a property of the file by the author of the code that breaks it,
+# in the session whose whole subject is claims the tree contradicts — and it was caught
+# by running the network half with the network off rather than by re-reading the
+# sentence. So `NETWORK` is a declared cost class: it dials, it is NOT run by default,
+# `--network` asks for it, and a run that did not do it says so instead of implying the
+# comparison held.
+NETWORK = "NETWORK"
+
+
+# 🔴 A FENCE LINE THAT OPENS WITH A STATUS EMOJI AT COLUMN 0 IS A NOTE, NOT A ROW, AND
+# THE FIRST RUN OF THIS HALF PROVED THE DISTINCTION IS LOAD-BEARING. 234's block carries
+# seven lines of prose between the npm row and `VERIFIED` — *"807 keys is a value this
+# tree has never held … 741e717 -> 707"* — every one of them full of numerals that are
+# citations of OTHER trees. Read as claims they produced nine UNREADABLE refusals on a
+# block that was correct, which is the gate-that-cries-on-green this half was warned
+# about one function up. The rule is structural rather than a vocabulary: rows start at
+# column 0 with a label, notes start at column 0 with a verdict, and indented lines
+# continue whichever came last.
+NOTE_RE = re.compile(r"^[🟢🔴🟡🆕]", re.U)
+
+
+def header_rows(block: "list[str]") -> "tuple[list[str], list[str]]":
+    """(the labelled rows above VERIFIED, the note lines) — see `NOTE_RE`."""
+    stop = next((i for i, ln in enumerate(block) if VERIFIED_RE.match(ln)), len(block))
+    rows: "list[str]" = []
+    notes: "list[str]" = []
+    in_note = False
+    for line in block[:stop]:
+        if not line.strip():
+            continue
+        if line[:1] not in (" ", "\t"):
+            in_note = bool(NOTE_RE.match(line.strip()))
+        (notes if in_note else rows).append(line)
+    return (rows, notes)
+
+
+def header_atoms(block: "list[str]") -> "tuple[list[tuple[str, str]], set[str]]":
+    """([(atom as written, atom with every exempt token removed)], patterns that fired).
+
+    The labelled rows above `VERIFIED`, split the same way the counter line is. An atom
+    whose every numeral is covered by `HEADER_EXEMPT` carries no claim and is not
+    returned — and the CLEANED text is what the comparison reads, because `PR #288
+    MERGED, 26/26 green` carries three numerals and only two of them are a counter.
+    """
+    rows, _notes = header_rows(block)
+    atoms: "list[tuple[str, str]]" = []
+    fired: "set[str]" = set()
+    for line in rows:
+        for raw in re.split(r"·|\s{3,}", line):
+            atom = raw.strip(" *`,")
+            if not atom or not COUNTER_RE.search(atom):
+                continue
+            kept = atom
+            for pat, _why in HEADER_EXEMPT:
+                if re.search(pat, kept):
+                    fired.add(pat)
+                    kept = re.sub(pat, " ", kept)
+            if COUNTER_RE.search(kept):
+                atoms.append((atom, kept))
+    return (atoms, fired)
+
+
+def clone_tags(root: Path = ROOT) -> int:
+    """How many tags THIS checkout holds — offline, and the number the block claims."""
+    p = subprocess.run(("git", "tag"), cwd=root, capture_output=True, text=True)
+    return len([ln for ln in p.stdout.split("\n") if ln.strip()])
+
+
+def origin_tags(root: Path = ROOT) -> "tuple[int, list[str], str]":
+    """(tags origin holds, the ones only in this checkout, problem) — NETWORK.
+
+    🔴 THE ONLY READER HERE THAT OPENS A SOCKET, AND IT IS THE ONE THAT FOUND THE DEFECT.
+    `git tag` answers *what does this disk have*; the npm line is read as *what has this
+    project published*. On the authoring machine those differ by six, and no amount of
+    reading the tree could have told anyone — the divergence is not IN the tree. That is
+    why this is a network call rather than a cleverer local one: there is no local
+    question whose answer is the remote's tag list, and a proxy that was right on a fresh
+    clone and wrong on the machine that writes the handoffs would be worse than nothing.
+    """
+    try:
+        p = subprocess.run(("git", "ls-remote", "--tags", "origin"), cwd=root,
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        return (-1, [], f"could not reach origin: {e}")
+    if p.returncode != 0:
+        return (-1, [], f"`git ls-remote` exited {p.returncode}: "
+                        f"{(p.stderr or '').strip()[:200]}")
+    remote = {ln.rsplit("refs/tags/", 1)[-1].strip() for ln in p.stdout.split("\n")
+              if "refs/tags/" in ln and not ln.rstrip().endswith("^{}")}
+    local = subprocess.run(("git", "tag"), cwd=root, capture_output=True, text=True)
+    only_here = sorted(t.strip() for t in local.stdout.split("\n")
+                       if t.strip() and t.strip() not in remote)
+    return (len(remote), only_here, "")
+
+
+# (key, alias, n, extract-from-log, reason). The header's roster is separate from
+# `COUNTER_READERS` on purpose: these counters are not read off an instrument's stdout in
+# the same way, they have different provenance, and folding them in would have put CLONE
+# and REMOTE rows under `READER_FLOOR`, which governs the VERIFIED line's population.
+HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
+    ("npm.tags", r"\btags?\b", 1, r"^ORIGIN_TAGS (\d+)$",
+     "🔴 THE COUNTER THIS HALF WAS BUILT FOR, AND IT IS READ OFF ORIGIN RATHER THAN OFF "
+     "THE DISK. `git tag` answers *what does this checkout hold* — 121 on the authoring "
+     "machine, 115 in a fresh clone — and a reader that compared against THAT would "
+     "agree with 234's block on one machine and refuse it on another, which is the "
+     "disease rather than the cure. The npm line describes the published package, so "
+     "the population is origin's tags: 115, on every machine, including the six that "
+     "were never pushed."),
+    ("npm.lag", r"\blag\b", 1, r"^\s*distance (\d+)",
+     "`registry_lag.py`'s `distance n` — tags newer than what npm has published. REMOTE, "
+     "read out of the instrument's own output rather than dialed from here."),
+    ("ci.green", r"\d+/\d+ green", 2, "",
+     "`26/26 green` on the branch line is the same derivation `ci.checks` already does "
+     "for the VERIFIED line's `26 CI jobs`, restated as a ratio — so it is checked "
+     "against the same reader, and both halves must equal it."),
+]
+
+HEADER_FLOOR = 2   # governed by floor_pin_gate's SIZE_LEDGER
+
+
+def check_header(block: "list[str]", log: str, run_network: bool
+                 ) -> "tuple[list[str], list[str], int, int]":
+    """(problems, notes, atoms read, counters compared) for the lines above VERIFIED."""
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    atoms, fired = header_atoms(block)
+
+    compared = 0
+    for raw, cleaned in atoms:
+        hits = [r for r in HEADER_READERS if re.search(r[1], cleaned, re.I)]
+        if not hits:
+            problems.append(
+                f"🔴 UNREADABLE HEADER CLAIM — {raw!r} carries a counter this half has "
+                f"no reader for and no `HEADER_EXEMPT` row covers. Either give it a "
+                f"reader, or declare in `HEADER_EXEMPT` what kind of thing it is and why "
+                f"no instrument prints it.")
+            continue
+        if len(hits) > 1:
+            problems.append(f"🔴 {raw!r} binds to {len(hits)} header readers "
+                            f"({', '.join(h[0] for h in hits)}) — narrow the aliases")
+            continue
+        key, _alias, n, extract, why = hits[0]
+        claimed = tuple(int(x) for x in COUNTER_RE.findall(cleaned))
+        got: "tuple[int, ...] | None" = None
+        if key == "ci.green":
+            total, _skipped = ci_check_runs()
+            got = (total, total)
+        elif key == "npm.tags":
+            # 🔴 NETWORK, AND UNREAD IS NOT GREEN. The clone's count is reported beside
+            # it because the difference IS the finding, but it is never the comparison.
+            if run_network:
+                n_remote, only_here, prob = origin_tags()
+                if prob:
+                    notes.append(f"npm.tags: origin unreachable — {prob}")
+                else:
+                    got = (n_remote,)
+                    local = clone_tags()
+                    if only_here:
+                        notes.append(
+                            f"npm.tags: this checkout holds {local}, origin {n_remote}; "
+                            f"{len(only_here)} tag(s) exist only here and were never "
+                            f"pushed: {', '.join(only_here)}. 234 §4.8's class, one "
+                            f"counter over — the number on the npm line is origin's.")
+                    else:
+                        notes.append(f"npm.tags: clone and origin agree at {n_remote}")
+            elif extract and log and (m := re.search(extract, log, re.M)) is not None:
+                got = tuple(int(g) for g in m.groups())
+        elif extract and log and (m := re.search(extract, log, re.M)) is not None:
+            got = tuple(int(g) for g in m.groups())
+        if got is None:
+            if key == "npm.tags":
+                unread = (f"pass --network, or supply `ORIGIN_TAGS <n>` in the measured "
+                          f"log. This checkout reads {clone_tags()} and that is a fact "
+                          f"about the checkout, not the claim on the npm line")
+            else:
+                unread = "no --measured log carries it"
+            notes.append(f"{key}: UNREAD — {unread}")
+            continue
+        compared += 1
+        if len(claimed) != n or claimed != got:
+            problems.append(
+                f"🔴 {key} — the block says {list(claimed)}, the tree says {list(got)}\n"
+                f"     atom: {raw!r}\n     {why}")
+
+    # both directions on the exemption table — a row that matched nothing is a reason
+    # nobody re-derived, which is 233 §18's class and the one this file keeps committing
+    for pat, why in HEADER_EXEMPT:
+        if pat not in fired:
+            notes.append(f"HEADER_EXEMPT unused on this block: {pat} ({why[:60]}…)")
+
+    if len(atoms) < HEADER_FLOOR:
+        problems.append(f"🔴 HEADER_FLOOR — {len(atoms)} header atom(s), floor "
+                        f"{HEADER_FLOOR}. Every block since 227 carries an npm line with "
+                        f"`lag` and `tags` on it; a parse that found fewer has stopped "
+                        f"reading the header rather than found a block without one.")
+    return (problems, notes, len(atoms), compared)
+
+
 # ── THE PARSER ────────────────────────────────────────────────────────────────────────
 
 def status_block(text: str) -> "tuple[list[str], str]":
@@ -471,16 +771,19 @@ def measure(keys: "set[str]", log: str, run_cheap: bool, run_slow: bool, run_loc
 
 
 def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
-          run_locked: bool
-          ) -> "tuple[list[str], list[str], int, int]":
-    """(problems, notes, atoms read, counters compared)."""
+          run_locked: bool, run_network: bool = False
+          ) -> "tuple[list[str], list[str], int, int, int, int]":
+    """(problems, notes, atoms read, compared, header atoms, header compared)."""
     problems: "list[str]" = []
     block, why = status_block(handoff.read_text(encoding="utf-8"))
     if why:
-        return ([f"🔴 {why}"], [], 0, 0)
+        return ([f"🔴 {why}"], [], 0, 0, 0, 0)
     atoms, why = counter_atoms(block)
     if why:
-        return ([f"🔴 {why}"], [], 0, 0)
+        return ([f"🔴 {why}"], [], 0, 0, 0, 0)
+
+    h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network)
+    problems.extend(h_problems)
 
     bound: "dict[str, tuple[str, tuple[int, ...]]]" = {}
     for atom in atoms:
@@ -525,7 +828,7 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     if len(COUNTER_READERS) < READER_FLOOR:
         problems.append(f"🔴 READER_FLOOR — {len(COUNTER_READERS)} reader(s), floor "
                         f"{READER_FLOOR}.")
-    return (problems, notes, len(atoms), compared)
+    return (problems, notes + h_notes, len(atoms), compared, h_atoms, h_compared)
 
 
 # ── THE SELF-TEST ─────────────────────────────────────────────────────────────────────
@@ -654,6 +957,31 @@ REAL_BLOCK = """> ```
 """
 
 
+# 🔴 234's HEADER, VERBATIM — FOUR LABELLED ROWS AND NINE LINES OF PROSE. Not a fixture
+# shaped to pass: the prose is the reason `header_rows` exists, and every numeral in it
+# (`741e717 -> 707`, `e9d6ba2 -> 747`, `-> 814`) is a citation of a tree that is not this
+# one. The row half carries exactly three counters — `26/26 green`, `lag 0`, `tags 121` —
+# and the last of them is wrong by six on the machine that wrote it.
+REAL_HEADER = """> ```
+> main                 bcc0b85 — the table that read itself back (#288)          MOVED +1
+>                      c27953d — the excuses the tree contradicted (#287)
+> branch 234           c5e124b session234-the-table-that-read-itself-back
+>                      🟢 PUSHED · PR #288 MERGED, 26/26 green, based on main (not stacked)
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🔴 233's STATUS BLOCK WAS WRONG IN ONE FIELD — AND IT IS 232's FIELD, ONE SESSION LATER.
+>    `807 keys` is a value this tree has never held. Measured at four points and
+>    deterministic: 741e717 -> 707, e9d6ba2 -> 747, 191eca9 and c27953d -> 814.
+> 🟢 EVERY OTHER FIELD OF 233's BLOCK HELD, including the twelve 234 had to derive.
+> 🔴 TWO OF THEM COULD ONLY BE VERIFIED BY RECONSTRUCTION — `26 CI jobs` is neither the
+>    job count nor the matrix expansion, and `wire_invisible 27 + live` is a SELF-TEST.
+> 🟢 THE HANDOFF READER SHIPS. 29 readers · 106 atoms across 227–233 · 0 unreadable.
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+> ```
+"""
+
+
 def selftest() -> int:
     claims = failed = 0
 
@@ -689,6 +1017,132 @@ def selftest() -> int:
         if len(hits) != 1:
             failed += 1
             print(f"  🔴 AMBIGUOUS {atom!r} -> {hits}")
+
+    # ── 🔴 235 §1 — THE EXTRACT THAT COULD NOT FINISH ─────────────────────────────────
+    #
+    # Both halves, and neither is redundant. The SHAPE claim is static and covers every
+    # reader including the ones nobody has written yet; the BUDGET claim is the live
+    # reproduction, on the real pattern, against a log the real ritual really produces.
+    # The shipped pattern fails both. A structural rule alone would have been a lint the
+    # next author routed around; a reproduction alone would have pinned this pattern and
+    # said nothing about the next reader that has to span lines.
+    for key, _alias, _n, _cmd, _cwd, extract, *_rest in COUNTER_READERS:
+        claims += 1
+        if NESTED_QUANTIFIER_RE.search(extract):
+            failed += 1
+            print(f"  🔴 EXTRACT_SHAPE `{key}` — {extract!r} carries a quantified group "
+                  f"whose body is itself quantified. `measure()` searches under re.S, so "
+                  f"the inner atom matches newlines and the group can partition the "
+                  f"trailing text every possible way: the search is exponential in the "
+                  f"lines AFTER the match, and a log long enough never returns. Use a "
+                  f"flat lazy span (`[\\s\\S]*?`) — same language, no nesting")
+
+    # 🔴 THE REPRODUCTION, AND IT IS THE REAL LOG'S SHAPE. `npm test` prints `# tests`,
+    # `# suites`, `# pass` and then nothing — but a session capturing one run log per
+    # 234 §6.1's printed order puts every other gate's output AFTER it. That is the only
+    # difference between the run that shipped green and the run that never returned.
+    claims += 1
+    pathological = ("# tests 724\n# suites 1\n# pass 724\n"
+                    + "x\n" * EXTRACT_TRAILING_LINES)
+    row = next(r for r in COUNTER_READERS if r[0] == "host.suite")
+    t0 = time.monotonic()
+    hit = re.search(row[5], pathological, re.M | re.S)
+    spent = time.monotonic() - t0
+    if hit is None or hit.groups() != ("724", "724") or spent > EXTRACT_BUDGET_S:
+        failed += 1
+        print(f"  🔴 EXTRACT_BUDGET host.suite took {spent:.3f}s over "
+              f"{EXTRACT_TRAILING_LINES} trailing line(s), budget {EXTRACT_BUDGET_S}s, "
+              f"-> {hit.groups() if hit else None} (pinned ('724', '724')). This is the "
+              f"log 234 §6.1's replay produces when it is run in the order it prints.")
+
+    # ── 🔴 235 §3 — THE HALF NOTHING READ ─────────────────────────────────────────────
+    #
+    # The fixture is 234's header VERBATIM, prose and all, because the prose is what the
+    # first run of this half got wrong. Nine note lines full of numerals that cite OTHER
+    # trees (`741e717 -> 707`) produced nine unreadable-claim refusals on a block that
+    # was correct — so the note/row split is asserted on the real input, not on a shape
+    # somebody invented after the rule was written.
+    real_block, _hw = status_block(REAL_HEADER)
+    rows, note_lines = header_rows(real_block)
+    h_atoms, fired = header_atoms(real_block)
+
+    claims += 1
+    if len(note_lines) != 7 or any("STATUS BLOCK WAS WRONG" in r for r in rows):
+        failed += 1
+        print(f"  🔴 HEADER_NOTES {len(note_lines)} note line(s), pinned 7; a verdict "
+              f"line at column 0 is prose and its indented continuations are prose — "
+              f"rows: {rows}")
+
+    claims += 1
+    got_keys = sorted(
+        next((r[0] for r in HEADER_READERS if re.search(r[1], cleaned, re.I)), f"?{raw}")
+        for raw, cleaned in h_atoms)
+    if got_keys != ["ci.green", "npm.lag", "npm.tags"]:
+        failed += 1
+        print(f"  🔴 HEADER_BIND {got_keys}, pinned ['ci.green', 'npm.lag', 'npm.tags'] "
+              f"— atoms {h_atoms}")
+
+    # 🔴 THE COUNTER THE COMPARISON READS IS THE CLEANED ONE. `PR #288 MERGED, 26/26
+    # green` carries three numerals; an exempt table that ran on the ATOM and a
+    # comparison that ran on the RAW text would compare (288, 26, 26) against (26, 26)
+    # and report a disagreement in a field that is correct — this file's own §1 lesson,
+    # which is that a wrong red sends the next session to fix a right number.
+    claims += 1
+    ci_atom = next((c for r, c in h_atoms if "green" in c), "")
+    if tuple(int(x) for x in COUNTER_RE.findall(ci_atom)) != (26, 26):
+        failed += 1
+        print(f"  🔴 HEADER_CLEAN {ci_atom!r} -> "
+              f"{tuple(int(x) for x in COUNTER_RE.findall(ci_atom))}, pinned (26, 26)")
+
+    # both directions on the exemption table, over the real block
+    for pat, why in HEADER_EXEMPT:
+        claims += 1
+        if pat not in fired:
+            failed += 1
+            print(f"  🔴 HEADER_EXEMPT_UNUSED {pat} matched nothing in 234's header — an "
+                  f"exemption nobody re-derives is 233 §18's class ({why[:50]}…)")
+
+    # 🔴 AND NO EXEMPT ROW MAY SWALLOW A REAL COUNTER. The table removes text before the
+    # comparison reads it, so a row too wide silently deletes a claim — the DROPPED
+    # counter, arriving through the machinery built to declare things absent.
+    for atom in ("tags 121", "lag 0", "26/26 green"):
+        claims += 1
+        kept = atom
+        for pat, _why in HEADER_EXEMPT:
+            kept = re.sub(pat, " ", kept)
+        if not COUNTER_RE.search(kept):
+            failed += 1
+            print(f"  🔴 HEADER_EXEMPT_GREEDY {atom!r} was erased by the exempt table — "
+                  f"a row wide enough to eat a counter deletes the claim silently")
+
+    # PROVENANCE, both directions against the header roster
+    claims += 1
+    h_keys = {k for k, *_ in HEADER_READERS}
+    missing = sorted(h_keys - set(PROVENANCE))
+    stale = sorted(k for k in PROVENANCE if k not in h_keys)
+    if missing or stale:
+        failed += 1
+        print(f"  🔴 PROVENANCE missing {missing}, stale {stale} — 234 §4.8 asked for "
+              f"the two classes of counter to be distinguished, and a table that drifts "
+              f"from its roster distinguishes nothing")
+
+    # 🔴 AND `npm.tags` MUST NOT BE READ OFF THE CLONE. The whole finding is that `git
+    # tag` answers a different question on every machine; a reader declared CLONE here
+    # would be agreeing with 234's 121 on the laptop that wrote it.
+    claims += 1
+    if PROVENANCE.get("npm.tags") != REMOTE:
+        failed += 1
+        print(f"  🔴 PROVENANCE npm.tags is {PROVENANCE.get('npm.tags')}, pinned REMOTE "
+              f"— origin's tag list is the same number on every machine and `git tag` "
+              f"is not")
+
+    # HEADER_FLOOR from both sides: the real header has three, a header stripped to its
+    # version line has none, and the floor must sit between them
+    claims += 1
+    bare, _f = header_atoms(["main   abc1234 — a subject (#1)", "host / addon  1.0.0 / 2.0.0"])
+    if not (len(bare) < HEADER_FLOOR <= len(h_atoms)):
+        failed += 1
+        print(f"  🔴 HEADER_FLOOR {HEADER_FLOOR} is not in ({len(bare)}, {len(h_atoms)}]")
 
     # the parser, end to end, on a block shaped like the real ones
     claims += 1
@@ -812,13 +1266,17 @@ def main(argv: "list[str]") -> int:
         print(f"HANDOFF_READ {len(atoms)} atom(s)")
         return 0
 
-    problems, notes, n_atoms, compared = check(
+    problems, notes, n_atoms, compared, h_atoms, h_compared = check(
         handoff, log, run_cheap="--no-run" not in argv, run_slow="--slow" in argv,
-        run_locked="--no-locked" not in argv and "--no-run" not in argv)
+        run_locked="--no-locked" not in argv and "--no-run" not in argv,
+        run_network="--network" in argv)
     for n in notes:
         print(f"  · {n}")
     print(f"HANDOFF_GATE_TREE {tree_state()} — the counters below were measured HERE, and "
           f"a status block describes the tree it was written against")
+    print(f"HANDOFF_GATE_HEADER {h_atoms} atom(s) above VERIFIED · {len(HEADER_READERS)} "
+          f"reader(s) · {h_compared} compared · {len(HEADER_EXEMPT)} exempt · floor "
+          f"{HEADER_FLOOR}")
     print(f"HANDOFF_GATE {handoff.name} · {n_atoms} atom(s) · {len(COUNTER_READERS)} "
           f"reader(s) · {compared} compared · floors {CLAIM_FLOOR}/{READER_FLOOR}")
     for p in problems:
