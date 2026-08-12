@@ -251,17 +251,31 @@ def check(text: str) -> "tuple[list[str], list[str], int, int]":
                 f"replaced")
 
     # ── QUEUE_NOT_ONLY_NEWEST — the loop ──────────────────────────────────────────────
+    # 🔴 AND A KILL IS NOT A CLOSURE — 241 §2, FOUND BY THE GATE FIRING ON ITS AUTHOR.
+    # The first draft counted any old row closed at `head`, and the very first session
+    # under it satisfied the claim by KILLING five items it had no intention of doing.
+    # That is the caveat this file printed about itself — *"satisfiable by closing a
+    # trivial old row, and a session that wants to game it can"* — arriving one session
+    # later, in the session that wrote the caveat, without anybody gaming anything. A
+    # decision to abandon work is a decision, and `AGE_CEILING` is the row that asks for
+    # it; progress is `DONE`, and only `DONE` counts here.
     closed_now = [r for r in rows if r.closed != NONE and int(r.closed) == head]
     if closed_now:
-        old = [r for r in closed_now if r.age(head) >= SELF_GENERATED_SPAN]
+        old = [r for r in closed_now
+               if r.age(head) >= SELF_GENERATED_SPAN and r.state == "DONE"]
         if not old:
-            ids = ", ".join(f"{r.id} (opened {r.opened})" for r in closed_now)
+            killed = [r for r in closed_now if r.state == "KILLED"]
+            ids = ", ".join(f"{r.id} ({r.state}, opened {r.opened})" for r in closed_now)
             problems.append(
                 f"🔴 QUEUE_NOT_ONLY_NEWEST session {head} closed {len(closed_now)} "
-                f"item(s) and every one of them was opened at {head} or {head - 1}: "
-                f"{ids}. Closing only what you or the session before you invented is the "
-                f"shape 236–239 held for four sessions while a 34-session-old row sat "
-                f"untouched. Close one thing you did not create")
+                f"item(s) and not one of them is an item it did not create and actually "
+                f"FINISHED: {ids}. Closing only what you or the session before you "
+                f"invented is the shape 236–239 held for four sessions while a "
+                f"34-session-old row sat untouched"
+                + (f" — and {len(killed)} KILL(s) do not answer it. A kill is a decision, "
+                   f"which `AGE_CEILING` is the row that asks for; this row asks for "
+                   f"progress" if killed else "")
+                + ". Finish one thing you did not create")
         else:
             notes.append(f"QUEUE_NOT_ONLY_NEWEST satisfied by "
                          f"{', '.join(r.id for r in old)}")
@@ -466,6 +480,21 @@ def selftest() -> int:
          f"| c | DONE | {HEAD - SELF_GENERATED_SPAN} | {HEAD} | — | an older one | — |"]))
     claim("ONLY_NEWEST_SATISFIED", not any("NOT_ONLY_NEWEST" in x for x in p),
           "closing one item older than the span was still refused")
+    # 🔴 THE KILL CONTROL — 241 §2, the claim the first draft did not make. A session
+    # that closes its own two inventions and kills five ancient rows has decided five
+    # things and finished none, and the first draft called that satisfied.
+    red("ONLY_NEWEST_KILL_IS_NOT_DONE",
+        [f"| a | DONE | {HEAD} | {HEAD} | — | invented and closed today | — |",
+         "| b | KILLED | 205 | 240 | — | thirty-five sessions, abandoned | not worth it |",
+         "| c | KILLED | 206 | 240 | — | thirty-four sessions, abandoned | nor this |"],
+        "QUEUE_NOT_ONLY_NEWEST")
+    p, _n, _r, _o = check(_table(
+        [f"| a | DONE | {HEAD} | {HEAD} | — | invented and closed today | — |",
+         "| b | KILLED | 205 | 240 | — | abandoned | not worth it |",
+         f"| c | DONE | 214 | {HEAD} | — | an old one, FINISHED | — |"]))
+    claim("ONLY_NEWEST_DONE_ANSWERS", not any("NOT_ONLY_NEWEST" in x for x in p),
+          "an old row that was actually finished did not satisfy the claim")
+
     p, notes, _r, _o = check(_table(["| a | OPEN | 238 | — | — | fresh | — |"]))
     claim("ONLY_NEWEST_ABSTAINS", any("no opinion" in n for n in notes),
           "a session that closed nothing was given an opinion it cannot have — a rule "
