@@ -196,6 +196,15 @@ def suffix_problems(paths, swept, exempt,
 def _selftest() -> int:
     print("TERMINOLOGY selftest — the parser and the scanner, on fixtures")
     bad = 0
+
+    # 🆕 247 §1 — 🔴 A COUNTABLE RED, WHICH THIS FILE'S HOUSE STYLE DID NOT HAVE.
+    # `instrument_gate.failure_lines` reads three spellings and `🔴 <desc> -> <n>` is none
+    # of them, so a blast floor over this instrument would have been a floor at zero while
+    # the self-test reported real failed claims (245 §2, the same bill three Python gates
+    # paid before this one). 🔴 AND THE RULE IS TO CHANGE THE DIALECT, NOT TO TEACH THE
+    # READER A FOURTH ONE (245).
+    def _fail(desc: str) -> None:
+        print(f"  FAIL TERMINOLOGY_SELFTEST {desc[:90]}")
     cases = [
         ('The word **"rival"** is retired, along with "threat".', ["rival"], "the live wording"),
         ('The word **"enemy"** is retired.', ["enemy"], "a different retired word is followed"),
@@ -206,6 +215,8 @@ def _selftest() -> int:
         ok = got == want
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {why:<62} -> {got}")
+        if not ok:
+            _fail(f"retired_terms {why} -> {got}")
     d = Path(tempfile.mkdtemp(prefix="term_self_"))
     f = d / "x.md"
     for text, want_n, why in [("a rival's ceiling", 1, "possessive matches"),
@@ -217,6 +228,8 @@ def _selftest() -> int:
         ok = got == want_n
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {why:<62} -> {got}")
+        if not ok:
+            _fail(f"offenders {why} -> {got}")
     # ── 🆕 233 — THE SUFFIX DISCOVER HALF, DRIVEN FROM BOTH SIDES ────────────────────
     # 🔴 FIXTURE-FED, because on a healthy tree every list `suffix_problems` builds is
     # empty and an inline version would be deleted by anything and noticed by nothing.
@@ -245,17 +258,39 @@ def _selftest() -> int:
         ok = got == want
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {why[:62]:<62} -> {got}")
+        if not ok:
+            _fail(f"suffix_problems {why[:62]} -> {got}")
     # 🔴 AND THE READER OVER THE TREE IT SHIPS AGAINST — the fixtures prove the predicate,
     # this proves the walk still reaches git (202 §9.4, one layer out).
     _live_ok = len(tracked_paths()) >= TRACKED_FLOOR
     bad += 0 if _live_ok else 1
     print(f"  {'🟢' if _live_ok else '🔴'} {'tracked_paths() still reaches git ls-files':<62} "
           f"-> {len(tracked_paths())}")
+    if not _live_ok:
+        _fail("tracked_paths() no longer reaches git ls-files")
+    # 🆕 247 §1 — 🔴 AND THE FILTERED WALK, WHICH IS THE POPULATION AND WAS PROVED BY
+    # NOTHING. The line above exercises `tracked_paths()`; `tracked_files()` is the read
+    # `main` sweeps, and blinded to `[]` it took this gate to `0 file(s) swept` and exit 0.
+    # The claim is membership rather than a count: the policy this gate enforces and the
+    # changelog it excuses are both tracked files with swept suffixes, so an emptied walk
+    # fails on the two files whose presence the gate's own report depends on. 🔴 A LENGTH
+    # CLAIM ALONE WOULD NOT DO — `all(...)` over an empty list is true, and so is every
+    # other predicate, which is the shape that let the blind through in the first place.
+    _tf = tracked_files()
+    _tf_ok = POLICY in _tf and CHANGELOG in _tf and len(_tf) == len(
+        [p for p in tracked_paths() if Path(p).suffix in SUFFIXES])
+    bad += 0 if _tf_ok else 1
+    print(f"  {'🟢' if _tf_ok else '🔴'} {'tracked_files() reaches the policy it enforces':<62} "
+          f"-> {len(_tf)}")
+    if not _tf_ok:
+        _fail(f"tracked_files() does not reach the policy it enforces -> {len(_tf)}")
     # 🔴 AND THE FLOORS THEMSELVES, which a zero would make unable to bite.
     _f_ok = TRACKED_FLOOR > 0 and SUFFIX_FLOOR > 0
     bad += 0 if _f_ok else 1
     print(f"  {'🟢' if _f_ok else '🔴'} {'both suffix floors are pinned above zero':<62} "
           f"-> {TRACKED_FLOOR}/{SUFFIX_FLOOR}")
+    if not _f_ok:
+        _fail(f"a suffix floor is at zero -> {TRACKED_FLOOR}/{SUFFIX_FLOOR}")
 
     # 🔴 THE FLOOR, PINNED AGAINST THE LIVE POLICY. `floor_pin_gate.py` mutates
     # `TERM_FLOOR` and requires this file to redden; a floor used only as
@@ -266,7 +301,14 @@ def _selftest() -> int:
     bad += 0 if ok else 1
     print(f"  {'🟢' if ok else '🔴'} {'TERM_FLOOR equals what the live policy retires':<62} "
           f"floor={TERM_FLOOR} live={live}")
-    print(f"TERMINOLOGY selftest {'ok' if not bad else f'🔴 {bad} FAILED'}")
+    if not ok:
+        _fail(f"TERM_FLOOR floor={TERM_FLOOR} live={live}")
+    # 🆕 247 §1 — 🔴 A MARKER ONLY A COMPLETED RUN PRINTS. The header line above says
+    # `TERMINOLOGY selftest` on the FIRST line, so a run that died in the middle would
+    # carry it too and `instrument_gate.py` would file a crash as a catch — 198 §3's
+    # draft 1, refuted against a capture before it shipped and copied here rather than
+    # re-derived. This line is emitted on both verdict paths and on neither traceback.
+    print(f"TERMINOLOGY_SELFTEST_DONE {'ok' if not bad else f'🔴 {bad} FAILED'}")
     return 1 if bad else 0
 
 
@@ -284,14 +326,46 @@ def main() -> int:
           f"(floors {TRACKED_FLOOR}/{SUFFIX_FLOOR})")
     for _m in _sp:
         print(f"🔴 {_m}")
+        # 🆕 247 §2 — the live command is a swept axis now, and `failure_lines` reads
+        # `FAIL <NAME>` and two other spellings. A red nothing can count is a blast
+        # floor at zero (245 §2).
+        print(f"  FAIL TERMINOLOGY_SUFFIX {_m[:90]}")
     if len(terms) < TERM_FLOOR:
         print(f"🔴 TERMINOLOGY_NO_TERMS — Rule 1's sentence in {POLICY.relative_to(ROOT)} no "
               f"longer parses, so this gate would sweep the whole tree for nothing and exit 0.\n"
               f"   Either the rule moved (point the parser at it) or it was withdrawn (delete\n"
               f"   this gate on purpose). An unparseable rule is not an empty rule.")
+        print(f"  FAIL TERMINOLOGY_NO_TERMS {len(terms)} < {TERM_FLOOR}")
         return 1
 
     files = tracked_files()
+    # ── 🆕 247 §1 — THE WALK THAT DECIDES THE POPULATION, FLOORED AGAINST THE ONE THAT
+    # ALREADY IS ────────────────────────────────────────────────────────────────────────
+    #
+    # 🔴 MEASURED, NOT SUSPECTED: `tracked_files()` blinded to `[]` left this gate printing
+    # `TERMINOLOGY ok — 0 file(s) swept, 0 retired term(s)` and exiting 0, on BOTH axes.
+    # Every floor in this file is on `tracked_paths()` — the UNFILTERED walk, twice over,
+    # by path count and by suffix count — and the filtered one, which is the only thing
+    # that decides what actually gets scanned, was floored by nothing at all. A finder that
+    # can match NOTHING while its gate stays green is the sentence `instrument_gate.py`
+    # prints under every red it finds; this file was one.
+    #
+    # 🔴 AND IT IS A COMPARISON RATHER THAN A NEW LITERAL, because the number is already
+    # here. `_st['swept']` is the suffix census counting tracked paths whose suffix is in
+    # `SUFFIXES`, derived from `tracked_paths()` — which TRACKED_FLOOR and SUFFIX_FLOOR
+    # already pin from below. `tracked_files()` is that same filter applied by a second
+    # call. The two agree BY CONSTRUCTION, which is exactly why nobody had ever asked, and
+    # the disagreement is the only observation that separates "swept a tree and found
+    # nothing" from "swept nothing".
+    if len(files) != _st["swept"]:
+        print(f"🔴 TERMINOLOGY_WALK {len(files)} file(s) to sweep against a suffix census "
+              f"of {_st['swept']} — the two `git ls-files` reads in this file disagree "
+              f"about the same population. Either the filtered walk stopped reaching git "
+              f"or `SUFFIXES` moved under one of them; this line cannot tell them apart "
+              f"(228 §7.17), and either way the count below is over a population nobody "
+              f"chose.")
+        print(f"  FAIL TERMINOLOGY_WALK {len(files)} != {_st['swept']}")
+        return 1
     # The derivation: a file that cites the policy by path is a file ABOUT the rule.
     cites = POLICY.name
     states_the_rule = {
@@ -307,9 +381,32 @@ def main() -> int:
             for ln, line in offenders(term, path):
                 bad += 1
                 print(f"  🔴 {path.relative_to(ROOT)}:{ln} — “{line}”")
+                print(f"  FAIL TERMINOLOGY {path.relative_to(ROOT)}:{ln}")
 
     # The excluded scope, as numbers, every run.
     exc_hits = sum(len(offenders(t, p)) for t in terms for p in excluded if p.exists())
+    # ── 🆕 247 §2 — THE EXCLUSION, ASKED WHETHER IT STILL EXCLUDES ANYTHING ───────────
+    #
+    # 🔴 174 §5's RULE, WHICH THIS FILE APPLIES TO SUFFIXES AND NEVER APPLIED TO FILES.
+    # `SUFFIX_EXEMPT` is refused the moment no tracked file carries the suffix it excuses
+    # — an exclusion outliving its subject is one nobody re-argued. The FILE exclusion
+    # below is granted on the same terms and was checked on none: a file earns silence by
+    # citing the policy, and the reason it needs silence is that it uses the retired word
+    # legitimately. A file that cites the policy and no longer contains the word is being
+    # excused from a rule it does not break.
+    #
+    # 🔴 AND IT IS ALSO WHERE `offenders` STOPS BEING BLINDABLE ON THE LIVE AXIS. Late-
+    # blinded — honest on call one, empty on the 290 after it — the sweep above finds
+    # nothing, which is the HEALTHY reading and no floor can tell it from one; this count
+    # is the same scanner asked a question whose correct answer is not zero.
+    if not exc_hits:
+        print(f"🔴 TERMINOLOGY_EXCLUSION {len(excluded)} file(s) excluded from the sweep "
+              f"and NOT ONE of them contains a retired term. The exclusion exists because "
+              f"these files use the word legitimately; a population that no longer does is "
+              f"an exemption nobody re-argued (174 §5) — or the scanner stopped reading, "
+              f"and this line cannot tell them apart (228 §7.17).")
+        print(f"  FAIL TERMINOLOGY_EXCLUSION {len(excluded)} excluded, 0 occurrence(s)")
+        bad += 1
     named = ", ".join(sorted(str(p.relative_to(ROOT)) for p in states_the_rule))
     print(f"   …not covered: {len(files) - len(swept)} of {len(files)} tracked text file(s), "
           f"carrying {exc_hits} legitimate occurrence(s) — the changelog (append-only), and "

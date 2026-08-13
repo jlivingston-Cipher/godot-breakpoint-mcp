@@ -2418,18 +2418,17 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
                if k not in reader_keys])
 
 
-ALIAS_PENDING: "dict[str, str]" = {
-    "queue.claims": "🆕 246 — 240's own counter. `QUEUE_SELFTEST n/n claims` has never "
-                    "appeared in a status block: 240's block names the queue in prose and "
-                    "carries no queue atom, which is why the row could not be closed by "
-                    "241, 242 or anybody since.",
-    "instrument.py_gates": "🆕 246 — 245 §6.5 struck `INSTRUMENT_GATE_PY` from its own "
-                           "block rather than restate it unread, and said the next session "
-                           "should add the reader in the same commit as the atom.",
-    "instrument.sig": "🆕 246 — the same, for `INSTRUMENT_GATE_SIG`.",
-    "instrument.late_constructed": "🆕 246 — the same, for "
-                                   "`INSTRUMENT_GATE_LATE_CONSTRUCTED`.",
-}
+# 🆕 247 — 🟢 AND IT EXPIRED ON SCHEDULE, WHICH IS THE HALF THAT WAS WORTH BUILDING.
+# 246 wrote four rows here and said the next session would delete them; it is deleted
+# BY THE GATE, not by the session remembering — adding 246's block to
+# `BLOCK_POPULATION` above puts all four keys in `reached`, and `pending_problems`
+# turns every one of them into `ALIAS_PENDING_STALE` on the same run. The table was
+# empty for one session and is empty again, which is the only end state a time-boxed
+# exemption is allowed to have. 🔴 THE EMPTY DICT IS THE POINT AND NOT AN ACCIDENT: a
+# quiet second exemption list is what this would have become if the rows could outlive
+# the block that answers them, and the branch that deletes them is fixture-driven below
+# so it does not go silent now that the live table is empty.
+ALIAS_PENDING: "dict[str, str]" = {}
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
@@ -3025,6 +3024,32 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · wire_invisible 27 + live · lint_ceiling 18 files
 >               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
 >               · handoff 264 claims · 26 CI jobs
+> ```"""),
+    # 🆕 247 — 246's BLOCK, AND IT IS THE HALF OF 240 NEXT 2 NOBODY COULD TAKE UNTIL NOW.
+    # 240 ordered three steps and the order is unsatisfiable in one session: a reader is
+    # refused unless a REAL block reaches it, and a block becomes real only when the NEXT
+    # session adds it here. 246 wrote the four readers and time-boxed the gap in
+    # `ALIAS_PENDING`; adding this block is what makes all four rows STALE, and they are
+    # deleted in this same commit. 🔴 THE TABLE IS THE THING THAT CLOSED THE ORDERING —
+    # not a session remembering, a gate refusing.
+    (246, """> ```
+> main                 0a7906b — the floors no blind could move (#303)  MOVED +1
+>                      acb4efd — the reds that nothing could count (#302)
+> branch 246           session246-the-floors-no-blind-could-move
+>                      🟢 PUSHED · PR #303 MERGED, 26/26 green
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   726/726 · contract 24/24 · scope 30 · control 59
+>               · instrument ok across 18 · LATE_LIVE 17/8 · 0 crashes · blast 1597
+>               · py gates 18/3/15 · SIG 120/105 · late constructed 185/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1101 keys · 95 shortfalls
+>               · unswept 0 · exempt 39 · term 285 file(s) / 21 suffixes
+>               · taut 4131 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 33/33 claims · handoff 293 claims · 26 CI jobs
 > ```"""),
 ]
 
