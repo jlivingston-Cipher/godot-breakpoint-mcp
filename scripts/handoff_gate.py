@@ -125,7 +125,7 @@ CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 # 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
 # 🆕 240 — 75 -> 76, the same move again: 239's block is the thirteenth.
 ALIAS_SPELLING_FLOOR = 76
-READER_FLOOR = 24        # governed by floor_pin_gate's SIZE_LEDGER
+READER_FLOOR = 28        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
 #
@@ -512,6 +512,56 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      r"^INSTRUMENT_GATE_LATE_NOT_LOADED (\d+)/\d+", MUTATING, SINCE(233),
      "`late not-loaded 0` — 233 is the first block to carry it and every block since "
      "carries it."),
+
+    # ── 🆕 246 — `queue-claims-unread` (240), AND ITS OWN COUNTER FIRST ───────────────
+    # 🔴 THE ROW IS FROM 240 AND ITS SUBJECT HAS NEVER HAD A READER. 240 §NEXT 2 ordered
+    # three steps — `BLOCK_POPULATION`, then this row, then the `BIND_PIN` — and said the
+    # reader could be added by 242 and not before, because 240's block was the first that
+    # would carry a `queue` counter at all. Measured in 246: no block in that table carries
+    # one. 240's block mentions the queue in PROSE, in its header sentence, and the atom
+    # was never written — so the row waited five sessions for a step nobody could take,
+    # and the way to take it is to carry the atom in the block that adds the reader.
+    ("queue.claims", r"^queue\b", 2, ("python3", "scripts/queue_gate.py", "--selftest"), ROOT,
+     r"^QUEUE_SELFTEST (\d+)/(\d+) claims", CHEAP, SINCE(246),
+     "`queue 33/33 claims` — the queue gate's own self-test, which is the instrument the "
+     "whole queue rests on. Both halves for `contract.checks`'s reason: equal-but-smaller "
+     "is claims being deleted, and a queue nobody can trust the gate of is 240's finding "
+     "recreated one level down."),
+
+    # ── 🆕 246 — `queue-claims-unread` (240), THREE COUNTERS OVER ─────────────────────
+    # 245 §6.5 struck all three from its own status block rather than restate them
+    # unchecked, and said so: *"they are printed on every run and no row in
+    # `handoff_gate.py` binds them… do not put them back without a reader."* These are the
+    # readers, and the block that carries them is the first block they could be read
+    # against — which is the whole reason 240's row could not be closed on the session
+    # that opened it either.
+    #
+    # 🔴 SINCE 246 AND NOT A FLAT REQUIRED. Every block in `BLOCK_POPULATION` predates
+    # these atoms; a flat row would refuse the entire history for not carrying a field
+    # that did not exist. The boundary is the first block that carries it, measured the
+    # way `instrument.late_live`'s was.
+    ("instrument.py_gates", r"^py gates\b", 3, ("python3", "scripts/instrument_gate.py"), ROOT,
+     r"^INSTRUMENT_GATE_PY (\d+) tracked scripts/\*\.py · (\d+) swept · (\d+) declared unswept",
+     MUTATING, SINCE(246),
+     "🆕 245's Python roster. `py gates 18/3/15` — three numbers, and all three are the "
+     "claim: the walked population, the part of it that is an instrument, and the part "
+     "that carries a written reason for not being one. The UNDECLARED and STALE halves "
+     "are an equality the gate refuses on rather than a counter, so they are not here. "
+     "🔴 ANCHORED ON TWO WORDS: `py` alone would bind inside any atom carrying those "
+     "letters, and the binder's job is to refuse ambiguity rather than resolve it."),
+    ("instrument.sig", r"\bSIG\b", 2, ("python3", "scripts/instrument_gate.py"), ROOT,
+     r"^INSTRUMENT_GATE_SIG (\d+)/(\d+)", MUTATING, SINCE(246),
+     "`SIG 117/105` — resolved `{SIG:}` anchors over their floor. Both halves, for "
+     "`contract.checks`'s reason: the pair going equal-but-smaller is a roster of anchors "
+     "being replaced by the literals they resolve to today, which is the drift the "
+     "placeholder exists to stop and which moves NO other printed line."),
+    ("instrument.late_constructed", r"\blate constructed\b", 2,
+     ("python3", "scripts/instrument_gate.py"), ROOT,
+     r"^INSTRUMENT_GATE_LATE_CONSTRUCTED (\d+)/(\d+)", MUTATING, SINCE(246),
+     "`late constructed 179/160` — late-axis blinds that were BUILT. 🔴 IT CARRIES THE "
+     "WORD `late` AND MUST REACH NEITHER `instrument.late_live` NOR "
+     "`instrument.not_loaded`, which is the third member of a collision those two rows "
+     "already document; all three are anchored on more than the word."),
 ]
 
 
@@ -2343,6 +2393,44 @@ NUMERAL_PINS: "list[tuple[str, tuple[int, ...], str]]" = [
     ("cl100k_base", (), "224's live refusal — a digit-run welded to letters is an identifier"),
 ]
 
+# 🆕 246 — THE ONE-SESSION GAP THE THREE-STEP ORDER LEAVES, AND WHY IT NEEDED A TABLE.
+#
+# 240 NEXT 2 ordered three steps — `BLOCK_POPULATION`, then the `COUNTER_READERS` row,
+# then the `BIND_PIN` — because `ALIAS_UNUSED` refuses a reader no real block reaches, and
+# a block only becomes real when the NEXT session adds it. So a counter and its reader can
+# never land together, and the counter has to be restated unread for one whole session
+# first. 🔴 MEASURED IN 246: `queue-claims-unread` had been open since 240 because nobody
+# ever took step one, and 245 struck three more counters from its own block rather than
+# carry them unread. Five sessions and four counters, all waiting on an ordering.
+#
+# This table is the gap, written down and time-boxed. A key here is a reader whose atom
+# first appears in the block THIS session is writing — unreachable from the table by
+# construction, for exactly one session. The next session adds that block and the row goes
+# stale, loudly, in the walk above.
+def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]:
+    """Both ways a pending row goes stale — lifted out so a fixture can drive each (195 §8.4).
+
+    On a healthy tree this returns [], so an inline version deletes invisibly: the exact
+    class this file's own `roster` claims exist to refuse, one table over.
+    """
+    return ([f"{k}: reached by a real block now — delete the row" for k in pending if k in reached]
+            + [f"{k}: not a reader in this file at all" for k in pending
+               if k not in reader_keys])
+
+
+ALIAS_PENDING: "dict[str, str]" = {
+    "queue.claims": "🆕 246 — 240's own counter. `QUEUE_SELFTEST n/n claims` has never "
+                    "appeared in a status block: 240's block names the queue in prose and "
+                    "carries no queue atom, which is why the row could not be closed by "
+                    "241, 242 or anybody since.",
+    "instrument.py_gates": "🆕 246 — 245 §6.5 struck `INSTRUMENT_GATE_PY` from its own "
+                           "block rather than restate it unread, and said the next session "
+                           "should add the reader in the same commit as the atom.",
+    "instrument.sig": "🆕 246 — the same, for `INSTRUMENT_GATE_SIG`.",
+    "instrument.late_constructed": "🆕 246 — the same, for "
+                                   "`INSTRUMENT_GATE_LATE_CONSTRUCTED`.",
+}
+
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
     ("wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread", "wire_diff.key",
@@ -2388,6 +2476,19 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
     ("discover 48/12/12/18", "instrument.discover",
      "🔴 MUST NOT REACH `boundary.judged`, whose atom also carries the word DISCOVER"),
     ("0 undeclared", "instrument.undeclared", ""),
+    # 🆕 246 — the three `queue-claims-unread` counters, pinned in the commit that gives
+    # them readers. Each is a spelling 245 §6.5 wrote down and then struck from its own
+    # block for want of exactly this.
+    ("queue 33/33 claims", "queue.claims",
+     "🔴 THE COUNTER 240's ROW IS NAMED FOR, five sessions after the row said the reader "
+     "could be added by the session after it"),
+    ("py gates 18/3/15", "instrument.py_gates",
+     "🔴 THE POPULATION, THE INSTRUMENTS AND THE DECLARED RESIDUE — three numbers whose "
+     "middle one is the only one that can go up without work"),
+    ("SIG 120/105", "instrument.sig", "resolved anchors over their floor"),
+    ("late constructed 185/160", "instrument.late_constructed",
+     "🔴 CARRIES `late` AND MUST REACH NEITHER `instrument.late_live` NOR "
+     "`instrument.not_loaded` — the third member of that collision"),
     ("blast 33/28", "instrument.blast",
      "🔴 232's SPELLING, WHICH MEANT SOMETHING ELSE. One instrument's pair, not the "
      "total 233 reports under the same word. The binder cannot tell them apart and does "
@@ -2904,6 +3005,27 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · handoff 263 claims · 26 CI jobs
 > ```
 """),
+    # 🆕 246 — 245's block, added BEFORE the close gate runs, which is 241's standing
+    # sequencing rule. `git.moved` measures FROM the newest entry, so a table one
+    # session behind makes the reader answer a different question and costs a second PR.
+    (245, """> ```
+> main                 acb4efd — the reds that nothing could count (#302)  MOVED +1
+>                      8cfe158 — the population a reader never admits it lost (#301)
+> branch 245           session245-the-reds-that-nothing-could-count
+>                      🟢 PUSHED · PR #302 MERGED, 26/26 green
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   726/726 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 18 · LATE_LIVE 17/8 · 0 crashes · blast 1542
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1040 keys · 95 shortfalls
+>               · unswept 0 · exempt 39 · term 285 file(s) / 21 suffixes
+>               · taut 4118 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 264 claims · 26 CI jobs
+> ```"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
@@ -3218,7 +3340,7 @@ def selftest() -> int:
     # PINS. A reader reachable only from a hand-written atom is a reader no session has
     # ever actually used — the roster's own DISCOVER half, asked of the roster.
     claims += 1
-    never_used = [k for k, *_ in COUNTER_READERS if k not in reached]
+    never_used = [k for k, *_ in COUNTER_READERS if k not in reached and k not in ALIAS_PENDING]
     if never_used:
         failed += 1
         print(f"  🔴 ALIAS_UNUSED {never_used} — no atom in any of the "
@@ -3226,6 +3348,35 @@ def selftest() -> int:
               f"counter is spelled in a way the alias cannot see, or the row reads a "
               f"counter no handoff has ever carried and `BIND_PINS` is the only thing "
               f"keeping it alive")
+
+    # 🆕 246 — AND THE PENDING ROWS, WHICH EXPIRE BY THEMSELVES. A row whose atom has
+    # ARRIVED is stale the moment the block carrying it joins the table, and a row naming
+    # a reader that no longer exists is stale too. Both are refusals, so the table cannot
+    # become a quiet second exemption list: the only way a key stays in it is for the block
+    # that was supposed to carry the counter never to have been added — which is the state
+    # 240's row sat in for five sessions with nothing saying so.
+    claims += 1
+    reader_keys = {r[0] for r in COUNTER_READERS}
+    stale_pending = pending_problems(ALIAS_PENDING, reached, reader_keys)
+    if stale_pending:
+        failed += 1
+        print(f"  🔴 ALIAS_PENDING_STALE {stale_pending} — an exemption its own walk can "
+              f"falsify must not need a session to re-read it")
+    if ALIAS_PENDING:
+        print(f"  · ALIAS_PENDING {len(ALIAS_PENDING)} reader(s) whose first block is the "
+              f"one being written this session: {sorted(ALIAS_PENDING)}")
+
+    # 🔴 AND THE PREDICATE ITSELF, ON INPUTS IT MUST FLAG AND ONE IT MUST NOT. Every branch
+    # above is quiet on a healthy tree, which is the whole reason these three exist.
+    for label, args, want in (
+            ("a pending row whose atom has arrived", ({"a": "why"}, {"a"}, {"a"}), True),
+            ("a pending row naming no reader", ({"gone": "why"}, set(), {"a"}), True),
+            ("a pending row still genuinely unreached", ({"a": "why"}, set(), {"a"}), False)):
+        claims += 1
+        if bool(pending_problems(*args)) is not want:
+            failed += 1
+            print(f"  🔴 ALIAS_PENDING_FIXTURE pending_problems is wrong about {label} — a "
+                  f"table whose staleness nothing proves is a second exemption list")
 
     # 🔴 THE SPELLING FLOOR, WHICH IS WHAT MAKES THE TWO CLAIMS ABOVE HARD TO SATISFY BY
     # SHRINKING. Both go green if the population stops parsing; this one goes red. 71
@@ -4308,10 +4459,15 @@ def selftest() -> int:
     since_rows = [(k, nd) for k, _a, _n, _c, _w, _e, _co, nd, _wh in COUNTER_READERS
                   if SINCE_RE.match(nd)]
     claims += 1
-    if len(since_rows) != 6:
+    # 🆕 246 — SIX BECAME NINE, AND THE THREE ARE ONE EVENT. `queue-claims-unread` (240)
+    # is three counters over: `instrument_gate.py` prints them on every run and 245's block
+    # struck all three rather than restate them unread. A boundary row per counter is the
+    # only honest shape — every block in the table predates them — and the pin moves in the
+    # commit that adds them, which is what makes it a record rather than a restatement.
+    if len(since_rows) != 10:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 6 — "
-              f"237 §3 measured six and the table is the only record of which")
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 10 — "
+              f"237 §3 measured six and 246 added four; the table is the only record of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))

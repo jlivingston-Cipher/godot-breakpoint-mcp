@@ -17,6 +17,7 @@ import {
   PC_POPULATION, PC_FILES, PC_ACCEPTANCE, PC_ACCEPTANCE_MISSING,
   PC_TRAP_UNFLOORED, PC_UNDEFENDED_EXCESS, PC_UNREADABLE_EXCESS,
   CLAIM_FLOOR, FILE_FLOOR, DEFECT_CEILING, RESIDUE_CEILING, ACCEPTANCE,
+  IMPORT_HOPS, CHAIN_DEPTH, IMPORTED,
 } from "./positive_control_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -27,7 +28,10 @@ const claim = (cond, what) => {
 // 🔴 NAMED AND PINNED, BECAUSE A BARE LITERAL IS UNFALSIFIABLE (176's reverse sweep).
 // The floor is read by exactly one branch; asserted by nothing, it can be switched off
 // without a single case noticing. This is the floor that protects the floors.
-const CLAIM_FLOOR_SELF = 44;
+// 🆕 246 — 44 -> 58, raised from BELOW in the commit that outgrew it (198 §36). The
+// import-hop section added seventeen cases; a floor left at 44 would have let every one
+// of them be deleted while this file still reported a healthy run.
+const CLAIM_FLOOR_SELF = 58;
 
 // 🔴 THE UNIT FUNCTION IS SPELLED IN PIECES, AND IT HAS TO BE. `tautology_gate` decides
 // whether a file is unit-shaped by looking for the unit function's name followed by an
@@ -344,17 +348,100 @@ claim(shipped.has(DEFENDED) && shipped.has(EXEMPT_TRAP) && shipped.has(POPULATIO
 claim(ACCEPTANCE.every((m) => m.claim instanceof RegExp && typeof m.why === "string" && m.why.length > 20),
   "every member is addressed by content and carries a written reason");
 
+// ── 🆕 246. THE IMPORT HOP — 214 §7.6's FIRST OPTION, AND EVERY WAY IT DECLINES ──────
+//
+// 🔴 THE READER IS STILL PURE, AND THIS SECTION IS THE PROOF. `classify` takes the module
+// reader as a parameter, so every branch below is driven from a Map: no fixture tree, no
+// disk, no build step. A hop that could only be tested against the real `src/` would be
+// the one branch in this file nobody could redden on purpose.
+const mods = (map) => ({
+  readModule: (_from, spec) => (map[spec] ? { fileName: spec, text: map[spec] } : null),
+});
+const IMPORTER = ts(`
+import { ROSTER } from "./roster.js";
+@unit("a collection derived from an imported constant", () => {
+  const stale = Object.keys(ROSTER).filter((n) => !live(n));
+  assert.deepEqual(stale, [], "no stale names");
+});`);
+const hopped = (map) => classify("test/i.test.ts", IMPORTER, mods(map))[0] ?? null;
+
+const FULL = { "./roster.js": `export const ROSTER = { a: 1, b: 2 };` };
+claim(hopped(FULL)?.verdict === DEFENDED,
+  "🔴 an import this reader CAN follow defends the claim — the five that waited 32 sessions");
+claim(/non-empty object literal/.test(hopped(FULL)?.why ?? ""),
+  "…because the chain reached a non-empty OBJECT literal, which had no branch before 246");
+claim(/roster\.js:1/.test(hopped(FULL)?.why ?? ""),
+  "🔴 and the verdict NAMES THE FILE IT CROSSED INTO — a defence a reviewer cannot locate is one nobody can check");
+
+// 🔴 EMPTY IS NOT NON-EMPTY, AND THIS IS THE CASE THAT SAYS THE HOP DID NOT JUST SAY YES.
+// A branch that returned DEFENDED for any resolvable import would pass every claim above
+// and be worth nothing. The same fixture with an empty literal must come back a DEFECT.
+claim(hopped({ "./roster.js": `export const ROSTER = {};` })?.verdict === DEFECT,
+  "🔴 an imported EMPTY object literal is still a defect — the hop reads the literal, it does not bless the import");
+claim(hopped({ "./roster.js": `export const ROSTER = [];` })?.verdict === DEFECT,
+  "…and so is an imported empty array literal");
+
+// Two hops: the export is itself an import from a third module. This is `ANNOTATED_TOOLS`
+// in miniature, and it is the shape the budget below has to allow.
+claim(hopped({
+  "./roster.js": `import { BASE } from "./base.js";\nexport const ROSTER = Object.freeze([...BASE].sort());`,
+  "./base.js": `export const BASE = ["a", "b"];`,
+})?.verdict === DEFENDED,
+  "🔴 the hop is transitive, and `Object.freeze([...X].sort())` is X — the live shape of ANNOTATED_TOOLS");
+
+// 🔴 AND EVERY DECLINE ENDS IN THE OLD TERMINAL, WHICH IS THE HONEST ONE. The point of
+// `declared-outside-this-file` was never that imports are unreadable; it was that THIS
+// reader could not see through one. Where it still cannot, it must say the same thing it
+// said before rather than guess.
+const declines = {
+  "a specifier that resolves to nothing": {},
+  "a module with no such export": { "./roster.js": `export const OTHER = { a: 1 };` },
+  "an export with no initialiser": { "./roster.js": `export const ROSTER;` },
+};
+// 🔴 READ THROUGH `JSON.stringify`, WHICH IS NOT A STYLE CHOICE. A verdict row is a union
+// — the RESIDUE branch has no `chain` and no `terminal` — and `--checkJs` counts every
+// property access on the union as a finding against `lint_ceiling.py`'s TS2339 class. The
+// serialised row carries the same evidence and asks the union no questions.
+const shape = (r) => JSON.stringify(r ?? {});
+for (const [why, map] of Object.entries(declines)) {
+  claim(hopped(map)?.verdict === DEFECT, `${why} is still a defect`);
+  claim(shape(hopped(map)).includes(IMPORTED),
+    `🔴 …and still terminates in \`${IMPORTED}\` — ${why}`);
+}
+claim(shape(classify("test/i.test.ts", IMPORTER, { readModule: null })[0]).includes(IMPORTED),
+  "🔴 with NO reader supplied the hop is off entirely and the terminal is exactly what it was before 246");
+
+// 🔴 A CYCLE MUST TERMINATE, AND THE BUDGET IS WHAT MAKES THAT TRUE. Two modules that
+// import each other are legal input; a walker without a hop budget does not return, and a
+// gate that hangs is a gate that gets removed from CI.
+claim(safe(() => hopped({
+  "./roster.js": `import { ROSTER as R } from "./roster.js";\nexport const ROSTER = R;`,
+}), CRASHED) !== CRASHED,
+  "🔴 a self-importing module terminates rather than hanging or throwing");
+claim(IMPORT_HOPS >= 2 && IMPORT_HOPS <= 8,
+  `the hop budget is a small named number, not a literal buried in the walker (${IMPORT_HOPS})`);
+claim(CHAIN_DEPTH === 16, `the shipped chain depth is 16, not ${CHAIN_DEPTH}`);
+// 🔴 THE BUDGET'S OWN FAILURE MODE, PINNED. A chain that runs out of depth reports
+// terminal `none` and verdict DEFECT — indistinguishable from a real undefended
+// collection. This case proves the shipped budget is above the shape that needs it,
+// which is the assertion a bare literal could never make.
+claim(!shape(hopped({
+  "./roster.js": `import { B } from "./b.js";\nexport const ROSTER = Object.freeze([...B].sort());`,
+  "./b.js": `export const B = ["x"];`,
+})).includes('"terminal":"none"'),
+  "🔴 and the deepest live shape does not exhaust the budget — terminal `none` is a reader that stopped walking");
+
 // ── 11. THE FLOORS THEMSELVES, NAMED ─────────────────────────────────────────────────
 // 175's G9: a literal nothing asserts is a literal anyone can move.
 claim(CLAIM_FLOOR === 40, `the shipped claim floor is 40, not ${CLAIM_FLOOR}`);
 claim(FILE_FLOOR === 90, `the shipped file floor is 90, not ${FILE_FLOOR}`);
-claim(DEFECT_CEILING === 20, `the shipped defect ceiling is 20, not ${DEFECT_CEILING}`);
+claim(DEFECT_CEILING === 15, `the shipped defect ceiling is 15, not ${DEFECT_CEILING}`);
 claim(RESIDUE_CEILING === 1, `the shipped residue ceiling is 1, not ${RESIDUE_CEILING}`);
 // 🔴 AND THIS FILE'S OWN, WHICH IS THE ONE `floor_pin_gate` CAUGHT. Every floor
 // above was pinned by an exact comparison and this one was read by a single branch and
 // asserted by nothing, so setting it to zero left the file green — the collapse
 // detector switched off with no case noticing. 175's G9, in the file that quotes it.
-claim(CLAIM_FLOOR_SELF === 44, `this file's own claim floor is 44, not ${CLAIM_FLOOR_SELF}`);
+claim(CLAIM_FLOOR_SELF === 58, `this file's own claim floor is 58, not ${CLAIM_FLOOR_SELF}`);
 
 if (ran < CLAIM_FLOOR_SELF) {
   bad++;

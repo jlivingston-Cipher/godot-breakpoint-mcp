@@ -67,6 +67,25 @@ EMPTY: dict[str, str] = {
     # first run after the signature moved.
     "tuple[list[str], list[tuple[Path, int, int, str]], int, set[tuple[Path, int, int]]]":
         "([], [], 0, set())",
+    # 🆕 246 — THE FOUR SHAPES THIS TABLE DID NOT KNOW, AND WHAT THAT COST.
+    #
+    # 🔴 A RETURN SHAPE `EMPTY` HAS NO ROW FOR IS AN ENUMERATOR OUTSIDE THIS GATE BY
+    # CONSTRUCTION, WITH NO LINE ANYWHERE SAYING SO — which is 199 §9.4's sentence about
+    # `floor_pin_gate`'s own discovery half, one file over and never asked here. The
+    # docstring above says twenty-five blindable enumerators; the tree held twenty-nine,
+    # and the difference was four annotations this dict could not spell. `TARGET_FLOOR`
+    # could not see it either: it floors the targets FOUND, and a shape it cannot read
+    # never becomes one.
+    #
+    # 🔴 AND ADMITTING THEM FOUND A GREEN BLIND ON THE FIRST SWEEP. `prose_numerals_masked`
+    # returned zero — no numeral is inside a fence anywhere in four documents — and
+    # `contract_check.py` printed ALL HARD CHECKS PASSED. 246 gave it the SCOPE_LEDGER row
+    # it never had. `EMPTY_UNDECLARED` below is what stops the class recurring: the walk
+    # now asks its own question in both directions rather than answering it by omission.
+    "int": "0",
+    "list[tuple[int, int, str]]": "[]",
+    "tuple[dict[str, set[str]], dict[str, set[str]], dict[str, str]]": "({}, {}, {})",
+    "tuple[list[str], int, int]": "([], 0, 0)",
 }
 
 # 🔴 THIS GATE DERIVES ITS OWN SCOPE, WHICH IS THE EXACT THING IT EXISTS TO DISTRUST.
@@ -74,8 +93,11 @@ EMPTY: dict[str, str] = {
 # added — the target list would shrink and every remaining target would still pass, so
 # this file would report success over enumerators it had stopped testing. That is
 # taut169, one level up again. The floor is a literal, and it is `>=` because the file
-# is supposed to grow. 172 measured 25.
-TARGET_FLOOR = 25
+# is supposed to grow. 172 measured 25; 🆕 246 measured 30 — four of them annotated
+# enumerators `EMPTY` had never been able to spell, and one the new check 27 brought with
+# it. A floor left at the old measurement is headroom for five targets to be dropped in
+# silence (198 §36).
+TARGET_FLOOR = 30
 
 
 def targets(text: str) -> list[tuple[str, str, int]]:
@@ -169,6 +191,14 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "toolset_sizes": ("families.toolset_claims_resolved", "families.toolset_sizes",
                       "prose.derivable_values"),
     "uncaptured_tool_registrations": ("tools.registration_sites_scanned",),
+    # 🆕 246 — THE FOUR `EMPTY` COULD NOT SPELL. Three of them landed on populations the
+    # ledger already had; the fourth is the one that had none, and finding that out is
+    # what admitting them was for.
+    "catalog_shapes": ("shapes.inputs_compared", "shapes.outputs_compared"),
+    "prose_guard_classes": ("prose.guard_suppressions",),
+    "prose_numerals": ("prose.numerals_read",),
+    "prose_numerals_masked": ("prose.numerals_masked",),
+    "prose_pin_problems": ("prose.pins_negative",),
 }
 
 # id -> the exact number of `FAIL:` lines that blind produces. Measured, not guessed.
@@ -222,12 +252,21 @@ BLAST: dict[str, int] = {
     "toolset_claims": 2,                      # also: check 25
     "toolset_sizes": 4,                       # also: check 25
     "uncaptured_tool_registrations": 1,
+    # 🆕 246 — measured on the sweep that admitted them, not predicted.
+    "catalog_shapes": 4,                      # also: checks 6 7
+    "prose_guard_classes": 2,                 # 🆕 246 — check 27's own finder
+    "prose_numerals": 2,                      # also: check 25's own scope line
+    "prose_numerals_masked": 1,
+    "prose_pin_problems": 1,
 }
 
-SCOPE_BLAST_TOTAL_FLOOR = 45          # measured ABOVE this. Floored from BELOW for control_gate's reason:
+SCOPE_BLAST_TOTAL_FLOOR = 62    # 🆕 246 §2 — at `{FLOOR}`, raised with the four targets admitted
+                                # in the same commit. Measured ABOVE it and floored from BELOW
+                                # for control_gate's reason:
                                 # the per-row equalities above get edited one row at a time,
                                 # and this is what notices the sweep going quieter overall
-LEDGER_COLLAPSE_FLOOR = 24      # measured ABOVE this, across every row. The
+LEDGER_COLLAPSE_FLOOR = 32      # 🆕 246 §2 — at `{FLOOR}`, raised by the same four. Measured
+                                # ABOVE it, across every row. The
                                 # per-row assertion is the gate; this is the aggregate that
                                 # notices the ledger being trimmed row by row to match
 
@@ -270,6 +309,138 @@ def roster_problems(names: list[str], blast: dict, ledger: dict) -> list[str]:
             problems.append(f"LEDGER names {name!r}, which is not a target")
     return problems
 
+
+# ── 🆕 246 — `discover-rosters` (233): THE DISCOVER QUESTION, ASKED OF THE LEDGER ─────
+#
+# 233 §3 asked the discover question of four rosters and found each already answered
+# because its population was another roster that had already got a walk. `LEDGER` above
+# is that shape from ONE side only: `roster_problems` checks it against `targets()` in
+# both directions, so every enumerator has a declared population and every declared
+# population belongs to a live enumerator. Nobody ever asked the other question.
+#
+# 🔴 THE OTHER QUESTION IS ABOUT THE LEDGER, AND ITS ANSWER WAS 29 OF 47. This file's
+# docstring says the scope ledger closed the enumerators with literal floors and THIS FILE
+# IS WHAT KEEPS THEM CLOSED. Measured in 246, before a line was changed: of the 47
+# populations `contract_check.py` floors, twenty-nine could be collapsed by some blind in
+# this sweep and EIGHTEEN could not be collapsed by any of them. A floor no blind can move
+# is a floor never tested against the collapse it names — the exact thing this gate's
+# opening paragraph says such a floor is: "a claim that cannot fail". Nothing said which
+# floors those were, in either direction, for seventy-four sessions.
+#
+# 🟢 THE WALK IS THE ANSWER AND THE ROSTER IS THE RESIDUE. `ledger_populations` reads the
+# ledger out of the source — a walk, not a second list — and every population it finds is
+# either reachable by a declared blind or carries a row below saying what stops it. An
+# equality, not a floor: a walk that returns nothing turns every row stale and refuses, so
+# this half needs no floor constant of its own (245 §1's shape, one gate over).
+LEDGER_START = re.compile(r'^SCOPE_LEDGER: "list\[tuple\[str, int, int, str\]\]" = \[$', re.M)
+LEDGER_ROW = re.compile(r'^    \("([\w.]+)", ', re.M)
+
+
+def ledger_populations(text: str) -> list[str]:
+    """Every population name in `contract_check.py`'s SCOPE_LEDGER, in file order."""
+    m = LEDGER_START.search(text)
+    if not m:
+        return []
+    end = text.index("\n]\n", m.end())
+    return LEDGER_ROW.findall(text[m.end():end])
+
+
+# 🔴 EVERY ROW IS ONE MEASUREMENT AND THEY ALL HAVE THE SAME CAUSE, WHICH IS WHY THE CAUSE
+# IS WRITTEN ONCE. `targets()` blinds a FUNCTION: it anchors on an annotated `def` and
+# injects the empty its return type promises. Each population below is a module-level
+# accumulator — a list, set, dict or counter initialised at the top of a check block and
+# filled by a loop inside it — so there is no `def` to anchor on and no return to empty.
+# Blinding the initialiser is a no-op, because the loop below it fills the binding again.
+#
+# 🔴 THAT IS A HARNESS LIMITATION REPORTED UNDER A CEILING, WHICH IS 197 §3's SHAPE, AND
+# SAYING SO IS THE POINT OF THE TABLE. Sixteen floors in the file this gate exists to
+# defend are currently defended by nothing but their own arithmetic. The work is a SECOND
+# INJECTOR — one that anchors on a module-level binding and empties it AFTER the loop that
+# fills it — and it is `scope-ledger-unreached` in the queue, priced by this table.
+LEDGER_UNREACHED: dict[str, str] = {
+    "versions.sites_checked":
+        "check 14's release-ritual counter, summed from two comparison lists as the check "
+        "walks them; there is no enumerator between the files and the number",
+    "xlang.codec_emitted":
+        "check 23 reads it with a module-level `re.findall` over the addon's encoder half — "
+        "an expression, not a function",
+    "xlang.codec_accepted":
+        "the decoder half of the same statement, and the same reason",
+    "xlang.codec_fields":
+        "a dict initialised empty at the top of check 23 and filled by the loop under it, "
+        "so emptying the initialiser is undone before any check reads it",
+    "xlang.ts_variant_tags":
+        "check 23's TypeScript producer list, accumulated by the same shape of loop",
+    "xlang.addon_err_codes":
+        "check 23's GDScript error codes, a set filled while walking the addon",
+    "xlang.ts_err_branches":
+        "a comprehension over `_branch_hits`, which is itself a module-level accumulation",
+    "xlang.err_branch_bindings":
+        "the (method, code, file) list check 23 builds as it reads the TS branches",
+    "xlang.unsupported_capability":
+        "one KEY of check 24's `unsupported_kinds` dict — a blind would have to empty the "
+        "key rather than the binding, which is a shape the current injector cannot express",
+    "xlang.unsupported_shape":
+        "the other key of the same dict, and the same shape",
+    "xlang.kind_checked_branches":
+        "check 24's counter, incremented in a loop",
+    "xlang.unsup_messages_read":
+        "check 24c's message counter, incremented in the loop that classifies each site",
+    "xlang.shape_guard_classes":
+        "check 24c's guard-class counter, incremented beside it",
+    "addon.copy_roots_read":
+        "check 24b derives it from `addon_copy_compared` with a set comprehension",
+    "addon.copy_pairs":
+        "a `sum` over the same mapping, one line up",
+    "addon.copies_compared":
+        "the mapping itself, built by a dict comprehension over `addon_copy_files`",
+}
+
+
+def ledger_reach_problems(pops: list[str], ledger: dict, unreached: dict) -> list[str]:
+    """Both directions between the ledger's populations and the blinds that can move them.
+
+    🔴 LIFTED OUT AND FIXTURE-FED for `roster_problems`'s reason (195 §8.4): on a healthy
+    tree this returns [], so an inline version deletes invisibly.
+    """
+    problems: list[str] = []
+    if not pops:
+        problems.append(
+            "ledger_populations read NOTHING out of contract_check.py — the SCOPE_LEDGER "
+            "moved or was renamed, and every row in LEDGER_UNREACHED below is now a claim "
+            "about a table this gate can no longer find"
+        )
+    reachable = set().union(*ledger.values()) if ledger else set()
+    known = set(pops)
+    for pop in pops:
+        if pop in reachable or pop in unreached:
+            continue
+        problems.append(
+            f"{pop} is floored in the SCOPE_LEDGER and NO blind in this sweep can collapse "
+            f"it — a floor never tested against the collapse it names is a claim that "
+            f"cannot fail. Give it an enumerator, or declare it in LEDGER_UNREACHED with "
+            f"the measurement that says what stops one"
+        )
+    for pop in unreached:
+        if pop not in known:
+            problems.append(
+                f"LEDGER_UNREACHED names {pop!r}, which is not a population in the ledger — "
+                f"a stale row makes the residue look smaller than it is"
+            )
+        elif pop in reachable:
+            problems.append(
+                f"LEDGER_UNREACHED says {pop!r} is beyond every blind, and LEDGER declares a "
+                f"blind that collapses it. The run's own tables refute the exclusion, which "
+                f"is the only way an exclusion should ever have to be re-read (245 §3)"
+            )
+    for pop in reachable:
+        if pop not in known:
+            problems.append(
+                f"LEDGER declares a blind collapsing {pop!r}, which the ledger does not "
+                f"contain — the population was renamed and the per-row assertion above is "
+                f"now waiting for a line that can never be printed"
+            )
+    return problems
 
 def run(source: str) -> tuple[bool, bool, str]:
     """(green, executed, output). The mutant is removed whatever happens.
@@ -396,6 +567,44 @@ def _self_check() -> list[str]:
             "collapsed_populations reads a population out of a line that names none — the "
             "per-row ledger assertion would then pass on any red run at all"
         )
+
+    # 🆕 246 — THE LEDGER-REACH HALF, EVERY BRANCH ALONE. Four refusals and one silence;
+    # a table that only ever returns [] on a healthy tree needs every branch driven by a
+    # fixture or it is four dead lines wearing one live name.
+    if ledger_reach_problems(["a"], {"e": ("a",)}, {}):
+        problems.append("ledger_reach_problems flags a population a declared blind reaches")
+    if ledger_reach_problems(["a", "b"], {"e": ("a",)}, {"b": "why"}):
+        problems.append("ledger_reach_problems flags a population declared unreachable with a reason")
+    if not ledger_reach_problems(["a", "b"], {"e": ("a",)}, {}):
+        problems.append(
+            "ledger_reach_problems does NOT flag a floor no blind can move — the whole "
+            "question 233's row asked, and the answer was eighteen of forty-seven"
+        )
+    if not ledger_reach_problems(["a"], {"e": ("a",)}, {"gone": "why"}):
+        problems.append(
+            "ledger_reach_problems does NOT flag a row naming a population the ledger has "
+            "lost — a stale row makes the residue look smaller than it is"
+        )
+    if not ledger_reach_problems(["a"], {"e": ("a",)}, {"a": "why"}):
+        problems.append(
+            "ledger_reach_problems does NOT flag a row REFUTED by the run's own tables — an "
+            "exclusion its own gate can falsify must not need a session to re-read it"
+        )
+    if not ledger_reach_problems(["a"], {"e": ("ghost",)}, {}):
+        problems.append(
+            "ledger_reach_problems does NOT flag a LEDGER entry naming a population that is "
+            "not in the ledger — the per-row assertion would wait forever for that line"
+        )
+    if not ledger_reach_problems([], {"e": ("a",)}, {"a": "why"}):
+        problems.append(
+            "ledger_reach_problems does NOT flag an EMPTY walk — the equality that stands in "
+            "for a floor here, and the one thing that makes every row below it stale"
+        )
+    if not ledger_populations(SRC.read_text()):
+        problems.append(
+            "ledger_populations reads nothing out of the live contract_check.py — the walk "
+            "is scoped to a declaration this file no longer matches"
+        )
     return problems
 
 
@@ -405,10 +614,16 @@ CALL_SENTINEL = "🔴 SCOPE_CALL_WIRING sentinel — a patched predicate reached
 # call-site roster one axis over). A predicate that joins this seam without being
 # declared here is a predicate whose call nothing proves, arriving inside the very
 # mechanism built to prove calls.
-SEAM_KEYS = ("roster",)
+# 🆕 246 — A SECOND KEY, AND THE BRANCH ITS ABSENCE MADE UNWRITABLE IS NOW WRITTEN.
+# `_call_wiring_problems` below says in as many words that a ONE-KEY SEAM HAS NO OTHER KEY
+# TO LEAK INTO, and that the commit which adds a second key is the commit in which the leak
+# branch becomes writable and must be written. This is that commit. The check the comment
+# deferred is `_call_wiring: <fn>() leaked into <other key>` — a stub answering under a key
+# it is not about, which on a one-key seam had no way to happen and now does.
+SEAM_KEYS = ("roster", "ledger_reach")
 
 
-def collect_problems(names: list[str]) -> dict[str, list[str]]:
+def collect_problems(names: list[str], pops: "list[str] | None" = None) -> dict[str, list[str]]:
     """🔴 204 §5 — THE ONE INVOCATION POINT, SO THE CALL CAN BE PATCHED.
 
     202 closed `U2` in `floor_pin_gate.py` and 203 ported it to `instrument_gate.py`:
@@ -425,7 +640,13 @@ def collect_problems(names: list[str]) -> dict[str, list[str]]:
 
     The `problems.extend` this feeds stayed exactly where it was: this changes where the
     list comes from, not what is printed or in what order (202 §8)."""
-    return {"roster": roster_problems(names, BLAST, LEDGER)}
+    # 🔴 THE POPULATION COMES IN THROUGH THE DOOR, AS THE NAMES DO. `main()` reads the
+    # source once and hands both in; a seam that re-read the file here would be a second
+    # reader of the same population, which is the rot the docstring above names.
+    return {
+        "roster": roster_problems(names, BLAST, LEDGER),
+        "ledger_reach": ledger_reach_problems(list(pops or []), LEDGER, LEDGER_UNREACHED),
+    }
 
 
 def _call_wiring_problems() -> list[str]:
@@ -453,7 +674,7 @@ def _call_wiring_problems() -> list[str]:
             f"nothing proves — and if the seam now has TWO keys, the leak branch this "
             f"check does not carry has stopped being unwritable and must be written")
 
-    for key, fname in (("roster", "roster_problems"),):
+    for key, fname in (("roster", "roster_problems"), ("ledger_reach", "ledger_reach_problems")):
         real = g[fname]
         g[fname] = lambda *a, **k: [CALL_SENTINEL]
         try:
@@ -466,6 +687,18 @@ def _call_wiring_problems() -> list[str]:
                 f"predicate is intact and NOTHING CALLS IT. The four fixtures in "
                 f"`_self_check` prove the function; this proves the gate still runs it, and "
                 f"197 §4 found three blinds with no declared radius the last time it did not")
+        # 🆕 246 — AND THE BRANCH A ONE-KEY SEAM COULD NOT HAVE. A stub is patched over
+        # exactly one predicate, so its sentinel must arrive under exactly one key. If it
+        # appears under another, the two predicates share a call the seam presents as
+        # separate — and the whole point of naming keys is that a caller can tell which
+        # answer came from which reader (203 §5's leak branch, made writable by the second
+        # key and written in the same commit that added it).
+        for other, spilled in got.items():
+            if other != key and CALL_SENTINEL in spilled:
+                bad.append(
+                    f"_call_wiring: {fname}()'s result LEAKED into {other!r}. One stub, two "
+                    f"keys: the seam reports two readers where the tree has one, so a "
+                    f"predicate could be deleted and its key would still be answered")
     return bad
 
 
@@ -520,9 +753,23 @@ def main() -> int:
     never_ran: list[str] = []
     # 🔴 197 §4. The roster halves FIRST — a sweep over a roster with a hole in it would
     # print 24 clean rows and say nothing about the twenty-fifth.
-    roster = collect_problems([n for n, _e, _p in found])["roster"]
+    seam = collect_problems([n for n, _e, _p in found], ledger_populations(text))
+    roster = seam["roster"]
     for problem in roster:
         print(f"🔴 SCOPE_GATE_ROSTER {problem}")
+    # 🆕 246 — `discover-rosters` (233), THE HALF THAT WAS ABOUT THE LEDGER RATHER THAN
+    # ABOUT THIS FILE'S OWN ROSTERS. Printed with the numbers whether it refuses or not:
+    # the residue is the point, and a residue that only appears on failure is a residue
+    # nobody sizes.
+    reach = seam["ledger_reach"]
+    for problem in reach:
+        print(f"🔴 SCOPE_GATE_LEDGER_REACH {problem}")
+    _pops = ledger_populations(text)
+    _reachable = sorted(set().union(*LEDGER.values()) & set(_pops))
+    print(f"SCOPE_GATE_LEDGER_REACH {len(_reachable)}/{len(_pops)} ledger population(s) can be "
+          f"collapsed by a blind in this\n"
+          f"                        sweep · {len(LEDGER_UNREACHED)} declared beyond it, each with "
+          f"the measurement that says why")
 
     blast_drift: list[str] = []
     ledger_miss: list[str] = []
@@ -621,7 +868,7 @@ def main() -> int:
               "   lowering this number.")
 
     # 🔴 ONE VERDICT, THROUGH THE FUNCTION THE SELF-CHECK PROVED (see gate_failed above).
-    if gate_failed(targets_low, len(blind), len(never_ran), attrib_low, len(roster),
+    if gate_failed(targets_low, len(blind), len(never_ran), attrib_low, len(roster) + len(reach),
                    len(blast_drift), len(ledger_miss), blast_low, collapse_low):
         print("\nSCOPE_GATE 🔴 FAILED")
         return 1

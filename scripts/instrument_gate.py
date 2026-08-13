@@ -924,16 +924,34 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "positive_control_gate.mjs",
         "gate": ["node", "scripts/positive_control_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 3,   # every one of the three targets must be swept
+        "floor": 6,   # every one of the six targets must be swept
         "why": "the reader that decides whether an empty collection was ever proved able "
                "to be non-empty",
         # The empty each member's own contract promises, read off the returns rather than
         # guessed: `classify` and `acceptance` return arrays of rows, `judge` returns
         # `{lines, failed, codes}` and `failed:false` is the shape that passes silently.
+        #
+        # 🆕 246 — AND THE IMPORT HOP'S THREE, WHICH ARRIVED WITH `declared-outside-five`.
+        # `makeBinder`'s empty is the interesting one: it returns FUNCTIONS, so the empty
+        # its contract promises is a binder that resolves nothing — which is precisely the
+        # reader-went-quiet shape this instrument exists to catch, expressed one level up.
+        # 🔴 AND ITS `unwrap` IS THE IDENTITY RATHER THAN `null`, WHICH THE FIRST DRAFT GOT
+        # WRONG AND THIS HARNESS CAUGHT. A blinded `unwrap` returning null makes the caller
+        # ask `ts.isArrayLiteralExpression(null)`, which THROWS — so the row proved that
+        # JavaScript dies on an empty rather than that the gate's claims bite, and the
+        # sweep filed it as CRASHED. The empty a binder's contract actually promises is one
+        # that unwraps nothing and resolves nothing (198 §3, a third time).
+        # The two resolvers return null the way a specifier this reader cannot follow does,
+        # so blinding either takes every hopped chain back to the terminal the row was
+        # named for, and the self-test's DEFENDED cases say so.
         "targets": {
             "{SIG:classify}": "return [];",
             "{SIG:acceptance}": "return [];",
             "{SIG:judge}": "return { lines: [], failed: false, codes: [] };",
+            "{SIG:makeBinder}": "return { unwrap: (e) => e, chainOf: () => [], "
+                                "resolveDecl: () => null, rootDeclKey: () => null };",
+            "{SIG:importedFrom}": "return null;",
+            "{SIG:exportedInitializer}": "return null;",
         },
     },
     # ══ 🆕 245 §1 — THE FIRST THREE PYTHON INSTRUMENTS — `blind-py-gates` (234) ══════
@@ -1095,6 +1113,14 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "construction (it drives `classify`/`judge` over source text with no tree at all), "
         "so the A:gate axis cannot reach it. 🟢 The B:live axis DOES — `node "
         "scripts/positive_control_gate.mjs` is in LATE_LIVE and blinds this member.",
+    # 🆕 246 — THE FILESYSTEM HALF OF THE IMPORT HOP, AND IT IS `scan`'s ROW EXACTLY.
+    ("positive_control_gate.mjs", "fsModuleReader"):
+        "the resolver that turns a module specifier into a file: the self-test is "
+        "fixture-driven by construction and hands `classify` its own reader through "
+        "`opts`, so no A:gate case ever calls this one. 🟢 The B:live axis DOES — the live "
+        "run uses the default reader, and blinding it takes all five imported terminals "
+        "back to `declared-outside-this-file`, which puts the defect count back over "
+        "`DEFECT_CEILING` and reddens `node scripts/positive_control_gate.mjs`.",
     ("positive_control_gate.mjs", "main"):
         "the invocation, not a reader — see verdict_gate.mjs::main. The three readers it "
         "calls are targeted individually and `scan` is reached by the live axis.",

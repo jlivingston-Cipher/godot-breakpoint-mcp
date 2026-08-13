@@ -281,8 +281,18 @@ errors.append(_WIRE_CANARY)
 CHECKS_EXPECTED = (
     "1&2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "11b", "11c",
     "12", "13", "14", "15", "16", "17", "18/19", "20", "23", "24", "25",
+    # 🆕 246 — check 27, the guard-class half of 233's `discover-rosters` row. A member and
+    # not a roster gate: it asks about the prose scanner's behaviour, not about this roster.
+    # 🔴 AND NO ROUND BRACKETS ANYWHERE IN THIS COMMENT — including around a citation, and
+    # including inside a quoted regex. `control_gate.py` resolves its `22.floor` anchor by
+    # reading this roster out of this file with a lazy bracket group, so the first closing
+    # bracket after the opening one ENDS the roster: the count reads one short, the anchor
+    # resolves to a number this file does not contain, and the control stops firing in
+    # silence. Found by that gate on the run that added this row, and then again on the
+    # run that explained it.
+    "27",
 )
-CHECKS_RUN_FLOOR = 23   # measured: twenty-three blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 24   # measured: twenty-four blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -2296,6 +2306,97 @@ prose_excluded_count = sum(
 
 _ran("25")
 
+# --- 27: THE GUARDS THIS SCANNER RUNS ON THE LIVE DOCS, AND WHETHER A PIN EXERCISES EACH
+#         (246, closing 233's `discover-rosters` for PROSE_NUMERAL_PINS) ----------------
+# 🔴 `PROSE_NUMERAL_PINS` IS A FIXTURE TABLE, AND A FIXTURE TABLE'S POPULATION IS NOT A
+# TREE — which is why 233 §3 left it for last and why the discover question for it looks
+# different from the other two. Its rows do not enumerate anything in this repository.
+# What they pin is BEHAVIOUR: four lookarounds, each of which suppresses a three-digit run
+# for a different reason, and every one of them was added because a live document refused
+# or a control refuted the scanner.
+#
+# 🟢 SO THE POPULATION IS THE SUPPRESSIONS THE GUARDS ACTUALLY PERFORM. Every three-digit
+# window in the gated docs that the scanner does NOT return was stopped by one of the four
+# lookarounds; classify each by which one, and the roster question becomes answerable in
+# both directions: a class that fires on the shipped documents and is exercised by no pin
+# row is a guard whose live behaviour nothing would notice being narrowed — and narrowing
+# one is exactly what 224's `cl100k_base` refusal and 221 §5.2's comma row were about.
+#
+# 🔴 THE WINDOWS OVERLAP, DELIBERATELY. `:6006` holds two three-digit runs and they are
+# suppressed by DIFFERENT guards — `600` by the digit on its right, `006` by the digit on
+# its left. A non-overlapping scan sees only the first, and the first draft of this check
+# reported `digit-left` as an unpinned live class on the strength of that alone. The
+# population is every window, not every disjoint match.
+PROSE_GUARD_RAW = re.compile(r"(?=(\d{3}))")
+
+
+def prose_guard_classes(text: str) -> "dict[str, int]":
+    """Which guard suppressed each three-digit window this scanner declines to return."""
+    kept = {m.start() for m in PROSE_NUMERAL_RE.finditer(text)}
+    out: "dict[str, int]" = {}
+    for m in PROSE_GUARD_RAW.finditer(text):
+        start = m.start()
+        if start in kept:
+            continue
+        end = start + 3
+        before, after = text[start - 1:start], text[end:end + 1]
+        hits = []
+        if before.isdigit():
+            hits.append("digit-left")
+        if before.isalpha():
+            hits.append("letter-left")
+        if re.fullmatch(r"\d[.,]", text[max(0, start - 2):start]):
+            hits.append("grouped-left")
+        if after.isdigit():
+            hits.append("digit-right")
+        if after.isalpha():
+            hits.append("letter-right")
+        if re.fullmatch(r"[.,]\d", text[end:end + 2]):
+            hits.append("grouped-right")
+        for h in hits or ["unclassified"]:
+            out[h] = out.get(h, 0) + 1
+    return out
+
+
+prose_guard_live: "dict[str, int]" = {}
+for _p in PROSE_NUMERAL_DOCS:
+    _t, _ = _mask_fences(_mask_continuations(_p.read_text(encoding="utf-8"), _p.suffix))
+    for _k, _v in prose_guard_classes(_t).items():
+        prose_guard_live[_k] = prose_guard_live.get(_k, 0) + _v
+prose_guard_pinned: "dict[str, int]" = {}
+for _text, _expected, _why in PROSE_NUMERAL_PINS:
+    for _k, _v in prose_guard_classes(_text).items():
+        prose_guard_pinned[_k] = prose_guard_pinned.get(_k, 0) + _v
+
+if not prose_guard_live:
+    errors.append(
+        "The prose scanner suppresses NOTHING anywhere in the gated docs, which is not a "
+        "state these four documents can be in — they carry version strings, ports and "
+        "comma-grouped byte counts. Either the doc list emptied or the raw window reader "
+        "stopped matching, and either way this check now has nothing to disagree with."
+    )
+if "unclassified" in prose_guard_live:
+    errors.append(
+        f"{prose_guard_live['unclassified']} three-digit window(s) in the gated docs are "
+        f"suppressed by NONE of the four guards this check knows about. The scanner and "
+        f"this reader disagree about why a numeral is being dropped, so the classes below "
+        f"no longer partition the suppressions and a pin can no longer cover one."
+    )
+for _cls in sorted(set(prose_guard_live) - {"unclassified"}):
+    if _cls not in prose_guard_pinned:
+        errors.append(
+            f"The `{_cls}` guard suppresses {prose_guard_live[_cls]} three-digit window(s) "
+            f"in the shipped docs and NO row of PROSE_NUMERAL_PINS exercises it. Narrow or "
+            f"drop that lookaround and check 25 silently reads a different population — "
+            f"which is the direction a positive control cannot reach (221 §5.2) and the "
+            f"reason this table has a negative half at all. Add a pin row carrying the "
+            f"shape, with the numerals it must and must not return."
+        )
+print(f"PROSE_GUARDS {sum(prose_guard_live.values())} suppression(s) in "
+      f"{len(prose_guard_live)} live class(es) · {len(prose_guard_pinned)} class(es) "
+      f"exercised by a pin row · {len(PROSE_NUMERAL_PINS)} row(s)")
+_ran("27")
+
 # --- 12: recipe roster — code <-> live docs ---------------------------------
 # The third instance of checks 10 and 11's drift class, and the one that had
 # already gone wrong in the wild: README's hand-maintained recipe list never
@@ -3784,6 +3885,11 @@ _ran("24")
 # 🔴 ONE LINE PER POPULATION, NEVER AGGREGATED (171 §10.22). The rule was written after
 # a total collapse in one directory hid behind a healthy number from another. A single
 # "N things checked" summing twenty populations is that failure waiting to happen.
+# 🆕 246 — COMPUTED HERE RATHER THAN AT ITS PRINT, BECAUSE THE LEDGER BELOW READS IT.
+# The value is unchanged and so is the line that prints it; what moved is the point
+# at which the number exists, which a floor one screen down now depends on.
+_prose_masked = sum(prose_numerals_masked(p) for p in PROSE_NUMERAL_DOCS)
+
 SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     # (population, measured now, literal floor, what a collapse would mean)
     ("gdscript.editor_methods", len(editor_methods), 120,
@@ -3841,6 +3947,25 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "the derivation collapses and EVERY unclaimed numeral reads as undeliverable — the "
      "LOUD direction, floored here for the reverse: a set trimmed to a subset that still "
      "contains the full count would pass the surface numbers and fail the family ones"),
+    # 🆕 246 — THE EXCLUSION THIS CHECK PRINTS AND NOBODY READ, AND `scope_gate.py` FOUND
+    # IT BY BEING ALLOWED TO ASK. `prose_numerals_masked` is an annotated enumerator whose
+    # return shape `EMPTY` did not know, so it was outside that gate by construction with
+    # no line anywhere saying so — 199 §9.4's sentence, one file over. Admitted in 246 and
+    # blinded on the first sweep: it returned zero and the whole contract check stayed
+    # GREEN. The masked count is printed beside the numerals read for a stated reason —
+    # "an exclusion nobody counts is the thing this check exists to prevent" — and until
+    # this row the print was the only reader it had.
+    # 🆕 246 — CHECK 27's POPULATION, AND IT IS BLINDABLE, WHICH IS THE POINT. The class
+    # reader is an annotated enumerator, so `scope_gate.py` empties it in the same sweep as
+    # every other one and this floor is what that blind collapses. A check whose finder can
+    # match nothing needs a floor here before it needs anything else (171 §10.21).
+    ("prose.guard_suppressions", sum(prose_guard_live.values()), 200,
+     "check 27 sees the scanner's four guards suppress nothing at all, so every guard "
+     "class reads as covered and narrowing one costs nothing anywhere"),
+    ("prose.numerals_masked", _prose_masked, 3,
+     "check 25's fence exclusion stops being counted: the line reads 0 inside fences "
+     "whether the docs hold none or the masker stopped masking, and those are the two "
+     "observations this print exists to separate"),
     ("prose.pins_negative", prose_pins_negative, 4,
      "🔴 THE PIN TABLE LOSES ITS NEGATIVE HALF — the rows asserting the scanner flags "
      "NOTHING on a byte count, a port, a version string, a two-digit percentage. A "
@@ -4020,7 +4145,6 @@ print(
 # when its population goes to zero and nobody re-reads the sentence. The excluded-FILE count
 # stays (it is the number that must remain 0), and the masked-fence count joins it, because
 # masking a fence is now a real exclusion this check performs on every run.
-_prose_masked = sum(prose_numerals_masked(p) for p in PROSE_NUMERAL_DOCS)
 print(
     f"  …not covered          : {prose_excluded_count} numeral(s) in "
     f"{len(PROSE_NUMERAL_EXCLUDED)} excluded doc(s) · {_prose_masked} inside ``` fences "
@@ -4107,6 +4231,121 @@ if len(checks_ran) != len(_ran_set):
         f"CHECKS_RUN counted a name twice — {checks_ran}. Two blocks claiming one name means one "
         f"of them can be deleted while the count stays put."
     )
+
+# --- 26: THE CHECK BLOCKS THIS FILE CONTAINS, AGAINST THE ROSTER (246, closing 233's
+#         `discover-rosters` for CHECKS_EXPECTED) --------------------------------------
+# 🔴 CHECK 22 COMPARES WHAT RAN TO WHAT THE ROSTER NAMES, AND BOTH SIDES ARE THE ROSTER.
+# `checks_ran` is filled by `_ran()` calls, and a check block that never calls `_ran` puts
+# nothing in either set — so the two agree, the floor holds, and the block is invisible to
+# every reader in this file. That is not hypothetical: 24b and 24c have been check blocks
+# with headers, bodies and their own `errors.append` calls since 232, and no line anywhere
+# counts them. 233's row asked the DISCOVER question of this roster and nobody had.
+#
+# 🟢 THE POPULATION IS A WALK OVER THIS FILE'S OWN SOURCE, and the membership rule is
+# DERIVED rather than rostered: a header whose id has its own `_ran` is a member, a header
+# whose id EXTENDS a member's and sits inside that member's block is a sub-block covered by
+# its parent's counter, and anything else has to be declared below with a reason. Helper
+# headers are excluded by their own spelling, which the walk reads rather than being told.
+#
+# 🔴 AND THIS CHECK IS NOT IN `CHECKS_EXPECTED`, FOR CHECK 21 AND 22's REASON: it gates the
+# roster and cannot be a member of it. It is declared below in the same table that declares
+# them, which is the only place in this file where that fact is written down rather than
+# stated in a comment.
+CHECK_HEADER_RE = re.compile(
+    r"^# -{2,} *(?P<id>[0-9][0-9a-z]*(?: *& *[0-9]+)?(?:/[0-9]+)?)(?P<helper> helpers)? *:", re.M)
+_RAN_SITE_RE = re.compile(r'^_ran\("([^"]+)"\)', re.M)
+
+# (id -> why it is a check block that `CHECKS_EXPECTED` must not contain). Every row is
+# checked against the walk in both directions: a row naming an id no header declares is
+# stale, and an id with a row AND a `_ran` is a contradiction rather than a note.
+CHECK_META_BLOCKS: "dict[str, str]" = {
+    "21": "the report wire's own arrival check — it runs AFTER the roster comparison, so a "
+          "`_ran` call from it could never be in the set check 22 compares",
+    "22": "the roster comparison itself; a check cannot be a member of the roster it gates",
+    "26": "this block, for the same reason as 22 — it is the DISCOVER half of that roster "
+          "and a member of it would be a population containing itself",
+}
+
+_cc_src = Path(__file__).read_text(encoding="utf-8")
+_headers = [(m.group("id").replace(" ", ""), bool(m.group("helper")), m.start())
+            for m in CHECK_HEADER_RE.finditer(_cc_src)]
+_ran_sites = {m.group(1): m.start() for m in _RAN_SITE_RE.finditer(_cc_src)}
+_block_headers = [(i, pos) for i, helper, pos in _headers if not helper]
+check_headers_found = len(_block_headers)
+check_helper_headers = len(_headers) - check_headers_found
+
+if not _block_headers:
+    errors.append(
+        "CHECK_HEADERS read NOTHING out of this file — the header convention changed and "
+        "this half now reports full coverage over an empty population, which is the exact "
+        "shape it was written to refuse. Fix CHECK_HEADER_RE; do not delete the check."
+    )
+
+# A header with no `_ran` of its own is covered when it sits INSIDE a member whose id it
+# extends — `24b` and `24c` inside check 24, whose `_ran` is below both of them.
+def _covering_member(hid: str, pos: int) -> "str | None":
+    best = None
+    for other, opos in _block_headers:
+        if other == hid or not hid.startswith(other):
+            continue
+        rpos = _ran_sites.get(other)
+        if rpos is None or not (opos < pos < rpos):
+            continue
+        if best is None or opos > best[1]:
+            best = (other, opos)
+    return None if best is None else best[0]
+
+check_sub_blocks = 0
+for hid, pos in _block_headers:
+    if hid in _ran_sites:
+        if hid in CHECK_META_BLOCKS:
+            errors.append(
+                f"Check block {hid!r} calls `_ran` AND is declared in CHECK_META_BLOCKS as a "
+                f"block the roster must not contain. One of the two is wrong: a block that "
+                f"counts itself is a member, and a member cannot gate the roster it is in."
+            )
+        elif hid not in CHECKS_EXPECTED:
+            errors.append(
+                f"Check block {hid!r} has a header and its own `_ran` call and is NOT in "
+                f"CHECKS_EXPECTED. Check 22 compares what ran against the roster, and both "
+                f"sides come from the roster — so a block missing from it is counted by "
+                f"nothing at all. Add it, with CHECKS_RUN_FLOOR moved to match."
+            )
+        continue
+    covering = _covering_member(hid, pos)
+    if covering is not None:
+        check_sub_blocks += 1
+        continue
+    if hid not in CHECK_META_BLOCKS:
+        errors.append(
+            f"Check block {hid!r} has a header, no `_ran` call of its own, and does not sit "
+            f"inside a check whose id it extends — so nothing in this file counts it and "
+            f"check 22 would pass with the block deleted. Give it a `_ran` and a "
+            f"CHECKS_EXPECTED row, or declare it in CHECK_META_BLOCKS with the reason it "
+            f"gates the roster rather than belonging to it."
+        )
+
+for hid in CHECK_META_BLOCKS:
+    if hid not in dict(_block_headers):
+        errors.append(
+            f"CHECK_META_BLOCKS declares {hid!r}, which no header in this file names. A "
+            f"stale row makes the roster's residue look explained when it is not."
+        )
+for name in CHECKS_EXPECTED:
+    if name not in dict(_block_headers):
+        errors.append(
+            f"CHECKS_EXPECTED names {name!r}, which has no `# --- {name}: …` header. The "
+            f"roster and the file disagree about what this file contains."
+        )
+    if name not in _ran_sites:
+        errors.append(
+            f"CHECKS_EXPECTED names {name!r}, which has no `_ran` call site in the source at "
+            f"all — check 22 can only report it MISSING at runtime, which reads as a check "
+            f"that failed to finish rather than one that was never wired."
+        )
+print(f"CHECK_HEADERS {check_headers_found} block(s) walked · {len(_ran_sites)} counted by "
+      f"`_ran` · {check_sub_blocks} sub-block(s) · {len(CHECK_META_BLOCKS)} gating the roster "
+      f"· {check_helper_headers} helper section(s)")
 
 # --- 21: THE REPORT WIRE ARRIVED ------------------------------------------------
 # 🔴 RUN BEFORE THE VERDICT, NOT AFTER IT. The canary appended at the top has to still
