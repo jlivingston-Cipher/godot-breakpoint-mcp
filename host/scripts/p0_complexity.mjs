@@ -14,6 +14,18 @@
 // the failure mode the inventory records against a line-coverage percentage.
 //
 // This file PRINTS. Its claims are in p0_complexity.selftest.mjs beside it.
+//
+// 🆕 244 §4 — AND SINCE THIS SESSION IT ALSO REFUSES, WHICH IS THE ONLY REASON IT CAN BE
+// SWEPT. `p0-reporters-unblinded` (241) was blocked on one sentence: *`LATE_LIVE` needs a
+// second command that goes RED when a member is blinded, and a reporter that PRINTS
+// cannot.* Blind `measureFunction` and this file still says `functions measured: 1095`
+// and exits 0 — the exact observable the late axis exists to refuse. `--floor` is that
+// second command: it asks whether this reporter's own measurement is still a MEASUREMENT.
+// 🔴 AND IT IS NOT A FLOOR ON THE POPULATION ALONE, because `measureFunction` blinded
+// leaves the population intact and takes every VALUE in it to a constant — 1095 functions,
+// all scoring zero, in green. So the second half of the question is SPREAD: a reader that
+// answers one number for every row is agreeing with the walk, not measuring the code.
+// Same shape as `handoff_gate.py`'s `MOVED_CONSTANT`, one file over.
 import ts from "typescript";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -142,6 +154,42 @@ export function measureSource(text, fileName = "<mem>") {
   return { rows, lines: text.split("\n").length, maxNest: fileMaxNest };
 }
 
+// 🆕 244 §4 — FLOORED FROM BELOW WITH HEADROOM (198 §36), NEVER SUMMED (172 §6). Measured
+// on the live tree at 1.74.0: 68 files, 1095 functions, 24 distinct cyclomatic values, 34
+// cognitive, 8 nesting depths, 363 distinct names, top cyclomatic 41. A floor a healthy
+// tree can trip by deleting one function is a floor that gets deleted instead of obeyed;
+// a floor per QUANTITY rather than one total is 172 §6's rule, because a single number
+// lets one collapsed measure hide behind five intact ones.
+export const FLOOR = {
+  files: 55,
+  functions: 900,
+  cycloValues: 12,
+  cognitiveValues: 16,
+  nestValues: 4,
+  names: 250,
+  maxCyclo: 20,
+};
+
+export function floorProblems(rows, fileRows, floor = FLOOR) {
+  const distinct = (k) => new Set(rows.map((r) => r[k])).size;
+  const out = [];
+  const at = (what, got, want) => {
+    if (got < want) out.push(`${what} ${got}, floor ${want}`);
+  };
+  at("files walked", fileRows.length, floor.files);
+  at("functions measured", rows.length, floor.functions);
+  // 🔴 THE SPREAD HALF. Every one of these is a measure this file PUBLISHES a ranking of,
+  // and each collapses to 1 under a different blind: `measureFunction` takes all three
+  // numeric ones at once, `nameOf` takes the names, and a `measureSource` that stopped
+  // recursing takes the population above. None of them is inferable from the others.
+  at("distinct cyclomatic values", distinct("cyclo"), floor.cycloValues);
+  at("distinct cognitive values", distinct("cognitive"), floor.cognitiveValues);
+  at("distinct nesting depths", distinct("maxNest"), floor.nestValues);
+  at("distinct function names", distinct("name"), floor.names);
+  at("highest cyclomatic", Math.max(0, ...rows.map((r) => r.cyclo)), floor.maxCyclo);
+  return out;
+}
+
 function main() {
   const files = walkTs(resolve(HOST, "src"), HOST);
   const rows = [];
@@ -160,6 +208,38 @@ function main() {
   // `tools/netcode.ts:350 <anonymous>`, both at length 12. A published table whose
   // membership depends on directory order is a number nobody can reproduce, which is the
   // property the header of this file claims for it. `file:line` is unique per row.
+  // 🔴 THE REFUSING HALF RUNS BEFORE ANY TABLE IS PRINTED, so a `--floor` run that fails
+  // says exactly which measure collapsed and nothing else — a refusal buried under four
+  // forty-row tables is a refusal nobody reads.
+  if (process.argv.includes("--floor")) {
+    // 🔴 THE CENSUS FIRST, BEFORE ANY VERDICT BRANCH. `instrument_gate.py`'s late axis
+    // reads this line to tell a CATCH from a CRASH, so it has to survive the red path —
+    // the `ok` line below does not, which is 232 §5.6's draft-2 failure exactly.
+    console.log(
+      `P0_COMPLEXITY_CENSUS files=${fileRows.length} functions=${rows.length} ` +
+      `cyclo=${new Set(rows.map((r) => r.cyclo)).size} ` +
+      `cognitive=${new Set(rows.map((r) => r.cognitive)).size} ` +
+      `nest=${new Set(rows.map((r) => r.maxNest)).size} ` +
+      `names=${new Set(rows.map((r) => r.name)).size}`,
+    );
+    const problems = floorProblems(rows, fileRows);
+    // 🔴 `FAIL <NAME>` IS THE SPELLING `instrument_gate.py`'s `failure_lines` COUNTS, and
+    // the first draft of this command did not use it: blinded, `--floor` exited 1 and the
+    // late axis recorded a blast of ZERO — a refusal the harness could see the shape of
+    // and not the size of. A gate whose reds are uncountable cannot be floored.
+    for (const p of problems) console.log(`  FAIL P0_COMPLEXITY_FLOOR ${p}`);
+    if (problems.length) {
+      console.log(
+        `P0_COMPLEXITY_FLOOR ${problems.length} measure(s) collapsed — this reporter is ` +
+        `still printing and has stopped measuring`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.log("P0_COMPLEXITY_FLOOR ok — every measure is above its floor");
+    return;
+  }
+
   const rank = (k) => (a, b) => b[k] - a[k] || (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line);
   const by = (k) => [...rows].sort(rank(k)).slice(0, 40);
   const pad = (n, w) => String(n).padStart(w);

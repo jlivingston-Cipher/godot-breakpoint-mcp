@@ -110,11 +110,72 @@ export function cluster(tests) {
   return byKey;
 }
 
+// 🆕 244 §4 — THE SECOND COMMAND, SAME REASON AS `p0_complexity.mjs`'s AND A DIFFERENT
+// COLLAPSE. This reporter's whole output is a CLUSTERING, so its failure mode is not an
+// empty population — it is a key function that stops discriminating. Measured, not
+// assumed: `subjectOf` blinded takes 469 keys to 240 and 355 singletons to 145 while the
+// test count, the file count and the CLUSTER count all stay healthy, so the collapse is
+// visible in exactly the two quantities a duplication report is about. `shapeOf` blinded
+// takes nine shapes to one and leaves everything else inside its floor.
+// 🔴 SO THE FLOOR IS ON THE PARTS AND NOT ON THE VERDICT, AND THAT IS THE POINT. A
+// clustering has two ways to stop being one — everything in a cluster, or nothing — and a
+// floor on the cluster count alone is blind to the first. Each of the three key
+// components carries its own, singletons carry one against the collapse direction, and
+// none is summed (172 §6). Measured live: 53 files, 724 tests, 469 keys, 114 clusters,
+// 355 singletons, 129 subjects, 9 shapes. Floored from BELOW with headroom (198 §36).
+export const FLOOR = {
+  files: 45,
+  tests: 600,
+  keys: 380,
+  clusters: 40,
+  singletons: 250,
+  subjects: 100,
+  shapes: 5,
+};
+
+export function floorProblems(tests, files, byKey, floor = FLOOR) {
+  const out = [];
+  const at = (what, got, want) => {
+    if (got < want) out.push(`${what} ${got}, floor ${want}`);
+  };
+  const part = (i) => new Set(tests.map((t) => String(t.key).split(" | ")[i])).size;
+  at("test files walked", files.length, floor.files);
+  at("tests extracted", tests.length, floor.tests);
+  at("distinct keys", byKey.size, floor.keys);
+  at("clusters of 2+", [...byKey.values()].filter((v) => v.length > 1).length, floor.clusters);
+  at("singleton keys", [...byKey.values()].filter((v) => v.length === 1).length, floor.singletons);
+  at("distinct subjects", part(0), floor.subjects);
+  at("distinct shapes", part(2), floor.shapes);
+  return out;
+}
+
 function main() {
   const files = walkTs(resolve(HOST, "test"), HOST);
   const tests = files.flatMap((f) => extractTests(readFileSync(resolve(HOST, f), "utf8"), f));
   const byKey = cluster(tests);
   const clusters = [...byKey.entries()].filter(([, v]) => v.length > 1).sort((a, b) => b[1].length - a[1].length);
+
+  if (process.argv.includes("--floor")) {
+    // 🔴 THE CENSUS FIRST — see p0_complexity.mjs's for why it is not the `ok` line.
+    console.log(
+      `P0_TESTDUP_CENSUS files=${files.length} tests=${tests.length} keys=${byKey.size} ` +
+      `clusters=${clusters.length} ` +
+      `singletons=${[...byKey.values()].filter((v) => v.length === 1).length}`,
+    );
+    const problems = floorProblems(tests, files, byKey);
+    // 🔴 `FAIL <NAME>` — the spelling `failure_lines` counts; see p0_complexity.mjs.
+    for (const p of problems) console.log(`  FAIL P0_TESTDUP_FLOOR ${p}`);
+    if (problems.length) {
+      console.log(
+        `P0_TESTDUP_FLOOR ${problems.length} measure(s) collapsed — this reporter is ` +
+        `still printing and has stopped discriminating`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.log("P0_TESTDUP_FLOOR ok — every measure is above its floor");
+    return;
+  }
 
   console.log(`=== TEST DUPLICATION — ${tests.length} test(s) across ${files.length} file(s) ===`);
   console.log(`distinct (subject | oracle | shape) keys: ${byKey.size}`);

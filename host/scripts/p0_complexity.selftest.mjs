@@ -6,7 +6,10 @@
 // finding — a 32-line function at cognitive 76 — would sit below forty flat ones.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { measureSource } from "./p0_complexity.mjs";
+import { measureSource, floorProblems, walkTs, FLOOR } from "./p0_complexity.mjs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const rowFor = (src, name) => measureSource(src, "t.ts").rows.find((r) => r.name === name);
 
@@ -78,4 +81,74 @@ test("file length and file max-nesting are reported alongside the rows", () => {
 
 test("a source with no functions yields no rows rather than throwing", () => {
   assert.deepEqual(measureSource("export const x = 1;", "t.ts").rows, []);
+});
+
+// ── 🆕 244 §4 — THE FLOOR READER, WHICH IS THE COMMAND THE LATE AXIS RUNS ─────────────
+//
+// 🔴 THESE CLAIMS EXIST BECAUSE `floorProblems` IS ITSELF A TARGET. Blinded to `return
+// []` it agrees with every collapse the other four blinds cause, and `--floor` would go
+// green over all of them at once — a refusal that cannot refuse, in the file whose whole
+// subject is a reporter that cannot refuse. The primary axis is what catches it, and the
+// primary axis is these tests.
+const nRows = (n, v) => Array.from({ length: n }, (_, i) => ({
+  cyclo: v ? 1 + (i % 30) : 1, cognitive: v ? i % 40 : 0, maxNest: v ? i % 9 : 0, name: v ? `f${i}` : "f",
+}));
+const nFiles = (n) => Array.from({ length: n }, (_, i) => ({ file: `f${i}.ts`, lines: 1, maxNest: 0 }));
+
+test("a healthy population and a healthy spread are accepted", () => {
+  assert.deepEqual(floorProblems(nRows(1000, true), nFiles(60)), []);
+});
+
+test("a collapsed SPREAD is refused even though the population is untouched", () => {
+  // exactly what `measureFunction` blinded produces: every row present, every value equal
+  const problems = floorProblems(nRows(1000, false), nFiles(60));
+  assert.ok(problems.some((p) => p.startsWith("distinct cyclomatic values")), problems.join("; "));
+  assert.ok(problems.some((p) => p.startsWith("distinct cognitive values")), problems.join("; "));
+  assert.ok(problems.some((p) => p.startsWith("distinct function names")), problems.join("; "));
+  assert.ok(!problems.some((p) => p.startsWith("functions measured")),
+    "the population is intact and a floor that reported it collapsed would be reading the wrong thing");
+});
+
+test("an empty population is refused, and says so as a population", () => {
+  const problems = floorProblems([], []);
+  assert.ok(problems.some((p) => p.startsWith("functions measured 0")), problems.join("; "));
+  assert.ok(problems.some((p) => p.startsWith("files walked 0")), problems.join("; "));
+});
+
+test("every floor is named in the problem it produces, and none is summed", () => {
+  // 172 §6: one total would let a collapsed measure hide behind five intact ones
+  const problems = floorProblems([], []);
+  assert.equal(problems.length, Object.keys(FLOOR).length,
+    "one problem per floor, so a sweep can say WHICH measure stopped measuring");
+});
+
+// ── 🆕 244 §4 — THE WALK, WHICH THIS FILE DID NOT COVER AND THE SWEEP SAID SO ─────────
+//
+// 🔴 THE GATE FOUND THIS, NOT A READING. `{SIG:walkTs}` blinded to `return []` left this
+// self-test GREEN on the first sweep after the instrument was rostered: nothing here
+// imported the walk, so "found nothing" and "did not look" were one observable — the
+// exact sentence `instrument_gate.py` prints, arriving about the reporter whose own
+// published counts are `files: 68`. It is the population under every table this file
+// ranks, and it was covered by the floor command and by nothing else.
+test("the walk finds .ts at every depth, sorted, relative to its base", () => {
+  const root = mkdtempSync(join(tmpdir(), "p0walk-"));
+  mkdirSync(join(root, "sub", "deep"), { recursive: true });
+  writeFileSync(join(root, "b.ts"), "");
+  writeFileSync(join(root, "a.ts"), "");
+  writeFileSync(join(root, "sub", "c.ts"), "");
+  writeFileSync(join(root, "sub", "deep", "d.ts"), "");
+  assert.deepEqual(walkTs(root), ["a.ts", "b.ts", "sub/c.ts", "sub/deep/d.ts"]);
+});
+
+test("the walk takes only .ts — a neighbouring .js or .d.ts.map is not the population", () => {
+  const root = mkdtempSync(join(tmpdir(), "p0walk-"));
+  writeFileSync(join(root, "keep.ts"), "");
+  writeFileSync(join(root, "skip.js"), "");
+  writeFileSync(join(root, "skip.mjs"), "");
+  writeFileSync(join(root, "skip.json"), "");
+  assert.deepEqual(walkTs(root), ["keep.ts"]);
+});
+
+test("an empty tree yields an empty walk rather than throwing", () => {
+  assert.deepEqual(walkTs(mkdtempSync(join(tmpdir(), "p0walk-"))), []);
 });

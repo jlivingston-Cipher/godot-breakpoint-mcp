@@ -201,6 +201,22 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # zeroed. 184 §7: pinning the key is not pinning the value.
     ("handoff.CLAIM_FLOOR",     "../scripts/handoff_gate.py",       r"(CLAIM_FLOOR = )15",                                       ["../scripts/handoff_gate.py", "--selftest"]),
     ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )24",                                      ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 244 §2 — `population-reach-floor` (239). NOT a floor on a count: it is the OLDEST
+    # SESSION `BLOCK_POPULATION` has ever held, and the row exists because every other
+    # floor on that table counts it. Lifted, the live table starts before its own pin and
+    # `POPULATION_REACH` reddens; the sliding-window control one claim down is what makes
+    # that a refusal rather than an arithmetic identity.
+    ("handoff.POPULATION_REACH_FLOOR", "../scripts/handoff_gate.py", r"(POPULATION_REACH_FLOOR = )227",                              ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 244 §4 — THE THREE P0 REPORTERS' FLOORS, WHICH `FLOOR_PIN_UNSWEPT` ASKED FOR
+    # WITHIN THE MINUTE OF THEIR EXISTING. Each is the refusal that makes its reporter
+    # sweepable at all (`p0-reporters-unblinded`, 241), so a floor nothing re-derives
+    # here would be the same unfalsifiable constant one layer under the fix. One key per
+    # reporter is lifted rather than the whole dict: the key each file's own `a healthy
+    # population is accepted` claim is measured against, so the runner reddens for the
+    # reason the row is about rather than for arithmetic.
+    ("p0cx.FLOOR.functions",    f"{S}/p0_complexity.mjs",           r"(\n  functions: )900,",                                    [f"{S}/p0_complexity.selftest.mjs"]),
+    ("p0td.FLOOR.tests",        f"{S}/p0_testdup.mjs",              r"(\n  tests: )600,",                                        [f"{S}/p0_testdup.selftest.mjs"]),
+    ("p0cm.FLOOR.rows",         "../scripts/p0_comments.py",        r"(\n    \"rows\": )9000,",                                    ["../scripts/p0_comments.py", "--selftest"]),
     # 🆕 235 §3 — the HEADER half's parse, pinned the same way and for the same reason:
     # `counter_atoms` starts at `VERIFIED`, so the four labelled rows above it went
     # unread while this file's own `NUMERAL_PINS` carried a fixture for the npm line. A
@@ -1156,6 +1172,16 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
         "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one.")),
+    ("../scripts/handoff_gate.py", "POPULATION_REACH_FLOOR"): (227, (
+        "🆕 244 §2 — `population-reach-floor`, and the ONE row in this ledger whose value "
+        "is a session number rather than a count. `{FLOOR}` is the oldest block "
+        "`BLOCK_POPULATION` has ever held; the comparison is `<=`, so the claim gets "
+        "STRONGER as the number gets smaller. It exists because every other floor on that "
+        "table counts it — width, spellings, claims, readers — and a window that dropped "
+        "its oldest block as it added its newest satisfies all four while taking the far "
+        "endpoint off `moved_interval` and `version_interval`. Moves only when a session "
+        "deliberately decides the table need not reach that far back, which is a decision "
+        "and is why it is a governed literal rather than a length.")),
     ("../scripts/handoff_gate.py", "ALIAS_SPELLING_FLOOR"): (76, (
         "🆕 238 §2 — the DISTINCT atom spellings every real status block carries, at "
         "`{FLOOR}`. It exists because the two claims it guards can both be satisfied by "
