@@ -2101,6 +2101,39 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · handoff 207 claims · 26 CI jobs
 > ```
 """),
+    # 🆕 241 — THE STANDING RULE, PAID. 240's block is the endpoint `git.moved` measures
+    # FROM, and without this row the reader falls back and answers a different question:
+    # it read 3 for a session that moved main by 1. 🔴 AND THIS IS ALSO THE FIRST OF THE
+    # THREE STEPS 240 NEXT 2 ORDERS — BLOCK_POPULATION, then the `COUNTER_READERS` row for
+    # `queue.claims`, then the `BIND_PIN`. `ALIAS_UNUSED` refuses any other order, and 241
+    # stops here: the block below is the first in this table to carry a `queue` counter at
+    # all, so the reader it needs can be added by 242 and not before.
+    (240, """> **STATUS — 2026-08-12: THE MAINTAINER STOPPED THE RITUAL AND ASKED WHAT IT WAS BUYING.
+> 🔴 THE ANSWER IS THAT THE QUEUE WAS THE ONE TABLE IN THIS TREE NOTHING READ, AND THE
+> OPENING RITUAL RE-MEASURED A TREE NOBODY HAD TOUCHED. BOTH ARE INSTRUMENTS NOW — AND
+> THE FIRST ONE FIRED ON ITS OWN AUTHOR ONE COMMIT LATER.**
+>
+> ritual TIER1 — the opening ran the full replay, because `--open` did not exist yet.
+>
+> ```
+> main                 2ae5f3b — the kill that counted as progress (#295)             MOVED +2
+>                      2bd3906 — the queue nothing read, and the ritual that re-measured an unchanged tree (#294)
+> branch 240           1b48386 session240b-the-kill-that-counted
+>                      🟢 PUSHED · PR #294 AND #295 MERGED, 26/26 green, neither stacked
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 48/12/12/22 · 0 undeclared
+>               · floor_pin 95 · 43 governed · 829 keys · 26 shortfalls
+>               · unswept 0 · exempt 36 · term 278 file(s) / 21 suffixes
+>               · taut 4046 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 17 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 218 claims · 26 CI jobs
+> ```"""),
+
 ]
 
 # ── 🔴 237 §3 — THE POPULATION THE `SINCE` BOUNDARIES WERE MEASURED OVER ──────────────
