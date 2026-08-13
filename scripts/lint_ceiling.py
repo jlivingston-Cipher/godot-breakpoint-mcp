@@ -276,6 +276,29 @@ def tsc_absent() -> str | None:
     return None
 
 
+def dist_absent() -> str | None:
+    """The reason the JS half cannot be read yet, or None.
+
+    🆕 242 — WRITTEN BECAUSE CI REFUSED THIS GATE FOR A FACT ABOUT THE RUNNER. `tsc`
+    follows imports, and fourteen tracked probes import `../dist/…`. On a tree where
+    `npm run build` has not happened those imports resolve to nothing and the run reports
+    **sixty `TS2307 Cannot find module`** — an UNDECLARED class, over a population that is
+    entirely healthy, with a message that sends the next session looking for a defect in
+    a roster that is correct. That is 235 §2's defect exactly, one language over: the
+    difference between *the tool could not see* and *the tree is dirty*, collapsed into
+    one observation. `ci.yml` now runs this gate after the build step; this reader is what
+    says so when somebody runs it by hand.
+
+    🔴 AND IT IS RED RATHER THAN A SKIP, like every other precondition in this file.
+    """
+    if not (HOST / "dist").is_dir():
+        return (f"{HOST.name}/dist is NOT BUILT. `tsc --checkJs` follows imports and the "
+                f"tracked probes import it, so every one of those would be reported as "
+                f"`TS2307 Cannot find module` — a fact about this run, not about the "
+                f"tree. Run `npm run build` in `host/`, then re-read the rows.")
+    return None
+
+
 def run_tsc(files: list[str]) -> tuple[list[tuple[str, str]], list[tuple[str, str]], str | None]:
     """((in-population findings), (closure findings), error).
 
@@ -289,6 +312,8 @@ def run_tsc(files: list[str]) -> tuple[list[tuple[str, str]], list[tuple[str, st
     if not files:
         return [], [], "nothing to check — the file walk returned no tracked .mjs at all"
     if (why := tsc_absent()) is not None:
+        return [], [], why
+    if (why := dist_absent()) is not None:
         return [], [], why
     tsc = str(HOST / "node_modules" / "typescript" / "bin" / "tsc")
     try:
@@ -611,6 +636,15 @@ def _selftest() -> int:
     # 🔴 AND THE LIVE HALF — AGREEMENT, NOT INSTALLATION. 235's rule, quoted one tool over:
     # this claim must hold on a machine that ran `npm ci` and on one that did not, which is
     # what makes it a claim about this reader rather than about the machine.
+    # 🔴 AND THE BUILD-STATE PRECONDITION, THE SAME WAY — the one CI added. It must say
+    # ABSENT exactly when `host/dist` is missing and stay quiet exactly when it is there,
+    # which is a claim about this reader and holds on a built tree and an unbuilt one.
+    dist_reason = dist_absent()
+    ok = (dist_reason is None) == (HOST / "dist").is_dir()
+    bad += 0 if ok else 1
+    print(f"  {'🟢' if ok else '🔴'} {'dist_absent() agrees with the filesystem':<66} "
+          f"-> {'built' if dist_reason is None else 'ABSENT'}")
+
     ts_reason = tsc_absent()
     ok = (ts_reason is None) == (HOST / "node_modules" / "typescript" / "bin" / "tsc").is_file()
     bad += 0 if ok else 1

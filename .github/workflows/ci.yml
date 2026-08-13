@@ -282,13 +282,6 @@ jobs:
         run: node scripts/p0_complexity.selftest.mjs
       - name: The P0 reporters still measure what they claim (test duplication)
         run: node scripts/p0_testdup.selftest.mjs
-      - name: Install the one off-the-shelf Python tool this repository runs
-        run: pip install pyflakes
-      - name: The lint roster can still refuse (lint ceiling selftest)
-        run: python3 ../scripts/lint_ceiling.py --selftest
-      - name: No new class of linter finding in either language, and no declared class
-          grew (lint ceiling)
-        run: python3 ../scripts/lint_ceiling.py
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
       # 🔴 AND THE LEDGER COMPARISON, WHICH UNTIL 173 HAD NO GATE ANYWHERE. The four
@@ -416,6 +409,22 @@ jobs:
       # in green is the failure it exists to catch, and CI said so on the first run.
       - name: Build dist/ for the instrument gate's live axis
         run: npm run build
+      # 🆕 242 — THE LINT ROSTER RUNS AFTER `npm run build`, AND CI IS WHAT TAUGHT IT
+      # THAT. Its JS half points `tsc --allowJs --checkJs` at the tracked `.mjs`, and
+      # `tsc` follows imports: fourteen probes import `../dist/…`, so on an unbuilt tree
+      # every one of those resolves to nothing and the run reports sixty `TS2307 Cannot
+      # find module` — a class the roster has never carried, over a population that is
+      # perfectly healthy. The gate refused on its first CI run for a reason that was
+      # true of the RUNNER and not of the tree, which is exactly what `pyflakes_absent`
+      # exists to stop one language over. `dist_absent()` now says so in one sentence,
+      # and this ordering is what keeps it from having to.
+      - name: Install the one off-the-shelf Python tool this repository runs
+        run: pip install pyflakes
+      - name: The lint roster can still refuse (lint ceiling selftest)
+        run: python3 ../scripts/lint_ceiling.py --selftest
+      - name: No new class of linter finding in either language, and no declared class
+          grew (lint ceiling)
+        run: python3 ../scripts/lint_ceiling.py
       - name: Every JS instrument collapses loudly (instrument gate)
         run: python3 ../scripts/instrument_gate.py
       # 🔴 AND THE LIVE TOOL-SURFACE BUDGET — 206 §4. Needs the dist/ the step above
