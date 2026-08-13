@@ -510,6 +510,12 @@ def selftest() -> int:
 
     for f in fails:
         print(f)
+        # 🆕 245 §2 — THE SAME LINE IN THE ONE SPELLING `failure_lines` COUNTS. This gate's
+        # reds read `🔴 <NAME> <detail>`, `p0_comments.py`'s read `🔴 <desc> -> False` and
+        # `mutation_lock_gate.py`'s read `🔴 <name> unconfined=…`: three house styles, none
+        # of them countable, so `instrument_gate.py` measured a blast of ZERO over all three
+        # while their self-tests were reporting real failures (244 §4.4, one language over).
+        print(f"  FAIL QUEUE_SELFTEST {f[2:].strip()[:90]}")
     print(f"QUEUE_SELFTEST {claims - len(fails)}/{claims} claims"
           + (f", {len(fails)} failed" if fails else ""))
     return 1 if fails else 0
@@ -529,6 +535,21 @@ def main(argv: "list[str]") -> int:
 
     problems, notes, n_rows, n_open = check(text)
     _fmt, head, rows, _p = parse(text)
+    # 🆕 245 §3 — 🔴 TWO READS OF ONE TABLE THAT HAD NEVER BEEN COMPARED. `check()` parses
+    # the file and reports `n_rows`; the line above parses it AGAIN for the ages, and until
+    # now nothing asked whether the two agreed. The late blind found it: `parse` is called
+    # TWICE on this path, so a reader that answers honestly once and returns nothing
+    # afterwards leaves the census line correct — it came from the first call — and empties
+    # the population the ceiling is computed over. `oldest` then reads 0 and every OPEN row
+    # is under every ceiling. This comparison is one line and it is the whole difference
+    # between a number and a number somebody checked.
+    if len(rows) != n_rows:
+        problems.append(
+            f"🔴 QUEUE_REPARSE_DISAGREES check() read {n_rows} row(s) and the re-parse for "
+            f"the ages read {len(rows)}. Both are this file reading one table; the ceiling "
+            f"below is derived from the SECOND and the census line is printed from the "
+            f"FIRST, so a reader that goes quiet between them reports a full table and "
+            f"ages nothing")
     for n in notes:
         print(f"  · {n}")
     oldest = max((r.age(head) for r in rows if r.state == "OPEN"), default=0)
@@ -536,6 +557,9 @@ def main(argv: "list[str]") -> int:
           f"{oldest} session(s) · ceiling {AGE_CEILING} · floor {QUEUE_ROW_FLOOR}")
     for p in problems:
         print(p)
+        # 🆕 245 §2 — the countable spelling, on the live half too. `LATE_BLAST_FLOOR`
+        # cannot floor an axis whose reds it cannot parse (244 §4.4).
+        print(f"  FAIL QUEUE_GATE {p[:90]}")
     if problems:
         print(f"🔴 QUEUE_GATE refused — {len(problems)} problem(s). The queue is the "
               f"list of what this project intends to do, and for twenty sessions it was "

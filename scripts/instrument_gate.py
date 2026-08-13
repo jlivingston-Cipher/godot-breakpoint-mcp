@@ -251,12 +251,16 @@ def resolve_sig(text: str, sig: str) -> tuple[str, str]:
 # 🆕 212 §4: 55 -> 70, measured 78 — the widening and the new roster together added
 #            thirteen resolving placeholders, and a floor left at 55 would let the
 #            whole 212 admission be reverted one target at a time without a line.
-SIG_RESOLVED_FLOOR = 70
+# 🆕 245 §1 — RAISED FROM BELOW: three Python instruments are fifteen more placeholder
+# anchors, and 117 against a floor of seventy is 198 §36's gap — wide enough for the whole
+# admission to go back to literals one target at a time with no line of output moving.
+SIG_RESOLVED_FLOOR = 105
 SIG_RESOLVED: set[str] = set()
 
 
-def resolve_target(inst_name: str, text: str, sig: str) -> tuple[str, str]:
-    anchor, problem = resolve_sig(text, sig)
+def resolve_target(inst_name: str, text: str, sig: str, lang: str = "js") -> tuple[str, str]:
+    # 🆕 245 §1 — the resolver is chosen by the file being swept, never by a roster column.
+    anchor, problem = (py_resolve_sig if lang == "py" else resolve_sig)(text, sig)
     if not problem and SIG_RE.match(sig):
         SIG_RESOLVED.add(f"{inst_name}::{sig}")
     return (anchor, problem)
@@ -932,6 +936,69 @@ INSTRUMENTS = [
             "{SIG:judge}": "return { lines: [], failed: false, codes: [] };",
         },
     },
+    # ══ 🆕 245 §1 — THE FIRST THREE PYTHON INSTRUMENTS — `blind-py-gates` (234) ══════
+    #
+    # 🔴 EVERY ENTRY BELOW WAS MEASURED BEFORE IT WAS WRITTEN, and the sweep found four
+    # things no session had suspected — see §1.2. The cohort is THREE and not eighteen for
+    # a reason this file already enforces one table down: an instrument joins `INSTRUMENTS`
+    # when every member the sweep names can be caught, and a member that cannot is a
+    # PROBLEM to fix rather than a row to leave out. Three fit in one session; the other
+    # fifteen are in `PY_NOT_SWEPT` with the measurement each one needs, which is a
+    # roster nobody can mistake for coverage.
+    {
+        "name": "p0_comments.py",
+        "src": ROOT / "scripts" / "p0_comments.py",
+        "gate": ["python3", "../scripts/p0_comments.py", "--selftest"],
+        "cwd": HOST,
+        "floor": 4,
+        "why": "the classifier and the two extractors under §8.4's whole population",
+        # The empty each member's own contract promises. `classify` returns a BUCKET NAME,
+        # so its empty is the healthy-looking one — a constant nobody would notice — and
+        # not a sentinel that fails on sight (`_png.mjs`'s `sampleDistinctColours` rule).
+        "targets": {
+            "{SIG:classify}": 'return "describes-this-code"',
+            "{SIG:_looks_like_code}": "return False",
+            "{SIG:ts_comments}": "return []",
+            "{SIG:py_comments}": "return []",
+            "{SIG:floor_problems}": "return []",
+        },
+    },
+    {
+        "name": "queue_gate.py",
+        "src": ROOT / "scripts" / "queue_gate.py",
+        "gate": ["python3", "../scripts/queue_gate.py", "--selftest"],
+        "cwd": HOST,
+        "floor": 3,
+        "why": "the parser under the one table in this repository that says what to do next",
+        "targets": {
+            "{SIG:_cells}": "return []",
+            "{SIG:parse}": "return (1, HEAD, [], [])",
+            "{SIG:check}": "return ([], [], 0, 0)",
+        },
+    },
+    {
+        "name": "mutation_lock_gate.py",
+        "src": ROOT / "scripts" / "mutation_lock_gate.py",
+        "gate": ["python3", "../scripts/mutation_lock_gate.py", "--selftest"],
+        "cwd": HOST,
+        "floor": 4,
+        "why": "the deriver that decides which gates rewrite this tree and must not run "
+               "beside each other",
+        "targets": {
+            "{SIG:write_sites}": "return ([], [])",
+            "{SIG:calls}": "return True",
+            "{SIG:acquires}": "return True",
+            # 🔴 THE TARGET THAT WAS STILL GREEN ON THE FIRST SWEEP, and §1.2 is what it
+            # found: `settles` — the half that CLOSES a mutation record — was called by
+            # nothing in that file's self-test, while its twin `acquires` had three cases.
+            "{SIG:settles}": "return True",
+            # 🔴 THE EMPTY IS THE PARTITION WITH NO MEMBERS, NOT `{}`. The first draft returned a
+            # bare dict and the caller died on a KeyError — a mutant that CRASHES its gate is
+            # not evidence about the instrument (197 §5), and this file's own marker would
+            # have filed it as a catch.
+            "{SIG:classify}": 'return ({"guarded": [], "unguarded": [], "temp_only": []}, 0, 0)',
+        },
+    },
 ]
 
 
@@ -1187,6 +1254,12 @@ LATE_LIVE = {
     # not pay it: one server start against the `dist/` CI already builds, asking the live
     # wire what keys it carries. The axis was not unavailable — it was unbuilt.
     "wire_diff.mjs": (["node", "scripts/wire_diff.mjs", "--discover"], None),
+    # 🆕 245 §1 — THE TWO PYTHON INSTRUMENTS WITH A SECOND COMMAND CI ALREADY RUNS.
+    # `p0_comments.py --floor` is 244's refusing command; `queue_gate.py` with no flag is
+    # the live read of QUEUE.md. Both are steps in ci.yml today, which is 232 §5.6's test
+    # for whether an NA row could ever be honest here — it could not.
+    "p0_comments.py": (["python3", "../scripts/p0_comments.py", "--floor"], None),
+    "queue_gate.py": (["python3", "../scripts/queue_gate.py"], None),
 }
 
 # ── 🔴 198 §3 — THE LATE AXIS'S VERDICT MARKER, AND WHY IT IS NOT `VERDICT_MARKER` ──
@@ -1244,6 +1317,12 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     # that test exactly the way draft 2 of `positive_control_gate.mjs`'s did.
     "node scripts/p0_complexity.mjs --floor": "P0_COMPLEXITY_CENSUS ",
     "node scripts/p0_testdup.mjs --floor": "P0_TESTDUP_CENSUS ",
+    # 🆕 245 §1 — the census line again, chosen by the same draft-3 rule and RUN rather
+    # than read. `P0_COMMENTS_CENSUS` is printed after both extractors have finished and
+    # before any verdict branch, so a blinded reader that dies never reaches it and a
+    # refusal still carries it. `QUEUE_GATE <n> row(s) …` is the same shape.
+    "python3 ../scripts/p0_comments.py --floor": "P0_COMMENTS_CENSUS ",
+    "python3 ../scripts/queue_gate.py": "QUEUE_GATE ",
 }
 
 # THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
@@ -1275,6 +1354,18 @@ LATE_CRASH_CEILING_B = 0   # state, reached). Kept as two numbers rather than on
 # leaves a gate green is not automatically a defect: two states produce it, and only one
 # of them is.
 LATE_DECLARED_GREEN = {
+    # 🆕 245 §1 — MEASURED, AND THE REASON IS THE FLOOR TABLE'S OWN COMMENT. Blinded from
+    # its second call, `_looks_like_code` decides exactly one bucket — `commented-out-code`,
+    # SEVEN lines tree-wide — and `--floor` deliberately does not floor that bucket:
+    # `FLOOR["buckets"]` is 3 rather than 5 because `TODO-FIXME` stands at one and a session
+    # that deleted the tree's last commented-out line would otherwise redden the gate that
+    # exists to encourage exactly that work. So the live command cannot see this collapse
+    # BY A DECISION WRITTEN DOWN IN THE FILE ITSELF, not by an oversight. 🟢 The A:gate axis
+    # blinds it globally and reddens, and the same axis catches it late.
+    ("p0_comments.py", "{SIG:_looks_like_code}", "B:live"):
+        "it decides only the `commented-out-code` bucket, which `--floor` does not floor on "
+        "purpose (FLOOR['buckets'] is 3, not 5, so emptying the smallest buckets is not a "
+        "refusal). Both halves of the A:gate axis catch it.",
     # 🆕 212 §4 — THE ONLY LATE GREEN THE NEW TARGETS PRODUCED, AND IT IS A STATEMENT
     # ABOUT THE FLOORS RATHER THAN ABOUT THE MEMBER. `isLiteralish` is called 1227 times
     # on the live tree. Blinding it from call 2 moves `TAUT_CLASSIFIED shaped=` and
@@ -1376,7 +1467,7 @@ LATE_DECLARED_GREEN = {
 }
 
 
-def late(text: str, sig: str, empty: str) -> str | None:
+def late(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
     """`empty` becomes the body from the SECOND call onwards. Same anchor as blind().
 
     🔴 AND THE SAME BRACE, VIA THE SAME FUNCTION (197 §5). This injector carried an
@@ -1385,6 +1476,8 @@ def late(text: str, sig: str, empty: str) -> str | None:
     parse reports `calls=0` and is filed as "not constructible", which raises no problem at
     all. Two copies of one wrong line is 180 §7.1's class; there is now one.
     """
+    if lang == "py":
+        return py_late(text, sig, empty)
     brace = body_brace(text, sig)
     if brace is None:
         return concise_blind(text, sig, empty, late_hook=True)
@@ -1594,7 +1687,69 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # reason 231's row one line up gives: the late injector blinds from the SECOND call,
     # so the claims reading a member once still pass and only the repeated readers fail.
     "positive_control_gate.mjs": 26,  # 232: measured 31 on [A:gate]
+    # 🆕 245 §1 — the Python cohort's late [A:gate] blast, floored from BELOW. Lower than
+    # the global blast for 231's reason: the late injector blinds from the SECOND call, so
+    # the claims that read a member once still pass.
+    "p0_comments.py": 6,
+    "queue_gate.py": 50,
+    "mutation_lock_gate.py": 6,
 }
+# ══ 🆕 245 §3 — `late-live-blast-unfloored` (244) ══════════════════════════════════
+#
+# 🔴 THE EXCLUSION ABOVE WAS A DESCRIPTION OF FIVE FILES WEARING THE SHAPE OF A RULE.
+# "`B:live` gets NO floor: four of its five commands print no per-claim FAIL line at all"
+# was true when it was written and had been false for two sessions by the time 244 named
+# it: `p0_complexity.mjs --floor` and `p0_testdup.mjs --floor` were built in 244 with a
+# `FAIL <NAME>` spelling precisely so their reds could be counted, and this file went on
+# printing their blast beside "NOT floored on this axis, on purpose". The live axis has
+# grown from five commands to seventeen since that sentence was written and nothing
+# re-read it. **An instrument whose late blinds stopped reddening anything reads exactly
+# like one whose never could.**
+#
+# 🔴 SO IT IS TWO TABLES AND THE SECOND ONE REFUTES ITSELF. Every instrument's live axis is
+# either FLOORED here or carries a row in `LATE_LIVE_BLAST_UNCOUNTABLE` — and a row there
+# is refused the moment its instrument reports a nonzero blast, which is the same run's own
+# output disagreeing with the excuse. The eleven rows below are not an argument that those
+# commands could never be counted; they are the measurement that today they report by
+# COLLAPSING A POPULATION rather than by listing claims, and the way to leave the table is
+# to give the command a `FAIL <NAME>` line, exactly as 244 did for two of them.
+#
+# Measured this session across every live axis, floored from BELOW with 198 §36's headroom.
+LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
+    "_population.mjs": 32,        # 245: measured 40
+    "p0_complexity.mjs": 12,      # 245: measured 15
+    "p0_testdup.mjs": 11,         # 245: measured 14
+    "_png.mjs": 7,                # 245: measured 9
+    "_workspace.mjs": 5,          # 245: measured 7
+    "p0_comments.py": 5,          # 245: measured 7
+    # 🔴 A POPULATION OF ONE, AND THE FLOOR SAYS SO. This axis has exactly one constructible
+    # late target (`{SIG:_cells}`; the other two are called once), and the number of reds it
+    # produces is a function of what QUEUE.md holds that session. Floored at the smallest
+    # number that separates "reported something" from "reported nothing", which is the only
+    # honest pin available over a population this size.
+    "queue_gate.py": 1,           # 245: measured 2
+}
+
+LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
+    "tautology_gate.mjs": "it reports by collapsing a population, not by listing claims",
+    "verdict_gate.mjs": "it reports by collapsing a population, not by listing claims",
+    "boundary_gate.mjs": "it reports by collapsing a population, not by listing claims",
+    "path-cohort (compiled walk)": "`path-cohort.mjs --summary` prints a table, not claims",
+    "_path_ledger.mjs": "its live driver is `path-cohort.mjs --summary`, the row above",
+    "seal_order_gate.mjs": "the live gate prints a census and one verdict, not per-claim lines",
+    "token-cost.mjs": "`--summary` prints a budget table, not per-claim lines",
+    "wire_invisible_gate.mjs": "the live surface read prints a roster, not per-claim lines",
+    "wire_diff.mjs": "`--discover` prints the keys it found, not per-claim lines",
+    "positive_control_gate.mjs": "the live run prints its census and one verdict line",
+    # 🔴 THE ONE THAT IS NOT ABOUT THE COMMAND'S OUTPUT AT ALL. `mutation_lock_gate.py` has
+    # no B:live axis (see `LATE_LIVE_LOCKED`), so it reports zero here for a third reason
+    # again — the axis did not run. The row is kept rather than special-cased because the
+    # refusal above is driven by the NUMBER, and a locked instrument that somehow starts
+    # reporting a blast on an axis that never ran is a thing this file should refuse.
+    "mutation_lock_gate.py": "its B:live axis does not run at all — the live command takes "
+                             "the mutation lock this sweep holds (LATE_LIVE_LOCKED)",
+}
+
 LATE_BLAST_OBSERVED: dict[tuple[str, str], int] = {}
 LATE_CRASHED_A: list[tuple[str, str]] = []
 LATE_CRASHED_B: list[tuple[str, str]] = []
@@ -1605,7 +1760,8 @@ LATE_CRASHED_B: list[tuple[str, str]] = []
 # filed as "not constructible", no problem is raised and the gate prints ok — the whole
 # second axis neutralised in silence, which is the exact defect it was built to find, one
 # level up. `>=`, and measured at 70 of 84 across both axes.
-LATE_CONSTRUCTED_FLOOR = 98   # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+LATE_CONSTRUCTED_FLOOR = 160  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+#                               245: 98 -> 160, measured 179 late mutants constructed
 #                               212: 65 -> 98, measured 109 late mutants constructed
 LATE_CONSTRUCTED: list[str] = []
 
@@ -1642,6 +1798,46 @@ LATE_LIVE_FLOOR = 8
 # branches of the NA path over a tree that cannot exist, because an empty table is the one
 # state in which "this check passes" and "this check is switched off" look identical.
 LATE_LIVE_NA: dict[str, str] = {}
+
+# 🆕 245 §1 — 🔴 A THIRD ANSWER, BECAUSE THE SECOND COMMAND EXISTS AND CANNOT BE RUN HERE.
+# `mutation_lock_gate.py` with no flag is a step in ci.yml, so 232 §5.6's rule refuses a
+# `LATE_LIVE_NA` row for it outright — the sentence those rows have to say ("there is no
+# second command that exercises this file") would be false. What is true is narrower and it
+# is a fact about THIS HARNESS rather than about that instrument: the live command calls
+# `acquire()`, this gate holds the mutation lock for the whole sweep, and 224 §6.6 is the
+# entire reason both of those are so. Spawned from in here it exits on the refusal path
+# before it reads a line of its own source.
+#
+# 🔴 AND THE ROW IS DERIVED, NOT BELIEVED. `late_locked_problems` refuses a row whose file
+# does not actually call `acquire(` — the same check `mutation_lock_gate.py` makes of every
+# other gate, pointed back at the reason it is excused. An exclusion whose evidence is a
+# sentence is 211 §5's class; this one's evidence is the call site.
+LATE_LIVE_LOCKED: dict[str, str] = {
+    "mutation_lock_gate.py":
+        "its only second command (`python3 scripts/mutation_lock_gate.py`, ci.yml) takes "
+        "the mutation lock, and this sweep holds it from `main()` to the finally. Two "
+        "mutating gates at once produce a red that is entirely the harness (224 §6.6), so "
+        "the B:live axis is unavailable BY THE LOCK rather than by the absence of a "
+        "command. The A:gate axis blinds all five members and reddens on every one.",
+}
+
+
+def late_locked_problems(locked: dict, root) -> list[str]:
+    """A row here must name a file that really acquires the lock. PURE over its inputs."""
+    out: list[str] = []
+    for name, why in sorted(locked.items()):
+        src = Path(root) / "scripts" / name
+        if not src.exists():
+            out.append(f"LATE_LIVE_LOCKED names {name!r}, which is not in scripts/")
+            continue
+        if not re.search(r"^[ \t]*acquire\(", src.read_text(), re.M):
+            out.append(
+                f"LATE_LIVE_LOCKED {name} is excused from the B:live axis because its live "
+                f"command takes the mutation lock, and that file contains no `acquire(` "
+                f"call site. The reason has outlived the fact (174 §5) — either the lock "
+                f"was removed, in which case the axis is available and this row must go, "
+                f"or the row was wrong when it was written: {why[:60]}…")
+    return out
 
 
 # ══ THE DISCOVER HALF — 232, answering 231 §5.1 ════════════════════════════════════
@@ -1850,6 +2046,141 @@ def discovery_problems(files, instruments, exempt, outside, walk_floor, module_f
     return problems, stats
 
 
+
+# ══ 🆕 245 §1 — THE PYTHON DISCOVER HALF ═══════════════════════════════════════════
+#
+# 🔴 `blind-py-gates` SAID "SEVENTEEN TRACKED .py GATES" AND THE TREE HOLDS EIGHTEEN. The
+# row was written at 234; `p0_comments.py` joined `scripts/` at 243 and nothing anywhere
+# could see it, because there was no roster of Python gates at all — not an empty one,
+# none. That is 231 §5.1 and 244's whole finding arriving at the language this file could
+# not read: an instrument working perfectly on the population it can see, silent about the
+# one it cannot.
+#
+# 🔴 AND IT IS AN EQUALITY, NOT A FLOOR. Every tracked `scripts/*.py` is swept or carries a
+# reason; every reason names a file the walk found. A walk that returns nothing turns every
+# row below STALE and refuses, so this half needs no floor constant — the roster floors it.
+PY_NOT_SWEPT: dict[str, str] = {
+    # ── already blinded, by an older harness ──────────────────────────────────────────
+    "contract_check.py":
+        "swept since 172 by `scope_gate.py`, which derives twenty-five targets from the "
+        "return annotations and requires each blinded run to go RED. It is the one Python "
+        "file in this tree that had a blinding harness before this session, and a second "
+        "one here would be two rosters over one file (180 §7.1).",
+    # ── the mutating gates: their only command takes the lock this sweep holds ────────
+    "instrument_gate.py":
+        "this file. It holds the mutation lock for the whole sweep and rewrites the tree; "
+        "blinding it from inside itself would be a mutant sweeping its own mutants.",
+    "scope_gate.py":
+        "a mutating gate — it takes the mutation lock and runs `contract_check.py` against "
+        "the working tree, so spawning it from in here exits on the refusal path before it "
+        "reads a line of its own source (224 §6.6). Same fact as `LATE_LIVE_LOCKED`, one "
+        "axis further up: for these four there is no unlocked command at all.",
+    "control_gate.py":
+        "a mutating gate — takes the mutation lock (see `scope_gate.py` above).",
+    "floor_pin_gate.py":
+        "a mutating gate — takes the mutation lock (see `scope_gate.py` above).",
+    # ── no command of their own ──────────────────────────────────────────────────────
+    "_gate_lock.py":
+        "a library, not a gate: nothing runs it. Its behaviour is asserted from the "
+        "outside by `mutation_lock_gate.py`'s controls, which spawn every guarded gate "
+        "while the lock is HELD and require each to refuse — a stronger reading than a "
+        "blind of the library would give.",
+    # ── the network readers ──────────────────────────────────────────────────────────
+    "registry_lag.py":
+        "its measurement is the npm registry. A blind here would be swept in CI against a "
+        "network this gate is explicitly allowed to fail on (`REGISTRY_LAG REFUSED`), so a "
+        "green would mean the network and a red would mean nothing.",
+    "assetlib_sweep.py":
+        "same shape — its population is godotengine.org, and the container this gate runs "
+        "in cannot reach it.",
+    # ── 🔴 THE SIX THAT ARE READY EXCEPT FOR WHAT THE SWEEP FOUND IN THEM ────────────
+    #
+    # Every reason below is a MEASUREMENT taken this session with the injector above, and
+    # every one names the members that would have to be closed first. That is the point of
+    # writing them here rather than leaving the files out: a row that says WHAT IS WRONG is
+    # a work item, and a file with no row is a coverage claim nobody made.
+    "handoff_gate.py":
+        "measured: 8 of 14 derived targets caught, `{SIG:clone_tags}` and `{SIG:tree_state}` "
+        "STILL GREEN under `--selftest`. Both read git and the self-test proves neither.",
+    "release_names.py":
+        "measured, and it is the largest of the six: 3 of 17 caught. TWELVE tree readers — "
+        "`shipped_corpus`, `released_block`, the four window readers, the four tag readers, "
+        "`addon_version`, `tarball_entries` — can each return their empty with `--selftest` "
+        "green, because that command proves the PREDICATES on fixtures and the readers are "
+        "exercised only by `--assert-addon` and `--assert-map`.",
+    "spec_conformance.py":
+        "measured: 3 of 7 caught, `{SIG:get}` and `{SIG:scanned_files}` STILL GREEN.",
+    "registry_bytes.py":
+        "measured: 4 of 10 caught, `{SIG:tree_shas}` STILL GREEN under `--selftest`.",
+    "terminology_gate.py":
+        "measured: `{SIG:tracked_files}` STILL GREEN — the self-test never calls the walk "
+        "the live scan reads, so `tracked_paths` is proved and its own enumerator is not.",
+    "lint_ceiling.py":
+        "measured: 4 of 8 caught. The three tool-absence guards — `{SIG:tsc_absent}`, "
+        "`{SIG:dist_absent}`, `{SIG:pyflakes_absent}` — can each answer 'the tool is here' "
+        "and the self-test cannot tell, which is the guard that decides whether a whole "
+        "lint class was READ or merely not reported.",
+    "tree_quiet.py":
+        "measured, and this one is about the HARNESS rather than about the file: its two "
+        "members do their work in a SUBPROCESS, so the late hook's `atexit` line is written "
+        "into a child's output and the axis records NEVER LOADED rather than a call count. "
+        "Both are caught on the global axis. A late blind needs a second injector that "
+        "crosses a process boundary, and that is not this session's row.",
+}
+
+
+def py_walk(root) -> "list[str]":
+    """Every TRACKED `scripts/*.py`, from git rather than from a glob — a scratch mutant
+    left behind by a killed run is not a gate, and `_scope_gate_mutant.py` is exactly that."""
+    p = subprocess.run(["git", "ls-files", "scripts/*.py"],
+                       capture_output=True, text=True, cwd=str(root))
+    return sorted(Path(x).name for x in p.stdout.split("\n") if x.strip().endswith(".py"))
+
+
+def py_discovery_stats(files, instruments, declared) -> dict:
+    """The census line's numbers. Split from the refusals so `_call_wiring_problems` can
+    stub the predicate without the stats call collapsing with it — the two answer different
+    questions and only one of them is a verdict."""
+    swept = {i["name"] for i in instruments if str(i["src"]).endswith(".py")}
+    walked = set(files)
+    probs = py_discovery_problems(files, instruments, declared)
+    return {
+        "files": len(walked), "swept": len(swept & walked),
+        "declared": len(set(declared) & walked),
+        "undeclared": sum(1 for m in probs if "UNDECLARED" in m),
+        "stale": sum(1 for m in probs if " STALE " in m),
+    }
+
+
+def py_discovery_problems(files, instruments, declared) -> list[str]:
+    """PURE over its inputs — 174 §8's rule, so `_self_check` can hand it a tree that
+    cannot exist and drive both directions of every refusal."""
+    problems: list[str] = []
+    swept = {i["name"] for i in instruments if str(i["src"]).endswith(".py")}
+    walked = set(files)
+    for name in sorted(walked - swept - set(declared)):
+        problems.append(
+            f"INSTRUMENT_GATE_PY UNDECLARED {name} — a tracked Python gate that is neither "
+            f"an entry in INSTRUMENTS nor a row in PY_NOT_SWEPT. Nothing else in this file "
+            f"can see it: every other check here is about instruments that were WRITTEN "
+            f"DOWN, and for eighteen files that list did not exist. Add the entry, or the "
+            f"row with the measurement that says what is stopping it")
+    for name in sorted(set(declared) - walked):
+        problems.append(
+            f"INSTRUMENT_GATE_PY STALE {name} — declared unswept with a reason, and the walk "
+            f"cannot find it. An exclusion outliving its subject is an exemption nobody has "
+            f"re-argued (174 §5)")
+    for name in sorted(swept & set(declared)):
+        problems.append(
+            f"INSTRUMENT_GATE_PY BOTH {name} — it is swept AND carries a reason for not "
+            f"being swept. One of the two is wrong and this file cannot decide which")
+    for name in sorted(swept - walked):
+        problems.append(
+            f"INSTRUMENT_GATE_PY OUTSIDE {name} — swept as a Python instrument and the walk "
+            f"does not reach it, so the roster's coverage is checked in one direction only")
+    return problems
+
+
 def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, int, list[str]]:
     """(#undeclared-green, #targets swept, problems). Source restored whatever happens."""
     original = src.read_text()
@@ -1877,12 +2208,13 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
                 f"of them — a marker proved only on the class it was chosen from is 197 §35"
             ])
         na = 0
+        lang = lang_of(src)
         for sig, empty in inst["targets"].items():
-            anchor, sig_problem = resolve_target(inst["name"], original, sig)
+            anchor, sig_problem = resolve_target(inst["name"], original, sig, lang)
             if sig_problem:
                 problems.append(f"{inst['name']} [{axis}]: {sig_problem}")
                 continue
-            mutant = late(original, anchor, empty)
+            mutant = late(original, anchor, empty, lang)
             if mutant is None:
                 problems.append(
                     f"{inst['name']} [{axis}]: SIGNATURE NOT FOUND {sig!r} for the late blind"
@@ -2138,7 +2470,9 @@ def _self_check(floor: int) -> list[str]:
             "CI_RUN_RE reads fewer node steps out of the LIVE ci.yml than the floor — the "
             "fixtures above prove the predicate, this proves it against the file it ships "
             "against")
-    for _name, _v in LATE_BLAST_FLOOR.items():
+    # 🆕 245 §3 — the B:live twin, held to the same rule. A floor at zero on the axis
+    # 244 §4.4 showed was uncountable would be the old exclusion wearing a number.
+    for _name, _v in list(LATE_BLAST_FLOOR.items()) + list(LATE_LIVE_BLAST_FLOOR.items()):
         if _v <= 0:
             problems.append(
                 f"LATE_BLAST_FLOOR[{_name!r}] is {_v}. A floor at zero cannot bite, and this "
@@ -2342,6 +2676,113 @@ def _self_check(floor: int) -> list[str]:
             "gate_scripts() does not derive its answer from the roster it is handed — an "
             "exclusion that survives its own table is a roster nobody maintains (198)")
 
+    # ══ 🆕 245 §1 — THE PYTHON HALF, DRIVEN FROM BOTH SIDES OVER A TREE THAT CANNOT EXIST
+    #
+    # 🔴 EVERY REFUSAL BELOW RETURNS EMPTY ON A HEALTHY TREE, which is the one state where
+    # "this check passes" and "this check is switched off" look identical (174 §8, and this
+    # file's own U1 three tables over). Fixtures, never the live population.
+    _PY_ONE = (
+        "import os\n"
+        "\n"
+        "def alpha(a,\n"
+        "          b=2):\n"
+        "    \"\"\"doc.\"\"\"\n"
+        "    return a + b\n"
+        "\n"
+        "class K:\n"
+        "    def beta(self):\n"
+        "        return 1\n"
+        "\n"
+        "def alpha_two():\n"
+        "    return 0\n"
+    )
+    _PY_TWO = _PY_ONE + "\ndef alpha(x):\n    return x\n"
+
+    anchor, prob = py_resolve_sig(_PY_ONE, "{SIG:alpha}")
+    if prob or not anchor.startswith("def alpha(a,") or not anchor.endswith("b=2):"):
+        problems.append(
+            f"py_resolve_sig does not resolve a WRAPPED declaration header: {anchor!r} / "
+            f"{prob!r}. A `def` whose parameters run onto a second line is the case that "
+            f"cost `_decl_span` a whole session on the JavaScript side")
+    if not py_resolve_sig(_PY_ONE, "{SIG:gamma}")[1]:
+        problems.append(
+            "py_resolve_sig accepts a name that is DECLARED NOWHERE — EXISTENCE is half of "
+            "what this anchor claims, and without it a renamed member is a silently skipped "
+            "target reported as covered")
+    if not py_resolve_sig(_PY_TWO, "{SIG:alpha}")[1]:
+        problems.append(
+            "py_resolve_sig accepts a name declared TWICE — UNIQUENESS is the other half, "
+            "and a textual blind would rewrite whichever came first (193 §12.27)")
+    if py_resolve_sig(_PY_ONE, "{SIG:alpha_two}")[1]:
+        problems.append(
+            "py_resolve_sig cannot resolve `alpha_two` beside `alpha` — the pattern is "
+            "matching a PREFIX rather than a name, which is the loosening this anchor class "
+            "exists to refuse")
+    # the INDENT is read off the source, not computed: a method's body is not four spaces in
+    _m_anchor, _m_prob = py_resolve_sig(_PY_ONE, "{SIG:beta}")
+    _m = py_blind(_PY_ONE, _m_anchor, "return 99") if not _m_prob else None
+    if _m is None or "\n        return 99  # INSTRUMENT_GATE" not in _m:
+        problems.append(
+            "py_blind does not indent an injection to the body it is entering — a guessed "
+            "`header + 4` produces a mutant that does not PARSE, and this file would report "
+            "that as a harness failure over a target it had silently stopped testing")
+    for _label, _fn in (("py_blind", py_blind), ("py_late", py_late)):
+        _mut = _fn(_PY_ONE, anchor, "return 99")
+        if _mut is None:
+            problems.append(f"{_label} could not apply a resolved anchor at all")
+            continue
+        try:
+            compile(_mut, "<selfcheck>", "exec")
+        except SyntaxError as _e:
+            problems.append(
+                f"{_label}'s mutant DOES NOT PARSE ({_e.msg}) — a mutant that never loads is "
+                f"filed as NOT CONSTRUCTIBLE on the late axis, under a ceiling, and reads as "
+                f"a harness limitation rather than as the injector being broken (212 §4)")
+    _late_mut = py_late(_PY_ONE, anchor, "return 99")
+    if _late_mut is None or LATE_MARK not in _late_mut or "_IG_CALLS > 1" not in _late_mut:
+        problems.append(
+            f"py_late's injection carries no {LATE_MARK} counter — `run_counting` reads that "
+            f"line to tell 'called once' from 'the mutant never loaded', and without it "
+            f"every Python late target lands in the second bucket in silence (197 §3)")
+
+    # ── the Python DISCOVER roster, both directions ────────────────────────────────────
+    _PI = [{"name": "a.py", "src": ROOT / "scripts" / "a.py"}]
+    if not py_discovery_problems(["a.py", "b.py"], _PI, {}):
+        problems.append(
+            "py_discovery_problems accepts a tracked Python gate in NEITHER the roster nor "
+            "PY_NOT_SWEPT — the whole point of this half is that a typed population cannot "
+            "report what joined it (231 §5.1)")
+    if py_discovery_problems(["a.py", "b.py"], _PI, {"b.py": "reason"}):
+        problems.append(
+            "py_discovery_problems refuses a tree where every file is swept or declared — "
+            "the healthy direction has to pass or the refusals above prove nothing")
+    if not py_discovery_problems(["a.py"], _PI, {"gone.py": "reason"}):
+        problems.append(
+            "py_discovery_problems keeps a PY_NOT_SWEPT row for a file the walk cannot find "
+            "— an exclusion outliving its subject (174 §5)")
+    if not py_discovery_problems(["a.py"], _PI, {"a.py": "reason"}):
+        problems.append(
+            "py_discovery_problems accepts a file that is swept AND excused at once")
+    if not py_discovery_problems([], _PI, {}):
+        problems.append(
+            "py_discovery_problems reports NOTHING over an empty walk — a walk that stopped "
+            "reaching the directory is the collapse this half has no floor for, and the "
+            "roster is what floors it")
+
+    # ── the locked-axis row, whose evidence is a call site and not a sentence ──────────
+    if not late_locked_problems({"nosuchfile.py": "because"}, ROOT):
+        problems.append(
+            "late_locked_problems accepts a row naming a file that is not in scripts/")
+    if not late_locked_problems({"p0_comments.py": "because"}, ROOT):
+        problems.append(
+            "late_locked_problems accepts a B:live exclusion for a file that never calls "
+            "`acquire(` — the row's whole content is that the live command takes the "
+            "mutation lock, and that is a fact about a call site rather than a sentence")
+    if late_locked_problems({"mutation_lock_gate.py": "because"}, ROOT):
+        problems.append(
+            "late_locked_problems refuses the one file that really does take the lock — the "
+            "healthy direction has to pass (174 §8)")
+
     return problems
 
 
@@ -2362,6 +2803,14 @@ def _self_check(floor: int) -> list[str]:
 # string is right: a marker that stopped appearing on a HEALTHY run is caught before a
 # single mutant is applied.
 VERDICT_MARKER: dict[str, str] = {
+    # 🆕 245 §1 — THE THREE PYTHON SELF-TESTS. Every one is the FIRST line its command
+    # prints and is emitted before any verdict branch, which is 233's draft-3 rule: it
+    # survives the red path (draft 2's failure) and is absent from a Python traceback
+    # (draft 1's failure). Chosen by RUNNING each command red, never by reading a
+    # neighbour — 244 §4.3 is what that costs when it is not.
+    "p0_comments.py": "P0_COMMENTS_SELFTEST_DONE",
+    "queue_gate.py": "QUEUE_SELFTEST ",
+    "mutation_lock_gate.py": "MUTATION_LOCK_SELFTEST_DONE",
     "_population.mjs": "POP_SELFTEST",
     "_path_ledger.mjs": "LEDGER_SELFTEST",
     "_workspace.mjs": "WORKSPACE_SELFTEST",
@@ -2709,6 +3158,8 @@ def parses(path: Path) -> str:
     `concise_blind` above — inherits the same silence. A mutant that does not parse is not
     evidence about an instrument; it is evidence about this harness, and it now says which.
     """
+    if str(path).endswith(".py"):
+        return py_parses(path)
     p = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
     if p.returncode == 0:
         return ""
@@ -2716,8 +3167,154 @@ def parses(path: Path) -> str:
     return (err[0] if err else "node --check failed with no recognisable error line").strip()
 
 
-def blind(text: str, sig: str, empty: str) -> str | None:
+# ══ 🆕 245 §1 — THE PYTHON HALF — `blind-py-gates` (234) ═══════════════════════════
+#
+# 🔴 EIGHTEEN TRACKED `.py` GATES AND NOT ONE OF THEM HAS EVER BEEN BLINDED. 234 opened the
+# row and named the blocker exactly: *"the injector is the work — `blind()` anchors a JS
+# function body and Python needs its own."* Everything above this line is language-agnostic
+# — the control, the verdict marker, the crash/catch split, the two axes, the blast radius,
+# the not-loaded bucket — and every one of those was unavailable to more than half the
+# instruments in this repository because of three functions.
+#
+# 🔴 AND THE ROW'S OWN COUNT WAS ALREADY WRONG WHEN IT WAS WRITTEN. "Seventeen" was true at
+# 234; `p0_comments.py` joined `scripts/` at 243 and nothing in the row could see it. That
+# is the reason `PY_NOT_SWEPT` below is checked against a WALK rather than read: a typed
+# population cannot report what joined it (231 §5.1, and 244's whole finding).
+#
+# The anchor is the same `{SIG:name}` placeholder, and it claims the same two things —
+# EXISTENCE and UNIQUENESS — for the same reason. What differs is only the body:
+# JavaScript's is delimited by a brace this file can count to, and Python's by an INDENT it
+# has to read off the source. So the anchor here is the DECLARATION HEADER (`def name(` down
+# to the line that ends the parameter list), and the injection point is the line after it at
+# the indent the real body already uses. A `def` whose parameters wrap is handled for free,
+# which took `_decl_span` a whole session on the other side of the fence.
+_PY_DECL = "def "
+
+
+def py_decl_lines(text: str, name: str) -> "list[int]":
+    """Every 0-based line index that DECLARES `name`. Existence and uniqueness, unassumed."""
+    pat = re.compile(rf"^[ \t]*(?:async[ \t]+)?def[ \t]+{re.escape(name)}[ \t]*\(")
+    return [i for i, ln in enumerate(text.split("\n")) if pat.match(ln)]
+
+
+def py_resolve_sig(text: str, sig: str) -> tuple[str, str]:
+    """(anchor, problem) — the Python twin of `resolve_sig`, with the same two claims.
+
+    The anchor is the whole declaration header, newlines included, so a wrapped parameter
+    list resolves without a second pattern. A literal anchor is passed through unchanged for
+    `resolve_sig`'s reason: an ambiguous name has no other way to be anchored, and refusing
+    the escape hatch would leave a target unwritable rather than written down.
+    """
+    m = SIG_RE.match(sig)
+    if not m:
+        return (sig, "")
+    name = m.group("name")
+    lines = text.split("\n")
+    hits = py_decl_lines(text, name)
+    if not hits:
+        return ("", f"{{SIG:{name}}} matches NO `def {name}(` — the member this target names "
+                    f"does not exist in the file being swept, so the blind would be skipped "
+                    f"silently and the sweep would report the instrument as covered")
+    if len(hits) > 1:
+        return ("", f"{{SIG:{name}}} matches {len(hits)} declarations of `def {name}(` at "
+                    f"lines {[h + 1 for h in hits]} — a textual blind would rewrite whichever "
+                    f"one came first, and this file refuses to let a loosened anchor decide "
+                    f"which (193 §12.27, one language over)")
+    i = hits[0]
+    j = i
+    while j < len(lines) and not re.search(r":[ \t]*(#.*)?$", lines[j]):
+        j += 1
+        if j - i > 14:
+            return ("", f"{{SIG:{name}}}'s declaration header runs past 14 lines without "
+                        f"reaching the `:` that opens its body — the injector would have "
+                        f"nowhere to put a statement")
+    return ("\n".join(lines[i:j + 1]), "")
+
+
+def py_body_indent(text: str, anchor: str) -> "tuple[int, int] | None":
+    """(line index the header ENDS on, the indent the body already uses).
+
+    🔴 READ OFF THE SOURCE, NEVER COMPUTED AS `header + 4`. A method on a class, a nested
+    helper and a top-level function all differ, and a guessed indent produces a mutant that
+    does not PARSE — which `py_parses` would catch, but as a harness failure rather than as
+    the target it silently stopped testing.
+    """
+    at = text.find(anchor)
+    if at < 0 or text.count(anchor) != 1:
+        return None
+    end = text[:at].count("\n") + anchor.count("\n")
+    lines = text.split("\n")
+    head_indent = len(lines[end - anchor.count("\n")]) - len(
+        lines[end - anchor.count("\n")].lstrip())
+    k = end + 1
+    while k < len(lines) and not lines[k].strip():
+        k += 1
+    if k >= len(lines):
+        return None
+    body = len(lines[k]) - len(lines[k].lstrip())
+    return (end, body if body > head_indent else head_indent + 4)
+
+
+def py_blind(text: str, anchor: str, empty: str) -> "str | None":
+    """`empty` becomes the first statement of the member. The docstring below it is dead
+    code afterwards and that is fine — a blind is about what the member RETURNS."""
+    pos = py_body_indent(text, anchor)
+    if pos is None:
+        return None
+    end, ind = pos
+    lines = text.split("\n")
+    lines.insert(end + 1, " " * ind + empty + "  # INSTRUMENT_GATE")
+    return "\n".join(lines)
+
+
+# 🔴 THE LATE HOOK, AND IT IS NOT A TRANSLATION OF THE JS ONE — IT IS THE SAME OBSERVABLE
+# REBUILT. `LATE_HOOK` leans on `globalThis` and `process.on("exit")`; Python has neither, so
+# the counter lives on the `builtins` module (the one namespace every module in a run shares
+# without importing anything) and the line is written by `atexit`. The MARKER is identical,
+# because `run_counting` is what reads it and that reader is language-agnostic — which is the
+# whole reason this port is three functions and not a second gate.
+PY_LATE_HOOK = (
+    'import builtins as _igb, atexit as _igx  # INSTRUMENT_GATE LATE',
+    'if not getattr(_igb, "_IG_HOOKED", 0):',
+    '    _igb._IG_HOOKED = 1; _igb._IG_CALLS = 0',
+    '    _igx.register(lambda: print("\\n%s %%d" %% getattr(_igb, "_IG_CALLS", 0)))' % LATE_MARK,
+    '_igb._IG_CALLS = getattr(_igb, "_IG_CALLS", 0) + 1',
+    'if _igb._IG_CALLS > 1: {empty}',
+)
+
+
+def py_late(text: str, anchor: str, empty: str) -> "str | None":
+    """`empty` from the SECOND call onwards. Same anchor as `py_blind`, same marker."""
+    pos = py_body_indent(text, anchor)
+    if pos is None:
+        return None
+    end, ind = pos
+    pad = " " * ind
+    hook = [pad + ln.replace("{empty}", empty) for ln in PY_LATE_HOOK]
+    lines = text.split("\n")
+    lines[end + 1:end + 1] = hook
+    return "\n".join(lines)
+
+
+def py_parses(path: Path) -> str:
+    """`parses()` for Python — `compile()` rather than a subprocess, exact and free."""
+    try:
+        compile(path.read_text(), str(path), "exec")
+    except SyntaxError as e:
+        return f"SyntaxError: {e.msg} at line {e.lineno}"
+    return ""
+
+
+def lang_of(src) -> str:
+    """`py` or `js`, from the file being swept. Derived, never typed into a roster row —
+    a language column would be one more thing that can disagree with the tree."""
+    return "py" if str(src).endswith(".py") else "js"
+
+
+def blind(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
     """Inject `empty` as the first statement of the member whose signature is `sig`."""
+    if lang == "py":
+        return py_blind(text, sig, empty)
     brace = body_brace(text, sig)
     if brace is None:
         return concise_blind(text, sig, empty)
@@ -2774,6 +3371,15 @@ BLAST_FLOOR: dict[str, int] = {
     # numbers are not the ones the first sweep printed.
     "p0_complexity.mjs": 28,   # 244: measured 33 across its five blinds, 0 crashed
     "p0_testdup.mjs": 18,      # 244: measured 21 across its six blinds, 0 crashed
+    # 🆕 245 §1 — THE FIRST THREE PYTHON ROWS, and every one of them was ZERO until §2.
+    # `failure_lines` reads three spellings and not one Python gate in this tree used any
+    # of them: measured over the fifteen blinds below before a line was changed, the A:gate
+    # blast was 0, 0 and 0 while the three self-tests were reporting real failed claims.
+    # A floor is not available over an uncountable red — 244 §4.4, arriving at a population
+    # rather than at one command. Floored from BELOW with the usual headroom (198 §36).
+    "p0_comments.py": 9,
+    "queue_gate.py": 60,
+    "mutation_lock_gate.py": 9,
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
@@ -2830,13 +3436,14 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
               "and reports 0 failure line(s)")
 
         still_green: list[str] = []
+        lang = lang_of(src)
         for sig, empty in targets.items():
-            anchor, sig_problem = resolve_target(inst["name"], original, sig)
+            anchor, sig_problem = resolve_target(inst["name"], original, sig, lang)
             if sig_problem:
                 problems.append(f"{inst['name']}: {sig_problem}")
                 print(f"   🔴 UNRESOLVED  {sig}")
                 continue
-            mutant = blind(original, anchor, empty)
+            mutant = blind(original, anchor, empty, lang)
             if mutant is None:
                 problems.append(
                     f"{inst['name']}: SIGNATURE NOT FOUND {sig!r} — this target has been silently skipped, "
@@ -2913,6 +3520,15 @@ def collect_problems(stage: str) -> dict[str, list[str]]:
             "crash":  crash_problems(CRASHED, CRASH_DECLARED, CRASH_CEILING),
             "roster": marker_roster_problems(INSTRUMENTS, VERDICT_MARKER),
         }
+    # 🆕 245 §1 — the two rosters this session added, invoked here for 202 §9.4's reason:
+    # a predicate proved by a fixture is not a predicate proved to be CALLED, and both of
+    # these return EMPTY on a healthy tree, which is the state in which a deleted call site
+    # and a satisfied check are the same observable.
+    if stage == "py":
+        return {
+            "py_discover": py_discovery_problems(py_walk(ROOT), INSTRUMENTS, PY_NOT_SWEPT),
+            "late_locked": late_locked_problems(LATE_LIVE_LOCKED, ROOT),
+        }
     raise AssertionError(
         f"collect_problems: unknown stage {stage!r}. A stage nobody defined returns no "
         f"problems, which is a whole axis switched off by a typo — 172 §10.21's shape "
@@ -2942,6 +3558,8 @@ def _call_wiring_problems() -> list[str]:
         ("late",  "late_roster", "late_marker_roster_problems"),
         ("late",  "late_na_ci",  "late_na_ci_problems"),
         ("final", "roster",      "marker_roster_problems"),
+        ("py",    "py_discover", "py_discovery_problems"),
+        ("py",    "late_locked", "late_locked_problems"),
     ]
     for stage, key, fname in SIMPLE:
         real = g[fname]
@@ -3015,7 +3633,13 @@ def main() -> int:
     # does not. Its first run found `positive_control_gate.mjs`.
     _disc_files = discover_walk(DISCOVER_DIRS)
     _disc_problems, _disc = discovery_problems(
-        _disc_files, INSTRUMENTS, DISCOVER_EXEMPT, DISCOVER_OUTSIDE_WALK,
+        # 🆕 245 §1 — THE JS INSTRUMENTS, not all of them. This walk is `.mjs` only by
+        # design (see `DISCOVER_OUTSIDE_WALK`), so handing it the three Python entries
+        # would report each of them OUTSIDE_WALK and invite three rows of prose excusing a
+        # language. The Python roster is `py_discovery_problems` below and it is checked in
+        # both directions the same way.
+        _disc_files, [i for i in INSTRUMENTS if lang_of(i["src"]) == "js"],
+        DISCOVER_EXEMPT, DISCOVER_OUTSIDE_WALK,
         DISCOVER_FLOOR, DISCOVER_MODULE_FLOOR, gate_scripts(INSTRUMENTS))
     print(f"INSTRUMENT_GATE_DISCOVER {_disc['files']} file(s) walked · "
           f"{_disc['modules']} export-bearing · {_disc['instruments']} instrument(s) · "
@@ -3023,6 +3647,22 @@ def main() -> int:
           f"{_disc['outside']} outside the walk · {_disc['undeclared']} UNDECLARED "
           f"(floors {DISCOVER_FLOOR}/{DISCOVER_MODULE_FLOOR})")
     problems.extend(_disc_problems)
+    _py_stage = collect_problems("py")
+    problems.extend(_py_stage["late_locked"])
+
+    # 🆕 245 §1 — 🔴 AND THE SAME QUESTION ASKED OF THE HALF OF THIS TREE THAT IS PYTHON.
+    # The walk above is `.mjs` only, so for eighteen tracked `scripts/*.py` there was no
+    # roster at all — not an empty one, none — and `blind-py-gates` said "seventeen" for
+    # ten sessions while an eighteenth joined without a line moving. The comparison is an
+    # EQUALITY rather than a floor: every walked file is an instrument or carries a reason,
+    # and every reason names a file the walk found. A walk that returns nothing makes every
+    # row stale and refuses, so this half needs no floor constant of its own.
+    _py_problems = _py_stage["py_discover"]
+    _py = py_discovery_stats(py_walk(ROOT), INSTRUMENTS, PY_NOT_SWEPT)
+    print(f"INSTRUMENT_GATE_PY {_py['files']} tracked scripts/*.py · {_py['swept']} swept · "
+          f"{_py['declared']} declared unswept · {_py['undeclared']} UNDECLARED · "
+          f"{_py['stale']} stale row(s)")
+    problems.extend(_py_problems)
 
     for inst in INSTRUMENTS:
         n_green, n_targets, probs = sweep(inst)
@@ -3059,7 +3699,7 @@ def main() -> int:
         # it out loud in a table with a reason, so that a row going missing by accident
         # is distinguishable from a row that was never applicable.
         if inst["name"] not in LATE_LIVE:
-            why = LATE_LIVE_NA.get(inst["name"])
+            why = LATE_LIVE_NA.get(inst["name"]) or LATE_LIVE_LOCKED.get(inst["name"])
             if why is None:
                 problems.append(
                     f"{inst['name']}: no LATE_LIVE entry and no LATE_LIVE_NA reason — it "
@@ -3109,8 +3749,31 @@ def main() -> int:
     # note that saying so is the point: an uncompared number that does not admit it is one
     # is 196 §33, and an uncompared number that does is a measurement with a reason.
     for (name, axis), n in sorted(LATE_BLAST_OBSERVED.items()):
-        floor = LATE_BLAST_FLOOR.get(name) if axis == "A:gate" else None
+        floor = (LATE_BLAST_FLOOR.get(name) if axis == "A:gate"
+                 else LATE_LIVE_BLAST_FLOOR.get(name))
         if floor is None:
+            # 🆕 245 §3 — `late-live-blast-unfloored` (244). A row reaching this branch on
+            # the live axis must be in `LATE_LIVE_BLAST_UNCOUNTABLE`, and the row is REFUSED
+            # the moment the number beside it is not zero: the exclusion's whole content is
+            # "this command prints no per-claim FAIL line", and a nonzero blast is that
+            # sentence being false in the output the same run produced.
+            if axis == "B:live":
+                why = LATE_LIVE_BLAST_UNCOUNTABLE.get(name)
+                if why is None:
+                    problems.append(
+                        f"{name} [B:live]: {n} failure line(s) and NO floor — every live "
+                        f"axis is floored or carries a written reason it cannot be, and "
+                        f"this one is neither")
+                elif n:
+                    problems.append(
+                        f"{name} [B:live]: declared uncountable — {why} — and this run "
+                        f"counted {n} failure line(s) on that axis. The reason has expired "
+                        f"(174 §5): give it a floor. This is exactly the sentence 244 §4.4 "
+                        f"made false for two commands and nothing re-derived")
+                else:
+                    print(f"INSTRUMENT_GATE_LATE_BLAST {name} [{axis}]: {n} — uncountable "
+                          f"on this axis, declared: {why[:60]}")
+                continue
             print(f"INSTRUMENT_GATE_LATE_BLAST {name} [{axis}]: {n} — NOT floored on this "
                   f"axis, on purpose")
             continue
@@ -3122,6 +3785,22 @@ def main() -> int:
                 f"'the gate went red' cannot tell you that on its own")
     for stale in sorted(set(LATE_BLAST_FLOOR) - {i["name"] for i in INSTRUMENTS}):
         problems.append(f"LATE_BLAST_FLOOR names {stale!r}, which is not an instrument")
+    # 🆕 245 §3 — BOTH DIRECTIONS OVER BOTH NEW TABLES. A name in neither is caught in the
+    # loop above; a name in BOTH is a floor and an excuse for the same axis, and a name in
+    # neither table nor the roster is a row outliving its subject (174 §5).
+    _names = {i["name"] for i in INSTRUMENTS}
+    for stale in sorted((set(LATE_LIVE_BLAST_FLOOR) | set(LATE_LIVE_BLAST_UNCOUNTABLE)) - _names):
+        problems.append(
+            f"the B:live blast tables name {stale!r}, which is not an instrument")
+    for both in sorted(set(LATE_LIVE_BLAST_FLOOR) & set(LATE_LIVE_BLAST_UNCOUNTABLE)):
+        problems.append(
+            f"{both} is FLOORED on the B:live axis and declared UNCOUNTABLE on it. One of "
+            f"the two is wrong and this file cannot decide which")
+    for missing in sorted(_names - set(LATE_LIVE_BLAST_FLOOR) - set(LATE_LIVE_BLAST_UNCOUNTABLE)):
+        problems.append(
+            f"{missing} has no B:live blast row — neither a floor nor a written reason it "
+            f"cannot have one. 244's version of this sentence was a description of five "
+            f"files that outlived them by twelve commands")
     # 🆕 211 §5 — AND THE OTHER HALF, WHICH `BLAST_FLOOR` HAS HAD SINCE 183 AND THIS
     # AXIS NEVER GOT. The loop above catches a roster naming something that is not an
     # instrument. Nothing caught an INSTRUMENT the roster does not name.
