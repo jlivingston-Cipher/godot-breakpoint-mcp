@@ -31,11 +31,26 @@ const claim = (cond, what) => {
   ran++;
   if (!cond) { bad++; console.log(`🔴 FAILED: ${what}`); }
 };
-const A = (src) => analyze("fixture.ts", src);
+// 🔴 242 — THE SECOND PARAMETER EXISTS BECAUSE SEVEN CALL SITES WERE ALREADY PASSING IT
+// AND IT REACHED NOTHING. `A` took one argument and `V` took one argument, and seven
+// claims below wrote `V(src, "b.mjs")` / `V(src, "p.mjs")` — an argument whose entire
+// purpose is to make `analyze` parse the fixture as JS, since `analyze` picks
+// `ScriptKind.TS` vs `ScriptKind.JS` off `/\.ts$/.test(fileName)` and nothing else. The
+// name was discarded at the arrow and every one of those claims was proved under
+// `fixture.ts` while its own prose says it is about the `.mjs` idiom that
+// `verdict_gate.selftest.mjs` and `_population.mjs` really use.
+//
+// 🔴 ALL SEVEN STILL HOLD WITH THE NAME HONOURED — 157/157, checked before and after —
+// so this was never a wrong answer. It is a claim that was not proving what it said it
+// proved, in the self-test of the gate whose entire subject is claims that cannot fail.
+// `tsc --allowJs --checkJs` reported all seven as TS2554 *Expected 0-1 arguments, but got
+// 2*, and has been able to for as long as they have existed: 229 §5.2, one language over,
+// found by `lint_ceiling.py`'s JS half on its first run.
+const A = (src, name = "fixture.ts") => analyze(name, src);
 // 179's idiom, imported by hand: a gate's PRINTED name is part of its contract, so the
 // self-test asserts on the line and not only on the boolean.
 const said = (r, s) => r.lines.some((l) => l.includes(s));
-const V = (src) => verdict(A(src));
+const V = (src, name) => verdict(A(src, name));
 const wrap = (body) => `import assert from "node:assert/strict";\ntest("a case", () => {\n${body}\n});\n`;
 
 // ── 1. THE CLAIM FINDER SEES assert.* AT ALL ─────────────────────────────────────────
@@ -610,12 +625,48 @@ claim(V(EXPR("  assert.ok(`a` !== `b`);")).vacuous.length === 1,
 claim(V(EXPR("  assert.ok(`${x}` !== `b`);")).vacuous.length === 0,
   "…and one WITH a substitution is a reading");
 
+// ── 242: THE FIXTURE NAME, AND THE HALF OF IT THAT IS NOT FALSIFIABLE ────────────────
+// 🔴 THE NAME IS OBSERVABLE ON THE ROW, WHICH IS WHY THIS IS A CLAIM AND NOT AN ARITY
+// CHECK. Every claim `analyze` returns carries the `file` it was parsed under, so "the
+// argument reached the assertion" is a fact about the OUTPUT rather than about the
+// signature — and it is the fact that was false: before 242 both helpers took one
+// parameter and dropped the second, so `V(src, "p.mjs").vacuous[0].file` read
+// `fixture.ts`. Collapse either signature back to `(src)` and both lines below redden
+// here, in the file that owns them, rather than in a checker nobody runs.
+// 185 §19 was titled "the argument that reaches the assertion" and swept this gate's
+// SUBJECT; the same defect was sitting in the file's own two helpers for fifty-seven
+// sessions, and what finally reported it was `tsc --allowJs --checkJs`, off the shelf.
+// 🔴 `?? {}` IS NOT DEFENSIVE STYLE, IT IS WHAT MAKES THESE CLAIMS BLINDABLE — and the
+// instrument gate refused the first draft for the want of it. `instrument_gate.py` blinds
+// `analyze`, `verdict`, `leaves` and `classifyLeaf` in turn and requires this file to go
+// RED *with a verdict*; a bare `[0].file` throws a TypeError on the empty array a blind
+// returns, so all four rows crashed the runner instead of failing it. `CRASH_CEILING 4 >
+// 0` — a crash proves that JavaScript throws on an empty, not that the claim bites.
+claim((A(wrap("  assert.equal(x, 1);"), "k.mjs")[0] ?? {}).file === "k.mjs"
+   && (A(wrap("  assert.equal(x, 1);"))[0] ?? {}).file === "fixture.ts",
+  "🔴 `A` forwards the fixture name and still defaults without one — both directions, because a helper that ignored the argument passed the first half by accident");
+claim((V(wrap("  assert.ok(true);"), "p.mjs").vacuous[0] ?? {}).file === "p.mjs",
+  "🔴 …and `V` forwards it too — the helper the seven call sites below actually use");
+
+// 🔴 AND THE HONEST HALF: `ScriptKind` IS NOT OBSERVABLE THROUGH `analyze` TODAY, SO THE
+// SEVEN `.mjs` NAMES ARE DOCUMENTARY AND THIS SESSION SAYS SO RATHER THAN IMPLYING MORE.
+// `analyze` picks TS or JS off `/\.ts$/` and nothing else, and TypeScript's JS parser
+// still builds an AST for TS-only syntax — `as` casts, type annotations, generic call
+// arguments and `satisfies` were each measured through both kinds and every one agreed on
+// sites and on verdict. This claim pins that agreement: the day `analyze` grows behaviour
+// that depends on the name, it reddens, and the seven claims below stop being decoration
+// and start needing a re-read. That is the only direction in which it CAN fail, which is
+// why it is written as an agreement and not as a difference.
+claim(A(wrap("  assert.equal((x as any).n, 1);"), "k.ts").length
+   === A(wrap("  assert.equal((x as any).n, 1);"), "k.mjs").length,
+  "🔴 the fixture name changes nothing `analyze` returns today — pinned so that the day it does, the seven claims that pass one are re-read rather than trusted");
+
 // ── the floor on this file itself (170 §5) ───────────────────────────────────────────
 // 🔴 IT CAUGHT ITS OWN MISCOUNT ON THE FIRST RUN — 170 §5's experience, verbatim: the
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
 // 🆕 185: WRITTEN AT 125 FROM A COUNT OF THE CASES AND CAUGHT ITSELF AT 124 ON THE FIRST
 // RUN — 170 §5's experience for the fourth time, and the reason the literal stays.
-const EXPECTED = 157;  // 194: 141 -> 157 (the SECOND fallback — the executed `population.open`/`seal` marker the runtime already counts by, the two banner idioms the reader could not see, the ordering that puts the executed marker ahead of the comment, and SECTION_ATTRIBUTED_FLOOR) · 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+const EXPECTED = 160;  // 242: 157 -> 160 (the fixture name that reached nothing — `A` and `V` forwarding it, read off the row's own `file`, and the pinned agreement that says the name is documentary until `analyze` makes it otherwise) · 194: 141 -> 157 (the SECOND fallback — the executed `population.open`/`seal` marker the runtime already counts by, the two banner idioms the reader could not see, the ordering that puts the executed marker ahead of the comment, and SECTION_ATTRIBUTED_FLOOR) · 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);

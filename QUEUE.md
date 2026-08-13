@@ -22,7 +22,7 @@
 > written.
 
 <!-- QUEUE_FORMAT 1 -->
-<!-- QUEUE_HEAD 241 -->
+<!-- QUEUE_HEAD 242 -->
 
 ## The table
 
@@ -49,29 +49,33 @@
 | queue-kill-loophole | DONE | 240 | 240 | — | `QUEUE_NOT_ONLY_NEWEST` counted a KILL as a closure, so the first session under it satisfied the claim by abandoning five items | — |
 | discover-rosters | SCHEDULED | 233 | — | 243 | Ask the DISCOVER question of `SCOPE_LEDGER` (47), `CHECKS_EXPECTED` (23), `PROSE_NUMERAL_PINS` (14) | — |
 | blind-py-gates | SCHEDULED | 234 | — | 244 | Blind the seventeen tracked `.py` gates — none is swept by the instrument that asks whether an instrument collapses loudly | — |
-| lint-roster-py-only | SCHEDULED | 230 | — | 242 | The lint roster covers `*.py` and nothing else; the carried `.mjs` number is wrong by ~16x (~1,014, not 63) | — |
-| cause-rule-py-only | SCHEDULED | 229 | — | 242 | The cause rule covers `scripts/*.py` and nothing else | — |
+| lint-roster-py-only | DONE | 230 | 242 | — | The lint roster covers `*.py` and nothing else; the carried `.mjs` number is wrong by ~16x (~1,014, not 63) | — |
+| cause-rule-py-only | DONE | 229 | 242 | — | The cause rule covers `scripts/*.py` and nothing else | — |
 | git-hooks-unset | SCHEDULED | 228 | — | 243 | `git diff` and `git add` have no hook, and `core.hooksPath` is unset in a fresh clone | — |
 | gate-lock-prevention | SCHEDULED | 225 | — | 243 | `_gate_lock`'s coverage is detection plus recovery, not prevention | — |
 | sdk-v2-migration | SCHEDULED | 226 | — | 244 | The SDK-v2 migration is unblocked and not done | — |
 | zod-3-to-4 | SCHEDULED | 226 | — | 244 | The Zod 3 → 4 migration, with its measured blast radius | — |
-| breakpoint-lite | SCHEDULED | 226 | — | 242 | Decide "Breakpoint Lite, zero install" — a product decision deferred fifteen sessions, and the only scheduled row that points outward | — |
+| breakpoint-lite | SCHEDULED | 226 | — | 243 | Decide "Breakpoint Lite, zero install" — priced in `docs/BREAKPOINT_LITE_PRICED.md` (242), still not decided: the steer was price-do-not-build, and the price says a zero-install variant cannot set a breakpoint | — |
 | alt-mcp-source-pass | SCHEDULED | 223 | — | 245 | A source-level pass on `Wick` and `godot-mcp-bridge` | — |
 | declared-outside-five | SCHEDULED | 214 | — | 245 | The `declared-outside-this-file` five | — |
 | sweep-227-15 | SCHEDULED | 228 | — | 245 | 227 §15's sweep | — |
 | d10-capability-matrix | SCHEDULED | 223 | — | 246 | D10 capability matrix with a drift gate | — |
 | review-charter-p0 | DONE | 205 | 241 | — | P0 of the code review charter | — |
-| npm-token-scope | SCHEDULED | 228 | — | 242 | The npm publish token's scope is broader than the package needs | — |
-| prepack-unwired | SCHEDULED | 215 | — | 242 | `prepack` is unwired | — |
+| npm-token-scope | SCHEDULED | 228 | — | 244 | The npm publish token's scope is broader than the package needs | — |
+| prepack-unwired | SCHEDULED | 215 | — | 243 | `prepack` is unwired | — |
 | check-7-9-overlap | KILLED | 205 | 240 | — | CHECK 7 / CHECK 9 overlap | Thirty-four sessions open with no session ever electing it and no defect ever traced to the overlap. Reopen with an id and a session if one is |
 | concise-blind-late-axis | KILLED | 205 | 240 | — | `concise_blind` late axis | Thirty-four sessions open, superseded in practice by the LATE_LIVE counter the instrument roster now reports on every run |
 | d1b-not-built | KILLED | 206 | 240 | — | D1b was never built | Thirty-three sessions open. It was priced once and never elected; carrying it has cost more reading than building it would have |
 | twenty-defects | KILLED | 219 | 240 | — | The twenty defects were not driven down | Twenty sessions as a bare count with no roster anyone could act on. A number without a list is not a queue item |
 | audit-204-205-backlog | KILLED | 204 | 240 | — | 205 §8.8–§8.11 (D6, D5, D3) and 204 §8.9–§8.24 not re-audited | Thirty-five sessions, carried as a citation of two documents rather than as work. Anything still live in them belongs here as its own row with its own id |
-| replay-vs-ci-unread | OPEN | 241 | — | — | The session replay list and `ci.yml` are two rosters of the same commands and nothing compares them — `spec_conformance.py` is in CI and not in the replay, and it refused a document the full local ritual had passed | — |
+| replay-vs-ci-unread | DONE | 241 | 242 | — | The session replay list and `ci.yml` are two rosters of the same commands and nothing compares them — `spec_conformance.py` is in CI and not in the replay, and it refused a document the full local ritual had passed | — |
 | p0-reporters-unblinded | SCHEDULED | 241 | — | 244 | The two P0 reporters are in `DISCOVER_EXEMPT` rather than `INSTRUMENTS` — a printing reporter has no live command that can redden, so the late axis has nothing to blind | — |
 | review-charter-p1-p6 | SCHEDULED | 241 | — | 243 | P1–P6 of the charter, scope now measured: P1 is three symbols, P4 is one decision, P6 is 918 branches | — |
-| open-npm-lag-unread | OPEN | 241 | — | — | `handoff_gate.py --open` re-reads 5 of its 6 header atoms — `npm.lag` returns UNREAD, and lag is a fact about the world | — |
+| open-npm-lag-unread | DONE | 241 | 242 | — | `handoff_gate.py --open` re-reads 5 of its 6 header atoms — `npm.lag` returns UNREAD, and lag is a fact about the world | — |
+| p0-node-engine-floor | DONE | 242 | 242 | — | Both 241 reporters import `globSync`, exposed in Node 22, against a declared `engines.node >=18` and a CI matrix of 18/20/22 — an ESM link error, not a runtime one | — |
+| replay-ci-flag-granularity | OPEN | 242 | — | — | The replay/CI comparison is at SCRIPT granularity; CI runs seven flag variants the replay does not (`--patterns`, `--assert-addon`, `--assert-map`, three `--selftest`, `--refresh`) and nothing compares those | — |
+| p0-reporters-unrostered | OPEN | 242 | — | — | `p0_complexity.mjs`, `p0_testdup.mjs`, their two self-tests and `p0_comments.py` are in NEITHER the replay list nor any workflow — the population that hid the Node-engine defect for a whole session | — |
+| ts-strict-mjs-undeclared | OPEN | 242 | — | — | The JS lint roster runs non-strict by choice; `--strict` reports 2,568 findings in 26 classes over the same files, and whether the instruments should be judged at the strictness the product already gets is undecided | — |
 | backlog-md-stale | DONE | 161 | 240 | — | `BACKLOG.md` carries a 1.39.0 baseline against a 1.74.0 tree and still says "read this before anything else" | — |
 
 ## What the gate refuses

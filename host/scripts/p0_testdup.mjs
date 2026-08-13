@@ -15,9 +15,13 @@
 // This file PRINTS. Its claims are in p0_testdup.selftest.mjs beside it, which is where
 // the `async` defect below is pinned so it cannot come back.
 import ts from "typescript";
-import { readFileSync, globSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+// 🔴 242 — SHARED WITH `p0_complexity.mjs` RATHER THAN COPIED. Both reporters shipped the
+// same `globSync` import in 241 and both failed to LINK on Node 18 and 20 (see the note
+// on `walkTs`); importing the one walk means the engine floor is asserted in one place.
+import { walkTs } from "./p0_complexity.mjs";
 
 // resolve against host/, not the caller's cwd — a reporter whose population depends on
 // where it was invoked from is a reporter whose count nobody can reproduce.
@@ -107,7 +111,7 @@ export function cluster(tests) {
 }
 
 function main() {
-  const files = globSync("test/**/*.ts", { cwd: HOST });
+  const files = walkTs(resolve(HOST, "test"), HOST);
   const tests = files.flatMap((f) => extractTests(readFileSync(resolve(HOST, f), "utf8"), f));
   const byKey = cluster(tests);
   const clusters = [...byKey.entries()].filter(([, v]) => v.length > 1).sort((a, b) => b[1].length - a[1].length);

@@ -123,12 +123,15 @@ jobs:
       # 🔴 AND A MISSING LINTER IS RED, NOT A SKIP — `registry_lag.py`'s reason, three
       # steps up: a reader that goes quiet when it cannot see is how a standing decision
       # gets written down in place of a command nobody re-ran. ~1s. A step, not a 27th job.
-      - name: Install the one off-the-shelf tool this repository runs
-        run: pip install pyflakes
-      - name: The lint roster can still refuse (lint ceiling selftest)
-        run: python3 scripts/lint_ceiling.py --selftest
-      - name: No new class of linter finding, and no declared class grew (lint ceiling)
-        run: python3 scripts/lint_ceiling.py
+      # 🆕 242 — THE LINT ROSTER MOVED TO THE `test` JOB, AND THE MOVE IS THE ROW.
+      # `lint-roster-py-only` (230) said the roster covered `scripts/*.py` and nothing
+      # else while 64 tracked `.mjs` — every gate instrument, every probe, every demo
+      # script — sat outside every `tsconfig` include and were read by no standard tool
+      # at all. The gate now runs `tsc --allowJs --checkJs` over them as well, so it
+      # needs BOTH off-the-shelf tools, and this job installs neither Node nor
+      # `node_modules`. It runs where both already exist rather than growing a second
+      # copy of the toolchain here. 🔴 The move is a step changing jobs and not a job
+      # changing count: `ci_check_runs()` still derives twenty-six.
       # 🆕 240 — THE QUEUE, WHICH WAS THE ONE TABLE IN THIS TREE NOTHING READ.
       # `handoff_gate.py` binds every counter a status block prints to the instrument
       # that printed it and refuses over one disagreement. It parses the block, the
@@ -269,6 +272,23 @@ jobs:
       # is true of the empty set. If the instrument silently stopped counting, all
       # fourteen would go back to reporting coverage they no longer have, in green.
       # No Godot, no ports, no deps: it runs here rather than earning a 27th job.
+      # 🆕 242 — THE TWO P0 REPORTERS' SELF-TESTS, AND THEY ARE HERE BECAUSE THEIR
+      # ABSENCE COST A SESSION. `p0_complexity.mjs` and `p0_testdup.mjs` shipped tracked
+      # in 241 importing `globSync` from `node:fs`, which was exposed in Node 22 — so on
+      # the 18 and 20 legs of this very matrix the modules failed to LINK and never ran.
+      # They were in no workflow and in no replay list, so 26 CI jobs and eleven bespoke
+      # instruments had nothing to say. The matrix is the reader that catches the class.
+      - name: The P0 reporters still measure what they claim (complexity)
+        run: node scripts/p0_complexity.selftest.mjs
+      - name: The P0 reporters still measure what they claim (test duplication)
+        run: node scripts/p0_testdup.selftest.mjs
+      - name: Install the one off-the-shelf Python tool this repository runs
+        run: pip install pyflakes
+      - name: The lint roster can still refuse (lint ceiling selftest)
+        run: python3 ../scripts/lint_ceiling.py --selftest
+      - name: No new class of linter finding in either language, and no declared class
+          grew (lint ceiling)
+        run: python3 ../scripts/lint_ceiling.py
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
       # 🔴 AND THE LEDGER COMPARISON, WHICH UNTIL 173 HAD NO GATE ANYWHERE. The four
