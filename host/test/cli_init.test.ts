@@ -167,6 +167,47 @@ test("runInit installs, enables, and prints the snippet (default client)", async
   }
 });
 
+// 🔴 THE REOPEN TRAP, AND ITS NEGATIVE CONTROL. `init` writes [editor_plugins] into
+// project.godot; Godot reads that section at project load and never reloads it, so an
+// editor that was already open when init ran keeps the plugin disabled and nothing on
+// screen says why. The warning is worth nothing without the second claim: a run that
+// changed no plugin state must NOT print it, or it degrades into text every user learns
+// to skip — and the first assertion alone would still pass on a version that printed it
+// unconditionally, which is the version that teaches people to stop reading.
+test("runInit warns to reopen an already-open editor when it enabled the plugin", async () => {
+  const proj = makeProject();
+  const savedSrc = process.env.BREAKPOINT_ADDON_SRC;
+  try {
+    process.env.BREAKPOINT_ADDON_SRC = addonSrc;
+    const { code, out } = await capture(() => runInit(["--project", proj, "--client", "none"]));
+    assert.equal(code, 0);
+    assert.match(out, /ALREADY OPEN, close and reopen it/);
+    assert.match(out, /does not reload/);
+  } finally {
+    if (savedSrc === undefined) delete process.env.BREAKPOINT_ADDON_SRC;
+    else process.env.BREAKPOINT_ADDON_SRC = savedSrc;
+  }
+});
+
+test("runInit does NOT warn to reopen when the plugin was already enabled", async () => {
+  const proj = makeProject(
+    'config_version=5\n\n[application]\n\nconfig/name="fix"\n\n[editor_plugins]\n\n' +
+      `enabled=PackedStringArray("${ENABLED_RES}")\n`,
+  );
+  const savedSrc = process.env.BREAKPOINT_ADDON_SRC;
+  try {
+    process.env.BREAKPOINT_ADDON_SRC = addonSrc;
+    const { code, out } = await capture(() => runInit(["--project", proj, "--client", "none"]));
+    assert.equal(code, 0);
+    assert.match(out, /plugin: already enabled/);
+    assert.equal(/ALREADY OPEN/.test(out), false, "no reopen warning when nothing changed");
+    assert.match(out, /Next: open the project in Godot, then run/);
+  } finally {
+    if (savedSrc === undefined) delete process.env.BREAKPOINT_ADDON_SRC;
+    else process.env.BREAKPOINT_ADDON_SRC = savedSrc;
+  }
+});
+
 test("runInit --client vscode writes a project-scoped .vscode/mcp.json", async () => {
   const proj = makeProject();
   const savedSrc = process.env.BREAKPOINT_ADDON_SRC;

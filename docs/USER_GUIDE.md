@@ -124,6 +124,12 @@ Then open the project in Godot and check everything is wired up:
 npx breakpoint-mcp doctor
 ```
 
+> **If the project was already open in Godot when you ran `init`, reopen it.** `init`
+> enables the plugin by writing `[editor_plugins]` into `project.godot`, and Godot reads
+> that file at project load — it does not hot-reload it. An editor that was already
+> running keeps the plugin disabled, the editor bridge never starts, and `doctor
+> --require-live` reports it as down. Closing the project and opening it again is the fix.
+
 `init` copies the addon into `addons/breakpoint_mcp/`, enables it in `project.godot`, and
 prints the client config snippet — pass `--client claude-desktop|cursor|windsurf|vscode` to
 write it directly, or `--client claude-code` for the CLI command; `--dry-run` previews and

@@ -581,6 +581,11 @@ PROVENANCE: "dict[str, str]" = {
     "ci.green": TREE,       # derived from .github/workflows, like `ci.checks`
     "git.moved": TREE,      # `rev-list prev..this` — the PREVIOUS block's main, and this
                             # one's. Two SHAs off one row was 239 §2's tautology.
+    "git.unmoved": TREE,    # 🆕 243 §3 — the SAME interval and the same two endpoints,
+                            # claiming zero. A separate key because the block prints a
+                            # separate word, and one row cannot bind two aliases.
+    "version.unmoved": TREE,  # 🆕 243 §3 — package.json and plugin.cfg against the
+                            # previous block's pair. Two files on disk, no network.
     "gh.issues": REMOTE,    # GitHub's tracker — no local question has this answer
     "gh.prs": REMOTE,
 }
@@ -733,10 +738,35 @@ def header_atoms(block: "list[str]") -> "tuple[list[tuple[str, str]], set[str]]"
     rows, _notes = header_rows(block)
     atoms: "list[tuple[str, str]]" = []
     fired: "set[str]" = set()
+    # 🆕 243 §3 — A CLAIM WHOSE NUMBER IS A WORD IS STILL A CLAIM. Every alias in
+    # `HEADER_READERS` declaring zero digits is a counter spelled out — `UNMOVED` is
+    # `MOVED +0` — and the numeral test below skipped every one of them silently. Derived
+    # from the roster rather than listed here, because a second copy of the word is how
+    # the two would drift.
+    #
+    # 🔴 AND THE CLEANED TEXT FOR A WORD CLAIM IS THE WHOLE ROW, WHICH THE FIRST RUN OF
+    # THIS BRANCH MADE NECESSARY WITHIN THE MINUTE. The block prints `unmoved` TWICE and
+    # it means two different things: on the `main` row it says no commit landed, and on
+    # the `host / addon` row it says two version strings did not change. A numeral atom
+    # carries its own subject — `lag 0`, `tags 121` — and a word does not, so the row is
+    # the only thing that can tell the two apart. Binding both to one reader would have
+    # compared an addon version against a commit interval and called it agreement.
+    word_claims = [r[1] for r in HEADER_READERS if r[2] == 0]
     for line in rows:
-        for raw in re.split(r"·|\s{3,}", line):
-            atom = raw.strip(" *`,")
-            if not atom or not COUNTER_RE.search(atom):
+        pieces = [p.strip(" *`,") for p in re.split(r"·|\s{3,}", line)]
+        # the row's LABEL is its first field — `main`, `host / addon`, `npm`. It is what
+        # a word claim is anchored to, and prepending it per-atom rather than matching
+        # the whole line is what keeps the label itself from binding: `host / addon` in
+        # the context `host / addon host / addon` carries no claim word and matches
+        # nothing, while `🟢 unmoved` in `host / addon 🟢 unmoved` matches exactly one row.
+        label = pieces[0] if pieces else ""
+        for atom in pieces:
+            if not atom:
+                continue
+            if not COUNTER_RE.search(atom):
+                context = " ".join(f"{label} {atom}".split())
+                if any(re.search(p, context, re.I) for p in word_claims):
+                    atoms.append((atom, context))
                 continue
             kept = atom
             for pat, _why in HEADER_EXEMPT:
@@ -937,6 +967,79 @@ def moved_interval(block: "list[str]", session: "int | None" = None,
     return (int(p.stdout.strip() or 0), "")
 
 
+# 🆕 243 §3 — THE OTHER `unmoved`, AND IT IS THE HALF NOBODY WOULD HAVE LOOKED FOR.
+# `header-unmoved-unread` (OPEN 239) was written about the main row. The block prints the
+# word on the `host / addon` row too, and there it claims something else entirely: that
+# neither published version string has changed since the previous block. That claim is
+# read from two files on disk against two numbers in the previous block — no network, no
+# subprocess, and nothing has ever read it either.
+VERSION_ROW_RE = re.compile(r"^host\s*/\s*addon\s+(\d+\.\d+\.\d+)\s*/\s*(\d+\.\d+\.\d+)")
+ADDON_CFG_VERSION_RE = re.compile(r'^\s*version\s*=\s*"([^"]+)"', re.M)
+
+
+def tree_versions(root: Path = ROOT) -> "tuple[tuple[str, str], str]":
+    """((host version, addon version) as the TREE holds them, problem) — offline.
+
+    The same two sources `contract_check.py` derives its parity from, for its reason: a
+    version typed into this file is a number nobody re-derives, which is the artefact
+    every reader in this tree exists to replace.
+    """
+    try:
+        host = json.loads((root / "host" / "package.json").read_text())["version"]
+    except (OSError, ValueError, KeyError) as e:
+        return (("", ""), f"host/package.json is unreadable: {e}")
+    try:
+        cfg = (root / "addons" / "breakpoint_mcp" / "plugin.cfg").read_text()
+    except OSError as e:
+        return (("", ""), f"addons/breakpoint_mcp/plugin.cfg is unreadable: {e}")
+    m = ADDON_CFG_VERSION_RE.search(cfg)
+    if not m:
+        return (("", ""), "addons/breakpoint_mcp/plugin.cfg carries no `version=` line")
+    return ((str(host), m.group(1)), "")
+
+
+def block_versions(block: "list[str]") -> "tuple[tuple[str, str], str]":
+    """((host, addon) as a block's own `host / addon` row writes them, problem)."""
+    for line in block:
+        m = VERSION_ROW_RE.match(" ".join(line.lstrip("> ").split()))
+        if m:
+            return ((m.group(1), m.group(2)), "")
+    return (("", ""), "no `host / addon` row in this block")
+
+
+def version_interval(session: "int | None", root: Path = ROOT,
+                     population: "list | None" = None) -> "tuple[int, str]":
+    """(how many of the two versions moved since the previous block, problem) — TREE.
+
+    🔴 THE ANSWER IS A COUNT AND NOT A BOOLEAN, so `unmoved` asserts zero exactly the way
+    `MOVED +n` asserts n — one convention for both words, and the comparison in
+    `check_header` does not have to know which row it is reading. It also means a block
+    that moved ONE of the two and wrote `unmoved` is refused with a number that says
+    which kind of drift it was.
+    """
+    if session is None:
+        return (-1, "this block is not dated, so the population cannot say which block "
+                    "precedes it — and `unmoved` is a claim about the one that does")
+    # 🔴 `population` IS A PARAMETER FOR `replay_ci_problems`'s WRITTEN REASON, and this
+    # reader needed it more than that one did: every block the live table holds carries
+    # the SAME host/addon pair as the tree — the wire has not moved since 1.74.0 — so
+    # there is no real block out of which a FALSE `unmoved` can be built, and a control
+    # that cannot be fed a wrong answer proves only that the right one is returned.
+    pop = BLOCK_POPULATION if population is None else population
+    earlier = [(s, t) for s, t in pop if s < session]
+    if not earlier:
+        return (-1, f"no block before {session} is in `BLOCK_POPULATION` — the versions "
+                    f"this row claims not to have moved FROM are the previous block's")
+    prev_sess, text = earlier[-1]
+    was, why = block_versions(status_block(text)[0])
+    if why:
+        return (-1, f"{prev_sess}'s block is in the population and {why}")
+    now, why = tree_versions(root)
+    if why:
+        return (-1, why)
+    return (sum(1 for a, b in zip(was, now) if a != b), "")
+
+
 def parent_of(sha: str, root: Path = ROOT) -> "tuple[str, str]":
     """(the short SHA of `sha`'s first parent, problem) — TREE, offline.
 
@@ -1008,6 +1111,27 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
      "main row, read out of `BLOCK_POPULATION`; 236 read it off this block's own "
      "continuation line, which is the main SHA's parent in all twelve real blocks and "
      "made the answer 1 by construction. Still TREE, still offline."),
+    # 🆕 243 §3 — `header-unmoved-unread` (OPEN 239), and the row is one word long.
+    # `UNMOVED` is the SAME counter as `MOVED +n` with the number spelled as a word, and
+    # `header_atoms` requires a numeral, so it was never an atom, never bound, never
+    # compared — through every block that printed it. 🔴 THE ASYMMETRY IS THE FINDING:
+    # `MOVED +1` is a claim this gate refuses when the tree disagrees, and `UNMOVED` was
+    # a sentence. A session whose main branch moved could write `unmoved` on the row and
+    # nothing here would have had an opinion. `n = 0` is what says "the WORD is the
+    # digit": the claim carries no numeral and asserts zero, which the comparison below
+    # supplies rather than parses.
+    ("git.unmoved", r"^(?:main|branch)\b.*\bUNMOVED\b", 0, "",
+     "🆕 243 §3 — `UNMOVED` on the main row asserts that main has NOT moved since the "
+     "previous block's main row: the same interval `git.moved` measures, claiming zero. "
+     "Same reader, same endpoints, same TREE provenance — the only difference is that "
+     "the number is written as a word, which is exactly why nothing read it for four "
+     "sessions. 🔴 ANCHORED TO THE ROW because the block prints the word twice."),
+    ("version.unmoved", r"^host\s*/\s*addon\b.*\bunmoved\b", 0, "",
+     "🆕 243 §3 — `unmoved` on the `host / addon` row is a DIFFERENT claim in the same "
+     "word: that neither published version string changed since the previous block. "
+     "Read from `host/package.json` and `addons/breakpoint_mcp/plugin.cfg` against the "
+     "previous block's own two numbers, and it asserts zero of the two moved. TREE, "
+     "offline, and the second half of `header-unmoved-unread`."),
     ("gh.issues", r"\bopen issues\b", 1, r"^GH_OPEN_ISSUES (\d+)$",
      "🆕 `0 open issues` — NETWORK, `gh issue list --state open`. A counter whose "
      "correct value is almost always zero is the one an absent tool imitates perfectly, "
@@ -1127,16 +1251,28 @@ def check_header(block: "list[str]", log: str, run_network: bool,
     for raw, cleaned, row in claims:
         key, _alias, n, extract, why = row
         claimed = tuple(int(x) for x in COUNTER_RE.findall(cleaned))
+        # 🆕 243 §3 — the word IS the digit. A zero-digit row asserts zero and parses
+        # nothing, so `need` is what the length check compares against; writing `n = 1`
+        # and a fake numeral would have made the roster lie about the block's own text.
+        need = n
+        if n == 0:
+            claimed, need = (0,), 1
         got: "tuple[int, ...] | None" = None
         if key == "ci.green":
             total, _skipped = ci_check_runs()
             got = (total, total)
-        elif key == "git.moved":
+        elif key in ("git.moved", "git.unmoved"):
             n_moved, prob = moved_interval(block, session)
             if prob:
-                notes.append(f"git.moved: UNREAD — {prob}")
+                notes.append(f"{key}: UNREAD — {prob}")
                 continue
             got = (n_moved,)
+        elif key == "version.unmoved":
+            n_ver, prob = version_interval(session)
+            if prob:
+                notes.append(f"version.unmoved: UNREAD — {prob}")
+                continue
+            got = (n_ver,)
         elif key in ("gh.issues", "gh.prs"):
             # NETWORK, and the log is read FIRST so a session that already ran `gh` does
             # not have to dial again — the same shape `npm.tags` uses for ORIGIN_TAGS.
@@ -1204,7 +1340,7 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             notes.append(f"{key}: UNREAD — {unread}")
             continue
         compared += 1
-        if len(claimed) != n or claimed != got:
+        if len(claimed) != need or claimed != got:
             problems.append(
                 f"🔴 {key} — the block says {list(claimed)}, the tree says {list(got)}\n"
                 f"     atom: {raw!r}\n     {why}")
@@ -1432,6 +1568,217 @@ def replay_ci_problems(text: str, ci: "dict[str, set]", floor: "int | None" = No
     notes.append(f"replay/ci: {len(rep)} script(s) in the replay · {len(ci)} across the "
                  f"workflows · {len(REPLAY_CI_EXEMPT)} declared CI-only · "
                  f"{len(INTEGRATION_WORKFLOW_EXEMPT)} workflow(s) exempt whole")
+    return problems, notes
+
+
+# ── 🆕 243 — THE THIRD DIRECTION: A TRACKED SCRIPT NEITHER ROSTER REACHES ─────────────
+#
+# 🔴 THE ROW IS `p0-reporters-unrostered` (OPEN 242) AND ITS SUBJECT IS NOT FIVE FILES.
+# 241 shipped `p0_complexity.mjs` and `p0_testdup.mjs` tracked, both importing `globSync`
+# from `node:fs` — exposed in Node 22, against a published `engines.node ">=18"` and a CI
+# matrix of 18 · 20 · 22. An ESM named import of an export that does not exist fails at
+# LINK time, so on two thirds of this project's own matrix the modules never loaded at
+# all. Twenty-six CI jobs and eleven bespoke instruments had nothing to say, and the
+# reason is one sentence: **every gate here reads a roster, and those files were in no
+# roster.** 242 closed the two files by hand. This closes the CLASS.
+#
+# 🔴 THE COMPARISON ABOVE HAS TWO DIRECTIONS AND BOTH OF THEM PRESUPPOSE MEMBERSHIP.
+# `REPLAY_MISSING` asks what CI runs that the replay does not; `CI_MISSING` asks the
+# reverse. Neither can see a file that is in NEITHER list, and that intersection is
+# exactly where the defect lived. This is the third question — *what does the union of
+# both rosters never reach at all* — and it is the only one of the three whose answer was
+# non-empty on the tree that shipped the defect.
+#
+# 🔴 REACHED MEANS INVOKED **OR LOADED**, AND THE DISTINCTION IS THE WHOLE ACCURACY OF
+# THIS READER. `p0_complexity.mjs` is named by no `run:` line and no replay row, and it
+# is nonetheless exercised on every push, because `p0_complexity.selftest.mjs` imports it
+# and that self-test is in `ci.yml` — which is precisely the fix 242 made, and precisely
+# the class of link error a load catches. A reader that counted only invocations would
+# report both P0 reporters as unread today and be wrong about both. So the roster is
+# closed over imports before anything is reported.
+#
+# 🔴 AND WHAT IT DOES NOT CLAIM, SAID HERE RATHER THAN LEFT TO BE DISCOVERED: a LOAD is
+# not a RUN. `p0_complexity.mjs`'s `main()` is executed by nothing, so a defect that
+# lives past the import boundary is outside this reader's reach the same way flag
+# variants are outside `replay_ci_problems`'. Queue row `unreached-main-granularity`,
+# OPEN 243 — the same shape, and the same honesty, as `replay-ci-flag-granularity`.
+SCRIPT_SUFFIXES = (".py", ".mjs", ".sh")
+SCRIPT_POPULATION_FLOOR = 80   # governed by floor_pin_gate's SIZE_LEDGER
+
+# Tracked scripts the union of both rosters does not reach, each with the reason. 🔴 THE
+# TWELVE `host/*.mjs` ROWS ARE ONE ARGUMENT WRITTEN TWELVE TIMES ON PURPOSE, and that is
+# the opposite of `INTEGRATION_WORKFLOW_EXEMPT`'s choice one screen up. There the reason
+# is a property of the WORKFLOW — every job in it boots Godot under Xvfb — so the
+# workflow is exempt once. Here the reason is a property of each FILE, and the evidence
+# differs file by file: this one spawns `GODOT_BIN`, that one dials 9080, a third dials
+# 9081. A predicate over `host/*.mjs` would have swallowed the next reporter somebody
+# drops in that directory without a word, which is the failure this row exists to end.
+UNREACHED_EXEMPT: "dict[str, str]" = {
+    "cs_demo_debugger_live.mjs":
+        "dials the editor's debug adapter on a live loopback port; no headless ritual "
+        "has one to dial.",
+    "cs_demo_verify_live.mjs":
+        "spawns `GODOT_BIN` and drives the C# runtime bridge in the running game.",
+    "cs_demo_verify_live_gif.mjs":
+        "the same live C# run, paced for an asciinema recording.",
+    "cs_demo_verify_replay.mjs":
+        "🔴 THE ONE EXEMPTION HERE THAT IS NOT ABOUT GODOT, AND IT IS WEAKER THAN THE "
+        "OTHERS ON PURPOSE. It renders two captured JSON transcripts as a terminal "
+        "narrative for a GIF, with deliberate `sleep`s for pacing — so it needs no "
+        "editor and no binary, and running it in a ritual would spend the recording's "
+        "whole runtime to prove a module loads. It is exempt for cost, not for "
+        "impossibility, and it is the row to revisit first if this table is ever wrong.",
+    "dap_scenario.mjs":
+        "spawns `GODOT_BIN` and steps a live debug session.",
+    "demo_debugger_live.mjs":
+        "dials the debug adapter on 6006, which exists only while the editor is open.",
+    "demo_verify_live.mjs":
+        "spawns `GODOT_BIN` and drives the runtime bridge in the running game.",
+    "drive.mjs":
+        "an interactive driver against the live editor bridge.",
+    "runtime_scenario.mjs":
+        "dials the in-game runtime bridge on 9081, which exists only while the game runs.",
+    "sweep_editor.mjs":
+        "sweeps the editor bridge on 9080 against a live editor.",
+    "verify_family_s102_live.mjs":
+        "the session-102 verification family against the live runtime bridge on 9081.",
+    "verify_shot_editor_live.mjs":
+        "captures editor screenshots over the live bridge on 9080.",
+    "stage-addon.mjs":
+        "🔴 NOT UNREACHED — UNREADABLE. `ci.yml` runs it as `npm run stage-addon`, and a "
+        "package script puts no basename on any `run:` line, so `ci_scripts()` cannot "
+        "report it and the closure above cannot reach it. The same blind spot is written "
+        "out at length above `REPLAY_CI_EXEMPT`, where it deleted one of that table's "
+        "own rows on the first run. An exemption is the honest place for it: the file is "
+        "exercised, by a channel this reader does not read.",
+    "_caller_shape.harness.mjs":
+        "🔴 ALSO REACHED BY A CHANNEL THIS READER CANNOT SEE, and a third one: "
+        "`instrument_gate.py`'s `LATE_LIVE` table drives it as `node "
+        "test-integration/_caller_shape.harness.mjs` from inside a gate that IS in both "
+        "rosters. A driver table is an invocation the same way a `run:` line is; it is "
+        "just not written where either reader looks.",
+    "validate.sh":
+        "a user-facing smoke helper documented in `docs/RUNBOOK.md`, requiring a Godot "
+        "binary and a real project. `contract_check.py`'s check 15 governs its presence "
+        "and its shebang; nothing in the merge ritual should be running a setup script "
+        "against the developer's own machine.",
+}
+
+# 🔴 ANCHORED ON THE SPECIFIER AND NOTHING ELSE. `tautology_gate.mjs` carries the name of
+# almost every file in this tree because it SWEEPS them as text, and a reader that
+# counted a mention would report the whole population reached and refuse nothing ever
+# again. A static ESM import is `from "<relative path>"`, a dynamic one is
+# `import("<relative path>")`, and neither has any other spelling.
+ESM_IMPORT_RE = re.compile(r"""\bfrom\s*["'](\.[^"']+)["']|\bimport\s*\(\s*["'](\.[^"']+)["']""")
+PY_IMPORT_RE = re.compile(r"""^[ \t]*(?:import[ \t]+([A-Za-z_]\w*)|from[ \t]+([A-Za-z_]\w*)[ \t]+import)""",
+                          re.M)
+
+
+def tracked_scripts(root: Path = ROOT) -> "list[str]":
+    """Every tracked `.py` / `.mjs` / `.sh`, repo-relative. `git ls-files` for
+    `lint_ceiling.py`'s reason: an untracked scratch driver is not part of anything this
+    project ships, and a filesystem walk cannot tell the two apart."""
+    try:
+        p = subprocess.run(("git", "ls-files"), cwd=root, capture_output=True, text=True)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if p.returncode != 0:
+        return []
+    return [ln for ln in p.stdout.split() if ln.endswith(SCRIPT_SUFFIXES)]
+
+
+def import_edges(paths: "list[str]", root: Path = ROOT) -> "dict[str, set]":
+    """{basename: {basenames it imports}} over the given tracked scripts.
+
+    Keyed by BASENAME because both rosters are: `ci_scripts()` and `replay_scripts()`
+    read command lines, where the same file is spelled `scripts/x.mjs` here and
+    `../scripts/x.mjs` there. A duplicate basename would merge two files' edges, which
+    would only ever over-report reachability — and `contract_check.py` already refuses a
+    duplicate script name for its own reasons.
+    """
+    known = {Path(p).name for p in paths}
+    edges: "dict[str, set]" = {}
+    for rel in paths:
+        try:
+            text = (root / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        got: "set" = set()
+        for m in ESM_IMPORT_RE.finditer(text):
+            got.add(Path(m.group(1) or m.group(2)).name)
+        for m in PY_IMPORT_RE.finditer(text):
+            name = (m.group(1) or m.group(2)) + ".py"
+            if name in known:
+                got.add(name)
+        edges[Path(rel).name] = got & known
+    return edges
+
+
+def reached_scripts(roster: "set", edges: "dict[str, set]") -> "set":
+    """The roster closed over imports — invoked, or loaded by something invoked."""
+    seen: "set" = set()
+    stack = [b for b in roster if b in edges]
+    while stack:
+        b = stack.pop()
+        if b in seen:
+            continue
+        seen.add(b)
+        stack.extend(n for n in edges.get(b, ()) if n not in seen)
+    return seen
+
+
+def unreached_problems(text: str, ci: "dict[str, set]", paths: "list[str] | None" = None,
+                       edges: "dict[str, set] | None" = None, floor: "int | None" = None,
+                       exempt: "dict[str, str] | None" = None
+                       ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — tracked scripts the union of both rosters never reaches."""
+    floor = SCRIPT_POPULATION_FLOOR if floor is None else floor
+    exempt = UNREACHED_EXEMPT if exempt is None else exempt
+    paths = tracked_scripts() if paths is None else paths
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    # 🔴 THE FLOOR IS OVER THE POPULATION, NOT OVER THE FINDINGS. A `git ls-files` that
+    # returns nothing — no git, a different cwd, a subprocess that failed quietly —
+    # yields an empty population, an empty unreached list, and a green run that has read
+    # zero files. That is the same failure `REPLAY_CI_FLOOR` guards one function up, and
+    # it is the failure this whole row is about: a reader reporting on a scope it never
+    # opened.
+    if len(paths) < floor:
+        problems.append(
+            f"🔴 SCRIPT_POPULATION_FLOOR this reader found {len(paths)} tracked script(s), "
+            f"floor {floor} — a population that small means `git ls-files` did not answer, "
+            f"and an empty population is reached by every roster ever written.")
+        return problems, notes
+    edges = import_edges(paths) if edges is None else edges
+    roster = set(ci) | replay_scripts(text)
+    seen = reached_scripts(roster, edges)
+    for rel in sorted(paths):
+        base = Path(rel).name
+        if base in seen or base in exempt:
+            continue
+        problems.append(
+            f"🔴 UNREACHED `{rel}` is invoked by no workflow and no replay row, and "
+            f"imported by nothing either roster reaches. Both P0 reporters were in this "
+            f"state when they shipped unable to LINK on two thirds of this project's own "
+            f"CI matrix, and 26 jobs stayed green. Put it in the replay list or a "
+            f"workflow, give it a `--selftest` something already runs, or declare it in "
+            f"UNREACHED_EXEMPT with the reason nothing should run it.")
+    # 🔴 STALE HAS TWO SHAPES AND ONLY ONE OF THEM IS OBVIOUS. An exemption whose file the
+    # closure now REACHES is an argument that has stopped being true. An exemption naming
+    # a file that is no longer tracked at all is worse: it is silent, it can never fire,
+    # and it is the exact shape `REPLAY_CI_EXEMPT_STALE` caught on its own author in 242.
+    present = {Path(p).name for p in paths}
+    for b in sorted(b for b in exempt if b in seen):
+        problems.append(
+            f"🔴 UNREACHED_EXEMPT_STALE `{b}` is declared unreachable and the closure "
+            f"reaches it — an exemption that outlived the thing it exempts (174 §5).")
+    for b in sorted(b for b in exempt if b not in present):
+        problems.append(
+            f"🔴 UNREACHED_EXEMPT_STALE `{b}` is declared unreachable and is not a "
+            f"tracked script at all — an exemption over nothing, which reads as coverage "
+            f"and is not.")
+    notes.append(f"unreached: {len(paths)} tracked script(s) · {len(seen)} reached by the "
+                 f"two rosters and their imports · {len(exempt)} declared unreachable")
     return problems, notes
 
 
@@ -1839,9 +2186,14 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     r_problems, r_notes = replay_problems(text)
     problems.extend(r_problems)
     # 🆕 242 — the replay list against the workflow files, both directions.
-    rc_problems, rc_notes = replay_ci_problems(text, ci_scripts())
+    _ci = ci_scripts()
+    rc_problems, rc_notes = replay_ci_problems(text, _ci)
     problems.extend(rc_problems)
     r_notes.extend(rc_notes)
+    # 🆕 243 — and the third direction: what the union of both rosters never reaches.
+    un_problems, un_notes = unreached_problems(text, _ci)
+    problems.extend(un_problems)
+    r_notes.extend(un_notes)
 
     session, how = block_session(handoff.name, block)
     t_problems, t_notes = tier_problems(text, log, session)
@@ -2442,6 +2794,30 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · handoff 219 claims · 26 CI jobs
 > ```
 """),
+    # 🆕 243 §3 — THE FIFTEENTH, AND THE FIRST ADDED BY A SESSION THAT ALSO WIDENED WHAT
+    # THIS TABLE IS READ FOR. Until now every consumer read the main row: `git.moved`
+    # takes its far endpoint from here, and the alias walk counts spellings. 243's
+    # `version.unmoved` reads the `host / addon` row out of the same blocks — so a block
+    # missing from this table now costs TWO readers their other end, not one.
+    (242, """> ```
+> main                 147bb35 — the PR body is scratch and it reached the tree (#299)  MOVED +2
+>                      57d0939 — the readers that could not see each other (#298)
+> branch 242           session242 · session242-cleanup — squashed into main
+>                      🟢 PUSHED · PR #298 AND #299 MERGED, 26/26 green each, neither stacked
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1388
+>               · late not-loaded 0 · discover 52/14/12/22 · 2 exempt · 0 undeclared
+>               · floor_pin 97 · 46 governed · 867 keys · 94 shortfalls
+>               · unswept 0 · exempt 38 · term 285 file(s) / 21 suffixes
+>               · taut 4089 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 231 claims · 26 CI jobs
+> ```
+"""),
 ]
 
 # ── 🔴 237 §3 — THE POPULATION THE `SINCE` BOUNDARIES WERE MEASURED OVER ──────────────
@@ -2863,10 +3239,16 @@ def selftest() -> int:
     got_keys = sorted(
         next((r[0] for r in HEADER_READERS if re.search(r[1], cleaned, re.I)), f"?{raw}")
         for raw, cleaned in h_atoms)
-    if got_keys != ["ci.green", "gh.issues", "gh.prs", "git.moved", "npm.lag", "npm.tags"]:
+    # 🆕 243 §3 — `version.unmoved` JOINS THE PIN AND `git.unmoved` DOES NOT, and the
+    # asymmetry is the measurement rather than an oversight. This block claims `MOVED +1`
+    # on its main row and `unmoved` on its `host / addon` row, so exactly one of the two
+    # word claims is reachable from it; the other is proved against the population by
+    # `UNMOVED_POPULATION` below, over the blocks that actually printed it.
+    if got_keys != ["ci.green", "gh.issues", "gh.prs", "git.moved", "npm.lag",
+                    "npm.tags", "version.unmoved"]:
         failed += 1
         print(f"  🔴 HEADER_BIND {got_keys}, pinned ['ci.green', 'gh.issues', 'gh.prs', "
-              f"'git.moved', 'npm.lag', 'npm.tags'] — atoms {h_atoms}")
+              f"'git.moved', 'npm.lag', 'npm.tags', 'version.unmoved'] — atoms {h_atoms}")
 
     # 🔴 AND THE HEADER'S ALIASES MUST BE MUTUALLY EXCLUSIVE, which `check_header` does
     # assert on every run and nothing pinned until 236 widened the roster from three rows
@@ -3001,6 +3383,95 @@ def selftest() -> int:
         failed += 1
         print("  🔴 REPLAY_CI the workflow reader counted a `.yml` as a script — the "
               "suffix roster is what keeps `uses:` and `if:` lines out of the population")
+
+    # ── 🆕 243: THE THIRD DIRECTION — WHAT NEITHER ROSTER REACHES ─────────────────────
+    #
+    # Fixture-fed, for the reason the block above gives: on a healthy tree the finding
+    # list is empty, and a claim that only ever reads an empty list is a claim that holds
+    # after the reader is deleted.
+    _paths = ["scripts/a.py", "host/scripts/b.mjs", "host/scripts/lonely.mjs",
+              "scripts/handoff_gate.py"]
+    _edges = {"a.py": set(), "b.mjs": set(), "lonely.mjs": set(), "handoff_gate.py": set()}
+    claims += 1
+    _p = unreached_problems(_fence, _CI, _paths, _edges, floor=4, exempt={})[0]
+    if not any("UNREACHED `host/scripts/lonely.mjs`" in p for p in _p):
+        failed += 1
+        print("  🔴 UNREACHED a tracked script in neither roster was not reported — which "
+              "is the state both P0 reporters shipped in, unable to LINK on two thirds of "
+              "this project's own CI matrix, past 26 green jobs")
+    # 🔴 THE LOAD HALF, AND IT IS THE CLAIM THAT SEPARATES THIS READER FROM AN
+    # INVOCATION-ONLY ONE. `lonely.mjs` is named by nothing; the ONLY thing that changes
+    # between these two runs is that a file the roster DOES invoke imports it. A reader
+    # that counted invocations would report it both times and be wrong the second time —
+    # and wrong in exactly the way that would have condemned `p0_complexity.mjs`, which
+    # no `run:` line names and whose self-test in `ci.yml` imports it.
+    claims += 1
+    _edges_linked = dict(_edges, **{"b.mjs": {"lonely.mjs"}})
+    if unreached_problems(_fence, _CI, _paths, _edges_linked, floor=4, exempt={})[0]:
+        failed += 1
+        print("  🔴 UNREACHED a script LOADED by a rostered file was reported unread — a "
+              "load is what catches a link error, and it is how 242 closed the two P0 "
+              "reporters without giving either one a `run:` line")
+    claims += 1
+    _p = unreached_problems(_fence, _CI, _paths, _edges_linked, floor=4,
+                            exempt={"lonely.mjs": "why"})[0]
+    if not any("UNREACHED_EXEMPT_STALE `lonely.mjs`" in p for p in _p):
+        failed += 1
+        print("  🔴 UNREACHED_EXEMPT_STALE an exemption the closure now reaches was not "
+              "reported — 174 §5, and `REPLAY_CI_EXEMPT_STALE` caught it on its own "
+              "author's table on the first run")
+    claims += 1
+    _p = unreached_problems(_fence, _CI, _paths, _edges, floor=4,
+                            exempt={"lonely.mjs": "why", "deleted.mjs": "why"})[0]
+    if not any("UNREACHED_EXEMPT_STALE `deleted.mjs`" in p for p in _p):
+        failed += 1
+        print("  🔴 UNREACHED_EXEMPT_STALE an exemption naming a file that is not tracked "
+              "at all was not reported — the silent shape, which can never fire and reads "
+              "as coverage")
+    # 🔴 THE FLOOR OVER THE POPULATION, which is the failure that makes every other claim
+    # here vacuous: `git ls-files` answering with nothing yields no findings and a green
+    # run that opened no files. Bracketed from both sides against the live tree below.
+    claims += 1
+    _p = unreached_problems(_fence, _CI, _paths, _edges, floor=9, exempt={})[0]
+    if not (_p and "SCRIPT_POPULATION_FLOOR" in _p[0] and len(_p) == 1):
+        failed += 1
+        print("  🔴 SCRIPT_POPULATION_FLOOR a population far below its floor was walked "
+              "instead of refused — and it must refuse INSTEAD of reporting, or the "
+              "findings from a half-read tree read as the findings from a whole one")
+    # 🔴 AND THE LIVE HALVES. Three, because the reader has three parts that can each go
+    # quiet on their own: the population, the import closure, and the exemption table.
+    claims += 1
+    _live_paths = tracked_scripts()
+    if not (len(UNREACHED_EXEMPT) < SCRIPT_POPULATION_FLOOR <= len(_live_paths)):
+        failed += 1
+        print(f"  🔴 SCRIPT_POPULATION_FLOOR is {SCRIPT_POPULATION_FLOOR} against "
+              f"{len(_live_paths)} tracked script(s) and {len(UNREACHED_EXEMPT)} "
+              f"exemption(s) — a floor at or under the exemption table is a floor the "
+              f"exemptions alone could satisfy")
+    # 🔴 THE CLOSURE, ON THE ONE EDGE THIS ROW EXISTS BECAUSE OF. `p0_complexity.mjs` is
+    # in no workflow and no replay row; `p0_complexity.selftest.mjs` is in both and
+    # imports it. If `ESM_IMPORT_RE` ever stops matching, this reader starts demanding a
+    # `run:` line for every module in the tree and gets ignored — which is the death of a
+    # gate, not a failure of one.
+    claims += 1
+    _live_edges = import_edges(_live_paths)
+    if "p0_complexity.mjs" not in _live_edges.get("p0_complexity.selftest.mjs", set()):
+        failed += 1
+        print("  🔴 UNREACHED the import closure does not see `p0_complexity.selftest.mjs "
+              "-> p0_complexity.mjs`, the one edge 242 built to close the Node-engine "
+              "defect — the specifier regex has stopped matching")
+    # 🔴 AND THE NEGATIVE CONTROL ON THAT SAME REGEX, because "matches an import" and
+    # "matches a MENTION" are the same reader until something says otherwise.
+    # `tautology_gate.mjs` names most of this tree as text it sweeps; if a mention
+    # counted, the whole population would read as reached and this gate would refuse
+    # nothing ever again.
+    claims += 1
+    if len(_live_edges.get("tautology_gate.mjs", set())) > 8:
+        failed += 1
+        print(f"  🔴 UNREACHED the closure reads `tautology_gate.mjs` as importing "
+              f"{len(_live_edges.get('tautology_gate.mjs', set()))} script(s) — it SWEEPS "
+              f"them as text, and a reader that counts a mention reports the whole tree "
+              f"reached")
 
     # ── 🆕 242: `check_header` ITSELF, WHICH NOTHING HAS EVER DRIVEN ──────────────────
     #
@@ -3270,6 +3741,148 @@ def selftest() -> int:
         print(f"  🔴 MOVED_POPULATION {disagreed} — 238 NEXT 2 asked whether 232's "
               f"`MOVED +2` was wrong or the reader was. Measured over every block the "
               f"table holds, and any row here is one or the other")
+
+    # ── 🆕 243 §3: `header-unmoved-unread` (OPEN 239) — THE WORD, MEASURED ────────────
+    #
+    # 🔴 THE WHOLE ROW IS THAT `UNMOVED` WAS NEVER A CLAIM. `MOVED +1` carries a numeral,
+    # so `header_atoms` returned it, `check_header` bound it and the tree could
+    # contradict it. `UNMOVED` carries none, was never an atom, and a session whose main
+    # branch HAD moved could have written it and nothing here would have had an opinion —
+    # for four sessions, across every block that printed the word. Both halves are proved
+    # against the population rather than a fixture, because a fixture would only prove
+    # the reader parses its own example.
+    unmoved_blocks = []
+    for sess, text in BLOCK_POPULATION:
+        pop_block = status_block(text)[0]
+        if any(re.search(r"^(?:main|branch)\b.*\bUNMOVED\b", c, re.I)
+               for _r, c in header_atoms(pop_block)[0]):
+            unmoved_blocks.append(sess)
+    claims += 1
+    if not unmoved_blocks:
+        failed += 1
+        print("  🔴 UNMOVED_POPULATION no block in the population reaches the "
+              "`git.unmoved` row — either the word left the convention or the anchored "
+              "alias has stopped matching, and an unreachable reader refuses nothing")
+    claims += 1
+    wrong = [f"{s}: block says UNMOVED, tree says {pop_moved[s]}"
+             for s in unmoved_blocks if s in pop_moved and pop_moved[s] != 0]
+    if wrong:
+        failed += 1
+        print(f"  🔴 UNMOVED_POPULATION {wrong} — the word asserts zero and the interval "
+              f"disagrees. This is the comparison that did not exist before 243: the "
+              f"block was believed because nothing could read it")
+    # 🔴 THE NEGATIVE CONTROL, AND IT IS THE CLAIM THAT MATTERS. Everything above holds
+    # on a tree where the word is always right; only this one fails on a reader that
+    # binds the word and then agrees with it whatever the tree says.
+    # 🔴 BUILT FROM THE POPULATION AND FROM ITS OWN SESSION, and the first draft of this
+    # claim got that wrong in the most instructive way available: it took a block that
+    # moved main twice, rewrote the word, and paired it with the WRONG session — for
+    # which the interval really is zero, so the rewritten lie was true and the control
+    # passed by agreeing with a fact nobody had asked about. A control fed the wrong
+    # endpoints tests the fixture, not the reader.
+    claims += 1
+    _ctl = next(((s, txt) for s, txt in BLOCK_POPULATION
+                 if pop_moved.get(s, 0) > 0
+                 and any(re.match(r"^(?:main|branch)\b.*MOVED \+\d+", ln)
+                         for ln in status_block(txt)[0])), None)
+    if _ctl is None:
+        failed += 1
+        print("  🔴 UNMOVED_CONTROL no block in the population moved main at all, so "
+              "there is nothing to rewrite into a false UNMOVED — the control has no "
+              "input and proves nothing")
+    else:
+        _sess, _txt = _ctl
+        _fake = [re.sub(r"MOVED \+\d+", "UNMOVED", ln)
+                 for ln in status_block(_txt)[0]]
+        _p, _n, _a, _c = check_header(_fake, "", False, _sess)
+        if not any("git.unmoved" in x for x in _p):
+            failed += 1
+            print(f"  🔴 UNMOVED_CONTROL {_sess}'s block moved main {pop_moved[_sess]} "
+                  f"time(s); rewriting its row to UNMOVED was not refused — problems "
+                  f"{_p}, atoms {header_atoms(_fake)[0]}")
+
+    # 🔴 AND THE POSITIVE HALF, WHICH THE FIRST DRAFT OF THIS BLOCK DID NOT HAVE AND A
+    # MUTATION FOUND WITHIN THE MINUTE. Every claim above asserts that a FALSE `UNMOVED`
+    # is refused; none asserted that a TRUE one is accepted. Breaking the length check so
+    # the reader refused EVERY block carrying the word left all of them green — a gate
+    # that refuses everything passes every test written about its refusals.
+    claims += 1
+    _true = [s for s in unmoved_blocks if pop_moved.get(s, -1) == 0]
+    if not _true:
+        failed += 1
+        print("  🔴 UNMOVED_ACCEPTS no block in the population claims UNMOVED over an "
+              "interval that really is zero, so nothing here proves the reader can agree")
+    for _s in _true:
+        _txt = next(txt for ss, txt in BLOCK_POPULATION if ss == _s)
+        _p, _n, _a, _c = check_header(status_block(_txt)[0], "", False, _s)
+        claims += 1
+        if any("git.unmoved" in x for x in _p):
+            failed += 1
+            print(f"  🔴 UNMOVED_ACCEPTS {_s}'s block claims UNMOVED, main really did "
+                  f"not move, and the reader refused it anyway: {_p}")
+
+    # 🔴 AND THE SECOND `unmoved`, WHICH THE ROW DID NOT KNOW IT HAD. The same word on
+    # the `host / addon` row claims two version strings did not move, and binding it to
+    # the commit interval would have compared an addon version against a `rev-list`
+    # count and called it agreement. Proved by moving one of the two.
+    claims += 1
+    _vers, _vwhy = tree_versions()
+    _was, _wwhy = block_versions(status_block(BLOCK_POPULATION[-1][1])[0])
+    if _vwhy or _wwhy or len(_vers) != 2 or len(_was) != 2:
+        failed += 1
+        print(f"  🔴 VERSION_UNMOVED_READ tree={_vers!r} {_vwhy!r} · "
+              f"previous block={_was!r} {_wwhy!r} — one of the two ends is unreadable, "
+              f"and an unreadable end is an UNREAD claim rather than a quiet zero")
+    claims += 1
+    _n_ver, _vprob = version_interval(BLOCK_POPULATION[-1][0] + 1)
+    if _vprob or _n_ver != sum(1 for a, b in zip(_was, _vers) if a != b):
+        failed += 1
+        print(f"  🔴 VERSION_UNMOVED the interval reader answered {_n_ver}/{_vprob!r} "
+              f"against {_was} -> {_vers}")
+    claims += 1
+    if version_interval(None)[1] == "":
+        failed += 1
+        print("  🔴 VERSION_UNMOVED an undated block got a number instead of UNREAD — "
+              "`unmoved` is a claim about the block BEFORE this one, and a block that "
+              "cannot say which that is has not made the claim")
+
+    # 🔴 AND THE ONE THAT MAKES THE THREE ABOVE WORTH ANYTHING. All of them run against a
+    # tree whose versions have not moved since the last block, so the true answer is zero
+    # and a reader hard-wired to zero passes every one — two mutations proved exactly
+    # that. This claim reaches back to a block whose versions REALLY differ from the
+    # tree's and asserts the refusal, through `check_header` rather than through the
+    # interval function, so a binding that silently stopped comparing fails it too.
+    claims += 1
+    _fixture = [(1, "> ```\n> main   deadbee — a fixture (#0)   MOVED +1\n"
+                    "> host / addon         0.0.1 / 0.0.2   🟢 unmoved\n> ```")]
+    _both, _bwhy = version_interval(2, population=_fixture)
+    if _bwhy or _both != 2:
+        failed += 1
+        print(f"  🔴 VERSION_UNMOVED_CONTROL a previous block whose BOTH versions differ "
+              f"from the tree's {_vers} answered {_both}/{_bwhy!r}, pinned 2 — a reader "
+              f"wired to zero passes every claim made on a tree that has not moved, and "
+              f"every block this table holds carries the same pair as the tree")
+    claims += 1
+    _one = [(1, "> ```\n> main   deadbee — a fixture (#0)   MOVED +1\n"
+                f"> host / addon         {_vers[0]} / 0.0.2   🟢 unmoved\n> ```")]
+    _n1, _w1 = version_interval(2, population=_one)
+    if _w1 or _n1 != 1:
+        failed += 1
+        print(f"  🔴 VERSION_UNMOVED_CONTROL one version moved and one did not; the "
+              f"reader answered {_n1}/{_w1!r}, pinned 1 — the count is what tells a "
+              f"host cut from an addon re-stamp, and a boolean would have lost it")
+    # 🔴 AND THE BINDING, WHICH IS A DIFFERENT FAILURE FROM THE READER BEING WRONG. If
+    # `check_header`'s branch for this key ever goes dead, `got` stays None and the note
+    # reads "no --measured log carries it" — the fallback for a counter with no reader at
+    # all. Asserting the POPULATION's own reason comes back is what tells the two apart.
+    claims += 1
+    _early = [ln for ln in ["main                 deadbee — a fixture (#0)          MOVED +1",
+                            "host / addon         1.0.0 / 1.0.0   🟢 unmoved"]]
+    _p, _n, _a, _c = check_header(_early, "", False, BLOCK_POPULATION[0][0] - 1)
+    if not any("version.unmoved: UNREAD — no block before" in x for x in _n):
+        failed += 1
+        print(f"  🔴 VERSION_UNMOVED_BOUND `check_header` did not route the `host / "
+              f"addon` word claim to its reader — notes {_n}")
 
     # 🔴 AND A SINGLE SHA ON THE MAIN ROW IS ENOUGH NOW, WHICH IS THE WHOLE CHANGE. 233's
     # block prints one, claims `MOVED +2`, and was UNREAD until this session for needing

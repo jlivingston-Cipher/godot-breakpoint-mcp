@@ -213,6 +213,25 @@ known and accepted rewrite — `git checkout -- example/project.godot`. Check
    registry: the published `breakpoint-mcp@1.73.2` tarball carries
    `version="1.9.8"` in its own `plugin.cfg`.
 
+   **`npm pack` is not `npm publish`, and on a fresh clone the difference is the
+   whole addon.** `npm publish` runs `prepublishOnly` (`npm run build && npm run
+   stage-addon`); `npm pack` runs neither, and `host/addon/` is gitignored build
+   output that does not exist until `stage-addon` creates it. Measured on a clean
+   checkout of `1.74.0`: `npm pack` produced **71 entries and zero addon files**,
+   and the same tree after those two steps produced **83 and all twelve**. So a
+   tarball you pack to *inspect* can be missing the half of the product `init`
+   installs, while the one npm actually ships is intact. Run `npm run build && npm
+   run stage-addon` before packing anything you intend to read.
+
+   There is deliberately **no `prepack` hook** to paper over that, and the reason is
+   worth keeping: `prepack` runs before *both* `pack` and `publish`, so a `prepack`
+   that re-staged the addon would hand check 6 a tarball the pack had just repaired
+   — a check that repairs before it measures proves nothing. The property is
+   *measured* instead, by `scripts/registry_bytes.py`'s first comparison (pack as-is
+   against pack after `prepublishOnly`'s two steps), which is a reader you can run
+   rather than a hook that hides the question. Refused in session 204, re-measured
+   and refused again in 243.
+
    So every addon change is a change to the published artifact, and the only name
    npm has for that artifact is the **host** version. Two things follow, and they
    point opposite ways:

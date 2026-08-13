@@ -7,7 +7,7 @@
 > connect too (see [Compatibility](#compatibility)).
 >
 > **npm 1.74.0 · addon 1.9.9 · full 292 / secure-default 279 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 724-test suite plus
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 726-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -263,6 +263,12 @@ Then open the project in Godot and verify everything is wired up:
 ```bash
 npx breakpoint-mcp doctor
 ```
+
+> **If the project was already open in Godot when you ran `init`, reopen it.** `init`
+> enables the plugin by writing `[editor_plugins]` into `project.godot`, and Godot reads
+> that file at project load — it does not hot-reload it. An editor that was already
+> running keeps the plugin disabled, the editor bridge never starts, and `doctor
+> --require-live` reports it as down. Closing the project and opening it again is the fix.
 
 `init` copies the addon into `addons/breakpoint_mcp/`, enables it in `project.godot`, and
 prints the client config snippet — pass `--client claude-desktop|cursor|windsurf|vscode`

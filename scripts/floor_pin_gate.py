@@ -57,7 +57,12 @@ S, T = "scripts", "test-integration"
 
 # 🔴 THIS GATE'S OWN SCOPE, FLOORED WITH A LITERAL — scope_gate.py's TARGET_FLOOR for the
 # same reason, and `>=` because the list is supposed to grow. 181 measured 25.
-TARGET_FLOOR = 69   # governed by SIZE_LEDGER (§9.3). 🆕 216 §1 raised it by one:
+TARGET_FLOOR = 70   # governed by SIZE_LEDGER (§9.3). 🆕 243 §2 raised it by one:
+                    #      `handoff_gate.py`'s SCRIPT_POPULATION_FLOOR, the floor under
+                    #      the population the two command rosters are compared against —
+                    #      the FOURTH new reader in a row whose first floor was reported
+                    #      UNSWEPT by the DISCOVER half before any human read it.
+                    # 🆕 216 §1 raised it by one:
                     #      check 1's NAME_FLOOR, on the day check 1 stopped being a
                     #      literal in gitignored scratch and became a tracked file —
                     #      reported UNSWEPT by the DISCOVER half on that file's first
@@ -179,6 +184,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
     ("handoff.CI_SCRIPT_FLOOR", "../scripts/handoff_gate.py",       r"(CI_SCRIPT_FLOOR = )55",                                   ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 243 — the same reader's floor over its READ OF THE TREE. `CI_SCRIPT_FLOOR` floors
+    # what it finds in the workflow files; this floors the population those rosters are
+    # compared AGAINST. `git ls-files` answering with nothing yields an empty population,
+    # no unreached findings and a green run that opened no files — the same quiet pass,
+    # one input over. Pinned from both sides by `--selftest`.
+    ("handoff.SCRIPT_POPULATION_FLOOR", "../scripts/handoff_gate.py",  r"(SCRIPT_POPULATION_FLOOR = )80",                           ["../scripts/handoff_gate.py", "--selftest"]),
     # 🆕 234 — THE HANDOFF READER'S TWO, AND THEY FLOOR THE TWO WAYS IT CAN GO QUIET.
     # `CLAIM_FLOOR` is the parse: a reader whose regexes stop matching the block reads
     # zero atoms, disagrees with nothing and prints ok, which is `scope_gate.py`'s quiet
@@ -1208,6 +1219,19 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "and same argument as `instrument_gate.py`'s `CI_COMMAND_FLOOR`, which reads the "
         "same files for a different question and is why this one is a second number "
         "rather than a widening of that one.")),
+    ("../scripts/handoff_gate.py", "SCRIPT_POPULATION_FLOOR"): (80, (
+        "🆕 243 — every tracked `.py`, `.mjs` and `.sh` in this repository, at `{FLOOR}` "
+        "against eighty-three live. It is the floor under `p0-reporters-unrostered`: the "
+        "replay list and the workflow files are two rosters of COMMANDS, and until this "
+        "session nothing asked what the union of them never reaches at all. Both P0 "
+        "reporters sat in that intersection when they shipped importing a Node "
+        "twenty-two export against a declared engines floor of eighteen — an ESM LINK "
+        "error, so on two thirds of this project's own matrix the modules never loaded, "
+        "and twenty-six jobs stayed green. 🔴 FLOORED FROM BELOW, AND THE DIRECTION IS "
+        "THE POINT: scripts being ADDED never reddens this, and what it catches is "
+        "`git ls-files` failing to answer — which yields an empty population, no "
+        "findings, and a green run that opened no files. Same argument as "
+        "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
     ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (64, (
         "🆕 242 — every tracked `.mjs` in this repository, at `{FLOOR}`, which is the "
         "population `tsc --allowJs --checkJs` is run over. It is the row "
@@ -1254,7 +1278,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
-    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (69, (
+    ("../scripts/floor_pin_gate.py", "TARGET_FLOOR"): (70, (
         "This gate's own swept roster, at `{FLOOR}`. Raised by one when 200 §12.3 "
         "admitted the shipped claim-site floors, by two when 206 §3 added the "
         "registry-lag reader's pair, by two more when 206 §4 added the "
@@ -1266,7 +1290,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "ENTRY_FLOOR — the first floor in the tree whose population is a TARBALL, "
         "and by one when 216 §1 added check one's NAME_FLOOR, the first entry here "
         "that arrived because a floor MOVED OUT of gitignored scratch rather than "
-        "because a new one was written.")),
+        "because a new one was written, and by one when 243 §2 added the handoff "
+        "reader's SCRIPT_POPULATION_FLOOR — the floor under the tracked-script "
+        "population that the replay list and the workflow files are compared "
+        "AGAINST, which is a different quantity from either roster and could go "
+        "empty without moving either one.")),
     ("../scripts/floor_pin_gate.py", "UNDISCOVERABLE_CEILING"): (0, (
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "

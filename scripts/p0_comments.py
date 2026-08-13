@@ -146,7 +146,85 @@ def py_comments(text: str):
     return out
 
 
+# ── 🆕 243 — THE CLAIMS, AND WHY THIS FILE HAS ANY ─────────────────────────────────
+#
+# 🔴 THIS REPORTER WAS IN NO ROSTER FOR TWO SESSIONS, AND THAT IS NOT A HYPOTHETICAL
+# COST. Its two siblings — `p0_complexity.mjs` and `p0_testdup.mjs` — shipped tracked in
+# 241 importing `globSync` from `node:fs`, exposed in Node 22, against a published
+# `engines.node ">=18"` and a CI matrix of 18 · 20 · 22. On two thirds of that matrix the
+# modules failed to LINK and never ran at all, and 26 CI jobs said nothing, because
+# nothing invoked them and nothing imported them. 242 gave those two self-tests and put
+# both in `ci.yml`. This file was the third reporter and it got neither.
+#
+# 🔴 SO THE FIRST THING `--selftest` BUYS IS NOT A CLAIM, IT IS A LOAD. A syntax error, a
+# bad import, a name that does not resolve at module scope — every one of those is caught
+# by running this file at all, and until 243 nothing ran this file at all.
+#
+# The claims below are the two defects the header already records, pinned so they cannot
+# come back, plus the extractors either bucket depends on. Every one is written so a
+# plausible wrong implementation fails it: `classify` returning a constant fails claim 1
+# against claim 6, and an extractor that returns the empty list fails 5 and 7.
+def _selftest() -> int:
+    bad = 0
+
+    def claim(desc: str, ok: bool, detail: str = "") -> None:
+        nonlocal bad
+        bad += 0 if ok else 1
+        print(f"  {'🟢' if ok else '🔴'} {desc:<70} -> {ok}{'  ' + detail if detail else ''}")
+
+    print("P0_COMMENTS selftest")
+
+    # 🔴 DEFECT 1, PINNED. A bare `\b(TODO|FIXME)\b` filed this file's own docstring —
+    # the sentence NAMING the bucket — into the bucket, and the tree-wide count went
+    # 0 -> 1 the moment the reporter joined `scripts/`. The annotation form is required.
+    claim("the word TODO in prose is not a TODO-FIXME",
+          classify("the bucket is named TODO-FIXME in the header above") != "TODO-FIXME")
+    claim("…and a real annotation still is",
+          classify("TODO: widen this to the addon") == "TODO-FIXME")
+
+    # 🔴 DEFECT 2, PINNED. Any comment line ending in `;` was called commented-out-code,
+    # so a sentence with a mid-clause semicolon landed in the bucket. The count moved
+    # 49 -> the printed number and the whole difference was false positives.
+    prose = "Screenshot tools that return an in-memory buffer count as read-only;"
+    claim("a prose line ending in a semicolon is not commented-out code",
+          not _looks_like_code(prose))
+    claim("…and a real statement is",
+          _looks_like_code("const x = readFileSync(p);"))
+
+    # The two buckets that decide §8.4's population, and a control that separates them:
+    # a classifier stuck on either answer fails one of these two.
+    claim("a session citation is describes-other-code",
+          classify("193 §12.27 handed this over") == "describes-other-code")
+    claim("a path is describes-other-code",
+          classify("mirrors host/src/cli/init.ts") == "describes-other-code")
+    claim("plain prose about the code it sits in is describes-this-code",
+          classify("returns the new text rather than writing it") == "describes-this-code")
+
+    # 🔴 THE EXTRACTORS, BECAUSE A BUCKET COUNT OVER AN EMPTY EXTRACTION IS ZERO IN EVERY
+    # BUCKET AND READS AS A CLEAN TREE. Both halves are claimed, and the string case is
+    # the one that decides whether a URL in code becomes a comment.
+    ts = ts_comments('const u = "http://x";\n// a real one\n/* block */\n')
+    bodies = [b.strip() for _l, b in ts]
+    claim("ts_comments skips `//` inside a string literal",
+          "http://x" not in " ".join(bodies), f"{len(ts)} found")
+    claim("…and finds both the line and the block comment",
+          "a real one" in bodies and "block" in bodies)
+    ln = {l for l, _b in ts}
+    claim("…and reports the line the comment is on",
+          2 in ln, f"lines={sorted(ln)}")
+
+    py = [b.strip() for _l, b in py_comments('x = 1  # tail\n"""doc"""\n')]
+    claim("py_comments finds a trailing comment and a docstring",
+          "tail" in py and "doc" in py, f"{py}")
+
+    print(f"P0_COMMENTS selftest {'ok' if not bad else f'🔴 {bad} FAILED'}")
+    return 1 if bad else 0
+
+
 def main() -> int:
+    if "--selftest" in sys.argv:
+        return _selftest()
+
     rows = []
     for base, glob, reader in ((SRC, "**/*.ts", ts_comments), (SCRIPTS, "*.py", py_comments)):
         for f in sorted(base.rglob(glob.split("/")[-1]) if "**" in glob else base.glob(glob)):

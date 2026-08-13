@@ -150,6 +150,18 @@ jobs:
       - name: No item is past the ceiling undecided, no schedule has lapsed, and no
           session closed only what it invented (queue gate)
         run: python3 scripts/queue_gate.py
+      # 🆕 243 — THE THIRD P0 REPORTER, AND IT IS HERE FOR ITS TWO SIBLINGS' REASON.
+      # 242 put `p0_complexity.selftest.mjs` and `p0_testdup.selftest.mjs` in the `test`
+      # job after both reporters shipped tracked in 241 importing a Node 22 export
+      # against `engines.node ">=18"` — an ESM LINK error, so on the 18 and 20 legs the
+      # modules never loaded and 26 jobs said nothing. `p0_comments.py` was the third
+      # reporter of that same charter pass and got neither a self-test nor a roster, so
+      # it stayed in exactly the state that cost 241 a session. It is Python and stdlib
+      # only, so it runs here rather than in the job that has Node.
+      # 🔴 AND THE FIRST THING THIS STEP BUYS IS THE LOAD, NOT THE CLAIMS: until 243
+      # nothing in this tree executed that file at all.
+      - name: The comment inventory still measures what it claims (p0 comments selftest)
+        run: python3 scripts/p0_comments.py --selftest
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own
