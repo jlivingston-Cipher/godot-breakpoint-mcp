@@ -36,8 +36,17 @@
 // fixture that goes stale on the first edit to the files it watches is a fixture nobody
 // will trust the second time it reddens. Members are addressed by (file, unit name, the
 // claim's own text), and a member whose SITE cannot be found at all is its own refusal.
-import { readdirSync, statSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+//
+// 🆕 246 — AND THE READER NOW CROSSES THE IMPORT, WHICH IS 214 §7.6's FIRST OPTION AND
+// THE ONE NOBODY TOOK FOR THIRTY-TWO SESSIONS. That row named five claims whose
+// collection is a module constant in ANOTHER file and offered three ways out: teach the
+// finder to read the import, floor each of the five inline, or exempt them and say so.
+// The second and third both end at a roster; only the first makes the answer a
+// MEASUREMENT. `declared-outside-this-file` stays exactly where it was for a specifier
+// this reader cannot resolve — an honest terminal is the point of it — but an import it
+// CAN follow is no longer a weak spot, it is one more hop in the same chain.
+import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
+import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { analyze, FLOORS, FLOOR_RE } from "./tautology_gate.mjs";
@@ -73,11 +82,33 @@ export const CLAIM_FLOOR = 40;
 // reason: claim sites alone cannot see a directory that quietly stopped being read,
 // because the remaining files' headroom absorbs the loss. Measured 106.
 export const FILE_FLOOR = 90;
-// 🔴 A CEILING, NOT A FLOOR, AND IT IS THE LIVE VALUE. 20 unguarded collectors ship today.
-// The number has been ungoverned for six sessions; ceilinging it at what it actually is
+// 🔴 A CEILING, NOT A FLOOR, AND IT IS THE LIVE VALUE. Fifteen unguarded collectors ship
+// today. The number was ungoverned for six sessions; ceilinging it at what it actually is
 // means the next collector that arrives without a control reddens the run, and driving the
-// existing twenty down is a separate piece of work that this does not pretend to have done.
-export const DEFECT_CEILING = 20;
+// existing ones down is a separate piece of work that this does not pretend to have done.
+// 🆕 246 — IT CAME DOWN BY FIVE, AND NOT ONE UNIT CHANGED. The import hop below resolved
+// the whole `declared-outside-this-file` terminal class, and every one of those five
+// collections turned out to be derived from a non-empty literal in the file it was
+// imported from. A ceiling left at its old value after the population under it shrank is
+// headroom nobody voted for, so it moves in the commit that shrinks it.
+export const DEFECT_CEILING = 15;
+// 🆕 246 — HOW FAR THE READER MAY FOLLOW AN IMPORT, AND WHY THERE IS A LIMIT AT ALL.
+// A re-export chain can be circular, and a walker with no budget on a cycle does not
+// return. Three hops covers every case in this tree (`ANNOTATED_TOOLS` is the deepest at
+// two: the test's import, then `ALL_ANNOTATED` in the same module); a chain longer than
+// this ends in the same honest terminal an unresolvable specifier does.
+export const IMPORT_HOPS = 3;
+// 🆕 246 — AND HOW MANY DERIVATION STEPS ONE CHAIN MAY TAKE, WHICH THE HOP MOVED.
+// It was a bare 8, and eight was enough while every chain ended in the file it started
+// in. Measured after the hop, the deepest chain in this tree is THIRTEEN nodes and
+// crosses one file: `stale` in `annotations.test.ts` reaches the roster literal in
+// `src/annotations.ts` through a filter, a spread, a `new Set`, an `Object.freeze`, a
+// second spread and a `.sort()`. 🔴 A BUDGET THAT RUNS OUT
+// REPORTS TERMINAL `none` AND VERDICT DEFECT — the same answer as a real undefended
+// collection, from a reader that simply stopped walking. That is the failure this file
+// exists to refuse, so the number is named, stated as a measurement, and floored well
+// above it rather than left as a literal in a boundary test.
+export const CHAIN_DEPTH = 16;
 // The claims this reader cannot read at all. 213 §4.22: a classifier with no `unclassified`
 // column has not classified anything, it has partitioned — so residue is REPORTED, and
 // capped, rather than folded into either answer.
@@ -96,23 +127,108 @@ const LISTENER_FNS = /^(on|once|addListener|prependListener|prependOnceListener)
 const EMPTY_LITERAL = "empty-array-literal";
 const NONEMPTY_LITERAL = "non-empty-literal";
 const OPAQUE_CALL = "opaque-producer-call";
+// 🆕 246 — AN OBJECT LITERAL IS A POPULATION TOO, AND FOUR OF THE FIVE END IN ONE.
+// `Object.keys(TOOL_CAPABILITIES)` was already walked into its argument by the static
+// forms below; the argument then landed on an ObjectLiteralExpression and this reader had
+// no branch for it, so the chain ended in `unreadable-ObjectLiteralExpression` — the
+// terminal that means "ask a human". A literal with properties proves `Object.keys` of it
+// is non-empty for the same reason a literal with elements proves it of an array.
+const EMPTY_OBJECT = "empty-object-literal";
+const NONEMPTY_OBJECT = "non-empty-object-literal";
+export const IMPORTED = "declared-outside-this-file";
 
 const norm = (s) => s.replace(/\s+/g, " ").trim();
 
-// ════════════════════════════════════════════════════════════════════════════════════
-// THE READER — pure over (fileName, sourceText). No filesystem anywhere below this line,
-// which is what lets `--selftest` drive every branch from string literals.
-// ════════════════════════════════════════════════════════════════════════════════════
-export function classify(fileName, text) {
-  const sf = ts.createSourceFile(
-    fileName, text, ts.ScriptTarget.Latest, true,
-    /\.ts$/.test(fileName) ? ts.ScriptKind.TS : ts.ScriptKind.JS,
-  );
-  const claims = analyze(fileName, text);
-  const own = (c) => FLOOR_RE.test(c.floorText || c.cond || "");
-  const findings = claims.filter((c) => (c.anyEvery || c.anyOffender) && !own(c));
+// ── 🆕 246 — THE IMPORT HOP ──────────────────────────────────────────────────────────
+//
+// 🔴 THE FILESYSTEM STAYS ABOVE THE READER, WHICH IS THE WHOLE REASON `--selftest` CAN
+// DRIVE THIS BRANCH. 215 §4's rule for this file is that `classify` is pure over
+// (fileName, sourceText); an import hop that called `readFileSync` inside it would make
+// the new branch the one thing in here no self-test could reach without a fixture tree on
+// disk. So the hop takes a READER as a parameter — the real tree passes the one below,
+// the self-test passes a Map — and the branch itself is the same code in both.
+export function fsModuleReader(fromFile, spec, root = ROOT) {
+  if (!spec.startsWith(".")) return null;          // a package, not a file in this tree
+  const base = resolvePath(dirname(join(root, fromFile)), spec);
+  // TypeScript sources import each other by their EMITTED `.js` specifier, so the file
+  // that actually holds the declaration is the `.ts` beside it. Both are tried, and so is
+  // a directory index, because guessing one convention is how a resolver goes quietly
+  // blind on a tree that uses the other.
+  const cands = [
+    base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".mjs"), base,
+    `${base}.ts`, `${base}.mjs`, `${base}.js`,
+    join(base, "index.ts"), join(base, "index.mjs"), join(base, "index.js"),
+  ];
+  for (const c of cands) {
+    if (!existsSync(c) || !statSync(c).isFile()) continue;
+    return { fileName: c.startsWith(root) ? c.slice(root.length) : c, text: readFileSync(c, "utf8") };
+  }
+  return null;
+}
 
-  const lineOf = (n) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+const SF_CACHE = new Map();
+function sourceFileOf(fileName, text) {
+  const key = `${fileName}::${text.length}`;
+  let sf = SF_CACHE.get(key);
+  if (!sf) {
+    sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true,
+      /\.ts$/.test(fileName) ? ts.ScriptKind.TS : ts.ScriptKind.JS);
+    SF_CACHE.set(key, sf);
+  }
+  return sf;
+}
+
+/** (module specifier, exported name) for `local` if this file imports it, else null. */
+export function importedFrom(sf, local) {
+  for (const s of sf.statements) {
+    if (!ts.isImportDeclaration(s) || !s.importClause) continue;
+    if (!ts.isStringLiteralLike(s.moduleSpecifier)) continue;
+    const spec = s.moduleSpecifier.text;
+    const nb = s.importClause.namedBindings;
+    if (nb && ts.isNamedImports(nb)) {
+      for (const el of nb.elements) {
+        if (el.name.text === local) return { spec, exported: (el.propertyName ?? el.name).text };
+      }
+    }
+    // `import X from "…"` — a default export is a declaration this reader can still find.
+    if (s.importClause.name && s.importClause.name.text === local) return { spec, exported: "default" };
+  }
+  return null;
+}
+
+/** The initializer of `export const <name> = …` in an already-parsed module, or null. */
+export function exportedInitializer(sf, name) {
+  for (const s of sf.statements) {
+    if (!ts.isVariableStatement(s)) continue;
+    if (!s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    for (const d of s.declarationList.declarations) {
+      if (ts.isIdentifier(d.name) && d.name.text === name && d.initializer) return d.initializer;
+    }
+  }
+  return null;
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// THE BINDER — one walker, parameterised by the source file it walks (🆕 246).
+//
+// 🔴 ONE CHAIN WALKER, NOT TWO. Following an import means walking a SECOND file's AST,
+// and the reflex is to write a small second reader for "just the imported constant".
+// That reader would drift from this one on the first branch either gained — the exact
+// failure `scope_gate.py`'s header calls out one language over ("ONE PARSER, NOT TWO").
+// So the walker is lifted out of `classify` verbatim and takes its source file as an
+// argument; the hop below builds another instance of the SAME function over the imported
+// module and lets it push into the same chain.
+//
+// 🔴 AND THE KEYSPACE IS WHY THAT IS SAFE. A declaration key is a byte offset, so an
+// offset from the imported file and an offset from this one can be equal while naming
+// different bindings — and `sameTarget` matches a control to a claim on (text, declKey).
+// Hopped entries are keyed `<file>@<offset>`, which cannot collide with the local
+// numeric offsets, so a control in the unit can never bind to an imported node by
+// arithmetic coincidence.
+// ════════════════════════════════════════════════════════════════════════════════════
+export function makeBinder(fileName, sf, opts = {}, hopsLeft = IMPORT_HOPS, keyspace = "") {
+  const readModule = opts.readModule === undefined ? fsModuleReader : opts.readModule;
 
   function unwrap(e) {
     for (;;) {
@@ -125,6 +241,197 @@ export function classify(fileName, text) {
       return e;
     }
   }
+
+  // 🔴 THE HOP, AND EVERY WAY IT CAN DECLINE IS THE SAME OLD TERMINAL. No reader, no
+  // import statement, a package specifier, a file that is not there, an export this
+  // module does not declare with an initialiser, or a budget spent — each returns null
+  // and the caller falls back to `declared-outside-this-file`. A hop that half-worked
+  // and reported something else would be worse than the weak spot it replaces.
+  function hop(local, out, depth, seen) {
+    if (!readModule || hopsLeft <= 0) return false;
+    const imp = importedFrom(sf, local);
+    if (!imp) return false;
+    const mod = readModule(fileName, imp.spec);
+    if (!mod) return false;
+    const msf = sourceFileOf(mod.fileName, mod.text);
+    const init = exportedInitializer(msf, imp.exported);
+    if (!init) return false;
+    const sub = makeBinder(mod.fileName, msf, opts, hopsLeft - 1, `${mod.fileName}@`);
+    sub.chainOf(init, depth + 1, seen, out);
+    return true;
+  }
+
+// ── binding resolution — the derivation chain, not a one-line regex (214 §5.2) ─────
+function declaredNames(name, out) {
+  if (ts.isIdentifier(name)) { out.push(name); return; }
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    for (const el of name.elements) if (ts.isBindingElement(el)) declaredNames(el.name, out);
+  }
+}
+function matchIn(declList, name) {
+  for (const d of declList) {
+    const names = [];
+    declaredNames(d.name, names);
+    for (const n of names) {
+      if (n.text !== name) continue;
+      const whole = ts.isIdentifier(d.name);
+      return { decl: d, key: d.pos, initializer: whole ? d.initializer ?? null : null, destructured: !whole };
+    }
+  }
+  return null;
+}
+function resolveDecl(id) {
+  const name = id.text;
+  for (let p = id.parent; p; p = p.parent) {
+    if ((ts.isForOfStatement(p) || ts.isForInStatement(p) || ts.isForStatement(p)) &&
+        p.initializer && ts.isVariableDeclarationList(p.initializer)) {
+      const m = matchIn(p.initializer.declarations, name);
+      if (m) return ts.isForOfStatement(p) && !m.destructured ? { ...m, initializer: p.expression, forOf: true } : m;
+    }
+    if (ts.isFunctionLike(p)) {
+      for (const prm of p.parameters ?? []) {
+        const names = [];
+        declaredNames(prm.name, names);
+        if (names.some((n) => n.text === name)) return { decl: prm, key: prm.pos, initializer: null, parameter: true };
+      }
+    }
+    const stmts = ts.isSourceFile(p) || ts.isBlock(p) || ts.isModuleBlock(p) || ts.isCaseClause(p) ? p.statements : null;
+    if (!stmts) continue;
+    for (const s of stmts) {
+      if (!ts.isVariableStatement(s)) continue;
+      const m = matchIn(s.declarationList.declarations, name);
+      if (m) return m;
+    }
+  }
+  return null;
+}
+function rootDeclKey(expr) {
+  let e = unwrap(expr);
+  for (let i = 0; e && i < 20; i++) {
+    if (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e) || ts.isCallExpression(e)) { e = unwrap(e.expression); continue; }
+    break;
+  }
+  if (e && ts.isIdentifier(e)) {
+    const k = resolveDecl(e);
+    // 🔴 A LOCAL KEY STAYS A NUMBER. `pushSites` asks `typeof declKey === "number"` to
+    // decide whether a target is a binding it can find writes to, and `companionFloor`
+    // compares raw `resolveDecl(...).key` values against it — so stringifying the local
+    // case would silently take the trap and population-floor branches out of service.
+    // The keyspace is a prefix for HOPPED files only, which is exactly where those two
+    // readers must not reach anyway: a write site in another module is not in this unit.
+    return k ? (keyspace ? `${keyspace}${k.key}` : k.key) : `free:${keyspace}${e.text}`;
+  }
+  return null;
+}
+// Where a terminal literal actually IS. A verdict that says "defended by a non-empty
+// literal" and cannot say WHERE is a verdict a reader has to take on trust — and after
+// the hop the literal is usually not in the file the claim is in.
+const originOf = (n) => `${fileName}:${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`;
+
+function chainOf(expr, depth = 0, seen = new Set(), out = []) {
+  const e = unwrap(expr);
+  if (!e || depth > CHAIN_DEPTH) return out;
+  const t = norm(e.getText(sf));
+  if (!out.some((x) => x.text === t)) out.push({ text: t, node: e, declKey: rootDeclKey(e) });
+
+  if (ts.isArrayLiteralExpression(e)) {
+    if (e.elements.length && e.elements.every(ts.isSpreadElement)) {
+      for (const el of e.elements) chainOf(el.expression, depth + 1, seen, out);
+      return out;
+    }
+    out.push({ terminal: e.elements.length ? NONEMPTY_LITERAL : EMPTY_LITERAL, text: t, origin: originOf(e) });
+    return out;
+  }
+  // 🆕 246 — AN OBJECT LITERAL, WHICH IS WHAT FOUR OF THE FIVE IMPORTS RESOLVE TO.
+  // A spread-only literal is walked into for the array branch's reason: `{...X}` is
+  // non-empty only if X is, and reading the brace as the answer would defend a claim
+  // over a population that can be empty.
+  if (ts.isObjectLiteralExpression(e)) {
+    const props = e.properties;
+    if (props.length && props.every((pp) => ts.isSpreadAssignment(pp))) {
+      for (const pp of props) chainOf(pp.expression, depth + 1, seen, out);
+      return out;
+    }
+    out.push({ terminal: props.length ? NONEMPTY_OBJECT : EMPTY_OBJECT, text: t, origin: originOf(e) });
+    return out;
+  }
+  if (ts.isNewExpression(e)) {
+    if (/^(Set|Map|Array)$/.test(e.expression.getText(sf)) && e.arguments?.length) {
+      return chainOf(e.arguments[0], depth + 1, seen, out);
+    }
+    out.push({ terminal: OPAQUE_CALL, text: t });
+    return out;
+  }
+  if (ts.isCallExpression(e)) {
+    const callee = unwrap(e.expression);
+    if (ts.isPropertyAccessExpression(callee)) {
+      const m = callee.name.text;
+      const recv = norm(callee.expression.getText(sf));
+      // 🔴 THE STATIC FORMS ARE TESTED FIRST, AND THE ORDER IS NOT COSMETIC (214 §5.1).
+      // `keys`/`values` are BOTH instance derivers and `Object.` statics, so a deriver
+      // test that runs first reads `Object.keys(X)` as "a derivation of `Object`" and
+      // walks to the global — four claims filed against a binding named `Object`.
+      if (recv === "Object" && /^(keys|values|entries)$/.test(m) && e.arguments.length) {
+        return chainOf(e.arguments[0], depth + 1, seen, out);
+      }
+      if (recv === "Array" && m === "from" && e.arguments.length) {
+        return chainOf(e.arguments[0], depth + 1, seen, out);
+      }
+      // 🆕 246 — `Object.freeze(X)` IS X. It is the idiom this codebase publishes its
+      // roster constants through (`ANNOTATED_TOOLS`), and reading it as an opaque
+      // producer stops the chain one node short of the literal that answers the question.
+      if (recv === "Object" && /^(freeze|assign)$/.test(m) && e.arguments.length) {
+        return chainOf(e.arguments[0], depth + 1, seen, out);
+      }
+      if (DERIVER_METHODS.has(m)) return chainOf(callee.expression, depth + 1, seen, out);
+    }
+    out.push({ terminal: OPAQUE_CALL, text: t });
+    return out;
+  }
+  if (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) {
+    return chainOf(e.expression, depth + 1, seen, out);
+  }
+  if (ts.isBinaryExpression(e) &&
+      (e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+       e.operatorToken.kind === ts.SyntaxKind.BarBarToken)) {
+    return chainOf(e.left, depth + 1, seen, out);
+  }
+  if (ts.isIdentifier(e)) {
+    const b = resolveDecl(e);
+    const mark = b ? `decl@${keyspace}${b.key}` : `free:${keyspace}${e.text}`;
+    if (seen.has(mark)) return out;
+    seen.add(mark);
+    if (b?.initializer) return chainOf(b.initializer, depth + 1, seen, out);
+    // 🆕 246 — 214 §7.6's FIRST OPTION, TAKEN. Before the terminal is filed, ask whether
+    // this file IMPORTS the name: a specifier that resolves to a module in this tree
+    // whose export has an initialiser is a chain that continues, not a chain that ends.
+    if (!b && hop(e.text, out, depth, seen)) return out;
+    out.push({
+      terminal: !b ? IMPORTED : b.destructured ? "destructured-binding"
+        : b.parameter ? "function-parameter" : "binding-with-no-initialiser",
+      text: t,
+    });
+    return out;
+  }
+  out.push({ terminal: `unreadable-${ts.SyntaxKind[e.kind]}`, text: t });
+  return out;
+}
+
+  return { unwrap, chainOf, resolveDecl, rootDeclKey, declaredNames, matchIn };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// THE READER — pure over (fileName, sourceText). No filesystem anywhere below this line,
+// which is what lets `--selftest` drive every branch from string literals.
+// ════════════════════════════════════════════════════════════════════════════════════
+export function classify(fileName, text, opts = {}) {
+  const sf = sourceFileOf(fileName, text);
+  const { chainOf, unwrap, rootDeclKey, resolveDecl } = makeBinder(fileName, sf, opts);
+  const claims = analyze(fileName, text);
+  const own = (c) => FLOOR_RE.test(c.floorText || c.cond || "");
+  const findings = claims.filter((c) => (c.anyEvery || c.anyOffender) && !own(c));
+
+  const lineOf = (n) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
 
   // ── the claim's own node ───────────────────────────────────────────────────────────
   // `analyze` records the line of the node it scored; the widest CallExpression starting
@@ -202,125 +509,6 @@ export function classify(fileName, text) {
     return null;
   }
 
-  // ── binding resolution — the derivation chain, not a one-line regex (214 §5.2) ─────
-  function declaredNames(name, out) {
-    if (ts.isIdentifier(name)) { out.push(name); return; }
-    if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
-      for (const el of name.elements) if (ts.isBindingElement(el)) declaredNames(el.name, out);
-    }
-  }
-  function matchIn(declList, name) {
-    for (const d of declList) {
-      const names = [];
-      declaredNames(d.name, names);
-      for (const n of names) {
-        if (n.text !== name) continue;
-        const whole = ts.isIdentifier(d.name);
-        return { decl: d, key: d.pos, initializer: whole ? d.initializer ?? null : null, destructured: !whole };
-      }
-    }
-    return null;
-  }
-  function resolveDecl(id) {
-    const name = id.text;
-    for (let p = id.parent; p; p = p.parent) {
-      if ((ts.isForOfStatement(p) || ts.isForInStatement(p) || ts.isForStatement(p)) &&
-          p.initializer && ts.isVariableDeclarationList(p.initializer)) {
-        const m = matchIn(p.initializer.declarations, name);
-        if (m) return ts.isForOfStatement(p) && !m.destructured ? { ...m, initializer: p.expression, forOf: true } : m;
-      }
-      if (ts.isFunctionLike(p)) {
-        for (const prm of p.parameters ?? []) {
-          const names = [];
-          declaredNames(prm.name, names);
-          if (names.some((n) => n.text === name)) return { decl: prm, key: prm.pos, initializer: null, parameter: true };
-        }
-      }
-      const stmts = ts.isSourceFile(p) || ts.isBlock(p) || ts.isModuleBlock(p) || ts.isCaseClause(p) ? p.statements : null;
-      if (!stmts) continue;
-      for (const s of stmts) {
-        if (!ts.isVariableStatement(s)) continue;
-        const m = matchIn(s.declarationList.declarations, name);
-        if (m) return m;
-      }
-    }
-    return null;
-  }
-  function rootDeclKey(expr) {
-    let e = unwrap(expr);
-    for (let i = 0; e && i < 20; i++) {
-      if (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e) || ts.isCallExpression(e)) { e = unwrap(e.expression); continue; }
-      break;
-    }
-    if (e && ts.isIdentifier(e)) return resolveDecl(e)?.key ?? `free:${e.text}`;
-    return null;
-  }
-
-  function chainOf(expr, depth = 0, seen = new Set(), out = []) {
-    const e = unwrap(expr);
-    if (!e || depth > 8) return out;
-    const t = norm(e.getText(sf));
-    if (!out.some((x) => x.text === t)) out.push({ text: t, node: e, declKey: rootDeclKey(e) });
-
-    if (ts.isArrayLiteralExpression(e)) {
-      if (e.elements.length && e.elements.every(ts.isSpreadElement)) {
-        for (const el of e.elements) chainOf(el.expression, depth + 1, seen, out);
-        return out;
-      }
-      out.push({ terminal: e.elements.length ? NONEMPTY_LITERAL : EMPTY_LITERAL, text: t });
-      return out;
-    }
-    if (ts.isNewExpression(e)) {
-      if (/^(Set|Map|Array)$/.test(e.expression.getText(sf)) && e.arguments?.length) {
-        return chainOf(e.arguments[0], depth + 1, seen, out);
-      }
-      out.push({ terminal: OPAQUE_CALL, text: t });
-      return out;
-    }
-    if (ts.isCallExpression(e)) {
-      const callee = unwrap(e.expression);
-      if (ts.isPropertyAccessExpression(callee)) {
-        const m = callee.name.text;
-        const recv = norm(callee.expression.getText(sf));
-        // 🔴 THE STATIC FORMS ARE TESTED FIRST, AND THE ORDER IS NOT COSMETIC (214 §5.1).
-        // `keys`/`values` are BOTH instance derivers and `Object.` statics, so a deriver
-        // test that runs first reads `Object.keys(X)` as "a derivation of `Object`" and
-        // walks to the global — four claims filed against a binding named `Object`.
-        if (recv === "Object" && /^(keys|values|entries)$/.test(m) && e.arguments.length) {
-          return chainOf(e.arguments[0], depth + 1, seen, out);
-        }
-        if (recv === "Array" && m === "from" && e.arguments.length) {
-          return chainOf(e.arguments[0], depth + 1, seen, out);
-        }
-        if (DERIVER_METHODS.has(m)) return chainOf(callee.expression, depth + 1, seen, out);
-      }
-      out.push({ terminal: OPAQUE_CALL, text: t });
-      return out;
-    }
-    if (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) {
-      return chainOf(e.expression, depth + 1, seen, out);
-    }
-    if (ts.isBinaryExpression(e) &&
-        (e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
-         e.operatorToken.kind === ts.SyntaxKind.BarBarToken)) {
-      return chainOf(e.left, depth + 1, seen, out);
-    }
-    if (ts.isIdentifier(e)) {
-      const b = resolveDecl(e);
-      const mark = b ? `decl@${b.key}` : `free:${e.text}`;
-      if (seen.has(mark)) return out;
-      seen.add(mark);
-      if (b?.initializer) return chainOf(b.initializer, depth + 1, seen, out);
-      out.push({
-        terminal: !b ? "declared-outside-this-file" : b.destructured ? "destructured-binding"
-          : b.parameter ? "function-parameter" : "binding-with-no-initialiser",
-        text: t,
-      });
-      return out;
-    }
-    out.push({ terminal: `unreadable-${ts.SyntaxKind[e.kind]}`, text: t });
-    return out;
-  }
 
   // ── the positive control ──────────────────────────────────────────────────────────
   const SIZE_PROPS = /^(length|size|byteLength)$/;
@@ -586,8 +774,15 @@ export function classify(fileName, text) {
     const terminal = chain.find((x) => x.terminal)?.terminal ?? "none";
     const chainText = chain.map((x) => x.terminal ? `<${x.terminal}>` : x.text.slice(0, 44)).join("  ←  ");
 
-    if (terminal === NONEMPTY_LITERAL) {
-      rows.push({ ...row, verdict: DEFENDED, terminal, chain: chainText, why: "the collection is a non-empty array literal", strength: "literal" });
+    if (terminal === NONEMPTY_LITERAL || terminal === NONEMPTY_OBJECT) {
+      // 🆕 246 — THE ORIGIN IS PART OF THE VERDICT. Before the hop, a literal terminal was
+      // always in the file under the claim and "where" was not a question. It is now, and
+      // a defence that cannot name the file it crossed into is one no reviewer can check.
+      const where = chain.find((x) => x.terminal)?.origin;
+      const kind = terminal === NONEMPTY_OBJECT ? "object" : "array";
+      rows.push({ ...row, verdict: DEFENDED, terminal, chain: chainText, strength: "literal",
+        why: `the collection is derived from a non-empty ${kind} literal`
+          + (where && where !== fileName ? ` at ${where}` : "") });
       continue;
     }
     let unit = unitOf(node);

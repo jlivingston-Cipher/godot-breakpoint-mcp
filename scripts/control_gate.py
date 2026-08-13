@@ -667,11 +667,13 @@ STATEMENT_FLOOR = 87           # governed by floor_pin_gate SIZE_LEDGER (§9.3)
 # already computes and no new reader can be wrong about. The attribution is DIAGNOSIS:
 # printed when a row drifts, so the next author is told WHICH check arrived, and floored
 # in aggregate so it cannot quietly stop working.
-BLAST_TOTAL_FLOOR = 95         # measured ABOVE this; floored from BELOW so a row that stops
+BLAST_TOTAL_FLOOR = 105        # 🆕 246 §3 — at `{FLOOR}`, raised with the two rows whose
+                               # radius moved. Measured ABOVE it; floored from BELOW so a row that stops
                                # mutation that stops reddening is a control going quiet,
                                # and the per-row equality above would be edited to match
                                # it one row at a time without this
-ALSO_ATTRIBUTED_FLOOR = 90     # the DIAGNOSIS's own population, floored from BELOW — if
+ALSO_ATTRIBUTED_FLOOR = 99     # 🆕 246 §3 — at `{FLOOR}`, raised with it. The DIAGNOSIS's
+                               # own population, floored from BELOW — if
                                # the attributor silently stops resolving, the failure
                                # message stops naming the check that arrived
 
@@ -747,7 +749,12 @@ BLAST: dict[str, int] = {
     # much disagrees with its pins AND starts reporting numerals that were never ours —
     # `342,113` becomes 342 and 113. Both statements firing is the mutation's real
     # signature; declaring 1 here would have hidden the half that reaches a user.
-    "25.eats_too_much": 2,                # also: 25 (the prose statement, on garbage input)
+    # 🆕 246 — TWO BECAME FOUR, AND IT IS THIS TABLE DOING ITS JOB. Check 27 reads the
+    # same compiled pattern to classify what the guards SUPPRESS, so a scanner that eats
+    # too much stops suppressing anything and every guard class it reports goes unpinned.
+    # The radius moved because a check was ADDED — 196 §3's exact case, declared in the
+    # commit that moved it rather than arriving as drift in some later session.
+    "25.eats_too_much": 4,                # also: 25 (the prose statement, on garbage input), 27 ×2
     # 🔴 TWO, NOT ONE, SINCE 224 GAVE THE TABLE A LIVE ENTRY. Breaking the key the
     # entry is written against no longer only reports a vacuous exemption — the
     # numerals that exemption was covering fall straight back into check 25 and are
@@ -763,7 +770,13 @@ BLAST: dict[str, int] = {
     "17.notres": 1,
     "17.absent": 1,
     "22.floor": 1,
-    "22.collapse": 2,
+    # 🆕 246 — TWO BECAME FOUR, AND THE TWO NEW LINES ARE THE POINT OF CHECK 26. Deleting
+    # a `_ran` call used to be visible only at RUNTIME, as a name missing from the set check
+    # 22 compares. Check 26 reads the call SITES out of the source, so the same mutation now
+    # also reports a roster name with no call site and a header block nothing counts —
+    # which is the difference between "a check failed to finish" and "a check was never
+    # wired", and it is exactly the pair 233's discover row asked for.
+    "22.collapse": 4,
     "22.drift": 1,
     "22.twice": 1,
     "1.unfiled": 1,

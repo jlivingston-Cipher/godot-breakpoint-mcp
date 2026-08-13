@@ -200,7 +200,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # headline-only fixture (7) — so a floor RAISED out of range fails as loudly as one
     # zeroed. 184 §7: pinning the key is not pinning the value.
     ("handoff.CLAIM_FLOOR",     "../scripts/handoff_gate.py",       r"(CLAIM_FLOOR = )15",                                       ["../scripts/handoff_gate.py", "--selftest"]),
-    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )24",                                      ["../scripts/handoff_gate.py", "--selftest"]),
+    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )28",                                      ["../scripts/handoff_gate.py", "--selftest"]),
     # 🆕 244 §2 — `population-reach-floor` (239). NOT a floor on a count: it is the OLDEST
     # SESSION `BLOCK_POPULATION` has ever held, and the row exists because every other
     # floor on that table counts it. Lifted, the live table starts before its own pin and
@@ -239,9 +239,9 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("queue.QUEUE_ROW_FLOOR",   "../scripts/queue_gate.py",         r"(QUEUE_ROW_FLOOR = )20",                                   ["../scripts/queue_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
-    ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )20;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )15;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.RESIDUE_CEILING",       f"{S}/positive_control_gate.mjs",   r"(export const RESIDUE_CEILING = )1;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
-    ("pc.CLAIM_FLOOR_SELF",      f"{S}/positive_control_gate.selftest.mjs", r"(const CLAIM_FLOOR_SELF = )44;",                    [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.CLAIM_FLOOR_SELF",      f"{S}/positive_control_gate.selftest.mjs", r"(const CLAIM_FLOOR_SELF = )58;",                    [f"{S}/positive_control_gate.selftest.mjs"]),
     ("wd.COLLAPSE_SHAPE_FLOOR",  f"{S}/wire_diff.selftest.mjs",      r"(const COLLAPSE_SHAPE_FLOOR = )6;",                        [f"{S}/wire_diff.selftest.mjs"]),
     ("SUBJECT_FLOOR",            f"{S}/verdict_gate.mjs",            r"(export const SUBJECT_FLOOR = )4;",                        [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_SITE_FLOOR",       f"{S}/verdict_gate.mjs",            r"(export const DISCARD_SITE_FLOOR = )55;",                  [f"{S}/verdict_gate.selftest.mjs"]),
@@ -1158,7 +1158,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (23, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (24, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1166,7 +1166,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "session's finding, where two stale tool counts sat in the shipped README while "
         "`contract_check.py` read that file at seven call sites and exited clean. The "
         "floor moving is the deliberate half; the ledger row saying so in the same commit "
-        "is what tells it from a check that quietly went missing.")),
+        "is what tells it from a check that quietly went missing. 🆕 246 §3 RAISED IT BY "
+        "ONE AGAIN, and for the same shape of reason: the guard-class check was added to "
+        "close 233's discover row for the prose scanner's pin table, which asks whether "
+        "every lookaround that suppresses a numeral in the shipped documents is exercised "
+        "by a pin — the direction a positive control cannot reach.")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "
@@ -1176,12 +1180,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "when the block's counter line gains or loses a whole class of field — which is a "
         "session ADDING an instrument, and the ledger row saying so in the same commit is "
         "what tells that from a parser that quietly stopped matching.")),
-    ("../scripts/handoff_gate.py", "READER_FLOOR"): (24, (
+    ("../scripts/handoff_gate.py", "READER_FLOOR"): (28, (
         "🆕 234 — the counter readers, at `{FLOOR}`. The lower bound is the roster with "
         "its largest single-instrument family deleted (six rows read floor_pin_gate.py), "
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
-        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one.")),
+        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one. 🆕 246 §4 raised it by four, for the three counters `instrument_gate.py` has printed on every run since the session before and no row here bound, plus the queue gate's own self-test count — the same class this floor governs, arriving from the instrument's side rather than the block's.")),
     ("../scripts/handoff_gate.py", "POPULATION_REACH_FLOOR"): (227, (
         "🆕 244 §2 — `population-reach-floor`, and the ONE row in this ledger whose value "
         "is a session number rather than a count. `{FLOOR}` is the oldest block "
@@ -1306,11 +1310,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
     ("../scripts/control_gate.py", "STATEMENT_FLOOR"): (87, (
         "Failure statements, at `{FLOOR}`. 186 — measured seventy; 188 §3 added two and "
         "192 — added check twenty-three's.")),
-    ("../scripts/control_gate.py", "BLAST_TOTAL_FLOOR"): (95, (
+    ("../scripts/control_gate.py", "BLAST_TOTAL_FLOOR"): (105, (
         "🔴 201 §5's DEFECT, ONE FILE OVER. Its own comment said the live blast was one "
         "hundred and three — a measurement that drifts, written where nothing compares "
-        "it. Floored from BELOW at `{FLOOR}` so a row that stops reddening is caught.")),
-    ("../scripts/control_gate.py", "ALSO_ATTRIBUTED_FLOOR"): (90, (
+        "it. Floored from BELOW at `{FLOOR}` so a row that stops reddening is caught. 🆕 246 §3 raised it in the commit that outgrew it — two control rows gained reach because two checks were added, and a floor left where it was would have absorbed the whole gain as headroom nobody voted for.")),
+    ("../scripts/control_gate.py", "ALSO_ATTRIBUTED_FLOOR"): (99, (
         "🔴 SAME DEFECT, SAME FILE. Its comment quoted the live attributed count against "
         "the live blast, both of which move. The floor is `{FLOOR}` and the DIAGNOSIS's "
         "population is what it governs.")),
@@ -1541,15 +1545,18 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): (0, (
         "A CEILING at `{FLOOR}` and it has fallen to the bottom. It stays a ceiling "
         "rather than becoming a floor for the reason its own comment gives.")),
-    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (25, (
-        "That gate's swept enumerators, at `{FLOOR}`.")),
+    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (30, (
+        "That gate's swept enumerators, at `{FLOOR}`. 🆕 246 §2 raised it by four, and the "
+        "four were not new work: they are annotated enumerators whose RETURN SHAPE that "
+        "gate's empty-value table could not spell, so they had been outside its walk by "
+        "construction with no line anywhere saying so — and one of them blinded GREEN.")),
     ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): (20, (
         "Attributed statements, at `{FLOOR}`. Nineteen when re-derived; raised by one "
         "once 188 §3 gave check twelve a population.")),
-    ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): (45, (
+    ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): (62, (
         "🔴 201 §5's DEFECT AGAIN, THIRD FILE. Its comment quoted the live blast, which "
         "drifts. Floored from BELOW at `{FLOOR}` for control_gate's reason.")),
-    ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): (24, (
+    ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): (32, (
         "🔴 FOURTH AND LAST OF THE SHAPE §9.4 NAMED. Its comment quoted the live "
         "collapse count against the live row count, both moving. The floor is "
         "`{FLOOR}`.")),

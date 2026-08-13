@@ -22,7 +22,7 @@
 > written.
 
 <!-- QUEUE_FORMAT 1 -->
-<!-- QUEUE_HEAD 245 -->
+<!-- QUEUE_HEAD 246 -->
 
 ## The table
 
@@ -43,11 +43,11 @@
 |---|---|---|---|---|---|---|
 | header-unmoved-unread | DONE | 239 | 243 | — | `UNMOVED` is the same counter with no digit in it and nothing has ever read it | — |
 | population-reach-floor | DONE | 239 | 244 | — | Nothing floors how far back `BLOCK_POPULATION` must reach, only how wide it is | — |
-| queue-claims-unread | OPEN | 240 | — | — | `QUEUE_SELFTEST n claims` is a counter no roster reads — the reader cannot be added until a real block carries the atom, and 240's block is the first that will | — |
+| queue-claims-unread | DONE | 240 | 246 | — | `QUEUE_SELFTEST n claims` is a counter no roster reads — the reader cannot be added until a real block carries the atom, and 240's block is the first that will | — |
 | queue-unread | DONE | 240 | 240 | — | The Open section is the one table in the tree no gate reads | — |
 | ritual-tier | DONE | 240 | 240 | — | The opening ritual re-measures a tree nobody has touched since it was last measured | — |
 | queue-kill-loophole | DONE | 240 | 240 | — | `QUEUE_NOT_ONLY_NEWEST` counted a KILL as a closure, so the first session under it satisfied the claim by abandoning five items | — |
-| discover-rosters | SCHEDULED | 233 | — | 246 | Ask the DISCOVER question of `SCOPE_LEDGER` (47), `CHECKS_EXPECTED` (23), `PROSE_NUMERAL_PINS` (14) | — |
+| discover-rosters | DONE | 233 | 246 | — | Ask the DISCOVER question of `SCOPE_LEDGER` (47), `CHECKS_EXPECTED` (23), `PROSE_NUMERAL_PINS` (14) | — |
 | blind-py-gates | DONE | 234 | 245 | — | Blind the seventeen tracked `.py` gates — none is swept by the instrument that asks whether an instrument collapses loudly | — |
 | lint-roster-py-only | DONE | 230 | 242 | — | The lint roster covers `*.py` and nothing else; the carried `.mjs` number is wrong by ~16x (~1,014, not 63) | — |
 | cause-rule-py-only | DONE | 229 | 242 | — | The cause rule covers `scripts/*.py` and nothing else | — |
@@ -57,7 +57,7 @@
 | zod-3-to-4 | SCHEDULED | 226 | — | 248 | The Zod 3 → 4 migration, with its measured blast radius | — |
 | breakpoint-lite | KILLED | 226 | 243 | — | Decide "Breakpoint Lite, zero install" — priced in `docs/BREAKPOINT_LITE_PRICED.md` (242) | Decided in 243 on the price 242 measured. 74% of the 292 tools need a live editor and the fifteen `dbg_*` tools ride Godot's debug adapter on 6006, which exists only while the editor is open — so three of the four readings of "Lite" ship a Godot debugger that cannot debug, and the fourth is an Asset Library listing, which is a distribution channel for the product that already exists rather than a variant of it. The four remaining install steps are each an action in somebody else's process and none is automatable by anything this project can ship. Reopen only against evidence that install friction is what separates the downloads from the feedback — 242 §6.6's untested premise, and the cheaper thing to test |
 | alt-mcp-source-pass | SCHEDULED | 223 | — | 251 | A source-level pass on `Wick` and `godot-mcp-bridge` | — |
-| declared-outside-five | SCHEDULED | 214 | — | 246 | The `declared-outside-this-file` five | — |
+| declared-outside-five | DONE | 214 | 246 | — | The `declared-outside-this-file` five | — |
 | sweep-227-15 | SCHEDULED | 228 | — | 250 | 227 §15's sweep | — |
 | d10-capability-matrix | SCHEDULED | 223 | — | 251 | D10 capability matrix with a drift gate | — |
 | review-charter-p0 | DONE | 205 | 241 | — | P0 of the code review charter | — |
@@ -83,6 +83,7 @@
 | late-live-blast-unfloored | DONE | 244 | 245 | — | The B:live axis prints every instrument's blast and floors none of it — the reason (`no per-claim FAIL line`) is now false for the two commands 244 gave one | — |
 | py-cohort-two | SCHEDULED | 245 | — | 247 | The fifteen tracked `scripts/*.py` in `PY_NOT_SWEPT` — the injector exists and each row carries the measurement that says what is stopping it | — |
 | p0-default-path-unrun | OPEN | 245 | — | — | All three P0 reporters run `--selftest` and `--floor` in CI and NOTHING runs them with no flag — the report branch every one of them exists to print is executed by nothing | — |
+| scope-ledger-unreached | SCHEDULED | 246 | — | 252 | Sixteen of the forty-nine `SCOPE_LEDGER` floors can be collapsed by no blind in `scope_gate.py` — each is a module-level accumulator with no `def` to anchor on, and the work is a second injector that empties a binding AFTER the loop that fills it | — |
 
 ## What the gate refuses
 
