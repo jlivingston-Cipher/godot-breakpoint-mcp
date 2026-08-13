@@ -217,8 +217,78 @@ def _selftest() -> int:
     claim("py_comments finds a trailing comment and a docstring",
           "tail" in py and "doc" in py, f"{py}")
 
+    # ── 🆕 244 §4 — THE FLOOR READER, THE COMMAND THAT CAN REFUSE ────────────────────
+    #
+    # 🔴 THIS FILE IS NOT SWEPT YET — `blind-py-gates` (234) is the row, and until it is
+    # paid nothing injects an empty into `classify` and re-runs these claims. So the
+    # claims have to be written as if it were, because a floor asserted only by the run
+    # that also computes it is `len(x) >= len(x)` wearing a disguise.
+    _ok_rows = [{"file": f"f{i}.ts", "bucket": b}
+                for i, b in enumerate(["describes-this-code"] * 9000
+                                      + ["describes-other-code"] * 1400
+                                      + ["section-marker"] * 190)]
+    for i, r in enumerate(_ok_rows):
+        r["file"] = f"f{i % 80}.ts"
+    _ok_reader = {"ts": 3000, "py": 7590}
+    claim("a healthy inventory is accepted", floor_problems(_ok_rows, _ok_reader) == [])
+    # 🔴 `classify` BLINDED: every row present, every row in one bucket. A floor on the
+    # TOTAL sees nothing here, which is why the spread floor exists at all.
+    _one = [dict(r, bucket="describes-this-code") for r in _ok_rows]
+    claim("a classifier that returns one bucket for everything is refused",
+          any(p.startswith("populated buckets") for p in floor_problems(_one, _ok_reader)))
+    claim("…and its population is NOT reported as collapsed, because it is not",
+          not any(p.startswith("comment lines") for p in floor_problems(_one, _ok_reader)))
+    # 🔴 EITHER EXTRACTOR EMPTIED. The other one's rows keep the total plausible, so a
+    # total-only floor stays green with half the tree unread — 242's own finding shape.
+    claim("an emptied .ts extractor is refused by name",
+          any(p.startswith("lines from the .ts extractor")
+              for p in floor_problems(_ok_rows, {"ts": 0, "py": 7590})))
+    claim("an emptied .py extractor is refused by name",
+          any(p.startswith("lines from the .py extractor")
+              for p in floor_problems(_ok_rows, {"ts": 3000, "py": 0})))
+    claim("every floor is named in the problem it produces, and none is summed",
+          len(floor_problems([], {})) == len(FLOOR),
+          f"{len(floor_problems([], {}))} vs {len(FLOOR)}")
+
     print(f"P0_COMMENTS selftest {'ok' if not bad else f'🔴 {bad} FAILED'}")
     return 1 if bad else 0
+
+
+# 🆕 244 §4 — THE SECOND COMMAND, AND THIS FILE NEEDED IT FOR A DIFFERENT REASON FROM ITS
+# TWO SIBLINGS. `p0-reporters-unblinded` (241) named the two `.mjs` reporters; 243 put this
+# one beside them, and it is the one with TWO extractors and a CLASSIFIER. Emptying either
+# extractor leaves the other's rows intact and the inventory still prints a table; blinding
+# `classify` leaves every row present and files all 11,628 of them into one bucket. Neither
+# is visible in a total, so the floors are per SOURCE and per SPREAD, never summed (172 §6).
+#
+# Measured live at 1.74.0: 11,628 comment lines over 86 files — 3,670 from 68 `.ts`, 7,958
+# from 18 `.py` — in 5 populated buckets. Floored from BELOW with headroom (198 §36), and
+# the bucket floor is 3 rather than 5 on purpose: `TODO-FIXME` stands at ONE and
+# `commented-out-code` at seven, so a session that fixed the tree's last TODO would redden
+# a floor of 5, and a gate that reddens on the work it exists to encourage gets deleted.
+FLOOR = {
+    "rows": 9000,
+    "files": 70,
+    "ts_rows": 2800,
+    "py_rows": 6000,
+    "buckets": 3,
+}
+
+
+def floor_problems(rows: list, per_reader: dict, floor: dict = FLOOR) -> "list[str]":
+    """Which of this reporter's own measures have collapsed. Pure."""
+    out: "list[str]" = []
+
+    def at(what: str, got: int, want: int) -> None:
+        if got < want:
+            out.append(f"{what} {got}, floor {want}")
+
+    at("comment lines", len(rows), floor["rows"])
+    at("files read", len({r["file"] for r in rows}), floor["files"])
+    at("lines from the .ts extractor", per_reader.get("ts", 0), floor["ts_rows"])
+    at("lines from the .py extractor", per_reader.get("py", 0), floor["py_rows"])
+    at("populated buckets", len({r["bucket"] for r in rows}), floor["buckets"])
+    return out
 
 
 def main() -> int:
@@ -226,7 +296,9 @@ def main() -> int:
         return _selftest()
 
     rows = []
-    for base, glob, reader in ((SRC, "**/*.ts", ts_comments), (SCRIPTS, "*.py", py_comments)):
+    per_reader: dict[str, int] = {}
+    for base, glob, reader, tag in ((SRC, "**/*.ts", ts_comments, "ts"),
+                                    (SCRIPTS, "*.py", py_comments, "py")):
         for f in sorted(base.rglob(glob.split("/")[-1]) if "**" in glob else base.glob(glob)):
             text = f.read_text(encoding="utf-8", errors="replace")
             for lineno, body in reader(text):
@@ -234,6 +306,7 @@ def main() -> int:
                 for k, sub in enumerate(body.split("\n")):
                     if not sub.strip():
                         continue
+                    per_reader[tag] = per_reader.get(tag, 0) + 1
                     rows.append(
                         {
                             "file": str(f.relative_to(ROOT)),
@@ -242,6 +315,27 @@ def main() -> int:
                             "text": sub.strip()[:160],
                         }
                     )
+
+    if "--floor" in sys.argv:
+        # 🔴 THE CENSUS FIRST, BEFORE ANY VERDICT BRANCH — the shape `instrument_gate.py`
+        # requires of a live command it can classify. This reporter is not swept yet
+        # (`blind-py-gates`, 234), and the line is written to the same rule anyway so that
+        # the row arrives at a command already shaped for it.
+        print(f"P0_COMMENTS_CENSUS files={len({r['file'] for r in rows})} "
+              f"lines={len(rows)} ts={per_reader.get('ts', 0)} py={per_reader.get('py', 0)} "
+              f"buckets={len({r['bucket'] for r in rows})}")
+        problems = floor_problems(rows, per_reader)
+        # 🔴 `FAIL <NAME>` — the spelling `instrument_gate.py`'s `failure_lines` counts.
+        # This file is not swept yet (`blind-py-gates`, 234); it is written in the shape
+        # the sweep will need so the row arrives at a command already countable.
+        for p in problems:
+            print(f"  FAIL P0_COMMENTS_FLOOR {p}")
+        if problems:
+            print(f"P0_COMMENTS_FLOOR {len(problems)} measure(s) collapsed — this "
+                  f"reporter is still printing and has stopped classifying")
+            return 1
+        print("P0_COMMENTS_FLOOR ok — every measure is above its floor")
+        return 0
 
     counts: dict[str, int] = {}
     per_area: dict[tuple[str, str], int] = {}

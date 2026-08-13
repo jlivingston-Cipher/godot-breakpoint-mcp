@@ -176,6 +176,12 @@ jobs:
       # nothing in this tree executed that file at all.
       - name: The comment inventory still measures what it claims (p0 comments selftest)
         run: python3 scripts/p0_comments.py --selftest
+      # 🆕 244 §4 — the third reporter's refusing half. It is not swept by
+      # `instrument_gate.py` yet (`blind-py-gates`, 234), so this step and its self-test
+      # are the whole of its coverage — which is the reason the floors are claimed in
+      # `--selftest` against fixtures rather than only computed here.
+      - name: The comment inventory can still refuse (p0 comments floor)
+        run: python3 scripts/p0_comments.py --floor
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own
@@ -308,6 +314,19 @@ jobs:
         run: node scripts/p0_complexity.selftest.mjs
       - name: The P0 reporters still measure what they claim (test duplication)
         run: node scripts/p0_testdup.selftest.mjs
+      # 🆕 244 §4 — AND THE OTHER HALF OF `p0-reporters-unblinded` (241): the command that
+      # can REFUSE. A reporter that prints exits 0 whatever it measured, which is why
+      # 241 could not give either file a `LATE_LIVE` row and put both in
+      # `DISCOVER_EXEMPT` instead. `--floor` asks each one whether its own measurement is
+      # still a measurement — population AND spread, because `measureFunction` blinded
+      # leaves 1095 functions in place and takes every value in them to a constant.
+      # `instrument_gate.py` drives these two as the live axis; these steps are the same
+      # command on every push, where a collapse that a sweep would find in six minutes is
+      # found in two seconds. ~2s each.
+      - name: The P0 reporters can still refuse (complexity floor)
+        run: node scripts/p0_complexity.mjs --floor
+      - name: The P0 reporters can still refuse (test duplication floor)
+        run: node scripts/p0_testdup.mjs --floor
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
       # 🔴 AND THE LEDGER COMPARISON, WHICH UNTIL 173 HAD NO GATE ANYWHERE. The four

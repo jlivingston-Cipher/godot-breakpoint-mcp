@@ -1351,6 +1351,45 @@ def check_header(block: "list[str]", log: str, run_network: bool,
         if pat not in fired:
             notes.append(f"HEADER_EXEMPT unused on this block: {pat} ({why[:60]}…)")
 
+    # ── 🆕 244 §3 — `version-row-second-claim` (OPEN 243) — THE STRINGS BESIDE THE WORD ─
+    #
+    # 🔴 A NUMERAL READER CANNOT SEE A VERSION, AND THAT IS DELIBERATE THREE FILES DEEP.
+    # `COUNTER_RE` refuses a digit with a dot against it so `1.74.0` is not read as three
+    # counters — so the `host / addon` row's two version strings produced NO atom, bound
+    # to no reader, and were compared to nothing, in every block ever written. 243 gave
+    # the WORD on that row a reader and said so in its own queue: the row went from
+    # half-read to three-quarters read, and this is the last quarter.
+    #
+    # 🔴 IT IS A ROW CLAIM AND NOT AN EXEMPTION, WHICH IS THE WHOLE DISTINCTION 236 §3
+    # DELETED TWO ROWS OVER. `HEADER_EXEMPT` is for numerals no instrument prints; these
+    # two are printed by `host/package.json` and `plugin.cfg`, and `contract_check.py`
+    # has read both for parity for fifty sessions. An exemption here would have been an
+    # exemption whose reason described the READER's state and not the counter's nature.
+    #
+    # 🔴 AND IT NAMES WHICH OF THE TWO DRIFTED. `version.unmoved` counts how many moved
+    # since the PREVIOUS block; this compares THIS block's own pair against the tree in
+    # front of it. Both live on one row, they are different claims, and together they are
+    # a chain: the previous block's pair, the tree, and what this block says the tree is.
+    was_pair, why_pair = block_versions(block)
+    if why_pair:
+        notes.append(f"version.pair: UNREAD — {why_pair}")
+    else:
+        now_pair, why_tree = tree_versions()
+        if why_tree:
+            notes.append(f"version.pair: UNREAD — {why_tree}")
+        else:
+            compared += 1
+            drift = [f"{lbl}: block says {a}, tree says {b}"
+                     for lbl, a, b in zip(("host", "addon"), was_pair, now_pair) if a != b]
+            if drift:
+                problems.append(
+                    "🔴 version.pair — " + "; ".join(drift) + "\n"
+                    "     the `host / addon` row states the two versions this tree "
+                    "holds, read from `host/package.json` and "
+                    "`addons/breakpoint_mcp/plugin.cfg`.\n"
+                    "     Unread until 244: `COUNTER_RE` cannot see a dotted numeral, so "
+                    "these two strings were never an atom and never bound.")
+
     if len(atoms) < HEADER_FLOOR:
         problems.append(f"🔴 HEADER_FLOOR — {len(atoms)} header atom(s), floor "
                         f"{HEADER_FLOOR}. Every block since 227 carries an npm line with "
@@ -2818,7 +2857,89 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · handoff 231 claims · 26 CI jobs
 > ```
 """),
+    # 🆕 244 — 243's OWN BLOCK, ADDED BEFORE THE CLOSE GATE RAN (241's standing rule, and
+    # since 244 §2 this table also has a floor on how far BACK it reaches). It is the
+    # block that carries `UNMOVED` on the main row over an interval that really is zero —
+    # the input `UNMOVED_ACCEPTS` needs and the only real one this population has.
+    (243, """> ```
+> main                 147bb35 — the PR body is scratch and it reached the tree (#299)  UNMOVED
+> branch 243           session243-the-word-that-was-never-a-claim
+>                      🟡 NOT PUSHED FROM HERE — the container cannot push to this repo
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   726/726 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1388
+>               · late not-loaded 0 · discover 52/14/12/22 · 2 exempt · 0 undeclared
+>               · floor_pin 98 · 47 governed · 894 keys · 94 shortfalls
+>               · unswept 0 · exempt 38 · term 285 file(s) / 21 suffixes
+>               · taut 4096 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 253 claims · 26 CI jobs
+> ```
+"""),
 ]
+
+# ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
+#
+# 🔴 EVERY FLOOR THIS FILE HAS ON `BLOCK_POPULATION` IS A FLOOR ON ITS WIDTH.
+# `ALIAS_SPELLING_FLOOR`, `HEADER_FLOOR`, `READER_FLOOR` and `CLAIM_FLOOR` all count
+# things and refuse a small number, and a table that dropped 227 as it added 243 would
+# satisfy every one of them: same width, same spellings, same claims, one session less
+# reach. Nothing said a word about the direction the table loses.
+#
+# 🔴 AND THE COST OF LOSING IT IS NOT ONE CLAIM. Two readers take their FAR endpoint out
+# of this table by construction — `moved_interval` reads the previous block's main SHA
+# and `version_interval` (243) reads the previous block's version pair — so the oldest
+# block in the table is the oldest interval either can measure. A sliding window keeps
+# the newest claims answerable and quietly makes the old ones UNREAD, which is the shape
+# 244 §1 found on CI: not a red, an absence, reported by nothing.
+#
+# 🔴 AND THE FIRST DRAFT OF THIS FLOOR WAS A WIDTH FLOOR WEARING A DIFFERENT WORD, WHICH
+# THE CONTROL FOUND IN ONE RUN. It floored `newest - oldest`, and a contiguous table's
+# reach IS its width minus one — so the sliding window it was written to refuse satisfied
+# it exactly, and the claim restated `len()` in arithmetic. What cannot be satisfied by
+# sliding is a PIN ON THE BACK: the oldest block the table has ever held, written down,
+# so dropping it is an edit to a literal `floor_pin_gate` governs rather than a table one
+# block shorter at the end nobody reads. Reach then grows on its own, every session.
+#
+# 🔴 TWO CLAIMS BECAUSE ONE OF THEM ALONE IS TRIVIAL. A table holding 227 and 242 and
+# nothing between reaches its pin and measures two intervals; a table holding 240–242 is
+# contiguous and reaches nothing. Neither half is satisfiable by adding blocks at the
+# front, which is the property `SCRIPT_POPULATION_FLOOR` has and a `len()` floor does not.
+# 🔴 AND THE NAME IS `_FLOOR` WHILE THE COMPARISON IS `<=`, WHICH IS NOT A SLIP.
+# `floor_pin_gate.py`'s DISCOVER half reads names, and its `UNDISCOVERABLE_CEILING` is
+# zero with a written reason: *the fix is still the constant's name rather than a wider
+# guess.* A floor on REACH, expressed as the newest session number the OLDEST block may
+# carry — so the number goes DOWN as the claim gets stronger, and a session that wants to
+# drop the back has to edit a governed literal to do it.
+POPULATION_REACH_FLOOR = 227   # the oldest block this table has ever reached
+
+
+def population_reach_problems(pop: "list[tuple[int, str]]",
+                              back: int = POPULATION_REACH_FLOOR) -> "list[str]":
+    """What is wrong with how far back a block population reaches. Pure."""
+    out: "list[str]" = []
+    sessions = [s for s, _t in pop]
+    if len(sessions) < 2:
+        return [f"POPULATION_REACH {sessions} — a table of fewer than two blocks spans "
+                f"no interval at all, so every reader taking its far endpoint out of it "
+                f"is UNREAD and nothing here can say so"]
+    if sessions[0] > back:
+        out.append(f"POPULATION_REACH the oldest block is {sessions[0]} and the pin is "
+                   f"{back} — the table dropped its back. Width says nothing about this: "
+                   f"a window that slides forward keeps every count this file floors and "
+                   f"takes the far endpoint off `moved_interval` and `version_interval` "
+                   f"without either one going red. Moving the pin is the decision")
+    gaps = [f"{a}→{b}" for a, b in zip(sessions, sessions[1:]) if b - a != 1]
+    if gaps:
+        out.append(f"POPULATION_CONTIGUOUS {gaps} — a hole in the table is a block whose "
+                   f"interval readers point at the wrong previous session and answer "
+                   f"confidently. Reaching the pin without contiguity is two blocks and a "
+                   f"long subtraction")
+    return out
+
 
 # ── 🔴 237 §3 — THE POPULATION THE `SINCE` BOUNDARIES WERE MEASURED OVER ──────────────
 #
@@ -3927,6 +4048,93 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 VERSION_UNMOVED_BOUND `check_header` did not route the `host / "
               f"addon` word claim to its reader — notes {_n}")
+
+    # ── 🆕 244 §3 — `version-row-second-claim`: THE TWO STRINGS, BOTH DIRECTIONS ───────
+    #
+    # 🔴 THE POSITIVE HALF FIRST, AND IT IS FIRST ON PURPOSE — 243 §3.2's third mutation
+    # is nine days old: a reader that refuses every block passes every claim written
+    # about its refusals. The newest real block prints the pair this tree holds, so it
+    # must be ACCEPTED, and no arrangement of a broken reader satisfies both this claim
+    # and the two below it.
+    claims += 1
+    _p, _n, _a, _c = check_header(status_block(BLOCK_POPULATION[-1][1])[0], "", False,
+                                  BLOCK_POPULATION[-1][0])
+    if any("version.pair" in x for x in _p):
+        failed += 1
+        print(f"  🔴 VERSION_PAIR_ACCEPTS {BLOCK_POPULATION[-1][0]}'s block prints the "
+              f"pair this tree holds ({_vers}) and the reader refused it: "
+              f"{[x for x in _p if 'version.pair' in x]}")
+    # 🔴 AND EACH OF THE TWO STRINGS ON ITS OWN, BECAUSE A ROW-LEVEL CLAIM THAT ONLY EVER
+    # SAW BOTH MOVE WOULD BE A BOOLEAN WEARING A PAIR. `1.74.0 / 1.9.9` is two sources —
+    # a host cut and an addon re-stamp are different events, they have moved
+    # independently through this project's whole history, and a block that restated one
+    # of them wrongly is exactly the drift 234's `FLOOR_PIN_LITERAL` incident was.
+    for _idx, _lbl in ((0, "host"), (1, "addon")):
+        claims += 1
+        _bad = list(_vers)
+        _bad[_idx] = "9.9.9"
+        _row = ["main                 deadbee — a fixture (#0)          MOVED +1",
+                f"host / addon         {_bad[0]} / {_bad[1]}   🟢 unmoved"]
+        _p, _n, _a, _c = check_header(_row, "", False, BLOCK_POPULATION[-1][0] + 1)
+        if not any("version.pair" in x and f"{_lbl}:" in x for x in _p):
+            failed += 1
+            print(f"  🔴 VERSION_PAIR_CONTROL a block claiming {_bad} against a tree at "
+                  f"{list(_vers)} was not refused for {_lbl} — problems {_p}. Whichever "
+                  f"of the two a session restates wrongly, the refusal has to name it")
+    # 🔴 AND THE UNREAD PATH, WHICH IS NOT THE SAME AS AGREEMENT. A block with no
+    # `host / addon` row at all must say so in a note rather than compare nothing and
+    # pass — 235 §6.3's rule, and the shape 244 §1 found four claims standing on.
+    claims += 1
+    _p, _n, _a, _c = check_header(
+        ["main                 deadbee — a fixture (#0)          MOVED +1"], "", False,
+        BLOCK_POPULATION[-1][0] + 1)
+    if not any("version.pair: UNREAD — no `host / addon` row" in x for x in _n):
+        failed += 1
+        print(f"  🔴 VERSION_PAIR_UNREAD a block with no `host / addon` row compared "
+              f"nothing and said nothing — notes {_n}")
+
+    # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239): HOW FAR BACK, NOT HOW WIDE ────
+    #
+    # 🔴 THE LIVE TABLE PASSES AND THAT IS THE POSITIVE HALF. Everything below refuses a
+    # table that lost its back; without this claim a reader that refused every population
+    # would satisfy all of them.
+    claims += 1
+    _reach = population_reach_problems(BLOCK_POPULATION)
+    if _reach:
+        failed += 1
+        print(f"  🔴 POPULATION_REACH the live table is refused by its own floor: "
+              f"{_reach}")
+    # 🔴 THE SLIDING WINDOW, WHICH IS THE ROW'S ENTIRE SUBJECT AND WHICH THE FIRST DRAFT
+    # OF THE FLOOR ACCEPTED. One block off the back, one on the front: same width, same
+    # spellings, same claims, contiguous — and every count this file floors is unchanged.
+    claims += 1
+    _slid = BLOCK_POPULATION[1:] + [(BLOCK_POPULATION[-1][0] + 1, "")]
+    if not any("POPULATION_REACH " in p for p in population_reach_problems(_slid)):
+        failed += 1
+        print(f"  🔴 POPULATION_REACH_CONTROL a window of {len(_slid)} block(s) starting "
+              f"at {_slid[0][0]} was accepted against a pin of {POPULATION_REACH_FLOOR} — "
+              f"same width as the live table, one session less reach, and a floor that "
+              f"cannot tell the two apart is `len()` written as a subtraction")
+    # 🔴 AND REACH WITHOUT CONTIGUITY IS TWO BLOCKS AND A LONG SUBTRACTION. This one
+    # passes the floor above with room to spare, which is why the two claims are two.
+    claims += 1
+    _gapped = [BLOCK_POPULATION[0], BLOCK_POPULATION[-1]]
+    _gp = population_reach_problems(_gapped)
+    if not any("POPULATION_CONTIGUOUS" in p for p in _gp) or any(
+            "POPULATION_REACH " in p for p in _gp):
+        failed += 1
+        print(f"  🔴 POPULATION_CONTIGUOUS_CONTROL a table holding only "
+              f"{_gapped[0][0]} and {_gapped[-1][0]} answered {_gp} — it spans the floor "
+              f"and measures two intervals, and only the contiguity half can say so")
+    # 🔴 GROWTH AT THE FRONT IS NEVER A REFUSAL. A floor a session can trip by doing the
+    # thing the ritual orders — adding the previous block before the close gate — is a
+    # floor that gets deleted rather than obeyed.
+    claims += 1
+    _grown = BLOCK_POPULATION + [(BLOCK_POPULATION[-1][0] + 1, "")]
+    if population_reach_problems(_grown):
+        failed += 1
+        print(f"  🔴 POPULATION_REACH_GROWTH adding the next block to the table was "
+              f"refused: {population_reach_problems(_grown)}")
 
     # 🔴 AND A SINGLE SHA ON THE MAIN ROW IS ENOUGH NOW, WHICH IS THE WHOLE CHANGE. 233's
     # block prints one, claims `MOVED +2`, and was UNREAD until this session for needing

@@ -8,9 +8,7 @@
 // sentence and the code enforcing it are not the same artifact. This is the artifact.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  NOISE, cluster, extractTests, oracleKeyOf, oracleOf, shapeOf, subjectOf,
-} from "./p0_testdup.mjs";
+import { NOISE, cluster, extractTests, oracleKeyOf, oracleOf, shapeOf, subjectOf, floorProblems, FLOOR } from "./p0_testdup.mjs";
 
 // ── subject ───────────────────────────────────────────────────────────────────────
 test("subjectOf never returns `async` — the defect that made a keyword the top cluster", () => {
@@ -99,4 +97,67 @@ test("🔴 NEGATIVE CONTROL — the three tests do NOT collapse into one cluster
 
 test("a file with no tests contributes nothing rather than throwing", () => {
   assert.deepEqual(extractTests("export const x = 1;", "s.ts"), []);
+});
+
+// ── 🆕 244 §4 — THE FLOOR READER, SAME REASON AS `p0_complexity.selftest.mjs`'s ───────
+//
+// 🔴 AND ONE CLAIM THIS FILE HAS THAT ITS SIBLING DOES NOT: THE COLLAPSE HAS TWO
+// DIRECTIONS. A clustering stops being one when everything shares a key AND when nothing
+// does, and a floor on the cluster count alone is blind to the first. Both are asserted.
+const mk = (n, keyFn) => Array.from({ length: n }, (_, i) => ({
+  file: `t${i % 50}.test.ts`, name: `t${i}`, key: keyFn(i),
+}));
+const SHAPES = ["OK/SYNC/PURE/SINGLE", "OK/SYNC/PURE/MULTI", "OK/ASYNC/PURE/SINGLE",
+                "ERR/SYNC/PURE/SINGLE", "ERR/ASYNC/SERVER/MULTI", "OK/ASYNC/SERVER/MULTI"];
+// 500 singletons and 200 tests spread over 60 repeated keys — a real duplication report's
+// shape, and the only fixture both directions of the claim below can be measured against.
+const healthy = mk(700, (i) => (i < 500
+  ? `subj${i} | okx${i % 7} | ${SHAPES[i % SHAPES.length]}`
+  : `dup${(i - 500) % 60} | okx1 | ${SHAPES[i % SHAPES.length]}`));
+const files = Array.from({ length: 50 }, (_, i) => `t${i}.test.ts`);
+
+test("a healthy clustering is accepted", () => {
+  assert.deepEqual(floorProblems(healthy, files, cluster(healthy)), []);
+});
+
+test("everything in ONE cluster is refused — the singleton floor is what sees it", () => {
+  const collapsed = mk(700, () => "S | okx1 | OK/SYNC/PURE/SINGLE");
+  const problems = floorProblems(collapsed, files, cluster(collapsed));
+  assert.ok(problems.some((p) => p.startsWith("singleton keys 0")), problems.join("; "));
+  assert.ok(problems.some((p) => p.startsWith("distinct keys 1")), problems.join("; "));
+  assert.ok(!problems.some((p) => p.startsWith("tests extracted")),
+    "every test is still there — the population is not what collapsed");
+});
+
+test("everything a SINGLETON is refused — the cluster floor is what sees it", () => {
+  const scattered = mk(700, (i) => `subj${i} | okx${i} | ${SHAPES[i % SHAPES.length]}`);
+  const problems = floorProblems(scattered, files, cluster(scattered));
+  assert.ok(problems.some((p) => p.startsWith("clusters of 2+ 0")), problems.join("; "));
+  assert.ok(!problems.some((p) => p.startsWith("singleton keys")),
+    "the other direction must stay quiet, or the two claims are one claim");
+});
+
+test("every floor is named in the problem it produces, and none is summed", () => {
+  assert.equal(floorProblems([], [], new Map()).length, Object.keys(FLOOR).length);
+});
+
+// ── 🆕 244 §4 — THE ORACLE KEY, WHICH THIS FILE DID NOT COVER AND THE SWEEP SAID SO ───
+//
+// 🔴 SAME FINDING AS `walkTs`'s ONE FILE OVER, AND THE SAME FIRST SWEEP FOUND IT.
+// `{SIG:oracleKeyOf}` blinded to a constant left every claim here green: the key's MIDDLE
+// component is what tells `assert.equal` used once from `assert.equal` used three times,
+// and nothing asserted the spelling it produces. It is one third of the clustering key
+// this whole file exists to defend.
+test("the oracle key is sorted, counted, and stable under key order", () => {
+  assert.equal(oracleKeyOf({ ok: 1, equal: 2 }), "equalx2,okx1");
+  assert.equal(oracleKeyOf({ equal: 2, ok: 1 }), "equalx2,okx1",
+    "two tests asserting the same things must land on ONE key whatever order they wrote them in");
+});
+
+test("a test with no assertions gets a key that says so rather than an empty string", () => {
+  assert.equal(oracleKeyOf({}), "<none>");
+});
+
+test("the COUNT is part of the key — one assert.equal is not three", () => {
+  assert.notEqual(oracleKeyOf({ equal: 1 }), oracleKeyOf({ equal: 3 }));
 });

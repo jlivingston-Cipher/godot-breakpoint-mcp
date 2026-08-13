@@ -797,6 +797,62 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🆕 244 §4 — `p0-reporters-unblinded` (241), PAID WHERE THE IOU WAS WRITTEN.
+        # 241 put this file in `DISCOVER_EXEMPT` and said exactly why: the late axis
+        # needs a second command that goes RED when a member is blinded, and a reporter
+        # that PRINTS cannot. `--floor` is that command now (see the file's own header),
+        # so the row moves out of the exemption table and into this one.
+        "name": "p0_complexity.mjs",
+        "src": HOST / "scripts" / "p0_complexity.mjs",
+        "gate": ["node", "scripts/p0_complexity.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 3,
+        "why": "the P0 complexity reporter — the ranking P3 will be argued from",
+        "targets": {
+            # 🔴 THE ONE THE ROW WAS WRITTEN ABOUT. Blinded, this file still prints
+            # `functions measured: 1095` and exits 0; what collapses is every VALUE in
+            # the population, which is why `--floor` asks about spread and not size.
+            "{SIG:measureFunction}": "return { cyclo: 1, cognitive: 0, maxNest: 0 };",
+            # A walk that stops recursing is the population going to nothing.
+            "{SIG:measureSource}": "return { rows: [], lines: 0, maxNest: 0 };",
+            "{SIG:walkTs}": "return [];",
+            # 🔴 THE HEALTHY ANSWER, NOT A FAILING ONE (175's `_png.mjs` rule). A name is
+            # not a number, so this blind is invisible to every floor on the measures and
+            # visible only to the one on the names — which is the claim that the
+            # published `file:line  name` rows still identify distinct functions.
+            "{SIG:nameOf}": 'return "fn";',
+            # 🔴 see p0_testdup.mjs::floorProblems below — same member, same reason.
+            "{SIG:floorProblems}": "return [];",
+        },
+    },
+    {
+        # 🆕 244 §4 — the second half of the same row, and a different collapse. This
+        # reporter's output is a CLUSTERING, so what fails is not an empty population but
+        # a key that stops discriminating; its floors are on the PARTS of the key and on
+        # the singletons rather than on the verdict the table prints.
+        "name": "p0_testdup.mjs",
+        "src": HOST / "scripts" / "p0_testdup.mjs",
+        "gate": ["node", "scripts/p0_testdup.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 3,
+        "why": "the P0 test-duplication clusterer — the candidate list P5 will be argued from",
+        "targets": {
+            "{SIG:extractTests}": "return [];",
+            "{SIG:subjectOf}": 'return "S";',
+            "{SIG:shapeOf}": 'return "SH";',
+            "{SIG:oracleOf}": "return {};",
+            "{SIG:oracleKeyOf}": 'return "<none>";',
+            "{SIG:cluster}": "return new Map();",
+            # 🔴 THE REFUSAL ITSELF, AND IT IS A TARGET RATHER THAN A NOT_A_TARGET ROW
+            # BECAUSE A FLOOR THAT CANNOT REFUSE IS THE WHOLE 244 §4 DEFECT ONE LAYER
+            # DOWN. Blinded, `--floor` agrees with every collapse the other five blinds
+            # cause — so the live axis would go green over all of them at once. The
+            # self-test's own floor claims are what catch it, which is why they were
+            # written in the same commit as the command.
+            "{SIG:floorProblems}": "return [];",
+        },
+    },
+    {
         # 🆕 211 §6 — 209 §9.6 NAMED THIS AND 210 CARRIED IT. `token-cost.mjs` has a
         # headless self-test, three governed floors swept by `floor_pin_gate`, and a CI
         # step — and it appeared in NO roster in this file. 🔴 THE FILE SAID SO ITSELF,
@@ -1097,6 +1153,15 @@ LATE_LIVE = {
     # self-test. Declaring it NA would have been an exclusion bought with a sentence
     # anybody could check and find false — 211 §5's whole point about the reasons.
     "positive_control_gate.mjs": (["node", "scripts/positive_control_gate.mjs"], None),
+    # 🆕 244 §4 — THE TWO P0 REPORTERS, AND THIS PAIR OF ROWS IS THE ROW ITSELF. 241's
+    # `DISCOVER_EXEMPT` entries said the late axis had nothing to blind because a reporter
+    # that prints cannot redden. `--floor` is a second command that CAN: it asks each
+    # reporter whether its own measurement is still a measurement, and every target above
+    # takes at least one of its floors under. Not `LATE_LIVE_NA` — 232 §5.6's rule is that
+    # an NA row has to say there is no second command, and there is one, in this repo,
+    # eleven lines further down ci.yml.
+    "p0_complexity.mjs": (["node", "scripts/p0_complexity.mjs", "--floor"], None),
+    "p0_testdup.mjs": (["node", "scripts/p0_testdup.mjs", "--floor"], None),
     # 🆕 233 — THE THREE ROWS `LATE_LIVE_NA` WAS BUYING WITH A SENTENCE THE TREE
     # CONTRADICTED. 232 §5.6 decided the rule for `positive_control_gate.mjs`: an NA row
     # has to say "there is no second command that exercises this file", so a row is false
@@ -1172,6 +1237,13 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     "node scripts/token-cost.mjs --summary": "TOKEN_COST ",
     "node scripts/wire_invisible_gate.mjs": "WIRE_INVISIBLE_SURFACE ",
     "node scripts/wire_diff.mjs --discover": "WIRE_DIFF_KEY ",
+    # 🆕 244 §4 — THE CENSUS LINE, WHICH IS WHY `--floor` PRINTS ONE AT ALL. 233's rule
+    # above chose these three by the same test: the FIRST line the command prints, emitted
+    # before any verdict branch, so a refusal still carries it and a red is a CATCH rather
+    # than an unclassifiable crash. The `ok` line these two also print would have failed
+    # that test exactly the way draft 2 of `positive_control_gate.mjs`'s did.
+    "node scripts/p0_complexity.mjs --floor": "P0_COMPLEXITY_CENSUS ",
+    "node scripts/p0_testdup.mjs --floor": "P0_TESTDUP_CENSUS ",
 }
 
 # THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
@@ -1500,6 +1572,16 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # `wire_diff.mjs` was added to the gate in 209 with a `BLAST_FLOOR` row and no late
     # twin, and nothing in this file compared the two rosters until now.
     "wire_diff.mjs": 120,
+    # 🆕 244 §4 — THE TWO P0 REPORTERS, MEASURED ON THE FIRST SWEEP THAT COULD SEE THEM.
+    # 31 and 19 on the [A:gate] axis. 🔴 AND THE FIRST MEASUREMENT WAS 29 AND 17, TAKEN
+    # BEFORE THE SWEEP HAD FINISHED TALKING: it also reported that `{SIG:walkTs}` and
+    # `{SIG:oracleKeyOf}` could return their empties with both self-tests GREEN — the walk
+    # under every table `p0_complexity.mjs` ranks, and the middle third of the clustering
+    # key `p0_testdup.mjs` exists to defend, neither covered by the file beside it.
+    # Flooring the first numbers would have pinned the gap in place. Six claims later the
+    # numbers are these, and they are floored from BELOW with the usual headroom.
+    "p0_complexity.mjs": 26,   # 244: measured 31 across its five blinds, 0 crashed
+    "p0_testdup.mjs": 16,      # 244: measured 19 across its six blinds, 0 crashed
     "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23
     # 🆕 231 — MEASURED AT 20 ON THIS AXIS AND FLOORED FROM BELOW, which is 198 §36's rule
     # and the reason the first draft of this row (40, guessed from the sibling above
@@ -1611,41 +1693,21 @@ MODULE_RE = re.compile(r"^export[ \t]", re.M)
 # one that was is now the thirteenth entry. A row here needs the shape 174 §5 requires: a
 # REASON, not a name, and one a reader can check rather than agree with.
 DISCOVER_EXEMPT: dict[str, str] = {
-    # 🆕 241 — THE TWO P0 REPORTERS, DECLARED RATHER THAN BLINDED, AND THE ROW SAYS WHICH.
+    # 🆕 244 §4 — 🟢 EMPTY, AND THE ROW THAT EMPTIED IT IS `p0-reporters-unblinded` (241).
     #
-    # 🔴 THIS IS THE FIRST USE OF THIS TABLE AND IT IS AN IOU, NOT A JUDGEMENT THAT THEY
-    # DO NOT NEED SWEEPING. Both export members, both have headless self-tests, and both
-    # BELONG in `INSTRUMENTS` — the entries were written, and what stopped them was the
-    # late axis rather than the gate one: `LATE_LIVE` needs a second command that goes RED
-    # when a member is blinded, and a reporter that PRINTS cannot. `p0_complexity.mjs`
-    # with `measureFunction` blinded prints `functions measured: 1095` and exits 0, in
-    # green, which is the exact observable the late axis exists to refuse. Declaring
-    # `LATE_LIVE_NA` instead would have been false by 232 §5.6's rule — there IS a second
-    # command, it just cannot fail — so the honest move is this row plus the queue.
+    # 241 opened this table with two entries and called them an IOU rather than a
+    # judgement: *"both BELONG in `INSTRUMENTS` — the entries were written, and what
+    # stopped them was the late axis rather than the gate one: `LATE_LIVE` needs a second
+    # command that goes RED when a member is blinded, and a reporter that PRINTS cannot."*
+    # 244 gave all three P0 reporters a `--floor` command that refuses when their own
+    # measurement collapses, and both `.mjs` rows moved into `INSTRUMENTS` with their
+    # blinds and their `LATE_LIVE` entries.
     #
-    # 🔴 AND THE REASON THIS IS NOT `token-cost.mjs`'s SITUATION (211 §6), which is the
-    # precedent a reader will reach for: that file sat outside every roster in this
-    # gate for ten sessions and the only thing that said so was a sentence in a comment
-    # beside another entry. This absence is in the table the DISCOVER half reads, and it
-    # is `p0-reporters-unblinded` in `QUEUE.md`, which `queue_gate.py` refuses to let sit
-    # past the ceiling. A confession is not a mechanism; a queue row that a gate reads is.
-    #
-    # What is covered meanwhile, so the size of the gap is not left to be guessed:
-    # twenty-six claims across the two self-tests, run by `npm test`; every export
-    # reached; and a negative control on the `async` subject defect. What is NOT covered
-    # is the only question this gate asks — whether those claims would go red if the
-    # thing they measure stopped measuring.
-    "host/scripts/p0_complexity.mjs":
-        "the P0 complexity reporter. Its twelve claims are in p0_complexity.selftest.mjs "
-        "beside it, including NESTED_FUNCTIONS_ARE_THEIR_OWN_ROW — the claim that keeps "
-        "an 813-line branchless registration body out of P3's top forty. Unblinded "
-        "because its live command PRINTS and cannot redden; see p0-reporters-unblinded.",
-    "host/scripts/p0_testdup.mjs":
-        "the P0 test-duplication clusterer. Its fourteen claims are in "
-        "p0_testdup.selftest.mjs beside it, and that fixture already caught this file "
-        "reading `assert.equal(...)` as the subject `equal` — the second of two subject "
-        "defects it shipped with, and the reason the published key count moved 457 -> "
-        "467. Unblinded for the same reason as the row above; see p0-reporters-unblinded.",
+    # 🔴 IT STAYS, EMPTY, BECAUSE THE MECHANISM IS THE POINT AND NOT THE ROWS. The DISCOVER
+    # half reads this table; deleting it would mean the next file dropped in these two
+    # directories is either swept or silently outside every roster, which is
+    # `token-cost.mjs`'s ten sessions (211 §6) arriving a third time. An exemption table
+    # with nothing in it is a gate that has nothing to excuse.
 }
 
 # The instruments whose swept file the walk above cannot see, each with the reason.
@@ -2311,6 +2373,17 @@ VERDICT_MARKER: dict[str, str] = {
     # node:test prints its own summary; `ℹ fail <n>` is the line that only exists when the
     # runner reached the end of the run.
     "path-cohort (compiled walk)": "ℹ fail ",
+    # 🆕 244 §4 — BOTH P0 SELF-TESTS ARE `node:test` RUNS, so the marker is the runner's
+    # own summary line for the same reason `path-cohort` uses it: `ℹ fail <n>` exists only
+    # when the run REACHED the end, and it is printed on the red path as well as the green
+    # one — which is the property 209's row settled and 232's re-derived.
+    # 🔴 AND THE SPELLING IS `# fail `, NOT THE `ℹ fail ` ONE ROW UP, WHICH THE FIRST DRAFT
+    # COPIED FROM IT. `ℹ` is `node --test`'s reporter; a self-test invoked as `node
+    # file.mjs` prints `# fail <n>`. Both rows are node:test and the two invocations
+    # disagree about the glyph — a marker chosen by reading a neighbour rather than by
+    # running the command is 197 §35, and this gate refused it on the first sweep.
+    "p0_complexity.mjs": "# fail ",
+    "p0_testdup.mjs": "# fail ",
     # 🆕 209 — check 8's classifier. 🔴 THE PREFIX, NOT `WIRE_DIFF_SELFTEST ok`: the
     # marker's job is to say the run REACHED its own verdict, which a failing run does
     # too. Pinning the passing spelling would have classified every genuine catch as a
@@ -2697,6 +2770,10 @@ BLAST_FLOOR: dict[str, int] = {
     # the self-test the three blinds report twenty-one, five and seven failure lines.
     # Floored from BELOW at 198 §36's usual headroom.
     "positive_control_gate.mjs": 28,  # 232: measured 33 across its three blinds, 0 crashed
+    # 🆕 244 §4 — `p0-reporters-unblinded` (241). See LATE_BLAST_FLOOR for why these two
+    # numbers are not the ones the first sweep printed.
+    "p0_complexity.mjs": 28,   # 244: measured 33 across its five blinds, 0 crashed
+    "p0_testdup.mjs": 18,      # 244: measured 21 across its six blinds, 0 crashed
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
