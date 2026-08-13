@@ -98,6 +98,7 @@ which is that nobody ran the replay in the order the replay is written.
 
 from __future__ import annotations
 
+import inspect
 import json
 import re
 import subprocess
@@ -389,13 +390,19 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     # rows are `SINCE(234)`.
     ("mutlock.guarded", r"\bmutlock\b", 2,
      ("python3", "scripts/mutation_lock_gate.py", "--selftest"), ROOT,
-     r"floor=\d+ live=(\d+)[\s\S]*?MUTATION_LOCK selftest ok — (\d+) case", LOCKED, OPTIONAL,
+     r"GUARDED_FLOOR[^\n]*live=(\d+)[\s\S]*?MUTATION_LOCK selftest ok — (\d+) case", LOCKED, OPTIONAL,
      "🔴 THE ATOM IS SPELLED THREE WAYS ACROSS THREE SESSIONS — `mutlock 5/6/2` in 229, "
      "`mutlock 5 + 9 cases` in 230 and 231 — and the first draft of this row read only "
      "the leading number, so it refused 234's own block for claiming two. **The gate "
      "caught its author's handoff on the first run against it**, which is the outcome that "
      "makes the file worth its lines. Both numbers come from `--selftest`, which prints "
-     "the live guarded count and its own cases, so one command answers the whole atom."),
+     "the live guarded count and its own cases, so one command answers the whole atom. "
+     "🆕 242 — ANCHORED ON `GUARDED_FLOOR`, AND IT WAS `floor=\\d+ live=(\\d+)` BEFORE. "
+     "That spelling is also `lint_ceiling.py --selftest`'s, which prints `floor=18 "
+     "live=18` for its own file population — and the moment 242 added that command to the "
+     "session replay, this row read eighteen guarded gates off it and refused a block "
+     "saying five. Second row this session with the same cause: an extract that was "
+     "unambiguous only because a sibling's output had never been in the log."),
     ("tree_quiet.cases", r"\btree_?quiet\b", 1, ("python3", "scripts/tree_quiet.py", "--selftest"),
      ROOT, r"^TREE_QUIET selftest ok — (\d+) case", LOCKED, OPTIONAL,
      "`tree_quiet 13` — the self-test's cases. The live run prints a verdict and no "
@@ -407,8 +414,19 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     # about a field it wrote correctly learns to stop running the gate.
     ("release_names.rows", r"\brelease_?names\b|\brows\b.*\brefusals?\b", 2,
      ("python3", "scripts/release_names.py", "--selftest"), ROOT,
-     r"(\d+) rows · (\d+) REFUSE", CHEAP, OPTIONAL,
-     "🔴 `61 rows/33 refusals`, AND IT HAS TO BE THE SELF-TEST. The live half refuses "
+     r"^\s*(\d+) rows · (\d+) REFUSE · \d+ distinct code", CHEAP, OPTIONAL,
+     "🆕 242 — THE EXTRACT NOW REQUIRES `distinct code(s)`, AND IT DID NOT BEFORE. "
+     "`(\\d+) rows · (\\d+) REFUSE` is a shape THREE selftests in this tree print: "
+     "`release_names.py`, `registry_bytes.py` and `registry_lag.py`. It was unambiguous "
+     "only because the other two were in `ci.yml` and not in the session replay, so their "
+     "output had never been in a measured log. 242 added them to the replay — "
+     "`replay-vs-ci-unread`'s whole point — and this row instantly read `10 rows · 8 "
+     "REFUSE` off the wrong instrument and refused a block whose number was correct. "
+     "**The reader was not wrong about the tree; it was right about a log that had never "
+     "carried its sibling.** `distinct code(s)` is the tail only `release_names.py` "
+     "prints — and the row is ANCHORED at the start of its line as well, because "
+     "`contract_check.py` prints `check 5 · 5 prefix row(s) · 8 rows · 6 REFUSE · 4 "
+     "distinct code(s)` and the tail alone still read the wrong instrument. 🔴 `61 rows/33 refusals`, AND IT HAS TO BE THE SELF-TEST. The live half refuses "
      "without `--version --previous --date --bump`: it reads a RELEASED block, so between "
      "cuts there is nothing for it to read. A row pointed at the live command would have "
      "reported the counter UNMEASURED on every session that did not cut a release, which "
@@ -734,6 +752,77 @@ def clone_tags(root: Path = ROOT) -> int:
     """How many tags THIS checkout holds — offline, and the number the block claims."""
     p = subprocess.run(("git", "tag"), cwd=root, capture_output=True, text=True)
     return len([ln for ln in p.stdout.split("\n") if ln.strip()])
+
+
+_ORIGIN_TAG_CACHE: "dict[str, tuple[list[str], str]]" = {}
+
+
+def origin_tag_names(root: Path = ROOT) -> "tuple[list[str], str]":
+    """(tag names origin holds, problem) — NETWORK, and cached for the process.
+
+    🆕 242 — LIFTED OUT OF `origin_tags` BECAUSE A SECOND READER NEEDED THE SAME LIST.
+    `npm.lag` is counted in TAGS NEWER THAN THE PUBLISHED VERSION, so it needs the names
+    and not the count, and it needs ORIGIN's names for the reason `origin_tags` gives
+    below at length: the clone's tag list is a fact about the disk. `registry_lag.py`
+    argues the opposite for its own purpose — *"the tag list is what this repository
+    actually released"* — and it is right about a release cut on the authoring machine
+    and wrong about a counter that has to mean the same thing in a fresh container. That
+    disagreement is the whole of 234 §4.8, and this is the side of it the header takes.
+
+    Cached because `--open --network` asks for it twice, once per reader, and two
+    `git ls-remote` round trips to answer one question is the sort of thing that makes a
+    ritual expensive enough to skip.
+    """
+    key = str(root)
+    if key in _ORIGIN_TAG_CACHE:
+        return _ORIGIN_TAG_CACHE[key]
+    try:
+        p = subprocess.run(("git", "ls-remote", "--tags", "origin"), cwd=root,
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        return ([], f"could not reach origin: {e}")
+    if p.returncode != 0:
+        return ([], f"`git ls-remote` exited {p.returncode}: "
+                    f"{(p.stderr or '').strip()[:200]}")
+    names = sorted({ln.rsplit("refs/tags/", 1)[-1].strip() for ln in p.stdout.split("\n")
+                    if "refs/tags/" in ln and not ln.rstrip().endswith("^{}")})
+    _ORIGIN_TAG_CACHE[key] = (names, "")
+    return (names, "")
+
+
+def npm_lag(root: Path = ROOT) -> "tuple[int, str, str]":
+    """(distance, note, problem) — NETWORK. The header atom `--open` could never read.
+
+    🔴 241 §1 FOUND THIS ON THE FIRST RUN OF THE RITUAL THAT NEEDED IT. `npm.lag` sat in
+    `HEADER_READERS` with an `extract` and nothing else: no in-process derivation like
+    `ci.green`, no network branch like `npm.tags`, so the only thing that could ever
+    satisfy it was a `--measured` log — and `--open` hardcodes an empty log and returns
+    from `main()` before `--measured` is even parsed. It was unreachable at TIER0 by
+    construction, and the reason it printed was the most misleading of the three the
+    file can give: *"no --measured log carries it"* names a fix the mode cannot perform.
+    A TIER0 open would have carried a stale lag across any number of sessions in silence.
+
+    🔴 THE COMPUTATION IS `registry_lag.py`'s, IMPORTED RATHER THAN REWRITTEN — 229 §5.2's
+    rule pointed at this tree's own shelf. `lag()` is pure; only the two inputs are dialed.
+    The import is lazy so that a `handoff_gate.py --selftest` on a tree where
+    `registry_lag.py` is broken still runs every claim that does not need it.
+    """
+    names, prob = origin_tag_names(root)
+    if prob:
+        return (-1, "", prob)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from registry_lag import lag as _lag, registry_version   # noqa: E402
+    published = registry_version()
+    if published is None:
+        return (-1, "", "the npm registry could not be reached — `npm view` returned "
+                        "nothing, which is not the same observation as a lag of zero")
+    d, why = _lag(published, names)
+    if d < 0:
+        # 🔴 A REFUSAL IS NOT A NUMBER. `lag()` returns -1 for three distinct
+        # conditions, one of which is the registry publishing something this repository
+        # never tagged; reporting any of them as a distance would be inventing agreement.
+        return (-1, "", f"`registry_lag.lag()` refused rather than measuring: {why}")
+    return (d, f"npm.lag: registry at {published}, origin holds {len(names)} tag(s) — {why}", "")
 
 
 def origin_tags(root: Path = ROOT) -> "tuple[int, list[str], str]":
@@ -1079,10 +1168,30 @@ def check_header(block: "list[str]", log: str, run_network: bool,
                         notes.append(f"npm.tags: clone and origin agree at {n_remote}")
             elif extract and log and (m := re.search(extract, log, re.M)) is not None:
                 got = tuple(int(g) for g in m.groups())
+        elif key == "npm.lag":
+            # 🆕 242 — THE BRANCH THIS ROW NEVER HAD. Log first, because a `--measured`
+            # run has already paid for `registry_lag.py` and re-dialing would be a second
+            # answer to a question already answered; network second, which is the half
+            # `--open` needs and the half that did not exist.
+            if extract and log and (m := re.search(extract, log, re.M)) is not None:
+                got = tuple(int(g) for g in m.groups())
+            elif run_network:
+                d, note, prob = npm_lag()
+                if prob:
+                    notes.append(f"npm.lag: UNREAD — {prob}")
+                    continue
+                got = (d,)
+                notes.append(note)
         elif extract and log and (m := re.search(extract, log, re.M)) is not None:
             got = tuple(int(g) for g in m.groups())
         if got is None:
-            if key == "npm.tags":
+            if key == "npm.lag":
+                unread = ("pass --network to dial the registry, or supply a `distance "
+                          "<n>` line from `registry_lag.py` in the measured log. Lag is a "
+                          "fact about the WORLD: nothing in this tree can answer it, and "
+                          "inheriting one across an --open is inheriting a number that "
+                          "may have changed while nobody looked")
+            elif key == "npm.tags":
                 unread = (f"pass --network, or supply `ORIGIN_TAGS <n>` in the measured "
                           f"log. This checkout reads {clone_tags()} and that is a fact "
                           f"about the checkout, not the claim on the npm line")
@@ -1166,6 +1275,164 @@ REPLAY_ORDER: "list[tuple[str, str, str]]" = [
 # prose, in the replay's own comment (`# the mutating three — one at a time`), and in
 # nothing that runs.
 CHAINED_RE = re.compile(r"&&|\|\||;")
+
+# ── 🆕 242 — THE REPLAY AND `ci.yml` ARE TWO ROSTERS OF THE SAME COMMANDS ─────────────
+#
+# 🔴 THE ROW (`replay-vs-ci-unread`, OPEN 241) AND HOW IT WAS FOUND. 241 ran the full
+# local ritual, passed every command in its own §8.1 list, pushed, and `spec_conformance
+# .py --check` refused the document IN CI — a step `ci.yml` has run for sessions and the
+# replay list had never named. Nothing in this tree compares the two lists, so the ritual
+# could go on claiming to be the local half of CI while drifting away from it silently.
+#
+# 🔴 MEASURED IN 242, script by script: **fourteen** merge-blocking `ci.yml` commands are
+# absent from the replay, and **zero** replay commands are absent from CI. The drift is
+# entirely in one direction — the ritual is a SUBSET and reads like a superset.
+#
+# The comparison is at SCRIPT granularity and not at flag granularity, and that is the
+# defect's own shape: what 241 hit was a script the list had never named at all. Flags
+# are the next question and this row does not pretend to have asked it.
+INTEGRATION_WORKFLOW_EXEMPT = {
+    "integration.yml":
+        "🔴 EXEMPT AS A WHOLE WORKFLOW RATHER THAN AS TWENTY SCRIPTS, because the reason "
+        "is a property of the workflow and not of any file in it: every job boots a real "
+        "Godot binary under Xvfb against a live editor, and the session replay runs "
+        "against a committed tree on a machine that has neither. Twenty near-identical "
+        "rows would be twenty places to edit and one argument. 🔴 THE COST IS NAMED: no "
+        "local ritual exercises these probes, so their only reader is CI, and this "
+        "exemption is where that is written down rather than implied by absence.",
+}
+
+# Scripts CI runs that the replay deliberately does not, each with the reason.
+REPLAY_CI_EXEMPT: "dict[str, str]" = {
+    "assetlib_sweep.py":
+        "`sdk-drift.yml` only, which is `schedule:` and `workflow_dispatch:` — it has no "
+        "`push` or `pull_request` trigger, so it never blocks a merge and is not part of "
+        "the ritual a session performs before cutting one.",
+    "gate.sh":
+        "a shell helper inside `integration.yml`'s own steps; it has no existence outside "
+        "that workflow, which is exempt above.",
+    "rb.sh": "same shape as `gate.sh` — an `integration.yml` step helper.",
+}
+# 🔴 `stage-addon.mjs` WAS THE FIFTH ROW AND THIS READER DELETED IT ON THE FIRST RUN.
+# It is drafted as CI-only because `ci.yml` runs `npm run stage-addon` — and that is a
+# PACKAGE SCRIPT, so no `run:` line in any workflow carries the basename and this reader
+# cannot see it. `REPLAY_CI_EXEMPT_STALE` said so immediately: an exemption for something
+# the reader never reports is an exemption over nothing, which is 174 §5 and is true even
+# when the prose is correct. The right place for that fact is a comment, not a row.
+
+
+def ci_scripts(root: Path = ROOT) -> "dict[str, set]":
+    """{script basename: {workflow files that run it}} across every workflow.
+
+    🔴 A HAND-ROLLED READER, LIKE THE TWO THIS TREE ALREADY HAS. Nothing here imports a
+    YAML parser and the one job that would need it (`contract-check`) installs exactly one
+    Python dependency, `pyflakes`. `ci_check_runs()` above and `instrument_gate.py`'s
+    `CI_RUN_RE` are both regex readers of these same files; a third convention would be a
+    third thing to keep in step.
+
+    🔴 THE ANCHOR IS `run:` AND THAT IS WHAT KEEPS COMMENTS OUT. Six comments in `ci.yml`
+    name scripts in backticks to explain why a step exists; a bare grep for `.py` counts
+    every one of them as a command. Block scalars (`run: |`) are followed by their
+    indented body, because four of the longest steps in the tree are written that way.
+    """
+    out: "dict[str, set]" = {}
+    wf_dir = root / ".github" / "workflows"
+    if not wf_dir.is_dir():
+        return out
+    for f in sorted(wf_dir.glob("*.y*ml")):
+        lines = f.read_text().split("\n")
+        i = 0
+        while i < len(lines):
+            ln = lines[i]
+            if (m := CI_RUN_BLOCK.match(ln)) is not None:
+                indent = len(ln) - len(ln.lstrip())
+                i += 1
+                while i < len(lines) and (not lines[i].strip()
+                                          or len(lines[i]) - len(lines[i].lstrip()) > indent):
+                    for s in CI_SCRIPT_RE.findall(lines[i]):
+                        out.setdefault(s, set()).add(f.name)
+                    i += 1
+                continue
+            if (m := CI_RUN_ONE.match(ln)) is not None:
+                for s in CI_SCRIPT_RE.findall(m.group(1)):
+                    out.setdefault(s, set()).add(f.name)
+            i += 1
+    return out
+
+
+CI_RUN_BLOCK = re.compile(r"^\s*(?:-\s*)?run:\s*[|>][-+]?\s*$")
+CI_RUN_ONE = re.compile(r"^\s*(?:-\s*)?run:\s*(.*\S)\s*$")
+CI_SCRIPT_RE = re.compile(r"([A-Za-z0-9_.-]+\.(?:py|mjs|sh))")
+CI_SCRIPT_FLOOR = 55   # governed by floor_pin_gate's SIZE_LEDGER
+
+
+def replay_scripts(text: str) -> "set":
+    """Every script the replay fence invokes, by basename. Comments stripped first —
+    241's own list carries `# 🆕 241` and `# -> 724/724` on command lines."""
+    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
+    body = blocks[-1] if blocks else text
+    out = set()
+    for ln in body.split("\n"):
+        for s in CI_SCRIPT_RE.findall(ln.split("#")[0]):
+            out.add(s)
+    return out
+
+
+def replay_ci_problems(text: str, ci: "dict[str, set]", floor: "int | None" = None,
+                       exempt: "dict[str, str] | None" = None
+                       ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — the two rosters compared, in both directions.
+
+    🔴 BOTH DIRECTIONS, BECAUSE THEY ARE DIFFERENT DEFECTS. A command CI runs and the
+    replay does not is a session that can pass its whole ritual and be refused on push —
+    241, exactly. A command the replay runs and CI does not is a check that only ever
+    runs on the author's machine, which is a check that stops running the first time
+    somebody forgets. Today the second list is empty and the first has fourteen entries,
+    and that asymmetry is worth printing even when both are declared.
+    """
+    # 🔴 `floor` IS A PARAMETER RATHER THAN A READ OF THE GLOBAL, for `registry_lag.lag()`'s
+    # written reason one file over: the self-test has to drive populations both under the
+    # live floor and out from under it, and doing that by ASSIGNING TO THE MODULE GLOBAL
+    # would put extra `CI_SCRIPT_FLOOR = …` statements in this file that `floor_pin_gate
+    # .py`'s DISCOVER half reads as floor declarations and nothing can pin.
+    floor = CI_SCRIPT_FLOOR if floor is None else floor
+    exempt = REPLAY_CI_EXEMPT if exempt is None else exempt
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    if len(ci) < floor:
+        problems.append(
+            f"🔴 REPLAY_CI_FLOOR this reader found {len(ci)} script(s) across the workflow "
+            f"files, floor {floor} — either the workflows lost steps or "
+            f"`CI_RUN_ONE`/`CI_RUN_BLOCK` stopped matching, and a comparison against an "
+            f"empty CI roster reports perfect agreement.")
+        return problems, notes
+    rep = replay_scripts(text)
+    exempt_wf = set(INTEGRATION_WORKFLOW_EXEMPT)
+    missing = sorted(s for s, wfs in ci.items()
+                     if s not in rep and s not in exempt
+                     and not (wfs <= exempt_wf))
+    for s in missing:
+        problems.append(
+            f"🔴 REPLAY_MISSING `{s}` runs in {sorted(ci[s])} and the replay list does not "
+            f"name it. A session that performs this whole ritual and pushes can still be "
+            f"refused by a step it never ran — which is what happened to 241 with "
+            f"`spec_conformance.py`. Add it to the replay, or declare it in "
+            f"REPLAY_CI_EXEMPT with the reason it is CI-only.")
+    extra = sorted(s for s in rep if s not in ci and s not in exempt)
+    for s in extra:
+        problems.append(
+            f"🔴 CI_MISSING `{s}` is in the replay list and in no workflow file. A check "
+            f"that runs only where the handoff is written is a check that stops running "
+            f"the first time somebody skips a step, and nothing would say so.")
+    stale = sorted(s for s in exempt if s not in ci)
+    for s in stale:
+        problems.append(
+            f"🔴 REPLAY_CI_EXEMPT_STALE `{s}` is declared CI-only and no workflow runs it "
+            f"— an exemption that outlived the thing it exempts (174 §5).")
+    notes.append(f"replay/ci: {len(rep)} script(s) in the replay · {len(ci)} across the "
+                 f"workflows · {len(REPLAY_CI_EXEMPT)} declared CI-only · "
+                 f"{len(INTEGRATION_WORKFLOW_EXEMPT)} workflow(s) exempt whole")
+    return problems, notes
 
 
 def fenced(text: str) -> "list[str]":
@@ -1283,11 +1550,29 @@ def replay_problems(text: str) -> "tuple[list[str], list[str]]":
     # among the lines that ROUTE — 235's §1 discusses `--measured run.log` in prose three
     # sections above the replay, and a rule counting raw mentions would have called the
     # replay's own first redirect a clobber of a sentence.
-    routing = [i for i, ln in enumerate(lines)
+    # 🆕 242 — AND A COMMENT IS NOT A COMMAND. The note above already argues that PROSE
+    # three sections up must not count as a redirect; the same is true of a `#` comment
+    # INSIDE the fence, and that half was missing. 242's replay opens with a comment
+    # explaining why the log is appended to — quoting `npm test | tail -20 > run.log` to
+    # say what it truncates — and the reader read the quotation as the first write, which
+    # made the real command a *later* one and refused the replay for clobbering itself.
+    # The rule was right about the shape and wrong about the population, which is the
+    # fourth reader this session to be wrong in exactly that way.
+    cmds = [re.sub(r"(?<!\S)#.*$", "", ln) for ln in lines]
+    routing = [i for i, ln in enumerate(cmds)
                if re.search(rf">>?\s*\S*{re.escape(base)}", ln)
                or re.search(rf"\btee\s+(?:-a\s+)?\S*{re.escape(base)}", ln)]
-    truncating = [i for i, ln in enumerate(lines)
-                  if re.search(rf">(?!>)\s*\S*{re.escape(base)}", ln)
+    # 🆕 242 — `(?<!>)` IS NEW AND IT IS A DEFECT FIX, NOT A TIGHTENING. `>(?!>)` was
+    # meant to read "a single `>`", and on the string `>>` it matches at the SECOND
+    # character: the lookahead only asks what follows. So every `>> run.log` line in a
+    # replay was classified as a TRUNCATING write and refused as a clobber. Nothing had
+    # ever noticed because every replay since this reader shipped routed with `| tee -a`
+    # and no line in one had ever used `>>` — the fixture at `clobber` below uses `>`
+    # twice, so it proved the rule on the only spelling the rule got right. 242 is the
+    # first session to append to the log (the TIER0 open, captured before `npm test`
+    # truncates it) and the reader refused the ritual its own `TIER_UNSUPPORTED` demanded.
+    truncating = [i for i, ln in enumerate(cmds)
+                  if re.search(rf"(?<!>)>(?!>)\s*\S*{re.escape(base)}", ln)
                   or re.search(rf"\btee\s+(?!-a)\S*{re.escape(base)}", ln)]
     late = [i for i in truncating if routing and i != routing[0]]
     if late:
@@ -1553,6 +1838,10 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
         return ([f"🔴 {why}"], [], 0, 0, 0, 0)
     r_problems, r_notes = replay_problems(text)
     problems.extend(r_problems)
+    # 🆕 242 — the replay list against the workflow files, both directions.
+    rc_problems, rc_notes = replay_ci_problems(text, ci_scripts())
+    problems.extend(rc_problems)
+    r_notes.extend(rc_notes)
 
     session, how = block_session(handoff.name, block)
     t_problems, t_notes = tier_problems(text, log, session)
@@ -2134,6 +2423,25 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · handoff 218 claims · 26 CI jobs
 > ```"""),
 
+    (241, """> ```
+> main                 42f6ec0 — the endpoint the reader needed (#297)                MOVED +2
+>                      8caa0df — P0 of the code review charter (#296)
+> branch 241           b3b990a session241b · 4ebf4b9 session241c
+>                      🟢 PUSHED · PR #296 AND #297 MERGED, 26/26 green each, neither stacked
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   724/724 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 13 · LATE_LIVE 13/8 · 0 crashes · blast 1383
+>               · late not-loaded 0 · discover 52/14/12/22 · 2 exempt · 0 undeclared
+>               · floor_pin 95 · 43 governed · 835 keys · 26 shortfalls
+>               · unswept 0 · exempt 36 · term 284 file(s) / 21 suffixes
+>               · taut 4086 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 219 claims · 26 CI jobs
+> ```
+"""),
 ]
 
 # ── 🔴 237 §3 — THE POPULATION THE `SINCE` BOUNDARIES WERE MEASURED OVER ──────────────
@@ -2637,6 +2945,123 @@ def selftest() -> int:
               f"— origin's tag list is the same number on every machine and `git tag` "
               f"is not")
 
+    # ── 🆕 242: THE REPLAY LIST AGAINST THE WORKFLOW FILES ────────────────────────────
+    #
+    # Fixture-fed in both directions, because on a healthy tree BOTH lists are empty and
+    # an inline version is deleted by anything and noticed by nothing — `instrument_gate
+    # .py`'s written reason for `late_marker_roster_problems`, one reader over.
+    _CI = {"a.py": {"ci.yml"}, "b.mjs": {"ci.yml"}, "probe.mjs": {"integration.yml"},
+           "handoff_gate.py": {"ci.yml"}}
+    _fence = ("```bash\npython3 a.py\nnode b.mjs\n"
+              "python3 handoff_gate.py x --measured run.log\n```")
+    claims += 1
+    if replay_ci_problems(_fence, _CI, floor=4, exempt={})[0]:
+        failed += 1
+        print("  🔴 REPLAY_CI a replay naming every non-exempt CI script was refused — "
+              "and `integration.yml`'s probe must not be demanded of a local ritual")
+    claims += 1
+    _short = "```bash\npython3 a.py\npython3 handoff_gate.py x --measured run.log\n```"
+    if not any("REPLAY_MISSING `b.mjs`" in p for p in replay_ci_problems(_short, _CI, floor=4, exempt={})[0]):
+        failed += 1
+        print("  🔴 REPLAY_CI a merge-blocking command absent from the replay was not "
+              "reported — which is 241's own experience with spec_conformance.py")
+    claims += 1
+    _extra = _fence.replace("node b.mjs", "node b.mjs\npython3 nowhere.py")
+    if not any("CI_MISSING `nowhere.py`" in p for p in replay_ci_problems(_extra, _CI, floor=4, exempt={})[0]):
+        failed += 1
+        print("  🔴 REPLAY_CI a command that runs only where the handoff is written was "
+              "not reported — the other direction, and a check nobody else ever runs")
+    # 🔴 THE FLOOR ON THE READER ITSELF, which is the one that matters: a regex that
+    # stopped matching reports an EMPTY CI roster and perfect agreement with everything.
+    claims += 1
+    if not any("REPLAY_CI_FLOOR" in p for p in replay_ci_problems(_fence, _CI, floor=9, exempt={})[0]):
+        failed += 1
+        print("  🔴 REPLAY_CI a CI roster far below its floor was compared against "
+              "instead of refused — an empty roster agrees with every replay ever written")
+    # 🔴 AND THE LIVE READER, against the live workflows: the comment trap named in
+    # `ci_scripts`. Six comments in ci.yml spell script names in backticks; a reader
+    # anchored anywhere but `run:` counts them and this claim is what says it does not.
+    # 🔴 BRACKETED FROM BOTH SIDES, WHICH IS `HEADER_FLOOR`'s IDIOM AND THE ONLY KIND OF
+    # PIN `floor_pin_gate.py` COUNTS. The live gate reads this only as `len(ci) < FLOOR`,
+    # so ZEROING IT MAKES THE READER MORE PERMISSIVE and no live run can notice; the lower
+    # bracket is what fails when it is zeroed. The bracket is the exemption table's size
+    # rather than a magic number, because a floor at or under the number of declared
+    # CI-only scripts is a floor that could be satisfied by the exemptions alone.
+    claims += 1
+    _live_ci = ci_scripts()
+    if not (len(REPLAY_CI_EXEMPT) < CI_SCRIPT_FLOOR <= len(_live_ci)) \
+            or "registry_lag.py" not in _live_ci:
+        failed += 1
+        print(f"  🔴 REPLAY_CI the live workflow read found {len(_live_ci)} script(s) "
+              f"against floor {CI_SCRIPT_FLOOR} and {len(REPLAY_CI_EXEMPT)} exemption(s), "
+              f"and {'did not find' if 'registry_lag.py' not in _live_ci else 'found'} a "
+              f"command it certainly runs")
+    claims += 1
+    if any(s.endswith(".yml") or s.endswith(".yaml") for s in _live_ci):
+        failed += 1
+        print("  🔴 REPLAY_CI the workflow reader counted a `.yml` as a script — the "
+              "suffix roster is what keeps `uses:` and `if:` lines out of the population")
+
+    # ── 🆕 242: `check_header` ITSELF, WHICH NOTHING HAS EVER DRIVEN ──────────────────
+    #
+    # 🔴 THIS IS WHY 241's DEFECT SHIPPED GREEN. Everything above asserts the header
+    # PARSER — atoms, aliases, exemptions, provenance, the floor — and nothing had ever
+    # called the function that does the COMPARING. `npm.lag` sat in the roster with an
+    # extract and no reader for twelve sessions, `--selftest` passed on every one of them,
+    # and the first thing that noticed was a human reading the count on the line. A roster
+    # whose rows are checked and whose dispatch is not is a roster checked by nobody.
+    #
+    # Driven OFFLINE on purpose: a self-test that opens a socket is a self-test that
+    # reports the network's health under this file's name. The claim is about which rows
+    # this function can satisfy without one, and that is exactly the question `--open`
+    # asks.
+    claims += 1
+    _hp, _hn, _ha, _hc = check_header(REAL_HEADER.strip("\n").split("\n"), "", False, 234)
+    _named = {n.split(":", 1)[0] for n in _hn if "UNREAD" in n}
+    _remote = {k for k, p in PROVENANCE.items() if p == REMOTE}
+    if not _remote <= _named:
+        failed += 1
+        print(f"  🔴 HEADER_OFFLINE {sorted(_remote - _named)} answered itself with no log "
+              f"and no socket while declared REMOTE — a row that quietly becomes readable "
+              f"offline is a row now answered by the tree about the world")
+
+    # 🔴 AND THE OTHER DIRECTION, WHICH IS WHAT MAKES THE ABOVE A CLAIM RATHER THAN A
+    # TAUTOLOGY: a reader that returned UNREAD for everything would satisfy it. `ci.green`
+    # is TREE, derived from `.github/workflows` in-process, and must be answered offline.
+    claims += 1
+    if "ci.green" in _named:
+        failed += 1
+        print("  🔴 HEADER_OFFLINE ci.green is UNREAD offline — it is derived from the "
+              "tree in this process, so a reader that cannot answer it has stopped "
+              "reading rather than started needing the network")
+
+    # 🔴 AND THE REASON HAS TO NAME A FIX THE CALLER CAN PERFORM. 241's `npm.lag` printed
+    # *"no --measured log carries it"* under `--open`, which cannot be given a log at all:
+    # the mode returns from `main()` before `--measured` is parsed. A reason that sends
+    # the next session to do something impossible is 233 §18 one file over — worse than no
+    # reason, because it looks like one.
+    claims += 1
+    _lag_note = next((n for n in _hn if n.startswith("npm.lag")), "")
+    if "--network" not in _lag_note or "fact about the WORLD" not in _lag_note:
+        failed += 1
+        print(f"  🔴 HEADER_UNREAD_REASON npm.lag's UNREAD reason does not name --network "
+              f"and does not say lag is a fact about the world: {_lag_note[:120]!r}")
+
+    # 🔴 THE ROSTER'S OWN DISPATCH COVERAGE, ASKED THE WAY 232's DISCOVER HALF ASKS IT.
+    # Every REMOTE row must be reachable by SOME route other than a log — that is what
+    # `npm.lag` was missing, and a count is what nobody had. The routes are the named
+    # branches in `check_header`, so the claim is over the source of that function.
+    claims += 1
+    _src = inspect.getsource(check_header)
+    _unrouted = sorted(k for k, p in PROVENANCE.items()
+                       if p == REMOTE and f'"{k}"' not in _src)
+    if _unrouted:
+        failed += 1
+        print(f"  🔴 HEADER_UNROUTED {_unrouted} — declared REMOTE and reachable only "
+              f"through a --measured log. That is 241 §1 exactly: an atom the opening "
+              f"ritual counts as a header row and can never re-read, so a stale value "
+              f"rides forward across any number of sessions and nothing says a word")
+
     # HEADER_FLOOR from both sides: the real header has three, a header stripped to its
     # version line has none, and the floor must sit between them
     claims += 1
@@ -2936,6 +3361,22 @@ def selftest() -> int:
         failed += 1
         print("  🔴 REPLAY_TRUNCATE a second `> run.log` after the appends was not "
               "refused — it deletes measurements that were really taken")
+
+    # 🆕 242 — AND THE OTHER SPELLING, WHICH IS THE ONE THE RULE GOT WRONG. `>> run.log`
+    # APPENDS; `>(?!>)` matched it at the second character and called every appending
+    # replay a clobber. The fixture above uses `>` twice and therefore proved the rule
+    # only on the spelling it handled — a positive control with no negative one, which is
+    # this tree's oldest lesson wearing a regex. Both halves are pinned now.
+    claims += 1
+    append = FIXED_REPLAY.replace(
+        "python3 ../scripts/handoff_gate.py ../HANDOFF_SESSION236.md",
+        "cat open.log >> run.log\npython3 ../scripts/handoff_gate.py "
+        "../HANDOFF_SESSION236.md")
+    if any("TRUNCATED" in p for p in replay_problems(append)[0]):
+        failed += 1
+        print("  🔴 REPLAY_TRUNCATE an APPEND (`>> run.log`) was refused as a clobber — "
+              "the lookahead reads what follows a `>` and not what precedes it, so `>>` "
+              "matched at its own second character")
 
     # ── 🔴 237 §3 — THE `SINCE` BOUNDARIES, BOTH DIRECTIONS, OVER FOUR REAL BLOCKS ────
     carried = {sess: block_keys(text) for sess, text in SINCE_POPULATION}

@@ -170,6 +170,15 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `git ls-files` count from both sides. 🔴 The roster it guards is `CLASS_CEILING`,
     # which is exempt below for the reason a dict of prose reasons is not a threshold.
     ("lint.PY_FILE_FLOOR",      "../scripts/lint_ceiling.py",       r"(PY_FILE_FLOOR = )18",                                     ["../scripts/lint_ceiling.py", "--selftest"]),
+    # 🆕 242 — THE SAME FLOOR OVER THE JS HALF, AND IT IS FLOORED AND NOT EQUALLED. The
+    # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
+    # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
+    # — at or under the live count, refusing one below, quiet one above.
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )64",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
+    # that stopped matching reports an empty CI roster, and an empty CI roster agrees
+    # with every replay list ever written. Pinned from both sides by `--selftest`.
+    ("handoff.CI_SCRIPT_FLOOR", "../scripts/handoff_gate.py",       r"(CI_SCRIPT_FLOOR = )55",                                   ["../scripts/handoff_gate.py", "--selftest"]),
     # 🆕 234 — THE HANDOFF READER'S TWO, AND THEY FLOOR THE TWO WAYS IT CAN GO QUIET.
     # `CLAIM_FLOOR` is the parse: a reader whose regexes stop matching the block reads
     # zero atoms, disagrees with nothing and prints ok, which is `scope_gate.py`'s quiet
@@ -635,6 +644,10 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                 "file's `--selftest` — including the case a total would miss, six findings before "
                 "and six after with one of them a duplicate key. Its POPULATION floor "
                 "(`PY_FILE_FLOOR`) is swept in SIZE_LEDGER above",
+    ("../scripts/lint_ceiling.py", "TS_CLASS_CEILING"): "🆕 242 — the same shape as `CLASS_CEILING` one row up, one language over: a "
+                "DICT of `tsc` diagnostic classes mapped to (ceiling, prose reason), not a "
+                "threshold. Same argument, and the same population floor answering for it — "
+                "`MJS_FILE_FLOOR` is swept in SIZE_LEDGER above",
     (f"{T}/_path_ledger.mjs", "COHORT_FLOOR_WHY"): "🆕 211 — a STRING of prose explaining why the cohort floors are set where "
                        "they are. The floors themselves (`COHORT_FLOORS`) are swept; this is their "
                        "caption, and a caption has no refusal to prove",
@@ -845,6 +858,17 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "both, and an empty population below the floor it must flag; and the reader in "
         "front of it is pointed at a written file holding one refusal and one line that is "
         "not one, so a finder that stopped finding is caught where a zeroed literal is not.",
+    ("../scripts/floor_pin_gate.py", "SHORTFALL_LITERAL_FLOOR"):
+        "🆕 242 — the SAME floor over the SECOND reader, exempt for the identical paired "
+        "reason as the row above: nested runner, and a comparison that cannot bite at "
+        "zero. It exists because one floor over the sum of two readers is a total and not "
+        "a floor: the `ast` half could stop matching entirely and the literal half alone "
+        "would still clear any threshold set beneath the combined live read. "
+        "`_self_check()` proves the three directions that matter — the python floor "
+        "refusing over a population that is entirely literal, the literal floor refusing "
+        "over one that is entirely python, and neither refusing a population that meets "
+        "both — and points the literal reader at a written directory holding one refusal "
+        "per quote character across the three languages it claims.",
     ("../scripts/floor_pin_gate.py", "LITERAL_KEY_FLOOR"):
         "🆕 229 §6b — THIS file's floor over the constant keys its repeat-key reader gets "
         "through, and it is exempt for BOTH of the reasons the two rows below give at once. "
@@ -1172,6 +1196,36 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "commit, so its first value counts itself. 🔴 A linter with nothing to read prints "
         "a clean tree in the same words as a clean tree, which is why the population is "
         "floored and not just the findings. 🆕 RAISED BY ONE THIS SESSION, WHICH IS THE DELIBERATE HALF: `handoff_gate.py` joined the tree and the population is `git ls-files`, so the floor moving in the same commit as the file is what tells that from a walk that quietly stopped reaching one. 🆕 241 — RAISED BY ONE AGAIN, AND THIS TIME THE FILE JOINING THE POPULATION IS A LINTER'S SUBJECT RATHER THAN A GATE: `p0_comments.py`, the P0 comment classifier. It is worth writing down that the equality caught it before a reader did, because the inventory that file produces reports the opposite fact one plane over — the scripts here are lint-governed and the shipped TypeScript has no lint configuration of any kind. The population this tree DOES lint counts itself exactly; the one it ships does not count itself at all.")),
+    ("../scripts/handoff_gate.py", "CI_SCRIPT_FLOOR"): (55, (
+        "🆕 242 — the scripts `handoff_gate.py` reads out of `.github/workflows/`, at "
+        "`{FLOOR}` against sixty live. It is the floor under `replay-vs-ci-unread`: the "
+        "session replay list and the workflow files are two rosters of the same commands, "
+        "the previous session passed the entire local ritual and was refused on push by a step the list had "
+        "never named, and nothing in this tree compared them. Floored from BELOW, and the "
+        "direction is the point — steps being ADDED never reddens this, and what it "
+        "catches is `CI_RUN_ONE` or `CI_RUN_BLOCK` ceasing to match, which would report an "
+        "empty CI roster in perfect agreement with every replay ever written. Same shape "
+        "and same argument as `instrument_gate.py`'s `CI_COMMAND_FLOOR`, which reads the "
+        "same files for a different question and is why this one is a second number "
+        "rather than a widening of that one.")),
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (64, (
+        "🆕 242 — every tracked `.mjs` in this repository, at `{FLOOR}`, which is the "
+        "population `tsc --allowJs --checkJs` is run over. It is the row "
+        "`lint-roster-py-only` asked for: until this session the lint roster was "
+        "`scripts/*.py` and nothing else, while every gate instrument in `host/scripts/`, "
+        "every integration probe and every live demo script sat outside every `tsconfig` "
+        "include and was read by no standard tool at all. 🔴 AN EQUALITY, LIKE "
+        "`PY_FILE_FLOOR`, AND THE ASYMMETRY WAS DRAFTED AND THEN REJECTED. The first "
+        "version floored it from below only, arguing that this population grows whenever "
+        "a plane gains a probe; that argument is true of the row above it as well, and "
+        "the session that raised THAT one by one wrote down that the equality is what "
+        "caught the new file rather than shrugging at it. A gate that reddens when the "
+        "population changes is asking for a number to be re-read, which is the whole "
+        "practice. 🔴 The first run of the widened reader found two live defects the "
+        "eleven bespoke instruments had missed — `globSync` imported by both of the "
+        "previous session's reporters, which does not exist below Node twenty-two against "
+        "a declared `engines.node` floor of eighteen, and seven arguments discarded at a "
+        "one-parameter helper inside the tautology gate's own self-test.")),
     # 🆕 233 — instrument_gate.py's floor on its READ OF ci.yml, not on a population of
     # its own. Every `LATE_LIVE_NA` row is a claim that no second command exercises an
     # instrument, and until this session nothing re-derived it: three of the four rows
@@ -1221,6 +1275,16 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "🔴 THE ROW `M2` EARNED. Declaration comments the rule reads, at `{FLOOR}`. It "
         "exists because breaking the reader emptied the population and the check went "
         "GREEN — 201 §9.43 arriving inside a check written the same day it was quoted.")),
+    ("../scripts/floor_pin_gate.py", "SHORTFALL_LITERAL_FLOOR"): (55, (
+        "🆕 242 — the shortfall refusals the LITERAL reader finds across `.mjs`, `.ts` and "
+        "`.gd`, at `{FLOOR}`. It is the second half of `cause-rule-py-only`, and it is a "
+        "second floor rather than a bigger first one because one threshold over two "
+        "readers is a total: the `ast` half is a quarter of the combined population, so it "
+        "could stop matching entirely and the literal half alone would still clear any "
+        "single number set beneath the live read. `lint_ceiling.py` §2's sentence in this "
+        "file's own terms — a population reachable two ways must be floored two ways or "
+        "the sum destroys the distinction. Sits beneath its live read for the same reason "
+        "the row below does: it moves whenever a probe gains a collapse refusal.")),
     ("../scripts/floor_pin_gate.py", "SHORTFALL_FLOOR"): (15, (
         "The shortfall refusals in `scripts/` this file reads before asking whether each "
         "one's sentence is its measurement, at `{FLOOR}`. Its healthy answer is ZERO "
@@ -1589,7 +1653,12 @@ def repeat_key_problems(repeats: list, read: int, floor: int) -> list[str]:
 # below is the literal-population half, declared with the literal that makes each one
 # measured — and it is a roster with a POPULATION, not an empty escape hatch, which is
 # 226's rule about exemptions that cost nothing to write.
-SHORTFALL_FLOOR = 15   # governed by SIZE_LEDGER (§9.3)
+SHORTFALL_FLOOR = 15   # governed by SIZE_LEDGER (§9.3) — the `ast` reader's half
+SHORTFALL_LITERAL_FLOOR = 55   # 🆕 242 — governed by SIZE_LEDGER. The literal reader's
+                               # half, across .mjs, .ts and .gd. Beneath the live read for
+                               # the reason the row above it is: this population moves
+                               # whenever a probe gains a floor, and a floor that tracks
+                               # what it measures has stopped being one.
 
 SHORTFALL_MARK = re.compile(r"_COLLAPSE\b|_LOW\b|COLLAPSED\b|\{[^{}]*\} < \{[^{}]*\}|shrank")
 # A closed vocabulary on purpose. Every entry is a PREDICATION about how the world got
@@ -1615,15 +1684,92 @@ MEASURED_CAUSE: dict[tuple[str, str], str] = {
         "`USE_TARGETS` is a list literal in this file, read by `len()` in this file's own "
         "self-check. Same shape as the row above: the only way it shrinks is a deleted "
         "line, and the sentence says so because that is what was measured.",
+    # 🆕 242 — THE FIRST NON-PYTHON ROW, AND IT ARRIVED ON THE RUN THAT WIDENED THE READER.
+    ("host/scripts/boundary_gate.selftest.mjs", "BOUNDARY_SELFTEST_COLLAPSE"):
+        "`ran` is incremented by `claim()` on its FIRST LINE, before the condition is "
+        "evaluated, and failures are counted separately in `bad`. That literal is what "
+        "makes *“cases went missing rather than failing”* a measurement rather than an "
+        "assertion: a claim that fails still counts, so failure is the one cause the "
+        "counter can rule out, and the sentence rules out exactly that one. It is not a "
+        "derived population — the line runs at the end of a file whose `claim()` calls are "
+        "all unconditional top-level statements, so reaching it at all means the file got "
+        "there. 🔴 THE ROW IS HERE BECAUSE THE RULE FOUND IT, NOT BECAUSE THE RULE WAS "
+        "RELAXED: 229 predicted the population on the far side of this guard was the "
+        "shipped product, and the product turned out to carry ZERO refusals of this shape. "
+        "What carried them — sixty-three, and the one offender — was the other half of the "
+        "instruments.",
 }
 
 
-def shortfall_refusals(dirs=None) -> list[tuple[str, int, str]]:
-    """(file, line, text) for every shortfall refusal printed or appended in scripts/.
+# 🆕 242 — THE POPULATION THE CAUSE RULE IS ASKED OVER, AND UNTIL THIS SESSION IT WAS
+# `scripts/` AND NOTHING ELSE. `cause-rule-py-only`, opened 229, carried thirteen sessions.
+#
+# 🔴 229 PREDICTED THE WRONG FAR SIDE, AND SAYING SO IS THE POINT OF MEASURING. Its words
+# were: *"The host's TypeScript and the addon's GDScript were swept BY HAND this session
+# and found clean — 135 addon refusals, all observation — but nothing holds them there …
+# the population on the far side of this guard is the one users actually read."* Measured
+# by machine in 242, over every tracked file in each body:
+#
+#     host/src/**/*.ts     68 files    0 shortfall-marked refusals
+#     addons/**/*.gd        8 files    0
+#     host/test/**/*.ts    53 files    4, none asserting a cause
+#     host/**/*.mjs        64 files   63, and ONE asserting a cause
+#
+# The product does not carry this shape at all. What carries it — sixty-three of the
+# sixty-seven in the tree — is the JavaScript half of the instruments, which is the half
+# `LEDGER_DIRS` could not see. The rule was not narrow against the product; it was narrow
+# against ITSELF, and thirteen sessions of prose about the shipped code were pointed at a
+# population that has never had a single instance of the thing.
+#
+# 🔴 ONE RULE, TWO READERS, AND THAT ASYMMETRY IS DELIBERATE. `CAUSE_CLAIM`,
+# `ALTERNATION`, `MEASURED_CAUSE` and `shortfall_problems` are untouched: what widened is
+# only the walk that finds refusal TEXT. Python keeps its `ast` reader because it has one;
+# the other languages get a literal scanner, because putting the rule itself in a second
+# file in a second language is how two rules that were meant to be one drift apart — the
+# argument this file already makes above `COMMENT_DECL`.
+# 🔴 THE `**/` IS PER-ROW AND LOAD-BEARING. `host/*.mjs` is NON-recursive on purpose:
+# `host/scripts` and `host/test-integration` are their own rows, and a recursive walk from
+# `host` would read all three twice. A duplicated population is a floor that cannot fall.
+LITERAL_DIRS = [
+    (ROOT / "host", "*.mjs"),
+    (ROOT / "host" / "scripts", "*.mjs"),
+    (ROOT / "host" / "test-integration", "*.mjs"),
+    (ROOT / "host" / "src", "**/*.ts"),
+    (ROOT / "host" / "test", "**/*.ts"),
+    (ROOT / "addons", "**/*.gd"),
+]
+
+# A string literal in JS/TS/GDScript: backtick, double or single quoted, escapes honoured.
+# Template interpolations are rendered `{}` so the text matches what the Python reader
+# produces for an f-string — `SHORTFALL_MARK`'s `\{[^{}]*\} < \{[^{}]*\}` has to see the
+# same shape from both readers or the rule means two different things by language.
+JS_LITERAL = re.compile(r"`(?:[^`\\]|\\.)*`|\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'", re.S)
+
+
+def _literal_bodies(text: str):
+    """(line, body) for every string literal, interpolations rendered as `{}`."""
+    for m in JS_LITERAL.finditer(text):
+        body = m.group(0)[1:-1]
+        if m.group(0)[0] == "`":
+            body = re.sub(r"\$\{[^{}]*\}", "{}", body)
+        yield text[:m.start()].count("\n") + 1, body
+
+
+def shortfall_refusals(dirs=None, literal_dirs=None) -> list[tuple[str, int, str]]:
+    """(file, line, text) for every shortfall refusal in the tree's refusing languages.
 
     A refusal is 'shortfall' when it carries a collapse marker or a `{} < {}` comparison —
     the family whose whole job is to notice a population getting smaller, and the family
-    228 §7.17 was about."""
+    228 §7.17 was about.
+
+    🔴 THE TWO READERS ANSWER DIFFERENT QUESTIONS AND THAT IS WHY BOTH RUN. Python is read
+    through `ast`, so a shortfall string is only found where it is ARGUED — passed to
+    `print`, `append` or `extend`. The literal reader has no call graph and reads every
+    string literal in the file, which is wider: it would also catch a marker sitting in a
+    comparison table or a fixture. Wider is the safe direction for a rule whose failure
+    mode is going quiet, and the narrowing that matters is `CAUSE_CLAIM` — a literal that
+    merely mentions a collapse is not a refusal that asserts why.
+    """
     out: list[tuple[str, int, str]] = []
     for d in (dirs if dirs is not None else LEDGER_DIRS):
         for f in sorted(Path(d).rglob("*.py")):
@@ -1644,6 +1790,18 @@ def shortfall_refusals(dirs=None) -> list[tuple[str, int, str]]:
                     text = _flatten_str(a)
                     if text and SHORTFALL_MARK.search(text):
                         out.append((_rel(f), node.lineno, text))
+    for d, pat in (literal_dirs if literal_dirs is not None else LITERAL_DIRS):
+        if not d.is_dir():
+            continue
+        # 🔴 NOT `rglob`, BECAUSE `host` AND `host/scripts` ARE BOTH ROSTERED and a
+        # recursive walk from the first would read the second twice — a duplicated
+        # population is a floor that cannot fall, which is the opposite of what it is for.
+        for f in sorted(d.glob(pat)):
+            if "_to_delete" in f.parts or "node_modules" in f.parts:
+                continue
+            for line, body in _literal_bodies(f.read_text()):
+                if SHORTFALL_MARK.search(body):
+                    out.append((_rel(f), line, body))
     return out
 
 
@@ -1666,10 +1824,20 @@ def _declared_measured(rel: str, text: str) -> bool:
     return any(f == rel and token in text for (f, token) in MEASURED_CAUSE)
 
 
-def shortfall_problems(refusals: list, floor: int) -> list[str]:
+def shortfall_problems(refusals: list, floor: int, literal_floor: int | None = None) -> list[str]:
     """Two branches, and the population floor is the second — a finder that stops finding
     shortfall refusals reports none that assert a cause and reads exactly like a tree
-    where none do (201 §9.43, and the reason every reader in this file has a floor)."""
+    where none do (201 §9.43, and the reason every reader in this file has a floor).
+
+    🆕 242 — AND THE FLOOR IS TWO FLOORS, BECAUSE THERE ARE NOW TWO READERS. A single
+    floor over the sum cannot catch one of them dying: the `ast` reader finds 26 and the
+    literal reader finds 67, so the Python half could stop matching entirely and the total
+    would still be 67, which clears any floor set beneath the live sum. That is
+    `lint_ceiling.py` §2's argument in this file's own words — *six can be reached two
+    ways* — and 229 §2's about `SCANNED_FLOOR` arriving in a fourth file. Summing them
+    destroys the distinction the floor exists to make. `literal_floor=None` keeps the
+    fixtures single-population, which is what every `_self_check` case below wants.
+    """
     problems: list[str] = []
     for rel, line, text in refusals:
         if text == "<unparseable>":
@@ -1697,6 +1865,29 @@ def shortfall_problems(refusals: list, floor: int) -> list[str]:
             f"cause-asserting refusals over a population that collapsed is the shape this "
             f"whole file exists to refuse.")
     return problems
+
+
+def shortfall_floor_problems(refusals: list, py_floor: int, literal_floor: int) -> list[str]:
+    """🆕 242 — the two populations, floored apart. See `shortfall_problems`'s docstring.
+
+    Partitioned by SUFFIX and not by which walk produced it, on purpose: the reader that
+    found a refusal is an implementation detail, and the question a floor asks is whether
+    the tree's Python refusals and its JavaScript ones are both still being seen.
+    """
+    py = [r for r in refusals if r[0].endswith(".py")]
+    lit = [r for r in refusals if not r[0].endswith(".py")]
+    out: list[str] = []
+    for name, pop, fl, reader in (("PY", py, py_floor, "the `ast` reader over scripts/"),
+                                  ("LITERAL", lit, literal_floor,
+                                   "the string-literal reader over .mjs, .ts and .gd")):
+        if len(pop) < fl:
+            out.append(
+                f"🔴 FLOOR_PIN_SHORTFALL_{name}_COLLAPSE {len(pop)} < {fl} — {reader} found "
+                f"fewer shortfall refusals than when its floor was measured. The OTHER "
+                f"reader is unaffected and its count says nothing about this one, which is "
+                f"why these are two floors: a sum beneath which one reader can die "
+                f"silently is not a floor, it is a total.")
+    return out
 
 
 def measured_cause_stale(refusals: list) -> list[str]:
@@ -2017,16 +2208,56 @@ def _self_check() -> list[str]:
                    "population while MEASURED_CAUSE declares rows — every exemption in "
                    "it could outlive its message with nothing saying so (174 §5)")
     # and the reader in front of it, on a written directory
+    # 🆕 242 — `literal_dirs=[]` IS LOAD-BEARING AND WAS THE FIRST THING THE WIDENING
+    # BROKE. Adding a second walk to a finder whose fixture pinned "exactly one" made this
+    # case read 68: one from the written file and sixty-seven from the live tree. A
+    # fixture that silently absorbs the live population is a fixture proving nothing, so
+    # each half is now pointed at its own written directory and nothing else.
     with tempfile.TemporaryDirectory() as td:
         d = Path(td)
         (d / "r.py").write_text(
             'n = 1\nprint(f"🔴 A_COLLAPSE {n} < {n} — fewer than measured.")\n'
             'print("nothing to do with floors at all")\n')
-        found = shortfall_refusals([d])
+        found = shortfall_refusals([d], literal_dirs=[])
         if len(found) != 1:
             bad.append(f"_self_check: shortfall_refusals() read {len(found)} refusal(s) "
                        f"out of a fixture holding exactly one — the finder this rule "
                        f"stands on is not reading what it says it reads")
+        # 🆕 242 — THE LITERAL READER, ON ITS OWN WRITTEN FILE, IN THE THREE LANGUAGES IT
+        # CLAIMS. Backtick with an interpolation, double quote and a GDScript single
+        # quote, plus one line that mentions a floor and refuses nothing. Without this the
+        # widened half is a walk nothing proves, which is the shape 229 §2 refuses.
+        (d / "g.mjs").write_text(
+            'const n = 1;\n'
+            'console.log(`🔴 B_COLLAPSE ${n} < ${n} — fewer than measured.`);\n'
+            'console.log("🔴 C_LOW — a second one, double quoted");\n'
+            'console.log("nothing to do with floors at all");\n')
+        (d / "h.gd").write_text(
+            "func f():\n\tprint('🔴 D_COLLAPSE 1 < 2 — the addon spelling')\n")
+        lit = shortfall_refusals([], literal_dirs=[(d, "*.mjs"), (d, "*.gd")])
+        if len(lit) != 3:
+            bad.append(f"_self_check: the literal reader found {len(lit)} refusal(s) in a "
+                       f"fixture holding exactly three — one per quote character, and the "
+                       f"one it misses is the language it stops covering")
+        # 🔴 AND THE INTERPOLATION HAS TO RENDER AS `{}` OR `SHORTFALL_MARK`'s
+        # `{} < {}` ARM MEANS TWO DIFFERENT THINGS BY LANGUAGE. Asserted on the TEXT.
+        if not any("{} < {}" in t for _f, _l, t in lit):
+            bad.append("_self_check: the literal reader did not render a template "
+                       "interpolation as `{}`, so a JS refusal and the identical Python "
+                       "f-string are two different strings to one rule")
+        # 🔴 THE TWO FLOORS, EACH PROVED TO BITE OVER ITS OWN HALF AND STAY QUIET OVER THE
+        # OTHER'S — which is the whole claim that they are two floors and not a total.
+        py_only = [("a.py", 1, "x"), ("b.py", 1, "x")]
+        js_only = [("a.mjs", 1, "x"), ("b.mjs", 1, "x")]
+        if not any("PY_COLLAPSE" in m for m in shortfall_floor_problems(js_only, 2, 0)):
+            bad.append("_self_check: the python floor stayed quiet over a population that "
+                       "is ENTIRELY literal — a sum beneath which one reader dies silently")
+        if not any("LITERAL_COLLAPSE" in m for m in shortfall_floor_problems(py_only, 0, 2)):
+            bad.append("_self_check: the literal floor stayed quiet over a population that "
+                       "is ENTIRELY python — the same defect with its sign flipped")
+        if shortfall_floor_problems(py_only + js_only, 2, 2):
+            bad.append("_self_check: both floors refused a population that meets both — a "
+                       "floor that cannot be satisfied is not read, it is edited")
     return bad
 
 
@@ -2091,7 +2322,9 @@ def collect_problems() -> dict[str, list[str]]:
         "comment": comment_problems(declaration_comments()),
         "repeat": repeat_key_problems(literal_keys(), literal_key_count(),
                                       LITERAL_KEY_FLOOR),
-        "shortfall": (shortfall_problems(shortfall_refusals(), SHORTFALL_FLOOR)
+        "shortfall": (shortfall_problems(shortfall_refusals(), 0)
+                      + shortfall_floor_problems(shortfall_refusals(), SHORTFALL_FLOOR,
+                                                 SHORTFALL_LITERAL_FLOOR)
                       + measured_cause_stale(shortfall_refusals())),
     }
 
@@ -2276,8 +2509,10 @@ def main() -> int:
     print(f"FLOOR_PIN_COMMENT {len(_comments)} declaration comment(s) read · "
           f"{len(probs['comment'])} quoting a number the tree does not govern")
     _short = shortfall_refusals()
-    print(f"FLOOR_PIN_SHORTFALL {len(_short)} shortfall refusal(s) read · floor "
-          f"{SHORTFALL_FLOOR} · {len(MEASURED_CAUSE)} declared measured-cause · "
+    _py = sum(1 for r in _short if r[0].endswith(".py"))
+    print(f"FLOOR_PIN_SHORTFALL {len(_short)} shortfall refusal(s) read · {_py} python / "
+          f"floor {SHORTFALL_FLOOR} · {len(_short) - _py} literal / floor "
+          f"{SHORTFALL_LITERAL_FLOOR} · {len(MEASURED_CAUSE)} declared measured-cause · "
           f"{len(probs['shortfall'])} asserting a cause their comparison cannot support")
     print(f"FLOOR_PIN_LITERAL {literal_key_count()} constant key(s) read across every "
           f"dict/set literal in scripts/ · floor {LITERAL_KEY_FLOOR} · "
