@@ -88,6 +88,20 @@ jobs:
       # this one was written runnable-on-its-own in 219 and then wired to nothing.
       - name: Check 4 — the addon version still names the addon's tree (release names)
         run: python3 scripts/release_names.py --assert-addon
+      # 🆕 244 §1 — THE SAME SELF-TEST THE `test` JOB RUNS, ON THE OTHER KIND OF MACHINE,
+      # AND THAT IS THE ENTIRE POINT OF THE STEP. `handoff_gate.py --selftest` proves its
+      # interval readers against `BLOCK_POPULATION`'s real commits, and the `test` job's
+      # checkout is the default `--depth 1` — so over there NONE of those endpoints exist
+      # and every population claim takes its refusal path. That is correct behaviour on a
+      # shallow tree, and it is also nine sessions of two claims passing over the empty
+      # set, which is what 243's two NEW controls made visible by reddening instead.
+      # This job already fetches the whole history for check 4 above, so it is the one
+      # place in CI where the DEEP half runs: the negative control that rewrites a real
+      # `MOVED +n` into a false `UNMOVED`, and the positive one that must still accept a
+      # true one. Both halves now run on every push, each on a machine it can be read on.
+      # Pure stdlib, ~0.3s. A step, not a 27th job.
+      - name: The interval controls run where the history is (handoff gate selftest)
+        run: python3 scripts/handoff_gate.py --selftest
       # 🆕 THE SPEC-CONFORMANCE LEDGER — 223 §6.2 (B2 / M0 / D11). 223 fixed eleven
       # shipped strings naming methods revision 2026-07-28 deletes, and a human found
       # them by reading a changelog. This reader finds them mechanically: it classifies

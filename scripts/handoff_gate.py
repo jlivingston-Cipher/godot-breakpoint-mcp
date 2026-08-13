@@ -3699,20 +3699,50 @@ def selftest() -> int:
     # the seven single-merge ones, 2 for 232 and 233 — and one value is a constant with a
     # `git` call in front of it. Not floored: the assertion is that the set is not a
     # singleton, which no session can satisfy by shrinking the population to nothing.
+    # 🆕 244 §1 — AND THE SKIP ABOVE THIS LOOP USED TO BE SILENT, WHICH IS THE WHOLE OF
+    # THIS SESSION'S FIRST FINDING. A block whose endpoints are not in the object store
+    # was dropped with a bare `continue`: no reason, no row, no counter. On CI's
+    # `--depth 1` checkout that is EVERY block, so `pop_moved` is empty there and four
+    # claims stand on it — two of them passing vacuously over the empty set for nine
+    # sessions. The population is now PARTITIONED, and `POPULATION_ACCOUNTED` below
+    # refuses a block that belongs to none of the three parts.
     pop_moved: "dict[int, int]" = {}
     pop_unread: "list[str]" = []
+    pop_absent: "list[str]" = []
     for sess, text in BLOCK_POPULATION:
         pop_block = status_block(text)[0]
         ends_p = main_shas(pop_block)[:2]
-        if not ends_p or not all(
-                subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
-                               capture_output=True).returncode == 0 for s in ends_p):
+        if not ends_p:
+            pop_absent.append(f"{sess}: no SHA on the main row")
+            continue
+        gone = [s for s in ends_p
+                if subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
+                                  capture_output=True).returncode != 0]
+        if gone:
+            pop_absent.append(f"{sess}: {' '.join(gone)} not in this object store")
             continue
         n_p, why_p = moved_interval(pop_block, sess)
         if why_p:
             pop_unread.append(f"{sess}: {why_p[:60]}")
         else:
             pop_moved[sess] = n_p
+
+    # 🔴 EVERY BLOCK IS READ, UNREAD WITH A REASON, OR ABSENT WITH A REASON. The three
+    # parts must add up to the table, which is the claim a `continue` cannot make. It is
+    # not a floor on how many are readable — a shallow checkout is a fact about the
+    # machine — it is a refusal of the fourth outcome the old loop had: dropped.
+    claims += 1
+    _parts = len(pop_moved) + len(pop_unread) + len(pop_absent)
+    if _parts != len(BLOCK_POPULATION):
+        failed += 1
+        print(f"  🔴 POPULATION_ACCOUNTED {_parts} of {len(BLOCK_POPULATION)} block(s) "
+              f"land in a named part — read {sorted(pop_moved)}, unread {pop_unread}, "
+              f"absent {pop_absent}. A block this loop drops is a block every claim "
+              f"below is silently not making")
+    if pop_absent and not pop_moved:
+        print(f"  🟡 POPULATION_ABSENT no block's endpoints are in this object store "
+              f"({len(pop_absent)} of {len(BLOCK_POPULATION)}) — a shallow checkout. The "
+              f"interval claims below take their REFUSAL path here and say so")
 
     claims += 1
     if pop_moved and len(set(pop_moved.values())) < 2:
@@ -3785,7 +3815,17 @@ def selftest() -> int:
                  if pop_moved.get(s, 0) > 0
                  and any(re.match(r"^(?:main|branch)\b.*MOVED \+\d+", ln)
                          for ln in status_block(txt)[0])), None)
-    if _ctl is None:
+    if _ctl is None and pop_absent and not pop_moved:
+        # 🆕 244 §1 — THE MACHINE, NOT THE READER. This control needs a block whose main
+        # really moved, and "really" is a `rev-list` over two commits. Where neither
+        # commit exists the control has no input for a reason that is a fact about the
+        # checkout — 235's own lesson, one claim over. It says so and does not redden;
+        # the DEEP half runs in `contract-check`, which fetches the history for check 4,
+        # and that is where this control is enforced on every push.
+        print("  🟡 UNMOVED_CONTROL UNREAD — the population's endpoints are not in this "
+              "object store, so no block can be shown to have moved main. Enforced on "
+              "the full-history job, not skipped: see ci.yml's contract-check")
+    elif _ctl is None:
         failed += 1
         print("  🔴 UNMOVED_CONTROL no block in the population moved main at all, so "
               "there is nothing to rewrite into a false UNMOVED — the control has no "
@@ -3808,7 +3848,11 @@ def selftest() -> int:
     # that refuses everything passes every test written about its refusals.
     claims += 1
     _true = [s for s in unmoved_blocks if pop_moved.get(s, -1) == 0]
-    if not _true:
+    if not _true and pop_absent and not pop_moved:
+        print("  🟡 UNMOVED_ACCEPTS UNREAD — same object store, same reason. The "
+              "positive half needs an interval that really is zero and this checkout "
+              "cannot measure one")
+    elif not _true:
         failed += 1
         print("  🔴 UNMOVED_ACCEPTS no block in the population claims UNMOVED over an "
               "interval that really is zero, so nothing here proves the reader can agree")
