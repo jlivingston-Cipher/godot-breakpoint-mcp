@@ -28,6 +28,11 @@ scripts/_scope_gate_mutant.py
 # Internal design / development artifacts — keep these out of the public repo.
 # (Kept in a local working folder outside the repo; use `git add -f` to override.)
 HANDOFF*.md
+# 🆕 242 — PR bodies are scratch (215 §6.3), and one reached the tree this session
+# by way of a `git add -A` in the container. `terminology_gate.py` counted it and the
+# shipped status block said one fewer, which is the smallest possible version of a
+# document claiming a tree it was not measured against.
+PR_BODY*.md
 BACKLOG*.md
 COMPETITIVE_*.md
 BREADTH_*.md
