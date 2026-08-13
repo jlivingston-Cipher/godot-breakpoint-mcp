@@ -390,7 +390,13 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     # rows are `SINCE(234)`.
     ("mutlock.guarded", r"\bmutlock\b", 2,
      ("python3", "scripts/mutation_lock_gate.py", "--selftest"), ROOT,
-     r"GUARDED_FLOOR[^\n]*live=(\d+)[\s\S]*?MUTATION_LOCK selftest ok — (\d+) case", LOCKED, OPTIONAL,
+     # 🆕 245 §2 — RE-ANCHORED. That file's summary line became `MUTATION_LOCK_SELFTEST_DONE`
+     # this session so the verdict marker would be a string only a COMPLETED run prints
+     # (198 §3's draft 1), and this reader was anchored on the old spelling. `--patterns`
+     # refused it on the first CI run of the commit that moved it, which is the whole reason
+     # that half exists — a reader anchored on a line its instrument no longer prints reports
+     # the counter UNREAD, and UNREAD reads as `nothing to see`.
+     r"GUARDED_FLOOR[^\n]*live=(\d+)[\s\S]*?MUTATION_LOCK_SELFTEST_DONE ok — (\d+) case", LOCKED, OPTIONAL,
      "🔴 THE ATOM IS SPELLED THREE WAYS ACROSS THREE SESSIONS — `mutlock 5/6/2` in 229, "
      "`mutlock 5 + 9 cases` in 230 and 231 — and the first draft of this row read only "
      "the leading number, so it refused 234's own block for claiming two. **The gate "
@@ -2877,6 +2883,25 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · wire_invisible 27 + live · lint_ceiling 18 files
 >               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
 >               · handoff 253 claims · 26 CI jobs
+> ```
+"""),
+    (244, """> ```
+> main                 8cfe158 — the population a reader never admits it lost (#301)  MOVED +2
+>                      299b8d6 — The word that was never a claim, and the intersection two directions could not see (#300)
+> branch 244           session244-the-controls-that-could-not-run — squashed into main
+>                      🟢 PUSHED · PR #300 AND #301 MERGED, 26/26 green each
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   726/726 · contract 23/23 · scope 25 · control 59
+>               · instrument ok across 15 · LATE_LIVE 15/8 · 0 crashes · blast 1442
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 942 keys · 94 shortfalls
+>               · unswept 0 · exempt 38 · term 285 file(s) / 21 suffixes
+>               · taut 4118 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 9 cases · tree_quiet 13 · release_names 61/33
+>               · handoff 263 claims · 26 CI jobs
 > ```
 """),
 ]

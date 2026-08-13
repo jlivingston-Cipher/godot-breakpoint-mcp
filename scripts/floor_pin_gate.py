@@ -764,10 +764,20 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                         "and exempt for INSTRUMENT_FLOOR's reason: its runner mutates the working "
                         "tree. Pinned in-file by `_self_check()`, which requires every value "
                         "positive, plus a `main()` assertion that no entry names a missing "
-                        "instrument. 🔴 THE `B:live` HALF IS DELIBERATELY ABSENT rather than "
-                        "pending: four of that axis's five commands report by collapsing a "
-                        "population and print no per-claim FAIL line at all, so every floor there "
-                        "would be a floor at zero — the shape this table's own entries refuse",
+                        "instrument. 🔴 THE `B:live` HALF IS NO LONGER ABSENT — 245 §3 paid "
+                        "`late-live-blast-unfloored`, and the sentence that used to sit here "
+                        "(\"four of that axis's five commands print no per-claim FAIL line\") had "
+                        "been false for two sessions and described five files rather than an axis "
+                        "that has since grown to seventeen commands. See LATE_LIVE_BLAST_FLOOR",
+    ("../scripts/instrument_gate.py", "LATE_LIVE_BLAST_FLOOR"): "🆕 245 §3 — instrument_gate.py's PER-INSTRUMENT floors on the LATE "
+                        "axis's `B:live` half, the twin of the row above and exempt for the same "
+                        "reason: its runner mutates the working tree. Pinned in-file by "
+                        "`_self_check()` (every value positive) and by three `main()` assertions "
+                        "that no row names a missing instrument, that no instrument is both "
+                        "floored and declared uncountable, and — the one that matters — that a "
+                        "row in `LATE_LIVE_BLAST_UNCOUNTABLE` is REFUSED the moment its "
+                        "instrument reports a nonzero blast on that axis. An exclusion whose "
+                        "own run can falsify it does not need a session to re-read it",
     ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): "🆕 198 — instrument_gate.py's CEILING on late mutants that produced "
                         "no `LATE_BLIND_CALLS` line AT ALL, meaning the mutant never loaded. It is "
                         "ZERO and is measured zero: every mutant run across both axes hooked. "
@@ -1490,24 +1500,30 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "an empty subtree that agrees with every other empty subtree. Twelve entries "
         "ship today, so `{FLOOR}` leaves room for one to be retired honestly and none "
         "for the addon to vanish out of the artifact unnoticed.")),
-    ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (70, (
+    ("../scripts/instrument_gate.py", "SIG_RESOLVED_FLOOR"): (105, (
         "Resolved signatures, floored at `{FLOOR}` from below. 🆕 212 §4 — RAISED, and "
         "DELIBERATE: `_decl_re` was widened to block-bodied arrow consts and "
         "`concise_blind` added for the concise ones, and a new coverage reader turned "
         "eighteen untargeted exported members into thirteen targets and five written "
         "reasons. Measured seventy-eight against a floor that had been fifty-five since "
         "the placeholder shipped; left there, the whole admission could be reverted one "
-        "target at a time without a line of output moving.")),
+        "target at a time without a line of output moving. 🆕 245 §1 — RAISED AGAIN AND "
+        "FOR THE SAME CAUSE ONE LANGUAGE OVER: `blind-py-gates` admitted three Python "
+        "instruments and fifteen more placeholder anchors, and the live count reached one "
+        "hundred and seventeen against a floor that had been seventy since the session "
+        "that widened `_decl_re` to arrow consts.")),
     ("../scripts/instrument_gate.py", "LATE_NOT_LOADED_CEILING"): (0, (
         "A CEILING at `{FLOOR}`, supposed to fall and already at the bottom.")),
-    ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): (98, (
+    ("../scripts/instrument_gate.py", "LATE_CONSTRUCTED_FLOOR"): (160, (
         "🔴 THE ONE THAT WAS ALREADY STALE WHEN §9.4 MEASURED IT. Its comment quoted a "
         "live constructed count that has since moved — 201 §5's finding, reaching a file "
         "that session's rule could not govern. The floor itself is `{FLOOR}`, read from "
         "the tree. 🆕 212 §4 — RAISED, and DELIBERATE, for the same cause as "
         "SIG_RESOLVED_FLOOR above: thirteen new targets are thirteen more late mutants "
         "that construct. Measured one hundred and nine against a floor of sixty-five, a "
-        "gap wide enough for that entire admission to be deleted inside it.")),
+        "gap wide enough for that entire admission to be deleted inside it. 🆕 245 §1 — "
+        "RAISED A THIRD TIME, same cause: the Python cohort and its live axis construct "
+        "one hundred and seventy-nine late mutants against a floor of ninety-eight.")),
     ("../scripts/instrument_gate.py", "LATE_LIVE_FLOOR"): (8, (
         "The live late axis, floored at `{FLOOR}`.")),
     ("../scripts/instrument_gate.py", "INSTRUMENT_FLOOR"): (8, (

@@ -352,6 +352,10 @@ def _selftest() -> int:
         ok = len(unconf) == want_unconf and len(conf) == want_conf
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {name:<48} unconfined={len(unconf)} confined={len(conf)}")
+        # 🆕 245 §2 — the countable spelling. This file's reds were `🔴 <name> unconfined=…`
+        # and `failure_lines` read a blast of zero over every blind of it.
+        if not ok:
+            print(f"  FAIL MUTATION_LOCK_SELFTEST {name}")
     # And the `acquires` predicate, both ways.
     for name, src, want in [("acquire() in code is read", "acquire('x.py')\n", True),
                             ("acquire in a COMMENT is not", "# acquire('x.py')\n", False),
@@ -362,6 +366,25 @@ def _selftest() -> int:
         ok = got == want
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {name:<48} acquires={got}")
+        if not ok:
+            print(f"  FAIL MUTATION_LOCK_SELFTEST {name}")
+    # 🆕 245 §1 — 🔴 `settles` WAS NOT CALLED BY THIS SELF-TEST AT ALL, and the sweep is
+    # what said so: blinded to a constant `True` the whole file stayed GREEN, because the
+    # only reader of the predicate is `classify()` on the live path. `acquires` above has
+    # had three cases since 228 and its twin — the half that CLOSES the mutation record —
+    # had none. Both directions, on the same fixtures, so a predicate stuck on either
+    # answer fails one of them.
+    for name, src, want in [("run_and_settle() in code is read", "run_and_settle(p)\n", True),
+                            ("run_and_settle in a COMMENT is not", "# run_and_settle(p)\n", False),
+                            ("a file that only acquires does NOT settle", "acquire('x.py')\n", False)]:
+        f = d / "settle.py"
+        f.write_text(src, encoding="utf-8")
+        got = settles(f)
+        ok = got == want
+        bad += 0 if ok else 1
+        print(f"  {'🟢' if ok else '🔴'} {name:<48} settles={got}")
+        if not ok:
+            print(f"  FAIL MUTATION_LOCK_SELFTEST {name}")
     # 🔴 THE FLOOR, DRIVEN FROM BOTH SIDES. `floor_pin_gate.py` moves `GUARDED_FLOOR` off
     # its shipped value and requires this file to redden — and zeroing a floor whose only
     # use is `len(guarded) < GUARDED_FLOOR` would otherwise make the gate MORE permissive,
@@ -371,7 +394,11 @@ def _selftest() -> int:
     bad += 0 if ok else 1
     print(f"  {'🟢' if ok else '🔴'} {'GUARDED_FLOOR equals the guarded gates in the tree':<48} "
           f"floor={GUARDED_FLOOR} live={live}")
-    print(f"MUTATION_LOCK selftest {'ok' if not bad else f'🔴 {bad} FAILED'} — {len(cases) + 4} case(s)")
+    if not ok:
+        print("  FAIL MUTATION_LOCK_SELFTEST GUARDED_FLOOR")
+    # 🆕 245 §1 — a DISTINCT end token; see p0_comments.py for why the header line cannot
+    # be the marker (198 §3's draft 1: a string printed first survives a crash).
+    print(f"MUTATION_LOCK_SELFTEST_DONE {'ok' if not bad else f'🔴 {bad} FAILED'} — {len(cases) + 7} case(s)")
     return 1 if bad else 0
 
 
@@ -397,6 +424,7 @@ def main() -> int:
     for line in groups["unguarded"]:
         bad += 1
         print(f"  🔴 UNGUARDED  {line}")
+        print(f"  FAIL MUTATION_LOCK_UNGUARDED {line[:90]}")
     if groups["unguarded"]:
         print("🔴 MUTATION_LOCK_UNGUARDED — the file(s) above rewrite tracked files without\n"
               "   taking the lock. Add `acquire(\"<name>.py\")` at the top of main(). Two\n"
@@ -422,11 +450,13 @@ def main() -> int:
               f"them apart — both arrive as the same number — and the second is the "
               f"dangerous half: every file it stopped reading is then 'guarded' by never "
               f"having been looked at.")
+        print(f"  FAIL MUTATION_LOCK_COLLAPSE {len(groups['guarded'])} < {GUARDED_FLOOR}")
 
     js_bad, js_confined = _js_mutators()
     for problem in js_bad:
         bad += 1
         print(f"🔴 MUTATION_LOCK_JS {problem}")
+        print(f"  FAIL MUTATION_LOCK_JS {problem[:90]}")
     print(f"   …and {js_confined} host/scripts/*.mjs write(s) traced to a mkdtempSync root, "
           f"which is why no JS instrument is in the population above")
 
@@ -437,11 +467,14 @@ def main() -> int:
         print(f"🔴 MUTATION_LOCK_ARGV {name!r} has an entry in MUTATING_ARGV and is not in "
               f"the derived\n   population — a stale row makes the control roster look "
               f"complete over a file that left it.")
+        print(f"  FAIL MUTATION_LOCK_ARGV {name}")
     print("MUTATION_LOCK controls — each guarded gate, spawned while the lock is HELD")
     for name in guarded_names:
         ok, why = refuses_under_lock(SCRIPTS / name)
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {name:<24} {why}")
+        if not ok:
+            print(f"  FAIL MUTATION_LOCK_CONTROL {name}")
 
     # ── 🆕 228 — OPENING A RECORD AND CLOSING ONE ARE TWO CALLS ────────────────────────
     # The population is every file that takes the lock, derived exactly as `guarded` is —
@@ -461,6 +494,7 @@ def main() -> int:
               f"baseline that\n"
               f"                expired — and a SIGKILL's real damage becomes "
               f"indistinguishable from it.")
+        print(f"  FAIL MUTATION_LOCK_UNSETTLED {name}")
 
     print("MUTATION_LOCK reader controls — the lock is HELD; what does a READER say?")
     for label, fn in (("tree_quiet.py", reader_refuses_under_lock),
@@ -468,6 +502,8 @@ def main() -> int:
         ok, why = fn()
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {label:<24} {why}")
+        if not ok:
+            print(f"  FAIL MUTATION_LOCK_READER {label}")
 
     print("MUTATION_LOCK negative control — the classifier reads the CALL, not the file")
     if groups["guarded"]:
@@ -476,6 +512,8 @@ def main() -> int:
             ok, why = negative_control(SCRIPTS / first, token, predicate)
             bad += 0 if ok else 1
             print(f"  {'🟢' if ok else '🔴'} {first + ' ' + token:<24} {why}")
+            if not ok:
+                print(f"  FAIL MUTATION_LOCK_NEGATIVE {token}")
 
     print(f"MUTATION_LOCK {'ok — every tree mutator refuses to run beside another, closes its record, and every reader refuses beside one' if not bad else f'🔴 FAILED ({bad})'}")
     return 1 if bad else 0

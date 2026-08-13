@@ -171,6 +171,15 @@ def _selftest() -> int:
         nonlocal bad
         bad += 0 if ok else 1
         print(f"  {'🟢' if ok else '🔴'} {desc:<70} -> {ok}{'  ' + detail if detail else ''}")
+        # 🆕 245 §2 — `FAIL <NAME>`, THE ONE RED SPELLING ANYTHING IN THIS TREE COUNTS.
+        # The 🔴 line above is this file's house style and `instrument_gate.py`'s
+        # `failure_lines` cannot read it. Measured over every blind of this file BEFORE the
+        # line was written: the A:gate blast was ZERO while the self-test was reporting up
+        # to four failed claims. 244 §4.4 found exactly this about `--floor` and fixed it
+        # there; every other Python gate in this tree still spells its reds in a house style
+        # nothing counts, which is why a floor on any of them would have been a floor at zero.
+        if not ok:
+            print(f"  FAIL P0_COMMENTS_SELFTEST {desc}")
 
     print("P0_COMMENTS selftest")
 
@@ -250,7 +259,11 @@ def _selftest() -> int:
           len(floor_problems([], {})) == len(FLOOR),
           f"{len(floor_problems([], {}))} vs {len(FLOOR)}")
 
-    print(f"P0_COMMENTS selftest {'ok' if not bad else f'🔴 {bad} FAILED'}")
+    # 🆕 245 §1 — A DISTINCT END TOKEN, because `instrument_gate.py` reads the marker as
+    # "this run REACHED its own verdict". The header line above says `P0_COMMENTS selftest`
+    # too, and a marker a run prints on its FIRST line cannot tell a catch from a crash —
+    # 198 §3's draft 1, which was refuted against a capture before it shipped.
+    print(f"P0_COMMENTS_SELFTEST_DONE {'ok' if not bad else f'🔴 {bad} FAILED'}")
     return 1 if bad else 0
 
 
