@@ -182,6 +182,14 @@ jobs:
       # `--selftest` against fixtures rather than only computed here.
       - name: The comment inventory can still refuse (p0 comments floor)
         run: python3 scripts/p0_comments.py --floor
+      # 🆕 247 §4 — `p0-default-path-unrun` (245). Both steps above pass a FLAG. The
+      # branch this file exists to print — the inventory itself, with no argument — was
+      # executed by nothing in this repository: not by CI, not by the replay list, not by
+      # either axis of `instrument_gate.py`, which drives `--selftest` and `--floor`.
+      # 243 §1 is the same sentence one level down (a LOAD is not a RUN); this is a RUN
+      # that is not the run the reporter was written for.
+      - name: The comment inventory still prints its report (p0 comments default path)
+        run: python3 scripts/p0_comments.py
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own
@@ -327,6 +335,14 @@ jobs:
         run: node scripts/p0_complexity.mjs --floor
       - name: The P0 reporters can still refuse (test duplication floor)
         run: node scripts/p0_testdup.mjs --floor
+      # 🆕 247 §4 — `p0-default-path-unrun` (245), the other two thirds. Same argument as
+      # the `p0_comments.py` step in the contract-check job: every command either reporter
+      # has ever been run by carries a flag, and the default branch — the report a human
+      # reads — had no runner at all.
+      - name: The P0 reporters still print their reports (complexity default path)
+        run: node scripts/p0_complexity.mjs
+      - name: The P0 reporters still print their reports (test duplication default path)
+        run: node scripts/p0_testdup.mjs
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
       # 🔴 AND THE LEDGER COMPARISON, WHICH UNTIL 173 HAD NO GATE ANYWHERE. The four

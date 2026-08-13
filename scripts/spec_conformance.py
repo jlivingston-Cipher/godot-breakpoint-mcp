@@ -320,10 +320,6 @@ def is_excluded(rel: str) -> bool:
     return any(rel == e or rel.startswith(e + "/") for e in EXCLUDED)
 
 
-def scanned_files() -> "list[str]":
-    return [os.path.join(ROOT, f) for f in tracked_candidates()]
-
-
 def classify(line: str, method: str, suffix: str = ".ts") -> str:
     """Which of the four classes this hit belongs to.  ORDER IS THE DESIGN."""
     if COMMENT_START.match(line):

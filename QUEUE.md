@@ -22,7 +22,7 @@
 > written.
 
 <!-- QUEUE_FORMAT 1 -->
-<!-- QUEUE_HEAD 246 -->
+<!-- QUEUE_HEAD 247 -->
 
 ## The table
 
@@ -61,7 +61,7 @@
 | sweep-227-15 | SCHEDULED | 228 | — | 250 | 227 §15's sweep | — |
 | d10-capability-matrix | SCHEDULED | 223 | — | 251 | D10 capability matrix with a drift gate | — |
 | review-charter-p0 | DONE | 205 | 241 | — | P0 of the code review charter | — |
-| npm-token-scope | SCHEDULED | 228 | — | 247 | The npm publish token's scope is broader than the package needs | — |
+| npm-token-scope | KILLED | 228 | 247 | — | The npm publish token's scope is broader than the package needs | Nineteen sessions, and nothing in this tree can observe the thing it asks about. The publish is manual and local: measured this session, the three workflows contain ZERO `secrets.` references and no publish step, so the credential never reaches CI and there is no repository setting to narrow. What is left is a property of a token on one machine and of an account page at npmjs.com, and the only gate that could read it would have to handle the token itself — a worse hazard than the one this row names, in a repository whose auth reader (`registry_bytes.auth_state`) is deliberately PURE and never touches npm. The actionable half is a step for the human doing the cut and it is written into `CONTRIBUTING.md` where that human already reads the release ritual: a granular token limited to this one package, with an expiry. Same disposition as `prepack-unwired` (243) and for the same reason — the property is real, and the place it can be enforced is not this tree |
 | prepack-unwired | KILLED | 215 | 243 | — | `prepack` is unwired | Refused on purpose in 204 §8.28 and listed there under *decided — do not re-open*, then transcribed forward as open work for twenty-eight sessions. Re-measured in 243 and the refusal is stronger than it was: `prepack` runs before BOTH `pack` and `publish`, so a `prepack` that re-staged the addon would hand check 6 a tarball the pack had just repaired, and check 6 now reads the tarball rather than the working tree. The property it would enforce is MEASURED instead, by `registry_bytes.py`'s first comparison. The gap is real and was reproduced — `npm pack` on a clean checkout of 1.74.0 ships 71 entries and zero addon files against 83 and twelve after `prepublishOnly`'s two steps — and it is now written into `CONTRIBUTING.md` where a human packing a tarball will read it |
 | check-7-9-overlap | KILLED | 205 | 240 | — | CHECK 7 / CHECK 9 overlap | Thirty-four sessions open with no session ever electing it and no defect ever traced to the overlap. Reopen with an id and a session if one is |
 | concise-blind-late-axis | KILLED | 205 | 240 | — | `concise_blind` late axis | Thirty-four sessions open, superseded in practice by the LATE_LIVE counter the instrument roster now reports on every run |
@@ -81,9 +81,13 @@
 | backlog-md-stale | DONE | 161 | 240 | — | `BACKLOG.md` carries a 1.39.0 baseline against a 1.74.0 tree and still says "read this before anything else" | — |
 | schedule-set-unread | OPEN | 244 | — | — | `QUEUE_SCHEDULE_HONOURED` reads one row at a time; nothing asks whether a target session's whole SET is achievable, and 243 and 244 each opened carrying six | — |
 | late-live-blast-unfloored | DONE | 244 | 245 | — | The B:live axis prints every instrument's blast and floors none of it — the reason (`no per-claim FAIL line`) is now false for the two commands 244 gave one | — |
-| py-cohort-two | SCHEDULED | 245 | — | 247 | The fifteen tracked `scripts/*.py` in `PY_NOT_SWEPT` — the injector exists and each row carries the measurement that says what is stopping it | — |
-| p0-default-path-unrun | OPEN | 245 | — | — | All three P0 reporters run `--selftest` and `--floor` in CI and NOTHING runs them with no flag — the report branch every one of them exists to print is executed by nothing | — |
+| py-cohort-two | DONE | 245 | 247 | — | The fifteen tracked `scripts/*.py` in `PY_NOT_SWEPT` — the injector exists and each row carries the measurement that says what is stopping it | — |
+| p0-default-path-unrun | DONE | 245 | 247 | — | All three P0 reporters run `--selftest` and `--floor` in CI and NOTHING runs them with no flag — the report branch every one of them exists to print is executed by nothing | — |
 | scope-ledger-unreached | SCHEDULED | 246 | — | 252 | Sixteen of the forty-nine `SCOPE_LEDGER` floors can be collapsed by no blind in `scope_gate.py` — each is a module-level accumulator with no `def` to anchor on, and the work is a second injector that empties a binding AFTER the loop that fills it | — |
+| release-names-twelve-readers | SCHEDULED | 247 | — | 250 | `release_names.py`'s twelve tree readers can each return their empty with `--selftest` green — the command proves the PREDICATES on fixtures and the readers are exercised only by `--assert-addon` and `--assert-map`. Split out of `py-cohort-two` on 246 NEXT 4's instruction | — |
+| py-cohort-handoff-gate | OPEN | 247 | — | — | `handoff_gate.py` holds FORTY-NINE top-level `def`s and the coverage roster now asks for a target or a written reason for each; the two measured greens (`clone_tags`, `tree_state`) are the smallest part of it | — |
+| mutlock-controls-unblindable | OPEN | 247 | — | — | Five members of `mutation_lock_gate.py` — the three live control runners, the negative control and `_js_mutators` — are reachable by NEITHER axis: `--selftest` never calls them and the B:live axis is unavailable by the lock. The controls that prove every mutating gate refuses beside another cannot themselves be blinded | — |
+| js-late-register-in-body | OPEN | 247 | — | — | 247 §3 moved the Python late hook's `atexit` registration to module scope so a target an axis never CALLS stops reading as a mutant that never LOADED; `LATE_HOOK` on the JavaScript side still registers from inside the member and no JS target has exposed it yet | — |
 
 ## What the gate refuses
 

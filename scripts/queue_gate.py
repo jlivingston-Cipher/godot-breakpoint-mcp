@@ -58,6 +58,8 @@ Run:  python3 scripts/queue_gate.py
 
 from __future__ import annotations
 
+import contextlib
+import io
 import re
 import sys
 from pathlib import Path
@@ -499,6 +501,49 @@ def selftest() -> int:
     claim("ONLY_NEWEST_ABSTAINS", any("no opinion" in n for n in notes),
           "a session that closed nothing was given an opinion it cannot have — a rule "
           "that fires on absence refuses every session that only opens work")
+
+    # ── 🆕 247 §1 — THE TWO REPORTERS, WHICH NOTHING HAD EVER RUN ────────────────────
+    #
+    # 🔴 `ages` IS WHERE THIS FILE'S WHOLE PREMISE IS CASHED, AND NO AXIS REACHED IT.
+    # The docstring above says the strongest pin on a number nobody rechecks is to delete
+    # the place it can be typed — so the number is DERIVED, by this function, and until
+    # now `ages` and `render` were called by `--ages` and `--render` and by nothing else:
+    # not by this self-test, not by the no-flag live run `instrument_gate.py` blinds, not
+    # by a step in ci.yml. Blinded to `return 0` both went green on BOTH axes (measured,
+    # 247). A deriver nothing exercises is the typed column with an extra step in front.
+    #
+    # 🔴 AND THE CLAIM IS ON THE PRINTED LINE, NOT ON THE RETURN CODE. Both return an exit
+    # code, so a claim about what they RETURN is satisfied by a function that prints
+    # nothing at all — which is exactly what the blind produces.
+    _cap = io.StringIO()
+    with contextlib.redirect_stdout(_cap):
+        _rc = ages(_table(GOOD))
+    _ages_out = _cap.getvalue()
+    claim("AGES_REPORTS",
+          _rc == 0 and f"QUEUE_AGES {len(GOOD) + QUEUE_ROW_FLOOR} row(s)" in _ages_out,
+          f"the age report over a clean fixture printed {_ages_out!r}")
+    # `beta` is opened at 220 against a head of 240, and that arithmetic is the convention
+    # 239 found two documents disagreeing about — read here off the REPORT rather than off
+    # `Row.age`, so a reporter that stopped calling it cannot pass by agreeing with itself.
+    claim("AGES_DERIVES_THE_NUMBER",
+          any(ln.split()[:1] == ["beta"] and ln.split()[-1:] == [str(HEAD - 220)]
+              for ln in _ages_out.split("\n") if ln.strip()),
+          f"no `beta … {HEAD - 220}` line in the age report: {_ages_out!r}")
+    _cap = io.StringIO()
+    with contextlib.redirect_stdout(_cap):
+        _rc = render(_table(GOOD))
+    _render_out = _cap.getvalue()
+    claim("RENDER_REPORTS",
+          _rc == 0 and "`alpha`" in _render_out and "`beta`" in _render_out
+          and "scheduled 242" in _render_out,
+          f"§6 rendered without its live rows: {_render_out[:200]!r}")
+    # 🔴 AND THE CEILING REMAINDER, which is the half of §6 a session reads to decide
+    # anything. An OPEN row `HEAD - 238` sessions old has that much of the ceiling left,
+    # and the sentence saying so is assembled in `render` from a constant `floor_pin_gate`
+    # mutates — so this claim reddens on a zeroed ceiling as well as on a silent reporter.
+    claim("RENDER_CEILING_REMAINDER",
+          f"{AGE_CEILING - (HEAD - 238)} session(s) of ceiling left" in _render_out,
+          f"§6 does not say how much ceiling `alpha` has left: {_render_out[:200]!r}")
 
     # ── the shipped file, read the way CI will read it ────────────────────────────────
     if QUEUE.is_file():

@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -992,6 +993,18 @@ INSTRUMENTS = [
             "{SIG:_cells}": "return []",
             "{SIG:parse}": "return (1, HEAD, [], [])",
             "{SIG:check}": "return ([], [], 0, 0)",
+            # 🆕 247 §1 — THE THREE THE COVERAGE ROSTER ASKED FOR THE MOMENT IT COULD
+            # READ PYTHON, and two of them are where this gate's premise is cashed.
+            # `ages` derives the number `QUEUE.md` deleted the column for; `render`
+            # writes the handoff's §6. Both were called by `--ages`/`--render` and by
+            # nothing else — measured green on both axes before 247 gave the self-test a
+            # claim on the printed LINE (a claim on the return code is satisfied by a
+            # reporter that prints nothing, which is what the blind produces).
+            "{SIG:ages}": "return 0",
+            "{SIG:render}": "return 0",
+            # The fixture builder every negative control in that file is constructed
+            # with: emptied, every `red()` case stops being the table it claims to be.
+            "{SIG:_table}": 'return ""',
         },
     },
     {
@@ -1015,6 +1028,46 @@ INSTRUMENTS = [
             # not evidence about the instrument (197 §5), and this file's own marker would
             # have filed it as a catch.
             "{SIG:classify}": 'return ({"guarded": [], "unguarded": [], "temp_only": []}, 0, 0)',
+            # 🆕 247 §1 — the two the coverage roster found that the A:gate axis already
+            # reaches. `_base_name` strips a mutating gate's temp suffix and `_temp_roots`
+            # is the set of directories a write is allowed to land in; both are read by
+            # `classify`, and both were outside every mechanism in this file.
+            "{SIG:_base_name}": "return None",
+            "{SIG:_temp_roots}": "return set()",
+        },
+    },
+    # ══ 🆕 247 §2 — THE FOURTH PYTHON INSTRUMENT — `py-cohort-two` (245) ═══════════════
+    #
+    # 🔴 IT IS ONE FILE AND NOT FOUR FOR THE REASON §1 IS ABOUT: until this session nothing
+    # could tell a complete Python target list from an empty one, so adding four more
+    # hand-written rosters would have been four more `0/0` lines. The roster comes first;
+    # the cohort grows behind it.
+    #
+    # 🔴 AND SWEEPING THIS ONE FOUND A LIVE DEFECT ON THE FIRST BLIND. `tracked_files()` —
+    # the walk that decides which files this gate scans — emptied to `[]` left it printing
+    # `TERMINOLOGY ok — 0 file(s) swept, 0 retired term(s)` and exiting 0, on BOTH axes.
+    # Every floor in that file was on the UNFILTERED walk. See terminology_gate.py's
+    # `TERMINOLOGY_WALK` for the comparison that closes it.
+    {
+        "name": "terminology_gate.py",
+        "src": ROOT / "scripts" / "terminology_gate.py",
+        "gate": ["python3", "../scripts/terminology_gate.py", "--selftest"],
+        "cwd": HOST,
+        "floor": 5,
+        "why": "the parser, the scanner and BOTH walks under the one rule in this project "
+               "about the words it publishes",
+        "targets": {
+            # The parser: Rule 1's sentence, read out of the live policy.
+            "{SIG:retired_terms}": "return []",
+            # The scanner. 🔴 Caught on A:gate and DECLARED GREEN on B:live — a scanner
+            # that finds nothing is the HEALTHY live reading, which is why the fixtures
+            # exist at all.
+            "{SIG:offenders}": "return []",
+            # 🔴 THE ONE THAT WAS GREEN EVERYWHERE. Both walks are targeted, because the
+            # gate has two and floored only one of them.
+            "{SIG:tracked_files}": "return []",
+            "{SIG:tracked_paths}": "return []",
+            "{SIG:suffix_problems}": "return ([], {})",
         },
     },
 ]
@@ -1044,9 +1097,64 @@ INSTRUMENTS = [
 # The population is DERIVED — "exported callable in the instrument's own source" — rather
 # than listed. A rule scoped to a property cannot rot in the direction a list does, which
 # is 183's lesson in `tautology_gate.mjs` and 182 §9's in `floor_pin_gate.py`.
+#
+# ── 🆕 247 §1 — AND THE PROPERTY IT WAS SCOPED TO WAS `export`, WHICH IS ONE LANGUAGE ──
+#
+# 🔴 THE TWO PATTERNS BELOW ARE JAVASCRIPT. 245 §1 put three PYTHON instruments in the
+# table above and this roster has printed `0/0 exported member(s) targeted · 0 declared
+# NOT_A_TARGET` over every one of them on every run since — not a small number, THE
+# number a file with no members would print. Every claim in the paragraph above was true
+# of the `.mjs` half and vacuous over the `.py` half, and a Python target list has been
+# a hand-written roster with no DISCOVER half at all: exactly the state 212 §4 built this
+# check to end, arriving again the moment the population gained a second language.
+#
+# 🔴 MEASURED BEFORE THE FIX (`probe247b.py`, every top-level `def` blinded and each
+# instrument's own command run): THIRTY members across the three, TWELVE targeted.
+#
+#     mutation_lock_gate.py   14 def(s), 5 targeted — and three of the nine are
+#                             `refuses_under_lock`, `reader_refuses_under_lock` and
+#                             `hook_refuses_under_lock`, the controls that decide whether
+#                             every mutating gate in this tree refuses to run beside
+#                             another. `--selftest` never calls one.
+#     queue_gate.py            8 def(s), 3 targeted — `ages` among them, the deriver
+#                             `QUEUE.md`'s premise rests on ("the ages are DERIVED — do
+#                             not type one here"), reached only by `--render`.
+#     p0_comments.py           7 def(s), 5 targeted — the two left are the invocation
+#                             pair, and this one really was complete.
+#
+# 🔴 AND `NOT_A_TARGET` COULD NOT HAVE HELD THE ANSWER EITHER. `declared` below is
+# subtracted by each instrument's EXPORTED members, so a Python row would have been
+# reported as an exemption outliving its member forever — the roster refusing the only
+# way there was to write an excuse in it. Both halves are language-aware now: what the
+# population is, and what a row in the escape hatch is allowed to name.
 _EXPORT_FN = re.compile(r"^export[ \t]+(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)[ \t]*\(")
 _EXPORT_ARROW = re.compile(
     r"^export[ \t]+(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[ \t]*=[ \t]*(?:async[ \t]+)?\(")
+# 🔴 COLUMN ZERO, WHICH IS THE WHOLE OF THE READING. A `def` at any indent is a method or
+# a closure, and `py_resolve_sig` anchors on `py_decl_lines` — which reads exactly this —
+# so a population wider than the anchor could name members no target could ever address.
+# The two readers agree by construction: this is the same pattern, asked of the module.
+_PY_DEF = re.compile(r"^def[ \t]+([A-Za-z_][\w]*)[ \t]*\(")
+
+
+def members_of(src: "Path") -> "list[str]":
+    """The callables a coverage claim is made over, in the language the file is written in.
+
+    PURE over the file's text. 🔴 THE `.py` HALF IS EVERY TOP-LEVEL `def` AND NOT THE
+    PUBLIC ONES: Python has no `export`, and the three instruments above already target
+    `_looks_like_code`, `_cells` and `_base_name`. A population that dropped the
+    underscore names would have declared three existing targets un-covered and, worse,
+    excused `_js_mutators` — a real member with a real blind — by a naming convention.
+    """
+    text = src.read_text(encoding="utf-8", errors="replace")
+    if str(src).endswith(".py"):
+        return [m.group(1) for ln in text.split("\n") if (m := _PY_DEF.match(ln))]
+    out: "list[str]" = []
+    for ln in text.split("\n"):
+        m = _EXPORT_FN.match(ln) or _EXPORT_ARROW.match(ln)
+        if m:
+            out.append(m.group(1))
+    return out
 
 NOT_A_TARGET: dict[tuple[str, str], str] = {
     # 🔴 `main` IS THE INVOCATION, NOT A READER. Blinding it stops the gate producing any
@@ -1124,6 +1232,66 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     ("positive_control_gate.mjs", "main"):
         "the invocation, not a reader — see verdict_gate.mjs::main. The three readers it "
         "calls are targeted individually and `scan` is reached by the live axis.",
+    # ══ 🆕 247 §1 — THE PYTHON ROWS, WHICH THIS TABLE COULD NOT HOLD UNTIL THIS SESSION ══
+    #
+    # Every row below was measured with `probe247b.py` before it was written: each member
+    # blinded to the empty its annotation promises, each instrument's own command run.
+    #
+    # 🔴 THE INVOCATION PAIR IS TWO ROWS IN PYTHON AND ONE IN JAVASCRIPT, and the reason is
+    # in the measurement rather than in the style. `sys.exit(main())` is the entry point, and
+    # each of these files dispatches from `main` into a `--selftest` body — so blinding
+    # EITHER produces a process that prints nothing, reaches no verdict marker and exits 0.
+    # That is `verdict_gate.mjs::main`'s class exactly (a crash rather than a catch), twice
+    # per file, because the dispatch is a second function and not an `if` in the first.
+    ("p0_comments.py", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
+    ("p0_comments.py", "_selftest"):
+        "the second half of the invocation: `main` dispatches `--selftest` here, so blinding "
+        "it removes the whole report rather than a reading inside it. The five members it "
+        "drives are targeted individually, which is where the claims live.",
+    ("queue_gate.py", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
+    ("queue_gate.py", "selftest"):
+        "the second half of the invocation — see p0_comments.py::_selftest. Blinded, the "
+        "A:gate command prints no `QUEUE_SELFTEST` line at all.",
+    ("mutation_lock_gate.py", "main"):
+        "the invocation, not a reader — and in this file `main` is ALSO the live control "
+        "runner, which is what the five rows below are about.",
+    ("mutation_lock_gate.py", "_selftest"):
+        "the second half of the invocation — see p0_comments.py::_selftest.",
+    # 🔴 AND THESE FIVE ARE THE FINDING, NOT A FORMALITY. `mutation_lock_gate.py` splits in
+    # two: `--selftest` proves the DERIVERS on fixtures, and `main` with no flag runs the
+    # LIVE CONTROLS — each guarded gate spawned while the lock is held, the reader, the
+    # hook, and the negative control that proves the classifier reads the call rather than
+    # the file. The A:gate axis is `--selftest`, so it cannot reach one of them; and
+    # `LATE_LIVE_LOCKED` says the B:live axis is unavailable BY THE LOCK. Neither axis this
+    # harness has can blind the controls that decide whether every mutating gate in this
+    # tree refuses to run beside another. 🔴 THAT IS A HARNESS LIMITATION REPORTED UNDER A
+    # CEILING (197 §3), and `mutlock-controls-unblindable` (247) is the row that prices it:
+    # the work is a `--selftest` claim per control that asserts the PAIR each returns, so
+    # `(False, "")` fails on the empty reason rather than passing as "did not refuse".
+    ("mutation_lock_gate.py", "refuses_under_lock"):
+        "measured green on A:gate: it is called by `main`'s live control loop and by "
+        "nothing in `--selftest`, and the B:live axis is unavailable by the lock "
+        "(LATE_LIVE_LOCKED). Priced as `mutlock-controls-unblindable` (247).",
+    ("mutation_lock_gate.py", "reader_refuses_under_lock"):
+        "the same — `main`'s reader control, unreachable from either axis. See "
+        "`refuses_under_lock` above.",
+    ("mutation_lock_gate.py", "hook_refuses_under_lock"):
+        "the same — `main`'s hook control, unreachable from either axis.",
+    ("mutation_lock_gate.py", "negative_control"):
+        "the same, and it is the control that proves the classifier reads the CALL and not "
+        "the file. It is also the one member here with no return annotation, so the "
+        "derivation that measured the other four had nothing to spell an empty from.",
+    ("mutation_lock_gate.py", "_js_mutators"):
+        "the same: `main` reads it to report how many `host/scripts/*.mjs` writes are "
+        "confined to a `mkdtempSync` root, and `--selftest` never calls it.",
+    # 🆕 247 §2 — the fourth Python instrument's invocation pair.
+    ("terminology_gate.py", "main"):
+        "the invocation, not a reader — see verdict_gate.mjs::main. 🔴 AND IT IS THE ONE "
+        "PLACE THIS FILE'S NEW LIVE CHECK LIVES, which is why `tracked_files` is targeted "
+        "and this is not: the blind that mattered goes through the member, not the frame.",
+    ("terminology_gate.py", "_selftest"):
+        "the second half of the invocation — see p0_comments.py::_selftest. Blinded, the "
+        "A:gate command prints no `TERMINOLOGY_SELFTEST_DONE` line at all.",
 }
 
 
@@ -1135,11 +1303,7 @@ def coverage_problems(instruments) -> list[str]:
         src: Path = inst["src"]
         if not src.exists():
             continue
-        exported: list[str] = []
-        for ln in src.read_text().split("\n"):
-            m = _EXPORT_FN.match(ln) or _EXPORT_ARROW.match(ln)
-            if m:
-                exported.append(m.group(1))
+        exported: list[str] = members_of(src)
         # 🔴 LITERAL ANCHORS COUNT, AND THE FIRST RUN OF THIS CHECK PROVED WHY IT HAS TO
         # SAY SO. `judgeDiscarded` is targeted by a two-line literal because its signature
         # spans two lines and `_decl_re` is line-anchored; a coverage reader that only
@@ -1165,10 +1329,10 @@ def coverage_problems(instruments) -> list[str]:
         declared -= {(inst["name"], n) for n in exported}
         print(f"INSTRUMENT_GATE_COVERAGE {inst['name']}: "
               f"{len(set(exported)) - len(missing) - len(excused)}/{len(set(exported))} "
-              f"exported member(s) targeted · {len(excused)} declared NOT_A_TARGET")
+              f"declared member(s) targeted · {len(excused)} declared NOT_A_TARGET")
         for n in missing:
             problems.append(
-                f"{inst['name']}: `{n}` is EXPORTED and is neither a target nor declared in "
+                f"{inst['name']}: `{n}` is a MEMBER and is neither a target nor declared in "
                 f"NOT_A_TARGET. Nothing in this file can see that — EXISTENCE, UNIQUENESS, "
                 f"the injector's refusal and BLAST_FLOOR are all about targets that were "
                 f"WRITTEN. Add `{{SIG:{n}}}` with the empty its contract promises, or a "
@@ -1286,6 +1450,9 @@ LATE_LIVE = {
     # for whether an NA row could ever be honest here — it could not.
     "p0_comments.py": (["python3", "../scripts/p0_comments.py", "--floor"], None),
     "queue_gate.py": (["python3", "../scripts/queue_gate.py"], None),
+    # 🆕 247 §2 — `terminology_gate.py` with no flag is the live sweep, and ci.yml runs
+    # it, so 232 §5.6's rule refuses a `LATE_LIVE_NA` row for this file outright.
+    "terminology_gate.py": (["python3", "../scripts/terminology_gate.py"], None),
 }
 
 # ── 🔴 198 §3 — THE LATE AXIS'S VERDICT MARKER, AND WHY IT IS NOT `VERDICT_MARKER` ──
@@ -1349,6 +1516,8 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     # refusal still carries it. `QUEUE_GATE <n> row(s) …` is the same shape.
     "python3 ../scripts/p0_comments.py --floor": "P0_COMMENTS_CENSUS ",
     "python3 ../scripts/queue_gate.py": "QUEUE_GATE ",
+    # 🆕 247 §2 — the live sweep's census line, printed before any verdict branch.
+    "python3 ../scripts/terminology_gate.py": "TERMINOLOGY_SUFFIX ",
 }
 
 # THE LIVE AXIS'S CRASHES, DECLARED WITH THEIR REASON — `CRASH_DECLARED`'s shape and its
@@ -1717,8 +1886,9 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # the global blast for 231's reason: the late injector blinds from the SECOND call, so
     # the claims that read a member once still pass.
     "p0_comments.py": 6,
-    "queue_gate.py": 50,
-    "mutation_lock_gate.py": 6,
+    "queue_gate.py": 78,           # 247: 50 -> 98 measured, floored from below
+    "mutation_lock_gate.py": 15,   # 247: 6 -> 19 measured, floored from below
+    "terminology_gate.py": 9,      # 247: measured 11 on [A:gate]
 }
 # ══ 🆕 245 §3 — `late-live-blast-unfloored` (244) ══════════════════════════════════
 #
@@ -1754,6 +1924,12 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
     # number that separates "reported something" from "reported nothing", which is the only
     # honest pin available over a population this size.
     "queue_gate.py": 1,           # 245: measured 2
+    # 🆕 247 §2 — ANOTHER POPULATION OF ONE, and the one is the point. Four of the five
+    # late blinds on the live axis are not constructible there (the walks and the parser
+    # are each called once); `{SIG:offenders}` is called 290 times and was GREEN until
+    # this session floored the excluded population it reads. The pin is the smallest
+    # number that separates "reported something" from "reported nothing".
+    "terminology_gate.py": 1,     # 247: measured 1
 }
 
 LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
@@ -2127,20 +2303,29 @@ PY_NOT_SWEPT: dict[str, str] = {
     # a work item, and a file with no row is a coverage claim nobody made.
     "handoff_gate.py":
         "measured: 8 of 14 derived targets caught, `{SIG:clone_tags}` and `{SIG:tree_state}` "
-        "STILL GREEN under `--selftest`. Both read git and the self-test proves neither.",
+        "STILL GREEN under `--selftest`. Both read git and the self-test proves neither. "
+        "🆕 247 §1 — AND THE DERIVED FOURTEEN ARE NOT THE POPULATION: this file holds "
+        "FORTY-NINE top-level `def`s, and the coverage roster now asks for a target or a "
+        "written reason for every one of them. That is the biggest single row in this "
+        "cohort and it is nothing like the second-biggest; `py-cohort-handoff-gate` (247).",
     "release_names.py":
-        "measured, and it is the largest of the six: 3 of 17 caught. TWELVE tree readers — "
+        "🆕 247 §1 — ITS OWN ROW NOW: `release-names-twelve-readers` (247), which is what "
+        "246 NEXT 4 said to split out. Measured, 3 of 17 caught. TWELVE tree readers — "
         "`shipped_corpus`, `released_block`, the four window readers, the four tag readers, "
         "`addon_version`, `tarball_entries` — can each return their empty with `--selftest` "
         "green, because that command proves the PREDICATES on fixtures and the readers are "
         "exercised only by `--assert-addon` and `--assert-map`.",
     "spec_conformance.py":
-        "measured: 3 of 7 caught, `{SIG:get}` and `{SIG:scanned_files}` STILL GREEN.",
+        "measured: 3 of 7 caught. 🆕 247 §1 — AND ONE OF THE TWO GREENS WAS NOT A COVERAGE "
+        "GAP AT ALL. `scanned_files` was called by NOTHING in this repository, so its blind "
+        "was green for the most boring reason there is, and from outside the axis that is "
+        "the same observation as a member no case reaches. It is deleted. `{SIG:get}` "
+        "remains: it is the network read `--refresh` uses and no other command calls it. "
+        "Re-measured over the whole module rather than over the shapes `EMPTY` can spell: "
+        "10 members, and `load_ledger`, `hits` and `pin_problems` are each green under "
+        "`--selftest` while `is_excluded` is caught only by `--check`.",
     "registry_bytes.py":
         "measured: 4 of 10 caught, `{SIG:tree_shas}` STILL GREEN under `--selftest`.",
-    "terminology_gate.py":
-        "measured: `{SIG:tracked_files}` STILL GREEN — the self-test never calls the walk "
-        "the live scan reads, so `tracked_paths` is proved and its own enumerator is not.",
     "lint_ceiling.py":
         "measured: 4 of 8 caught. The three tool-absence guards — `{SIG:tsc_absent}`, "
         "`{SIG:dist_absent}`, `{SIG:pyflakes_absent}` — can each answer 'the tool is here' "
@@ -2770,6 +2955,51 @@ def _self_check(floor: int) -> list[str]:
             f"py_late's injection carries no {LATE_MARK} counter — `run_counting` reads that "
             f"line to tell 'called once' from 'the mutant never loaded', and without it "
             f"every Python late target lands in the second bucket in silence (197 §3)")
+    # 🆕 247 §3 — 🔴 AND THE REGISTRATION IS AT MODULE SCOPE, WHICH IS THE CLAIM ITSELF.
+    # A hook registered inside the member prints nothing when the member is never called,
+    # and `not hook` is the branch that says NEVER LOADED — so an axis that simply does
+    # not call a target reads as a mutant that did not compile. The two claims below are
+    # the difference: the `atexit` register at column zero, the counter indented into the
+    # body. A regression puts three of `queue_gate.py`'s targets back under a zero ceiling.
+    if _late_mut is not None:
+        # The register BLOCK's own first line, which is the one that decides its scope —
+        # the `_igx.register` call sits inside an `if` and is indented either way, and
+        # the first draft of this claim read that line and failed on a correct mutant.
+        _reg = [ln for ln in _late_mut.split("\n") if "atexit as _igx" in ln]
+        if not _reg or _reg[0] != PY_LATE_REGISTER[0]:
+            problems.append(
+                "py_late registers its exit handler INSIDE the member body — a target the "
+                "axis never calls then produces no LATE_BLIND_CALLS line and is filed as "
+                "NEVER LOADED, which is a claim about the mutant compiling and not about "
+                "the instrument (247 §3)")
+        if "\n    _igb._IG_CALLS = getattr" not in _late_mut:
+            problems.append(
+                "py_late's call counter is no longer indented into the member's body — a "
+                "counter at module scope counts imports, not calls, and every late target "
+                "would read as constructible on its first run")
+
+    # ── 🆕 247 §1 — THE COVERAGE POPULATION, IN BOTH LANGUAGES ────────────────────────
+    # 🔴 THE `.py` BRANCH IS THE ONE THAT DID NOT EXIST, and the `.mjs` branch is asserted
+    # beside it because a language-aware reader that quietly answered `[]` for JavaScript
+    # would print `0/0` over fourteen instruments exactly the way it did over three.
+    _mem_dir = Path(tempfile.mkdtemp(prefix="ig_members_"))
+    (_mem_dir / "m.py").write_text(_PY_ONE, encoding="utf-8")
+    (_mem_dir / "m.mjs").write_text(
+        "export function one() {}\nfunction two() {}\n"
+        "export const three = () => 1;\n", encoding="utf-8")
+    _py_members = members_of(_mem_dir / "m.py")
+    if _py_members != ["alpha", "alpha_two"]:
+        problems.append(
+            f"members_of reads {_py_members!r} out of a Python module — it must be every "
+            f"TOP-LEVEL `def` and only those: `beta` is a method, which no `{{SIG:}}` anchor "
+            f"can address, and a population wider than the anchor names members no target "
+            f"could ever cover")
+    _js_members = members_of(_mem_dir / "m.mjs")
+    if sorted(_js_members) != ["one", "three"]:
+        problems.append(
+            f"members_of reads {_js_members!r} out of an ES module — the exported callables "
+            f"and not the module-private ones, which is 212 §4's population and must not "
+            f"move when a second language is added beside it")
 
     # ── the Python DISCOVER roster, both directions ────────────────────────────────────
     _PI = [{"name": "a.py", "src": ROOT / "scripts" / "a.py"}]
@@ -2837,6 +3067,9 @@ VERDICT_MARKER: dict[str, str] = {
     "p0_comments.py": "P0_COMMENTS_SELFTEST_DONE",
     "queue_gate.py": "QUEUE_SELFTEST ",
     "mutation_lock_gate.py": "MUTATION_LOCK_SELFTEST_DONE",
+    # 🆕 247 §2 — same rule, same reason: `TERMINOLOGY selftest` is this file's FIRST
+    # line, so the marker had to be a new one that only the end of the run prints.
+    "terminology_gate.py": "TERMINOLOGY_SELFTEST_DONE",
     "_population.mjs": "POP_SELFTEST",
     "_path_ledger.mjs": "LEDGER_SELFTEST",
     "_workspace.mjs": "WORKSPACE_SELFTEST",
@@ -3299,26 +3532,59 @@ def py_blind(text: str, anchor: str, empty: str) -> "str | None":
 # without importing anything) and the line is written by `atexit`. The MARKER is identical,
 # because `run_counting` is what reads it and that reader is language-agnostic — which is the
 # whole reason this port is three functions and not a second gate.
-PY_LATE_HOOK = (
+# ── 🆕 247 §3 — THE REGISTRATION LEAVES THE BODY, AND THAT IS THE WHOLE FIX ──────────
+#
+# 🔴 `NEVER LOADED` AND `NEVER CALLED` WERE ONE OBSERVATION, AND THE MESSAGE SAID SO.
+# The refusal this file prints reads *"either the mutant NEVER LOADED — a SyntaxError, or
+# a throw at import — or this target is never called on this axis"*: two failures, one
+# bucket, and only one of them is about the instrument. 212 §4 split `not hook` out of
+# `calls == 0` for exactly this reason and stopped one turn short — the hook that decides
+# it was still registered from INSIDE the member, so a module that imported perfectly and
+# simply never called that function was indistinguishable from a module that did not parse.
+#
+# 🔴 MEASURED: it bit the first time a target was added that one axis does not call.
+# `queue_gate.py`'s `{SIG:ages}`, `{SIG:render}` and `{SIG:_table}` are that file's two
+# reporters and its fixture builder; the live no-flag command reads QUEUE.md and calls
+# none of them. All three landed in `LATE_NOT_LOADED`, whose ceiling is ZERO — so a
+# correctly-constructed sweep of a healthy tree failed on three mutants that had loaded,
+# run and behaved exactly as the table says they should.
+#
+# The registration is a MODULE-LEVEL statement now, written in at column zero directly
+# above the target's own `def`, so it executes on import and the exit handler prints
+# `LATE_BLIND_CALLS 0` for a member nothing called. No hook line still means no module.
+PY_LATE_REGISTER = (
     'import builtins as _igb, atexit as _igx  # INSTRUMENT_GATE LATE',
     'if not getattr(_igb, "_IG_HOOKED", 0):',
     '    _igb._IG_HOOKED = 1; _igb._IG_CALLS = 0',
     '    _igx.register(lambda: print("\\n%s %%d" %% getattr(_igb, "_IG_CALLS", 0)))' % LATE_MARK,
+)
+PY_LATE_HOOK = (
+    'import builtins as _igb  # INSTRUMENT_GATE LATE',
     '_igb._IG_CALLS = getattr(_igb, "_IG_CALLS", 0) + 1',
     'if _igb._IG_CALLS > 1: {empty}',
 )
 
 
 def py_late(text: str, anchor: str, empty: str) -> "str | None":
-    """`empty` from the SECOND call onwards. Same anchor as `py_blind`, same marker."""
+    """`empty` from the SECOND call onwards. Same anchor as `py_blind`, same marker.
+
+    🔴 THE COUNTER IS IN THE BODY AND THE REGISTRATION IS NOT — see the note above for
+    the one bucket that collapsed into while both halves lived inside the member.
+    """
     pos = py_body_indent(text, anchor)
     if pos is None:
         return None
     end, ind = pos
     pad = " " * ind
-    hook = [pad + ln.replace("{empty}", empty) for ln in PY_LATE_HOOK]
     lines = text.split("\n")
-    lines[end + 1:end + 1] = hook
+    head = anchor.split("\n")[0]
+    if head not in lines:
+        return None
+    # The body first: inserting above the declaration afterwards moves it down whole,
+    # where doing it the other way round would invalidate `end`.
+    lines[end + 1:end + 1] = [pad + ln.replace("{empty}", empty) for ln in PY_LATE_HOOK]
+    decl = lines.index(head)
+    lines[decl:decl] = list(PY_LATE_REGISTER)
     return "\n".join(lines)
 
 
@@ -3404,8 +3670,13 @@ BLAST_FLOOR: dict[str, int] = {
     # A floor is not available over an uncountable red — 244 §4.4, arriving at a population
     # rather than at one command. Floored from BELOW with the usual headroom (198 §36).
     "p0_comments.py": 9,
-    "queue_gate.py": 60,
-    "mutation_lock_gate.py": 9,
+    # 🆕 247 §1 — 198 §36: RAISE A FLOOR THE SAME COMMIT THAT OUTGROWS IT. The coverage
+    # roster asked for five more targets across these two and the sweep reddens harder for
+    # them; a floor left at the old number is headroom nobody voted for.
+    "queue_gate.py": 90,           # 247: 60 -> 90, measured 113 (+ages, render, _table)
+    "mutation_lock_gate.py": 16,   # 247: 9 -> 16, measured 21 (+_base_name, _temp_roots)
+    # 🆕 247 §2 — the fourth Python instrument, floored from BELOW on its first sweep.
+    "terminology_gate.py": 12,     # 247: measured 15 across its five blinds, 0 crashed
 }
 BLAST_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []

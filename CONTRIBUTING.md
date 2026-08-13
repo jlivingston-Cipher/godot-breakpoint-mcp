@@ -260,6 +260,20 @@ known and accepted rewrite — `git checkout -- example/project.godot`. Check
    that opens what users installed and the commit they installed it under, and it
    runs after `npm publish` and before `git tag`.
 
+   **The credential is a step in this ritual and not a setting anywhere else.**
+   `registry_bytes.py` answers *can this machine publish right now* — it reads
+   `npm whoami` and the owner list and refuses an anonymous or non-owner shell before
+   the version files move. It has nothing to say about what **else** the token in that
+   shell can do, and nothing in this repository does: there is no publish workflow and
+   not one `secrets.` reference in any of the three GitHub Actions files, so the
+   credential never leaves the machine doing the cut. That is the reason it is worth
+   narrowing by hand. Publish with a **granular access token limited to
+   `breakpoint-mcp`, read-and-write, with an expiry** — not a classic automation
+   token, which carries every package the account owns and does not expire. Rotate it
+   when it lapses rather than replacing it with a broader one because the cut is
+   blocked. No gate can check this, which is exactly why it is written where the
+   person doing the publish already reads.
+
    **Check 8 reads the wire, and it is the one that decides whether your change is a
    MINOR.** `host/scripts/wire_diff.mjs` builds the previous tag, starts both servers,
    pages `tools/list` out of each, and classifies the difference — a removed field or a
