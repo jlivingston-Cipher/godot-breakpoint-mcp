@@ -88,6 +88,20 @@ jobs:
       # this one was written runnable-on-its-own in 219 and then wired to nothing.
       - name: Check 4 — the addon version still names the addon's tree (release names)
         run: python3 scripts/release_names.py --assert-addon
+      # 🆕 244 §1 — THE SAME SELF-TEST THE `test` JOB RUNS, ON THE OTHER KIND OF MACHINE,
+      # AND THAT IS THE ENTIRE POINT OF THE STEP. `handoff_gate.py --selftest` proves its
+      # interval readers against `BLOCK_POPULATION`'s real commits, and the `test` job's
+      # checkout is the default `--depth 1` — so over there NONE of those endpoints exist
+      # and every population claim takes its refusal path. That is correct behaviour on a
+      # shallow tree, and it is also nine sessions of two claims passing over the empty
+      # set, which is what 243's two NEW controls made visible by reddening instead.
+      # This job already fetches the whole history for check 4 above, so it is the one
+      # place in CI where the DEEP half runs: the negative control that rewrites a real
+      # `MOVED +n` into a false `UNMOVED`, and the positive one that must still accept a
+      # true one. Both halves now run on every push, each on a machine it can be read on.
+      # Pure stdlib, ~0.3s. A step, not a 27th job.
+      - name: The interval controls run where the history is (handoff gate selftest)
+        run: python3 scripts/handoff_gate.py --selftest
       # 🆕 THE SPEC-CONFORMANCE LEDGER — 223 §6.2 (B2 / M0 / D11). 223 fixed eleven
       # shipped strings naming methods revision 2026-07-28 deletes, and a human found
       # them by reading a changelog. This reader finds them mechanically: it classifies
@@ -150,6 +164,18 @@ jobs:
       - name: No item is past the ceiling undecided, no schedule has lapsed, and no
           session closed only what it invented (queue gate)
         run: python3 scripts/queue_gate.py
+      # 🆕 243 — THE THIRD P0 REPORTER, AND IT IS HERE FOR ITS TWO SIBLINGS' REASON.
+      # 242 put `p0_complexity.selftest.mjs` and `p0_testdup.selftest.mjs` in the `test`
+      # job after both reporters shipped tracked in 241 importing a Node 22 export
+      # against `engines.node ">=18"` — an ESM LINK error, so on the 18 and 20 legs the
+      # modules never loaded and 26 jobs said nothing. `p0_comments.py` was the third
+      # reporter of that same charter pass and got neither a self-test nor a roster, so
+      # it stayed in exactly the state that cost 241 a session. It is Python and stdlib
+      # only, so it runs here rather than in the job that has Node.
+      # 🔴 AND THE FIRST THING THIS STEP BUYS IS THE LOAD, NOT THE CLAIMS: until 243
+      # nothing in this tree executed that file at all.
+      - name: The comment inventory still measures what it claims (p0 comments selftest)
+        run: python3 scripts/p0_comments.py --selftest
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own

@@ -322,7 +322,20 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
   if (privilegedWarn) say(`  note: ${privilegedWarn}`);
 
   say("");
-  say("Next: open the project in Godot, then run `breakpoint-mcp doctor --require-live` to verify.");
+  // 🔴 THE REOPEN TRAP. Godot reads project.godot's [editor_plugins] at project load and
+  // does not reload it, so an editor that was already running when we wrote the section
+  // keeps the plugin DISABLED — the bridge never starts and every editor-plane tool is
+  // dark, with nothing on screen saying why. The line is conditioned on `en.changed`
+  // because a project whose plugin was already enabled has nothing to reopen for, and a
+  // warning printed on every run is a warning nobody reads.
+  if (!dryRun && en.changed) {
+    say("Next: open the project in Godot — and if it is ALREADY OPEN, close and reopen it.");
+    say("  Godot reads project.godot's [editor_plugins] at project load and does not reload");
+    say("  it, so an editor that was already running keeps the plugin disabled.");
+    say("Then run `breakpoint-mcp doctor --require-live` to verify.");
+  } else {
+    say("Next: open the project in Godot, then run `breakpoint-mcp doctor --require-live` to verify.");
+  }
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }
