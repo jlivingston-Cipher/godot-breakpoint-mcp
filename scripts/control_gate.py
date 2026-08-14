@@ -252,6 +252,28 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "### `tilemap_get_cell`", "### `tilemap_get_cell` ✔",
      "Catalog section headings mark these ✔"),
 
+    # ── check 4d — the catalog's Plane column vs the toolset registry ─────────────
+    # 🆕 253. The third column, and the first one whose two sides were written in
+    # different vocabularies — 22 free-form plane strings against 14 toolset ids, with
+    # nothing but CARDINALITY between them. Three controls, one per way the join can
+    # rot: the atom drifts to another real group, the atom goes away while the row
+    # still parses, and the REGISTRY moves under a column that stays where it was.
+    ("4d.drift", "4d", "sub", "docs/TOOL_CATALOG.md",
+     "| `vcs_status` | `vcs` ·", "| `vcs_status` | `knowledge` ·",
+     "Plane` column disagrees with the toolset registry"),
+    ("4d.noatom", "4d", "sub", "docs/TOOL_CATALOG.md",
+     "| `vcs_status` | `vcs` · ", "| `vcs_status` | ",
+     "carries no backticked toolset id"),
+    # 🔴 THE ONLY ONE OF THE THREE THAT MOVES THE CODE, AND IT IS THE ASSERTION THE
+    # OTHER TWO CANNOT MAKE. Dropping a group from `toolsets.ts` leaves every tool
+    # registered, catalogued, annotated and schema-checked — and unreachable by any
+    # `BREAKPOINT_TOOLSETS` selection a user can write. Before 4d that edit was
+    # invisible to this whole tree.
+    ("4d.unreachable", "4d", "sub", "host/src/toolsets.ts",
+     '{ id: "vcs", describe: "Group L — read-only version control (git) over the project", run: () => registerVcsTools(s, c) },',
+     "",
+     "Registered tools in no toolset"),
+
     # ── check 11c — the test suite's own size ─────────────────────────────────────
     # The vacuous-anchor case, and the only control here that is not a text edit: the
     # statement fires when NOTHING can be counted, so the subject has to go away. That
@@ -693,7 +715,7 @@ ALSO_ATTRIBUTED_FLOOR = 99     # 🆕 246 §3 — at `{FLOOR}`, raised with it. 
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
 # both-halves lesson: the set catches a check renamed or swapped, the floor catches the
 # roster itself being trimmed to match a smaller reality.
-CHECKS_CLOSED = ("3", "4c", "11c", "host", "17", "22",
+CHECKS_CLOSED = ("3", "4c", "4d", "11c", "host", "17", "22",
                  # 188: every check that gained at least one control this session
                  "1", "5", "9", "10", "11", "12", "13", "14", "15", "16",
                  "addon", "roster", "shape", "why",
@@ -739,6 +761,17 @@ BLAST: dict[str, int] = {
     # heading gained this session, declared here in the commit that added it.
     "4c.under": 2,                        # also: 4c's cross-check
     "4c.over": 2,                         # also: 4c's cross-check
+    # 🆕 253 — check 4d's three, measured. The two document edits redden exactly their
+    # own statement; the REGISTRY edit reddens three, and the two extra lines are the
+    # point of it. Dropping `vcs` from `toolsets.ts` leaves twelve tools registered and
+    # documented, so 4d reports them unreachable AND reports the twelve `Plane` cells as
+    # naming a group that no longer exists — and check 25 loses `vcs`'s size from the
+    # derivable set, so a family numeral in the prose stops being claimed by anybody.
+    # A blast radius reaching check 25 is what a toolset id being a real vocabulary
+    # rather than a label looks like from the outside.
+    "4d.drift": 1,
+    "4d.noatom": 1,
+    "4d.unreachable": 3,                  # also: 4d's unknown-id line, 25
     "11c.drift": 1,
     "host.nofield": 1,
     "host.drift": 1,

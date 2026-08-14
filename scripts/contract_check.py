@@ -710,39 +710,67 @@ TOOLSET_CLAIM_RE = re.compile(
 ANY_TOOL_COUNT_RE = re.compile(r"\b(\d{2,4})\s*\**\s*[-‑–]?\s*tools?\b", re.I)
 
 
-def toolset_sizes() -> dict[str, int]:
-    """toolset id -> how many tools it registers, resolved through toolsets.ts.
+def toolset_members() -> dict[str, list[str]]:
+    """toolset id -> the tool NAMES it registers, resolved through toolsets.ts.
 
     Each entry maps an id to one `register*Tools` call, and that function is
-    imported from a known file, so the count is that file's registrations. The
+    imported from a known file, so the group is that file's registrations. The
     `editor` group is the one special case: `tools/editor.ts` re-exports the
-    `tools/editor/*.ts` modules, so its size is the directory total.
+    `tools/editor/*.ts` modules, so its members are the directory total.
+
+    🆕 253 — THIS USED TO COUNT AND THE COUNT WAS THE WHOLE READER. `toolset_sizes`
+    resolved a group by regex-COUNTING `registerTool(` sites and captured no names,
+    so every claim in the tree downstream of it — check 11b's `<ids> -> N`, check
+    25's derivable values, `doctor`'s group sizes — was verified as a TOTAL. Move
+    one tool from `editor` to `runtime` and add one to `editor` and every one of
+    those numbers stays green, because neither total moved. The names are what make
+    the partition falsifiable, and they are the join the catalog's `Plane` column
+    had been missing since the column existed.
+
+    🔴 THE NAMES ARE ALSO A SECOND ASSERTION THE COUNT COULD NOT MAKE. Summed, this
+    is `registered_tools()` — the same net over a DIFFERENT path to the same files:
+    that walk is `tools/**`, this one is the reachability graph out of
+    `toolsets.ts`. Check 4d compares them, so a module that registers tools and is
+    imported by no toolset — surface a `BREAKPOINT_TOOLSETS` operator can never
+    load — stops being invisible to everything.
     """
     text = (HOST_SRC / "toolsets.ts").read_text()
     imports = dict(
         re.findall(r'import\s*\{\s*(register\w+)\s*\}\s*from\s*"\./([^"]+)\.js"', text)
     )
 
-    def count_in(path: Path) -> int:
+    def names_in(path: Path) -> list[str]:
         if not path.exists():
-            return 0
+            return []
         body = path.read_text()
-        return len(re.findall(r'registerTool\(\s*"[a-z0-9_]+"', body)) + len(
-            re.findall(r'registerTaskTool\(\s*\w+\s*,\s*"[a-z0-9_]+"', body)
+        return re.findall(r'registerTool\(\s*"([a-z0-9_]+)"', body) + re.findall(
+            r'registerTaskTool\(\s*\w+\s*,\s*"([a-z0-9_]+)"', body
         )
 
-    sizes: dict[str, int] = {}
+    members: dict[str, list[str]] = {}
     for tid, fn in re.findall(r'\{\s*id:\s*"([a-z]+)".*?(register\w+Tools)\(', text, re.S):
         rel = imports.get(fn)
         if not rel:
             continue
-        f = HOST_SRC / f"{rel}.ts"
-        n = count_in(f)
+        names = names_in(HOST_SRC / f"{rel}.ts")
         d = HOST_SRC / rel
         if d.is_dir():
-            n += sum(count_in(x) for x in sorted(d.rglob("*.ts")))
-        sizes[tid] = n
-    return sizes
+            for x in sorted(d.rglob("*.ts")):
+                names += names_in(x)
+        members[tid] = names
+    return members
+
+
+def toolset_sizes() -> dict[str, int]:
+    """toolset id -> how many tools it registers. DERIVED from `toolset_members()`.
+
+    🔴 DERIVED, NOT RE-READ, AND THAT IS THE POINT. Two regexes over one file for
+    one fact is the shape 251 and 252 each spent a session correcting in a
+    document; it is no better in a script. The count is now `len()` of the list
+    the join is made from, so the size a prose claim is checked against and the
+    membership a `Plane` cell is checked against cannot disagree.
+    """
+    return {tid: len(names) for tid, names in toolset_members().items()}
 
 
 def toolset_aliases() -> dict[str, list[str]]:
@@ -1345,6 +1373,45 @@ def catalog_index_rows() -> dict[str, str]:
 
 def catalog_index_tools() -> set[str]:
     return set(catalog_index_rows())
+
+
+# The machine-owned atom inside the `Plane` cell: a backticked toolset id, first
+# thing in the cell, with the human's group letter after it. `` `editor` · A / Editor ``.
+CATALOG_PLANE_ATOM_RE = re.compile(r"^\s*`([a-z]+)`")
+
+
+def catalog_index_planes() -> dict[str, str]:
+    """Tool name -> the toolset id its `Plane` cell claims, "" when the cell has none.
+
+    🆕 253 — THE THIRD COLUMN, AND THE ONE WHOSE TWO VOCABULARIES NEVER MET. 251
+    read the `Destructive` cell off this table and left `Plane` and `Status` where
+    it found them. `Plane` carried 22 free-form values — `A / Editor`, `B /
+    Process`, `C / Runtime`, `J / Host` — and the code's partition is 14 toolset
+    ids, so nothing could compare them even in principle: the doc's vocabulary is
+    COARSER in one place (`M / Editor` is `netcode` and `backend`, two groups one
+    cell cannot name) and FINER in nine others (`editor` is A, C, D, E, F, G, H, I
+    and K). A normalization table between the two is the thing this repository
+    refuses on principle, and it would have been a third copy to keep true.
+
+    So the cell carries both: the toolset id as an atom the registry owns, and the
+    group letter as the prose it always was. Same shape as 252's ✔ — one glyph,
+    one predicate — and for the same reason, since `Plane` is read by a human
+    deciding which groups to put in `BREAKPOINT_TOOLSETS` and the id is the string
+    they must type.
+
+    🔴 THIS READER COMES OFF `CATALOG_ROW_RE`, SO 251's ARGUMENT DOES CARRY OVER
+    HERE — and 252's does not apply. The name and this cell arrive in ONE match, so
+    a table shape the pattern stops reading empties `cat_tools` and check 4 names
+    every registered tool as missing from the index. What is NOT free is the atom
+    going missing while the rows still parse, so `catalog.plane_atoms` is floored
+    below on its own line: an empty atom on every row would otherwise leave 4d
+    comparing nothing and reporting agreement.
+    """
+    out: dict[str, str] = {}
+    for name, cell in ((m.group(1), m.group(2)) for m in CATALOG_ROW_RE.finditer(CATALOG.read_text())):
+        m = CATALOG_PLANE_ATOM_RE.match(cell)
+        out[name] = m.group(1) if m else ""
+    return out
 
 
 # A per-tool section heading: "### `name` ✔ ✅ · note", or a combined one naming
@@ -1955,6 +2022,67 @@ if disagree:
         f"The catalog's Tool Index and its section headings disagree about which tools "
         f"are destructive: {disagree}"
     )
+
+# --- 4d: the Plane COLUMN, against the toolset a tool is actually registered in
+# 🔴 251 GATED ONE COLUMN OF FOUR AND SAID SO. This is the second, and it is the
+# column that answers a question the reader is about to ACT on: `Plane` is what a
+# human reads before typing `BREAKPOINT_TOOLSETS=`, and until this session the
+# string it showed them was not the string the server parses. `toolset_sizes()`
+# verified the groups by CARDINALITY — `c` -> 27, `a,b` -> 155 — so a tool moving
+# from `editor` to `runtime` alongside a new `editor` tool left every count in
+# this tree green and every `Plane` cell stale. Cardinality is not membership.
+#
+# 🔴 AND THE JOIN IS TWO WALKS TO THE SAME FILES, WHICH IS WHY IT ASSERTS MORE
+# THAN THE COLUMN. `registered_tools()` walks `tools/**`; `toolset_members()`
+# walks the imports out of `toolsets.ts`. Equal sets mean every registered tool is
+# reachable through some group AND no group claims a tool that is not registered.
+# A `tools/*.ts` module nobody imports would ship a tool the catalog documents,
+# the annotations cover, and no `BREAKPOINT_TOOLSETS` selection can ever load.
+members = toolset_members()
+toolset_of = {n: tid for tid, names in members.items() for n in names}
+unreachable = sorted(tool_set - set(toolset_of))
+if unreachable:
+    errors.append(
+        f"Registered tools in no toolset (registered under host/src/tools but not reachable "
+        f"from any group in toolsets.ts, so no BREAKPOINT_TOOLSETS selection loads them): "
+        f"{unreachable}"
+    )
+claimed_not_registered = sorted(set(toolset_of) - tool_set)
+if claimed_not_registered:
+    errors.append(
+        f"toolsets.ts groups claim tools the registration walk does not see: {claimed_not_registered}"
+    )
+multi = sorted({n for tid, names in members.items() for n in names if toolset_of[n] != tid})
+if multi:
+    errors.append(
+        f"Tools registered by more than one toolset — the partition is not a partition, and "
+        f"`Plane` cannot name one group for them: {multi}"
+    )
+
+plane_atoms = catalog_index_planes()
+no_atom = sorted(n for n in tool_set if n in plane_atoms and not plane_atoms[n])
+if no_atom:
+    errors.append(
+        f"Catalog Tool Index rows whose `Plane` cell carries no backticked toolset id "
+        f"(the group letter is prose and names nothing a reader can type): {no_atom}"
+    )
+unknown_atom = sorted(
+    f"{n} says `{plane_atoms[n]}`" for n in tool_set
+    if plane_atoms.get(n) and plane_atoms[n] not in members
+)
+if unknown_atom:
+    errors.append(
+        f"Catalog `Plane` cells naming a toolset id that toolsets.ts does not define: "
+        f"{unknown_atom}"
+    )
+plane_drift = sorted(
+    f"{n}: catalog says `{plane_atoms[n]}`, toolsets.ts registers it in `{toolset_of[n]}`"
+    for n in tool_set
+    if plane_atoms.get(n) and plane_atoms[n] in members and n in toolset_of
+    and plane_atoms[n] != toolset_of[n]
+)
+if plane_drift:
+    errors.append(f"Catalog `Plane` column disagrees with the toolset registry: {plane_drift}")
 
 _ran("4")
 
@@ -4089,6 +4217,23 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("catalog.heading_marked", len(heading_destructive), 60,
      "check 4c compares an EMPTY set of ✔ headings — every section reads as saying "
      "the tool is safe, which is the exact state 252 found"),
+    # 🆕 253 — THE PLANE ATOM'S OWN FLOOR, AND IT IS THE ONE THING 4d DOES NOT GET
+    # FREE FROM `CATALOG_ROW_RE`. The name and the cell come off one match, so a
+    # table shape the pattern stops reading is already loud in check 4 — 251's
+    # argument, and it holds. What that shared match does NOT cover is the atom
+    # going missing while every row still parses: `CATALOG_PLANE_ATOM_RE` is its
+    # own pattern over the cell, and an empty result there makes 4d compare a
+    # column of nothing to the registry and report agreement.
+    ("catalog.plane_atoms", len([n for n in plane_atoms.values() if n]), 250,
+     "check 4d reads NO toolset id out of the Plane column, so every cell agrees with "
+     "the registry by saying nothing — the state the column shipped in until 253"),
+    # 🆕 253 — THE MEMBERSHIP HALF OF THE SAME JOIN. `families.toolset_sizes` floors
+    # how many GROUPS resolve; this floors how many TOOLS they name. A member
+    # extractor that resolves all 14 ids and captures no names leaves that row green,
+    # every size at 0, and 4d comparing the catalog to an empty partition.
+    ("families.toolset_members", sum(len(v) for v in members.values()), 250,
+     "every toolset resolves to an EMPTY member list — 4d finds no owner for any tool "
+     "and check 11b's family sizes all collapse to 0"),
     ("catalog.json_blocks", len(catalog_json_blocks()), 400,
      "check 5 lints zero blocks and still reports (0 invalid)"),
     ("annotations.roster", len(annotated), 250,

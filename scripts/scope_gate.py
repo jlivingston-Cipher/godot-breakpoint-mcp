@@ -101,8 +101,9 @@ EMPTY: dict[str, str] = {
 # enumerators `EMPTY` had never been able to spell, and one the new check 27 brought with
 # it. A floor left at the old measurement is headroom for five targets to be dropped in
 # silence (198 §36).
-TARGET_FLOOR = 31   # at `{FLOOR}`, raised by one with the catalog heading reader in the
-                    # commit that added it — a floor is raised where it is outgrown, never after
+TARGET_FLOOR = 33   # at `{FLOOR}`, raised by two with the toolset member reader and the
+                    # catalog plane reader, in the commit that added them — a floor is
+                    # raised where it is outgrown, never after
 
 
 def targets(text: str) -> list[tuple[str, str, int]]:
@@ -179,6 +180,12 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # name -> bool map, so blinding it collapses the sections AND the ✔ glyphs on them:
     # one match, two populations, same reason the row above names both.
     "catalog_heading_rows": ("catalog.sections_read", "catalog.heading_marked"),
+    # 🆕 253 — THE PLANE ATOM, AND IT IS ONE POPULATION AND NOT TWO. The two rows above
+    # each name a pair because one match yields a name AND a cell. This reader takes its
+    # names from `CATALOG_ROW_RE` — already floored as `catalog.index_tools`, and already
+    # loud in check 4 when that pattern dies — so only the ATOM is its own. A row named
+    # after a population it does not actually collapse reads as covered and is not.
+    "catalog_index_planes": ("catalog.plane_atoms",),
     "catalog_json_blocks": ("catalog.json_blocks",),
     "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
     "doc_recipe_mentions": ("recipes.doc_mentions",),                 # 🆕 197
@@ -204,6 +211,14 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "toolset_claims": ("families.toolset_claims_resolved",),
     "toolset_sizes": ("families.toolset_claims_resolved", "families.toolset_sizes",
                       "prose.derivable_values"),
+    # 🆕 253 — THE READER THE THREE ABOVE NOW COME OFF, AND ITS ROW IS THE SUPERSET.
+    # `toolset_sizes` is `len()` over this one, so blinding this collapses everything
+    # that row names PLUS the membership 4d joins the catalog with. Stated in full
+    # rather than by reference: a row that says "same as toolset_sizes" is a row a
+    # later session has to resolve by reading two entries, and the map exists so a
+    # collapse can be read off one.
+    "toolset_members": ("families.toolset_members", "families.toolset_claims_resolved",
+                        "families.toolset_sizes", "prose.derivable_values"),
     "uncaptured_tool_registrations": ("tools.registration_sites_scanned",),
     # 🆕 246 — THE FOUR `EMPTY` COULD NOT SPELL. Three of them landed on populations the
     # ledger already had; the fourth is the one that had none, and finding that out is
@@ -241,6 +256,11 @@ BLAST: dict[str, int] = {
     # subsumed, because an empty heading set makes the symmetric difference the whole
     # index set on one line.
     "catalog_heading_rows": 4,                # also: check 4c (sections + glyphs)
+    # 🆕 253 — ONE, AND THE SMALLEST RADIUS ON THIS TABLE IS THE HONEST NUMBER HERE.
+    # Blinding the plane reader empties the atoms and 4d names every registered tool on
+    # ONE line — its own. It cannot reach the index/heading comparisons, because the
+    # names still come off `CATALOG_ROW_RE` and this reader never touched them.
+    "catalog_index_planes": 1,                # also: nothing — 4d's atom line alone
     "catalog_json_blocks": 1,
     "dispatch_methods": 3,                    # also: check 1
     "doc_recipe_mentions": 2,                 # also: check 12
@@ -276,7 +296,12 @@ BLAST: dict[str, int] = {
     # 🆕 252: 11 -> 12. `catalog.heading_marked` is intersected with the registered set
     # too, so emptying the roster empties the heading column as well and 4c reports one
     # more collapse. Same cause as 251's 10 -> 11, one population later.
-    "registered_tools": 12,                   # also: checks 6 8 9 11 13 25, 4c
+    # 🆕 253: 12 -> 13, AND THE CAUSE IS THE OTHER DIRECTION FOR ONCE. The three before
+    # it moved because a new population was DERIVED from this roster. This one moves
+    # because 4d compares the roster to a second walk of the same files: with the
+    # registration walk empty, `toolsets.ts` is left claiming 292 tools nothing
+    # registers, and that line is reachable only because the comparison is symmetric.
+    "registered_tools": 13,                   # also: checks 6 8 9 11 13 25, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
@@ -292,6 +317,14 @@ BLAST: dict[str, int] = {
     "toolset_aliases": 2,                     # also: check 25
     "toolset_claims": 2,                      # also: check 25
     "toolset_sizes": 4,                       # also: check 25
+    # 🆕 253 — SEVEN, AND IT IS THE WIDEST NEW RADIUS THIS SESSION BECAUSE IT IS THE
+    # READER EVERYTHING ELSE IS NOW DERIVED FROM. Blinding the members collapses
+    # `toolset_sizes` with them — check 11b's four, unchanged — and adds 4d's three: no
+    # tool has an owner, every catalog `Plane` cell names an id the registry no longer
+    # defines, and `toolsets.ts` claims nothing while 292 tools stay registered. That
+    # the count row did NOT move is the measurement worth keeping: deriving the size
+    # from the membership cost the size half nothing and bought the names.
+    "toolset_members": 7,                     # also: checks 11b, 25, 4d
     "uncaptured_tool_registrations": 1,
     # 🆕 246 — measured on the sweep that admitted them, not predicted.
     "catalog_shapes": 4,                      # also: checks 6 7
