@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { BridgeClient, BridgeError } from "../bridge.js";
+import { BridgeClient, BridgeError, remedyClause } from "../bridge.js";
 import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
 import { readFileText, resolveExistingFile, resolveInsideProject } from "../paths.js";
@@ -48,7 +48,7 @@ function fail(err: unknown) {
   const message = be?.message ?? String(err);
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `Netcode scaffold error [${code}]: ${message}` }],
+    content: [{ type: "text" as const, text: `Netcode scaffold error [${code}]: ${message}${remedyClause(err)}` }],
   };
 }
 

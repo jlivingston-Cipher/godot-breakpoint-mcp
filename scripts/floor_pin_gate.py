@@ -1158,7 +1158,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (24, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (25, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1170,7 +1170,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "ONE AGAIN, and for the same shape of reason: the guard-class check was added to "
         "close 233's discover row for the prose scanner's pin table, which asks whether "
         "every lookaround that suppresses a numeral in the shipped documents is exercised "
-        "by a pin — the direction a positive control cannot reach.")),
+        "by a pin — the direction a positive control cannot reach. 🆕 RAISED BY ONE A THIRD TIME: the "
+        "remedy join was added to close the tool-error-sweep row, which measured that most "
+        "of the addon's failure sites named no next action at all — the check compares the "
+        "error-code vocabulary each engine plane raises against the table of next actions, "
+        "in both directions, and joins the tools those actions name to the live "
+        "registry.")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "
@@ -1545,11 +1550,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): (0, (
         "A CEILING at `{FLOOR}` and it has fallen to the bottom. It stays a ceiling "
         "rather than becoming a floor for the reason its own comment gives.")),
-    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (33, (
+    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (35, (
         "That gate's swept enumerators, at `{FLOOR}`. 🆕 246 §2 raised it by four, and the "
         "four were not new work: they are annotated enumerators whose RETURN SHAPE that "
         "gate's empty-value table could not spell, so they had been outside its walk by "
-        "construction with no line anywhere saying so — and one of them blinded GREEN. Raised by one again for the catalog's heading reader, whose name-to-flag return shape was the same kind of gap that table could not spell. Raised by two more for the toolset MEMBER reader and the catalog's plane reader — the pair that turned a group's SIZE into a group's ROSTER, and the size reader is now derived from the member one rather than reading the same file twice.")),
+        "construction with no line anywhere saying so — and one of them blinded GREEN. Raised by one again for the catalog's heading reader, whose name-to-flag return shape was the same kind of gap that table could not spell. Raised by two more for the toolset MEMBER reader and the catalog's plane reader — the pair that turned a group's SIZE into a group's ROSTER, and the size reader is now derived from the member one rather than reading the same file twice. Raised by two again for the remedy TABLE reader and the bridge-error RENDERER walk, and the first of those brought a return shape the empty-value table still could not spell — the third session running to add one, and the second where the row cost nothing but the line it is written on.")),
     ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): (20, (
         "Attributed statements, at `{FLOOR}`. Nineteen when re-derived; raised by one "
         "once 188 §3 gave check twelve a population.")),

@@ -625,6 +625,29 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     ("12.silentcount", "12", "sub", "README.md",
      "Breakpoint ships 8 recipes", "Breakpoint ships eight recipes",
      "state no recipe count at all"),
+    # 🆕 254 — check 28, the remedy join, covered on arrival. Four of these five edit the
+    # SHIPPED tree rather than the checker, because that is where this check's failure
+    # actually lives: a table row deleted, a code renamed out from under a row, a tool name
+    # gone stale, and the attach on either side of the wire removed. The blast numbers
+    # below carry the copy-parity reds that come with editing a file the two example
+    # projects also track — 196 §4's rule, paid on the way in.
+    ("28.norow", "28", "sub", "addons/breakpoint_mcp/error_remedies.gd",
+     '\t"no_scene": "Open a scene first: call `scene_open` with a res:// .tscn path, or `scene_list_open` to see what the editor already has open.",\n',
+     "",
+     "has no row for it"),
+    ("28.deadrow", "28", "sub", "addons/breakpoint_mcp/error_remedies.gd",
+     '\t"exists": "Choose a different name', '\t"never_raised": "Choose a different name',
+     "carries a remedy for"),
+    ("28.deadtool", "28", "sub", "addons/breakpoint_mcp/error_remedies.gd",
+     "`signal_list` for the signals", "`signal_list_gone` for the signals",
+     "registers. The"),
+    ("28.noattach", "28", "sub", "addons/breakpoint_mcp/operations.gd",
+     "Remedies.remedy(code, Remedies.EDITOR)", '""',
+     "does not call `Remedies.remedy(code"),
+    ("28.hostdrops", "28", "sub", "host/src/tools/editor/common.ts",
+     "`Bridge error [${code}]: ${message}${remedyClause(err)}`",
+     "`Bridge error [${code}]: ${message}`",
+     "does not append `remedyClause(err)`"),
     ("15.noshebang", "15", "sub", "scripts/validate.sh", "#!/", "##/",
      "does not begin with `#!`"),
 ]
@@ -730,7 +753,10 @@ CHECKS_CLOSED = ("3", "4c", "4d", "11c", "host", "17", "22",
                  # arrival so CONTROL_GATE_BLIND does not move for a check this session
                  # added. A new check shipping uncontrolled makes 191 §9.3's number worse
                  # while looking like progress.
-                 "25")
+                 "25",
+                 # 254: check 28 the same way — five statements, five rows, covered on
+                 # arrival so CONTROL_GATE_BLIND does not move for a check this session added
+                 "28")
 
 
 # ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
@@ -754,6 +780,16 @@ BLAST: dict[str, int] = {
     # were outside every population — so the surface moving under them cost nothing. Check
     # 25 now reads them, so each of these rows gains exactly one FAIL line. Declared here on
     # purpose, in the same commit as the check, which is what 194 §6 asks for.
+    # 🆕 254 — check 28's five. The two that edit `error_remedies.gd` carry a second FAIL
+    # line only where the mutation ALSO breaks something else: `28.deadrow` renames a code
+    # out from under its row, which is a missing row AND a dead row by construction, and
+    # `28.noattach` empties the attach in a file the example projects also track, so check
+    # 24b's copy comparison arrives beside it. Measured, not guessed.
+    "28.norow": 2,                        # also: 24b, the tracked addon copies
+    "28.deadrow": 3,                      # also: 28 twice — missing AND dead — plus 24b
+    "28.deadtool": 2,                     # also: 24b
+    "28.noattach": 2,                     # also: 24b, the tracked addon copies
+    "28.hostdrops": 1,
     "3.dupe": 8,                          # also: 6 8 9 11 13 25
     "3.uncaptured": 8,                    # also: 8 9 11 11b 13 25
     "11c.vacuous": 2,                     # also: 20
@@ -784,7 +820,12 @@ BLAST: dict[str, int] = {
     "23.ts_tag": 1,
     "23.ts_fields": 1,
     "23.err_branch": 3,                   # also: 20
-    "23.err_binding": 5,                  # also: 20 24 24b
+    # 🆕 254 — 5 → 6. This row renames a code out of `operations.gd`, and check 28 now
+    # reads that file's `_err` vocabulary against the remedy table: the renamed code has no
+    # row, so a sixth FAIL line arrives. The declaration moving is the property 196 §4
+    # bought — a new check silently widening an old row's blast is exactly what went
+    # unnoticed when 193 added check 24b.
+    "23.err_binding": 6,                  # also: 20 24 24b 28
     "24.unclassified": 5,                 # also: 20 24b
     "24.kind_mismatch": 1,
     "24b.copy_drift": 1,

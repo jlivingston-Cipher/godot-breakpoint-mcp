@@ -6,6 +6,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Every editor- and runtime-bridge failure now tells you what to do next.** The
+  addon attaches a remedy to the error it already returns, keyed by the error code,
+  and the host renders it after the message — a missing scene now reads *Bridge error
+  [no_scene]: No scene is open — Open a scene first: call `scene_open` with a res://
+  .tscn path, or `scene_list_open` to see what the editor already has open.* Measured
+  before the
+  change: of the addon's failure sites, the large majority named no next action at
+  all, including the three most-emitted messages in the whole addon. The message
+  text itself is unchanged; the clause is appended, and codes with nothing useful to
+  say still answer exactly as they did.
+
 ## [1.74.1] — 2026-08-13
 
 **A PATCH, and the notes say what it is.** Twenty-five commits landed between

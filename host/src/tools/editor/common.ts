@@ -1,6 +1,7 @@
 import { ok, failPath } from "../lsp-common.js";
 import { resolveInsideProject } from "../../paths.js";
 import type { BridgeClient, BridgeError } from "../../bridge.js";
+import { remedyClause } from "../../bridge.js";
 
 /**
  * MCP error envelope for a failed editor-bridge call (never throws to the
@@ -13,7 +14,7 @@ export function fail(err: unknown) {
   const message = be?.message ?? String(err);
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `Bridge error [${code}]: ${message}` }],
+    content: [{ type: "text" as const, text: `Bridge error [${code}]: ${message}${remedyClause(err)}` }],
   };
 }
 

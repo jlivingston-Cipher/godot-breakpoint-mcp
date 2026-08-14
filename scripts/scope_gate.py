@@ -55,6 +55,10 @@ EMPTY: dict[str, str] = {
     # returns name -> "is it marked ✔", and without this row it is an enumerator
     # outside this gate BY CONSTRUCTION, with nothing anywhere saying so.
     "dict[str, bool]": "{}",
+    # 🆕 254 — plane -> code -> remedy. The third session in a row to add a shape this
+    # table could not spell, and the second where the row cost nothing but the line: 252
+    # admitted `dict[str, bool]` and said the class would return, which it has.
+    "dict[str, dict[str, str]]": "{}",
     "dict[str, list[str]]": "{}",
     "dict[str, set[str]]": "{}",
     "dict[Path, set[str]]": "{}",
@@ -101,9 +105,9 @@ EMPTY: dict[str, str] = {
 # enumerators `EMPTY` had never been able to spell, and one the new check 27 brought with
 # it. A floor left at the old measurement is headroom for five targets to be dropped in
 # silence (198 §36).
-TARGET_FLOOR = 33   # at `{FLOOR}`, raised by two with the toolset member reader and the
-                    # catalog plane reader, in the commit that added them — a floor is
-                    # raised where it is outgrown, never after
+TARGET_FLOOR = 35   # at `{FLOOR}`, raised by two with the remedy table reader and the
+                    # bridge-error renderer walk, in the commit that added them — a floor
+                    # is raised where it is outgrown, never after
 
 
 def targets(text: str) -> list[tuple[str, str, int]]:
@@ -187,6 +191,12 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # after a population it does not actually collapse reads as covered and is not.
     "catalog_index_planes": ("catalog.plane_atoms",),
     "catalog_json_blocks": ("catalog.json_blocks",),
+    # 🆕 254 — ONE READER, TWO POPULATIONS, and 251's rule for which ones. The rows and
+    # the tool references both come off this one match, so the map names both. The
+    # renderer walk is its own reader over a different tree entirely — the host's, not
+    # the addon's — so it gets its own row rather than riding on this one.
+    "remedy_tables": ("xlang.remedy_rows", "xlang.remedy_tool_refs"),
+    "remedy_renderers_read": ("xlang.remedy_renderers",),
     "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
     "doc_recipe_mentions": ("recipes.doc_mentions",),                 # 🆕 197
     "doc_resource_claims": ("resources.doc_claims",),
@@ -237,6 +247,12 @@ BLAST: dict[str, int] = {
     # member is a fifth line. The radius moved because the ROSTER grew, which is the one
     # cause this number is supposed to make visible.
     "_tracked_modes": 5,                      # also: check 15
+    # 🆕 254 — check 28's two blinds. `remedy_tables` is the wider one BY CONSTRUCTION:
+    # empty it and both directions of the join go quiet together, so what reddens is not
+    # the missing rows but the sixty remedies that now read as dead — one FAIL line each,
+    # plus the two ledger collapses.
+    "remedy_tables": 64,                      # also: check 28 in both directions
+    "remedy_renderers_read": 1,
     "all_false_annotation_claims": 1,
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,
@@ -301,7 +317,13 @@ BLAST: dict[str, int] = {
     # because 4d compares the roster to a second walk of the same files: with the
     # registration walk empty, `toolsets.ts` is left claiming 292 tools nothing
     # registers, and that line is reachable only because the comparison is symmetric.
-    "registered_tools": 13,                   # also: checks 6 8 9 11 13 25, 4c, 4d
+    # 🆕 254: 13 -> 63, AND IT IS THE LARGEST SINGLE MOVE THIS ROW HAS EVER MADE. Check
+    # 28 joins every tool a REMEDY names back to this roster, so an empty registration
+    # walk leaves all fifty of those sentences telling the reader to call a tool that does
+    # not exist. The radius is fifty lines wide because the remedies are fifty instructions
+    # — which is the cost of writing instructions a machine can check, paid in the one
+    # place that says out loud what a blind reaches.
+    "registered_tools": 63,                   # also: checks 6 8 9 11 13 25 28, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
