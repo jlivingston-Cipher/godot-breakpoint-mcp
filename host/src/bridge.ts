@@ -64,7 +64,16 @@ export class BridgeClient {
     private readonly port: number,
     private readonly defaultTimeoutMs: number,
     private readonly label = "editor bridge",
-    private readonly hint = 'Is the editor open with the "Breakpoint MCP" plugin enabled?',
+    // 🔴 THE SECOND SENTENCE IS THE ONE THAT EARNS ITS PLACE. The first asks a
+    // question whose answer, for the user most likely to be reading this line,
+    // is YES: the editor IS open and the plugin IS listed in project.godot.
+    // Godot reads `[editor_plugins]` at project load and never re-reads it, so
+    // an editor that was already running when `init` wrote the section keeps
+    // the plugin disabled — the bridge never starts, every editor-plane tool is
+    // dark, and the remedy agrees with everything the user can see. `init` now
+    // warns at the point it writes; this is the same fact told to the person
+    // who did not read that line, or who read it a week ago.
+    private readonly hint = 'Is the editor open with the "Breakpoint MCP" plugin enabled? If it was ALREADY open when you ran `breakpoint-mcp init`, close and reopen the project — Godot reads the enabled-plugin list only at project load.',
     /**
      * Loopback-auth secret provider, read lazily on each connect. When it
      * returns a non-empty string the client sends it as the FIRST line on the

@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.74.0 · addon 1.9.9
+- **Version:** host 1.74.1 · addon 1.9.9
 - **License:** MIT
 - **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -123,6 +123,9 @@ Then open the project in Godot and check everything is wired up:
 ```bash
 npx breakpoint-mcp doctor
 ```
+
+`breakpoint-mcp --version` prints the installed host version on one line — that is the
+number the bug-report template asks for, and it is worth quoting in any issue you file.
 
 > **If the project was already open in Godot when you ran `init`, reopen it.** `init`
 > enables the plugin by writing `[editor_plugins]` into `project.godot`, and Godot reads

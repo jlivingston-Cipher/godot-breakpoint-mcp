@@ -12,7 +12,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "./args.js";
+import { parseArgs, preflight } from "./args.js";
+import { INIT_FLAGS, INIT_USAGE } from "./usage.js";
 import { CLIENT_IDS, clientInfo, mergeClientConfig, serverEntry, snippet } from "./clients.js";
 import { DEFAULT_REPO, fetchAddonFromGitHub, type FetchLike } from "./github.js";
 import {
@@ -174,7 +175,10 @@ function claudeCodeCommand(projectPath: string, privilegedGroups?: string): stri
 
 /** Entry point for `breakpoint-mcp init`. Returns the process exit code. */
 export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}): Promise<number> {
-  const { flags } = parseArgs(argv, ["force", "dry-run"]);
+  const parsed = parseArgs(argv, ["force", "dry-run", "help", "h"], INIT_FLAGS);
+  const pre = preflight(parsed, "init", INIT_USAGE);
+  if (pre !== null) return pre;
+  const { flags } = parsed;
   const projectPath =
     typeof flags.project === "string"
       ? path.resolve(flags.project)

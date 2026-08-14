@@ -3051,6 +3051,25 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
 >               · queue 33/33 claims · handoff 293 claims · 26 CI jobs
 > ```"""),
+    (247, """> ```
+> main                 bee5529 — the members one language could not see (#304)  MOVED +1
+>                      0a7906b — the floors no blind could move (#303)
+> branch 247           session247-the-members-one-language-could-not-see
+>                      🟢 PUSHED · PR #304 MERGED, 26/26 green
+> host / addon         1.74.0 / 1.9.9   🟢 unmoved
+> npm                  🟢 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   726/726 · contract 24/24 · scope 30 · control 59
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1657
+>               · py gates 18/4/14 · SIG 130/105 · late constructed 193/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1132 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 285 file(s) / 21 suffixes
+>               · taut 4131 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 37/37 claims · handoff 294 claims · 26 CI jobs
+> ```"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
@@ -4257,14 +4276,40 @@ def selftest() -> int:
     # about its refusals. The newest real block prints the pair this tree holds, so it
     # must be ACCEPTED, and no arrangement of a broken reader satisfies both this claim
     # and the two below it.
+    #
+    # 🔴 248 — AND IT COULD NOT SURVIVE THE FIRST RELEASE CUT AFTER IT WAS WRITTEN.
+    # `BLOCK_POPULATION[-1]` is a block from a PAST session and the pair is read from the
+    # tree in front of it, so the two agree on every ordinary session and differ on
+    # exactly one commit: the one that bumps the version. There has been no cut since 244
+    # added this claim, so it had never met the case, and its first meeting with it was a
+    # self-test refusing the release it is supposed to be verifying — CHANGELOG 1.74.0's
+    # *"CHECK 14 REFUSES THE RELEASE COMMIT"*, one gate over.
+    #
+    # 🔴 THE DIRECTION IS THE WHOLE FIX, AND IT KEEPS EVERY TOOTH. A block claiming a
+    # version the tree does NOT hold is refused exactly as before — that is the drift
+    # this claim exists for, and both negative controls below still drive it. A block
+    # BEHIND the tree is the one lawful way the two can differ: a cut landed after that
+    # block was written. It is admitted, and it is admitted LOUDLY, because a silent
+    # allowance here would re-open the hole the claim was built to close.
     claims += 1
     _p, _n, _a, _c = check_header(status_block(BLOCK_POPULATION[-1][1])[0], "", False,
                                   BLOCK_POPULATION[-1][0])
     if any("version.pair" in x for x in _p):
-        failed += 1
-        print(f"  🔴 VERSION_PAIR_ACCEPTS {BLOCK_POPULATION[-1][0]}'s block prints the "
-              f"pair this tree holds ({_vers}) and the reader refused it: "
-              f"{[x for x in _p if 'version.pair' in x]}")
+        _was, _why = block_versions(status_block(BLOCK_POPULATION[-1][1])[0])
+        _key = lambda v: tuple(int(n) for n in re.findall(r"\d+", v or "0"))
+        _behind = (not _why and all(_key(a) <= _key(b) for a, b in zip(_was, _vers))
+                   and tuple(_was) != tuple(_vers))
+        if _behind:
+            print(f"  🟡 VERSION_PAIR_ACCEPTS {BLOCK_POPULATION[-1][0]}'s block prints "
+                  f"{list(_was)} and this tree holds {list(_vers)} — a RELEASE CUT has "
+                  f"landed in this working tree since that block was written. Admitted "
+                  f"because the block is BEHIND the tree; a block AHEAD of it is still "
+                  f"refused, and the two controls below prove it")
+        else:
+            failed += 1
+            print(f"  🔴 VERSION_PAIR_ACCEPTS {BLOCK_POPULATION[-1][0]}'s block prints "
+                  f"the pair this tree holds ({_vers}) and the reader refused it: "
+                  f"{[x for x in _p if 'version.pair' in x]}")
     # 🔴 AND EACH OF THE TWO STRINGS ON ITS OWN, BECAUSE A ROW-LEVEL CLAIM THAT ONLY EVER
     # SAW BOTH MOVE WOULD BE A BOOLEAN WEARING A PAIR. `1.74.0 / 1.9.9` is two sources —
     # a host cut and an addon re-stamp are different events, they have moved

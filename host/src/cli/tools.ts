@@ -22,7 +22,8 @@
  * `--surface` picks which one populates `tools[]`; both counts are always in the
  * header so a consumer cannot report one as the other by accident.
  */
-import { parseArgs } from "./args.js";
+import { parseArgs, preflight } from "./args.js";
+import { TOOLS_FLAGS, TOOLS_USAGE } from "./usage.js";
 import { buildToolsets } from "../toolsets.js";
 import { applyOutputSchemas } from "../schemas.js";
 import { applyAnnotations, annotationsFor } from "../annotations.js";
@@ -206,23 +207,15 @@ function renderText(report: ToolsReport): string {
 }
 
 export async function runTools(argv: string[]): Promise<number> {
-  const { flags } = parseArgs(argv, ["json", "help", "h"]);
-
-  if (flags.help || flags.h) {
-    process.stdout.write(
-      [
-        "breakpoint-mcp tools — export the tool surface (name, risk annotations, capability group).",
-        "",
-        "  --json                Emit JSON (stable, no timestamp — safe to diff between releases).",
-        "  --surface <which>     full | secure-default   (default: secure-default, what an",
-        "                        untouched install actually advertises).",
-        "",
-        "Reads no Godot install and starts no server — the registry is built statically.",
-        "",
-      ].join("\n"),
-    );
-    return 0;
-  }
+  const parsed = parseArgs(argv, ["json", "help", "h"], TOOLS_FLAGS);
+  const pre = preflight(parsed, "tools", [
+    ...TOOLS_USAGE,
+    "",
+    "Reads no Godot install and starts no server — the registry is built statically.",
+    "",
+  ]);
+  if (pre !== null) return pre;
+  const { flags } = parsed;
 
   const raw = typeof flags.surface === "string" ? flags.surface : "secure-default";
   if (raw !== "full" && raw !== "secure-default") {

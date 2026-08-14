@@ -18,7 +18,7 @@ A clear and concise description of what the bug is.
 - **OS:** (e.g. macOS 14.5, Windows 11, Ubuntu 24.04)
 - **Godot version:** (e.g. 4.4.1-stable; note if you are on a Mono/.NET build)
 - **Node version:** (output of `node --version`)
-- **Breakpoint MCP version:** (npm package version, or the plugin version from `plugin.cfg`)
+- **Breakpoint MCP version:** (output of `breakpoint-mcp --version`; and the addon version from `addons/breakpoint_mcp/plugin.cfg` if the editor plugin is involved)
 - **Plane / tool involved:** (e.g. Plane A / Editor, Plane C / Runtime, LSP/DAP; and the specific tool name if known, such as `runtime_get_log`)
 
 ## Steps to reproduce

@@ -9,6 +9,7 @@ import { CsLspClient } from "./cslsp.js";
 import { CsDapClient } from "./csdap.js";
 import { StdioChannel } from "./stdio.js";
 import { DapClient } from "./dap.js";
+import { fullUsage } from "./cli/usage.js";
 import { buildToolsets } from "./toolsets.js";
 import { registerRecipes } from "./recipes.js";
 import { applyWireDefaults } from "./wire-defaults.js";
@@ -85,7 +86,7 @@ async function main(): Promise<void> {
   // D3: also advertise resources.subscribe so clients can subscribe to
   // godot://… resources and receive notifications/resources/updated.
   const server = new McpServer(
-    { name: "breakpoint-mcp", version: "1.74.0" },
+    { name: "breakpoint-mcp", version: "1.74.1" },
     { capabilities: { ...TASK_CAPABILITIES, ...RESOURCE_CAPABILITIES }, taskStore },
   );
 
@@ -225,47 +226,27 @@ async function main(): Promise<void> {
 }
 
 function printUsage(): void {
-  process.stdout.write(
-    [
-      "breakpoint-mcp — MCP server exposing Godot to AI coding assistants.",
-      "",
-      "Usage:",
-      "  breakpoint-mcp             Start the MCP server on stdio (default; how MCP clients launch it).",
-      "  breakpoint-mcp init        Install + enable the editor addon in a project and wire the MCP client.",
-      "  breakpoint-mcp doctor      Check the Godot binary, the editor addon, and the four bridges.",
-      "  breakpoint-mcp tools       Export the tool surface + risk annotations (for catalogs / reviews).",
-      "  breakpoint-mcp --help      Show this help.",
-      "",
-      "init options:",
-      "  --project <dir>     Target Godot project (default: $GODOT_PROJECT or the current directory).",
-      "  --client <id>       Write the MCP config for a client: claude-code | claude-desktop | cursor | windsurf | vscode.",
-      "  --force             Overwrite an addon that is already installed.",
-      "  --dry-run           Print what would change without writing anything.",
-      "  --from-github [ref] Fetch the editor addon from GitHub at [ref] (default: this package's version tag) instead of the bundled copy.",
-      "  --repo <owner/repo> With --from-github, the source repo (default: jlivingston-Cipher/godot-breakpoint-mcp).",
-      "  --trust <level>     secure | full. `full` enables every higher-trust group (default: secure).",
-      "  --privileged-groups <a,b>  Enable named higher-trust groups instead of all of them.",
-      "",
-      "doctor options:",
-      "  --project <dir>     Project to check (default: $GODOT_PROJECT or the current directory).",
-      "  --require-live      Also require the editor/runtime/LSP/DAP bridges to be reachable.",
-      "  --include-csharp    Also probe OmniSharp / netcoredbg on PATH (the C# planes).",
-      "  --timeout <ms>      Per-bridge connect timeout (default 1500).",
-      "  --json              Emit the report as JSON.",
-      "",
-      "tools options:",
-      "  --surface <which>   full | secure-default (default: secure-default, what an untouched install advertises).",
-      "  --json              Emit the surface as JSON — stable and timestamp-free, so releases can be diffed.",
-      "",
-      "All runtime configuration is via environment variables; see the README.",
-      "",
-    ].join("\n"),
-  );
+  process.stdout.write(fullUsage().join("\n"));
 }
 
-// Subcommand dispatch. Anything that isn't a recognized subcommand — including
-// no arguments at all, which is how every MCP client launches this — falls
-// through to the stdio server, so the server's launch contract is unchanged.
+// Subcommand dispatch. NO arguments at all is how every MCP client launches
+// this — every invocation in the README, the user guide and `init`'s own
+// emitted config passes the binary an empty argv — so that case, and only that
+// case, starts the stdio server. The launch contract is unchanged.
+//
+// 🔴 WHAT CHANGED IS THE FALL-THROUGH, WHICH USED TO SWALLOW EVERYTHING ELSE.
+// `breakpoint-mcp --version` started a server. So did `-v`, `version`, and any
+// mistyped flag: the process printed one ready line and then sat on a stdin
+// nobody was going to speak MCP into, which in a terminal is a hang. The two
+// halves of that are separate defects and both are user-facing:
+//
+//   * There was NO WAY TO ASK THIS BINARY ITS VERSION. `--version` is the most
+//     universal convention a CLI has, and the first thing anyone filing a bug
+//     report is asked for. A project with 0 issues against ~3,700 downloads
+//     cannot afford a version query that hangs the terminal instead.
+//   * An unrecognized token is a TYPO, and the only useful thing to do with one
+//     is name it. Falling through spends the user's next twenty minutes on the
+//     wrong question.
 void (async () => {
   const sub = process.argv[2];
   if (sub === "doctor") {
@@ -283,6 +264,22 @@ void (async () => {
   if (sub === "help" || sub === "--help" || sub === "-h") {
     printUsage();
     process.exit(0);
+  }
+  if (sub === "version" || sub === "--version" || sub === "-v" || sub === "-V") {
+    // Bare, so `breakpoint-mcp --version` is usable in a shell substitution.
+    // Read from package.json rather than written here: see version.ts on the
+    // twenty releases that announced 0.2.0 to every LSP server they met.
+    const { packageVersion } = await import("./version.js");
+    process.stdout.write(`${packageVersion()}\n`);
+    process.exit(0);
+  }
+  if (sub !== undefined) {
+    process.stderr.write(
+      `breakpoint-mcp: unknown argument '${sub}'.\n` +
+        "  Run `breakpoint-mcp --help` for the subcommands and their options.\n" +
+        "  To start the MCP server, run it with no arguments — that is how MCP clients launch it.\n",
+    );
+    process.exit(2);
   }
   await main();
 })().catch((err) => {
