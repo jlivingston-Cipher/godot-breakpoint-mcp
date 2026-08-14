@@ -137,8 +137,10 @@ number the bug-report template asks for, and it is worth quoting in any issue yo
 prints the client config snippet — pass `--client claude-desktop|cursor|windsurf|vscode` to
 write it directly, or `--client claude-code` for the CLI command; `--dry-run` previews and
 `--force` overwrites an existing addon. `doctor` verifies the Godot binary, the addon, and
-the four bridges — add `--require-live` once the editor is open, or `--json` for a
-machine-readable report. The sections below explain each step in full if you would rather do
+the four bridges — add `--require-live` once the editor is open (that requires the three
+the editor brings up; the runtime bridge only exists while the game is running, so
+`--require-live=all` is the one that demands all four), or `--json` for a machine-readable
+report. The sections below explain each step in full if you would rather do
 it by hand or understand what `init` did.
 
 ### 3.1 Install the editor addon into your project

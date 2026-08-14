@@ -8,6 +8,16 @@ Complete tool contract for the bridge — **292 tools + 6 MCP resources, all imp
 
 ## Conventions
 
+**Reading a tool's heading.** A section heading is the tool's name, then **✔** if the tool
+carries the MCP `destructiveHint` annotation — *may overwrite or discard state the caller did
+not supply* — then its implementation status, then any note. The ✔ is derived from
+`host/src/annotations.ts`, not typed here: `contract_check.py`'s check 4c refuses a heading
+this file and that file disagree about, in either direction, and refuses a registered tool
+with no section at all. The words after `·` are a note about **what** the tool writes and
+carry no flag. That marker used to be the free-form word *destructive* inside the note,
+read by nothing, and it disagreed with the wire on dozens of sections — most of them silent
+about a tool the wire calls destructive.
+
 **Tool result envelope.** Every tool returns MCP `content` (a human-readable `text` item, plus an `image` item for screenshots) and, for data tools, a `structuredContent` object matching the output schema below. On failure a tool returns `{ "isError": true, "content": [{ "type": "text", "text": "..." }] }` rather than throwing.
 
 **Node paths.** All editor/runtime node paths are **relative to the scene root**; `"."` (or `""`) denotes the root itself. Example: `"Player/Camera3D"`.
@@ -49,12 +59,13 @@ Complete tool contract for the bridge — **292 tools + 6 MCP resources, all imp
 # Plane B — Headless CLI  (✅ implemented; works without the editor running)
 
 ### `breakpoint_doctor` ✅
-Check this setup end to end — the Godot binary, the editor addon's install and enable state, the capability groups in force, and the editor/runtime/LSP/DAP bridges. Returns a per-check status with a hint for anything wrong. The same `runDoctorChecks` the `breakpoint-mcp doctor` CLI drives, so the two can never disagree — but reachable from inside the session, which is where the person who needs it actually is.
+Check this setup end to end — the Godot binary, the editor addon's install and enable state, the capability groups in force, and the editor/runtime/LSP/DAP bridges. Returns a per-check status with a hint for anything wrong. The same `runDoctorChecks` the `breakpoint-mcp doctor` CLI drives, so the two can never disagree — but reachable from inside the session, which is where the person who needs it actually is. `require_live: true` means the three bridges OPENING THE EDITOR brings up; the runtime bridge lives inside the running game and is required only by `live_level: "runtime"` or `"all"`. `failed` counts every ✗ and `!`; `required_failed` is the one that decides `ok`.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
   "properties": {
     "require_live": { "type": "boolean" },
+    "live_level": { "enum": ["none", "editor", "runtime", "all"] },
     "include_csharp": { "type": "boolean" },
     "timeout_ms": { "type": "integer" }
   } }
@@ -65,6 +76,8 @@ Check this setup end to end — the Godot binary, the editor addon's install and
   "properties": {
     "ok": { "type": "boolean" },
     "failed": { "type": "number" },
+    "required_failed": { "type": "number" },
+    "informational_failed": { "type": "number" },
     "checks": { "type": "array", "items": { "type": "object",
       "required": ["name", "status", "severity", "detail"],
       "properties": {
@@ -127,7 +140,7 @@ Run the project (detached), optionally from a specific scene. **Refuses when the
   } }
 ```
 
-### `godot_export` ✅  · destructive (writes build artifacts)
+### `godot_export` ✅ · writes build artifacts
 Headless export via an export preset. Runs to completion; can be slow. Exposed as an MCP task (D2): a task-aware client polls or cancels it while it runs; plain clients still get a synchronous result.
 - **Input**
 ```json
@@ -171,7 +184,7 @@ Headless (re)import of project assets. Exposed as an MCP task (D2): a task-aware
   } }
 ```
 
-### `godot_run_headless_script` ✅
+### `godot_run_headless_script` ✔ ✅
 Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT test runners or batch tools. Exposed as an MCP task (D2): a long test run can be polled or cancelled while it is in flight; plain clients still get a synchronous result.
 - **Input**
 ```json
@@ -232,7 +245,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
   } }
 ```
 
-### `editor_undo` ✅  (steps the undo history)
+### `editor_undo` ✅ (steps the undo history)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -253,7 +266,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ```
 - Programmatic Ctrl-Z. Steps the editor's undo history one action back via `EditorUndoRedoManager.get_history_undo_redo(get_object_history_id(edited_root)).undo()` — the same history the `node_*` mutators commit into. `scope: "global"` targets `GLOBAL_HISTORY` instead of the edited scene. Ungated (the `node_*` model). `performed` is `false` when the history is already at its oldest state; `action` is the name of the undone action (empty when nothing was undone).
 
-### `editor_redo` ✅  (steps the undo history)
+### `editor_redo` ✅ (steps the undo history)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -303,7 +316,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
   "properties": { "name": { "type": "string" }, "value": { "$ref": "#/$defs/Variant" } } }
 ```
 
-### `project_set_setting` ✅ · destructive
+### `project_set_setting` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name", "value"],
@@ -361,7 +374,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["saved"], "properties": { "saved": { "type": "string" } } }
 ```
 
-### `scene_new` ✅ · destructive (writes a new file)
+### `scene_new` ✔ ✅ · writes a new file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["root_type", "path"],
@@ -387,7 +400,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ```
 - **Note** `unsaved` enumeration uses `EditorInterface.get_unsaved_scenes()` (Godot 4.4+). On Godot 4.3 that API is absent, so `unsaved` comes back empty and `unsaved_supported` is `false`; `scenes` and `current` are unaffected.
 
-### `scene_reload` ✅ · destructive (discards unsaved changes)
+### `scene_reload` ✔ ✅ · discards unsaved changes
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "properties": { "path": { "type": "string", "description": "omitted = current scene" } } }
@@ -397,7 +410,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["reloaded"], "properties": { "reloaded": { "type": "string" } } }
 ```
 
-### `scene_close` ✅ · destructive (discards unsaved changes)
+### `scene_close` ✔ ✅ · discards unsaved changes
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "properties": { "path": { "type": "string", "description": "optional assertion of the current scene path" } } }
@@ -408,7 +421,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ```
 - **Note** Requires Godot 4.4+ (`EditorInterface.close_scene()`); on Godot 4.3 the tool returns an `unsupported` error instead of closing.
 
-### `scene_pack` ✅ · destructive (writes a new file)
+### `scene_pack` ✔ ✅ · writes a new file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "to_path"], "properties": { "path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" } } }
@@ -428,7 +441,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "dependencies", "dependencies_raw", "dependency_uids"], "properties": { "path": { "type": "string" }, "dependencies": { "type": "array", "items": { "type": "string" } }, "dependencies_raw": { "type": "array", "items": { "type": "string" } }, "dependency_uids": { "type": "array", "items": { "type": "string" } } } }
 ```
 
-### `scene_save_as` ✅ · destructive (writes a new file)
+### `scene_save_as` ✔ ✅ · writes a new file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "pattern": "^res://" } } }
@@ -438,7 +451,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["saved_as"], "properties": { "saved_as": { "type": "string" } } }
 ```
 
-### `node_add` ✅  (undoable)
+### `node_add` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "type"],
@@ -453,7 +466,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "name", "type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" } } }
 ```
 
-### `node_delete` ✅ · destructive  (undoable)
+### `node_delete` ✔ ✅ · undoable
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" } } }
@@ -463,7 +476,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["deleted"], "properties": { "deleted": { "type": "string" } } }
 ```
 
-### `node_rename` ✅  (undoable)
+### `node_rename` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "new_name"],
@@ -474,7 +487,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "name"], "properties": { "path": { "type": "string" }, "name": { "type": "string" } } }
 ```
 
-### `node_reparent` ✅  (undoable)
+### `node_reparent` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "new_parent_path"],
@@ -489,7 +502,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" } } }
 ```
 
-### `node_set_property` ✅  (undoable)
+### `node_set_property` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "property", "value"],
@@ -516,7 +529,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
   "properties": { "path": { "type": "string" }, "property": { "type": "string" }, "value": { "$ref": "#/$defs/Variant" } } }
 ```
 
-### `node_duplicate` ✅  (undoable)
+### `node_duplicate` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" } } }
@@ -556,7 +569,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "groups"], "properties": { "path": { "type": "string" }, "groups": { "type": "array", "items": { "type": "string" } } } }
 ```
 
-### `node_add_to_group` ✅  (undoable)
+### `node_add_to_group` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "group"], "properties": { "path": { "type": "string" }, "group": { "type": "string" } } }
@@ -566,7 +579,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "group", "added"], "properties": { "path": { "type": "string" }, "group": { "type": "string" }, "added": { "type": "boolean" } } }
 ```
 
-### `node_remove_from_group` ✅  (undoable)
+### `node_remove_from_group` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "group"], "properties": { "path": { "type": "string" }, "group": { "type": "string" } } }
@@ -576,7 +589,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "group", "removed"], "properties": { "path": { "type": "string" }, "group": { "type": "string" }, "removed": { "type": "boolean" } } }
 ```
 
-### `node_instantiate_scene` ✅  (undoable)
+### `node_instantiate_scene` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "scene_path"], "properties": { "parent_path": { "type": "string", "description": "'.' for root" }, "scene_path": { "type": "string", "pattern": "^res://" }, "name": { "type": "string" } } }
@@ -586,7 +599,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "name", "type", "scene"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "scene": { "type": "string" } } }
 ```
 
-### `node_move_child` ✅  (undoable)
+### `node_move_child` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "to_index"], "properties": { "path": { "type": "string" }, "to_index": { "type": "integer", "description": "0-based; negative counts from the end" } } }
@@ -596,7 +609,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "index"], "properties": { "path": { "type": "string" }, "index": { "type": "integer" } } }
 ```
 
-### `node_change_type` ✅  (undoable)
+### `node_change_type` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "type"], "properties": { "path": { "type": "string" }, "type": { "type": "string", "description": "new engine class" } } }
@@ -606,7 +619,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "name", "type", "old_type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "old_type": { "type": "string" } } }
 ```
 
-### `node_set_owner` ✅  (undoable)
+### `node_set_owner` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "owner_path": { "type": "string", "description": "'.' or omitted = scene root" } } }
@@ -616,7 +629,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 { "type": "object", "required": ["path", "owner"], "properties": { "path": { "type": "string" }, "owner": { "type": ["string", "null"] } } }
 ```
 
-### `node_set_editable_instance` ✅  (undoable)
+### `node_set_editable_instance` ✅ (undoable)
 Toggle "Editable Children" on an instanced sub-scene. When enabled, property overrides on the instance's internal nodes serialize into the saved scene (otherwise the sub-scene is sealed and its internals revert on reload). Lets author-time edits — e.g. `card_instance` slot data — be baked into the `.tscn`.
 - **Input**
 ```json
@@ -627,7 +640,7 @@ Toggle "Editable Children" on an instanced sub-scene. When enabled, property ove
 { "type": "object", "required": ["path", "editable", "owner"], "properties": { "path": { "type": "string" }, "editable": { "type": "boolean" }, "owner": { "type": "string" } } }
 ```
 
-### `node_call_method` ✅ · destructive (arbitrary invocation, edit-time)
+### `node_call_method` ✔ ✅ · arbitrary invocation, edit-time
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "method"], "properties": { "path": { "type": "string" }, "method": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } } } }
@@ -677,7 +690,7 @@ Toggle "Editable Children" on an instanced sub-scene. When enabled, property ove
 { "type": "object", "required": ["path", "connections"], "properties": { "path": { "type": "string" }, "connections": { "type": "array", "items": { "type": "object", "properties": { "signal": { "type": "string" }, "target": { "type": ["string", "null"] }, "method": { "type": "string" }, "flags": { "type": "integer" } } } } } }
 ```
 
-### `signal_connect` ✅  (undoable)
+### `signal_connect` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "signal", "target_path", "method"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "target_path": { "type": "string" }, "method": { "type": "string" }, "flags": { "type": "integer", "default": 2 } } }
@@ -687,7 +700,7 @@ Toggle "Editable Children" on an instanced sub-scene. When enabled, property ove
 { "type": "object", "required": ["signal", "source", "target", "method", "flags", "connected"], "properties": { "signal": { "type": "string" }, "source": { "type": "string" }, "target": { "type": "string" }, "method": { "type": "string" }, "flags": { "type": "integer" }, "connected": { "type": "boolean" } } }
 ```
 
-### `signal_disconnect` ✅  (undoable)
+### `signal_disconnect` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "signal", "target_path", "method"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "target_path": { "type": "string" }, "method": { "type": "string" } } }
@@ -697,7 +710,7 @@ Toggle "Editable Children" on an instanced sub-scene. When enabled, property ove
 { "type": "object", "required": ["signal", "source", "target", "method", "disconnected"], "properties": { "signal": { "type": "string" }, "source": { "type": "string" }, "target": { "type": "string" }, "method": { "type": "string" }, "disconnected": { "type": "boolean" } } }
 ```
 
-### `signal_add_user_signal` ✅  (undoable)
+### `signal_add_user_signal` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "type": { "type": "integer" } } } } } }
@@ -707,7 +720,7 @@ Toggle "Editable Children" on an instanced sub-scene. When enabled, property ove
 { "type": "object", "required": ["path", "signal", "added"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "added": { "type": "boolean" } } }
 ```
 
-### `signal_emit` ✅ · destructive (edit-time side effects)
+### `signal_emit` ✔ ✅ · edit-time side effects
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } } } }
@@ -788,7 +801,7 @@ scene does **not** switch the tab.
   } }
 ```
 
-### `screenshot_editor` ✅  (returns MCP image content)
+### `screenshot_editor` ✅ (returns MCP image content)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "properties": { "viewport": { "enum": ["2d", "3d"], "default": "3d" } } }
@@ -803,7 +816,7 @@ scene does **not** switch the tab.
   } }
 ```
 
-### `resource_create` ✅ · destructive (writes a file)
+### `resource_create` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["class_name", "to_path"], "properties": { "class_name": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "properties": { "type": "object" }, "confirm": { "type": "boolean" } } }
@@ -823,7 +836,7 @@ scene does **not** switch the tab.
 { "type": "object", "required": ["path", "type", "resource_name", "properties"], "properties": { "path": { "type": "string" }, "type": { "type": "string" }, "resource_name": { "type": "string" }, "properties": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "type": { "type": "integer" }, "class_name": { "type": "string" }, "usage": { "type": "integer" } } } } } }
 ```
 
-### `resource_save` ✅ · destructive (writes a file)
+### `resource_save` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["from_path"], "properties": { "from_path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "flags": { "type": "integer" }, "confirm": { "type": "boolean" } } }
@@ -833,7 +846,7 @@ scene does **not** switch the tab.
 { "type": "object", "required": ["saved", "from"], "properties": { "saved": { "type": "string" }, "from": { "type": "string" } } }
 ```
 
-### `resource_duplicate` ✅ · destructive (writes a file)
+### `resource_duplicate` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "to_path"], "properties": { "path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "deep": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -853,7 +866,7 @@ scene does **not** switch the tab.
 { "type": "object", "required": ["path", "property", "value"], "properties": { "path": { "type": "string" }, "property": { "type": "string" }, "value": {} } }
 ```
 
-### `resource_set_property` ✅ · destructive (writes a file)
+### `resource_set_property` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "property", "value"], "properties": { "path": { "type": "string" }, "property": { "type": "string" }, "value": {}, "confirm": { "type": "boolean" } } }
@@ -873,7 +886,7 @@ scene does **not** switch the tab.
 { "type": "object", "required": ["path", "imported", "importer", "settings"], "properties": { "path": { "type": "string" }, "imported": { "type": "boolean" }, "importer": { "type": "string" }, "settings": { "type": "object" } } }
 ```
 
-### `resource_set_import_settings` ✅ · destructive (rewrites metadata + reimports)
+### `resource_set_import_settings` ✔ ✅ · rewrites metadata + reimports
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "settings"], "properties": { "path": { "type": "string" }, "settings": { "type": "object" }, "reimport": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -903,7 +916,7 @@ scene does **not** switch the tab.
 { "type": "object", "required": ["scanning"], "properties": { "scanning": { "type": "boolean" } } }
 ```
 
-### `filesystem_move` ✅ · destructive (moves on disk; no reference remap)
+### `filesystem_move` ✔ ✅ · moves on disk; no reference remap
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["from_path", "to_path"], "properties": { "from_path": { "type": "string", "pattern": "^res://" }, "to_path": { "type": "string", "pattern": "^res://" }, "confirm": { "type": "boolean" } } }
@@ -949,7 +962,7 @@ Batch 2 (`anim_tree_*`, `anim_statemachine_*`) authors an `AnimationTree` node a
 { "type": "object", "required": ["player", "library", "name"], "properties": { "player": { "type": "string" }, "library": { "type": "string" }, "name": { "type": "string" } } }
 ```
 
-### `anim_delete` ✅ · destructive (removes an animation; gated)
+### `anim_delete` ✔ ✅ · removes an animation; gated
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["player_path", "name"], "properties": { "player_path": { "type": "string" }, "name": { "type": "string" }, "library": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -979,7 +992,7 @@ Batch 2 (`anim_tree_*`, `anim_statemachine_*`) authors an `AnimationTree` node a
 { "type": "object", "required": ["track", "time", "key_count"], "properties": { "track": { "type": "integer" }, "time": { "type": "number" }, "key_count": { "type": "integer" } } }
 ```
 
-### `anim_remove_key` ✅
+### `anim_remove_key` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["player_path", "name", "track", "key"], "properties": { "player_path": { "type": "string" }, "name": { "type": "string" }, "track": { "type": "integer" }, "key": { "type": "integer" }, "library": { "type": "string" } } }
@@ -1075,7 +1088,7 @@ Disk-backed TileSet authoring: each tool loads a `.tres` `TileSet`, mutates it, 
 
 Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `TileMapLayer` **node in the edited scene** and paints its cells. Unlike the disk-backed writers above, these mutate the open scene and are **undoable** via `EditorUndoRedoManager` and **ungated** (the in-scene `node_*` model). `tilemaplayer_create` optionally binds a TileSet `.tres` as the layer's `tile_set`; cells are addressed by integer `coords` and painted with a `source_id` + `atlas_coords` (+ `alternative`). `set_cell` with `source_id` -1 erases; `set_cells_rect` fills a region in one undoable action (capped at 65536 cells); an empty cell reads back as `source_id` -1 / `atlas_coords` [-1, -1] / `alternative` 0. `TileMapLayer` supersedes the deprecated `TileMap` node in Godot 4.x.
 
-### `tileset_create` ✅ · destructive (writes a file)
+### `tileset_create` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string", "pattern": "^res://" }, "tile_size": { "type": "array", "items": { "type": "integer" } }, "confirm": { "type": "boolean" } } }
@@ -1085,7 +1098,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["created", "tile_size"], "properties": { "created": { "type": "string" }, "tile_size": { "type": "array", "items": { "type": "integer" } } } }
 ```
 
-### `tileset_add_source` ✅ · destructive (writes a file)
+### `tileset_add_source` ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["tileset_path", "texture_path"], "properties": { "tileset_path": { "type": "string" }, "texture_path": { "type": "string" }, "texture_region_size": { "type": "array", "items": { "type": "integer" } }, "source_id": { "type": "integer" }, "margins": { "type": "array", "items": { "type": "integer" } }, "separation": { "type": "array", "items": { "type": "integer" } }, "confirm": { "type": "boolean" } } }
@@ -1095,7 +1108,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["tileset", "source_id", "texture", "texture_region_size", "source_count"], "properties": { "tileset": { "type": "string" }, "source_id": { "type": "integer" }, "texture": { "type": "string" }, "texture_region_size": { "type": "array", "items": { "type": "integer" } }, "source_count": { "type": "integer" } } }
 ```
 
-### `tileset_add_tile` ✅ · destructive (writes a file)
+### `tileset_add_tile` ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["tileset_path", "source_id", "atlas_coords"], "properties": { "tileset_path": { "type": "string" }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "size": { "type": "array", "items": { "type": "integer" } }, "confirm": { "type": "boolean" } } }
@@ -1105,7 +1118,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["tileset", "source_id", "atlas_coords", "size", "tiles_count"], "properties": { "tileset": { "type": "string" }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "size": { "type": "array", "items": { "type": "integer" } }, "tiles_count": { "type": "integer" } } }
 ```
 
-### `tileset_set_tile_collision` ✅ · destructive (writes a file)
+### `tileset_set_tile_collision` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["tileset_path", "source_id", "atlas_coords", "polygon"], "properties": { "tileset_path": { "type": "string" }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "polygon": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } }, "physics_layer": { "type": "integer" }, "one_way": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1115,7 +1128,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["tileset", "source_id", "atlas_coords", "physics_layer", "polygon_index", "points", "one_way"], "properties": { "tileset": { "type": "string" }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "physics_layer": { "type": "integer" }, "polygon_index": { "type": "integer" }, "points": { "type": "integer" }, "one_way": { "type": "boolean" } } }
 ```
 
-### `tilemaplayer_create` ✅  (undoable)
+### `tilemaplayer_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "name": { "type": "string" }, "tileset_path": { "type": "string", "pattern": "^res://" } } }
@@ -1125,7 +1138,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["path", "name", "type", "tile_set"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "tile_set": { "type": "string" } } }
 ```
 
-### `tilemap_set_cell` ✅  (undoable)
+### `tilemap_set_cell` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "coords"], "properties": { "path": { "type": "string" }, "coords": { "type": "array", "items": { "type": "integer" } }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "alternative": { "type": "integer" } } }
@@ -1135,7 +1148,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["path", "coords", "source_id", "atlas_coords", "alternative", "erased"], "properties": { "path": { "type": "string" }, "coords": { "type": "array", "items": { "type": "integer" } }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "alternative": { "type": "integer" }, "erased": { "type": "boolean" } } }
 ```
 
-### `tilemap_set_cells_rect` ✅  (undoable)
+### `tilemap_set_cells_rect` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "rect"], "properties": { "path": { "type": "string" }, "rect": { "type": "array", "items": { "type": "integer" }, "minItems": 4, "description": "[x, y, width, height] in cells" }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "alternative": { "type": "integer" } } }
@@ -1155,7 +1168,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 { "type": "object", "required": ["path", "coords", "source_id", "atlas_coords", "alternative", "empty"], "properties": { "path": { "type": "string" }, "coords": { "type": "array", "items": { "type": "integer" } }, "source_id": { "type": "integer" }, "atlas_coords": { "type": "array", "items": { "type": "integer" } }, "alternative": { "type": "integer" }, "empty": { "type": "boolean" } } }
 ```
 
-### `tilemap_clear` ✅  (undoable)
+### `tilemap_clear` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" } } }
@@ -1169,7 +1182,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 
 In-scene physics authoring. Every tool mutates the **edited scene** and is **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` / `tilemap_*` model, not the disk-writing gated `tileset_*` model. `body_create` adds a `StaticBody`/`RigidBody`/`CharacterBody`/`Area` node; `collisionshape_add` adds a `CollisionShape2D`/`CollisionShape3D` carrying a shape resource (`rect`→Rectangle/Box, `circle`→Circle/Sphere, `capsule`→Capsule 2D/3D, `polygon`→ConvexPolygon 2D/3D); `body_set_collision_layer` / `body_set_collision_mask` set the bitmasks on any body or area (`CollisionObject2D/3D`). `dim` selects 2D (default) or 3D. The API surface (bodies + `CollisionShape2D/3D` + the six shape resources) was probed live on Godot 4.7, and a `StaticBody2D → CollisionShape2D(RectangleShape2D)` scene was packed to a `.tscn`, saved, and reloaded — body `collision_layer` and the shape (type + `size`) survive the round-trip. This is the group that crosses godot-mcp-pro's 162-tool ceiling. Batch 1 added bodies, collision shapes, and layer/mask; **batch 2 completes the group**: `area_set_monitoring` / `area_set_gravity` (Area monitoring + gravity zones), `joint_create` / `joint_set_bodies` (2D `PinJoint2D`/`GrooveJoint2D`/`DampedSpringJoint2D`, 3D `PinJoint3D`/`HingeJoint3D`/`SliderJoint3D`/`ConeTwistJoint3D`/`Generic6DOFJoint3D`), `collisionpolygon_add` (`CollisionPolygon2D/3D`), `rigidbody_set_properties`, `body_set_physics_material` (a `PhysicsMaterial` override), and the gated `physics_set_gravity` (project `default_gravity`). All node/property mutators are undoable and ungated; `physics_set_gravity` writes ProjectSettings and is gated like `project_set_setting`. Every joint/area/rigidbody/polygon/material API was probed live on Godot 4.7 before design.
 
-### `body_create` ✅  (undoable)
+### `body_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "type"], "properties": { "parent_path": { "type": "string" }, "type": { "type": "string", "enum": ["static", "rigid", "character", "area"] }, "dim": { "type": "string", "enum": ["2d", "3d"] }, "name": { "type": "string" } } }
@@ -1179,7 +1192,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "name", "type", "body", "dim"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "body": { "type": "string" }, "dim": { "type": "string" } } }
 ```
 
-### `collisionshape_add` ✅  (undoable)
+### `collisionshape_add` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "shape"], "properties": { "parent_path": { "type": "string" }, "shape": { "type": "string", "enum": ["rect", "circle", "capsule", "polygon"] }, "dim": { "type": "string", "enum": ["2d", "3d"] }, "name": { "type": "string" }, "size": { "type": "array", "items": { "type": "number" } }, "radius": { "type": "number" }, "height": { "type": "number" }, "points": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } } } }
@@ -1189,7 +1202,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "name", "type", "shape", "shape_class", "dim"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "shape": { "type": "string" }, "shape_class": { "type": "string" }, "dim": { "type": "string" } } }
 ```
 
-### `body_set_collision_layer` ✅  (undoable)
+### `body_set_collision_layer` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "layer"], "properties": { "path": { "type": "string" }, "layer": { "type": "integer" } } }
@@ -1199,7 +1212,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "collision_layer"], "properties": { "path": { "type": "string" }, "collision_layer": { "type": "integer" } } }
 ```
 
-### `body_set_collision_mask` ✅  (undoable)
+### `body_set_collision_mask` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "mask"], "properties": { "path": { "type": "string" }, "mask": { "type": "integer" } } }
@@ -1209,7 +1222,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "collision_mask"], "properties": { "path": { "type": "string" }, "collision_mask": { "type": "integer" } } }
 ```
 
-### `area_set_monitoring` ✅  (undoable)
+### `area_set_monitoring` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "monitoring": { "type": "boolean" }, "monitorable": { "type": "boolean" } } }
@@ -1219,7 +1232,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "monitoring", "monitorable"], "properties": { "path": { "type": "string" }, "monitoring": { "type": "boolean" }, "monitorable": { "type": "boolean" } } }
 ```
 
-### `area_set_gravity` ✅  (undoable)
+### `area_set_gravity` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "space_override": { "type": "string", "enum": ["disabled", "combine", "combine_replace", "replace", "replace_combine"] }, "gravity": { "type": "number" }, "direction": { "type": "array", "items": { "type": "number" } }, "point": { "type": "boolean" } } }
@@ -1229,7 +1242,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "space_override", "gravity", "direction", "gravity_point", "dim"], "properties": { "path": { "type": "string" }, "space_override": { "type": "string" }, "gravity": { "type": "number" }, "direction": { "type": "array", "items": { "type": "number" } }, "gravity_point": { "type": "boolean" }, "dim": { "type": "string" } } }
 ```
 
-### `joint_create` ✅  (undoable)
+### `joint_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "type"], "properties": { "parent_path": { "type": "string" }, "type": { "type": "string", "enum": ["pin", "groove", "spring", "hinge", "slider", "cone_twist", "generic6dof"] }, "dim": { "type": "string", "enum": ["2d", "3d"] }, "name": { "type": "string" }, "node_a": { "type": "string" }, "node_b": { "type": "string" } } }
@@ -1239,7 +1252,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "name", "type", "joint", "dim", "node_a", "node_b"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "joint": { "type": "string" }, "dim": { "type": "string" }, "node_a": { "type": "string" }, "node_b": { "type": "string" } } }
 ```
 
-### `joint_set_bodies` ✅  (undoable)
+### `joint_set_bodies` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "node_a": { "type": "string" }, "node_b": { "type": "string" } } }
@@ -1249,7 +1262,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "node_a", "node_b"], "properties": { "path": { "type": "string" }, "node_a": { "type": "string" }, "node_b": { "type": "string" } } }
 ```
 
-### `collisionpolygon_add` ✅  (undoable)
+### `collisionpolygon_add` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "points"], "properties": { "parent_path": { "type": "string" }, "points": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } }, "dim": { "type": "string", "enum": ["2d", "3d"] }, "name": { "type": "string" }, "build_mode": { "type": "string", "enum": ["solids", "segments"] }, "depth": { "type": "number" } } }
@@ -1259,7 +1272,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "name", "type", "dim", "points"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "dim": { "type": "string" }, "points": { "type": "integer" } } }
 ```
 
-### `rigidbody_set_properties` ✅  (undoable)
+### `rigidbody_set_properties` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "mass": { "type": "number" }, "gravity_scale": { "type": "number" }, "linear_damp": { "type": "number" }, "angular_damp": { "type": "number" } } }
@@ -1269,7 +1282,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "mass", "gravity_scale", "linear_damp", "angular_damp"], "properties": { "path": { "type": "string" }, "mass": { "type": "number" }, "gravity_scale": { "type": "number" }, "linear_damp": { "type": "number" }, "angular_damp": { "type": "number" } } }
 ```
 
-### `body_set_physics_material` ✅  (undoable)
+### `body_set_physics_material` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "friction": { "type": "number" }, "bounce": { "type": "number" }, "rough": { "type": "boolean" }, "absorbent": { "type": "boolean" } } }
@@ -1279,7 +1292,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 { "type": "object", "required": ["path", "friction", "bounce", "rough", "absorbent"], "properties": { "path": { "type": "string" }, "friction": { "type": "number" }, "bounce": { "type": "number" }, "rough": { "type": "boolean" }, "absorbent": { "type": "boolean" } } }
 ```
 
-### `physics_set_gravity` ✅  (gated)
+### `physics_set_gravity` ✔ ✅ (gated)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "properties": { "dim": { "type": "string", "enum": ["2d", "3d"] }, "magnitude": { "type": "number" }, "direction": { "type": "array", "items": { "type": "number" } }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1293,7 +1306,7 @@ In-scene physics authoring. Every tool mutates the **edited scene** and is **und
 
 In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` model. Batch 1 covers **GPU particles**: `particles_create` adds a `GPUParticles2D`/`GPUParticles3D` (`dim` selects 2D default or 3D), optionally seeding `amount`/`lifetime`/`emitting`; `particles_set_process_material` creates a `ParticleProcessMaterial` and assigns it as `process_material` (GPU particles need one to emit), exposing `gravity`/`direction` (Vector3), `spread`, `initial_velocity_min`/`_max`, `scale_min`/`_max`, and `color`; `particles_set_amount` / `particles_set_lifetime` / `particles_set_emitting` tune the headline knobs individually; `particles_set_texture` loads a `Texture2D` from a `res://` path onto a `GPUParticles2D` — GPUParticles3D draws meshes and has no texture, so it degrades to a clear `unsupported` that **names the offending node and the class to pass instead** (this is the SHAPE kind of `unsupported`, not a statement about the engine build — see check 24). The particle + `ParticleProcessMaterial` API surface (properties present per dim, the 2D-only `texture`) was probed live on Godot 4.7 before design. **Batch 2 adds shaders**: `shader_create` and `shader_set_code` author a `Shader` (`.gdshader`) resource on disk — initial or replacement GDShader source — and, because they write files, are **gated** by confirmation like the `resource_*` / `tileset_*` writers (not the in-scene model); `shadermaterial_create` creates a `ShaderMaterial` and assigns it to a node's material slot — `CanvasItem.material` (2D / Control) or `GeometryInstance3D.material_override` (3D), degrading to a clear `unsupported` for a node with neither — and that refusal **names the node and both classes that do have a slot**, because it is the SHAPE kind of `unsupported` (the caller picked the wrong node) and not the CAPABILITY kind (this Godot build cannot) — optionally binding a `Shader` loaded from a `res://` path; `shadermaterial_set_shader` swaps the shader on an existing `ShaderMaterial`; `shadermaterial_set_param` sets a uniform through the `shader_parameter/<name>` property path (values use the tagged-Variant convention). The three `shadermaterial_*` tools mutate the edited scene and are **undoable** and **ungated**. `Shader` / `ShaderMaterial` / `set_shader_parameter` and the `shader_parameter/<name>` property-path form were probed live on Godot 4.7, and a `Sprite2D` carrying a `ShaderMaterial` (external `.gdshader` + a `shader_parameter` override) survives a `.tscn` save + fresh reload. **Batch 3 completes Group F with audio**: `audio_player_create` adds an `AudioStreamPlayer` / `AudioStreamPlayer2D` / `AudioStreamPlayer3D` (`dim` selects `none` default / `2d` / `3d`), optionally seeding `stream_path` (a `res://` `AudioStream`), `autoplay`, `volume_db`, `bus`; `audio_set_stream` loads an `AudioStream` from a `res://` path onto a player — both mutate the edited scene and are **undoable** / **ungated** (the `node_*` model). The remaining four drive the **global `AudioServer`** (project-wide, not scene-undoable) and are **gated** like `physics_set_gravity`: `audio_bus_add` adds a bus (optional name / position / send), `audio_bus_add_effect` instantiates an `AudioEffect` subclass by name onto a named bus, `audio_bus_set_volume` sets a bus's `volume_db`, and `audio_set_bus_layout` persists the current layout to a `.tres` on disk (`generate_bus_layout` + `ResourceSaver.save`; a file-writer). The `AudioServer` bus API and the player `stream` / `autoplay` / `volume_db` / `bus` props were probed live on Godot 4.7, and an `AudioStreamPlayer` carrying an external stream survives a `.tscn` save + fresh reload.
 
-### `particles_create` ✅  (undoable)
+### `particles_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "dim": { "type": "string", "enum": ["2d", "3d"] }, "name": { "type": "string" }, "amount": { "type": "number" }, "lifetime": { "type": "number" }, "emitting": { "type": "boolean" } } }
@@ -1303,7 +1316,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "name", "type", "dim", "amount", "lifetime", "emitting"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "dim": { "type": "string" }, "amount": { "type": "number" }, "lifetime": { "type": "number" }, "emitting": { "type": "boolean" } } }
 ```
 
-### `particles_set_process_material` ✅  (undoable)
+### `particles_set_process_material` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "gravity": { "type": "array", "items": { "type": "number" } }, "direction": { "type": "array", "items": { "type": "number" } }, "spread": { "type": "number" }, "initial_velocity_min": { "type": "number" }, "initial_velocity_max": { "type": "number" }, "scale_min": { "type": "number" }, "scale_max": { "type": "number" }, "color": { "type": "array", "items": { "type": "number" } } } }
@@ -1313,7 +1326,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "gravity", "direction", "spread", "initial_velocity_min", "initial_velocity_max", "scale_min", "scale_max", "color"], "properties": { "path": { "type": "string" }, "gravity": { "type": "array", "items": { "type": "number" } }, "direction": { "type": "array", "items": { "type": "number" } }, "spread": { "type": "number" }, "initial_velocity_min": { "type": "number" }, "initial_velocity_max": { "type": "number" }, "scale_min": { "type": "number" }, "scale_max": { "type": "number" }, "color": { "type": "array", "items": { "type": "number" } } } }
 ```
 
-### `particles_set_amount` ✅  (undoable)
+### `particles_set_amount` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "amount"], "properties": { "path": { "type": "string" }, "amount": { "type": "number" } } }
@@ -1323,7 +1336,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "amount"], "properties": { "path": { "type": "string" }, "amount": { "type": "number" } } }
 ```
 
-### `particles_set_lifetime` ✅  (undoable)
+### `particles_set_lifetime` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "lifetime"], "properties": { "path": { "type": "string" }, "lifetime": { "type": "number" } } }
@@ -1333,7 +1346,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "lifetime"], "properties": { "path": { "type": "string" }, "lifetime": { "type": "number" } } }
 ```
 
-### `particles_set_emitting` ✅  (undoable)
+### `particles_set_emitting` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "emitting"], "properties": { "path": { "type": "string" }, "emitting": { "type": "boolean" } } }
@@ -1343,7 +1356,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "emitting"], "properties": { "path": { "type": "string" }, "emitting": { "type": "boolean" } } }
 ```
 
-### `particles_set_texture` ✅  (undoable)
+### `particles_set_texture` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "texture_path"], "properties": { "path": { "type": "string" }, "texture_path": { "type": "string" } } }
@@ -1353,7 +1366,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "texture_path"], "properties": { "path": { "type": "string" }, "texture_path": { "type": "string" } } }
 ```
 
-### `shader_create` ✅ · destructive (writes a file)
+### `shader_create` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "code": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1363,7 +1376,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["created", "type", "code_length"], "properties": { "created": { "type": "string" }, "type": { "type": "string" }, "code_length": { "type": "number" } } }
 ```
 
-### `shader_set_code` ✅ · destructive (writes a file)
+### `shader_set_code` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "code"], "properties": { "path": { "type": "string" }, "code": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1373,7 +1386,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "code_length"], "properties": { "path": { "type": "string" }, "code_length": { "type": "number" } } }
 ```
 
-### `shadermaterial_create` ✅  (undoable)
+### `shadermaterial_create` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "shader_path": { "type": "string" } } }
@@ -1383,7 +1396,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "target_property", "type", "shader_path"], "properties": { "path": { "type": "string" }, "target_property": { "type": "string" }, "type": { "type": "string" }, "shader_path": { "type": "string" } } }
 ```
 
-### `shadermaterial_set_shader` ✅  (undoable)
+### `shadermaterial_set_shader` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "shader_path"], "properties": { "path": { "type": "string" }, "shader_path": { "type": "string" } } }
@@ -1393,7 +1406,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "shader_path"], "properties": { "path": { "type": "string" }, "shader_path": { "type": "string" } } }
 ```
 
-### `shadermaterial_set_param` ✅  (undoable)
+### `shadermaterial_set_param` ✔ ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "param", "value"], "properties": { "path": { "type": "string" }, "param": { "type": "string" }, "value": {} } }
@@ -1403,7 +1416,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "param", "value"], "properties": { "path": { "type": "string" }, "param": { "type": "string" }, "value": {} } }
 ```
 
-### `audio_player_create` ✅  (undoable)
+### `audio_player_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "dim": { "type": "string", "enum": ["none", "2d", "3d"] }, "name": { "type": "string" }, "stream_path": { "type": "string" }, "autoplay": { "type": "boolean" }, "volume_db": { "type": "number" }, "bus": { "type": "string" } } }
@@ -1413,7 +1426,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "name", "type", "dim", "autoplay", "volume_db", "bus", "stream_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "dim": { "type": "string" }, "autoplay": { "type": "boolean" }, "volume_db": { "type": "number" }, "bus": { "type": "string" }, "stream_path": { "type": "string" } } }
 ```
 
-### `audio_set_stream` ✅  (undoable)
+### `audio_set_stream` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "stream_path"], "properties": { "path": { "type": "string" }, "stream_path": { "type": "string" } } }
@@ -1423,7 +1436,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["path", "stream_path"], "properties": { "path": { "type": "string" }, "stream_path": { "type": "string" } } }
 ```
 
-### `audio_bus_add` ✅ · destructive (project-wide audio state)
+### `audio_bus_add` ✅ · project-wide audio state
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": [], "properties": { "name": { "type": "string" }, "at_position": { "type": "number" }, "send": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1433,7 +1446,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["index", "name", "send", "count"], "properties": { "index": { "type": "number" }, "name": { "type": "string" }, "send": { "type": "string" }, "count": { "type": "number" } } }
 ```
 
-### `audio_bus_add_effect` ✅ · destructive (project-wide audio state)
+### `audio_bus_add_effect` ✅ · project-wide audio state
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["bus", "effect"], "properties": { "bus": { "type": "string" }, "effect": { "type": "string" }, "at_position": { "type": "number" }, "confirm": { "type": "boolean" } } }
@@ -1443,7 +1456,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["bus", "bus_index", "effect", "effect_count"], "properties": { "bus": { "type": "string" }, "bus_index": { "type": "number" }, "effect": { "type": "string" }, "effect_count": { "type": "number" } } }
 ```
 
-### `audio_bus_set_volume` ✅ · destructive (project-wide audio state)
+### `audio_bus_set_volume` ✔ ✅ · project-wide audio state
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["bus", "volume_db"], "properties": { "bus": { "type": "string" }, "volume_db": { "type": "number" }, "confirm": { "type": "boolean" } } }
@@ -1453,7 +1466,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 { "type": "object", "required": ["bus", "bus_index", "volume_db"], "properties": { "bus": { "type": "string" }, "bus_index": { "type": "number" }, "volume_db": { "type": "number" } } }
 ```
 
-### `audio_set_bus_layout` ✅ · destructive (writes a file)
+### `audio_set_bus_layout` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": [], "properties": { "to_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1467,7 +1480,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 
 The user-interface authoring surface. `control_create` and `container_add_child` add a **Control**-derived node (Button / Label / Panel / any `Container` / TextureRect / …) to the **edited scene** — both refuse a non-Control class, and `container_add_child` additionally refuses a non-`Container` parent so the child lands in a real layout container; `control_create` also seeds `text` on controls that expose it. `control_set_anchors` sets any of the four anchors (`left`/`top`/`right`/`bottom`, 0..1) directly; `control_set_layout_preset` applies a `LayoutPreset` (by name — `full_rect`, `center`, `top_left`, `hcenter_wide`, … — or the 0..15 integer) via `set_anchors_and_offsets_preset`, capturing all eight anchor/offset properties for a clean undo; `control_set_size_flags` sets the container `size_flags_horizontal` / `size_flags_vertical` bitmasks and/or `size_flags_stretch_ratio`; `control_set_theme` assigns (or clears) a `Theme` on a Control's `theme` property. All six mutate the edited scene and are **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` model. The five `theme_*` tools author a **`Theme` resource on disk**: `theme_create` writes a new empty Theme, and `theme_set_color` / `theme_set_font` / `theme_set_stylebox` / `theme_set_constant` load a Theme, set one typed item (a `Color`, a `Font`/`StyleBox` loaded from a `res://` path, or an integer constant) for a given theme type, and re-save — so, like the `resource_*` / `shader_create` writers, they are **gated** by confirmation (not scene-undoable). The Control anchor / preset / size-flag / `theme` API and `Theme.set_color` / `set_font` / `set_stylebox` / `set_constant` were probed live on Godot 4.7 before design, and a `Button` carrying anchors + a `Theme` override survives a `.tscn` save + fresh reload.
 
-### `control_create` ✅  (undoable)
+### `control_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path", "type"], "properties": { "parent_path": { "type": "string" }, "type": { "type": "string" }, "name": { "type": "string" }, "text": { "type": "string" } } }
@@ -1477,7 +1490,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "name", "type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" } } }
 ```
 
-### `container_add_child` ✅  (undoable)
+### `container_add_child` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["container_path", "type"], "properties": { "container_path": { "type": "string" }, "type": { "type": "string" }, "name": { "type": "string" } } }
@@ -1487,7 +1500,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "name", "type", "container"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "container": { "type": "string" } } }
 ```
 
-### `control_set_anchors` ✅  (undoable)
+### `control_set_anchors` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "left": { "type": "number" }, "top": { "type": "number" }, "right": { "type": "number" }, "bottom": { "type": "number" } } }
@@ -1497,7 +1510,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "anchors"], "properties": { "path": { "type": "string" }, "anchors": { "type": "object", "required": ["left", "top", "right", "bottom"], "properties": { "left": { "type": "number" }, "top": { "type": "number" }, "right": { "type": "number" }, "bottom": { "type": "number" } } } } }
 ```
 
-### `control_set_layout_preset` ✅  (undoable)
+### `control_set_layout_preset` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "preset"], "properties": { "path": { "type": "string" }, "preset": { "type": ["string", "integer"] }, "resize_mode": { "type": "integer" }, "margin": { "type": "integer" } } }
@@ -1507,7 +1520,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "preset", "preset_name"], "properties": { "path": { "type": "string" }, "preset": { "type": "number" }, "preset_name": { "type": "string" } } }
 ```
 
-### `control_set_size_flags` ✅  (undoable)
+### `control_set_size_flags` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "horizontal": { "type": "integer" }, "vertical": { "type": "integer" }, "stretch_ratio": { "type": "number" } } }
@@ -1517,7 +1530,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "horizontal", "vertical", "stretch_ratio"], "properties": { "path": { "type": "string" }, "horizontal": { "type": "number" }, "vertical": { "type": "number" }, "stretch_ratio": { "type": "number" } } }
 ```
 
-### `control_set_theme` ✅  (undoable)
+### `control_set_theme` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "theme_path"], "properties": { "path": { "type": "string" }, "theme_path": { "type": "string", "description": "Theme res:// path, or \"\" to clear" } } }
@@ -1527,7 +1540,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "theme_path"], "properties": { "path": { "type": "string" }, "theme_path": { "type": "string" } } }
 ```
 
-### `theme_create` ✅ · destructive (writes a file)
+### `theme_create` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1537,7 +1550,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["created", "type"], "properties": { "created": { "type": "string" }, "type": { "type": "string" } } }
 ```
 
-### `theme_set_color` ✅ · destructive (writes a file)
+### `theme_set_color` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "color"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "color": { "type": "array", "items": { "type": "number" } }, "confirm": { "type": "boolean" } } }
@@ -1547,7 +1560,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "name", "theme_type", "color"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "color": { "type": "array", "items": { "type": "number" } } } }
 ```
 
-### `theme_set_font` ✅ · destructive (writes a file)
+### `theme_set_font` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "font_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "font_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1557,7 +1570,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "name", "theme_type", "font_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "font_path": { "type": "string" } } }
 ```
 
-### `theme_set_stylebox` ✅ · destructive (writes a file)
+### `theme_set_stylebox` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "stylebox_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "stylebox_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1567,7 +1580,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 { "type": "object", "required": ["path", "name", "theme_type", "stylebox_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "stylebox_path": { "type": "string" } } }
 ```
 
-### `theme_set_constant` ✅ · destructive (writes a file)
+### `theme_set_constant` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "name", "theme_type", "value"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "theme_type": { "type": "string" }, "value": { "type": "integer" }, "confirm": { "type": "boolean" } } }
@@ -1581,7 +1594,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 
 The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — optionally assigning a Mesh loaded from a `res://` path (e.g. a `primitive_mesh_create` output); `mesh_set_surface_material` assigns a `Material` (res:// path) to a MeshInstance3D, either the whole-instance `material_override` (default surface `-1`) or a specific surface's override slot, refusing a non-MeshInstance3D node or a non-`Material` resource; `light_create` adds a `DirectionalLight3D` / `OmniLight3D` / `SpotLight3D` (`kind` = dir/omni/spot); `camera_create` adds a `Camera3D` (optionally made `current`); `csg_create` adds a CSG primitive (`CSGBox3D` / `CSGSphere3D` / `CSGCylinder3D` / `CSGTorus3D` / `CSGPolygon3D` / `CSGMesh3D` / `CSGCombiner3D`); `navregion_create` adds a `NavigationRegion3D`, seeding a fresh empty `NavigationMesh` by default; `navagent_configure` adds a `NavigationAgent3D` and sets its steering/avoidance properties (radius, height, max_speed, path/target desired distances, avoidance_enabled). All seven mutate the edited scene and are **undoable** via `EditorUndoRedoManager` and **ungated** — the `node_*` model. Two families author a **resource on disk**: `primitive_mesh_create` writes a `PrimitiveMesh` (box/sphere/cylinder/plane/capsule/prism/torus/quad), and `environment_create` / `environment_set_sky` write and update an `Environment` (background mode + ambient light; attach a `Sky` with a Procedural / Physical / Panorama material and switch the background to SKY) — so, like the `resource_*` / `theme_*` writers, they are **gated** by confirmation. `navmesh_bake` is intentionally **deferred** — a real geometry bake is async and non-deterministic under a headless CI editor and awaits a maintainer semantics decision (like `scene_set_root`). The `MeshInstance3D` / `Light3D` / `Camera3D` / CSG / `NavigationRegion3D` / `NavigationAgent3D` and the `PrimitiveMesh` / `Environment` / `Sky` APIs were probed live on Godot 4.7 before design, and a `MeshInstance3D` carrying a primitive mesh + a `material_override` survives a `.tscn` save + fresh reload.
 
-### `meshinstance_create` ✅  (undoable)
+### `meshinstance_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "name": { "type": "string" }, "mesh_path": { "type": "string" } } }
@@ -1591,7 +1604,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "name", "type", "mesh_path"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "mesh_path": { "type": "string" } } }
 ```
 
-### `mesh_set_surface_material` ✅  (undoable)
+### `mesh_set_surface_material` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "material_path"], "properties": { "path": { "type": "string" }, "material_path": { "type": "string" }, "surface": { "type": "integer" } } }
@@ -1601,7 +1614,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "material_path", "surface"], "properties": { "path": { "type": "string" }, "material_path": { "type": "string" }, "surface": { "type": "number" } } }
 ```
 
-### `primitive_mesh_create` ✅ · destructive (writes a file)
+### `primitive_mesh_create` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "shape": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1611,7 +1624,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["created", "type", "shape"], "properties": { "created": { "type": "string" }, "type": { "type": "string" }, "shape": { "type": "string" } } }
 ```
 
-### `light_create` ✅  (undoable)
+### `light_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "kind": { "type": "string", "enum": ["dir", "directional", "omni", "spot"] }, "name": { "type": "string" } } }
@@ -1621,7 +1634,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "name", "type", "kind"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "kind": { "type": "string" } } }
 ```
 
-### `camera_create` ✅  (undoable)
+### `camera_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "name": { "type": "string" }, "current": { "type": "boolean" } } }
@@ -1631,7 +1644,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "name", "type", "current"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "current": { "type": "boolean" } } }
 ```
 
-### `csg_create` ✅  (undoable)
+### `csg_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "shape": { "type": "string" }, "name": { "type": "string" } } }
@@ -1641,7 +1654,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "name", "type", "shape"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "shape": { "type": "string" } } }
 ```
 
-### `navregion_create` ✅  (undoable)
+### `navregion_create` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "name": { "type": "string" }, "with_navmesh": { "type": "boolean" } } }
@@ -1651,7 +1664,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "name", "type", "has_navmesh"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "has_navmesh": { "type": "boolean" } } }
 ```
 
-### `navagent_configure` ✅  (undoable)
+### `navagent_configure` ✅ (undoable)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent_path"], "properties": { "parent_path": { "type": "string" }, "name": { "type": "string" }, "radius": { "type": "number" }, "height": { "type": "number" }, "max_speed": { "type": "number" }, "path_desired_distance": { "type": "number" }, "target_desired_distance": { "type": "number" }, "avoidance_enabled": { "type": "boolean" } } }
@@ -1661,7 +1674,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["path", "name", "type", "config"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" }, "config": { "type": "object", "required": ["radius", "height", "max_speed", "path_desired_distance", "target_desired_distance", "avoidance_enabled"], "properties": { "radius": { "type": "number" }, "height": { "type": "number" }, "max_speed": { "type": "number" }, "path_desired_distance": { "type": "number" }, "target_desired_distance": { "type": "number" }, "avoidance_enabled": { "type": "boolean" } } } } }
 ```
 
-### `environment_create` ✅ · destructive (writes a file)
+### `environment_create` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "background": { "type": "string" }, "ambient_color": { "type": "array", "items": { "type": "number" } }, "confirm": { "type": "boolean" } } }
@@ -1671,7 +1684,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 { "type": "object", "required": ["created", "type", "background_mode"], "properties": { "created": { "type": "string" }, "type": { "type": "string" }, "background_mode": { "type": "string" } } }
 ```
 
-### `environment_set_sky` ✅ · destructive (writes a file)
+### `environment_set_sky` ✔ ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "sky_material": { "type": "string", "enum": ["procedural", "physical", "panorama"] }, "confirm": { "type": "boolean" } } }
@@ -1685,7 +1698,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 
 The project-authoring surface. Four `inputmap_*` tools author the project's input actions in `ProjectSettings` (`input/<name>`): `inputmap_add_action` defines an action (deadzone + empty event list), `inputmap_add_event` appends an `InputEventKey` / `InputEventMouseButton` / `InputEventJoypadButton` / `InputEventJoypadMotion` built from a descriptor (`keycode`/`physical_keycode` accept a name like `"A"` via `OS.find_keycode_from_string` or an int), `inputmap_erase_action` removes one, and `inputmap_list` reads them all back (deadzone + each event's class and `as_text()`). Six project/editor-config tools follow: `project_add_autoload` / `project_remove_autoload` write `autoload/<name>` (a leading `*` marks an enabled global singleton) after checking the target `res://` path exists; `project_set_main_scene` writes `application/run/main_scene` (validated to be an existing `.tscn`/`.scn`); `project_list_settings` reads `ProjectSettings` keys+values filtered by a dotted prefix; `project_add_export_preset` appends a preset to `res://export_presets.cfg` via `ConfigFile`; and `editorsettings_get_set` reads an `EditorSettings` value, or writes it when a `value` is supplied. Two testing tools round out the family: `test_detect` reports an installed GUT / GdUnit4 framework (or `none`), and `test_list` enumerates `test_*.gd` / `*_test.gd` scripts under a directory. Every mutator that touches `ProjectSettings` or the editor config is **confirmation-gated** (the `project_set_setting` model, not the scene `EditorUndoRedoManager` history) and takes an optional `save` flag to persist to `project.godot`; the read-only `inputmap_list` / `project_list_settings` / `test_detect` / `test_list` are ungated. `test_run` and `test_result` are intentionally **deferred** — actually executing a framework's suite is async and non-deterministic under a headless CI editor and awaits a framework-bearing fixture project + a maintainer semantics decision (the same posture as `navmesh_bake` / `scene_set_root`). The `ProjectSettings` input/autoload/main-scene round-trips, `ConfigFile` export-preset write, and `EditorSettings` get/set were probed live on Godot 4.7.
 
-### `inputmap_add_action` ✅ · destructive
+### `inputmap_add_action` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name"], "properties": { "name": { "type": "string" }, "deadzone": { "type": "number" }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1695,7 +1708,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["action", "deadzone", "saved"], "properties": { "action": { "type": "string" }, "deadzone": { "type": "number" }, "saved": { "type": "boolean" } } }
 ```
 
-### `inputmap_add_event` ✅ · destructive
+### `inputmap_add_event` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name", "event"], "properties": { "name": { "type": "string" }, "event": { "type": "object", "required": ["type"], "properties": { "type": { "type": "string", "enum": ["key", "mouse_button", "joy_button", "joy_motion"] }, "keycode": { "type": ["string", "number"] }, "physical_keycode": { "type": ["string", "number"] }, "button_index": { "type": "number" }, "axis": { "type": "number" }, "axis_value": { "type": "number" } } }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1715,7 +1728,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["count", "actions"], "properties": { "count": { "type": "number" }, "actions": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "deadzone": { "type": "number" }, "events": { "type": "array", "items": { "type": "object", "properties": { "class": { "type": "string" }, "text": { "type": "string" } } } } } } } } }
 ```
 
-### `inputmap_erase_action` ✅ · destructive
+### `inputmap_erase_action` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name"], "properties": { "name": { "type": "string" }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1725,7 +1738,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["erased", "action", "saved"], "properties": { "erased": { "type": "boolean" }, "action": { "type": "string" }, "saved": { "type": "boolean" } } }
 ```
 
-### `project_add_autoload` ✅ · destructive
+### `project_add_autoload` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name", "path"], "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "enabled": { "type": "boolean" }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1735,7 +1748,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["autoload", "path", "enabled", "saved"], "properties": { "autoload": { "type": "string" }, "path": { "type": "string" }, "enabled": { "type": "boolean" }, "saved": { "type": "boolean" } } }
 ```
 
-### `project_remove_autoload` ✅ · destructive
+### `project_remove_autoload` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name"], "properties": { "name": { "type": "string" }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1745,7 +1758,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["removed", "autoload", "saved"], "properties": { "removed": { "type": "boolean" }, "autoload": { "type": "string" }, "saved": { "type": "boolean" } } }
 ```
 
-### `project_add_export_preset` ✅ · destructive (writes a file)
+### `project_add_export_preset` ✅ · writes a file
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name", "platform"], "properties": { "name": { "type": "string" }, "platform": { "type": "string" }, "runnable": { "type": "boolean" }, "export_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
@@ -1755,7 +1768,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["preset", "platform", "index", "path"], "properties": { "preset": { "type": "string" }, "platform": { "type": "string" }, "index": { "type": "number" }, "path": { "type": "string" } } }
 ```
 
-### `project_set_main_scene` ✅ · destructive
+### `project_set_main_scene` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "save": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
@@ -1775,7 +1788,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 { "type": "object", "required": ["prefix", "count", "settings"], "properties": { "prefix": { "type": "string" }, "count": { "type": "number" }, "settings": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "value": {} } } } } }
 ```
 
-### `editorsettings_get_set` ✅ · destructive (on set)
+### `editorsettings_get_set` ✔ ✅ · on set
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name"], "properties": { "name": { "type": "string" }, "value": {}, "confirm": { "type": "boolean" } } }
@@ -1850,7 +1863,7 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 - **Input** `{ path, line, character, include_declaration?: boolean }`.
 - **Output** same `locations` array shape as `gd_definition`.
 
-### `gd_rename` ✅ · destructive (edits multiple files)
+### `gd_rename` ✔ ✅ · edits multiple files
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "line", "character", "new_name"],
@@ -1912,7 +1925,7 @@ still served**; the guard is about absence, not size.
 ```
 - **Output** same `symbols` shape as `gd_document_symbols`, each with an added `uri`.
 
-### `gd_diagnostics` ✅  (also exposed as a subscribable `diagnostics://` resource)
+### `gd_diagnostics` ✅ (also exposed as a subscribable `diagnostics://` resource)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"],
@@ -2155,7 +2168,7 @@ Return the semantic-highlighting tokens for a whole script — each token's posi
 - **Input** `{ path, line, character, include_declaration?: boolean }`.
 - **Output** same `locations` array shape as `cs_definition`.
 
-### `cs_rename` ✅ · destructive (edits multiple files)
+### `cs_rename` ✔ ✅ · edits multiple files
 Rename a C# symbol project-wide via OmniSharp `textDocument/rename`. Returns the planned edit by default (dry run); `apply=true` writes the edits to disk and is **elicitation-gated** (with a `confirm: true` override and a safe block on clients that can't prompt), exactly like `gd_rename`. OmniSharp returns the WorkspaceEdit as `documentChanges` (versioned `TextDocumentEdit[]`); the host normalizes that and the legacy `changes` map identically before applying.
 - **Input**
 ```json
@@ -2349,7 +2362,7 @@ Attach to an already-running Godot debug session. 🔴 **An attach the adapter r
 { "type": "object", "required": ["variables"], "properties": { "variables": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "value": { "type": "string" }, "type": { "type": "string" }, "variables_ref": { "type": "integer" } } } } } }
 ```
 
-### `dbg_evaluate` ✅ · destructive (arbitrary code execution — gate hard)
+### `dbg_evaluate` ✔ ✅ · arbitrary code execution — gate hard
 Evaluate an expression in the current stopped frame (DAP `evaluate`, repl context). **Live-verified in CI:** Godot 4.3 does bare-name lookup only (a compound expression like `counter + 1` returns empty), while **Godot 4.7 performs full expression evaluation** (`counter + 1` → `101`). The request is bounded by `GODOT_DAP_EVALUATE_TIMEOUT_MS` (~8 s) so a non-answering adapter fails fast rather than hanging the full DAP timeout.
 - **Input**
 ```json
@@ -2387,7 +2400,7 @@ Enable (replace) the debugger's exception breakpoint filters so execution halts 
 { "type": "object", "required": ["filters", "available_filters", "breakpoints"], "properties": { "filters": { "type": "array", "items": { "type": "string" } }, "available_filters": { "type": "array", "items": { "type": "object", "properties": { "filter": { "type": "string" }, "label": { "type": "string" } } } }, "breakpoints": { "type": "array", "items": { "type": "object", "properties": { "verified": { "type": "boolean" } } } } } }
 ```
 
-### `dbg_set_variable` ✅ · destructive (mutates live program state — gate hard)
+### `dbg_set_variable` ✔ ✅ · mutates live program state — gate hard
 Change a variable's value in a stopped frame (DAP `setVariable`). `variables_ref` is the container's `variablesReference` (from `dbg_scopes`, or a complex `dbg_variables` entry), `name` is the variable within it, `value` is a GDScript literal/expression. Feature-detected: on an adapter that advertises `supportsSetVariable: false` it returns a clear "unsupported" message **without prompting**.
 - **Input**
 ```json
@@ -2409,7 +2422,7 @@ Restart the current debug session. Uses the DAP `restart` request when the adapt
 { "type": "object", "required": ["session_id", "method", "state"], "properties": { "session_id": { "type": "string" }, "method": { "enum": ["restart", "relaunch"] }, "state": { "type": "string" }, "scene": { "type": ["string", "null"] } } }
 ```
 
-### `dbg_goto` ✅ · destructive (moves execution — gate hard)
+### `dbg_goto` ✔ ✅ · moves execution — gate hard
 Move the program counter within the current stopped frame — 'set next statement' (DAP `gotoTargets` + `goto`). Call with `path` + `line` to list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear "unsupported" message **without prompting**. Refuses a source that can never carry a target — a missing file, a directory, an empty path (which resolves to the project root), or a path resolving outside the Godot project root — the same guard `dbg_set_breakpoints` applies. Only meaningful while stopped at a breakpoint.
 
 Until 1.40.0 this tool resolved `path` with a bare `toFsPath` and handed the result to the adapter as `source.path` with **no** containment or existence check — the one path-taking tool on this plane that was never wired to the guard. It was unreachable in practice (no Godot build advertises `supportsGotoTargetsRequest`, so the capability check returns first), but that is a capability rather than a boundary, and this is the destructive tool on the plane.
@@ -2517,7 +2530,7 @@ Resume execution and wait for the program to settle again (next breakpoint or te
 { "type": "object", "required": ["variables"], "properties": { "variables": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "value": { "type": "string" }, "type": { "type": "string" }, "variables_ref": { "type": "integer" } } } } } }
 ```
 
-### `cs_dbg_evaluate` ✅ · destructive (arbitrary code execution — gate hard)
+### `cs_dbg_evaluate` ✔ ✅ · arbitrary code execution — gate hard
 Evaluate a C# expression in the current stopped frame (DAP `evaluate`, repl context). Bounded by `GODOT_CSDAP_EVALUATE_TIMEOUT_MS` (~8 s) so a non-answering adapter fails fast rather than hanging the full DAP timeout.
 - **Input**
 ```json
@@ -2528,7 +2541,7 @@ Evaluate a C# expression in the current stopped frame (DAP `evaluate`, repl cont
 { "type": "object", "required": ["result"], "properties": { "result": { "type": "string" }, "type": { "type": "string" }, "variables_ref": { "type": "integer" } } }
 ```
 
-### `cs_dbg_set_variable` ✅ · destructive (mutates live program state — gate hard)
+### `cs_dbg_set_variable` ✔ ✅ · mutates live program state — gate hard
 Change a variable's value in a stopped C# frame (DAP `setVariable`). `variables_ref` is the container's `variablesReference` (from `cs_dbg_scopes`, or a complex `cs_dbg_variables` entry), `name` is the variable within it, `value` is a C# literal/expression. Feature-detected: on an adapter that advertises `supportsSetVariable: false` it returns a clear "unsupported" message **without prompting**; otherwise a bounded deadline (`GODOT_CSDAP_SETVAR_TIMEOUT_MS`) turns a non-answering adapter into a clear message rather than a hang.
 - **Input**
 ```json
@@ -2615,11 +2628,11 @@ between belongs to this call and nothing else does.
   `runtime_peers_digest` — build their reply rather than forwarding one, so there is no
   single dispatch to attribute a log line to.
 
-### `runtime_get_property` / `runtime_set_property` ✅ · (`set` is destructive)
+### `runtime_get_property` / `runtime_set_property` ✔ ✅
 - **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
 - **Output** `{ path, property, value, engine_log? }` — the `node_get_property` shape plus the engine-error echo (D1a).
 
-### `runtime_call_method` ✅ · destructive (arbitrary invocation)
+### `runtime_call_method` ✔ ✅ · arbitrary invocation
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "method"],
@@ -2633,7 +2646,7 @@ between belongs to this call and nothing else does.
 { "type": "object", "required": ["return"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "return": { "$ref": "#/$defs/Variant" } } }
 ```
 
-### `runtime_emit_signal` ✅ · destructive
+### `runtime_emit_signal` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "required": ["path", "signal"], "properties": { "path": { "type": "string" }, "signal": { "type": "string" }, "args": { "type": "array", "items": { "$ref": "#/$defs/Variant" } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
@@ -2646,7 +2659,7 @@ between belongs to this call and nothing else does.
 - 🔴 **Two caveats on `emit_failed`, both measured on 4.3/4.5/4.7 and neither fixable here.** (1) **Arity only** — Godot does *not* type-check signal arguments, so an argument of the wrong type emits successfully and arrives as sent. (2) **Only when something is connected** — a signal with no connections returns `ERR_UNAVAILABLE`, which this tool reports as **success**, because emitting into the void is ordinary. A *wrong* argument count on an unconnected signal returns `ERR_UNAVAILABLE` too (there is no callable whose arity could mismatch), so it is indistinguishable from a correct emission and is **not** reported. Do not read `emitted: true` as "a handler ran".
 - `args` entries are decoded through the `Variant` envelope, so `{"__type__":"Vector2","x":3,"y":4}` reaches the handler as a real `Vector2`.
 
-### `runtime_inject_input` ✅ · destructive
+### `runtime_inject_input` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["event"],
@@ -2678,14 +2691,14 @@ between belongs to this call and nothing else does.
 ```
 - Allow-listed keys: `time/fps`, `time/process`, `time/physics_process`, `memory/static`, `object/count`, `object/node_count`, `object/resource_count`, `render/total_objects_drawn`, `render/total_draw_calls`, `render/video_mem_used`, `physics_3d/active_objects`, `physics_2d/active_objects`, `audio/output_latency`. Anything else is **skipped, not invented** — `runtime_assert_perf` reports it as `checked: 0` rather than as a passing comparison. `object/count` is the total live ObjectDB population, and the only one of the three object counters that can see a leaked non-Node.
 
-### `runtime_screenshot` ✅  (returns MCP image content)
+### `runtime_screenshot` ✅ (returns MCP image content)
 - **Input**
 ```json
 { "type": "object", "properties": { "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** same PNG bridge payload as `screenshot_editor`.
 
-### `runtime_get_log` ✅  (also a subscribable `godot://runtime/log` resource)
+### `runtime_get_log` ✅ (also a subscribable `godot://runtime/log` resource)
 - **Input**
 ```json
 { "type": "object", "properties": { "since_seq": { "type": "integer", "default": 0 }, "levels": { "type": "array", "items": { "enum": ["info", "warning", "error"] } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
@@ -2746,7 +2759,7 @@ between belongs to this call and nothing else does.
 ```
 - **Output** `{ met, polls, elapsed_ms, value }` — read-only. Polls `runtime_get_property` on `path`.`property` every `poll_interval_ms` until it satisfies `value` under `op` (`eq`/`ne` are structural; `gt`/`ge`/`lt`/`le` are numeric and false unless both sides are numbers), or `timeout_ms` elapses. `met` is true only if the condition held before timeout; `value` is the last-read value, `polls` the number of reads, `elapsed_ms` the wall-clock wait. Implemented host-side over the runtime bridge, so it works on every engine build the bridge supports; it never mutates the game, so it is **not** gated. Pair it with the `runtime_assert_*` family to wait for a state, then assert it.
 
-### `runtime_anim_play` ✅ · destructive (drives the running game)
+### `runtime_anim_play` ✔ ✅ · drives the running game
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"],
@@ -2758,7 +2771,7 @@ between belongs to this call and nothing else does.
 ```
 - **Output** `{ playing, current_animation, speed_scale, engine_log? }` — plays `animation` (or the currently-assigned one when omitted) on the live `AnimationPlayer`. Errors `not_animation_player` when `path` is another class and `no_animation` when the name is unknown.
 
-### `runtime_anim_stop` ✅ · destructive (drives the running game)
+### `runtime_anim_stop` ✔ ✅ · drives the running game
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"],
@@ -2775,7 +2788,7 @@ between belongs to this call and nothing else does.
 ```
 - **Output** `{ playing, current_animation, position, length, speed_scale, animations[], engine_log? }` — read-only snapshot of a live `AnimationPlayer`; `animations` lists the available animation names.
 
-### `runtime_node_add` ✅ · destructive
+### `runtime_node_add` ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["parent"],
@@ -2787,21 +2800,21 @@ between belongs to this call and nothing else does.
 ```
 - **Output** `{ added, path, type, engine_log? }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
 
-### `runtime_node_remove` ✅ · destructive
+### `runtime_node_remove` ✔ ✅
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ removed, path, engine_log? }` — `queue_free()`s the node. Refuses to remove the current scene root (`cannot_remove_root`).
 
-### `runtime_time_scale` ✅ · destructive (alters the running game's clock)
+### `runtime_time_scale` ✔ ✅ · alters the running game's clock
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["scale"], "properties": { "scale": { "type": "number", "minimum": 0, "description": "0 = freeze, 1 = normal, N = slow/fast" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output** `{ previous, current, engine_log? }` — sets `Engine.time_scale` (negative clamped to 0) and reports the prior and new values. Freeze with `scale:0`, then `runtime_step_frames` to advance deterministically.
 
-### `runtime_step_frames` ✅ · destructive (drives the running game)
+### `runtime_step_frames` ✔ ✅ · drives the running game
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["frames"], "properties": { "frames": { "type": "integer", "minimum": 1 }, "kind": { "enum": ["idle", "physics", "both"], "default": "idle" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
@@ -2815,7 +2828,7 @@ between belongs to this call and nothing else does.
 ```
 - **Output** `{ digest, node_count, engine_log? }` — read-only. Walks the subtree at `root` (to `max_depth`, default 8) and emits `digest` as a stable-ordered map of node path → `{ field: value }`. Default fields are `position` / `global_position` / `rotation` / `scale` / `visible` / `modulate` (only those present on each node); pass `fields` to capture a specific set. Deterministic ordering makes it ideal for frame-by-frame comparison alongside `runtime_step_frames`.
 
-### `runtime_seed_rng` ✅ · destructive (changes RNG state)
+### `runtime_seed_rng` ✔ ✅ · changes RNG state
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["seed"], "properties": { "seed": { "type": "integer" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
@@ -2846,7 +2859,7 @@ Spawns 1–4 **headless** Godot children of this project, each with `BREAKPOINT_
 
 Four live peers is a hard ceiling: four headless instances is already a heavy CI runner, the convergence cases that matter are covered at four, and every extra one multiplies the flake surface of the feature whose whole point is not flaking. The host mints the per-project auth secret **before** the first spawn, so every child takes the read path rather than racing the addon's unlocked mint. This is **local loopback testing** — it hosts no relay, lobby or signalling server. Requires the Breakpoint MCP addon enabled in the project (it registers the runtime autoload).
 
-### `runtime_peer_stop` ✅ · destructive (terminates a child process)
+### `runtime_peer_stop` ✔ ✅ · terminates a child process
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -2885,7 +2898,7 @@ Read-only. Takes `runtime_state_digest` on two or more peers over the same root 
 
 Read-only "where / what / how" tools. Four are **host-side** (Plane B — they read the project files directly, no editor or language server needed, so they answer even when nothing is running) and two are **ClassDB-backed** (Plane A — over the editor bridge). None mutate, so none are undoable or gated. `find_symbol` is the project-wide declaration index Godot's language server does not provide (`gd_workspace_symbols` returns *unsupported*); `find_usages` is the build-independent complement to the position-based `gd_references`. Markers `AUTH_K_*` in the authoring-plane probe.
 
-### `project_search` ✅  (Plane B / host)
+### `project_search` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["query"],
@@ -2911,7 +2924,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
   } }
 ```
 
-### `find_symbol` ✅  (Plane B / host)
+### `find_symbol` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name"],
@@ -2934,7 +2947,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
   } }
 ```
 
-### `find_usages` ✅  (Plane B / host)
+### `find_usages` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["name"],
@@ -2957,7 +2970,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
   } }
 ```
 
-### `example_snippet` ✅  (Plane B / host)
+### `example_snippet` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -2979,7 +2992,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
   } }
 ```
 
-### `class_reference` ✅  (Plane A / Editor)
+### `class_reference` ✅ (Plane A / Editor)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["class_name"],
@@ -3010,7 +3023,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
   } }
 ```
 
-### `docs_search` ✅  (Plane A / Editor)
+### `docs_search` ✅ (Plane A / Editor)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["query"],
@@ -3040,7 +3053,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
 
 Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, no shell). Host-side (Plane B): they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane. `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; never a hang. Paths accept `res://…` (project-relative) or repo-relative; large patch/file output is head-truncated with a `truncated` flag. Two tiers: **six read-only** tools (`vcs_status`/`log`/`diff`/`show`/`branch_list`/`blame`) that never touch the index or working tree, and **six Tier-A mutating** tools (`vcs_add`/`commit`/`restore`/`stash`/`branch_create`/`switch`) — safe local only, **no network** (push/pull/fetch stay Mac-side). Mutation posture: only ops that lose work or rewrite history are **elicitation-gated** — `vcs_restore` and `vcs_stash op=drop` reuse the `gate()` in `host/src/confirm.ts` (confirm:true bypasses, and a non-eliciting client is blocked, never run silently); the reversible ops (`add`/`commit`/`branch_create`/`switch`) are ungated. Markers `AUTH_L_*` in the authoring-plane probe.
 
-### `vcs_status` ✅  (Plane B / host)
+### `vcs_status` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "properties": {} }
@@ -3062,7 +3075,7 @@ Git wrappers over the `git` binary, rooted at the configured project path (`git 
   } }
 ```
 
-### `vcs_log` ✅  (Plane B / host)
+### `vcs_log` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -3081,7 +3094,7 @@ Git wrappers over the `git` binary, rooted at the configured project path (`git 
   } }
 ```
 
-### `vcs_diff` ✅  (Plane B / host)
+### `vcs_diff` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -3102,7 +3115,7 @@ Git wrappers over the `git` binary, rooted at the configured project path (`git 
   } }
 ```
 
-### `vcs_show` ✅  (Plane B / host)
+### `vcs_show` ✅ (Plane B / host)
 Two modes: with no `path`, returns commit metadata + patch; with a `path`, returns that file's content at `<ref>`. Only `ref` and `truncated` are always present; the other fields are populated per mode.
 - **Input**
 ```json
@@ -3130,7 +3143,7 @@ Two modes: with no `path`, returns commit metadata + patch; with a `path`, retur
   } }
 ```
 
-### `vcs_branch_list` ✅  (Plane B / host)
+### `vcs_branch_list` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -3153,7 +3166,7 @@ Two modes: with no `path`, returns commit metadata + patch; with a `path`, retur
 git's `(HEAD detached at <sha>)` pseudo-entry is never listed as a branch. `remote` is true
 only for entries under `refs/remotes/`, which `remotes: true` adds.
 
-### `vcs_blame` ✅  (Plane B / host)
+### `vcs_blame` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path"],
@@ -3175,7 +3188,7 @@ only for entries under `refs/remotes/`, which `remotes: true` adds.
   } }
 ```
 
-### `vcs_add` ✅  (Plane B / host) — mutating (ungated)
+### `vcs_add` ✅ (Plane B / host) — mutating (ungated)
 Stage changes for the next commit. Reversible (`git restore --staged`), so ungated.
 - **Input**
 ```json
@@ -3193,7 +3206,7 @@ Stage changes for the next commit. Reversible (`git restore --staged`), so ungat
   } }
 ```
 
-### `vcs_commit` ✅  (Plane B / host) — mutating (ungated)
+### `vcs_commit` ✅ (Plane B / host) — mutating (ungated)
 Commit the staged changes. Reversible (`git reset --soft HEAD~1`), loses nothing, so ungated. Commit signing is disabled for the call so it can never block on a passphrase prompt.
 - **Input**
 ```json
@@ -3213,7 +3226,7 @@ Commit the staged changes. Reversible (`git reset --soft HEAD~1`), loses nothing
   } }
 ```
 
-### `vcs_restore` ✅  (Plane B / host) — mutating (**gated**)
+### `vcs_restore` ✔ ✅ (Plane B / host) — mutating (**gated**)
 Discard uncommitted working-tree changes to the given paths (`git restore -- <paths>`). DESTRUCTIVE — the discarded edits are unrecoverable — so elicitation-gated (`confirm:true` bypasses).
 
 🔴 **`restored` is MEASURED, not echoed.** `git restore` exits 0 for a path with nothing to discard, so until 1.50.0 this returned the *requested* paths and a caller asking about five files of which one was dirty was told all five had been discarded. `restored` now lists only the paths git actually changed (the working-tree-vs-index diff, read before and after), `requested` carries what was asked for, and `stranded` names any path still dirty afterwards — a **partial, not an error**, because work was discarded for the other paths.
@@ -3236,7 +3249,7 @@ Discard uncommitted working-tree changes to the given paths (`git restore -- <pa
   } }
 ```
 
-### `vcs_stash` ✅  (Plane B / host) — mutating (**drop gated**)
+### `vcs_stash` ✔ ✅ (Plane B / host) — mutating (**drop gated**)
 Manage stashes. `push` saves + reverts working changes; `pop` re-applies the latest; `list` returns the entries; `drop` deletes an entry. Only `drop` is destructive and gated; push/pop/list are not.
 - **Input**
 ```json
@@ -3258,7 +3271,7 @@ Manage stashes. `push` saves + reverts working changes; `pop` re-applies the lat
   } }
 ```
 
-### `vcs_branch_create` ✅  (Plane B / host) — mutating (ungated)
+### `vcs_branch_create` ✅ (Plane B / host) — mutating (ungated)
 Create a branch, optionally from a ref (default HEAD) and optionally switch to it. Reversible (`git branch -d`), so ungated.
 - **Input**
 ```json
@@ -3280,7 +3293,7 @@ Create a branch, optionally from a ref (default HEAD) and optionally switch to i
   } }
 ```
 
-### `vcs_switch` ✅  (Plane B / host) — mutating (ungated)
+### `vcs_switch` ✅ (Plane B / host) — mutating (ungated)
 Switch to an existing branch (`git switch <branch>`). No `--force`: git refuses on a dirty conflict and its message is returned unchanged — nothing is clobbered — so ungated.
 - **Input**
 ```json
@@ -3324,7 +3337,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
   } }
 ```
 
-### `asset_gen_configure` ✅  (Plane B / host)
+### `asset_gen_configure` ✅ (Plane B / host)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -3347,7 +3360,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
   } }
 ```
 
-### `asset_gen_placeholder` ✅  (Plane A / Editor)  · writes file (gated)
+### `asset_gen_placeholder` ✔ ✅ (Plane A / Editor) · writes file (gated)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["kind", "to_path"],
@@ -3364,7 +3377,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
 ```
 - **Output** — the shared generator result envelope above (`status: "placeholder"`).
 
-### `asset_gen_sprite` ✅  (Plane A / Editor)  · writes file (gated)
+### `asset_gen_sprite` ✔ ✅ (Plane A / Editor) · writes file (gated)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["prompt", "to_path"],
@@ -3379,15 +3392,15 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
 ```
 - **Output** — the shared generator result envelope above.
 
-### `asset_gen_texture` ✅  (Plane A / Editor)  · writes file (gated)
+### `asset_gen_texture` ✔ ✅ (Plane A / Editor) · writes file (gated)
 - **Input** — same as `asset_gen_sprite`.
 - **Output** — the shared generator result envelope above.
 
-### `asset_gen_icon` ✅  (Plane A / Editor)  · writes file (gated)
+### `asset_gen_icon` ✔ ✅ (Plane A / Editor) · writes file (gated)
 - **Input** — same as `asset_gen_sprite`.
 - **Output** — the shared generator result envelope above.
 
-### `asset_gen_audio_sfx` ✅  (Plane A / Editor)  · writes file (gated)
+### `asset_gen_audio_sfx` ✔ ✅ (Plane A / Editor) · writes file (gated)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["prompt", "to_path"],
@@ -3401,7 +3414,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
 ```
 - **Output** — the shared generator result envelope above.
 
-### `asset_gen_model` ✅  (Plane A / Editor)  · writes file (gated)
+### `asset_gen_model` ✔ ✅ (Plane A / Editor) · writes file (gated)
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["prompt", "to_path"],
@@ -3421,7 +3434,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
 
 The "game backend" question, resolved as **authoring, not hosting**. Godot 4's built-in high-level multiplayer is a first-class engine feature, and multiplayer is a top game-dev request — but running a relay / leaderboard-DB / save-store is a SaaS, not editor control. So this family **hosts nothing and scaffolds everything**: it only adds nodes, scripts, and config to the project. Three tools author multiplayer nodes over the editor bridge (undoable via `EditorUndoRedoManager`, like every `node_*`); four generate GDScript. The generated code is built host-side (so the templates are unit-tested) and written by the editor's `FileAccess` through the `mp.write_script` bridge method, which triggers a filesystem rescan. Every code-writing tool is **destructive** (elicitation-gated — the `resource_create` model). `mp_setup_webrtc_peer` is **feature-detected**: if the WebRTC module/extension is absent from the build, it degrades to a clear `unsupported` result and writes nothing (never a dead call). Markers `AUTH_MP_*` in the authoring-plane probe.
 
-### `mp_add_spawner` ✅  (Plane A / Editor)  · undoable
+### `mp_add_spawner` ✅ (Plane A / Editor) · undoable
 Add a `MultiplayerSpawner` (server-spawned nodes replicate to clients). `spawn_path` is the node whose children auto-replicate; `spawnable_scenes` are `res://` scenes it may instantiate.
 - **Input**
 ```json
@@ -3443,7 +3456,7 @@ Add a `MultiplayerSpawner` (server-spawned nodes replicate to clients). `spawn_p
   } }
 ```
 
-### `mp_add_synchronizer` ✅  (Plane A / Editor)  · undoable
+### `mp_add_synchronizer` ✅ (Plane A / Editor) · undoable
 Add a `MultiplayerSynchronizer` and, when `properties` are given, build a `SceneReplicationConfig` replicating them. `root_path` is the node the property NodePaths are relative to (default `..`); property paths look like `.:position`.
 - **Input**
 ```json
@@ -3466,7 +3479,7 @@ Add a `MultiplayerSynchronizer` and, when `properties` are given, build a `Scene
   } }
 ```
 
-### `mp_set_authority` ✅  (Plane A / Editor)  · undoable
+### `mp_set_authority` ✅ (Plane A / Editor) · undoable
 Set a node's multiplayer authority (`set_multiplayer_authority`) to a peer id (1 = server). The authority peer is the one allowed to push `authority`-mode RPCs / synchronizer state for that node.
 - **Input**
 ```json
@@ -3497,7 +3510,7 @@ The four codegen tools share one result envelope (validates the `written` and �
   } }
 ```
 
-### `mp_setup_enet_peer` ✅  (Plane A / Editor + host)  · writes file (gated)
+### `mp_setup_enet_peer` ✔ ✅ (Plane A / Editor + host) · writes file (gated)
 Generate an `ENetMultiplayerPeer` host/join helper script (`host_game` / `join_game` / `close`) and assign `multiplayer.multiplayer_peer`. Godot's default, always-available transport.
 - **Input**
 ```json
@@ -3513,7 +3526,7 @@ Generate an `ENetMultiplayerPeer` host/join helper script (`host_game` / `join_g
 ```
 - **Output** — the shared codegen envelope above (`status: "written"`).
 
-### `mp_setup_webrtc_peer` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+### `mp_setup_webrtc_peer` ✔ ✅ (Plane A / Editor + host) · writes file (gated) · feature-detected
 Generate a `WebRTCMultiplayerPeer` mesh helper. If the WebRTC module/extension is absent, degrades to `status: "unsupported"` and writes nothing.
 - **Input**
 ```json
@@ -3527,7 +3540,7 @@ Generate a `WebRTCMultiplayerPeer` mesh helper. If the WebRTC module/extension i
 ```
 - **Output** — the shared codegen envelope above (`status: "written"` or `"unsupported"`).
 
-### `mp_wire_rpc` ✅  (Plane A / Editor + host)  · writes file (gated)
+### `mp_wire_rpc` ✔ ✅ (Plane A / Editor + host) · writes file (gated)
 Insert (or replace) an `@rpc(...)` annotation above a function in an existing `res://` script; appends a stub when the function is absent. Operates on the on-disk file (save unsaved editor changes first).
 - **Input**
 ```json
@@ -3544,7 +3557,7 @@ Insert (or replace) an `@rpc(...)` annotation above a function in an existing `r
 ```
 - **Output** — the shared codegen envelope above, plus `function`, `annotation`, `stub_created`.
 
-### `mp_scaffold_lobby` ✅  (Plane A / Editor + host)  · writes file (gated)
+### `mp_scaffold_lobby` ✔ ✅ (Plane A / Editor + host) · writes file (gated)
 Generate a lobby controller GDScript: ENet host/join plus `peer_connected` / `peer_disconnected` tracking with `player_joined` / `player_left` / `server_started` / `join_succeeded` / `join_failed` signals.
 - **Input**
 ```json
@@ -3562,7 +3575,7 @@ Generate a lobby controller GDScript: ENet host/join plus `peer_connected` / `pe
 
 The **second half** of Group M is backend-SDK integration scaffolding (`backend_detect` + the four `*_scaffold` codegen tools). Same "host nothing, scaffold everything" stance: we never run a leaderboard DB, save-store or auth service — we generate the integration against the game's *installed* SDK (SilentWolf / Nakama / PlayFab / Photon). Every codegen tool is **feature-detected twice, and never a dead call**: if the SDK provides no such API (Photon is realtime transport, so it has no leaderboard/cloud-save/auth), it degrades to `status: "unsupported_feature"`; if the SDK is not installed in the project, it degrades to `status: "sdk_missing"` ("install <SDK> first"). Detection (via `backend_detect` → the `backend.detect` bridge method) keys off an enabled autoload, an addon directory under `res://addons`, or a global `class_name`. Only a capable + installed SDK reaches the (gated) writer; the generated GDScript is built host-side and written through the shared `mp.write_script` bridge method. Markers `AUTH_BACKEND_*` in the authoring-plane probe.
 
-### `backend_detect` ✅  (Plane A / Editor)  · read-only
+### `backend_detect` ✅ (Plane A / Editor) · read-only
 Report which known backend SDKs (SilentWolf / Nakama / PlayFab / Photon) are installed in the project and how each was found (an enabled autoload, an addon directory, or a global `class_name`). Read-only — nothing is written.
 - **Input**
 ```json
@@ -3588,7 +3601,7 @@ The shared backend scaffold envelope (the four backend tools below; `status` dis
   } }
 ```
 
-### `backend_configure` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+### `backend_configure` ✔ ✅ (Plane A / Editor + host) · writes file (gated) · feature-detected
 Generate a config/bootstrap GDScript for a backend SDK — constants (API key / game id / host / title id / app id) plus a `configure()` you register as an autoload. If the SDK is not installed, degrades to `status: "sdk_missing"` and writes nothing.
 - **Input**
 ```json
@@ -3610,7 +3623,7 @@ Generate a config/bootstrap GDScript for a backend SDK — constants (API key / 
 ```
 - **Output** — the shared backend scaffold envelope above.
 
-### `leaderboard_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+### `leaderboard_scaffold` ✔ ✅ (Plane A / Editor + host) · writes file (gated) · feature-detected
 Generate submit/fetch leaderboard helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no leaderboard API) or `sdk_missing` (not installed); neither writes.
 - **Input**
 ```json
@@ -3625,7 +3638,7 @@ Generate submit/fetch leaderboard helpers against the installed SDK. Degrades to
 ```
 - **Output** — the shared backend scaffold envelope above.
 
-### `cloudsave_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+### `cloudsave_scaffold` ✔ ✅ (Plane A / Editor + host) · writes file (gated) · feature-detected
 Generate save/load cloud-save helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no cloud-save API) or `sdk_missing` (not installed); neither writes.
 - **Input**
 ```json
@@ -3639,7 +3652,7 @@ Generate save/load cloud-save helpers against the installed SDK. Degrades to `un
 ```
 - **Output** — the shared backend scaffold envelope above.
 
-### `auth_scaffold` ✅  (Plane A / Editor + host)  · writes file (gated) · feature-detected
+### `auth_scaffold` ✔ ✅ (Plane A / Editor + host) · writes file (gated) · feature-detected
 Generate login/register/logout helpers against the installed SDK. Degrades to `unsupported_feature` (Photon has no auth API) or `sdk_missing` (not installed); neither writes.
 - **Input**
 ```json
@@ -3659,7 +3672,7 @@ Generate login/register/logout helpers against the installed SDK. Degrades to `u
 
 Composite authoring **on top of** the existing primitives. Each `card_*` / `board_*` / `piece_*` / `interact_*` tool is a host-side scripted sequence of already-audited editor-bridge ops (`scene.new`, `control.create`, `node.add`, `node.set_property`, `resource.create`, `theme.*`, `node.instantiate_scene`, `node.call_method`, `node.add_to_group`, `node.reparent`, `anim.*`, `signal.*`, `inputmap.*`) — it adds **no** addon method, so the host↔addon contract is unchanged. The composites build **structure** (scenes, nodes, a small script-backed `set_data()` / `set_face()`, and drag/drop behaviour scripts) and bind data a caller passes in; they never invent card values, names, or rules. Increment 1 is the **Card slice** (4 tools, plus the `card_set_face` fast-follow); Increment 2 is the **Board slice** (2 tools: `board_create`, `board_place`, plus the tile-backed fast-follow `board_tile_create` / `board_tile_place`); Increment 3 is the **Piece slice** (3 tools: `piece_template_create`, `piece_instance`, `piece_move`); Increment 4 is the **Interaction slice** (2 tools: `interact_make_draggable`, `interact_add_drop_zone`). `card_template_create`, `board_create`, `board_tile_create`, `piece_template_create`, and the two `interact_*` tools write files (a scene / behaviour script / TileSet) and are **destructive** (elicitation-gated); the rest are undoable node authoring in the open scene (ungated, the `node_*` model). `piece_instance` can `place_on` a cell and `piece_move` reparents onto a cell — both reuse `board_place`; `piece_move`'s optional pop and `card_set_face`'s optional flip clip are authored from existing Group C `anim_*` primitives, so they stay purely additive. `card_set_face` flips a card between its face and back — instantly, or via an authored flip clip whose `method` key swaps the side at the edge-on midpoint. The Interaction tools wire drag-and-drop in two general-purpose modes (`control` = Godot's built-in Control DnD; `node2d` = an Area2D hit region + pointer handler); a drop zone validates a neutral `payload` with a `key∈values` predicate and emits an `on_drop` signal. Because every op is an existing primitive, the whole surface is unit-tested offline against an injected emit-sink. Everything here is **general-purpose** — the tools carry no game-specific vocabulary; a guardrail test fails CI if any appears.
 
-### `card_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
+### `card_template_create` ✔ ✅ (Plane A / Editor + host) · writes files (gated)
 Build a reusable card `PackedScene` from a slot spec, with a generated script-backed `set_data()` / `set_face()`. Named slots (`label` / `rich_text` / `texture` / `panel` / `badge`) become the card's regions; optional inline theme and a two-sided card back.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
@@ -3716,7 +3729,7 @@ Build a reusable card `PackedScene` from a slot spec, with a generated script-ba
   } }
 ```
 
-### `card_instance` ✅  (Plane A / Editor)  · undoable
+### `card_instance` ✅ (Plane A / Editor) · undoable
 Instance a card template into the open scene and bind data to its slots via the template's `set_data()`. Reports which data keys bound and which had no matching slot.
 - **Input**
 ```json
@@ -3743,7 +3756,7 @@ Instance a card template into the open scene and bind data to its slots via the 
   } }
 ```
 
-### `card_hand_layout` ✅  (Plane A / Editor)  · undoable
+### `card_hand_layout` ✅ (Plane A / Editor) · undoable
 Instance N cards under a container and arrange them as a `row`, `fan`, `stack`, or `grid`. Each card carries its own data and face state.
 - **Input**
 ```json
@@ -3780,7 +3793,7 @@ Instance N cards under a container and arrange them as a `row`, `fan`, `stack`, 
   } }
 ```
 
-### `card_deck_from_table` ✅  (Plane A / Editor + host)  · undoable
+### `card_deck_from_table` ✅ (Plane A / Editor + host) · undoable
 Read a CSV or JSON table and stamp one card per row, binding columns to slots via a column map. `column_map` values are bare `{column}` references or composed templates like `"{name} · {role}"`; an optional `filter` selects rows and an optional `layout` arranges them. Table columns no slot referenced are surfaced (never silently dropped).
 
 `table_path` may be `res://…`, project-relative, or absolute — but it must RESOLVE INSIDE the project root. A path that escapes it (including `res://../…`, which is not the same string test) is refused with `path_outside_project`. This is not a formality: the rows this tool reads are stamped into the scene, so an escaped read puts content from outside the project into your game. The refusal also distinguishes the causes that a bare "cannot read" used to merge — `not_found` (no such file), `not_a_file` (a directory, or the project root, which is what `""` resolves to), and `empty_table` (a real, reachable, zero-byte file). An empty table is a data problem; a missing one is a path problem, and they no longer share an error.
@@ -3823,7 +3836,7 @@ Read a CSV or JSON table and stamp one card per row, binding columns to slots vi
   } }
 ```
 
-### `card_set_face` ✅  (Plane A / Editor)  · undoable
+### `card_set_face` ✅ (Plane A / Editor) · undoable
 Flip an instanced card (or any node exposing `set_face(bool)` — the generated card **and** piece scripts both do) between its face and back. **Instant** by default: calls the setter now, so the visible side changes immediately. With `animate`, instead authors a reusable **flip clip** under the node from Group C `anim_*` primitives — a horizontal "pinch" on the node's own `scale` (1 → edge-on `(0, 1)` → 1) plus a **method** key that calls the setter at the edge-on midpoint, so playing the clip performs a believable flip and swaps the side exactly when the card is thinnest. Purely additive — it emits only existing `node.*` / `anim.*` ops, never a new engine call; the clip is played on demand (the current face is unchanged until it plays). Returns the target state and any authored player / anim.
 - **Input**
 ```json
@@ -3852,7 +3865,7 @@ Flip an instanced card (or any node exposing `set_face(bool)` — the generated 
   } }
 ```
 
-### `board_create` ✅  (Plane A / Editor + host)  · writes files (gated)
+### `board_create` ✔ ✅ (Plane A / Editor + host) · writes files (gated)
 Build a board scene whose children are addressable **cells** — each a `cell_<id>` node in the `board_cells` group — from one of three general-purpose layouts: a `ring` of ids, a `grid` of `rows`×`cols` (ids `"<row>_<col>"`), or an explicit `cells` list of `{id, x, y}`. Cells are `Marker2D` (or `Control`) anchors positioned by pure ring/grid math; an optional `background` (solid `color` or a `res://` `art` texture) is drawn behind them. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `node.add_to_group` → `scene.save`. **Destructive** (writes a scene) — elicitation-gated. Returns the `cell_id → node_path + position` map. For `tile`-backed cells (a `TileMapLayer` grid addressed by `[x, y]` coordinates) see `board_tile_create` / `board_tile_place`.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
@@ -3907,7 +3920,7 @@ Build a board scene whose children are addressable **cells** — each a `cell_<i
   } }
 ```
 
-### `board_place` ✅  (Plane A / Editor)  · undoable
+### `board_place` ✅ (Plane A / Editor) · undoable
 Reparent an existing node (a card or piece instance) onto a board cell by id and snap it to the cell anchor. The target cell is `<board>/cell_<cell>`; `align` offsets the node from the cell origin (default centred). Decomposes onto `node.reparent` + `node.set_property`. Returns the node's new path.
 - **Input**
 ```json
@@ -3931,7 +3944,7 @@ Reparent an existing node (a card or piece instance) onto a board cell by id and
   } }
 ```
 
-### `board_tile_create` ✅  (Plane A / Editor + host)  · writes files (gated)
+### `board_tile_create` ✔ ✅ (Plane A / Editor + host) · writes files (gated)
 Build a **tile-backed** board scene: a `TileMapLayer` grid whose cells are addressable by integer `[x, y]` tile coordinates (`cols` wide × `rows` tall) — the other Group D idiom to `board_create`'s per-cell `Marker2D` anchors. The layer binds a `TileSet`: a supplied `tileset` `.tres`, or a fresh empty one created at `<scene>_tiles.tres`, so the layer has a real `tile_size` (the coordinate frame `board_tile_place` snaps to). `paint` optionally fills the whole grid with one tile from the bound tileset in a single action; omitted, the cells stay empty and the layer is a coordinate frame only. Adds **no** addon method — decomposes onto `scene.new` → `tileset.create` → `tilemaplayer.create` → `tilemap.set_cells_rect` → `scene.save`. **Destructive** (writes a scene, and a `TileSet` `.tres` unless `tileset` is supplied) — elicitation-gated. General-purpose — cells carry only coordinates. Returns the layer path + grid dimensions + tile size.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
@@ -3971,7 +3984,7 @@ Build a **tile-backed** board scene: a `TileMapLayer` grid whose cells are addre
   } }
 ```
 
-### `board_tile_place` ✅  (Plane A / Editor)  · undoable
+### `board_tile_place` ✅ (Plane A / Editor) · undoable
 Snap an existing node (a card or piece instance) onto a `TileMapLayer` cell by integer `[x, y]` tile `coord`. The cell's local position is computed from `tile_size` — centre `(coord + 0.5) × tile_size` (default `anchor`) or corner `coord × tile_size` — matching Godot's `TileMapLayer.map_to_local`, plus an optional `align` offset. With `reparent` (default `true`) the node is moved under the layer so the coordinate is layer-local; with `false` its `position` is set in place. Decomposes onto `node.reparent` + `node.set_property`. Returns the node's new path and local position.
 - **Input**
 ```json
@@ -4002,7 +4015,7 @@ Snap an existing node (a card or piece instance) onto a `TileMapLayer` cell by i
   } }
 ```
 
-### `piece_template_create` ✅  (Plane A / Editor + host)  · writes files (gated)
+### `piece_template_create` ✔ ✅ (Plane A / Editor + host) · writes files (gated)
 Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite2D` under a `Node2D` root, `TextureRect` under a `Control` root), an optional `Label`, an optional hit area (`Area2D` + `CollisionShape2D` with a `rectangle`/`circle` shape sized from `size`), and an optional two-sided `Back`, plus a generated script-backed `set_data()` / `set_face()`. `set_data` binds the neutral keys `art` (texture) / `color` (Art tint) / `label` (text); `set_face` flips Art+Label vs Back. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `resource.create` → `scene.save`. **Destructive** (writes a scene + script) — elicitation-gated. Returns the scene path + created-node map.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
@@ -4045,7 +4058,7 @@ Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite
   } }
 ```
 
-### `piece_instance` ✅  (Plane A / Editor)  · undoable
+### `piece_instance` ✅ (Plane A / Editor) · undoable
 Instance a piece template into the open scene and bind data (`art` / `color` / `label`) via the template's `set_data()`. Optionally `place_on` a board cell in the same call (reparent + snap via `board_place`). Reports which data keys bound and which had no matching slot.
 - **Input**
 ```json
@@ -4078,7 +4091,7 @@ Instance a piece template into the open scene and bind data (`art` / `color` / `
   } }
 ```
 
-### `piece_move` ✅  (Plane A / Editor)  · undoable
+### `piece_move` ✅ (Plane A / Editor) · undoable
 Move a piece onto a board cell by id (reparent + snap via `board_place`), optionally with a short scale "pop" animation authored from Group C `anim_*` primitives (an `AnimationPlayer` under the piece keying its own `scale` 1 → pop → 1). Purely additive — it emits only existing `node.*` / `anim.*` ops, never a new engine call. Returns the piece's new path.
 - **Input**
 ```json
@@ -4109,7 +4122,7 @@ Move a piece onto a board cell by id (reparent + snap via `board_place`), option
   } }
 ```
 
-### `interact_make_draggable` ✅  (Plane A / Editor + host)  · writes files (gated)
+### `interact_make_draggable` ✔ ✅ (Plane A / Editor + host) · writes files (gated)
 Wire an existing node for drag-and-drop by attaching a generated reusable drag script. **Composes** with the node's existing script: when it already has one, the drag script `extends` it, so an authored card keeps its `set_data`/`set_face` and merely *gains* drag (the script is never overwritten — `composed`/`base_script` report what happened). `control` mode uses Godot's built-in Control drag-and-drop (`_get_drag_data` hands off `{payload, source}`, with an optional translucent preview); `node2d` mode carries the payload and follows the pointer from a button-driven handler, registering a drag input action (`inputmap_add_action` / `add_event`) and connecting the hit area's `input_event` to the handler. General-purpose — the drag carries a caller-supplied neutral `payload` Dictionary, written as a **per-node `@export`** so one script serves many draggables. Decomposes onto `node.get_property` → `resource.create` → `node.set_property` (script + payload) (+ the input/signal ops for node2d); no addon method is added. Destructive (writes a script) — gated.
 - **Input**
 ```json
@@ -4140,7 +4153,7 @@ Wire an existing node for drag-and-drop by attaching a generated reusable drag s
   } }
 ```
 
-### `interact_add_drop_zone` ✅  (Plane A / Editor + host)  · writes files (gated)
+### `interact_add_drop_zone` ✔ ✅ (Plane A / Editor + host) · writes files (gated)
 Mark a node as a drop target that validates an incoming payload and emits a signal on a valid drop. Attaches a generated validator/acceptor script that **declares the `on_drop` signal in-script** (so it survives a scene reload — no runtime-only `add_user_signal`), and — for `node2d` — builds an `Area2D` + `CollisionShape2D` hit region; optionally connects `on_drop` to a handler with a **persisted** connection (`signal_connect`, `CONNECT_PERSIST`, written into the `.tscn`). `accepts` is the neutral predicate `{key, values}` — accept any payload when omitted, else accept when `payload[key]` is one of `values`. `control` mode overrides `_can_drop_data` / `_drop_data`; `node2d` exposes a `try_drop(payload)` seam. General-purpose — no domain vocabulary. Destructive (writes a script) — gated.
 - **Input**
 ```json
@@ -4224,7 +4237,7 @@ Read captured console output for a managed process.
       "seq": { "type": "integer" }, "stream": { "enum": ["stdout", "stderr"] }, "text": { "type": "string" } } } } } }
 ```
 
-### `godot_stop` ✅
+### `godot_stop` ✔ ✅
 Terminate a managed process.
 - **Input**
 ```json
@@ -4270,7 +4283,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 
 ## Tool Index
 
-**Reading the `Destructive` column.** The **✔** is the tool's MCP `destructiveHint` annotation, exactly as it crosses the wire — *may overwrite or discard state the caller did not supply* — and it is derived from `host/src/annotations.ts`, not typed here: `contract_check.py`'s check 4 refuses a ✔ this file and that file disagree about, in either direction. The words beside it say **what** the tool writes and are a note, not a flag. The two are different questions and this column used to conflate them: `undoable` describes how you get your work back, and a tool can be undoable and destructive at once.
+**Reading the `Destructive` column.** The **✔** is the tool's MCP `destructiveHint` annotation, exactly as it crosses the wire — *may overwrite or discard state the caller did not supply* — and it is derived from `host/src/annotations.ts`, not typed here: `contract_check.py`'s check 4 refuses a ✔ this file and that file disagree about, in either direction — and check 4c holds the same ✔ on each tool's own section heading to the same roster, so the table and the page cannot drift apart either. The words beside it say **what** the tool writes and are a note, not a flag. The two are different questions and this column used to conflate them: `undoable` describes how you get your work back, and a tool can be undoable and destructive at once.
 
 | Tool | Plane | Status | Destructive |
 |---|---|---|---|
@@ -4359,7 +4372,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `tileset_create` | D / Editor | ✅ | ✔ writes file |
 | `tileset_add_source` | D / Editor | ✅ | writes file |
 | `tileset_add_tile` | D / Editor | ✅ | writes file |
-| `tileset_set_tile_collision` | D / Editor | ✅ | writes file |
+| `tileset_set_tile_collision` | D / Editor | ✅ | ✔ writes file |
 | `tilemaplayer_create` | D / Editor | ✅ | undoable |
 | `tilemap_set_cell` | D / Editor | ✅ | ✔ undoable |
 | `tilemap_set_cells_rect` | D / Editor | ✅ | ✔ undoable |

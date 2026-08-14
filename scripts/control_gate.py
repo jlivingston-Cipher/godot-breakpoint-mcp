@@ -239,6 +239,19 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      '"asset_gen_placeholder",', '"asset gen placeholder",',
      "whose name the scanner cannot match"),
 
+    # ── check 4c — the catalog's section headings vs the wire ─────────────────────
+    # 🆕 252. 251 gated the Tool Index's `Destructive` column and its first run reddened
+    # on 21 of 292 rows; the per-tool SECTION HEADING carries the same predicate and was
+    # wrong on 44 of 289. Two controls because the check reads two directions and a doc
+    # rots in both: a ✔ that falls off a heading, and a ✔ that appears on a tool the wire
+    # does not call destructive.
+    ("4c.under", "4c", "sub", "docs/TOOL_CATALOG.md",
+     "### `tilemap_clear` ✔", "### `tilemap_clear`",
+     "Catalog section headings do not mark these"),
+    ("4c.over", "4c", "sub", "docs/TOOL_CATALOG.md",
+     "### `tilemap_get_cell`", "### `tilemap_get_cell` ✔",
+     "Catalog section headings mark these ✔"),
+
     # ── check 11c — the test suite's own size ─────────────────────────────────────
     # The vacuous-anchor case, and the only control here that is not a text edit: the
     # statement fires when NOTHING can be counted, so the subject has to go away. That
@@ -680,7 +693,7 @@ ALSO_ATTRIBUTED_FLOOR = 99     # 🆕 246 §3 — at `{FLOOR}`, raised with it. 
 # The roster of checks this gate closes, pinned by NAME and not just by count — 182's
 # both-halves lesson: the set catches a check renamed or swapped, the floor catches the
 # roster itself being trimmed to match a smaller reality.
-CHECKS_CLOSED = ("3", "11c", "host", "17", "22",
+CHECKS_CLOSED = ("3", "4c", "11c", "host", "17", "22",
                  # 188: every check that gained at least one control this session
                  "1", "5", "9", "10", "11", "12", "13", "14", "15", "16",
                  "addon", "roster", "shape", "why",
@@ -722,6 +735,10 @@ BLAST: dict[str, int] = {
     "3.dupe": 8,                          # also: 6 8 9 11 13 25
     "3.uncaptured": 8,                    # also: 8 9 11 11b 13 25
     "11c.vacuous": 2,                     # also: 20
+    # Each also reddens 4c's index/heading cross-comparison — the second reader the
+    # heading gained this session, declared here in the commit that added it.
+    "4c.under": 2,                        # also: 4c's cross-check
+    "4c.over": 2,                         # also: 4c's cross-check
     "11c.drift": 1,
     "host.nofield": 1,
     "host.drift": 1,

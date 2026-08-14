@@ -51,6 +51,10 @@ EMPTY: dict[str, str] = {
     "list[str]": "[]",
     "dict[str, str]": "{}",
     "dict[str, int]": "{}",
+    # 🆕 252 — the shape 246's lesson said would come back. `catalog_heading_rows`
+    # returns name -> "is it marked ✔", and without this row it is an enumerator
+    # outside this gate BY CONSTRUCTION, with nothing anywhere saying so.
+    "dict[str, bool]": "{}",
     "dict[str, list[str]]": "{}",
     "dict[str, set[str]]": "{}",
     "dict[Path, set[str]]": "{}",
@@ -97,7 +101,8 @@ EMPTY: dict[str, str] = {
 # enumerators `EMPTY` had never been able to spell, and one the new check 27 brought with
 # it. A floor left at the old measurement is headroom for five targets to be dropped in
 # silence (198 §36).
-TARGET_FLOOR = 30
+TARGET_FLOOR = 31   # at `{FLOOR}`, raised by one with the catalog heading reader in the
+                    # commit that added it — a floor is raised where it is outgrown, never after
 
 
 def targets(text: str) -> list[tuple[str, str, int]]:
@@ -170,6 +175,10 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # cells: one match, two populations, and the map has to say both or the second reads
     # as an unexplained BLAST drift in some later session.
     "catalog_index_rows": ("catalog.index_tools", "catalog.destructive_marked"),
+    # 🆕 252 — THE SAME SHAPE ONE FILE-SECTION OVER. `catalog_heading_rows` returns a
+    # name -> bool map, so blinding it collapses the sections AND the ✔ glyphs on them:
+    # one match, two populations, same reason the row above names both.
+    "catalog_heading_rows": ("catalog.sections_read", "catalog.heading_marked"),
     "catalog_json_blocks": ("catalog.json_blocks",),
     "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
     "doc_recipe_mentions": ("recipes.doc_mentions",),                 # 🆕 197
@@ -220,7 +229,18 @@ BLAST: dict[str, int] = {
     # 🆕 251 — FOUR, AND TWO OF THEM ARE THE LEDGER'S. Blinding the row reader empties
     # both populations it feeds: check 4 names every registered tool as missing from the
     # index, reports all 88 destructive tools as unmarked, and the ledger reddens twice.
-    "catalog_index_rows": 4,                  # also: check 4 (both columns)
+    # 🆕 252: 4 -> 5. Check 4c cross-compares the index's ✔ set against the HEADING's,
+    # so emptying the row reader no longer only under-reports the column — it also makes
+    # the two hand-maintained copies disagree, on one more line. The radius moved because
+    # a second reader started being compared to this one.
+    "catalog_index_rows": 5,                  # also: check 4 (both columns) + 4c's cross-check
+    # 🆕 252 — FOUR, AND THE SHAPE IS 251's. Blinding the heading reader empties both
+    # populations it feeds: check 4c names every registered tool as having no section,
+    # reports all 89 destructive tools as unmarked in their heading, and the ledger
+    # reddens twice. The index/heading cross-comparison does NOT add a fifth — it is
+    # subsumed, because an empty heading set makes the symmetric difference the whole
+    # index set on one line.
+    "catalog_heading_rows": 4,                # also: check 4c (sections + glyphs)
     "catalog_json_blocks": 1,
     "dispatch_methods": 3,                    # also: check 1
     "doc_recipe_mentions": 2,                 # also: check 12
@@ -253,7 +273,10 @@ BLAST: dict[str, int] = {
     # 🆕 251: 10 -> 11. `catalog.destructive_marked` is intersected with the registered
     # set, so emptying the roster empties the marked column too and the ledger carries one
     # more collapse. The radius moved because a new population was derived FROM this one.
-    "registered_tools": 11,                   # also: checks 6 8 9 11 13 25
+    # 🆕 252: 11 -> 12. `catalog.heading_marked` is intersected with the registered set
+    # too, so emptying the roster empties the heading column as well and 4c reports one
+    # more collapse. Same cause as 251's 10 -> 11, one population later.
+    "registered_tools": 12,                   # also: checks 6 8 9 11 13 25, 4c
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
