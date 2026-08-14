@@ -170,9 +170,35 @@ export function installAddon(addonSource: string, projectPath: string, opts: { f
   return { action: exists ? "overwritten" : "installed", dest };
 }
 
+/**
+ * POSIX-quote one word of a command line this CLI prints for a human to paste.
+ *
+ * 🔴 A GENERATED COMMAND LINE IS AN INPUT YOU WROTE. The JSON snippet beside this
+ * one has been correct since it shipped, and for a reason that has nothing to do
+ * with care: JSON quotes for you. The shell line was assembled by interpolation,
+ * so `~/Godot Projects/My Game` became four words — `claude mcp add` read
+ * `--env GODOT_PROJECT=/Users/x/Godot` and then `Projects/My`, `Game` as stray
+ * positionals, and the server it configured pointed at a directory that does not
+ * exist. Nothing failed loudly; the path was simply truncated at the first space.
+ *
+ * The safe set is `shlex.quote`'s: characters no shell reinterprets, so an
+ * ordinary path stays readable and only a path that needs quoting gets it. The
+ * `'\''` idiom closes the quote, escapes a literal apostrophe, and reopens —
+ * correct in every POSIX shell, and the only way to carry a `'` inside `'…'`.
+ */
+export function shellQuote(word: string): string {
+  if (word.length > 0 && /^[A-Za-z0-9_@%+=:,./-]+$/.test(word)) return word;
+  return `'${word.replace(/'/g, `'\\''`)}'`;
+}
+
 function claudeCodeCommand(projectPath: string, privilegedGroups?: string): string {
-  const groups = privilegedGroups ? ` --env BREAKPOINT_PRIVILEGED_GROUPS=${privilegedGroups}` : "";
-  return `claude mcp add godot --env GODOT_PROJECT=${projectPath}${groups} -- npx -y breakpoint-mcp`;
+  // Each `--env` value is ONE word to the shell, so the whole `KEY=value` token is
+  // quoted rather than the path alone: `GODOT_PROJECT='/a b'` would reach the
+  // process as the literal string it looks like, quotes and all.
+  const groups = privilegedGroups
+    ? ` --env ${shellQuote(`BREAKPOINT_PRIVILEGED_GROUPS=${privilegedGroups}`)}`
+    : "";
+  return `claude mcp add godot --env ${shellQuote(`GODOT_PROJECT=${projectPath}`)}${groups} -- npx -y breakpoint-mcp`;
 }
 
 /** Entry point for `breakpoint-mcp init`. Returns the process exit code. */

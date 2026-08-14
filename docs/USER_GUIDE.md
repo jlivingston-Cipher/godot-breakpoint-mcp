@@ -237,6 +237,8 @@ claude mcp add godot \
   -- npx breakpoint-mcp
 ```
 
+**If either path contains a space, quote the whole `KEY=value` word** — `--env 'GODOT_PROJECT=/Users/you/Godot Projects/My Game'`. Unquoted, the shell hands `claude mcp add` a path truncated at the first space plus two stray arguments, and nothing complains: the server is configured, pointing at a directory that does not exist. `breakpoint-mcp init --client claude-code` prints this line already quoted for you.
+
 ### Claude Desktop
 
 Add an entry to `claude_desktop_config.json`:

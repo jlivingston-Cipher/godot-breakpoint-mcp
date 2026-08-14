@@ -165,6 +165,11 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "annotated_tools": ("annotations.roster",),
     "annotation_class_claims": ("families.annclass_lines",),
     "catalog_index_tools": ("catalog.index_tools",),
+    # 🆕 251 — THE ROW READER BOTH OF THE ABOVE NOW COME OFF. `catalog_index_tools` is a
+    # `set()` over its keys, so blinding this one collapses the names AND the Destructive
+    # cells: one match, two populations, and the map has to say both or the second reads
+    # as an unexplained BLAST drift in some later session.
+    "catalog_index_rows": ("catalog.index_tools", "catalog.destructive_marked"),
     "catalog_json_blocks": ("catalog.json_blocks",),
     "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
     "doc_recipe_mentions": ("recipes.doc_mentions",),                 # 🆕 197
@@ -212,6 +217,10 @@ BLAST: dict[str, int] = {
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,
     "catalog_index_tools": 2,                 # also: check 4
+    # 🆕 251 — FOUR, AND TWO OF THEM ARE THE LEDGER'S. Blinding the row reader empties
+    # both populations it feeds: check 4 names every registered tool as missing from the
+    # index, reports all 88 destructive tools as unmarked, and the ledger reddens twice.
+    "catalog_index_rows": 4,                  # also: check 4 (both columns)
     "catalog_json_blocks": 1,
     "dispatch_methods": 3,                    # also: check 1
     "doc_recipe_mentions": 2,                 # also: check 12
@@ -227,7 +236,13 @@ BLAST: dict[str, int] = {
     "input_schema_shapes": 2,
     "output_schema_shapes": 2,
     "prefix_family_claims": 1,
-    "privileged_tools": 3,                    # also: check 11 (the tool-count drift line)
+    # 🆕 251: 3 -> 4. `SECURE_DEFAULT` joined check 13's constant roster, and it is the
+    # FIRST member of that roster whose expected value is not `total_tools` — it is
+    # `total - privileged`, so blinding `privileged_tools` now moves what check 13
+    # expects and reddens a line that sat outside this blind's radius entirely.
+    # The row moved because a reader started depending on this population, which is
+    # exactly the cause 196 §3 wrote the number to make visible.
+    "privileged_tools": 4,                    # also: checks 11, 13 (the constant roster)
     "recipe_names_constant": 2,               # also: check 12
     "registered_recipes": 4,                  # also: check 12
     "registered_resources": 3,                # also: check 10
@@ -235,7 +250,10 @@ BLAST: dict[str, int] = {
     # README's two count sentences that no reader claimed until this session — the ones
     # 221 §4 found stale — now redden check 25 as well. The row moving is the new check
     # reaching a population the old ones did not.
-    "registered_tools": 10,                   # also: checks 6 8 9 11 13 25
+    # 🆕 251: 10 -> 11. `catalog.destructive_marked` is intersected with the registered
+    # set, so emptying the roster empties the marked column too and the ledger carries one
+    # more collapse. The radius moved because a new population was derived FROM this one.
+    "registered_tools": 11,                   # also: checks 6 8 9 11 13 25
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
