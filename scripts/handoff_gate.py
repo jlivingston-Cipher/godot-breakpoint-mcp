@@ -3070,6 +3070,25 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
 >               · queue 37/37 claims · handoff 294 claims · 26 CI jobs
 > ```"""),
+    (248, """> ```
+> main                 ea0fc2e — the command nothing had ever run (#305)  MOVED +1
+>                      bee5529 — the members one language could not see (#304)
+> branch 248           session248-the-command-nothing-had-ever-run
+>                      🟢 PUSHED · PR #305 MERGED, 26/26 green
+> host / addon         1.74.1 / 1.9.9   🔴 host MOVED — the cut is in the tree, not on npm
+> npm                  🔴 1.74.0 · lag 0 · tags 121 · 0 open issues · 0 open PRs
+> 🟢 VERIFIED AFTER THE CHANGE   756/756 · contract 24/24 · scope 30 · control 59
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1669
+>               · py gates 18/4/14 · SIG 130/105 · late constructed 193/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1132 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 287 file(s) / 21 suffixes
+>               · taut 4174 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 42/42 claims · handoff 295 claims · 26 CI jobs
+> ```"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
