@@ -3089,6 +3089,44 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
 >               · queue 42/42 claims · handoff 295 claims · 26 CI jobs
 > ```"""),
+    (249, """> ```
+> main                 ea0fc2e — the command nothing had ever run (#305)   UNMOVED
+> branch 249           session249-the-seams-between-two-working-things
+>                      🔴 NOT PUSHED — the container cannot push (see Owed)
+> host / addon         1.74.1 / 1.9.9   🟢 unmoved — no product code changed this session
+> npm                  🟢 1.74.1 · lag 0 · tags 122 · gh UNREAD, no `gh` in this container
+> 🟢 VERIFIED AFTER THE CHANGE   756/756 · contract 24/24 · scope 30 · control 59
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1669
+>               · py gates 18/4/14 · SIG 130/105 · late constructed 193/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1132 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 287 file(s) / 21 suffixes
+>               · taut 4174 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 42/42 claims · handoff 296 claims · 26 CI jobs
+> ```"""),
+    (250, """> ```
+> main                 ea0fc2e — the command nothing had ever run (#305)   UNMOVED
+> branch 249           session249-the-seams-between-two-working-things
+>                      🟢 PUSHED · its PR is open and unmerged — THIS BRANCH STACKS ON IT
+> branch 250           session250-the-policy-that-spelled-itself-absent
+>                      base 243748d, NOT ea0fc2e — say so on the patch
+> host / addon         1.74.1 / 1.9.9   🟡 host code MOVED — no cut, no version bump
+> npm                  🟢 1.74.1 · lag 0 · registry 1.74.1
+> 🟢 VERIFIED AFTER THE CHANGE   764/764 · contract 24/24 · scope 30 · control 59
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1669
+>               · py gates 18/4/14 · SIG 130/105 · late constructed 193/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1132 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 287 file(s) / 21 suffixes
+>               · taut 4195 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 42/42 claims · handoff 298 claims · 26 CI jobs
+> ```"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────

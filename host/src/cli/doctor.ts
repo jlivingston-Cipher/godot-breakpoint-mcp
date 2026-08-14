@@ -229,10 +229,13 @@ export function checkCapabilities(config: Config): Check[] {
         dropped.length === 0
           ? `${state} — full 292-tool surface`
           : `${state} (secure default) — ${dropped.length} higher-trust tool(s) dropped from the surface`,
+      // The token list is DERIVED — `code-execution,network` was printed here
+      // for as long as the `network` group has been deleted, so the remedy
+      // named a token `selectPrivilegedGroups` reports as unknown and drops.
       hint:
         dropped.length === 0
           ? undefined
-          : "Enable with BREAKPOINT_PRIVILEGED_GROUPS=code-execution,network (or `breakpoint-mcp init --trust full`). See the godot://capabilities resource for the exact tool list.",
+          : `Enable with BREAKPOINT_PRIVILEGED_GROUPS=${CAPABILITY_GROUPS.join(",")} (or \`breakpoint-mcp init --trust full\`). See the godot://capabilities resource for the exact tool list.`,
     },
   ];
   const assetGenConfigured =

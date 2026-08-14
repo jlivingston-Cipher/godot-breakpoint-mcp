@@ -25,10 +25,12 @@ import {
 
 /**
  * Resolve the guided trust preset into a validated BREAKPOINT_PRIVILEGED_GROUPS
- * value ("" = the safe default — `code-execution` + `network` off). Accepts either
- * `--trust safe|full` (friendly presets) or `--privileged-groups <list>`
- * (`code-execution`, `network`, `all`, comma-separated). Unknown tokens are dropped
- * with a warning so a typo never silently enables a group.
+ * value ("" = the safe default — every group in `CAPABILITY_GROUPS` off). Accepts
+ * either `--trust safe|full` (friendly presets) or `--privileged-groups <list>`
+ * (any of `CAPABILITY_GROUPS`, or `all`, comma-separated). Unknown tokens are
+ * dropped with a warning so a typo never silently enables a group — which is why
+ * every printed example of this flag is derived from `CAPABILITY_GROUPS` rather
+ * than restated: a restated one named `network` long after it was deleted.
  */
 export function resolvePrivilegedGroups(flags: Record<string, string | boolean>): { value: string; warn?: string } {
   const trustAlias: Record<string, string> = { safe: "", none: "", off: "", full: "all", all: "all" };
@@ -168,9 +170,35 @@ export function installAddon(addonSource: string, projectPath: string, opts: { f
   return { action: exists ? "overwritten" : "installed", dest };
 }
 
+/**
+ * POSIX-quote one word of a command line this CLI prints for a human to paste.
+ *
+ * 🔴 A GENERATED COMMAND LINE IS AN INPUT YOU WROTE. The JSON snippet beside this
+ * one has been correct since it shipped, and for a reason that has nothing to do
+ * with care: JSON quotes for you. The shell line was assembled by interpolation,
+ * so `~/Godot Projects/My Game` became four words — `claude mcp add` read
+ * `--env GODOT_PROJECT=/Users/x/Godot` and then `Projects/My`, `Game` as stray
+ * positionals, and the server it configured pointed at a directory that does not
+ * exist. Nothing failed loudly; the path was simply truncated at the first space.
+ *
+ * The safe set is `shlex.quote`'s: characters no shell reinterprets, so an
+ * ordinary path stays readable and only a path that needs quoting gets it. The
+ * `'\''` idiom closes the quote, escapes a literal apostrophe, and reopens —
+ * correct in every POSIX shell, and the only way to carry a `'` inside `'…'`.
+ */
+export function shellQuote(word: string): string {
+  if (word.length > 0 && /^[A-Za-z0-9_@%+=:,./-]+$/.test(word)) return word;
+  return `'${word.replace(/'/g, `'\\''`)}'`;
+}
+
 function claudeCodeCommand(projectPath: string, privilegedGroups?: string): string {
-  const groups = privilegedGroups ? ` --env BREAKPOINT_PRIVILEGED_GROUPS=${privilegedGroups}` : "";
-  return `claude mcp add godot --env GODOT_PROJECT=${projectPath}${groups} -- npx -y breakpoint-mcp`;
+  // Each `--env` value is ONE word to the shell, so the whole `KEY=value` token is
+  // quoted rather than the path alone: `GODOT_PROJECT='/a b'` would reach the
+  // process as the literal string it looks like, quotes and all.
+  const groups = privilegedGroups
+    ? ` --env ${shellQuote(`BREAKPOINT_PRIVILEGED_GROUPS=${privilegedGroups}`)}`
+    : "";
+  return `claude mcp add godot --env ${shellQuote(`GODOT_PROJECT=${projectPath}`)}${groups} -- npx -y breakpoint-mcp`;
 }
 
 /** Entry point for `breakpoint-mcp init`. Returns the process exit code. */
@@ -317,9 +345,18 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
     say(`Higher-trust tool groups enabled: ${privilegedGroups} — the full 292-tool surface loads.`);
   } else {
     say("Higher-trust tool groups are OFF by default (the secure default). The assistant loads the");
-    say(`everyday authoring/debug surface and drops the ${PRIVILEGED_TOOL_COUNT} code-execution + network tools (e.g.`);
-    say("godot_run_headless_script, the *_call_method / dbg_evaluate tools, asset-gen, backend_*).");
-    say("Enable them by re-running with `--trust full` (or `--privileged-groups code-execution,network`),");
+    // 🔴 THE GROUP NAME AND THE EXAMPLES ARE BOTH CORRECTIONS, NOT POLISH.
+    // This said "code-execution + network tools" and named `backend_*` among
+    // them: `network` has been deleted from capabilities.ts, and
+    // backend_detect / backend_configure are DELIBERATELY unprivileged — so the
+    // first thing a new user reads named a group that does not exist and two
+    // tools that are not dropped. The suggested flag below carried the same
+    // dead token, which `init`'s own resolver answers with
+    // `ignoring unknown trust group(s): network`: the tool warned about the
+    // command the tool told them to run.
+    say(`everyday authoring/debug surface and drops the ${PRIVILEGED_TOOL_COUNT} ${CAPABILITY_GROUPS.join(" + ")} tools (e.g.`);
+    say("godot_run_headless_script, the *_call_method / dbg_evaluate tools, asset-gen).");
+    say(`Enable them by re-running with \`--trust full\` (or \`--privileged-groups ${CAPABILITY_GROUPS.join(",")}\`),`);
     say("or set BREAKPOINT_PRIVILEGED_GROUPS in the server env. The `godot://capabilities` resource and");
     say("`breakpoint-mcp doctor` list exactly what each group gates.");
   }

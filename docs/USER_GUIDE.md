@@ -237,6 +237,8 @@ claude mcp add godot \
   -- npx breakpoint-mcp
 ```
 
+**If either path contains a space, quote the whole `KEY=value` word** — `--env 'GODOT_PROJECT=/Users/you/Godot Projects/My Game'`. Unquoted, the shell hands `claude mcp add` a path truncated at the first space plus two stray arguments, and nothing complains: the server is configured, pointing at a directory that does not exist. `breakpoint-mcp init --client claude-code` prints this line already quoted for you.
+
 ### Claude Desktop
 
 Add an entry to `claude_desktop_config.json`:
@@ -596,6 +598,14 @@ addon enabled and the host registered (Sections 3–4).
 **8. Run tests headlessly.**
 
 - `godot_run_headless_script` on your test runner script → captured exit code and output.
+
+> **`dbg_evaluate`, `runtime_call_method` and `godot_run_headless_script` are not loaded on a
+> default install.** They belong to the `code-execution` capability group, which is OFF unless
+> you asked for it — so on the secure default these three steps are the ones a fresh setup
+> cannot run, and the server will say so by name. Turn the group on with
+> `breakpoint-mcp init --trust full`, or set `BREAKPOINT_PRIVILEGED_GROUPS=code-execution` in
+> the server's env, then restart the server. Read `godot://capabilities` for the full list of
+> what is withheld and why.
 
 That is the full loop: inspect → change (undoable) → write and check code → run → debug →
 drive the live game → test.

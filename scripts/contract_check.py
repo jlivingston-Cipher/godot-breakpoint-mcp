@@ -523,19 +523,37 @@ def privileged_tools() -> set[str]:
 
 def test_count_constants() -> list[tuple[Path, int, str, int]]:
     """(file, line, const-name, value) for every hardcoded tool-count constant in
-    the host tests — `EXPECTED_TOOL_COUNT` in registration/toolsets/annotations
-    and `FULL_TOOL_COUNT` in capabilities.
+    the host tests — `EXPECTED_TOOL_COUNT` in registration/toolsets/annotations,
+    `FULL_TOOL_COUNT` in capabilities, and `FULL` / `SECURE_DEFAULT` in the tools
+    export.
 
-    These four are self-gating in the sense that the tests fail if the code and
-    the constant disagree. They are checked here anyway so that ONE run names all
-    four at once with the derived number, instead of four separate assertion
+    These are self-gating in the sense that the tests fail if the code and the
+    constant disagree. They are checked here anyway so that ONE run names all of
+    them at once with the derived number, instead of N separate assertion
     failures a reader has to reconcile by hand.
+
+    🆕 251 — `FULL` AND `SECURE_DEFAULT` WERE OUTSIDE THE ROSTER FOR TWENTY-THREE
+    SESSIONS, and the reason is the one this file already writes up about the
+    sibling project: *the mechanism is right; the MARKER is what fails.* Five of
+    the seven constants were matched because they are spelled with the word
+    `TOOL_COUNT` in them; `tools-export.test.ts` named its two after what they
+    are rather than after the pattern, and a roster of PHRASINGS could not see
+    them. Nothing was wrong with either value — that is the point. A roster that
+    happens to be complete and a roster that is complete by construction are the
+    same output until the day they are not.
+
+    🔴 `SECURE_DEFAULT` IS THE FIRST MEMBER THAT IS NOT `total_tools`. The caller
+    resolves the expected value BY NAME (see check 13); adding a constant here
+    without teaching that site what it should equal would compare 279 against 292
+    and redden a correct tree.
     """
     found: list[tuple[Path, int, str, int]] = []
     for f in sorted(HOST_TEST.rglob("*.ts")):
         for lineno, line in enumerate(f.read_text().splitlines(), 1):
             m = re.match(
-                r"\s*const\s+(EXPECTED_TOOL_COUNT|FULL_TOOL_COUNT)\s*=\s*(\d+)", line
+                r"\s*const\s+(EXPECTED_TOOL_COUNT|FULL_TOOL_COUNT|FULL|SECURE_DEFAULT)"
+                r"\s*=\s*(\d+)",
+                line,
             )
             if m:
                 found.append((f, lineno, m.group(1), int(m.group(2))))
@@ -1302,13 +1320,31 @@ def prose_numerals_masked(path: Path) -> int:
     return n
 
 
+# Rows of the Tool Index: | `tool_name` | Plane | Status | Destructive |
+# ONE regex, four cells. Both readers below come off it for `_annotation_names`'s
+# reason — two copies of the same pattern can disagree about what a table contains,
+# and then one of them is silently reading something else.
+CATALOG_ROW_RE = re.compile(
+    r"^\|\s*`([a-z0-9_]+)`\s*\|([^|\n]*)\|([^|\n]*)\|([^|\n]*)\|", re.M
+)
+
+
+def catalog_index_rows() -> dict[str, str]:
+    """Tool name -> the text of its `Destructive` cell, over the Tool Index table.
+
+    🆕 251 — THE OTHER THREE COLUMNS HAD NEVER BEEN READ BY ANYTHING. Check 4 has
+    compared the catalog to the registry since the catalog existed, and it compared
+    the NAME cell: the regex stopped at the first `|`. `Plane`, `Status` and
+    `Destructive` were shipped, published, and gated by nothing — which is how the
+    column that tells a reader whether a tool can destroy their work came to
+    disagree with the annotation the client actually consumes, on 21 of 292 rows,
+    with the whole suite green.
+    """
+    return {m.group(1): m.group(4).strip() for m in CATALOG_ROW_RE.finditer(CATALOG.read_text())}
+
+
 def catalog_index_tools() -> set[str]:
-    text = CATALOG.read_text()
-    tools: set[str] = set()
-    # Rows of the form: | `tool_name` | ... | ... | ... |
-    for m in re.finditer(r"^\|\s*`([a-z0-9_]+)`\s*\|", text, re.M):
-        tools.add(m.group(1))
-    return tools
+    return set(catalog_index_rows())
 
 
 def catalog_json_blocks() -> list[str]:
@@ -1802,6 +1838,44 @@ in_catalog_not_code = sorted(cat_tools - tool_set)
 if in_catalog_not_code:
     warnings.append(f"Catalog lists tools not found in code (may be planned/renamed): {in_catalog_not_code}")
 
+# --- 4b: the Destructive COLUMN, against the annotation a client consumes -----
+# 🔴 THE COLUMN AND THE ANNOTATION ARE TWO PREDICATES WEARING ONE WORD, AND UNTIL
+# 251 NOTHING HAD EVER PUT THEM SIDE BY SIDE. `destructiveHint` has a definition in
+# `annotations.ts` — *may overwrite or discard state the caller did not supply* —
+# and it crosses the wire, where a client uses it to decide whether to ask the
+# human first. The catalog's cell was free prose meaning roughly "writes
+# something": 57 rows said `undoable`, 36 `✔ writes file`, 3 `runs code`. The two
+# disagreed on 21 of 292 rows in both directions, including `anim_remove_key` and
+# `godot_stop` reading `–` — flatly wrong under either predicate.
+#
+# So the ✔ is now the ANNOTATION and the prose stays beside it as the note it
+# always was. Exactly one of the two facts in that cell is machine-owned, and the
+# other is free to say what a `–` never could.
+#
+# 🔴 THIS READER NEEDS NO FLOOR OF ITS OWN, AND THAT IS A PROPERTY OF THE SHARED
+# REGEX, NOT AN OVERSIGHT. `CATALOG_ROW_RE` yields the name and the cell from one
+# match, so the two cannot collapse independently: a table shape this pattern
+# stops matching empties `cat_tools`, and the check above then names every
+# registered tool as missing from the index. A cell that reads empty for
+# every row empties `marked`, and every destructive tool is reported UNMARKED
+# below. Both collapses are already loud, in a check that already exists — which
+# is the only reason a new `*_FLOOR` would have been the wrong answer here.
+ann_names = _annotation_names(ANNOTATIONS.read_text())
+code_destructive = ann_names("DESTRUCTIVE") & tool_set
+marked_destructive = {n for n, cell in catalog_index_rows().items() if "✔" in cell} & tool_set
+undermarked = sorted(code_destructive - marked_destructive)
+overmarked = sorted(marked_destructive - code_destructive)
+if undermarked:
+    errors.append(
+        f"Catalog Tool Index does not mark these `destructiveHint: true` tools with ✔ "
+        f"(a reader is told they are safe and the wire says otherwise): {undermarked}"
+    )
+if overmarked:
+    errors.append(
+        f"Catalog Tool Index marks these ✔ and `annotations.ts` does not list them as "
+        f"DESTRUCTIVE (the doc is stricter than the contract): {overmarked}"
+    )
+
 _ran("4")
 
 # --- 5: JSON lint -----------------------------------------------------------
@@ -2174,8 +2248,21 @@ if family_unresolved:
     )
 
 count_constants = test_count_constants()
+# Expected value BY NAME. Every member but one is the full registered surface;
+# `SECURE_DEFAULT` is what a default install advertises, which is the same
+# subtraction check 11 already derives. Resolved here rather than in the reader so
+# the reader stays a scanner and this stays the one place that knows what a name
+# should equal.
+_CONST_EXPECTED = {
+    "EXPECTED_TOOL_COUNT": total_tools,
+    "FULL_TOOL_COUNT": total_tools,
+    "FULL": total_tools,
+    "SECURE_DEFAULT": secure_default_tools,
+}
 bad_constants = [
-    f"{f.relative_to(ROOT)}:{ln} {name} = {v}" for f, ln, name, v in count_constants if v != total_tools
+    f"{f.relative_to(ROOT)}:{ln} {name} = {v} (expected {_CONST_EXPECTED[name]})"
+    for f, ln, name, v in count_constants
+    if v != _CONST_EXPECTED[name]
 ]
 if bad_constants:
     errors.append(
@@ -3904,6 +3991,12 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "the net-completeness DETECTOR itself stops looking, which is how it passed while blind (172)"),
     ("catalog.index_tools", len(cat_tools), 250,
      "check 4 stops demanding a catalog row for anything"),
+    # 🆕 251 — THE SECOND POPULATION OUT OF THE SAME ROW READER, AND IT IS A DIFFERENT
+    # COLLAPSE. `index_tools` floors the NAMES; this floors the CELLS. A regex that still
+    # matches every name while its fourth group comes back empty leaves the row above
+    # intact and reports the whole Destructive column as being in agreement.
+    ("catalog.destructive_marked", len(marked_destructive), 60,
+     "check 4 compares an EMPTY set of ✔ rows and finds the whole column in agreement"),
     ("catalog.json_blocks", len(catalog_json_blocks()), 400,
      "check 5 lints zero blocks and still reports (0 invalid)"),
     ("annotations.roster", len(annotated), 250,

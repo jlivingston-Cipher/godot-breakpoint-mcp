@@ -1,5 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +8,7 @@ import {
   enablePlugin,
   installAddon,
   runInit,
+  shellQuote,
 } from "../src/cli/init.js";
 import { mergeClientConfig, serverEntry } from "../src/cli/clients.js";
 import type { FetchLike, HttpResponse } from "../src/cli/github.js";
@@ -224,6 +226,90 @@ test("runInit --client vscode writes a project-scoped .vscode/mcp.json", async (
   } finally {
     if (savedSrc === undefined) delete process.env.BREAKPOINT_ADDON_SRC;
     else process.env.BREAKPOINT_ADDON_SRC = savedSrc;
+  }
+});
+
+// ---- the printed `claude mcp add` line, parsed by a shell ------------------
+//
+// 🔴 THE ASSERTION IS MADE BY /bin/sh, NOT BY A REGEX. What the defect was about is
+// what a shell does with the line after the user pastes it, and a test that
+// re-implements word-splitting is asserting against a copy of the thing it is
+// supposed to be checking. `set --` splits and `printf` prints; nothing runs.
+function shellWords(line: string): string[] {
+  const out = execFileSync("/bin/sh", ["-c", `set -- ${line}; printf '%s\\0' "$@"`], {
+    encoding: "utf8",
+  });
+  return out.split("\0").slice(0, -1);
+}
+
+function emittedAddLine(out: string): string {
+  const line = out.split("\n").find((l) => l.includes("claude mcp add"));
+  assert.ok(line, "init printed a `claude mcp add` line");
+  return line.trim();
+}
+
+test("the printed `claude mcp add` line survives a shell when the project path has a space", async () => {
+  const proj = fs.mkdtempSync(path.join(dir, "pro j-"));
+  fs.writeFileSync(path.join(proj, "project.godot"), 'config_version=5\n\n[application]\n\nconfig/name="fix"\n');
+  assert.ok(proj.includes(" "), "fixture path really does contain a space");
+  const savedSrc = process.env.BREAKPOINT_ADDON_SRC;
+  try {
+    process.env.BREAKPOINT_ADDON_SRC = addonSrc;
+    const { code, out } = await capture(() => runInit(["--project", proj, "--client", "claude-code"]));
+    assert.equal(code, 0);
+    const words = shellWords(emittedAddLine(out));
+    assert.deepEqual(words.slice(0, 3), ["claude", "mcp", "add"]);
+    // The whole KEY=value is ONE word and the value is the WHOLE path.
+    assert.equal(words[words.indexOf("--env") + 1], `GODOT_PROJECT=${proj}`);
+    // And nothing was left over: the tail is exactly the server command.
+    assert.deepEqual(words.slice(-4), ["--", "npx", "-y", "breakpoint-mcp"]);
+  } finally {
+    if (savedSrc === undefined) delete process.env.BREAKPOINT_ADDON_SRC;
+    else process.env.BREAKPOINT_ADDON_SRC = savedSrc;
+  }
+});
+
+// 🔴 AND ITS POSITIVE CONTROL, WHICH IS THE LINE AS IT SHIPPED THROUGH 250. A shell
+// splitter that could not tell the two apart would pass the test above for the same
+// reason a correct one does — 250 §6.3's rule, applied to a parser instead of a
+// reader. This is the exact string `claudeCodeCommand` used to build, and the
+// splitter must report the truncation: `--env` gets a path cut at the first space,
+// and the remainder arrives as stray positionals `claude mcp add` never asked for.
+test("the pre-251 unquoted line DOES misparse — the splitter can tell the difference", () => {
+  const projectPath = "/Users/x/Godot Projects/My Game";
+  const before = `claude mcp add godot --env GODOT_PROJECT=${projectPath} -- npx -y breakpoint-mcp`;
+  const words = shellWords(before);
+  assert.equal(words[words.indexOf("--env") + 1], "GODOT_PROJECT=/Users/x/Godot");
+  assert.ok(words.includes("Projects/My"), "the rest of the path became a stray argument");
+  assert.ok(words.includes("Game"), "and so did the rest of it");
+  assert.equal(
+    words.includes(`GODOT_PROJECT=${projectPath}`),
+    false,
+    "the intended value never reaches the shell",
+  );
+});
+
+test("an ordinary project path is NOT quoted — the safe set stays readable", async () => {
+  const proj = makeProject();
+  assert.equal(/[^A-Za-z0-9_@%+=:,./-]/.test(proj), false, "fixture path is in the safe set");
+  const savedSrc = process.env.BREAKPOINT_ADDON_SRC;
+  try {
+    process.env.BREAKPOINT_ADDON_SRC = addonSrc;
+    const { code, out } = await capture(() => runInit(["--project", proj, "--client", "claude-code"]));
+    assert.equal(code, 0);
+    assert.match(emittedAddLine(out), new RegExp(`--env GODOT_PROJECT=${proj} --`));
+  } finally {
+    if (savedSrc === undefined) delete process.env.BREAKPOINT_ADDON_SRC;
+    else process.env.BREAKPOINT_ADDON_SRC = savedSrc;
+  }
+});
+
+test("shellQuote carries an apostrophe through a shell intact", () => {
+  const nasty = `/Users/x/Player's Game/a b`;
+  assert.deepEqual(shellWords(`printf-placeholder ${shellQuote(nasty)}`).slice(1), [nasty]);
+  // The characters a shell would otherwise eat, one round trip each.
+  for (const word of [`a b`, `a'b`, `a"b`, `a$b`, `a;b`, `a\`b`, `a*b`, `a\\b`, `a|b`, ``]) {
+    assert.deepEqual(shellWords(`x ${shellQuote(word)}`).slice(1), [word], `round trip: ${JSON.stringify(word)}`);
   }
 });
 

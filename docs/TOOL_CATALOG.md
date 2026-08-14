@@ -4270,6 +4270,8 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 
 ## Tool Index
 
+**Reading the `Destructive` column.** The **✔** is the tool's MCP `destructiveHint` annotation, exactly as it crosses the wire — *may overwrite or discard state the caller did not supply* — and it is derived from `host/src/annotations.ts`, not typed here: `contract_check.py`'s check 4 refuses a ✔ this file and that file disagree about, in either direction. The words beside it say **what** the tool writes and are a note, not a flag. The two are different questions and this column used to conflate them: `undoable` describes how you get your work back, and a tool can be undoable and destructive at once.
+
 | Tool | Plane | Status | Destructive |
 |---|---|---|---|
 | `breakpoint_doctor` | B / CLI | ✅ | – |
@@ -4278,7 +4280,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `godot_run_project` | B / CLI | ✅ | – |
 | `godot_export` | B / CLI | ✅ | writes artifacts |
 | `godot_import` | B / CLI | ✅ | – |
-| `godot_run_headless_script` | B / CLI | ✅ | runs code |
+| `godot_run_headless_script` | B / CLI | ✅ | ✔ runs code |
 | `editor_ping` | A / Editor | ✅ | – |
 | `editor_get_state` | A / Editor | ✅ | – |
 | `editor_undo` | A / Editor | ✅ | – |
@@ -4289,7 +4291,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `scene_get_tree` | A / Editor | ✅ | – |
 | `scene_open` | A / Editor | ✅ | – |
 | `scene_save` | A / Editor | ✅ | writes file |
-| `scene_new` | A / Editor | ✅ | writes file |
+| `scene_new` | A / Editor | ✅ | ✔ writes file |
 | `scene_list_open` | A / Editor | ✅ | – |
 | `scene_reload` | A / Editor | ✅ | ✔ |
 | `scene_close` | A / Editor | ✅ | ✔ |
@@ -4307,10 +4309,10 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `node_find` | A / Editor | ✅ | – |
 | `node_list_groups` | A / Editor | ✅ | – |
 | `node_add_to_group` | A / Editor | ✅ | undoable |
-| `node_remove_from_group` | A / Editor | ✅ | undoable |
+| `node_remove_from_group` | A / Editor | ✅ | ✔ undoable |
 | `node_instantiate_scene` | A / Editor | ✅ | undoable |
 | `node_move_child` | A / Editor | ✅ | undoable |
-| `node_change_type` | A / Editor | ✅ | undoable |
+| `node_change_type` | A / Editor | ✅ | ✔ undoable |
 | `node_set_owner` | A / Editor | ✅ | undoable |
 | `node_set_editable_instance` | A / Editor | ✅ | undoable |
 | `node_call_method` | A / Editor | ✅ | ✔ |
@@ -4319,7 +4321,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `signal_list` | A / Editor | ✅ | – |
 | `signal_list_connections` | A / Editor | ✅ | – |
 | `signal_connect` | A / Editor | ✅ | undoable |
-| `signal_disconnect` | A / Editor | ✅ | undoable |
+| `signal_disconnect` | A / Editor | ✅ | ✔ undoable |
 | `signal_add_user_signal` | A / Editor | ✅ | undoable |
 | `signal_emit` | A / Editor | ✅ | ✔ |
 | `selection_get` | A / Editor | ✅ | – |
@@ -4345,7 +4347,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `anim_delete` | C / Editor | ✅ | ✔ gated |
 | `anim_add_track` | C / Editor | ✅ | – |
 | `anim_insert_key` | C / Editor | ✅ | – |
-| `anim_remove_key` | C / Editor | ✅ | – |
+| `anim_remove_key` | C / Editor | ✅ | ✔ removes key |
 | `anim_set_length` | C / Editor | ✅ | – |
 | `anim_set_loop` | C / Editor | ✅ | – |
 | `anim_get_track_keys` | C / Editor | ✅ | – |
@@ -4355,14 +4357,14 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `anim_statemachine_add_state` | C / Editor | ✅ | – |
 | `anim_statemachine_add_transition` | C / Editor | ✅ | – |
 | `tileset_create` | D / Editor | ✅ | ✔ writes file |
-| `tileset_add_source` | D / Editor | ✅ | ✔ writes file |
-| `tileset_add_tile` | D / Editor | ✅ | ✔ writes file |
-| `tileset_set_tile_collision` | D / Editor | ✅ | ✔ writes file |
+| `tileset_add_source` | D / Editor | ✅ | writes file |
+| `tileset_add_tile` | D / Editor | ✅ | writes file |
+| `tileset_set_tile_collision` | D / Editor | ✅ | writes file |
 | `tilemaplayer_create` | D / Editor | ✅ | undoable |
-| `tilemap_set_cell` | D / Editor | ✅ | undoable |
-| `tilemap_set_cells_rect` | D / Editor | ✅ | undoable |
+| `tilemap_set_cell` | D / Editor | ✅ | ✔ undoable |
+| `tilemap_set_cells_rect` | D / Editor | ✅ | ✔ undoable |
 | `tilemap_get_cell` | D / Editor | ✅ | – |
-| `tilemap_clear` | D / Editor | ✅ | undoable |
+| `tilemap_clear` | D / Editor | ✅ | ✔ undoable |
 | `body_create` | E / Editor | ✅ | undoable |
 | `collisionshape_add` | E / Editor | ✅ | undoable |
 | `body_set_collision_layer` | E / Editor | ✅ | undoable |
@@ -4383,13 +4385,13 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `particles_set_texture` | F / Editor | ✅ | undoable |
 | `shader_create` | F / Editor | ✅ | ✔ writes file |
 | `shader_set_code` | F / Editor | ✅ | ✔ writes file |
-| `shadermaterial_create` | F / Editor | ✅ | undoable |
-| `shadermaterial_set_shader` | F / Editor | ✅ | undoable |
-| `shadermaterial_set_param` | F / Editor | ✅ | undoable |
+| `shadermaterial_create` | F / Editor | ✅ | ✔ undoable |
+| `shadermaterial_set_shader` | F / Editor | ✅ | ✔ undoable |
+| `shadermaterial_set_param` | F / Editor | ✅ | ✔ undoable |
 | `audio_player_create` | F / Editor | ✅ | undoable |
 | `audio_set_stream` | F / Editor | ✅ | undoable |
-| `audio_bus_add` | F / Editor | ✅ | ✔ project-wide |
-| `audio_bus_add_effect` | F / Editor | ✅ | ✔ project-wide |
+| `audio_bus_add` | F / Editor | ✅ | project-wide |
+| `audio_bus_add_effect` | F / Editor | ✅ | project-wide |
 | `audio_bus_set_volume` | F / Editor | ✅ | ✔ project-wide |
 | `audio_set_bus_layout` | F / Editor | ✅ | ✔ writes file |
 | `control_create` | G / Editor | ✅ | undoable |
@@ -4414,12 +4416,12 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `environment_create` | H / Editor | ✅ | ✔ writes file |
 | `environment_set_sky` | H / Editor | ✅ | ✔ writes file |
 | `inputmap_add_action` | I / Editor | ✅ | ✔ writes setting |
-| `inputmap_add_event` | I / Editor | ✅ | ✔ writes setting |
+| `inputmap_add_event` | I / Editor | ✅ | writes setting |
 | `inputmap_list` | I / Editor | ✅ | – |
 | `inputmap_erase_action` | I / Editor | ✅ | ✔ writes setting |
 | `project_add_autoload` | I / Editor | ✅ | ✔ writes setting |
 | `project_remove_autoload` | I / Editor | ✅ | ✔ writes setting |
-| `project_add_export_preset` | I / Editor | ✅ | ✔ writes file |
+| `project_add_export_preset` | I / Editor | ✅ | writes file |
 | `project_set_main_scene` | I / Editor | ✅ | ✔ writes setting |
 | `project_list_settings` | I / Editor | ✅ | – |
 | `editorsettings_get_set` | I / Editor | ✅ | ✔ on set |
@@ -4501,7 +4503,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_anim_play` | C / Runtime | ✅ | ✔ |
 | `runtime_anim_stop` | C / Runtime | ✅ | ✔ |
 | `runtime_anim_get_state` | C / Runtime | ✅ | – |
-| `runtime_node_add` | C / Runtime | ✅ | ✔ |
+| `runtime_node_add` | C / Runtime | ✅ | adds node |
 | `runtime_node_remove` | C / Runtime | ✅ | ✔ |
 | `runtime_time_scale` | C / Runtime | ✅ | ✔ |
 | `runtime_step_frames` | C / Runtime | ✅ | ✔ |
@@ -4513,7 +4515,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 
 | `godot_run_managed` | B / Process | ✅ | – |
 | `godot_output` | B / Process | ✅ | – |
-| `godot_stop` | B / Process | ✅ | – |
+| `godot_stop` | B / Process | ✅ | ✔ kills the running project |
 
 | `project_search` | K / Host | ✅ | – |
 | `find_symbol` | K / Host | ✅ | – |

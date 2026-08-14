@@ -18,6 +18,7 @@ import { applyAnnotations } from "./annotations.js";
 import { applyTimeoutCaveat } from "./timeout-caveat.js";
 import {
   applyCapabilities,
+  applyDroppedToolRefusal,
   droppedTools,
   registerCapabilitiesResource,
   selectPrivilegedGroups,
@@ -187,6 +188,15 @@ async function main(): Promise<void> {
   // read godot://capabilities to see what exists-but-is-disabled and how to
   // enable it. Registered directly (not via the `resources` toolset).
   registerCapabilitiesResource(server, privilegedGroups);
+
+  // …and the other half of "never a silent gap", which the resource alone could
+  // not deliver. A dropped tool is not registered, so calling it by name reaches
+  // the SDK's `Tool <name> not found` — grammatical, accurate about the lookup,
+  // and wrong about the world. Must run AFTER every ts.run() above: the CallTool
+  // dispatcher does not exist until the first registerTool, and this wraps it.
+  // Advertises nothing new — tools/list is untouched at 279.
+  applyDroppedToolRefusal(server, privilegedGroups);
+
   if (config.privilegedGroups) {
     const on = [...privilegedGroups].sort().join(", ") || "(none)";
     log(`privileged groups enabled: ${on}; dropped ${droppedTools(privilegedGroups).length} tool(s) from the surface`);
