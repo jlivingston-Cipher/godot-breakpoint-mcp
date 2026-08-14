@@ -5,7 +5,10 @@ extends Node
 ## Wire format (both directions), one JSON object per line ("\n" terminated):
 ##   request:  {"id": "<string>", "method": "<name>", "params": { ... }}
 ##   response: {"id": "<string>", "ok": true,  "result": { ... }}
-##             {"id": "<string>", "ok": false, "error": {"code": ..., "message": ...}}
+##             {"id": "<string>", "ok": false, "error": {"code": ..., "message": ..., "remedy": ...}}
+##   `remedy` is the next action for that code (error_remedies.gd) and is omitted
+##   when the plane has nothing to say — the pre-auth denial below carries none by
+##   design, because it must not tell an unauthenticated peer anything at all.
 ##
 ## Binds to 127.0.0.1 only. The port comes from the BREAKPOINT_BRIDGE_PORT env
 ## var (default 9080). The socket is polled from `_process`, so all request

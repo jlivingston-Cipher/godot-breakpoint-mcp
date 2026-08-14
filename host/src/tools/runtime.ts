@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { BridgeClient, BridgeError } from "../bridge.js";
+import { BridgeClient, BridgeError, remedyClause } from "../bridge.js";
 import { MAX_PEERS, type PeerRegistry } from "../peers.js";
 import { gate } from "../confirm.js";
 import { ok, failPath } from "./lsp-common.js";
@@ -33,7 +33,7 @@ function fail(err: unknown) {
   const be = err as Partial<BridgeError> & { message?: string };
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `Runtime error [${be?.code ?? "error"}]: ${be?.message ?? String(err)}` }],
+    content: [{ type: "text" as const, text: `Runtime error [${be?.code ?? "error"}]: ${be?.message ?? String(err)}${remedyClause(err)}` }],
   };
 }
 

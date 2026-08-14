@@ -285,6 +285,15 @@ func _test_envelope(ops) -> void:
 	_eq("err.ok", errd["ok"], false)
 	_eq("err.code", errd["error"]["code"], "bad")
 	_eq("err.msg", errd["error"]["message"], "nope")
+	# 254 — a code with no remedy carries NO key, so the host renders what it always
+	# rendered. contract_check check 28 proves the shipped vocabulary is covered; what
+	# this proves is the shape of the miss, which is the half a source check cannot see.
+	_check("err.no_remedy_key", not (errd["error"] as Dictionary).has("remedy"))
+	# …and a code the table does know arrives with the next action attached, at the one
+	# place every editor-plane failure passes through.
+	var errd2: Dictionary = ops._err("no_scene", "No scene is open")
+	_eq("err.remedy.msg_unchanged", errd2["error"]["message"], "No scene is open")
+	_check("err.remedy_present", String((errd2["error"] as Dictionary).get("remedy", "")).begins_with("Open a scene first"))
 
 
 # --- operations.gd node-path resolution ------------------------------------
@@ -441,6 +450,14 @@ func _test_runtime_envelope_and_dispatch() -> void:
 	_eq("rb.err.ok", errd["ok"], false)
 	_eq("rb.err.code", errd["error"]["code"], "bad")
 	_eq("rb.err.msg", errd["error"]["message"], "nope")
+	_check("rb.err.no_remedy_key", not (errd["error"] as Dictionary).has("remedy"))
+	# 254 — and the RUNTIME table, not the editor one: the same code answers with the
+	# tool that exists in the running game. A single shared table would have had to be
+	# wrong on one plane, which is why there are two and why this asserts the difference.
+	var rerr: Dictionary = rb._err("bad_path", "Node not found: /root/x")
+	_check("rb.err.remedy_runtime", String((rerr["error"] as Dictionary).get("remedy", "")).contains("runtime_get_tree"))
+	var eerr: Dictionary = Ops.new()._err("bad_path", "Node not found: /root/x")
+	_check("rb.err.remedy_planes_differ", String((eerr["error"] as Dictionary).get("remedy", "")).contains("scene_get_tree"))
 	var pong: Dictionary = rb._dispatch("ping", {})
 	_eq("rb.ping.ok", pong["ok"], true)
 	_eq("rb.ping.pong", pong["result"]["pong"], true)

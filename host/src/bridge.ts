@@ -29,11 +29,34 @@ export type ResourceChangedListener = (uri: string) => void;
 
 export class BridgeError extends Error {
   code: string;
-  constructor(code: string, message: string) {
+  /**
+   * The next action the addon attached to this code (254). Optional by
+   * construction: the addon omits it for codes it has nothing to say about, and
+   * every failure the host raises itself — timeout, closed socket, non-finite —
+   * arrives without one, because the remedy for those is not the addon's to give.
+   */
+  remedy?: string;
+  constructor(code: string, message: string, remedy?: string) {
     super(message);
     this.name = "BridgeError";
     this.code = code;
+    if (remedy) this.remedy = remedy;
   }
+}
+
+/**
+ * The remedy clause every plane's `fail()` appends, rendered once.
+ *
+ * 🔴 FIVE RENDERERS, ONE CLAUSE. `tools/editor/common.ts`, `tools/runtime.ts`,
+ * `tools/tabletop.ts`, `tools/netcode.ts` and `tools/backend.ts` each turn a
+ * `Partial<BridgeError>` into MCP text under their own label. A remedy pasted into
+ * five templates is five places to drift; this is the one place it is spelled, and
+ * contract_check check 26 asserts every renderer of a `Partial<BridgeError>` calls
+ * it — a sixth plane added without it would ship a silent failure message again.
+ */
+export function remedyClause(err: unknown): string {
+  const r = (err as Partial<BridgeError> | null | undefined)?.remedy;
+  return typeof r === "string" && r !== "" ? ` — ${r}` : "";
 }
 
 /**
@@ -216,7 +239,7 @@ export class BridgeClient {
       id?: string;
       ok?: boolean;
       result?: unknown;
-      error?: { code: string; message: string };
+      error?: { code: string; message: string; remedy?: string };
       event?: string;
       uri?: string;
     };
@@ -273,7 +296,7 @@ export class BridgeClient {
       }
     } else {
       const e = msg.error ?? { code: "unknown", message: "Unknown bridge error" };
-      p.reject(new BridgeError(e.code, e.message));
+      p.reject(new BridgeError(e.code, e.message, typeof e.remedy === "string" ? e.remedy : undefined));
     }
   }
 

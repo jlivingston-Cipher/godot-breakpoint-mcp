@@ -7,7 +7,8 @@ extends RefCounted
 ## wrapped in the EditorUndoRedoManager so a human can Ctrl-Z anything the assistant did.
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
-const ADDON_VERSION := "1.9.9"
+const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
+const ADDON_VERSION := "1.10.0"
 
 var _plugin: EditorPlugin
 
@@ -340,7 +341,14 @@ func _ok(result: Variant) -> Dictionary:
 
 
 func _err(code: String, message: String) -> Dictionary:
-	return {"ok": false, "error": {"code": code, "message": message}}
+	# 254: the message says what went wrong; the remedy says what to do about it. It is
+	# attached HERE, at the one place every editor-plane failure passes through, so no
+	# call site can forget it and none has to repeat it.
+	var e := {"code": code, "message": message}
+	var r := Remedies.remedy(code, Remedies.EDITOR)
+	if r != "":
+		e["remedy"] = r
+	return {"ok": false, "error": e}
 
 
 func _edited_root() -> Node:

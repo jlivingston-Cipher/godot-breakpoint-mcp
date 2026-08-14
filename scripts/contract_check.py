@@ -291,8 +291,11 @@ CHECKS_EXPECTED = (
     # silence. Found by that gate on the run that added this row, and then again on the
     # run that explained it.
     "27",
+    # 🆕 254 — check 28, the remedy join. A member and not a roster gate: it asks whether
+    # a failing tool tells the reader what to do next, on both sides of one wire.
+    "28",
 )
-CHECKS_RUN_FLOOR = 24   # measured: twenty-four blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 25   # measured: twenty-five blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -341,6 +344,46 @@ def registered_tools() -> list[str]:
         for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z0-9_]+)"', text):
             names.append(m.group(1))
     return names
+
+
+def remedy_tables() -> "dict[str, dict[str, str]]":
+    """plane -> error code -> the next action, read out of `error_remedies.gd`.
+
+    🔴 ONE READER FOR BOTH DIRECTIONS OF CHECK 28's JOIN, WHICH IS WHY IT IS ALSO THE
+    ONE BLIND. Empty this and every raised code reads as remedied AND every remedy reads
+    as raised, because both comparisons are computed from the same empty side — the
+    failure that agrees with itself, which is the shape `scope_gate` exists to find.
+    """
+    path = ADDON / "error_remedies.gd"
+    if not path.is_file():
+        return {}
+    src = path.read_text()
+    tables: "dict[str, dict[str, str]]" = {}
+    for plane, table in (("editor", "EDITOR_REMEDIES"), ("runtime", "RUNTIME_REMEDIES")):
+        m = re.search(rf"const {table} := {{(.*?)^}}", src, re.S | re.M)
+        rows: "dict[str, str]" = {}
+        if m:
+            for rm in re.finditer(r'^\t"([a-z0-9_]+)":\s*"((?:[^"\\]|\\.)*)",\s*$',
+                                  m.group(1), re.M):
+                rows[rm.group(1)] = rm.group(2)
+        tables[plane] = rows
+    return tables
+
+
+def remedy_renderers_read() -> "list[str]":
+    """Every host file that renders a `Partial<BridgeError>` into MCP error text.
+
+    Derived rather than rostered: a sixth plane's `fail()` is in the population the
+    moment it is written, which is the only moment anyone would notice it drops the
+    addon's next action.
+    """
+    hits: "list[str]" = []
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        text = f.read_text()
+        for m in re.finditer(r"function fail\w*\(err: unknown\)\s*{(.*?)\n}", text, re.S):
+            if "Partial<BridgeError>" in m.group(1):
+                hits.append(str(f.relative_to(ROOT)))
+    return hits
 
 
 def uncaptured_tool_registrations() -> "tuple[list[str], int]":
@@ -3794,6 +3837,157 @@ for _method, _code, _rel in err_branch_bindings:
 
 _ran("23")
 
+# --- 28: THE MESSAGE SAYS WHAT BROKE; SOMETHING HAS TO SAY WHAT TO DO ---------
+#
+# 🔴 THE POPULATION, MEASURED BEFORE THE TABLE EXISTED (254, closing 248's
+# `tool-error-sweep-unrun`). 525 `_err(..)` sites across the two engine-facing planes
+# emit 216 distinct message templates. Classified by hand and then by predicate, 451
+# of those sites named NO next action — including the three most-emitted messages in
+# the addon: `No scene is open` at 90 sites, `Node not found: %s` at 53 and
+# `ResourceSaver.save() returned %d` at 35. Each is true. None of them tells an agent
+# that cannot see the editor what to do about it, and 248's eight-message sample said
+# all eight were good, which is what a sample of eight out of 216 is worth.
+#
+# 🔴 WHY THIS IS A JOIN AND NOT A SPELLING RULE. The remedy hangs off the error CODE,
+# which is the vocabulary check 23 above already reads on both sides of the wire, and
+# the code is the axis the message VARIES within: every `X not found: %s` is one
+# `not_found` with one next action. So the table is 50 rows rather than 216, and the
+# thing that can rot — a remedy naming a tool that was renamed or never existed — is
+# joined to `registered_tools()`, which is the same net checks 3, 4 and 11 use.
+#
+# WHAT IT ASSERTS, IN FOUR DIRECTIONS:
+#   a. every code a plane's `_err(..)` raises has a remedy row in that plane's table
+#   b. every remedy row is raised by that plane — a dead row is a maintained lie
+#   c. every backticked `tool_name` inside a remedy is a REGISTERED tool
+#   d. both `_err` implementations attach the remedy, and every host renderer of a
+#      `Partial<BridgeError>` appends `remedyClause` — a sixth plane's `fail()` added
+#      without it ships silent messages again, and nothing else in this tree would say so
+#
+# 🔴 AND THE EXEMPTION IS DERIVED, NOT ROSTERED. `bridge_server.gd`'s `unauthorized`
+# and both planes' `bad_json` are built as dict literals rather than raised through
+# `_err`, because the pre-auth path is deliberately no-echo — it must not tell an
+# unauthenticated peer anything, remedy least of all. That is why the population is
+# "codes reachable through `_err(`" and not "codes in the addon": the exclusion falls
+# out of how the refusal is written, so no hand-maintained list of exempt codes exists
+# to go stale. 253's `Status` column note asked for exactly this and named the
+# alternative it refuses.
+REMEDIES_FILE = ADDON / "error_remedies.gd"
+_REMEDY_PLANES = [
+    # (plane label, the file raising the codes, the table in error_remedies.gd)
+    ("editor", ADDON / "operations.gd", "EDITOR_REMEDIES"),
+    ("runtime", ADDON / "runtime_bridge.gd", "RUNTIME_REMEDIES"),
+]
+# One imperative, at the head of the sentence. A remedy that opens with a noun phrase is
+# a second description of the failure, which is what the message already carried.
+_REMEDY_IMPERATIVES = (
+    "act", "call", "check", "choose", "create", "duplicate", "fix", "make", "open",
+    "pass", "re-run", "send", "set", "simplify", "split", "switch",
+)
+_REMEDY_MAX = 210            # measured longest at 254: 176 characters
+remedy_rows = remedy_tables()
+remedy_renderers = remedy_renderers_read()
+remedy_tool_refs: "list[tuple[str, str, str]]" = []      # (plane, code, tool)
+
+if not REMEDIES_FILE.is_file():
+    errors.append(
+        f"check 28: {REMEDIES_FILE.relative_to(ROOT)} is missing. Every `_err(..)` on both "
+        f"engine planes reads its next-action clause from that file; without it the addon "
+        f"answers with the bare message it answered with before 254, and the only sign is "
+        f"a preload that fails at editor start."
+    )
+for _plane, _src_file, _table in _REMEDY_PLANES:
+    _rows = remedy_rows.get(_plane, {})
+    if REMEDIES_FILE.is_file() and not _rows:
+        errors.append(
+            f"check 28: no `const {_table} := ...` table resolved in "
+            f"{REMEDIES_FILE.relative_to(ROOT)}. The comparisons below then read an EMPTY "
+            f"table, where a code with no remedy and a remedy no code raises are equally "
+            f"invisible — so the absence is reported here as its own failure rather than "
+            f"as fifty missing rows."
+        )
+    _raised = set(re.findall(r'_err\(\s*"([a-z0-9_]+)"', _src_file.read_text()))
+
+    # a — a code with no remedy
+    for _code in sorted(_raised - set(_rows)):
+        errors.append(
+            f"check 28: {_src_file.name} raises the error code {_code!r} and "
+            f"{_table} has no row for it, so every failure carrying that code reaches the "
+            f"user as a bare description of what went wrong. That is the state the whole "
+            f"addon was in before 254 — most of its raise sites — and the row is one line."
+        )
+    # b — a remedy nothing raises
+    for _code in sorted(set(_rows) - _raised):
+        errors.append(
+            f"check 28: {_table} carries a remedy for {_code!r}, which no `_err(..)` in "
+            f"{_src_file.name} raises. A dead row is worse than a missing one: it reads as "
+            f"coverage, it is maintained as if it shipped, and the code it was written for "
+            f"was renamed or deleted without anything saying so."
+        )
+    # the shape of the sentence, and the tools it names
+    for _code, _text in sorted(_rows.items()):
+        _low = _text.lower()
+        if not _text.endswith("."):
+            errors.append(
+                f"check 28: {_table}[{_code!r}] does not end in a full stop. It is appended "
+                f"to a message the user reads as one line; a clause that trails off reads as "
+                f"truncation."
+            )
+        if len(_text) > _REMEDY_MAX:
+            errors.append(
+                f"check 28: {_table}[{_code!r}] is over the length ceiling. The remedy rides "
+                f"on every failure carrying this code; a paragraph is a cost paid on every "
+                f"one of them."
+            )
+        if not any(_low.startswith(_v) for _v in _REMEDY_IMPERATIVES):
+            errors.append(
+                f"check 28: {_table}[{_code!r}] does not open with a next action — it "
+                f"begins {_text.split()[0]!r}. A second description of the failure is what "
+                f"the message already carried."
+            )
+        for _tool in re.findall(r"`([a-z][a-z0-9_]+)`", _text):
+            remedy_tool_refs.append((_plane, _code, _tool))
+
+# c — the join. A remedy naming a tool that does not exist is an instruction the reader
+# cannot follow, and renaming a tool is exactly when it happens.
+_registered_for_remedies = set(registered_tools())
+for _plane, _code, _tool in remedy_tool_refs:
+    if _tool not in _registered_for_remedies:
+        errors.append(
+            f"check 28: the {_plane} remedy for {_code!r} tells the reader to call "
+            f"`{_tool}`, which no `registerTool(..)` in host/src/tools registers. The "
+            f"remedy is read by an agent that will try it; a renamed tool turns the one "
+            f"sentence that was supposed to unblock the call into a second failure."
+        )
+
+# d — the attach sites, on both sides of the wire. Source predicates, because the
+# alternative is a live editor and this file runs with no Godot at all.
+for _plane, _src_file, _table in _REMEDY_PLANES:
+    if "Remedies.remedy(code," not in _src_file.read_text():
+        errors.append(
+            f"check 28: {_src_file.name}'s `_err` does not call `Remedies.remedy(code, ..)`. "
+            f"The table can be complete and every row correct and not one of them crosses the "
+            f"wire: `_err` is the single point every failure on this plane passes through, "
+            f"which is why the attach is there and why its absence is checked here."
+        )
+
+for _rel in remedy_renderers:
+    _body = (ROOT / _rel).read_text()
+    for _m in re.finditer(r"function fail\w*\(err: unknown\)\s*{(.*?)\n}", _body, re.S):
+        if "Partial<BridgeError>" in _m.group(1) and "remedyClause(" not in _m.group(1):
+            errors.append(
+                f"check 28: {_rel} renders a `Partial<BridgeError>` into MCP text and does not "
+                f"append `remedyClause(err)`. The addon attached a next action and this plane "
+                f"drops it — invisible from the addon side, because the remedy is on the wire, "
+                f"and invisible from the host side, because the text still reads like a "
+                f"complete sentence."
+            )
+
+print(f"Error remedies         : "
+      f"{sum(len(v) for v in remedy_rows.values())} row(s) across {len(remedy_rows)} plane(s) "
+      f"· {len(remedy_tool_refs)} tool reference(s) joined to the registry "
+      f"· {len(remedy_renderers)} host renderer(s) checked")
+_ran("28")
+
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
 #
 # 192 §5 bound ONE branch to ONE handler: for each TypeScript branch, does the handler it
@@ -4352,6 +4546,20 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("xlang.ts_variant_tags", len(ts_variant_tags), 2,
      "the host stops being read as a PRODUCER of tagged Variants and check 23's TS half "
      "compares an empty set to a healthy GDScript side"),
+    # 🆕 254 — check 28's three populations. The remedy rows are the table itself; blind
+    # the reader and every code reads as remedied and every remedy as raised, because both
+    # directions of the join are computed from the SAME empty set and agree perfectly.
+    ("xlang.remedy_rows", sum(len(v) for v in remedy_rows.values()), 45,
+     "🔴 both halves of check 28's join go quiet at once — an empty table disagrees with "
+     "nothing, so a code shipped with no next action and a remedy for a code nobody raises "
+     "are equally invisible"),
+    ("xlang.remedy_tool_refs", len(remedy_tool_refs), 35,
+     "the remedies stop being joined to `registerTool`, so a renamed tool leaves the one "
+     "sentence that was supposed to unblock the caller naming a tool that does not exist"),
+    ("xlang.remedy_renderers", len(remedy_renderers), 5,
+     "🔴 the host half stops being read. Every `fail()` could drop `remedyClause` and the "
+     "addon would still attach a remedy to every failure — the wire stays correct and the "
+     "user reads the bare message, which is the state 254 measured"),
     ("xlang.addon_err_codes", len(addon_err_codes), 40,
      "🔴 EVERY TypeScript branch on an addon error code reads as dead — or, with the "
      "offender loop as written, none does: an empty right-hand side makes every `in` test "
