@@ -56,10 +56,17 @@ dispatch — the first thing every user touches — was covered by nothing.
 
 ### Added
 
-- **`host/test/cli_entry.test.ts`** — 20 tests that spawn the built binary and
+- **`host/test/cli_entry.test.ts`** — 21 tests that spawn the built binary and
   assert the entry-point contract: every `--version` spelling, every `--help`
   spelling, per-subcommand help, unknown arguments refused by name, and the claim
-  that no documented invocation starts a server. The suite is 726 → 743.
+  that no documented invocation starts a server. The suite is 726 → 744.
+- **CI builds the product before running the tests about it.** `npm test` compiles
+  the *suite* into `dist-test/` and every other test imports `../src/…`, so the
+  host-tests job had never produced `dist/` — the directory the published `bin`
+  points at, the only artifact a user executes — and nothing had ever noticed.
+  `cli_entry.test.ts` was the first thing in 744 tests to ask for it, and it asks
+  in one claim that names the missing artifact rather than twenty that describe
+  its absence.
 - **`init` warns about the reopen at the point it writes** (landed before this
   cut, unreleased until now): when `init` newly enables the plugin, its closing
   line says to close and reopen a project that is already open, and says why.

@@ -305,6 +305,14 @@ jobs:
           cache-dependency-path: host/package-lock.json
       - name: Install against the real registry (reproducible)
         run: npm ci
+      # 🔴 248 — THE PRODUCT IS BUILT HERE BECAUSE UNTIL 248 NOTHING NEEDED IT TO BE.
+      # `npm test` compiles the SUITE into `dist-test/` and every test in it imported
+      # `../src/…`, so `dist/` — the directory the published `bin` points at, the only
+      # artifact a user ever executes — was never produced by this job and no test
+      # noticed. `cli_entry.test.ts` spawns that binary, which is the whole point of it,
+      # and it was the first thing in 743 tests to ask for the build.
+      - name: Build the product the tests are about to run
+        run: npm run build
       - name: Compile the suite and run it (node:test)
         run: npm test
       # 🔴 THE GATE ON THE GATE. `_population.mjs` is the only thing standing between

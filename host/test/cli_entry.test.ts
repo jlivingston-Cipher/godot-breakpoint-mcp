@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -91,6 +91,22 @@ function run(args: string[]): Promise<Run> {
     child.stdin?.end();
   });
 }
+
+test("the entry point this file is about was actually built", () => {
+  // 🔴 FIRST, AND IT IS NOT CEREMONY. Every other test in this file spawns `dist/index.js`,
+  // so a tree where the product was never built fails all twenty with `MODULE_NOT_FOUND` —
+  // twenty identical stack traces saying nothing about the cause. It happened on this
+  // file's first CI run: `npm test` compiles the SUITE into `dist-test/` and every other
+  // test imports `../src/…`, so the host-tests job had never built `dist/` and nothing
+  // had ever asked it to. One claim that names the missing artifact is worth twenty that
+  // describe its absence.
+  assert.ok(
+    existsSync(ENTRY),
+    `${ENTRY} does not exist — run \`npm run build\` before \`npm test\`. ` +
+      "Every test below spawns that file; without it they fail as module-resolution " +
+      "errors that say nothing about why.",
+  );
+});
 
 for (const flag of ["--version", "-v", "-V", "version"]) {
   test(`\`${flag}\` prints the package version and exits 0`, async () => {
