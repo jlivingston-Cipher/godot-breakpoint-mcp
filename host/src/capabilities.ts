@@ -43,6 +43,7 @@
  * group, its state, the tools it gates, and exactly how to enable it.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 export type CapabilityGroup = "code-execution";
 
@@ -191,6 +192,89 @@ export function applyCapabilities(server: McpServer, enabled: ReadonlySet<Capabi
 }
 
 /**
+ * The JSON-RPC method `McpServer` registers its tool dispatcher under. Written as
+ * a literal because the SDK does not export the method string, and PINNED by
+ * `capabilities.test.ts`, which builds a real server and asserts the handler map
+ * carries exactly this key — so an SDK that renamed the method reddens a test
+ * rather than silently un-installing the refusal below.
+ */
+export const CALL_TOOL_METHOD = "tools/call";
+
+/**
+ * The message a withheld tool answers with, in place of the SDK's `not found`.
+ *
+ * 🔴 THE READER OF THIS SENTENCE IS USUALLY NOT A HUMAN. `mcp.js` throws
+ * `Tool <name> not found` for any name absent from its registry, and a dropped
+ * tool is absent for exactly that reason — so a deliberate configuration reads,
+ * to the assistant relaying it, as a feature this package does not have. It will
+ * report that absence to the user as fact. Every remedy is therefore named here
+ * and named *derived*: the group, the env var, the `init` preset and the resource
+ * that lists the rest. `not a missing feature` is in the first line because it is
+ * the sentence the reader is about to get wrong.
+ */
+export function droppedToolMessage(name: string): string {
+  const groups = TOOL_CAPABILITIES[name] ?? [];
+  const list = groups.join(", ");
+  return (
+    `Tool ${name} exists in this server but is WITHHELD BY POLICY — it is not a missing feature. ` +
+    `It belongs to the higher-trust capability group${groups.length === 1 ? "" : "s"} ` +
+    `'${list}', which ${groups.length === 1 ? "is" : "are"} OFF by default. ` +
+    `Enable it by setting BREAKPOINT_PRIVILEGED_GROUPS=${list} in this server's env, ` +
+    `or by re-running \`npx breakpoint-mcp init --trust full\`. ` +
+    `Read the godot://capabilities resource for every group, its state, and the full withheld list.`
+  );
+}
+
+/**
+ * Make a call to a DROPPED tool answer with the policy instead of the SDK's
+ * `Tool <name> not found`. Call ONCE, after every `register*Tools()` — the
+ * dispatcher does not exist until the first `registerTool`, and wrapping it
+ * earlier would wrap nothing.
+ *
+ * 🔴 THIS DELIBERATELY DOES NOT REGISTER THE TOOL. Least-privilege by
+ * construction is the point of the drop: `tools/list` stays at 279 and no
+ * withheld schema crosses the wire, so `wire_diff`, `token-cost` and every floor
+ * over the advertised surface are unmoved. The ONLY thing that changes is the
+ * sentence a caller gets back when it asks for one by name — which is the whole
+ * defect, because the tool was never the problem.
+ *
+ * Wrapping the map entry rather than calling `setRequestHandler` is not a
+ * shortcut: the SDK stores an already-parsed wrapper there, so re-registering
+ * would mean re-implementing dispatch. This preserves it and adds one branch in
+ * front, the same monkeypatch idiom `applyCapabilities` uses one function up.
+ */
+export function applyDroppedToolRefusal(server: McpServer, enabled: ReadonlySet<CapabilityGroup>): void {
+  const dropped = new Set(droppedTools(enabled));
+  if (dropped.size === 0) return;
+
+  type RawHandler = (request: unknown, extra: unknown) => Promise<unknown>;
+  const proto = (server as unknown as { server?: { _requestHandlers?: Map<string, RawHandler> } }).server;
+  const handlers = proto?._requestHandlers;
+  const inner = handlers?.get(CALL_TOOL_METHOD);
+  // No dispatcher means no tool was ever registered — nothing to guard, and
+  // installing a handler here would answer for a surface that does not exist.
+  if (!handlers || !inner) return;
+
+  handlers.set(CALL_TOOL_METHOD, async (request: unknown, extra: unknown) => {
+    const name = (request as { params?: { name?: unknown } } | undefined)?.params?.name;
+    if (typeof name === "string" && dropped.has(name)) {
+      // 🔴 THE SAME SHAPE `not found` ALREADY HAD, AND ONLY THE SENTENCE CHANGED.
+      // `mcp.js` catches its own `McpError` and answers with an isError
+      // CallToolResult — it does NOT throw — so a refusal that threw would be a
+      // protocol error where every other failure on this surface is a tool
+      // error, and clients treat the two differently. The defect was one
+      // sentence; the fix is one sentence. The code is carried for the client
+      // that reads it, and it is InvalidParams for the same reason the SDK's is.
+      return {
+        content: [{ type: "text", text: `MCP error ${ErrorCode.InvalidParams}: ${droppedToolMessage(name)}` }],
+        isError: true,
+      };
+    }
+    return inner(request, extra);
+  });
+}
+
+/**
  * Register the always-on `godot://capabilities` resource: a read-only listing of
  * the capability groups, their enabled/disabled state, exactly which tools each
  * gates, the dropped set, and the env one-liner to enable them. Registered
@@ -217,14 +301,25 @@ export function registerCapabilitiesResource(server: McpServer, enabled: Readonl
           .filter((name) => (TOOL_CAPABILITIES[name] ?? []).includes(g))
           .sort(),
       }));
+      // 🔴 BOTH OF THESE ARE DERIVED FROM `CAPABILITY_GROUPS`, AND THAT IS THE
+      // FIX RATHER THAN A TIDY-UP. Until 250 this resource announced "Two
+      // higher-trust tool groups" and offered `'network'` — a group deleted from
+      // this file's own header, whose token `selectPrivilegedGroups` reports as
+      // unknown and ignores. The always-on affordance that exists so a withheld
+      // tool is never a silent gap was telling its reader to type something the
+      // parser refuses. A restated count goes stale in silence; a derived one
+      // cannot, which is 198 §36's rule applied to a sentence instead of a floor.
+      const groupList = CAPABILITY_GROUPS.map((g) => `'${g}'`).join(", ");
       const payload = {
         summary:
-          "Two higher-trust tool groups are OFF by default. A disabled group's tools are not registered (omitted from tools/list). Enable a group to load its tools.",
+          `${CAPABILITY_GROUPS.length} higher-trust tool group(s) — ${CAPABILITY_GROUPS.join(", ")} — are OFF by default. ` +
+          "A disabled group's tools are not registered (omitted from tools/list), and calling one by name is refused with a message naming this resource — never with `not found`. Enable a group to load its tools.",
         default_secure: enabled.size === 0,
         enabled_groups: [...enabled].sort(),
         dropped_tools: droppedTools(enabled),
         how_to_enable:
-          "Set BREAKPOINT_PRIVILEGED_GROUPS in the MCP server env (comma-separated): 'code-execution', 'network', 'code-execution,network', or 'all'. Or re-run `npx breakpoint-mcp init` for a guided setup.",
+          `Set BREAKPOINT_PRIVILEGED_GROUPS in the MCP server env (comma-separated), from: ${groupList}, or 'all'. ` +
+          "Or re-run `npx breakpoint-mcp init --trust full` for a guided setup.",
         groups,
       };
       return {

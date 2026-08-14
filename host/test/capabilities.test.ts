@@ -1,13 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { buildToolsets } from "../src/toolsets.js";
 import { applyOutputSchemas } from "../src/schemas.js";
 import { loadConfig } from "../src/config.js";
 import {
+  CALL_TOOL_METHOD,
   CAPABILITY_GROUPS,
   GROUP_DESCRIBE,
   TOOL_CAPABILITIES,
   applyCapabilities,
+  applyDroppedToolRefusal,
   droppedTools,
   parsePrivilegedGroups,
   registerCapabilitiesResource,
@@ -220,4 +226,229 @@ test("an openWorld tool is gated by a group that admits egress", () => {
     (t) => !(TOOL_CAPABILITIES[t] ?? []).some((g) => EGRESS.test(GROUP_DESCRIBE[g])),
   );
   assert.deepEqual(ungated, [], `openWorld but not gated by an egress group: ${ungated.join(", ")}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 250 — a withheld tool must not spell itself `not found`
+//
+// 249 §1.3 walked the published package and asked for three tools the quick
+// start names. All three answered `MCP error -32602: Tool <name> not found`,
+// because a dropped tool is absent from `mcp.js`'s registry for exactly the same
+// reason a misspelled one is. The sentence is grammatical, accurate about the
+// lookup, and wrong about the world — and its reader is usually the assistant,
+// which reports the absence to a user as fact.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Build a real McpServer with one tool registered, so the SDK installs its dispatcher. */
+function realServerWithOneTool() {
+  const server = new McpServer({ name: "capabilities-probe", version: "0" });
+  server.registerTool("probe_ok", { description: "always registered" }, async () => ({
+    content: [{ type: "text" as const, text: "ok" }],
+  }));
+  return server;
+}
+
+type RawHandlers = Map<string, (req: unknown, extra: unknown) => Promise<unknown>>;
+const handlersOf = (s: McpServer): RawHandlers =>
+  (s as unknown as { server: { _requestHandlers: RawHandlers } }).server._requestHandlers;
+
+/**
+ * The literal `applyDroppedToolRefusal` reaches for, pinned against the SDK
+ * rather than restated. An SDK that renamed the method would otherwise
+ * un-install the refusal in silence — the wrap would find no handler, return
+ * early, and every withheld tool would go back to saying `not found` with no
+ * test going red. 245's rule: a new branch needs its red before anything else.
+ */
+test("CALL_TOOL_METHOD is the method the SDK actually dispatches tools under", () => {
+  const server = realServerWithOneTool();
+  assert.ok(
+    handlersOf(server).has(CALL_TOOL_METHOD),
+    `the SDK registered no handler under '${CALL_TOOL_METHOD}' — the refusal wrap would silently no-op`,
+  );
+});
+
+type ToolResult = { content?: Array<{ text?: string }>; isError?: boolean };
+const callTool = (s: McpServer, name: string) =>
+  handlersOf(s).get(CALL_TOOL_METHOD)!(
+    { method: CALL_TOOL_METHOD, params: { name, arguments: {} } },
+    {},
+  ) as Promise<ToolResult>;
+
+test("a withheld tool names the policy, and never `not found`", async () => {
+  const server = realServerWithOneTool();
+  applyDroppedToolRefusal(server, selectPrivilegedGroups(null));
+
+  for (const name of ALL_PRIVILEGED) {
+    const res = await callTool(server, name);
+    assert.equal(res.isError, true, `${name} was withheld but the call did not refuse`);
+    const msg = res.content?.[0]?.text ?? "";
+    assert.ok(!/not found/i.test(msg), `${name} still reads as missing: ${msg}`);
+    assert.match(msg, /WITHHELD BY POLICY/, `${name} does not say it is a policy: ${msg}`);
+    assert.match(msg, /not a missing feature/i, `${name} does not correct the reader: ${msg}`);
+    assert.match(msg, /BREAKPOINT_PRIVILEGED_GROUPS=/, `${name} names no env remedy: ${msg}`);
+    assert.match(msg, /--trust full/, `${name} names no init preset: ${msg}`);
+    assert.match(msg, /godot:\/\/capabilities/, `${name} names no resource: ${msg}`);
+  }
+});
+
+/**
+ * 🔴 THE REFUSAL KEEPS THE TRANSPORT SHAPE `not found` ALREADY HAD. `mcp.js`
+ * catches its own McpError and answers with an isError CallToolResult rather
+ * than throwing, so a refusal that threw would be a PROTOCOL error where every
+ * other failure on this surface is a TOOL error — a second behaviour change
+ * nobody asked for, riding along with a copy fix. The defect was one sentence.
+ */
+test("the refusal is a tool error, not a protocol error — same shape as before", async () => {
+  const server = realServerWithOneTool();
+  applyDroppedToolRefusal(server, selectPrivilegedGroups(null));
+  const withheld = await callTool(server, "dbg_evaluate");
+  const absent = await callTool(server, "no_such_tool");
+  assert.equal(withheld.isError, true);
+  assert.equal(absent.isError, true, "the SDK's own miss is an isError result; the refusal must match it");
+  assert.equal(typeof withheld.content?.[0]?.text, "string");
+});
+
+test("the refusal is confined to withheld names — a registered tool still runs", async () => {
+  const server = realServerWithOneTool();
+  applyDroppedToolRefusal(server, selectPrivilegedGroups(null));
+  const res = await callTool(server, "probe_ok");
+  assert.equal(res.content?.[0]?.text, "ok");
+  assert.notEqual(res.isError, true);
+});
+
+test("an unknown name is still the SDK's `not found` — the refusal claims only the withheld", async () => {
+  const server = realServerWithOneTool();
+  applyDroppedToolRefusal(server, selectPrivilegedGroups(null));
+  const res = await callTool(server, "no_such_tool");
+  const msg = res.content?.[0]?.text ?? "";
+  assert.match(msg, /not found/i, `a genuinely absent tool must still read as absent: ${msg}`);
+  assert.ok(!/WITHHELD BY POLICY/.test(msg), `a typo must not be dressed as a policy: ${msg}`);
+});
+
+test("with the group enabled nothing is withheld and the wrap installs no branch", async () => {
+  const server = realServerWithOneTool();
+  const before = handlersOf(server).get(CALL_TOOL_METHOD);
+  applyDroppedToolRefusal(server, selectPrivilegedGroups(["all"]));
+  assert.equal(handlersOf(server).get(CALL_TOOL_METHOD), before, "nothing is dropped, so nothing should be wrapped");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 250 — and the remedies must name a group that exists
+//
+// Every string below told a user to type `network`, a group deleted from
+// capabilities.ts's own header. `init` printed it as the fix and then answered
+// its own suggested command with `ignoring unknown trust group(s): network`.
+// This reads the shipped source for the shape `<flag>=<tokens>` and asks
+// `selectPrivilegedGroups` — the real parser — whether every token resolves.
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Climb to the package root rather than assuming a depth — 248's lesson in
+ * `cli_entry.test.ts`, and this file is run from `test/` under tsx AND from
+ * `dist-test/test/` under `npm test`, so a fixed `..` is silently wrong in the
+ * one CI runs. It was, on the first draft of the reader below.
+ */
+function packageRoot(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 6; i++) {
+    try {
+      const pkg = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as { name?: string };
+      if (pkg.name === "breakpoint-mcp") return dir;
+    } catch {
+      /* keep climbing */
+    }
+    dir = path.dirname(dir);
+  }
+  throw new Error("could not locate the breakpoint-mcp package root from " + import.meta.url);
+}
+
+test("no shipped string offers a privileged-group token the parser would reject", () => {
+  const root = packageRoot();
+  const files = [
+    "src/capabilities.ts",
+    "src/cli/doctor.ts",
+    "src/cli/init.ts",
+    "src/cli/tools.ts",
+    "src/index.ts",
+  ];
+  const OFFER = /(?:BREAKPOINT_PRIVILEGED_GROUPS=|--privileged-groups\s+)([A-Za-z0-9_,-]+)/g;
+
+  /** Read one blob of source and name every group token the parser would drop. */
+  const scan = (label: string, text: string): string[] => {
+    const found: string[] = [];
+    for (const m of text.matchAll(OFFER)) {
+      const raw = m[1];
+      // A template hole is derived from CAPABILITY_GROUPS by construction.
+      if (raw.includes("$")) continue;
+      const unknown: string[] = [];
+      selectPrivilegedGroups(parsePrivilegedGroups(raw), (u) => unknown.push(...u));
+      for (const u of unknown) found.push(`${label}: offers '${u}' in "${raw}"`);
+    }
+    return found;
+  };
+
+  // 🔴 THE POSITIVE CONTROL IS THE TREE AS IT SHIPPED, and it is not decoration:
+  // a reader over source that can only ever return `[]` is green for the same
+  // reason a broken one is. These are `doctor.ts`'s hint and `init.ts`'s
+  // suggested command, verbatim, from before this commit.
+  assert.deepEqual(
+    scan(
+      "control",
+      'hint: "Enable with BREAKPOINT_PRIVILEGED_GROUPS=code-execution,network (or `breakpoint-mcp init --trust full`)."\n' +
+        'say("Enable them by re-running with `--trust full` (or `--privileged-groups code-execution,network`),");',
+    ),
+    ["control: offers 'network' in \"code-execution,network\"", "control: offers 'network' in \"code-execution,network\""],
+    "the reader cannot flag the pre-250 copy it was written to catch",
+  );
+
+  const offenders = files.flatMap((rel) => scan(rel, readFileSync(path.join(root, rel), "utf8")));
+  assert.deepEqual(
+    offenders.sort(),
+    [],
+    `shipped copy names group token(s) selectPrivilegedGroups drops:\n  ${offenders.join("\n  ")}`,
+  );
+});
+
+test("the capabilities resource states its group count derived, not restated", async () => {
+  const contents: Array<{ text: string }> = [];
+  const server = {
+    registerResource(
+      _n: string,
+      _u: string,
+      _m: unknown,
+      read: (uri: URL) => Promise<{ contents: Array<{ text: string }> }>,
+    ) {
+      void read(new URL("godot://capabilities")).then((r) => contents.push(...r.contents));
+    },
+  } as unknown as McpServer;
+  registerCapabilitiesResource(server, selectPrivilegedGroups(null));
+  await new Promise((r) => setTimeout(r, 0));
+  const payload = JSON.parse(contents[0].text) as { summary: string; how_to_enable: string };
+  assert.ok(
+    payload.summary.startsWith(`${CAPABILITY_GROUPS.length} higher-trust tool group(s)`),
+    `summary restates a count: ${payload.summary}`,
+  );
+
+  /** Every `'token'` the prose offers, minus the ones the parser resolves. */
+  const unresolved = (s: string): string[] => {
+    const unknown: string[] = [];
+    for (const tok of s.match(/'[a-z-]+'/g) ?? []) {
+      const t = tok.slice(1, -1);
+      if (t === "all") continue;
+      selectPrivilegedGroups(parsePrivilegedGroups(t), (u) => unknown.push(...u));
+    }
+    return unknown;
+  };
+
+  // The positive control, and it is the exact sentence this resource shipped
+  // until 250 — without it the two assertions below are green over a reader
+  // that may never be able to say anything.
+  assert.deepEqual(
+    unresolved("Set BREAKPOINT_PRIVILEGED_GROUPS …: 'code-execution', 'network', or 'all'."),
+    ["network"],
+    "the reader cannot flag the very string this test was written for",
+  );
+
+  for (const s of [payload.summary, payload.how_to_enable]) {
+    assert.deepEqual(unresolved(s), [], `the resource offers unknown group token(s) in: ${s}`);
+  }
 });
