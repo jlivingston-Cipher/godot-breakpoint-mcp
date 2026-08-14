@@ -4283,306 +4283,308 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 
 ## Tool Index
 
+**Reading the `Plane` column.** The backticked id is the tool's **toolset** — the exact string you put in `BREAKPOINT_TOOLSETS` to load it — derived from `host/src/toolsets.ts`, not typed here: `contract_check.py`'s check 4d refuses a cell naming a different group than the one the tool is registered in, a cell with no id at all, and an id `toolsets.ts` does not define. The letter after it is the authoring **group** this document is navigated by, and it stays prose: the two vocabularies are deliberately different shapes, since the one `editor` toolset spans groups A and C–K while group M is two toolsets — `netcode` and `backend`. Before the id was here the groups were verified by COUNT alone, and a tool moving between toolsets left every number in the tree green.
+
 **Reading the `Destructive` column.** The **✔** is the tool's MCP `destructiveHint` annotation, exactly as it crosses the wire — *may overwrite or discard state the caller did not supply* — and it is derived from `host/src/annotations.ts`, not typed here: `contract_check.py`'s check 4 refuses a ✔ this file and that file disagree about, in either direction — and check 4c holds the same ✔ on each tool's own section heading to the same roster, so the table and the page cannot drift apart either. The words beside it say **what** the tool writes and are a note, not a flag. The two are different questions and this column used to conflate them: `undoable` describes how you get your work back, and a tool can be undoable and destructive at once.
 
 | Tool | Plane | Status | Destructive |
 |---|---|---|---|
-| `breakpoint_doctor` | B / CLI | ✅ | – |
-| `godot_version` | B / CLI | ✅ | – |
-| `godot_launch_editor` | B / CLI | ✅ | – |
-| `godot_run_project` | B / CLI | ✅ | – |
-| `godot_export` | B / CLI | ✅ | writes artifacts |
-| `godot_import` | B / CLI | ✅ | – |
-| `godot_run_headless_script` | B / CLI | ✅ | ✔ runs code |
-| `editor_ping` | A / Editor | ✅ | – |
-| `editor_get_state` | A / Editor | ✅ | – |
-| `editor_undo` | A / Editor | ✅ | – |
-| `editor_redo` | A / Editor | ✅ | – |
-| `project_get_info` | A / Editor | ✅ | – |
-| `project_get_setting` | A / Editor | ✅ | – |
-| `project_set_setting` | A / Editor | ✅ | ✔ |
-| `scene_get_tree` | A / Editor | ✅ | – |
-| `scene_open` | A / Editor | ✅ | – |
-| `scene_save` | A / Editor | ✅ | writes file |
-| `scene_new` | A / Editor | ✅ | ✔ writes file |
-| `scene_list_open` | A / Editor | ✅ | – |
-| `scene_reload` | A / Editor | ✅ | ✔ |
-| `scene_close` | A / Editor | ✅ | ✔ |
-| `scene_pack` | A / Editor | ✅ | ✔ writes file |
-| `scene_get_dependencies` | A / Editor | ✅ | – |
-| `scene_save_as` | A / Editor | ✅ | ✔ writes file |
-| `node_add` | A / Editor | ✅ | undoable |
-| `node_delete` | A / Editor | ✅ | ✔ undoable |
-| `node_rename` | A / Editor | ✅ | undoable |
-| `node_reparent` | A / Editor | ✅ | undoable |
-| `node_set_property` | A / Editor | ✅ | undoable |
-| `node_get_property` | A / Editor | ✅ | – |
-| `node_duplicate` | A / Editor | ✅ | undoable |
-| `node_get_children` | A / Editor | ✅ | – |
-| `node_find` | A / Editor | ✅ | – |
-| `node_list_groups` | A / Editor | ✅ | – |
-| `node_add_to_group` | A / Editor | ✅ | undoable |
-| `node_remove_from_group` | A / Editor | ✅ | ✔ undoable |
-| `node_instantiate_scene` | A / Editor | ✅ | undoable |
-| `node_move_child` | A / Editor | ✅ | undoable |
-| `node_change_type` | A / Editor | ✅ | ✔ undoable |
-| `node_set_owner` | A / Editor | ✅ | undoable |
-| `node_set_editable_instance` | A / Editor | ✅ | undoable |
-| `node_call_method` | A / Editor | ✅ | ✔ |
-| `node_get_path` | A / Editor | ✅ | – |
-| `node_list_properties` | A / Editor | ✅ | – |
-| `signal_list` | A / Editor | ✅ | – |
-| `signal_list_connections` | A / Editor | ✅ | – |
-| `signal_connect` | A / Editor | ✅ | undoable |
-| `signal_disconnect` | A / Editor | ✅ | ✔ undoable |
-| `signal_add_user_signal` | A / Editor | ✅ | undoable |
-| `signal_emit` | A / Editor | ✅ | ✔ |
-| `selection_get` | A / Editor | ✅ | – |
-| `selection_set` | A / Editor | ✅ | – |
-| `main_screen_get` | A / Editor | ✅ | – |
-| `main_screen_set` | A / Editor | ✅ | – |
-| `classdb_get_class` | A / Editor | ✅ | – |
-| `screenshot_editor` | A / Editor | ✅ | – |
-| `resource_create` | A / Editor | ✅ | ✔ writes file |
-| `resource_load` | A / Editor | ✅ | – |
-| `resource_save` | A / Editor | ✅ | ✔ writes file |
-| `resource_duplicate` | A / Editor | ✅ | ✔ writes file |
-| `resource_get_property` | A / Editor | ✅ | – |
-| `resource_set_property` | A / Editor | ✅ | ✔ writes file |
-| `resource_get_import_settings` | A / Editor | ✅ | – |
-| `resource_set_import_settings` | A / Editor | ✅ | ✔ reimports |
-| `filesystem_list` | A / Editor | ✅ | – |
-| `filesystem_scan` | A / Editor | ✅ | – |
-| `filesystem_move` | A / Editor | ✅ | ✔ moves file |
-| `filesystem_create_dir` | A / Editor | ✅ | writes dir |
-| `anim_player_create` | C / Editor | ✅ | – |
-| `anim_create` | C / Editor | ✅ | – |
-| `anim_delete` | C / Editor | ✅ | ✔ gated |
-| `anim_add_track` | C / Editor | ✅ | – |
-| `anim_insert_key` | C / Editor | ✅ | – |
-| `anim_remove_key` | C / Editor | ✅ | ✔ removes key |
-| `anim_set_length` | C / Editor | ✅ | – |
-| `anim_set_loop` | C / Editor | ✅ | – |
-| `anim_get_track_keys` | C / Editor | ✅ | – |
-| `anim_list` | C / Editor | ✅ | – |
-| `anim_tree_create` | C / Editor | ✅ | – |
-| `anim_tree_add_node` | C / Editor | ✅ | – |
-| `anim_statemachine_add_state` | C / Editor | ✅ | – |
-| `anim_statemachine_add_transition` | C / Editor | ✅ | – |
-| `tileset_create` | D / Editor | ✅ | ✔ writes file |
-| `tileset_add_source` | D / Editor | ✅ | writes file |
-| `tileset_add_tile` | D / Editor | ✅ | writes file |
-| `tileset_set_tile_collision` | D / Editor | ✅ | ✔ writes file |
-| `tilemaplayer_create` | D / Editor | ✅ | undoable |
-| `tilemap_set_cell` | D / Editor | ✅ | ✔ undoable |
-| `tilemap_set_cells_rect` | D / Editor | ✅ | ✔ undoable |
-| `tilemap_get_cell` | D / Editor | ✅ | – |
-| `tilemap_clear` | D / Editor | ✅ | ✔ undoable |
-| `body_create` | E / Editor | ✅ | undoable |
-| `collisionshape_add` | E / Editor | ✅ | undoable |
-| `body_set_collision_layer` | E / Editor | ✅ | undoable |
-| `body_set_collision_mask` | E / Editor | ✅ | undoable |
-| `area_set_monitoring` | E / Editor | ✅ | undoable |
-| `area_set_gravity` | E / Editor | ✅ | undoable |
-| `joint_create` | E / Editor | ✅ | undoable |
-| `joint_set_bodies` | E / Editor | ✅ | undoable |
-| `collisionpolygon_add` | E / Editor | ✅ | undoable |
-| `rigidbody_set_properties` | E / Editor | ✅ | undoable |
-| `body_set_physics_material` | E / Editor | ✅ | undoable |
-| `physics_set_gravity` | E / Editor | ✅ | ✔ writes setting |
-| `particles_create` | F / Editor | ✅ | undoable |
-| `particles_set_process_material` | F / Editor | ✅ | undoable |
-| `particles_set_amount` | F / Editor | ✅ | undoable |
-| `particles_set_lifetime` | F / Editor | ✅ | undoable |
-| `particles_set_emitting` | F / Editor | ✅ | undoable |
-| `particles_set_texture` | F / Editor | ✅ | undoable |
-| `shader_create` | F / Editor | ✅ | ✔ writes file |
-| `shader_set_code` | F / Editor | ✅ | ✔ writes file |
-| `shadermaterial_create` | F / Editor | ✅ | ✔ undoable |
-| `shadermaterial_set_shader` | F / Editor | ✅ | ✔ undoable |
-| `shadermaterial_set_param` | F / Editor | ✅ | ✔ undoable |
-| `audio_player_create` | F / Editor | ✅ | undoable |
-| `audio_set_stream` | F / Editor | ✅ | undoable |
-| `audio_bus_add` | F / Editor | ✅ | project-wide |
-| `audio_bus_add_effect` | F / Editor | ✅ | project-wide |
-| `audio_bus_set_volume` | F / Editor | ✅ | ✔ project-wide |
-| `audio_set_bus_layout` | F / Editor | ✅ | ✔ writes file |
-| `control_create` | G / Editor | ✅ | undoable |
-| `container_add_child` | G / Editor | ✅ | undoable |
-| `control_set_anchors` | G / Editor | ✅ | undoable |
-| `control_set_layout_preset` | G / Editor | ✅ | undoable |
-| `control_set_size_flags` | G / Editor | ✅ | undoable |
-| `control_set_theme` | G / Editor | ✅ | undoable |
-| `theme_create` | G / Editor | ✅ | ✔ writes file |
-| `theme_set_color` | G / Editor | ✅ | ✔ writes file |
-| `theme_set_font` | G / Editor | ✅ | ✔ writes file |
-| `theme_set_stylebox` | G / Editor | ✅ | ✔ writes file |
-| `theme_set_constant` | G / Editor | ✅ | ✔ writes file |
-| `meshinstance_create` | H / Editor | ✅ | undoable |
-| `mesh_set_surface_material` | H / Editor | ✅ | undoable |
-| `primitive_mesh_create` | H / Editor | ✅ | ✔ writes file |
-| `light_create` | H / Editor | ✅ | undoable |
-| `camera_create` | H / Editor | ✅ | undoable |
-| `csg_create` | H / Editor | ✅ | undoable |
-| `navregion_create` | H / Editor | ✅ | undoable |
-| `navagent_configure` | H / Editor | ✅ | undoable |
-| `environment_create` | H / Editor | ✅ | ✔ writes file |
-| `environment_set_sky` | H / Editor | ✅ | ✔ writes file |
-| `inputmap_add_action` | I / Editor | ✅ | ✔ writes setting |
-| `inputmap_add_event` | I / Editor | ✅ | writes setting |
-| `inputmap_list` | I / Editor | ✅ | – |
-| `inputmap_erase_action` | I / Editor | ✅ | ✔ writes setting |
-| `project_add_autoload` | I / Editor | ✅ | ✔ writes setting |
-| `project_remove_autoload` | I / Editor | ✅ | ✔ writes setting |
-| `project_add_export_preset` | I / Editor | ✅ | writes file |
-| `project_set_main_scene` | I / Editor | ✅ | ✔ writes setting |
-| `project_list_settings` | I / Editor | ✅ | – |
-| `editorsettings_get_set` | I / Editor | ✅ | ✔ on set |
-| `test_detect` | I / Editor | ✅ | – |
-| `test_list` | I / Editor | ✅ | – |
-| `gd_completion` | D / LSP | ✅ | – |
-| `gd_hover` | D / LSP | ✅ | – |
-| `gd_definition` | D / LSP | ✅ | – |
-| `gd_references` | D / LSP | ✅ | – |
-| `gd_rename` | D / LSP | ✅ | ✔ |
-| `gd_document_symbols` | D / LSP | ✅ | – |
-| `gd_workspace_symbols` | D / LSP | ⚠️ engine-missing (handled) | – |
-| `gd_diagnostics` | D / LSP | ✅ | – |
-| `gd_signature_help` | D / LSP | ✅ | – |
-| `gd_code_action` | D / LSP | ⚠️ engine-dependent (handled) | – |
-| `gd_document_highlight` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_type_definition` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_implementation` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_declaration` | D / LSP | ✅ confirmed live (4.3) | – |
-| `gd_folding_ranges` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_document_link` | D / LSP | ✅ confirmed live (4.3) | – |
-| `gd_formatting` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_document_color` | D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_call_hierarchy` | D / LSP | ⚠️ engine-missing through 4.7 (handled) | – |
-| `gd_semantic_tokens` | D / LSP | ⚠️ engine-missing through 4.7 (handled) | – |
-| `cs_completion` | D / C# LSP | ✅ | – |
-| `cs_hover` | D / C# LSP | ✅ | – |
-| `cs_definition` | D / C# LSP | ✅ | – |
-| `cs_references` | D / C# LSP | ✅ | – |
-| `cs_rename` | D / C# LSP | ✅ | ✔ |
-| `cs_document_symbols` | D / C# LSP | ✅ | – |
-| `cs_workspace_symbols` | D / C# LSP | ✅ (OmniSharp implements it) | – |
-| `cs_signature_help` | D / C# LSP | ✅ | – |
-| `cs_diagnostics` | D / C# LSP | ✅ | – |
-| `cs_code_action` | D / C# LSP | ✅ (OmniSharp implements it) | – |
-| `dbg_launch` | D / DAP | ✅ | runs code |
-| `dbg_attach` | D / DAP | ✅ | – |
-| `dbg_set_breakpoints` | D / DAP | ✅ | – |
-| `dbg_continue` | D / DAP | ✅ | – |
-| `dbg_step` | D / DAP | ✅ | – |
-| `dbg_stack_trace` | D / DAP | ✅ | – |
-| `dbg_scopes` | D / DAP | ✅ | – |
-| `dbg_variables` | D / DAP | ✅ | – |
-| `dbg_evaluate` | D / DAP | ✅ | ✔ arbitrary code |
-| `dbg_watch` | D / DAP | ✅ | – |
-| `dbg_set_exception_breakpoints` | D / DAP | ✅ | – |
-| `dbg_set_variable` | D / DAP | ✅ | ✔ mutates state |
-| `dbg_restart` | D / DAP | ✅ | – |
-| `dbg_goto` | D / DAP | ✅ | ✔ moves execution |
-| `dbg_data_breakpoints` | D / DAP | ✅ | – |
-| `cs_dbg_launch` | D / C# DAP | ✅ | runs code |
-| `cs_dbg_attach` | D / C# DAP | ✅ | – |
-| `cs_dbg_set_breakpoints` | D / C# DAP | ✅ | – |
-| `cs_dbg_continue` | D / C# DAP | ✅ | – |
-| `cs_dbg_step` | D / C# DAP | ✅ | – |
-| `cs_dbg_stack_trace` | D / C# DAP | ✅ | – |
-| `cs_dbg_scopes` | D / C# DAP | ✅ | – |
-| `cs_dbg_variables` | D / C# DAP | ✅ | – |
-| `cs_dbg_evaluate` | D / C# DAP | ✅ | ✔ arbitrary code |
-| `cs_dbg_set_variable` | D / C# DAP | ✅ | ✔ mutates state |
-| `cs_dbg_watch` | D / C# DAP | ✅ | – |
-| `cs_dbg_set_exception_breakpoints` | D / C# DAP | ✅ | – |
-| `cs_dbg_restart` | D / C# DAP | ✅ | – |
-| `runtime_get_tree` | C / Runtime | ✅ | – |
-| `runtime_get_property` | C / Runtime | ✅ | – |
-| `runtime_set_property` | C / Runtime | ✅ | ✔ |
-| `runtime_call_method` | C / Runtime | ✅ | ✔ arbitrary invocation |
-| `runtime_emit_signal` | C / Runtime | ✅ | ✔ |
-| `runtime_inject_input` | C / Runtime | ✅ | ✔ |
-| `runtime_get_monitors` | C / Runtime | ✅ | – |
-| `runtime_screenshot` | C / Runtime | ✅ | – |
-| `runtime_get_log` | C / Runtime | ✅ | – |
-| `runtime_assert_node_state` | C / Runtime | ✅ | – |
-| `runtime_assert_scene_structure` | C / Runtime | ✅ | – |
-| `runtime_assert_perf` | C / Runtime | ✅ | – |
-| `runtime_assert_screen_text` | C / Runtime | ✅ | – |
-| `runtime_screenshot_diff` | C / Runtime | ✅ | – |
-| `runtime_await_condition` | C / Runtime | ✅ | – |
-| `runtime_anim_play` | C / Runtime | ✅ | ✔ |
-| `runtime_anim_stop` | C / Runtime | ✅ | ✔ |
-| `runtime_anim_get_state` | C / Runtime | ✅ | – |
-| `runtime_node_add` | C / Runtime | ✅ | adds node |
-| `runtime_node_remove` | C / Runtime | ✅ | ✔ |
-| `runtime_time_scale` | C / Runtime | ✅ | ✔ |
-| `runtime_step_frames` | C / Runtime | ✅ | ✔ |
-| `runtime_state_digest` | C / Runtime | ✅ | – |
-| `runtime_seed_rng` | C / Runtime | ✅ | ✔ |
-| `runtime_spawn_peers` | C / Runtime | ✅ | – *(higher-trust: `code-execution`)* |
-| `runtime_peer_stop` | C / Runtime | ✅ | ✔ |
-| `runtime_peers_digest` | C / Runtime | ✅ | – |
+| `breakpoint_doctor` | `cli` · B / CLI | ✅ | – |
+| `godot_version` | `cli` · B / CLI | ✅ | – |
+| `godot_launch_editor` | `cli` · B / CLI | ✅ | – |
+| `godot_run_project` | `cli` · B / CLI | ✅ | – |
+| `godot_export` | `cli` · B / CLI | ✅ | writes artifacts |
+| `godot_import` | `cli` · B / CLI | ✅ | – |
+| `godot_run_headless_script` | `cli` · B / CLI | ✅ | ✔ runs code |
+| `editor_ping` | `editor` · A / Editor | ✅ | – |
+| `editor_get_state` | `editor` · A / Editor | ✅ | – |
+| `editor_undo` | `editor` · A / Editor | ✅ | – |
+| `editor_redo` | `editor` · A / Editor | ✅ | – |
+| `project_get_info` | `editor` · A / Editor | ✅ | – |
+| `project_get_setting` | `editor` · A / Editor | ✅ | – |
+| `project_set_setting` | `editor` · A / Editor | ✅ | ✔ |
+| `scene_get_tree` | `editor` · A / Editor | ✅ | – |
+| `scene_open` | `editor` · A / Editor | ✅ | – |
+| `scene_save` | `editor` · A / Editor | ✅ | writes file |
+| `scene_new` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `scene_list_open` | `editor` · A / Editor | ✅ | – |
+| `scene_reload` | `editor` · A / Editor | ✅ | ✔ |
+| `scene_close` | `editor` · A / Editor | ✅ | ✔ |
+| `scene_pack` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `scene_get_dependencies` | `editor` · A / Editor | ✅ | – |
+| `scene_save_as` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `node_add` | `editor` · A / Editor | ✅ | undoable |
+| `node_delete` | `editor` · A / Editor | ✅ | ✔ undoable |
+| `node_rename` | `editor` · A / Editor | ✅ | undoable |
+| `node_reparent` | `editor` · A / Editor | ✅ | undoable |
+| `node_set_property` | `editor` · A / Editor | ✅ | undoable |
+| `node_get_property` | `editor` · A / Editor | ✅ | – |
+| `node_duplicate` | `editor` · A / Editor | ✅ | undoable |
+| `node_get_children` | `editor` · A / Editor | ✅ | – |
+| `node_find` | `editor` · A / Editor | ✅ | – |
+| `node_list_groups` | `editor` · A / Editor | ✅ | – |
+| `node_add_to_group` | `editor` · A / Editor | ✅ | undoable |
+| `node_remove_from_group` | `editor` · A / Editor | ✅ | ✔ undoable |
+| `node_instantiate_scene` | `editor` · A / Editor | ✅ | undoable |
+| `node_move_child` | `editor` · A / Editor | ✅ | undoable |
+| `node_change_type` | `editor` · A / Editor | ✅ | ✔ undoable |
+| `node_set_owner` | `editor` · A / Editor | ✅ | undoable |
+| `node_set_editable_instance` | `editor` · A / Editor | ✅ | undoable |
+| `node_call_method` | `editor` · A / Editor | ✅ | ✔ |
+| `node_get_path` | `editor` · A / Editor | ✅ | – |
+| `node_list_properties` | `editor` · A / Editor | ✅ | – |
+| `signal_list` | `editor` · A / Editor | ✅ | – |
+| `signal_list_connections` | `editor` · A / Editor | ✅ | – |
+| `signal_connect` | `editor` · A / Editor | ✅ | undoable |
+| `signal_disconnect` | `editor` · A / Editor | ✅ | ✔ undoable |
+| `signal_add_user_signal` | `editor` · A / Editor | ✅ | undoable |
+| `signal_emit` | `editor` · A / Editor | ✅ | ✔ |
+| `selection_get` | `editor` · A / Editor | ✅ | – |
+| `selection_set` | `editor` · A / Editor | ✅ | – |
+| `main_screen_get` | `editor` · A / Editor | ✅ | – |
+| `main_screen_set` | `editor` · A / Editor | ✅ | – |
+| `classdb_get_class` | `editor` · A / Editor | ✅ | – |
+| `screenshot_editor` | `editor` · A / Editor | ✅ | – |
+| `resource_create` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `resource_load` | `editor` · A / Editor | ✅ | – |
+| `resource_save` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `resource_duplicate` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `resource_get_property` | `editor` · A / Editor | ✅ | – |
+| `resource_set_property` | `editor` · A / Editor | ✅ | ✔ writes file |
+| `resource_get_import_settings` | `editor` · A / Editor | ✅ | – |
+| `resource_set_import_settings` | `editor` · A / Editor | ✅ | ✔ reimports |
+| `filesystem_list` | `editor` · A / Editor | ✅ | – |
+| `filesystem_scan` | `editor` · A / Editor | ✅ | – |
+| `filesystem_move` | `editor` · A / Editor | ✅ | ✔ moves file |
+| `filesystem_create_dir` | `editor` · A / Editor | ✅ | writes dir |
+| `anim_player_create` | `editor` · C / Editor | ✅ | – |
+| `anim_create` | `editor` · C / Editor | ✅ | – |
+| `anim_delete` | `editor` · C / Editor | ✅ | ✔ gated |
+| `anim_add_track` | `editor` · C / Editor | ✅ | – |
+| `anim_insert_key` | `editor` · C / Editor | ✅ | – |
+| `anim_remove_key` | `editor` · C / Editor | ✅ | ✔ removes key |
+| `anim_set_length` | `editor` · C / Editor | ✅ | – |
+| `anim_set_loop` | `editor` · C / Editor | ✅ | – |
+| `anim_get_track_keys` | `editor` · C / Editor | ✅ | – |
+| `anim_list` | `editor` · C / Editor | ✅ | – |
+| `anim_tree_create` | `editor` · C / Editor | ✅ | – |
+| `anim_tree_add_node` | `editor` · C / Editor | ✅ | – |
+| `anim_statemachine_add_state` | `editor` · C / Editor | ✅ | – |
+| `anim_statemachine_add_transition` | `editor` · C / Editor | ✅ | – |
+| `tileset_create` | `editor` · D / Editor | ✅ | ✔ writes file |
+| `tileset_add_source` | `editor` · D / Editor | ✅ | writes file |
+| `tileset_add_tile` | `editor` · D / Editor | ✅ | writes file |
+| `tileset_set_tile_collision` | `editor` · D / Editor | ✅ | ✔ writes file |
+| `tilemaplayer_create` | `editor` · D / Editor | ✅ | undoable |
+| `tilemap_set_cell` | `editor` · D / Editor | ✅ | ✔ undoable |
+| `tilemap_set_cells_rect` | `editor` · D / Editor | ✅ | ✔ undoable |
+| `tilemap_get_cell` | `editor` · D / Editor | ✅ | – |
+| `tilemap_clear` | `editor` · D / Editor | ✅ | ✔ undoable |
+| `body_create` | `editor` · E / Editor | ✅ | undoable |
+| `collisionshape_add` | `editor` · E / Editor | ✅ | undoable |
+| `body_set_collision_layer` | `editor` · E / Editor | ✅ | undoable |
+| `body_set_collision_mask` | `editor` · E / Editor | ✅ | undoable |
+| `area_set_monitoring` | `editor` · E / Editor | ✅ | undoable |
+| `area_set_gravity` | `editor` · E / Editor | ✅ | undoable |
+| `joint_create` | `editor` · E / Editor | ✅ | undoable |
+| `joint_set_bodies` | `editor` · E / Editor | ✅ | undoable |
+| `collisionpolygon_add` | `editor` · E / Editor | ✅ | undoable |
+| `rigidbody_set_properties` | `editor` · E / Editor | ✅ | undoable |
+| `body_set_physics_material` | `editor` · E / Editor | ✅ | undoable |
+| `physics_set_gravity` | `editor` · E / Editor | ✅ | ✔ writes setting |
+| `particles_create` | `editor` · F / Editor | ✅ | undoable |
+| `particles_set_process_material` | `editor` · F / Editor | ✅ | undoable |
+| `particles_set_amount` | `editor` · F / Editor | ✅ | undoable |
+| `particles_set_lifetime` | `editor` · F / Editor | ✅ | undoable |
+| `particles_set_emitting` | `editor` · F / Editor | ✅ | undoable |
+| `particles_set_texture` | `editor` · F / Editor | ✅ | undoable |
+| `shader_create` | `editor` · F / Editor | ✅ | ✔ writes file |
+| `shader_set_code` | `editor` · F / Editor | ✅ | ✔ writes file |
+| `shadermaterial_create` | `editor` · F / Editor | ✅ | ✔ undoable |
+| `shadermaterial_set_shader` | `editor` · F / Editor | ✅ | ✔ undoable |
+| `shadermaterial_set_param` | `editor` · F / Editor | ✅ | ✔ undoable |
+| `audio_player_create` | `editor` · F / Editor | ✅ | undoable |
+| `audio_set_stream` | `editor` · F / Editor | ✅ | undoable |
+| `audio_bus_add` | `editor` · F / Editor | ✅ | project-wide |
+| `audio_bus_add_effect` | `editor` · F / Editor | ✅ | project-wide |
+| `audio_bus_set_volume` | `editor` · F / Editor | ✅ | ✔ project-wide |
+| `audio_set_bus_layout` | `editor` · F / Editor | ✅ | ✔ writes file |
+| `control_create` | `editor` · G / Editor | ✅ | undoable |
+| `container_add_child` | `editor` · G / Editor | ✅ | undoable |
+| `control_set_anchors` | `editor` · G / Editor | ✅ | undoable |
+| `control_set_layout_preset` | `editor` · G / Editor | ✅ | undoable |
+| `control_set_size_flags` | `editor` · G / Editor | ✅ | undoable |
+| `control_set_theme` | `editor` · G / Editor | ✅ | undoable |
+| `theme_create` | `editor` · G / Editor | ✅ | ✔ writes file |
+| `theme_set_color` | `editor` · G / Editor | ✅ | ✔ writes file |
+| `theme_set_font` | `editor` · G / Editor | ✅ | ✔ writes file |
+| `theme_set_stylebox` | `editor` · G / Editor | ✅ | ✔ writes file |
+| `theme_set_constant` | `editor` · G / Editor | ✅ | ✔ writes file |
+| `meshinstance_create` | `editor` · H / Editor | ✅ | undoable |
+| `mesh_set_surface_material` | `editor` · H / Editor | ✅ | undoable |
+| `primitive_mesh_create` | `editor` · H / Editor | ✅ | ✔ writes file |
+| `light_create` | `editor` · H / Editor | ✅ | undoable |
+| `camera_create` | `editor` · H / Editor | ✅ | undoable |
+| `csg_create` | `editor` · H / Editor | ✅ | undoable |
+| `navregion_create` | `editor` · H / Editor | ✅ | undoable |
+| `navagent_configure` | `editor` · H / Editor | ✅ | undoable |
+| `environment_create` | `editor` · H / Editor | ✅ | ✔ writes file |
+| `environment_set_sky` | `editor` · H / Editor | ✅ | ✔ writes file |
+| `inputmap_add_action` | `editor` · I / Editor | ✅ | ✔ writes setting |
+| `inputmap_add_event` | `editor` · I / Editor | ✅ | writes setting |
+| `inputmap_list` | `editor` · I / Editor | ✅ | – |
+| `inputmap_erase_action` | `editor` · I / Editor | ✅ | ✔ writes setting |
+| `project_add_autoload` | `editor` · I / Editor | ✅ | ✔ writes setting |
+| `project_remove_autoload` | `editor` · I / Editor | ✅ | ✔ writes setting |
+| `project_add_export_preset` | `editor` · I / Editor | ✅ | writes file |
+| `project_set_main_scene` | `editor` · I / Editor | ✅ | ✔ writes setting |
+| `project_list_settings` | `editor` · I / Editor | ✅ | – |
+| `editorsettings_get_set` | `editor` · I / Editor | ✅ | ✔ on set |
+| `test_detect` | `editor` · I / Editor | ✅ | – |
+| `test_list` | `editor` · I / Editor | ✅ | – |
+| `gd_completion` | `lsp` · D / LSP | ✅ | – |
+| `gd_hover` | `lsp` · D / LSP | ✅ | – |
+| `gd_definition` | `lsp` · D / LSP | ✅ | – |
+| `gd_references` | `lsp` · D / LSP | ✅ | – |
+| `gd_rename` | `lsp` · D / LSP | ✅ | ✔ |
+| `gd_document_symbols` | `lsp` · D / LSP | ✅ | – |
+| `gd_workspace_symbols` | `lsp` · D / LSP | ⚠️ engine-missing (handled) | – |
+| `gd_diagnostics` | `lsp` · D / LSP | ✅ | – |
+| `gd_signature_help` | `lsp` · D / LSP | ✅ | – |
+| `gd_code_action` | `lsp` · D / LSP | ⚠️ engine-dependent (handled) | – |
+| `gd_document_highlight` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_type_definition` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_implementation` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_declaration` | `lsp` · D / LSP | ✅ confirmed live (4.3) | – |
+| `gd_folding_ranges` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_document_link` | `lsp` · D / LSP | ✅ confirmed live (4.3) | – |
+| `gd_formatting` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_document_color` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
+| `gd_call_hierarchy` | `lsp` · D / LSP | ⚠️ engine-missing through 4.7 (handled) | – |
+| `gd_semantic_tokens` | `lsp` · D / LSP | ⚠️ engine-missing through 4.7 (handled) | – |
+| `cs_completion` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_hover` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_definition` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_references` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_rename` | `cslsp` · D / C# LSP | ✅ | ✔ |
+| `cs_document_symbols` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_workspace_symbols` | `cslsp` · D / C# LSP | ✅ (OmniSharp implements it) | – |
+| `cs_signature_help` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_diagnostics` | `cslsp` · D / C# LSP | ✅ | – |
+| `cs_code_action` | `cslsp` · D / C# LSP | ✅ (OmniSharp implements it) | – |
+| `dbg_launch` | `dap` · D / DAP | ✅ | runs code |
+| `dbg_attach` | `dap` · D / DAP | ✅ | – |
+| `dbg_set_breakpoints` | `dap` · D / DAP | ✅ | – |
+| `dbg_continue` | `dap` · D / DAP | ✅ | – |
+| `dbg_step` | `dap` · D / DAP | ✅ | – |
+| `dbg_stack_trace` | `dap` · D / DAP | ✅ | – |
+| `dbg_scopes` | `dap` · D / DAP | ✅ | – |
+| `dbg_variables` | `dap` · D / DAP | ✅ | – |
+| `dbg_evaluate` | `dap` · D / DAP | ✅ | ✔ arbitrary code |
+| `dbg_watch` | `dap` · D / DAP | ✅ | – |
+| `dbg_set_exception_breakpoints` | `dap` · D / DAP | ✅ | – |
+| `dbg_set_variable` | `dap` · D / DAP | ✅ | ✔ mutates state |
+| `dbg_restart` | `dap` · D / DAP | ✅ | – |
+| `dbg_goto` | `dap` · D / DAP | ✅ | ✔ moves execution |
+| `dbg_data_breakpoints` | `dap` · D / DAP | ✅ | – |
+| `cs_dbg_launch` | `csdap` · D / C# DAP | ✅ | runs code |
+| `cs_dbg_attach` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_set_breakpoints` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_continue` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_step` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_stack_trace` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_scopes` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_variables` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_evaluate` | `csdap` · D / C# DAP | ✅ | ✔ arbitrary code |
+| `cs_dbg_set_variable` | `csdap` · D / C# DAP | ✅ | ✔ mutates state |
+| `cs_dbg_watch` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_set_exception_breakpoints` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_restart` | `csdap` · D / C# DAP | ✅ | – |
+| `runtime_get_tree` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_get_property` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_set_property` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_call_method` | `runtime` · C / Runtime | ✅ | ✔ arbitrary invocation |
+| `runtime_emit_signal` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_inject_input` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_get_monitors` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_screenshot` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_get_log` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_assert_node_state` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_assert_scene_structure` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_assert_perf` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_assert_screen_text` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_screenshot_diff` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_await_condition` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_anim_play` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_anim_stop` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_anim_get_state` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_node_add` | `runtime` · C / Runtime | ✅ | adds node |
+| `runtime_node_remove` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_time_scale` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_step_frames` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_state_digest` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_seed_rng` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_spawn_peers` | `runtime` · C / Runtime | ✅ | – *(higher-trust: `code-execution`)* |
+| `runtime_peer_stop` | `runtime` · C / Runtime | ✅ | ✔ |
+| `runtime_peers_digest` | `runtime` · C / Runtime | ✅ | – |
 
-| `godot_run_managed` | B / Process | ✅ | – |
-| `godot_output` | B / Process | ✅ | – |
-| `godot_stop` | B / Process | ✅ | ✔ kills the running project |
+| `godot_run_managed` | `processes` · B / Process | ✅ | – |
+| `godot_output` | `processes` · B / Process | ✅ | – |
+| `godot_stop` | `processes` · B / Process | ✅ | ✔ kills the running project |
 
-| `project_search` | K / Host | ✅ | – |
-| `find_symbol` | K / Host | ✅ | – |
-| `find_usages` | K / Host | ✅ | – |
-| `example_snippet` | K / Host | ✅ | – |
-| `class_reference` | K / Editor | ✅ | – |
-| `docs_search` | K / Editor | ✅ | – |
+| `project_search` | `knowledge` · K / Host | ✅ | – |
+| `find_symbol` | `knowledge` · K / Host | ✅ | – |
+| `find_usages` | `knowledge` · K / Host | ✅ | – |
+| `example_snippet` | `knowledge` · K / Host | ✅ | – |
+| `class_reference` | `editor` · K / Editor | ✅ | – |
+| `docs_search` | `editor` · K / Editor | ✅ | – |
 
-| `vcs_status` | L / Host | ✅ | – |
-| `vcs_log` | L / Host | ✅ | – |
-| `vcs_diff` | L / Host | ✅ | – |
-| `vcs_show` | L / Host | ✅ | – |
-| `vcs_branch_list` | L / Host | ✅ | – |
-| `vcs_blame` | L / Host | ✅ | – |
-| `vcs_add` | L / Host | ✅ | – |
-| `vcs_commit` | L / Host | ✅ | – |
-| `vcs_restore` | L / Host | ✅ | ✔ discards changes |
-| `vcs_stash` | L / Host | ✅ | ✔ drop only |
-| `vcs_branch_create` | L / Host | ✅ | – |
-| `vcs_switch` | L / Host | ✅ | – |
+| `vcs_status` | `vcs` · L / Host | ✅ | – |
+| `vcs_log` | `vcs` · L / Host | ✅ | – |
+| `vcs_diff` | `vcs` · L / Host | ✅ | – |
+| `vcs_show` | `vcs` · L / Host | ✅ | – |
+| `vcs_branch_list` | `vcs` · L / Host | ✅ | – |
+| `vcs_blame` | `vcs` · L / Host | ✅ | – |
+| `vcs_add` | `vcs` · L / Host | ✅ | – |
+| `vcs_commit` | `vcs` · L / Host | ✅ | – |
+| `vcs_restore` | `vcs` · L / Host | ✅ | ✔ discards changes |
+| `vcs_stash` | `vcs` · L / Host | ✅ | ✔ drop only |
+| `vcs_branch_create` | `vcs` · L / Host | ✅ | – |
+| `vcs_switch` | `vcs` · L / Host | ✅ | – |
 
-| `asset_gen_configure` | J / Host | ✅ | – |
-| `asset_gen_placeholder` | J / Editor | ✅ | ✔ writes file |
-| `asset_gen_sprite` | J / Editor | ✅ | ✔ writes file |
-| `asset_gen_texture` | J / Editor | ✅ | ✔ writes file |
-| `asset_gen_icon` | J / Editor | ✅ | ✔ writes file |
-| `asset_gen_audio_sfx` | J / Editor | ✅ | ✔ writes file |
-| `asset_gen_model` | J / Editor | ✅ | ✔ writes file |
+| `asset_gen_configure` | `assetgen` · J / Host | ✅ | – |
+| `asset_gen_placeholder` | `assetgen` · J / Editor | ✅ | ✔ writes file |
+| `asset_gen_sprite` | `assetgen` · J / Editor | ✅ | ✔ writes file |
+| `asset_gen_texture` | `assetgen` · J / Editor | ✅ | ✔ writes file |
+| `asset_gen_icon` | `assetgen` · J / Editor | ✅ | ✔ writes file |
+| `asset_gen_audio_sfx` | `assetgen` · J / Editor | ✅ | ✔ writes file |
+| `asset_gen_model` | `assetgen` · J / Editor | ✅ | ✔ writes file |
 
-| `mp_add_spawner` | M / Editor | ✅ | undoable |
-| `mp_add_synchronizer` | M / Editor | ✅ | undoable |
-| `mp_set_authority` | M / Editor | ✅ | undoable |
-| `mp_setup_enet_peer` | M / Editor | ✅ | ✔ writes file |
-| `mp_setup_webrtc_peer` | M / Editor | ✅ | ✔ writes file |
-| `mp_wire_rpc` | M / Editor | ✅ | ✔ writes file |
-| `mp_scaffold_lobby` | M / Editor | ✅ | ✔ writes file |
-| `backend_detect` | M / Editor | ✅ | – |
-| `backend_configure` | M / Editor | ✅ | ✔ writes file |
-| `leaderboard_scaffold` | M / Editor | ✅ | ✔ writes file |
-| `cloudsave_scaffold` | M / Editor | ✅ | ✔ writes file |
-| `auth_scaffold` | M / Editor | ✅ | ✔ writes file |
-| `card_template_create` | N / Editor | ✅ | ✔ writes files |
-| `card_instance` | N / Editor | ✅ | – |
-| `card_hand_layout` | N / Editor | ✅ | – |
-| `card_deck_from_table` | N / Editor | ✅ | – |
-| `card_set_face` | N / Editor | ✅ | – |
-| `board_create` | N / Editor | ✅ | ✔ writes files |
-| `board_place` | N / Editor | ✅ | – |
-| `board_tile_create` | N / Editor | ✅ | ✔ writes files |
-| `board_tile_place` | N / Editor | ✅ | – |
-| `piece_template_create` | N / Editor | ✅ | ✔ writes files |
-| `piece_instance` | N / Editor | ✅ | – |
-| `piece_move` | N / Editor | ✅ | – |
-| `interact_make_draggable` | N / Editor | ✅ | ✔ writes files |
-| `interact_add_drop_zone` | N / Editor | ✅ | ✔ writes files |
+| `mp_add_spawner` | `netcode` · M / Editor | ✅ | undoable |
+| `mp_add_synchronizer` | `netcode` · M / Editor | ✅ | undoable |
+| `mp_set_authority` | `netcode` · M / Editor | ✅ | undoable |
+| `mp_setup_enet_peer` | `netcode` · M / Editor | ✅ | ✔ writes file |
+| `mp_setup_webrtc_peer` | `netcode` · M / Editor | ✅ | ✔ writes file |
+| `mp_wire_rpc` | `netcode` · M / Editor | ✅ | ✔ writes file |
+| `mp_scaffold_lobby` | `netcode` · M / Editor | ✅ | ✔ writes file |
+| `backend_detect` | `backend` · M / Editor | ✅ | – |
+| `backend_configure` | `backend` · M / Editor | ✅ | ✔ writes file |
+| `leaderboard_scaffold` | `backend` · M / Editor | ✅ | ✔ writes file |
+| `cloudsave_scaffold` | `backend` · M / Editor | ✅ | ✔ writes file |
+| `auth_scaffold` | `backend` · M / Editor | ✅ | ✔ writes file |
+| `card_template_create` | `tabletop` · N / Editor | ✅ | ✔ writes files |
+| `card_instance` | `tabletop` · N / Editor | ✅ | – |
+| `card_hand_layout` | `tabletop` · N / Editor | ✅ | – |
+| `card_deck_from_table` | `tabletop` · N / Editor | ✅ | – |
+| `card_set_face` | `tabletop` · N / Editor | ✅ | – |
+| `board_create` | `tabletop` · N / Editor | ✅ | ✔ writes files |
+| `board_place` | `tabletop` · N / Editor | ✅ | – |
+| `board_tile_create` | `tabletop` · N / Editor | ✅ | ✔ writes files |
+| `board_tile_place` | `tabletop` · N / Editor | ✅ | – |
+| `piece_template_create` | `tabletop` · N / Editor | ✅ | ✔ writes files |
+| `piece_instance` | `tabletop` · N / Editor | ✅ | – |
+| `piece_move` | `tabletop` · N / Editor | ✅ | – |
+| `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
+| `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
 **292 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

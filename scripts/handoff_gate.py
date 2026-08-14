@@ -3149,6 +3149,28 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
 >               · queue 42/42 claims · handoff 300 claims · 26 CI jobs
 > ```"""),
+    (252, """> ```
+> main                 59e8e2a — the flag that demanded a game (#310)   MOVED, and it is THIS
+> branch 250           session250-the-policy-that-spelled-itself-absent
+>                      🟢 LANDED inside #309 · its own PR #308 CLOSED as superseded
+> branch 251           session251-the-column-nothing-had-ever-read
+>                      🟢 MERGED as #309 — it carried 250's commit with it
+> branch 252           session252-the-heading-that-said-nothing
+>                      🟢 MERGED as #310 · base was fadc10f · branch deleted
+> host / addon         1.74.1 / 1.9.9   🟡 host code MOVED — no cut, no version bump
+> npm                  🟢 1.74.1 · lag 0 · tags 122 · registry 1.74.1
+> 🟢 VERIFIED AFTER THE CHANGE   774/774 · contract 24/24 · scope 32 · control 61
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1669
+>               · py gates 18/4/14 · SIG 130/105 · late constructed 193/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 102 · 48 governed · 1143 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 287 file(s) / 21 suffixes
+>               · taut 4245 · seal 103 · boundary 185 judged / DISCOVER 8-2-0
+>               · wire_diff_key 292 tools / 3475 nodes / 17 keys / 0 unread
+>               · wire_invisible 27 + live · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 42/42 claims · handoff 302 claims · 26 CI jobs
+> ```"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
