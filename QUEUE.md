@@ -22,7 +22,7 @@
 > written.
 
 <!-- QUEUE_FORMAT 1 -->
-<!-- QUEUE_HEAD 248 -->
+<!-- QUEUE_HEAD 249 -->
 
 ## The table
 
@@ -123,9 +123,15 @@ distrust before it is a reading to act on.**
 | cli-subcommand-help-unread | DONE | user | 248 | 248 | — | `init --help` reached the project check and `doctor --help` ran the checks; only `tools` answered, from its own third copy of the text | — |
 | bridge-hint-reopen-blind | DONE | user | 248 | 248 | — | The editor bridge's remedy asked *is the editor open with the plugin enabled?* — the one question the reopen-trap victim answers YES to while the bridge stays dark | — |
 | tool-error-sweep-unrun | OPEN | user | 248 | — | — | The 289 registered tools' failure paths have never been swept for whether the message tells a user what to do next. Eight were sampled at 248 and all eight were good — that is a sample, and the population is 289 | — |
-| first-run-editor-half-unwalked | OPEN | user | 248 | — | — | 248's first-run pass covered the pre-Godot surface only (the container has no Godot), and every defect it found was in that half. Install → open the editor → a tool actually answering has never been walked end to end by anything but somebody who already knew it worked | — |
+| first-run-editor-half-unwalked | DONE | user | 248 | 249 | — | 248's first-run pass covered the pre-Godot surface only (the container has no Godot), and every defect it found was in that half. Install → open the editor → a tool actually answering has never been walked end to end by anything but somebody who already knew it worked | — |
 | serverinfo-version-literal | OPEN | internal | 248 | — | — | `index.ts` writes the server's advertised version as a literal where `packageVersion()` exists. Check 14's roster stops it going stale, which is why it has no user symptom today and why it is still the exact hazard `version.ts` was written to document | — |
 | orphan-ceiling-headroom | OPEN | internal | 248 | — | — | 248 taught `enclosingTest` to spell a template-literal test name and the live orphan count fell 69 → 42 against a ceiling of 46. The ceiling was NOT lowered in the release commit because the self-test pins the digit absolutely in ten places — four sessions of headroom is the licence `tautology_gate.mjs` says out loud it will not issue | — |
+| doctor-require-live-overreaches | OPEN | user | 249 | — | — | `--require-live` requires the RUNTIME bridge, so the verification step `docs/USER_GUIDE.md` §3.0 and `README.md` both tell a new user to run once the editor is open exits 1 on a correct install; there is no editor-only assertion level | — |
+| run-project-returns-before-bridge | OPEN | user | 249 | — | — | `godot_run_project` returns `running: true` 0.5–3.2s before 9081 binds (measured 3213/2788/566ms cold), and every `runtime_*` call in that window answers *Is the project running?* — it is, and the tool returned its pid; `runtime_await_condition`, the one waiting tool, fails the same way in 2ms with `timeout_ms` 15000 set | — |
+| gated-tool-reads-as-missing | OPEN | user | 249 | — | — | The 13 tools the secure default withholds answer `Tool X not found` — naming no policy, no `--trust full`, no `godot://capabilities` — so a deliberate configuration is indistinguishable from a missing feature to the assistant that reports it onward; §7's quick start names three of them | — |
+| init-emits-unquoted-shell-line | OPEN | user | 249 | — | — | `init`'s `claude mcp add` line is not shell-quoted, so a project path containing a space silently misparses into a truncated `--env` and a stray argument; the JSON block beside it is correct because JSON quotes for you | — |
+| doctor-passes-under-four-reds | OPEN | user | 249 | — | — | Without `--require-live` `doctor` prints four ✗ bridges and then `All required checks passed.` — both halves defensible, together a contradiction in the tool whose job is telling the user whether they are okay | — |
+| tool-results-outside-token-cost | OPEN | user | 249 | — | — | One `gd_completion` returns 342,116 B — 99.6% of the entire 279-tool `tools/list` surface — and `token-cost.mjs` projects onto the catalogue only, so the instrument that governs client cost against a 366,000-byte floor cannot see the largest single expenditure and reports ok | — |
 
 ## What the gate refuses
 
