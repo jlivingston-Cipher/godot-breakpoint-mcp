@@ -1347,6 +1347,39 @@ def catalog_index_tools() -> set[str]:
     return set(catalog_index_rows())
 
 
+# A per-tool section heading: "### `name` ✔ ✅ · note", or a combined one naming
+# several tools — "### `dbg_continue` / `dbg_step` ✅". The ✔ binds to the name it
+# FOLLOWS, which is the whole reason the marker is a glyph on the name rather
+# than the word "destructive" somewhere in the trailing prose: three headings
+# name two tools each, and one of those has exactly one destructive member.
+CATALOG_HEADING_RE = re.compile(r"^###\s+((?:`[a-z0-9_]+`(?:\s*✔)?(?:\s*/\s*)?)+)", re.M)
+CATALOG_HEADING_NAME_RE = re.compile(r"`([a-z0-9_]+)`(\s*✔)?")
+
+
+def catalog_heading_rows() -> dict[str, bool]:
+    """Tool name -> whether its section HEADING marks it destructive.
+
+    🆕 252 — THE THIRD PLACE THIS PREDICATE IS WRITTEN AND THE SECOND NOTHING
+    READ. 251 found the Tool Index's `Destructive` column had never been compared
+    to `annotations.ts` and corrected 21 rows. The per-tool section heading — the
+    line a reader actually lands on, and the only text most readers of a single
+    tool ever see — carried the same claim as free prose (`· destructive (writes
+    a file)`) on 63 of 289 sections, and it disagreed with the wire on 44: 35
+    tools whose section said nothing at all, `tilemap_clear`, `godot_stop`,
+    `vcs_restore` and `vcs_stash` among them, and 9 that claimed it without the
+    annotation.
+
+    So the marker is the same ✔ the index uses, on the name, and the words that
+    used to carry it stay as the note they always were. That is 251's rule — one
+    glyph, one predicate — applied to the place 251 did not look.
+    """
+    marks: dict[str, bool] = {}
+    for m in CATALOG_HEADING_RE.finditer(CATALOG.read_text()):
+        for name, tick in CATALOG_HEADING_NAME_RE.findall(m.group(1)):
+            marks[name] = bool(tick.strip())
+    return marks
+
+
 def catalog_json_blocks() -> list[str]:
     text = CATALOG.read_text()
     return re.findall(r"```json\n(.*?)```", text, re.S)
@@ -1874,6 +1907,53 @@ if overmarked:
     errors.append(
         f"Catalog Tool Index marks these ✔ and `annotations.ts` does not list them as "
         f"DESTRUCTIVE (the doc is stricter than the contract): {overmarked}"
+    )
+
+# --- 4c: the same predicate again, in the SECTION HEADING ---------------------
+# 🔴 251 ASKED THE INDEX WHAT IT DID NOT COMPARE AND FOUND THREE COLUMNS. ASKING
+# THE SAME QUESTION OF THE FILE FINDS A FOURTH COPY OF THE PREDICATE, AND IT WAS
+# THE COPY A HUMAN READS. The Tool Index is a table you scan; the section heading
+# is where a reader lands when they want to know what one tool does, and it said
+# nothing about destruction for 35 tools that carry `destructiveHint: true` —
+# `tilemap_clear`, `godot_stop`, `vcs_restore`, `vcs_stash`, every `asset_gen_*`
+# — while claiming it for 9 that do not.
+#
+# 🔴 THE COVERAGE ASSERTION BELOW IS THIS READER'S FLOOR, AND IT IS NOT OPTIONAL
+# HERE THE WAY IT WAS FOR 4b. 4b comes off the same match as `cat_tools`, so its
+# collapse is already loud in check 4. This reader has its own regex over its own
+# lines, so a heading shape it stops matching would empty `heading_marks`, report
+# every destructive tool as unmarked — loud — but report NOTHING in the other
+# direction, and a half-loud reader is a reader that can rot in one direction.
+# `undocumented` names every registered tool at once when the parse dies.
+heading_marks = catalog_heading_rows()
+undocumented = sorted(tool_set - set(heading_marks))
+if undocumented:
+    errors.append(
+        f"Registered tools with no `### ` section in the catalog (or a heading shape "
+        f"CATALOG_HEADING_RE no longer reads): {undocumented}"
+    )
+heading_destructive = {n for n, marked in heading_marks.items() if marked} & tool_set
+head_under = sorted(code_destructive - heading_destructive - set(undocumented))
+head_over = sorted(heading_destructive - code_destructive)
+if head_under:
+    errors.append(
+        f"Catalog section headings do not mark these `destructiveHint: true` tools with ✔ "
+        f"(the page a reader lands on says nothing about it): {head_under}"
+    )
+if head_over:
+    errors.append(
+        f"Catalog section headings mark these ✔ and `annotations.ts` does not list them as "
+        f"DESTRUCTIVE: {head_over}"
+    )
+# The index and the headings are two hand-maintained copies of one machine-owned
+# fact. Both are compared to the wire above, so this can only fire if one of the
+# two readers is misreading its own file — which is the failure that would
+# otherwise look like agreement.
+disagree = sorted(marked_destructive ^ heading_destructive)
+if disagree:
+    errors.append(
+        f"The catalog's Tool Index and its section headings disagree about which tools "
+        f"are destructive: {disagree}"
     )
 
 _ran("4")
@@ -3997,6 +4077,18 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     # intact and reports the whole Destructive column as being in agreement.
     ("catalog.destructive_marked", len(marked_destructive), 60,
      "check 4 compares an EMPTY set of ✔ rows and finds the whole column in agreement"),
+    # 🆕 252 — THE HEADING READER'S OWN TWO FLOORS. This one does NOT come off
+    # `CATALOG_ROW_RE`, so 251's argument for leaving 4b unfloored does not carry over:
+    # its regex can die alone. `sections_read` is the name half and `heading_marked` the
+    # glyph half, exactly as above, because they fail independently — a heading shape the
+    # pattern stops reading empties the first, and a ✔ that moves off the name empties the
+    # second while every section is still found.
+    ("catalog.sections_read", len(heading_marks), 250,
+     "check 4c stops demanding a section for anything, and its half of the two-way "
+     "comparison reports nothing missing"),
+    ("catalog.heading_marked", len(heading_destructive), 60,
+     "check 4c compares an EMPTY set of ✔ headings — every section reads as saying "
+     "the tool is safe, which is the exact state 252 found"),
     ("catalog.json_blocks", len(catalog_json_blocks()), 400,
      "check 5 lints zero blocks and still reports (0 invalid)"),
     ("annotations.roster", len(annotated), 250,

@@ -1545,11 +1545,11 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): (0, (
         "A CEILING at `{FLOOR}` and it has fallen to the bottom. It stays a ceiling "
         "rather than becoming a floor for the reason its own comment gives.")),
-    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (30, (
+    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (31, (
         "That gate's swept enumerators, at `{FLOOR}`. 🆕 246 §2 raised it by four, and the "
         "four were not new work: they are annotated enumerators whose RETURN SHAPE that "
         "gate's empty-value table could not spell, so they had been outside its walk by "
-        "construction with no line anywhere saying so — and one of them blinded GREEN.")),
+        "construction with no line anywhere saying so — and one of them blinded GREEN. Raised by one again for the catalog's heading reader, whose name-to-flag return shape was the same kind of gap that table could not spell.")),
     ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): (20, (
         "Attributed statements, at `{FLOOR}`. Nineteen when re-derived; raised by one "
         "once 188 §3 gave check twelve a population.")),

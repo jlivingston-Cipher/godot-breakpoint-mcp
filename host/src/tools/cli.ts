@@ -259,7 +259,18 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         require_live: z
           .boolean()
           .optional()
-          .describe("Treat an unreachable bridge as a failure rather than information (default false)"),
+          .describe(
+            "Treat an unreachable bridge as a failure rather than information (default false). True means " +
+              "the EDITOR's three bridges — editor, GDScript LSP, GDScript DAP. The runtime bridge lives " +
+              "inside the running game and is deliberately not implied; use live_level for that.",
+          ),
+        live_level: z
+          .enum(["none", "editor", "runtime", "all"])
+          .optional()
+          .describe(
+            "Which bridges this report insists on: none (default), editor (the three the editor brings " +
+              "up), runtime (the one the running game brings up), all. Takes precedence over require_live.",
+          ),
         include_csharp: z
           .boolean()
           .optional()
@@ -267,15 +278,21 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms: z.number().int().positive().optional().describe("Per-bridge connect timeout (default 1500)"),
       },
     },
-    async ({ require_live, include_csharp, timeout_ms }) => {
+    async ({ require_live, live_level, include_csharp, timeout_ms }) => {
       const report = await runDoctorChecks(cfg, {
         timeoutMs: timeout_ms ?? 1500,
-        requireLive: require_live ?? false,
+        liveLevel: live_level ?? (require_live ? "editor" : "none"),
         includeCsharp: include_csharp ?? false,
       });
+      // `failed` counted BOTH severities beside `ok: true` — the same sentence
+      // the CLI summary used to print, in a field an agent reads instead of a
+      // human. Split, so the number that decides the verdict is its own number.
+      const failed = report.checks.filter((c) => c.status === "fail");
       return ok({
         ok: report.ok,
-        failed: report.checks.filter((c) => c.status === "fail").length,
+        failed: failed.length,
+        required_failed: failed.filter((c) => c.severity === "required").length,
+        informational_failed: failed.filter((c) => c.severity === "info").length,
         checks: report.checks,
       });
     },

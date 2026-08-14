@@ -14,6 +14,18 @@
  * may legitimately not be running when a user checks their install; pass
  * `--require-live` when you expect them up (e.g. after opening the editor).
  *
+ * 🔴 THE FOUR BRIDGES DO NOT COME UP TOGETHER, AND `--require-live` USED TO
+ * PRETEND THEY DID. Opening the editor starts three of them — the addon's
+ * bridge on 9080 and Godot's own LSP/DAP. The runtime bridge on 9081 lives
+ * INSIDE THE GAME and binds only while the project is running. So the one
+ * instruction `docs/USER_GUIDE.md` §3.0, `README.md` and `init`'s own closing
+ * line all give a new user — open the editor, then run `doctor --require-live`
+ * — exited 1 on a completely correct install, every time, because it demanded a
+ * game nobody had been told to launch. `LIVE_LEVELS` is that distinction made
+ * nameable: bare `--require-live` asserts what opening the editor makes true,
+ * and `--require-live=all` is the old four-bridge contract, still reachable and
+ * now something a caller asks for on purpose.
+ *
  * Configuration is read via loadConfig(), so the same env overrides the server
  * honours (GODOT_BIN, GODOT_PROJECT, and the BREAKPOINT_ / GODOT_ ports) apply here.
  */
@@ -44,9 +56,31 @@ export interface DoctorReport {
   ok: boolean;
 }
 
+/**
+ * Which bridges a run insists on.
+ *
+ *   none    — every bridge is informational (the default: a user checking an
+ *             install has neither the editor nor the game up, necessarily)
+ *   editor  — the three the EDITOR brings up: editor bridge, GDScript LSP, DAP
+ *   runtime — the one the GAME brings up: the runtime bridge on 9081
+ *   all     — all four
+ *
+ * The order matters to nothing; the tier a bridge belongs to is declared on the
+ * bridge, so adding a fifth is one field and no new branch.
+ */
+export const LIVE_LEVELS = ["none", "editor", "runtime", "all"] as const;
+export type LiveLevel = (typeof LIVE_LEVELS)[number];
+
+/** The two things that bring bridges up. A bridge names which one it needs. */
+export type BridgeTier = "editor" | "runtime";
+
+export function severityFor(level: LiveLevel, tier: BridgeTier): Check["severity"] {
+  return level === "all" || level === tier ? "required" : "info";
+}
+
 export interface DoctorOptions {
   timeoutMs: number;
-  requireLive: boolean;
+  liveLevel: LiveLevel;
   includeCsharp: boolean;
 }
 
@@ -294,14 +328,24 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
   checks.push(...checkAddon(config.projectPath));
 
   // The four bridges.
-  const severity: Check["severity"] = opts.requireLive ? "required" : "info";
   // `secretEnv` marks the two bridges that speak OUR protocol, so a TCP connect
   // is not the end of the story for them (see handshakeOk). The LSP and DAP
   // entries have none: those ports belong to Godot, and anything we could send
   // to prove liveness would be us implementing a foreign protocol inside doctor.
-  const bridges: Array<{ name: string; host: string; port: number; hint: string; secretEnv?: string[] }> = [
+  //
+  // `tier` is what the bridge NEEDS RUNNING, not what it talks to — the one
+  // fact `--require-live` was missing.
+  const bridges: Array<{
+    name: string;
+    tier: BridgeTier;
+    host: string;
+    port: number;
+    hint: string;
+    secretEnv?: string[];
+  }> = [
     {
       name: "editor-bridge",
+      tier: "editor",
       host: config.bridgeHost,
       port: config.bridgePort,
       hint: 'Open the editor with the "Breakpoint MCP" plugin enabled — and if it was already open when you ran `breakpoint-mcp init`, close and reopen the project (Godot reads the enabled-plugin list only at project load).',
@@ -309,6 +353,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
     },
     {
       name: "runtime-bridge",
+      tier: "runtime",
       host: config.runtimeHost,
       port: config.runtimePort,
       hint: "Launch the project (godot_run_project / dbg_launch) with the plugin enabled — it auto-registers the runtime autoload.",
@@ -316,12 +361,14 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
     },
     {
       name: "gdscript-lsp",
+      tier: "editor",
       host: config.lspHost,
       port: config.lspPort,
       hint: "Godot's language server runs while the editor is open (Editor → Editor Settings → Network → Language Server).",
     },
     {
       name: "gdscript-dap",
+      tier: "editor",
       host: config.dapHost,
       port: config.dapPort,
       hint: "Godot's debug adapter runs while the editor is open (Editor → Editor Settings → Network → Debug Adapter).",
@@ -329,6 +376,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
   ];
   const bridgeChecks = await Promise.all(
     bridges.map(async (b): Promise<Check> => {
+      const severity = severityFor(opts.liveLevel, b.tier);
       const ok = await probeTcp(b.host, b.port, opts.timeoutMs);
       if (!ok) {
         return {
@@ -377,24 +425,67 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
   return { checks, ok };
 }
 
-function glyph(status: CheckStatus): string {
-  return status === "ok" ? "✓" : status === "fail" ? "✗" : "–";
+/**
+ * 🔴 `✗` IS RESERVED FOR A CHECK THAT FAILED THE RUN. An informational check
+ * that did not pass gets `!`, because the alternative was the contradiction this
+ * function used to print: four `✗` glyphs, and then `All required checks
+ * passed.` Both halves were true and defensible on their own — the bridges were
+ * genuinely down, and no REQUIRED check had genuinely failed — and a tool whose
+ * whole job is telling a user whether they are okay cannot say those two things
+ * in one breath and leave them to work out which one is the answer.
+ */
+function glyph(c: Check): string {
+  if (c.status === "ok") return "✓";
+  if (c.status === "skip") return "–";
+  return c.severity === "required" ? "✗" : "!";
+}
+
+/**
+ * The last line, which is the only line many readers read. It says what failed
+ * AND what that means for the exit code, because those are two facts and the
+ * summary that named only one of them was the defect.
+ */
+export function summaryLine(report: DoctorReport): string {
+  const failed = report.checks.filter((c) => c.status === "fail");
+  const noted = failed.filter((c) => c.severity === "info");
+  if (!report.ok) return "Some required checks failed — see the ↳ hints above.";
+  if (noted.length === 0) return "All checks passed.";
+  const names = noted.map((c) => c.name).join(", ");
+  return (
+    `All required checks passed. ${noted.length} informational check(s) did not — ${names} ` +
+    `(marked !, not counted against the exit code). That is expected when the editor or the game ` +
+    `is not running; see the ↳ hints, or re-run with --require-live once the project is open in Godot.`
+  );
 }
 
 function printReport(report: DoctorReport): void {
   const width = Math.max(...report.checks.map((c) => c.name.length));
   const out: string[] = ["breakpoint-mcp doctor", ""];
   for (const c of report.checks) {
-    out.push(`  ${glyph(c.status)} ${c.name.padEnd(width)}  ${c.detail}`);
+    out.push(`  ${glyph(c)} ${c.name.padEnd(width)}  ${c.detail}`);
     if (c.status === "fail" && c.hint) out.push(`      ↳ ${c.hint}`);
   }
   out.push("");
-  out.push(
-    report.ok
-      ? "All required checks passed."
-      : "Some required checks failed — see the ↳ hints above.",
-  );
+  out.push(summaryLine(report));
   process.stdout.write(out.join("\n") + "\n");
+}
+
+/**
+ * Read `--require-live` in both its forms. Bare (`true`) is `editor`; a value is
+ * taken literally. An unrecognised value is an ERROR, never a silent default —
+ * `--require-live=yes` quietly meaning "editor" would be a flag that agrees with
+ * whatever you typed and asserts something else.
+ */
+export function parseLiveLevel(raw: string | boolean | undefined): LiveLevel | { error: string } {
+  if (raw === undefined || raw === false) return "none";
+  if (raw === true) return "editor";
+  const v = raw.trim().toLowerCase();
+  if ((LIVE_LEVELS as readonly string[]).includes(v) && v !== "none") return v as LiveLevel;
+  return {
+    error:
+      `doctor: --require-live=${raw} is not a level. Use --require-live (the editor's three bridges), ` +
+      `--require-live=runtime (the game's), or --require-live=all.`,
+  };
 }
 
 /** Entry point for `breakpoint-mcp doctor`. Returns the process exit code. */
@@ -412,10 +503,16 @@ export async function runDoctor(argv: string[]): Promise<number> {
   const timeoutRaw = typeof flags.timeout === "string" ? Number.parseInt(flags.timeout, 10) : NaN;
   const timeoutMs = Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 1500;
 
+  const liveLevel = parseLiveLevel(flags["require-live"]);
+  if (typeof liveLevel !== "string") {
+    process.stderr.write(liveLevel.error + "\n");
+    return 2;
+  }
+
   const config = loadConfig();
   const report = await runDoctorChecks(config, {
     timeoutMs,
-    requireLive: flags["require-live"] === true,
+    liveLevel,
     includeCsharp: flags["include-csharp"] === true,
   });
 

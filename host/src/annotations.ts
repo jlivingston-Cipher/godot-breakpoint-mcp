@@ -100,6 +100,15 @@ const DESTRUCTIVE: readonly string[] = [
   "shader_set_code", "shadermaterial_create", "shadermaterial_set_param", "shadermaterial_set_shader",
   "signal_disconnect", "signal_emit", "theme_create", "theme_set_color", "theme_set_constant", "theme_set_font",
   "theme_set_stylebox", "tilemap_clear", "tilemap_set_cell", "tilemap_set_cells_rect", "tileset_create",
+  // 🆕 252 — the one row of 251's twenty-one where the DOCUMENT was right and this
+  // list was wrong. 251 gated the catalog's ✔ against this roster and found eight
+  // tools carrying ✔ that are not here; seven were plainly additive and the ✔ came
+  // off them. `tileset_set_tile_collision` REPLACES a tile's existing collision
+  // shape, which is this list's own sentence — *may overwrite or discard state the
+  // caller did not supply*. It was split out and decided on its own rather than
+  // moved inside a copy fix, because this is what a client shows a human BEFORE it
+  // runs the tool, and that is a behaviour change, not a wording one.
+  "tileset_set_tile_collision",
   "vcs_restore", "vcs_stash",
 ];
 
@@ -160,7 +169,7 @@ const OPEN_WORLD: readonly string[] = [];
 /**
  * The complete annotated roster — every registered tool, listed explicitly.
  *
- * This CANNOT be derived as the union of the four lists above: 52 tools are
+ * This CANNOT be derived as the union of the four lists above: 51 tools are
  * all-false (mutating, non-destructive, non-idempotent, local — e.g. `node_add`,
  * `dbg_step`, `vcs_commit`), so a derived union would silently omit them and the
  * totality check below would pass while they shipped unannotated. Listing the

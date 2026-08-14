@@ -68,7 +68,12 @@ test("breakpoint_doctor is schema-frozen and annotated like every other tool", (
 test("its input is optional in every field — a user in trouble types nothing", () => {
   const entry = registerCli().get("breakpoint_doctor");
   const shape = entry!.config.inputSchema as Record<string, { isOptional?: () => boolean }>;
-  assert.deepEqual(Object.keys(shape).sort(), ["include_csharp", "require_live", "timeout_ms"]);
+  assert.deepEqual(Object.keys(shape).sort(), [
+    "include_csharp",
+    "live_level",
+    "require_live",
+    "timeout_ms",
+  ]);
   for (const [k, v] of Object.entries(shape)) {
     assert.equal(v.isOptional?.(), true, `${k} must be optional`);
   }

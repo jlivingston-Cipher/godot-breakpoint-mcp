@@ -7,7 +7,7 @@
 > connect too (see [Compatibility](#compatibility)).
 >
 > **npm 1.74.1 · addon 1.9.9 · full 292 / secure-default 279 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 756-test suite plus
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 762-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -278,8 +278,9 @@ to write it into that client's config directly, or `--client claude-code` to get
 `--from-github [ref]` to fetch it from GitHub instead (e.g. `--from-github main` for the
 latest, or a tag like `--from-github v1.3.0`; `--repo <owner/repo>` targets a fork).
 `doctor` checks the Godot binary, the addon, and the four bridges
-(add `--require-live` once the editor is open to require them; `--json` for a machine-readable
-report). The manual steps below do the same thing by hand.
+(add `--require-live` once the editor is open to require the three the editor brings up, or
+`--require-live=all` to also require the runtime bridge, which only exists while the game is
+running; `--json` for a machine-readable report). The manual steps below do the same thing by hand.
 
 ### 1. Install the editor addon (manual)
 

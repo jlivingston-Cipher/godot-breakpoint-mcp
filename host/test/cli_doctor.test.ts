@@ -4,7 +4,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadConfig } from "../src/config.js";
-import { runDoctor, runDoctorChecks, isPluginEnabled } from "../src/cli/doctor.js";
+import {
+  runDoctor,
+  runDoctorChecks,
+  isPluginEnabled,
+  severityFor,
+  parseLiveLevel,
+  summaryLine,
+} from "../src/cli/doctor.js";
 import { startTcpServer, type TcpServer } from "./helpers/tcp.js";
 
 /**
@@ -157,7 +164,7 @@ test("all checks pass against a fully-set-up install", { skip: !POSIX }, async (
 
     const report = await runDoctorChecks(loadConfig(), {
       timeoutMs: 1000,
-      requireLive: true,
+      liveLevel: "all",
       includeCsharp: false,
     });
 
@@ -199,7 +206,7 @@ test("a port held by something that is not the bridge fails --require-live", { s
 
     const report = await runDoctorChecks(loadConfig(), {
       timeoutMs: 400,
-      requireLive: true,
+      liveLevel: "all",
       includeCsharp: false,
     });
 
@@ -232,7 +239,7 @@ test("an unreachable bridge fails the report under --require-live", { skip: !POS
 
     const report = await runDoctorChecks(loadConfig(), {
       timeoutMs: 800,
-      requireLive: true,
+      liveLevel: "all",
       includeCsharp: false,
     });
     assert.equal(status(report, "gdscript-dap"), "fail");
@@ -249,7 +256,7 @@ test("unreachable bridges are informational (report still ok) without --require-
   try {
     process.env.GODOT_BIN = fakeGodot;
     process.env.GODOT_PROJECT = projectDir;
-    // Point every bridge at closed ports; with requireLive:false they're info-only.
+    // Point every bridge at closed ports; at liveLevel "none" they are info-only.
     process.env.BREAKPOINT_BRIDGE_PORT = String(dead);
     process.env.BREAKPOINT_RUNTIME_PORT = String(dead);
     process.env.GODOT_LSP_PORT = String(dead);
@@ -257,7 +264,7 @@ test("unreachable bridges are informational (report still ok) without --require-
 
     const report = await runDoctorChecks(loadConfig(), {
       timeoutMs: 500,
-      requireLive: false,
+      liveLevel: "none",
       includeCsharp: false,
     });
     assert.equal(status(report, "editor-bridge"), "fail");
@@ -278,7 +285,7 @@ test("a missing addon fails the required addon-installed check", { skip: !POSIX 
     process.env.GODOT_PROJECT = bare;
     const report = await runDoctorChecks(loadConfig(), {
       timeoutMs: 300,
-      requireLive: false,
+      liveLevel: "none",
       includeCsharp: false,
     });
     assert.equal(status(report, "addon-installed"), "fail");
@@ -296,7 +303,7 @@ test("a missing Godot binary fails the required godot-binary check", { skip: !PO
     process.env.GODOT_PROJECT = projectDir;
     const report = await runDoctorChecks(loadConfig(), {
       timeoutMs: 300,
-      requireLive: false,
+      liveLevel: "none",
       includeCsharp: false,
     });
     assert.equal(status(report, "godot-binary"), "fail");
@@ -333,6 +340,172 @@ test("runDoctor returns exit 0 and emits valid JSON when everything is up", { sk
   } finally {
     (process.stdout as unknown as { write: typeof origWrite }).write = origWrite;
     await closeAll(servers);
+    restoreEnv();
+  }
+});
+
+/**
+ * 🔴 THE ONE THE DOCUMENTATION TELLS EVERY NEW USER TO RUN.
+ *
+ * `docs/USER_GUIDE.md` §3.0, `README.md` and `init`'s own closing line all say:
+ * open the project in Godot, then run `doctor --require-live` to verify. Opening
+ * the editor brings up three bridges. The fourth — the runtime bridge on 9081 —
+ * lives inside the RUNNING GAME, which nobody has been told to launch. So the
+ * documented verification step exited 1 on a completely correct install, and
+ * told the reader their setup was broken in the one place they had gone to find
+ * out whether it was.
+ */
+test("--require-live passes with the editor open and the game not running", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const servers = await startBridges(4);
+  const dead = await closedPort();
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    process.env.GODOT_PROJECT = projectDir;
+    process.env.BREAKPOINT_BRIDGE_PORT = String(servers[0].port);
+    process.env.BREAKPOINT_RUNTIME_PORT = String(dead); // the game is not running
+    process.env.GODOT_LSP_PORT = String(servers[2].port);
+    process.env.GODOT_DAP_PORT = String(servers[3].port);
+
+    const report = await runDoctorChecks(loadConfig(), {
+      timeoutMs: 800,
+      liveLevel: "editor",
+      includeCsharp: false,
+    });
+
+    assert.equal(report.ok, true, "an editor-only install must not exit 1 on the documented command");
+    assert.equal(status(report, "runtime-bridge"), "fail", "it is still down, and still reported");
+    assert.equal(
+      report.checks.find((c) => c.name === "runtime-bridge")?.severity,
+      "info",
+      "down but not disqualifying — the distinction the flag was missing",
+    );
+    for (const b of ["editor-bridge", "gdscript-lsp", "gdscript-dap"]) {
+      assert.equal(status(report, b), "ok", `${b} is what opening the editor brings up`);
+      assert.equal(report.checks.find((c) => c.name === b)?.severity, "required");
+    }
+  } finally {
+    await closeAll(servers);
+    restoreEnv();
+  }
+});
+
+/**
+ * 🔴 THE POSITIVE CONTROL, AND IT IS THE BEHAVIOUR AS IT SHIPPED THROUGH 251.
+ * A "fix" that simply demoted every bridge to informational would pass the test
+ * above for the same reason a correct one does. `=all` is the old contract,
+ * asserted against the identical fixture: same ports, same dead runtime, and it
+ * must still fail.
+ */
+test("--require-live=all still fails on the same tree — the old contract, kept", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const servers = await startBridges(4);
+  const dead = await closedPort();
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    process.env.GODOT_PROJECT = projectDir;
+    process.env.BREAKPOINT_BRIDGE_PORT = String(servers[0].port);
+    process.env.BREAKPOINT_RUNTIME_PORT = String(dead);
+    process.env.GODOT_LSP_PORT = String(servers[2].port);
+    process.env.GODOT_DAP_PORT = String(servers[3].port);
+
+    const all = await runDoctorChecks(loadConfig(), { timeoutMs: 800, liveLevel: "all", includeCsharp: false });
+    assert.equal(all.ok, false, "=all is the four-bridge assertion and the fourth is down");
+
+    // ...and the mirror level: the game's bridge required, the editor's not.
+    const runtime = await runDoctorChecks(loadConfig(), {
+      timeoutMs: 800,
+      liveLevel: "runtime",
+      includeCsharp: false,
+    });
+    assert.equal(runtime.ok, false);
+    assert.equal(runtime.checks.find((c) => c.name === "runtime-bridge")?.severity, "required");
+    assert.equal(runtime.checks.find((c) => c.name === "editor-bridge")?.severity, "info");
+  } finally {
+    await closeAll(servers);
+    restoreEnv();
+  }
+});
+
+/** Every level names exactly the bridges it says it does — the table, not a branch. */
+test("severityFor pins which tier each level requires", () => {
+  assert.equal(severityFor("none", "editor"), "info");
+  assert.equal(severityFor("none", "runtime"), "info");
+  assert.equal(severityFor("editor", "editor"), "required");
+  assert.equal(severityFor("editor", "runtime"), "info");
+  assert.equal(severityFor("runtime", "runtime"), "required");
+  assert.equal(severityFor("runtime", "editor"), "info");
+  assert.equal(severityFor("all", "editor"), "required");
+  assert.equal(severityFor("all", "runtime"), "required");
+});
+
+test("parseLiveLevel reads both forms and refuses a level it does not have", () => {
+  assert.equal(parseLiveLevel(undefined), "none");
+  assert.equal(parseLiveLevel(false), "none");
+  // Bare `--require-live` is the editor's three — the documented instruction.
+  assert.equal(parseLiveLevel(true), "editor");
+  assert.equal(parseLiveLevel("editor"), "editor");
+  assert.equal(parseLiveLevel("runtime"), "runtime");
+  assert.equal(parseLiveLevel("ALL"), "all");
+  // 🔴 A VALUE IT DOES NOT KNOW IS AN ERROR, NOT A DEFAULT. Silently reading
+  // `--require-live=yes` as "editor" is a flag that agrees with whatever you
+  // typed and then asserts something else.
+  for (const bad of ["yes", "true", "1", "none", "editor,runtime"]) {
+    const got = parseLiveLevel(bad);
+    assert.notEqual(typeof got, "string", `--require-live=${bad} must not resolve to a level`);
+    assert.match((got as { error: string }).error, /is not a level/);
+  }
+});
+
+/**
+ * 🔴 FOUR ✗ AND THEN "All required checks passed." Both halves were true. Read
+ * together they are a tool whose job is telling a user whether they are okay
+ * saying two different things and leaving them to pick.
+ */
+test("the summary line does not contradict the glyphs above it", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const dead = await closedPort();
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    process.env.GODOT_PROJECT = projectDir;
+    for (const k of ["BREAKPOINT_BRIDGE_PORT", "BREAKPOINT_RUNTIME_PORT", "GODOT_LSP_PORT", "GODOT_DAP_PORT"]) {
+      process.env[k] = String(dead);
+    }
+    const report = await runDoctorChecks(loadConfig(), { timeoutMs: 500, liveLevel: "none", includeCsharp: false });
+    assert.equal(report.ok, true);
+
+    const line = summaryLine(report);
+    assert.match(line, /4 informational check\(s\) did not/, "the count the old line left out");
+    assert.match(line, /editor-bridge/, "and which ones");
+    assert.match(line, /--require-live/, "and how to make them count");
+    assert.notEqual(line, "All required checks passed.", "the sentence that was the whole defect");
+
+    // A clean tree still gets the short sentence — and it is a DIFFERENT one.
+    assert.equal(summaryLine({ checks: report.checks.filter((c) => c.status !== "fail"), ok: true }), "All checks passed.");
+    // A required failure keeps its own wording, unchanged.
+    assert.match(summaryLine({ checks: report.checks, ok: false }), /Some required checks failed/);
+  } finally {
+    restoreEnv();
+  }
+});
+
+test("runDoctor exits 2 on a --require-live level it does not have", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const origErr = process.stderr.write.bind(process.stderr);
+  let err = "";
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    (process.stderr as unknown as { write: (c: string | Uint8Array) => boolean }).write = (c) => {
+      err += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+      return true;
+    };
+    const code = await runDoctor(["--require-live=sometimes", "--project", projectDir]);
+    (process.stderr as unknown as { write: typeof origErr }).write = origErr;
+    assert.equal(code, 2);
+    assert.match(err, /--require-live=sometimes is not a level/);
+    assert.match(err, /--require-live=all/, "the message must name the levels it does have");
+  } finally {
+    (process.stderr as unknown as { write: typeof origErr }).write = origErr;
     restoreEnv();
   }
 });
