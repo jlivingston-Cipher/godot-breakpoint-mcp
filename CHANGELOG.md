@@ -6,7 +6,77 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added — a reader can ask whether the tree is being rewritten under it
+## [1.74.1] — 2026-08-13
+
+**A PATCH, and the notes say what it is.** Twenty-five commits landed between
+1.74.0 and this cut and **one of them touched a file a user of this package can
+observe.** The rest is gate and instrument work — a measuring apparatus that is
+now larger than the product it measures — and it is written up below because it
+happened, not because it ships anyone anything. If you are reading these notes to
+decide whether to upgrade, the answer is in the first section and nowhere else.
+
+The four fixes there were found by installing the published tarball and running
+it the way the user guide says to. That had never been done: 722 tests imported
+this package's functions and **not one executed its binary**, so the argv
+dispatch — the first thing every user touches — was covered by nothing.
+
+### Fixed — the command line, which nothing had ever run
+
+- 🔴 **`breakpoint-mcp --version` started an MCP server.** So did `-v`, `-V` and
+  `version`: every spelling of the most universal convention a CLI has fell
+  through to the stdio transport, printed one ready line, and sat on a stdin
+  nobody was going to speak MCP into — a hung terminal. **There was no way to ask
+  the installed binary its version at all.** The bug-report template asked
+  reporters for that number and pointed them at `plugin.cfg` to find it, which is
+  the shape of the whole defect: the project routed people around its own missing
+  command. `--version` now prints one bare line, read from `package.json`, safe in
+  a shell substitution.
+- 🔴 **Any unrecognized argument started a server too, which made every typo an
+  error about something else.** `breakpoint-mcp init --porject ~/game` parsed
+  `--porject`, ignored it, defaulted the project to the current directory, and
+  reported `no project.godot at ~` — a true sentence about a path the user never
+  named. The parser now takes a per-subcommand roster of the flags it accepts and
+  refuses anything else **by name**, and an unknown top-level argument exits 2
+  with the token quoted back. Starting the server still requires exactly what it
+  always did: no arguments, which is how every MCP client launches it.
+- **`init --help` and `doctor --help` did not print help.** `init --help` reached
+  the project check and reported a missing `project.godot`; `doctor --help` ran
+  the checks. Only `tools` handled it, from its own copy of the text. All three
+  now print their own options, from one source the top-level `--help` is composed
+  from — so a flag documented for a subcommand is documented in both by
+  construction.
+- 🔴 **The editor bridge's remedy line asked a question the stuck user answers
+  "yes" to.** *"Is the editor open with the Breakpoint MCP plugin enabled?"* —
+  and it is, and the bridge is still dark, because Godot reads
+  `[editor_plugins]` at project load and never re-reads it: an editor that was
+  already running when `init` wrote that section keeps the plugin disabled. The
+  bridge error and `doctor`'s editor-bridge hint now name the reopen. `init`
+  already warned at the point it writes (below); this is the same fact told to
+  the person who did not read that line, or read it a week ago.
+
+### Added
+
+- **`host/test/cli_entry.test.ts`** — 21 tests that spawn the built binary and
+  assert the entry-point contract: every `--version` spelling, every `--help`
+  spelling, per-subcommand help, unknown arguments refused by name, and the claim
+  that no documented invocation starts a server. The suite is 726 → 744.
+- **CI builds the product before running the tests about it.** `npm test` compiles
+  the *suite* into `dist-test/` and every other test imports `../src/…`, so the
+  host-tests job had never produced `dist/` — the directory the published `bin`
+  points at, the only artifact a user executes — and nothing had ever noticed.
+  `cli_entry.test.ts` was the first thing in 744 tests to ask for it, and it asks
+  in one claim that names the missing artifact rather than twenty that describe
+  its absence.
+- **`init` warns about the reopen at the point it writes** (landed before this
+  cut, unreleased until now): when `init` newly enables the plugin, its closing
+  line says to close and reopen a project that is already open, and says why.
+
+### Internal — everything below this line reaches no user of this package
+
+Kept because it is true and because a reader auditing the tree will want it, not
+because it is a reason to upgrade.
+
+#### Added — a reader can ask whether the tree is being rewritten under it
 
 - **`scripts/tree_quiet.py`** answers the question session 227 §7.2 had no way to put:
   *is a gate rewriting tracked files right now, and did the last one finish?* A session
@@ -26,7 +96,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   unrecoverable, because the original lived in the dead process's memory. The guard's
   escape is a restore, never deleting the lock file.
 
-### Added — the release ritual reads the wire, and a MAJOR can finally be cut
+#### Added — the release ritual reads the wire, and a MAJOR can finally be cut
 
 - **Check 8 is wired into the cut.** `host/scripts/wire_diff.mjs` — the only reader in
   the release ritual that projects onto the `tools/list` payload rather than onto a file
@@ -46,7 +116,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   token stopped the 1.74.0 cut mid-ritual, and `npm publish` reports that state as
   **404** — which reads as "no such package" and means "authenticated as nobody".
 
-### Fixed
+#### Fixed — two gate readers whose populations were rosters
 
 - **`contract_check` check 14 reads the whole lockfile mirror**, not two version fields
   of it. `packages[""]` mirrors seven manifest keys and the check read one of them

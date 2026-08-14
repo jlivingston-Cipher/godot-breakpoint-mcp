@@ -23,7 +23,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadConfig, type Config } from "../config.js";
 import { CAPABILITY_GROUPS, droppedTools, selectPrivilegedGroups } from "../capabilities.js";
-import { parseArgs } from "./args.js";
+import { parseArgs, preflight } from "./args.js";
+import { DOCTOR_FLAGS, DOCTOR_USAGE } from "./usage.js";
 import { BridgeClient } from "../bridge.js";
 import { resolveBridgeSecret } from "../secret.js";
 
@@ -300,7 +301,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       name: "editor-bridge",
       host: config.bridgeHost,
       port: config.bridgePort,
-      hint: 'Open the editor with the "Breakpoint MCP" plugin enabled.',
+      hint: 'Open the editor with the "Breakpoint MCP" plugin enabled — and if it was already open when you ran `breakpoint-mcp init`, close and reopen the project (Godot reads the enabled-plugin list only at project load).',
       secretEnv: ["BREAKPOINT_BRIDGE_SECRET"],
     },
     {
@@ -395,7 +396,14 @@ function printReport(report: DoctorReport): void {
 
 /** Entry point for `breakpoint-mcp doctor`. Returns the process exit code. */
 export async function runDoctor(argv: string[]): Promise<number> {
-  const { flags } = parseArgs(argv, ["json", "require-live", "include-csharp"]);
+  const parsed = parseArgs(
+    argv,
+    ["json", "require-live", "include-csharp", "help", "h"],
+    DOCTOR_FLAGS,
+  );
+  const pre = preflight(parsed, "doctor", DOCTOR_USAGE);
+  if (pre !== null) return pre;
+  const { flags } = parsed;
 
   if (typeof flags.project === "string") process.env.GODOT_PROJECT = flags.project;
   const timeoutRaw = typeof flags.timeout === "string" ? Number.parseInt(flags.timeout, 10) : NaN;

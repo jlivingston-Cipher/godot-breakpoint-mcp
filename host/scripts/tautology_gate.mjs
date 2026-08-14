@@ -189,6 +189,15 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // measure is a rule that works.
 export const ORPHAN_CEILING = 46;       // measured 3746 sites - 3700 attributed, 2026-08-04
                                         //   (41 + 5: this session's self-test, as in 191/193)
+                                        //   🔴 THE LIVE VALUE IS 42 SINCE 248, NOT 46, and
+                                        //   this is deliberately NOT lowered here: the
+                                        //   self-test pins the digit absolutely in ten
+                                        //   places (184 §7 — pinning the key is not
+                                        //   pinning the value), and a release commit is
+                                        //   the wrong place to move ten pins. The four
+                                        //   sessions of headroom are the licence this
+                                        //   file says it will not issue, so the row that
+                                        //   spends it is `orphan-ceiling-headroom` (248).
 
 // 🔴 AND THE POSITIVE SIDE OF THE SAME FACT, BECAUSE A SUBTRACTION IS NOT A POPULATION.
 // The ceiling above says "few claims are orphans"; it does not say the banner path RAN.
@@ -949,13 +958,34 @@ function populationSections(text) {
 // the case it belongs to — falling back to the probe's own executed section marker, and
 // then to the nearest section banner ABOVE the claim for the script-shaped files that have
 // no test() blocks at all.
+// 🔴 248 — A `test()` NAMED BY A TEMPLATE LITERAL WAS INVISIBLE HERE, AND INVISIBLE IS
+// SPELLED `orphan`. `ts.isStringLiteralLike` admits a plain string and a template with no
+// substitutions, and rejects the one shape a table-driven suite always reaches for:
+// ``test(`${flag} is refused`, …)``. Every assertion inside such a case fell through to
+// the banner fallback and then out of attribution entirely — so a file could add twenty
+// well-formed cases and the only number that moved was the orphan count, which reads as
+// *claims nobody wrote a unit for* and here meant *a unit this reader could not spell*.
+// That is 246's rule one file over: a lookup that silently skips what it cannot spell is
+// a scope decision nobody wrote down.
+function templateName(node, src) {
+  if (!ts.isTemplateExpression(node)) return null;
+  // The literal spans, joined by the placeholder the source actually reads. A name is an
+  // identifier for a unit, not a value — two loop iterations SHOULD share one unit name,
+  // because they are one case driven twice and `vacuous` is scored per unit.
+  return [node.head.text, ...node.templateSpans.map((t) => t.literal.text)].join("${…}");
+}
+
 function enclosingTest(node, src, banners = null, sections = null) {
   for (let p = node.parent, hops = 0; p && hops < 60; p = p.parent, hops++) {
-    if (ts.isCallExpression(p) && p.arguments.length && ts.isStringLiteralLike(p.arguments[0])) {
+    if (!ts.isCallExpression(p) || !p.arguments.length) continue;
+    const arg0 = p.arguments[0];
+    const name = ts.isStringLiteralLike(arg0) ? arg0.text : templateName(arg0, src);
+    if (name === null) continue;
+    {
       const c = p.expression;
       const n = ts.isIdentifier(c) ? c.text
         : ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.expression) ? c.expression.text : null;
-      if (n && TEST_FNS.has(n)) return { name: p.arguments[0].text, line: src.getLineAndCharacterOfPosition(p.getStart(src)).line + 1 };
+      if (n && TEST_FNS.has(n)) return { name, line: src.getLineAndCharacterOfPosition(p.getStart(src)).line + 1 };
     }
   }
   // The EXECUTED marker first — it is what the runtime counts by, so where the two
