@@ -799,6 +799,11 @@ INSTRUMENTS = [
             "{SIG:walkNode}": "return out;",
             "{SIG:walkSurface}": "return [];",
             "{SIG:siteKey}": 'return "a site";',
+            # 🆕 255 — the kind reader, and it is the whole port. The installed zod spells a
+            # check's kind at `check._zod.def.check`; a reader that returns nothing names
+            # every class `undefined`, collapses the walk's classes to one and makes the
+            # strip ask for a kind no check carries.
+            "{SIG:checkKind}": "return undefined;",
         },
     },
     {
