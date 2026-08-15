@@ -6,6 +6,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.75.0] — 2026-08-15
+
+**A MINOR, and the one line that can move a client is the first one below.**
+Sixteen output fields that this server has always sent are now marked `required`
+in `tools/list`. Nothing changed about what is sent — the schemas in this
+repository had been drawing the required/optional distinction by hand the whole
+time, and the previous validator could not express it. If you generate client
+types from the published surface, those sixteen move from optional to required
+and your generated types will change. Everything else here is the schemas saying
+*more* than they used to: bounds, patterns and key constraints that the server
+already enforced and never published.
+
+**The reason it is a MINOR and not a PATCH is a dependency, and that is the part
+worth reading.** Breakpoint validated with zod 3 for its whole life. The
+migration was planned as a major-version move; the break it was planned around
+turned out to have shipped in a **minor** — `z.object({v: z.any()}).parse({})`
+passes on zod 4.0 through 4.3 and fails from 4.4.0 — so the version range this
+package had been declaring safe already contained it. The cut takes `zod@^4.4.3`
+directly and publishes the difference rather than deferring it.
+
+This cut carries two sessions. The remedy clause described in the second section
+was written for 1.74.2 and never cut; it ships here.
+
 ### Changed — the validation library, and what that did to the published schemas
 
 - **Breakpoint now builds against zod 4.** The declarations are unchanged; the
