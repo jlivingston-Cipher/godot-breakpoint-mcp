@@ -901,6 +901,18 @@ INSTRUMENTS = [
             # The refusal itself. `ok` with no problems is what a budget reader that has
             # stopped reading looks like from the outside.
             "{SIG:verdict}": "return { ok: true, problems: [] };",
+            # 🆕 257 — THE RESULT AXIS'S THREE, AND EACH BLINDS TO THE ANSWER THAT LOOKS
+            # HEALTHY. `parseResults` returning nothing is a log that read as empty;
+            # `measureResults` returning a plausible in-budget summary is the axis
+            # measuring and finding nothing wrong; `verdictResults` agreeing is the axis
+            # that has stopped deciding. All three are the shape 175's `_png.mjs` rule
+            # asks for — a blind that returns a FAILING value would redden the refusal
+            # rows for the wrong reason and prove nothing about the rows that matter.
+            "{SIG:parseResults}": "return [];",
+            "{SIG:measureResults}":
+                "return { calls: 1, tools: 1, total: 512, worst: [[\"gd_hover\", "
+                "{ n: 1, max: 512, sum: 512 }]] };",
+            "{SIG:verdictResults}": "return { ok: true, problems: [] };",
             # 🔴 `bytes` AND `family` ARE NOT TARGETS, AND THE REASON IS THE ANCHOR'S
             # SHAPE RATHER THAN A JUDGEMENT ABOUT THEM. Both are arrow-function consts
             # (`export const bytes = (v) => ...`), and `_decl_re` anchors a `function`
@@ -1736,6 +1748,40 @@ def run_counting(cmd, cwd, marker: str) -> tuple[bool, bool, int, bool, int]:
 LATE_NOT_LOADED: list[tuple[str, str, str]] = []
 LATE_NOT_LOADED_CEILING = 0
 
+# 🆕 257 — THE ONE CAUSE OF A SILENT HOOK THAT IS NOT A DEFECT, AND IT IS DECLARED PER ROW.
+#
+# The message above names two causes and refuses both: a mutant that never LOADED, and a
+# target that is never CALLED on this axis. They are not the same failure. The first is
+# always a defect; the second is a fact about which command the axis runs — and it became
+# reachable at 257, when `token-cost.mjs` grew a second reader behind a second flag.
+# `--summary`, the live command, measures the CATALOGUE; `--results <file>` measures tool
+# results and needs a meter log that the live command has no way to produce. Three members
+# are therefore uncallable on [B:live] by construction rather than by accident.
+#
+# 🔴 THE PARSE CHECK IS WHAT MAKES THIS SOUND, AND IT ALREADY RUNS. A mutant that does not
+# compile is caught by `parses()` BEFORE it is executed and reported as its own problem, so
+# by the time a row can reach this table the only remaining cause of a silent hook is "not
+# called". A row here says which member, on which axis, and why — never "not done yet".
+LATE_NOT_CALLED: dict[tuple[str, str, str], str] = {
+    ("token-cost.mjs", "{SIG:parseResults}", "B:live"):
+        "the live command is `--summary`, which reads a live `tools/list` and measures the "
+        "CATALOGUE. This member parses the RESULT meter's log, which is reached only "
+        "through `--results <file>` — a flag the live command does not pass and a file it "
+        "does not produce. Its coverage is the [A:gate] axis, where blinding it to `[]` "
+        "reddens `token-cost.selftest.mjs` on the row that asserts well-formed lines "
+        "survive and malformed ones do not.",
+    ("token-cost.mjs", "{SIG:measureResults}", "B:live"):
+        "same axis, same reason as `parseResults` above: the result summary is computed "
+        "only on the `--results` path. Blinding it on [A:gate] to a plausible in-budget "
+        "summary reddens the rows that drive the ceiling from both sides, which is the "
+        "half a healthy-looking blind is built to defeat.",
+    ("token-cost.mjs", "{SIG:verdictResults}", "B:live"):
+        "same axis, same reason. This is the member that DECIDES on the result axis, and "
+        "the live command never reaches the decision because it never reaches the log. On "
+        "[A:gate] it is blinded to `ok` with no problems — an axis that has stopped "
+        "deciding — and every refusal row in the self-test reddens.",
+}
+
 
 def not_loaded_problems(rows, ceiling: int) -> list[str]:
     """🔴 FIXTURE-FED — this returns empty on a healthy tree and would delete invisibly."""
@@ -2455,6 +2501,15 @@ def late_sweep(inst: dict, cmd: list[str], src: Path, axis: str) -> tuple[int, i
             # 🔴 THE HOOK BEFORE THE COUNT. `calls == 0` and "the hook never printed" were
             # ONE bucket until now, and the second of them is a mutant that never ran.
             if not hook:
+                # 🆕 257 — DECLARED-NOT-CALLED, and only ever AFTER `parses()` above has
+                # cleared the mutant. A row in `LATE_NOT_CALLED` says this member belongs
+                # to a command this axis does not run; anything undeclared still lands in
+                # `LATE_NOT_LOADED`, whose ceiling is and stays ZERO.
+                why = LATE_NOT_CALLED.get((inst["name"], sig, axis))
+                if why:
+                    print(f"   not-called   {sig[:52]}  — {why[:60]}")
+                    na += 1
+                    continue
                 LATE_NOT_LOADED.append((inst["name"], sig, axis))
                 print(f"   🔴 NEVER LOADED {sig[:52]}")
                 continue
@@ -2627,6 +2682,20 @@ def _self_check(floor: int) -> list[str]:
             "not_loaded_problems does NOT flag a mutant that never loaded — a late blind "
             "that fails to parse reports calls=0 and is filed 'not constructible', which "
             "reads as a target nobody calls twice (197 §3, on the other axis)")
+    # 🆕 257 — the not-called table is an EXEMPTION, so the thing worth asserting is that
+    # it cannot be emptied of its reasons and keep working. A row whose reason is blank
+    # would read as declared while saying nothing, which is the shape 174 §5 refuses.
+    for _key, _why in LATE_NOT_CALLED.items():
+        if not isinstance(_why, str) or len(_why.strip()) < 40:
+            problems.append(
+                f"LATE_NOT_CALLED{_key} carries no reason a reader could act on. An "
+                f"exemption without one is 'not done yet' wearing a table row — and this "
+                f"table's whole claim is that the silence is by construction")
+    if set(LATE_NOT_CALLED) & set(LATE_DECLARED_GREEN):
+        problems.append(
+            "a target is in BOTH LATE_NOT_CALLED and LATE_DECLARED_GREEN — the first says "
+            "the axis never calls it and the second says the axis called it and stayed "
+            "green. Both cannot be true, and whichever is stale is now invisible")
     _LIVE = {"x": (["node", "a.mjs"], None)}
     if late_marker_roster_problems(_LIVE, {"node a.mjs": "M"}):
         problems.append("late_marker_roster_problems flags a complete roster")

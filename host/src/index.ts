@@ -26,6 +26,7 @@ import {
 import { taskStore, TASK_CAPABILITIES } from "./tasks.js";
 import { RESOURCE_CAPABILITIES, registerResourceSubscriptions } from "./subscriptions.js";
 import { pauseLatch, installPauseSignalHandlers } from "./pause.js";
+import { applyResultCost } from "./result-cost.js";
 import { log } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -196,6 +197,11 @@ async function main(): Promise<void> {
   // dispatcher does not exist until the first registerTool, and this wraps it.
   // Advertises nothing new — tools/list is untouched at 279.
   applyDroppedToolRefusal(server, privilegedGroups);
+
+  // 257 — the result-cost meter, off unless BREAKPOINT_RESULT_COST names a file.
+  // AFTER the refusal wrapper so a dropped tool's refusal is measured as the result
+  // it actually is: a client pays for a refusal exactly as it pays for an answer.
+  applyResultCost(server);
 
   if (config.privilegedGroups) {
     const on = [...privilegedGroups].sort().join(", ") || "(none)";

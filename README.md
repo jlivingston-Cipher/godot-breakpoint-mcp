@@ -7,7 +7,7 @@
 > connect too (see [Compatibility](#compatibility)).
 >
 > **npm 1.75.0 · addon 1.10.0 · full 292 / secure-default 279 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 768-test suite plus
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 774-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -502,8 +502,10 @@ details helps us improve the experience for everyone.
    match the viewport you want; a fresh editor is on 3D and opening a scene does not switch it.
 7. `dbg_set_breakpoints` → `dbg_launch` → `dbg_stack_trace` / `dbg_variables` /
    `dbg_evaluate` → debug from real program state.
-8. `godot_run_project` → `runtime_get_tree` / `runtime_set_property` /
-   `runtime_inject_input` / `runtime_screenshot` → drive and observe the *running* game.
+8. `godot_run_project` — which waits for the game's runtime bridge and says so with
+   `bridge_ready`, rather than answering while the game is still booting — then
+   `runtime_get_tree` / `runtime_set_property` / `runtime_inject_input` /
+   `runtime_screenshot` → drive and observe the *running* game.
 9. `godot_run_headless_script` → run tests.
 
 The [User Guide](docs/USER_GUIDE.md) walks through this end to end.

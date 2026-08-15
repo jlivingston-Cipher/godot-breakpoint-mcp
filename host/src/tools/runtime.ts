@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { BridgeClient, BridgeError, remedyClause } from "../bridge.js";
+import { BridgeClient, BridgeError, isTransportUnavailable, remedyClause } from "../bridge.js";
 import { MAX_PEERS, type PeerRegistry } from "../peers.js";
 import { gate } from "../confirm.js";
 import { ok, failPath } from "./lsp-common.js";
@@ -473,7 +473,9 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       description:
         "Poll a property on a LIVE node until it satisfies a comparison, or a timeout elapses (read-only verification). " +
         "op is eq | ne | gt | ge | lt | le (the ordered operators require numeric values). Use this to wait for the " +
-        "running game to reach a state before asserting on it — e.g. wait for hp le 0, then runtime_assert_screen_text.",
+        "running game to reach a state before asserting on it — e.g. wait for hp le 0, then runtime_assert_screen_text. " +
+        "An unreachable runtime bridge is retried until the timeout rather than failing on the first poll, so this " +
+        "tool can also be used to wait for a game that is still booting.",
       inputSchema: {
         path: z.string().describe("Node path (relative to the current scene; '/root/...' absolute allowed)"),
         property: z.string().describe("Property to read on each poll"),
@@ -503,7 +505,20 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         try {
           res = (await client.request("runtime.get_property", { path, property })) as { value?: unknown };
         } catch (err) {
-          return fail(err);
+          // 🔴 THE ONE WAITING TOOL DID NOT WAIT FOR THE ONE THING WORTH WAITING
+          // FOR (249, closed 257). Every error ended the loop here, so a caller
+          // that set timeout_ms 15000 against a game that was still booting got
+          // an answer in 2 ms with polls 1 — `deadline` and `sleep(interval)`
+          // are both downstream of this catch and were never reached.
+          //
+          // `bridge_unavailable` is the transport saying *not yet*; every other
+          // code is the game saying *no* — a missing node, an unknown property,
+          // a refused method — and retrying those would turn a precise failure
+          // into a slow one. So the retry is scoped to the one code, and it is
+          // still bounded by the caller's own deadline rather than by a new one.
+          if (!isTransportUnavailable(err) || Date.now() >= deadline) return fail(err);
+          await sleep(interval);
+          continue;
         }
         last = res?.value ?? null;
         if (compareValues(last, value, operator)) {

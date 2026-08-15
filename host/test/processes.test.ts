@@ -123,7 +123,7 @@ test("godot_output filters by since_seq and by stream", { skip: !POSIX }, async 
   const rec = makeRecordingServer();
   const reg = registerProcessTools(rec.server as unknown as Parameters<typeof registerProcessTools>[0], cfg());
 
-  const run = await rec.handler("godot_run_managed")({});
+  const run = await rec.handler("godot_run_managed")({ wait_timeout_ms: 0 });
   const id = sc(run).id as string;
   assert.equal(typeof id, "string");
   await waitFor(() => reg.get(id)?.exited);
@@ -161,7 +161,7 @@ test("godot_output and godot_stop return a friendly error for an unknown process
 test("godot_stop terminates a managed process", { skip: !POSIX }, async () => {
   const rec = makeRecordingServer();
   const reg = registerProcessTools(rec.server as unknown as Parameters<typeof registerProcessTools>[0], cfg());
-  const run = await rec.handler("godot_run_managed")({});
+  const run = await rec.handler("godot_run_managed")({ wait_timeout_ms: 0 });
   const id = sc(run).id as string;
 
   const stop = sc(await rec.handler("godot_stop")({ id }));
@@ -188,7 +188,7 @@ test("godot_run_managed refuses a held runtime port, and names the wrong-process
   const rec = makeRecordingServer();
   const reg = registerProcessTools(rec.server as unknown as Parameters<typeof registerProcessTools>[0], cfg(port));
   try {
-    const r = await rec.handler("godot_run_managed")({});
+    const r = await rec.handler("godot_run_managed")({ wait_timeout_ms: 0 });
     assert.equal(r.isError, true);
     const text = r.content?.[0]?.text ?? "";
     assert.match(text, new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
@@ -213,7 +213,7 @@ test("godot_run_managed honours allow_port_conflict, and the override does not s
   const rec = makeRecordingServer();
   const reg = registerProcessTools(rec.server as unknown as Parameters<typeof registerProcessTools>[0], cfg(port));
   try {
-    const r = await rec.handler("godot_run_managed")({ allow_port_conflict: true });
+    const r = await rec.handler("godot_run_managed")({ allow_port_conflict: true, wait_timeout_ms: 0 });
     assert.notEqual(r.isError, true, "the override must actually start the process");
     const id = sc(r).id as string;
     assert.equal(typeof id, "string");
@@ -222,7 +222,7 @@ test("godot_run_managed honours allow_port_conflict, and the override does not s
 
     // The escape hatch is per-call. A second run without it must refuse again —
     // an override that latches would silently disarm the check for the session.
-    const again = await rec.handler("godot_run_managed")({});
+    const again = await rec.handler("godot_run_managed")({ wait_timeout_ms: 0 });
     assert.equal(again.isError, true, "allow_port_conflict must not persist across calls");
   } finally {
     reg.killAll();
@@ -239,7 +239,7 @@ test("a free runtime port is not read as a conflict once the holder lets go", { 
   const rec = makeRecordingServer();
   const reg = registerProcessTools(rec.server as unknown as Parameters<typeof registerProcessTools>[0], cfg(port));
   try {
-    const r = await rec.handler("godot_run_managed")({});
+    const r = await rec.handler("godot_run_managed")({ wait_timeout_ms: 0 });
     assert.notEqual(r.isError, true);
     assert.equal(typeof sc(r).id, "string");
   } finally {

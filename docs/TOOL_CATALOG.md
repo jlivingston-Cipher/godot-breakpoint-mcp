@@ -122,23 +122,28 @@ Open the Godot editor for the project (detached). Prerequisite for every `editor
 ```
 
 ### `godot_run_project` ✅
-Run the project (detached), optionally from a specific scene. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
+Run the project (detached), optionally from a specific scene. **Waits until the game's runtime bridge answers `ping`** and reports `bridge_ready` — the game needs roughly half a second to three seconds to bind it, and no `runtime_*` tool is reachable before it does. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
   "properties": {
     "scene": { "type": "string", "description": "res:// scene to run" },
-    "allow_port_conflict": { "type": "boolean", "default": false, "description": "start even though the runtime bridge port is bound; the new game's bridge will be unreachable" } } }
+    "allow_port_conflict": { "type": "boolean", "default": false, "description": "start even though the runtime bridge port is bound; the new game's bridge will be unreachable" },
+    "wait_timeout_ms": { "type": "integer", "minimum": 0, "default": 15000, "description": "how long to wait for the runtime bridge to answer ping; 0 returns as soon as the process is spawned" } } }
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["running", "pid"],
+{ "type": "object", "required": ["running", "pid", "bridge_ready"],
   "properties": {
     "running": { "type": "boolean" },
     "pid": { "type": ["integer", "null"] },
-    "scene": { "type": ["string", "null"] }
+    "scene": { "type": ["string", "null"] },
+    "bridge_ready": { "type": "boolean" },
+    "bridge_wait_ms": { "type": "integer" },
+    "bridge_note": { "type": ["string", "null"] }
   } }
 ```
+> `running` says the process was spawned; `bridge_ready` says the runtime bridge answered. Before this pair existed only the first was reported, and callers read it as the second — for 0.5–3.2s it was not. `bridge_wait_ms` of 0 with `bridge_ready` false means *not waited* — `wait_timeout_ms: 0` — which is a different fact from *waited and lost*, and `bridge_note` says which.
 
 ### `godot_export` ✅ · writes build artifacts
 Headless export via an export preset. Runs to completion; can be slow. Exposed as an MCP task (D2): a task-aware client polls or cancels it while it runs; plain clients still get a synchronous result.
@@ -1823,23 +1828,26 @@ The project-authoring surface. Four `inputmap_*` tools author the project's inpu
 # Plane D — Semantic (LSP)  (✅ implemented — Phase 2; raw TCP + LSP `Content-Length` framing to Godot's GDScript language server, default `127.0.0.1:6005`)
 
 ### `gd_completion` ✅
+Returns a capped list — see `max_results` — and sets `truncated` when the language server offered more. **Completion is the one language-server verb whose result size is a function of PROJECT scope rather than of the cursor**: at most positions it is every global class, every autoload and every in-scope built-in, and a single call has been measured returning more bytes than the whole tool catalogue does. `gd_hover` and `gd_definition` are bounded by the thing under the cursor and are not capped.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "line", "character"],
   "properties": {
     "path": { "type": "string", "pattern": "^res://" },
     "line": { "type": "integer", "minimum": 0 },
-    "character": { "type": "integer", "minimum": 0 }
+    "character": { "type": "integer", "minimum": 0 },
+    "max_results": { "type": "integer", "minimum": 1, "default": 200 }
   } }
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["items"],
+{ "type": "object", "required": ["items", "truncated"],
   "properties": { "items": { "type": "array", "items": {
     "type": "object", "properties": {
       "label": { "type": "string" }, "kind": { "type": "string" },
       "detail": { "type": "string" }, "insertText": { "type": "string" }
-    } } } } }
+    } } },
+    "truncated": { "type": "boolean" } } }
 ```
 
 ### `gd_hover` ✅
@@ -2144,13 +2152,15 @@ Return the semantic-highlighting tokens for a whole script — each token's posi
 # Plane D — C# Semantic (OmniSharp LSP)  (✅ implemented — D4 C2; the C#/.NET mirror of the GDScript LSP plane. OmniSharp is spawned by the host over **stdio** (lazily, on the first `cs_*` call) and driven against a C# Godot project — e.g. the `example-csharp/` fixture — set via `GODOT_CSHARP_PROJECT`. The read-only `cs_*` tools mirror the read-only `gd_*` surface; the two mutators — `cs_rename` (elicitation-gated on `apply=true`) and the read-only `cs_code_action` listing — mirror the GDScript `gd_rename` / `gd_code_action`. Feature-detected the same way: a method the server never advertised, or a `-32601` from one that lied about it, degrades to a clear "unsupported" message rather than a hang.)
 
 ### `cs_completion` ✅
-- **Input** `{ path, line, character }` (path resolves against the C# project root; 0-based line/character).
+`gd_completion`'s twin, capped for the reason measured on that one: `max_results` bounds the list and `truncated` says when OmniSharp offered more.
+- **Input** `{ path, line, character, max_results }` (path resolves against the C# project root; 0-based line/character; `max_results` carries the same default as `gd_completion`).
 - **Output**
 ```json
-{ "type": "object", "required": ["items"], "properties": { "items": { "type": "array", "items": {
+{ "type": "object", "required": ["items", "truncated"], "properties": { "items": { "type": "array", "items": {
   "type": "object", "properties": {
     "label": { "type": "string" }, "kind": { "type": "string" },
-    "detail": { "type": "string" }, "insertText": { "type": "string" } } } } } }
+    "detail": { "type": "string" }, "insertText": { "type": "string" } } } },
+  "truncated": { "type": "boolean" } } }
 ```
 
 ### `cs_hover` ✅
@@ -4201,21 +4211,25 @@ The long-running tools (`godot_export`, `godot_import`, `godot_run_headless_scri
 # Plane B — Managed Process & Console Capture  (✅ implemented — Phase 4; host-side piped stdio for transparent `print()`/error capture)
 
 ### `godot_run_managed` ✅
-Run the project as a managed child process with captured stdout/stderr (unlike `godot_run_project`, whose output is not captured). **Refuses when the runtime bridge port is already bound**, for the same reason as `godot_run_project` — and note the managed child's own `push_error("could not listen…")` lands in `godot_output`, so the failure is legible after the fact but only if someone reads for it.
+Run the project as a managed child process with captured stdout/stderr (unlike `godot_run_project`, whose output is not captured). **Waits for the runtime bridge and reports `bridge_ready`**, exactly as `godot_run_project` does. **Refuses when the runtime bridge port is already bound**, for the same reason as `godot_run_project` — and note the managed child's own `push_error("could not listen…")` lands in `godot_output`, so the failure is legible after the fact but only if someone reads for it.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
   "properties": {
     "scene": { "type": "string", "description": "optional res:// scene" },
-    "allow_port_conflict": { "type": "boolean", "default": false, "description": "start even though the runtime bridge port is bound; the new game's bridge will be unreachable" } } }
+    "allow_port_conflict": { "type": "boolean", "default": false, "description": "start even though the runtime bridge port is bound; the new game's bridge will be unreachable" },
+    "wait_timeout_ms": { "type": "integer", "minimum": 0, "default": 15000, "description": "how long to wait for the runtime bridge to answer ping; 0 returns as soon as the process is spawned" } } }
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["id", "running"],
+{ "type": "object", "required": ["id", "running", "bridge_ready"],
   "properties": {
     "id": { "type": "string" }, "pid": { "type": ["integer", "null"] },
-    "running": { "type": "boolean" }, "scene": { "type": ["string", "null"] } } }
+    "running": { "type": "boolean" }, "scene": { "type": ["string", "null"] },
+    "bridge_ready": { "type": "boolean" }, "bridge_wait_ms": { "type": "integer" },
+    "bridge_note": { "type": ["string", "null"] } } }
 ```
+> The twin's readiness fields mean what they mean on `godot_run_project`. The row `run-project-returns-before-bridge` named only that tool; this one had the same defect with nothing naming it, which is why check 30 finds launchers by the spawn rather than by a list.
 
 ### `godot_output` ✅
 Read captured console output for a managed process.

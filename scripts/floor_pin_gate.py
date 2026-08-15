@@ -145,7 +145,20 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("NODE_FLOOR",               f"{S}/wire_diff.mjs",               r"(export const NODE_FLOOR = )1500;",                        [f"{S}/wire_diff.selftest.mjs"]),
     # 🆕 211 §6 — the budget reader's self-test grew a collapse detector of its own when
     # it became a roster entry, and a collapse detector nothing moves is 176's G12 shape.
-    ("tc.CLAIM_FLOOR",           f"{S}/token-cost.selftest.mjs",     r"(const CLAIM_FLOOR = )18;",                                [f"{S}/token-cost.selftest.mjs"]),
+    # 🔴 257 — `\d+` RATHER THAN THE VALUE, and it earned it the way every other row in
+    # this table that carries one did: the session that gave this file a whole new section
+    # raised the detector 18 -> 24 and the anchor matched ZERO times, so the sweep reported
+    # a clean pass over a floor it never touched. 194's sentence, a fourth time: an anchor
+    # embedding a floor's VALUE is pinned to a number the tree is expected to move.
+    ("tc.CLAIM_FLOOR",           f"{S}/token-cost.selftest.mjs",     r"(const CLAIM_FLOOR = )\d+;",                              [f"{S}/token-cost.selftest.mjs"]),
+    # 🆕 257 — THE RESULT AXIS'S CEILING. `token-cost.mjs` governed the catalogue and could
+    # not see a single result; this is the constant the new axis is judged against, and it
+    # is swept for the reason the two above it are: it is read only as `max > CEILING`, so
+    # ZEROING IT MAKES THE AXIS STRICTER rather than blind — which no comparison in the
+    # self-test would notice on its own. `token-cost.selftest.mjs` therefore asserts the
+    # constant BY SHAPE as well as driving it from both sides, the 172 §10.21 form, so a
+    # zeroed ceiling reddens on the assertion rather than being absorbed by the rows.
+    ("tc.RESULT_BYTES_CEILING",  f"{S}/token-cost.mjs",              r"(export const RESULT_BYTES_CEILING = )\d+;",              [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 219 — the positive-control finder's four, and its self-test's own. All five
     # are asserted BY NAME in `positive_control_gate.selftest.mjs` as well as driven from
     # both sides (at the floor it passes, one past it refuses), so moving any of them off
@@ -1165,7 +1178,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (26, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (27, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1186,7 +1199,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "session that moved this tree to the current zod major, where a key typed as "
         "unconstrained stopped being implicitly optional and became implicitly required on "
         "the wire — so the check asks, per tool rather than per file, whether something on "
-        "the engine side actually writes each key the emitted schema now promises.")),
+        "the engine side actually writes each key the emitted schema now promises. "
+        "🆕 RAISED BY ONE A FIFTH TIME: the launcher readiness join was added to close the "
+        "row about a tool reporting that a game was running before the game's bridge could "
+        "answer — the check finds every tool whose own block SPAWNS a game, and asks "
+        "whether it waited and whether it has anywhere on the wire to say so. Found by the "
+        "spawn and never by a roster, because the row it closes named one launcher and its "
+        "twin in another file had the identical defect with nothing naming it.")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "

@@ -23,6 +23,7 @@
 import assert from "node:assert/strict";
 import {
   measure, verdict, BYTES_CEILING, TOOL_FLOOR, SCHEMA_PER_TOOL_CEILING,
+  parseResults, measureResults, verdictResults, RESULT_BYTES_CEILING,
 } from "./token-cost.mjs";
 
 const mkTools = (n, descLen) =>
@@ -242,6 +243,46 @@ claim(two.schemaPerTool > one.schemaPerTool,
   "schemaPerTool must move with the schemas it is derived from");
 claim(safe(() => measure([]).schemaPerTool, -1) === 0, "an empty surface must not divide by zero");
 
+// ── 6. THE RESULT AXIS (257) — THE HALF THIS FILE COULD NOT SEE ──────────────────────
+// 🔴 THE ROW IT CLOSES IS AN INSTRUMENT REPORTING `ok` ABOUT SOMETHING IT COULD NOT READ,
+// so the refusals here matter more than the passes: an axis that has never refused is
+// the defect wearing a second name. 249's measured number is the edge row, by value.
+const rcParse = safe(() => parseResults("a\t10\n\nb\t20\nrubbish\nc\tNaN\n"), []);
+claim(rcParse.length === 2, "parseResults must keep well-formed rows and drop the rest");
+const rcEmpty = safe(() => verdictResults(measureResults([])), { ok: true });
+claim(rcEmpty.ok === false && rcEmpty.problems.join(" ").includes("no calls"),
+  "🔴 an EMPTY log must refuse — silence written to a file is still silence");
+const rcUnder = safe(() => measureResults([
+  { tool: "gd_hover", bytes: 512 },
+  { tool: "gd_completion", bytes: RESULT_BYTES_CEILING },
+]), {});
+claim(safe(() => verdictResults(rcUnder).ok, false) === true,
+  "exactly at the result ceiling stays legal — the ceiling's EDGE, legal side");
+const rcOver = safe(() => measureResults([
+  { tool: "gd_hover", bytes: 512 },
+  { tool: "gd_completion", bytes: RESULT_BYTES_CEILING + 1 },
+]), {});
+const rcOverV = safe(() => verdictResults(rcOver), { ok: true, problems: [] });
+claim(rcOverV.ok === false && rcOverV.problems.join(" ").includes("gd_completion"),
+  "🔴 ONE byte over must refuse AND NAME THE TOOL — the ceiling's EDGE, refusing side");
+const rc249 = safe(() => verdictResults(measureResults([{ tool: "gd_completion", bytes: 342116 }])),
+  { ok: true });
+claim(rc249.ok === false,
+  "🔴 249's measured 342,116 B result must refuse — the number that opened the row");
+claim(safe(() => measureResults([
+  { tool: "t", bytes: 5 }, { tool: "t", bytes: 9 }, { tool: "t", bytes: 1 },
+]).worst[0][1].max, 0) === 9,
+  "the per-tool number governed is the WORST single result, not the mean or the sum");
+// 🔴 THE CEILING ITSELF, BY SHAPE — 172 §10.21's form, and it is load-bearing here.
+// `verdictResults` reads the constant only as `max > CEILING`, so ZEROING it makes the
+// axis stricter, not blind: every row above would still refuse, and the sweep that moves
+// pinned constants would report a clean pass over a ceiling it had deleted. Only an
+// assertion about the constant can say so.
+claim(Number.isInteger(RESULT_BYTES_CEILING) && RESULT_BYTES_CEILING > 1000,
+  "🔴 RESULT_BYTES_CEILING must be an integer above a trivial value — zeroed, it would "
+  + "refuse every result and read as a working axis");
+console.log(`  🟢 result axis: ceiling ${RESULT_BYTES_CEILING} · refuses empty, over and 249's measured outlier`);
+
 // 🆕 211 §6 — THE VERDICT LINE, PRINTED BEFORE ANY EXIT AND ON BOTH PATHS. It is what
 // `instrument_gate.py`'s VERDICT_MARKER matches, and the prefix rather than the "ok"
 // spelling for the reason 209 gives one file over: a marker only the passing run emits
@@ -249,7 +290,7 @@ claim(safe(() => measure([]).schemaPerTool, -1) === 0, "an empty surface must no
 console.log(`TOKEN_COST_SELFTEST ${ran - claimBad}/${ran} claims · ${SELFTEST.length - bad}/${SELFTEST.length} rows`);
 // 🔴 THIS FILE'S OWN COLLAPSE DETECTOR. Claims deleted, or a section that stopped
 // running, leaves every assertion above vacuously satisfied and the file green.
-const CLAIM_FLOOR = 18;
+const CLAIM_FLOOR = 25;
 // 🔴 THE SAME 172 §10.21 SHAPE THE THREE CONSTANTS ABOVE CARRY. `ran < 0` is never
 // true, so zeroing this floor deletes the detector while leaving its name in place —
 // and the only thing that can say so is an assertion about the constant.

@@ -6,6 +6,7 @@ import { log } from "../logger.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
+import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 
 interface LogLine {
   seq: number;
@@ -110,6 +111,8 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       description:
         "Run the project as a managed child process with captured stdout/stderr, so godot_output can read ALL print()/error output. " +
         "Returns a process id. Use this instead of godot_run_project when you want the game's console log. " +
+        "WAITS until the game's runtime bridge answers ping and reports bridge_ready, exactly as godot_run_project " +
+        "does — no runtime_* tool is reachable before it does. " +
         "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, and every " +
         "runtime_* call would address the process already holding the port. Use runtime_spawn_peers to drive more " +
         "than one game at once.",
@@ -123,12 +126,26 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
               "bridge will NOT be reachable — use only when you want the process for its console output or side " +
               "effects and will not call any runtime_* tool against it.",
           ),
+        wait_timeout_ms: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "How long to wait for the runtime bridge to answer ping, in ms (default 15000, the runtime bridge's own " +
+              "deadline). 0 returns as soon as the process is spawned, reporting bridge_ready false and " +
+              "bridge_wait_ms 0 — waited-not-at-all, which a caller can tell apart from waited-and-lost.",
+          ),
       },
     },
     // 🔴 `godot_run_project`'s TWIN, in a different file, with the same defect —
     // measured the same way and launching the same escaping argv. 1.42.0's lesson
     // ("the second call site is the interesting one") applied before the fact.
-    async ({ scene, allow_port_conflict }) => {
+    //
+    // 🔴 AND THE SAME LESSON AGAIN AT 257 FOR THE READINESS RACE. The queue row
+    // `run-project-returns-before-bridge` names only `godot_run_project`; this
+    // returned `running: true` at the same false moment and no row said so.
+    async ({ scene, allow_port_conflict, wait_timeout_ms }) => {
       try {
         if (scene !== undefined) resolveInsideProject(scene, cfg.projectPath, "scene");
       } catch (err) { return failPath(err); }
@@ -136,7 +153,16 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
         return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
       }
       const m = registry.run(cfg, scene ? [scene] : []);
-      return ok({ id: m.id, pid: m.child.pid ?? null, running: true, scene: scene ?? null });
+      const readiness = await waitForRuntimeBridge(cfg, wait_timeout_ms ?? cfg.runtimeTimeoutMs);
+      return ok({
+        id: m.id,
+        pid: m.child.pid ?? null,
+        running: true,
+        scene: scene ?? null,
+        bridge_ready: readiness.ready,
+        bridge_wait_ms: readiness.waited_ms,
+        bridge_note: readiness.ready ? null : notReadyRemedy(cfg, readiness.waited_ms),
+      });
     },
   );
 

@@ -25,6 +25,31 @@ export const SYMBOL_KIND: Record<number, string> = {
   20: "key", 21: "null", 22: "enumMember", 23: "struct", 24: "event", 25: "operator", 26: "typeParameter",
 };
 
+/**
+ * The default ceiling on a completion list, and the only reason there is one.
+ *
+ * 🔴 MEASURED: ONE `gd_completion` RETURNED 342,116 B (249) — 99.6% of the whole
+ * 279-tool `tools/list` surface, in a single result, and pretty-printed and shipped
+ * twice by `ok()` below. Completion is the one language-server verb whose result size
+ * is a function of PROJECT scope rather than of the cursor: at most positions it is
+ * every global class, every autoload and every in-scope built-in. `gd_hover`,
+ * `gd_definition` and their C# twins are bounded by the thing under the cursor and are
+ * not in this population.
+ *
+ * 200 is the knowledge family's shipped default — `knowledge.ts` caps grep, symbols and
+ * usages there and returns a `truncated` flag beside them. The same number, because a
+ * second convention would be a second thing to keep true.
+ */
+export const COMPLETION_LIMIT = 200;
+
+/**
+ * Cap a list and say so. The flag is the whole point: a silently short list reads as a
+ * complete one, which is the failure `knowledge.ts` avoided the same way.
+ */
+export function capList<T>(items: T[], max: number): { items: T[]; truncated: boolean } {
+  return items.length > max ? { items: items.slice(0, max), truncated: true } : { items, truncated: false };
+}
+
 /** MCP success envelope: human-readable JSON text plus the structured content. */
 export function ok(obj: unknown) {
   return {

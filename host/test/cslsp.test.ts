@@ -116,10 +116,12 @@ test("cs_completion maps items and CompletionItemKind numbers to readable names"
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath);
   const res = (await rec.handler("cs_completion")({ path: "Player.cs", line: 0, character: 0 })) as ToolResultLike;
+  // `truncated` joined the shape at 257 — completion is capped for the reason measured
+  // on its GDScript twin, and a short list that does not say so reads as a complete one.
   assert.deepEqual(res.structuredContent, { items: [
     { label: "TakeDamage", kind: "method", detail: "int Player.TakeDamage(int amount)", insertText: "TakeDamage" },
     { label: "Counter", kind: "property", detail: "", insertText: "Counter" },
-  ] });
+  ], truncated: false });
   cslsp.close();
   await srv.close();
 });

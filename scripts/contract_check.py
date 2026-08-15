@@ -297,8 +297,13 @@ CHECKS_EXPECTED = (
     # 🆕 255 — check 29, the required-any join. A member and not a roster gate: it asks
     # whether a key the wire now promises is a key the engine actually writes.
     "29",
+    # 🆕 257 — check 30, the launcher readiness join. A member and not a roster gate: it
+    # asks whether a tool that answers about a process it started waited for the thing the
+    # caller is about to use. Population found by the spawn, never by a list — the row it
+    # closes named one launcher and the twin had the same defect unnamed.
+    "30",
 )
-CHECKS_RUN_FLOOR = 26   # measured: twenty-six blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 27   # measured: twenty-seven blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -437,6 +442,92 @@ def addon_handler_bodies() -> "dict[str, tuple[str, str]]":
                 continue
             nxt = re.search(r"\nfunc ", text[fm.end():])
             out[method] = (gd, text[fm.end(): fm.end() + (nxt.start() if nxt else len(text))])
+    return out
+
+
+def host_tool_blocks() -> "dict[str, str]":
+    """tool -> the source text of ITS OWN registration block.
+
+    The same block slicing three checks already do inline, named once because check 30
+    needs it twice — a launcher is found by what its block CALLS, and judged by what its
+    block RETURNS, and those are two reads of the same region.
+    """
+    out: "dict[str, str]" = {}
+    site = re.compile(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z0-9_]+)"')
+    for f in sorted(TOOLS.rglob("*.ts")):
+        text = f.read_text()
+        sites = list(site.finditer(text))
+        for i, sm in enumerate(sites):
+            end = sites[i + 1].start() if i + 1 < len(sites) else len(text)
+            out[sm.group(1)] = text[sm.end(): end]
+    return out
+
+
+#: What a tool that launches the game must put on the wire beside `running`.
+READINESS_KEYS = ("bridge_ready", "bridge_wait_ms", "bridge_note")
+
+#: The spawns that produce a long-lived Godot process.
+LAUNCH_CALLS = ("launchDetached(", "registry.run(")
+
+#: The engine flag that makes a launch an EDITOR launch rather than a game launch.
+EDITOR_LAUNCH_FLAG = '"-e"'
+
+
+def game_launcher_tools() -> "set[str]":
+    """Tools whose own registration block spawns a game expected to host 9081.
+
+    🔴 THE POPULATION IS FOUND BY THE SPAWN, NOT BY A ROSTER — which is the point.
+    `run-project-returns-before-bridge` was written about `godot_run_project` alone, and
+    `godot_run_managed` in a different file had the identical defect with no row naming
+    it. A roster would have had to be remembered; a finder that reads the launch call
+    finds the twin the moment it is written.
+
+    🔴 AND THE EXCLUSION IS DERIVED, NOT LISTED. `godot_launch_editor` spawns the same
+    binary through the same helper and is not in this population — it passes `-e`, which
+    starts the EDITOR, and an editor hosts the editor bridge on 9080 and never binds the
+    runtime port. Reading the flag means a second editor launcher excludes itself; a name
+    on an exception list would have had to be remembered, which is the failure mode this
+    whole check exists to answer.
+
+    🔴 THE BLIND IS THE WHOLE CHECK. Return an empty set and check 30 judges nothing and
+    prints ok, which is why this has a `SCOPE_LEDGER` floor rather than a comment.
+    """
+    out: "set[str]" = set()
+    for tool, body in host_tool_blocks().items():
+        if not any(c in body for c in LAUNCH_CALLS):
+            continue
+        if EDITOR_LAUNCH_FLAG in body:
+            continue
+        out.add(tool)
+    return out
+
+
+def readiness_waiting_tools() -> "set[str]":
+    """Tools whose own registration block awaits the runtime bridge before answering."""
+    return {t for t, body in host_tool_blocks().items() if "waitForRuntimeBridge(" in body}
+
+
+def output_schema_keys() -> "dict[str, set[str]]":
+    """tool -> every TOP-LEVEL key its output schema declares, whatever the type.
+
+    `required_any_output_keys` above answers a narrower question — which keys are `any`
+    and therefore required — and check 30 needs the plain one: does this tool's schema
+    have somewhere to put the answer at all.
+    """
+    text = SCHEMAS.read_text()
+    m = re.search(r"export const outputSchemas[^=]*=\s*\{", text)
+    if not m:
+        return {}
+    start = text.index("{", m.end() - 1)
+    region = text[start : _match_braces(text, start)]
+    out: "dict[str, set[str]]" = {}
+    for em in re.finditer(r"(?m)^\s{2}([a-z_][a-z0-9_]*)\s*:\s*\{", region):
+        brace = em.end() - 1
+        body = region[brace + 1 : _match_braces(region, brace) - 1]
+        out[em.group(1)] = {
+            km.group(1)
+            for km in re.finditer(r"(?m)^\s+([A-Za-z_][A-Za-z0-9_]*)\s*:", body)
+        }
     return out
 
 
@@ -4173,6 +4264,83 @@ print(f"Required-any keys      : "
       f"emitter · {_optional_any} declared optional · {len(addon_handlers)} handler(s) resolved")
 _ran("29")
 
+# --- 30: THE LAUNCHER THAT ANSWERED BEFORE THE THING IT LAUNCHED -----------
+#
+# 🔴 A TRUE FIELD AT A FALSE TIME, AND NOT ONE GATE IN THIS TREE COULD READ IT. 249 wrote
+# the row: `godot_run_project` returned `running: true` the instant `spawn()` handed back a
+# pid — measured 566, 2788 and 3213 ms before the game's autoload bound 9081 — and every
+# `runtime_*` call inside that window answered *Is the project running?*. It was. The tool
+# said so and returned the pid. The field was true, the question was the wrong one, and
+# 249 §9 said the unsettling part out loud: every defect it found that session was a
+# SENTENCE, and 36,987 lines of gate could read none of them.
+#
+# This is the reader for the class, and it is a join rather than a roster because the roster
+# is what failed: the row named `godot_run_project`, and `godot_run_managed` in a different
+# file had the identical defect with nothing in the tree naming it. `game_launcher_tools`
+# finds the population by the SPAWN — a block that calls `launchDetached` or `registry.run`
+# is a block that produces a process expected to host the runtime bridge — so the twin, and
+# the third launcher nobody has written yet, are in the population the day they are written.
+#
+# Three directions, because there are three ways to lose the answer:
+#   • a launcher that does not WAIT — the defect itself, back verbatim;
+#   • a launcher that waits and has nowhere to SAY so — the wire silently drops the answer
+#     the wait computed, and the caller is back to reading `running`;
+#   • `runtime_await_condition` losing its retry — the one waiting tool, which returned in
+#     2 ms against `timeout_ms: 15000` because it treated an unbound port as a verdict.
+_launchers = game_launcher_tools()
+_waiters = readiness_waiting_tools()
+_out_keys = output_schema_keys()
+_readiness_judged = 0
+for _tool in sorted(_launchers):
+    _readiness_judged += 1
+    if _tool not in _waiters:
+        errors.append(
+            f"check 30: {_tool} launches a game process and does not call "
+            f"`waitForRuntimeBridge`, so it answers before the runtime bridge binds. That "
+            f"is `run-project-returns-before-bridge` (249) exactly: the launch reports "
+            f"`running: true` while every runtime_* call in the next 0.5–3.2s fails with "
+            f"`bridge_unavailable`. `readiness.ts` holds the wait; `peers.ts` has used it "
+            f"against real peers since 1.21.0."
+        )
+        continue
+    _missing = [k for k in READINESS_KEYS if k not in _out_keys.get(_tool, set())]
+    if _missing:
+        errors.append(
+            f"check 30: {_tool} waits for the runtime bridge but its output schema in "
+            f"schemas.ts declares no {', '.join(_missing)}, so the answer the wait computed "
+            f"never reaches the caller. A wait nobody can read is a slower version of the "
+            f"defect, not a fix for it."
+        )
+
+# The other direction. A schema that promises readiness on a tool that never waits is the
+# same lie the other way round, and it is the cheaper mistake to make — a key is copied
+# between two entries far more easily than a call is.
+for _tool, _keys in sorted(_out_keys.items()):
+    if "bridge_ready" in _keys and _tool not in _launchers:
+        errors.append(
+            f"check 30: {_tool}'s output schema declares `bridge_ready` and its "
+            f"registration block launches nothing, so nothing computes the value it "
+            f"promises. Either the launch call was removed and this key outlived it, or "
+            f"the key was copied from a launcher's entry."
+        )
+
+# And the waiting tool's own retry, which is one negated call away from silently gone.
+_await_block = host_tool_blocks().get("runtime_await_condition", "")
+if "isTransportUnavailable(" not in _await_block:
+    errors.append(
+        "check 30: runtime_await_condition no longer branches on `isTransportUnavailable`, "
+        "so the first `bridge_unavailable` ends its loop again. That is the 2 ms answer to "
+        "a 15,000 ms request 249 measured — `deadline` and `sleep(interval)` both sit "
+        "downstream of that catch and are never reached. The retry must stay scoped to the "
+        "transport code: every other code is the game answering, and retrying an answer "
+        "only makes it slower."
+    )
+
+print(f"Launcher readiness     : "
+      f"{_readiness_judged} launcher(s) judged · {len(_waiters)} waiting · "
+      f"{len(READINESS_KEYS)} key(s) required each · await-condition retry present")
+_ran("30")
+
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
 #
 # 192 §5 bound ONE branch to ONE handler: for each TypeScript branch, does the handler it
@@ -4754,6 +4922,26 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "goes unjoined, and the SDK validates `structuredContent` on every success — so the "
      "first handler to drop one turns that tool's happy path into a thrown error, with "
      "nothing in this tree saying which key or which tool"),
+    # 🆕 257 — check 30's two populations, floored separately because they fail separately
+    # and both fail SILENTLY. An empty launcher set judges nothing and prints ok; an empty
+    # key map makes every launcher read as declaring nothing, which is the LOUD failure —
+    # so the floor that matters is the first, and the second is here because a reader that
+    # can go blank is a reader whose green means nothing either way.
+    ("xlang.game_launchers", len(_launchers), 2,
+     "🔴 check 30 stops asking. Every tool that starts a game can go back to answering "
+     "before the runtime bridge binds, which is the defect `run-project-returns-before-"
+     "bridge` names — and the finder going quiet looks exactly like a tree with no "
+     "launchers in it"),
+    ("xlang.readiness_waiters", len(_waiters), 2,
+     "🔴 the WAITING half of check 30's comparison goes empty, and an empty right side "
+     "makes every launcher read as a tool that never waited — which is loud rather than "
+     "silent, and is exactly why the floor is here: the loud failure is what a reader "
+     "trimmed to a subset would NOT produce, and a subset that still contains one waiter "
+     "would pass the comparison for that one and say nothing about the rest"),
+    ("xlang.output_schema_tools", len(_out_keys), 200,
+     "the schema reader stops resolving entries, so check 30's key half compares an empty "
+     "declaration to a required one and goes red on a healthy tree — the shape of gate "
+     "that gets deleted rather than fixed"),
     ("xlang.tool_bridge_methods", sum(len(v) for v in tool_methods.values()), 150,
      "the per-TOOL half collapses to the per-FILE answer checks 1 and 2 already have: no "
      "tool resolves to a handler, so every key reads as unwritten and check 29 goes red on "
