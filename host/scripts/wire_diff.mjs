@@ -139,9 +139,16 @@ const digest = (v) => {
 // — `minimum` 0 -> 99, a new `pattern`, `maxLength` halved — classified as PATCH. These
 // are appended rather than replacing the type, so a widening still reads as the same
 // base type with a different constraint fingerprint and lands in `major` for a human.
+// 🆕 255 — `propertyNames` JOINED THE SURFACE WHEN THE TREE CHANGED ZOD MAJOR. The
+// installed converter renders `z.record(z.string(), V)` with an explicit
+// `propertyNames: {type: "string"}` where the previous one emitted nothing, and it is a
+// constraint by the plain reading of this list's rule: it narrows the KEYS the server
+// accepts, so tightening it from `{type:"string"}` to a pattern refuses calls that used to
+// work. It arrives on 17 nodes on a healthy tree, which is the first time this roster has
+// had to grow for a reason that was nobody's edit.
 const CONSTRAINTS = ["pattern", "format", "minimum", "maximum", "exclusiveMinimum",
   "exclusiveMaximum", "minLength", "maxLength", "minItems", "maxItems", "multipleOf",
-  "additionalProperties", "uniqueItems"];
+  "additionalProperties", "uniqueItems", "propertyNames"];
 
 export function typeName(v) {
   if (!v || typeof v !== "object") return "unknown";
@@ -173,6 +180,18 @@ export function shapeOf(schema, prefix = "", out = new Map()) {
       out.set(p, { type: typeName(v), required: req.has(k) });
       shapeOf(v, p, out);
       if (v && typeof v === "object" && v.items) shapeOf(v.items, `${p}[]`, out);
+    }
+  }
+  // 🆕 255 — the hoisted definitions, walked under a path of their own. A caller reaches
+  // them through a `$ref` whose NAME does not move when the definition does, so comparing
+  // the pointer is not comparing the shape.
+  for (const key of ["definitions", "$defs"]) {
+    const defs = schema[key];
+    if (!defs || typeof defs !== "object") continue;
+    for (const [k, v] of Object.entries(defs)) {
+      const p = `${prefix ? `${prefix}.` : ""}${key}/${k}`;
+      out.set(p, { type: typeName(v), required: false });
+      shapeOf(v, p, out);
     }
   }
   return out;
@@ -214,8 +233,16 @@ export const NOT_A_CONSTRAINT = {
   writeOnly: "an annotation about direction, not about the values accepted",
 };
 // Read by `typeName` for IDENTITY rather than for narrowing, and by `shapeOf` for the walk.
+// 🆕 255 — `definitions` IS STRUCTURAL AND IT IS WALKED, WHICH IS THE ONLY ANSWER THAT
+// KEEPS `$ref` HONEST. The installed converter hoists a recursive schema into a
+// `definitions` block and points at it with `$ref: "#/definitions/__schema0"`;
+// `typeName` renders that as `ref:#/definitions/__schema0`, which is the same string
+// whatever the definition SAYS. Left unwalked, replacing every field of the recursive node
+// would classify PATCH — the exact failure this roster exists to prevent, arriving through
+// a pointer instead of a keyword. `shapeOf` descends into it below, so the definition's
+// members are compared as members.
 export const STRUCTURAL = ["type", "enum", "const", "anyOf", "oneOf", "$ref",
-  "properties", "required", "items"];
+  "properties", "required", "items", "definitions", "$defs"];
 // 🔴 TWO FLOORS, NEVER A SUM (172 §6). A surface that fails to start yields zero nodes and
 // every key is trivially accounted for; a surface that still yields 3,282 nodes while the
 // key walk stops descending into `properties` reads seventeen keys off the top level only,

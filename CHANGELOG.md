@@ -6,6 +6,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the validation library, and what that did to the published schemas
+
+- **Breakpoint now builds against zod 4.** The declarations are unchanged; the
+  emitted JSON Schemas are not, and the differences are all in the direction of
+  saying more. Numeric bounds that the previous converter dropped — `.int()`,
+  `.positive()`, `.min()`, `.max()`, colour patterns, array lengths — now reach
+  `tools/list`, so a client generating its own validators from the published
+  surface gets the rules the server actually enforces instead of a subset of
+  them. Record keys carry an explicit `propertyNames`.
+- 🔴 **Sixteen output fields are now marked `required` on the wire.** Every one
+  of them is a field the engine has always sent — a Godot Variant returned by
+  `node_get_property`, `runtime_call_method`, `project_get_setting` and twelve
+  others. The previous converter could not express "always present" for a field
+  of unconstrained type and quietly dropped all of them from `required`; the
+  schemas in this repository had been drawing the distinction by hand the whole
+  time. Nothing changed about what the server sends. If you generated client
+  types from an earlier `tools/list`, these fields move from optional to
+  required.
+- **Seven input fields are likewise now `required`** — the `value` argument to
+  the property/parameter setters and to `runtime_await_condition`. Each was
+  already refused by the engine when omitted; the schema now says so.
+- Two recursive output schemas — `scene_get_tree` and `runtime_get_tree` — were
+  briefly the only tools on the surface still shipping a `$schema` dialect
+  declaration, because the new converter hoists the recursion into a
+  `definitions` block. They no longer do: a definition container reached only by
+  a local JSON Pointer means the same thing under both dialects, which is
+  checked against an independent validator rather than asserted.
+
 ### Changed
 
 - **Every editor- and runtime-bridge failure now tells you what to do next.** The

@@ -8,10 +8,19 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
  * conforming peer does not already assume. Both are removed on the way out.
  *
  *  1. 🔴 `"$schema": "http://json-schema.org/draft-07/schema#"`, inside EVERY input and
- *     output schema. Nobody in this repo writes it: the SDK converts our Zod through
- *     `zod-to-json-schema`, which defaults to draft-07, and offers no target knob on the
- *     Zod-v3 path (`server/zod-json-schema-compat.js` — the `target` option is read only
- *     by the Zod-v4 branch). MCP fixes the DEFAULT dialect at JSON Schema 2020-12 and
+ *     output schema. Nobody in this repo writes it: the SDK converts our Zod and asks for
+ *     draft-07 while doing it.
+ *
+ *     🆕 255 — AND MOVING TO THE ZOD-v4 BRANCH DID NOT CHANGE THAT, WHICH THE PARAGRAPH
+ *     THIS REPLACES IMPLIED IT WOULD. The old text read "the `target` option is read only
+ *     by the Zod-v4 branch", which is true and useless: `server/mcp.js` calls
+ *     `toJsonSchemaCompat` with no `target` at either version, and the v4 branch maps an
+ *     absent target to `'draft-7'` before handing it to zod's own converter. So the
+ *     declaration on the wire is the SDK's choice and not the library's, it survived a
+ *     major bump unchanged, and this strip stays necessary — the same conclusion the
+ *     migration spike reached from the outside, now measured from inside the tree.
+ *
+ *     MCP fixes the DEFAULT dialect at JSON Schema 2020-12 and
  *     requires every implementation to support it; a `$schema` field is an EXPLICIT
  *     SWITCH to a dialect nobody is obliged to support and which a peer MUST reject
  *     gracefully if it does not. So this is not decoration and it is not a trim:
@@ -52,12 +61,60 @@ export const DIALECT_SENSITIVE: ReadonlyArray<readonly [string, (v: unknown) => 
   ["exclusiveMinimum", (v) => typeof v === "boolean"], // draft-04 form
   ["exclusiveMaximum", (v) => typeof v === "boolean"], // draft-04 form
   ["dependencies", () => true], //                  split into dependentSchemas/dependentRequired
-  ["definitions", () => true], //                   $defs in 2020-12
-  ["$defs", () => true], //                         2020-12 only — the label would be wrong already
   ["prefixItems", () => true], //                   2020-12 only
   ["unevaluatedProperties", () => true], //         2020-12 only
   ["unevaluatedItems", () => true], //              2020-12 only
 ];
+
+/**
+ * The definition CONTAINERS, which are the one entry above that could not be decided from
+ * its own value.
+ *
+ * 🔴 255 — AND THEY WERE ON THE LIST FOR A SPELLING DIFFERENCE THAT DOES NOT REACH A
+ * REFERENCE. `definitions` is draft-07's container and `$defs` is 2020-12's, so each is an
+ * unknown keyword under the other dialect — and an unknown keyword is one both specs
+ * require a validator to IGNORE. What actually resolves a reference is `$ref`, and
+ * `"#/definitions/X"` is a URI-reference resolved as a JSON Pointer into the same schema
+ * resource under BOTH dialects: the pointer walks the document by key, and it does not
+ * care whether the key it walks through is vocabulary or not.
+ *
+ * So the container is dialect-bound only when something inside it is REACHED BY A NAME
+ * rather than by a path — `$anchor` (2020-12 only) or a nested `$id` (a new base URI in
+ * both, resolved differently) — or when a `$ref` anywhere in the document is not a plain
+ * local pointer. That is the predicate below, and it is a property of the WHOLE document,
+ * which is why it could not live in the table above.
+ *
+ * 🔴 THIS WAS MEASURED BEFORE IT WAS BELIEVED, AND IT IS MEASURED AGAIN ON EVERY RUN.
+ * `wire_defaults.test.ts` compiles the STRIPPED schema under a strict 2020-12 validator
+ * and the declared one under draft-07, and compares their verdicts on probe instances —
+ * Ajv is a second opinion with no stake in this argument. The fail-safe is not weakened:
+ * a container that is reached by name, or a reference that leaves the document, still
+ * keeps its declaration.
+ */
+const CONTAINER_KEYS = ["definitions", "$defs"] as const;
+
+/** Reached by NAME rather than by path — the two ways a container stops being inert. */
+const NAME_REACHED = new Set(["$id", "$anchor", "$dynamicAnchor", "$dynamicRef", "$recursiveAnchor", "$recursiveRef"]);
+
+/**
+ * Can a definition container be renamed between dialects without changing meaning?
+ * A property of the whole document: every `$ref` in it must be a plain local pointer, and
+ * nothing anywhere may be reached by name.
+ */
+export function containersInert(doc: unknown): boolean {
+  let inert = true;
+  const walk = (node: unknown): void => {
+    if (!inert || node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (NAME_REACHED.has(k)) { inert = false; return; }
+      if (k === "$ref" && !(typeof v === "string" && v.startsWith("#/"))) { inert = false; return; }
+      walk(v);
+    }
+  };
+  walk(doc);
+  return inert;
+}
 
 /** Keys under these keywords are AUTHOR-CHOSEN NAMES, not schema vocabulary. */
 const NAME_BEARING = new Set(["properties", "patternProperties", "definitions", "$defs"]);
@@ -70,18 +127,28 @@ const NAME_BEARING = new Set(["properties", "patternProperties", "definitions", 
  * have kept the declaration on the whole surface; the hit was `scene_get_dependencies`'s
  * output field, a property NAMED dependencies. A walker that cannot tell a keyword from a
  * key reads an author's vocabulary as the protocol's.
+ *
+ * 🔴 THE CONTAINER ANSWER IS COMPUTED ONCE, AT THE DOCUMENT, AND CARRIED DOWN. Whether
+ * `definitions` is load-bearing is not readable from `definitions` — see `containersInert`
+ * — so the recursion threads the document's answer rather than re-deriving a different one
+ * at each level, which is how the same schema would get two verdicts from one walk.
  */
 export function dialectSensitive(node: unknown, inNamePosition = false): boolean {
+  return walkSensitive(node, inNamePosition, containersInert(node));
+}
+
+function walkSensitive(node: unknown, inNamePosition: boolean, inert: boolean): boolean {
   if (node === null || typeof node !== "object") return false;
-  if (Array.isArray(node)) return node.some((v) => dialectSensitive(v, false));
+  if (Array.isArray(node)) return node.some((v) => walkSensitive(v, false, inert));
   const obj = node as Record<string, unknown>;
   // draft-07 ignores keywords adjacent to $ref; 2020-12 applies them.
   if (obj.$ref !== undefined && Object.keys(obj).length > 1) return true;
   for (const [k, v] of Object.entries(obj)) {
     if (!inNamePosition) {
       for (const [key, matches] of DIALECT_SENSITIVE) if (k === key && matches(v)) return true;
+      if (!inert && (CONTAINER_KEYS as readonly string[]).includes(k)) return true;
     }
-    if (dialectSensitive(v, NAME_BEARING.has(k))) return true;
+    if (walkSensitive(v, NAME_BEARING.has(k), inert)) return true;
   }
   return false;
 }

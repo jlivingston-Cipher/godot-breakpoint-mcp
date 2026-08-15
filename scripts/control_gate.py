@@ -648,6 +648,21 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "`Bridge error [${code}]: ${message}${remedyClause(err)}`",
      "`Bridge error [${code}]: ${message}`",
      "does not append `remedyClause(err)`"),
+    # 🆕 255 — check 29, the required-any join, covered on arrival. Both edit the SHIPPED
+    # tree rather than the checker, for 254's reason: this check's failure is a key renamed
+    # on one side of a wire, and a mutation to the checker would prove only that the checker
+    # can be broken.
+    ("29.keyrenamed", "29", "sub", "addons/breakpoint_mcp/runtime_bridge.gd",
+     'return _ok({"return": Codec.encode(result)})',
+     'return _ok({"returned": Codec.encode(result)})',
+     "and nothing that answers this tool writes it"),
+    # The other direction: `.optional()` is the ONLY spelling that keeps an `any` key out of
+    # the promise set, so a tree with none left has lost the evidence that the split was
+    # authored rather than inherited from whichever zod is installed.
+    ("29.nooptional", "29", "sub", "host/src/schemas.ts",
+     "        expected: encodedValue.optional(),\n        actual: encodedValue.optional(),",
+     "        expected: encodedValue,\n        actual: encodedValue,",
+     "no `encodedValue.optional()` remains"),
     ("15.noshebang", "15", "sub", "scripts/validate.sh", "#!/", "##/",
      "does not begin with `#!`"),
 ]
@@ -756,7 +771,10 @@ CHECKS_CLOSED = ("3", "4c", "4d", "11c", "host", "17", "22",
                  "25",
                  # 254: check 28 the same way — five statements, five rows, covered on
                  # arrival so CONTROL_GATE_BLIND does not move for a check this session added
-                 "28")
+                 "28",
+                 # 255: check 29 the same way — two rows, one per direction of the join, and
+                 # both edit the SHIPPED tree because that is where its failure lives
+                 "29")
 
 
 # ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
@@ -790,6 +808,13 @@ BLAST: dict[str, int] = {
     "28.deadtool": 2,                     # also: 24b
     "28.noattach": 2,                     # also: 24b, the tracked addon copies
     "28.hostdrops": 1,
+    # 🆕 255 — check 29's two. `29.keyrenamed` edits a file the two example projects also
+    # track, so check 24b's copy comparison arrives beside it — 196 §4's rule, paid on the
+    # way in. `29.nooptional` moves two fields INTO the required-any population as it
+    # empties the optional one, and both are written by the handler that answers their
+    # tool, so the join stays quiet and only the evidence rule fires. Measured, not guessed.
+    "29.keyrenamed": 2,                   # also: 24b, the tracked addon copies
+    "29.nooptional": 1,
     "3.dupe": 8,                          # also: 6 8 9 11 13 25
     "3.uncaptured": 8,                    # also: 8 9 11 11b 13 25
     "11c.vacuous": 2,                     # also: 20

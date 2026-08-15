@@ -4,7 +4,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { z as z4 } from "zod/v4";
+// 🆕 255 — THE MAJOR THIS TREE LEFT, STILL IMPORTABLE, WHICH IS WHY THE FACT STAYS PINNED.
+// `zod@4.4.3` ships the previous major at `zod/v3`, so the divergence these tests exist to
+// record does not become unmeasurable the moment the migration lands. Before 255 the same
+// two facts were read the other way round — `zod` was 3 and `zod/v4` was the future — and
+// a file that could only state its finding from one side of a bump is a finding with an
+// expiry date on it.
+import { z as z3 } from "zod/v3";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -70,14 +76,15 @@ test("Godot's INF literal is valid JSON and parses back to Infinity", () => {
   assert.equal(JSON.parse('{"m":null}').m, null);
 });
 
-test("zod 3 accepts Infinity and zod 4 refuses it — the divergence the migration turns on", () => {
-  const three = z.record(z.string(), z.number());
-  const four = z4.record(z4.string(), z4.number());
+test("zod 3 accepts Infinity and zod 4 refuses it — the divergence the migration turned on", () => {
+  const three = z3.record(z3.string(), z3.number());
+  const four = z.record(z.string(), z.number());
 
   assert.equal(three.safeParse({ "time/fps": Infinity }).success, true,
-    "zod 3 accepting Infinity is why this defect is invisible today");
+    "zod 3 accepting Infinity is why this defect was invisible for as long as it was");
   assert.equal(four.safeParse({ "time/fps": Infinity }).success, false,
-    "zod 4 refusing it is why the migration would break a working tool");
+    "the INSTALLED major refuses it — which is a non-event only because nothing "
+    + "non-finite reaches a schema: bridge.ts refuses or prunes at the JSON.parse");
 
   // NaN never reaches either — the engine already turned it into null — but both majors
   // refuse it, which is why the null case had to be admitted rather than the NaN case.
@@ -85,22 +92,39 @@ test("zod 3 accepts Infinity and zod 4 refuses it — the divergence the migrati
   assert.equal(four.safeParse({ "time/fps": NaN }).success, false);
 });
 
-test("`.finite()` refuses 1e999 and emits the SAME JSON Schema — the input narrows, the wire does not move", async () => {
+test("🆕 255 — the door 226 closed is now held by the BASE TYPE, and `.finite()` was deleted rather than kept", async () => {
   const plain = z.record(z.string(), z.number());
   const finite = z.record(z.string(), z.number().finite());
 
-  assert.equal(plain.safeParse({ "time/fps": Infinity }).success, true,
+  // 🔴 UNDER THE MAJOR THIS TREE LEFT, `.finite()` WAS THE WHOLE GUARD. A bare
+  // `z.number()` accepted `1e999`, which reached `float(baseline[key])` in
+  // runtime_bridge.gd as `inf` and came back as `1e99999`. Asserted against `zod/v3` so
+  // the REASON the narrowing was ever added survives the bump that made it invisible.
+  assert.equal(z3.record(z3.string(), z3.number()).safeParse({ "time/fps": Infinity }).success, true,
     "the pre-226 input schema is the door 1e999 walked through");
-  assert.equal(finite.safeParse({ "time/fps": Infinity }).success, false);
-  assert.equal(finite.safeParse({ "time/fps": 60 }).success, true,
-    "narrowing must not cost a legitimate baseline");
+  assert.equal(z3.record(z3.string(), z3.number().finite()).safeParse({ "time/fps": Infinity }).success,
+    false, "and `.finite()` is what closed it there");
 
-  // 🔴 THE PROPERTY THE RELEASE TURNS ON, AND IT IS ASSERTED AGAINST THE REAL EMITTER
-  // RATHER THAN A LIBRARY CALL. `wire_diff.mjs` classifies `tools/list`, so that is what
-  // this reads: two tools registered side by side, listed through the SDK, and compared
-  // as bytes. If `.finite()` ever started emitting a keyword, this narrowing would become
-  // a wire change and the cut would reclassify — which is exactly the disagreement
-  // between prose and classifier that 226 §2 exists to close.
+  // 🔴 UNDER THE INSTALLED MAJOR THE BASE TYPE REFUSES AND `.finite()` ADDS NOTHING — not
+  // "the same thing twice", NOTHING: it builds no check and no bag entry, which is how
+  // `wire_invisible_gate.mjs` found its only roster row standing over an empty site. So the
+  // call was deleted from `tools/runtime.ts` and this pair is what holds the door instead.
+  // If a future zod relaxes `z.number()`, the first of these goes red HERE, with a message
+  // that names the reason, rather than a `1e999` quietly reaching the engine again.
+  assert.equal(plain.safeParse({ "time/fps": Infinity }).success, false,
+    "the installed major refuses a non-finite baseline with no refinement at all");
+  assert.equal(plain.safeParse({ "time/fps": 60 }).success, true,
+    "and refusing must not cost a legitimate baseline");
+  assert.deepEqual(
+    (z.number().finite() as unknown as { _def: { checks?: unknown[] } })._def.checks ?? [], [],
+    "`.finite()` contributes no check on the installed major — a call that adds no rule is "
+    + "a sentence wearing a rule's clothes, which is why the shipped one is gone");
+
+  // 🔴 AND THE WIRE DID NOT MOVE WHEN IT WENT, WHICH IS THE PROPERTY THE CUT TURNS ON.
+  // `wire_diff.mjs` classifies `tools/list`, so that is what this reads: the two forms
+  // registered side by side, listed through the SDK, compared as bytes. Deleting a
+  // refinement that emits nothing is invisible to a client — the same argument 226 §2 made
+  // for ADDING it, run backwards, and the reason this release does not reclassify.
   const server = new McpServer({ name: "finiteness-probe", version: "0" });
   server.registerTool("probe_plain", { description: "d", inputSchema: { baseline: plain } }, async () => ({ content: [] }));
   server.registerTool("probe_finite", { description: "d", inputSchema: { baseline: finite } }, async () => ({ content: [] }));

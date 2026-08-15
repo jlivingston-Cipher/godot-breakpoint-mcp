@@ -51,6 +51,7 @@
 //       node scripts/wire_invisible_gate.selftest.mjs
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { clone as zodClone } from "zod/v4/core";
 
 const HOST_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -61,23 +62,42 @@ const HOST_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // two collapses are different: a surface can register every tool and still walk no
 // declarations if the walker stops descending, which is 211 §4 one file over.
 export const TOOL_FLOOR = 200;   // live 292
-export const FACT_FLOOR = 200;   // live 310
+export const FACT_FLOOR = 200;   // live 318
+// 🆕 255 — A THIRD FLOOR, AND IT IS ABOUT THE IDENTITY FUNCTION RATHER THAN THE WALK.
+// `siteKey` is what turns a fact into the thing this gate reports and compares; a version
+// that answers once and returns a constant afterwards leaves the fact count untouched, so
+// `FACT_FLOOR` cannot see it. It became visible when the roster emptied: every rule that
+// READS a site — `SITES_MOVED`, `STALE_ROW` — only fires on a rostered class, so with no
+// rows left, `instrument_gate.py`'s late blind of `siteKey` stayed GREEN. This floor is the
+// reader that does not depend on the roster having anything in it.
+//
+// 🔴 THE VALUE IS THE DISTINCT COUNT AND NOT THE FACT COUNT, WHICH IS WHY IT IS NOT 300.
+// 318 refinements resolve to 204 sites: a site carrying `.int().positive()` is two facts
+// at one place, and that is the normal shape here rather than an anomaly. Floored with the
+// usual headroom below the live figure, because sites are supposed to grow.
+export const SITE_FLOOR = 150;
 
 // ── THE ROSTER ───────────────────────────────────────────────────────────────────────
 //
 // 🔴 A ROW IS A CLASS, A REASON AND THE EXACT SITES IT SHIPPED AT. The reason is required
 // and checked, for `MEASURED_CAUSE`'s argument: a population pinned without a cause is a
 // number somebody will later raise because it was in the way.
-export const WIRE_INVISIBLE = {
-  "ZodNumber.finite": {
-    reason:
-      "226 §2 narrowed runtime_assert_perf's `baseline` to `z.number().finite()` so `1e999` "
-      + "could not reach `float(baseline[key])` in runtime_bridge.gd as `inf`. The emitter "
-      + "renders `.finite()` and a bare `z.number()` the same, which is what let that ship as "
-      + "a MINOR — and is why any consumer reading this surface off the wire loses the refusal.",
-    sites: ["runtime_assert_perf inputSchema baseline<val>"],
-  },
-};
+//
+// 🆕 255 — AND IT IS EMPTY, WHICH IS A MEASUREMENT AND NOT AN OVERSIGHT. The single row
+// this roster ever held was `ZodNumber.finite`, for `runtime_assert_perf`'s `baseline`.
+// Under the installed major `.finite()` builds NO check and NO bag entry — `z.number()`
+// refuses ±Infinity by itself — so the call was deleted and this row went with it, on this
+// gate's own instruction: a roster row over nothing is an exemption outliving its subject.
+//
+// 🔴 AN EMPTY ROSTER IS NOT AN IDLE GATE. Every class the walk finds is still measured
+// through the emitter on every run, and the same session that emptied this table found
+// FIVE classes reading invisible for a reason that turned out to be the STRIP rather than
+// the emitter (see `stripCheck`). The rule that fires here is `UNDECLARED`, and it fires
+// on a table of zero exactly as well as on a table of one. What the emptiness says is
+// narrower and worth writing down: under this major, every validation rule this tree
+// declares survives onto the wire, so a consumer driven from `tools/list` currently loses
+// nothing. That was not true a dependency ago and there is no reason to assume it stays true.
+export const WIRE_INVISIBLE = {};
 
 export const siteKey = (f) => `${f.tool} ${f.io} ${f.path}`;
 
@@ -85,41 +105,50 @@ export const siteKey = (f) => `${f.tool} ${f.io} ${f.path}`;
 // Wrappers are descended through rather than reported, because `.optional()` on a refined
 // number does not change what the refinement is; containers extend the path so a site
 // names the leaf and not the parameter it hides under.
+//
+// 🔴 255 — READ AGAINST THE INSTALLED MAJOR'S INTERNALS, WHICH IS THE COST OF BEING THE
+// ONE READER HERE THAT DOES NOT READ THE WIRE. zod 3 spelled the node kind
+// `_def.typeName` as `"ZodNumber"` and a check's kind as `check.kind`; zod 4 spells them
+// `_def.type` as `"number"` and `check._zod.def.check`. Nothing public carries either, so
+// this walk is pinned to a private shape by construction — and the bump proved the pin is
+// real rather than theoretical: every claim in `--selftest` went red at once, which is the
+// right way for a reader of somebody else's internals to fail.
+export const checkKind = (c) => (c && c._zod && c._zod.def && c._zod.def.check) || undefined;
+
 export function walkNode(node, tool, io, nodePath, out, depth = 0) {
   if (!node || typeof node !== "object" || depth > 40) return out;
   const def = node._def;
   if (!def) return out;
-  const tn = def.typeName;
+  const tn = def.type;
   if (Array.isArray(def.checks)) {
-    for (const c of def.checks) out.push({ cls: `${tn}.${c.kind}`, kind: c.kind, node, tool, io, path: nodePath });
+    for (const c of def.checks) {
+      const kind = checkKind(c);
+      if (kind) out.push({ cls: `${tn}.${kind}`, kind, node, tool, io, path: nodePath });
+    }
   }
   const go = (n, p = nodePath) => walkNode(n, tool, io, p, out, depth + 1);
   switch (tn) {
-    case "ZodOptional": case "ZodNullable": case "ZodDefault":
-    case "ZodCatch": case "ZodReadonly":       return go(def.innerType);
-    case "ZodEffects":                          return go(def.schema);
-    case "ZodBranded":                          return go(def.type);
-    case "ZodPipeline":                         go(def.in); return go(def.out);
-    case "ZodLazy": { let inner; try { inner = def.getter(); } catch { return out; } return go(inner); }
-    case "ZodArray":                            return go(def.type, `${nodePath}[]`);
-    case "ZodSet":                              return go(def.valueType, `${nodePath}{}`);
-    case "ZodRecord": case "ZodMap":
+    case "optional": case "nullable": case "default": case "nonoptional":
+    case "catch": case "readonly": case "prefault":  return go(def.innerType);
+    case "pipe":                                go(def.in); return go(def.out);
+    case "transform":                           return out;
+    case "lazy": { let inner; try { inner = def.getter(); } catch { return out; } return go(inner); }
+    case "array":                               return go(def.element, `${nodePath}[]`);
+    case "set":                                 return go(def.valueType, `${nodePath}{}`);
+    case "record": case "map":
       go(def.keyType, `${nodePath}<key>`);      return go(def.valueType, `${nodePath}<val>`);
-    case "ZodIntersection":                     go(def.left); return go(def.right);
-    case "ZodObject": {
+    case "intersection":                        go(def.left); return go(def.right);
+    case "object": {
       const shape = typeof def.shape === "function" ? def.shape() : def.shape;
       for (const [k, v] of Object.entries(shape || {})) go(v, nodePath ? `${nodePath}.${k}` : k);
       return out;
     }
-    case "ZodUnion":
-      (def.options || []).forEach((o, i) => go(o, `${nodePath}|${i}`));
-      return out;
-    case "ZodDiscriminatedUnion": {
+    case "union": {
       const opts = def.options instanceof Map ? [...def.options.values()] : (def.options || []);
       opts.forEach((o, i) => go(o, `${nodePath}|${i}`));
       return out;
     }
-    case "ZodTuple":
+    case "tuple":
       (def.items || []).forEach((o, i) => go(o, `${nodePath}[${i}]`));
       return out;
     default: return out;
@@ -141,18 +170,28 @@ export function walkSurface(recorded) {
 
 // 🔴 ONE CHECK OFF A CLONE OF THE REAL NODE. Rebuilding a stand-in `z.number().finite()`
 // here would measure a schema this repository does not ship; the live node is the subject.
+//
+// 🔴 255 — REBUILT THROUGH THE LIBRARY'S OWN `clone`, BECAUSE A DEF EDIT IS NOT A STRIP
+// ANY MORE. zod 3 emitted straight off `_def.checks`, so removing an entry from a shallow
+// copy was enough. zod 4 folds every check into `_zod.bag` AT CONSTRUCTION — `.positive()`
+// becomes `bag.exclusiveMinimum`, `.int()` becomes `bag.format` plus a min/max pair — and
+// the converter reads the BAG. A clone carrying an edited def and an inherited bag emits
+// the schema it was cloned from, so EVERY class compares equal and every one of them reads
+// INVISIBLE: the gate would have reported five undeclared classes and 310 sites of
+// silently-dropped rules on a tree where nothing had changed. That is this file's own
+// header — "if `stripCheck` stopped removing anything, every class would read INVISIBLE" —
+// happening for real, and it is why the port could not be a rename of two field accesses.
+//
+// `core.clone(node, def)` runs the constructor again, which is what recomputes the bag. It
+// is still the LIVE node minus one check rather than a stand-in built here, which is the
+// property the paragraph below was written to protect.
 export function stripCheck(node, kind) {
-  const clone = Object.create(Object.getPrototypeOf(node));
-  Object.assign(clone, node);
   let dropped = false;
-  clone._def = {
-    ...node._def,
-    checks: (node._def.checks || []).filter((c) => {
-      if (!dropped && c.kind === kind) { dropped = true; return false; }
-      return true;
-    }),
-  };
-  return clone;
+  const kept = (node._def.checks || []).filter((c) => {
+    if (!dropped && checkKind(c) === kind) { dropped = true; return false; }
+    return true;
+  });
+  return zodClone(node, { ...node._def, checks: kept });
 }
 
 // ── THE RULES ────────────────────────────────────────────────────────────────────────
@@ -173,6 +212,14 @@ export function audit({ toolCount, facts, invisible, roster }) {
     say("FACT_FLOOR",
       `${facts.length} refinement(s) walked, floor ${FACT_FLOOR} — a walk that stops descending `
       + `reads a fully registered surface as carrying no rules at all.`);
+  }
+  const distinctSites = new Set(facts.map(siteKey)).size;
+  if (facts.length >= FACT_FLOOR && distinctSites < SITE_FLOOR) {
+    say("SITE_FLOOR",
+      `${facts.length} refinement(s) resolve to only ${distinctSites} distinct site(s), floor `
+      + `${SITE_FLOOR} — every rule here reports and compares SITES, so an identity function `
+      + `that has stopped distinguishing them makes a moved refinement indistinguishable from `
+      + `a stationary one while every count stays exactly where it was.`);
   }
 
   const live = new Map();          // cls -> Set(siteKey)

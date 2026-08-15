@@ -336,14 +336,21 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         "Capture the baseline earlier with runtime_get_monitors and pass it back inline. Pass direction is inferred " +
         "(time/fps is higher-better; every other monitor is lower-better) unless overridden per key.",
       inputSchema: {
-        // 🔴 226 §2 — `.finite()` REFUSES `1e999` AT THE DOOR AND MOVES NO BYTE ON THE
-        // WIRE. `zodToJsonSchema` emits `{"type":"number"}` for both forms, measured, so
-        // this narrows what the host accepts without changing what it advertises. Before
-        // it, a well-formed call carrying `1e999` reached `float(baseline[key])` in
-        // runtime_bridge.gd as `inf` and came back as `1e99999` — the one non-finite path
-        // in this tree that needed no engine edge case at all.
+        // 🔴 226 §2 — `1e999` MUST NOT REACH `float(baseline[key])` IN runtime_bridge.gd,
+        // where it arrives as `inf` and comes back as `1e99999`: the one non-finite path in
+        // this tree that needs no engine edge case at all, only a well-formed call.
+        //
+        // 🆕 255 — AND THE `.finite()` THAT CLOSED IT IS GONE, BECAUSE THE BASE TYPE CLOSED
+        // IT. Under the major this tree left, `z.number()` accepted ±Infinity and the
+        // refinement was the whole guard; under the installed one `z.number()` refuses it
+        // and `.finite()` contributes NO check and NO bag entry — measured, not assumed:
+        // `wire_invisible_gate.mjs` found the roster row it had been pinned by standing over
+        // nothing. A call that adds no rule is a sentence wearing a rule's clothes, and this
+        // repository has spent three sessions deleting those. What holds the door now is
+        // asserted in `finiteness.test.ts` against the INSTALLED zod, so a future major that
+        // relaxes `z.number()` reddens there rather than silently re-opening this line.
         baseline: z
-          .record(z.string(), z.number().finite())
+          .record(z.string(), z.number())
           .describe("Monitor key -> baseline value (capture earlier via runtime_get_monitors)"),
         tolerance: z
           .number()

@@ -59,6 +59,13 @@ EMPTY: dict[str, str] = {
     # table could not spell, and the second where the row cost nothing but the line: 252
     # admitted `dict[str, bool]` and said the class would return, which it has.
     "dict[str, dict[str, str]]": "{}",
+    # 🆕 255 — method -> (file, body). THE FOURTH SESSION RUNNING TO ADD A SHAPE THIS TABLE
+    # COULD NOT SPELL, and the fourth where the row costs one line. 246 said the class would
+    # return; 252, 254 and now this are the evidence. The rule has earned a stronger
+    # statement than "add the row": a reader whose return annotation is not in `EMPTY` is
+    # outside this gate silently, so writing a new enumerator means checking this table in
+    # the same edit — the gate cannot tell you, because what it cannot spell it cannot count.
+    "dict[str, tuple[str, str]]": "{}",
     "dict[str, list[str]]": "{}",
     "dict[str, set[str]]": "{}",
     "dict[Path, set[str]]": "{}",
@@ -105,9 +112,10 @@ EMPTY: dict[str, str] = {
 # enumerators `EMPTY` had never been able to spell, and one the new check 27 brought with
 # it. A floor left at the old measurement is headroom for five targets to be dropped in
 # silence (198 §36).
-TARGET_FLOOR = 35   # at `{FLOOR}`, raised by two with the remedy table reader and the
-                    # bridge-error renderer walk, in the commit that added them — a floor
-                    # is raised where it is outgrown, never after
+TARGET_FLOOR = 39   # at `{FLOOR}`, raised by four: the required-any join brought three
+                    # readers of its own, and admitting the shape one of them returns made
+                    # a fourth enumerator blindable that had been outside this gate in
+                    # silence — a floor is raised where it is outgrown, never after
 
 
 def targets(text: str) -> list[tuple[str, str, int]]:
@@ -197,6 +205,12 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # the addon's — so it gets its own row rather than riding on this one.
     "remedy_tables": ("xlang.remedy_rows", "xlang.remedy_tool_refs"),
     "remedy_renderers_read": ("xlang.remedy_renderers",),
+    # 🆕 255 — check 29's three readers, and each names exactly the population it feeds.
+    # `required_any_output_keys` is the LEFT side of the join and the widest blind here:
+    # empty it and there is nothing to look for, so every direction agrees instantly.
+    "required_any_output_keys": ("xlang.required_any_keys",),
+    "tool_bridge_methods": ("xlang.tool_bridge_methods",),
+    "addon_handler_bodies": ("xlang.addon_handlers_resolved",),
     "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
     "doc_recipe_mentions": ("recipes.doc_mentions",),                 # 🆕 197
     "doc_resource_claims": ("resources.doc_claims",),
@@ -253,6 +267,15 @@ BLAST: dict[str, int] = {
     # plus the two ledger collapses.
     "remedy_tables": 64,                      # also: check 28 in both directions
     "remedy_renderers_read": 1,
+    # 🆕 255 — check 29's three, and the asymmetry is the check's own shape. Emptying the
+    # LEFT side asks nothing and reports nothing but its ledger row; emptying either RIGHT
+    # side leaves all sixteen keys looking unwritten, one FAIL line each, plus the row.
+    "required_any_output_keys": 1,            # also: check 29's left side
+    # Measured rather than predicted: emptying the per-tool method map leaves the ten keys
+    # whose emitter is the ADDON unwritten, plus the ledger row. The six keys the HOST block
+    # also writes survive it, which is the two-sided join doing what it was built to do.
+    "tool_bridge_methods": 11,                # also: check 29's right side
+    "addon_handler_bodies": 11,
     "all_false_annotation_claims": 1,
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,
@@ -323,7 +346,12 @@ BLAST: dict[str, int] = {
     # not exist. The radius is fifty lines wide because the remedies are fifty instructions
     # — which is the cost of writing instructions a machine can check, paid in the one
     # place that says out loud what a blind reaches.
-    "registered_tools": 63,                   # also: checks 6 8 9 11 13 25 28, 4c, 4d
+    # 🆕 255: 63 -> 79. Check 29 reads `registered_tools()` to refuse a required-any key on a
+    # tool nothing registers, so emptying the registry now names all fifteen of those tools
+    # as unregistered and collapses a fourth ledger population with them. The radius moved
+    # because a NEW check started reading this reader — 196 §4's shape, declared in the
+    # commit that moved it rather than discovered by a later run.
+    "registered_tools": 79,                   # also: checks 6 8 9 11 13 25 28 29, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the

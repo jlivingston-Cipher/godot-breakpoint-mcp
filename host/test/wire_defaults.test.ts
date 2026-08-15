@@ -5,7 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
-  applyWireDefaults, dialectSensitive, normalizeTool, normalizeToolList,
+  applyWireDefaults, containersInert, dialectSensitive, normalizeTool, normalizeToolList,
   stripDefaultExecution, stripDialect, SDK_DIALECT,
 } from "../src/wire-defaults.js";
 import { applyOutputSchemas } from "../src/schemas.js";
@@ -33,8 +33,15 @@ test("🔴 KEEPS the declaration when a keyword the two dialects disagree on is 
     ["additionalItems", { type: "array", items: { type: "string" }, additionalItems: false }],
     ["boolean exclusiveMinimum", { type: "number", minimum: 0, exclusiveMinimum: true }],
     ["dependencies keyword", { type: "object", dependencies: { a: ["b"] } }],
-    ["definitions", { definitions: { X: { type: "string" } }, type: "object" }],
     ["$ref with siblings", { $ref: "#/definitions/X", description: "adjacent" }],
+    // 🆕 255 — the container is inert only while every reference into it is a PATH. These
+    // three are the ways a name gets involved, and each keeps the declaration.
+    ["definitions reached by $anchor",
+      { definitions: { X: { $anchor: "x", type: "string" } }, type: "object" }],
+    ["definitions carrying a nested $id",
+      { definitions: { X: { $id: "https://e.example/x", type: "string" } }, type: "object" }],
+    ["$defs with a reference that leaves the document",
+      { $defs: { X: { type: "string" } }, properties: { a: { $ref: "https://e.example/x" } } }],
     ["nested, not just at the root",
       { type: "object", properties: { deep: { type: "array", items: [{ type: "string" }] } } }],
   ];
@@ -59,6 +66,28 @@ test("🔴 a property NAMED like a keyword is not a keyword — the false positi
   };
   assert.equal(dialectSensitive({ ...s, $schema: undefined }), false);
   assert.equal((stripDialect(s) as Record<string, unknown>).$schema, undefined);
+});
+
+test("🆕 255 — a definition container reached only by PATH is inert, and that is the whole recursive surface", () => {
+  // zod 4 hoists a recursive schema into `definitions` and points at it with a plain
+  // local `$ref`; zod 3 pointed the same cycle at `#/properties/children/items`. Both are
+  // JSON Pointers, and a pointer walks the document by key under either dialect — it does
+  // not ask whether the key it walks through is vocabulary. Before 255 this shape kept the
+  // declaration on `scene_get_tree` and `runtime_get_tree`, which is the exact interop
+  // hazard 208 §7.1 removed from every other tool, re-arriving through a dependency bump.
+  const recursive = {
+    $schema: SDK_DIALECT,
+    type: "object",
+    properties: { children: { type: "array", items: { $ref: "#/definitions/__schema0" } } },
+    definitions: { __schema0: { type: "object", properties: { name: { type: "string" } } } },
+  };
+  assert.equal(containersInert(recursive), true);
+  assert.equal((stripDialect(recursive) as Record<string, unknown>).$schema, undefined,
+    "a container nothing reaches by name does not bind the document to a dialect");
+  // and the 2020-12 spelling of the same shape answers identically — the rule is about
+  // how the container is REACHED, not which of the two words spells it.
+  const twenty = { ...recursive, $defs: recursive.definitions, definitions: undefined };
+  assert.equal(dialectSensitive({ ...twenty, $schema: undefined }), false);
 });
 
 test("a NUMERIC exclusiveMinimum is common to both dialects and must not pin the declaration", () => {

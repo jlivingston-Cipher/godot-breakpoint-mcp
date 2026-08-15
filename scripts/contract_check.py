@@ -294,8 +294,11 @@ CHECKS_EXPECTED = (
     # 🆕 254 — check 28, the remedy join. A member and not a roster gate: it asks whether
     # a failing tool tells the reader what to do next, on both sides of one wire.
     "28",
+    # 🆕 255 — check 29, the required-any join. A member and not a roster gate: it asks
+    # whether a key the wire now promises is a key the engine actually writes.
+    "29",
 )
-CHECKS_RUN_FLOOR = 25   # measured: twenty-five blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 26   # measured: twenty-six blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -344,6 +347,97 @@ def registered_tools() -> list[str]:
         for m in re.finditer(r'registerTaskTool\(\s*\w+\s*,\s*"([a-z0-9_]+)"', text):
             names.append(m.group(1))
     return names
+
+
+def required_any_output_keys() -> "dict[str, set[str]]":
+    """tool -> the output keys whose declared type constrains NOTHING and is not optional.
+
+    🔴 255 — THE POPULATION THE WIRE ONLY LEARNED TO SPELL AT ZOD 4.4.0. `encodedValue`
+    is `z.any()`: a Godot Variant through the addon's JSON codec, which is a scalar, an
+    array or a `__type__`-tagged object, so no narrower type is available. Under zod 3 a
+    key typed that way was IMPLICITLY OPTIONAL and dropped out of the emitted schema's
+    `required` list — the schema could not say "always present" about an `any` at all.
+    From zod 4.4.0 it is required, and `schemas.ts` had already been writing the
+    distinction by hand: `runtime_assert_scene_structure` spells `encodedValue.optional()`
+    for the two fields its handler omits, and nothing else does. That `.optional()` is
+    the proof the author meant the difference; the wire simply could not carry it.
+
+    So the reader is lexical and its rule is the file's own idiom: a key bound DIRECTLY to
+    `encodedValue` or `z.any()`, with no `.optional()`. A key bound to `z.record(.., encodedValue)`
+    or `z.array(..)` is not in the population — the container is what the schema constrains,
+    and an absent container is a different question.
+
+    🔴 THE BLIND IS THE WHOLE JOIN. Return `{}` and check 29 compares nothing to nothing
+    in both directions, which is why this has a `SCOPE_LEDGER` floor rather than a comment.
+    """
+    text = SCHEMAS.read_text()
+    m = re.search(r"export const outputSchemas[^=]*=\s*\{", text)
+    if not m:
+        return {}
+    start = text.index("{", m.end() - 1)
+    region = text[start : _match_braces(text, start)]
+    out: "dict[str, set[str]]" = {}
+    for em in re.finditer(r"(?m)^\s+([a-z_][a-z0-9_]*)\s*:\s*\{", region):
+        brace = em.end() - 1
+        body = region[brace + 1 : _match_braces(region, brace) - 1]
+        keys = {
+            km.group(1)
+            for km in re.finditer(
+                r"([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:encodedValue|z\.any\(\))(?!\s*\.)", body
+            )
+        }
+        if keys:
+            out[em.group(1)] = keys
+    return out
+
+
+def tool_bridge_methods() -> "dict[str, set[str]]":
+    """tool -> the addon methods ITS OWN registration block puts on the wire.
+
+    `host_bridge_calls` above answers the same question per FILE, which is the right
+    granularity for checks 1 and 2 — they ask whether the two dispatch tables agree. It is
+    the wrong granularity for a per-tool join: `runtime.ts` alone calls thirty methods, so
+    a file-level answer would let any key emitted by any of them satisfy any tool.
+
+    A block runs from one `registerTool(`/`registerTaskTool(` to the next, which is exactly
+    how the tool files are written — one registration per call, in order, never nested.
+    """
+    out: "dict[str, set[str]]" = {}
+    site = re.compile(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z0-9_]+)"')
+    for f in sorted(TOOLS.rglob("*.ts")):
+        text = f.read_text()
+        sites = list(site.finditer(text))
+        for i, sm in enumerate(sites):
+            body = text[sm.end() : sites[i + 1].start() if i + 1 < len(sites) else len(text)]
+            calls = set(re.findall(r'\bcall\(\s*"([a-z_][a-z0-9_.]*)"', body))
+            calls |= set(re.findall(r'\.request\(\s*"([a-z_][a-z0-9_.]*)"', body))
+            out.setdefault(sm.group(1), set()).update(calls)
+    return out
+
+
+def addon_handler_bodies() -> "dict[str, tuple[str, str]]":
+    """addon method -> the file and body of the function its dispatch arm calls.
+
+    The dispatch is a `match method:` whose arms are `"a.b":` followed by
+    `return _handler(params)`, on both engine planes. Resolving the arm to the FUNCTION is
+    what makes check 29 a join rather than a file-wide grep: `"value"` appears 30 times in
+    `operations.gd`, and only the handler that answers `node.get_property` says anything
+    about whether THAT tool's reply carries one.
+    """
+    out: "dict[str, tuple[str, str]]" = {}
+    for gd in ("operations.gd", "runtime_bridge.gd"):
+        path = ADDON / gd
+        if not path.is_file():
+            continue
+        text = path.read_text()
+        arms = dict(re.findall(r'"([a-z_][a-z0-9_.]*)":\s*\n\s*return (_[a-z0-9_]+)\(', text))
+        for method, fn in arms.items():
+            fm = re.search(rf"\nfunc {re.escape(fn)}\(", text)
+            if not fm:
+                continue
+            nxt = re.search(r"\nfunc ", text[fm.end():])
+            out[method] = (gd, text[fm.end(): fm.end() + (nxt.start() if nxt else len(text))])
+    return out
 
 
 def remedy_tables() -> "dict[str, dict[str, str]]":
@@ -3988,6 +4082,97 @@ print(f"Error remedies         : "
       f"· {len(remedy_renderers)} host renderer(s) checked")
 _ran("28")
 
+# --- 29: A KEY THAT CANNOT BE ABSENT IS A PROMISE, AND ONE ZOD COULD NOT PUBLISH -----
+#
+# 🔴 255 — MEASURED WHILE MOVING THE TREE FROM zod 3.25.76 TO 4.4.3, AND THE INTERESTING
+# HALF IS WHEN IT CHANGED. `z.object({v: z.any()}).parse({})` PASSES on zod 4.0 through
+# 4.3.6 and FAILS from 4.4.0 — so an `any`-typed key becoming required is not a 3 -> 4
+# break at all, it is a 4.4.0 break shipped inside a MINOR, and the `zod/v4` subpath that
+# the B3 spike recommended as the cheap door is core 4.0.0 and does not reproduce it. A
+# tree that had taken that door would have carried the whole change into whichever later
+# session ran `npm update`.
+#
+# WHAT ACTUALLY MOVED ON THE WIRE: 16 output keys and 7 input keys joined `required`.
+# Nobody chose either state. Under zod 3 an `any` key was implicitly optional and was
+# dropped from `required`; from 4.4.0 it is implicitly required. `schemas.ts` had been
+# writing the distinction by hand the whole time — `runtime_assert_scene_structure` is
+# the one entry that spells `encodedValue.optional()`, for exactly the two fields its
+# handler omits — so the emitted schema now says what the file already meant.
+#
+# 🔴 WHICH MAKES IT A PROMISE, AND A PROMISE IS WORTH CHECKING AGAINST THE THING THAT
+# KEEPS IT. The MCP SDK validates `structuredContent` against `outputSchema` on every
+# SUCCESS result, so a required key the engine does not write turns a working tool into a
+# thrown error on its happy path — the failure mode `schemas.ts`'s own header warns about,
+# now reachable by renaming a dict key in GDScript with nothing else in the tree noticing.
+# The join is per-TOOL and not per-file: `"value"` appears thirty times in operations.gd,
+# and only the handler that answers `node.get_property` says anything about that tool.
+#
+# 🔴 WHAT IT DOES NOT PROVE, SAID OUT LOUD (251's second question). This is a PRESENCE
+# join: the key is written by the handler that answers the tool. It does not prove the
+# write is on every path through that handler — a key emitted inside one arm of a branch
+# and forgotten in the other reads as present here. That is a reachability question, it
+# needs a live editor to answer honestly, and 249 measured what a live capability probe
+# costs. The failure this DOES catch is the one that actually happens: a key renamed or
+# dropped on one side of the wire while the other side keeps requiring it.
+required_any = required_any_output_keys()
+tool_methods = tool_bridge_methods()
+addon_handlers = addon_handler_bodies()
+_host_tool_blocks: "dict[str, str]" = {}
+_site_re = re.compile(r'register(?:Task)?Tool\(\s*(?:\w+\s*,\s*)?"([a-z0-9_]+)"')
+for _f in sorted(TOOLS.rglob("*.ts")):
+    _text = _f.read_text()
+    _sites = list(_site_re.finditer(_text))
+    for _i, _sm in enumerate(_sites):
+        _end = _sites[_i + 1].start() if _i + 1 < len(_sites) else len(_text)
+        _host_tool_blocks[_sm.group(1)] = _text[_sm.end(): _end]
+
+_required_any_joined = 0
+for _tool in sorted(required_any):
+    if _tool not in set(registered_tools()):
+        errors.append(
+            f"check 29: schemas.ts declares an output schema for {_tool!r}, which no "
+            f"`registerTool(..)` registers. Check 11 owns that comparison; it is named here "
+            f"because the join below would otherwise report the key as unwritten and send "
+            f"the reader to GDScript for a tool that does not exist."
+        )
+        continue
+    _bodies = [addon_handlers[_m][1] for _m in sorted(tool_methods.get(_tool, ()))
+               if _m in addon_handlers]
+    _bodies.append(_host_tool_blocks.get(_tool, ""))
+    for _key in sorted(required_any[_tool]):
+        _required_any_joined += 1
+        if not any(re.search(rf'["\']{re.escape(_key)}["\']\s*:', _b) or
+                   re.search(rf"(?<![A-Za-z0-9_]){re.escape(_key)}\s*:", _b) for _b in _bodies):
+            _where = ", ".join(sorted(tool_methods.get(_tool, ())) or ["no bridge method"])
+            errors.append(
+                f"check 29: {_tool}'s output schema requires {_key!r} — an `any`-typed key, "
+                f"which from zod 4.4.0 is REQUIRED on the wire — and nothing that answers "
+                f"this tool writes it ({_where}). The SDK validates `structuredContent` "
+                f"against `outputSchema` on every SUCCESS result, so this is not a "
+                f"documentation defect: the tool's happy path throws. Either the handler "
+                f"stopped emitting the key, or it was renamed on one side of the wire — or "
+                f"the field really can be absent, in which case schemas.ts must spell "
+                f"`encodedValue.optional()` the way `runtime_assert_scene_structure` does."
+            )
+
+# The other direction. `.optional()` is the ONLY thing that keeps an `any` key out of this
+# population, so a spelling nobody notices is the whole risk: `encodedValue .optional()`,
+# or a wrapper that swallows it, silently re-adds a key to the promise set.
+_optional_any = len(re.findall(r"encodedValue\s*\.optional\(\)", SCHEMAS.read_text()))
+if _optional_any == 0:
+    errors.append(
+        "check 29: no `encodedValue.optional()` remains in schemas.ts. That spelling is the "
+        "only way the file can say an `any`-typed field may be ABSENT, and it is the "
+        "evidence that the required/optional split was authored rather than inherited from "
+        "whichever zod is installed. If the last one was genuinely deleted, this check's "
+        "argument needs rewriting, not the count adjusting."
+    )
+
+print(f"Required-any keys      : "
+      f"{_required_any_joined} key(s) across {len(required_any)} tool(s) joined to an "
+      f"emitter · {_optional_any} declared optional · {len(addon_handlers)} handler(s) resolved")
+_ran("29")
+
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
 #
 # 192 §5 bound ONE branch to ONE handler: for each TypeScript branch, does the handler it
@@ -4560,6 +4745,22 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 the host half stops being read. Every `fail()` could drop `remedyClause` and the "
      "addon would still attach a remedy to every failure — the wire stays correct and the "
      "user reads the bare message, which is the state 254 measured"),
+    # 🆕 255 — check 29's three readers, floored separately because they fail separately
+    # and every one of them fails SILENTLY. The join is `for each key, is it written` —
+    # an empty left side asks nothing, an empty right side is the same as a handler that
+    # writes nothing, and the difference between those two is the whole check.
+    ("xlang.required_any_keys", _required_any_joined, 12,
+     "🔴 check 29 stops asking. Every `any`-typed output key the wire now marks REQUIRED "
+     "goes unjoined, and the SDK validates `structuredContent` on every success — so the "
+     "first handler to drop one turns that tool's happy path into a thrown error, with "
+     "nothing in this tree saying which key or which tool"),
+    ("xlang.tool_bridge_methods", sum(len(v) for v in tool_methods.values()), 150,
+     "the per-TOOL half collapses to the per-FILE answer checks 1 and 2 already have: no "
+     "tool resolves to a handler, so every key reads as unwritten and check 29 goes red on "
+     "a healthy tree — which is the shape of gate that gets deleted rather than fixed"),
+    ("xlang.addon_handlers_resolved", len(addon_handlers), 120,
+     "the dispatch arms stop resolving to functions and check 29 falls back to the host "
+     "block alone, where the addon's keys are not written and never were"),
     ("xlang.addon_err_codes", len(addon_err_codes), 40,
      "🔴 EVERY TypeScript branch on an addon error code reads as dead — or, with the "
      "offender loop as written, none does: an empty right-hand side makes every `in` test "
