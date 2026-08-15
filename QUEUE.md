@@ -22,7 +22,7 @@
 > written.
 
 <!-- QUEUE_FORMAT 1 -->
-<!-- QUEUE_HEAD 254 -->
+<!-- QUEUE_HEAD 256 -->
 
 ## The table
 
@@ -137,6 +137,8 @@ distrust before it is a reading to act on.**
 | tileset-set-collision-unannotated | DONE | user | 251 | 252 | — | The one row of 251's 21 where the DOC may have been right and the code wrong. Eight tools carried ✔ in the catalog and are not in `annotations.ts`'s `DESTRUCTIVE`; seven are plainly additive (`audio_bus_add`, `inputmap_add_event`, `runtime_node_add`, `tileset_add_tile` …) and the ✔ was over-broad. `tileset_set_tile_collision` is the exception: it OVERWRITES a tile's collision shape, which is `DESTRUCTIVE`'s own definition — *may overwrite or discard state the caller did not supply*. 251 moved the document and not the wire, deliberately: an annotation change alters what a client shows a human before it runs the tool, and that is a behaviour change nobody asked for riding along inside a copy fix (250 §1.2). Decide it on its own | — |
 | doctor-passes-under-four-reds | DONE | user | 249 | 252 | — | Without `--require-live` `doctor` prints four ✗ bridges and then `All required checks passed.` — both halves defensible, together a contradiction in the tool whose job is telling the user whether they are okay | — |
 | tool-results-outside-token-cost | OPEN | user | 249 | — | — | One `gd_completion` returns 342,116 B — 99.6% of the entire 279-tool `tools/list` surface — and `token-cost.mjs` projects onto the catalogue only, so the instrument that governs client cost against a 366,000-byte floor cannot see the largest single expenditure and reports ok | — |
+| wire-diff-toolchain-blind | OPEN | internal | 256 | — | — | `wire_diff.mjs` builds the baseline ref against the CURRENT `node_modules` on purpose — *one toolchain, two sources, is the only comparison that isolates OUR change* — so a wire change driven by a DEPENDENCY cancels on both sides by construction. Measured at 256 on the 1.75.0 cut: check 8 read MINOR off 254's two source edits while the sixteen output keys that are the release's own headline were invisible to it, and the bump was decided by hand off the emitted surface on both majors. The comment is right about what it isolates and nothing says what it therefore cannot see. 255 §4.4 asks the same question one level down — nothing reads the installed validator's version against the surface it produces — and this is the reader that would answer both: a second baseline built against the LOCKFILE'S OWN resolution, so the two comparisons together separate our change from the toolchain's instead of silencing one of them | — |
+| queue-age-can-be-negative | OPEN | internal | 256 | — | — | `age` is DERIVED as `head - opened` and nothing refuses `opened > head`. 255 added `required-any-reachability` with `opened 255` and did not move `QUEUE_HEAD` off 254, so the row rendered at **-1 session(s)** through `--render`, `--ages` and `QUEUE_AGE_CEILING` — every consumer read a negative age as a number and none of them asked whether it was possible. The ceiling is a `>` test so a negative passes it, and the internal tier has no ceiling at all, which is why nothing went red. This file's own header is the argument: the ages are derived BECAUSE a typed number nobody rechecks drifts, and a derived number nobody bounds is the same defect with a computation in front of it | — |
 
 ## What the gate refuses
 

@@ -3209,6 +3209,26 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · queue 42/42 claims · handoff 305 claims · 26 CI jobs
 > ```
 """),
+    (255, """> ```
+> main                 69c3a91 — the sentences that named no next action (#312)   MERGED
+> branch 255           session255-the-break-that-was-not-at-the-major
+>                      🔴 A PATCH IS OWED — the container cannot push; cut from base 69c3a91
+> host / addon         1.74.1 / 1.10.0  🔴 HOST CODE MOVED — a release is owed, and it is
+>                      now TWO sessions' worth
+> npm                  🟢 1.74.1 · lag 0 · tags 122 · registry 1.74.1
+> 🟢 VERIFIED AFTER THE CHANGE   780/780 · contract 26/26 · scope 39 · control 71
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1683
+>               · py gates 18/4/14 · SIG 131/105 · late constructed 195/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 103 · 48 governed · 1170 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 291 file(s) / 21 suffixes
+>               · taut 4270 · seal 103 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3655 nodes / 20 keys / 0 unread
+>               · wire_invisible 34 cases · lint_ceiling 18 files
+>               · mutlock 5 + 12 cases · tree_quiet 13 · release_names 61/33
+>               · queue 42/42 claims · handoff 306 claims · 26 CI jobs
+> ```
+"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
