@@ -5,11 +5,7 @@ import type { Config } from "../config.js";
 import { CsLspClient } from "../cslsp.js";
 import { toFileUri, toFsPath, readFileText, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
-import {
-  COMPLETION_KIND, SYMBOL_KIND, ok, fail, markupToString, isMethodNotFound, normalizeLocations,
-  applyTextEdits, normalizeWorkspaceEdit,
-  type Range, type Location,
-} from "./lsp-common.js";
+import { COMPLETION_KIND, SYMBOL_KIND, ok, fail, markupToString, isMethodNotFound, normalizeLocations, applyTextEdits, normalizeWorkspaceEdit, type Range, type Location, capList, COMPLETION_LIMIT } from "./lsp-common.js";
 
 /**
  * D4 C2 — the C#/.NET semantic plane. Read-only `cs_*` tools mirroring the proven
@@ -148,8 +144,27 @@ export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: C
 
   server.registerTool(
     "cs_completion",
-    { title: "C# completion", description: "Type-aware C# code completion at a position via OmniSharp.", inputSchema: posSchema },
-    async ({ path, line, character }) => {
+    {
+      title: "C# completion",
+      description:
+        "Type-aware C# code completion at a position via OmniSharp. Returns at most max_results items " +
+        "(default 200) and sets truncated when the language server offered more — `gd_completion`'s twin, " +
+        "capped for the reason measured on that one.",
+      inputSchema: {
+        ...posSchema,
+        max_results: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe(
+            "Maximum completion items to return (default 200). Completion is the one verb whose result size " +
+              "is a function of project scope rather than of the cursor — one call was measured at 342,116 bytes, " +
+              "more than the entire tool catalogue — so the list is capped and `truncated` says when it was.",
+          ),
+      },
+    },
+    async ({ path, line, character, max_results }) => {
       try {
         const uri = await openAndPos(path);
         const result = await cslsp.request("textDocument/completion", { textDocument: { uri }, position: { line, character } });
@@ -158,7 +173,7 @@ export function registerCsLspTools(server: McpServer, cslsp: CsLspClient, cfg: C
           const it = i as { label?: string; kind?: number; detail?: string; insertText?: string };
           return { label: it.label ?? "", kind: it.kind ? COMPLETION_KIND[it.kind] ?? String(it.kind) : "", detail: it.detail ?? "", insertText: it.insertText ?? it.label ?? "" };
         });
-        return ok({ items });
+        return ok(capList(items, max_results ?? COMPLETION_LIMIT));
       } catch (err) { return fail(err); }
     },
   );

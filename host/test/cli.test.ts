@@ -116,9 +116,34 @@ test("godot_version records a non-zero exit code without throwing", { skip: !POS
 
 test("godot_run_project launches detached and returns a numeric pid", { skip: !POSIX }, async () => {
   const tools = setup(fakeGodot, dir);
-  const r = await tools.get("godot_run_project")!({});
+  // wait_timeout_ms 0 — this row is about the SPAWN. The readiness wait has its own
+  // rows below; leaving it on here would make every launch test pay the runtime
+  // bridge's full 15 s deadline against a fake binary that binds nothing.
+  const r = await tools.get("godot_run_project")!({ wait_timeout_ms: 0 });
   assert.equal(sc(r).running, true);
   assert.equal(typeof sc(r).pid, "number");
+});
+
+/**
+ * 🔴 `running: true` WAS TRUE AT A FALSE TIME (249, closed 257). The tool reported the
+ * spawn and callers read it as "runtime_* is reachable" — measured 566–3213 ms early.
+ * Both rows below are about the field that answers the question actually being asked.
+ */
+test("godot_run_project reports bridge_ready false when nothing binds the runtime port", { skip: !POSIX }, async () => {
+  const tools = setup(fakeGodot, dir);
+  const r = await tools.get("godot_run_project")!({ wait_timeout_ms: 300 });
+  assert.equal(sc(r).running, true, "the process did start — that field never lied");
+  assert.equal(sc(r).bridge_ready, false, "and the bridge it never bound must say so");
+  assert.ok((sc(r).bridge_wait_ms as number) >= 300, "the wait must be the caller's, not zero");
+  assert.match(String(sc(r).bridge_note), /did not answer ping/);
+});
+
+test("godot_run_project tells NOT WAITED apart from WAITED AND LOST", { skip: !POSIX }, async () => {
+  const tools = setup(fakeGodot, dir);
+  const r = await tools.get("godot_run_project")!({ wait_timeout_ms: 0 });
+  assert.equal(sc(r).bridge_ready, false);
+  assert.equal(sc(r).bridge_wait_ms, 0, "opting out is a zero wait, not a failed one");
+  assert.match(String(sc(r).bridge_note), /no wait was requested/);
 });
 
 test("godot_launch_editor reports launched:true and the project path", { skip: !POSIX }, async () => {
@@ -162,7 +187,7 @@ test("godot_run_project still launches when allow_port_conflict is set", { skip:
   const { srv, port } = await squat();
   try {
     const tools = setup(fakeGodot, dir, port);
-    const r = await tools.get("godot_run_project")!({ allow_port_conflict: true });
+    const r = await tools.get("godot_run_project")!({ allow_port_conflict: true, wait_timeout_ms: 0 });
     assert.notEqual(r.isError, true);
     assert.equal(sc(r).running, true);
     assert.equal(typeof sc(r).pid, "number");

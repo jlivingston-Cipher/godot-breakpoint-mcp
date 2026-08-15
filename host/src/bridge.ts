@@ -45,6 +45,27 @@ export class BridgeError extends Error {
 }
 
 /**
+ * The code `connect()` raises when nothing is listening on the bridge port.
+ *
+ * Spelled once, because two callers now branch on it — `connect()` which raises
+ * it and `runtime_await_condition` which retries past it — and a string literal
+ * in two files is a rename away from a waiting tool that silently stops waiting.
+ */
+export const BRIDGE_UNAVAILABLE = "bridge_unavailable";
+
+/**
+ * Is this the transport saying *not yet*, rather than the peer saying *no*?
+ *
+ * 🔴 THE DISTINCTION IS THE WHOLE OF 249's REMEDY C. A caller that asked to wait
+ * should keep waiting through an unbound port, and should NOT keep waiting
+ * through a missing node or an unknown property — those are answers, and
+ * retrying an answer only makes it slower.
+ */
+export function isTransportUnavailable(err: unknown): boolean {
+  return (err as Partial<BridgeError> | null | undefined)?.code === BRIDGE_UNAVAILABLE;
+}
+
+/**
  * The remedy clause every plane's `fail()` appends, rendered once.
  *
  * 🔴 FIVE RENDERERS, ONE CLAUSE. `tools/editor/common.ts`, `tools/runtime.ts`,
@@ -174,7 +195,7 @@ export class BridgeClient {
         this.lastSocketError = err;
         reject(
           new BridgeError(
-            "bridge_unavailable",
+            BRIDGE_UNAVAILABLE,
             `Cannot reach the Godot ${this.label} at ${this.host}:${this.port}. ${this.hint} (${err.message})`,
           ),
         );

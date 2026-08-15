@@ -99,13 +99,32 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
   godot_version: { version: z.string(), raw: capturedRaw },
   godot_launch_editor: { launched: z.boolean(), pid: z.number().nullable(), project: z.string() },
-  godot_run_project: { running: z.boolean(), pid: z.number().nullable(), scene: z.string().nullable() },
+  // 🔴 `running` ALONE WAS THE DEFECT (249, closed 257). It reported that spawn()
+  // returned a pid, and callers read it as "runtime_* is reachable now" — which it
+  // was not, for 566–3213 ms. `running` still means what it always meant; the
+  // three readiness fields are the question that was actually being asked.
+  godot_run_project: {
+    running: z.boolean(),
+    pid: z.number().nullable(),
+    scene: z.string().nullable(),
+    bridge_ready: z.boolean(),
+    bridge_wait_ms: z.number(),
+    bridge_note: z.string().nullable(),
+  },
   godot_export: { preset: z.string(), output_path: z.string(), exit_code: z.number().nullable(), timed_out: z.boolean(), stdout: z.string(), stderr: z.string() },
   godot_import: { exit_code: z.number().nullable(), timed_out: z.boolean(), stdout: z.string(), stderr: z.string() },
   godot_run_headless_script: { script_path: z.string(), exit_code: z.number().nullable(), timed_out: z.boolean(), stdout: z.string(), stderr: z.string() },
 
   // ---- Managed processes (tools/processes.ts) ----
-  godot_run_managed: { id: z.string(), pid: z.number().nullable(), running: z.boolean(), scene: z.string().nullable() },
+  godot_run_managed: {
+    id: z.string(),
+    pid: z.number().nullable(),
+    running: z.boolean(),
+    scene: z.string().nullable(),
+    bridge_ready: z.boolean(),
+    bridge_wait_ms: z.number(),
+    bridge_note: z.string().nullable(),
+  },
   godot_output: {
     id: z.string(),
     exited: z.boolean(),
@@ -371,7 +390,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   test_list: { dir: z.string(), count: z.number(), tests: z.array(z.string()) },
 
   // ---- Plane D: semantic / LSP (tools/lsp.ts) ----
-  gd_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })) },
+  gd_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })), truncated: z.boolean() },
   gd_hover: { contents: z.string() },
   gd_definition: { locations: z.array(location) },
   gd_references: { locations: z.array(location) },
@@ -429,7 +448,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
 
   // ---- Plane D: C# semantic / OmniSharp LSP (tools/cslsp.ts) ----
-  cs_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })) },
+  cs_completion: { items: z.array(z.object({ label: z.string(), kind: z.string(), detail: z.string(), insertText: z.string() })), truncated: z.boolean() },
   cs_hover: { contents: z.string() },
   cs_definition: { locations: z.array(location) },
   cs_references: { locations: z.array(location) },

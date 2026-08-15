@@ -9,6 +9,7 @@ import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
 import { runDoctorChecks } from "../cli/doctor.js";
+import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -97,6 +98,8 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       title: "Run project",
       description:
         "Run the project (detached). Optionally start from a specific scene path (res://...). Returns the process id. " +
+        "WAITS until the game's runtime bridge answers ping and reports bridge_ready — the game takes roughly half a " +
+        "second to three seconds to bind it, and no runtime_* tool is reachable before it does. " +
         "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, and every " +
         "runtime_* call would address the process already holding the port. Use runtime_spawn_peers to drive more " +
         "than one game at once.",
@@ -110,13 +113,28 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
               "bridge will NOT be reachable — use only when you want the process for its side effects and will not " +
               "call any runtime_* tool against it.",
           ),
+        wait_timeout_ms: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "How long to wait for the runtime bridge to answer ping, in ms (default 15000, the runtime bridge's own " +
+              "deadline). 0 returns as soon as the process is spawned, reporting bridge_ready false and " +
+              "bridge_wait_ms 0 — waited-not-at-all, which a caller can tell apart from waited-and-lost.",
+          ),
       },
     },
     // 🔴 MEASURED by the LAUNCHED PROCESS'S OWN ARGV: `res://../example_evil/x.tscn`
     // produced `godot --path …/example res://../example_evil/x.tscn` and the game
     // ran it. The port check comes second — a scene that can never legally run
     // should not first claim the runtime port.
-    async ({ scene, allow_port_conflict }) => {
+    //
+    // 🔴 AND THE WAIT COMES LAST, WHICH IS THE WHOLE POINT (257). `portFree` above
+    // asserts 9081 is FREE; this handler used to prove the bridge was not up and
+    // then answer `running: true`, 566–3213 ms before it came up. The field was
+    // true and the moment was false — see `readiness.ts`.
+    async ({ scene, allow_port_conflict, wait_timeout_ms }) => {
       try {
         if (scene !== undefined) resolveInsideProject(scene, cfg.projectPath, "scene");
       } catch (err) { return failPath(err); }
@@ -126,7 +144,15 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       const args = ["--path", cfg.projectPath];
       if (scene) args.push(scene);
       const pid = launchDetached(cfg, args);
-      return ok({ running: true, pid, scene: scene ?? null });
+      const readiness = await waitForRuntimeBridge(cfg, wait_timeout_ms ?? cfg.runtimeTimeoutMs);
+      return ok({
+        running: true,
+        pid,
+        scene: scene ?? null,
+        bridge_ready: readiness.ready,
+        bridge_wait_ms: readiness.waited_ms,
+        bridge_note: readiness.ready ? null : notReadyRemedy(cfg, readiness.waited_ms),
+      });
     },
   );
 

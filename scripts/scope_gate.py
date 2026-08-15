@@ -209,6 +209,15 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # `required_any_output_keys` is the LEFT side of the join and the widest blind here:
     # empty it and there is nothing to look for, so every direction agrees instantly.
     "required_any_output_keys": ("xlang.required_any_keys",),
+    # 🆕 257 — check 30's four readers. Two are floored populations and two are the
+    # block slicer they both stand on, which is why the pair below name no ledger row of
+    # their own: `host_tool_blocks` is what the other two READ, so collapsing it collapses
+    # both of theirs, and `readiness_waiting_tools` empties into the launcher half of the
+    # same comparison rather than into a population with a floor.
+    "game_launcher_tools": ("xlang.game_launchers",),
+    "output_schema_keys": ("xlang.output_schema_tools",),
+    "host_tool_blocks": ("xlang.game_launchers", "xlang.readiness_waiters"),
+    "readiness_waiting_tools": ("xlang.readiness_waiters",),
     "tool_bridge_methods": ("xlang.tool_bridge_methods",),
     "addon_handler_bodies": ("xlang.addon_handlers_resolved",),
     "dispatch_methods": ("gdscript.editor_methods", "gdscript.runtime_methods"),
@@ -271,6 +280,21 @@ BLAST: dict[str, int] = {
     # LEFT side asks nothing and reports nothing but its ledger row; emptying either RIGHT
     # side leaves all sixteen keys looking unwritten, one FAIL line each, plus the row.
     "required_any_output_keys": 1,            # also: check 29's left side
+    # 🆕 257 — check 30's four, and the asymmetry is again the check's shape. Emptying the
+    # LAUNCHER set asks nothing of anybody and reports only its ledger row. Emptying the
+    # LAUNCHER set asks nothing of anybody — and still costs three lines, because the
+    # ledger row goes with it and so does the await-condition retry test, whose block this
+    # reader is not what supplies. Emptying the WAITER set leaves both live launchers
+    # reading as tools that never waited; emptying the KEY map leaves both reading as tools
+    # with nowhere to say so; and emptying the BLOCK SLICER underneath all three is the
+    # widest at five, because it takes BOTH floored populations and the retry test with it.
+    # 🔴 EVERY NUMBER HERE WAS MEASURED AFTER A PREDICTION MISSED. The first draft of this
+    # table guessed 1/2/2/2 from the shape of the check and the sweep answered 3/3/3/5 —
+    # which is 196 §3's whole argument for comparing the radius rather than the colour.
+    "game_launcher_tools": 3,
+    "readiness_waiting_tools": 3,
+    "output_schema_keys": 3,
+    "host_tool_blocks": 5,
     # Measured rather than predicted: emptying the per-tool method map leaves the ten keys
     # whose emitter is the ADDON unwritten, plus the ledger row. The six keys the HOST block
     # also writes survive it, which is the two-sided join doing what it was built to do.

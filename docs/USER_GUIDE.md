@@ -576,8 +576,10 @@ addon enabled and the host registered (Sections 3–4).
 
 **5. Run the project and see it.**
 
-- `godot_run_project` (or `godot_run_managed` to also capture console output). Both refuse if
-  the runtime bridge port is already held by another game — see Troubleshooting.
+- `godot_run_project` (or `godot_run_managed` to also capture console output). Both wait until
+  the game's runtime bridge answers and report `bridge_ready`, so the next `runtime_*` call has
+  something to reach; both refuse if the runtime bridge port is already held by another game —
+  see Troubleshooting.
 - `main_screen_set` then `screenshot_editor` → let the assistant see the editor viewport. The
   matching tab must be active; a fresh editor is on 3D and opening a scene does not switch it.
 
@@ -695,7 +697,8 @@ Works without the editor open.
 
 - **`godot_version`** — the configured binary's version string.
 - **`godot_launch_editor`** — open the editor for the project (prerequisite for `editor_*`).
-- **`godot_run_project`** — run the project (detached), optionally from a chosen scene.
+- **`godot_run_project`** — run the project (detached), optionally from a chosen scene. Waits
+  for the game's runtime bridge and reports `bridge_ready`; `wait_timeout_ms: 0` opts out.
 - **`godot_export`** *(task, destructive)* — headless export via a preset.
 - **`godot_import`** *(task)* — headless (re)import of project assets.
 - **`godot_run_headless_script`** *(task, higher-trust — runs GDScript)* — run a script

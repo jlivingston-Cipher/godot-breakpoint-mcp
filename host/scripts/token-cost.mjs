@@ -64,7 +64,10 @@
 // `token-cost.selftest.mjs`, and that is the file the floors' runner points at.
 //
 // Requires a built dist/ for the live read. No editor, no ports: it reads the tool list
-// over stdio and never calls a tool.
+// over stdio and never calls a tool — and 257 added `--results`, which reads back what a
+// host running with BREAKPOINT_RESULT_COST recorded, so the axis this sentence names as
+// out of scope now has a reader instead of only a confession.
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -119,6 +122,81 @@ export const TOOL_FLOOR = 250;
 // number a claim would quote fell 520 -> 468 against their 433. 🔴 THE RATIO THIS GOVERNS
 // IS NOW 1.08x AND IT WAS 1.20x, which sharpens rather than softens 207 §4's finding.
 export const SCHEMA_PER_TOOL_CEILING = 490;
+
+// 🆕 257 — THE OTHER HALF OF CLIENT COST, AND THIS FILE SAID SO ITSELF FOR EIGHT SESSIONS.
+// The header above is honest — "it reads the tool list over stdio and never calls a tool" —
+// and 249 then measured ONE `gd_completion` at 342,116 B, 99.6% of the whole surface this
+// file governs, in a single result. Every floor here read that tree and printed `ok`,
+// correctly, about a question nobody was asking. `tool-results-outside-token-cost`.
+//
+// 🔴 THE UNIT IS THE SAME AND THE POPULATION IS NOT. The catalogue is paid ONCE per
+// session and this file can read it any time; a result is paid per CALL and can only be
+// read by calling, against a live engine, a live language server and a real project. So
+// the result axis is a METER plus a reader — `BREAKPOINT_RESULT_COST=<file>` on the host
+// records `tool\tbytes` per call, and `--results <file>` reads them back — and its
+// ceiling governs the LARGEST single result, because that is the number a client pays
+// without ever having asked for a catalogue.
+//
+// 100000 is the round number just above the knowledge family's shipped caps and far below
+// the 342,116 B that opened the row. It is not a measured typical: it is the line past
+// which a single result costs more than a third of the entire tool surface, which is the
+// point at which "one call" stops being a reasonable unit of anything.
+export const RESULT_BYTES_CEILING = 100000;
+
+/** Parse the meter's log: one `tool<TAB>bytes` line per call, blank lines ignored. */
+export function parseResults(text) {
+  const rows = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    const [tool, raw] = line.split("\t");
+    const b = Number(raw);
+    if (!tool || !Number.isFinite(b)) continue;
+    rows.push({ tool, bytes: b });
+  }
+  return rows;
+}
+
+/**
+ * The pure core of the result axis: per-tool worst case, call count, and the total.
+ * Pure and exported for the same reason `measure` is — the refusal proof drives it
+ * without a server, and a check that has never refused has not been audited.
+ */
+export function measureResults(rows) {
+  const perTool = new Map();
+  let total = 0;
+  for (const r of rows) {
+    total += r.bytes;
+    const e = perTool.get(r.tool) ?? { n: 0, max: 0, sum: 0 };
+    e.n += 1;
+    e.sum += r.bytes;
+    if (r.bytes > e.max) e.max = r.bytes;
+    perTool.set(r.tool, e);
+  }
+  const worst = [...perTool.entries()].sort((a, b) => b[1].max - a[1].max);
+  return { calls: rows.length, tools: perTool.size, total, worst };
+}
+
+/** The verdict on a measured result log. Same shape as `verdict()` below. */
+export function verdictResults(m) {
+  const problems = [];
+  if (m.calls === 0) {
+    problems.push(
+      "the log records no calls. An empty meter is not a green result axis — it is the "
+      + "same silence the catalogue-only reader already had, written to a file.",
+    );
+  }
+  for (const [tool, e] of m.worst) {
+    if (e.max > RESULT_BYTES_CEILING) {
+      problems.push(
+        `${tool} returned ${e.max.toLocaleString()} B in one result, over the `
+        + `${RESULT_BYTES_CEILING.toLocaleString()} B ceiling. A client pays this per CALL, `
+        + `with no catalogue to amortise it against — cap the list and say so with a `
+        + `truncated flag, the way gd_completion and the knowledge family do.`,
+      );
+    }
+  }
+  return { ok: problems.length === 0, problems };
+}
 
 // Measured once, tokenizer named, used ONLY for a human-readable estimate. Not governed.
 const BYTES_PER_TOKEN = 3.6;
@@ -303,6 +381,46 @@ const report = (label, m) => {
   console.log();
 };
 
+// ── RESULT AXIS: read back what the host's meter recorded ───────────────────────────
+const ri = argv.indexOf("--results");
+if (ri >= 0) {
+  const file = argv[ri + 1];
+  if (!file) {
+    console.error("🔴 --results needs a file: --results <path written by BREAKPOINT_RESULT_COST>");
+    process.exit(2);
+  }
+  let text = "";
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (err) {
+    // 🔴 A MISSING LOG IS NOT A PASS. The whole defect this axis answers is an instrument
+    // reporting ok about something it could not see; refusing to read is the one thing
+    // that must never look like agreement.
+    console.error(`🔴 TOKEN_COST REFUSED — could not read ${file}: ${err.message}. `
+      + `Run the host with BREAKPOINT_RESULT_COST=${file} and exercise the tools first.`);
+    process.exit(1);
+  }
+  const m = measureResults(parseResults(text));
+  console.log(`TOKEN_COST RESULTS ${file}`);
+  console.log(`  calls            ${m.calls}`);
+  console.log(`  tools called     ${m.tools}`);
+  console.log(`  TOTAL BYTES      ${m.total.toLocaleString()}  (${kb(m.total)})`);
+  console.log(`  WORST SINGLE RESULT, heaviest first — the number a client pays per call:`);
+  for (const [t, e] of m.worst.slice(0, 15)) {
+    console.log(`    ${t.padEnd(28)} ${String(e.max).padStart(9)} B max  `
+      + `${String(Math.round(e.sum / e.n)).padStart(9)} B mean  ${String(e.n).padStart(4)} call(s)`);
+  }
+  const rv = verdictResults(m);
+  console.log(`TOKEN_COST results floor  worst ${(m.worst[0]?.[1].max ?? 0).toLocaleString()} `
+    + `<= ${RESULT_BYTES_CEILING.toLocaleString()} · ${m.calls} call(s) over ${m.tools} tool(s)`);
+  if (!rv.ok) {
+    for (const p of rv.problems) console.error(`\n🔴 TOKEN_COST REFUSED — ${p}`);
+    process.exit(1);
+  }
+  console.log("TOKEN_COST results ok — no single result over the ceiling in this log");
+  process.exit(0);
+}
+
 // ── FOREIGN SURFACE: measure anyone's stdio MCP server with this same core ──────────
 const si = argv.indexOf("--server");
 if (si >= 0) {
@@ -353,5 +471,11 @@ if (!v.ok) {
   for (const p of v.problems) console.error(`\n🔴 TOKEN_COST REFUSED — ${p}`);
   process.exit(1);
 }
+// 🔴 AND THE LINE SAYS WHAT IT DID NOT MEASURE. 256 §5.3: a green verdict is scoped to
+// what the reader can see, and the scope is not on the line it prints. This reader's
+// scope is the CATALOGUE — one payment per session — and the axis it cannot see from
+// here is the RESULT, paid per call, where 249 measured a single 342,116 B answer.
 console.log("TOKEN_COST ok — within budget, and the budget is already too high (see header)");
+console.log("TOKEN_COST scope  CATALOGUE ONLY — tool RESULTS are unmeasured here; "
+  + "run the host with BREAKPOINT_RESULT_COST=<file> and read it with --results <file>");
 }

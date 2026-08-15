@@ -4,6 +4,7 @@ import { ProcessRegistry } from "./tools/processes.js";
 import { ensureProjectSecret, readProjectSecret } from "./secret.js";
 import { log } from "./logger.js";
 import { portFree } from "./ports.js";
+import { waitForBridge } from "./readiness.js";
 
 /**
  * F6 narrow — multi-peer deterministic playtesting.
@@ -130,9 +131,11 @@ export class PeerRegistry {
    * sequential and the window is sub-millisecond, and the failure mode is
    * benign — the child logs "could not listen" and the readiness wait below
    * reports it with that line attached, rather than the peer silently
-   * half-existing. The DEFAULT runtime port has no such readiness wait, which
-   * is why `godot_run_managed` and `godot_run_project` refuse a held port
-   * outright rather than reporting it after the fact.
+   * half-existing. The DEFAULT runtime port refuses a held port outright rather
+   * than reporting it after the fact — and as of 257 it waits too:
+   * `godot_run_project` and `godot_run_managed` call `waitForRuntimeBridge` and
+   * report `bridge_ready`, so the sentence that used to stand here — *the
+   * default runtime port has no such readiness wait* — is no longer true.
    */
   private async allocatePorts(count: number): Promise<number[]> {
     const taken = new Set<number>([this.cfg.runtimePort, ...this.live().map((p) => p.port)]);
@@ -154,19 +157,18 @@ export class PeerRegistry {
     return ports;
   }
 
-  /** Poll a peer's bridge until it answers `ping`, or the deadline passes. */
+  /**
+   * Poll a peer's bridge until it answers `ping`, or the deadline passes.
+   *
+   * 🔴 THE BODY MOVED TO `readiness.ts` AT 257, AND THE POINT IS NOT REUSE. The
+   * comment in `allocatePorts` above named the default runtime port's missing
+   * readiness wait as a property of the design — it was the defect
+   * `run-project-returns-before-bridge`, open since 249. Two copies would have
+   * let the default port's wait drift from the one this module has proven
+   * against real peers since 1.21.0; one function cannot.
+   */
   private async waitReady(client: BridgeClient, deadline: number): Promise<boolean> {
-    for (;;) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) return false;
-      try {
-        await client.request("ping", {}, Math.min(1000, remaining));
-        return true;
-      } catch {
-        if (Date.now() >= deadline) return false;
-        await sleep(100);
-      }
-    }
+    return waitForBridge(client, deadline);
   }
 
   /**
