@@ -263,23 +263,56 @@ function printUsage(): void {
 //   * An unrecognized token is a TYPO, and the only useful thing to do with one
 //     is name it. Falling through spends the user's next twenty minutes on the
 //     wrong question.
+// 🔴 EXIT ONLY AFTER stdout HAS DRAINED, AND IT IS THE PIPE THAT MAKES THIS A
+// DEFECT RATHER THAN A STYLE NOTE. `process.stdout` is SYNCHRONOUS to a file
+// and to a TTY and ASYNCHRONOUS to a pipe. `process.exit()` does not flush what
+// is still queued, so every subcommand below was correct when a human watched
+// it, correct when a shell redirected it to a file, and lost everything past
+// the first 64 KiB the moment anybody piped it.
+//
+// Measured on 1.75.0 and on the published 1.74.1 — same command, same build:
+//
+//   breakpoint-mcp tools --json > file    202,960 bytes · valid JSON
+//   breakpoint-mcp tools --json | cat      65,536 bytes · unterminated string
+//
+// 65,536 is one pipe buffer, and that is the whole tell: nothing failed and no
+// error was raised, the process simply stopped existing with the rest of the
+// answer still inside it. The flag's own usage text is `so releases can be
+// diffed`, and diffing is a pipe.
+//
+// 🔴 THE POPULATION IS A PREDICATE, NOT A LIST OF COMMANDS (257). `tools --json`
+// is the only subcommand that exceeds a buffer TODAY — `doctor --json` measures
+// 2,138 bytes and `init --dry-run` 1,186 — so a fix inside `runTools` would be
+// correct and would leave the next command to cross 64 KiB to rediscover this
+// from a user's bug report. The drain is attached at the dispatch every
+// subcommand passes through instead (254).
+//
+// The empty write IS the flush: its callback runs once everything already
+// queued on the stream has been handed to the OS.
+async function exitAfterFlush(code: number): Promise<never> {
+  await new Promise<void>((resolve) => {
+    process.stdout.write("", () => resolve());
+  });
+  process.exit(code);
+}
+
 void (async () => {
   const sub = process.argv[2];
   if (sub === "doctor") {
     const { runDoctor } = await import("./cli/doctor.js");
-    process.exit(await runDoctor(process.argv.slice(3)));
+    await exitAfterFlush(await runDoctor(process.argv.slice(3)));
   }
   if (sub === "tools") {
     const { runTools } = await import("./cli/tools.js");
-    process.exit(await runTools(process.argv.slice(3)));
+    await exitAfterFlush(await runTools(process.argv.slice(3)));
   }
   if (sub === "init") {
     const { runInit } = await import("./cli/init.js");
-    process.exit(await runInit(process.argv.slice(3)));
+    await exitAfterFlush(await runInit(process.argv.slice(3)));
   }
   if (sub === "help" || sub === "--help" || sub === "-h") {
     printUsage();
-    process.exit(0);
+    await exitAfterFlush(0);
   }
   if (sub === "version" || sub === "--version" || sub === "-v" || sub === "-V") {
     // Bare, so `breakpoint-mcp --version` is usable in a shell substitution.
@@ -287,7 +320,7 @@ void (async () => {
     // twenty releases that announced 0.2.0 to every LSP server they met.
     const { packageVersion } = await import("./version.js");
     process.stdout.write(`${packageVersion()}\n`);
-    process.exit(0);
+    await exitAfterFlush(0);
   }
   if (sub !== undefined) {
     process.stderr.write(
@@ -295,7 +328,7 @@ void (async () => {
         "  Run `breakpoint-mcp --help` for the subcommands and their options.\n" +
         "  To start the MCP server, run it with no arguments — that is how MCP clients launch it.\n",
     );
-    process.exit(2);
+    await exitAfterFlush(2);
   }
   await main();
 })().catch((err) => {
