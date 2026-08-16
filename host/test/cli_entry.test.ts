@@ -201,3 +201,71 @@ test("every documented subcommand is reachable and none of them starts a server"
     assert.doesNotMatch(r.stdout, /ready ·/, `${argv.join(" ")} started the server`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// 🔴 THE ANSWER HAS TO SURVIVE THE PIPE, AND FOR 203 KB OF IT IT DID NOT.
+//
+// `execFile` above gives the child a PIPE for stdout, which is the condition —
+// `process.stdout` is synchronous to a file and to a TTY and asynchronous to a
+// pipe, and the dispatch called `process.exit()` on the value the subcommand
+// returned without waiting for the queued write to drain. Measured on the
+// published 1.74.1 and on 1.75.0, same command, same build:
+//
+//   breakpoint-mcp tools --json > file    202,960 bytes · valid JSON
+//   breakpoint-mcp tools --json | cat      65,536 bytes · unterminated string
+//
+// Nothing raised, nothing logged, exit 0. The file redirect every developer
+// reaches for while writing the feature is the ONE destination that hides it,
+// and `--json`'s own usage text — "stable and timestamp-free, so releases can
+// be diffed" — describes a pipe.
+//
+// 🔴 AND THIS FILE IS WHY IT LASTED. It was written after a published-tarball
+// walk, precisely because "722 tests imported this package's functions and not
+// one of them executed its binary" — and it has spawned that binary through a
+// pipe since the day it landed. Every argv it passed produced less than one
+// buffer: `--help`, `--version`, `--porject`, an unknown flag. The mechanism
+// was under test from the first commit and the only member of the population
+// that could exercise it was never in the list.
+
+test("`tools --json` survives a pipe — the whole surface, still parseable", async () => {
+  const r = await run(["tools", "--json"]);
+  assert.equal(r.code, 0, `expected exit 0, got ${r.code} (stderr: ${r.stderr})`);
+
+  // Parse rather than eyeball a length: truncation lands mid-string, so the
+  // failure this pins is a JSON error and not a short answer that still reads.
+  let report: { tools?: unknown[] };
+  try {
+    report = JSON.parse(r.stdout) as { tools?: unknown[] };
+  } catch (e) {
+    assert.fail(
+      `tools --json emitted unparseable JSON through a pipe (${r.stdout.length} bytes): ` +
+        `${e instanceof Error ? e.message : String(e)}. ` +
+        "A length at or just under 65536 is one pipe buffer — stdout was not drained before exit.",
+    );
+  }
+  assert.ok(Array.isArray(report.tools), "expected a `tools` array in the report");
+  assert.ok(
+    report.tools.length > 0,
+    "the export names no tools at all, which no truncation would produce — read this as the surface, not the pipe",
+  );
+});
+
+test("the export is still bigger than one pipe buffer, or the test above proves nothing", async () => {
+  // 🔴 THE POSITIVE CONTROL, AND IT IS THE POINT (196 §3). The claim above can
+  // only fail while `tools --json` is LARGER than the buffer that truncated it.
+  // If the surface ever shrinks below 65,536 bytes — a family dropped, an
+  // outputSchema stripped, `--surface` defaulting somewhere new — that test
+  // starts passing for a reason that has nothing to do with the drain, and a
+  // green line would report a fix that had been reverted. This asserts the
+  // premise separately so the collapse is a RED here rather than a silence
+  // there.
+  const PIPE_BUFFER = 65_536;
+  const r = await run(["tools", "--json"]);
+  const bytes = Buffer.byteLength(r.stdout, "utf8");
+  assert.ok(
+    bytes > PIPE_BUFFER,
+    `tools --json is ${bytes} bytes, at or below one pipe buffer (${PIPE_BUFFER}). ` +
+      "The drain regression above can no longer fail, so it is no longer evidence. " +
+      "Either the surface collapsed — find out why — or this pin needs a payload that still exceeds a buffer.",
+  );
+});
