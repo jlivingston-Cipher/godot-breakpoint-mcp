@@ -6,6 +6,80 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.76.0] — 2026-08-16
+
+🔴 **If you installed `breakpoint-mcp@1.75.0` from npm, you already have this code.**
+That package was published from `main` rather than from the `v1.75.0` tag, so it
+carried the three merges below and the addon at 1.11.0 while its release notes
+described the tag's tree. Nothing was missing from it — it contained strictly more
+than it said. **This release is the same code under a version number that matches
+its tag**, and these are the notes that artifact should have shipped with. If you
+are on 1.75.0 from npm, upgrading changes no behaviour.
+
+**A MINOR, and the line that can move a client is the first one below.**
+
+### Added — sixteen tools gained output fields, and generated types will change
+
+- **`godot_run_project` and `godot_run_managed` now wait for the addon bridge**
+  before returning, and report `bridge_ready`, `bridge_wait_ms` and `bridge_note`.
+  Previously both returned as soon as the process was spawned, so `running: true`
+  was true of the process and said nothing about whether anything could be asked
+  of it. `wait_timeout_ms: 0` restores the old return-immediately behaviour.
+- **`runtime_await_condition` retries past `bridge_unavailable`** until its own
+  deadline instead of failing on the first attempt, which is what a caller asking
+  it to wait for a condition already meant.
+- **`gd_completion` and `cs_completion` accept `max_results`** and report
+  `truncated`, so a completion request against a large symbol table stops being
+  the largest response on the surface.
+
+🔴 **These add fields to 26 output schemas.** If you generate client types from
+`tools/list`, regenerate them.
+
+### Added — the addon version is readable, and the skew is not permanent
+
+The Godot addon ships inside this package on its own cadence, and the only name
+npm has for it is the host version. Three readers touched the addon version and
+**none compared the copy a user runs to the copy their host ships.**
+
+- `breakpoint-mcp init` **opens** the destination `plugin.cfg` it used to only
+  locate. When a skip leaves an older addon in place it now says so on stderr and
+  names `--force`. It stays silent when the skip was over a current addon.
+- `breakpoint-mcp doctor` reports `addon-version` (on disk) and one
+  `addon-running-<plane>` row per bridge that answers. Both are `info`: an addon
+  two releases behind still answers almost everything, and a pre-flight other
+  tooling gates on should not go red over it.
+- The runtime bridge answers `ping` with an `addon_version` **for the first
+  time**, and the host keeps the value instead of discarding it.
+- A bridge error from an addon too old to explain itself is now answered by the
+  host, which is current by definition.
+
+🔴 **Version comparison here is dotted-numeric, never lexicographic.** String order
+puts `1.9.9` after `1.10.0` — the exact pair this was measured on — so a naive
+implementation reports the stale addon as the newer one and sends a user to
+overwrite the wrong side. Versions that do not parse read `unknown` rather than a
+guessed direction.
+
+🔴 **Disk is not memory.** Godot reads addon scripts at project load, so
+`init --force` rewrites the files and an open editor keeps what it loaded. The
+`addon-running-*` rows are the only ones that can see that gap.
+
+### Fixed — piped CLI output was silently truncated at 65,536 bytes
+
+- 🔴 **`breakpoint-mcp tools --json` lost everything past one pipe buffer.**
+  Redirected to a file the export is 202,960 bytes of valid JSON; piped to another
+  process it was **exactly 65,536 bytes**, ending mid-string, exit code 0, nothing
+  on stderr. `process.stdout` is synchronous to a file and to a TTY and
+  **asynchronous to a pipe**, and the dispatch called `process.exit()` without
+  waiting for the queued write to drain. Every subcommand now flushes before
+  exiting. Any tooling that has ever piped a Breakpoint CLI subcommand was
+  affected and had no way to detect it.
+
+### Changed
+
+- The bundled Godot addon moves **1.10.0 → 1.11.0** (MINOR: the runtime `ping`
+  gained a key). Run `breakpoint-mcp init --force` to update an existing project,
+  then reload the project in Godot.
+
 ## [1.75.0] — 2026-08-15
 
 **A MINOR, and the one line that can move a client is the first one below.**
