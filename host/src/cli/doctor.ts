@@ -39,6 +39,14 @@ import { parseArgs, preflight } from "./args.js";
 import { DOCTOR_FLAGS, DOCTOR_USAGE } from "./usage.js";
 import { BridgeClient } from "../bridge.js";
 import { resolveBridgeSecret } from "../secret.js";
+import {
+  ADDON_REL,
+  ADDON_SKEW_HINT,
+  compareAddonVersions,
+  readAddonVersion,
+  type AddonSkew,
+} from "../addon-version.js";
+import { resolveBundledAddon } from "./init.js";
 
 export type CheckStatus = "ok" | "fail" | "skip";
 
@@ -48,6 +56,21 @@ export interface Check {
   severity: "required" | "info";
   detail: string;
   hint?: string;
+  /**
+   * 🆕 259 — is this check's failure a LIVENESS fact, cleared by opening the editor
+   * or launching the game?
+   *
+   * 🔴 IT EXISTS BECAUSE THE SUMMARY LINE REPEATED ITS OWN ORIGINAL DEFECT ON A
+   * POPULATION THAT HAD GROWN. That sentence was written when every informational
+   * check was a bridge, so *that is expected when the editor or the game is not
+   * running … re-run with --require-live* was true of all of them. `addon-version`
+   * is an informational failure that opening the editor does NOT clear and
+   * `--require-live` does not promote — so the moment it joined, the summary was
+   * again saying one confident thing about a set that no longer agreed with it. The
+   * fix is the same shape as the first: stop asserting one explanation over a
+   * population, and let each member declare which explanation is its own.
+   */
+  liveness?: boolean;
 }
 
 export interface DoctorReport {
@@ -84,7 +107,6 @@ export interface DoctorOptions {
   includeCsharp: boolean;
 }
 
-const ADDON_REL = "addons/breakpoint_mcp";
 const PLUGIN_CFG_RES = "res://addons/breakpoint_mcp/plugin.cfg";
 
 /** Resolve after a TCP connect succeeds (true) or the port is closed/times out (false). */
@@ -149,6 +171,58 @@ function checkGodotBinary(bin: string, timeoutMs: number): Check {
   };
 }
 
+/**
+ * The pair nothing compared until 258 §2: the addon a project has INSTALLED
+ * against the addon this host SHIPS.
+ *
+ * 🔴 WHY `info` AND NOT `required`, ON THE RECORD. `doctor`'s exit code is a
+ * pre-flight contract, and 252 spent a whole row fixing `--require-live` for
+ * exactly one reason: it exited 1 on a correct install. An addon a release or two
+ * behind answers almost every method the host calls — an addon at 1.9.1 answers
+ * 260 of the current 265 — so a red exit would be wrong for most of the population
+ * that has one. The skew is REPORTED, loudly and with the command that clears it;
+ * it does not fail the run. Promoting it is one word if that turns out to be the
+ * wrong call.
+ *
+ * `newer` is not folded into `older`. An installed addon ahead of the host is a
+ * developer running the repo copy against an older published host, and telling
+ * that person to overwrite it with `--force` would destroy the newer one.
+ */
+function addonVersionCheck(installed: string | null): Check {
+  const bundledDir = resolveBundledAddon();
+  const bundled = bundledDir === null ? null : readAddonVersion(bundledDir);
+  const skew: AddonSkew = compareAddonVersions(installed, bundled);
+  const pair = `installed ${installed ?? "?"} · this host ships ${bundled ?? "?"}`;
+  if (skew === "same") {
+    return { name: "addon-version", status: "ok", severity: "info", detail: `matches this host (${installed})` };
+  }
+  if (skew === "unknown") {
+    return {
+      name: "addon-version",
+      status: "skip",
+      severity: "info",
+      detail: `not comparable (${pair})`,
+      hint: "Neither version parsed as a dotted number, so no direction can be reported without guessing at it.",
+    };
+  }
+  if (skew === "newer") {
+    return {
+      name: "addon-version",
+      status: "ok",
+      severity: "info",
+      detail: `ahead of this host (${pair})`,
+      hint: "The project's addon is newer than the one bundled here. Upgrade the host ('npm i -g breakpoint-mcp@latest') rather than overwriting the addon.",
+    };
+  }
+  return {
+    name: "addon-version",
+    status: "fail",
+    severity: "info",
+    detail: `older than this host (${pair})`,
+    hint: ADDON_SKEW_HINT,
+  };
+}
+
 function checkAddon(projectPath: string): Check[] {
   const projText = readText(path.join(projectPath, "project.godot"));
   if (projText === null) {
@@ -174,13 +248,14 @@ function checkAddon(projectPath: string): Check[] {
       hint: "Run 'breakpoint-mcp init' to install the editor addon into this project.",
     });
   } else {
-    const m = /version\s*=\s*"([^"]*)"/.exec(cfgText);
+    const installed = readAddonVersion(path.join(projectPath, ADDON_REL));
     checks.push({
       name: "addon-installed",
       status: "ok",
       severity: "required",
-      detail: `${ADDON_REL} (version ${m ? m[1] : "?"})`,
+      detail: `${ADDON_REL} (version ${installed ?? "?"})`,
     });
+    checks.push(addonVersionCheck(installed));
   }
 
   checks.push(
@@ -296,23 +371,64 @@ export function checkCapabilities(config: Config): Check[] {
  * secret that no longer matches the one the addon minted. `probeTcp` can see
  * neither, which is what made "editor-bridge reachable" a check that could pass
  * while every tool failed.
+ *
+ * 🔴 AND IT NOW KEEPS THE ANSWER. `ping` has replied with `addon_version` since the
+ * addon had one, and all four of its consumers threw it away — this one returned
+ * `boolean`, `readiness.ts` returns `boolean`, and the two tool paths hand it to the
+ * model and forget it. That is the third of 258 §2's four compounding parts: the
+ * version of the addon ACTUALLY LOADED never reached anything that could compare it.
+ * Files on disk are not what is running — Godot reads the addon at project load, so
+ * `init --force` fixes the disk and changes nothing until the editor restarts, and
+ * that gap is exactly where a user concludes the fix did not work.
  */
 async function handshakeOk(
   config: Config,
   b: { host: string; port: number; secretEnv?: string[] },
   timeoutMs: number,
-): Promise<boolean> {
+): Promise<{ ok: boolean; addonVersion: string | null }> {
   const client = new BridgeClient(b.host, b.port, timeoutMs, "bridge", undefined, () =>
     resolveBridgeSecret(config.projectPath, b.secretEnv ?? []),
   );
   try {
-    await client.request("ping", {}, timeoutMs);
-    return true;
+    const reply = (await client.request("ping", {}, timeoutMs)) as { addon_version?: unknown };
+    const v = reply?.addon_version;
+    return { ok: true, addonVersion: typeof v === "string" && v !== "" ? v : null };
   } catch {
-    return false;
+    return { ok: false, addonVersion: null };
   } finally {
     client.close();
   }
+}
+
+/**
+ * The live half of the pair: the addon a bridge REPORTS against the one this host
+ * ships. Emitted only when a bridge actually answered with a version, so a closed
+ * editor produces no row rather than a row about nothing.
+ */
+export function addonRunningCheck(bridge: string, running: string | null, bundled: string | null): Check | null {
+  if (running === null) return null;
+  // One row per answering bridge, named after it: a stale editor and a stale game are
+  // two different states with two different next actions — reopen the project, versus
+  // relaunch it — and collapsing them into one `addon-running` row would report
+  // whichever process happened to be asked first.
+  const name = `addon-running-${bridge.replace(/-bridge$/, "")}`;
+  const skew = compareAddonVersions(running, bundled);
+  const pair = `${bridge} reports ${running} · this host ships ${bundled ?? "?"}`;
+  if (skew === "older") {
+    return {
+      name,
+      status: "fail",
+      severity: "info",
+      detail: `older than this host (${pair})`,
+      hint: ADDON_SKEW_HINT,
+    };
+  }
+  return {
+    name,
+    status: "ok",
+    severity: "info",
+    detail: skew === "same" ? `matches this host (${running}, live on ${bridge})` : `(${pair})`,
+  };
 }
 
 export async function runDoctorChecks(config: Config, opts: DoctorOptions): Promise<DoctorReport> {
@@ -374,15 +490,23 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       hint: "Godot's debug adapter runs while the editor is open (Editor → Editor Settings → Network → Debug Adapter).",
     },
   ];
+  // Filled by the handshakes below, read once after them: which bridge reported which
+  // addon version. A map and not a single variable because both the editor and the
+  // runtime plane answer `ping` with one, and they are two different processes that
+  // can legitimately disagree — the editor holds the addon it loaded at project open,
+  // the game holds the one on disk when it launched.
+  const liveAddonVersions = new Map<string, string>();
   const bridgeChecks = await Promise.all(
     bridges.map(async (b): Promise<Check> => {
       const severity = severityFor(opts.liveLevel, b.tier);
+      const liveness = true;                     // every row in this map is one
       const ok = await probeTcp(b.host, b.port, opts.timeoutMs);
       if (!ok) {
         return {
           name: b.name,
           status: "fail",
           severity,
+          liveness,
           detail: `${b.host}:${b.port} unreachable`,
           hint: b.hint,
         };
@@ -395,11 +519,13 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       // Both then reported "reachable" here and failed on every real call.
       if (b.secretEnv) {
         const live = await handshakeOk(config, b, opts.timeoutMs);
-        if (!live) {
+        if (live.addonVersion !== null) liveAddonVersions.set(b.name, live.addonVersion);
+        if (!live.ok) {
           return {
             name: b.name,
             status: "fail",
             severity,
+            liveness,
             detail: `${b.host}:${b.port} open, but no Breakpoint bridge answered`,
             hint: "Something holds that port without speaking the bridge protocol, or the shared secret is stale. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the editor to remint it.",
           };
@@ -409,11 +535,20 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
         name: b.name,
         status: "ok",
         severity,
+        liveness,
         detail: `${b.host}:${b.port} reachable${b.secretEnv ? " · bridge answered" : ""}`,
       };
     }),
   );
   checks.push(...bridgeChecks);
+
+  // The running half of the pair, one row per bridge that answered.
+  const bundledDir = resolveBundledAddon();
+  const bundledVersion = bundledDir === null ? null : readAddonVersion(bundledDir);
+  for (const [bridge, running] of liveAddonVersions) {
+    const c = addonRunningCheck(bridge, running, bundledVersion);
+    if (c) checks.push(c);
+  }
 
   // Optional C# tooling.
   if (opts.includeCsharp) {
@@ -451,11 +586,25 @@ export function summaryLine(report: DoctorReport): string {
   if (!report.ok) return "Some required checks failed — see the ↳ hints above.";
   if (noted.length === 0) return "All checks passed.";
   const names = noted.map((c) => c.name).join(", ");
-  return (
-    `All required checks passed. ${noted.length} informational check(s) did not — ${names} ` +
-    `(marked !, not counted against the exit code). That is expected when the editor or the game ` +
-    `is not running; see the ↳ hints, or re-run with --require-live once the project is open in Godot.`
-  );
+  const head = `All required checks passed. ${noted.length} informational check(s) did not — ${names} (marked !, not counted against the exit code).`;
+  const live = noted.filter((c) => c.liveness);
+  const standing = noted.filter((c) => !c.liveness);
+  // Only the liveness rows get the "expected when nothing is running" sentence, and
+  // only the standing rows get "this will not clear on its own". Saying either of
+  // those about the whole set is how the line contradicted the glyphs the first time.
+  const parts = [head];
+  if (live.length) {
+    parts.push(
+      `${live.map((c) => c.name).join(", ")} ${live.length === 1 ? "is" : "are"} expected when the editor ` +
+        `or the game is not running; re-run with --require-live once the project is open in Godot.`,
+    );
+  }
+  if (standing.length) {
+    parts.push(
+      `${standing.map((c) => c.name).join(", ")} will NOT clear by starting anything — see the ↳ hint${standing.length === 1 ? "" : "s"} above.`,
+    );
+  }
+  return parts.join(" ");
 }
 
 function printReport(report: DoctorReport): void {

@@ -468,6 +468,13 @@ test("the summary line does not contradict the glyphs above it", { skip: !POSIX 
   try {
     process.env.GODOT_BIN = fakeGodot;
     process.env.GODOT_PROJECT = projectDir;
+    // Pin the bundled addon to the fixture project's own version so the four rows
+    // under test are the four BRIDGES. Without this the comparison is against
+    // whatever the tree ships and the count moves every time the addon is cut.
+    const matched = path.join(dir, "bundled-matched");
+    fs.mkdirSync(matched, { recursive: true });
+    fs.writeFileSync(path.join(matched, "plugin.cfg"), '[plugin]\nname="x"\nversion="1.1.0"\n');
+    process.env.BREAKPOINT_ADDON_SRC = matched;
     for (const k of ["BREAKPOINT_BRIDGE_PORT", "BREAKPOINT_RUNTIME_PORT", "GODOT_LSP_PORT", "GODOT_DAP_PORT"]) {
       process.env[k] = String(dead);
     }
@@ -478,6 +485,23 @@ test("the summary line does not contradict the glyphs above it", { skip: !POSIX 
     assert.match(line, /4 informational check\(s\) did not/, "the count the old line left out");
     assert.match(line, /editor-bridge/, "and which ones");
     assert.match(line, /--require-live/, "and how to make them count");
+
+    // 🆕 259 — THE SAME DEFECT, ONE POPULATION LATER. That explanation was true of
+    // every informational check while every informational check was a bridge.
+    // `addon-version` is one that opening the editor does not clear and
+    // `--require-live` does not promote, so a single blanket sentence over the set
+    // would send a user to restart Godot over a stale addon that would still be
+    // stale afterwards. The line splits; both halves keep their own explanation.
+    const mixed = summaryLine({
+      ok: true,
+      checks: [
+        ...report.checks,
+        { name: "addon-version", status: "fail", severity: "info", detail: "older than this host" },
+      ],
+    });
+    assert.match(mixed, /5 informational check\(s\) did not/);
+    assert.match(mixed, /editor-bridge[^.]*are expected when the editor or the game is not running/);
+    assert.match(mixed, /addon-version will NOT clear by starting anything/);
     assert.notEqual(line, "All required checks passed.", "the sentence that was the whole defect");
 
     // A clean tree still gets the short sentence — and it is a DIFFERENT one.
@@ -485,6 +509,7 @@ test("the summary line does not contradict the glyphs above it", { skip: !POSIX 
     // A required failure keeps its own wording, unchanged.
     assert.match(summaryLine({ checks: report.checks, ok: false }), /Some required checks failed/);
   } finally {
+    delete process.env.BREAKPOINT_ADDON_SRC;
     restoreEnv();
   }
 });
@@ -506,6 +531,69 @@ test("runDoctor exits 2 on a --require-live level it does not have", { skip: !PO
     assert.match(err, /--require-live=all/, "the message must name the levels it does have");
   } finally {
     (process.stderr as unknown as { write: typeof origErr }).write = origErr;
+    restoreEnv();
+  }
+});
+
+/**
+ * 🔴 THE GREEN LINE THAT CARRIED THE NUMBER PROVING IT SHOULD BE RED (258 §2).
+ * `checkAddon` regexed `version=` out of the project's `plugin.cfg`, interpolated
+ * it into the detail string, and hardcoded `status: "ok"` in that branch — measured
+ * live against a 1.75.0 host: `✓ addon-installed addons/breakpoint_mcp (version
+ * 1.9.9)`. Every fact needed to red it was in scope; nothing compared them.
+ */
+test("doctor reds an addon older than the one this host ships", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const src = path.join(dir, "bundled-1100");
+  fs.mkdirSync(src, { recursive: true });
+  fs.writeFileSync(path.join(src, "plugin.cfg"), '[plugin]\nname="x"\nversion="1.10.0"\n');
+  const proj = path.join(dir, "skewed-project");
+  writeInstalledProject(proj, true, "1.9.9");
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    process.env.GODOT_PROJECT = proj;
+    process.env.BREAKPOINT_ADDON_SRC = src;
+    const report = await runDoctorChecks(loadConfig(), { timeoutMs: 200, liveLevel: "none", includeCsharp: false });
+    assert.equal(status(report, "addon-installed"), "ok");
+    assert.equal(status(report, "addon-version"), "fail");
+    const c = report.checks.find((x) => x.name === "addon-version");
+    assert.match(c?.detail ?? "", /1\.9\.9/);
+    assert.match(c?.hint ?? "", /--force/);
+    // 🔴 AND THE EXIT CODE IS UNMOVED, ON PURPOSE. 252 spent a row fixing
+    // `--require-live` because it exited 1 on a correct install; an addon a release
+    // behind answers almost everything, so this is REPORTED and does not fail a
+    // pre-flight that other tooling gates on.
+    assert.equal(report.ok, true);
+    assert.equal(c?.severity, "info");
+  } finally {
+    delete process.env.BREAKPOINT_ADDON_SRC;
+    restoreEnv();
+  }
+});
+
+test("doctor calls a matching addon a match, and an ahead one ahead", { skip: !POSIX }, async () => {
+  snapshotEnv();
+  const src = path.join(dir, "bundled-190");
+  fs.mkdirSync(src, { recursive: true });
+  fs.writeFileSync(path.join(src, "plugin.cfg"), '[plugin]\nname="x"\nversion="1.9.0"\n');
+  const same = path.join(dir, "same-project");
+  writeInstalledProject(same, true, "1.9.0");
+  const ahead = path.join(dir, "ahead-project");
+  writeInstalledProject(ahead, true, "1.11.0");
+  try {
+    process.env.GODOT_BIN = fakeGodot;
+    process.env.BREAKPOINT_ADDON_SRC = src;
+    process.env.GODOT_PROJECT = same;
+    const a = await runDoctorChecks(loadConfig(), { timeoutMs: 200, liveLevel: "none", includeCsharp: false });
+    assert.equal(status(a, "addon-version"), "ok");
+    // 🔴 `newer` IS NOT FOLDED INTO `older`. A contributor running the repo addon
+    // against an older published host would be told to overwrite the newer copy.
+    process.env.GODOT_PROJECT = ahead;
+    const b = await runDoctorChecks(loadConfig(), { timeoutMs: 200, liveLevel: "none", includeCsharp: false });
+    assert.equal(status(b, "addon-version"), "ok");
+    assert.doesNotMatch(b.checks.find((x) => x.name === "addon-version")?.hint ?? "", /--force/);
+  } finally {
+    delete process.env.BREAKPOINT_ADDON_SRC;
     restoreEnv();
   }
 });

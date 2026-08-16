@@ -14,6 +14,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, preflight } from "./args.js";
 import { INIT_FLAGS, INIT_USAGE } from "./usage.js";
+import {
+  ADDON_REL,
+  ADDON_SKEW_HINT,
+  compareAddonVersions,
+  readAddonVersion,
+  type AddonSkew,
+} from "../addon-version.js";
 import { CLIENT_IDS, clientInfo, mergeClientConfig, serverEntry, snippet } from "./clients.js";
 import { DEFAULT_REPO, fetchAddonFromGitHub, type FetchLike } from "./github.js";
 import {
@@ -49,7 +56,7 @@ export function resolvePrivilegedGroups(flags: Record<string, string | boolean>)
   return warn ? { value, warn } : { value };
 }
 
-const PLUGIN_REL = "addons/breakpoint_mcp";
+const PLUGIN_REL = ADDON_REL;
 const PLUGIN_CFG_RES = "res://addons/breakpoint_mcp/plugin.cfg";
 const SERVER_NAME = "godot";
 
@@ -158,16 +165,33 @@ export function enablePlugin(projectGodotText: string): EnableResult {
 export interface InstallResult {
   action: "installed" | "overwritten" | "skipped";
   dest: string;
+  /**
+   * The versions either side of the copy, and the direction between them.
+   *
+   * 🔴 THESE ARE THE FIELDS THE SKIP DID NOT HAVE, AND THE SKIP IS WHERE THE DEFECT
+   * LIVED (258 §2). `exists` was `fs.existsSync(dest/plugin.cfg)` — the destination
+   * file was located and never opened, so `init` could not tell *your addon is
+   * already the right one* from *your addon is four releases old and I am about to
+   * leave it that way*. It printed `addon: skipped` for both. Measured: install
+   * 1.74.1 (addon 1.9.9), upgrade the host to 1.75.0 (addon 1.10.0), re-run `init`
+   * → `skipped`, still 1.9.9, forever.
+   */
+  installed: string | null;
+  source: string | null;
+  skew: AddonSkew;
 }
 
 /** Copy the addon into <project>/addons/breakpoint_mcp; skip if present unless force. */
 export function installAddon(addonSource: string, projectPath: string, opts: { force: boolean }): InstallResult {
   const dest = path.join(projectPath, PLUGIN_REL);
   const exists = fs.existsSync(path.join(dest, "plugin.cfg"));
-  if (exists && !opts.force) return { action: "skipped", dest };
+  const installed = exists ? readAddonVersion(dest) : null;
+  const source = readAddonVersion(addonSource);
+  const skew: AddonSkew = exists ? compareAddonVersions(installed, source) : "unknown";
+  if (exists && !opts.force) return { action: "skipped", dest, installed, source, skew };
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.cpSync(addonSource, dest, { recursive: true });
-  return { action: exists ? "overwritten" : "installed", dest };
+  return { action: exists ? "overwritten" : "installed", dest, installed, source, skew };
 }
 
 /**
@@ -287,7 +311,20 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
     }
     const r = installAddon(addonSource, projectPath, { force });
     if (tmpFetchDir) fs.rmSync(tmpFetchDir, { recursive: true, force: true });
-    say(`  addon: ${r.action} → ${PLUGIN_REL}/`);
+    const versionNote = r.action === "skipped" ? ` (kept ${r.installed ?? "?"})` : r.source ? ` (${r.source})` : "";
+    say(`  addon: ${r.action} → ${PLUGIN_REL}/${versionNote}`);
+    // 🔴 THE LINE THAT MAKES THE SKIP HONEST. A skip over an addon that is already
+    // current is correct and silent; a skip over an OLDER one is the moment the skew
+    // becomes permanent, and until now the two read identically. It goes to stderr
+    // because it is not part of the install transcript a user pastes — it is the thing
+    // that went wrong inside a command that exits 0.
+    if (r.action === "skipped" && r.skew === "older") {
+      process.stderr.write(
+        `init: the addon already in this project is OLDER than the one this host ships ` +
+          `(${r.installed ?? "?"} vs ${r.source ?? "?"}), and it was left in place.\n` +
+          `  ${ADDON_SKEW_HINT}\n`,
+      );
+    }
   }
 
   // 2. Enable it in project.godot.

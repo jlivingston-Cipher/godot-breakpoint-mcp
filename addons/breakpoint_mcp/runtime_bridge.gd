@@ -11,6 +11,16 @@ extends Node
 ## NOTE: this script is intentionally NOT @tool — it must run in the game, not
 ## the editor. All handlers run on the main thread (socket polled from _process).
 
+## The addon version this GAME is running, answered on `ping`.
+##
+## 🔴 THE EDITOR PLANE HAS ANSWERED WITH ONE SINCE IT HAD ONE AND THIS PLANE NEVER DID
+## (258 §2). The runtime table's own `unknown_method` remedy says *the addon running in
+## the game is older than the host* — a claim about a version the game could not report,
+## on the one plane where disk and memory diverge most: `init --force` rewrites the files
+## and the process that is already running keeps the addon it loaded. Held in lockstep
+## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
+## exists because two of those literals disagreed for two releases.
+const ADDON_VERSION := "1.11.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -370,7 +380,7 @@ func _attach_engine_log(response: Dictionary, seq_before: int) -> void:
 func _dispatch(method: String, params: Dictionary) -> Dictionary:
 	match method:
 		"ping":
-			return _ok({"pong": true, "runtime": true, "godot": Engine.get_version_info().get("string", ""), "log_capture": _log_capture != null})
+			return _ok({"pong": true, "runtime": true, "addon_version": ADDON_VERSION, "godot": Engine.get_version_info().get("string", ""), "log_capture": _log_capture != null})
 		"runtime.get_tree":
 			return _get_tree(params)
 		"runtime.get_property":
