@@ -66,6 +66,13 @@ EMPTY: dict[str, str] = {
     # outside this gate silently, so writing a new enumerator means checking this table in
     # the same edit — the gate cannot tell you, because what it cannot spell it cannot count.
     "dict[str, tuple[str, str]]": "{}",
+    # 🆕 259 — (subcommands, subcommand -> its flags). THE FIFTH SESSION RUNNING TO ADD A
+    # SHAPE THIS TABLE COULD NOT SPELL, and the first where the reader is a PAIR: check 28's
+    # CLI join needs both halves at once, and a reader returning two populations is outside
+    # this gate exactly as silently as one returning an unspellable single. 255 asked for a
+    # stronger statement than "add the row" — this is what that costs when it is remembered
+    # in the same edit, and what it would have cost if it were not.
+    "tuple[set[str], dict[str, set[str]]]": "(set(), {})",
     "dict[str, list[str]]": "{}",
     "dict[str, set[str]]": "{}",
     "dict[Path, set[str]]": "{}",
@@ -183,6 +190,9 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "annotated_tools": ("annotations.roster",),
     "annotation_class_claims": ("families.annclass_lines",),
     "catalog_index_tools": ("catalog.index_tools",),
+    # 🆕 259 — the two readers check 28's CLI half and its host fallback are computed from.
+    "host_fallback_remedies": ("xlang.host_fallback_rows",),
+    "cli_surface": ("xlang.cli_subcommands",),
     # 🆕 251 — THE ROW READER BOTH OF THE ABOVE NOW COME OFF. `catalog_index_tools` is a
     # `set()` over its keys, so blinding this one collapses the names AND the Destructive
     # cells: one match, two populations, and the map has to say both or the second reads
@@ -203,7 +213,11 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # the tool references both come off this one match, so the map names both. The
     # renderer walk is its own reader over a different tree entirely — the host's, not
     # the addon's — so it gets its own row rather than riding on this one.
-    "remedy_tables": ("xlang.remedy_rows", "xlang.remedy_tool_refs"),
+    # 🆕 259 — A THIRD POPULATION OFF THE SAME READER. The remedy text is where the CLI
+    # spans are found, so blinding this collapses the command join too — the radius moved
+    # because a new reader started consuming an existing blind's output, which is 251's
+    # third cost and the one that is easiest to leave unwritten.
+    "remedy_tables": ("xlang.remedy_rows", "xlang.remedy_tool_refs", "xlang.remedy_cli_refs"),
     "remedy_renderers_read": ("xlang.remedy_renderers",),
     # 🆕 255 — check 29's three readers, and each names exactly the population it feeds.
     # `required_any_output_keys` is the LEFT side of the join and the widest blind here:
@@ -274,7 +288,7 @@ BLAST: dict[str, int] = {
     # empty it and both directions of the join go quiet together, so what reddens is not
     # the missing rows but the sixty remedies that now read as dead — one FAIL line each,
     # plus the two ledger collapses.
-    "remedy_tables": 64,                      # also: check 28 in both directions
+    "remedy_tables": 65,                      # 🆕 259: 64 -> 65, the CLI span join
     "remedy_renderers_read": 1,
     # 🆕 255 — check 29's three, and the asymmetry is the check's own shape. Emptying the
     # LEFT side asks nothing and reports nothing but its ledger row; emptying either RIGHT
@@ -303,6 +317,22 @@ BLAST: dict[str, int] = {
     "all_false_annotation_claims": 1,
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,
+    # 🆕 259 — TWO, AND THE SECOND IS THE LEDGER'S. Blinding the host fallback reader empties
+    # a table whose every rule is a rule ABOUT that table: the ceiling passes on zero rows,
+    # the dead-row join has nothing to join, the grammar has no sentence to check. Only the
+    # emptiness refusal fires — which is exactly why that refusal had to be written — and the
+    # SCOPE_LEDGER row collapses alongside it. PREDICTED as 1 and MEASURED as 2, which is the
+    # whole reason this number is observed rather than reasoned about.
+    "host_fallback_remedies": 2,
+    # 🆕 259 — SEVEN, PREDICTED AS TWO, AND THE FIVE THAT WERE MISSED ARE THE POINT.
+    # Blinding the CLI-surface reader fires its own emptiness refusal and collapses the
+    # ledger row (the two that were reasoned about), refuses each of the 3 `breakpoint-mcp …`
+    # spans as naming an undeclared subcommand — and then TWO MORE, because the tool join's
+    # exemption is computed from the same reader: with no subcommands resolved, the bare
+    # `init` in each `unknown_method` remedy stops being a command and is joined to
+    # `registerTool(..)`, which has never had one. A blind whose radius reaches a rule written
+    # to EXEMPT things from another rule is exactly what a predicted number gets wrong.
+    "cli_surface": 7,
     "catalog_index_tools": 2,                 # also: check 4
     # 🆕 251 — FOUR, AND TWO OF THEM ARE THE LEDGER'S. Blinding the row reader empties
     # both populations it feeds: check 4 names every registered tool as missing from the

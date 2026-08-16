@@ -3078,6 +3078,13 @@ ADDON_CFG_FILES = [
 ADDON_OPS_FILES = [
     Path("addons/breakpoint_mcp/operations.gd"),
     Path("example/addons/breakpoint_mcp/operations.gd"),
+    # 🆕 259 — the RUNTIME plane grew an `ADDON_VERSION` too, because its `ping` did not
+    # carry one and its own `unknown_method` remedy made a claim about it (258 §2). Three
+    # copies and not two: example-csharp has no `operations.gd` but it DOES ship the
+    # runtime bridge, so the C# example project joins this population for the first time.
+    Path("addons/breakpoint_mcp/runtime_bridge.gd"),
+    Path("example/addons/breakpoint_mcp/runtime_bridge.gd"),
+    Path("example-csharp/addons/breakpoint_mcp/runtime_bridge.gd"),
 ]
 
 # Directories the roster scan must not walk. Build output and scratch are not
@@ -4072,6 +4079,101 @@ _REMEDY_MAX = 210            # measured longest at 254: 176 characters
 remedy_rows = remedy_tables()
 remedy_renderers = remedy_renderers_read()
 remedy_tool_refs: "list[tuple[str, str, str]]" = []      # (plane, code, tool)
+remedy_cli_refs: "list[tuple[str, str, str]]" = []       # (plane, code, the `breakpoint-mcp …` span)
+
+# 🆕 259 — e: THE CLI HALF OF THE JOIN, AND WHY 254's HALF COULD NOT SEE IT.
+#
+# 254 joined every backticked TOOL NAME in a remedy to the live `registerTool(..)`
+# surface, on the argument that a remedy is an instruction somebody will execute. A
+# remedy naming a COMMAND was joined to nothing at all, and both `unknown_method` rows
+# shipped one from the day the table landed:
+#
+#     "Re-run `breakpoint-mcp init` … the addon installed in the project is older."
+#
+# Every name in that sentence resolves. `breakpoint-mcp` is the binary, `init` is a real
+# subcommand, and the diagnosis is correct. It is still a dead instruction: `installAddon`
+# skips a destination that already has a `plugin.cfg`, and the addon being ALREADY
+# INSTALLED is the precondition of the sentence — it is stale, so it is there. The command
+# exits 0, prints `addon: skipped`, and changes nothing. A user who follows it concludes
+# the diagnosis was wrong.
+#
+# 🔴 SO THE RULE IS NOT SPELLING, IT IS WHETHER THE EFFECT IS REACHABLE. Three parts, and
+# the third is the one that would have caught it:
+#   e1. every `breakpoint-mcp <sub>` span names a subcommand SYNOPSIS declares
+#   e2. every `--flag` inside such a span is documented in that subcommand's USAGE block —
+#       those rosters are `parseArgs`'s input, so an undocumented flag is one the CLI
+#       REFUSES, and the remedy would fail at the command line
+#   e3. a span naming `init` must also name `--force`, because a remedy is only ever read
+#       by somebody who already has the addon, which is the exact state bare `init`
+#       declines to act on
+_CLI_BIN = "breakpoint-mcp"
+
+
+def cli_surface() -> "tuple[set[str], dict[str, set[str]]]":
+    """(subcommands, subcommand -> its documented flags), read out of `usage.ts`.
+
+    Derived from the shipped help text rather than rostered here, and NOT from
+    `INIT_FLAGS`/`DOCTOR_FLAGS`: those are only the value-taking subset — `--force`,
+    `--dry-run` and `--json` are declared at the call site and appear in none of them. A
+    gate reading the convenient list would have called `--force` undeclared, which is the
+    failure mode of checking the population that was easy to reach.
+    """
+    path = HOST_SRC / "cli" / "usage.ts"
+    if not path.is_file():
+        return set(), {}
+    src = path.read_text()
+    subs: "set[str]" = set()
+    m = re.search(r"export const SYNOPSIS: string\[\] = \[(.*?)\n\];", src, re.S)
+    if m:
+        subs |= set(re.findall(r'"\s*breakpoint-mcp\s+([a-z][a-z0-9-]*)\s', m.group(1)))
+    flags: "dict[str, set[str]]" = {}
+    for name in sorted(subs):
+        b = re.search(rf"export const {name.upper()}_USAGE: string\[\] = \[(.*?)\n\];", src, re.S)
+        flags[name] = set(re.findall(r'"\s*(--[a-z][a-z0-9-]*)', b.group(1))) if b else set()
+    return subs, flags
+
+
+CLI_SUBCOMMANDS, CLI_FLAGS = cli_surface()
+
+
+def _remedy_grammar(plane: "str", table: "str", rows: "dict[str, str]") -> None:
+    """The sentence rules every remedy obeys, wherever the table lives.
+
+    Lifted out of check 28's addon loop so the host-side fallback table is held to the
+    SAME grammar: it is the same sentence a reader gets when the addon is new enough to
+    answer for itself, and a second table with its own house style would read as a
+    different product speaking.
+    """
+    for code, text in sorted(rows.items()):
+        low = text.lower()
+        if not text.endswith("."):
+            errors.append(
+                f"check 28: {table}[{code!r}] does not end in a full stop. It is appended "
+                f"to a message the user reads as one line; a clause that trails off reads as "
+                f"truncation."
+            )
+        if len(text) > _REMEDY_MAX:
+            errors.append(
+                f"check 28: {table}[{code!r}] is over the length ceiling. The remedy rides "
+                f"on every failure carrying this code; a paragraph is a cost paid on every "
+                f"one of them."
+            )
+        if not any(low.startswith(v) for v in _REMEDY_IMPERATIVES):
+            errors.append(
+                f"check 28: {table}[{code!r}] does not open with a next action — it "
+                f"begins {text.split()[0]!r}. A second description of the failure is what "
+                f"the message already carried."
+            )
+        for span in re.findall(rf"`({_CLI_BIN}[^`]*)`", text):
+            remedy_cli_refs.append((plane, code, span))
+        for tool in re.findall(r"`([a-z][a-z0-9_]+)`", text):
+            # A bare backticked subcommand is a COMMAND, not a tool, and joining it to the
+            # tool registry would refuse a correct sentence. It is exempt only while the
+            # remedy also spells the binary, so `init` standing alone — which reads like a
+            # tool name to anyone who does not already know the CLI — still fails.
+            if tool in CLI_SUBCOMMANDS and _CLI_BIN in text:
+                continue
+            remedy_tool_refs.append((plane, code, tool))
 
 if not REMEDIES_FILE.is_file():
     errors.append(
@@ -4108,29 +4210,8 @@ for _plane, _src_file, _table in _REMEDY_PLANES:
             f"coverage, it is maintained as if it shipped, and the code it was written for "
             f"was renamed or deleted without anything saying so."
         )
-    # the shape of the sentence, and the tools it names
-    for _code, _text in sorted(_rows.items()):
-        _low = _text.lower()
-        if not _text.endswith("."):
-            errors.append(
-                f"check 28: {_table}[{_code!r}] does not end in a full stop. It is appended "
-                f"to a message the user reads as one line; a clause that trails off reads as "
-                f"truncation."
-            )
-        if len(_text) > _REMEDY_MAX:
-            errors.append(
-                f"check 28: {_table}[{_code!r}] is over the length ceiling. The remedy rides "
-                f"on every failure carrying this code; a paragraph is a cost paid on every "
-                f"one of them."
-            )
-        if not any(_low.startswith(_v) for _v in _REMEDY_IMPERATIVES):
-            errors.append(
-                f"check 28: {_table}[{_code!r}] does not open with a next action — it "
-                f"begins {_text.split()[0]!r}. A second description of the failure is what "
-                f"the message already carried."
-            )
-        for _tool in re.findall(r"`([a-z][a-z0-9_]+)`", _text):
-            remedy_tool_refs.append((_plane, _code, _tool))
+    # the shape of the sentence, and the names it uses
+    _remedy_grammar(_plane, _table, _rows)
 
 # c — the join. A remedy naming a tool that does not exist is an instruction the reader
 # cannot follow, and renaming a tool is exactly when it happens.
@@ -4167,9 +4248,113 @@ for _rel in remedy_renderers:
                 f"complete sentence."
             )
 
+# --- f: the HOST's own fallback table, and the ceiling that keeps it one row ---------
+#
+# 🔴 THE ROW EXISTS BECAUSE THE ADDON-SIDE TABLE CANNOT REACH ITS OWN AUDIENCE (258 §2).
+# `error_remedies.gd` was ADDED IN ADDON 1.10.0, and its `unknown_method` row says *the
+# addon is older than the host* — so every addon old enough to raise that code is old
+# enough to predate the file that would explain it. The two populations are disjoint by
+# construction, and no edit to the addon table can ever fix it: the fix has to come from
+# the side that is current by definition.
+#
+# 🔴 AND WHY IT IS CEILINGED RATHER THAN LEFT OPEN. A host-side remedy table is the
+# cheapest possible place to answer any awkward code, and 254 spent a session arguing the
+# remedy belongs where the code is RAISED — one file, one join, checkable in both
+# directions. A second row here is not forbidden; it is made loud, so it is a decision
+# somebody defends rather than a table that quietly grows back.
+HOST_REMEDIES_FILE = HOST_SRC / "remedies.ts"
+_HOST_FALLBACK_MAX = 1
+
+
+def host_fallback_remedies() -> "dict[str, str]":
+    """code -> the host's fallback next action, read out of `remedies.ts`."""
+    if not HOST_REMEDIES_FILE.is_file():
+        return {}
+    src = HOST_REMEDIES_FILE.read_text()
+    m = re.search(r"export const HOST_FALLBACK_REMEDIES: Record<string, string> = \{(.*?)\n\};", src, re.S)
+    if not m:
+        return {}
+    return {
+        km.group(1): km.group(2)
+        for km in re.finditer(r'^\s*([a-z0-9_]+):\s*\n?\s*"((?:[^"\\]|\\.)*)",\s*$', m.group(1), re.M)
+    }
+
+
+host_fallback = host_fallback_remedies()
+_all_raised: "set[str]" = set()
+for _plane, _src_file, _table in _REMEDY_PLANES:
+    _all_raised |= set(re.findall(r'_err\(\s*"([a-z0-9_]+)"', _src_file.read_text()))
+
+if HOST_REMEDIES_FILE.is_file():
+    if not host_fallback:
+        errors.append(
+            "check 28: no `HOST_FALLBACK_REMEDIES` table resolved in host/src/remedies.ts. "
+            "Every rule below then reads an EMPTY table and passes — the ceiling, the dead-row "
+            "join and the grammar all agree with themselves — so the absence is the failure."
+        )
+    if "remedyForWireError(" not in (HOST_SRC / "bridge.ts").read_text():
+        errors.append(
+            "check 28: host/src/bridge.ts does not call `remedyForWireError(..)`. The fallback "
+            "table can be perfect and never reach a reader: the reject site where a wire error "
+            "becomes a `BridgeError` is the one point every addon failure passes through, which "
+            "is why the lookup is there and why its absence is checked here."
+        )
+    if len(host_fallback) > _HOST_FALLBACK_MAX:
+        errors.append(
+            f"check 28: HOST_FALLBACK_REMEDIES has {len(host_fallback)} rows, over the ceiling "
+            f"of {_HOST_FALLBACK_MAX}. Every row here answers a code from the side that did not "
+            f"raise it, which is what 254 moved the remedies AWAY from. Raise the ceiling on "
+            f"purpose, with the argument for why the raising side cannot answer this one either."
+        )
+    for _code in sorted(set(host_fallback) - _all_raised):
+        errors.append(
+            f"check 28: HOST_FALLBACK_REMEDIES answers {_code!r}, which no `_err(..)` on either "
+            f"engine plane raises. A fallback for a code nothing sends is a row that can never "
+            f"be read and can never be found wrong."
+        )
+    _remedy_grammar("host", "HOST_FALLBACK_REMEDIES", host_fallback)
+
+# --- e: the CLI join. A remedy naming a COMMAND was joined to nothing until 259 -------
+if not CLI_SUBCOMMANDS:
+    errors.append(
+        "check 28: no subcommands resolved out of usage.ts's SYNOPSIS, so the CLI join below "
+        "compares every command in every remedy against an EMPTY set and passes. That is the "
+        "shape where a reader agrees with itself, so the absence is reported as the error."
+    )
+for _plane, _code, _span in remedy_cli_refs:
+    _words = _span.split()
+    _sub = _words[1] if len(_words) > 1 and not _words[1].startswith("-") else None
+    if _sub is None:
+        continue                                  # bare `breakpoint-mcp` — the binary itself
+    if _sub not in CLI_SUBCOMMANDS:
+        errors.append(
+            f"check 28: the {_plane} remedy for {_code!r} tells the reader to run `{_span}`, "
+            f"and {_sub!r} is not a subcommand usage.ts declares. The remedy is an instruction "
+            f"somebody will paste into a shell."
+        )
+        continue
+    for _flag in [w for w in _words[2:] if w.startswith("--")]:
+        if _flag not in CLI_FLAGS.get(_sub, set()):
+            errors.append(
+                f"check 28: the {_plane} remedy for {_code!r} runs `{_span}`, and {_sub!r} does "
+                f"not document {_flag}. Those blocks are `parseArgs`'s input, so the command in "
+                f"the remedy would be REFUSED at the command line."
+            )
+    # e3 — the one that would have caught the shipped defect.
+    if _sub == "init" and "--force" not in _words:
+        errors.append(
+            f"check 28: the {_plane} remedy for {_code!r} says `{_span}` without `--force`. "
+            f"`installAddon` skips a destination that already has a plugin.cfg, and every reader "
+            f"of this sentence already has the addon — that is why it is stale. The name "
+            f"resolves and the instruction is a no-op, which is the failure 254's tool join "
+            f"could not see because it only ever asked whether a name existed."
+        )
+
 print(f"Error remedies         : "
       f"{sum(len(v) for v in remedy_rows.values())} row(s) across {len(remedy_rows)} plane(s) "
+      f"+ {len(host_fallback)} host fallback "
       f"· {len(remedy_tool_refs)} tool reference(s) joined to the registry "
+      f"· {len(remedy_cli_refs)} CLI command(s) joined to {len(CLI_SUBCOMMANDS)} subcommand(s) "
       f"· {len(remedy_renderers)} host renderer(s) checked")
 _ran("28")
 
@@ -4909,6 +5094,18 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("xlang.remedy_tool_refs", len(remedy_tool_refs), 35,
      "the remedies stop being joined to `registerTool`, so a renamed tool leaves the one "
      "sentence that was supposed to unblock the caller naming a tool that does not exist"),
+    # 🆕 259 — check 28's CLI half and the host fallback. The tool join answered *does
+    # this name exist*; neither of these asks that.
+    ("xlang.remedy_cli_refs", len(remedy_cli_refs), 2,
+     "no remedy's COMMAND is joined to anything — which is the state that shipped "
+     "`breakpoint-mcp init` for four releases as the answer to a stale addon, a valid "
+     "subcommand that skips in the one state the sentence is ever read in"),
+    ("xlang.cli_subcommands", len(CLI_SUBCOMMANDS), 3,
+     "the CLI join compares every command in every remedy to an EMPTY set of subcommands "
+     "and reports nothing wrong — the far side of the same join going quiet"),
+    ("xlang.host_fallback_rows", len(host_fallback), 1,
+     "the host stops answering for the addon that cannot answer for itself: the ceiling, "
+     "the dead-row join and the grammar all read an empty table and all agree"),
     ("xlang.remedy_renderers", len(remedy_renderers), 5,
      "🔴 the host half stops being read. Every `fail()` could drop `remedyClause` and the "
      "addon would still attach a remedy to every failure — the wire stays correct and the "

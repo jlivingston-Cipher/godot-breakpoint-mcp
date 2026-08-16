@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.75.0 · addon 1.10.0
+- **Version:** host 1.75.0 · addon 1.11.0
 - **License:** MIT
 - **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -132,6 +132,15 @@ number the bug-report template asks for, and it is worth quoting in any issue yo
 > that file at project load — it does not hot-reload it. An editor that was already
 > running keeps the plugin disabled, the editor bridge never starts, and `doctor
 > --require-live` reports it as down. Closing the project and opening it again is the fix.
+
+> **When you upgrade the host, re-run `init --force`.** The addon ships *inside* the host
+> package and moves on its own version line, so upgrading `breakpoint-mcp` puts a newer addon
+> in the package and changes nothing in your project. Plain `init` **skips** an addon that is
+> already installed — that is what makes it safe to re-run — so the upgrade needs `--force`,
+> and Godot loads addon scripts at project load, so close and reopen the project afterwards.
+> `doctor` reports the comparison directly: `addon-version` for the copy on disk and
+> `addon-running-editor` / `addon-running-runtime` for the copy each live plane is actually
+> running, which is the one that diverges after a `--force` you have not reopened for yet.
 
 `init` copies the addon into `addons/breakpoint_mcp/`, enables it in `project.godot`, and
 prints the client config snippet — pass `--client claude-desktop|cursor|windsurf|vscode` to
@@ -990,6 +999,17 @@ plane you are using.
   still loads and serves any explicit log entries, but automatic capture is a documented
   no-op. For captured console output on older builds, use `godot_run_managed` +
   `godot_output`.
+
+### A tool fails with "No such method"
+
+- **The addon in your project is older than the host.** They version separately and `init`
+  skips an addon that is already installed, so upgrading the host alone leaves the old addon
+  in place — see the upgrade note in §3.0. Run `breakpoint-mcp init --force`, then close and
+  reopen the project in Godot.
+- `breakpoint-mcp doctor` names both halves: `addon-version` compares the copy on disk to the
+  one this host ships, and `addon-running-editor` / `addon-running-runtime` report what each
+  live plane actually loaded. They are informational — they never fail the exit code — so
+  read the lines, not just the status.
 
 ### Screenshots come back blank
 

@@ -406,3 +406,64 @@ test("runInit --from-github returns 1 and installs nothing when the fetch fails"
   assert.equal(code, 1);
   assert.equal(fs.existsSync(path.join(proj, "addons", "breakpoint_mcp")), false);
 });
+
+/**
+ * 🔴 THE COMMAND THAT PINNED THE SKEW AND SAID `skipped` (258 §2). `installAddon`
+ * tested `fs.existsSync(dest/plugin.cfg)` and returned — the destination file was
+ * located and never opened — so a user upgrading the host and re-running `init`,
+ * which is exactly what the docs tell them to do, kept their old addon forever and
+ * was told nothing. The transcript for a correct re-run and a permanently broken
+ * one were the same six characters.
+ */
+test("init warns on stderr when it skips an addon OLDER than the bundled one", async () => {
+  const proj = makeProject();
+  const oldAddon = path.join(proj, "addons", "breakpoint_mcp");
+  fs.mkdirSync(oldAddon, { recursive: true });
+  fs.writeFileSync(path.join(oldAddon, "plugin.cfg"), '[plugin]\nname="Breakpoint MCP"\nversion="1.1.0"\n');
+
+  const errs: string[] = [];
+  const write = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    errs.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    process.env.BREAKPOINT_ADDON_SRC = addonSrc; // version 9.9.9 — newer than 1.1.0
+    await runInit(["--project", proj, "--client", "none"]);
+  } finally {
+    process.stderr.write = write;
+    delete process.env.BREAKPOINT_ADDON_SRC;
+  }
+  const stderr = errs.join("");
+  assert.match(stderr, /OLDER than the one this host ships/);
+  assert.match(stderr, /1\.1\.0 vs 9\.9\.9/, "both sides of the pair, not just a verdict");
+  assert.match(stderr, /--force/, "the flag plain `init` needed and the remedy never said");
+  // And it really did leave the old one — the warning is about a thing that happened.
+  assert.match(fs.readFileSync(path.join(oldAddon, "plugin.cfg"), "utf8"), /version="1\.1\.0"/);
+});
+
+test("init stays quiet when the skip was over an addon that is already current", async () => {
+  const proj = makeProject();
+  const cur = path.join(proj, "addons", "breakpoint_mcp");
+  fs.mkdirSync(cur, { recursive: true });
+  fs.writeFileSync(path.join(cur, "plugin.cfg"), '[plugin]\nname="Breakpoint MCP"\nversion="9.9.9"\n');
+
+  const errs: string[] = [];
+  const write = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    errs.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    process.env.BREAKPOINT_ADDON_SRC = addonSrc;
+    await runInit(["--project", proj, "--client", "none"]);
+  } finally {
+    process.stderr.write = write;
+    delete process.env.BREAKPOINT_ADDON_SRC;
+  }
+  // 🔴 THE NEGATIVE CONTROL, AND IT IS NOT DECORATION. `init` is documented as
+  // idempotent and re-running it is the normal thing to do; a warning on every skip
+  // is noise on the correct path, and noise on the correct path is how a warning
+  // stops being read on the wrong one.
+  assert.doesNotMatch(errs.join(""), /OLDER than/);
+});

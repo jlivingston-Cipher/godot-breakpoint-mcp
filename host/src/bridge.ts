@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { log } from "./logger.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS } from "./finiteness.js";
+import { remedyForWireError } from "./remedies.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -317,7 +318,13 @@ export class BridgeClient {
       }
     } else {
       const e = msg.error ?? { code: "unknown", message: "Unknown bridge error" };
-      p.reject(new BridgeError(e.code, e.message, typeof e.remedy === "string" ? e.remedy : undefined));
+      // 🔴 THE FALLBACK IS FOR THE ADDON THAT CANNOT ANSWER FOR ITSELF (258 §2).
+      // A current addon attaches its own remedy and wins outright; an addon old
+      // enough to raise `unknown_method` predates `error_remedies.gd` entirely,
+      // so the only side that can name its next action is the host it is skewed
+      // against. See remedies.ts for why that table has exactly one row.
+      const wire = typeof e.remedy === "string" ? e.remedy : undefined;
+      p.reject(new BridgeError(e.code, e.message, remedyForWireError(e.code, wire)));
     }
   }
 
