@@ -381,7 +381,12 @@ BLAST: dict[str, int] = {
     # floors and nothing else. Predicted 2 and MEASURED 2 (259's rule: predict, then
     # measure — `cli_surface` was predicted at 2 and measured 7).
     "guide_recipe_tools": 2,
-    "privileged_tools": 4,                    # also: checks 11, 13 (the constant roster)
+    # 🆕 261: 4 -> 9. Check 31 reads this roster to decide which tool a recipe names is
+    # WITHHELD, so emptying it takes all five higher-trust entries in the guide's §10
+    # declaration block into "declared but not privileged" at once. The row moved because
+    # a reader started depending on this population — 251's rule, and the same cause the
+    # 3 -> 4 note below records.
+    "privileged_tools": 9,                    # also: checks 11, 13 (the constant roster), 31
     "recipe_names_constant": 2,               # also: check 12
     "registered_recipes": 4,                  # also: check 12
     "registered_resources": 3,                # also: check 10
@@ -411,7 +416,11 @@ BLAST: dict[str, int] = {
     # as unregistered and collapses a fourth ledger population with them. The radius moved
     # because a NEW check started reading this reader — 196 §4's shape, declared in the
     # commit that moved it rather than discovered by a later run.
-    "registered_tools": 79,                   # also: checks 6 8 9 11 13 25 28 29, 4c, 4d
+    # 🆕 261: 79 -> 81. `guide_recipe_tools` derives its own tool families FROM this
+    # roster, so emptying it collapses check 31's two ledger populations as well — the
+    # guide reads as naming nothing. Two lines, both in the ledger, and predicted before
+    # they were measured.
+    "registered_tools": 81,                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the

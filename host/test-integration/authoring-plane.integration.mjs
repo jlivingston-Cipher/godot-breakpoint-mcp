@@ -1611,7 +1611,30 @@ async function main() {
       { name: "screenshot_editor", arguments: { viewport: "2d" } }, undefined, { timeout: 60000 });
     const txt2d = (raw2d.content?.[0]?.text || "").slice(0, 200);
     const img2d = (raw2d.content || []).find((c) => c.type === "image");
-    if (raw2d.isError && /viewport_not_rendered/.test(txt2d)) {
+    // 🔴 261 — ASK WHICH TAB IS ACTUALLY ACTIVE, AND STOP ACCEPTING A FRAME ON FAITH.
+    // The `!isError && img2d` arm below used to accept any real-sized frame as "the 2D
+    // tab happened to be active". Measured at 261 on a live 4.7: after a tab's FIRST
+    // visit its viewport keeps full size while hidden and stops being drawn to, so a
+    // full-size frame is exactly what a HIDDEN tab returns — the arm that was written to
+    // tolerate a developer's layout was also the arm that let the stale-frame defect
+    // through this probe for forty sessions. The tab is knowable; read it.
+    const screenNow = await client.callTool({ name: "main_screen_get", arguments: {} }, undefined, { timeout: 30000 });
+    const activeNow = (() => {
+      try { return JSON.parse(screenNow.content?.[0]?.text || "{}").active || ""; } catch { return ""; }
+    })();
+    if (activeNow && activeNow.toUpperCase() !== "2D") {
+      raw2d.isError && /viewport_not_active/.test(txt2d) && !img2d
+        ? pass("AUTH_SHOT_INACTIVE_REFUSED", `2D is hidden behind "${activeNow}" and the capture refused: ${txt2d.slice(0, 70)}`)
+        : fail("AUTH_SHOT_INACTIVE_REFUSED",
+               `the editor is on "${activeNow}" and screenshot_editor {viewport:"2d"} did not refuse. ` +
+               `A hidden tab returns its LAST DRAWN frame at full size, so an ok here is a picture of the past: ${txt2d}`);
+    } else if (activeNow) {
+      const d2 = /\((\d+)x(\d+)\)/.exec((raw2d.content || []).find((c) => c.type === "text")?.text || "");
+      const w2 = d2 ? Number(d2[1]) : 0, h2 = d2 ? Number(d2[2]) : 0;
+      (!raw2d.isError && img2d && w2 >= 64 && h2 >= 64)
+        ? pass("AUTH_SHOT_INACTIVE_REFUSED", `2D tab was active — real frame ${w2}x${h2}`)
+        : fail("AUTH_SHOT_INACTIVE_REFUSED", `the 2D tab IS active and the capture did not produce a real frame: ${txt2d}`);
+    } else if (raw2d.isError && /viewport_not_rendered/.test(txt2d)) {
       pass("AUTH_SHOT_INACTIVE_REFUSED", txt2d.slice(0, 80));
       // Record how much room the MIN_RENDERED_VIEWPORT_PX = 8 heuristic actually has,
       // rather than leaving it an assumption. The guard compares the addon's IMAGE
