@@ -1178,7 +1178,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (27, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (28, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1205,7 +1205,13 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "answer — the check finds every tool whose own block SPAWNS a game, and asks "
         "whether it waited and whether it has anywhere on the wire to say so. Found by the "
         "spawn and never by a roster, because the row it closes named one launcher and its "
-        "twin in another file had the identical defect with nothing naming it.")),
+        "twin in another file had the identical defect with nothing naming it. "
+        "🆕 RAISED BY ONE A SIXTH TIME: the recipe/surface join was added after the User "
+        "Guide's worked recipes were found naming five tools a default install does not "
+        "load — the check reads the tools a recipe NAMES out of the guide's own sections "
+        "rather than from a roster, so a recipe written next session is judged the day it "
+        "is written, which is the property the hand-written warning it replaces did not "
+        "have.")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "
