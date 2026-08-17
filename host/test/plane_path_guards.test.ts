@@ -144,7 +144,7 @@ test("all four planes REFUSE an escaping path, and none of them reaches its tran
       waitForDiagnostics: async () => { wire.push("waitForDiagnostics"); return []; },
     };
     const dapStub = {
-      hasSession: true, state: "stopped", threadId: () => 1,
+      hasSession: true, state: "stopped", isStopped: true, threadId: () => 1,
       // 🔴 supportsGotoTargetsRequest ADVERTISED on purpose. No real Godot build
       // advertises it, so `dbg_goto`'s capability check returns before the guard and
       // the live gate CANNOT reach this code at all — which is exactly how it went
@@ -208,6 +208,11 @@ test("dbg_goto guards its path — the tool 161 §8 item 5 did not know was ungu
   try {
     const wire: string[] = [];
     const dapStub = {
+      // 🔴 A STOPPED SESSION IS THE PREMISE NOW (262): `dbg_goto` moves the program
+      // counter within the current stopped frame, so it refuses a running program before
+      // it ever resolves a path. Without these two the path claims below would pass for
+      // the wrong reason — the sharpest way a guard's test can rot.
+      hasSession: true, state: "stopped", isStopped: true,
       capabilities: { supportsGotoTargetsRequest: true },
       threadId: () => 1,
       droppedBreakpointModifiers: () => [],

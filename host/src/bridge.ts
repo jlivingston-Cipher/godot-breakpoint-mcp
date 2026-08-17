@@ -143,6 +143,36 @@ export class BridgeClient {
     this.ledger = new OverdueLedger<string>("bridge", peerNoun, deadlineKnob);
   }
 
+  /**
+   * A cause this client cannot see, supplied by whoever CAN, as the remedy on a timeout.
+   *
+   * 🔴 WHY THIS EXISTS AT ALL — the eighth session of "the host's own failures carry no
+   * remedy" (254 §4.6 → 261 §4.4), answered for the one case a walk actually produced.
+   * `BridgeError.remedy` was documented as "the addon's to give, and a host-raised
+   * timeout arrives without one". True for a closed socket. NOT true here, and USER_GUIDE
+   * §10 B's own step 5 walks the reader straight into it: the addon services `runtime_*`
+   * from `_process`, so a breakpoint inside the method being called halts the very frame
+   * that owes the reply. Measured — the stop's stack trace is `compute` on top of
+   * `_call_method` → `_dispatch` → `_handle_line` → `_drain_lines` → `_process`, five
+   * frames of the addon's own dispatch — and the caller got
+   * `Bridge request 'runtime.call_method' timed out after 15000ms` and nothing else,
+   * EVERY TIME THE RECIPE WORKED. The deadlock is a fact about the debugger, which lives
+   * in the host, three modules away from the socket that gave up.
+   *
+   * 🔴 A HOOK RATHER THAN A CONSTRUCTOR PARAMETER, and that is not laziness: nine `.mjs`
+   * integration probes construct these registrars directly where TypeScript cannot see
+   * them, and 257 spent six red CI jobs learning what adding a parameter costs. A probe
+   * that never sets a probe gets exactly today's behaviour.
+   *
+   * Wired on the RUNTIME client only. A game halted at a breakpoint does not hold the
+   * editor bridge, and the sentence would be a confident lie on plane A.
+   */
+  setHoldProbe(probe: () => string | undefined): void {
+    this.holdProbe = probe;
+  }
+
+  private holdProbe: (() => string | undefined) | null = null;
+
   /** Register a listener for addon-pushed resource-change events. */
   onResourceChanged(cb: ResourceChangedListener): void {
     this.eventListeners.add(cb);
@@ -372,7 +402,11 @@ export class BridgeClient {
         // exact `timed out after <n>ms` phrasing — tools/dap.ts:29 and
         // tools/csdap.ts:31 branch on that substring.
         this.ledger.note(id, method, timeoutMs);
-        reject(new BridgeError("timeout", `Bridge request '${method}' timed out after ${timeoutMs}ms`));
+        // 🔴 THE ONE HOST-RAISED FAILURE THAT HAS A KNOWABLE CAUSE (262 §2). Everything
+        // else this class raises is genuinely opaque from here — a closed socket, a peer
+        // that never answered — but a timeout on the RUNTIME bridge has one cause the host
+        // can check for nothing: its own debugger holding the game. See `setHoldProbe`.
+        reject(new BridgeError("timeout", `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? undefined));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       socket.write(payload, (err) => {

@@ -150,6 +150,24 @@ export class DapClient extends EventEmitter {
     return this.state === "stopped";
   }
 
+  /**
+   * Whether there is a FRAME to answer from — the public half of `stoppedNow()`.
+   *
+   * 🔴 `hasSession` IS NOT THIS, AND THE DIFFERENCE IS A WHOLE FAMILY OF DEFECTS (262 §1).
+   * The `dbg_*` tools consulted `hasSession` — *did a launch succeed* — and then asked the
+   * adapter for a stack, a scope, a variable or a step. With a session live and the program
+   * RUNNING, measured against a real 4.7 adapter, that produced eight different answers to
+   * one question: `{"frames":[]}` and `{"scopes":[]}` (empty successes), a `dbg_watch` entry
+   * carrying a fabricated `error:"timeout"` after 5 s, a 15 s wait per `dbg_step` /
+   * `dbg_continue` ending in `{"state":"running"}`, and a `dbg_set_variable` refusal blaming
+   * the user's Godot build. ~48 s of adapter round trips for a question answerable here in
+   * none. A session existing is a PROXY for a frame existing, and the two part company the
+   * moment the program is not at a stop — 261's rule, one plane over.
+   */
+  get isStopped(): boolean {
+    return this.stoppedNow();
+  }
+
   constructor(
     host: string,
     port: number,

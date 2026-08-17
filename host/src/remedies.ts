@@ -61,3 +61,23 @@ export function remedyForWireError(code: string, fromWire: string | undefined): 
   if (typeof fromWire === "string" && fromWire !== "") return fromWire;
   return HOST_FALLBACK_REMEDIES[code];
 }
+
+/**
+ * The next action when the runtime bridge went quiet because OUR debugger stopped the game.
+ *
+ * 🔴 NOT A ROW IN THE TABLE ABOVE, and the distinction is the whole reason this file's
+ * one-row ceiling can survive a second sentence being added to the module. That table is
+ * keyed by a CODE THE ADDON RAISES — check 28 joins every key to an `_err(..)` site on an
+ * engine plane, and a `timeout` key would have no such site to join to, because nothing in
+ * the engine raised it. This is the opposite population: a failure the HOST invents when a
+ * peer says nothing, keyed on a piece of state only the host holds. Keyed on a code it
+ * would be wrong — most `timeout`s have nothing to do with the debugger — so it is emitted
+ * only when `dap.isStopped` is true at the moment the deadline fires.
+ *
+ * Written to the same grammar check 28 enforces next door, because it reaches the same
+ * reader through the same clause: one imperative at the head, backticked names that resolve,
+ * a full stop at the end.
+ */
+export const DEBUGGER_HOLD_REMEDY =
+  "Release the game with `dbg_continue` — it is stopped at a breakpoint, and the addon answers `runtime_*` calls from `_process`, " +
+  "so the frame that owes this reply cannot run until execution resumes.";

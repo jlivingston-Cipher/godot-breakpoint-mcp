@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.76.0 · addon 1.11.0
+- **Version:** host 1.77.0 · addon 1.11.0
 - **License:** MIT
 - **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -932,11 +932,23 @@ underlying steps.
 2. `gd_diagnostics` on the suspect script to rule out static errors.
 3. `dbg_set_breakpoints` on the relevant lines.
 4. `dbg_launch` (or `dbg_attach` to a running session).
-5. Trigger the code path — often via `runtime_call_method` from Plane C **(higher-trust)**.
+5. Trigger the code path — play the game, `runtime_inject_input` to drive it, or call the
+   method directly with `runtime_call_method` from Plane C **(higher-trust)**.
+   🔴 **A direct call that hits your breakpoint will not return.** The addon answers
+   `runtime_*` from the game's `_process`, so halting inside the method being called halts
+   the very frame that owes the reply: the call reports a timeout while the breakpoint is
+   hit and waiting for you. That is expected — read the stop with the `dbg_*` tools below
+   and release it with `dbg_continue`; the timed-out call's return value is lost, nothing
+   else is. `runtime_inject_input` and playing the game by hand have no such interaction.
 6. On the stop: `dbg_stack_trace` → `dbg_scopes` → `dbg_variables` to read real state;
    `dbg_watch` for an expression across stops; `dbg_evaluate` **(higher-trust)** to probe a
    value (confirm when prompted).
-7. `dbg_step` / `dbg_continue` to walk through, then fix the code and re-run.
+   **These need the program actually stopped.** A launched-but-running program is refused
+   with `not_stopped` naming the state, rather than answered with the empty frame list it
+   used to return — the one exception is `dbg_watch`, which still updates the watch set and
+   reports why the values are missing, so you can arm watches before the first stop.
+7. `dbg_step` / `dbg_continue` to walk through, then fix the code and re-run. Both also
+   require a stop: there is nothing to resume in a program that is already running.
 
 ### C. Play-testing the live game
 
@@ -989,9 +1001,19 @@ plane you are using.
 - The debug adapter may be disabled or on a different port. Check
   **Editor → Editor Settings → Network → Debug Adapter** (default 6006) and set
   `GODOT_DAP_PORT`.
-- Some debugger features are version-gated per Godot build. Rather than erroring, an
-  unsupported feature returns a clear "unsupported" message — that is expected on older
-  builds and is not a failure of the tool.
+- Some debugger features are version-gated per Godot build. An unsupported feature comes
+  back as an error result whose text names the capability the adapter did not advertise —
+  `dbg_goto`, `dbg_data_breakpoints` and `dbg_set_exception_breakpoints` all do this on
+  current builds. It is a refusal that tells you why, not a fault in the tool, and no
+  request is sent.
+- **`dbg_set_variable` does not work on any current Godot build.** The GDScript adapter
+  advertises `supportsSetVariable` and then never answers the request — measured
+  unanswered on 4.3 and on 4.7, at a real stop — so the tool reports that rather than
+  hanging. Read state with `dbg_variables` / `dbg_evaluate`.
+- **"needs the program stopped at a breakpoint" is not a fault either.** A debug session
+  being live is not the same as the program being halted: while it runs there is no frame
+  to read a stack, a scope or a variable from. Arm a line with `dbg_set_breakpoints`,
+  trigger that path, and read the stop.
 
 ### `runtime_*` (in-game) fail
 
