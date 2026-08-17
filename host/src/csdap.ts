@@ -68,11 +68,65 @@ export class CsDapClient extends EventEmitter {
    * being emitted as an unlistened `error` event (which throws).
    */
   private startFailure: unknown = null;
+  /**
+   * Whether a launch/attach this client sent was accepted. Tracked SEPARATELY from
+   * `state` for the reason `DapClient` tracks it separately, measured here on this
+   * plane against a real netcoredbg: `cs_dbg_continue` on a client that had never
+   * launched anything left `state = "running"` behind — `resume()` assigns it
+   * optimistically before it waits — so every call after it read as a live session.
+   * A guard built on `state` alone would be poisoned by the very call it exists to
+   * refuse.
+   */
+  private sessionStarted = false;
 
   capabilities: Record<string, unknown> | null = null;
   state: DapState = "disconnected";
   lastStoppedThreadId: number | null = null;
   lastStoppedReason: string | null = null;
+
+  /**
+   * Whether a launch/attach the adapter accepted is still in force. The `cs_dbg_*`
+   * tools that can only answer from a live session consult this instead of asking
+   * netcoredbg and reporting whatever came back.
+   *
+   * 🔴 Measured against a real netcoredbg 3.2.0-1092 on a client that had never
+   * launched anything: seven of the nine readers answered with a raw hex code —
+   * `Failed command 'stackTrace' : 0x80004005` (E_FAIL), `0x80070057` (E_INVALIDARG)
+   * — `cs_dbg_set_variable` reported "the debug adapter reported a failure with no
+   * message", and `cs_dbg_watch` answered `isError:false` with every entry carrying
+   * `error: "error: 0x80004005"`. Only `cs_dbg_restart` refused, and only because it
+   * happens to read `lastStartMode`. That is the same single exception session 259
+   * measured one plane over, for the same accidental reason.
+   */
+  get hasSession(): boolean {
+    return this.sessionStarted && this.state !== "terminated" && this.state !== "disconnected";
+  }
+
+  /**
+   * Whether the adapter has reported a stop, read through a call so TypeScript's
+   * control-flow narrowing does not collapse it — `state` is mutated by the event
+   * handler across every `await` in `start()`, so a literal comparison after an
+   * assignment is (wrongly) an impossible one to tsc. `DapClient.stoppedNow()`
+   * carries the same note for the same reason.
+   */
+  private stoppedNow(): boolean {
+    return this.state === "stopped";
+  }
+
+  /**
+   * Whether there is a FRAME to answer from — the public half of `stoppedNow()`.
+   *
+   * 🔴 `hasSession` IS NOT THIS, and session 262 spent a whole session on the
+   * difference on the GDScript plane. Measured here with a session live and the
+   * program merely RUNNING: `stackTrace` 0x80070057, `scopes` / `variables` /
+   * `step` 0x80004005, `evaluate` 0x80070057, `set_variable` blaming the adapter,
+   * `watch` an `isError:false` answer whose every entry carried a hex code, and
+   * `cs_dbg_continue` waiting the full 15 s to answer `{"state":"running"}` —
+   * about 45 s of adapter round trips for a question answerable here in none.
+   */
+  get isStopped(): boolean {
+    return this.stoppedNow();
+  }
 
   constructor(
     private readonly channel: JsonRpcChannel,
@@ -83,6 +137,7 @@ export class CsDapClient extends EventEmitter {
     this.channel.onClose((cause) => {
       this.state = "terminated";
       this.configured = false;
+      this.sessionStarted = false;
       const detail = cause ? ` (${cause.message})` : "";
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
@@ -290,6 +345,7 @@ export class CsDapClient extends EventEmitter {
   async start(mode: "launch" | "attach", args: Record<string, unknown>): Promise<void> {
     this.lastStartMode = mode;
     this.lastStartArgs = args;
+    this.sessionStarted = false;
     // Listen for `initialized` before we ask, so we cannot miss it.
     const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
     this.capabilities = await this.request("initialize", {
@@ -318,6 +374,9 @@ export class CsDapClient extends EventEmitter {
       (err: unknown) => {
         this.startFailure = err;
         this.configured = false;
+        // A rejection arriving after `start()` returned ends the session, so the
+        // tools' session guard refuses from then on rather than reading `running`.
+        this.sessionStarted = false;
         this.state = "terminated";
         // A DISTINCT event name, deliberately: `error` is special-cased by
         // EventEmitter and throws when unlistened. This one is safe to ignore.
@@ -348,6 +407,7 @@ export class CsDapClient extends EventEmitter {
     const fatal = this.startFailure ?? (configureDoneAdvertised ? configureFailure : null);
     if (fatal) {
       this.configured = false;
+      this.sessionStarted = false;
       this.state = "terminated";
       void startReq;
       const detail = (fatal as { message?: string })?.message ?? String(fatal);
@@ -360,6 +420,7 @@ export class CsDapClient extends EventEmitter {
     }
 
     this.configured = true;
+    this.sessionStarted = true;
     // 🔴 ONLY from `initialized`, never unconditionally. The adapter can emit `stopped`
     // (or `terminated`) between the configurationDone RESPONSE and this line, and the
     // event handler has already moved the state — a blind `= "running"` clobbers it and
@@ -480,5 +541,6 @@ export class CsDapClient extends EventEmitter {
     this.channel.close();
     this.state = "disconnected";
     this.configured = false;
+    this.sessionStarted = false;
   }
 }

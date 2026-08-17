@@ -118,6 +118,73 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
   const root = cfg.csDapProjectPath;
 
   /**
+   * Refuse when no launch/attach the adapter accepted is in force.
+   *
+   * 🔴 Measured against a real netcoredbg 3.2.0-1092 on a client that had never
+   * launched anything. Nine readers, and the only one that refused did so by
+   * accident:
+   *
+   * ```
+   * cs_dbg_stack_trace   11ms  Failed command 'stackTrace' : 0x80004005
+   * cs_dbg_scopes         1ms  Failed command 'scopes' : 0x80004005
+   * cs_dbg_variables      1ms  Failed command 'variables' : 0x80004005
+   * cs_dbg_evaluate       1ms  error: 0x80004005
+   * cs_dbg_watch          1ms  isError:FALSE, every entry error "error: 0x80004005"
+   * cs_dbg_set_variable   1ms  "the debug adapter reported a failure with no message"
+   * cs_dbg_step           1ms  Failed command 'next' : 0x80004005
+   * cs_dbg_continue       0ms  Failed command 'continue' : 0x80004005
+   * cs_dbg_restart        1ms  refuses — because it reads `lastStartMode`
+   * ```
+   *
+   * `0x80004005` is E_FAIL and `0x80070057` is E_INVALIDARG: hex for "no", naming
+   * nothing the caller can act on and pointing at the adapter for a state the host
+   * already knew. The refusal names the two ways to open a session instead.
+   */
+  const requireSession = (tool: string): void => {
+    if (dap.hasSession) return;
+    refuse(
+      `${tool} needs a C# debug session: call cs_dbg_launch or cs_dbg_attach first. ` +
+        `There is none, so any state, frame or scope reported here would be invented — ` +
+        `this call previously answered with the adapter's raw failure code.`,
+      "no_session",
+    );
+  };
+
+  /**
+   * Refuse when the session is live but the program is not AT A STOP.
+   *
+   * 🔴 THE SAME PROXY, ONE PLANE OVER — session 262 §1's whole finding, ported after
+   * measuring it here rather than assumed. A session existing is a proxy for a frame
+   * existing, and the two part company the moment the program runs on. Measured with
+   * a launched session and nothing stopped:
+   *
+   * ```
+   * cs_dbg_stack_trace      2ms  Failed command 'stackTrace' : 0x80070057
+   * cs_dbg_scopes           1ms  Failed command 'scopes' : 0x80004005
+   * cs_dbg_variables        1ms  Failed command 'variables' : 0x80004005
+   * cs_dbg_evaluate         1ms  error: 0x80070057
+   * cs_dbg_set_variable     1ms  "the debug adapter reported a failure with no message"
+   * cs_dbg_step             1ms  Failed command 'next' : 0x80004005
+   * cs_dbg_continue    15,000ms  isError:FALSE  {"state":"running"}
+   * ```
+   *
+   * 🔴 RAISED BEFORE THE ADAPTER ROUND TRIP, which is most of the point: that 15 s —
+   * with `cs_dbg_restart`'s 30 s beside it — is time the caller spent being told
+   * nothing, for a question `dap.isStopped` answers in none. The refusal names the
+   * state it READ rather than the state it assumed, and names both ways to reach a
+   * stop, because "not stopped" is not itself an instruction.
+   */
+  const requireStopped = (tool: string): void => {
+    if (dap.isStopped) return;
+    refuse(
+      `${tool} needs the program stopped at a breakpoint: the C# debug session is live but the program is ${dap.state}. ` +
+        `Arm a line with cs_dbg_set_breakpoints and trigger that code path, or step from a stop you already have — ` +
+        `nothing here can be read from a program that is still running.`,
+      "not_stopped",
+    );
+  };
+
+  /**
    * Resolve a breakpoint source path and REFUSE one that cannot carry a breakpoint.
    *
    * Measured against a real netcoredbg: `res://NoSuchFile.cs`, `res://demo` (a
@@ -305,6 +372,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async () => {
       try {
+        requireSession("cs_dbg_continue");
+        requireStopped("cs_dbg_continue");
         const r = await dap.resume("continue", { threadId: dap.threadId() }, RESUME_WAIT_MS);
         return ok({ state: r.state, stopped_reason: r.reason });
       } catch (err) { return fail(err); }
@@ -322,6 +391,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ kind }) => {
       try {
+        requireSession("cs_dbg_step");
+        requireStopped("cs_dbg_step");
         const command = kind === "in" ? "stepIn" : kind === "out" ? "stepOut" : "next";
         const r = await dap.resume(command, { threadId: dap.threadId() }, RESUME_WAIT_MS);
         return ok({ state: r.state, stopped_reason: r.reason });
@@ -338,6 +409,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ levels }) => {
       try {
+        requireSession("cs_dbg_stack_trace");
+        requireStopped("cs_dbg_stack_trace");
         const body = await dap.request("stackTrace", { threadId: dap.threadId(), startFrame: 0, levels: levels ?? 20 });
         const frames = Array.isArray(body["stackFrames"])
           ? (body["stackFrames"] as Array<{ id?: number; name?: string; source?: { path?: string; name?: string }; line?: number }>).map((f) => ({
@@ -358,6 +431,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ frame_id }) => {
       try {
+        requireSession("cs_dbg_scopes");
+        requireStopped("cs_dbg_scopes");
         const body = await dap.request("scopes", { frameId: frame_id });
         const scopes = Array.isArray(body["scopes"])
           ? (body["scopes"] as Array<{ name?: string; variablesReference?: number }>).map((s) => ({ name: s.name ?? "", variables_ref: s.variablesReference ?? 0 }))
@@ -376,6 +451,8 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ variables_ref }) => {
       try {
+        requireSession("cs_dbg_variables");
+        requireStopped("cs_dbg_variables");
         const body = await dap.request("variables", { variablesReference: variables_ref });
         const variables = Array.isArray(body["variables"])
           ? (body["variables"] as Array<{ name?: string; value?: string; type?: string; variablesReference?: number }>).map((v) => ({
@@ -402,6 +479,11 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ expression, frame_id, confirm }) => {
       try {
+        // 🔴 BEFORE the confirmation prompt, not after. Asking the operator to approve
+        // an evaluate that cannot run — and that previously answered `0x80070057` when
+        // they approved it — spends their attention on a call already known to fail.
+        requireSession("cs_dbg_evaluate");
+        requireStopped("cs_dbg_evaluate");
         const blocked = await gate(server, confirm, `Evaluate C# expression in the running game: ${expression}`);
         if (blocked) return blocked;
         let body: Record<string, unknown>;
@@ -439,6 +521,11 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ variables_ref, name, value, confirm }) => {
       try {
+        // Before the capability read as well as before the prompt: `capabilities` is
+        // null until `initialize`, so with no session the check below is a question
+        // asked of nobody.
+        requireSession("cs_dbg_set_variable");
+        requireStopped("cs_dbg_set_variable");
         if (dap.capabilities && dap.capabilities["supportsSetVariable"] === false) {
           return {
             isError: true as const,
@@ -483,9 +570,34 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
     },
     async ({ add, remove, clear, frame_id }) => {
       try {
+        requireSession("cs_dbg_watch");
+        // 🔴 THE ONE READER HERE NOT REFUSED WHILE THE PROGRAM RUNS, ON PURPOSE — the
+        // same deliberate divergence session 262 made on the GDScript plane, for the
+        // same reason. `cs_dbg_watch` is two things at once: it MANAGES a persistent
+        // set and it evaluates that set, and this tool's own description teaches
+        // arming the set and re-reading it "after a step/continue". Refusing the
+        // mutation while the program runs would refuse the documented workflow.
+        // The set change is applied; only the VALUES are unavailable, and the entry's
+        // own `error` field says which.
         if (clear) dap.clearWatches();
         if (remove && remove.length) dap.removeWatches(remove);
         if (add && add.length) dap.addWatches(add);
+        if (!dap.isStopped) {
+          // 🔴 What this replaces was worse than empty. Measured against a real
+          // netcoredbg with no session and again with the program running: an
+          // `isError:false` answer whose every entry carried `error: "error:
+          // 0x80004005"` — a hex code offered to the caller as the reason their watch
+          // has no value. The reason is that the program is not stopped, the host
+          // knows it, and it costs no round trip to say so.
+          return ok({
+            watches: dap.listWatches().map((expression) => ({
+              expression,
+              value: "",
+              type: "",
+              error: `not stopped (${dap.state}) — a watch is evaluated in a stopped frame, so values arrive at the next stop`,
+            })),
+          });
+        }
         // Bound each watch's evaluate to the short deadline (mirrors cs_dbg_evaluate): a watch
         // the adapter never answers fails fast on that entry instead of hanging the full DAP
         // timeout at every stop, while other watches still resolve normally.
@@ -515,6 +627,21 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         // Per the DAP spec a client should only send setExceptionBreakpoints when the adapter
         // advertised at least one exception filter. Short-circuit with a clear "unsupported"
         // message otherwise, matching the GDScript dbg_set_exception_breakpoints discipline.
+        // 🔴 "THE CONNECTED ADAPTER" MUST FIRST BE ONE. `capabilities` is null until
+        // `initialize`, so with no session this read found nothing and the tool told
+        // the caller their debugger advertises no exception filters. Measured against
+        // a real netcoredbg 3.2.0-1092: with no session it answered "unsupported by
+        // the connected C# debug adapter (it advertises no exceptionBreakpointFilters)"
+        // — while that same adapter advertises `all` and `user-unhandled`, which the
+        // cs-dap cohort asserts on every CI leg. A capability read is a question for
+        // somebody, and there was nobody. Session 262 §2 fixed this shape one plane
+        // over, where the message blamed the user's engine BUILD; here it blamed their
+        // debugger for a handshake that never happened.
+        //
+        // NOT `requireStopped`: exception filters are armed for the FUTURE, so a live
+        // running session is a legitimate caller — the same call `dbg_data_breakpoints`
+        // gets on the GDScript plane, and for the same reason.
+        requireSession("cs_dbg_set_exception_breakpoints");
         const advertised = dap.capabilities?.["exceptionBreakpointFilters"];
         const available_filters = Array.isArray(advertised)
           ? (advertised as Array<{ filter?: string; label?: string }>).map((f) => ({ filter: f.filter ?? "", label: f.label ?? "" }))

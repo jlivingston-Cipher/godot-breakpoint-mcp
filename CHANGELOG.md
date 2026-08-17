@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.78.0] — 2026-08-17
+
+### Fixed — the C# debugging plane had neither guard, and the errors it gave were hex
+
+- 🔴 **Every `cs_dbg_*` reader answered from netcoredbg instead of from what the host
+  already knew.** The C#/.NET plane carried no session guard at all — no `hasSession` on
+  its client to consult — so it sat where the GDScript plane sat before both of its
+  guards. Measured against a real netcoredbg 3.2.0-1092. With **no session at all**, seven
+  of the nine readers answered with the adapter's raw failure code — `Failed command
+  'stackTrace' : 0x80004005` (E_FAIL), `0x80070057` (E_INVALIDARG) — `cs_dbg_set_variable`
+  reported "the debug adapter reported a failure with no message", and `cs_dbg_watch`
+  answered `isError:false` with a hex code inside every entry; only `cs_dbg_restart`
+  refused. With a session **live and the program running**, the same, plus `cs_dbg_continue`
+  waiting the full **15 seconds** to report `{"state":"running"}` and `cs_dbg_restart` 30
+  seconds — about 45 seconds of adapter round trips for a question the client's own state
+  answers in none. `cs_dbg_continue`, `cs_dbg_step`, `cs_dbg_stack_trace`, `cs_dbg_scopes`,
+  `cs_dbg_variables`, `cs_dbg_evaluate` and `cs_dbg_set_variable` now refuse both states
+  **before** anything is sent to the adapter, naming the state that was read and both ways
+  to reach a stop. On the gated tools the guard runs before the confirmation prompt.
+- **`cs_dbg_watch` still manages its set while the program runs**, deliberately: arming a
+  watch before the first stop is the documented workflow. Only the values are unavailable,
+  and each entry now carries `not stopped (running)` as its own reason instead of the
+  adapter's hex code — at no round-trip cost.
+- 🔴 **`cs_dbg_set_exception_breakpoints` told callers their debugger lacked a feature it
+  has.** Its capability read runs against `capabilities`, which is null until the DAP
+  handshake, so with no session it answered "unsupported by the connected C# debug adapter
+  (it advertises no exceptionBreakpointFilters)" — about an adapter that advertises `all`
+  and `user-unhandled`, and that had never been spoken to. It names the missing session
+  now. It is still deliberately **not** stop-guarded: exception filters are armed for the
+  future, so a live running program is a legitimate caller.
+
+### Added
+
+- A live `CS_DAP_NOTSTOPPED` cohort (53 claims) in the C# DAP plane gate, asserting each
+  refusal three ways against a real adapter: that it refuses, that it names the state it
+  read, and that it **cost under two seconds** — the one claim a probe reading only the
+  refusal text cannot make, since a guard moved back below the round trip prints the
+  identical sentence.
+- The plane gate's throwaway .NET fixture now restores with no package sources, so the
+  probe runs offline. It required network to nuget.org for a project with zero package
+  references, which is part of why it was read as CI-only.
+
 ## [1.77.0] — 2026-08-17
 
 ### Fixed — the debugging plane answered from frames that did not exist

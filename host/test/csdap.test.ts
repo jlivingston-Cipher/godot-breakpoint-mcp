@@ -40,13 +40,43 @@ function handshake(msg: DapMsg, s: net.Socket, caps: Record<string, unknown> = {
   return false;
 }
 
-async function startDap(handle: (msg: DapMsg, s: net.Socket) => void): Promise<{ srv: TcpServer; received: DapMsg[] }> {
+async function startDap(handle: (msg: DapMsg, s: net.Socket) => void): Promise<{ srv: TcpServer; received: DapMsg[]; stop: () => void }> {
   const received: DapMsg[] = [];
+  let live: net.Socket | null = null;
   const srv = await startTcpServer((s) => {
+    live = s;
     const parse = makeFrameParser((m) => { const msg = m as unknown as DapMsg; received.push(msg); handle(msg, s); });
     s.on("data", (c) => parse(Buffer.from(c)));
   });
-  return { srv, received };
+  /**
+   * Push a `stopped` event from the fake adapter, on demand.
+   *
+   * 🔴 THE FOURTEEN TESTS THIS CHANGED ARE THEMSELVES THE FINDING — the same shape
+   * session 262 hit on the GDScript plane, where fifteen of them had to change. Each
+   * launched a C# session and then asked a RUNNING program for a stack, a scope, a
+   * variable or a step. They passed because the tools answered anyway. Against a real
+   * netcoredbg that same sequence yields `Failed command 'stackTrace' : 0x80070057`
+   * and a `cs_dbg_watch` whose every entry carries a raw hex code, so the suite was
+   * pinning the shape of an answer nothing should have given.
+   *
+   * The thread id is deliberately NOT 1: `threadId()` falls back to 1 when nothing has
+   * stopped, so a fixture stopping on thread 1 cannot tell a real stop from the
+   * fallback — the distinction the live cohort next door already asserts.
+   */
+  return { srv, received, stop: () => { if (live) dapEvent(live, "stopped", { reason: "breakpoint", threadId: 4242 }); } };
+}
+
+/** Launch, then land the fake adapter's stop, so the frame readers are legal to call. */
+async function launchAndStop(
+  dap: CsDapClient,
+  rec: { handler: (n: string) => (a: Record<string, unknown>) => unknown },
+  stop: () => void,
+  args: Record<string, unknown> = {},
+): Promise<void> {
+  await rec.handler("cs_dbg_launch")(args);
+  const landed = new Promise<void>((resolve) => dap.once("stopped", () => resolve()));
+  stop();
+  await landed;
 }
 
 /** Full Config whose C# project root is a real temp dir (so toFsPath resolves). */
@@ -198,12 +228,12 @@ test("cs_dbg_set_breakpoints drops the condition and warns when the adapter does
 });
 
 test("cs_dbg_continue waits for the next 'stopped' event and returns its reason", async () => {
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "continue") { dapResponse(s, m, {}); dapEvent(s, "stopped", { reason: "breakpoint", threadId: 1 }); }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_continue")({})) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { state: "stopped", stopped_reason: "breakpoint" });
   dap.close();
@@ -211,12 +241,12 @@ test("cs_dbg_continue waits for the next 'stopped' event and returns its reason"
 });
 
 test("cs_dbg_step over issues 'next' and awaits the landing stop", async () => {
-  const { srv, received } = await startDap((m, s) => {
+  const { srv, received, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "next") { dapResponse(s, m, {}); dapEvent(s, "stopped", { reason: "step", threadId: 1 }); }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_step")({ kind: "over" })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { state: "stopped", stopped_reason: "step" });
   assert.ok(received.some((m) => m.command === "next"), "step:over must issue the DAP 'next' command");
@@ -225,12 +255,12 @@ test("cs_dbg_step over issues 'next' and awaits the landing stop", async () => {
 });
 
 test("cs_dbg_stack_trace maps DAP stackFrames to the tool's frame shape", async () => {
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "stackTrace") dapResponse(s, m, { stackFrames: [{ id: 1000, name: "Player.TakeDamage", source: { path: "/p/Player.cs" }, line: 30 }] });
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_stack_trace")({})) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { frames: [{ id: 1000, name: "Player.TakeDamage", source: "/p/Player.cs", line: 30 }] });
   dap.close();
@@ -238,12 +268,12 @@ test("cs_dbg_stack_trace maps DAP stackFrames to the tool's frame shape", async 
 });
 
 test("cs_dbg_scopes maps DAP scopes to name + variables_ref", async () => {
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "scopes") dapResponse(s, m, { scopes: [{ name: "Locals", variablesReference: 1001 }] });
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_scopes")({ frame_id: 1000 })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { scopes: [{ name: "Locals", variables_ref: 1001 }] });
   dap.close();
@@ -251,12 +281,12 @@ test("cs_dbg_scopes maps DAP scopes to name + variables_ref", async () => {
 });
 
 test("cs_dbg_variables maps DAP variables (e.g. Counter) to the tool shape", async () => {
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "variables") dapResponse(s, m, { variables: [{ name: "Counter", value: "95", type: "int", variablesReference: 0 }] });
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_variables")({ variables_ref: 1001 })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { variables: [{ name: "Counter", value: "95", type: "int", variables_ref: 0 }] });
   dap.close();
@@ -264,12 +294,12 @@ test("cs_dbg_variables maps DAP variables (e.g. Counter) to the tool shape", asy
 });
 
 test("a failed DAP request surfaces as an isError result", async () => {
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "stackTrace") dapResponse(s, m, { message: "no stack while running" }, false);
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_stack_trace")({})) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /C# DAP error/);
@@ -280,12 +310,12 @@ test("a failed DAP request surfaces as an isError result", async () => {
 // ---- cs_dbg_evaluate (gated) ----------------------------------------------
 
 test("cs_dbg_evaluate proceeds with confirm:true and returns the evaluated result", async () => {
-  const { srv, received } = await startDap((m, s) => {
+  const { srv, received, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "evaluate") dapResponse(s, m, { result: "95", type: "int", variablesReference: 0 });
   });
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_evaluate")({ expression: "Counter", confirm: true })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { result: "95", type: "int", variables_ref: 0 });
   assert.ok(received.some((m) => m.command === "evaluate"));
@@ -308,14 +338,14 @@ test("cs_dbg_evaluate is blocked (and sends no evaluate) when the user declines 
 });
 
 test("cs_dbg_evaluate fails fast with a clear message when the adapter never answers evaluate", async () => {
-  const { srv, received } = await startDap((m, s) => {
+  const { srv, received, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     // evaluate: deliberately never respond
   });
   process.env.GODOT_CSDAP_EVALUATE_TIMEOUT_MS = "200";
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "accept", content: { proceed: true } }));
   delete process.env.GODOT_CSDAP_EVALUATE_TIMEOUT_MS;
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_evaluate")({ expression: "Counter", confirm: true })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /did not answer the evaluate request within 200ms/i);
@@ -327,12 +357,12 @@ test("cs_dbg_evaluate fails fast with a clear message when the adapter never ans
 // ---- cs_dbg_set_variable (gated) ------------------------------------------
 
 test("cs_dbg_set_variable proceeds with confirm:true and returns the adapter's updated value", async () => {
-  const { srv, received } = await startDap((m, s) => {
+  const { srv, received, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "setVariable") dapResponse(s, m, { value: "0", type: "int", variablesReference: 0 });
   });
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_set_variable")({ variables_ref: 1001, name: "Counter", value: "0", confirm: true })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { name: "Counter", value: "0", type: "int", variables_ref: 0 });
   const sv = received.find((m) => m.command === "setVariable");
@@ -357,13 +387,13 @@ test("cs_dbg_set_variable is blocked (and sends no setVariable) when the user de
 
 test("cs_dbg_set_variable returns 'unsupported' WITHOUT prompting when the adapter advertises supportsSetVariable:false", async () => {
   let elicited = 0;
-  const { srv, received } = await startDap((m, s) => {
+  const { srv, received, stop } = await startDap((m, s) => {
     if (m.command === "initialize") { dapResponse(s, m, { supportsConfigurationDoneRequest: true, supportsSetVariable: false }); dapEvent(s, "initialized", {}); return; }
     if (m.command === "launch" || m.command === "configurationDone") { dapResponse(s, m, {}); return; }
     if (m.command === "setVariable") dapResponse(s, m, { value: "nope" });
   });
   const { dap, rec } = csDapHarness(srv.port, async () => { elicited++; return { action: "accept", content: { proceed: true } }; });
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_set_variable")({ variables_ref: 1, name: "Counter", value: "0" })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /unsupported/i);
@@ -374,14 +404,14 @@ test("cs_dbg_set_variable returns 'unsupported' WITHOUT prompting when the adapt
 });
 
 test("cs_dbg_set_variable fails fast with a clear message when the adapter never answers setVariable", async () => {
-  const { srv, received } = await startDap((m, s) => {
+  const { srv, received, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     // setVariable: deliberately never respond
   });
   process.env.GODOT_CSDAP_SETVAR_TIMEOUT_MS = "200";
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "accept", content: { proceed: true } }));
   delete process.env.GODOT_CSDAP_SETVAR_TIMEOUT_MS;
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_set_variable")({ variables_ref: 1, name: "Counter", value: "0", confirm: true })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /did not answer the setVariable request within 200ms/i);
@@ -395,7 +425,7 @@ test("cs_dbg_set_variable fails fast with a clear message when the adapter never
 
 test("cs_dbg_watch adds expressions and evaluates them in DAP 'watch' context", async () => {
   const seen: DapMsg[] = [];
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "evaluate") {
       seen.push(m);
@@ -404,7 +434,7 @@ test("cs_dbg_watch adds expressions and evaluates them in DAP 'watch' context", 
     }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "Lives"] })) as ToolResultLike;
   const sc = res.structuredContent as { watches: Array<{ expression: string; value: string; type: string; error: string | null }> };
   assert.deepEqual(sc.watches, [
@@ -418,7 +448,7 @@ test("cs_dbg_watch adds expressions and evaluates them in DAP 'watch' context", 
 });
 
 test("cs_dbg_watch reports a per-expression error without failing the call, and remove/clear mutate the set", async () => {
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     if (m.command === "evaluate") {
       if ((m.arguments as { expression: string }).expression === "bogus") dapResponse(s, m, { message: "not in scope" }, false);
@@ -426,7 +456,7 @@ test("cs_dbg_watch reports a per-expression error without failing the call, and 
     }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  await launchAndStop(dap, rec, stop);
   let res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "bogus"] })) as ToolResultLike;
   let sc = res.structuredContent as { watches: Array<{ expression: string; value: string; error: string | null }> };
   assert.equal(sc.watches.length, 2);
@@ -945,7 +975,7 @@ test("an adapter failure carrying NO message never renders as a bare 'C# DAP err
   // Measured: netcoredbg advertises supportsSetVariable:true and answered a
   // setVariable failure with an empty `message`, so the tool's whole answer was
   // `C# DAP error [setVariable]: ` — text that says nothing about what went wrong.
-  const { srv } = await startDap((m, s) => {
+  const { srv, stop } = await startDap((m, s) => {
     if (handshake(m, s)) return;
     // 🔴 `message: ""`, not an absent field. `onMessage` already substitutes
     // "C# DAP request failed" for an ABSENT message, so only an explicitly EMPTY one
@@ -954,11 +984,156 @@ test("an adapter failure carrying NO message never renders as a bare 'C# DAP err
   });
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "accept", content: { proceed: true } }));
   try {
-    await rec.handler("cs_dbg_launch")({ program: "/opt/app" });
+    await launchAndStop(dap, rec, stop, { program: "/opt/app" });
     const res = (await rec.handler("cs_dbg_set_variable")({ variables_ref: 1, name: "x", value: "1", confirm: true })) as ToolResultLike;
     assert.equal(res.isError, true);
     const text = (res.content?.[0]?.text ?? "").trim();
     assert.doesNotMatch(text, /^C# DAP error \[[a-zA-Z]+\]:$/, "an error whose text is only a label says nothing");
     assert.match(text, /reported a failure with no message/);
   } finally { dap.close(); srv.close(); }
+});
+
+// ---------------------------------------------------------------------------
+// 263: the session/stop guards on the C# plane. Measured against a real
+// netcoredbg 3.2.0-1092 before any of this existed — see `requireSession` /
+// `requireStopped` in src/tools/csdap.ts for the two tables.
+// ---------------------------------------------------------------------------
+
+/** Every cs_dbg_* reader that must not answer without a session, with legal args. */
+const CS_READER_CALLS: Array<[string, Record<string, unknown>]> = [
+  ["cs_dbg_continue", {}],
+  ["cs_dbg_step", { kind: "over" }],
+  ["cs_dbg_stack_trace", {}],
+  ["cs_dbg_scopes", { frame_id: 0 }],
+  ["cs_dbg_variables", { variables_ref: 1 }],
+  ["cs_dbg_evaluate", { expression: "1+1", confirm: true }],
+  ["cs_dbg_set_variable", { variables_ref: 1, name: "x", value: "1", confirm: true }],
+];
+
+test("263: every cs_dbg_* reader refuses with NO session, and none reaches the adapter", async () => {
+  // 🔴 Measured before the guard: seven of the nine answered with the adapter's own
+  // hex — `Failed command 'stackTrace' : 0x80004005` — and `cs_dbg_watch` answered
+  // isError:FALSE with a hex code inside every entry. Only cs_dbg_restart refused,
+  // and only because it happens to read `lastStartMode`.
+  const { srv, received } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  for (const [name, args] of [...CS_READER_CALLS, ["cs_dbg_watch", { add: ["Counter"] }] as [string, Record<string, unknown>]]) {
+    const res = (await rec.handler(name)(args)) as ToolResultLike;
+    assert.equal(res.isError, true, `${name} must refuse without a session`);
+    const text = String(res.content?.[0]?.text);
+    assert.match(text, /needs a C# debug session/, `${name} must say why`);
+    assert.match(text, /cs_dbg_launch or cs_dbg_attach/, `${name} must name both ways to open one`);
+    assert.doesNotMatch(text, /DAP error/, `${name} is a host refusal, not an adapter failure`);
+    assert.doesNotMatch(text, /0x[0-9A-Fa-f]{8}/, `${name} must not hand back a raw hex code`);
+  }
+  // The economic half: not one request may leave the host — the client never even
+  // connects, so the adapter sees nothing at all.
+  assert.equal(received.length, 0, "a refused call must not reach the adapter");
+  dap.close();
+  await srv.close();
+});
+
+test("263: every cs_dbg_* reader refuses while the program RUNS, above the round trip", async () => {
+  const { srv, received } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  await rec.handler("cs_dbg_launch")({});
+  const handshakeCommands = received.length;
+  for (const [name, args] of CS_READER_CALLS) {
+    const started = Date.now();
+    const res = (await rec.handler(name)(args)) as ToolResultLike;
+    const elapsed = Date.now() - started;
+    assert.equal(res.isError, true, `${name} must refuse while the program runs`);
+    const text = String(res.content?.[0]?.text);
+    assert.match(text, /needs the program stopped at a breakpoint/, `${name} must say why`);
+    // 260's rule: name the state that was READ, not the one that was assumed.
+    assert.match(text, /the program is running/, `${name} must name the state it read`);
+    assert.doesNotMatch(text, /DAP error/, `${name} is a host refusal, not an adapter failure`);
+    // 🔴 THE CLAIM THAT CANNOT BE MADE FROM THE TEXT. The measured cs_dbg_continue sat
+    // for 15,000 ms before answering `{"state":"running"}`; a guard moved back below
+    // the round trip would print exactly the same sentence.
+    assert.ok(elapsed < 2000, `${name} must refuse before the round trip, not after (took ${elapsed}ms)`);
+  }
+  assert.equal(received.length, handshakeCommands, "a refused call must not reach the adapter at all");
+  assert.equal(dap.hasSession, true, "refusing must not tear down the session");
+  dap.close();
+  await srv.close();
+});
+
+test("263: a refused call cannot poison the state the guard reads", async () => {
+  // 🔴 THE REASON `sessionStarted` EXISTS ON THIS CLIENT. Measured against a real
+  // netcoredbg: `cs_dbg_continue` on a never-launched client left `state = "running"`
+  // behind — `resume()` assigns it optimistically before it waits — so a guard reading
+  // `state` alone would have been unlocked by the very first call it refused.
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  assert.equal(dap.hasSession, false, "a fresh client has no session");
+  await rec.handler("cs_dbg_continue")({});
+  assert.equal(dap.hasSession, false, "…and a refused continue must not create one");
+  const res = (await rec.handler("cs_dbg_stack_trace")({})) as ToolResultLike;
+  assert.match(String(res.content?.[0]?.text), /needs a C# debug session/, "the next call still refuses");
+  dap.close();
+  await srv.close();
+});
+
+test("263: cs_dbg_watch still manages the set while the program runs, and says why values are missing", async () => {
+  // The one reader NOT refused, on purpose — the same call session 262 made on the
+  // GDScript plane. What it replaces answered isError:false with `error: "error:
+  // 0x80004005"` on every entry: a hex code offered as the reason a watch has no value.
+  const { srv, received } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port);
+  await rec.handler("cs_dbg_launch")({});
+  const before = received.length;
+  const res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "i"] })) as ToolResultLike;
+  assert.equal(res.isError, undefined, "managing the set is not an error");
+  const watches = (res.structuredContent as { watches: Array<{ expression: string; value: string; error: string | null }> }).watches;
+  assert.deepEqual(watches.map((w) => w.expression), ["Counter", "i"], "the set change was applied");
+  for (const w of watches) {
+    assert.equal(w.value, "", "no value may be invented while the program runs");
+    assert.match(String(w.error), /not stopped \(running\)/, "the entry names the state it read");
+    assert.doesNotMatch(String(w.error), /0x[0-9A-Fa-f]{8}/, "…and never the hex code it used to");
+  }
+  assert.equal(received.length, before, "and it costs no adapter round trip");
+  dap.close();
+  await srv.close();
+});
+
+test("263: the stopped guard runs BEFORE the confirmation prompt on the gated C# tools", async () => {
+  // Approving arbitrary code execution against a program with no frame to execute in
+  // is a prompt that can only end in the adapter's silence.
+  let prompts = 0;
+  const { srv } = await startDap((m, s) => { handshake(m, s); });
+  const { dap, rec } = csDapHarness(srv.port, async () => { prompts++; return { action: "accept" as const, content: { proceed: true } }; });
+  await rec.handler("cs_dbg_launch")({});
+  await rec.handler("cs_dbg_evaluate")({ expression: "1+1" });
+  await rec.handler("cs_dbg_set_variable")({ variables_ref: 1, name: "x", value: "1" });
+  assert.equal(prompts, 0, "no confirmation may be raised for a program that is not stopped");
+  dap.close();
+  await srv.close();
+});
+
+test("263: cs_dbg_set_exception_breakpoints requires a session but NOT a stop", async () => {
+  // 🔴 THE MESSAGE THAT BLAMED THE ADAPTER FOR A HANDSHAKE THAT NEVER HAPPENED.
+  // `capabilities` is null until `initialize`, so with no session this tool answered
+  // "unsupported by the connected C# debug adapter (it advertises no
+  // exceptionBreakpointFilters)" — about an adapter that advertises `all` and
+  // `user-unhandled`, and that nothing had asked.
+  const caps = { supportsConfigurationDoneRequest: true, exceptionBreakpointFilters: [{ filter: "all", label: "All exceptions" }] };
+  const { srv } = await startDap((m, s) => {
+    if (handshake(m, s, caps)) return;
+    if (m.command === "setExceptionBreakpoints") dapResponse(s, m, { breakpoints: [{ verified: true }] });
+  });
+  const { dap, rec } = csDapHarness(srv.port);
+  const cold = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
+  assert.equal(cold.isError, true, "with no session it must refuse");
+  const coldText = String(cold.content?.[0]?.text);
+  assert.match(coldText, /needs a C# debug session/, "…naming the missing session");
+  assert.doesNotMatch(coldText, /advertises no exceptionBreakpointFilters/, "…and never blaming the adapter for it");
+  // NOT stop-guarded: filters are armed for the future, so a live running session is a
+  // legitimate caller — the asymmetry dbg_data_breakpoints has one plane over.
+  await rec.handler("cs_dbg_launch")({});
+  const warm = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
+  assert.equal(warm.isError, undefined, "a running session may still arm exception filters");
+  assert.deepEqual((warm.structuredContent as { filters: string[] }).filters, ["all"]);
+  dap.close();
+  await srv.close();
 });
