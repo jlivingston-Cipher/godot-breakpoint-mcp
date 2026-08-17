@@ -4,6 +4,7 @@ import { log } from "./logger.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS } from "./finiteness.js";
 import { remedyForWireError } from "./remedies.js";
+import { closeDetail, closeRemedy } from "./close-cause.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -32,9 +33,18 @@ export class BridgeError extends Error {
   code: string;
   /**
    * The next action the addon attached to this code (254). Optional by
-   * construction: the addon omits it for codes it has nothing to say about, and
-   * every failure the host raises itself — timeout, closed socket, non-finite —
-   * arrives without one, because the remedy for those is not the addon's to give.
+   * construction: the addon omits it for codes it has nothing to say about.
+   *
+   * 🔴 THE REST OF THIS SENTENCE WAS WRONG FOR TWO SESSIONS, AND 264 MEASURED IT. It
+   * read: *every failure the host raises itself — timeout, closed socket, non-finite —
+   * arrives without one, because the remedy for those is not the addon's to give.* The
+   * because-clause is true and the claim does not follow from it. 262 answered `timeout`;
+   * 264 answered `bridge_closed` off an errno that had been in hand at the close site the
+   * whole time. The census counted the rest: of 25 host-raised failures about the world,
+   * ONE carried a remedy in this field, SEVEN named a next action in their message where
+   * no reader counts it, and SEVENTEEN said nothing while holding an errno, a state
+   * machine or a registry the host owns. **Absent here means nobody has answered it yet,
+   * not that it is unanswerable.**
    */
   remedy?: string;
   constructor(code: string, message: string, remedy?: string) {
@@ -141,7 +151,14 @@ export class BridgeClient {
     peerNoun = "the editor",
   ) {
     this.ledger = new OverdueLedger<string>("bridge", peerNoun, deadlineKnob);
+    // 🔴 KEPT, not just handed to the ledger (264). A dropped connection names the same
+    // peer a late reply does, and the two sentences drifting apart would be a bug nobody
+    // could see from either side.
+    this.peerNoun = peerNoun;
   }
+
+  /** Who answers this client — read by the close path and the late-reply ledger alike. */
+  private readonly peerNoun: string;
 
   /**
    * A cause this client cannot see, supplied by whoever CAN, as the remedy on a timeout.
@@ -149,7 +166,9 @@ export class BridgeClient {
    * 🔴 WHY THIS EXISTS AT ALL — the eighth session of "the host's own failures carry no
    * remedy" (254 §4.6 → 261 §4.4), answered for the one case a walk actually produced.
    * `BridgeError.remedy` was documented as "the addon's to give, and a host-raised
-   * timeout arrives without one". True for a closed socket. NOT true here, and USER_GUIDE
+   * timeout arrives without one". 🔴 264 DISPROVED THE "TRUE FOR A CLOSED SOCKET" HALF —
+   * `onClose` had the errno in hand and read only its `message`, so a killed peer and an
+   * orderly shutdown arrived as one code and one sentence. NOT true here either, and USER_GUIDE
    * §10 B's own step 5 walks the reader straight into it: the addon services `runtime_*`
    * from `_process`, so a breakpoint inside the method being called halts the very frame
    * that owes the reply. Measured — the stop's stack trace is `compute` on top of
@@ -370,13 +389,19 @@ export class BridgeClient {
     this.socket = null;
     // Name the transport error when there was one. The CODE stays `bridge_closed`
     // — callers and tests branch on it — but the message carries the errno.
-    const cause = this.lastSocketError;
+    const cause = this.lastSocketError ?? undefined;
     this.lastSocketError = null;
-    const detail = cause ? ` (${cause.message})` : "";
+    const detail = closeDetail(cause);
+    // 🔴 THE ERRNO WAS ALREADY HERE AND ONLY ITS `message` WAS READ (264 §3). A peer that
+    // was killed and a peer that shut down cleanly produced the SAME code and the SAME
+    // sentence, differing by one parenthetical nothing instructed the caller to act on.
+    // `cause.code` separates them, and this is the one close site whose class has a field
+    // to put the answer in — see close-cause.ts for the four that do not.
+    const remedy = closeRemedy(cause, this.peerNoun);
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
       p.reject(
-        new BridgeError("bridge_closed", `Bridge connection closed before a response arrived${detail}`),
+        new BridgeError("bridge_closed", `Bridge connection closed before a response arrived${detail}`, remedy),
       );
     }
     this.pending.clear();
@@ -402,10 +427,14 @@ export class BridgeClient {
         // exact `timed out after <n>ms` phrasing — tools/dap.ts:29 and
         // tools/csdap.ts:31 branch on that substring.
         this.ledger.note(id, method, timeoutMs);
-        // 🔴 THE ONE HOST-RAISED FAILURE THAT HAS A KNOWABLE CAUSE (262 §2). Everything
-        // else this class raises is genuinely opaque from here — a closed socket, a peer
-        // that never answered — but a timeout on the RUNTIME bridge has one cause the host
-        // can check for nothing: its own debugger holding the game. See `setHoldProbe`.
+        // 🔴 262 §2 CALLED THIS "THE ONE HOST-RAISED FAILURE THAT HAS A KNOWABLE CAUSE",
+        // and said everything else this class raises — "a closed socket, a peer that never
+        // answered" — is genuinely opaque from here. 264 MEASURED THAT AND IT IS FALSE FOR
+        // THE CLOSED SOCKET: `onClose` holds the socket `Error` and its errno separates a
+        // peer that was killed from one that shut down cleanly. It stays TRUE for this
+        // line — a peer that never answered really does leave nothing behind — which is
+        // why the one cause the host can supply comes from outside the socket: its own
+        // debugger holding the game. See `setHoldProbe`, and 264's census for the rest.
         reject(new BridgeError("timeout", `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? undefined));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });

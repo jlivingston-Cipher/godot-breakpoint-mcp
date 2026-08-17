@@ -2,6 +2,17 @@ import { EventEmitter } from "node:events";
 import type { FramedMessage, JsonRpcChannel } from "./framing.js";
 import { DapError, type DapState, type WatchResult } from "./dap.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
+import { closeDetail, closeRemedy } from "./close-cause.js";
+
+/**
+ * Who answers this plane, in the words its late-reply ledger already uses.
+ *
+ * 🔴 ONE CONSTANT, TWO READERS (264). The ledger names this peer when a reply arrives
+ * late and `closeRemedy` names it when the connection drops. Two literals would let the
+ * same peer acquire two names on the same run, which is the class of drift 257's
+ * per-instance deadline noun was written to stop.
+ */
+const CSDAP_PEER = "the debug adapter";
 
 interface Pending {
   command: string;
@@ -56,7 +67,7 @@ export class CsDapClient extends EventEmitter {
    * dropped. `seq` is monotonic and is never reset, so a seq is never reused and
    * a late response can only be its own request's.
    */
-  private readonly ledger = new OverdueLedger<number>("C# DAP", "the debug adapter", "GODOT_CSDAP_TIMEOUT_MS");
+  private readonly ledger = new OverdueLedger<number>("C# DAP", CSDAP_PEER, "GODOT_CSDAP_TIMEOUT_MS");
   private configured = false;
   /** Persistent watch expressions, re-evaluated at each stop (see evaluateWatches). */
   private watches: string[] = [];
@@ -138,10 +149,16 @@ export class CsDapClient extends EventEmitter {
       this.state = "terminated";
       this.configured = false;
       this.sessionStarted = false;
-      const detail = cause ? ` (${cause.message})` : "";
+      const detail = closeDetail(cause);
+        // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), IN THE MESSAGE BECAUSE THIS CLASS
+        // HAS NOWHERE ELSE TO PUT IT. `DapError` carries no `remedy` field, and the plane's
+        // `fail()` renders no `remedyClause`, so the next action goes where the caller will
+        // actually read it. 264's census records the asymmetry rather than hiding it: of 25
+        // host-raised failures about the world, 13 are on classes that cannot carry an answer.
+      const remedy = closeRemedy(cause, CSDAP_PEER);
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
-        p.reject(new DapError(p.command, `C# DAP connection closed${detail}`));
+        p.reject(new DapError(p.command, `C# DAP connection closed${detail}${remedy ? ` — ${remedy}` : ""}`));
       }
       this.pending.clear();
       this.emit("closed");
