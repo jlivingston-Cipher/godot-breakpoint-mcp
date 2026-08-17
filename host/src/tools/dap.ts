@@ -188,6 +188,44 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
   };
 
   /**
+   * Refuse when the session is live but the program is not AT A STOP.
+   *
+   * 🔴 THE HALF `requireSession` COULD NOT SEE, AND IT IS THE SAME MISTAKE ONE LAYER IN.
+   * That guard asks whether a launch succeeded; every tool below then asked the adapter
+   * for a frame. A session existing is a proxy for a frame existing, and the proxy stops
+   * holding the instant the program runs on. Measured against a live 4.7 adapter with a
+   * launched session and nothing stopped — nine tools, eight different answers, none of
+   * them "the program is running":
+   *
+   * ```
+   * dbg_stack_trace     4ms   {"frames":[]}                    empty success
+   * dbg_scopes          8ms   {"scopes":[]}                    empty success
+   * dbg_variables      10ms   DAP error [variables]: unknown   the adapter's word for it
+   * dbg_watch        5,016ms  error:"timeout" per expression   a fabricated cause
+   * dbg_evaluate     5,019ms  DAP error [evaluate]: timeout    a fabricated cause
+   * dbg_set_variable 8,004ms  "this Godot build (e.g. 4.3)…"   blames the user's engine
+   * dbg_step        15,004ms  {"state":"running"}              a success that waited
+   * dbg_continue    15,003ms  {"state":"running"}              a success that waited
+   * ```
+   *
+   * 🔴 RAISED BEFORE THE ADAPTER ROUND TRIP, which is most of the point: that column of
+   * timeouts is ~48 s the caller waited to be told nothing, for a question `dap.isStopped`
+   * answers in none. `dbg_launch`'s scene guard is placed the same way and for the same
+   * reason. The refusal names the state it read rather than the state it assumed — 260's
+   * rule — and names the two ways to reach a stop, because "not stopped" is not itself an
+   * instruction.
+   */
+  const requireStopped = (tool: string): void => {
+    if (dap.isStopped) return;
+    throw new DapRefusal(
+      `${tool} needs the program stopped at a breakpoint: the debug session is live but the program is ${dap.state}. ` +
+        `Arm a line with dbg_set_breakpoints and trigger that code path, or step from a stop you already have — ` +
+        `nothing here can be read from a program that is still running.`,
+      "not_stopped",
+    );
+  };
+
+  /**
    * Report, on a launch/attach result, any breakpoint modifier the handshake dropped
    * when it applied the buffered breakpoints.
    *
@@ -408,12 +446,14 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       title: "Continue",
       description:
         "Resume execution and wait for the program to settle again (next breakpoint or termination). " +
-        "Returns the resulting state; if it runs on with no further breakpoint, reports state 'running'.",
+        "Returns the resulting state; if it runs on with no further breakpoint, reports state 'running'. " +
+        "Requires a stop; a running program is refused (`not_stopped`).",
       inputSchema: {},
     },
     async () => {
       try {
         requireSession("dbg_continue");
+        requireStopped("dbg_continue");
         const r = await dap.resume("continue", { threadId: dap.threadId() }, RESUME_WAIT_MS);
         return ok({ state: r.state, stopped_reason: r.reason });
       } catch (err) { return fail(err); }
@@ -426,12 +466,14 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       title: "Step",
       description:
         "Step execution: 'over' (next), 'in' (stepIn), or 'out' (stepOut), then wait for the step to land. " +
-        "Returns the resulting state and stop reason. Note: stepOut may be unsupported on older Godot builds.",
+        "Returns the resulting state and stop reason. Note: stepOut may be unsupported on older Godot builds. " +
+        "Requires a stop; a running program is refused (`not_stopped`).",
       inputSchema: { kind: z.enum(["in", "over", "out"]).describe("Step kind") },
     },
     async ({ kind }) => {
       try {
         requireSession("dbg_step");
+        requireStopped("dbg_step");
         const command = kind === "in" ? "stepIn" : kind === "out" ? "stepOut" : "next";
         const r = await dap.resume(command, { threadId: dap.threadId() }, RESUME_WAIT_MS);
         return ok({ state: r.state, stopped_reason: r.reason });
@@ -443,12 +485,15 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     "dbg_stack_trace",
     {
       title: "Stack trace",
-      description: "Return the current call stack (only meaningful while stopped at a breakpoint).",
+      description:
+        "Return the current call stack. Requires a stop; a running program is refused (`not_stopped`) rather than " +
+        "answered with the empty frame list it used to return.",
       inputSchema: { levels: z.number().int().positive().optional().describe("Max frames (default 20)") },
     },
     async ({ levels }) => {
       try {
         requireSession("dbg_stack_trace");
+        requireStopped("dbg_stack_trace");
         const body = await dap.request("stackTrace", { threadId: dap.threadId(), startFrame: 0, levels: levels ?? 20 });
         const frames = Array.isArray(body["stackFrames"])
           ? (body["stackFrames"] as Array<{ id?: number; name?: string; source?: { path?: string; name?: string }; line?: number }>).map((f) => ({
@@ -464,12 +509,15 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     "dbg_scopes",
     {
       title: "Scopes",
-      description: "Return the variable scopes (Locals, Members, Globals) for a stack frame.",
+      description:
+        "Return the variable scopes (Locals, Members, Globals) for a stack frame. Requires a stop; a running program is " +
+        "refused (`not_stopped`) rather than answered with an empty list.",
       inputSchema: { frame_id: z.number().int().describe("Frame id from dbg_stack_trace") },
     },
     async ({ frame_id }) => {
       try {
         requireSession("dbg_scopes");
+        requireStopped("dbg_scopes");
         const body = await dap.request("scopes", { frameId: frame_id });
         const scopes = Array.isArray(body["scopes"])
           ? (body["scopes"] as Array<{ name?: string; variablesReference?: number }>).map((s) => ({ name: s.name ?? "", variables_ref: s.variablesReference ?? 0 }))
@@ -483,12 +531,15 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     "dbg_variables",
     {
       title: "Variables",
-      description: "List variables under a scope or a complex value (via its variables_ref).",
+      description:
+        "List variables under a scope or a complex value (via its variables_ref). Requires a stop (`not_stopped`) — a " +
+        "reference is only valid within the stop that issued it.",
       inputSchema: { variables_ref: z.number().int().describe("variablesReference from dbg_scopes or a parent variable") },
     },
     async ({ variables_ref }) => {
       try {
         requireSession("dbg_variables");
+        requireStopped("dbg_variables");
         const body = await dap.request("variables", { variablesReference: variables_ref });
         const variables = Array.isArray(body["variables"])
           ? (body["variables"] as Array<{ name?: string; value?: string; type?: string; variablesReference?: number }>).map((v) => ({
@@ -505,7 +556,8 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     {
       title: "Evaluate expression",
       description:
-        "Evaluate a GDScript expression in the context of a stopped frame. DESTRUCTIVE: arbitrary code execution — confirm with the user and keep this capability gated.",
+        "Evaluate a GDScript expression in the context of a stopped frame. DESTRUCTIVE: arbitrary code execution — confirm with the user and keep this capability gated. " +
+        "Requires a stop (`not_stopped`), checked before the confirmation prompt.",
       inputSchema: {
         expression: z.string().describe("GDScript expression to evaluate"),
         frame_id: z.number().int().optional().describe("Frame id (from dbg_stack_trace); omit for the top frame"),
@@ -516,7 +568,11 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       try {
         // Before the gate on purpose: the old order prompted the operator to approve
         // arbitrary code execution against a session that had never been started.
+        // 🔴 And before it for the second reason too — a program that is running has no
+        // frame to evaluate in, so the prompt was asking the operator to approve code
+        // execution that could only end in the adapter's 5 s silence.
         requireSession("dbg_evaluate");
+        requireStopped("dbg_evaluate");
         const blocked = await gate(server, confirm, `Evaluate expression in the running game: ${expression}`);
         if (blocked) return blocked;
         // Bound the evaluate request to a short deadline instead of the full dapTimeoutMs:
@@ -559,9 +615,31 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     async ({ add, remove, clear, frame_id }) => {
       try {
         requireSession("dbg_watch");
+        // 🔴 THE ONE TOOL HERE THAT IS NOT REFUSED WHEN THE PROGRAM RUNS, ON PURPOSE (262 §1).
+        // `dbg_watch` is two things at once: it MANAGES a persistent set and it evaluates that
+        // set. §10 B step 6's documented use — "dbg_watch for an expression across stops" — is
+        // to arm the set once and re-read it at each stop, so refusing the mutation while the
+        // program runs would refuse the workflow the guide teaches. The set change is applied;
+        // only the VALUES are unavailable, and the entry's own `error` field says which — the
+        // shape already carries a per-expression reason, so this needs no new key and, unlike
+        // what it replaces, costs no adapter round trip.
         if (clear) dap.clearWatches();
         if (remove && remove.length) dap.removeWatches(remove);
         if (add && add.length) dap.addWatches(add);
+        if (!dap.isStopped) {
+          // 🔴 What this replaces was worse than empty: each expression came back with
+          // `error: "timeout"` after the adapter sat on it for the full evaluate deadline —
+          // 5 s of waiting for a fabricated cause. The program was never stopped; the adapter
+          // had nothing to answer from and said so by saying nothing.
+          return ok({
+            watches: dap.listWatches().map((expression) => ({
+              expression,
+              value: "",
+              type: "",
+              error: `not stopped (${dap.state}) — a watch is evaluated in a stopped frame, so values arrive at the next stop`,
+            })),
+          });
+        }
         // Bound each watch's evaluate to the short deadline (mirrors dbg_evaluate): a watch
         // expression the adapter never answers fails fast on that entry instead of hanging the
         // full dapTimeoutMs (20 s) at every stop, while other watches still resolve normally.
@@ -631,6 +709,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       try {
         // Before the gate and the caps check on purpose — see dbg_evaluate.
         requireSession("dbg_set_variable");
+        requireStopped("dbg_set_variable");
         // Feature-detect: some debug adapters don't implement setVariable. If the
         // adapter explicitly advertised it as unsupported, say so plainly instead
         // of prompting for a confirmation and then failing.
@@ -642,10 +721,18 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         }
         const blocked = await gate(server, confirm, `Set variable ${name} = ${value} in the running game`);
         if (blocked) return blocked;
-        // Godot 4.3 advertises supportsSetVariable=true (so the caps short-circuit above does
-        // not fire) but never answers the setVariable request. Caps can't detect that — 4.3
-        // lies — so bound the request to a short deadline and, on timeout, say plainly that the
-        // build does not implement setVariable rather than emitting the generic 20 s DAP timeout.
+        // Godot advertises supportsSetVariable=true (so the caps short-circuit above does not
+        // fire) and never answers the setVariable request. Caps can't detect that — the adapter
+        // lies — so bound the request to a short deadline and, on timeout, say plainly that this
+        // adapter does not implement setVariable rather than emitting the generic 20 s DAP timeout.
+        //
+        // 🔴 THE SENTENCE USED TO BLAME THE READER'S ENGINE, AND IT WAS MEASURABLY WRONG (262 §3).
+        // It read "this Godot build (e.g. 4.3) does not implement setVariable", written when 4.3
+        // was the build in hand. Measured twice at a REAL stop on **4.7** — the newest build there
+        // is — the request is advertised and still unanswered, so the only sentence this tool has
+        // ever emitted told a current-build user they were behind. The naming is now the adapter,
+        // not the reader's version: no `dbg_*` caller can act on "upgrade", because there is
+        // nothing to upgrade to.
         let body: Record<string, unknown>;
         try {
           body = await dap.request("setVariable", { variablesReference: variables_ref, name, value }, cfg.dapSetVarTimeoutMs);
@@ -653,7 +740,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
           if (isDapTimeout(err)) {
             return {
               isError: true as const,
-              content: [{ type: "text" as const, text: `The debug adapter advertises supportsSetVariable but did not answer the setVariable request within ${cfg.dapSetVarTimeoutMs}ms — this Godot build (e.g. 4.3) does not implement setVariable. No change was made; the variable is unchanged. Read-only inspection (dbg_variables) still works.` }],
+              content: [{ type: "text" as const, text: `The debug adapter advertises supportsSetVariable but did not answer the setVariable request within ${cfg.dapSetVarTimeoutMs}ms — Godot's GDScript debug adapter does not implement it (measured unanswered on 4.3 and on 4.7, at a real stop). No change was made; the variable is unchanged. Read-only inspection (dbg_variables) still works, and dbg_evaluate can read the value.` }],
             };
           }
           throw err;
@@ -729,6 +816,13 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ path, line, target_id, confirm }) => {
       try {
+        // Before the caps check, the same order `dbg_set_variable` uses: a guard that
+        // holds on every adapter outranks one that reports this adapter's answer. 262
+        // added the pair here — `dbg_goto` had NEITHER, and "unreachable behind the
+        // capability gate" is the same argument the escape guard above was written
+        // against three sessions earlier.
+        requireSession("dbg_goto");
+        requireStopped("dbg_goto");
         if (!dap.capabilities || dap.capabilities["supportsGotoTargetsRequest"] !== true) {
           return {
             isError: true as const,
@@ -795,6 +889,14 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ watch }) => {
       try {
+        // 🔴 SESSION ONLY, NOT STOPPED — and the asymmetry with `dbg_goto` above is the
+        // point rather than an oversight. `goto` moves the program counter *within the
+        // current stopped frame*, which is meaningless without one. A data breakpoint is
+        // ARMED for the future: a `variables_ref` naming a live scope does need a stop,
+        // but a bare global `name` resolves without one, and refusing the whole tool
+        // would refuse the case that works. Each entry already reports its own
+        // `unresolved` reason, which is where a ref that needed a frame says so.
+        requireSession("dbg_data_breakpoints");
         if (!dap.capabilities || dap.capabilities["supportsDataBreakpoints"] !== true) {
           return {
             isError: true as const,

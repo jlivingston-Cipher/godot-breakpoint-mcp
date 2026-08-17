@@ -71,6 +71,51 @@ test("request() rejects with code 'timeout' when no response arrives", async () 
   await srv.close();
 });
 
+test("262: a timeout carries the hold probe's remedy, and carries none when nothing is holding", async () => {
+  // 🔴 USER_GUIDE §10 B step 5 walks the reader into this: the addon services `runtime_*`
+  // from `_process`, so a breakpoint inside the method being called halts the frame that
+  // owes the reply. The peer is not slow and the network is not down — the debugger this
+  // very host is driving stopped the game. Measured, the caller got
+  // `Bridge request 'runtime.call_method' timed out after 15000ms` and nothing else.
+  const srv = await startBridge(() => { /* never respond — the game is halted */ });
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  let holding = false;
+  client.setHoldProbe(() => (holding ? "Release the game with `dbg_continue` — it is stopped at a breakpoint." : undefined));
+
+  // The control FIRST, because a remedy that is always attached is not a diagnosis:
+  // nothing is holding, so this timeout must stay exactly as bare as it has always been.
+  await assert.rejects(
+    client.request("runtime.get_property", {}, 60),
+    (e: unknown) => isBridgeError("timeout")(e) && (e as BridgeError).remedy === undefined,
+  );
+
+  holding = true;
+  await assert.rejects(
+    client.request("runtime.call_method", {}, 60),
+    (e: unknown) => isBridgeError("timeout")(e) && /dbg_continue/.test(String((e as BridgeError).remedy)),
+  );
+  client.close();
+  await srv.close();
+});
+
+test("262: the hold probe is consulted at the DEADLINE, not at the send", async () => {
+  // The stop lands while the request is in flight — which is the actual sequence, because
+  // the call is what runs the code that hits the breakpoint. A probe read when the request
+  // was written would have seen a running program and attached nothing.
+  const srv = await startBridge(() => { /* never respond */ });
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  let holding = false;
+  client.setHoldProbe(() => (holding ? "Release the game with `dbg_continue` — it is stopped at a breakpoint." : undefined));
+  const inflight = assert.rejects(
+    client.request("runtime.call_method", {}, 120),
+    (e: unknown) => isBridgeError("timeout")(e) && /dbg_continue/.test(String((e as BridgeError).remedy)),
+  );
+  setTimeout(() => { holding = true; }, 20);
+  await inflight;
+  client.close();
+  await srv.close();
+});
+
 test("a non-JSON line from the bridge is ignored; a following valid line still resolves", async () => {
   const srv = await startBridge((req, s) => {
     s.write("this-is-not-json\n");

@@ -2384,7 +2384,7 @@ Evaluate an expression in the current stopped frame (DAP `evaluate`, repl contex
 ```
 
 ### `dbg_watch` ✅
-Manage a persistent set of watch expressions and re-evaluate them in the current stopped frame. Evaluated in DAP `watch` context (side-effect-free), so it is **not** gated. Results are only meaningful while stopped at a breakpoint.
+Manage a persistent set of watch expressions and re-evaluate them in the current stopped frame. Evaluated in DAP `watch` context (side-effect-free), so it is **not** gated. Results are only meaningful while stopped at a breakpoint. 🔴 **The one reader on this plane that a running program does not refuse, and that is deliberate rather than an omission.** Every other `dbg_*` reader now raises `not_stopped` when the session is live but the program is not halted — measured, they used to answer `{"frames":[]}`, `{"scopes":[]}`, or a fabricated `error:"timeout"` after five seconds. `dbg_watch` is two tools in one: it MANAGES the set and it evaluates it, and USER_GUIDE §10 B's documented use is to arm a watch before the first stop. So the set change is applied and each entry reports `not stopped` as its own reason instead of a value it does not have — at the cost of no adapter round trip.
 - **Input**
 ```json
 { "type": "object",
@@ -2411,6 +2411,7 @@ Enable (replace) the debugger's exception breakpoint filters so execution halts 
 ```
 
 ### `dbg_set_variable` ✔ ✅ · mutates live program state — gate hard
+🔴 **It does not work on any current Godot build, and the tool now says which side that is.** The GDScript adapter advertises `supportsSetVariable` and never answers the request — measured unanswered on 4.3 and, at a REAL stop, on **4.7**. The shipped message read *"this Godot build (e.g. 4.3) does not implement setVariable"*, written when 4.3 was the build in hand, so the only sentence this tool has ever emitted told a current-build reader they were behind. It names the adapter now: there is nothing for the reader to upgrade to.
 Change a variable's value in a stopped frame (DAP `setVariable`). `variables_ref` is the container's `variablesReference` (from `dbg_scopes`, or a complex `dbg_variables` entry), `name` is the variable within it, `value` is a GDScript literal/expression. Feature-detected: on an adapter that advertises `supportsSetVariable: false` it returns a clear "unsupported" message **without prompting**.
 - **Input**
 ```json

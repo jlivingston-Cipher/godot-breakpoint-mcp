@@ -9,6 +9,7 @@ import { CsLspClient } from "./cslsp.js";
 import { CsDapClient } from "./csdap.js";
 import { StdioChannel } from "./stdio.js";
 import { DapClient } from "./dap.js";
+import { DEBUGGER_HOLD_REMEDY } from "./remedies.js";
 import { fullUsage } from "./cli/usage.js";
 import { buildToolsets } from "./toolsets.js";
 import { registerRecipes } from "./recipes.js";
@@ -69,6 +70,11 @@ async function main(): Promise<void> {
     config.csLspTimeoutMs,
   );
   const dap = new DapClient(config.dapHost, config.dapPort, config.dapTimeoutMs);
+  // 🔴 THE ONE PLACE BOTH HALVES OF THE DEADLOCK ARE IN SCOPE (262 §2). The runtime
+  // bridge cannot see the debugger and the debugger cannot see the bridge; index.ts holds
+  // both, so the join is made here and nowhere else. Wired on `runtime` alone — the game
+  // being stopped says nothing about the editor bridge on plane A.
+  runtime.setHoldProbe(() => (dap.isStopped ? DEBUGGER_HOLD_REMEDY : undefined));
   // D4 C3: the C# debugging plane. netcoredbg is spawned over stdio (lazily, on
   // the first cs_dbg_* call) — so a host without netcoredbg installed starts and
   // runs every other plane unaffected.
@@ -88,7 +94,7 @@ async function main(): Promise<void> {
   // D3: also advertise resources.subscribe so clients can subscribe to
   // godot://… resources and receive notifications/resources/updated.
   const server = new McpServer(
-    { name: "breakpoint-mcp", version: "1.76.0" },
+    { name: "breakpoint-mcp", version: "1.77.0" },
     { capabilities: { ...TASK_CAPABILITIES, ...RESOURCE_CAPABILITIES }, taskStore },
   );
 

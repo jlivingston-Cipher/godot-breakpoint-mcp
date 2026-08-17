@@ -1,8 +1,8 @@
 // GDScript DAP plane GATE — asserts all fifteen `dbg_*` tools against a REAL Godot
 // editor Debug Adapter (:6006). Every claim below FAILS THE JOB; nothing here is
 // log-only. Grep-able markers: GD_DAP_CAPS / GD_DAP_PHANTOM / GD_DAP_NOSESSION /
-// GD_DAP_SOURCE / GD_DAP_SCENE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_GATED / GD_DAP_RESTART /
-// GD_DAP_MODIFIERS.
+// GD_DAP_NOTSTOPPED / GD_DAP_SOURCE / GD_DAP_SCENE / GD_DAP_ENTRY / GD_DAP_LIVE / GD_DAP_GATED /
+// GD_DAP_RESTART / GD_DAP_MODIFIERS.
 //
 // 🔴 THIS IS NOW THE ONLY DAP COVERAGE, AND THE MEASUREMENT THAT EARNED THAT.
 // 159 §8.17 proposed deleting the experimental `dap-plane` job on the grounds that its
@@ -188,6 +188,65 @@ try {
     check(dap.state === "disconnected", "GD_DAP_NOSESSION", `no call fabricated a session state (state=${dap.state})`);
     check(dap.hasSession === false, "GD_DAP_NOSESSION", "hasSession is still false after eight refused calls");
     dap.close();
+  }
+
+  // ── 3b. a session that IS live, with the program RUNNING ─────────────────────
+  // 🔴 THE OTHER HALF OF SECTION 3, AND THE ONE A UNIT TEST CANNOT ESTABLISH (262 §1).
+  // Section 3 proves the tools refuse when no launch happened. This proves what they do
+  // when a launch DID happen and the program simply is not at a stop — the state a user
+  // is in for every second of a debugging session except the ones they care about. It
+  // needs a real adapter because the thing under test is which side answers: measured
+  // here before the guard, `dbg_stack_trace` said `{"frames":[]}` in 4ms, `dbg_watch`
+  // fabricated `error:"timeout"` after 5s, and `dbg_step`/`dbg_continue` each waited
+  // FIFTEEN SECONDS to report `{"state":"running"}`. Eight tools, eight answers, ~48s.
+  //
+  // Placed BEFORE section 4 arms anything on purpose: no breakpoint has been set in this
+  // editor yet, so the launched game cannot reach a stop and the premise is structural
+  // rather than a race. It is still asserted rather than assumed.
+  {
+    const { dap, call } = newClient();
+    const launched = await call("dbg_launch", { scene: "main", allow_port_conflict: true });
+    check(launched.isError !== true, "GD_DAP_NOTSTOPPED", `a session is live (state=${sc(launched).state})`);
+    check(dap.hasSession === true, "GD_DAP_NOTSTOPPED", "the premise: hasSession is TRUE — this is not section 3 again");
+    if (!check(dap.isStopped === false, "GD_DAP_NOTSTOPPED", `…and the program is not at a stop (state=${dap.state})`)) {
+      throw new Error(`the program stopped with no breakpoint armed (state=${dap.state}) — the claims below would test the wrong state`);
+    }
+    const cases = [
+      ["dbg_continue", {}],
+      ["dbg_step", { kind: "over" }],
+      ["dbg_stack_trace", {}],
+      ["dbg_scopes", { frame_id: 0 }],
+      ["dbg_variables", { variables_ref: 1 }],
+      ["dbg_evaluate", { expression: "1+1", confirm: true }],
+      ["dbg_set_variable", { variables_ref: 1, name: "counter", value: "1", confirm: true }],
+      ["dbg_goto", { path: "res://player.gd", line: 13, confirm: true }],
+    ];
+    for (const [name, args] of cases) {
+      const t0 = Date.now();
+      const r = await call(name, args);
+      const ms = Date.now() - t0;
+      check(
+        r.isError === true && /needs the program stopped at a breakpoint/.test(textOf(r)),
+        "GD_DAP_NOTSTOPPED",
+        `${name} refuses a running program (${ms}ms): ${textOf(r).slice(0, 52)}…`,
+      );
+      // 260's rule — the refusal names the state it READ, not one it assumed.
+      check(/the program is (running|initialized)/.test(textOf(r)), "GD_DAP_NOTSTOPPED", `${name} names the state it read`);
+      // 🔴 The economic claim, and the only one that would notice the guard being moved
+      // BELOW the adapter round trip: the refusal must cost no wait. 5s, 8s and 15s were
+      // the measured costs of the three that asked the adapter.
+      check(ms < 2000, "GD_DAP_NOTSTOPPED", `${name} refuses without an adapter round trip (${ms}ms)`);
+    }
+    // dbg_watch is the deliberate exception: the SET still updates, no value is invented,
+    // and the entry says which — §10 B's "a watch across stops" keeps working.
+    const w = await call("dbg_watch", { add: ["counter"] });
+    const entry = (sc(w).watches ?? [])[0];
+    check(
+      w.isError !== true && entry?.expression === "counter" && entry?.value === "" && /not stopped/.test(String(entry?.error)),
+      "GD_DAP_NOTSTOPPED",
+      `dbg_watch manages the set and names the reason instead of a value (error=${JSON.stringify(entry?.error)})`,
+    );
+    await endSession(dap);
   }
 
   // ── 4. breakpoint sources that can never bind ────────────────────────────────
@@ -687,23 +746,25 @@ if (crashed) {
 // Naming the families removes the trade-off: every family must SPEAK, and how many times
 // it speaks is allowed to vary. That is 168 §6's totality gate, transferred here.
 //
-// Measured on 4.7 (a complete run, session 169): 77 claims across these ten families —
+// Measured on 4.7 (a complete run, session 169): 77 claims across ten families —
 // LIVE 21, SCENE 11, NOSESSION 10, SOURCE 9, PHANTOM 7, MODIFIERS 7, ENTRY 4, GATED 3,
-// CAPS 3, RESTART 2.
+// CAPS 3, RESTART 2. 262 adds an eleventh, GD_DAP_NOTSTOPPED, which makes 28: the three
+// premise claims plus three per refused tool across eight tools, plus dbg_watch's.
 //
 // 🔴 EACH GATE ASSERTS ITS OWN SCOPE (168 §6): if this list is ever emptied, the gate
 // passes while covering nothing, so its length is checked before its contents.
 const GD_DAP_FAMILIES = [
-  "GD_DAP_LIVE", "GD_DAP_SCENE", "GD_DAP_NOSESSION", "GD_DAP_SOURCE", "GD_DAP_PHANTOM",
-  "GD_DAP_MODIFIERS", "GD_DAP_ENTRY", "GD_DAP_GATED", "GD_DAP_CAPS", "GD_DAP_RESTART",
+  "GD_DAP_LIVE", "GD_DAP_SCENE", "GD_DAP_NOSESSION", "GD_DAP_NOTSTOPPED", "GD_DAP_SOURCE",
+  "GD_DAP_PHANTOM", "GD_DAP_MODIFIERS", "GD_DAP_ENTRY", "GD_DAP_GATED", "GD_DAP_CAPS",
+  "GD_DAP_RESTART",
 ];
 // The coarse backstop, kept alongside the manifest: it catches a family that shrank from
 // twenty-one claims to one, which the manifest alone cannot see.
-const GD_DAP_CLAIM_FLOOR = 70;
+const GD_DAP_CLAIM_FLOOR = 98;
 
 console.log(`\nGD_DAP_CLAIMS ${claims} (floor ${GD_DAP_CLAIM_FLOOR}) across ${seen.size}/${GD_DAP_FAMILIES.length} famil(ies): ${[...seen].map(([m, n]) => `${m}=${n}`).join(" ")}`);
 
-if (GD_DAP_FAMILIES.length < 10) {
+if (GD_DAP_FAMILIES.length < 11) {
   console.log(`  FAIL GD_DAP_POPULATION_SCOPE — the manifest itself has ${GD_DAP_FAMILIES.length} entries; a gate whose scope collapsed passes while covering nothing`);
   failures++;
 }

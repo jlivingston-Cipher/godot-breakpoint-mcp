@@ -6,6 +6,38 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.77.0] — 2026-08-17
+
+### Fixed — the debugging plane answered from frames that did not exist
+
+- 🔴 **Nine `dbg_*` tools answered as if the program were stopped when it was merely
+  launched.** The plane's guard asked whether a debug session EXISTS; with a session live
+  and the program running, measured against a live Godot 4.7 adapter, the tools gave eight
+  different answers to one question: `dbg_stack_trace` returned `{"frames":[]}` and
+  `dbg_scopes` `{"scopes":[]}` (empty successes indistinguishable from a real read),
+  `dbg_watch` fabricated `error:"timeout"` per expression after 5s, `dbg_evaluate` timed
+  out after 5s, `dbg_set_variable` after 8s while blaming the user's Godot build, and
+  `dbg_step` and `dbg_continue` each waited **15 seconds** before reporting
+  `{"state":"running"}` — about 48 seconds of adapter round trips for a question the host
+  can answer from its own session state in none. `dbg_continue`, `dbg_step`,
+  `dbg_stack_trace`, `dbg_scopes`, `dbg_variables`, `dbg_evaluate`, `dbg_set_variable` and
+  `dbg_goto` now refuse a running program with a `not_stopped` refusal that names the state
+  it read and how to reach a stop, raised **before** any request leaves the host.
+  `dbg_goto` and `dbg_data_breakpoints` had no session guard at all and now have one.
+- **`dbg_watch` keeps managing the watch set while the program runs.** The set change is
+  applied and each entry reports `not stopped` as its own reason instead of a fabricated
+  `timeout`, so §10 B's "a watch across stops" still works and costs no round trip.
+- 🔴 **A `runtime_*` call that times out because the debugger is holding the game now says
+  so.** The addon services `runtime_*` from `_process`, so a breakpoint inside the method
+  being called halts the very frame that owes the reply — which means USER_GUIDE §10 B's
+  own step 5 produced `Bridge request 'runtime.call_method' timed out after 15000ms` and
+  no cause, *every time the recipe worked*. The timeout now carries the next action when
+  this host's own debugger is stopped, and carries nothing when it is not.
+- **`dbg_set_variable` no longer tells a current-build user their engine is old.** Its
+  message read "this Godot build (e.g. 4.3) does not implement setVariable"; measured at a
+  real stop on **4.7**, the request is advertised and still unanswered. The message names
+  the adapter now rather than the reader's version, because there is nothing to upgrade to.
+
 ### Fixed — a screenshot of a tab that is not on screen
 
 - 🔴 **`screenshot_editor` no longer returns a stale frame of a hidden viewport as a
