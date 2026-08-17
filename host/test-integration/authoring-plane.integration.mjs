@@ -1618,10 +1618,8 @@ async function main() {
     // full-size frame is exactly what a HIDDEN tab returns — the arm that was written to
     // tolerate a developer's layout was also the arm that let the stale-frame defect
     // through this probe for forty sessions. The tab is knowable; read it.
-    const screenNow = await client.callTool({ name: "main_screen_get", arguments: {} }, undefined, { timeout: 30000 });
-    const activeNow = (() => {
-      try { return JSON.parse(screenNow.content?.[0]?.text || "{}").active || ""; } catch { return ""; }
-    })();
+    const screenNow = /** @type {any} */ (await call("main_screen_get"));
+    const activeNow = String(screenNow.active || "");
     if (activeNow && activeNow.toUpperCase() !== "2D") {
       raw2d.isError && /viewport_not_active/.test(txt2d) && !img2d
         ? pass("AUTH_SHOT_INACTIVE_REFUSED", `2D is hidden behind "${activeNow}" and the capture refused: ${txt2d.slice(0, 70)}`)
