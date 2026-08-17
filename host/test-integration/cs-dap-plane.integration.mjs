@@ -29,11 +29,20 @@
 //
 // Markers (grep-able): CS_DAP_SURFACE / CS_DAP_PHANTOM / CS_DAP_LIVE_STOPPED /
 // CS_DAP_LIVE_BREAKPOINT / CS_DAP_PATH_ESCAPE / CS_DAP_MISSING_FILE / CS_DAP_NOT_A_FILE /
-// CS_DAP_PATH_LEGAL / CS_DAP_EXC_FILTER / CS_DAP_ADAPTER_ERROR / CS_DAP_ATTACH_PID, plus
+// CS_DAP_PATH_LEGAL / CS_DAP_EXC_FILTER / CS_DAP_ADAPTER_ERROR / CS_DAP_ATTACH_PID /
+// CS_DAP_NOTSTOPPED, plus
 // the banners CS_DAP_FIXTURE / CS_DAP_LIVE_WARM / CS_DAP_CAPS / CS_DAP_LIVE_ALL.
 // Exit status is the gate (the csharp-plane job in integration.yml).
 //
 // Requires netcoredbg via GODOT_CSDAP_CMD and a `dotnet` SDK on PATH.
+//
+// 🔴 AND THAT IS THE WHOLE REQUIREMENT — no Godot, no display, no Mono build. This
+// header used to be read as "CI only", and the row session 262 opened against the
+// unguarded C# plane was deferred on exactly that reading. It is a five-minute
+// install. `dotnet new console` reaches nuget.org even for a project with no package
+// references, so the throwaway project is written with a `nuget.config` that clears
+// every source: the fixture then restores from the SDK alone and the probe runs with
+// no network at all.
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -60,9 +69,13 @@ const population = new Population("CS_DAP", {
     "CS_DAP_SURFACE", "CS_DAP_PHANTOM", "CS_DAP_LIVE_STOPPED", "CS_DAP_LIVE_BREAKPOINT",
     "CS_DAP_PATH_ESCAPE", "CS_DAP_MISSING_FILE", "CS_DAP_NOT_A_FILE", "CS_DAP_PATH_LEGAL",
     "CS_DAP_EXC_FILTER", "CS_DAP_ADAPTER_ERROR", "CS_DAP_ATTACH_PID",
+    "CS_DAP_NOTSTOPPED",
   ],
-  scope: 11,
-  claims: 42,         // measured 44 in CI (this PR). Never runnable locally — needs netcoredbg
+  scope: 12,
+  claims: 95,         // measured 44 before the not-stopped cohort, 97 after. Runnable
+                      // locally since 263 — netcoredbg and a `dotnet` SDK are all it
+                      // needs, and the throwaway project now carries a nuget.config with
+                      // no package sources so it restores offline.
 });
 const claim = (name, cond, detail = "") => {
   population.claim();
@@ -83,6 +96,8 @@ let program = null;
 let source = null;
 try {
   execFileSync("dotnet", ["new", "console", "-o", tmp, "--force"], { stdio: "pipe" });
+  fs.writeFileSync(path.join(tmp, "nuget.config"),
+    '<?xml version="1.0" encoding="utf-8"?>\n<configuration>\n  <packageSources>\n    <clear />\n  </packageSources>\n</configuration>\n');
   source = path.join(tmp, "Program.cs");
   // Line 12 (`Counter += 1;`) is inside the loop — the surest live breakpoint. Keep
   // this file's line numbering stable; the assertions below name line 12 explicitly.
@@ -170,6 +185,116 @@ try {
     dap.close();
   }
   population.seal("CS_DAP_PHANTOM", "ok — a launch the adapter rejected is reported as one");
+
+  // ---- 2b. CS_DAP_NOTSTOPPED — the guards, against a real adapter (263) ------
+  //
+  // 🔴 Session 262 fixed this family on the GDScript plane and OPENED a row here
+  // rather than fix it blind, because netcoredbg was not installed on the machine
+  // that walked it. It is installed on this job's runner, and it always was — this
+  // probe has spawned it on every leg since session 158. Measured before the guards,
+  // with the SAME adapter this cohort now asserts against:
+  //
+  //   no session    seven readers answered the adapter's raw hex (0x80004005 E_FAIL,
+  //                 0x80070057 E_INVALIDARG); cs_dbg_watch answered isError:FALSE with
+  //                 a hex code in every entry; only cs_dbg_restart refused, and only
+  //                 because it happens to read `lastStartMode`
+  //   running       the same, plus cs_dbg_continue waiting the full 15,000 ms to answer
+  //                 `{"state":"running"}` — ~45 s of round trips for a question the
+  //                 client's own state answers in none
+  //
+  // Each refusal is asserted THREE ways: that it refuses, that it names the state it
+  // READ, and that it COST UNDER TWO SECONDS. The third is the one the text cannot
+  // carry — a guard moved back below the round trip prints the identical sentence.
+  console.log("\n-- not stopped --");
+  const READERS = [
+    ["cs_dbg_continue", {}],
+    ["cs_dbg_step", { kind: "over" }],
+    ["cs_dbg_stack_trace", {}],
+    ["cs_dbg_scopes", { frame_id: 0 }],
+    ["cs_dbg_variables", { variables_ref: 1 }],
+    ["cs_dbg_evaluate", { expression: "1+1", confirm: true }],
+    ["cs_dbg_set_variable", { variables_ref: 1, name: "Counter", value: "1", confirm: true }],
+  ];
+  {
+    // (a) NO SESSION AT ALL. Placed before anything launches, so the premise is
+    // structural rather than something a previous section left behind — and asserted
+    // anyway, because a premise nothing checks is a premise nothing knows.
+    const s = makeSession();
+    claim("the fresh client reports no session", s.dap.hasSession === false, `hasSession=${s.dap.hasSession}`);
+    for (const [name, args] of [...READERS, ["cs_dbg_watch", { add: ["Counter"] }]]) {
+      const t0 = Date.now();
+      const r = await s.call(name, args);
+      const ms = Date.now() - t0;
+      const text = textOf(r);
+      claim(`${name} refuses with no session`, r.isError === true, `${ms}ms — ${text.slice(0, 80)}`);
+      claim(`  …naming both ways to open one, with no hex code`,
+        /needs a C# debug session/.test(text) && /cs_dbg_launch or cs_dbg_attach/.test(text) && !/0x[0-9A-Fa-f]{8}/.test(text));
+      claim(`  …and it cost under 2s (it is raised above the round trip)`, ms < 2000, `${ms}ms`);
+    }
+    // 🔴 THE POISONING CONTROL. `resume()` marks the client running optimistically, so
+    // before `sessionStarted` existed the first refused call left the client reading
+    // live. Measured, on this adapter: state went `disconnected` -> `running` on a
+    // cs_dbg_continue that had launched nothing.
+    claim("a refused call did not create a session", s.dap.hasSession === false, `hasSession=${s.dap.hasSession} state=${s.dap.state}`);
+    s.dap.close();
+  }
+  {
+    // (b) A REAL SESSION WHOSE PROGRAM IS RUNNING. `stop_on_entry:false`, so this is
+    // the ordinary state of a debugged program — every second except the ones you care
+    // about.
+    const s = makeSession();
+    const l = await s.call("cs_dbg_launch", { program, args: [], stop_on_entry: false, just_my_code: false });
+    if (l.isError) die("CS_DAP_NOTSTOPPED", `the running-session fixture would not launch: ${textOf(l)}`);
+    // The vacuity gate for this section: if the program is NOT running these claims
+    // are about the wrong state, so it is fatal rather than a failed claim.
+    if (!s.dap.hasSession || s.dap.isStopped) {
+      die("CS_DAP_NOTSTOPPED", `expected a live, running session (hasSession=${s.dap.hasSession} stopped=${s.dap.isStopped}) — ` +
+        `every claim below would be about a state this section is not testing`);
+    }
+    for (const [name, args] of READERS) {
+      const t0 = Date.now();
+      const r = await s.call(name, args);
+      const ms = Date.now() - t0;
+      const text = textOf(r);
+      claim(`${name} refuses while the program runs`, r.isError === true, `${ms}ms — ${text.slice(0, 80)}`);
+      claim(`  …naming the state it READ, not as an adapter error`,
+        /needs the program stopped at a breakpoint/.test(text) && /the program is running/.test(text) && !/^C# DAP error/.test(text));
+      claim(`  …and it cost under 2s (the measured cs_dbg_continue took 15,000ms)`, ms < 2000, `${ms}ms`);
+    }
+    // The deliberate exception, live: the set change applies and each entry carries the
+    // real reason instead of the hex code it used to.
+    const w = await s.call("cs_dbg_watch", { add: ["Counter"] });
+    const entries = w.structuredContent?.watches ?? [];
+    claim("cs_dbg_watch still manages the set while running", !w.isError && entries.length === 1,
+      JSON.stringify(entries).slice(0, 110));
+    // 🔴 FLOORED IN THE SAME EXPRESSION, and not by the claim above it: `[].every(…)` is
+    // TRUE, so a watch set that came back empty would satisfy a claim named "each entry
+    // names not-stopped". That is this file's own rule (see the `variables` claim in §3),
+    // applied to the claim that would otherwise have drifted out of it.
+    claim("  …and each entry names not-stopped rather than a hex code",
+      entries.length === 1 &&
+      entries.every((e) => /not stopped \(running\)/.test(String(e.error)) && !/0x[0-9A-Fa-f]{8}/.test(String(e.error))));
+    // Exception filters are armed for the FUTURE, so a running session may still set
+    // them — the asymmetry dbg_data_breakpoints has one plane over.
+    const x = await s.call("cs_dbg_set_exception_breakpoints", { filters: ["all"] });
+    claim("cs_dbg_set_exception_breakpoints is NOT stop-guarded", !x.isError, textOf(x).slice(0, 90));
+    claim("refusing did not tear the session down", s.dap.hasSession === true, `hasSession=${s.dap.hasSession}`);
+    s.dap.close();
+  }
+  {
+    // (c) THE COLD CAPABILITY READ. With no session `capabilities` is null, and this
+    // tool told the caller their adapter advertises no exception filters — about the
+    // very adapter whose `all` / `user-unhandled` the CS_DAP_EXC_FILTER section below
+    // asserts on this same run.
+    const s = makeSession();
+    const r = await s.call("cs_dbg_set_exception_breakpoints", { filters: ["all"] });
+    const text = textOf(r);
+    claim("cs_dbg_set_exception_breakpoints with no session names the session", r.isError === true && /needs a C# debug session/.test(text),
+      text.slice(0, 100));
+    claim("  …and never blames the adapter for advertising nothing", !/advertises no exceptionBreakpointFilters/.test(text));
+    s.dap.close();
+  }
+  population.seal("CS_DAP_NOTSTOPPED", "ok — a session existing is not a frame existing, and neither is asked of the adapter");
 
   // ---- 3. THE LIVE SESSION — and the vacuity gate ---------------------------
   console.log("\n-- live session --");
