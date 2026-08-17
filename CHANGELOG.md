@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a screenshot of a tab that is not on screen
+
+- 🔴 **`screenshot_editor` no longer returns a stale frame of a hidden viewport as a
+  successful capture.** Measured against a live Godot 4.7 editor: Godot collapses a
+  main-screen tab's viewport to 2x2 only until that tab's **first visit**. After that it
+  keeps full size while hidden and stops being drawn to — so a capture of the inactive
+  tab came back at full resolution, reported success, and showed the scene as it was when
+  the tab was last on screen. Adding a 900x700 magenta `ColorRect` left the returned 2D
+  image byte-identical; switching back to the 2D tab and re-capturing showed it. The
+  `viewport_not_rendered` guard discriminates on SIZE, and the size is the one thing that
+  does not change, so it protected only the never-visited case — one capture per editor
+  session. The tool now asks the editor which tab is active **before** it reads a texture
+  and refuses a mismatch with a new `viewport_not_active` code naming the tab that is on
+  screen and the `main_screen_set` call that fixes it. The size check remains as the
+  second line for an addon too old to report the tab.
+- **The destructive-action gate no longer reports a rejected elicitation answer as a
+  client that cannot be asked.** A client that declares elicitation support and then
+  answers with content that fails the prompt's `requestedSchema` was told "interactive
+  confirmation isn't available on this client", and offered `confirm: true` — the one
+  remedy that skips the confirmation being given. The two causes are now separated: only
+  a client that declared no elicitation gets that sentence, and a failed attempt reports
+  the underlying error and the response shape the prompt wanted.
+
+### Changed — the User Guide's worked recipes
+
+- 🔴 **§10's recipes named five tools a default install does not load** —
+  `godot_run_managed`, `godot_run_headless_script`, `runtime_call_method`, `dbg_evaluate`
+  and (in §11) `runtime_spawn_peers`, all in the `code-execution` group. Recipe D could
+  not begin and recipe C stopped at step 1. Every such step is now marked
+  **(higher-trust)**, §10 opens with the list and how to enable the group, and
+  `contract_check.py` check 31 joins the tools a recipe NAMES to the capability roster so
+  a recipe cannot name a withheld tool silently again.
+- **§10 A step 5 now passes `{viewport:"2d"}`.** `screenshot_editor` defaults to `3d`, so
+  the recipe's `main_screen_set {name:"2D"}` followed by a bare `screenshot_editor`
+  captured the tab the reader had just left.
+- **§10 C now says that `godot_output` and `godot_stop` take the `id`** returned by
+  `godot_run_managed`; both fail input validation without it.
+- **`godot_run_headless_script`'s `args` are documented as reaching
+  `OS.get_cmdline_args()`** and not `OS.get_cmdline_user_args()` — no `--` separator is
+  inserted, which is what GdUnit4 and GUT read, and a custom runner using the user-args
+  accessor sees an empty list.
+
 ## [1.76.0] — 2026-08-16
 
 🔴 **If you installed `breakpoint-mcp@1.75.0` from npm, you already have this code.**

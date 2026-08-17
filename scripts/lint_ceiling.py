@@ -145,7 +145,16 @@ CLASS_CEILING: dict[str, tuple[int, str]] = {
 # rather than leaving an exemption behind it (174 §5).
 TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
     "TS2339 Property 'X' does not exist on type 'X'.": (
-        532,
+        # 🆕 261: 532 -> 533, ON PURPOSE and for one line. `authoring-plane.integration.mjs`
+        # now reads `main_screen_get` before asserting on a capture, because the probe that
+        # was pointed at the stale-frame defect accepted any full-size frame as proof the
+        # tab was active — which is exactly what a HIDDEN tab returns after its first
+        # visit. The reply is an untyped MCP result and the property access is the class
+        # below, in the file that already carries dozens of it. MEASURED BOTH WAYS: the
+        # bare `(await call(...)).active` costs TWO findings and a `/** @type {any} */`
+        # in front of the reply costs ONE, so the cast is in and the remaining one is
+        # here rather than silenced — this table's job is to keep the number visible.
+        533,
         "The duck-typing tax, and the largest single class by four hundred. Untyped JS "
         "object literals infer to their narrowest shape, so every property added on a "
         "later branch reads as absent — `runtime_scenario.mjs` alone carries dozens off "

@@ -5,8 +5,17 @@ import { gate } from "../src/confirm.js";
 type Server = Parameters<typeof gate>[0];
 type ElicitResult = { action: string; content?: Record<string, unknown> };
 
-/** Build a fake McpServer whose elicitInput returns/throws as configured. */
-function fakeServer(elicit: (req: unknown) => Promise<ElicitResult>): { server: Server; calls: unknown[] } {
+/**
+ * Build a fake McpServer whose elicitInput returns/throws as configured.
+ *
+ * 🆕 261 — `capabilities` is what the client DECLARED at initialize. `gate` reads it to
+ * tell the two throwing cases apart; the default is a client that declares elicitation,
+ * because that is the only kind whose answer can be malformed.
+ */
+function fakeServer(
+  elicit: (req: unknown) => Promise<ElicitResult>,
+  capabilities: Record<string, unknown> | undefined = { elicitation: {} },
+): { server: Server; calls: unknown[] } {
   const calls: unknown[] = [];
   const server = {
     server: {
@@ -14,6 +23,7 @@ function fakeServer(elicit: (req: unknown) => Promise<ElicitResult>): { server: 
         calls.push(req);
         return elicit(req);
       },
+      getClientCapabilities: () => capabilities,
     },
   } as unknown as Server;
   return { server, calls };
@@ -51,12 +61,51 @@ test("gate blocks when the user declines/cancels the elicitation", async () => {
 test("gate blocks with a 'confirm: true' hint when the client cannot elicit", async () => {
   const { server } = fakeServer(async () => {
     throw new Error("Method not found: elicitation/create");
-  });
+  }, {});   // 261: a client that declared NO elicitation — the only case this sentence is true of
   const r = await gate(server, undefined, "rename symbol");
   assert.ok(r);
   assert.equal(r?.isError, true);
+  assert.match(r!.content[0].text, /isn't available on this client/);
   assert.match(r!.content[0].text, /confirm: true/);
   assert.match(r!.content[0].text, /rename symbol/);
+});
+
+/**
+ * 🔴 261 — ONE `catch`, THREE CAUSES, AND IT NAMED THE ONE THAT POINTS AT THE BYPASS.
+ *
+ * Measured against the published 1.76.0 with a client that declares elicitation and
+ * answers `{action:"accept", content:{confirm:true}}` — an answer that does not satisfy
+ * the tool's `requestedSchema`, which requires `proceed`. The SDK throws on validation,
+ * the old catch reported "interactive confirmation isn't available on this client", and
+ * the single remedy it offered was `confirm: true` — i.e. skip the confirmation the user
+ * was in the middle of giving. A gate that misdiagnoses its own failure toward the
+ * bypass is failing in the wrong direction.
+ */
+test("gate does NOT claim the client lacks elicitation when the client declared it and the attempt failed", async () => {
+  const { server } = fakeServer(async () => {
+    throw new Error('MCP error -32602: Invalid arguments: expected boolean at "proceed"');
+  });
+  const r = await gate(server, undefined, "set live property /root/Main.counter");
+  assert.ok(r);
+  assert.equal(r?.isError, true);
+  assert.doesNotMatch(
+    r!.content[0].text,
+    /isn't available on this client/,
+    "a client that DECLARED elicitation must not be told it cannot elicit",
+  );
+  assert.match(r!.content[0].text, /NOTHING WAS DONE/, "the reader's first question is whether it ran");
+  assert.match(r!.content[0].text, /proceed/, "the underlying error must reach the reader");
+  assert.match(r!.content[0].text, /set live property/, "and the action must still be named");
+});
+
+test("gate survives a server that cannot report client capabilities at all", async () => {
+  const { server } = fakeServer(async () => {
+    throw new Error("transport closed");
+  }, undefined);
+  const r = await gate(server, undefined, "delete node");
+  assert.ok(r);
+  assert.equal(r?.isError, true);
+  assert.match(r!.content[0].text, /confirm: true/, "unknowable capabilities degrade to the old sentence");
 });
 
 test("gate passes the summary into the elicitation prompt message", async () => {

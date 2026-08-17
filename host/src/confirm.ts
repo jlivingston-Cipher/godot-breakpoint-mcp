@@ -61,15 +61,54 @@ export async function gate(
       isError: true,
       content: [{ type: "text", text: `Cancelled — user did not approve: ${summary}` }],
     };
-  } catch {
+  } catch (err) {
+    // 🔴 261 — ONE `catch` WAS COVERING THREE DIFFERENT CAUSES AND NAMING THE THIRD.
+    //
+    // Measured at 261 against the published 1.76.0: a client that DECLARES elicitation
+    // and then answers with content that does not satisfy `requestedSchema` gets
+    // "interactive confirmation isn't available on this client" — a sentence about the
+    // client's CAPABILITIES, printed because of a bad ANSWER — followed by the one
+    // remedy that skips the confirmation the user was in the middle of giving. That is
+    // 260's standing rule ("a diagnostic that names a state is not a diagnosis of its
+    // cause") landing on the safety control itself, and the misdiagnosis points at the
+    // bypass, which is the wrong direction for a gate to fail in.
+    //
+    // The capability is knowable, so ask instead of inferring it from a throw. Only the
+    // genuinely unsupported client is told to re-run with `confirm: true`; a client that
+    // CAN ask and failed is told the attempt failed and why, because the next action
+    // there is to fix the answer, not to bypass the prompt.
+    const supportsElicitation = (() => {
+      try {
+        return !!server.server.getClientCapabilities()?.elicitation;
+      } catch {
+        return false;
+      }
+    })();
+    if (!supportsElicitation) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text:
+              `This is a destructive action (${summary}) and interactive confirmation ` +
+              `isn't available on this client. Re-run the tool with confirm: true to proceed.`,
+          },
+        ],
+      };
+    }
+    const detail = err instanceof Error ? err.message : String(err);
     return {
       isError: true,
       content: [
         {
           type: "text",
           text:
-            `This is a destructive action (${summary}) and interactive confirmation ` +
-            `isn't available on this client. Re-run the tool with confirm: true to proceed.`,
+            `This is a destructive action (${summary}) and NOTHING WAS DONE. This client ` +
+            `declares elicitation support, so the confirmation prompt was sent and the ` +
+            `attempt failed: ${detail}. Fix the client's elicitation response (it must be ` +
+            `{"action":"accept","content":{"proceed":true}}) and retry — or, if you mean to ` +
+            `skip the prompt deliberately, re-run with confirm: true.`,
         },
       ],
     };

@@ -903,6 +903,14 @@ extension we would consider building, and it would still add no tools.
 A few worked recipes. Each is something you can ask your assistant to do; the tool names show the
 underlying steps.
 
+> **Five of the tools named below are not loaded on a default install.**
+> `godot_run_managed`, `godot_run_headless_script`, `runtime_call_method`, `dbg_evaluate` and
+> `runtime_spawn_peers` (§11) belong to the `code-execution` group, which is OFF unless you asked
+> for it — so recipe **D** cannot start at all on a default setup and recipe **C** stops at its
+> first step. Turn the group on with `breakpoint-mcp init --trust full`, or set
+> `BREAKPOINT_PRIVILEGED_GROUPS=code-execution` in the server's env, and restart the server. The
+> steps that need it are marked **(higher-trust)** below. See §5 and `godot://capabilities`.
+
 ### A. Scene authoring
 
 1. `editor_ping` and `scene_get_tree` to orient.
@@ -910,8 +918,12 @@ underlying steps.
 3. `node_add`, then `node_set_property` for each field (Variant values like `Vector2` /
    `Color` are tagged — see `docs/TOOL_CATALOG.md`).
 4. `node_instantiate_scene` to drop in prefabs; `signal_connect` to wire behavior.
-5. `main_screen_set` `{name:"2D"}` then `screenshot_editor` so the assistant can see the result,
-   then adjust. Without the switch a 2D capture is refused — a fresh editor sits on the 3D tab.
+5. `main_screen_set` `{name:"2D"}` then `screenshot_editor` **`{viewport:"2d"}`** so the assistant
+   can see the result, then adjust. **Pass the viewport — the default is `3d`, so switching the
+   tab alone captures the tab you just left.** Both halves matter: a hidden tab collapses to a
+   placeholder before its first visit and freezes at its last drawn frame after it, so a capture
+   of the tab that is not on screen is either refused or stale, so the tool refuses that case
+   outright with `viewport_not_active` rather than handing back a frame of the past.
 6. `scene_save`. Anything you dislike reverts with **Ctrl-Z** or `editor_undo`.
 
 ### B. Debugging a bug
@@ -920,27 +932,33 @@ underlying steps.
 2. `gd_diagnostics` on the suspect script to rule out static errors.
 3. `dbg_set_breakpoints` on the relevant lines.
 4. `dbg_launch` (or `dbg_attach` to a running session).
-5. Trigger the code path — often via `runtime_call_method` from Plane C.
+5. Trigger the code path — often via `runtime_call_method` from Plane C **(higher-trust)**.
 6. On the stop: `dbg_stack_trace` → `dbg_scopes` → `dbg_variables` to read real state;
-   `dbg_watch` for an expression across stops; `dbg_evaluate` to probe a value (confirm
-   when prompted).
+   `dbg_watch` for an expression across stops; `dbg_evaluate` **(higher-trust)** to probe a
+   value (confirm when prompted).
 7. `dbg_step` / `dbg_continue` to walk through, then fix the code and re-run.
 
 ### C. Play-testing the live game
 
-1. `godot_run_managed` so the console is captured, then `godot_output` to read it.
+1. `godot_run_managed` **(higher-trust)** so the console is captured. It returns an `id` —
+   **every later call about that process takes it**: `godot_output {id}` to read the console,
+   `godot_stop {id}` to end it. Both fail validation without one.
 2. `runtime_get_tree` to see the live scene.
-3. `runtime_inject_input` to simulate button presses and movement.
-4. `runtime_get_property` / `runtime_set_property` and `runtime_call_method` to probe and
-   nudge state (mutators ask to confirm).
+3. `runtime_inject_input` to simulate button presses and movement (one `event` per call).
+4. `runtime_get_property` / `runtime_set_property` and `runtime_call_method` **(higher-trust)**
+   to probe and nudge state (mutators ask to confirm).
 5. `runtime_get_monitors` for FPS and other performance counters; `runtime_screenshot`
    for a frame.
-6. `godot_stop` when done.
+6. `godot_stop {id}` when done.
 
 ### D. Running headless tests
 
-1. Point `godot_run_headless_script` at your test-runner script (GdUnit4, GUT, or a custom
-   batch script), passing any `args`.
+1. Point `godot_run_headless_script` **(higher-trust)** at your test-runner script (GdUnit4,
+   GUT, or a custom batch script), passing any `args`. They are appended **after** the script
+   path and no `--` separator is inserted, so the script reads them from
+   `OS.get_cmdline_args()` — which is where GdUnit4 and GUT look. A custom runner using
+   `OS.get_cmdline_user_args()` sees an empty list, because that accessor returns only what
+   follows `--`.
 2. Because it runs on the task model, a task-aware client can poll or await a long run and
    cancel it if needed; a plain client simply waits for the result.
 3. Read the captured `exit_code`, `stdout`, and `stderr` from the result.
@@ -985,7 +1003,8 @@ plane you are using.
   running *without a bridge* — while the host, which dials one fixed port, carries on talking to
   whichever process got there first. `ping` reports no pid, so `runtime_*` calls look healthy
   while answering about the wrong game. **Every tool that starts a game now refuses when that port is
-  already held** — `godot_run_managed`, `godot_run_project`, `dbg_launch` and `cs_dbg_launch` — each
+  already held** — `godot_run_managed` **(higher-trust)**, `godot_run_project`, `dbg_launch` and
+  `cs_dbg_launch` — each
   with `allow_port_conflict: true` to proceed anyway. Which remedy clears it depends on what the
   holder is — `godot_stop` for a `godot_run_managed` child, **`dbg_attach`** if it is already
   running under the debugger, otherwise quit the window yourself; the refusal lists all of them,
@@ -993,8 +1012,8 @@ plane you are using.
   perfectly (a DAP session is addressed by session, not by port) while `runtime_*` would talk to the
   other process. `dbg_attach` and `dbg_restart` are deliberately not gated — attach is the remedy,
   and at restart time the session's own game still holds the port. **To drive more than one game at
-  once, use `runtime_spawn_peers`** — it allocates a distinct port per peer, and every runtime tool takes a
-  `peer` argument.
+  once, use `runtime_spawn_peers`** **(higher-trust)** — it allocates a distinct port per peer, and
+  every runtime tool takes a `peer` argument.
 - Zero-config console capture (`runtime_get_log`) needs **Godot 4.5+**. On 4.3 the bridge
   still loads and serves any explicit log entries, but automatic capture is a documented
   no-op. For captured console output on older builds, use `godot_run_managed` +
@@ -1018,9 +1037,10 @@ plane you are using.
 
 ### A tool times out
 
-- Long jobs (`godot_export`, `godot_import`, `godot_run_headless_script`) are expected to
-  take a while — a task-aware client can await or cancel them.
-- The `dbg_set_variable` / `dbg_evaluate` requests are bounded by their own short timeouts
+- Long jobs (`godot_export`, `godot_import`, `godot_run_headless_script` **(higher-trust)**) are
+  expected to take a while — a task-aware client can await or cancel them.
+- The `dbg_set_variable` / `dbg_evaluate` **(higher-trust)** requests are bounded by their own
+  short timeouts
   (`GODOT_DAP_SETVAR_TIMEOUT_MS` / `GODOT_DAP_EVALUATE_TIMEOUT_MS`, default 8 s each), so a
   non-answering adapter fails fast with a clear message instead of hanging. Adjust the
   broader `*_TIMEOUT_MS` variables if your machine is slow.

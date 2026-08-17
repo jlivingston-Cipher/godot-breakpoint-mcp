@@ -73,6 +73,14 @@ EMPTY: dict[str, str] = {
     # stronger statement than "add the row" — this is what that costs when it is remembered
     # in the same edit, and what it would have cost if it were not.
     "tuple[set[str], dict[str, set[str]]]": "(set(), {})",
+    # 🆕 261 — tool -> {"steps": [...], "declared": bool}. THE SIXTH SESSION RUNNING, and
+    # the first where the gate said so out loud rather than being noticed: check 31's
+    # reader landed with its LEDGER row and its own BLAST entry and no TARGETS row, so
+    # `SCOPE_GATE_ROSTER` refused both of the other two for naming a target that does not
+    # exist. 255's stronger statement — a reader whose annotation is not in this table is
+    # outside the gate silently — is now enforced from the other end, which is the only
+    # reason this cost a CI round rather than a session.
+    "dict[str, dict]": "{}",
     "dict[str, list[str]]": "{}",
     "dict[str, set[str]]": "{}",
     "dict[Path, set[str]]": "{}",
@@ -242,6 +250,7 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "input_schema_shapes": ("shapes.inputs_compared", "shapes.inputs_parsed"),
     "output_schema_shapes": ("shapes.outputs_compared", "shapes.outputs_parsed"),
     "prefix_family_claims": ("families.prefix_glob_lines",),
+    "guide_recipe_tools": ("guide.recipe_tools", "guide.recipe_steps"),  # 🆕 261
     "privileged_tools": ("tools.privileged",),                        # 🆕 197
     "recipe_names_constant": ("recipes.names_constant",),             # 🆕 197
     "registered_recipes": ("recipes.registered",),
@@ -375,7 +384,17 @@ BLAST: dict[str, int] = {
     # expects and reddens a line that sat outside this blind's radius entirely.
     # The row moved because a reader started depending on this population, which is
     # exactly the cause 196 §3 wrote the number to make visible.
-    "privileged_tools": 4,                    # also: checks 11, 13 (the constant roster)
+    # 🆕 261 — check 31's reader. Blinding it empties both of its populations at once
+    # and no other check reads the guide's recipes, so the radius is the two ledger
+    # floors and nothing else. Predicted 2 and MEASURED 2 (259's rule: predict, then
+    # measure — `cli_surface` was predicted at 2 and measured 7).
+    "guide_recipe_tools": 2,
+    # 🆕 261: 4 -> 9. Check 31 reads this roster to decide which tool a recipe names is
+    # WITHHELD, so emptying it takes all five higher-trust entries in the guide's §10
+    # declaration block into "declared but not privileged" at once. The row moved because
+    # a reader started depending on this population — 251's rule, and the same cause the
+    # 3 -> 4 note below records.
+    "privileged_tools": 9,                    # also: checks 11, 13 (the constant roster), 31
     "recipe_names_constant": 2,               # also: check 12
     "registered_recipes": 4,                  # also: check 12
     "registered_resources": 3,                # also: check 10
@@ -405,7 +424,11 @@ BLAST: dict[str, int] = {
     # as unregistered and collapses a fourth ledger population with them. The radius moved
     # because a NEW check started reading this reader — 196 §4's shape, declared in the
     # commit that moved it rather than discovered by a later run.
-    "registered_tools": 79,                   # also: checks 6 8 9 11 13 25 28 29, 4c, 4d
+    # 🆕 261: 79 -> 81. `guide_recipe_tools` derives its own tool families FROM this
+    # roster, so emptying it collapses check 31's two ledger populations as well — the
+    # guide reads as naming nothing. Two lines, both in the ledger, and predicted before
+    # they were measured.
+    "registered_tools": 81,                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
