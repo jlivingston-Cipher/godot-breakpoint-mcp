@@ -73,6 +73,14 @@ EMPTY: dict[str, str] = {
     # stronger statement than "add the row" — this is what that costs when it is remembered
     # in the same edit, and what it would have cost if it were not.
     "tuple[set[str], dict[str, set[str]]]": "(set(), {})",
+    # 🆕 261 — tool -> {"steps": [...], "declared": bool}. THE SIXTH SESSION RUNNING, and
+    # the first where the gate said so out loud rather than being noticed: check 31's
+    # reader landed with its LEDGER row and its own BLAST entry and no TARGETS row, so
+    # `SCOPE_GATE_ROSTER` refused both of the other two for naming a target that does not
+    # exist. 255's stronger statement — a reader whose annotation is not in this table is
+    # outside the gate silently — is now enforced from the other end, which is the only
+    # reason this cost a CI round rather than a session.
+    "dict[str, dict]": "{}",
     "dict[str, list[str]]": "{}",
     "dict[str, set[str]]": "{}",
     "dict[Path, set[str]]": "{}",
