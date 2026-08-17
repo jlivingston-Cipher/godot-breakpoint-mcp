@@ -302,8 +302,11 @@ CHECKS_EXPECTED = (
     # caller is about to use. Population found by the spawn, never by a list — the row it
     # closes named one launcher and the twin had the same defect unnamed.
     "30",
+    # 🆕 261 — check 31, the recipe/surface join. A member and not a roster gate: it asks
+    # whether a step the guide tells the reader to run is a step their install can run.
+    "31",
 )
-CHECKS_RUN_FLOOR = 27   # measured: twenty-seven blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 28   # measured: twenty-eight blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -747,6 +750,68 @@ def privileged_tools() -> set[str]:
     if not m:
         return set()
     return set(re.findall(r"^\s*([a-z0-9_]+)\s*:\s*\[", m.group(1), re.M))
+
+
+def guide_recipe_tools() -> "dict[str, dict]":
+    """Tool names the User Guide's worked recipes and troubleshooting steps NAME, split
+    by whether the line naming them is a STEP or the section's own higher-trust
+    DECLARATION.
+
+    🔴 261 — THE RECIPES NAMED FIVE TOOLS A DEFAULT INSTALL DOES NOT LOAD, AND SAID
+    NOTHING. Measured at 261 by installing the published `breakpoint-mcp@1.76.0` and
+    listing the surface a default client actually gets: 279 tools. §10's four recipes
+    named `godot_run_managed`, `godot_run_headless_script`, `runtime_call_method` and
+    `dbg_evaluate`, and §11 named `runtime_spawn_peers` — all five in the
+    `code-execution` group, all five withheld. Recipe D could not begin and recipe C
+    stopped at step 1. §7 has carried a warning naming THREE of them since 248; the
+    recipes were written later, named two more, and nothing joined the two lists.
+
+    The population is found by the SECTION, never by a roster: any tool a future recipe
+    names is in it the day the recipe is written, which is the property the §7 warning
+    did not have.
+
+    A line inside a blockquote is a DECLARATION (the section telling the reader what is
+    withheld); every other line is a STEP (the section telling the reader what to run).
+
+    Returns {tool: {"steps": [(line, section, marked)], "declared": bool}} where
+    `section` is 10 or 11 and `marked` is whether that step line carries the literal
+    `(higher-trust)`. The marker is required ONCE PER SECTION and not once per mention:
+    the reader meets the warning where they start reading, and a paragraph that names a
+    tool four times while explaining one remedy should not have to say it four times.
+    """
+    guide = ROOT / "docs/USER_GUIDE.md"
+    if not guide.exists():
+        return {}
+    known = set(registered_tools())
+    families = {t.split("_")[0] for t in known}
+    lines = guide.read_text().splitlines()
+    try:
+        start = next(i for i, l in enumerate(lines) if l.startswith("## 10. Typical workflows"))
+        end = next(i for i, l in enumerate(lines) if l.startswith("## 12. FAQ"))
+    except StopIteration:
+        return {}
+    out: "dict[str, dict]" = {}
+    section = 10
+    for i in range(start, end):
+        line = lines[i]
+        if line.startswith("## 11."):
+            section = 11
+        declaring = line.lstrip().startswith(">")
+        marked = "(higher-trust)" in line
+        for tok in re.findall(r"`([^`]+)`", line):
+            if not re.fullmatch(r"[a-z][a-z0-9_]*_[a-z0-9_]+", tok):
+                continue
+            # An identifier shaped like a tool AND sharing a family with a real one.
+            # `viewport_not_active` and `exit_code` share a family with nothing, so an
+            # error code and a result field never enter the population.
+            if tok not in known and tok.split("_")[0] not in families:
+                continue
+            row = out.setdefault(tok, {"steps": [], "declared": False})
+            if declaring:
+                row["declared"] = True
+            else:
+                row["steps"].append((i + 1, section, marked))
+    return out
 
 
 def test_count_constants() -> list[tuple[Path, int, str, int]]:
@@ -4526,6 +4591,90 @@ print(f"Launcher readiness     : "
       f"{len(READINESS_KEYS)} key(s) required each · await-condition retry present")
 _ran("30")
 
+# --- 31: THE RECIPE THAT NAMED A TOOL THE READER'S INSTALL DOES NOT HAVE ----
+#
+# 🔴 MEASURED AT 261 BY BEING THE READER. The published 1.76.0 was installed from the
+# registry into a fresh project and driven as an MCP client; the default surface is 279
+# tools, and §10's four worked recipes named five that are not in it. Recipe D's only
+# step is `godot_run_headless_script`; recipe C's step 1 is `godot_run_managed`. Both
+# were unrunnable by anyone following the guide as written, and the guide's own §7
+# already carried a warning naming three of the five — written before the recipes
+# existed, never joined to them, and therefore stale the day recipe C was added.
+#
+# 🔴 THE FAILURE IS TWO LISTS THAT WERE NEVER THE SAME LIST (252's shape, one document
+# further out). One list is the capability roster in `capabilities.ts`; the other is
+# whatever a recipe happened to name. Nothing compared them, so the recipes drifted from
+# the surface silently — the reader is the only instrument that was ever pointed at it,
+# and the reader is the user.
+#
+# Four directions:
+#   • a STEP naming a privileged tool without `(higher-trust)` on the line — the reader
+#     is told to run something the server will not answer, in the section whose entire
+#     purpose is to be followed literally;
+#   • a STEP naming a privileged tool the section's own declaration block omits — the
+#     §7 failure exactly, reproduced one section down;
+#   • a declaration naming a tool no step uses, or one that is not privileged at all —
+#     the list going stale in the other direction, which is how it reads as maintained;
+#   • a backticked name in a tool family that resolves to no registered tool — a renamed
+#     or mistyped tool in a recipe, which the reader discovers as a validation error.
+_recipe_tools = guide_recipe_tools()
+_priv_named = privileged_tools()
+_known_tools = set(registered_tools())
+_recipe_steps_judged = 0
+for _tool, _row in sorted(_recipe_tools.items()):
+    _steps = _row["steps"]
+    _recipe_steps_judged += len(_steps)
+    if _tool not in _known_tools:
+        errors.append(
+            f"check 31: docs/USER_GUIDE.md names `{_tool}` in a §10/§11 step "
+            f"(line{'s' if len(_steps) > 1 else ''} "
+            f"{', '.join(str(n) for n, _s, _m in _steps) or '—'}) and no such tool is "
+            f"registered. It shares a family with tools that are, so this is a rename or "
+            f"a typo, and the reader finds it as an input-validation error mid-recipe."
+        )
+        continue
+    if _tool not in _priv_named:
+        if _row["declared"]:
+            errors.append(
+                f"check 31: docs/USER_GUIDE.md's §10 higher-trust declaration names "
+                f"`{_tool}`, which carries no capability group in capabilities.ts. A "
+                f"declaration that withholds a tool nobody withholds sends the reader to "
+                f"`--trust full` for something they already have."
+            )
+        continue
+    for _section in sorted({_s for _n, _s, _m in _steps}):
+        _in_section = [(_n, _m) for _n, _s, _m in _steps if _s == _section]
+        if not any(_m for _n, _m in _in_section):
+            errors.append(
+                f"check 31: docs/USER_GUIDE.md §{_section} names `{_tool}` as a step "
+                f"(line{'s' if len(_in_section) > 1 else ''} "
+                f"{', '.join(str(n) for n, _m in _in_section)}) and never marks it "
+                f"`(higher-trust)` in that section. It is in the `code-execution` group, "
+                f"so a default install does not load it and the step cannot be run as "
+                f"written."
+            )
+    if _steps and not _row["declared"]:
+        errors.append(
+            f"check 31: `{_tool}` is named by a §10/§11 step and is missing from the "
+            f"section's higher-trust declaration block. That block is the list a reader "
+            f"acts on before starting, and a recipe naming a privileged tool the block "
+            f"omits is 261's defect returning."
+        )
+for _tool, _row in sorted(_recipe_tools.items()):
+    if _row["declared"] and not _row["steps"]:
+        errors.append(
+            f"check 31: docs/USER_GUIDE.md's §10 higher-trust declaration names `{_tool}` "
+            f"and no step in §10 or §11 uses it. The declaration exists to warn about the "
+            f"steps below it; an entry with no step behind it is the list going stale in "
+            f"the direction that still reads as maintained."
+        )
+
+print(f"Guide recipes          : "
+      f"{len(_recipe_tools)} tool(s) named across §10/§11 · {_recipe_steps_judged} step "
+      f"mention(s) judged · "
+      f"{len([t for t in _recipe_tools if t in _priv_named])} higher-trust")
+_ran("31")
+
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
 #
 # 192 §5 bound ONE branch to ONE handler: for each TypeScript branch, does the handler it
@@ -5050,6 +5199,16 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("tools.privileged", len(priv_tools), 10,
      "TOOL_CAPABILITIES resolves to nothing, so the secure-default surface is computed as "
      "`len(registered) - 0` and every privileged tool reads as shipping by default"),
+    # 🆕 261 — check 31's two populations. The tools a recipe NAMES, and the step
+    # mentions it makes of them. Empty here, the guide reads as naming nothing, and a
+    # recipe telling the reader to run a tool their install does not load goes back to
+    # being found by the reader — which is how 261 found it.
+    ("guide.recipe_tools", len(_recipe_tools), 25,
+     "no tool is read out of USER_GUIDE §10/§11, so every recipe reads as naming nothing "
+     "and check 31 agrees with a guide that names a withheld tool in every step"),
+    ("guide.recipe_steps", _recipe_steps_judged, 30,
+     "the step mentions collapse to zero, so the higher-trust marker is required of no "
+     "line and the declaration block is compared against an empty set of steps"),
     ("shapes.inputs_parsed", len(code_inputs), 250,
      "🔴 CHECK 16's UNIVERSE — the population it floors coverage against. Empty here, nothing is uncovered"),
     ("shapes.inputs_compared", len(input_comparable), 250,

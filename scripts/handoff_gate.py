@@ -3295,6 +3295,52 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · queue 42/42 claims · handoff 309 claims · 26 CI jobs
 > ```
 """),
+    (259, """> ```
+> main                 ca2d5d8 — the instruction that resolved and did nothing (#318)
+>                      MERGED · 26/26 green · branch deleted
+> also this session     657edec — the answer that did not survive the pipe (#317), which was
+>                      258's owed patch, unapplied at pickup
+> branch 259           none live — this session's work is on main
+> host / addon         1.75.0 / 1.11.0  🔴 RE-STAMPED THIS SESSION — 1.10.0 named two trees
+>                      🔴 AN ASSET LIBRARY SUBMISSION FOR 1.11.0 IS NOW OWED
+> tag                  🟢 v1.75.0 ANNOTATED at 49ccb19
+> npm                  🟢 1.75.0 · registry 1.75.0 · lag 0 — PUBLISHED FROM MAIN RATHER
+>                      THAN FROM THE TAG, SEE THE OWED SECTION
+> 🟢 VERIFIED AFTER THE CHANGE   805/805 · contract 27/27 · scope 45 · control 71
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1691
+>               · py gates 18/4/14 · SIG 134/105 · late constructed 197/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 104 · 48 governed · 1189 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 297 file(s) / 21 suffixes
+>               · seal 103 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3671 nodes / 20 keys / 0 unread
+>               · wire_invisible 34 cases · lint_ceiling 18 files
+>               · taut 4351 · mutlock 5 + 12 cases · tree_quiet 13
+>               · release_names 61/33 · queue 42/42 claims · handoff 310 claims · 26 CI jobs
+> ```
+"""),
+    (260, """> ```
+> main                 b76ff11 — release(1.76.0): the version that had already shipped under
+>                      another name (#319) · MERGED · 26/26 green · branch deleted
+> branch 260           none live — this session's work is on main
+> host / addon         1.76.0 / 1.11.0  🟢 HOST MOVED, this session's own cut; addon C4_OK
+>                      unmoved, still stamped at ca2d5d8
+> tag                  🟢 v1.76.0 ANNOTATED at b76ff11, declaring its own release commit
+> npm                  🟢 1.76.0 · registry 1.76.0 · lag 0 — PUBLISHED AND VERIFIED FROM
+>                      OUTSIDE
+> 🟢 VERIFIED AFTER THE CHANGE   805/805 · contract 27/27 · scope 45 · control 71
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1691
+>               · py gates 18/4/14 · SIG 134/105 · late constructed 197/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 104 · 48 governed · 1189 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 297 file(s) / 21 suffixes
+>               · seal 103 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3671 nodes / 20 keys / 0 unread
+>               · wire_invisible 34 cases · lint_ceiling 18 files
+>               · taut 4351 · mutlock 5 + 12 cases · tree_quiet 13
+>               · release_names 61/33 · queue 42/42 claims · handoff 310 claims · 26 CI jobs
+> ```
+"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────

@@ -59,6 +59,14 @@ function makeHarness(projectPath = "/tmp/g164-editor-harness") {
   const bridge = {
     async request(method: string, params: Record<string, unknown> = {}) {
       calls.push({ method, params });
+      // 🆕 261 — a per-method canned reply. `screenshot_editor` now asks the addon which
+      // main-screen tab is active BEFORE it asks for a texture, so a single `canned` for
+      // every method can no longer express the case the tool is being tested on.
+      if (Object.prototype.hasOwnProperty.call(byMethod, method)) {
+        const v = byMethod[method];
+        if (v instanceof Error) throw v;
+        return v as Record<string, unknown>;
+      }
       if (bridgeMode === "reject") {
         throw new BridgeError(
           "bridge_unavailable",
@@ -68,6 +76,8 @@ function makeHarness(projectPath = "/tmp/g164-editor-harness") {
       return canned;
     },
   };
+
+  const byMethod: Record<string, Record<string, unknown> | Error> = {};
 
   const elicit: ElicitFn = async (req) => {
     elicitReqs.push(req);
@@ -88,6 +98,9 @@ function makeHarness(projectPath = "/tmp/g164-editor-harness") {
     setBridge(mode: "resolve" | "reject", c?: Record<string, unknown>) {
       bridgeMode = mode;
       if (c) canned = c;
+    },
+    setBridgeMethod(method: string, value: Record<string, unknown> | Error) {
+      byMethod[method] = value;
     },
     setElicit(fn: ElicitFn) {
       elicitImpl = fn;
@@ -316,4 +329,78 @@ test("the viewport guard trips on either edge, and 8px is the boundary", async (
       `${width}x${height} should ${shouldRefuse ? "be refused" : "pass through"}`,
     );
   }
+});
+
+// ------------------------------------------- 261: the capture of a hidden tab ----
+
+/**
+ * 🔴 THE SIZE GUARD ABOVE IS TRUE OF THE BRANCH AND FALSE OF THE ENGINE.
+ *
+ * `screenshot_editor refuses a collapsed viewport…` feeds a mocked 2x2 through a fake
+ * bridge, so it proves the branch and can never observe what Godot does. Measured at 261
+ * against a live 4.7 editor: a tab collapses to 2x2 only until its FIRST visit. After
+ * that it keeps full size while hidden and stops being drawn to — so the capture is a
+ * full-resolution frame of the past, returned as a success, and the size guard sees
+ * nothing wrong because the size is the one thing that did not change. Adding a 900x700
+ * magenta ColorRect to the scene left the returned 2D image byte-identical.
+ *
+ * These three pin the tab check that replaced the inference. They are unit tests with the
+ * same blindness as the one above — which is the point of writing down where the
+ * measurement came from.
+ */
+test("screenshot_editor refuses to capture a viewport whose tab is not the active one", async () => {
+  const h = makeHarness();
+  h.setBridgeMethod("main_screen.get", { active: "3D", available: ["2D", "3D"] });
+  h.setBridgeMethod("screenshot.editor_viewport", new Error("must not be reached"));
+  const r = await h.handler("screenshot_editor")({ viewport: "2d" });
+  assert.equal(r.isError, true, "a hidden tab's frame must not be returned as a capture");
+  assert.match(text(r), /viewport_not_active/, "the error must carry a code the caller can branch on");
+  assert.match(text(r), /"3D" tab/, "the error must name the tab that IS on screen");
+  assert.match(text(r), /main_screen_set/, "the error must name the call that fixes it");
+  assert.equal(
+    r.content?.some((c) => (c as { type?: string }).type === "image"),
+    false,
+    "no image block may survive — an assistant would look at it and believe it",
+  );
+  assert.equal(
+    h.calls.some((c) => c.method === "screenshot.editor_viewport"),
+    false,
+    "the texture must not even be read: the refusal is decided before the capture",
+  );
+});
+
+test("screenshot_editor captures normally when the requested viewport IS the active tab", async () => {
+  const h = makeHarness();
+  h.setBridgeMethod("main_screen.get", { active: "2D", available: ["2D", "3D"] });
+  h.setBridgeMethod("screenshot.editor_viewport", {
+    base64: "iVBORw0KGgo=",
+    mime: "image/png",
+    width: 2214,
+    height: 1809,
+    viewport: "2d",
+  });
+  const r = await h.handler("screenshot_editor")({ viewport: "2d" });
+  assert.notEqual(r.isError, true, "the active tab must still capture");
+  assert.equal(
+    r.content?.some((c) => (c as { type?: string }).type === "image"),
+    true,
+    "the image must survive — the tab check is a refusal, not a new failure mode",
+  );
+});
+
+test("screenshot_editor degrades to the size guard when the addon cannot answer main_screen.get", async () => {
+  const h = makeHarness();
+  // pre-1.9.3 addon: the method does not exist, so the tab is unknowable
+  h.setBridgeMethod("main_screen.get", new Error("unknown_method"));
+  h.setBridgeMethod("screenshot.editor_viewport", {
+    base64: "iVBORw0KGgo=",
+    mime: "image/png",
+    width: 2,
+    height: 2,
+    viewport: "2d",
+  });
+  const r = await h.handler("screenshot_editor")({ viewport: "2d" });
+  assert.equal(r.isError, true, "an unknowable tab must not disable the second line of defence");
+  assert.match(text(r), /viewport_not_rendered/, "the collapsed case still refuses by size");
+  assert.match(text(r), /2x2/, "and still names what was measured");
 });

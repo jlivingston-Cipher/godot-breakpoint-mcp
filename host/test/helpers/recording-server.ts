@@ -26,13 +26,20 @@ export interface RecordedTool {
 
 export type ElicitFn = (req: unknown) => Promise<{ action: string; content?: Record<string, unknown> }>;
 
+/**
+ * 🆕 261 — the client's DECLARED capabilities, which `confirm.ts` now reads to tell
+ * "this client cannot be asked" apart from "this client was asked and the answer did
+ * not parse". Before 261 both printed the first sentence and pointed at the
+ * `confirm: true` bypass, so a malformed answer was reported as an absent feature and
+ * the remedy named was the one that skips the prompt.
+ */
 export interface RecordingServer {
   registerTool(name: string, config: Record<string, unknown>, handler: ToolHandler): { name: string };
   registerResource(name: string, ...rest: unknown[]): void;
-  server: { elicitInput: ElicitFn };
+  server: { elicitInput: ElicitFn; getClientCapabilities(): Record<string, unknown> | undefined };
 }
 
-export function makeRecordingServer(elicit?: ElicitFn): {
+export function makeRecordingServer(elicit?: ElicitFn, clientCapabilities?: Record<string, unknown>): {
   server: RecordingServer;
   tools: Map<string, RecordedTool>;
   resources: string[];
@@ -52,6 +59,9 @@ export function makeRecordingServer(elicit?: ElicitFn): {
     server: {
       // Default: behave like a client that declined. Tests override as needed.
       elicitInput: elicit ?? (async () => ({ action: "decline" })),
+      // Default: a client that declares elicitation — which is what a client reaching
+      // the prompt at all must have done. Pass `{}` for one that does not.
+      getClientCapabilities: () => clientCapabilities ?? { elicitation: {} },
     },
   };
 

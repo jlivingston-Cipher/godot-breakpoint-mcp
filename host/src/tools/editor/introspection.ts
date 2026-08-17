@@ -32,6 +32,42 @@ import { fail, type EditorCall } from "./common.js";
  */
 const MIN_RENDERED_VIEWPORT_PX = 8;
 
+/**
+ * 🔴 261 — THE SIZE GUARD ABOVE FIRES ONCE PER EDITOR SESSION AND THEN NEVER AGAIN,
+ * AND WHAT IT STOPS PROTECTING AGAINST IS WORSE THAN WHAT IT CATCHES.
+ *
+ * Measured at 261 on Godot 4.7, driving the published `breakpoint-mcp@1.76.0` as a
+ * client against a live editor. Godot collapses a main-screen tab's viewport to 2x2
+ * only while that tab has **never been activated**. Visit it once — which is step 5
+ * of the User Guide's own scene-authoring recipe — and the viewport keeps its full
+ * size for the rest of the session while it is hidden. It also stops updating:
+ *
+ *   tab 2D, capture 2d  -> 2214x1809  md5 4dcacd9ac2ce
+ *   tab 3D, capture 2d  -> 2214x1809  md5 4dcacd9ac2ce   (same frame, now hidden)
+ *   add a 900x700 magenta ColorRect to the scene, still on the 3D tab
+ *   tab 3D, capture 2d  -> 2214x1809  md5 4dcacd9ac2ce   🔴 UNCHANGED — frozen
+ *   tab 2D, capture 2d  -> 2214x1809  md5 b2075a8606e7   the rect is there
+ *
+ * So after the first tab switch every capture of the inactive viewport is a
+ * SUCCESS carrying a stale frame, and `MIN_RENDERED_VIEWPORT_PX` cannot see it,
+ * because the size is the one thing that did not change. An assistant reads that
+ * image as the current scene and edits against a picture of the past.
+ *
+ * The size threshold is a proxy for a question the editor can answer directly —
+ * *is the viewport I am capturing the one that is on screen?* — so ask that
+ * instead, and keep the size check underneath it as the second line for the
+ * never-visited case that reaches this code with a matching tab.
+ *
+ * 🔴 THE UNIT TEST THAT PINS THE SIZE GUARD FEEDS A MOCKED 2x2 THROUGH A FAKE
+ * BRIDGE. It is a true test of the branch and it is structurally unable to observe
+ * the engine behaviour the branch is a model of — which is why this survived from
+ * 1.30.0 to 1.76.0 with a green suite over it the whole way.
+ *
+ * Best-effort by construction: an addon too old to answer `main_screen.get`
+ * (pre-1.9.3) degrades to the size check alone rather than losing the capture.
+ */
+const VIEWPORT_TAB: Record<string, string> = { "2d": "2D", "3d": "3D" };
+
 /** Editor selection, ClassDB / docs lookups, and viewport screenshot. */
 export function registerIntrospectionTools(server: McpServer, call: EditorCall, bridge: BridgeClient): void {
   server.registerTool(
@@ -147,15 +183,40 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
       title: "Screenshot editor viewport",
       description:
         "Capture the 2D or 3D editor viewport as a PNG and return it as image content so the assistant can see the scene. " +
-        "Requires the matching editor tab (2D/3D) to be active: Godot collapses the inactive tab's viewport to a few " +
-        "pixels, and this tool returns a viewport_not_rendered error rather than that placeholder frame. " +
-        "A fresh editor is on the 3D tab and opening a scene does NOT switch it, so to capture 2d reliably call " +
-        'main_screen_set {"name":"2D"} first — or main_screen_get to see which tab is active.',
+        "The requested viewport's tab must be the ACTIVE main-screen tab, and this tool refuses with " +
+        "viewport_not_active when it is not: a hidden tab's viewport either collapses to a few pixels (before its " +
+        "first visit) or keeps rendering the frame it had when it was hidden (after), and the second case is a " +
+        "full-size stale image that looks exactly like a good capture. " +
+        'A fresh editor is on the 3D tab and opening a scene does NOT switch it, so to capture 2d call ' +
+        'main_screen_set {"name":"2D"} first AND pass {"viewport":"2d"} — the default is 3d, so switching the tab ' +
+        "alone captures the tab you just left. main_screen_get reports which tab is active.",
       inputSchema: { viewport: z.enum(["2d", "3d"]).optional().describe("Which viewport (default 3d)") },
     },
     async ({ viewport }) => {
       try {
-        const r = (await bridge.request("screenshot.editor_viewport", { viewport: viewport ?? "3d" })) as {
+        const want = viewport ?? "3d";
+        // 🔴 261 — ASK THE EDITOR WHICH TAB IS ON SCREEN BEFORE READING A TEXTURE.
+        // The size check below cannot separate "hidden and frozen" from "visible and
+        // unchanged", because after a tab's first visit those two states have the same
+        // dimensions. This one can, and it is the question the caller actually means.
+        // Degrades on an addon too old to answer, rather than refusing the capture.
+        let activeTab: string | undefined;
+        try {
+          const s = (await bridge.request("main_screen.get", {})) as { active?: string | null };
+          if (s?.active) activeTab = s.active;
+        } catch { /* pre-1.9.3 addon — fall through to the size check alone */ }
+        if (activeTab && VIEWPORT_TAB[want] && activeTab.toUpperCase() !== VIEWPORT_TAB[want]) {
+          return fail({
+            code: "viewport_not_active",
+            message:
+              `The ${want} editor viewport is not on screen — the editor is on the "${activeTab}" tab. Godot keeps a ` +
+              `hidden tab's viewport alive but stops drawing to it, so capturing it now returns the frame it held when ` +
+              `it was hidden, at full size and with no sign that it is stale. Call main_screen_set ` +
+              `{"name":"${VIEWPORT_TAB[want]}"} and retry, or capture the active tab with ` +
+              `screenshot_editor {"viewport":"${activeTab.toLowerCase()}"}.`,
+          });
+        }
+        const r = (await bridge.request("screenshot.editor_viewport", { viewport: want })) as {
           base64: string;
           mime: string;
           width: number;
@@ -164,14 +225,10 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
         };
         if (r.width < MIN_RENDERED_VIEWPORT_PX || r.height < MIN_RENDERED_VIEWPORT_PX) {
           // Name the tab that is ACTUALLY active rather than leaving the caller to infer
-          // it from a 2x2. Best-effort: this error must survive an addon too old to answer
-          // (main_screen.* is 1.9.3+), so a failure here degrades the message instead of
-          // replacing a useful "not rendered" error with an unrelated bridge error.
-          let active: string | undefined;
-          try {
-            const s = (await bridge.request("main_screen.get", {})) as { active?: string | null };
-            if (s?.active) active = s.active;
-          } catch { /* older addon, or no main-screen container — fall through */ }
+          // it from a 2x2. 261: the read now happens ABOVE, before the capture, so this
+          // arm reuses it — an addon too old to answer leaves it undefined and the message
+          // degrades exactly as it did before.
+          const active = activeTab;
           return fail({
             code: "viewport_not_rendered",
             message:

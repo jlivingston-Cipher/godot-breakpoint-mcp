@@ -242,6 +242,7 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "input_schema_shapes": ("shapes.inputs_compared", "shapes.inputs_parsed"),
     "output_schema_shapes": ("shapes.outputs_compared", "shapes.outputs_parsed"),
     "prefix_family_claims": ("families.prefix_glob_lines",),
+    "guide_recipe_tools": ("guide.recipe_tools", "guide.recipe_steps"),  # 🆕 261
     "privileged_tools": ("tools.privileged",),                        # 🆕 197
     "recipe_names_constant": ("recipes.names_constant",),             # 🆕 197
     "registered_recipes": ("recipes.registered",),
@@ -375,6 +376,11 @@ BLAST: dict[str, int] = {
     # expects and reddens a line that sat outside this blind's radius entirely.
     # The row moved because a reader started depending on this population, which is
     # exactly the cause 196 §3 wrote the number to make visible.
+    # 🆕 261 — check 31's reader. Blinding it empties both of its populations at once
+    # and no other check reads the guide's recipes, so the radius is the two ledger
+    # floors and nothing else. Predicted 2 and MEASURED 2 (259's rule: predict, then
+    # measure — `cli_surface` was predicted at 2 and measured 7).
+    "guide_recipe_tools": 2,
     "privileged_tools": 4,                    # also: checks 11, 13 (the constant roster)
     "recipe_names_constant": 2,               # also: check 12
     "registered_recipes": 4,                  # also: check 12
