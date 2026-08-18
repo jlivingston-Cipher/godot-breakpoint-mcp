@@ -23,9 +23,10 @@ import {
   NON_FINITE_TOLERANT,
   TOLERANT_METHODS,
   MESSAGE_CAP,
+  nonFiniteRemedy,
 } from "../src/finiteness.js";
 import { outputSchemas } from "../src/schemas.js";
-import { BridgeClient, BridgeError } from "../src/bridge.js";
+import { BridgeClient, BridgeError, remedyClause } from "../src/bridge.js";
 import { startTcpServer, makeLineParser, type TcpServer } from "./helpers/tcp.js";
 
 // 🔴 WALKED, NOT COUNTED IN `..`s — engine_log_echo.test.ts's note, and it caught this
@@ -333,4 +334,71 @@ test("runtime_screenshot_diff's ratio is division-guarded in the addon and stays
   const shape = outputSchemas.runtime_screenshot_diff as Record<string, z.ZodTypeAny>;
   assert.equal(shape.diff_ratio.safeParse(null).success, false);
   assert.equal(shape.diff_ratio.safeParse(0.25).success, true);
+});
+
+// ── 266: the refusal names a next action, and it is scoped to the family measured. ────
+
+test("nonFiniteRemedy branches on how many paths carry it, and the two sentences differ", () => {
+  const one = nonFiniteRemedy([{ path: "current", value: "Infinity" }] as never)!;
+  const many = nonFiniteRemedy(
+    ["a", "b", "c"].map((p) => ({ path: p, value: "Infinity" })) as never,
+  )!;
+  assert.match(one, /Inspect current in the project/, "one path is a place to go and look");
+  assert.match(many, /all 3 of the paths named above/, "three is almost always one upstream value");
+  assert.notEqual(one, many);
+  for (const r of [one, many]) {
+    assert.ok(r.endsWith("."), "check 28's grammar: a remedy ends in a full stop");
+    assert.ok(!/retry|try again/i.test(r), "the engine holds that value and will hold it on the next call too");
+  }
+});
+
+test("nonFiniteRemedy invents nothing when there are no hits", () => {
+  assert.equal(nonFiniteRemedy([]), undefined);
+});
+
+/**
+ * 🔴 THE `finally` IS LOAD-BEARING AND IT WAS FOUND BY A POSITIVE CONTROL (266). Written
+ * with `client.close()` after the await — the shape every socket test in this file
+ * already uses — a FAILING assertion inside the `assert.rejects` predicate propagates,
+ * the close never runs, and the open server holds the event loop so `node --test` HANGS
+ * instead of failing. Measured: the blind that collapses `nonFiniteRemedy`'s branch
+ * turned a two-second file into a timeout. A test that cannot report its own failure is
+ * worth less than no test, so the teardown is unconditional here.
+ */
+test("the refused reply carries the remedy in the FIELD, driven through a real socket", async () => {
+  const srv = await startBridge('{"previous":1.0,"current":1e99999}');
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  try {
+    await assert.rejects(
+      client.request("runtime.time_scale", {}),
+      (e: unknown) => {
+        assert.ok(e instanceof BridgeError && e.code === "non_finite");
+        assert.match(e.message, /current=Infinity/, "the message still names the path, unchanged");
+        assert.match(remedyClause(e), / — Inspect current in the project/, "and the next action now reaches a reader");
+        return true;
+      },
+    );
+  } finally {
+    client.close();
+    await srv.close();
+  }
+});
+
+/**
+ * 🔴 NAN IS NOT THIS REFUSAL'S POPULATION, AND THE MESSAGE'S OWN ASIDE MAKES THAT EASY TO
+ * ASSUME OTHERWISE. Godot writes NAN as `null`, which is not a number, so `findNonFinite`
+ * never sees it and the reply RESOLVES. Pinned here because 266's remedy speaks about an
+ * infinity and about nothing else, and that scoping is only honest while this holds.
+ */
+test("a NAN — which Godot writes as null — never reaches non_finite at all", async () => {
+  assert.deepEqual(findNonFinite({ current: null }), []);
+  const srv = await startBridge('{"previous":1.0,"current":null}');
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  try {
+    const r = await client.request<Record<string, unknown>>("runtime.time_scale", {});
+    assert.deepEqual(r, { previous: 1, current: null }, "it resolves, and the client's own schema is what refuses it");
+  } finally {
+    client.close();
+    await srv.close();
+  }
 });

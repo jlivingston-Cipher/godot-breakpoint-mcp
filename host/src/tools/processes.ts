@@ -6,6 +6,7 @@ import { log } from "../logger.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
+import { describeExit } from "../exit-cause.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 
 interface LogLine {
@@ -21,6 +22,21 @@ interface Managed {
   seq: number;
   exited: boolean;
   exitCode: number | null;
+  /**
+   * The signal that ended the child, when one did.
+   *
+   * 🔴 NODE HANDED THIS TO US ON EVERY KILL SINCE THIS REGISTRY WAS WRITTEN AND IT WAS
+   * ASSIGNED TO NOTHING (266). `child.on("exit", …)` is called with `(code, signal)`, and
+   * the handler below declared one parameter — so a SIGKILLed child recorded
+   * `exitCode: null` and `peers.ts` rendered that null into a sentence reading
+   * `exited (code null)`. It is 265's "a default that compiles asks no question" spelled
+   * as an argument nobody declared: omitting a parameter is not an edit anybody reviews.
+   *
+   * 🔵 Internal for now. `godot_process_output` still answers `exit_code` alone and gains
+   * no `signal` key here — that is a wire addition to a shipped tool and is enqueued, not
+   * folded into a PATCH. `describeExit` in `exit-cause.ts` is the only reader today.
+   */
+  exitSignal: NodeJS.Signals | null;
 }
 
 const LINE_CAP = 5000;
@@ -53,7 +69,7 @@ export class ProcessRegistry {
       stdio: ["ignore", "pipe", "pipe"],
       ...(env ? { env: { ...process.env, ...env } } : {}),
     });
-    const m: Managed = { id, child, lines: [], seq: 0, exited: false, exitCode: null };
+    const m: Managed = { id, child, lines: [], seq: 0, exited: false, exitCode: null, exitSignal: null };
     const ingest = (stream: "stdout" | "stderr") => (buf: Buffer | string) => {
       const text = typeof buf === "string" ? buf : buf.toString("utf8");
       for (const line of text.split(/\r?\n/)) {
@@ -65,10 +81,11 @@ export class ProcessRegistry {
     };
     child.stdout?.on("data", ingest("stdout"));
     child.stderr?.on("data", ingest("stderr"));
-    child.on("exit", (code) => {
+    child.on("exit", (code, signal) => {
       m.exited = true;
       m.exitCode = code;
-      log(`managed process ${id} exited (${code})`);
+      m.exitSignal = signal;
+      log(`managed process ${id} ${describeExit(code, signal)}`);
     });
     this.procs.set(id, m);
     return m;

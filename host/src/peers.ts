@@ -5,6 +5,7 @@ import { ensureProjectSecret, readProjectSecret } from "./secret.js";
 import { log } from "./logger.js";
 import { portFree } from "./ports.js";
 import { waitForBridge } from "./readiness.js";
+import { describeExit, peerExitRemedy, readinessHint, readinessRemedy, type ReadinessCause } from "./exit-cause.js";
 
 /**
  * F6 narrow — multi-peer deterministic playtesting.
@@ -141,9 +142,13 @@ export class PeerRegistry {
     const m = this.procs.get(e.managedId);
     if (m?.exited) {
       const tail = this.procs.tail(e.managedId, 6).join(" | ");
+      // 🔴 `describeExit` RATHER THAN `exitCode` ALONE (266). A SIGKILLed child has a null
+      // code and a signal, and this sentence used to render the null: `exited (code null)`.
+      // See exit-cause.ts for the argument node was handing us and nobody declared.
       throw new BridgeError(
         "peer_exited",
-        `Peer "${id}" exited (code ${m.exitCode})${tail ? `; last output: ${tail}` : ""}.`,
+        `Peer "${id}" ${describeExit(m.exitCode, m.exitSignal)}${tail ? `; last output: ${tail}` : ""}.`,
+        peerExitRemedy(tail.length > 0),
       );
     }
     return e.client;
@@ -279,10 +284,16 @@ export class PeerRegistry {
 
     const notReady = spawned.filter((e) => !e.info.ready);
     if (notReady.length) {
+      // 🔴 THE CAUSE IS COLLECTED, NOT JUST RENDERED (266). `m?.exited` decided one word
+      // of the sentence and was then thrown away, so the hint below was pasted over both
+      // measured causes and was FALSE on one of them — an absent runtime autoload does
+      // not stop a process, it stops a process from ANSWERING. See exit-cause.ts.
+      const causes: ReadinessCause[] = [];
       const detail = notReady
         .map((e) => {
           const m = this.procs.get(e.managedId);
-          const why = m?.exited ? `exited (code ${m.exitCode})` : "never answered ping";
+          causes.push(m?.exited ? "exited" : "silent");
+          const why = m?.exited ? describeExit(m.exitCode, m.exitSignal) : "never answered ping";
           const tail = this.procs.tail(e.managedId, 6).join(" | ");
           return `${e.info.id} on ${e.info.port}: ${why}${tail ? ` — ${tail}` : ""}`;
         })
@@ -291,10 +302,15 @@ export class PeerRegistry {
       // can still runtime_peer_stop{all:true}, and a half-started peer that
       // vanished from the registry is harder to reason about than one that
       // reports why it is not ready.
+      const hint = readinessHint(
+        causes,
+        `Is the Breakpoint MCP addon enabled in this project (it registers the runtime autoload)?`,
+      );
       throw new BridgeError(
         "peer_not_ready",
-        `${notReady.length} of ${spawned.length} peer(s) did not become ready. ${detail}. ` +
-          `Is the Breakpoint MCP addon enabled in this project (it registers the runtime autoload)?`,
+        `${notReady.length} of ${spawned.length} peer(s) did not become ready. ${detail}.` +
+          (hint ? ` ${hint}` : ""),
+        readinessRemedy(causes),
       );
     }
 
