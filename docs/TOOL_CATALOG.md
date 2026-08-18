@@ -2298,7 +2298,7 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state", "scene"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "scene": { "type": "string" }, "stop_on_entry_honored": { "type": "boolean", "description": "present only when stop_on_entry was requested: whether an entry stop actually landed" }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" }, "description": "breakpoint modifiers dropped when this handshake applied the buffered breakpoints" }, "warning": { "type": "string", "description": "present when stop_on_entry was requested and the adapter ignored it, and/or when buffered modifiers were dropped" } } }
+{ "type": "object", "required": ["session_id", "state", "scene", "initialized_seen"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "scene": { "type": "string" }, "initialized_seen": { "type": "boolean", "description": "whether the adapter emitted its initialized event before breakpoints were applied; false means the handshake ran out of the order DAP specifies" }, "stop_on_entry_honored": { "type": "boolean", "description": "present only when stop_on_entry was requested: whether an entry stop actually landed" }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" }, "description": "breakpoint modifiers dropped when this handshake applied the buffered breakpoints" }, "warning": { "type": "string", "description": "present when stop_on_entry was requested and the adapter ignored it, and/or when buffered modifiers were dropped" } } }
 ```
 🔴 **It reports what the handshake dropped.** Breakpoint modifiers buffered before a session cannot be feature-detected until the adapter advertises its capabilities, so `dbg_set_breakpoints` can only say `modifier_detection: "deferred"`. This is where the caller learns the outcome — see `dbg_set_breakpoints` below.
 
@@ -2310,7 +2310,7 @@ Attach to an already-running Godot debug session. 🔴 **An attach the adapter r
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" }, "description": "breakpoint modifiers dropped when this handshake applied the buffered breakpoints" }, "warning": { "type": "string" } } }
+{ "type": "object", "required": ["session_id", "state", "initialized_seen"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "initialized_seen": { "type": "boolean", "description": "whether the adapter emitted its initialized event before breakpoints were applied; false means the handshake ran out of the order DAP specifies" }, "unsupported_modifiers": { "type": "array", "items": { "type": "string" }, "description": "breakpoint modifiers dropped when this handshake applied the buffered breakpoints" }, "warning": { "type": "string" } } }
 ```
 
 ### `dbg_set_breakpoints` ✅
@@ -2473,7 +2473,7 @@ Launch a C# Godot game under netcoredbg. `program` defaults to the configured Mo
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" } } }
+{ "type": "object", "required": ["session_id", "state", "initialized_seen"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "initialized_seen": { "type": "boolean", "description": "whether the adapter emitted its initialized event before breakpoints were applied; false means the handshake ran out of the order DAP specifies" }, "warning": { "type": "string", "description": "present when the adapter never emitted initialized" } } }
 ```
 
 ### `cs_dbg_attach` ✅
@@ -2484,7 +2484,7 @@ Attach netcoredbg to an already-running .NET process (e.g. a C# Godot game launc
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["session_id", "state"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" } } }
+{ "type": "object", "required": ["session_id", "state", "initialized_seen"], "properties": { "session_id": { "type": "string" }, "state": { "type": "string" }, "initialized_seen": { "type": "boolean", "description": "whether the adapter emitted its initialized event before breakpoints were applied; false means the handshake ran out of the order DAP specifies" }, "warning": { "type": "string", "description": "present when the adapter never emitted initialized" } } }
 ```
 
 ### `cs_dbg_set_breakpoints` ✅
@@ -4249,7 +4249,9 @@ Read captured console output for a managed process.
 { "type": "object", "required": ["id", "lines"],
   "properties": {
     "id": { "type": "string" }, "exited": { "type": "boolean" },
-    "exit_code": { "type": ["integer", "null"] }, "latest_seq": { "type": "integer" },
+    "exit_code": { "type": ["integer", "null"] },
+    "signal": { "type": ["string", "null"], "description": "the signal that ended the child (e.g. SIGKILL), null otherwise" },
+    "latest_seq": { "type": "integer" },
     "lines": { "type": "array", "items": { "type": "object", "properties": {
       "seq": { "type": "integer" }, "stream": { "enum": ["stdout", "stderr"] }, "text": { "type": "string" } } } } } }
 ```

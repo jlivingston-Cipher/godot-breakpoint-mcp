@@ -78,9 +78,22 @@ test("waitForRuntimeBridge distinguishes not-waited from waited-and-lost", async
 
 test("the two not-ready sentences say different things, because they are different facts", () => {
   const c = cfg(9081);
-  assert.match(notReadyRemedy(c, 0), /no wait was requested/);
-  assert.match(notReadyRemedy(c, 15000), /did not answer ping within 15000 ms/);
-  // 254's rule: a message that says what broke has done half the job.
-  assert.match(notReadyRemedy(c, 15000), /Breakpoint MCP.*plugin enabled/s);
-  assert.match(notReadyRemedy(c, 0), /runtime_get_tree/);
+  // 🔴 BOTH SENTENCES WERE REWRITTEN AT 267 AND THIS TEST IS PART OF THE FINDING. It
+  // asserted the sentence the code produced — `/no wait was requested/` and
+  // `/Breakpoint MCP.*plugin enabled/` — and both of those spans were the DEFECT: the
+  // first was a description standing where the next action belongs, and the second was a
+  // question pasted over two causes, the one 266 removed one file away. A green assertion
+  // on a message body is indistinguishable from a green assertion on a correct one.
+  //
+  // What is asserted now is the SHAPE the whole population answers to: an imperative at
+  // the head, the fact after the dash.
+  assert.match(notReadyRemedy(c, 0), /^Call `runtime_get_tree`/);
+  assert.match(notReadyRemedy(c, 0), /wait_timeout_ms 0 asked for no wait/);
+  assert.match(notReadyRemedy(c, 15000), /^Raise wait_timeout_ms/);
+  assert.match(notReadyRemedy(c, 15000), /answered no ping in 15000 ms/);
+  // Both causes are NAMED and each gets an action; neither is asked about.
+  assert.match(notReadyRemedy(c, 15000), /slow to boot/);
+  assert.match(notReadyRemedy(c, 15000), /Breakpoint MCP/);
+  assert.doesNotMatch(notReadyRemedy(c, 15000), /\?/);
+  assert.notEqual(notReadyRemedy(c, 0), notReadyRemedy(c, 15000));
 });

@@ -21,6 +21,8 @@ const POSIX = process.platform !== "win32";
 
 let dir: string;
 let fakeGodot: string;
+/** A fixture that does not exit on its own — see `before` for why a kill needs one. */
+let sleepyGodot: string;
 /** A runtime-bridge port that nothing holds, so the no-conflict path is the default. */
 let freeRuntimePort: number;
 
@@ -63,6 +65,10 @@ before(async () => {
     ].join("\n"),
     { mode: 0o755 },
   );
+  // A fixture that STAYS UP, so a kill is a kill rather than a race with a fast exit.
+  // The default fixture above exits 0 in milliseconds; signalling it is a coin toss.
+  sleepyGodot = path.join(dir, "sleepygodot.sh");
+  fs.writeFileSync(sleepyGodot, ["#!/bin/sh", 'echo "up"', "sleep 30", ""].join("\n"), { mode: 0o755 });
   freeRuntimePort = await freePort();
 });
 
@@ -245,4 +251,55 @@ test("a free runtime port is not read as a conflict once the holder lets go", { 
   } finally {
     reg.killAll();
   }
+});
+
+/**
+ * 267 — `signal` on the wire, and the pair that proves the key discriminates.
+ *
+ * 🔴 266 CAPTURED THE SIGNAL AND DELIBERATELY LEFT THE WIRE ALONE. `child.on("exit", …)`
+ * had been handed node's second argument since the registry was written and assigned it
+ * to nothing; 266 fixed the capture, said out loud that a `signal` key on a shipped tool
+ * is a MINOR rather than a PATCH, and enqueued it as `process-output-omits-signal`. This
+ * is that row paid.
+ *
+ * What it buys a caller: `exit_code: null` is what BOTH a signal-killed child and a child
+ * that has not finished look like from `godot_output`, and `exited` alone does not
+ * separate a clean `exit 0` from a `SIGTERM`. The pair below is asserted to DIFFER,
+ * because a key hard-coded to `null` — or to a signal name — satisfies either half alone.
+ */
+test("267: godot_output answers the signal that killed a child, and null when one exited on its own", { skip: !POSIX }, async () => {
+  const rec = makeRecordingServer();
+  const reg = registerProcessTools(
+    rec.server as unknown as Parameters<typeof registerProcessTools>[0],
+    { ...cfg(), godotBin: sleepyGodot } as Config,
+  );
+
+  // A — killed by a signal. The fixture sleeps, so the kill is what ends it.
+  const killed = sc((await rec.handler("godot_run_managed")({ wait_timeout_ms: 0 })) as ToolResultLike);
+  const killedId = killed.id as string;
+  await rec.handler("godot_stop")({ id: killedId });
+  await waitFor(() => reg.get(killedId)?.exited);
+  const killedOut = sc((await rec.handler("godot_output")({ id: killedId })) as ToolResultLike);
+
+  assert.equal(killedOut.exited, true);
+  assert.equal(killedOut.signal, "SIGTERM");
+  // The code is null here, which is precisely why the code alone could not answer.
+  assert.equal(killedOut.exit_code, null);
+  reg.killAll();
+
+  // B — exited on its own, against the fixture that returns 0.
+  const rec2 = makeRecordingServer();
+  const reg2 = registerProcessTools(rec2.server as unknown as Parameters<typeof registerProcessTools>[0], cfg());
+  const clean = sc((await rec2.handler("godot_run_managed")({ wait_timeout_ms: 0 })) as ToolResultLike);
+  const cleanId = clean.id as string;
+  await waitFor(() => reg2.get(cleanId)?.exited);
+  const cleanOut = sc((await rec2.handler("godot_output")({ id: cleanId })) as ToolResultLike);
+
+  assert.equal(cleanOut.exited, true);
+  assert.equal(cleanOut.signal, null);
+  assert.equal(cleanOut.exit_code, 0);
+
+  // 🔴 THE PAIR MUST DIFFER on the new key — the assertion a constant defeats.
+  assert.notEqual(killedOut.signal, cleanOut.signal);
+  reg2.killAll();
 });

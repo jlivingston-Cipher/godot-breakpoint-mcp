@@ -6,6 +6,59 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.79.0] — 2026-08-18
+
+### Added — the two DAP/LSP error classes gained the field the answers had nowhere to go
+
+- 🔴 **`DapError` and `LspError` now carry a `remedy`, and that field's absence WAS the row.**
+  264's census counted 25 host-raised failures about the world: one carried a next action on a
+  field, SEVEN pasted one into their message where nothing structural can read it, and
+  SEVENTEEN said nothing at all. 266 answered the last three that had somewhere to put an
+  answer. The remaining five — the four request deadlines (`GODOT_DAP_TIMEOUT_MS`,
+  `GODOT_CSDAP_TIMEOUT_MS`, `GODOT_LSP_TIMEOUT_MS`, `GODOT_CSLSP_TIMEOUT_MS`) and the C# session
+  start — were not unanswerable, they were unhousable. `host/src/timeout-cause.ts` answers the
+  deadlines; `CS_START_REMEDY`, `DAP_RESTART_REMEDY` and `CS_RESTART_REMEDY` answer the rest.
+- **Eleven raise sites now speak through one channel.** The four `closed` handlers and the two
+  restart refusals had their next action moved OUT of the message and onto the field. What a
+  caller receives is **byte-identical** — the message ended in ` — <remedy>` and `fail()`
+  appends exactly that — and a test asserts the rendered string against the one the old code
+  built, because a change of channel that is also a change of wording is two changes.
+- **`initialized_seen` on `dbg_launch`, `dbg_attach`, `cs_dbg_launch` and `cs_dbg_attach`.**
+  The wait for the adapter's `initialized` event RESOLVES on timeout, so for as long as these
+  handshakes have existed a five-second silence and a prompt event were the same observable and
+  breakpoints went out ahead of the event the DAP specification says must precede them, with no
+  complaint. Reported, not refused: every adapter that works today keeps working, the key is
+  always present, and `false` carries a warning naming the window and the symptom.
+- **`signal` on `godot_output`.** 266 captured the signal node had been handing the process
+  registry since it was written and deliberately left the wire alone, because a key on a shipped
+  tool is a MINOR. This is `process-output-omits-signal` paid: `exit_code: null` is what both a
+  `SIGKILL`ed child and an unfinished one look like, and the new key separates them.
+
+### Fixed — two shipped remedy sentences a gate found the moment it was allowed to read them
+
+- 🔴 **`readiness.ts` still asked 266's question.** *Is the "Breakpoint MCP" plugin enabled in
+  this project?* — with *if the project is simply slow to boot* three clauses later, so one
+  sentence named two causes and instructed on neither. That is exactly the defect 266 removed
+  from `peers.ts`, surviving the session that removed it, because nothing joined the two sites.
+  Both `notReadyRemedy` sentences now open with the action and name one per cause.
+- **Two host remedies were paragraphs.** `notReadyRemedy` and `exit-cause.ts`'s mixed-population
+  sentence ran to 318 and 255 characters against the 210-character ceiling check 28 has always
+  enforced on the addon's own table. Trimmed, with both populations still named.
+
+### Changed — check 28 stopped agreeing with itself
+
+- 🔴 **The renderer population was scoped to the class that already complied.** `remedy_renderers_read`
+  selected `fail()` functions mentioning `Partial<BridgeError>` — five of nine — so the four
+  rendering `DapError`, `LspError` and a path refusal were not in the population at all and the
+  gate could not notice they appended nothing. The predicate is now the `fail(err: unknown)`
+  signature all nine share.
+- **Two new readers.** A raise-site join (every host-INVENTED `DapError`/`LspError` names a
+  `*Remedy`; a site relaying the peer's own words is exempt and must not) and a grammar pass over
+  the host's own remedy sentences, derived from the `*Remedy` / `*_REMEDY` convention the tree
+  already used. Both report the size of what they scanned, because an empty list means *nothing
+  wrong* and *did not look* identically. Five imperatives were added to the vocabulary, which was
+  harvested from one table and read like a rule.
+
 ## [1.78.3] — 2026-08-18
 
 ### Fixed — a peer that died was blamed on a plugin, and a killed one reported a null
@@ -25,7 +78,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   signal that ended the child was handed to the host on every kill since the registry was
   written and assigned to nothing. It is captured now, and the message says *killed by
   SIGKILL* where it used to print a null, and the replacement it names is
-  `runtime_spawn_peers`. `godot_process_output`'s output shape is unchanged.
+  `runtime_spawn_peers`. `godot_output`'s output shape is unchanged.
 - **A refused non-finite reply now names a next action** (`non_finite`). The engine really does hold that
   value and will hold it on the next call, so the sentence sends you to the property rather
   than offering a retry — one path is a place to look, several is almost always one

@@ -2,26 +2,92 @@ import { EventEmitter } from "node:events";
 import { FramedConnection, type FramedMessage } from "./framing.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
+import { timeoutRemedy } from "./timeout-cause.js";
 
 /**
  * Who answers this plane, in the words its late-reply ledger already uses.
  *
- * 🔴 ONE CONSTANT, TWO READERS (264). The ledger names this peer when a reply arrives
- * late and `closeRemedy` names it when the connection drops. Two literals would let the
- * same peer acquire two names on the same run, which is the class of drift 257's
- * per-instance deadline noun was written to stop.
+ * 🔴 ONE CONSTANT, THREE READERS (264, 267). The ledger names this peer when a reply
+ * arrives late, `closeRemedy` names it when the connection drops, and `timeoutRemedy`
+ * names it when a deadline fires. Two literals would let the same peer acquire two names
+ * on the same run, which is the class of drift 257's per-instance deadline noun was
+ * written to stop.
  */
 const DAP_PEER = "the debug adapter";
 
+/**
+ * The environment variable this plane's deadline comes from.
+ *
+ * 🔴 ONE CONSTANT, TWO READERS, FOR THE REASON DIRECTLY ABOVE. The ledger prints it on a
+ * late reply and `timeoutRemedy` tells the caller to raise it; a knob renamed in
+ * `config.ts` and updated in one of the two would send an operator to export a variable
+ * nothing reads, which is worse than saying nothing.
+ */
+const DAP_TIMEOUT_KNOB = "GODOT_DAP_TIMEOUT_MS";
+
 export class DapError extends Error {
+  /**
+   * The next action — the same field `BridgeError` has carried since 254, for the same
+   * reason, and 🔴 **ITS ABSENCE WAS THE WHOLE OF THE ROW THIS CLOSES.** 264's census
+   * found 13 of 25 host-raised failures sitting on classes with nowhere to put an answer;
+   * this class was two of the four. Worse than nowhere: three of the raise sites below
+   * DID know the next action and pasted it into the MESSAGE, where nothing structural can
+   * read it — no gate can join it, `fail()` cannot render it under one clause with the
+   * rest, and a reword drops it with no test able to tell.
+   *
+   * Optional by construction, exactly as on `BridgeError`: a rejection RELAYING the
+   * adapter's own words has no business inventing a next action on its behalf. Absent
+   * here means nobody has answered that site yet, not that it is unanswerable.
+   */
+  remedy?: string;
   constructor(
     public command: string,
     message: string,
+    remedy?: string,
   ) {
     super(message);
     this.name = "DapError";
+    if (remedy) this.remedy = remedy;
   }
 }
+
+/**
+ * The ceiling on the wait for `initialized`, shared by both DAP planes.
+ *
+ * Not a new number — both clients have used `Math.min(timeoutMs, 5000)` since their
+ * handshakes were written. It is named here because 267 made the OUTCOME of that wait
+ * something a caller reads, and a window reported in a warning has to be the window that
+ * was actually waited.
+ */
+export const INITIALIZED_WAIT_CEILING_MS = 5000;
+
+/**
+ * What a launch/attach result says when the adapter never announced itself.
+ *
+ * 🔴 REPORTED, NOT REFUSED, AND THE CHOICE IS THE WHOLE OF THE ROW. The wait has resolved
+ * on its own timer since the handshake was written, so every adapter in the field has
+ * been launching through this path; refusing outright would break working setups to fix a
+ * silence. The shape is the one this tool already ships for `stop_on_entry_honored`: name
+ * what did not happen, name the symptom to expect, leave the session alone. A stricter
+ * refusal remains available and is a separate decision.
+ */
+export function unorderedHandshakeWarning(waitedMs: number): string {
+  return (
+    `The debug adapter did not announce itself with an initialized event within ${waitedMs}ms. ` +
+    `Breakpoints were applied outside the order the DAP specification requires, so a breakpoint ` +
+    `that silently fails to bind is the symptom to expect; the session is otherwise live.`
+  );
+}
+
+/**
+ * The next action when `restart` is called with no launch behind it.
+ *
+ * A `*_REMEDY` const rather than a literal at the throw site because check 28's grammar
+ * reader finds host-side remedies by that naming convention — a sentence spelled inline
+ * is a sentence no gate reads, which is the defect this whole change is about.
+ */
+export const DAP_RESTART_REMEDY =
+  "Call `dbg_launch` or `dbg_attach` first — a restart reuses the parameters of a launch that already happened, and none has.";
 
 interface Pending {
   command: string;
@@ -117,7 +183,7 @@ export class DapClient extends EventEmitter {
    * dropped. `seq` is monotonic and is never reset, so a seq is never reused and
    * a late response can only be its own request's.
    */
-  private readonly ledger = new OverdueLedger<number>("DAP", DAP_PEER, "GODOT_DAP_TIMEOUT_MS");
+  private readonly ledger = new OverdueLedger<number>("DAP", DAP_PEER, DAP_TIMEOUT_KNOB);
   private configured = false;
   /** Persistent watch expressions, re-evaluated at each stop (see evaluateWatches). */
   private watches: string[] = [];
@@ -199,15 +265,19 @@ export class DapClient extends EventEmitter {
       // Without it every pending request reported a generic close and the operator
       // could not tell a crashed server from something else holding the port.
       const detail = closeDetail(cause);
-        // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), IN THE MESSAGE BECAUSE THIS CLASS
-        // HAS NOWHERE ELSE TO PUT IT. `DapError` carries no `remedy` field, and the plane's
-        // `fail()` renders no `remedyClause`, so the next action goes where the caller will
-        // actually read it. 264's census records the asymmetry rather than hiding it: of 25
-        // host-raised failures about the world, 13 are on classes that cannot carry an answer.
+      // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), NOW ON THE FIELD RATHER THAN IN
+      // THE MESSAGE (267). The comment that stood here said `DapError` "carries no
+      // `remedy` field, and the plane's `fail()` renders no `remedyClause`, so the next
+      // action goes where the caller will actually read it" — true when it was written,
+      // and the reason 264's census counted this site among the SEVEN that named an
+      // action nothing structural could read. Both halves are gone: the field exists and
+      // `fail()` appends the clause. **What a caller receives is byte-identical**, which
+      // is asserted rather than assumed — the message ended in ` — ${remedy}` and the
+      // renderer appends exactly that, so this is a change of channel, not of wording.
       const remedy = closeRemedy(cause, DAP_PEER);
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
-        p.reject(new DapError(p.command, `DAP connection closed${detail}${remedy ? ` — ${remedy}` : ""}`));
+        p.reject(new DapError(p.command, `DAP connection closed${detail}`, remedy));
       }
       this.pending.clear();
       this.emit("closed");
@@ -285,7 +355,16 @@ export class DapClient extends EventEmitter {
         // Remember the seq BEFORE rejecting, so a response already in flight is
         // reconciled rather than dropped as anonymous.
         this.ledger.note(seq, command, timeoutMs);
-        reject(new DapError(command, `DAP '${command}' timed out after ${timeoutMs}ms`));
+        // The message keeps its exact `timed out after <n>ms` wording — `tools/dap.ts`'s
+        // `isDapTimeout` branches on it and `timeout-caveat.ts` says out loud that this
+        // predicate must not be disturbed. The next action rides beside it, not inside it.
+        reject(
+          new DapError(
+            command,
+            `DAP '${command}' timed out after ${timeoutMs}ms`,
+            timeoutRemedy(DAP_PEER, DAP_TIMEOUT_KNOB),
+          ),
+        );
       }, timeoutMs);
       this.pending.set(seq, { command, resolve: resolve as (v: Record<string, unknown>) => void, reject, timer });
       this.conn.send({ seq, type: "request", command, arguments: args }).catch((err: Error) => {
@@ -304,15 +383,32 @@ export class DapClient extends EventEmitter {
     return this.ledger.recent();
   }
 
-  private waitEvent(name: string, timeoutMs: number): Promise<void> {
-    return new Promise<void>((resolve) => {
+  /**
+   * Wait for `name`, bounded — resolving **`true` when the event arrived and `false` when
+   * the timer fired**.
+   *
+   * 🔴 THE RETURN VALUE IS THE FIX (267), AND THE OLD SIGNATURE IS WHY THE DEFECT COULD
+   * NOT BE SEEN. `Promise<void>` gave both outcomes the same shape, so `await onInit` in
+   * `start()` below could not distinguish *the adapter said it was ready* from *five
+   * seconds passed*, and the handshake carried on either way — sending `setBreakpoints`
+   * ahead of the event the DAP specification says must precede it, and telling nobody.
+   * Driven against a stub adapter that answers `initialize` and never emits
+   * `initialized`, `start()` returned after 5,003 ms having sent
+   * `initialize -> launch -> setBreakpoints -> configurationDone` in exactly the order a
+   * conformant run sends them, with no complaint anywhere.
+   *
+   * 262's rule, one instance further in: a guard that asks whether the container exists
+   * has not asked whether the content is there. A resolve is not an answer.
+   */
+  private waitEvent(name: string, timeoutMs: number): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
         this.removeListener(name, onEvent);
-        resolve();
+        resolve(false);
       }, timeoutMs);
       const onEvent = () => {
         clearTimeout(timer);
-        resolve();
+        resolve(true);
       };
       this.once(name, onEvent);
     });
@@ -460,12 +556,19 @@ export class DapClient extends EventEmitter {
    * before returning — see `dbg_launch`'s `stop_on_entry`. Godot 4.7 does not honour
    * `stopOnEntry` at all, so this wait times out there and the caller is told so
    * rather than being handed a bare `running` that reads like it worked.
+   *
+   * 🆕 `initializedSeen` (267) is the SAME DISCIPLINE applied to the wait one line up.
+   * The `initialized` wait had been resolving on its own timer since this handshake was
+   * written, so a five-second silence and a prompt event were the same observable and the
+   * caller was handed a session that read exactly like a conformant one. It is reported,
+   * not refused: every adapter that works today keeps working, and the four launch tools
+   * say which of the two happened — the shape `stop_on_entry_honored` already ships in.
    */
   async start(
     mode: "launch" | "attach",
     args: Record<string, unknown>,
     entryStopWaitMs = 0,
-  ): Promise<{ entryStopSeen: boolean }> {
+  ): Promise<{ entryStopSeen: boolean; initializedSeen: boolean; initializedWaitMs: number }> {
     // Remember how we started so restart() can reuse (or override) these params.
     this.lastStartMode = mode;
     this.lastStartArgs = args;
@@ -474,7 +577,12 @@ export class DapClient extends EventEmitter {
     // restart may reach a different build than the one that dropped last time.
     this.droppedModifiers.clear();
     // Listen for `initialized` before we ask, so we cannot miss it.
-    const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
+    // The window is captured rather than recomputed at the report site: it is
+    // `min(timeoutMs, 5000)`, so a caller who raised the deadline gets 5000 and one who
+    // lowered it gets their own number, and a warning naming the wrong one is a warning
+    // that sends an operator to the wrong knob.
+    const initializedWaitMs = Math.min(this.timeoutMs, INITIALIZED_WAIT_CEILING_MS);
+    const onInit = this.waitEvent("initialized", initializedWaitMs);
     this.capabilities = await this.request("initialize", {
       clientID: "breakpoint-mcp",
       clientName: "Godot Breakpoint MCP",
@@ -502,7 +610,11 @@ export class DapClient extends EventEmitter {
     });
     // An entry stop can arrive before configurationDone answers — arm first.
     const entryStop = entryStopWaitMs > 0 ? this.waitEvent("stopped", entryStopWaitMs) : null;
-    await onInit;
+    // 🔴 CAPTURED, NOT DISCARDED (267). `await onInit` threw this away for as long as the
+    // handshake has existed, which is why `setBreakpoints` going out ahead of the event
+    // that licenses it was invisible: the failing case and the succeeding case returned
+    // the same `undefined`.
+    const initializedSeen = await onInit;
     await this.applyAllBreakpoints();
     await this.request("configurationDone", {}).catch(() => undefined);
     // 🔴 By the time we get here an already-arrived rejection has ALREADY run its
@@ -523,7 +635,7 @@ export class DapClient extends EventEmitter {
       await entryStop;
       if (startFailure) throw startFailure;
     }
-    return { entryStopSeen: this.stoppedNow() };
+    return { entryStopSeen: this.stoppedNow(), initializedSeen, initializedWaitMs };
   }
 
   threadId(): number {
@@ -606,7 +718,7 @@ export class DapClient extends EventEmitter {
     waitMs = 15000,
   ): Promise<{ method: "restart" | "relaunch"; state: DapState; reason: string | null; scene: string | null }> {
     if (!this.lastStartMode || !this.lastStartArgs) {
-      throw new DapError("restart", "no debug session to restart — call dbg_launch or dbg_attach first");
+      throw new DapError("restart", "no debug session to restart", DAP_RESTART_REMEDY);
     }
     const args = { ...this.lastStartArgs, ...overrideArgs };
     const scene = typeof args["scene"] === "string" ? (args["scene"] as string) : null;

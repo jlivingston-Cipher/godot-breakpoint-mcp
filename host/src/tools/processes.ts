@@ -32,9 +32,11 @@ interface Managed {
    * `exited (code null)`. It is 265's "a default that compiles asks no question" spelled
    * as an argument nobody declared: omitting a parameter is not an edit anybody reviews.
    *
-   * 🔵 Internal for now. `godot_process_output` still answers `exit_code` alone and gains
-   * no `signal` key here — that is a wire addition to a shipped tool and is enqueued, not
-   * folded into a PATCH. `describeExit` in `exit-cause.ts` is the only reader today.
+   * 🟢 ON THE WIRE SINCE 267. 266 kept this internal on purpose — a `signal` key is a
+   * wire addition to a shipped tool and would have made that PATCH a MINOR — and enqueued
+   * it. `godot_output` now answers it, nullable beside `exit_code`. Note the tool is
+   * `godot_output`; the queue row and three handoffs called it `godot_process_output`,
+   * which is a name `registerTool` has never been given.
    */
   exitSignal: NodeJS.Signals | null;
 }
@@ -200,7 +202,12 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       const since = since_seq ?? 0;
       const want = stream ?? "both";
       const lines = m.lines.filter((l) => l.seq > since && (want === "both" || l.stream === want));
-      return ok({ id, exited: m.exited, exit_code: m.exitCode, latest_seq: m.seq, lines });
+      // 🆕 267 — `signal` on the wire. `exit_code` alone could not distinguish a child
+      // that chose to exit 0 from one the OS killed: both answered `exited: true` with a
+      // null-or-number code, and a SIGKILLed child answered `exit_code: null`, which reads
+      // exactly like a process that has not finished. The registry has captured the signal
+      // since 266; this is the key that lets a caller read it.
+      return ok({ id, exited: m.exited, exit_code: m.exitCode, signal: m.exitSignal, latest_seq: m.seq, lines });
     },
   );
 

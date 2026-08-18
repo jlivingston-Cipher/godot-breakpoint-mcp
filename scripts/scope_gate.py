@@ -90,6 +90,11 @@ EMPTY: dict[str, str] = {
     "tuple[list[str], set[tuple[Path, int]]]": "([], set())",
     "tuple[list[str], list[tuple[Path, int, int, str]]]": "([], [])",
     "tuple[list[str], int]": "([], 0)",
+    # 🆕 267 — (unanswered sites, scanned). The FIFTH session running to add a shape this
+    # table could not spell, and the fifth where the row costs one line. The reader returns
+    # a count beside its list for exactly the reason 172 gave `uncaptured_tool_registrations`
+    # one: an empty list means *nothing unanswered* and *did not look* identically.
+    "tuple[list[tuple[str, int, str]], int]": "([], 0)",
     "tuple[list[str], list[tuple[Path, int, int, str]], int]": "([], [], 0)",
     # 🆕 222 — `toolset_claims` grew a fourth return so check 25 can subtract what it
     # resolved at (file, line, VALUE) rather than at (file, line). Without the row the
@@ -227,6 +232,8 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # third cost and the one that is easiest to leave unwritten.
     "remedy_tables": ("xlang.remedy_rows", "xlang.remedy_tool_refs", "xlang.remedy_cli_refs"),
     "remedy_renderers_read": ("xlang.remedy_renderers",),
+    "host_invented_error_sites": ("xlang.host_invented_sites",),
+    "host_cause_remedies": ("xlang.host_cause_sentences",),
     # 🆕 255 — check 29's three readers, and each names exactly the population it feeds.
     # `required_any_output_keys` is the LEFT side of the join and the widest blind here:
     # empty it and there is nothing to look for, so every direction agrees instantly.
@@ -453,6 +460,12 @@ BLAST: dict[str, int] = {
     # from the membership cost the size half nothing and bought the names.
     "toolset_members": 7,                     # also: checks 11b, 25, 4d
     "uncaptured_tool_registrations": 1,
+    # 🆕 267 — measured on the blinded run, not predicted. `host_invented_error_sites`
+    # collapses to a scan of zero, which trips its own floor; `host_cause_remedies` empties
+    # the sentence table, and the floor beneath it is the only thing that notices, because
+    # every grammar rule downstream then agrees with an empty population.
+    "host_invented_error_sites": 2,
+    "host_cause_remedies": 2,
     # 🆕 246 — measured on the sweep that admitted them, not predicted.
     "catalog_shapes": 4,                      # also: checks 6 7
     "prose_guard_classes": 2,                 # 🆕 246 — check 27's own finder

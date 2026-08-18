@@ -42,10 +42,12 @@
  * question", spelled here as a parameter nobody declared. `exitSignal` is captured now
  * and `describeExit` says `killed by SIGKILL` where the sentence used to print a null.
  *
- * 🔵 WHAT THIS DELIBERATELY DOES NOT DO. `godot_process_output` still answers
- * `exit_code: null` for a signal-killed child and carries no `signal` key: that is a wire
- * addition to a shipped tool, it would make this cut a MINOR, and it is enqueued rather
- * than folded in. The capture is internal; only the two peer sentences read it today.
+ * 🟢 AND THE WIRE CAUGHT UP AT 267. 266 left this capture deliberately internal —
+ * `godot_output` answered `exit_code: null` for a signal-killed child with no `signal`
+ * key, because that is a wire addition to a shipped tool and would make a PATCH a MINOR.
+ * It was enqueued as `process-output-omits-signal` and paid in the next cut: the tool now
+ * answers `signal`, nullable beside `exit_code`, so a caller can tell a child that chose
+ * to exit from one the OS killed without parsing a sentence.
  */
 
 /** How a managed child ended, in the words a person would use. */
@@ -88,9 +90,12 @@ export function readinessRemedy(causes: readonly ReadinessCause[]): string | und
   const silent = causes.some((c) => c === "silent");
   if (exited && silent) {
     return (
-      `Read the output quoted above for the peer(s) that exited and fix what stopped them, ` +
-      `then check the Breakpoint MCP plugin is enabled for the one(s) that stayed up and never ` +
-      `answered — two different things failed here and only the second is about the addon.`
+      // Trimmed at 267 to the ceiling check 28 has always enforced on the addon's own
+      // remedies and now enforces here: it was 255 characters, and the two populations it
+      // addresses are still both named.
+      `Read the output quoted above and fix what stopped the peer(s) that exited, then check ` +
+      `the "Breakpoint MCP" plugin for the one(s) that never answered — two things failed and ` +
+      `only the second is the addon.`
     );
   }
   if (exited) {

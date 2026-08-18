@@ -5,6 +5,8 @@
 // The generic MCP success-envelope helper `ok()` is the single shared envelope
 // shape and is imported by the other tool modules too, not only the LSP planes.
 
+import { remedyClause } from "../bridge.js";
+
 export interface Position { line: number; character: number }
 export interface Range { start?: Position; end?: Position }
 export interface Location { uri?: string; targetUri?: string; range?: Range; targetSelectionRange?: Range }
@@ -67,12 +69,14 @@ export function fail(err: unknown) {
   if (e?.refusal) {
     return {
       isError: true as const,
-      content: [{ type: "text" as const, text: e.message ?? String(err) }],
+      content: [{ type: "text" as const, text: `${e.message ?? String(err)}${remedyClause(err)}` }],
     };
   }
+  // 🆕 267 — see `tools/dap.ts`. `LspError` gained a `remedy` field this release; this is
+  // the one place both LSP planes render, so both get the clause from one edit.
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `LSP error [${e.code ?? "error"}]: ${e.message ?? String(err)}` }],
+    content: [{ type: "text" as const, text: `LSP error [${e.code ?? "error"}]: ${e.message ?? String(err)}${remedyClause(err)}` }],
   };
 }
 
@@ -93,7 +97,7 @@ export function failPath(err: unknown) {
   const be = err as { code?: string; message?: string };
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `Path error [${be?.code ?? "error"}]: ${be?.message ?? String(err)}` }],
+    content: [{ type: "text" as const, text: `Path error [${be?.code ?? "error"}]: ${be?.message ?? String(err)}${remedyClause(err)}` }],
   };
 }
 

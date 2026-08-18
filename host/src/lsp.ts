@@ -3,6 +3,7 @@ import { FramedConnection, type FramedMessage } from "./framing.js";
 import { packageVersion } from "./version.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
+import { timeoutRemedy } from "./timeout-cause.js";
 
 /**
  * Who answers this plane, in the words its late-reply ledger already uses.
@@ -14,12 +15,28 @@ import { closeDetail, closeRemedy } from "./close-cause.js";
  */
 const LSP_PEER = "the language server";
 
+/** The environment variable this plane's deadline comes from — see `dap.ts`'s twin. */
+const LSP_TIMEOUT_KNOB = "GODOT_LSP_TIMEOUT_MS";
+
 export class LspError extends Error {
   code: number | string;
-  constructor(code: number | string, message: string) {
+  /**
+   * The next action — the same field `BridgeError` has carried since 254, added here at
+   * 267 for the same reason it was added there. 🔴 **ITS ABSENCE WAS THE ROW.** 264's
+   * census found 13 of 25 host-raised failures sitting on classes with nowhere to put an
+   * answer, and this class was two of the four. The close handler below already KNEW the
+   * next action and pasted it into the message, where no gate can join it and `fail()`
+   * cannot render it under one clause.
+   *
+   * Optional by construction, as on `BridgeError`: a rejection relaying the language
+   * server's own words has no business inventing an action on its behalf.
+   */
+  remedy?: string;
+  constructor(code: number | string, message: string, remedy?: string) {
     super(message);
     this.name = "LspError";
     this.code = code;
+    if (remedy) this.remedy = remedy;
   }
 }
 
@@ -55,7 +72,7 @@ export class LspClient {
    * dropped. `nextId` is monotonic and is deliberately NOT reset by onClose(),
    * so an id is never reused and a late reply can only be its own request's.
    */
-  private readonly ledger = new OverdueLedger<number>("LSP", LSP_PEER, "GODOT_LSP_TIMEOUT_MS");
+  private readonly ledger = new OverdueLedger<number>("LSP", LSP_PEER, LSP_TIMEOUT_KNOB);
   /** Absolute project root path (no trailing slash), used to canonicalize URIs. */
   private readonly rootFsPath: string;
 
@@ -165,15 +182,17 @@ export class LspClient {
     // Without it every pending request reported a generic close and the operator
     // could not tell a crashed server from something else holding the port.
     const detail = closeDetail(cause);
-    // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), IN THE MESSAGE BECAUSE THIS CLASS
-    // HAS NOWHERE ELSE TO PUT IT. `LspError` carries no `remedy` field, and the plane's
-    // `fail()` renders no `remedyClause`, so the next action goes where the caller will
-    // actually read it. 264's census records the asymmetry rather than hiding it: of 25
-    // host-raised failures about the world, 13 are on classes that cannot carry an answer.
+    // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), ON THE FIELD RATHER THAN IN THE
+    // MESSAGE (267). The comment that stood here said `LspError` "carries no `remedy`
+    // field, and the plane's `fail()` renders no `remedyClause`" — true when written, and
+    // the reason 264's census counted this site among the SEVEN that named an action
+    // nothing structural could read. Both halves are gone. **What a caller receives is
+    // byte-identical** and is asserted so: the message ended in ` — ${remedy}` and the
+    // renderer appends exactly that. A change of channel, not of wording.
     const remedy = closeRemedy(cause, LSP_PEER);
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new LspError("closed", `LSP connection closed${detail}${remedy ? ` — ${remedy}` : ""}`));
+      p.reject(new LspError("closed", `LSP connection closed${detail}`, remedy));
     }
     this.pending.clear();
     this.initialized = null;
@@ -189,7 +208,13 @@ export class LspClient {
         // Remember the id BEFORE rejecting, so a reply already in flight is
         // reconciled rather than dropped as anonymous.
         this.ledger.note(id, method, timeoutMs);
-        reject(new LspError("timeout", `LSP '${method}' timed out after ${timeoutMs}ms`));
+        reject(
+          new LspError(
+            "timeout",
+            `LSP '${method}' timed out after ${timeoutMs}ms`,
+            timeoutRemedy(LSP_PEER, LSP_TIMEOUT_KNOB),
+          ),
+        );
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
       this.conn.send({ jsonrpc: "2.0", id, method, params }).catch((err: Error) => {

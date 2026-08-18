@@ -135,7 +135,12 @@ test("godot_run_project reports bridge_ready false when nothing binds the runtim
   assert.equal(sc(r).running, true, "the process did start — that field never lied");
   assert.equal(sc(r).bridge_ready, false, "and the bridge it never bound must say so");
   assert.ok((sc(r).bridge_wait_ms as number) >= 300, "the wait must be the caller's, not zero");
-  assert.match(String(sc(r).bridge_note), /did not answer ping/);
+  // 🔴 REWORDED AT 267 AND THE ASSERTION IS PART OF THE FINDING. It read
+  // `/did not answer ping/`, which was the sentence's OPENING — a description standing
+  // where the next action belongs. What the note must carry is the action; the fact
+  // follows it.
+  assert.match(String(sc(r).bridge_note), /^Raise wait_timeout_ms/);
+  assert.match(String(sc(r).bridge_note), /answered no ping in/);
 });
 
 test("godot_run_project tells NOT WAITED apart from WAITED AND LOST", { skip: !POSIX }, async () => {
@@ -143,7 +148,8 @@ test("godot_run_project tells NOT WAITED apart from WAITED AND LOST", { skip: !P
   const r = await tools.get("godot_run_project")!({ wait_timeout_ms: 0 });
   assert.equal(sc(r).bridge_ready, false);
   assert.equal(sc(r).bridge_wait_ms, 0, "opting out is a zero wait, not a failed one");
-  assert.match(String(sc(r).bridge_note), /no wait was requested/);
+  assert.match(String(sc(r).bridge_note), /^Call `runtime_get_tree`/);
+  assert.match(String(sc(r).bridge_note), /asked for no wait/);
 });
 
 test("godot_launch_editor reports launched:true and the project path", { skip: !POSIX }, async () => {

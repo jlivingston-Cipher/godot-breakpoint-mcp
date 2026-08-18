@@ -1,18 +1,39 @@
 import { EventEmitter } from "node:events";
 import type { FramedMessage, JsonRpcChannel } from "./framing.js";
-import { DapError, type DapState, type WatchResult } from "./dap.js";
+import { DapError, INITIALIZED_WAIT_CEILING_MS, type DapState, type WatchResult } from "./dap.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
+import { timeoutRemedy } from "./timeout-cause.js";
 
 /**
  * Who answers this plane, in the words its late-reply ledger already uses.
  *
- * 🔴 ONE CONSTANT, TWO READERS (264). The ledger names this peer when a reply arrives
- * late and `closeRemedy` names it when the connection drops. Two literals would let the
- * same peer acquire two names on the same run, which is the class of drift 257's
- * per-instance deadline noun was written to stop.
+ * 🔴 ONE CONSTANT, THREE READERS (264, 267). The ledger names this peer when a reply
+ * arrives late, `closeRemedy` names it when the connection drops, and `timeoutRemedy`
+ * names it when a deadline fires. Two literals would let the same peer acquire two names
+ * on the same run, which is the class of drift 257's per-instance deadline noun was
+ * written to stop.
  */
 const CSDAP_PEER = "the debug adapter";
+
+/** The environment variable this plane's deadline comes from — see `dap.ts`'s twin. */
+const CSDAP_TIMEOUT_KNOB = "GODOT_CSDAP_TIMEOUT_MS";
+
+/**
+ * The next action when the adapter refuses to start a session.
+ *
+ * 🔴 THE LAST OF 264's SEVENTEEN, and the one that most looked like it already had an
+ * answer. The message names the mode and the arguments, which is a description of what
+ * was asked, not of what to do next — measured against a real netcoredbg, the two live
+ * causes are a `program` that is not a built assembly and a project that has not been
+ * compiled, and neither is visible in the argument dump the message already prints.
+ */
+export const CS_START_REMEDY =
+  "Check that the program names a built .NET assembly and that the project compiles — the C# debug adapter refused the session, so nothing is under the debugger and no process was left running.";
+
+/** The next action when `cs_dbg_restart` is called with no launch behind it. */
+export const CS_RESTART_REMEDY =
+  "Call `cs_dbg_launch` or `cs_dbg_attach` first — a restart reuses the parameters of a launch that already happened, and none has.";
 
 interface Pending {
   command: string;
@@ -67,7 +88,7 @@ export class CsDapClient extends EventEmitter {
    * dropped. `seq` is monotonic and is never reset, so a seq is never reused and
    * a late response can only be its own request's.
    */
-  private readonly ledger = new OverdueLedger<number>("C# DAP", CSDAP_PEER, "GODOT_CSDAP_TIMEOUT_MS");
+  private readonly ledger = new OverdueLedger<number>("C# DAP", CSDAP_PEER, CSDAP_TIMEOUT_KNOB);
   private configured = false;
   /** Persistent watch expressions, re-evaluated at each stop (see evaluateWatches). */
   private watches: string[] = [];
@@ -150,15 +171,12 @@ export class CsDapClient extends EventEmitter {
       this.configured = false;
       this.sessionStarted = false;
       const detail = closeDetail(cause);
-        // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), IN THE MESSAGE BECAUSE THIS CLASS
-        // HAS NOWHERE ELSE TO PUT IT. `DapError` carries no `remedy` field, and the plane's
-        // `fail()` renders no `remedyClause`, so the next action goes where the caller will
-        // actually read it. 264's census records the asymmetry rather than hiding it: of 25
-        // host-raised failures about the world, 13 are on classes that cannot carry an answer.
+      // 🔴 ON THE FIELD, NOT IN THE MESSAGE (267) — see `dap.ts`'s twin for the whole
+      // argument. What a caller receives is byte-identical; the channel is what changed.
       const remedy = closeRemedy(cause, CSDAP_PEER);
       for (const [, p] of this.pending) {
         clearTimeout(p.timer);
-        p.reject(new DapError(p.command, `C# DAP connection closed${detail}${remedy ? ` — ${remedy}` : ""}`));
+        p.reject(new DapError(p.command, `C# DAP connection closed${detail}`, remedy));
       }
       this.pending.clear();
       this.emit("closed");
@@ -244,7 +262,15 @@ export class CsDapClient extends EventEmitter {
         // Remember the seq BEFORE rejecting, so a response already in flight is
         // reconciled rather than dropped as anonymous.
         this.ledger.note(seq, command, timeoutMs);
-        reject(new DapError(command, `C# DAP '${command}' timed out after ${timeoutMs}ms`));
+        // The `timed out after <n>ms` wording is load-bearing — `tools/csdap.ts`'s
+        // `isDapTimeout` branches on it. The next action rides beside it, not inside it.
+        reject(
+          new DapError(
+            command,
+            `C# DAP '${command}' timed out after ${timeoutMs}ms`,
+            timeoutRemedy(CSDAP_PEER, CSDAP_TIMEOUT_KNOB),
+          ),
+        );
       }, timeoutMs);
       this.pending.set(seq, { command, resolve: resolve as (v: Record<string, unknown>) => void, reject, timer });
       this.channel.send({ seq, type: "request", command, arguments: args }).catch((err: Error) => {
@@ -255,15 +281,23 @@ export class CsDapClient extends EventEmitter {
     });
   }
 
-  private waitEvent(name: string, timeoutMs: number): Promise<void> {
-    return new Promise<void>((resolve) => {
+  /**
+   * Wait for `name`, bounded — resolving **`true` when the event arrived and `false` when
+   * the timer fired**. The twin of `dap.ts`'s, changed for the same measured reason (267):
+   * a `Promise<void>` made a five-second silence and a prompt event the same observable,
+   * so `start()` sent `setBreakpoints` ahead of the event that licenses it and said
+   * nothing. Driven against a stub adapter that never emits `initialized`, `start()`
+   * returned after 5,003 ms having sent the handshake in the conformant order.
+   */
+  private waitEvent(name: string, timeoutMs: number): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
         this.removeListener(name, onEvent);
-        resolve();
+        resolve(false);
       }, timeoutMs);
       const onEvent = () => {
         clearTimeout(timer);
-        resolve();
+        resolve(true);
       };
       this.once(name, onEvent);
     });
@@ -359,12 +393,16 @@ export class CsDapClient extends EventEmitter {
    * afterwards failed with a bare hex code against a phantom session. The same held
    * for `program: ""` and for `cs_dbg_attach` on a process id that does not exist.
    */
-  async start(mode: "launch" | "attach", args: Record<string, unknown>): Promise<void> {
+  async start(
+    mode: "launch" | "attach",
+    args: Record<string, unknown>,
+  ): Promise<{ initializedSeen: boolean; initializedWaitMs: number }> {
     this.lastStartMode = mode;
     this.lastStartArgs = args;
     this.sessionStarted = false;
     // Listen for `initialized` before we ask, so we cannot miss it.
-    const onInit = this.waitEvent("initialized", Math.min(this.timeoutMs, 5000));
+    const initializedWaitMs = Math.min(this.timeoutMs, INITIALIZED_WAIT_CEILING_MS);
+    const onInit = this.waitEvent("initialized", initializedWaitMs);
     this.capabilities = await this.request("initialize", {
       clientID: "breakpoint-mcp",
       clientName: "Godot Breakpoint MCP",
@@ -400,7 +438,8 @@ export class CsDapClient extends EventEmitter {
         this.emit("start_failed", err);
       },
     );
-    await onInit;
+    // 🔴 CAPTURED, NOT DISCARDED (267) — see `dap.ts`'s twin.
+    const initializedSeen = await onInit;
     await this.applyAllBreakpoints();
 
     // Arm the entry-stop wait BEFORE configurationDone is sent: netcoredbg can emit
@@ -428,11 +467,16 @@ export class CsDapClient extends EventEmitter {
       this.state = "terminated";
       void startReq;
       const detail = (fatal as { message?: string })?.message ?? String(fatal);
+      // 🔴 THE NEXT ACTION MOVED OUT OF THE MESSAGE (267). It read *check that the program
+      // exists and is a .NET assembly* mid-sentence, between a state report and an
+      // argument dump — 264's census counted exactly this shape among the SEVEN that
+      // named an action nothing structural could read. The message now reports state; the
+      // field carries the instruction, and check 28's grammar reader can see it.
       throw new DapError(
         mode,
         `the C# debug adapter did not start the session: ${detail}. No debug session is ` +
-          `running — check that the program exists and is a .NET assembly (${mode} args: ` +
-          `${JSON.stringify(args).slice(0, 200)}).`,
+          `running (${mode} args: ${JSON.stringify(args).slice(0, 200)}).`,
+        CS_START_REMEDY,
       );
     }
 
@@ -453,6 +497,7 @@ export class CsDapClient extends EventEmitter {
     // stop-on-entry work end to end. Bounded: an adapter that ignores stopAtEntry
     // simply reports `running`, as before.
     if (entryStop) await entryStop;
+    return { initializedSeen, initializedWaitMs };
   }
 
   threadId(): number {
@@ -535,7 +580,7 @@ export class CsDapClient extends EventEmitter {
     waitMs = 15000,
   ): Promise<{ method: "restart" | "relaunch"; state: DapState; reason: string | null }> {
     if (!this.lastStartMode || !this.lastStartArgs) {
-      throw new DapError("restart", "no C# debug session to restart — call cs_dbg_launch or cs_dbg_attach first");
+      throw new DapError("restart", "no C# debug session to restart", CS_RESTART_REMEDY);
     }
     const args = { ...this.lastStartArgs, ...overrideArgs };
     if (this.capabilities?.["supportsRestartRequest"] === true) {
