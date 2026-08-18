@@ -137,6 +137,46 @@ export function describeNonFinite(hits: readonly NonFiniteHit[]): string {
 }
 
 /**
+ * The next action for a refused non-finite reply.
+ *
+ * 🔴 ONE FAMILY IS MEASURED AND ONE IS SPOKEN FOR (266). Driven against a raw-bytes fake
+ * addon writing what Godot writes, every value that reaches this refusal is `Infinity` or
+ * `-Infinity` from a literal `1e99999`, flat or nested, one hit or many. **NAN is NOT this
+ * refusal's population**, which the message's own aside makes easy to assume it is:
+ * measured, Godot's `null` for NAN parses to `null`, `findNonFinite({current: null})`
+ * returns `[]`, and the reply RESOLVES and reaches the client's schema as a null. So the
+ * remedy speaks about an infinity and about nothing else, per 265's refusal to invent.
+ *
+ * 🔴 AND IT DOES NOT SAY "RETRY". This is the one host-raised failure in the census whose
+ * cause is neither the transport nor the host's own state but the PROJECT'S DATA — the
+ * engine really does hold that value, and it will hold it again on the next call. A
+ * sentence offering a retry would be the shape 262 §2 found on `dbg_set_variable`: fluent,
+ * addressed to the wrong party, and wrong every time it is read.
+ *
+ * Branched on the one discriminator in hand: how many paths carry it. Naming a single
+ * path is a place to go and look; naming six is almost always one upstream value, and
+ * sending someone to inspect six properties one at a time is the wrong next action.
+ *
+ * Written to the grammar check 28 enforces on `error_remedies.gd`: one imperative at the
+ * head, a full stop at the end, and nothing named that does not resolve.
+ */
+export function nonFiniteRemedy(hits: readonly NonFiniteHit[]): string | undefined {
+  if (hits.length === 0) return undefined;
+  if (hits.length === 1) {
+    return (
+      `Inspect ${hits[0].path} in the project — the engine's own value there is infinite ` +
+      `(a division by zero and an unset scale are the usual sources), so this is data to fix ` +
+      `rather than a call to repeat.`
+    );
+  }
+  return (
+    `Look for the one value feeding all ${hits.length} of the paths named above — an infinity ` +
+    `this wide is almost always a single division by zero propagated by the engine, so this is ` +
+    `data to fix rather than a call to repeat.`
+  );
+}
+
+/**
  * Drop every non-finite value from a flat monitor record, returning what survived and the
  * keys that did not. The declared type of the record does not move: a reading that is not
  * a number is ABSENT, not `null`, and `non_finite` is where it says so.

@@ -329,7 +329,15 @@ test("readiness: a peer that dies on startup fails the spawn WITH its own stderr
         assert.equal(e.code, "peer_not_ready");
         // The whole point: the caller sees WHY, not "cannot reach the bridge".
         assert.match(e.message, /could not load main scene/);
-        assert.match(e.message, /addon enabled/);
+        // 🔴 CHANGED AT 266, AND THE OLD ASSERTION WAS THE FINDING. This test used to
+        // require `/addon enabled/` HERE — on a child that exited on its own with a code
+        // and a stderr line — and it passed because the readiness sentence appended that
+        // question to every cause. An absent runtime autoload does not stop a process; it
+        // stops one from ANSWERING. The question is now suppressed for this family and
+        // kept byte-for-byte for the family it is true of, which the test one file over
+        // (`exit_cause.test.ts`) asserts in both directions.
+        assert.ok(!/addon enabled/.test(e.message), "the plugin's state did not stop this child");
+        assert.match(remedyClause(e), / — Read the output quoted above/, "and the next action reaches a reader");
         return true;
       },
     );
@@ -400,7 +408,12 @@ test("lifecycle: a peer that dies AFTER becoming ready reports peer_exited with 
       // Not "was stopped" (nobody stopped it) and not a generic bridge error —
       // the caller needs to know the process died, and ideally why.
       assert.equal(e.code, "peer_exited");
-      assert.match(e.message, /exited/);
+      // 🔴 CHANGED AT 266. `/exited/` matched `exited (code null)` — the null being node's
+      // second `exit` argument, which `ProcessRegistry` had never declared. A SIGKILLed
+      // child did not exit, it was killed, and the sentence now says so.
+      assert.match(e.message, /killed by SIGKILL/);
+      assert.ok(!/code null/.test(e.message), "the null this sentence used to print was a dropped parameter");
+      assert.match(remedyClause(e), /runtime_spawn_peers/, "a dead peer names how to replace it");
       return true;
     });
   } finally {

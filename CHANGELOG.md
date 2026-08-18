@@ -6,6 +6,38 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.78.3] — 2026-08-18
+
+### Fixed — a peer that died was blamed on a plugin, and a killed one reported a null
+
+- 🔴 **A spawned peer that exited on its own was told the addon might be disabled** (`peer_not_ready`). Driven
+  against real children: a peer whose child died with `SCRIPT ERROR: could not load main
+  scene` and a peer that stayed up and never answered ping both produced *… did not become
+  ready … Is the Breakpoint MCP addon enabled in this project (it registers the runtime
+  autoload)?* An absent runtime autoload does not stop a process — it stops one from
+  **answering** — so for the first of those the question is a false claim, and the operator
+  whose scene fails to load was sent to look at the plugin list. The question is now
+  suppressed for that family and kept **byte-for-byte** for the family it is true of, and
+  each of the three populations the registry really produces (all gone, all mute, a
+  mixture) names its own next action.
+- 🔴 **A peer killed by a signal reported `exited (code null)`** (`peer_exited`). `ProcessRegistry`
+  registered `child.on("exit", (code) => …)` and dropped node's second argument, so the
+  signal that ended the child was handed to the host on every kill since the registry was
+  written and assigned to nothing. It is captured now, and the message says *killed by
+  SIGKILL* where it used to print a null, and the replacement it names is
+  `runtime_spawn_peers`. `godot_process_output`'s output shape is unchanged.
+- **A refused non-finite reply now names a next action** (`non_finite`). The engine really does hold that
+  value and will hold it on the next call, so the sentence sends you to the property rather
+  than offering a retry — one path is a place to look, several is almost always one
+  division by zero upstream of all of them.
+
+### Notes
+
+- Measured and found nothing: a bounded loop of **300 buffered-breakpoint launches against
+  a real debug adapter bound 300 times**, with the `initialized` event arriving on every
+  one — the single unreproduced non-bind carried since 1.77.0 is closed as unreproducible
+  rather than left open.
+
 ## [1.78.2] — 2026-08-18
 
 ### Fixed — a connect failure told you to check something that had nothing to do with it

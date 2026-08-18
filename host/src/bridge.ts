@@ -2,7 +2,7 @@ import net from "node:net";
 import { randomUUID } from "node:crypto";
 import { log } from "./logger.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
-import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS } from "./finiteness.js";
+import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS, nonFiniteRemedy } from "./finiteness.js";
 import { remedyForWireError } from "./remedies.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
 import { connectHint, connectRemedy } from "./connect-cause.js";
@@ -387,7 +387,7 @@ export class BridgeClient {
         p.resolve(tolerate(result));
       } else {
         const hits = findNonFinite(result);
-        if (hits.length) p.reject(new BridgeError("non_finite", describeNonFinite(hits)));
+        if (hits.length) p.reject(new BridgeError("non_finite", describeNonFinite(hits), nonFiniteRemedy(hits)));
         else p.resolve(result);
       }
     } else {
