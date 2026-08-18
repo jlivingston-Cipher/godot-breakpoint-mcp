@@ -5,6 +5,7 @@ import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS } from "./finiteness.js";
 import { remedyForWireError } from "./remedies.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
+import { connectHint, connectRemedy } from "./connect-cause.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -149,16 +150,30 @@ export class BridgeClient {
      */
     deadlineKnob = "BREAKPOINT_BRIDGE_TIMEOUT_MS",
     peerNoun = "the editor",
+    /**
+     * The env var that names THIS instance's HOST, for the same per-INSTANCE reason
+     * `deadlineKnob` exists (265). The editor bridge takes its address from
+     * BREAKPOINT_BRIDGE_HOST and the runtime bridge and its peers from
+     * BREAKPOINT_RUNTIME_HOST; an unresolved-host remedy naming the wrong one sends the
+     * operator to a knob that cannot move the address they just failed to reach — the
+     * identical defect the late-reply line was given its own knob to avoid. Defaults keep
+     * the editor bridge's wording byte-identical to what shipped.
+     */
+    hostKnob = "BREAKPOINT_BRIDGE_HOST",
   ) {
     this.ledger = new OverdueLedger<string>("bridge", peerNoun, deadlineKnob);
     // 🔴 KEPT, not just handed to the ledger (264). A dropped connection names the same
     // peer a late reply does, and the two sentences drifting apart would be a bug nobody
     // could see from either side.
     this.peerNoun = peerNoun;
+    this.hostKnob = hostKnob;
   }
 
   /** Who answers this client — read by the close path and the late-reply ledger alike. */
   private readonly peerNoun: string;
+
+  /** The env var that moves this client's host — read by the connect path (265). */
+  private readonly hostKnob: string;
 
   /**
    * A cause this client cannot see, supplied by whoever CAN, as the remedy on a timeout.
@@ -243,10 +258,20 @@ export class BridgeClient {
         // Recorded for onClose(): if the connection was already up, this reject()
         // is a no-op on a settled promise and the errno would otherwise be lost.
         this.lastSocketError = err;
+        // 🔴 THE ERRNO WAS ALREADY HERE AND ONLY ITS `message` WAS READ (265), which is
+        // 264's close-family finding one step earlier in the same file. `err.code`
+        // separates a port nothing is listening on from a host name that never resolved,
+        // and the hint below was appended to BOTH — telling a caller whose
+        // BREAKPOINT_*_HOST is a typo to go and look at Godot, for a connect where no
+        // packet ever left this machine. `connectHint` suppresses the hint in exactly
+        // that case and returns it untouched otherwise, so every other message a caller
+        // reads is byte-identical to what shipped. See connect-cause.ts.
+        const hint = connectHint(err, this.hint);
         reject(
           new BridgeError(
             BRIDGE_UNAVAILABLE,
-            `Cannot reach the Godot ${this.label} at ${this.host}:${this.port}. ${this.hint} (${err.message})`,
+            `Cannot reach the Godot ${this.label} at ${this.host}:${this.port}.${hint ? ` ${hint}` : ""} (${err.message})`,
+            connectRemedy(err, this.peerNoun, this.hostKnob),
           ),
         );
       });

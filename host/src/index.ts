@@ -53,6 +53,8 @@ async function main(): Promise<void> {
     // actually move it, and the peer that answered is the running game.
     "BREAKPOINT_RUNTIME_TIMEOUT_MS",
     "the running game",
+    // And its ADDRESS comes from BREAKPOINT_RUNTIME_HOST, for the same reason (265).
+    "BREAKPOINT_RUNTIME_HOST",
   );
   const lsp = new LspClient(config.lspHost, config.lspPort, config.projectUri, config.lspTimeoutMs);
   // D4 C2: the C# semantic plane. OmniSharp is spawned over stdio (lazily, on the
@@ -94,7 +96,7 @@ async function main(): Promise<void> {
   // D3: also advertise resources.subscribe so clients can subscribe to
   // godot://… resources and receive notifications/resources/updated.
   const server = new McpServer(
-    { name: "breakpoint-mcp", version: "1.78.1" },
+    { name: "breakpoint-mcp", version: "1.78.2" },
     { capabilities: { ...TASK_CAPABILITIES, ...RESOURCE_CAPABILITIES }, taskStore },
   );
 
