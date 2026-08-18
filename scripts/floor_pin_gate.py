@@ -192,7 +192,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
     # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
     # — at or under the live count, refusing one below, quiet one above.
-    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )64",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )65",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
@@ -1178,7 +1178,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (28, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (29, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1211,7 +1211,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "load — the check reads the tools a recipe NAMES out of the guide's own sections "
         "rather than from a roster, so a recipe written next session is judged the day it "
         "is written, which is the property the hand-written warning it replaces did not "
-        "have.")),
+        "have. "
+        "🆕 RAISED BY ONE A SEVENTH TIME: the error-code discipline check was added to "
+        "close the row about a shipped branch selected by a regex over an error message "
+        "— the check asks, in three joins, whether behaviour is chosen by a FIELD or by a "
+        "sentence, and it found a third site the row had not named, one whose blast radius "
+        "is the retry caveat on every non-idempotent tool.")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "
@@ -1313,7 +1318,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`git ls-files` failing to answer — which yields an empty population, no "
         "findings, and a green run that opened no files. Same argument as "
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
-    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (64, (
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (65, (
         "🆕 242 — every tracked `.mjs` in this repository, at `{FLOOR}`, which is the "
         "population `tsc --allowJs --checkJs` is run over. It is the row "
         "`lint-roster-py-only` asked for: until this session the lint roster was "
@@ -1443,7 +1448,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (47, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (48, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "
@@ -1474,7 +1479,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "comment in the tree and sorts it into five buckets. It was caught by a shebang "
         "on its own first line and by an equality on a linter's file count, both within "
         "minutes of `git add` — the ordering rule doing what it was written for rather "
-        "than a coincidence worth admiring.")),
+        "than a coincidence worth admiring. 🆕 RAISED BY ONE AGAIN, and caught the same way inside the same minute: the publish guard is a `.mjs` in `host/scripts/` carrying a shebang and committed non-executable, so this row and the linter file count both refused as soon as it was staged. A fourth session running in which a file added to this tree is counted by two independent readers before anybody asks it to be.")),
     ("../scripts/mutation_lock_gate.py", "GUARDED_FLOOR"): (5, (
         "The tree-mutating gates that must take the lock, at `{FLOOR}` — control, "
         "floor-pin, instrument, scope, and the tree-quiet reader's own `--recover`. "

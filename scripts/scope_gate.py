@@ -258,6 +258,7 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "output_schema_shapes": ("shapes.outputs_compared", "shapes.outputs_parsed"),
     "prefix_family_claims": ("families.prefix_glob_lines",),
     "guide_recipe_tools": ("guide.recipe_tools", "guide.recipe_steps"),  # 🆕 261
+    "error_prose_predicates": ("host.error_message_reads", "host.error_raise_sites"),  # 🆕 268
     "privileged_tools": ("tools.privileged",),                        # 🆕 197
     "recipe_names_constant": ("recipes.names_constant",),             # 🆕 197
     "registered_recipes": ("recipes.registered",),
@@ -396,6 +397,11 @@ BLAST: dict[str, int] = {
     # floors and nothing else. Predicted 2 and MEASURED 2 (259's rule: predict, then
     # measure — `cli_surface` was predicted at 2 and measured 7).
     "guide_recipe_tools": 2,
+    # 🆕 268 — check 32's reader. Blinding it empties both of its populations at once and
+    # nothing else in the tree reads either, so the radius is the two ledger floors and
+    # nothing more. Predicted 2; MEASURED below rather than left as the prediction, which
+    # is 259's rule and the one 267 paid for by predicting 1 and measuring 2.
+    "error_prose_predicates": 2,
     # 🆕 261: 4 -> 9. Check 31 reads this roster to decide which tool a recipe names is
     # WITHHELD, so emptying it takes all five higher-trust entries in the guide's §10
     # declaration block into "declared but not privileged" at once. The row moved because

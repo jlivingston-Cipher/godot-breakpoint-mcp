@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
-import { DapClient, DapError, unorderedHandshakeWarning } from "../dap.js";
+import { DapClient, DapError, DAP_TIMEOUT_CODE, unorderedHandshakeWarning } from "../dap.js";
 import { remedyClause } from "../bridge.js";
 import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
@@ -152,9 +152,18 @@ function fail(err: unknown) {
  * True when `err` is a DAP request that hit its own request deadline (as opposed to an
  * adapter-reported failure or a dropped connection). Used to turn the setVariable /
  * evaluate hangs on advertised-but-unimplemented Godot builds into a clear message.
+ *
+ * 🔴 **THIS READ THE MESSAGE BODY UNTIL 268, AND TWO SHIPPED TOOLS BRANCHED ON IT.** The
+ * predicate was `/timed out after/.test(err.message)`, so `dbg_evaluate`'s and
+ * `dbg_set_variable`'s specific answers were selected by a regex over English — a copy
+ * edit at the raise site would have silently returned every caller to a bare timeout,
+ * with every test in the suite still green. 267 declined to reword those messages for
+ * exactly that reason and asserted the wording instead, which is a test defending a
+ * defect rather than a behaviour. The raise site now sets `DAP_TIMEOUT_CODE` and this
+ * reads it; check 32 refuses the regex coming back.
  */
 function isDapTimeout(err: unknown): err is DapError {
-  return err instanceof DapError && /timed out after/.test(err.message);
+  return err instanceof DapError && err.code === DAP_TIMEOUT_CODE;
 }
 
 /**
@@ -363,6 +372,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
           "launch",
           { project: cfg.projectPath, scene: scene ?? "main", stopOnEntry: stop_on_entry ?? false },
           stop_on_entry ? ENTRY_STOP_WAIT_MS : 0,
+          cfg.dapRequireInitialized,
         );
         const result: Record<string, unknown> = { session_id: "godot", state: dap.state, scene: scene ?? "main" };
         reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
@@ -403,7 +413,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ address, port }) => {
       try {
-        const { initializedSeen, initializedWaitMs } = await dap.start("attach", { address: address ?? "127.0.0.1", port });
+        const { initializedSeen, initializedWaitMs } = await dap.start("attach", { address: address ?? "127.0.0.1", port }, 0, cfg.dapRequireInitialized);
         const result: Record<string, unknown> = { session_id: "godot", state: dap.state };
         reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
         reportDroppedModifiers(result);

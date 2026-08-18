@@ -105,7 +105,7 @@ PY_FILE_FLOOR = 18      # governed by floor_pin_gate's SIZE_LEDGER
 
 HOST = ROOT / "host"
 
-MJS_FILE_FLOOR = 64     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER.
+MJS_FILE_FLOOR = 65     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER.
                         # 🔴 AN EQUALITY, LIKE `PY_FILE_FLOOR` ABOVE, AND THE ASYMMETRY
                         # WAS DRAFTED AND THEN REJECTED. The first version floored this
                         # from below only, on the argument that the `.mjs` population is

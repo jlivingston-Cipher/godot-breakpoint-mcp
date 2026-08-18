@@ -644,9 +644,14 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     ("28.noattach", "28", "sub", "addons/breakpoint_mcp/operations.gd",
      "Remedies.remedy(code, Remedies.EDITOR)", '""',
      "does not call `Remedies.remedy(code"),
+    # 🆕 268 — RE-ANCHORED, and the reason is the release this row sits in. The label
+    # was an inline template here and a hand-copied literal in `timeout-caveat.ts`, one
+    # file away, with nothing joining them; it is built by `bridgeErrorLabel` now. The
+    # MUTATION is unchanged — drop `remedyClause(err)` — only the text it is anchored to
+    # moved, and this gate refusing with ANCHOR 0-occurrences is what said so.
     ("28.hostdrops", "28", "sub", "host/src/tools/editor/common.ts",
-     "`Bridge error [${code}]: ${message}${remedyClause(err)}`",
-     "`Bridge error [${code}]: ${message}`",
+     "`${bridgeErrorLabel(code)}: ${message}${remedyClause(err)}`",
+     "`${bridgeErrorLabel(code)}: ${message}`",
      "does not append `remedyClause(err)`"),
     # 🆕 255 — check 29, the required-any join, covered on arrival. Both edit the SHIPPED
     # tree rather than the checker, for 254's reason: this check's failure is a key renamed

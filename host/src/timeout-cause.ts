@@ -48,3 +48,24 @@ export function timeoutRemedy(peer: string, knob: string): string {
     `host's deadline fired first, so it may still answer and a retry sends a second request.`
   );
 }
+
+/**
+ * The next action when an adapter answered `initialize` and never announced itself.
+ *
+ * 🔴 IT NAMES BOTH WAYS OUT, BECAUSE THE HOST CANNOT TELL THEM APART FROM HERE. Either
+ * the adapter is slower than the caller's own declared deadline — raise it — or it does
+ * not implement the `initialized` event at all, in which case a session can still be had
+ * by opting out and accepting that breakpoints are applied ahead of the event that
+ * licenses them, which is what every session did silently before 268. Naming only the
+ * knob would send an operator to lengthen a wait that is never going to end.
+ *
+ * Written to check 28's grammar: an imperative at the head, a full stop at the end, and
+ * nothing named that does not resolve.
+ */
+export function unannouncedRemedy(peer: string, knob: string): string {
+  return (
+    `Raise \`${knob}\` if ${peer} is merely slow to announce itself, or set ` +
+    `\`GODOT_DAP_REQUIRE_INITIALIZED=0\` to start anyway against an adapter that never ` +
+    `sends \`initialized\`.`
+  );
+}

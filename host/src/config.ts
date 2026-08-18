@@ -47,6 +47,27 @@ export interface Config {
   dapSetVarTimeoutMs: number;
   dapEvaluateTimeoutMs: number;
   /**
+   * Refuse a debug session whose adapter answered `initialize` and never emitted
+   * `initialized`. Default **true**, on both DAP planes, since 268.
+   *
+   * 🔴 **THE DEFAULT IS THE DECISION HE MADE, AND 267 WROTE DOWN THE OTHER ONE.** Before
+   * 267 the handshake awaited a `Promise<void>` that resolved on its own timer, so *the
+   * adapter said it was ready* and *five seconds passed* reached the caller as the same
+   * value and `setBreakpoints` went out ahead of the event the DAP specification says
+   * must precede it — silently, on every launch, for as long as these clients have
+   * existed. 267 made the outcome observable and REPORTED it, deliberately taking the
+   * least destructive option because refusing outright breaks any adapter in the field
+   * that is merely slow. 268 takes the refusal, and pays that objection rather than
+   * accepting it: the wait is no longer capped at five seconds. It runs to the caller's
+   * OWN declared `dapTimeoutMs`, so a slow-but-conformant adapter now succeeds where it
+   * previously proceeded out of order, and only an adapter that never announces itself
+   * at all is refused.
+   *
+   * Setting `GODOT_DAP_REQUIRE_INITIALIZED=0` restores 267's behaviour EXACTLY —
+   * five-second ceiling, `initialized_seen: false`, a warning, and the session continues.
+   */
+  dapRequireInitialized: boolean;
+  /**
    * C#/.NET debugging plane (D4 C3). The .NET debug adapter (netcoredbg, MIT) is
    * SPAWNED by the host over stdio — like OmniSharp, and unlike Godot's TCP DAP —
    * so it's a command + args + a working directory rather than a host/port. It is
@@ -219,6 +240,19 @@ function positiveInt(raw: string | undefined, fallback: number): number {
   return Number.isSafeInteger(n) && n > 0 && n <= 2_147_483_647 ? n : fallback;
 }
 
+/**
+ * An opt-OUT flag: true unless the operator spelled a recognised falsehood.
+ *
+ * 🔴 THE UNRECOGNISED VALUE KEEPS THE SAFE DEFAULT, AND THAT IS THE OPPOSITE OF
+ * `positiveInt`'s reasoning ON PURPOSE. A malformed deadline falls back because both
+ * outcomes are ordinary; a malformed *guard* setting must not disable the guard, or a
+ * typo — `GODOT_DAP_REQUIRE_INITIALIZED=no thanks` — turns a refusal off silently. Only
+ * `0`, `false`, `off` and `no` are read as intent, case-insensitively.
+ */
+function optOut(raw: string | undefined): boolean {
+  return !/^(0|false|off|no)$/i.test((raw ?? "").trim());
+}
+
 export function loadConfig(): Config {
   const projectPath = process.env.GODOT_PROJECT ?? process.cwd();
   // The C# project defaults to the main project, but is usually pointed at a
@@ -244,6 +278,7 @@ export function loadConfig(): Config {
     dapTimeoutMs: positiveInt(process.env.GODOT_DAP_TIMEOUT_MS, 20000),
     dapSetVarTimeoutMs: positiveInt(process.env.GODOT_DAP_SETVAR_TIMEOUT_MS, 8000),
     dapEvaluateTimeoutMs: positiveInt(process.env.GODOT_DAP_EVALUATE_TIMEOUT_MS, 8000),
+    dapRequireInitialized: optOut(process.env.GODOT_DAP_REQUIRE_INITIALIZED),
     csDapCmd: process.env.GODOT_CSDAP_CMD ?? "netcoredbg",
     csDapArgs: (process.env.GODOT_CSDAP_ARGS ?? "--interpreter=vscode").split(/\s+/).filter(Boolean),
     // The default program cs_dbg_launch launches is the Mono/.NET Godot binary. GODOT_CSHARP_BIN

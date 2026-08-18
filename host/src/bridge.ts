@@ -92,6 +92,76 @@ export function remedyClause(err: unknown): string {
   return typeof r === "string" && r !== "" ? ` — ${r}` : "";
 }
 
+/** The code this class raises when a bridge request outlives its own deadline. */
+export const BRIDGE_TIMEOUT_CODE = "timeout";
+
+/**
+ * The label `tools/editor/common.ts`'s `fail()` puts in front of a bridge failure.
+ *
+ * 🔴 **ONE BUILDER, TWO READERS, AND THE SECOND ONE WAS A STRING LITERAL UNTIL 268.**
+ * `timeout-caveat.ts` decides whether a mutating tool gets its retry caveat by
+ * looking for `Bridge error [timeout]` inside the rendered envelope — a substring it
+ * spelled out itself, one file away from the template that produces it. That is
+ * `dap-timeout-predicate-reads-prose` again with a far wider blast radius: a reword of
+ * `fail()` would silently stop every non-idempotent tool from warning that a timed-out
+ * mutation may already have landed, and nothing compares the two spellings. Derived here
+ * so the two move together, and check 32 refuses a fresh literal.
+ */
+export function bridgeErrorLabel(code: string): string {
+  return `Bridge error [${code}]`;
+}
+
+/**
+ * The code raised when the request could not be handed to the socket at all.
+ *
+ * 🔴 **ONE WORD, TWO PRODUCERS, AND ONLY ONE OF THEM HAS A REMEDY THAT FITS (268).** The
+ * ADDON raises `write_failed` too, from `operations.gd`, for a FILE it could not open for
+ * writing — and `error_remedies.gd` answers it with *"Check the target path is inside the
+ * project and not read-only; the number is a Godot Error code."* That sentence is correct
+ * for the addon and nonsense for this site, which has no path, no file and no Godot error
+ * code: it is a TCP socket that went away. The collision was invisible while this branch
+ * was believed unreachable; 268 measured it reachable 200/200 and it became live.
+ *
+ * The CODE is kept and the message and remedy are made to fit — 262's disposition for an
+ * overloaded shipped code, for the same reason: fix what the reader acts on, and leave a
+ * wire vocabulary that callers may already branch on alone. Whether the two producers
+ * should share a word at all is a wire question, and it is enqueued as one rather than
+ * decided here.
+ */
+export const BRIDGE_WRITE_FAILED = "write_failed";
+
+/**
+ * The next action for a request that never reached the socket.
+ *
+ * 🔴 IT IS THE ONE FAILURE IN THIS CLASS THAT CAN SAY *RETRY* WITHOUT QUALIFICATION, and
+ * that is the whole value of separating it. `timeout-caveat.ts` exists because a bridge
+ * TIMEOUT may already have been applied by the editor; `closeRemedy` cannot promise
+ * otherwise either, since a request in flight when the socket dropped may have landed.
+ * This one is different in a way the host actually knows: the frame was never handed to
+ * the kernel, so nothing can have been applied, so a retry is a first attempt and not a
+ * second. 264's rule — measure N families, speak for N — read in the direction that
+ * licenses a stronger sentence rather than a weaker one.
+ */
+export const WRITE_FAILED_REMEDY =
+  "Retry the call — the request was never sent, so nothing was applied and this is a " +
+  "first attempt rather than a second. A recurrence means the host is tearing the " +
+  "connection down mid-request.";
+
+/**
+ * The sentence for a request that never reached the socket.
+ *
+ * `cause` is node's own error, kept in a parenthetical rather than used as the whole
+ * message: `Cannot call write after a stream was destroyed` is a true statement about a
+ * Node stream and tells a caller of `node_add` nothing about their call, which is what
+ * this site shipped until 268.
+ */
+export function writeFailedMessage(method: string, cause: Error): string {
+  return (
+    `Bridge request '${method}' was never sent — the connection was torn down between ` +
+    `preparing the request and writing it, so the editor did not receive it (${cause.message}).`
+  );
+}
+
 /**
  * TCP client for the in-editor Breakpoint MCP addon. Speaks newline-delimited
  * JSON. Requests are correlated to responses by `id`. Connects lazily and
@@ -448,9 +518,15 @@ export class BridgeClient {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         // Remember the id BEFORE rejecting, so a reply already in flight is
-        // reconciled rather than dropped as anonymous. The message keeps the
-        // exact `timed out after <n>ms` phrasing — tools/dap.ts:29 and
-        // tools/csdap.ts:31 branch on that substring.
+        // reconciled rather than dropped as anonymous.
+        //
+        // 🔴 THIS COMMENT USED TO SAY THE `timed out after <n>ms` PHRASING WAS
+        // LOAD-BEARING, NAMING `tools/dap.ts:29` AND `tools/csdap.ts:31`. Both line
+        // numbers had drifted by more than a hundred lines, and as of 268 the claim is
+        // false as well: those predicates read `DapError.code`, and this class's own
+        // caveat reader derives its marker from `bridgeErrorLabel`. A comment naming a
+        // line number is a claim that goes stale in silence — which is the whole reason
+        // the join is structural now.
         this.ledger.note(id, method, timeoutMs);
         // 🔴 262 §2 CALLED THIS "THE ONE HOST-RAISED FAILURE THAT HAS A KNOWABLE CAUSE",
         // and said everything else this class raises — "a closed socket, a peer that never
@@ -460,14 +536,30 @@ export class BridgeClient {
         // line — a peer that never answered really does leave nothing behind — which is
         // why the one cause the host can supply comes from outside the socket: its own
         // debugger holding the game. See `setHoldProbe`, and 264's census for the rest.
-        reject(new BridgeError("timeout", `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? undefined));
+        reject(new BridgeError(BRIDGE_TIMEOUT_CODE, `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? undefined));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       socket.write(payload, (err) => {
         if (err) {
           clearTimeout(timer);
           this.pending.delete(id);
-          reject(new BridgeError("write_failed", err.message));
+          // 🔴 REACHABLE, AND 265 CONCLUDED THE OPPOSITE FROM THE SAME TECHNIQUE (268).
+          // 265 broke a live socket four ways and read `bridge_closed` every time, and
+          // reasoned that `onClose()` always rejects the pending map first. Measured here
+          // 300/300 at the node level, that ordering is BACKWARDS: on a destroyed socket
+          // the write callback fires with ERR_STREAM_DESTROYED **before** the `close`
+          // event, so this line wins whenever the socket dies inside the await gap
+          // `request()` leaves between `connect()` and here. Driven through the real
+          // client — `request()` not awaited, `close()` on the next statement — the caller
+          // received THIS rejection 200 times out of 200. 265's drives all broke the
+          // socket and then WAITED, which is the one window in which they could not win.
+          //
+          // The sentence is worth having because this case knows something the other two
+          // do not: the payload never left. A `timeout` may have been applied by the
+          // editor and `bridge_closed` may have been too, so neither can tell a caller to
+          // retry; this one can, and 267's rule is that a next action rides in the field
+          // rather than inside the message.
+          reject(new BridgeError(BRIDGE_WRITE_FAILED, writeFailedMessage(method, err), WRITE_FAILED_REMEDY));
         }
       });
     });

@@ -3480,6 +3480,28 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · release_names 61/33 · queue 42/42 claims · handoff 317 claims · 26 CI jobs
 > ```
 """),
+    (267, """> ```
+> main                 eaadaa1 — the answers that had nowhere to go (#326)   MERGED
+>                      26/26 green · branch deleted
+> branch 267           none live — this session's work is on main
+> host / addon         1.79.0 / 1.11.0  🟢 HOST MOVED, this session's own cut; addon
+>                      unmoved, still stamped at ca2d5d8, C4_OK — no second Asset Library
+>                      submission is owed while 1.11.0 is in review
+> tag                  🟢 v1.79.0 ANNOTATED at eaadaa1, declaring its own release commit
+> npm                  🟡 1.79.0 · registry 1.78.3 · lag 1 — PUBLISH OWED, needs his TTY
+> 🟢 VERIFIED AFTER THE CHANGE   886/886 · contract 28/28 · scope 48 · control 71
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1691
+>               · py gates 18/4/14 · SIG 134/105 · late constructed 197/160
+>               · late not-loaded 0 · discover 52/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 104 · 48 governed · 1200 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 306 file(s) / 21 suffixes
+>               · seal 104 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3680 nodes / 20 keys / 0 unread
+>               · wire_invisible 34 cases · lint_ceiling 18 files
+>               · taut 4662 · mutlock 5 + 12 cases · tree_quiet 13
+>               · release_names 61/33 · queue 42/42 claims · handoff 318 claims · 26 CI jobs
+> ```
+"""),
 ]
 
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────

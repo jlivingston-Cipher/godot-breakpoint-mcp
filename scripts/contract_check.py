@@ -305,8 +305,13 @@ CHECKS_EXPECTED = (
     # 🆕 261 — check 31, the recipe/surface join. A member and not a roster gate: it asks
     # whether a step the guide tells the reader to run is a step their install can run.
     "31",
+    # 🆕 268 — check 32, the error-code discipline. A member and not a roster gate: it
+    # asks whether a shipped branch is selected by a FIELD or by a sentence, on both
+    # sides of three joins. 🔴 AND NO ROUND BRACKETS HERE EITHER — see the note above
+    # this tuple; the roster is read out of this file with a lazy bracket group.
+    "32",
 )
-CHECKS_RUN_FLOOR = 28   # measured: twenty-eight blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 29   # measured: twenty-nine blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -969,6 +974,133 @@ def guide_recipe_tools() -> "dict[str, dict]":
             else:
                 row["steps"].append((i + 1, section, marked))
     return out
+
+
+
+# A line that decides something by MATCHING an error's message body. `.trim()` and
+# `?? String(err)` are deliberately not here: asking whether a message is EMPTY, or
+# defaulting when it is absent, is a question about presence and not about wording.
+PROSE_PREDICATE_RE = re.compile(
+    r"""\.test\(\s*[\w.?]*\.message\s*\)"""
+    r"""|\.message\s*\.\s*(?:includes|startsWith|endsWith|match|search)\s*\("""
+    r"""|\.message\s*===\s*["'`]"""
+)
+# Any line that mentions a message at all — the HAYSTACK the scan above runs over, so
+# that "found nothing" and "looked at nothing" are different numbers.
+MESSAGE_READ_RE = re.compile(r"\.message\b")
+# The label `tools/editor/common.ts` builds through `bridgeErrorLabel`. Spelled anywhere
+# else it is a hand-copy of a template that lives in another file — 268's third site.
+RENDERED_LABEL_RE = re.compile(r"""["'`]Bridge error \[""")
+LABEL_HOME = "host/src/bridge.ts"
+ERROR_RAISE_RE = re.compile(r"new\s+(?:Bridge|Lsp|Dap)Error\s*\(")
+TIMEOUT_PHRASE = "timed out after"
+# The tokens that spell a timeout code at a raise site, in any of the three classes.
+TIMEOUT_CODE_TOKENS = ("BRIDGE_TIMEOUT_CODE", "DAP_TIMEOUT_CODE", '"timeout"')
+
+
+def _uncommented(line: str) -> str:
+    """The code part of a source line, or "" when the line is only prose.
+
+    🔴 A GATE THAT READS SOURCE LINES MUST TELL CODE FROM PROSE ABOUT CODE, or the first
+    thing it refuses is the paragraph explaining what it enforces. Measured while writing
+    268: the unfiltered scan found six hits and every one of them was a comment
+    describing the defect being removed. 246 learned the same lesson from the other end,
+    where a bracket inside a comment silently truncated a roster.
+    """
+    s = line.lstrip()
+    if s.startswith(("*", "//", "/*")):
+        return ""
+    return line
+
+
+def error_prose_predicates() -> "tuple[list[str], int, int]":
+    """Sites in `host/src` that decide behaviour by MATCHING English, plus the two
+    populations the scan ran over.
+
+    🔴 268 — `dap-timeout-predicate-reads-prose`, and the row named two of the three.
+    Both DAP tool layers carried `err instanceof DapError && /timed out after/.test(
+    err.message)`, so which sentence `dbg_evaluate` and `dbg_set_variable` returned was
+    selected by a regex over a message body — and not only as a hazard: the same regex
+    matched the ADAPTER'S OWN words at the relay site, so an adapter answering with its
+    own inner deadline was told by this host that Godot does not implement setVariable.
+    The THIRD site was found by asking the question of the whole tree instead of the two
+    files the row happened to name: `timeout-caveat.ts` decided whether 198 mutating
+    tools warn that a timed-out change may already have landed by matching the literal
+    `Bridge error [timeout]`, a string it spelled out itself, one file from the template
+    that builds it. §1's rule from 267, turned on this session's own row: a gate's
+    population is a claim, and the two sites a row names are not it.
+
+    Three directions:
+
+      • a predicate matching a `.message` — the class itself, which after 268 has an
+        empty population and must stay that way;
+      • a raise site whose message says it timed out and carries no timeout CODE, or the
+        reverse — the join that keeps a discriminator from being silently dropped by the
+        fourth plane somebody adds;
+      • the rendered bridge label spelled outside the module that builds it.
+
+    Returns (problems, lines mentioning a message, raise sites judged). The two counts
+    are reported because an empty problem list means *nothing wrong* and *did not look*
+    identically, which is 267's own finding about reading a gate's output.
+    """
+    problems: "list[str]" = []
+    message_reads = 0
+    raise_sites = 0
+    if not HOST_SRC.exists():
+        return problems, message_reads, raise_sites
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        rel = str(f.relative_to(ROOT))
+        text = f.read_text()
+        for n, raw in enumerate(text.splitlines(), 1):
+            line = _uncommented(raw)
+            if not line:
+                continue
+            if MESSAGE_READ_RE.search(line):
+                message_reads += 1
+            if PROSE_PREDICATE_RE.search(line):
+                problems.append(
+                    f"{rel}:{n} decides something by matching an error's message body. "
+                    f"A copy edit at the raise site then changes which answer a caller "
+                    f"gets, with every test green — set a CODE at the raise site and read "
+                    f"the field, as `DapError.code` does since 268."
+                )
+            if RENDERED_LABEL_RE.search(line) and rel != LABEL_HOME:
+                problems.append(
+                    f"{rel}:{n} spells the rendered bridge-error label out. It is built by "
+                    f"`bridgeErrorLabel` in {LABEL_HOME}; a hand-copy stops matching the "
+                    f"moment that template is reworded, and the reader it silences is the "
+                    f"retry caveat on every non-idempotent tool."
+                )
+        for m in ERROR_RAISE_RE.finditer(text):
+            raise_sites += 1
+            # The raise expression, to its matching close bracket — the message and the
+            # code are arguments of the same call, so they are read together or not at all.
+            depth, i = 0, m.end() - 1
+            while i < len(text):
+                if text[i] == "(":
+                    depth += 1
+                elif text[i] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            expr = text[m.start(): i + 1]
+            line_no = text.count("\n", 0, m.start()) + 1
+            says_timeout = TIMEOUT_PHRASE in expr
+            has_code = any(tok in expr for tok in TIMEOUT_CODE_TOKENS)
+            if says_timeout and not has_code:
+                problems.append(
+                    f"{rel}:{line_no} raises a failure whose message says it timed out and "
+                    f"passes no timeout code. Two tool layers branch on that code; without "
+                    f"it the branch goes quiet and nothing fails."
+                )
+            elif has_code and not says_timeout:
+                problems.append(
+                    f"{rel}:{line_no} passes a timeout code over a message that does not "
+                    f"say the request timed out. The code is what a caller branches on and "
+                    f"the sentence is what they read, and these two now disagree."
+                )
+    return problems, message_reads, raise_sites
 
 
 def test_count_constants() -> list[tuple[Path, int, str, int]]:
@@ -3567,7 +3699,15 @@ EXEC_ROSTER = {
 # WITHIN A MINUTE OF `git add` — and 234's new file is the one that reads a handoff's
 # counters back off the instruments, so the check catching it is the argument for it
 # arriving from the other side.
-SHEBANG_NONEXEC_EXPECTED = 47  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 48  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # 🆕 268: 47 -> 48, `host/scripts/publish_guard.mjs` —
+                               # the publish guard, invoked as `node <file>` from
+                               # `prepublishOnly` like every instrument beside it. 🔴 AND
+                               # IT WAS CAUGHT TWICE IN THE SAME MINUTE, by this check and
+                               # by `lint_ceiling`'s `MJS_FILE_FLOOR` equality, both of
+                               # them reading a file staged four commands earlier. The
+                               # file this one caught is itself a guard against shipping
+                               # a tree nobody re-read, which is the argument for both.
                                # 🆕 241: 46 -> 47, `scripts/p0_comments.py` — the P0
                                # comment classifier, invoked as `python3 <file>` like
                                # every gate beside it. 🔴 AND IT FIRED ON THE SESSION
@@ -4304,6 +4444,12 @@ _REMEDY_IMPERATIVES = (
     "act", "call", "check", "choose", "create", "duplicate", "enable", "fix", "inspect",
     "look", "make", "open", "pass", "raise", "re-run", "read", "release", "restart", "run",
     "send", "set", "simplify", "spawn", "split", "start", "switch", "verify",
+    # 🆕 268 — one verb, for the same reason 267 added five. Widening check 28's grammar
+    # arm to `write_failed`'s new remedy refused "Retry the call", which is a next action
+    # by any reading — `re-run` was already here and `retry` was not, which is a fact
+    # about where the vocabulary was harvested rather than about English. Added as an
+    # IMPERATIVE, so the ceiling and full-stop rules apply to it unchanged.
+    "retry",
 )
 _REMEDY_MAX = 210            # measured longest at 254: 176 characters
 remedy_rows = remedy_tables()
@@ -4875,6 +5021,47 @@ print(f"Guide recipes          : "
       f"{len([t for t in _recipe_tools if t in _priv_named])} higher-trust")
 _ran("31")
 
+# --- 32: THE BRANCHES THAT ANSWERED TO ENGLISH -----------------------------
+#
+# 🔴 268 — `dap-timeout-predicate-reads-prose`, and the row named two of the three sites.
+# Both DAP tool layers carried `err instanceof DapError && /timed out after/.test
+# err.message`, so which sentence `dbg_evaluate` and `dbg_set_variable` returned was
+# chosen by a regex over a message body. 267 found it while giving the class a `remedy`
+# field, declined to reword those messages for exactly that reason, and asserted the
+# wording instead — a test defending a defect rather than a behaviour.
+#
+# 🔴 AND IT WAS NEVER ONLY A HAZARD. The same regex matched the ADAPTER'S OWN words at
+# the relay site, so an adapter answering `setVariable` with a failure that mentioned its
+# own inner deadline was told by this host that Godot's debug adapter does not implement
+# setVariable — a measured claim about a different build, invented over a reply that had
+# arrived. Three tests drive it and all three go red against the predicate this release
+# removed.
+#
+# 🔴 THE THIRD SITE WAS NOT IN THE ROW, AND IT HAD A HUNDRED TIMES THE BLAST RADIUS.
+# `timeout-caveat.ts` decided whether all 198 mutating tools warn that a timed-out change
+# MAY ALREADY HAVE LANDED by matching the literal `Bridge error [timeout]`, spelled out
+# in that file, one file from the template that builds it and two from the code it
+# embeds. A reword of `fail` would have ended the warning everywhere in silence. It was
+# found by asking the question of the whole tree rather than of the two files the row
+# happened to name — 267 §1's own rule, turned on 267's own row.
+#
+# Three directions:
+#   • a predicate matching a `.message` — the class itself, whose population is empty
+#     after 268 and must stay so;
+#   • a raise site whose message says it timed out and carries no timeout CODE, or a code
+#     over a message that no longer says it — the join in both directions, so the fourth
+#     plane somebody adds cannot drop the discriminator in silence;
+#   • the rendered bridge label spelled outside the one module that builds it.
+_prose_problems, _message_reads, _error_raises = error_prose_predicates()
+for _p in _prose_problems:
+    errors.append(f"check 32: {_p}")
+
+print(f"Error-code discipline  : "
+      f"{_message_reads} message read(s) scanned · {_error_raises} raise site(s) judged · "
+      f"{len(_prose_problems)} problem(s)")
+_ran("32")
+
+
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
 #
 # 192 §5 bound ONE branch to ONE handler: for each TypeScript branch, does the handler it
@@ -5409,6 +5596,17 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("guide.recipe_steps", _recipe_steps_judged, 30,
      "the step mentions collapse to zero, so the higher-trust marker is required of no "
      "line and the declaration block is compared against an empty set of steps"),
+    # 🆕 268 — check 32's two populations. The lines that read an error's MESSAGE, and the
+    # sites that RAISE one. Empty here and the tree reads as having no branch that could
+    # answer to English and no raise site that could drop a code — which is exactly the
+    # state the check exists to distinguish from a clean one, because 267's finding is
+    # that an empty list means *nothing wrong* and *did not look* identically.
+    ("host.error_message_reads", _message_reads, 40,
+     "no line in host/src is read for a prose predicate, so the class 268 removed can "
+     "return anywhere in the tree and check 32 agrees that nothing decides by matching"),
+    ("host.error_raise_sites", _error_raises, 20,
+     "no failure raise site is judged, so a timeout that stops carrying its code and a "
+     "code that outlives its sentence both pass the join in both directions"),
     ("shapes.inputs_parsed", len(code_inputs), 250,
      "🔴 CHECK 16's UNIVERSE — the population it floors coverage against. Empty here, nothing is uncovered"),
     ("shapes.inputs_compared", len(input_comparable), 250,

@@ -1,12 +1,17 @@
 import { ok, failPath } from "../lsp-common.js";
 import { resolveInsideProject } from "../../paths.js";
 import type { BridgeClient, BridgeError } from "../../bridge.js";
-import { remedyClause } from "../../bridge.js";
+import { remedyClause, bridgeErrorLabel } from "../../bridge.js";
 
 /**
  * MCP error envelope for a failed editor-bridge call (never throws to the
  * caller). Distinct from lsp-common's `fail` (which labels errors "LSP error");
  * this one labels them "Bridge error".
+ *
+ * 🔴 THE LABEL IS BUILT BY `bridgeErrorLabel` AND NOT WRITTEN HERE (268), because
+ * `timeout-caveat.ts` matches against it to decide whether a mutating tool warns that
+ * a timed-out change may already have landed. Inlining the template again would put the
+ * two spellings back in two files with nothing joining them.
  */
 export function fail(err: unknown) {
   const be = err as Partial<BridgeError> & { message?: string };
@@ -14,7 +19,7 @@ export function fail(err: unknown) {
   const message = be?.message ?? String(err);
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `Bridge error [${code}]: ${message}${remedyClause(err)}` }],
+    content: [{ type: "text" as const, text: `${bridgeErrorLabel(code)}: ${message}${remedyClause(err)}` }],
   };
 }
 

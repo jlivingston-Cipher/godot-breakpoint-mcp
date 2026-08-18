@@ -1,9 +1,17 @@
 import { EventEmitter } from "node:events";
 import type { FramedMessage, JsonRpcChannel } from "./framing.js";
-import { DapError, INITIALIZED_WAIT_CEILING_MS, type DapState, type WatchResult } from "./dap.js";
+import {
+  DapError,
+  DAP_TIMEOUT_CODE,
+  DAP_UNANNOUNCED_CODE,
+  INITIALIZED_WAIT_CEILING_MS,
+  unannouncedMessage,
+  type DapState,
+  type WatchResult,
+} from "./dap.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
-import { timeoutRemedy } from "./timeout-cause.js";
+import { timeoutRemedy, unannouncedRemedy } from "./timeout-cause.js";
 
 /**
  * Who answers this plane, in the words its late-reply ledger already uses.
@@ -262,13 +270,14 @@ export class CsDapClient extends EventEmitter {
         // Remember the seq BEFORE rejecting, so a response already in flight is
         // reconciled rather than dropped as anonymous.
         this.ledger.note(seq, command, timeoutMs);
-        // The `timed out after <n>ms` wording is load-bearing — `tools/csdap.ts`'s
-        // `isDapTimeout` branches on it. The next action rides beside it, not inside it.
+        // 🔴 THE WORDING IS NO LONGER LOAD-BEARING (268) — see `dap.ts`'s twin. The code
+        // is what `tools/csdap.ts`'s `isDapTimeout` reads; the sentence is free.
         reject(
           new DapError(
             command,
             `C# DAP '${command}' timed out after ${timeoutMs}ms`,
             timeoutRemedy(CSDAP_PEER, CSDAP_TIMEOUT_KNOB),
+            DAP_TIMEOUT_CODE,
           ),
         );
       }, timeoutMs);
@@ -396,12 +405,18 @@ export class CsDapClient extends EventEmitter {
   async start(
     mode: "launch" | "attach",
     args: Record<string, unknown>,
+    requireInitialized = true,
   ): Promise<{ initializedSeen: boolean; initializedWaitMs: number }> {
     this.lastStartMode = mode;
     this.lastStartArgs = args;
     this.sessionStarted = false;
-    // Listen for `initialized` before we ask, so we cannot miss it.
-    const initializedWaitMs = Math.min(this.timeoutMs, INITIALIZED_WAIT_CEILING_MS);
+    // Listen for `initialized` before we ask, so we cannot miss it. Two windows since
+    // 268 — see `dap.ts`'s twin for the argument. Refusing is the default, so the wait
+    // runs to the caller's own deadline; the five-second ceiling survives on the opt-out
+    // path alone, which exists to reproduce 267's behaviour including its numbers.
+    const initializedWaitMs = requireInitialized
+      ? this.timeoutMs
+      : Math.min(this.timeoutMs, INITIALIZED_WAIT_CEILING_MS);
     const onInit = this.waitEvent("initialized", initializedWaitMs);
     this.capabilities = await this.request("initialize", {
       clientID: "breakpoint-mcp",
@@ -440,6 +455,19 @@ export class CsDapClient extends EventEmitter {
     );
     // 🔴 CAPTURED, NOT DISCARDED (267) — see `dap.ts`'s twin.
     const initializedSeen = await onInit;
+    // 🔴 REFUSED, NOT REPORTED (268) — and BEFORE `applyAllBreakpoints()`, because that
+    // call is the defect itself. See `dap.ts`'s twin.
+    if (!initializedSeen && requireInitialized) {
+      this.state = "terminated";
+      this.sessionStarted = false;
+      this.configured = false;
+      throw new DapError(
+        mode,
+        unannouncedMessage("The C# debug adapter", mode, initializedWaitMs),
+        unannouncedRemedy(CSDAP_PEER, CSDAP_TIMEOUT_KNOB),
+        DAP_UNANNOUNCED_CODE,
+      );
+    }
     await this.applyAllBreakpoints();
 
     // Arm the entry-stop wait BEFORE configurationDone is sent: netcoredbg can emit
