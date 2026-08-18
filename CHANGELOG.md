@@ -6,6 +6,43 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.78.2] — 2026-08-18
+
+### Fixed — a connect failure told you to check something that had nothing to do with it
+
+- 🔴 **Every way a connection could fail to open produced `bridge_unavailable` and the
+  same appended hint.** Driven against real sockets: a port with nothing listening on it,
+  and a host name that does not resolve, both arrived as *Cannot reach the Godot editor
+  bridge at …* followed by *Is the editor open with the "Breakpoint MCP" plugin enabled?*
+  For the second one that sentence is not merely unhelpful, it is **wrong about what
+  happened** — the name never became an address, so no packet left the machine and the
+  editor's state had no bearing on the failure. Someone with a typo in their bridge host
+  variable was sent to go and look at Godot.
+- **The errno that separates them was already in hand and only its message was read** —
+  the same shape, one step earlier in the same file, as the dropped-connection fix in
+  1.78.1. A refused connect now carries *Start the editor and retry — the machine answered
+  and refused the connection, so the address is right and nothing is listening on that
+  port*, and an unresolved host names the variable that actually moves this client's
+  address instead of claiming anything about the editor.
+- **The hint is suppressed, not reworded.** Every message a caller reads for a refused
+  connect is byte-identical to what shipped; only the case that was making a false claim
+  changed. An errno outside the two measured families is left exactly as it was and gets
+  no new sentence, deliberately — the same refusal to invent that 1.78.1 shipped.
+- **`unknown_peer` was two different answers depending on which door you came through.**
+  Addressing an unknown peer id named a next action; stopping one stopped dead after
+  listing the live ids — the same code, off the same registry, in two sentences that had
+  drifted apart. There is one now, and it is branched on what the registry actually holds:
+  a caller with no live peers is told how to spawn some, and a caller who has them is told
+  to address one of the ids already printed.
+- **The next action moved into the field that gets rendered.** Both of these previously
+  wrote their advice into the message body, where the host's own remedy renderer cannot
+  see it. This does not change the failures that still do — `write_failed`, `non_finite`,
+  `peer_exited` and `peer_not_ready` among them — which are recorded and measured rather
+  than swept.
+- **A headless peer's client was built with the editor bridge's settings.** A peer that
+  answered late named the editor bridge's timeout variable — one that cannot move the
+  deadline it just missed — and called itself *the editor*. It now names its own.
+
 ## [1.78.1] — 2026-08-17
 
 ### Fixed — a peer that was killed and a peer that shut down cleanly said the same thing

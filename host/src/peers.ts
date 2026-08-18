@@ -96,20 +96,47 @@ export class PeerRegistry {
   }
 
   /**
+   * The one `unknown_peer` refusal, raised from both the read path and the write path.
+   *
+   * 🔴 WHY THIS IS A FUNCTION (265). `clientFor` and `stop` both refused an unknown id
+   * with the code `unknown_peer`, off the SAME registry, in two sentences that had drifted:
+   *
+   * ```
+   * clientFor("peer-9")   No peer with id "peer-9". Live peers: (none). Spawn peers with runtime_spawn_peers, or omit `peer`…
+   * stop("peer-9")        No peer with id "peer-9". Live peers: (none).
+   * ```
+   *
+   * One named a next action and the other stopped dead after the ids, and nothing in this
+   * repository could see the difference — 264 §1.2 measured why: a next action written
+   * into a message BODY reaches no reader, so `remedyClause()` returned `""` for both and
+   * check 28's grammar arm judged neither. The answer moves into the `remedy` FIELD, which
+   * is the channel that IS read, and the two paths stop being two sentences.
+   *
+   * 🔴 AND THE REMEDY IS BRANCHED ON THE REGISTRY, which is the point of 264's "silent,
+   * but the host holds something that discriminates" column. Telling a caller with three
+   * live peers to spawn some is the wrong next action; telling a caller with none to use
+   * one of the ids above names nothing. The registry answers which sentence is true, and
+   * it was in hand at both sites the whole time.
+   */
+  private unknownPeer(id: string): BridgeError {
+    const ids = this.live().map((p) => p.id);
+    return new BridgeError(
+      "unknown_peer",
+      `No peer with id "${id}". Live peers: ${ids.length ? ids.join(", ") : "(none)"}.`,
+      ids.length
+        ? `Address one of the live peer ids above, or omit \`peer\` to address the default running game.`
+        : `Spawn peers with runtime_spawn_peers, or omit \`peer\` to address the default running game.`,
+    );
+  }
+
+  /**
    * The bridge client addressing one peer. Throws a BridgeError the runtime
    * tools' `fail()` renders — an unknown or dead peer must read as a clear
    * message naming the live ids, never as a generic "cannot reach the bridge".
    */
   clientFor(id: string): BridgeClient {
     const e = this.peers.get(id);
-    if (!e) {
-      const ids = this.live().map((p) => p.id);
-      throw new BridgeError(
-        "unknown_peer",
-        `No peer with id "${id}". Live peers: ${ids.length ? ids.join(", ") : "(none)"}. ` +
-          `Spawn peers with runtime_spawn_peers, or omit \`peer\` to address the default running game.`,
-      );
-    }
+    if (!e) throw this.unknownPeer(id);
     if (e.stopped) throw new BridgeError("peer_stopped", `Peer "${id}" was stopped by runtime_peer_stop.`);
     const m = this.procs.get(e.managedId);
     if (m?.exited) {
@@ -227,6 +254,12 @@ export class PeerRegistry {
         // read BREAKPOINT_*_SECRET, so a host-launched child authenticates with
         // whatever is on disk regardless of the host's env overrides.
         () => readProjectSecret(this.cfg.projectPath),
+        // A peer's deadline and peer-noun are its own, and so is its ADDRESS: peers are
+        // dialled on `cfg.runtimeHost`, so an unresolved-host remedy here must name
+        // BREAKPOINT_RUNTIME_HOST and not the editor bridge's variable (265).
+        "BREAKPOINT_RUNTIME_TIMEOUT_MS",
+        `peer ${id}`,
+        "BREAKPOINT_RUNTIME_HOST",
       );
       const entry: Entry = {
         info: { id, port, pid: managed.child.pid ?? null, role: opts.role ?? null, ready: false },
@@ -271,13 +304,7 @@ export class PeerRegistry {
   /** Stop one peer (or all). Repeating is a no-op, so the tool is idempotent. */
   stop(id?: string, all = false): string[] {
     const targets = all ? [...this.peers.keys()] : id ? [id] : [];
-    if (!all && id && !this.peers.has(id)) {
-      const ids = this.live().map((p) => p.id);
-      throw new BridgeError(
-        "unknown_peer",
-        `No peer with id "${id}". Live peers: ${ids.length ? ids.join(", ") : "(none)"}.`,
-      );
-    }
+    if (!all && id && !this.peers.has(id)) throw this.unknownPeer(id);
     const stopped: string[] = [];
     for (const t of targets) {
       const e = this.peers.get(t);

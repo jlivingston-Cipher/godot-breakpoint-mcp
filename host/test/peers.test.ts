@@ -5,6 +5,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { PeerRegistry, MAX_PEERS } from "../src/peers.js";
+import { remedyClause } from "../src/bridge.js";
 import { loadConfig } from "../src/config.js";
 import { readProjectSecret } from "../src/secret.js";
 
@@ -225,6 +226,96 @@ test("errors: unknown peer ids name the live set instead of failing as a bridge 
     reg.stopAll();
     fs.rmSync(f.dir, { recursive: true, force: true });
   }
+});
+
+/** The error a call raised, so a test can assert on the FIELD and not only the message. */
+function grab(fn: () => unknown): Error & { code?: string; remedy?: string } {
+  try {
+    fn();
+  } catch (e) {
+    return e as Error & { code?: string; remedy?: string };
+  }
+  throw new Error("the call resolved; it was supposed to refuse");
+}
+
+/**
+ * 🔴 THE READ PATH AND THE WRITE PATH REFUSED THE SAME CODE IN TWO SENTENCES (265).
+ *
+ * `clientFor` named a next action and `stop` did not, off the same registry, and both
+ * wrote theirs into the message BODY where `remedyClause` cannot see it and check 28's
+ * grammar arm cannot judge it (264 §1.2). These assert the union: one sentence, in the
+ * FIELD, branched on what the registry actually holds.
+ *
+ * BOTH DIRECTIONS throughout — an empty registry and a populated one — because a build
+ * that returned the "spawn some" sentence unconditionally would pass a one-sided test and
+ * would be telling a caller who already has live peers the wrong next action.
+ */
+test("unknown_peer: the read path and the write path give ONE answer, in the remedy field", () => {
+  const f = fixture();
+  const reg = new PeerRegistry(cfgFor(f, basePort()) as never);
+  try {
+    const read = grab(() => reg.clientFor("peer-404"));
+    const write = grab(() => reg.stop("peer-404"));
+
+    assert.equal(read.code, "unknown_peer");
+    assert.equal(write.code, "unknown_peer");
+    assert.equal(read.message, write.message, "the same refusal must not have drifted into two sentences");
+    assert.equal(read.remedy, write.remedy, "the same refusal must not have two next actions");
+
+    // 🔴 THE CHANNEL IS THE POINT, not just the words: the answer must arrive through the
+    // field `remedyClause` reads, which is what makes it visible to a reader at all.
+    assert.ok(read.remedy, "an unknown peer must carry a next action");
+    assert.match(remedyClause(read), / — Spawn peers with runtime_spawn_peers/);
+    assert.ok(!read.message.includes("runtime_spawn_peers"), "the next action must not also sit in the message body");
+  } finally {
+    reg.stopAll();
+    fs.rmSync(f.dir, { recursive: true, force: true });
+  }
+});
+
+test("unknown_peer: the remedy is branched on the REGISTRY, not written once and reused", skipWin, async () => {
+  const f = fixture();
+  const reg = new PeerRegistry(cfgFor(f, basePort()) as never);
+  try {
+    const empty = grab(() => reg.clientFor("peer-404"));
+    const peers = await reg.spawn({ count: 1, timeoutMs: 8000 });
+    const populated = grab(() => reg.clientFor("peer-404"));
+
+    // 🔴 THE OTHER DIRECTION. Telling a caller who HAS live peers to spawn some is the
+    // wrong next action, and the registry — in hand at this site the whole time — is what
+    // says which sentence is true.
+    assert.notEqual(empty.remedy, populated.remedy, "the two registry states must not give one sentence");
+    assert.match(empty.remedy!, /^Spawn peers with runtime_spawn_peers/);
+    assert.match(populated.remedy!, /^Address one of the live peer ids above/);
+    assert.match(populated.message, new RegExp(`Live peers: ${peers[0].id}`));
+  } finally {
+    reg.stopAll();
+    fs.rmSync(f.dir, { recursive: true, force: true });
+  }
+});
+
+/**
+ * 🔴 A PEER'S CLIENT WAS BUILT WITH THE EDITOR BRIDGE'S THREE PER-INSTANCE KNOBS (265).
+ *
+ * `BridgeClient`'s `deadlineKnob`, `peerNoun` and `hostKnob` all default to the editor's,
+ * and `peers.ts` took all three defaults while dialling `cfg.runtimeHost` on
+ * `cfg.runtimeTimeoutMs`. So a peer's late-reply line named BREAKPOINT_BRIDGE_TIMEOUT_MS —
+ * a knob that cannot move the deadline it just hit — and called the thing that failed to
+ * answer "the editor". That is the exact defect the `deadlineKnob` parameter was added to
+ * prevent, at the one call site nobody passed it at.
+ *
+ * Asserted on the CONSTRUCTION, not on a rendered sentence, because the defect is which
+ * arguments the site passes and a message assertion would go green the moment somebody
+ * reworded the ledger.
+ */
+test("a peer's client is constructed with ITS OWN knobs, not the editor bridge's", () => {
+  // `process.cwd()`, not `import.meta.url` — `npm test` runs the suite from `dist-test/`,
+  // where a relative walk up lands beside the compiled output and not beside the source.
+  const src = fs.readFileSync(path.join(process.cwd(), "src/peers.ts"), "utf8");
+  const call = src.slice(src.indexOf("new BridgeClient("), src.indexOf("const entry: Entry"));
+  assert.match(call, /BREAKPOINT_RUNTIME_TIMEOUT_MS/, "a peer's deadline knob must be the runtime one");
+  assert.match(call, /BREAKPOINT_RUNTIME_HOST/, "a peer's host knob must be the runtime one");
+  assert.ok(!/BREAKPOINT_BRIDGE_/.test(call), "a peer must not be handed the editor bridge's variables");
 });
 
 test("readiness: a peer that dies on startup fails the spawn WITH its own stderr attached", skipWin, async () => {
