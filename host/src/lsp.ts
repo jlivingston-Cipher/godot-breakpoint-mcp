@@ -2,6 +2,17 @@ import { fileURLToPath } from "node:url";
 import { FramedConnection, type FramedMessage } from "./framing.js";
 import { packageVersion } from "./version.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
+import { closeDetail, closeRemedy } from "./close-cause.js";
+
+/**
+ * Who answers this plane, in the words its late-reply ledger already uses.
+ *
+ * 🔴 ONE CONSTANT, TWO READERS (264). The ledger names this peer when a reply arrives
+ * late and `closeRemedy` names it when the connection drops. Two literals would let the
+ * same peer acquire two names on the same run, which is the class of drift 257's
+ * per-instance deadline noun was written to stop.
+ */
+const LSP_PEER = "the language server";
 
 export class LspError extends Error {
   code: number | string;
@@ -44,7 +55,7 @@ export class LspClient {
    * dropped. `nextId` is monotonic and is deliberately NOT reset by onClose(),
    * so an id is never reused and a late reply can only be its own request's.
    */
-  private readonly ledger = new OverdueLedger<number>("LSP", "the language server", "GODOT_LSP_TIMEOUT_MS");
+  private readonly ledger = new OverdueLedger<number>("LSP", LSP_PEER, "GODOT_LSP_TIMEOUT_MS");
   /** Absolute project root path (no trailing slash), used to canonicalize URIs. */
   private readonly rootFsPath: string;
 
@@ -153,10 +164,16 @@ export class LspClient {
     // `cause` is the socket-level error when the drop had one (ECONNRESET, EPIPE).
     // Without it every pending request reported a generic close and the operator
     // could not tell a crashed server from something else holding the port.
-    const detail = cause ? ` (${cause.message})` : "";
+    const detail = closeDetail(cause);
+    // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), IN THE MESSAGE BECAUSE THIS CLASS
+    // HAS NOWHERE ELSE TO PUT IT. `LspError` carries no `remedy` field, and the plane's
+    // `fail()` renders no `remedyClause`, so the next action goes where the caller will
+    // actually read it. 264's census records the asymmetry rather than hiding it: of 25
+    // host-raised failures about the world, 13 are on classes that cannot carry an answer.
+    const remedy = closeRemedy(cause, LSP_PEER);
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new LspError("closed", `LSP connection closed${detail}`));
+      p.reject(new LspError("closed", `LSP connection closed${detail}${remedy ? ` — ${remedy}` : ""}`));
     }
     this.pending.clear();
     this.initialized = null;

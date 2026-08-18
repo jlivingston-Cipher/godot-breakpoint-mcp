@@ -6,6 +6,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.78.1] — 2026-08-17
+
+### Fixed — a peer that was killed and a peer that shut down cleanly said the same thing
+
+- 🔴 **Every dropped connection on every plane reported one sentence for two different
+  causes.** A `bridge_closed` (or `DAP connection closed`, or `LSP connection closed`)
+  arrived as *Bridge connection closed before a response arrived*, optionally followed by
+  a bracketed errno, and never with anything to do about it. Measured against real
+  sockets: a peer that resets mid-request and a peer that closes in an orderly way produce
+  the **same code** and the **same sentence**, separated by one parenthetical. Those are
+  different situations — a Godot editor that crashed or was killed needs restarting, an
+  editor that closed its socket has shut down or had the plugin disabled — and the caller
+  was given no way to tell them apart.
+- **The `Error` that separates them was already in hand and only its `message` was read.**
+  `framing.ts` hands the whole socket error to every close handler; `cause.code` carries
+  `ECONNRESET` on an abrupt drop and there is no error at all on an orderly one. All five
+  close sites — the editor/runtime bridge, the GDScript and C# debug adapters, and the
+  GDScript and C# language servers — now read it and say which happened, and what to do:
+  *Restart the editor and retry — it went away without closing the connection, so nothing
+  here says whether this request ran*, against *Check whether the editor is still running
+  — it closed the connection in an orderly way rather than dropping it*.
+- **An errno outside the two measured families gets no sentence at all**, deliberately.
+  Two families were measured and two can be spoken for; a third inheriting the abrupt
+  wording by default would be a claim nobody made wearing the authority of one that was.
+- One module, `host/src/close-cause.ts`, read by all five close sites so the errno list
+  cannot drift between planes. It knows three errnos — ECONNRESET, EPIPE and ECONNABORTED,
+  the three an orderly shutdown cannot produce — and classifies a drop as abrupt,
+  deliberate, or unclassified. Nothing new on the wire: `bridge_closed` simply starts
+  populating the remedy field it has had since the addon-side table landed, so it renders
+  through the same clause every other next action does.
+
+### Not answered — the rest of the census, so you know what to still expect bare
+
+- These still arrive with no next action attached, and are the work this release did not
+  do: `bridge_unavailable`, `write_failed`, `non_finite`, `unknown_peer`, `peer_exited`
+  and `peer_not_ready`. Each of them was measured to be holding something the host could
+  have named — an errno, its own state machine, or a live peer registry — and each is now
+  tracked rather than rediscovered.
+- Each plane names the peer its own late-reply ledger already names — *the editor*, *the
+  running game*, *the debug adapter*, *the language server* — from one constant per plane
+  read by both, so the same peer cannot acquire two names on one run.
+
 ## [1.78.0] — 2026-08-17
 
 ### Fixed — the C# debugging plane had neither guard, and the errors it gave were hex
