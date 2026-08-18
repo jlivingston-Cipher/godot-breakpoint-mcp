@@ -5469,6 +5469,14 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 the host half stops being read. Every `fail()` could drop `remedyClause` and the "
      "addon would still attach a remedy to every failure — the wire stays correct and the "
      "user reads the bare message, which is the state 254 measured"),
+    ("xlang.host_invented_sites", _sites_scanned, 12,
+     "🔴 the raise-site half stops being read, and it fails SILENTLY: an empty scan reports "
+     "no unanswered site, which is the same observable as every site carrying an answer. "
+     "That is why the count is floored here and not merely the list"),
+    ("xlang.host_cause_sentences", len(_host_causes), 8,
+     "🔴 the host's own remedy sentences stop being judged. The grammar rules below then read "
+     "an EMPTY table and every one of them agrees with itself — which is exactly how two "
+     "SHIPPED sentences sat unread until 267 widened this population to include them"),
     # 🆕 255 — check 29's three readers, floored separately because they fail separately
     # and every one of them fails SILENTLY. The join is `for each key, is it written` —
     # an empty left side asks nothing, an empty right side is the same as a handler that
