@@ -113,19 +113,38 @@ export async function waitForRuntimeBridge(cfg: Config, timeoutMs: number): Prom
  * message that says what broke has done half the job — applied to a field rather
  * than to a message: `bridge_ready: false` says what happened, and this says what
  * to do about it.
+ *
+ * 🔴 BOTH SENTENCES WERE REWRITTEN AT 267, AND A GATE FOUND THEM RATHER THAN A READER.
+ * Widening check 28's grammar to the host's OWN remedies — until then it read only
+ * `error_remedies.gd` — refused both of these at once, and the two refusals were the same
+ * two defects this project has now found three times:
+ *
+ * 1. **They opened by describing the failure.** *The process launched but the runtime
+ *    bridge … did not answer ping* is a second copy of what `bridge_ready: false` already
+ *    said. The next action arrived in the last clause, after 200 characters, which is the
+ *    exact shape 254 moved the addon's remedies away from.
+ * 2. 🔴 **AND THE SECOND ASKED A QUESTION OVER TWO CAUSES.** *Is the "Breakpoint MCP"
+ *    plugin enabled in this project?* — with *if the project is simply slow to boot* three
+ *    clauses later, so the sentence named both causes and instructed on neither. That is
+ *    266 §1's finding, in a different file, surviving the session that fixed it: the
+ *    question was removed from `peers.ts` and left standing here, because nothing joined
+ *    the two sites. A gate over the whole population is what joined them.
+ *
+ * Neither cause can be discriminated from here — a ping that went unanswered inside the
+ * wait says nothing about which — so the repair is to name both and give one action each,
+ * not to guess.
  */
 export function notReadyRemedy(cfg: Config, waitedMs: number): string {
   if (waitedMs <= 0) {
     return (
-      `The process launched and no wait was requested (wait_timeout_ms 0), so nothing here knows whether the ` +
-      `runtime bridge at ${cfg.runtimeHost}:${cfg.runtimePort} is up yet. Call runtime_get_tree to find out, or ` +
-      `re-run without wait_timeout_ms and this tool will wait and answer.`
+      `Call \`runtime_get_tree\` to find out whether the runtime bridge at ` +
+      `${cfg.runtimeHost}:${cfg.runtimePort} is up, or re-run with a wait above 0 — the process launched ` +
+      `and wait_timeout_ms 0 asked for no wait, so this is unknown, not failed.`
     );
   }
   return (
-    `The process launched but the runtime bridge at ${cfg.runtimeHost}:${cfg.runtimePort} did not answer ping ` +
-    `within ${waitedMs} ms, so a runtime_* call will fail until it does. Is the "Breakpoint MCP" plugin enabled in ` +
-    `this project? The runtime autoload it registers is what binds the port. If the project is simply slow to boot, ` +
-    `raise the wait with wait_timeout_ms.`
+    `Raise wait_timeout_ms and retry if the project is slow to boot, and check the "Breakpoint MCP" ` +
+    `plugin is enabled if it is not — the bridge at ${cfg.runtimeHost}:${cfg.runtimePort} answered no ping ` +
+    `in ${waitedMs} ms and this host cannot tell those apart.`
   );
 }

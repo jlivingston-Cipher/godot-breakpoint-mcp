@@ -129,6 +129,10 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     id: z.string(),
     exited: z.boolean(),
     exit_code: z.number().nullable(),
+    // The signal that ended the child, when one did — null otherwise, and null for a
+    // process still running. Nullable rather than optional, matching exit_code beside it:
+    // a key that vanishes cannot be told apart from a host too old to send it.
+    signal: z.string().nullable(),
     latest_seq: z.number(),
     lines: z.array(z.object({ seq: z.number(), stream: z.enum(["stdout", "stderr"]), text: z.string() })),
   },
@@ -481,6 +485,9 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     // one inside a shape makes contract_check.py swallow every later entry into
     // this one, and the drift error then names every field in the file.
     stop_on_entry_honored: z.boolean().optional(),
+    // Whether the adapter emitted its initialized event before breakpoints were applied.
+    // Always present: false means the handshake ran out of the order DAP specifies.
+    initialized_seen: z.boolean(),
     // Modifiers dropped when the handshake applied the BUFFERED breakpoints. Buffered
     // modifiers cannot be feature-detected at set time, so this is where their fate is
     // reported; dbg_set_breakpoints said only that detection was deferred.
@@ -489,6 +496,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
   dbg_attach: {
     session_id: z.string(), state: z.string(),
+    initialized_seen: z.boolean(),
     unsupported_modifiers: z.array(z.string()).optional(),
     warning: z.string().optional(),
   },
@@ -529,8 +537,8 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
 
   // ---- Plane D: C# debugging / netcoredbg DAP (tools/csdap.ts) ----
-  cs_dbg_launch: { session_id: z.string(), state: z.string() },
-  cs_dbg_attach: { session_id: z.string(), state: z.string() },
+  cs_dbg_launch: { session_id: z.string(), state: z.string(), initialized_seen: z.boolean(), warning: z.string().optional() },
+  cs_dbg_attach: { session_id: z.string(), state: z.string(), initialized_seen: z.boolean(), warning: z.string().optional() },
   cs_dbg_set_breakpoints: {
     path: z.string(), buffered: z.boolean(),
     breakpoints: z.array(z.object({ line: z.number(), verified: z.boolean() })),

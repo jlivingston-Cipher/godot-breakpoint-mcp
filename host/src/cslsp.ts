@@ -3,6 +3,7 @@ import type { FramedMessage, JsonRpcChannel } from "./framing.js";
 import { LspError, type Diagnostic } from "./lsp.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
+import { timeoutRemedy } from "./timeout-cause.js";
 import { packageVersion } from "./version.js";
 
 /**
@@ -14,6 +15,9 @@ import { packageVersion } from "./version.js";
  * per-instance deadline noun was written to stop.
  */
 const CSLSP_PEER = "the language server";
+
+/** The environment variable this plane's deadline comes from — see `dap.ts`'s twin. */
+const CSLSP_TIMEOUT_KNOB = "GODOT_CSLSP_TIMEOUT_MS";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -47,7 +51,7 @@ export class CsLspClient {
    * dropped. `nextId` is monotonic and is deliberately NOT reset by onClose(),
    * so an id is never reused and a late reply can only be its own request's.
    */
-  private readonly ledger = new OverdueLedger<number>("C# LSP", CSLSP_PEER, "GODOT_CSLSP_TIMEOUT_MS");
+  private readonly ledger = new OverdueLedger<number>("C# LSP", CSLSP_PEER, CSLSP_TIMEOUT_KNOB);
   /** Absolute project root path (no trailing slash), used to canonicalize URIs. */
   private readonly rootFsPath: string;
 
@@ -146,15 +150,17 @@ export class CsLspClient {
 
   private onClose(cause?: Error): void {
     const detail = closeDetail(cause);
-    // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), IN THE MESSAGE BECAUSE THIS CLASS
-    // HAS NOWHERE ELSE TO PUT IT. `LspError` carries no `remedy` field, and the plane's
-    // `fail()` renders no `remedyClause`, so the next action goes where the caller will
-    // actually read it. 264's census records the asymmetry rather than hiding it: of 25
-    // host-raised failures about the world, 13 are on classes that cannot carry an answer.
+    // 🔴 THE SAME ERRNO SPLIT `bridge.ts` GOT (264 §3), ON THE FIELD RATHER THAN IN THE
+    // MESSAGE (267). The comment that stood here said `LspError` "carries no `remedy`
+    // field, and the plane's `fail()` renders no `remedyClause`" — true when written, and
+    // the reason 264's census counted this site among the SEVEN that named an action
+    // nothing structural could read. Both halves are gone. **What a caller receives is
+    // byte-identical** and is asserted so: the message ended in ` — ${remedy}` and the
+    // renderer appends exactly that. A change of channel, not of wording.
     const remedy = closeRemedy(cause, CSLSP_PEER);
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new LspError("closed", `C# LSP connection closed${detail}${remedy ? ` — ${remedy}` : ""}`));
+      p.reject(new LspError("closed", `C# LSP connection closed${detail}`, remedy));
     }
     this.pending.clear();
     this.initialized = null;
@@ -178,7 +184,13 @@ export class CsLspClient {
         // Remember the id BEFORE rejecting, so a reply already in flight is
         // reconciled rather than dropped as anonymous.
         this.ledger.note(id, method, timeoutMs);
-        reject(new LspError("timeout", `C# LSP '${method}' timed out after ${timeoutMs}ms`));
+        reject(
+          new LspError(
+            "timeout",
+            `C# LSP '${method}' timed out after ${timeoutMs}ms`,
+            timeoutRemedy(CSLSP_PEER, CSLSP_TIMEOUT_KNOB),
+          ),
+        );
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
       this.channel.send({ jsonrpc: "2.0", id, method, params }).catch((err: Error) => {

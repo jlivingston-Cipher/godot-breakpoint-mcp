@@ -46,7 +46,10 @@ test("representative success shapes validate against their schema", () => {
   schemaOf("gd_semantic_tokens").parse({ token_count: 1, tokens: [{ line: 0, character: 0, length: 4, type: "keyword", modifiers: [] }] });
   schemaOf("runtime_get_monitors").parse({ monitors: { "time/fps": 60, "memory/static": 1234 } });
   schemaOf("godot_output").parse({
-    id: "run-1", exited: false, exit_code: null, latest_seq: 2,
+    // `signal` is nullable-and-required (267), not optional: a running child has no
+    // signal, and the key being present with a null is what lets a caller tell that
+    // apart from a host too old to send it.
+    id: "run-1", exited: false, exit_code: null, signal: null, latest_seq: 2,
     lines: [{ seq: 1, stream: "stdout", text: "boot" }, { seq: 2, stream: "stderr", text: "warn" }],
   });
 });
@@ -70,7 +73,7 @@ test("schemas are non-strict: EXTRA runtime fields still validate (catalog is a 
   });
   // godot_output gains an unforeseen top-level field.
   schemaOf("godot_output").parse({
-    id: "x", exited: true, exit_code: 0, latest_seq: 0, lines: [], server_time: 123,
+    id: "x", exited: true, exit_code: 0, signal: null, latest_seq: 0, lines: [], server_time: 123,
   });
 });
 

@@ -107,7 +107,21 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // competitive claim may honestly use — see the next constant — is unchanged at 468 by
 // every option. 210 §5's argument against the growth was computed on the AGGREGATE: on
 // exactly the share of the surface the next comment says a comparison may not quote.
-export const BYTES_CEILING = 366000;
+// 🆕 267 — RAISED 366,000 → 366,220, AND THE NOTE THIS CONSTANT DEMANDS IS THE RELEASE.
+// The rule three paragraphs up is "raise it only with a note saying what bought the
+// growth", and D1b's raise was deliberately NOT taken in advance for exactly that reason.
+// What bought this one is measured and on the wire: FIVE output keys across five shipped
+// tools — `initialized_seen` on `dbg_launch`, `dbg_attach`, `cs_dbg_launch` and
+// `cs_dbg_attach`, and `signal` on `godot_output` — plus the `warning` the two C# launch
+// tools gained beside it. Surface went 365,986 → 366,206 B, +220 B, or **0.06%**.
+//
+// 🔴 IT IS SET AT THE LIVE VALUE PLUS FOURTEEN BYTES, NOT AT A ROUND NUMBER. A ceiling
+// with slack in it is a budget the next session spends without deciding to, which is the
+// drift this constant exists to stop; the fourteen bytes are what a one-character key
+// rename costs, not what a feature does. `SCHEMA_PER_TOOL_CEILING` does not move: every
+// key added here is an OUTPUT field and `measure()` reads `inputSchema` only, so the one
+// number a competitive claim may honestly quote is unchanged at 468.
+export const BYTES_CEILING = 366220;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

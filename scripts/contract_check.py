@@ -559,19 +559,176 @@ def remedy_tables() -> "dict[str, dict[str, str]]":
 
 
 def remedy_renderers_read() -> "list[str]":
-    """Every host file that renders a `Partial<BridgeError>` into MCP error text.
+    """Every host file that renders a caught error into MCP error text.
 
     Derived rather than rostered: a sixth plane's `fail()` is in the population the
     moment it is written, which is the only moment anyone would notice it drops the
-    addon's next action.
+    next action.
+
+    🔴 267 REMOVED THE `Partial<BridgeError>` CONDITION, AND THAT CONDITION WAS THE ROW.
+    `remedy-channel-one-class-of-five` said it in one line — *`remedy` is a field on one
+    error class of five, and the gate that guards it is scoped to the class that already
+    has it.* This function WAS that scoping. Five renderers mentioned `Partial<BridgeError>`
+    and were checked; the four rendering `DapError`, `LspError` and a path refusal were not
+    in the population at all, so the gate could not notice they appended nothing — it
+    agreed with itself over a set chosen to contain only the compliant members.
+
+    The predicate is now the SIGNATURE all nine already share, so a renderer is in scope
+    because it renders, not because it renders one class.
     """
     hits: "list[str]" = []
     for f in sorted(HOST_SRC.rglob("*.ts")):
         text = f.read_text()
         for m in re.finditer(r"function fail\w*\(err: unknown\)\s*{(.*?)\n}", text, re.S):
-            if "Partial<BridgeError>" in m.group(1):
-                hits.append(str(f.relative_to(ROOT)))
+            del m
+            hits.append(str(f.relative_to(ROOT)))
     return hits
+
+
+# 🆕 267 — the RAISE-SITE half of the same join.
+#
+# A renderer that appends `remedyClause` proves the CHANNEL is open; it says nothing about
+# whether anything was put in it. 264's census is the evidence that those are different
+# questions: of 25 host-raised failures about the world, SEVEN knew the next action and
+# pasted it into the message text, where the appending renderer cannot find it, no gate can
+# join it, and a reword drops it with every test still green.
+#
+# The population is derived, not rostered — a site is exempt only when it RELAYS the peer's
+# own words, which is visible in the constructor arguments themselves. Everything else is
+# the host inventing a sentence, and a sentence the host invents is one it can answer for.
+#
+# 🔴 AND THE EXEMPTION IS THE INTERESTING HALF. A relaying site must NOT carry a remedy: it
+# does not know what went wrong, only what the adapter said about it, and a next action
+# invented over somebody else's error message is the failure 263 measured one plane over —
+# an answer given on behalf of an adapter nobody asked.
+_PEER_RELAY_MARKS = ("msg[", ".message ??", "e.message", "err.message")
+# Matches `closeRemedy`, `CS_START_REMEDY` and the bare local `remedy` a close handler
+# assigns: the rule is that something NAMED as a remedy reaches the constructor, not that
+# it was spelled in one particular casing.
+_REMEDY_NAME = re.compile(r"\b\w*[Rr]emedy\b|\b\w*_REMEDY\b")
+
+
+def _balanced_span(text: "str", open_at: "int") -> "str":
+    """The argument text of a call whose `(` is at `open_at`, brackets balanced."""
+    depth = 0
+    for i in range(open_at, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_at + 1 : i]
+    return ""
+
+
+def host_invented_error_sites() -> "tuple[list[tuple[str, int, str]], int]":
+    """Sites raising a DAP/LSP error the host WROTE, and the total scanned.
+
+    Returns `(unanswered, scanned)`. `unanswered` is every host-invented raise site whose
+    arguments name no `*Remedy` / `*_REMEDY`, as `(file, line, snippet)`.
+
+    The scanned count is returned for the reason `uncaptured_tool_registrations` returns
+    one: an empty list means *nothing unanswered* and *did not look* in exactly the same
+    way, and only the second number tells them apart.
+    """
+    unanswered: "list[tuple[str, int, str]]" = []
+    scanned = 0
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        text = f.read_text()
+        for m in re.finditer(r"new (?:Dap|Lsp)Error\(", text):
+            span = _balanced_span(text, m.end() - 1)
+            scanned += 1
+            if any(mark in span for mark in _PEER_RELAY_MARKS):
+                continue
+            if _REMEDY_NAME.search(span):
+                continue
+            line = text.count("\n", 0, m.start()) + 1
+            unanswered.append((str(f.relative_to(ROOT)), line, " ".join(span.split())[:90]))
+    return unanswered, scanned
+
+
+def host_cause_remedies() -> "dict[str, str]":
+    """Every next-action sentence the HOST writes, keyed `file:name#n`.
+
+    Derived from a naming convention the tree already used before this check existed —
+    `closeRemedy`, `connectRemedy`, `nonFiniteRemedy`, `DEBUGGER_HOLD_REMEDY` — so a new
+    one is in the population the day it is written rather than the day somebody remembers
+    to add it to a list.
+
+    🔴 ONE SENTENCE PER `return`, NOT ONE PER LITERAL, and getting that wrong is not a
+    detail. Every one of these is a `+`-chain of two or three literals, so judging literals
+    individually asks the imperative rule of a FRAGMENT — the first draft of this reader
+    reported that `timeoutRemedy` "begins 'host's'", which is the middle of its second
+    line. A member with a `switch` returns several distinct sentences and each is judged on
+    its own; interpolations collapse to `X`, because a peer noun substituted into a
+    sentence changes neither where the imperative sits nor how it ends.
+    """
+    out: "dict[str, str]" = {}
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        if f.name.endswith(".test.ts"):
+            continue
+        text = f.read_text()
+        rel = f.relative_to(HOST_SRC)
+        for m in re.finditer(
+            r"export (?:const ([A-Za-z_][A-Za-z0-9_]*_REMEDY)\s*=|function ([a-z][A-Za-z0-9_]*Remedy)\b)",
+            text,
+        ):
+            name = m.group(1) or m.group(2)
+            tail = text[m.end() :]
+            nxt = re.search(r"\n(?:export |/\*\*)", tail)
+            body = tail[: nxt.start()] if nxt else tail
+            if m.group(1):
+                spans = [body[: body.index(";")] if ";" in body else body]
+            else:
+                spans = []
+                for r in re.finditer(r"\breturn\b", body):
+                    rest = body[r.end() :]
+                    if ";" in rest:
+                        spans.append(rest[: rest.index(";")])
+            i = 0
+            for span in spans:
+                for sentence in _sentences_in(span):
+                    if len(sentence) < 40 or " " not in sentence:
+                        continue
+                    out[f"{rel}:{name}#{i}"] = sentence
+                    i += 1
+    return out
+
+
+# A double-quoted string and a template literal are DIFFERENT literals, and conflating
+# them silently ate the tool names out of every remedy that names one: `"Call `dbg_launch`
+# …"` is one double-quoted string containing backticks, and a scanner that treats a
+# backtick as a delimiter reads it as `Call ` + ` or ` + ` first…`, dropping exactly the
+# words check 28c joins to the tool registry. Measured on the first draft of this reader:
+# `DAP_RESTART_REMEDY` came out as "Call  or  first".
+_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"' + "|" + r"`((?:[^`\\]|\\.)*)`")
+
+
+def _sentences_in(span: "str") -> "list[str]":
+    """The distinct remedy sentences inside one expression.
+
+    Literals joined only by `+` are ONE sentence; anything else between them — a ternary's
+    `?` or `:`, a comma, a call boundary — starts a new one. 🔴 A `return` is not a
+    sentence boundary: `peerExitRemedy` returns a ternary, and a reader that joined its
+    whole return span produced a 240-character run-on ending
+    `…with runtime_spawn_peers.Spawn a replacement with…` and then reported it over the
+    length ceiling. That was the reader's defect being reported as the sentence's.
+    """
+    out: "list[str]" = []
+    parts: "list[str]" = []
+    prev_end = None
+    for lit in _LITERAL.finditer(span):
+        text = lit.group(1) if lit.group(1) is not None else lit.group(2)
+        gap = span[prev_end : lit.start()] if prev_end is not None else ""
+        if prev_end is not None and gap.strip(" \t\r\n+") != "":
+            out.append("".join(parts))
+            parts = []
+        parts.append(text)
+        prev_end = lit.end()
+    if parts:
+        out.append("".join(parts))
+    return [re.sub(r"\$\{[^}]*\}", "X", t).replace("\\`", "`").replace('\\"', '"').strip() for t in out]
+    return out
 
 
 def uncaptured_tool_registrations() -> "tuple[list[str], int]":
@@ -4136,9 +4293,17 @@ _REMEDY_PLANES = [
 ]
 # One imperative, at the head of the sentence. A remedy that opens with a noun phrase is
 # a second description of the failure, which is what the message already carried.
+# 🆕 267 — five verbs added, and the reason matters more than the list. These openers were
+# harvested from `error_remedies.gd`, so the tuple described ONE table's vocabulary while
+# reading like a rule about imperatives. Widening the check to the host's own remedy
+# sentences (d3 below) immediately refused `closeRemedy`'s "Restart the editor and retry" —
+# a sentence nobody thinks is wrong. The check asks *does this open with a next action*,
+# and each of these answers it; they are added as imperatives, NOT as exemptions, and the
+# length ceiling and full-stop rules apply to them unchanged.
 _REMEDY_IMPERATIVES = (
-    "act", "call", "check", "choose", "create", "duplicate", "fix", "make", "open",
-    "pass", "re-run", "send", "set", "simplify", "split", "switch",
+    "act", "call", "check", "choose", "create", "duplicate", "enable", "fix", "inspect",
+    "look", "make", "open", "pass", "raise", "re-run", "read", "release", "restart", "run",
+    "send", "set", "simplify", "spawn", "split", "start", "switch", "verify",
 )
 _REMEDY_MAX = 210            # measured longest at 254: 176 characters
 remedy_rows = remedy_tables()
@@ -4304,14 +4469,49 @@ for _plane, _src_file, _table in _REMEDY_PLANES:
 for _rel in remedy_renderers:
     _body = (ROOT / _rel).read_text()
     for _m in re.finditer(r"function fail\w*\(err: unknown\)\s*{(.*?)\n}", _body, re.S):
-        if "Partial<BridgeError>" in _m.group(1) and "remedyClause(" not in _m.group(1):
+        if "remedyClause(" not in _m.group(1):
             errors.append(
-                f"check 28: {_rel} renders a `Partial<BridgeError>` into MCP text and does not "
-                f"append `remedyClause(err)`. The addon attached a next action and this plane "
-                f"drops it — invisible from the addon side, because the remedy is on the wire, "
-                f"and invisible from the host side, because the text still reads like a "
-                f"complete sentence."
+                f"check 28: {_rel} renders a caught error into MCP text and does not append "
+                f"`remedyClause(err)`. Something attached a next action and this plane drops "
+                f"it — invisible from the raising side, because the remedy is on a field, and "
+                f"invisible from the rendering side, because the text still reads like a "
+                f"complete sentence. 267 widened this population off the `fail(err: unknown)` "
+                f"signature; until then it held only the class that already complied."
             )
+
+# --- 🆕 267 — d2: the raise-site half. An open channel with nothing in it is silence ----
+_unanswered, _sites_scanned = host_invented_error_sites()
+if _sites_scanned < 12:
+    errors.append(
+        f"check 28: only {_sites_scanned} `new DapError(..)` / `new LspError(..)` site(s) were "
+        f"scanned, against a floor of 12 measured at 267. This reader reports an EMPTY list "
+        f"both when every site carries an answer and when it matched nothing at all, so the "
+        f"count is the only thing that tells the two apart."
+    )
+for _f, _line, _snippet in _unanswered:
+    errors.append(
+        f"check 28: {_f}:{_line} raises a DAP/LSP error the host WROTE and names no remedy — "
+        f"`{_snippet}`. A site relaying the peer's own words is exempt (it does not know what "
+        f"went wrong, only what was said about it); this one invents the sentence, so it can "
+        f"answer for it. Pass a `*Remedy` / `*_REMEDY` as the last argument, or make the "
+        f"message relay rather than invent."
+    )
+
+# --- 🆕 267 — d3: the host's own remedy sentences, held to the addon table's grammar ----
+#
+# 254 argued the remedy belongs where the code is RAISED, and everything since has been the
+# addon honouring that. The host raises too — `closeRemedy`, `connectRemedy`, `timeoutRemedy`
+# and four consts now — and until 267 not one of those sentences was read by anything. They
+# reach the same agent through the same clause, so they answer to the same rules.
+_host_causes = host_cause_remedies()
+if len(_host_causes) < 8:
+    errors.append(
+        f"check 28: only {len(_host_causes)} host-side remedy sentence(s) resolved, against a "
+        f"floor of 8 measured at 267. An empty read passes every grammar rule below by "
+        f"agreeing with itself, which is the shape `scope_gate` exists to find."
+    )
+for _where, _sentence in sorted(_host_causes.items()):
+    _remedy_grammar("host", _where, {"sentence": _sentence})
 
 # --- f: the HOST's own fallback table, and the ceiling that keeps it one row ---------
 #

@@ -129,7 +129,7 @@ test("dbg_launch runs the handshake and reports state 'running'", async () => {
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
   const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-  assert.deepEqual(res.structuredContent, { session_id: "godot", state: "running", scene: "main" });
+  assert.deepEqual(res.structuredContent, { session_id: "godot", state: "running", scene: "main", initialized_seen: true });
   dap.close();
   await srv.close();
 });
@@ -550,11 +550,17 @@ test("a launch with no modifiers at all reports no unsupported_modifiers and no 
     if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] });
-  const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-  assert.deepEqual(launch.structuredContent, { session_id: "godot", state: "running", scene: "main" });
-  dap.close();
-  await srv.close();
+  // Teardown in a `finally` for the reason recorded on the late-rejection test below: this
+  // assertion FAILED at 267 (the new `initialized_seen` key) and the whole file HUNG rather
+  // than reporting it, because the server stayed open. 266 §4, paid where it bit.
+  try {
+    await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] });
+    const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    assert.deepEqual(launch.structuredContent, { session_id: "godot", state: "running", scene: "main", initialized_seen: true });
+  } finally {
+    dap.close();
+    await srv.close();
+  }
 });
 
 test("dbg_launch's stop_on_entry warning is kept when a dropped-modifier note is added to it", async () => {
@@ -1465,18 +1471,26 @@ test("a launch rejection arriving AFTER a stop still ends the session", async ()
     if (m.command === "configurationDone") { dapEvent(s, "stopped", { reason: "breakpoint", threadId: 4 }); dapResponse(s, m, {}); return; }
   });
   const { dap, rec } = dapHarness(srv.port);
-  const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-  assert.equal((res.structuredContent as { state: string }).state, "stopped");
-  assert.equal(dap.hasSession, true, "the session is live until the adapter says otherwise");
-  // …and now the launch request itself fails, well after the handshake returned.
-  const failed = new Promise<void>((r) => dap.once("start_failed", () => r()));
-  writeFrame(sock!, { seq: 0, type: "response", request_seq: launchSeq, success: false, command: "launch", message: "wrong_path" });
-  await failed;
-  assert.equal(dap.state, "stopped", "a reported stop is not overwritten by the late failure");
-  assert.equal(dap.hasSession, false, "…but the session is over, and the tools must refuse");
-  const after = (await rec.handler("dbg_stack_trace")({})) as ToolResultLike;
-  assert.equal(after.isError, true);
-  assert.match(String(after.content?.[0]?.text), /needs a debug session/);
-  dap.close();
-  await srv.close();
+  // 🔴 TEARDOWN IN A `finally` (267). 266 §4 recorded that a socket test closing AFTER its
+  // assertions turns a FAILURE into a HANG — the open server holds the event loop and
+  // `node --test` times out instead of reporting — and deliberately left the pre-existing
+  // sites unswept. This is one of them, and 267 hit it: a real assertion failure here
+  // presented as a suite that never finished, with no diagnostic anywhere.
+  try {
+    const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    assert.equal((res.structuredContent as { state: string }).state, "stopped");
+    assert.equal(dap.hasSession, true, "the session is live until the adapter says otherwise");
+    // …and now the launch request itself fails, well after the handshake returned.
+    const failed = new Promise<void>((r) => dap.once("start_failed", () => r()));
+    writeFrame(sock!, { seq: 0, type: "response", request_seq: launchSeq, success: false, command: "launch", message: "wrong_path" });
+    await failed;
+    assert.equal(dap.state, "stopped", "a reported stop is not overwritten by the late failure");
+    assert.equal(dap.hasSession, false, "…but the session is over, and the tools must refuse");
+    const after = (await rec.handler("dbg_stack_trace")({})) as ToolResultLike;
+    assert.equal(after.isError, true);
+    assert.match(String(after.content?.[0]?.text), /needs a debug session/);
+  } finally {
+    dap.close();
+    await srv.close();
+  }
 });

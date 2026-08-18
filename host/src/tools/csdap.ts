@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { CsDapClient } from "../csdap.js";
-import { DapError } from "../dap.js";
+import { DapError, unorderedHandshakeWarning } from "../dap.js";
+import { remedyClause } from "../bridge.js";
 import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
@@ -37,14 +38,27 @@ function fail(err: unknown) {
       content: [{
         type: "text" as const,
         text: `C# DAP error [${command}]: the debug adapter reported a failure with no message. ` +
-          `The request was rejected; nothing was changed by it.`,
+          `The request was rejected; nothing was changed by it.${remedyClause(err)}`,
       }],
     };
   }
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `C# DAP error [${command}]: ${message}` }],
+    content: [{ type: "text" as const, text: `C# DAP error [${command}]: ${message}${remedyClause(err)}` }],
   };
+}
+
+/**
+ * Record whether the adapter announced itself before its breakpoints were applied — the
+ * twin of `tools/dap.ts`'s, for the same measured reason (267). Kept per-plane rather than
+ * shared because the two planes' result objects are built by different code and a helper
+ * imported across them would be the only thing they share.
+ */
+function reportHandshakeOrder(result: Record<string, unknown>, seen: boolean, waitedMs: number): void {
+  result.initialized_seen = seen;
+  if (seen) return;
+  const note = unorderedHandshakeWarning(waitedMs);
+  result.warning = typeof result.warning === "string" && result.warning.length > 0 ? `${result.warning} ${note}` : note;
 }
 
 /** Throw a host refusal — rendered verbatim by `fail()`, never as an adapter error. */
@@ -267,14 +281,16 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         };
       }
       try {
-        await dap.start("launch", {
+        const { initializedSeen, initializedWaitMs } = await dap.start("launch", {
           program: resolvedProgram,
           args: resolvedArgs,
           cwd: cfg.csDapProjectPath,
           stopAtEntry: stop_on_entry ?? false,
           justMyCode: just_my_code ?? true,
         });
-        return ok({ session_id: "csharp", state: dap.state });
+        const result: Record<string, unknown> = { session_id: "csharp", state: dap.state };
+        reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
+        return ok(result);
       } catch (err) { return fail(err); }
     },
   );
@@ -313,8 +329,10 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
             );
           }
         }
-        await dap.start("attach", { processId: process_id });
-        return ok({ session_id: "csharp", state: dap.state });
+        const { initializedSeen, initializedWaitMs } = await dap.start("attach", { processId: process_id });
+        const result: Record<string, unknown> = { session_id: "csharp", state: dap.state };
+        reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
+        return ok(result);
       } catch (err) { return fail(err); }
     },
   );

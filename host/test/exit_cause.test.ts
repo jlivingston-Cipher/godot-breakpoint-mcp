@@ -148,7 +148,11 @@ test("readinessRemedy names a DIFFERENT next action for each of the three popula
   assert.match(exited, /exited on its own/);
   assert.ok(!/Enable the "Breakpoint MCP" plugin/.test(exited), "a child that died was not stopped by a disabled plugin");
   assert.match(silent, /Enable the "Breakpoint MCP" plugin/);
-  assert.match(mixed, /two different things failed here/);
+  // Trimmed at 267 to the 210-character ceiling check 28 has always enforced on the
+  // addon's own remedies and now enforces on the host's. Both populations are still named,
+  // which is the claim — the exact wording was not.
+  assert.match(mixed, /two things failed and only the second is the addon/);
+  assert.ok(mixed.length <= 210, `a host remedy over the ceiling: ${mixed.length}`);
   for (const r of [exited, silent, mixed]) assert.ok(r.endsWith("."), "check 28's grammar: a remedy ends in a full stop");
 });
 

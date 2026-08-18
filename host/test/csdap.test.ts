@@ -139,7 +139,12 @@ test("cs_dbg_launch runs the handshake and reports state 'running'", async () =>
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port);
   const res = (await rec.handler("cs_dbg_launch")({})) as ToolResultLike;
-  assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
+  // 🔴 `initialized_seen` ADDED AT 267 AND THESE SIX ASSERTIONS ARE PART OF THE FINDING.
+    // Each pinned the WHOLE result object, so a key that ought to be there and is not
+    // reads identically to one that ought not to be — which is why the deep-equal is kept
+    // rather than loosened to a subset match. `true` here is a claim about the mock: it
+    // DOES emit `initialized`, and a test asserting the false side is next door.
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running", initialized_seen: true });
   // Default launch config points at the C# project with the coreclr adapterID.
   const init = received.find((m) => m.command === "initialize");
   assert.equal((init!.arguments as { adapterID: string }).adapterID, "coreclr");
@@ -156,7 +161,12 @@ test("cs_dbg_attach forwards the process id to the DAP attach request", async ()
   // hard-coded 4242 is only ever a live process by luck.
   const pid = process.pid;
   const res = (await rec.handler("cs_dbg_attach")({ process_id: pid })) as ToolResultLike;
-  assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
+  // 🔴 `initialized_seen` ADDED AT 267 AND THESE SIX ASSERTIONS ARE PART OF THE FINDING.
+    // Each pinned the WHOLE result object, so a key that ought to be there and is not
+    // reads identically to one that ought not to be — which is why the deep-equal is kept
+    // rather than loosened to a subset match. `true` here is a claim about the mock: it
+    // DOES emit `initialized`, and a test asserting the false side is next door.
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running", initialized_seen: true });
   const attach = received.find((m) => m.command === "attach");
   assert.deepEqual(attach!.arguments, { processId: pid });
   dap.close();
@@ -806,7 +816,12 @@ test("cs_dbg_launch still succeeds when configurationDone fails on an adapter th
   try {
     const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app", args: [] })) as ToolResultLike;
     assert.notEqual(res.isError, true, "an unadvertised configurationDone failure is not evidence of a failed launch");
-    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
+    // 🔴 `initialized_seen` ADDED AT 267 AND THESE SIX ASSERTIONS ARE PART OF THE FINDING.
+    // Each pinned the WHOLE result object, so a key that ought to be there and is not
+    // reads identically to one that ought not to be — which is why the deep-equal is kept
+    // rather than loosened to a subset match. `true` here is a claim about the mock: it
+    // DOES emit `initialized`, and a test asserting the false side is next door.
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running", initialized_seen: true });
   } finally { dap.close(); srv.close(); }
 });
 
@@ -823,7 +838,12 @@ test("cs_dbg_launch with stop_on_entry waits for the entry stop and reports 'sto
   const { dap, rec } = csDapHarness(srv.port);
   try {
     const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app", stop_on_entry: true })) as ToolResultLike;
-    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "stopped" });
+    // 🔴 `initialized_seen` ADDED AT 267 AND THESE SIX ASSERTIONS ARE PART OF THE FINDING.
+    // Each pinned the WHOLE result object, so a key that ought to be there and is not
+    // reads identically to one that ought not to be — which is why the deep-equal is kept
+    // rather than loosened to a subset match. `true` here is a claim about the mock: it
+    // DOES emit `initialized`, and a test asserting the false side is next door.
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "stopped", initialized_seen: true });
     assert.equal(dap.threadId(), 42618413, "the adapter's thread id, not the fallback 1");
   } finally { dap.close(); srv.close(); }
 });
@@ -846,7 +866,12 @@ test("cs_dbg_launch with stop_on_entry survives a stop that lands BEFORE configu
   const { dap, rec } = csDapHarness(srv.port);
   try {
     const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app", stop_on_entry: true })) as ToolResultLike;
-    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "stopped" });
+    // 🔴 `initialized_seen` ADDED AT 267 AND THESE SIX ASSERTIONS ARE PART OF THE FINDING.
+    // Each pinned the WHOLE result object, so a key that ought to be there and is not
+    // reads identically to one that ought not to be — which is why the deep-equal is kept
+    // rather than loosened to a subset match. `true` here is a claim about the mock: it
+    // DOES emit `initialized`, and a test asserting the false side is next door.
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "stopped", initialized_seen: true });
     assert.equal(dap.threadId(), 42618413);
   } finally { dap.close(); srv.close(); }
 });
@@ -858,7 +883,12 @@ test("cs_dbg_launch WITHOUT stop_on_entry does not wait for a stop", async () =>
   const { dap, rec } = csDapHarness(srv.port);
   try {
     const res = (await rec.handler("cs_dbg_launch")({ program: "/opt/app" })) as ToolResultLike;
-    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running" });
+    // 🔴 `initialized_seen` ADDED AT 267 AND THESE SIX ASSERTIONS ARE PART OF THE FINDING.
+    // Each pinned the WHOLE result object, so a key that ought to be there and is not
+    // reads identically to one that ought not to be — which is why the deep-equal is kept
+    // rather than loosened to a subset match. `true` here is a claim about the mock: it
+    // DOES emit `initialized`, and a test asserting the false side is next door.
+    assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running", initialized_seen: true });
   } finally { dap.close(); srv.close(); }
 });
 

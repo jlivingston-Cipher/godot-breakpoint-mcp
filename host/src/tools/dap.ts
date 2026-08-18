@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
-import { DapClient, DapError } from "../dap.js";
+import { DapClient, DapError, unorderedHandshakeWarning } from "../dap.js";
+import { remedyClause } from "../bridge.js";
 import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
@@ -130,15 +131,20 @@ function fail(err: unknown) {
   // asked. Same distinction lsp-common.fail() already draws for the LSP planes.
   const e = err as { command?: string; message?: string; refusal?: boolean };
   if (err instanceof DapRefusal || e?.refusal) {
-    return { isError: true as const, content: [{ type: "text" as const, text: e.message ?? String(err) }] };
+    return { isError: true as const, content: [{ type: "text" as const, text: `${e.message ?? String(err)}${remedyClause(err)}` }] };
   }
   // An adapter can answer a failure with an EMPTY message (netcoredbg did, on
   // setVariable). `?? String(err)` only covers an ABSENT one, so the whole answer
   // became a label and a colon.
   const detail = e.message && e.message.trim() !== "" ? e.message : String(err);
+  // 🆕 267 — `remedyClause(err)` reads the `remedy` FIELD, which `DapError` gained this
+  // release. Before it, this plane's next actions were pasted inside the message at the
+  // raise site and this renderer had nothing to append; check 28 could not see them and a
+  // reword dropped one silently. Empty string when the site has no answer, so a rejection
+  // relaying the adapter's own words is byte-identical to what it was.
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: `DAP error [${e.command ?? "error"}]: ${detail}` }],
+    content: [{ type: "text" as const, text: `DAP error [${e.command ?? "error"}]: ${detail}${remedyClause(err)}` }],
   };
 }
 
@@ -160,6 +166,23 @@ function isDapTimeout(err: unknown): err is DapError {
  * it, the breakpoint halted every frame, and the result carried no warning at all.
  * Detection now happens where the modifiers go on the wire, so every path gets it.
  */
+/**
+ * Record whether the adapter announced itself before its breakpoints were applied.
+ *
+ * 🔴 THE KEY IS ALWAYS PRESENT, THE WARNING ONLY WHEN IT IS FALSE (267). A field that
+ * appears only on the bad path is a field a caller cannot branch on — it cannot tell
+ * *this adapter was conformant* from *this host is too old to say* — which is the shape
+ * `required-any-reachability` is open about one layer up. The warning is the human half
+ * and merges rather than clobbers, for the same reason `reportDroppedModifiers` does:
+ * an out-of-order handshake and an unhonoured stop-on-entry can both be true at once.
+ */
+function reportHandshakeOrder(result: Record<string, unknown>, seen: boolean, waitedMs: number): void {
+  result.initialized_seen = seen;
+  if (seen) return;
+  const note = unorderedHandshakeWarning(waitedMs);
+  result.warning = typeof result.warning === "string" && result.warning.length > 0 ? `${result.warning} ${note}` : note;
+}
+
 const warnDropped = (dropped: string[]): string =>
   `The connected Godot debug adapter does not support ${dropped.join(", ")} on breakpoints (it advertises ` +
   `${dropped.length > 1 ? "them" : "it"} unsupported), so ${dropped.length > 1 ? "they were" : "it was"} dropped — ` +
@@ -336,12 +359,13 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         };
       }
       try {
-        const { entryStopSeen } = await dap.start(
+        const { entryStopSeen, initializedSeen, initializedWaitMs } = await dap.start(
           "launch",
           { project: cfg.projectPath, scene: scene ?? "main", stopOnEntry: stop_on_entry ?? false },
           stop_on_entry ? ENTRY_STOP_WAIT_MS : 0,
         );
         const result: Record<string, unknown> = { session_id: "godot", state: dap.state, scene: scene ?? "main" };
+        reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
         if (stop_on_entry) {
           // 🔴 Measured on Godot 4.7: stopOnEntry is ignored outright — the game ran to
           // completion and printed its _ready() line while the tool answered a bare
@@ -379,8 +403,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     },
     async ({ address, port }) => {
       try {
-        await dap.start("attach", { address: address ?? "127.0.0.1", port });
+        const { initializedSeen, initializedWaitMs } = await dap.start("attach", { address: address ?? "127.0.0.1", port });
         const result: Record<string, unknown> = { session_id: "godot", state: dap.state };
+        reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
         reportDroppedModifiers(result);
         return ok(result);
       } catch (err) { return fail(err); }
