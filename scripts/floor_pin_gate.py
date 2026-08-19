@@ -255,7 +255,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # evidence for the tier typed beside them; it was set to the number that were live
     # when the column landed, so it can only fall. Raising it is a session buying itself
     # room to keep typing an unchecked column, which is the defect the join closes.
-    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )18",                                ["../scripts/queue_gate.py", "--selftest"]),
+    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )14",                                ["../scripts/queue_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )15;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -879,6 +879,16 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
                         "failure message's ability to say WHICH check arrived does. Floored so the "
                         "attributor cannot quietly stop working while every row still passes. "
                         "Pinned in the same `_self_check()`, same nesting reason",
+    ("../scripts/scope_gate.py", "BINDING_FLOOR"): "🆕 272 — scope_gate.py's floor on its SECOND sweep: the module-level "
+                        "accumulators it can blind, at {FLOOR}. `scope-ledger-unreached` (`246`) named "
+                        "the scope-ledger floors that no blind could move, because each is filled "
+                        "by a loop rather than returned by a `def`; the binding injector reaches all "
+                        "of them and this is the number it reached. The population is DERIVED from "
+                        "the ledger rather than listed, which is exactly why it needs a floor — a "
+                        "walk that stopped resolving would shrink the sweep to nothing and leave "
+                        "every remaining row passing. Not swept here for TARGET_FLOOR's nesting "
+                        "reason: the runner is scope_gate.py, which writes a mutant copy of "
+                        "contract_check.py into scripts/. Pinned in that file's `_self_check()`",
     ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): "scope_gate.py's floor on how many of contract_check.py's failure "
                         "statements its own twenty-five blinded runs EXECUTE (188 §5, re-derived "
                         "from scope_gate's own runs after control_gate.py had stated a higher "
@@ -1292,8 +1302,9 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
         "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
         "whole subject is work nobody is doing.")),
-    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (18, (
-        "🆕 271 — the live rows still allowed to type a `reach` with no `paths` under it, "
+    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (14, (
+        "🆕 `271`, lowered at `272` by the rows that closed with their paths declared — "
+        "the live rows still allowed to type a `reach` with no `paths` under it, "
         "at `{FLOOR}`. Every row in the table carried an unchecked tier until this "
         "session; retro-fitting evidence to the back catalogue would be guesses typed by "
         "somebody who was not there, so they are grandfathered and COUNTED instead, at "
@@ -1622,21 +1633,37 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
     ("../scripts/instrument_gate.py", "CRASH_CEILING"): (0, (
         "A CEILING at `{FLOOR}` and it has fallen to the bottom. It stays a ceiling "
         "rather than becoming a floor for the reason its own comment gives.")),
-    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (39, (
+    ("../scripts/scope_gate.py", "TARGET_FLOOR"): (40, (
         "That gate's swept enumerators, at `{FLOOR}`. 🆕 246 §2 raised it by four, and the "
         "four were not new work: they are annotated enumerators whose RETURN SHAPE that "
         "gate's empty-value table could not spell, so they had been outside its walk by "
-        "construction with no line anywhere saying so — and one of them blinded GREEN. Raised by one again for the catalog's heading reader, whose name-to-flag return shape was the same kind of gap that table could not spell. Raised by two more for the toolset MEMBER reader and the catalog's plane reader — the pair that turned a group's SIZE into a group's ROSTER, and the size reader is now derived from the member one rather than reading the same file twice. Raised by two again for the remedy TABLE reader and the bridge-error RENDERER walk, and the first of those brought a return shape the empty-value table still could not spell — the third session running to add one, and the second where the row cost nothing but the line it is written on. 🆕 RAISED BY FOUR: the required-any join brought three readers of its own — the required-any key reader, the per-tool method reader and the addon handler resolver — and admitting the shape the last of those returns made a FOURTH enumerator blindable that had been outside the walk in silence. That is the same gap as the sessions above, arriving for the fourth time in a row, which is why the empty-value table now says out loud that writing a new reader means checking it in the same edit.")),
-    ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): (20, (
+        "construction with no line anywhere saying so — and one of them blinded GREEN. Raised by one again for the catalog's heading reader, whose name-to-flag return shape was the same kind of gap that table could not spell. Raised by two more for the toolset MEMBER reader and the catalog's plane reader — the pair that turned a group's SIZE into a group's ROSTER, and the size reader is now derived from the member one rather than reading the same file twice. Raised by two again for the remedy TABLE reader and the bridge-error RENDERER walk, and the first of those brought a return shape the empty-value table still could not spell — the third session running to add one, and the second where the row cost nothing but the line it is written on. 🆕 RAISED BY FOUR: the required-any join brought three readers of its own — the required-any key reader, the per-tool method reader and the addon handler resolver — and admitting the shape the last of those returns made a FOURTH enumerator blindable that had been outside the walk in silence. That is the same gap as the sessions above, arriving for the fourth time in a row, which is why the empty-value table now says out loud that writing a new reader means checking it in the same edit. 🆕 RAISED BY ONE at `272` for `emitted_key_regions`, the right-hand side of that same required-any join — the constructs a handler answers THROUGH, which the join had never distinguished from the rest of a handler body.")),
+    ("../scripts/scope_gate.py", "STATEMENT_ATTRIB_FLOOR"): (40, (
         "Attributed statements, at `{FLOOR}`. Nineteen when re-derived; raised by one "
-        "once 188 §3 gave check twelve a population.")),
-    ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): (62, (
-        "🔴 201 §5's DEFECT AGAIN, THIRD FILE. Its comment quoted the live blast, which "
-        "drifts. Floored from BELOW at `{FLOOR}` for control_gate's reason.")),
-    ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): (32, (
+        "once `188` §3 gave check twelve a population. 🆕 RAISED AT `272` WITH THE SECOND "
+        "SWEEP: fifteen more blinded runs execute more of the checker's failure "
+        "statements, measured well above this, and a floor left where it was would be "
+        "room for half of them to stop being reached in silence.")),
+    ("../scripts/scope_gate.py", "SCOPE_BLAST_TOTAL_FLOOR"): (300, (
+        "🔴 `201` §5's DEFECT AGAIN, THIRD FILE. Its comment quoted the live blast, which "
+        "drifts. Floored from BELOW at `{FLOOR}` for control_gate's reason. 🆕 RAISED AT "
+        "`272` with the binding injector: fifteen new blinds, each with its own declared "
+        "and compared radius, and an aggregate left where it was would carry room for "
+        "every one of them to go quiet at once.")),
+    ("../scripts/scope_gate.py", "LEDGER_COLLAPSE_FLOOR"): (70, (
         "🔴 FOURTH AND LAST OF THE SHAPE §9.4 NAMED. Its comment quoted the live "
         "collapse count against the live row count, both moving. The floor is "
-        "`{FLOOR}`.")),
+        "`{FLOOR}`. 🆕 RAISED AT `272` for its sibling's reason and by the same fifteen "
+        "blinds — this counter is the one that notices a LEDGER being trimmed row by row "
+        "rather than a run going quiet, so it is the one that had to move.")),
+    ("../scripts/scope_gate.py", "BINDING_FLOOR"): (15, (
+        "🆕 `272` — that gate's SECOND sweep, at `{FLOOR}`: the module-level accumulators "
+        "it can blind. `scope-ledger-unreached` (`246`) named the sixteen scope-ledger "
+        "floors no blind could move, each filled by a loop rather than returned by a "
+        "`def`, and the binding injector reaches every one of them. The population is "
+        "DERIVED from the ledger rather than listed, which is exactly why it needs a "
+        "size: a walk that stopped resolving would shrink the sweep to nothing and leave "
+        "every surviving row passing over a floor nobody tests.")),
 }
 
 # The governed shape. A size constant is one whose NAME says it bounds a roster —

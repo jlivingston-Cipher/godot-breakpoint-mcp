@@ -163,7 +163,15 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
     ),
     "TS2775 Assertions require every name in the call target to be declared with an "
     "explicit type annotation.": (
-        430,
+        # 🆕 272: raised by FOUR, and every one of them is the same idiom in the same
+        # probe 270 raised this row for. `set-property-verify.integration.mjs` speaks MCP
+        # now instead of calling handler functions directly, and its new schema family
+        # makes four more `Population.assert` calls through the same un-annotated binding.
+        # 🔴 MEASURED BOTH WAYS FIRST, 261's rule: the conversion also produced six TS2339
+        # and two TS2322, and three `/** @type {any} */` casts took BOTH of those classes
+        # back to where they were. This one has no such cast — the binding TypeScript
+        # cannot narrow through is `assert` itself — so it is recorded rather than hidden.
+        434,
         "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "

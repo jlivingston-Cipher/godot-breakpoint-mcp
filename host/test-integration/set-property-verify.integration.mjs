@@ -20,62 +20,100 @@
 //   327_INDEXED   `position:x` reads and writes, because the colon form is
 //                 `get_indexed`'s vocabulary and the tool now uses it.
 //
-// Markers (grep-able): 327_APPLIED / 327_REFUSED / 327_INDEXED / 327_RESULT. Measured 30 claims.
+// Markers (grep-able): 327_APPLIED / 327_REFUSED / 327_INDEXED / 327_SCHEMA / 327_RESULT.
 // Requires the game running with BREAKPOINT_RUNTIME_PORT pointing at its bridge.
 // Not part of `npm test` (Godot-free); invoked directly by integration.yml.
+//
+// ── 🆕 272 — WHY THIS PROBE SPEAKS MCP AND NOT JavaScript ────────────────────────────
+//
+// It used to build `{ registerTool: (name, _c, handler) => tools.set(name, handler) }`
+// and call the handler function directly. Sixteen of this tree's eighteen probes still
+// do; only `authoring-plane` and `tabletop-plane` connect a real `Client`. That shortcut
+// costs one specific thing, and 272 went looking for it while pricing
+// `required-any-reachability`:
+//
+// 🔴 THE SDK VALIDATES `structuredContent` AGAINST `outputSchema` ON EVERY SUCCESS RESULT,
+// AND IT DOES THAT IN THE TRANSPORT, NOT IN THE HANDLER. A handler invoked directly
+// returns its object to the caller and nothing looks at it. So `runtime_set_property`,
+// `runtime_get_property` and the rest of the runtime plane — SIX of the sixteen output
+// keys the wire marks REQUIRED — passed through NO output validation anywhere in CI, on
+// a plane whose tools had just shipped a defect about what they return.
+//
+// `contract_check.py` check 29 models that validator statically. This probe EXECUTES it:
+// every `call()` below goes over stdio into a real host process, and a required key
+// missing from `structuredContent` throws inside the SDK before this file sees a result.
+// A model of a predicate and the predicate are not the same evidence, and this tree's own
+// history is the argument — a unit test that pinned the viewport guard was structurally
+// unable to observe the engine the branch was a model of, and stayed green over a live
+// defect for forty-five releases.
 import { Population } from "./_population.mjs";
 
 // 🔴 THE CLAIM POPULATION, COUNTED. Eight applied rows, five refusals and four indexed
-// claims. The floor is what stops this probe going quiet: a rewrite that dropped the
-// refusal family entirely would still print ✔ on the applied one, and the applied family
-// alone is satisfied by the code that shipped the defect.
+// claims, plus 272's schema family. The floor is what stops this probe going quiet: a
+// rewrite that dropped the refusal family entirely would still print ✔ on the applied
+// one, and the applied family alone is satisfied by the code that shipped the defect.
+// Counted, not guessed: 8 applied rows × 2 + 4 refusal rows × 2 + the absent-`value` pair
+// + 4 indexed + 272's 4 schema claims = 34, and the manifest is its own length now rather
+// than the 1 it carried while it had three families.
 const population = new Population("327", {
-  families: ["327_APPLIED", "327_REFUSED", "327_INDEXED"],
-  scope: 1,
-  claims: 30,
+  families: ["327_APPLIED", "327_REFUSED", "327_INDEXED", "327_SCHEMA"],
+  scope: 4,
+  claims: 34,
 });
 const assert = population.assert;
-import { BridgeClient } from "../dist/bridge.js";
-import { loadConfig } from "../dist/config.js";
-import { resolveBridgeSecret } from "../dist/secret.js";
-import { registerRuntimeTools } from "../dist/tools/runtime.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-const cfg = loadConfig();
+const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
+const HOST_DIR = path.resolve(THIS_DIR, "..");
+const DIST = path.join(HOST_DIR, "dist", "index.js");
 const NODE = process.env.PROBE_NODE ?? "Sprite2D";
-console.log(`#327 set-property probe -> runtime bridge ${cfg.runtimeHost}:${cfg.runtimePort}  node=${NODE}`);
+console.log(`#327 set-property probe -> host over stdio, runtime bridge :${process.env.BREAKPOINT_RUNTIME_PORT ?? "9081"}  node=${NODE}`);
 
-// 🔴 THE SECRET PROVIDER IS THE SIXTH ARGUMENT AND `index.ts` PASSES IT. Constructing
-// without one reaches a game that has no secret and nothing else: the addon closes an
-// unauthenticated connection and the caller reads `bridge_closed`, which looks like a
-// game that is not running. Session 270 lost a probe run to exactly that.
-const runtime = new BridgeClient(
-  cfg.runtimeHost, cfg.runtimePort, 15000, "runtime bridge", "Is the example game running?",
-  () => resolveBridgeSecret(cfg.projectPath, ["BREAKPOINT_RUNTIME_SECRET", "BREAKPOINT_BRIDGE_SECRET"]),
-);
+// The host process reads the same environment this step was given — the runtime port, the
+// project path and the insecure-bridge opt-in — so no secret provider is constructed here.
+// That was the sixth-argument trap 270 lost a run to; speaking MCP retires it, because
+// `index.ts` is the thing that wires the bridge and it is now the thing under test.
+const transport = new StdioClientTransport({
+  command: "node", args: [DIST], cwd: HOST_DIR, env: { ...process.env }, stderr: "inherit",
+});
+const client = new Client({ name: "gcb-setprop", version: "1.0.0" }, { capabilities: { elicitation: {} } });
+client.setRequestHandler(ElicitRequestSchema, async () => ({ action: "accept", content: { proceed: true } }));
+await client.connect(transport);
 
-const tools = new Map();
-const server = {
-  registerTool: (name, _c, handler) => tools.set(name, handler),
-  registerResource: () => {},
-  server: { elicitInput: async () => ({ action: "decline" }) },
+// 🔴 A THROW OUT OF `callTool` IS NOT THE SAME EVENT AS `isError`. `isError` is the host
+// answering "no"; a throw is the SDK refusing the answer's SHAPE, which is the thing this
+// conversion bought. They are kept apart so a schema failure can never be read as a
+// refusal the probe was expecting anyway.
+const callRaw = async (name, args) => {
+  try {
+    return { r: await client.callTool({ name, arguments: args }, undefined, { timeout: 60000 }) };
+  } catch (err) {
+    return { schemaError: err?.message ?? String(err) };
+  }
 };
-const noPeers = Object.fromEntries(
-  ["clientFor", "spawn", "stop", "stopAll", "live", "all"].map((m) => [
-    m,
-    () => {
-      throw new Error(`this probe is single-game: peers.${m}() must not be reached`);
-    },
-  ]),
-);
-registerRuntimeTools(server, runtime, noPeers, cfg);
-
-const set = (property, value, extra = {}) =>
-  tools.get("runtime_set_property")({ path: NODE, property, confirm: true, ...extra, ...(value === undefined ? {} : { value }) });
+// 🔴 THESE THROW RATHER THAN CLAIM, and the reason is `_population.mjs`'s own rule: a
+// claim is attributed to whichever family is OPEN, so asserting here would file the SDK's
+// verdict under whatever section happened to be running and leave 327_SCHEMA vacuous. A
+// schema refusal anywhere aborts into the catch below with the SDK's message intact; the
+// family at the end is where the validator is asked ON PURPOSE and counted.
+const set = async (property, value, extra = {}) => {
+  const out = await callRaw("runtime_set_property",
+    { path: NODE, property, confirm: true, ...extra, ...(value === undefined ? {} : { value }) });
+  if (out.schemaError) throw new Error(`runtime_set_property(${property}) result failed OUTPUT-SCHEMA validation in the SDK: ${out.schemaError}`);
+  return out.r;
+};
 const read = async (property) => {
-  const r = await tools.get("runtime_get_property")({ path: NODE, property });
-  return JSON.parse(r.content[0].text).value;
+  const out = await callRaw("runtime_get_property", { path: NODE, property });
+  if (out.schemaError) throw new Error(`runtime_get_property(${property}) result failed OUTPUT-SCHEMA validation in the SDK: ${out.schemaError}`);
+  // 261's idiom: one `any` cast costs fewer findings than the bare access on an
+  // `unknown` reply, and lint_ceiling's job is to keep the remainder visible.
+  return /** @type {any} */ (out.r.structuredContent)?.value;
 };
-const body = (r) => (r.isError ? r.content[0].text : JSON.parse(r.content[0].text));
+const body = (r) => (r.isError ? (r.content?.[0]?.text ?? "") : (r.structuredContent ?? {}));
 
 try {
   // ── 1. THE WRITES THAT MUST STILL WORK, FALSY ONES FIRST ────────────────────────────
@@ -137,12 +175,40 @@ try {
   assert.deepEqual(await read("position"), { __type__: "Vector2", x: 99, y: 20 },
     "327_INDEXED writing position:x must move only x");
 
-  console.log("327_RESULT the read-back comparison holds on all three families");
+  // ── 4. 🆕 272 — THE OUTPUT SCHEMA, ASKED ON PURPOSE ─────────────────────────────────
+  //
+  // Everything above went over the same transport, so the validator has already run on
+  // every one of those results. This family is where it is INTERROGATED rather than
+  // merely survived: each runtime tool carrying an `any`-typed REQUIRED output key is
+  // called once and the key is read off `structuredContent` — the field the SDK builds
+  // only after `outputSchema` accepted it.
+  //
+  // 🔴 THREE OF THE SIX KEYS ARE UNREACHABLE FROM HERE AND THAT IS SAID RATHER THAN
+  // QUIETLY SKIPPED. `runtime_call_method`'s `return` is code-execution-privileged and
+  // this step does not opt in; `runtime_assert_node_state`'s `expected`/`actual` are
+  // per-ELEMENT keys inside `mismatches`, so a passing assertion emits an empty array and
+  // the keys are correctly absent — asserting on them would need a deliberate mismatch,
+  // which is `verification-family`'s job and not this probe's.
+  population.open("327_SCHEMA");
+  await set("z_index", 3);
+  const sc = await callRaw("runtime_set_property", { path: NODE, property: "z_index", value: 4, confirm: true });
+  assert.ok(!sc.schemaError, `327_SCHEMA runtime_set_property was REFUSED BY ITS OWN OUTPUT SCHEMA: ${sc.schemaError}`);
+  const scOut = /** @type {any} */ (sc.r.structuredContent);
+  assert.ok(scOut && "value" in scOut,
+    "327_SCHEMA runtime_set_property returned no `value` in structuredContent — check 29 joins that key statically and this is the same claim, executed");
+  const gc = await callRaw("runtime_get_property", { path: NODE, property: "z_index" });
+  assert.ok(!gc.schemaError, `327_SCHEMA runtime_get_property was REFUSED BY ITS OWN OUTPUT SCHEMA: ${gc.schemaError}`);
+  const gcOut = /** @type {any} */ (gc.r.structuredContent);
+  assert.ok(gcOut && "value" in gcOut,
+    "327_SCHEMA runtime_get_property returned no `value` in structuredContent");
+  console.log("327_SCHEMA the runtime plane's required-`any` keys survive the SDK's own output validation");
+
+  console.log("327_RESULT the read-back comparison holds on all four families");
   population.reportOrDie();
   console.log("✔ #327 set-property verification OK");
-  runtime.close();
+  await client.close();
 } catch (err) {
   console.error("✘ #327 set-property verification FAILED:", err?.message ?? String(err));
-  runtime.close();
+  await client.close().catch(() => {});
   process.exit(1);
 }

@@ -85,7 +85,9 @@ Run:  python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md
       python3 scripts/handoff_gate.py --selftest
       python3 scripts/handoff_gate.py --patterns [--measured run.log]   (237 §1)
       python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --read   (parse only)
-      python3 scripts/handoff_gate.py --gh-open                         (271 §1, emitter)
+      python3 scripts/handoff_gate.py --gh-open      (271 §1 / 272 §3, emitter: the three
+                                                     world-facing readings — GH_OPEN_ISSUES,
+                                                     GH_OPEN_PRS, ASSETLIB_VERSION)
       python3 scripts/handoff_gate.py --open ../HANDOFF_SESSION270.md --measured run.log
 
 🔴 THE MEASURED LOG'S ORDER IS NOT FREE — 235 §1. `host.suite` reads `# tests` and
@@ -1190,6 +1192,29 @@ def block_versions(block: "list[str]") -> "tuple[tuple[str, str], str]":
     return (("", ""), "no `host / addon` row in this block")
 
 
+# 🆕 272 — the `assetlib` row's own claim: WHICH ADDON VERSION THE ASSET LIBRARY SERVES.
+# Dotted like the `host / addon` pair, and unread for the same mechanical reason until a
+# reader was written for it — `COUNTER_RE` refuses a digit with a dot against it, so this
+# was never an atom, never bound, and never compared (244 §3's finding, one row down).
+ASSETLIB_ROW_RE = re.compile(r"^assetlib\b.*?\baddon (\d+\.\d+\.\d+) live\b")
+
+
+def block_assetlib(block: "list[str]") -> "tuple[str, str]":
+    """(the version a block's own `assetlib` row claims is live, problem).
+
+    🔴 A BLOCK WITHOUT THE ROW IS NOT REFUSED, and the reason is the population rather
+    than politeness: `BLOCK_POPULATION` carries every block since 227 and none of them has
+    this row, so requiring it would refuse forty shipped documents for not anticipating
+    272. What IS refused is the row being present and wrong, which is the defect 270
+    actually hit — three handoffs carrying an inherited version the world had moved past.
+    """
+    for line in block:
+        m = ASSETLIB_ROW_RE.match(" ".join(line.lstrip("> ").split()))
+        if m:
+            return (m.group(1), "")
+    return ("", "no `assetlib` row in this block")
+
+
 def version_interval(session: "int | None", root: Path = ROOT,
                      population: "list | None" = None) -> "tuple[int, str]":
     """(how many of the two versions moved since the previous block, problem) — TREE.
@@ -1360,7 +1385,59 @@ def gh_open_rest(kind: str, why_cli: str, root: Path = ROOT) -> "tuple[int, str]
     return (len(rows), "")
 
 
-# The two spellings `HEADER_READERS` extracts, kept beside the emitter that writes them so
+# ── 🆕 272 — `assetlib-claim-has-no-reader` (271): THE LAST WORLD-FACING CLAIM ─────────
+#
+# 🔴 THE ROW'S OWN SENTENCE: *the Asset Library's live version is a world-facing fact
+# asserted in every handoff and read by nothing.* Measured at 270, the hard way — three
+# consecutive handoffs carried "1.11.0 still in review" while the entry had been ACCEPTED
+# and live since `2026-08-17 00:49:42`. Nobody was careless; the line was INHERITED, which
+# is what a claim with no reader is for. 271 closed the `gh.*` half of exactly this class
+# and left this one open because the refusal it built had no reader to sit under yet.
+#
+# 🔴 THE ASSET ID IS A CONSTANT AND NOT A LOOKUP. `godotengine.org/asset-library` has no
+# route from a repo slug to an asset, so the number is written here once, beside the reader
+# that uses it, rather than being derived from something that cannot derive it.
+ASSETLIB_ASSET_ID = 5335
+ASSETLIB_API = "https://godotengine.org/asset-library/api/asset"
+
+
+def assetlib_live(asset_id: int = ASSETLIB_ASSET_ID) -> "tuple[str, str]":
+    """(the addon version the Asset Library currently SERVES, problem) — NETWORK.
+
+    🔴 UNREADABLE IS A REASON AND NEVER A VERSION, which is 271's rule arriving at the
+    reader it was written for. The Cowork container cannot reach `godotengine.org` at all,
+    so this is the second atom in the roster whose honest answer in one environment is
+    UNREAD — and under 271 that means the block may not claim it there, not that the block
+    may carry whatever the last session wrote.
+    """
+    import urllib.error
+    import urllib.request
+
+    url = f"{ASSETLIB_API}/{asset_id}"
+    req = urllib.request.Request(url, headers={"User-Agent": "breakpoint-mcp-handoff-gate"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = r.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return ("", f"`GET {url}` answered HTTP {e.code} — an endpoint that refused is not "
+                    f"an endpoint that served a version")
+    except (urllib.error.URLError, OSError) as e:
+        return ("", f"`GET {url}` could not be reached: {e}")
+    try:
+        out = json.loads(body)
+    except ValueError as e:
+        return ("", f"`GET {url}` did not return JSON: {e}")
+    if not isinstance(out, dict):
+        return ("", f"`GET {url}` returned {type(out).__name__}, not the object this "
+                    f"reader reads `version_string` off")
+    got = str(out.get("version_string", "")).strip()
+    if not re.fullmatch(r"\d+\.\d+\.\d+", got):
+        return ("", f"`GET {url}` carries version_string={got!r}, which is not the "
+                    f"three-part addon version this claim is about")
+    return (got, "")
+
+
+# The spellings `HEADER_READERS` extracts, kept beside the emitter that writes them so
 # a rename cannot make one of them stale in silence — `--selftest` joins the pair below to
 # the roster's own `extract` regex, which is the join `npm.lag` did not have for twelve
 # sessions (241 §1).
@@ -1385,6 +1462,12 @@ def gh_emit(root: Path = ROOT) -> int:
     for _key, kind, label in GH_EMIT:
         n, prob = gh_open(kind, root)
         print(f"{label} {n}" if not prob else f"{label} UNREAD — {prob}")
+    # 🆕 272 — the Asset Library rides in the same emitter, because it is the same errand:
+    # a world-facing fact that only one machine in the loop can read, paid for once and
+    # written into the log every later reader reads. Same rule as the two above — a line
+    # with no version on it carries no claim and the atom stays honestly UNREAD.
+    v, prob = assetlib_live()
+    print(f"ASSETLIB_VERSION {v}" if not prob else f"ASSETLIB_VERSION UNREAD — {prob}")
     return 0
 
 
@@ -1771,6 +1854,59 @@ def check_header(block: "list[str]", log: str, run_network: bool,
                     "`addons/breakpoint_mcp/plugin.cfg`.\n"
                     "     Unread until 244: `COUNTER_RE` cannot see a dotted numeral, so "
                     "these two strings were never an atom and never bound.")
+
+    # ── 🆕 272 §3 — `assetlib-claim-has-no-reader` (271) — THE LAST INHERITED FACT ──────
+    #
+    # 🔴 THE CLAIM IS ABOUT THE WORLD, SO THE TREE CANNOT ANSWER IT AND NEITHER CAN THE
+    # PREVIOUS BLOCK. That is the whole row: 270 found three consecutive handoffs saying
+    # the Asset Library still had 1.11.0 in review while it had been live for two days,
+    # because the sentence was copied forward and no reader ever disagreed with it.
+    #
+    # 🔴 AND IT OBEYS 271's RULE, WHICH IS WHY IT IS SAFE TO ADD AT ALL. The container this
+    # session runs in cannot reach `godotengine.org`; a reader that treated unreachable as
+    # agreement would be the exact defect 271 spent a session removing, one endpoint over.
+    # No log line and no `--network` means UNREAD with the reason, no comparison, and — by
+    # the same rule — no claim standing beside it.
+    claimed_al, why_al = block_assetlib(block)
+    if why_al:
+        notes.append(f"assetlib.live: {why_al} — nothing claimed, nothing to compare")
+    else:
+        got_al, why_read = "", ""
+        if log and (m := re.search(r"^ASSETLIB_VERSION (\d+\.\d+\.\d+)$", log, re.M)):
+            got_al = m.group(1)
+        elif run_network:
+            got_al, why_read = assetlib_live()
+        else:
+            why_read = ("pass --network to dial the Asset Library, or supply "
+                        "`ASSETLIB_VERSION <x.y.z>` from `handoff_gate.py --gh-open` in "
+                        "the measured log. Nothing in this tree answers it — the live "
+                        "entry is a fact about godotengine.org")
+        if why_read or not got_al:
+            # 🔴 SPELLED OUT HERE RATHER THAN THROUGH `unread`, because that helper renders
+            # the claim as a list of integers and this one is a version string — a message
+            # reading "the block claims []" about a row that plainly claims 1.11.0 would be
+            # 271's own defect wearing 271's own fix.
+            why_read = why_read or "no reading"
+            notes.append(f"assetlib.live: UNREAD — {why_read}")
+            problems.append(
+                f"🔴 HEADER_UNREAD_CLAIMED assetlib.live — the block claims the Asset "
+                f"Library serves addon {claimed_al} and nothing in this run could read "
+                f"it: {why_read}\n"
+                f"     atom: 'addon {claimed_al} live'\n"
+                f"     An atom whose reader answered UNREAD may not be CLAIMED (271 §1). "
+                f"Either give this run the reading, or drop the `assetlib` row and make "
+                f"no claim.")
+        else:
+            compared += 1
+            if got_al != claimed_al:
+                problems.append(
+                    f"🔴 assetlib.live — the block says the Asset Library serves addon "
+                    f"{claimed_al}, it serves {got_al}\n"
+                    f"     atom: 'addon {claimed_al} live'\n"
+                    f"     A world-facing claim nobody re-reads is the class 270 paid for: "
+                    f"three handoffs carried an inherited\n"
+                    f"     'still in review' while the entry had been accepted. Re-read "
+                    f"`{ASSETLIB_API}/{ASSETLIB_ASSET_ID}`.")
 
     if len(atoms) < HEADER_FLOOR:
         problems.append(f"🔴 HEADER_FLOOR — {len(atoms)} header atom(s), floor "
@@ -3910,6 +4046,33 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    # 🆕 272 — 271's block, copied in BEFORE the replay per 253's rule: `git.moved` refuses
+    # a handoff whose predecessor is not in this table, and paying that at ship time costs
+    # a second PR and a full re-replay against a moved HEAD (241's sequencing lesson).
+    (271, """> ```
+> main                 4a718f7 — the number a reader could not make (#332)   MERGED
+> branch 271           session271_unread_may_not_be_claimed — merged, deleted
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no product code changed this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 · tags 133 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. The gh pair is a READING this time, not a number
+>                      typed beside one: `--gh-open` on his Mac put it in the log
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 50 · control 72 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1782
+>               · late not-loaded 0 · late constructed 206/160
+>               · py gates 18/4/14 · SIG 139/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 106 · 50 governed · 1229 keys · 97 shortfalls
+>               · unswept 0 · exempt 39 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4739 · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 333 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -4758,6 +4921,30 @@ def selftest() -> int:
         print(f"  🔴 GH_EMIT_JOIN {_unjoined} — the line `--gh-open` prints is not the "
               f"line `HEADER_READERS` extracts. An emitter and a reader that agree only "
               f"by coincidence are 236's `extract` with a producer bolted on")
+
+    # 🆕 272 — THE SAME JOIN FOR THE ASSET LIBRARY, and it is asserted rather than assumed
+    # for the reason the row above exists: `ASSETLIB_VERSION` is printed in one function
+    # and matched in another, with nothing between them. It is NOT a `HEADER_READERS` row —
+    # a dotted version is not a counter and `COUNTER_RE` refuses it by design (244 §3) — so
+    # the reader lives inline in `check_header` and this claim reaches into that source
+    # rather than into the roster.
+    claims += 1
+    _al_src = inspect.getsource(check_header)
+    _al_emit = "ASSETLIB_VERSION {v}"
+    _al_pat = re.search(r'r"(\^ASSETLIB_VERSION[^"]*)"', _al_src)
+    if _al_pat is None or re.match(_al_pat.group(1), "ASSETLIB_VERSION 1.11.0") is None:
+        failed += 1
+        print(f"  🔴 ASSETLIB_EMIT_JOIN the line `--gh-open` prints ({_al_emit!r}) is not "
+              f"the line `check_header` extracts. Same defect class as GH_EMIT_JOIN above, "
+              f"on the claim 270 paid a day for")
+    # And the emitter must still be printing it — a join proved against a producer that
+    # was deleted is 236's `extract` with nothing behind it, which is the whole lesson.
+    claims += 1
+    if "ASSETLIB_VERSION" not in inspect.getsource(gh_emit):
+        failed += 1
+        print("  🔴 ASSETLIB_EMIT_ABSENT `--gh-open` no longer prints ASSETLIB_VERSION, so "
+              "the only route to that reading outside `--network` is gone and every "
+              "offline run must answer UNREAD")
 
     # 🔴 THE ROSTER'S OWN DISPATCH COVERAGE, ASKED THE WAY 232's DISCOVER HALF ASKS IT.
     # Every REMOTE row must be reachable by SOME route other than a log — that is what

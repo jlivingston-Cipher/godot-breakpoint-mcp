@@ -41,6 +41,34 @@ user a day.
   with the reason it lands where it does, any path an installer can observe makes the row `user`,
   and a declared path this repository does not track is refused. The back catalogue is
   grandfathered under a ceiling that can only fall.
+- 🔴 **Check 29's required-`any` join stopped being satisfied by text that is not an answer.**
+  It searched a handler's whole body for the output key, which a GDScript local's type
+  annotation and the tool's own zod `inputSchema:` line both match. Measured by deleting each
+  real emit and re-running the join: **eight of the sixteen keys still read PRESENT with
+  nothing left writing them.** The search now runs over the constructs a caller actually
+  receives — `_ok(..)`, `.append(..)`, `var x := {..}`, `const x = {..}` — and the same
+  experiment leaves none standing, with no false positive on a healthy tree. A handler where
+  none of those shapes match is reported as a READER that could not find where the tool
+  answers, which is a different sentence from a key that is missing.
+- 🔴 **The runtime plane's integration probe speaks MCP, so its results are validated by the
+  SDK rather than by a model of it.** Sixteen of this tree's eighteen live probes build a fake
+  `{ registerTool }` object and call handler functions directly, which never reaches the
+  `structuredContent` validation the real transport performs — so six of the sixteen output
+  keys the wire marks REQUIRED had never been validated by anything but a static join. The
+  `#327` probe now spawns the host over stdio and calls through a real client.
+  `node_set_property`, the one tool of the fifteen that no live probe drove at all, joins the
+  authoring-plane probe.
+- 🔴 **`scope_gate.py` has a second injector, and sixteen floors it defends are defended by
+  something for the first time.** Its blinds anchor on an annotated `def`; sixteen scope-ledger
+  populations are module-level accumulators filled by a loop, with no `def` to anchor on and no
+  return to empty, so those floors had never once been tested against the collapse they name.
+  The new injector empties a binding after the last statement that fills it, and its population
+  is derived from the ledger rather than listed. Ledger reach went from 58 of 74 to **74 of 74**.
+- 🔴 **`assetlib.live`: the Asset Library's served version is read instead of inherited.** It was
+  asserted in every handoff and checked by nothing, and three consecutive sessions carried
+  *still in review* about an entry that had been accepted two days earlier. `--gh-open` emits
+  `ASSETLIB_VERSION`, and a block that claims one is compared to what the library serves — or,
+  where the endpoint cannot be reached, must claim nothing at all.
 
 ## [1.82.0] — 2026-08-19
 

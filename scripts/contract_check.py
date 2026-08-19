@@ -453,6 +453,58 @@ def addon_handler_bodies() -> "dict[str, tuple[str, str]]":
     return out
 
 
+# 🆕 272 — THE CONSTRUCTS THAT PUT A KEY ON THE WIRE, and nothing else counts as one.
+#
+# 🔴 WHY THIS EXISTS. Check 29 asked *does the handler write this key* by searching the
+# handler's WHOLE BODY for `key:` — and a body contains more than what it returns. A
+# GDScript local's type annotation (`var result: Variant = ..`) matches. So does the zod
+# `inputSchema:` line in the tool's own registration block, which is in the joined text
+# because the host half of the answer lives there. MEASURED AT 272 by deleting each real
+# emit and re-running the join: **8 of the 16 keys still read PRESENT with nothing left
+# writing them.** The join was half decoration.
+#
+# The openers are the four shapes this tree actually returns through, and they are a
+# roster rather than a parser for the reason every other reader here is a regex:
+#   `_ok(..)` / `ok(..)`   the success envelope on both engine planes and on the host
+#   `.append(..)`          an array element — three of the sixteen keys are per-element
+#   `var x := {..}`        a dict bound to a local and handed to `_ok` one line later
+#   `const x = {..}`       the same idiom on the TypeScript side
+#
+# 🔴 AND A TOOL WITH NO REGION IS NOT A TOOL WITH NO KEY. If the openers match nothing in
+# a body the reader has NOT observed a missing key — it has failed to find where the tool
+# answers, which is a different sentence, and 271's rule is that the two may not share a
+# spelling. Check 29 raises the reader's own failure under its own message.
+EMIT_OPENERS = (
+    re.compile(r"(?<![A-Za-z0-9_])_?ok\s*\("),
+    re.compile(r"\.append\s*\("),
+    re.compile(r"(?m)^\s*var\s+[A-Za-z_][A-Za-z0-9_]*\s*(?::\s*[A-Za-z_][A-Za-z0-9_]*\s*)?:?=\s*\{"),
+    re.compile(r"(?m)^\s*const\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*:[^=\n]*)?=\s*\{"),
+)
+
+
+def emitted_key_regions(body: str) -> "list[str]":
+    """The spans of `body` that construct something the caller receives.
+
+    Balanced-delimiter slices from each opener above, so a nested dict inside an `_ok(..)`
+    comes along and a sibling statement does not.
+
+    🔴 THE BLIND IS THE RIGHT-HAND SIDE OF THE JOIN. Return `[]` and every one of the
+    sixteen keys reads as unwritten, which is check 29 going RED on a healthy tree — the
+    loud failure, and the one this reader is allowed to have. The quiet failure is the one
+    it replaced: a right-hand side wide enough that everything is present.
+    """
+    out: "list[str]" = []
+    for rx in EMIT_OPENERS:
+        for m in rx.finditer(body):
+            op = body.rfind("(", m.start(), m.end())
+            if op == -1:
+                op = body.rfind("{", m.start(), m.end())
+            if op == -1:
+                continue
+            out.append(body[op:_match_braces(body, op)])
+    return out
+
+
 def host_tool_blocks() -> "dict[str, str]":
     """tool -> the source text of ITS OWN registration block.
 
@@ -4854,10 +4906,25 @@ _ran("28")
 # 🔴 WHAT IT DOES NOT PROVE, SAID OUT LOUD (251's second question). This is a PRESENCE
 # join: the key is written by the handler that answers the tool. It does not prove the
 # write is on every path through that handler — a key emitted inside one arm of a branch
-# and forgotten in the other reads as present here. That is a reachability question, it
-# needs a live editor to answer honestly, and 249 measured what a live capability probe
-# costs. The failure this DOES catch is the one that actually happens: a key renamed or
-# dropped on one side of the wire while the other side keeps requiring it.
+# and forgotten in the other reads as present here.
+#
+# 🆕 272 — AND THAT SENTENCE WAS TRUE ABOUT A JOIN THAT WAS WEAKER THAN IT SAID. The
+# search ran over the handler's whole body, so a type annotation or the tool's own
+# `inputSchema:` line satisfied it: **8 of the 16 keys read PRESENT with their real emit
+# deleted**, measured by doing exactly that. The right-hand side is `emitted_key_regions`
+# now — the constructs a caller actually receives — and the same experiment leaves **0 of
+# 16** standing. What the check catches did not change; what it could be fooled by did.
+#
+# 🔴 THE REACHABILITY HALF IS ANSWERED ELSEWHERE AND IS NOT PRETENDED TO BE ANSWERED HERE.
+# 272 measured every one of the sixteen: thirteen of the fifteen handlers have exactly one
+# success return, and the two that branch (`_editorsettings_get_set`, the host's
+# `runtime_await_condition`) write the key on every arm — so the live defect count is zero
+# and this is a tripwire, not a repair. The thing that actually throws is the SDK's
+# `validateToolOutput`, and 272 put the runtime plane's probe on a real MCP client so that
+# predicate is EXECUTED in CI rather than modelled here. A static branch walker was priced
+# against that and refused: it needs a GDScript CFG in a file where every reader is a
+# regex, and it false-positives on the `var out := {..}` and loop-built-element idioms
+# this tree is written in.
 required_any = required_any_output_keys()
 tool_methods = tool_bridge_methods()
 addon_handlers = addon_handler_bodies()
@@ -4871,6 +4938,7 @@ for _f in sorted(TOOLS.rglob("*.ts")):
         _host_tool_blocks[_sm.group(1)] = _text[_sm.end(): _end]
 
 _required_any_joined = 0
+_emit_regions_read = 0
 for _tool in sorted(required_any):
     if _tool not in set(registered_tools()):
         errors.append(
@@ -4883,15 +4951,58 @@ for _tool in sorted(required_any):
     _bodies = [addon_handlers[_m][1] for _m in sorted(tool_methods.get(_tool, ()))
                if _m in addon_handlers]
     _bodies.append(_host_tool_blocks.get(_tool, ""))
+    # 🆕 272 — the join's right-hand side. See `emitted_key_regions` for why the whole
+    # body was the wrong text to search and what deleting each real emit measured.
+    _regions = [_r for _b in _bodies for _r in emitted_key_regions(_b)]
+    _emit_regions_read += len(_regions)
+    if not _regions:
+        # 🔴 271's RULE ONE LAYER DOWN: a reader that found nothing has not observed an
+        # absence. Say which of the two happened, under the reader's own name.
+        errors.append(
+            f"check 29 reader: nothing in what answers {_tool} matches an emitting construct "
+            f"(`_ok(..)`, `.append(..)`, `var x := {{..}}`, `const x = {{..}}`), so the "
+            f"key join below has no right-hand side to search and is NOT reporting that "
+            f"{_tool}'s keys are missing — it is reporting that this reader could not "
+            f"find where the tool answers. Either the handler returns through a shape "
+            f"`EMIT_OPENERS` does not name, in which case add it there with its reason, "
+            f"or the dispatch arm no longer resolves and check 1/2 owns that."
+        )
+        continue
     for _key in sorted(required_any[_tool]):
         _required_any_joined += 1
-        if not any(re.search(rf'["\']{re.escape(_key)}["\']\s*:', _b) or
-                   re.search(rf"(?<![A-Za-z0-9_]){re.escape(_key)}\s*:", _b) for _b in _bodies):
+        if not any(re.search(rf'["\']{re.escape(_key)}["\']\s*:', _r) or
+                   re.search(rf"(?<![A-Za-z0-9_]){re.escape(_key)}\s*:", _r) for _r in _regions):
             _where = ", ".join(sorted(tool_methods.get(_tool, ())) or ["no bridge method"])
+            # 🆕 272 — THE DECOY CASE GETS ITS OWN SENTENCE, because it asks for a different
+            # repair. A key that appears NOWHERE has been renamed or dropped; a key that
+            # appears in the body but in nothing the caller receives has been moved OUT of
+            # the answer — a `var x: Variant` annotation, a zod `inputSchema:` line, a
+            # commented-out return. Eight of the sixteen keys were in exactly that state
+            # under a synthetic deletion at 272, so this is the branch that would have been
+            # printed for all eight had the old join been able to tell them apart.
+            _elsewhere = any(re.search(rf'["\']{re.escape(_key)}["\']\s*:', _b) or
+                             re.search(rf"(?<![A-Za-z0-9_]){re.escape(_key)}\s*:", _b)
+                             for _b in _bodies)
+            if _elsewhere:
+                errors.append(
+                    f"check 29 decoy: {_tool}'s output schema requires {_key!r} — an "
+                    f"`any`-typed key, REQUIRED on the wire from zod 4.4.0 — and the only "
+                    f"mentions of it in what answers this tool ({_where}) are OUTSIDE the "
+                    f"{len(_regions)} construct(s) a caller receives. A local's type "
+                    f"annotation, the tool's own `inputSchema:` line and a commented-out "
+                    f"return all read like an emit and are not one; until 272 this join "
+                    f"accepted every one of them. The SDK validates `structuredContent` on "
+                    f"every SUCCESS result, so the happy path throws. Put the key back in "
+                    f"the returned object, or spell `encodedValue.optional()` in schemas.ts "
+                    f"the way `runtime_assert_scene_structure` does."
+                )
+                continue
             errors.append(
                 f"check 29: {_tool}'s output schema requires {_key!r} — an `any`-typed key, "
                 f"which from zod 4.4.0 is REQUIRED on the wire — and nothing that answers "
-                f"this tool writes it ({_where}). The SDK validates `structuredContent` "
+                f"this tool writes it ({_where}) into any of the "
+                f"{len(_regions)} emitting construct(s) that answer it, or anywhere else in "
+                f"its body. The SDK validates `structuredContent` "
                 f"against `outputSchema` on every SUCCESS result, so this is not a "
                 f"documentation defect: the tool's happy path throws. Either the handler "
                 f"stopped emitting the key, or it was renamed on one side of the wire — or "
@@ -4932,7 +5043,8 @@ if _optional_any != OPTIONAL_ANY_SPELLINGS:
 
 print(f"Required-any keys      : "
       f"{_required_any_joined} key(s) across {len(required_any)} tool(s) joined to an "
-      f"emitter · {_optional_any} declared optional · {len(addon_handlers)} handler(s) resolved")
+      f"emitter · {_emit_regions_read} emitting construct(s) searched · "
+      f"{_optional_any} declared optional · {len(addon_handlers)} handler(s) resolved")
 _ran("29")
 
 # --- 30: THE LAUNCHER THAT ANSWERED BEFORE THE THING IT LAUNCHED -----------
@@ -5800,6 +5912,21 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "goes unjoined, and the SDK validates `structuredContent` on every success — so the "
      "first handler to drop one turns that tool's happy path into a thrown error, with "
      "nothing in this tree saying which key or which tool"),
+    # 🆕 272 — the RIGHT-HAND side of that join, floored separately because it fails
+    # separately and, until 272, failed in the direction nothing notices. An empty regions
+    # list is LOUD — every key reads unwritten and the check reddens on a healthy tree.
+    # A regions list that is too WIDE is the silent one, and is what this replaced: the
+    # search used to run over the handler's whole body, where a `var x: Variant`
+    # annotation and the tool's own `inputSchema:` line both matched. Deleting each real
+    # emit and re-running the join measured it at 272 — eight of the sixteen keys still
+    # read PRESENT with nothing left writing them. The floor is on the population because
+    # a reader trimmed to a SUBSET of the emitting shapes is the failure that keeps the
+    # check green: it would still find the eleven easy keys and go quiet about the rest.
+    ("xlang.emit_regions", _emit_regions_read, 18,
+     "🔴 the constructs check 29 searches stop being found. Fewer regions is a join that "
+     "asks about fewer keys while printing the same sentence — and the shape that matters "
+     "is not the total but the per-tool zero, which check 29 raises under its own message "
+     "rather than reporting as an absent key"),
     # 🆕 257 — check 30's two populations, floored separately because they fail separately
     # and both fail SILENTLY. An empty launcher set judges nothing and prints ok; an empty
     # key map makes every launcher read as declaring nothing, which is the LOUD failure —
