@@ -6,6 +6,57 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.82.0] — 2026-08-19
+
+### Fixed — a property write that did not happen no longer reports success ([#327](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/327))
+
+- 🔴 **`runtime_set_property` and `node_set_property` read the property back and COMPARE it to
+  what was asked for.** Both used to answer with a fresh read-back they never compared, so every
+  way a write can fail to land produced the same `ok` envelope carrying the value the property
+  ALREADY HAD — and the caller's next action was taken against a state it believed it had set.
+  A write that does not land is an error now: `set_ignored` when the property is unchanged,
+  `set_mismatch` when the engine stored an incompatible type. **A refused write also puts the
+  property back**, because an error a tool raises about its own write must not itself be a write.
+- 🔴 **`value` is REQUIRED on the seven tools whose descriptions always said it was.** `z.any()`
+  answers true to zod's `isOptional()`, so `value` was published to every client OUTSIDE the
+  JSON Schema's `required` list on `runtime_set_property`, `node_set_property`,
+  `project_set_setting`, `resource_set_property`, `shadermaterial_set_param`, `anim_insert_key`
+  and `runtime_await_condition`. A client omitting it was obeying our own schema, and the addon
+  then read a missing key as null and wrote the property type's ZERO over whatever was there —
+  measured on Godot 4.7 as `rotation` 1.25 → 0.0 and `position` (123, 456) → (0, 0), reported as
+  success both times. The addon refuses a missing key on its own side as well, because a direct
+  socket has never had a schema.
+- 🔴 **Indexed property paths work.** `position:x` and `material_override:shader_parameter/albedo`
+  are `get_indexed`'s vocabulary and were being passed to `get`, which answers `null` — not an
+  error, not a warning. Both planes now route the colon form to `get_indexed` / `set_indexed`, and
+  the editor plane records it through `UndoRedo` as a method call rather than as an edit to a
+  property called `position:x` that no node has.
+- 🔴 **`runtime_inject_input` refuses a `position` or `relative` it cannot use.** The guard was
+  `if pos is Vector2:` with no else, so an untagged `{"x": .., "y": ..}` was silently skipped and
+  the event was injected AT THE ORIGIN with `{"injected": true}` on the way back. Absent still
+  means *wherever it lands by default*; present-and-unusable is a `bad_event_field` error.
+
+### Added
+
+- `coerced` and `requested` on both `set_property` outputs, together and only when the write
+  landed and the engine then changed it — a setter that clamps, snaps or normalises. A caller can
+  now tell *your value, stored* from *a value like yours, stored*.
+- Three remedy rows (`set_mismatch`, `set_ignored`, `bad_event_field`) and the runtime plane's
+  first `bad_params` row.
+- A live CI probe (`set-property-verify.integration.mjs`) driving all three families against a
+  real engine on every supported Godot, and a unit gate over the INPUT side of the tool surface —
+  the direction check 29 had never taken — refusing any input key published as both unconstrained
+  and optional unless the roster names it deliberately.
+
+### Note
+
+- **Nothing was ever dropping falsy values.** #327 reported `false`, `0` and `0.0` as silently
+  discarded and reasoned to a truthiness guard in the codec. Driven on both sides of the wire at
+  session 270, real falsy scalars round-trip and always have; what the reporter hit was a String
+  reaching a bool property, which Godot coerces to `true`. The CI probe asserts the falsy writes
+  positively, because a fix that made `false` refusable would be a worse defect than the one it
+  replaced.
+
 ## [1.81.0] — 2026-08-19
 
 ### Changed — the host's `write_failed` is now `send_failed`, because two producers shared one word

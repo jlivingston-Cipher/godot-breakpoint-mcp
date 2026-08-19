@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { requiredEncodedValue } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall } from "./common.js";
 
@@ -86,7 +87,7 @@ export function registerAnimationTools(server: McpServer, call: EditorCall): voi
         name: z.string().describe("Animation name"),
         track: z.number().int().describe("Track index"),
         time: z.number().describe("Key time in seconds"),
-        value: z.any().describe("Key value (JSON scalar, array, object, or a __type__-tagged Variant matching the track type)"),
+        value: requiredEncodedValue.describe("Key value (JSON scalar, array, object, or a __type__-tagged Variant matching the track type)"),
         transition: z.number().optional().describe("Transition curve exponent (default 1.0)"),
         library: z.string().optional().describe("Animation library name (default \"\")"),
       },

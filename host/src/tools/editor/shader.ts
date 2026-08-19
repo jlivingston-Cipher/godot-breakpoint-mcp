@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { requiredEncodedValue } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
 
@@ -92,7 +93,7 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
       inputSchema: {
         path: z.string().describe("Node path relative to the scene root"),
         param: z.string().describe("Shader uniform name"),
-        value: z.any().describe("New value (JSON scalar or __type__-tagged Variant)"),
+        value: requiredEncodedValue.describe("New value (JSON scalar or __type__-tagged Variant)"),
       },
     },
     async ({ path, param, value }) => call("shadermaterial.set_param", { path, param, value }),

@@ -192,7 +192,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
     # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
     # — at or under the live count, refusing one below, quiet one above.
-    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )65",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )66",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
@@ -323,7 +323,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # surface down rather than the other way round. `TOOL_FLOOR` is the usual collapse
     # guard — a reader listing zero tools would otherwise report a wonderfully small
     # surface and pass.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )366220;",                  [f"{S}/token-cost.selftest.mjs"]),
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )367616;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
@@ -1319,7 +1319,10 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`git ls-files` failing to answer — which yields an empty population, no "
         "findings, and a green run that opened no files. Same argument as "
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
-    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (65, (
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (66, (
+        "🆕 `270` RAISED IT BY ONE, FOR THE REASON THE ROW ITSELF PREDICTED: this "
+        "population grows whenever a plane gains a probe, and issue #327's fix added "
+        "`set-property-verify.integration.mjs` to prove a live engine's coercions. "
         "🆕 242 — every tracked `.mjs` in this repository, at `{FLOOR}`, which is the "
         "population `tsc --allowJs --checkJs` is run over. It is the row "
         "`lint-roster-py-only` asked for: until this session the lint roster was "

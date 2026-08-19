@@ -4899,17 +4899,35 @@ for _tool in sorted(required_any):
                 f"`encodedValue.optional()` the way `runtime_assert_scene_structure` does."
             )
 
+# 🔴 HOW MANY `encodedValue.optional()` SPELLINGS `schemas.ts` IS DECLARED TO CARRY.
+# A floor-shaped constant, and the shape it pins is a POPULATION rather than a size: the
+# two that `runtime_assert_node_state` has carried since `255`, plus the two `270` added
+# for `requested` on both `set_property` outputs. See check `29`'s evidence arm for why a
+# non-emptiness test could not survive the population growing.
+OPTIONAL_ANY_SPELLINGS = 4
+
 # The other direction. `.optional()` is the ONLY thing that keeps an `any` key out of this
 # population, so a spelling nobody notices is the whole risk: `encodedValue .optional()`,
 # or a wrapper that swallows it, silently re-adds a key to the promise set.
+#
+# 🔴 THE CLAIM WAS *AT LEAST ONE REMAINS* UNTIL 270, AND GROWING THE POPULATION SILENCED
+# ITS OWN CONTROL. `29.nooptional` empties the two spellings in `runtime_assert_node_state`
+# and expects this to fire; issue #327's fix added two more for `requested`, so after the
+# mutation two survived, the claim held, and the control observed nothing. A non-emptiness
+# test cannot notice a deletion while any member is left — which is 269's finding wearing a
+# different hat, and the reason this is a DECLARED COUNT now. It is the same idiom the
+# rosters in this file already use: name the population, compare it, and make a change to
+# it a decision somebody wrote down.
 _optional_any = len(re.findall(r"encodedValue\s*\.optional\(\)", SCHEMAS.read_text()))
-if _optional_any == 0:
+if _optional_any != OPTIONAL_ANY_SPELLINGS:
     errors.append(
-        "check 29: no `encodedValue.optional()` remains in schemas.ts. That spelling is the "
-        "only way the file can say an `any`-typed field may be ABSENT, and it is the "
-        "evidence that the required/optional split was authored rather than inherited from "
-        "whichever zod is installed. If the last one was genuinely deleted, this check's "
-        "argument needs rewriting, not the count adjusting."
+        "check 29 evidence: schemas.ts carries {} `encodedValue.optional()` spelling(s) and "
+        "OPTIONAL_ANY_SPELLINGS declares {}. That spelling is the only way the file can say "
+        "an `any`-typed field may be ABSENT, and the count is the evidence that the "
+        "required/optional split was authored rather than inherited from whichever zod is "
+        "installed. Move the constant ON PURPOSE in the commit that moves the file — if the "
+        "last one was genuinely deleted, this check's argument needs rewriting rather than "
+        "its number adjusting.".format(_optional_any, OPTIONAL_ANY_SPELLINGS)
     )
 
 print(f"Required-any keys      : "

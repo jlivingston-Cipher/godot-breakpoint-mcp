@@ -106,3 +106,93 @@ static func decode(j: Variant) -> Variant:
 			arr.append(decode(item))
 		return arr
 	return j
+
+
+## 🔴 WHY THE FOUR MEMBERS BELOW EXIST — issue #327, and the reporter's own diagnosis
+## was wrong in a way worth writing down. They read *vectors dropped, falsy scalars
+## dropped, indexed paths null* as one truthiness guard in this file's decode path.
+## Measured live on Godot 4.7, both sides of the wire driven separately: real `false`,
+## `0` and `0.0` round-trip correctly and always have. What they actually hit was a
+## String reaching a bool property — Godot coerces any non-empty String to `true`, so
+## `"false"` reads back as `true` — and `set_property` had no way to notice, because it
+## answered with a FRESH READ-BACK it never compared to what was asked.
+##
+## 🔴 SO THE REPAIR IS A COMPARISON AND NOT A GUARD. A guard has to enumerate the ways
+## a write can fail to land; a comparison asks the only question that matters — is the
+## value the caller asked for the value the engine now holds — and is therefore correct
+## for the failure modes nobody has met yet.
+
+
+## True when `prop` names a SUB-property rather than a property: `position:x`,
+## `material_override:shader_parameter/albedo`.
+##
+## 🔴 THE COLON FORM IS `get_indexed`'s VOCABULARY, NOT `get`'s, and the two are
+## different methods rather than two spellings of one. `Object.get("position:x")`
+## answers `null` — not an error, not a warning — which is why #327 read this as the
+## property being unreadable rather than as the wrong method being called.
+static func is_indexed(prop: String) -> bool:
+	return prop.contains(":")
+
+
+## Read a property that may or may not be indexed.
+static func read_property(o: Object, prop: String) -> Variant:
+	if is_indexed(prop):
+		return o.get_indexed(NodePath(prop))
+	return o.get(prop)
+
+
+## Write a property that may or may not be indexed.
+static func write_property(o: Object, prop: String, v: Variant) -> void:
+	if is_indexed(prop):
+		o.set_indexed(NodePath(prop), v)
+	else:
+		o.set(prop, v)
+
+
+## Could a value of type `asked` ever be what the engine STORED as type `got`?
+##
+## 🔴 THIS IS THE LINE BETWEEN A COERCION AND A MISTAKE, and it is drawn at the type
+## rather than at the value on purpose. A setter that clamps, snaps or normalises
+## stores a DIFFERENT VALUE OF THE SAME TYPE and is doing its job — refusing that
+## would break every `Range.value` in every project. A String that lands in a bool,
+## or a Dictionary that lands in a Vector2, is a different kind of event: nothing the
+## caller wrote survived, and the engine says nothing about it.
+##
+## The three promotions below are Godot's own and are never mistakes: int <-> float,
+## String <-> StringName, and a plain Array into any of the packed array types (JSON
+## has one array and the engine has ten).
+static func types_compatible(asked: int, got: int) -> bool:
+	if asked == got:
+		return true
+	if _is_numeric(asked) and _is_numeric(got):
+		return true
+	if _is_stringy(asked) and _is_stringy(got):
+		return true
+	if asked == TYPE_ARRAY and _is_packed_array(got):
+		return true
+	return false
+
+
+static func _is_numeric(t: int) -> bool:
+	return t == TYPE_INT or t == TYPE_FLOAT
+
+
+static func _is_stringy(t: int) -> bool:
+	return t == TYPE_STRING or t == TYPE_STRING_NAME
+
+
+static func _is_packed_array(t: int) -> bool:
+	return t in [
+		TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY,
+		TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY, TYPE_PACKED_STRING_ARRAY,
+		TYPE_PACKED_VECTOR2_ARRAY, TYPE_PACKED_VECTOR3_ARRAY, TYPE_PACKED_COLOR_ARRAY,
+	]
+
+
+## Did the engine store the value that was asked for? Numeric pairs are compared
+## approximately, because an int asked of a float property stores a float and the two
+## are the same answer.
+static func values_equal(asked: Variant, got: Variant) -> bool:
+	if _is_numeric(typeof(asked)) and _is_numeric(typeof(got)):
+		return is_equal_approx(float(asked), float(got))
+	return asked == got

@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.81.0 · addon 1.11.0
+- **Version:** host 1.82.0 · addon 1.12.0
 - **License:** MIT
 - **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -576,6 +576,18 @@ addon enabled and the host registered (Sections 3–4).
 - `node_set_property` `{ path: "Sprite2D", property: "position",
   value: { "__type__": "Vector2", "x": 10, "y": 20 } }`.
 - Press **Ctrl-Z** in the editor — the change reverts. (Or call `editor_undo`.)
+
+> **Rich values must be tagged, and an untagged one is now refused rather than silently
+> mangled.** `{"x": 10, "y": 20}` is a Dictionary, not a `Vector2`; handed to a `Vector2`
+> property the engine stores `(0, 0)` and says nothing. Since 1.82.0 both
+> `node_set_property` and `runtime_set_property` read the property back and compare it to
+> what you asked for: a write that did not land is an error (`set_ignored` if the property
+> is unchanged, `set_mismatch` if the engine stored an incompatible type), the property is
+> put back as it was, and no undo entry is recorded. A write that landed and was then
+> changed by a setter — a clamp, a snap, a normalise — succeeds and carries
+> `coerced: true` with the `requested` value beside it. Sub-property paths work too:
+> `position:x` and `material_override:shader_parameter/albedo` are read and written through
+> the indexed accessors.
 
 **4. Write and check GDScript.**
 

@@ -221,3 +221,114 @@ test("🔴 the strip is INDEPENDENTLY safe — every live schema compiles under 
   assert.equal(disagreements, 0,
     "removing the declaration changed what a schema accepts — the strip is NOT meaning-preserving");
 });
+
+// ── 270. THE INPUT SIDE OF CHECK 29's QUESTION, WHICH NOBODY HAD ASKED ───────────────
+
+/**
+ * 🔴 ISSUE #327's WORST HALF LIVED IN THE SET DIFFERENCE NOBODY HAD TAKEN.
+ *
+ * `schemas.test.ts` has read the OUTPUT schemas' unconstrained-**required** keys since
+ * 255, in both directions, and never asked the same question of the INPUTS. `z.any()`
+ * answers true to zod's `isOptional()`, so `value` — spelled `z.any()`, described as
+ * "New value", on SEVEN shipped tools — was published to every client OUTSIDE the
+ * `required` list. A client omitting it was obeying this schema, and the addon then read
+ * `params.get("value")` as null and wrote the property type's ZERO over whatever was
+ * there. Measured live on Godot 4.7: `rotation` 1.25 -> 0.0, `position` (123, 456) ->
+ * (0, 0), reported as success both times.
+ *
+ * 🔴 AND IT IS A ROSTER RATHER THAN A BAN, because an unconstrained optional input is a
+ * legitimate thing to publish. `project_test_setting`'s `value` means *if provided, set
+ * it*; `runtime_inject_input`'s `position` and `relative` mean *wherever the event lands
+ * by default*. Each of those three is a decision. What must not happen again is one
+ * arriving by accident, which is exactly how `value` got here — described in prose as
+ * required on all seven tools, and optional on the wire on all seven.
+ */
+const OPTIONAL_ANY_INPUT_KEYS: ReadonlyArray<string> = [
+  "editorsettings_get_set::value",
+  "runtime_inject_input::event.position",
+  "runtime_inject_input::event.relative",
+];
+
+/**
+ * The seven `value` keys #327 was about, which are REQUIRED as of 270. Asserted
+ * positively and separately from the roster above, because a roster is only evidence
+ * that nothing NEW slipped in — it cannot notice a key silently leaving the surface,
+ * and "the population shrank" is how a gate goes quiet without going red.
+ */
+const REQUIRED_VALUE_INPUTS: ReadonlyArray<string> = [
+  "anim_insert_key::value",
+  "node_set_property::value",
+  "project_set_setting::value",
+  "resource_set_property::value",
+  "runtime_await_condition::value",
+  "runtime_set_property::value",
+  "shadermaterial_set_param::value",
+];
+
+/**
+ * JSON Schema keywords that ANNOTATE and do not constrain. A subschema carrying only
+ * these validates every instance, exactly as `{}` does.
+ *
+ * 🔴 THIS SET IS WHY THE FIRST DRAFT OF THIS TEST WAS A TAUTOLOGY. `schemas.test.ts`'s
+ * output-side twin can ask `Object.keys(sub).length === 0`, because output schemas carry
+ * no prose. Every input key does: `z.any().describe("New value")` compiles to
+ * `{"description": "New value"}`, whose key count is ONE. A detector that measured
+ * emptiness rather than CONSTRAINT would have found nothing, passed on day one, and been
+ * blind to all seven of the keys it was written for.
+ */
+const ANNOTATION_ONLY = new Set([
+  "description", "title", "default", "examples", "deprecated", "$comment", "readOnly", "writeOnly",
+]);
+
+/** Does this subschema accept literally every instance? */
+function constrainsNothing(sub: unknown): boolean {
+  if (sub === true) return true;
+  if (sub === null || typeof sub !== "object") return false;
+  return Object.keys(sub as object).every((k) => ANNOTATION_ONLY.has(k));
+}
+
+/** Every property name whose subschema constrains NOTHING and is NOT in `required`. */
+function unconstrainedOptional(node: unknown, path: string, out: string[]): void {
+  if (node === null || typeof node !== "object") return;
+  const obj = node as Record<string, unknown>;
+  const props = obj.properties as Record<string, unknown> | undefined;
+  if (props) {
+    const required = new Set(Array.isArray(obj.required) ? (obj.required as string[]) : []);
+    for (const [name, sub] of Object.entries(props)) {
+      const here = path ? `${path}.${name}` : name;
+      if (!required.has(name) && constrainsNothing(sub)) out.push(here);
+      unconstrainedOptional(sub, here, out);
+    }
+  }
+  if (obj.items) unconstrainedOptional(obj.items, `${path}[]`, out);
+}
+
+test("🔴 270 — the input keys the wire leaves unconstrained AND optional are exactly the declared set", async () => {
+  const tools = await liveTools();
+  const found: string[] = [];
+  for (const t of tools) {
+    const hits: string[] = [];
+    unconstrainedOptional(t.inputSchema, "", hits);
+    for (const h of hits) found.push(`${String(t.name)}::${h}`);
+  }
+  assert.deepEqual([...found].sort(), [...OPTIONAL_ANY_INPUT_KEYS].sort(),
+    "an input key is published as BOTH unconstrained and optional and the roster does not "
+    + "name it. That is the shape of issue #327: a client omitting it is obeying this schema, "
+    + "and the addon then writes the property type's zero over whatever was there. Either "
+    + "constrain it (`requiredEncodedValue` in schemas.ts) or add it to "
+    + "OPTIONAL_ANY_INPUT_KEYS on purpose.");
+
+  // The other direction, positively: the seven are on the surface and every one of them
+  // is REQUIRED. A key that vanished would leave the roster above perfectly green.
+  const byName = new Map(tools.map((t) => [String(t.name), t.inputSchema as Record<string, unknown>]));
+  for (const row of REQUIRED_VALUE_INPUTS) {
+    const [tool, key] = row.split("::");
+    const schema = byName.get(tool);
+    assert.ok(schema, `${tool} is not on the tool surface — issue #327's roster names it`);
+    const required = new Set((schema.required as string[]) ?? []);
+    assert.ok(required.has(key),
+      `${row} is not in the published \`required\` list. This is issue #327 exactly: the `
+      + `description calls it "New value" and the schema says a client may omit it, and `
+      + `omitting it writes the property type's zero over whatever was there.`);
+  }
+});

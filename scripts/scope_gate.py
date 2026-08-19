@@ -306,7 +306,12 @@ BLAST: dict[str, int] = {
     # empty it and both directions of the join go quiet together, so what reddens is not
     # the missing rows but the sixty remedies that now read as dead — one FAIL line each,
     # plus the two ledger collapses.
-    "remedy_tables": 65,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 270: 65 -> 71. Six rows, all from issue #327: `set_mismatch` and `set_ignored` on
+    # BOTH planes, `bad_event_field` on the runtime plane, and the runtime plane's first
+    # `bad_params` row — which it had never needed until `_set_property` gained a
+    # parameter it can refuse. Each remedy names a tool, so emptying the tables collapses
+    # the tool-reference join beside the row join.
+    "remedy_tables": 71,                      # 🆕 259: 64 -> 65, the CLI span join
     "remedy_renderers_read": 1,
     # 🆕 255 — check 29's three, and the asymmetry is the check's own shape. Emptying the
     # LEFT side asks nothing and reports nothing but its ledger row; emptying either RIGHT
@@ -449,7 +454,13 @@ BLAST: dict[str, int] = {
     # roster, so emptying it collapses check 31's two ledger populations as well — the
     # guide reads as naming nothing. Two lines, both in the ledger, and predicted before
     # they were measured.
-    "registered_tools": 81,                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
+    # 🆕 270: 81 -> 85. Nothing new READS this roster; the tools it names grew a
+    # requirement. Issue #327 made `value` required on seven shipped tools, and check 29's
+    # required-any join, check 4c's destructive-name comparison and the catalog and guide
+    # readers each name one more line when the registry is emptied under them. The radius
+    # moved because the SURFACE moved, which is the other way this number changes and the
+    # rarer one — declared in the commit that moved it, not discovered by a later run.
+    "registered_tools": 85,                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the

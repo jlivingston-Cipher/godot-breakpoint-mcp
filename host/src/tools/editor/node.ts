@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { requiredEncodedValue } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
 
@@ -74,7 +75,7 @@ export function registerNodeTools(server: McpServer, call: EditorCall, guard: Pa
       inputSchema: {
         path: z.string().describe("Node path relative to the scene root"),
         property: z.string().describe("Property name, e.g. position, modulate, text"),
-        value: z.any().describe("New value (JSON scalar, array, object, or a __type__-tagged Variant)"),
+        value: requiredEncodedValue.describe("New value (JSON scalar, array, object, or a __type__-tagged Variant)"),
       },
     },
     async ({ path, property, value }) => call("node.set_property", { path, property, value }),

@@ -121,7 +121,25 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // rename costs, not what a feature does. `SCHEMA_PER_TOOL_CEILING` does not move: every
 // key added here is an OUTPUT field and `measure()` reads `inputSchema` only, so the one
 // number a competitive claim may honestly quote is unchanged at 468.
-export const BYTES_CEILING = 366220;
+// 🆕 270 — RAISED AGAIN, AND THE NOTE THIS CONSTANT DEMANDS IS ISSUE #327's FIX.
+// What bought this one is on the INPUT side for the first time, which is why it is the
+// largest single raise this constant has taken. `value` was spelled `z.any()` on seven
+// shipped tools and compiled to `{}` — the cheapest possible subschema, and the reason
+// it was cheap is the defect: `z.any()` is OPTIONAL in zod, so `value` was published
+// outside every one of those tools' `required` lists and a client omitting it wrote the
+// property type's zero. `requiredEncodedValue` is a six-member union admitting
+// everything JSON can carry and nothing else, so each of the seven grew by the union's
+// own shape, and `coerced`/`requested` were declared on two output schemas beside them.
+// Surface went 366,206 -> 367,602 B, or **0.38%**.
+//
+// 🔴 SET AT THE LIVE VALUE PLUS FOURTEEN BYTES, on 267's rule and for 267's reason: a
+// ceiling with slack in it is a budget the next session spends without deciding to, and
+// fourteen is what a one-character key rename costs rather than what a feature does.
+// `SCHEMA_PER_TOOL_CEILING` DOES move under this one — `measure()` reads `inputSchema`
+// and this raise is input-side — from 468 to 472 against a ceiling of 490, which is the
+// first time that number has moved since it was written. It is still inside its own
+// budget and it is still the one number a competitive claim may honestly quote.
+export const BYTES_CEILING = 367616;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

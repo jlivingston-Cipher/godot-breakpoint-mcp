@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { requiredEncodedValue } from "../schemas.js";
 import { BridgeClient, BridgeError, isTransportUnavailable, remedyClause } from "../bridge.js";
 import { MAX_PEERS, type PeerRegistry } from "../peers.js";
 import { gate } from "../confirm.js";
@@ -155,7 +156,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     {
       title: "Runtime set property",
       description: "Set a property on a live node. DESTRUCTIVE (mutates running game state) — gated by confirmation. Rich types use the {\"__type__\":...} convention.",
-      inputSchema: { path: z.string(), property: z.string(), value: z.any(), ...confirmField, ...peerField },
+      inputSchema: { path: z.string(), property: z.string(), value: requiredEncodedValue, ...confirmField, ...peerField },
     },
     async ({ path, property, value, confirm, peer }) => {
       const blocked = await gate(server, confirm, `Set live property ${path}.${property} on ${target(peer)}`);
@@ -479,7 +480,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       inputSchema: {
         path: z.string().describe("Node path (relative to the current scene; '/root/...' absolute allowed)"),
         property: z.string().describe("Property to read on each poll"),
-        value: z.any().describe("Value to compare the property against (tagged-Variant form for complex types)"),
+        value: requiredEncodedValue.describe("Value to compare the property against (tagged-Variant form for complex types)"),
         op: z.enum(["eq", "ne", "gt", "ge", "lt", "le"]).optional().describe("Comparison operator (default eq)"),
         timeout_ms: z.number().int().positive().optional().describe("Maximum time to wait, in ms (default 5000)"),
         poll_interval_ms: z.number().int().positive().optional().describe("Delay between polls, in ms (default 100)"),

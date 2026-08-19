@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { requiredEncodedValue } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall } from "./common.js";
 
@@ -72,7 +73,7 @@ export function registerCoreTools(server: McpServer, call: EditorCall): void {
       description: "Write a ProjectSettings value. Set save=true to persist to project.godot. DESTRUCTIVE — gated by confirmation.",
       inputSchema: {
         name: z.string().describe("ProjectSettings key"),
-        value: z.any().describe("New value; rich types use the {\"__type__\":...} tagging convention"),
+        value: requiredEncodedValue.describe("New value; rich types use the {\"__type__\":...} tagging convention"),
         save: z.boolean().optional().describe("Persist to disk (default false)"),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },

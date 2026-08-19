@@ -3699,6 +3699,32 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 54 reads / 29 raise sites / 0 problems
 > ```
 """),
+    (269, """> ```
+> main                 4abc77d — the word two producers shared (#330)   MERGED
+>                      branch deleted
+> branch 269           none live — this session's work is on main
+> tag                  🟢 v1.81.0 ANNOTATED at 4abc77d, declaring its own release commit
+> host / addon         1.81.0 / 1.11.0  🟢 HOST MOVED, this session's own cut; addon
+>                      unmoved, still stamped at ca2d5d8, C4_OK — no Asset Library
+>                      submission is owed while 1.11.0 is in review
+> npm                  🟡 1.81.0 · registry 1.80.0 · lag 1 · tags 132 · 0 open issues /
+>                      0 open PRs — PUBLISH OWED, needs his TTY
+> 🟢 VERIFIED AFTER THE CHANGE   903/903 · contract 29/29 · scope 50 · control 72 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1695
+>               · late not-loaded 0 · late constructed 197/160
+>               · py gates 18/4/14 · SIG 134/105
+>               · discover 53/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 105 · 49 governed · 1207 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 308 file(s) / 21 suffixes
+>               · seal 104 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3680 nodes / 20 keys / 0 unread
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4726 · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · release_names 61/33 · queue 44/44 claims · handoff 328 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 53
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #

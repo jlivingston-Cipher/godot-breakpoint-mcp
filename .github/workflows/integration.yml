@@ -697,6 +697,38 @@ jobs:
             sleep 1
           done
           node test-integration/tree-shape.integration.mjs
+      - name: Boot a game and run the #327 set-property verification probe
+        working-directory: host
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          BREAKPOINT_BRIDGE_INSECURE: '1'
+          # The NINTH distinct port. :9081 (capture), :9082 (frame-step), :9084
+          # (verification family), :9085 (animation), :9086 (node lifecycle), :9087
+          # (input) and :9088 (tree shape) are all still running, backgrounded and never
+          # reaped, by the time this starts. A tenth step needs :9090.
+          BREAKPOINT_RUNTIME_PORT: '9089'
+        run: |
+          set -eux
+          # Issue #327, and the reason this is a LIVE probe rather than a unit test.
+          # Every defect it covers is a fact about what the ENGINE does with a value the
+          # host handed it — Godot coerces a non-empty String to `true`, stores an
+          # untagged map into a Vector2 as (0,0), and answers `null` for `position:x`
+          # through `Object.get()`. None of that is observable from a mock: a stub bridge
+          # returns whatever the test author believed, which is precisely the belief that
+          # shipped the defect. The reporter's own diagnosis was wrong for the same
+          # reason — it was reasoning about the code rather than driving it.
+          #
+          # The default main scene is enough here (Sprite2D under Main): the probe needs
+          # one node with a bool, an int, a float and a Vector2, which every Node2D has.
+          # No fixture scene, so nothing to drift.
+          "$GODOT_BIN" --headless --path "$GODOT_PROJECT" >/tmp/godot-setprop.log 2>&1 &
+          for i in $(seq 1 40); do
+            if node -e "require('net').connect(9089,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
+              echo "set-property probe port open"; break
+            fi
+            sleep 1
+          done
+          node test-integration/set-property-verify.integration.mjs
       - name: Input-probe game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-inputprobe.log || true
@@ -969,9 +1001,29 @@ jobs:
           cache: npm
           cache-dependency-path: host/package-lock.json
       - name: Install Godot (standard linux build)
+        # 🔴 TWELVE MINUTES IS A CEILING ON A HANG, NOT A BUDGET FOR THE WORK. This step
+        # takes ~40s when the mirrors answer. It is here because on 2026-08-19 it sat for
+        # SEVENTY-FIVE MINUTES inside `apt-get update` and the job reported `pending` the
+        # whole time — a step with no deadline turns a dead mirror into a silent stall that
+        # burns the run's six-hour budget and tells nobody why.
+        timeout-minutes: 12
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          # 🔴 `azure.archive.ubuntu.com` IS FIRST IN THE RUNNER'S MIRRORLIST AND IT IS THE
+          # ONE THAT HANGS. Measured from the 2026-08-19 log: apt printed `Ign:` for every
+          # index against it, four times each, and only then fell through to
+          # `archive.ubuntu.com` — which answered `Hit:` immediately. The mirror is not slow,
+          # it is unreachable, and apt's default per-index timeout is measured in minutes.
+          # Deleting the row is what makes the fallback the FIRST choice rather than the
+          # last, and the guard keeps the file from being emptied if it is ever the only one.
+          if [ -f /etc/apt/apt-mirrors.txt ] && grep -qv 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt; then
+            sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+          fi
+          # And a bound on whatever the NEXT dead mirror turns out to be. One retry, fifteen
+          # seconds: enough for a slow answer, far short of a stall.
+          sudo apt-get -o Acquire::Retries=1 \
+                       -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -1237,9 +1289,29 @@ jobs:
           cache: npm
           cache-dependency-path: host/package-lock.json
       - name: Install Godot + Xvfb
+        # 🔴 TWELVE MINUTES IS A CEILING ON A HANG, NOT A BUDGET FOR THE WORK. This step
+        # takes ~40s when the mirrors answer. It is here because on 2026-08-19 it sat for
+        # SEVENTY-FIVE MINUTES inside `apt-get update` and the job reported `pending` the
+        # whole time — a step with no deadline turns a dead mirror into a silent stall that
+        # burns the run's six-hour budget and tells nobody why.
+        timeout-minutes: 12
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          # 🔴 `azure.archive.ubuntu.com` IS FIRST IN THE RUNNER'S MIRRORLIST AND IT IS THE
+          # ONE THAT HANGS. Measured from the 2026-08-19 log: apt printed `Ign:` for every
+          # index against it, four times each, and only then fell through to
+          # `archive.ubuntu.com` — which answered `Hit:` immediately. The mirror is not slow,
+          # it is unreachable, and apt's default per-index timeout is measured in minutes.
+          # Deleting the row is what makes the fallback the FIRST choice rather than the
+          # last, and the guard keeps the file from being emptied if it is ever the only one.
+          if [ -f /etc/apt/apt-mirrors.txt ] && grep -qv 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt; then
+            sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+          fi
+          # And a bound on whatever the NEXT dead mirror turns out to be. One retry, fifteen
+          # seconds: enough for a slow answer, far short of a stall.
+          sudo apt-get -o Acquire::Retries=1 \
+                       -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -1393,9 +1465,29 @@ jobs:
           cache: npm
           cache-dependency-path: host/package-lock.json
       - name: Install Godot + Xvfb
+        # 🔴 TWELVE MINUTES IS A CEILING ON A HANG, NOT A BUDGET FOR THE WORK. This step
+        # takes ~40s when the mirrors answer. It is here because on 2026-08-19 it sat for
+        # SEVENTY-FIVE MINUTES inside `apt-get update` and the job reported `pending` the
+        # whole time — a step with no deadline turns a dead mirror into a silent stall that
+        # burns the run's six-hour budget and tells nobody why.
+        timeout-minutes: 12
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          # 🔴 `azure.archive.ubuntu.com` IS FIRST IN THE RUNNER'S MIRRORLIST AND IT IS THE
+          # ONE THAT HANGS. Measured from the 2026-08-19 log: apt printed `Ign:` for every
+          # index against it, four times each, and only then fell through to
+          # `archive.ubuntu.com` — which answered `Hit:` immediately. The mirror is not slow,
+          # it is unreachable, and apt's default per-index timeout is measured in minutes.
+          # Deleting the row is what makes the fallback the FIRST choice rather than the
+          # last, and the guard keeps the file from being emptied if it is ever the only one.
+          if [ -f /etc/apt/apt-mirrors.txt ] && grep -qv 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt; then
+            sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+          fi
+          # And a bound on whatever the NEXT dead mirror turns out to be. One retry, fifteen
+          # seconds: enough for a slow answer, far short of a stall.
+          sudo apt-get -o Acquire::Retries=1 \
+                       -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -1487,9 +1579,29 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install Godot + Xvfb
+        # 🔴 TWELVE MINUTES IS A CEILING ON A HANG, NOT A BUDGET FOR THE WORK. This step
+        # takes ~40s when the mirrors answer. It is here because on 2026-08-19 it sat for
+        # SEVENTY-FIVE MINUTES inside `apt-get update` and the job reported `pending` the
+        # whole time — a step with no deadline turns a dead mirror into a silent stall that
+        # burns the run's six-hour budget and tells nobody why.
+        timeout-minutes: 12
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          # 🔴 `azure.archive.ubuntu.com` IS FIRST IN THE RUNNER'S MIRRORLIST AND IT IS THE
+          # ONE THAT HANGS. Measured from the 2026-08-19 log: apt printed `Ign:` for every
+          # index against it, four times each, and only then fell through to
+          # `archive.ubuntu.com` — which answered `Hit:` immediately. The mirror is not slow,
+          # it is unreachable, and apt's default per-index timeout is measured in minutes.
+          # Deleting the row is what makes the fallback the FIRST choice rather than the
+          # last, and the guard keeps the file from being emptied if it is ever the only one.
+          if [ -f /etc/apt/apt-mirrors.txt ] && grep -qv 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt; then
+            sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+          fi
+          # And a bound on whatever the NEXT dead mirror turns out to be. One retry, fifteen
+          # seconds: enough for a slow answer, far short of a stall.
+          sudo apt-get -o Acquire::Retries=1 \
+                       -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -1555,9 +1667,29 @@ jobs:
           cache: npm
           cache-dependency-path: host/package-lock.json
       - name: Install Godot + Xvfb
+        # 🔴 TWELVE MINUTES IS A CEILING ON A HANG, NOT A BUDGET FOR THE WORK. This step
+        # takes ~40s when the mirrors answer. It is here because on 2026-08-19 it sat for
+        # SEVENTY-FIVE MINUTES inside `apt-get update` and the job reported `pending` the
+        # whole time — a step with no deadline turns a dead mirror into a silent stall that
+        # burns the run's six-hour budget and tells nobody why.
+        timeout-minutes: 12
         run: |
           set -eux
-          sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
+          # 🔴 `azure.archive.ubuntu.com` IS FIRST IN THE RUNNER'S MIRRORLIST AND IT IS THE
+          # ONE THAT HANGS. Measured from the 2026-08-19 log: apt printed `Ign:` for every
+          # index against it, four times each, and only then fell through to
+          # `archive.ubuntu.com` — which answered `Hit:` immediately. The mirror is not slow,
+          # it is unreachable, and apt's default per-index timeout is measured in minutes.
+          # Deleting the row is what makes the fallback the FIRST choice rather than the
+          # last, and the guard keeps the file from being emptied if it is ever the only one.
+          if [ -f /etc/apt/apt-mirrors.txt ] && grep -qv 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt; then
+            sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+          fi
+          # And a bound on whatever the NEXT dead mirror turns out to be. One retry, fifteen
+          # seconds: enough for a slow answer, far short of a stall.
+          sudo apt-get -o Acquire::Retries=1 \
+                       -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglu1-mesa
           curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           unzip -q godot.zip
           GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
