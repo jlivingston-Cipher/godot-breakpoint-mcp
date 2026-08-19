@@ -173,7 +173,12 @@ REACH_PATHS: "tuple[tuple[str, str, str], ...]" = (
 # who was not there. A row opened at or closed at this session or later declares its
 # paths; everything older carries `—` and is counted, not excused.
 REACH_PATHS_SINCE = 271
-UNDECLARED_CEILING = 18  # governed by floor_pin_gate's SIZE_LEDGER
+# 🆕 272 — LOWERED FROM EIGHTEEN, WHICH IS THE ONLY DIRECTION IT CAN MOVE.
+# Five rows closed this session, each declaring the paths its work touched, so five left
+# the grandfathered population. The ceiling follows the population DOWN in the commit that
+# shrank it — left at eighteen it would be five rows of room to type an unchecked tier,
+# bought by work that had nothing to do with the back catalogue.
+UNDECLARED_CEILING = 14  # governed by floor_pin_gate's SIZE_LEDGER
 
 
 class Row:

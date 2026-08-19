@@ -661,6 +661,28 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      'return _ok({"return": Codec.encode(result)})',
      'return _ok({"returned": Codec.encode(result)})',
      "and nothing that answers this tool writes it"),
+    # 🆕 272 — THE MUTATION THE CHECK COULD NOT SEE UNTIL THIS SESSION, which is the
+    # strongest form a row in this table takes: it is the defect, and it was invisible.
+    # `runtime_set_property`'s emit is a dict bound to a local; its tool block one file
+    # over declares `value: requiredEncodedValue` as an INPUT. Delete the emit and the old
+    # whole-body join found the inputSchema line and reported the key present. Measured at
+    # 272 across the whole population by deleting each real emit in turn: EIGHT of the
+    # sixteen keys survived that way. `29.keyrenamed` above is not a substitute — it
+    # mutates one of the eight that happens to have no decoy, so it proved the join on the
+    # half that was never in doubt.
+    ("29.emitdecoy", "29", "sub", "addons/breakpoint_mcp/runtime_bridge.gd",
+     'var out := {"path": _path_of(node), "property": prop, "value": Codec.encode(after)}',
+     'var out := {"path": _path_of(node), "property": prop, "encoded": Codec.encode(after)}',
+     "are OUTSIDE the"),
+    # And the reader's OWN failure, which 271's rule says may not wear the same spelling as
+    # an absent key. Rename the envelope the handler returns through and the openers match
+    # nothing: the check must say it could not find where the tool answers, NOT that
+    # `project_get_setting` stopped writing `value` — the key is still right there in the
+    # line the mutation edits.
+    ("29.noregion", "29", "sub", "addons/breakpoint_mcp/operations.gd",
+     'return _ok({"name": key, "value": Codec.encode(ProjectSettings.get_setting(key))})',
+     'return _envelope({"name": key, "value": Codec.encode(ProjectSettings.get_setting(key))})',
+     "it is reporting that this reader could not find where the tool answers"),
     # The other direction: `.optional()` is the ONLY spelling that keeps an `any` key out of
     # the promise set, so a tree with none left has lost the evidence that the split was
     # authored rather than inherited from whichever zod is installed.
@@ -847,6 +869,12 @@ BLAST: dict[str, int] = {
     # tool, so the join stays quiet and only the evidence rule fires. Measured, not guessed.
     "29.keyrenamed": 2,                   # also: 24b, the tracked addon copies
     "29.nooptional": 1,
+    # 🆕 272 — check 29's other two. Both edit a tracked addon file the two example
+    # projects also carry, so check 24b's copy comparison arrives beside each of them,
+    # which is the same 196 §4 cost `29.keyrenamed` above already pays. MEASURED by
+    # running this gate, not predicted from that analogy.
+    "29.emitdecoy": 2,                    # also: 24b, the tracked addon copies
+    "29.noregion": 2,                     # also: 24b, the tracked addon copies
     "3.dupe": 8,                          # also: 6 8 9 11 13 25
     "3.uncaptured": 8,                    # also: 8 9 11 11b 13 25
     "11c.vacuous": 2,                     # also: 20

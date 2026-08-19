@@ -415,6 +415,27 @@ async function main() {
     const lp = await call("node_list_properties", { path: child });
     lp.properties.some((p) => p.name === "position")
       ? pass("AUTH_NODE_LIST_PROPERTIES", `n=${lp.properties.length}`) : fail("AUTH_NODE_LIST_PROPERTIES", `n=${lp.properties.length}`);
+
+    // 🆕 272 — node_set_property (undoable), and the reason it is added HERE rather than
+    // anywhere cheaper: it was the ONE tool of the fifteen carrying a required-`any`
+    // output key that no live probe in this tree drove at all. Its coverage was a mocked
+    // bridge in the unit suite, which cannot reach `validateToolOutput` — so `value` was a
+    // key the wire marks REQUIRED, that `contract_check.py` check 29 joins statically, and
+    // that nothing had ever watched a real engine return.
+    //
+    // `call()` throws on a missing `structuredContent`, so reaching the read-back below is
+    // itself the schema claim. The read-back is 270's lesson: the tool answers with its
+    // own post-write reading, so an INDEPENDENT `node_get_property` is what makes this
+    // evidence rather than an echo.
+    const sp = /** @type {any} */ (await call("node_set_property", { path: child, property: "z_index", value: 5 }));
+    const spApplied = (await propVal(child, "z_index")) === 5;
+    const spu = /** @type {any} */ (await call("editor_undo"));
+    (sp.value === 5 && spApplied && spu.performed === true && (await propVal(child, "z_index")) !== 5)
+      ? pass("AUTH_NODE_SET_PROPERTY", `value=${JSON.stringify(sp.value)} applied and undone`)
+      : fail("AUTH_NODE_SET_PROPERTY", `echo=${JSON.stringify(sp.value)} applied=${spApplied} performed=${spu.performed} after-undo=${JSON.stringify(await propVal(child, "z_index"))}`);
+    await call("editor_redo");
+    (await propVal(child, "z_index")) === 5
+      ? pass("AUTH_NODE_SET_PROPERTY_REDO") : fail("AUTH_NODE_SET_PROPERTY_REDO", JSON.stringify(await propVal(child, "z_index")));
   });
 
   // ---------------------------------------------------------------- Group A: scenes ----
@@ -2198,8 +2219,12 @@ async function main() {
   //
   // 🔴 THE FLOOR IS THE **LOCAL** TOTAL, NOT CI'S. A floor set to CI's 209 would fail
   // every local run, which is how floors get deleted rather than maintained.
+  // 🆕 272 — RAISED BY THE TWO CLAIMS ADDED THIS SESSION (198 §36: a floor left where it
+  // was after the population grows is headroom nobody voted for). `AUTH_NODE_SET_PROPERTY`
+  // and its redo take the local total from 203 to 205, so the floor moves 195 -> 197 and
+  // keeps exactly the margin it was authored with.
   const AUTH_FAMILY_FLOOR = 26;
-  const AUTH_CLAIM_FLOOR = 195;
+  const AUTH_CLAIM_FLOOR = 197;
 
   const emptyFamilies = families.filter((f) => f.made === 0);
   const partialFamilies = families.filter((f) => f.threw && f.made > 0);

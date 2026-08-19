@@ -22,6 +22,7 @@ Run: python3 scripts/scope_gate.py   (a CI step beside the tautology gate)
 """
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 import sys
@@ -132,10 +133,18 @@ EMPTY: dict[str, str] = {
 # enumerators `EMPTY` had never been able to spell, and one the new check 27 brought with
 # it. A floor left at the old measurement is headroom for five targets to be dropped in
 # silence (198 §36).
-TARGET_FLOOR = 39   # at `{FLOOR}`, raised by four: the required-any join brought three
-                    # readers of its own, and admitting the shape one of them returns made
-                    # a fourth enumerator blindable that had been outside this gate in
-                    # silence — a floor is raised where it is outgrown, never after
+TARGET_FLOOR = 40   # at `{FLOOR}`, raised by four at `255` and by one at `272`: the
+                    # required-any join brought three readers of its own, admitting the
+                    # shape one of them returns made a fourth enumerator blindable that had
+                    # been outside this gate in silence, and 272's `emitted_key_regions` is
+                    # the fifth — a floor is raised where it is outgrown, never after
+
+# 🆕 272 — THE SECOND SWEEP'S OWN FLOOR. See `binding_targets` below for what it sweeps
+# and why its population is derived rather than listed. Measured at `{FLOOR}`, which is
+# every ledger row `LEDGER_UNREACHED` carried when 246 opened `scope-ledger-unreached`:
+# the injector reached all of them on its first run, so this floor is the whole finding
+# and not a subset of it.
+BINDING_FLOOR = 15
 
 
 def targets(text: str) -> list[tuple[str, str, int]]:
@@ -171,7 +180,10 @@ REPORT_MARKER = "=== breakpoint-mcp static contract check ==="
 # already has its stdout in hand — it simply discarded it and kept the exit code. 184's
 # rule was "a number an instrument prints and no gate reads is an unasked question"; this
 # is one turn further down, an OUTPUT an instrument produces and no gate reads at all.
-STATEMENT_ATTRIB_FLOOR = 20    # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+# 🆕 272 — RAISED FROM TWENTY WITH THE BINDING SWEEP. Fifteen more blinded runs execute
+# more of `contract_check.py`'s failure statements, measured at `46`; leaving the floor
+# where it was would be headroom for twenty-six statements to stop being reached in silence.
+STATEMENT_ATTRIB_FLOOR = 40    # governed by floor_pin_gate SIZE_LEDGER (§9.3)
 
 
 # ── 🔴 197 §4 — THE BLAST RADIUS, AND THE CLAIM THIS FILE'S DOCSTRING MAKES ────────
@@ -238,6 +250,11 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # `required_any_output_keys` is the LEFT side of the join and the widest blind here:
     # empty it and there is nothing to look for, so every direction agrees instantly.
     "required_any_output_keys": ("xlang.required_any_keys",),
+    # 🆕 272 — the join's OTHER side, and the one that had no floor while it was the
+    # weakest thing in the check. `required_any_output_keys` empties into "nothing to look
+    # FOR"; this one empties into "nowhere to look", and check 29 tells those two apart in
+    # its own message rather than letting the second wear the first's spelling.
+    "emitted_key_regions": ("xlang.emit_regions",),
     # 🆕 257 — check 30's four readers. Two are floored populations and two are the
     # block slicer they both stand on, which is why the pair below name no ledger row of
     # their own: `host_tool_blocks` is what the other two READ, so collapsing it collapses
@@ -316,7 +333,16 @@ BLAST: dict[str, int] = {
     # 🆕 255 — check 29's three, and the asymmetry is the check's own shape. Emptying the
     # LEFT side asks nothing and reports nothing but its ledger row; emptying either RIGHT
     # side leaves all sixteen keys looking unwritten, one FAIL line each, plus the row.
-    "required_any_output_keys": 1,            # also: check 29's left side
+    # 🆕 272: 1 -> 2. `emitted_key_regions` arrived with its own ledger row, and the LEFT
+    # side of the join collapses that row too — no keys to look for means no regions
+    # searched. The radius moved because a POPULATION was added beside it, which is exactly
+    # the cause 196 §3 wrote this comparison to make visible.
+    "required_any_output_keys": 2,            # also: check 29's left side, xlang.emit_regions
+    # 🆕 272 — check 29's RIGHT-hand side, the constructs the join searches. Seventeen: one
+    # FAIL line per key that now reads unwritten, plus the reader's own ledger row. It is
+    # the widest of check 29's blinds by construction — emptying the left asks nothing,
+    # emptying this one makes every question come back negative.
+    "emitted_key_regions": 17,                # also: check 29's sixteen keys
     # 🆕 257 — check 30's four, and the asymmetry is again the check's shape. Emptying the
     # LAUNCHER set asks nothing of anybody and reports only its ledger row. Emptying the
     # LAUNCHER set asks nothing of anybody — and still costs three lines, because the
@@ -335,8 +361,8 @@ BLAST: dict[str, int] = {
     # Measured rather than predicted: emptying the per-tool method map leaves the ten keys
     # whose emitter is the ADDON unwritten, plus the ledger row. The six keys the HOST block
     # also writes survive it, which is the two-sided join doing what it was built to do.
-    "tool_bridge_methods": 11,                # also: check 29's right side
-    "addon_handler_bodies": 11,
+    "tool_bridge_methods": 17,    # 🆕 272: 11 -> 17, xlang.emit_regions arrived beside it                # also: check 29's right side
+    "addon_handler_bodies": 17,   # 🆕 272: 11 -> 17, xlang.emit_regions arrived beside it
     "all_false_annotation_claims": 1,
     "annotated_tools": 2,                     # also: check 9
     "annotation_class_claims": 1,
@@ -460,7 +486,7 @@ BLAST: dict[str, int] = {
     # readers each name one more line when the registry is emptied under them. The radius
     # moved because the SURFACE moved, which is the other way this number changes and the
     # rarer one — declared in the commit that moved it, not discovered by a later run.
-    "registered_tools": 85,                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
+    "registered_tools": 86,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
@@ -497,14 +523,49 @@ BLAST: dict[str, int] = {
     "prose_numerals": 2,                      # also: check 25's own scope line
     "prose_numerals_masked": 1,
     "prose_pin_problems": 1,
+
+    # ── 🆕 272 — THE BINDING INJECTOR'S RADII (`scope-ledger-unreached`, 246) ──────────
+    #
+    # Fifteen accumulators, sixteen ledger floors, and every one of them measured on the
+    # first sweep that could reach them rather than predicted from the shape of the check.
+    # 257's lesson is why the distinction is written here again: that table guessed 1/2/2/2
+    # and the sweep answered 3/3/3/5.
+    #
+    # 🔴 THE TWO WIDE ONES ARE THE FINDING INSIDE THE FINDING. `codec_emitted` at thirteen
+    # and `codec_accepted` at fourteen are check 23's two halves: empty either and every
+    # Variant tag on the other side reads as unpaired, one FAIL line each. Those two floors
+    # had never once been tested against the collapse they name, and they turn out to sit
+    # over the widest blast radius of any accumulator in the file.
+    "codec_accepted": 14,                     # also: check 23, every tag now unpaired
+    "codec_emitted": 13,                      # also: check 23, the encoder half
+    "addon_copy_compared": 3,                 # also: check 24b's roots and pairs
+    "unsupported_kinds": 3,                   # also: check 24's two keys — keys kept, values emptied
+    "addon_err_codes": 2,                     # also: check 23's GDScript codes
+    "err_branch_bindings": 2,                 # also: check 23's TS branch join
+    "addon_copy_pairs": 1,
+    "addon_copy_roots_read": 1,
+    "codec_fields": 1,
+    "kind_checked_branches": 1,
+    "shape_guard_classes": 1,
+    "ts_err_branches": 1,
+    "ts_variant_tags": 1,
+    "unsup_messages_read": 1,
+    "version_sites_checked": 1,
 }
 
-SCOPE_BLAST_TOTAL_FLOOR = 62    # 🆕 246 §2 — at `{FLOOR}`, raised with the four targets admitted
+# 🆕 272 — RAISED WITH THE SECOND SWEEP, and the two below are raised together because the
+# same fifteen blinds moved both. The per-row equalities in `BLAST` above are exact and get
+# edited one row at a time; these two are what notice the sweep going quieter OVERALL, so a
+# sweep that grew by fifteen rows and left them where they were would be carrying headroom
+# for fifteen rows to be dropped in silence (198 §36). Measured after the binding injector
+# landed: `372` FAIL lines and `83` ledger collapses, floored beneath at the same ratio the
+# rows below were authored with rather than at the reading of the day.
+SCOPE_BLAST_TOTAL_FLOOR = 300   # 🆕 272 — at `{FLOOR}`; 246 §2 set it with the four targets admitted
                                 # in the same commit. Measured ABOVE it and floored from BELOW
                                 # for control_gate's reason:
                                 # the per-row equalities above get edited one row at a time,
                                 # and this is what notices the sweep going quieter overall
-LEDGER_COLLAPSE_FLOOR = 32      # 🆕 246 §2 — at `{FLOOR}`, raised by the same four. Measured
+LEDGER_COLLAPSE_FLOOR = 70      # 🆕 272 — at `{FLOOR}`; 246 §2 set it by the same four. Measured
                                 # ABOVE it, across every row. The
                                 # per-row assertion is the gate; this is the aggregate that
                                 # notices the ledger being trimmed row by row to match
@@ -584,6 +645,162 @@ def ledger_populations(text: str) -> list[str]:
     return LEDGER_ROW.findall(text[m.end():end])
 
 
+# ── 🆕 272 — THE SECOND INJECTOR: `scope-ledger-unreached` (246, twenty-six sessions) ──
+#
+# 🔴 WHAT THE ROW ASKED FOR, IN ITS OWN WORDS: *a second injector that empties a binding
+# AFTER the loop that fills it.* `targets()` above anchors on an annotated `def` and
+# injects the empty its return type promises. Sixteen of the ledger's floors are not fed
+# by a `def` at all — they are module-level accumulators, initialised at the top of a check
+# block and filled by a loop under it — so there was no return to empty, and emptying the
+# INITIALISER is a no-op because the loop refills it. That is why `LEDGER_UNREACHED`
+# existed: sixteen floors in the file this gate defends, defended by nothing but their own
+# arithmetic, for twenty-six sessions.
+#
+# 🔴 AND THE POPULATION IS DERIVED FROM THE LEDGER, NOT LISTED HERE. The rule is: every
+# ledger row whose value expression reads exactly ONE module-level binding, and which no
+# `def` blind above can already collapse. So the sweep grows by itself — a new ledger row
+# backed by an accumulator becomes blindable in the commit that adds it, with nothing to
+# remember. 246's own complaint was that nothing said WHICH floors were unreachable, in
+# either direction; a walk is the only answer that cannot go stale.
+#
+# 🔴 THE INJECTION POINT IS THE LAST TOP-LEVEL STATEMENT THAT MUTATES THE BINDING, and
+# that is the whole difficulty the row named. Emptying at the initialiser proves nothing;
+# emptying just before `SCOPE_LEDGER` would prove only that the FLOOR bites, leaving every
+# check statement that reads the accumulator untested. Injecting after the last mutation
+# reddens both — the checks downstream AND the floor — which is what the `def` blinds do.
+LEDGER_VALUE_ROW = re.compile(r'^    \("([\w.]+)", (.+?), (\d+),$', re.M)
+
+# A statement mutates a binding if it rebinds it, augments it, writes through a subscript
+# of it, or calls one of these growers on it (or on a subscript of it — which is the shape
+# `unsupported_kinds["capability"].append(..)` has, and the one a first draft missed).
+_GROWERS = ("append", "add", "update", "extend", "setdefault", "insert")
+
+
+def ledger_value_rows(text: str) -> "list[tuple[str, str]]":
+    """(population, the source of the expression its floor is compared against)."""
+    m = LEDGER_START.search(text)
+    if not m:
+        return []
+    end = text.index("\n]\n", m.end())
+    return [(p, v) for p, v, _f in LEDGER_VALUE_ROW.findall(text[m.end():end])]
+
+
+def _sole_binding(expr: str) -> "tuple[str | None, bool]":
+    """(the one name this expression reads, does it read it through a subscript).
+
+    `len(codec_emitted)` reads one binding; `len(host_compared) + len(addon_compared)`
+    reads two and is not a single accumulator, so it is left to `LEDGER_UNREACHED`. Call
+    TARGETS are excluded because `len` and `sum` are builtins, not populations.
+    """
+    try:
+        node = ast.parse(expr, mode="eval").body
+    except SyntaxError:
+        return None, False
+    called = {n.func.id for n in ast.walk(node)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)} - called
+    if len(names) != 1:
+        return None, False
+    return names.pop(), any(isinstance(n, ast.Subscript) for n in ast.walk(node))
+
+
+def _mutated_names(stmt: ast.stmt) -> "set[str]":
+    """Every module-level binding this top-level statement writes to or grows."""
+    out: "set[str]" = set()
+    for n in ast.walk(stmt):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in _GROWERS:
+            base = n.func.value
+            if isinstance(base, ast.Subscript):
+                base = base.value
+            if isinstance(base, ast.Name):
+                out.add(base.id)
+        if isinstance(n, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
+                for x in ast.walk(t):
+                    if isinstance(x, ast.Subscript) and isinstance(x.value, ast.Name):
+                        out.add(x.value.id)
+                    elif isinstance(x, ast.Name):
+                        out.add(x.id)
+    return out
+
+
+def _binding_empty(first: ast.stmt, subscripted: bool, name: str) -> "str | None":
+    """The empty this binding promises, DERIVED from how it is declared or initialised.
+
+    🔴 A SUBSCRIPTED READ KEEPS ITS KEYS, and 271 is the reason. `unsupported_kinds` is
+    read as `len(unsupported_kinds["capability"])`, so a blind that emptied the dict would
+    make the LEDGER ROW ITSELF raise `KeyError` — and a blind that crashes proves Python
+    throws on a missing key, not that this gate's floor bites. Emptying the VALUES and
+    keeping the keys is the collapse the floor is actually about.
+    """
+    if subscripted:
+        return "{_k: type(_v)() for _k, _v in %s.items()}" % name
+    if isinstance(first, ast.AnnAssign) and isinstance(first.annotation, ast.Constant):
+        ann = str(first.annotation.value)
+        empty = EMPTY.get(ann)
+        if empty is not None:
+            return empty
+    value = getattr(first, "value", None)
+    if isinstance(value, (ast.Dict, ast.DictComp)):
+        return "{}"
+    if isinstance(value, (ast.List, ast.ListComp)):
+        return "[]"
+    if isinstance(value, (ast.Set, ast.SetComp)):
+        return "set()"
+    if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+        return {"set": "set()", "dict": "{}", "list": "[]",
+                "len": "0", "sum": "0"}.get(value.func.id)
+    if isinstance(value, ast.Constant) and isinstance(value.value, int):
+        return "0"
+    if isinstance(value, ast.BinOp):
+        return "0"
+    return None
+
+
+def binding_targets(text: str, reachable: "set[str]") -> "tuple[list[tuple[str, str, int]], dict[str, tuple[str, ...]]]":
+    """(targets, binding -> the ledger populations emptying it collapses).
+
+    `reachable` is every population some `def` blind already collapses; a row already
+    covered from above is not swept again from here. The offset returned is the END of the
+    last top-level statement that mutates the binding, so the injected line lands after the
+    loop rather than after the initialiser.
+    """
+    tree = ast.parse(text)
+    lines = text.splitlines(keepends=True)
+    offsets: "list[int]" = []
+    running = 0
+    for line in lines:
+        offsets.append(running)
+        running += len(line)
+    offsets.append(running)
+
+    last: "dict[str, ast.stmt]" = {}
+    first: "dict[str, ast.stmt]" = {}
+    for stmt in tree.body:
+        for nm in _mutated_names(stmt):
+            last[nm] = stmt
+            first.setdefault(nm, stmt)
+
+    found: "dict[str, tuple[str, int]]" = {}
+    ledger: "dict[str, list[str]]" = {}
+    for pop, expr in ledger_value_rows(text):
+        if pop in reachable:
+            continue
+        name, subscripted = _sole_binding(expr)
+        if name is None or name not in last or name not in first:
+            continue
+        empty = _binding_empty(first[name], subscripted, name)
+        if empty is None:
+            continue
+        end_line = last[name].end_lineno or 0
+        found[name] = (empty, offsets[end_line])
+        ledger.setdefault(name, []).append(pop)
+    return (
+        sorted((n, e, p) for n, (e, p) in found.items()),
+        {n: tuple(sorted(p)) for n, p in ledger.items()},
+    )
+
+
 # 🔴 EVERY ROW IS ONE MEASUREMENT AND THEY ALL HAVE THE SAME CAUSE, WHICH IS WHY THE CAUSE
 # IS WRITTEN ONCE. `targets()` blinds a FUNCTION: it anchors on an annotated `def` and
 # injects the empty its return type promises. Each population below is a module-level
@@ -597,42 +814,20 @@ def ledger_populations(text: str) -> list[str]:
 # INJECTOR — one that anchors on a module-level binding and empties it AFTER the loop that
 # fills it — and it is `scope-ledger-unreached` in the queue, priced by this table.
 LEDGER_UNREACHED: dict[str, str] = {
-    "versions.sites_checked":
-        "check 14's release-ritual counter, summed from two comparison lists as the check "
-        "walks them; there is no enumerator between the files and the number",
-    "xlang.codec_emitted":
-        "check 23 reads it with a module-level `re.findall` over the addon's encoder half — "
-        "an expression, not a function",
-    "xlang.codec_accepted":
-        "the decoder half of the same statement, and the same reason",
-    "xlang.codec_fields":
-        "a dict initialised empty at the top of check 23 and filled by the loop under it, "
-        "so emptying the initialiser is undone before any check reads it",
-    "xlang.ts_variant_tags":
-        "check 23's TypeScript producer list, accumulated by the same shape of loop",
-    "xlang.addon_err_codes":
-        "check 23's GDScript error codes, a set filled while walking the addon",
-    "xlang.ts_err_branches":
-        "a comprehension over `_branch_hits`, which is itself a module-level accumulation",
-    "xlang.err_branch_bindings":
-        "the (method, code, file) list check 23 builds as it reads the TS branches",
-    "xlang.unsupported_capability":
-        "one KEY of check 24's `unsupported_kinds` dict — a blind would have to empty the "
-        "key rather than the binding, which is a shape the current injector cannot express",
-    "xlang.unsupported_shape":
-        "the other key of the same dict, and the same shape",
-    "xlang.kind_checked_branches":
-        "check 24's counter, incremented in a loop",
-    "xlang.unsup_messages_read":
-        "check 24c's message counter, incremented in the loop that classifies each site",
-    "xlang.shape_guard_classes":
-        "check 24c's guard-class counter, incremented beside it",
-    "addon.copy_roots_read":
-        "check 24b derives it from `addon_copy_compared` with a set comprehension",
-    "addon.copy_pairs":
-        "a `sum` over the same mapping, one line up",
-    "addon.copies_compared":
-        "the mapping itself, built by a dict comprehension over `addon_copy_files`",
+    # 🟢 🆕 272 — EMPTY, AND THAT IS THE FINDING RATHER THAN AN OVERSIGHT.
+    #
+    # This table held SIXTEEN rows for twenty-six sessions, every one of them a floor in
+    # the file this gate exists to defend that no blind in this gate could move. The
+    # paragraph above still describes why: `targets()` anchors on a `def`, and an
+    # accumulator has none. `binding_targets` below is the second injector 246 asked for,
+    # and it reached all sixteen on its first run — so the residue is nothing, and the
+    # table stays here rather than being deleted because the NEXT unspellable shape gets
+    # a row and a measurement instead of a silence.
+    #
+    # 🔴 THE EMPTY IS NOT SELF-CONGRATULATION AND IS NOT LOAD-BEARING EITHER. What holds
+    # the claim up is `BINDING_FLOOR` and `ledger_reach_problems`, which compare the walk
+    # to the ledger in both directions every run: a row that stops resolving to a single
+    # accumulator reddens the sweep rather than quietly reappearing here.
 }
 
 
@@ -882,9 +1077,15 @@ def collect_problems(names: list[str], pops: "list[str] | None" = None) -> dict[
     # 🔴 THE POPULATION COMES IN THROUGH THE DOOR, AS THE NAMES DO. `main()` reads the
     # source once and hands both in; a seam that re-read the file here would be a second
     # reader of the same population, which is the rot the docstring above names.
+    # 🆕 272 — the ledger both halves are judged against is the FUNCTION roster plus the
+    # binding injector's DERIVED one. Passing only `LEDGER` here would report every
+    # population 272 just made reachable as still beyond the sweep, and would demand a
+    # `LEDGER_UNREACHED` row for each — a residue table describing work already done.
+    _bound_ledger = binding_targets(SRC.read_text(), set().union(*LEDGER.values()))[1]
+    _all = {**LEDGER, **_bound_ledger}
     return {
-        "roster": roster_problems(names, BLAST, LEDGER),
-        "ledger_reach": ledger_reach_problems(list(pops or []), LEDGER, LEDGER_UNREACHED),
+        "roster": roster_problems(names, BLAST, _all),
+        "ledger_reach": ledger_reach_problems(list(pops or []), _all, LEDGER_UNREACHED),
     }
 
 
@@ -949,15 +1150,34 @@ def main() -> int:
     acquire("scope_gate.py")
     text = SRC.read_text()
     found = targets(text)
-    print(f"SCOPE_GATE targets={len(found)} floor={TARGET_FLOOR}")
+    # 🆕 272 — the second injector's population, DERIVED: every ledger row a `def` blind
+    # cannot reach that resolves to exactly one module-level accumulator. `_all_ledger` is
+    # what every roster question below is asked against, so a binding blind is held to the
+    # same two rules as a function one — a declared, compared radius, and a named population.
+    bound, _bound_ledger = binding_targets(text, set().union(*LEDGER.values()))
+    _all_ledger = {**LEDGER, **_bound_ledger}
+    print(f"SCOPE_GATE targets={len(found)} floor={TARGET_FLOOR} · "
+          f"binding targets={len(bound)} floor={BINDING_FLOOR}")
 
     for problem in _self_check():
         print(f"🔴 SCOPE_GATE_SELFCHECK {problem}")
     if _self_check():
         return 1
 
-    targets_low = len(found) < TARGET_FLOOR
-    if targets_low:
+    # 🆕 272 — the binding sweep gets the same floor treatment as the function sweep, and
+    # for a sharper reason: its population is DERIVED from the ledger, so a change that
+    # made `_sole_binding` stop resolving would shrink this sweep to nothing and every
+    # remaining row would still pass. That is `taut169` one level up, which is the sentence
+    # `TARGET_FLOOR` above was written for.
+    targets_low = len(found) < TARGET_FLOOR or len(bound) < BINDING_FLOOR
+    if len(bound) < BINDING_FLOOR:
+        print(
+            f"🔴 SCOPE_GATE_BINDINGS_COLLAPSE {len(bound)} < {BINDING_FLOOR} — the binding\n"
+            f"   sweep's derived population shrank. Either a ledger row stopped resolving to a\n"
+            f"   single accumulator, or a `def` blind now covers it (raise nothing, lower this on\n"
+            f"   purpose), or the walk broke and sixteen floors are back to being untested."
+        )
+    if len(found) < TARGET_FLOOR:
         print(
             f"🔴 SCOPE_GATE_TARGETS_COLLAPSE {len(found)} < {TARGET_FLOOR} — this gate's own\n"
             f"   scope shrank. Either an enumerator was deleted (lower the literal on purpose),\n"
@@ -992,7 +1212,8 @@ def main() -> int:
     never_ran: list[str] = []
     # 🔴 197 §4. The roster halves FIRST — a sweep over a roster with a hole in it would
     # print 24 clean rows and say nothing about the twenty-fifth.
-    seam = collect_problems([n for n, _e, _p in found], ledger_populations(text))
+    seam = collect_problems([n for n, _e, _p in found] + [n for n, _e, _p in bound],
+                            ledger_populations(text))
     roster = seam["roster"]
     for problem in roster:
         print(f"🔴 SCOPE_GATE_ROSTER {problem}")
@@ -1004,24 +1225,32 @@ def main() -> int:
     for problem in reach:
         print(f"🔴 SCOPE_GATE_LEDGER_REACH {problem}")
     _pops = ledger_populations(text)
-    _reachable = sorted(set().union(*LEDGER.values()) & set(_pops))
+    _reachable = sorted(set().union(*_all_ledger.values()) & set(_pops))
     print(f"SCOPE_GATE_LEDGER_REACH {len(_reachable)}/{len(_pops)} ledger population(s) can be "
           f"collapsed by a blind in this\n"
-          f"                        sweep · {len(LEDGER_UNREACHED)} declared beyond it, each with "
-          f"the measurement that says why")
+          f"sweep · {len(bound)} of them by 272's binding\n"
+          f"                        injector · {len(LEDGER_UNREACHED)} declared beyond both, "
+          f"each with the measurement that says why")
 
     blast_drift: list[str] = []
     ledger_miss: list[str] = []
     blast_total = 0
     collapses = 0
-    for name, empty, pos in sorted(found):
-        mutant = text[:pos] + f"\n    return {empty}  # SCOPE_GATE" + text[pos:]
+    _bindings = {n for n, _e, _p in bound}
+    for name, empty, pos in sorted(found + bound):
+        # 🆕 272 — TWO INJECTORS, ONE SWEEP. A `def` target takes `return <empty>` at the
+        # top of its body; a BINDING target takes a module-level rebind after the last
+        # statement that fills it. Everything downstream — the radius, the collapse
+        # attribution, the statement walk — is the same question either way.
+        mutant = (text[:pos] + f"{name} = {empty}  # SCOPE_GATE\n" + text[pos:]
+                  if name in _bindings else
+                  text[:pos] + f"\n    return {empty}  # SCOPE_GATE" + text[pos:])
         green, executed, out = run(mutant)
         reached.update(ln for ln, fp in fps.items() if fp in out)
         fails = out.count("\nFAIL: ") + int(out.startswith("FAIL: "))
         pops = collapsed_populations(out)
         declared = BLAST.get(name)
-        want = set(LEDGER.get(name, ()))
+        want = set(_all_ledger.get(name, ()))
         blast_total += fails
         collapses += len(pops & want)
         if green:
@@ -1050,7 +1279,8 @@ def main() -> int:
                 print(f"  ok   {name:<34} -> {empty:<14} red · {fails} FAIL line(s), declared "
                       f"{declared} · collapsed {' '.join(sorted(want))}")
 
-    print(f"SCOPE_GATE_BLIND_COUNT {len(blind)} of {len(found)} · never-ran {len(never_ran)}")
+    print(f"SCOPE_GATE_BLIND_COUNT {len(blind)} of {len(found) + len(bound)} "
+          f"({len(bound)} of them binding blinds) · never-ran {len(never_ran)}")
     attrib_low = len(reached) < STATEMENT_ATTRIB_FLOOR
     print(f"SCOPE_GATE_STATEMENTS {len(reached)}/{STATEMENT_ATTRIB_FLOOR} of {len(stmts)} failure "
           f"statement(s) in contract_check.py are\n"
@@ -1089,7 +1319,7 @@ def main() -> int:
     blast_low = blast_total < SCOPE_BLAST_TOTAL_FLOOR
     collapse_low = collapses < LEDGER_COLLAPSE_FLOOR
     print(f"SCOPE_GATE_BLAST {blast_total}/{SCOPE_BLAST_TOTAL_FLOOR} FAIL line(s) across "
-          f"{len(found)} blind(s), every row's count DECLARED and compared")
+          f"{len(found) + len(bound)} blind(s), every row's count DECLARED and compared")
     print(f"SCOPE_GATE_LEDGER {collapses}/{LEDGER_COLLAPSE_FLOOR} scope-ledger population "
           f"collapse(s) — every blind reddens the LEDGER,\n"
           f"                  not merely the run (197 §4: three rows did not, and the "
@@ -1114,7 +1344,7 @@ def main() -> int:
     # 🔴 THE VERDICT NAMES WHAT IT ACTUALLY VERIFIED (174 §5). The old wording —
     # "every derived population collapses LOUDLY" — was the line printed over 25 mutants
     # that never ran, and it is the only line a reader of a green CI log ever sees.
-    print(f"\nSCOPE_GATE ok — all {len(found)} enumerator(s) blinded, each EXECUTED a "
+    print(f"\nSCOPE_GATE ok — all {len(found) + len(bound)} enumerator(s) blinded, each EXECUTED a "
           f"contract check, each went red,\n"
           f"                each reddened the exact number of FAIL lines it declares, and each "
           f"collapsed the\n"

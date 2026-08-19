@@ -721,6 +721,16 @@ jobs:
           # The default main scene is enough here (Sprite2D under Main): the probe needs
           # one node with a bool, an int, a float and a Vector2, which every Node2D has.
           # No fixture scene, so nothing to drift.
+          #
+          # 🆕 272 — THE PROBE SPEAKS MCP NOW. It spawns `dist/index.js` over stdio and
+          # calls tools through a real `Client` instead of invoking handler functions
+          # directly, so every result on this plane passes through the SDK's
+          # `structuredContent` validation. That was the gap this session found while
+          # pricing `required-any-reachability`: six of the sixteen output keys the wire
+          # marks REQUIRED live on the runtime plane, and sixteen of this tree's eighteen
+          # probes build a fake `{ registerTool }` object, so not one of the six had ever
+          # been validated by anything but a static join. The env this step already sets is
+          # inherited by the child host, which is why nothing here had to change.
           "$GODOT_BIN" --headless --path "$GODOT_PROJECT" >/tmp/godot-setprop.log 2>&1 &
           for i in $(seq 1 40); do
             if node -e "require('net').connect(9089,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; then
