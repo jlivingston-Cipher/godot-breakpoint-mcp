@@ -17,7 +17,7 @@ import { registerDapTools } from "../src/tools/dap.js";
 import { registerCsDapTools } from "../src/tools/csdap.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
-import { startTcpServer, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
+import { startTcpServer, makeFrameParser, writeFrame, TIMER_SLACK_MS, type TcpServer } from "./helpers/tcp.js";
 import { FramedConnection } from "../src/framing.js";
 
 /**
@@ -212,8 +212,15 @@ test("267: under the opt-out, dbg_launch reports initialized_seen FALSE and warn
     // The handshake DID run out of order, and the order is asserted rather than described:
     // this is the defect, not the fix.
     assert.deepEqual(order, ["initialize", "launch", "configurationDone"]);
-    // It waited the window rather than returning instantly.
-    assert.ok(elapsed >= WAIT_MS, `expected at least ${WAIT_MS}ms, waited ${elapsed}ms`);
+    // It waited the window rather than returning instantly. 🔴 THE SLACK IS THE TIMER'S,
+    // NOT THIS TEST'S — a `setTimeout` may come back inside its own window and this line
+    // reddened `main` at `4a718f7` over one millisecond of it. `TIMER_SLACK_MS` carries
+    // the measurement and the reason; what is asserted here is unchanged, because a wait
+    // that did not happen returns in single-digit milliseconds and not in 195.
+    assert.ok(
+      elapsed >= WAIT_MS - TIMER_SLACK_MS,
+      `expected at least ${WAIT_MS - TIMER_SLACK_MS}ms (${WAIT_MS} less the timer's own ${TIMER_SLACK_MS}ms), waited ${elapsed}ms`,
+    );
   });
 });
 

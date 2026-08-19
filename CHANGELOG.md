@@ -70,6 +70,26 @@ user a day.
   `ASSETLIB_VERSION`, and a block that claims one is compared to what the library serves — or,
   where the endpoint cannot be reached, must claim nothing at all.
 
+### Internal — a test that measured a timer against a clock, and reddened `main` by one millisecond
+
+Nothing here changes anything an installer of the package can observe. It is recorded because
+the failure it removes cost a red default branch and looks exactly like a regression.
+
+- 🔴 **Two lower-bound duration assertions now carry the timer's own slack.** The post-merge run
+  on `main` at `4a718f7` failed `903/904` on `expected at least 200ms, waited 199ms` — a wait
+  that had in fact happened, in a test whose pull-request run was green. `setTimeout` may return
+  inside its own window: Node schedules against libuv's loop clock, cached at the top of each
+  iteration. Both sites — `initialized_wait.test.ts` and `readiness.test.ts` — now compare against
+  `TIMER_SLACK_MS`, and the second was repaired before it had ever failed, because a family fixed
+  by half leaves the next red indistinguishable from a real one.
+- 🔴 **The slack is measured, and the obvious fix was wrong.** Bracketing with `performance.now()`
+  instead of `Date.now()` is the fix first-principles reasoning reaches, and two thousand rounds
+  refuted it: the monotonic bracket observes an early return **24** times against the wall clock's
+  **0**, worst shortfall **0.609 ms**. `Date.now()` scored zero only because truncating to whole
+  milliseconds rounds the shortfall away on an idle machine — and rounds it the other way on a
+  loaded runner. No choice of clock removes this, so the tolerance is the measurement plus
+  headroom, and it stays forty times clear of the instant return these assertions exist to catch.
+
 ## [1.82.0] — 2026-08-19
 
 ### Fixed — a property write that did not happen no longer reports success ([#327](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/327))
