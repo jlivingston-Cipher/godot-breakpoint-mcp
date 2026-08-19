@@ -5940,8 +5940,27 @@ def patterns(log: str) -> int:
         m = re.search(extract, printed, re.M | re.S)
         if m is None:
             mismatched += 1
-            first = next((ln for ln in printed.split("\n")
-                          if ln.strip() and not ln.startswith(" ")), "")
+            # 🔴 THE FIRST LINE IS THE BANNER, AND THE BANNER IS THE ONE LINE GUARANTEED
+            # NOT TO CARRY THE REASON. Until 273 this reported exactly that. When
+            # `tree_quiet.py --selftest` refused on `main` at `4abc77d`, and again on the
+            # 273 branch, what reached the log both times was its title — *the
+            # ADMIT/REFUSE table, each row on a real repository* — while the rows it
+            # marked red and the verdict it prints LAST went nowhere. An instrument that
+            # refuses has already said why. A reader that prints the greeting instead
+            # makes the refusal unactionable and the run unrepeatable, which is 236 §5's
+            # class arriving one layer above the counter it was written for.
+            # 🔴 SELECTED BY INDEX AND NOT BY FILTER, so the two things worth reading are
+            # both here and neither can crowd the other out: the last few lines the
+            # instrument MARKED, and the last few it printed at all. A refusal that spells
+            # its reason in a marked row is answered by the first; one that dies in a
+            # traceback puts the exception's own message on the LAST line, where no marker
+            # appears, and is answered by the second. Picking either alone was measured
+            # against a fixture broken on purpose and neither showed the cause.
+            lines = [ln.rstrip() for ln in printed.split("\n") if ln.strip()]
+            marks = [i for i, ln in enumerate(lines)
+                     if "🔴" in ln or "FAILED" in ln or "Traceback" in ln]
+            keep = set(marks[-4:]) | set(range(max(0, len(lines) - 3), len(lines)))
+            tail = [lines[i] for i in sorted(keep)]
             problems.append(
                 f"🔴 PATTERN `{key}` — `{' '.join(cmd)}` ran and this row's extract "
                 f"{extract!r} matched nothing in its output.\n"
@@ -5951,7 +5970,9 @@ def patterns(log: str) -> int:
                    if rc == 0 else
                    "a REFUSAL, and a refusing instrument is a counter nobody can read "
                    "back today — 236 §5's class")
-                + f"\n     first line: {first.strip()[:150]!r}")
+                + "\n     what it printed — the lines it marked, and its last:\n"
+                + ("\n".join(f"       | {ln[:200]}" for ln in tail)
+                   if tail else "       | (the instrument printed nothing at all)"))
         elif len(m.groups()) != n:
             mismatched += 1
             problems.append(

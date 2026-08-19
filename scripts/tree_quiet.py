@@ -257,8 +257,31 @@ def _fixture(dirty: dict[str, str] | None = None,
     env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
                GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t",
                GIT_COMMITTER_EMAIL="t@t")
+    # 🔴 THE THREE COMMANDS THAT BUILD THE REPOSITORY ARE CHECKED NOW, AND 273 IS WHY THEY
+    # HAVE TO BE. `capture_output=True` with nothing reading the return code means a `git
+    # init` that fails leaves behind a directory that is not a repository: every row below
+    # then diverges from a baseline that was never taken, the table goes red, and not one
+    # line of its output names the cause. That is what reddened `main` at `4abc77d` and
+    # again on the 273 branch — the same job, the same step, twice, and both times the
+    # reason was unrecoverable from the CI log. It is the failure mode the `.gitignore`
+    # line above was written against, one layer further out: a harness failure wearing a
+    # finding's clothes. A fixture that is not a repository cannot be a case, so this
+    # raises rather than reporting a red row, which would be this file claiming to have
+    # tested something it never built.
     for cmd in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "base"]):
-        subprocess.run(["git", *cmd], cwd=str(d), capture_output=True, env=env)
+        r = subprocess.run(["git", *cmd], cwd=str(d), capture_output=True, env=env,
+                           text=True)
+        if r.returncode != 0:
+            # 🔴 ONE LINE, AND THAT IS NOT COSMETIC. Whatever git printed is folded onto
+            # a single line before it goes into the message: a reader that shows the tail
+            # of a refusal — which is what `handoff_gate.py --patterns` does — shows the
+            # tail of a MULTI-LINE exception message as three lines of git's usage banner
+            # and loses the sentence naming the command that failed. Measured against a
+            # fixture broken on purpose, which is the only way to see it.
+            said = " ".join((r.stderr or r.stdout or "(no output)").split())
+            raise RuntimeError(
+                f"tree_quiet fixture: `git {' '.join(cmd)}` exited {r.returncode} "
+                f"in {d} — {said[:300]}")
     for rel, text in (dirty or {}).items():
         (d / rel).write_text(text)
     if record is not None:

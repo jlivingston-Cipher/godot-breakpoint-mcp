@@ -90,6 +90,32 @@ the failure it removes cost a red default branch and looks exactly like a regres
   loaded runner. No choice of clock removes this, so the tolerance is the measurement plus
   headroom, and it stays forty times clear of the instant return these assertions exist to catch.
 
+### Internal — the second red on `main`, and the reason neither run could show
+
+Found by this session's own CI, not by looking for it: the `handoff gate patterns` step had
+already failed on `main` at `4abc77d` in exactly the same job, and failed again on the branch
+that fixes the timing assertion. Both times the instrument that refused was
+`tree_quiet.py --selftest`, and both times its reason was unrecoverable from the CI log.
+
+- 🔴 **A refusal now reports what the instrument said, not how it introduced itself.**
+  `handoff_gate.py --patterns` printed the refusing instrument's FIRST line — which for a
+  self-test is its banner, the one line guaranteed to carry no finding. What reached the log
+  was *the ADMIT/REFUSE table, each row on a real repository*, while the rows it marked red
+  and the verdict it prints LAST went nowhere. It now shows the last lines the instrument
+  marked **and** the last it printed at all, selected by index so neither can crowd out the
+  other: a refusal that names its reason in a marked row and one that dies in a traceback put
+  that reason in different places, and picking either alone was measured against a fixture
+  broken on purpose and showed the cause in neither.
+- 🔴 **`tree_quiet.py`'s fixture builder reads git's exit codes instead of discarding them.**
+  Its three `git` calls captured output and looked at nothing, so a failing `git init` left a
+  directory that was not a repository — every row then diverged from a baseline that was
+  never taken and the table went red for a reason that has nothing to do with the rule under
+  test. It raises now, naming the command, the exit code and what git said, folded onto one
+  line so a reader showing the tail of a refusal gets the sentence rather than three lines of
+  usage banner. **The shape is not a family**: an AST sweep of every `subprocess` call in
+  `scripts/` finds one other discarded result, and that one is a deliberate `os._exit(9)`
+  standing in for a SIGKILL, where the exit code is the point.
+
 ## [1.82.0] — 2026-08-19
 
 ### Fixed — a property write that did not happen no longer reports success ([#327](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/327))
