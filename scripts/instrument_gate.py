@@ -1022,6 +1022,20 @@ INSTRUMENTS = [
             # The fixture builder every negative control in that file is constructed
             # with: emptied, every `red()` case stops being the table it claims to be.
             "{SIG:_table}": 'return ""',
+            # 🆕 271 §2/§3 — THE FIVE THIS SESSION ADDED, and the first two are where the
+            # new claims are cashed. `age_domain` is the bound `--render`, `--ages` and
+            # `check` all pass through, so emptying it puts every consumer back to
+            # printing a negative age without comment; `reach_join` is the tier column's
+            # only evidence. `reach_of` and `tracked_prefixes` are the two readings that
+            # join is made of — the roster lookup and the tree — and emptying either makes
+            # the comparison agree with everything. `_pad_paths` is the fixture normaliser
+            # forty negative controls now pass through: emptied, they are width-refused
+            # rather than refused for the reason each of them names.
+            "{SIG:age_domain}": "return []",
+            "{SIG:reach_join}": "return []",
+            "{SIG:reach_of}": "return ([], [])",
+            "{SIG:tracked_prefixes}": "return set()",
+            "{SIG:_pad_paths}": 'return ""',
         },
     },
     {
@@ -1608,6 +1622,24 @@ LATE_DECLARED_GREEN = {
         "reports none is correct. Its coverage is the twelve fixtures in "
         "`boundary_gate.selftest.mjs`, which is the axis where a case with a known answer "
         "exists. A third dispatcher, or a stale exempt row, makes this declaration redden.",
+    # 🆕 271 §2 — THE SAME CLASS, ON A REFUSAL WHOSE HEALTHY ANSWER IS SILENCE. `age_domain`
+    # returns the ways a row's session numbers can be impossible, and `QUEUE.md` has none —
+    # so on the live axis an emptied reader and a working one print the identical nothing,
+    # and no floor above it can tell them apart because there is no population to floor.
+    # 🔴 IT IS NOT A HARNESS GAP THIS FILE CAN CLOSE BY WRITING A FLOOR: the sibling
+    # `reach_of` was RESTRUCTURED in the same session so its silence became countable
+    # (it returns one reading per path, and the caller compares the count), and that
+    # option does not exist for a reader whose entire output is a list of violations. The
+    # A:gate axis blinds it globally against four fixtures with known answers and reddens.
+    ("queue_gate.py", "{SIG:age_domain}", "B:live"):
+        "the live table is HEALTHY — no row is opened or closed after the head and none is "
+        "closed before it was opened — so there is no violation for it to report and a "
+        "blind that reports none is reporting the truth. Unlike its sibling `reach_of`, "
+        "whose silence was made countable by returning one reading per path, a reader "
+        "whose whole output is a list of refusals has no population to floor. Its coverage "
+        "is the four fixtures on the A:gate axis, where an impossible row has a known "
+        "answer. The moment a real domain violation lands in `QUEUE.md` this declaration "
+        "reddens, which is why it is re-measured every run rather than written once.",
     # 🆕 233 — THE FOUR THE NEW LIVE AXES CANNOT REACH, EVERY ONE MEASURED RATHER THAN
     # REASONED ABOUT (198 §36's rule for this table). Three instruments gained a [B:live]
     # axis this session because ci.yml was already running the command; a fourth gained one
@@ -1937,7 +1969,7 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # the global blast for 231's reason: the late injector blinds from the SECOND call, so
     # the claims that read a member once still pass.
     "p0_comments.py": 6,
-    "queue_gate.py": 78,           # 247: 50 -> 98 measured, floored from below
+    "queue_gate.py": 160,          # 271: 78 -> 160, measured 202 (+5 targets)
     "mutation_lock_gate.py": 15,   # 247: 6 -> 19 measured, floored from below
     "terminology_gate.py": 9,      # 247: measured 11 on [A:gate]
 }
@@ -1974,7 +2006,7 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
     # produces is a function of what QUEUE.md holds that session. Floored at the smallest
     # number that separates "reported something" from "reported nothing", which is the only
     # honest pin available over a population this size.
-    "queue_gate.py": 1,           # 245: measured 2
+    "queue_gate.py": 3,           # 271: 1 -> 3, measured 6 (+reach_join)
     # 🆕 247 §2 — ANOTHER POPULATION OF ONE, and the one is the point. Four of the five
     # late blinds on the live axis are not constructible there (the walks and the parser
     # are each called once); `{SIG:offenders}` is called 290 times and was GREEN until
@@ -3747,7 +3779,7 @@ BLAST_FLOOR: dict[str, int] = {
     # 🆕 247 §1 — 198 §36: RAISE A FLOOR THE SAME COMMIT THAT OUTGROWS IT. The coverage
     # roster asked for five more targets across these two and the sweep reddens harder for
     # them; a floor left at the old number is headroom nobody voted for.
-    "queue_gate.py": 90,           # 247: 60 -> 90, measured 113 (+ages, render, _table)
+    "queue_gate.py": 170,          # 271: 90 -> 170, measured 216 (+the five 271 added)
     "mutation_lock_gate.py": 16,   # 247: 9 -> 16, measured 21 (+_base_name, _temp_roots)
     # 🆕 247 §2 — the fourth Python instrument, floored from BELOW on its first sweep.
     "terminology_gate.py": 12,     # 247: measured 15 across its five blinds, 0 crashed

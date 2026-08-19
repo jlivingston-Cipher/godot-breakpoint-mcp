@@ -61,6 +61,7 @@ from __future__ import annotations
 import contextlib
 import io
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -116,7 +117,63 @@ ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # would read its rows as queue items — silently, and with ids that are English. The queue
 # table is the one whose header row declares the queue's own columns, and nothing else in
 # the file may declare them.
-COLUMNS = ("id", "state", "reach", "opened", "closed", "target", "title", "why")
+COLUMNS = ("id", "state", "reach", "paths", "opened", "closed", "target", "title", "why")
+
+# ── 🆕 271 §3 — `reach-column-joins-nothing` (OPEN 268) ───────────────────────────────
+#
+# 🔴 THE TIER WAS A PATH PREDICATE THAT EXISTED ONLY AS A SENTENCE. 248 defined `user` by
+# the files a row's work touches — `host/src` and addon behaviour, CLI and error copy,
+# packaging, `README.md`, `docs/USER_GUIDE.md` — and then asked every session to apply that
+# sentence by hand and type the answer in a cell nothing read. Two sessions typed it five
+# times in the same direction (`internal` -> `user`, never once back) and 268 read the
+# uniformity as a bias in the typist. 269 found the other half: `QUEUE_TIER_ORDER` made
+# `user` the only answer that let a session close its work, so the column was not being
+# mistyped, it was being SELECTED. Neither reading could be settled, because there was
+# nothing to settle it against.
+#
+# 🔴 SO THE PREDICATE BECOMES A ROSTER AND THE ROW DECLARES ITS PATHS. `reach` is still
+# typed — deliberately, because a session knows what it is about to touch and a gate does
+# not — but it is now typed BESIDE the evidence and compared to it. The roster is ordered
+# and the FIRST match wins, which is what lets `docs/USER_GUIDE.md` sit above `docs/`.
+#
+# 🔴 ANY `user` PATH MAKES THE ROW `user`, and the asymmetry is 248's line rather than a
+# convenience: the tier asks *can an installer observe this*, and one file they can observe
+# is enough. A row touching `host/src/` and nine gates reaches a user through the one.
+REACH_PATHS: "tuple[tuple[str, str, str], ...]" = (
+    ("docs/USER_GUIDE.md",  "user",     "the document a user is told to follow"),
+    ("docs/",               "internal", "every other doc is written for whoever works here"),
+    ("host/src/",           "user",     "the shipped server: tools, CLI, error copy"),
+    ("host/package.json",   "user",     "packaging — what `npm install` resolves"),
+    ("host/package-lock.json", "internal", "resolution detail no installer of the "
+                                           "published package ever reads"),
+    ("host/scripts/",       "internal", "build and gate tooling, not shipped"),
+    ("host/test",           "internal", "tests and their fixtures, both trees"),
+    ("addons/",             "user",     "the addon a user copies into their project"),
+    ("example",             "internal", "fixture projects the gates drive"),
+    ("scripts/",            "internal", "the gate and instrument shelf"),
+    (".github/",            "internal", "CI and contributor tooling"),
+    (".githooks/",          "internal", "contributor tooling"),
+    ("README.md",           "user",     "the first page of the package"),
+    ("CHANGELOG.md",        "user",     "what an installer reads to decide to upgrade"),
+    ("CONTRIBUTING.md",     "internal", "addressed to contributors by its own title"),
+    ("CODE_OF_CONDUCT.md",  "internal", "addressed to contributors"),
+    ("SECURITY.md",         "user",     "the reporting path a user of the package needs"),
+    ("QUEUE.md",            "internal", "this table"),
+)
+
+# 🔴 THE ROW IS A PROMISE ABOUT THE TREE AND IT IS CHECKED AGAINST THE TREE. A declared
+# path must be one this repository tracks — a prefix is enough, so work that will CREATE
+# `scripts/whatever.py` declares `scripts/` and is honest about it, while a path that
+# matches nothing is a claim about a file nobody has. That is the half that makes this a
+# join rather than a second sentence agreeing with the first.
+#
+# 🔴 AND IT TURNS ON AT `271` RATHER THAN OVER THE BACK CATALOGUE, for `HEADER_FLOOR`'s
+# reason one file over: a roster retro-fitted to ninety-six historical rows would be
+# ninety-six guesses about what sessions long finished were touching, typed by somebody
+# who was not there. A row opened at or closed at this session or later declares its
+# paths; everything older carries `—` and is counted, not excused.
+REACH_PATHS_SINCE = 271
+UNDECLARED_CEILING = 18  # governed by floor_pin_gate's SIZE_LEDGER
 
 
 class Row:
@@ -178,10 +235,188 @@ def parse(text: str) -> "tuple[int, int, list[Row], list[str]]":
                             f"{len(COLUMNS)} column(s) — {line.strip()[:80]!r}")
             continue
         rows.append(Row(cells, lineno))
+    problems += age_domain(rows, head)
     return (fmt, head, rows, problems)
 
 
-def check(text: str) -> "tuple[list[str], list[str], int, int]":
+# ── 🆕 271 §2 — `queue-age-can-be-negative` (OPEN 256, fifteen sessions) ───────────────
+#
+# 🔴 A DERIVED NUMBER NOBODY BOUNDS IS A TYPED NUMBER WITH A COMPUTATION IN FRONT OF IT,
+# which is this file's own header argument turned back on it. `age` is `head - opened` and
+# nothing ever asked whether `opened` could be AFTER `head`. It could, and it was: 255
+# added `required-any-reachability` with `opened 255` and left `QUEUE_HEAD` at 254, so the
+# row rendered at **-1 session(s)** through `--render`, through `--ages` and through
+# `QUEUE_AGE_CEILING` — three consumers, each reading a negative age as a number, none of
+# them asking whether it was possible. The ceiling is a `>` test, so a negative sails
+# through it; the internal tier has no ceiling at all. Nothing went red for fifteen
+# sessions because nothing was looking.
+#
+# 🔴 IT LIVES IN `parse` AND NOT IN `check`, WHICH IS THE WHOLE POINT OF THE ROW. The
+# defect was never that one claim mis-fired — it was that EVERY consumer of the table read
+# the impossible number and passed it on. `parse` is the one function `check`, `render` and
+# `ages` all call, and all three already refuse on what it returns, so a bound placed here
+# is a bound none of them can be written without.
+#
+# 🔴 `target` IS EXEMPT AND SAYS SO. A schedule is a promise about a session that has NOT
+# arrived, so `target > head` is the normal state of a scheduled row and the ONLY claim
+# with an opinion about it is `QUEUE_SCHEDULE_HONOURED`, which refuses a target that has
+# PASSED. Reading it here would refuse every schedule this table exists to carry.
+def tracked_prefixes(root: Path = ROOT) -> "set[str]":
+    """Every tracked path and every directory prefix of one. TREE, no network.
+
+    🔴 `git ls-files` AND NOT A WALK, for 254's reason one gate over: a walk sees files
+    `git add` has not reached and CI's `actions/checkout` clone does not have, so a
+    declared path could resolve on the authoring machine and vanish in CI. It is also the
+    reader that works on the `--depth 1` clone CI actually uses.
+    """
+    try:
+        p = subprocess.run(("git", "ls-files"), cwd=root, capture_output=True,
+                           text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    if p.returncode != 0:
+        return set()
+    out: "set[str]" = set()
+    for f in p.stdout.split("\n"):
+        f = f.strip()
+        if not f:
+            continue
+        out.add(f)
+        parts = f.split("/")
+        for i in range(1, len(parts)):
+            out.add("/".join(parts[:i]) + "/")
+    return out
+
+
+def reach_of(paths: "list[str]") -> "tuple[list[str], list[str]]":
+    """(one tier per path, in order; the paths no `REACH_PATHS` row covers).
+
+    🔴 IT RETURNS THE READINGS AND NOT THE VERDICT, which is this row's second draft and
+    the difference matters to the harness rather than to the answer. A version returning a
+    single tier had to return SOMETHING when it had read nothing, and the only available
+    empty for a two-valued field is one of the two values — so a reader that had stopped
+    reading was indistinguishable from a reader that found the commoner answer, and
+    `instrument_gate.py`'s late axis said so on the first sweep. Returning the list lets
+    the caller compare its LENGTH to the paths it handed over: a reader that answered for
+    fewer paths than it was given is visible without anybody having to guess which value
+    its silence would wear.
+    """
+    tiers, unknown = [], []
+    for p in paths:
+        hit = next((t for pat, t, _why in REACH_PATHS if p.startswith(pat)), None)
+        if hit is None:
+            unknown.append(p)
+        else:
+            tiers.append(hit)
+    return (tiers, unknown)
+
+
+def reach_join(rows: "list[Row]", head: int,
+               tracked: "set[str] | None" = None) -> "list[str]":
+    """`reach` compared to the paths the row says its work touches — 271 §3.
+
+    🔴 THE TREE IS READ LAZILY AND ONCE. `git ls-files` is a subprocess, and a self-test
+    that drives forty fixtures through here would pay for forty of them to answer a
+    question none of those fixtures asks.
+    """
+    out: "list[str]" = []
+    undeclared = 0
+    if tracked is None and any(r.paths != NONE for r in rows):
+        tracked = tracked_prefixes()
+    tracked = tracked or set()
+    for r in rows:
+        due = ((r.opened.isdigit() and int(r.opened) >= REACH_PATHS_SINCE)
+               or (r.closed != NONE and r.closed.isdigit()
+                   and int(r.closed) >= REACH_PATHS_SINCE))
+        if r.paths == NONE:
+            if r.state in ("OPEN", "SCHEDULED"):
+                undeclared += 1
+            if due:
+                out.append(
+                    f"🔴 QUEUE_REACH_JOIN line {r.lineno}: {r.id} touches session "
+                    f"{REACH_PATHS_SINCE} or later and declares no `paths`. From that "
+                    f"session on, `reach` is typed BESIDE the evidence for it — name the "
+                    f"tracked paths the work touches, `;`-separated, and this gate "
+                    f"derives the tier and compares")
+            continue
+        declared = [p.strip() for p in r.paths.split(";") if p.strip()]
+        missing = [p for p in declared if p not in tracked]
+        if missing:
+            out.append(
+                f"🔴 QUEUE_REACH_JOIN line {r.lineno}: {r.id} declares "
+                f"{', '.join(missing)}, which this repository does not track. A path "
+                f"that matches nothing is a claim about a file nobody has; work that "
+                f"will CREATE a file declares the directory it lands in")
+            continue
+        tiers, unknown = reach_of(declared)
+        if unknown:
+            out.append(
+                f"🔴 QUEUE_REACH_JOIN line {r.lineno}: {r.id} declares "
+                f"{', '.join(unknown)}, which no `REACH_PATHS` row tiers. An untiered "
+                f"path is a file the ordering claim cannot see — add it to the roster "
+                f"with the reason it lands on the side it lands on")
+            continue
+        # 🔴 ONE READING PER PATH, COUNTED — the roster answered for everything it was
+        # given or it answered for a subset nobody chose. This is the only thing standing
+        # between a live collapse of `reach_of` and a tier derived from whatever it still
+        # had an opinion about; the length is the claim, and the tier is downstream of it.
+        if len(tiers) != len(declared):
+            out.append(
+                f"🔴 QUEUE_REACH_JOIN line {r.lineno}: {r.id} declares {len(declared)} "
+                f"path(s) and the roster returned {len(tiers)} tier(s). A reader that "
+                f"answered for fewer paths than it was handed has stopped reading, and "
+                f"the tier derived from the remainder is a claim about a subset nobody "
+                f"chose")
+            continue
+        derived = "user" if "user" in tiers else "internal"
+        if derived != r.reach:
+            covered = [f"{p} -> {t}" for p, t in zip(declared, tiers)]
+            out.append(
+                f"🔴 QUEUE_REACH_JOIN line {r.lineno}: {r.id} is typed `{r.reach}` and "
+                f"its own paths derive `{derived}` — {'; '.join(covered)}. Any path a "
+                f"user can observe makes the row `user`; correct the cell, or correct "
+                f"the paths if the row is not about what it says it is")
+    if undeclared > UNDECLARED_CEILING:
+        out.append(
+            f"🔴 QUEUE_REACH_UNDECLARED {undeclared} live row(s) carry no `paths` > "
+            f"{UNDECLARED_CEILING}. The back catalogue is grandfathered and COUNTED, not "
+            f"excused — the ceiling is the number that was live when the column was "
+            f"added, so it can only ever fall")
+    return out
+
+
+def age_domain(rows: "list[Row]", head: int) -> "list[str]":
+    """The bounds `age` is derived under, checked where every reader passes through."""
+    out: "list[str]" = []
+    for r in rows:
+        if r.opened != NONE and r.opened.isdigit() and int(r.opened) > head:
+            out.append(
+                f"🔴 QUEUE_AGE_DOMAIN line {r.lineno}: {r.id} was opened at {r.opened} "
+                f"and the head is {head}, so its derived age is "
+                f"{head - int(r.opened)} session(s). A row cannot be opened after the "
+                f"session that is reading it — move `QUEUE_HEAD` to the session doing "
+                f"the work, or correct `opened`. 255 shipped exactly this and three "
+                f"readers printed the negative without comment")
+        if r.closed != NONE and r.closed.isdigit() and int(r.closed) > head:
+            out.append(
+                f"🔴 QUEUE_AGE_DOMAIN line {r.lineno}: {r.id} is closed at {r.closed} "
+                f"and the head is {head}. `QUEUE_NOT_ONLY_NEWEST` and the render's "
+                f"`Closed this session` both select on `closed == head`, so a closing "
+                f"session in the future is a row that will silently never be counted as "
+                f"closed by anybody")
+        if (r.opened != NONE and r.closed != NONE and r.opened.isdigit()
+                and r.closed.isdigit() and int(r.closed) < int(r.opened)):
+            out.append(
+                f"🔴 QUEUE_AGE_DOMAIN line {r.lineno}: {r.id} is closed at {r.closed} "
+                f"and opened at {r.opened} — a decision cannot precede the finding it "
+                f"decides, and the age this file prints beside it is derived from "
+                f"`opened` alone, so it would read as a positive number over an "
+                f"impossible interval")
+    return out
+
+
+def check(text: str, tracked: "set[str] | None" = None
+          ) -> "tuple[list[str], list[str], int, int]":
     """(problems, notes, rows read, open rows)."""
     fmt, head, rows, problems = parse(text)
     notes: "list[str]" = []
@@ -253,6 +488,9 @@ def check(text: str) -> "tuple[list[str], list[str], int, int]":
                             f"item with no reason is indistinguishable from a row that "
                             f"fell out of the table, and the next session cannot tell "
                             f"whether to reopen it")
+
+    # ── QUEUE_REACH_JOIN — the column, given something to be checked against (271 §3) ──
+    problems += reach_join(rows, head, tracked)
 
     # ── QUEUE_AGE_CEILING — the loop-breaker's first half ─────────────────────────────
     for r in rows:
@@ -490,13 +728,25 @@ def ages(text: str) -> int:
 HEAD = 240
 
 
+# 🆕 271 §3 — THE FIXTURES ARE WRITTEN WITHOUT THE NINTH CELL AND THIS FILLS IT IN, which
+# is a convenience with a claim under it (`TABLE_PADS_PATHS` below). Forty fixtures exist
+# to make one OTHER claim the only thing wrong with the table; growing every one of them a
+# `—` would be forty edits that assert nothing. A fixture that wants to say something
+# about `paths` writes all nine cells and this leaves it alone.
+def _pad_paths(row: str) -> str:
+    cells = [c.strip() for c in row.strip()[1:-1].split("|")]
+    if len(cells) == len(COLUMNS) - 1:
+        cells.insert(3, NONE)
+    return "| " + " | ".join(cells) + " |"
+
+
 def _table(rows: "list[str]", head: int = HEAD, fmt: int = 1) -> str:
-    pad = [f"| filler-{i} | DONE | internal | 100 | 101 | — | filler | — |"
+    pad = [f"| filler-{i} | DONE | internal | — | 100 | 101 | — | filler | — |"
            for i in range(QUEUE_ROW_FLOOR)]
     return ("<!-- QUEUE_FORMAT %d -->\n<!-- QUEUE_HEAD %d -->\n\n" % (fmt, head)
             + "| " + " | ".join(COLUMNS) + " |\n"
             + "|" + "---|" * len(COLUMNS) + "\n"
-            + "\n".join(rows + pad) + "\n")
+            + "\n".join([_pad_paths(r) for r in rows] + pad) + "\n")
 
 
 GOOD = ["| alpha | OPEN | internal | 238 | — | — | a fresh one | — |",
@@ -565,7 +815,7 @@ def selftest() -> int:
     # file over. The fixture is the good table with the pad removed.
     short = ("<!-- QUEUE_FORMAT 1 -->\n<!-- QUEUE_HEAD 240 -->\n\n| "
              + " | ".join(COLUMNS) + " |\n|" + "---|" * len(COLUMNS) + "\n"
-             + "\n".join(GOOD) + "\n")
+             + "\n".join(_pad_paths(r) for r in GOOD) + "\n")
     p, _n, _r, _o = check(short)
     claim("ROW_FLOOR", any("QUEUE_ROW_FLOOR" in x for x in p),
           f"{len(GOOD)} rows passed a floor of {QUEUE_ROW_FLOOR}")
@@ -626,23 +876,131 @@ def selftest() -> int:
           "a row targeted at the head session was refused, so a session could never "
           "schedule work for itself")
 
+    # ── 🆕 QUEUE_AGE_DOMAIN — the bounds `age` is derived under (271 §2) ───────────────
+    #
+    # 🔴 THE FIXTURE IS 255's OWN MISTAKE, RE-TYPED. A row opened one session after the
+    # head rendered at **-1 session(s)** through three readers and nothing had an opinion,
+    # for fifteen sessions.
+    red("AGE_DOMAIN_OPENED_AFTER_HEAD",
+        [f"| eps | OPEN | internal | {HEAD + 1} | — | — | opened next session | — |"],
+        "QUEUE_AGE_DOMAIN")
+    red("AGE_DOMAIN_CLOSED_AFTER_HEAD",
+        [f"| eps | DONE | internal | 230 | {HEAD + 1} | — | closed next session | — |"],
+        "QUEUE_AGE_DOMAIN")
+    red("AGE_DOMAIN_CLOSED_BEFORE_OPENED",
+        ["| eps | DONE | internal | 235 | 230 | — | decided before found | — |"],
+        "QUEUE_AGE_DOMAIN")
+    # 🔴 AND THE DIRECTION THAT KEEPS IT FROM BANNING THE SCHEDULE. A `target` AFTER the
+    # head is what a scheduled row IS — the only claim with an opinion about a target is
+    # `QUEUE_SCHEDULE_HONOURED`, which refuses one that has PASSED. A domain check that
+    # read `target` here would refuse every schedule this table exists to carry.
+    p, _n, _r, _o = check(_table(GOOD_USER + [
+        f"| eps | SCHEDULED | user | 230 | — | {HEAD + 30} | parked far ahead | — |"]))
+    claim("AGE_DOMAIN_SPARES_TARGET", not any("QUEUE_AGE_DOMAIN" in x for x in p),
+          "a target thirty sessions ahead was refused as out of domain, which would make "
+          "a schedule unwritable")
+    # 🔴 AND THE READERS THAT ARE NOT `check`. The row's finding was that `--render` and
+    # `--ages` printed the negative too, so the bound lives in `parse` and both of them
+    # must refuse rather than print a number no arithmetic can produce.
+    _bad = _table([f"| eps | OPEN | internal | {HEAD + 1} | — | — | from the future | — |"])
+    _cap = io.StringIO()
+    with contextlib.redirect_stdout(_cap):
+        _rc_r, _rc_a = render(_bad), ages(_bad)
+    claim("AGE_DOMAIN_REACHES_EVERY_READER", _rc_r == 1 and _rc_a == 1,
+          f"--render returned {_rc_r} and --ages returned {_rc_a} over a row whose age is "
+          f"negative — the two readers that printed 255's -1 without comment")
+
+    # ── 🆕 QUEUE_REACH_JOIN — the column, joined to the tree (271 §3) ──────────────────
+    #
+    # A tiny tracked set, passed in rather than read: the claim is about the JOIN, and a
+    # fixture that shelled out to `git ls-files` would be asserting this checkout's
+    # contents under the join's name.
+    _tk = {"host/src/", "host/src/index.ts", "scripts/", "scripts/queue_gate.py",
+           "README.md", "docs/", "docs/USER_GUIDE.md"}
+    _p9 = ("| eps | %s | %s | %s | 238 | — | — | a row with evidence | — |")
+    p, _n, _r, _o = check(_table([_p9 % ("OPEN", "internal", "scripts/")]), tracked=_tk)
+    claim("REACH_JOIN_AGREES", not any("QUEUE_REACH_JOIN" in x for x in p),
+          f"an `internal` row declaring `scripts/` was refused: "
+          f"{[x[:90] for x in p if 'REACH_JOIN' in x]}")
+    p, _n, _r, _o = check(_table([_p9 % ("OPEN", "internal", "host/src/")]), tracked=_tk)
+    claim("REACH_JOIN_REFUSES_MISTYPED", any("QUEUE_REACH_JOIN" in x for x in p),
+          "a row typed `internal` whose only path is `host/src/` passed — that is the "
+          "shipped server, and the column would still be joined to nothing")
+    # 🔴 ONE OBSERVABLE PATH IS ENOUGH, which is 248's line and not a convenience: the
+    # tier asks whether an installer can see the work, and nine gate files do not unsee
+    # the one that ships.
+    p, _n, _r, _o = check(_table([_p9 % ("OPEN", "user", "scripts/;host/src/")]),
+                          tracked=_tk)
+    claim("REACH_JOIN_ANY_USER_PATH_WINS", not any("QUEUE_REACH_JOIN" in x for x in p),
+          f"a `user` row touching both tiers was refused: "
+          f"{[x[:90] for x in p if 'REACH_JOIN' in x]}")
+    p, _n, _r, _o = check(_table([_p9 % ("OPEN", "internal", "host/src/nope.ts")]),
+                          tracked=_tk)
+    claim("REACH_JOIN_REFUSES_UNTRACKED", any("does not track" in x for x in p),
+          "a path this repository does not track passed — a declared path that matches "
+          "nothing is a claim about a file nobody has")
+    p, _n, _r, _o = check(_table([_p9 % ("OPEN", "internal", "docs/")]),
+                          tracked={"docs/", "docs/CONTRIBUTORS.md"})
+    claim("REACH_JOIN_ROSTER_ORDER", not any("QUEUE_REACH_JOIN" in x for x in p),
+          "`docs/` derived `user` — the roster is FIRST-match and `docs/USER_GUIDE.md` "
+          "sits above `docs/`, so the general row must not be shadowed by the specific "
+          "one in the wrong direction")
+    # 🔴 THE ROSTER ITSELF, IN THE DIRECTION NOTHING ELSE READS: a pattern that names no
+    # tracked path is a tier for a directory this repository does not have, which is the
+    # roster going stale exactly the way the prose it replaced did.
+    _tracked_real = tracked_prefixes()
+    if _tracked_real:
+        claims_stale = [pat for pat, _t, _w in REACH_PATHS
+                        if not any(f == pat or f.startswith(pat) for f in _tracked_real)]
+        claim("REACH_PATHS_LIVE", not claims_stale,
+              f"{claims_stale} tier paths this repository does not track — a roster that "
+              f"outlives the tree it describes is the sentence it replaced")
+    # 🔴 AND THE BACK CATALOGUE IS COUNTED, NOT EXCUSED. The ceiling is the number of live
+    # rows that were already undeclared when the column landed, so it can only fall.
+    _many = [f"| old-{i} | OPEN | internal | 200 | — | — | grandfathered | — |"
+             for i in range(UNDECLARED_CEILING + 1)]
+    p, _n, _r, _o = check(_table(_many, head=400))
+    claim("REACH_UNDECLARED_CEILING", any("QUEUE_REACH_UNDECLARED" in x for x in p),
+          f"{UNDECLARED_CEILING + 1} live rows with no `paths` passed a ceiling of "
+          f"{UNDECLARED_CEILING}")
+    # 🔴 AND A ROW FROM THIS SESSION ON MAY NOT CARRY `—` AT ALL.
+    red("REACH_JOIN_DUE",
+        [f"| eps | OPEN | internal | {REACH_PATHS_SINCE} | — | — | no evidence | — |"],
+        "declares no `paths`", head=REACH_PATHS_SINCE)
+    # 🔴 THE PADDING HELPER IS A CLAIM, NOT A COURTESY. Forty fixtures above are written
+    # with eight cells and normalised here; if that normalisation ever stopped inserting
+    # the column, every one of them would be width-refused and the claims they carry would
+    # pass for the wrong reason — `CLAIM_FLOOR`'s shape, inside a test helper.
+    #
+    # 🔴 EVERY READ IS INSIDE THE CLAIM AND NONE OF THEM MAY THROW — `_cells`, `parse` and
+    # `_table` each raised `CRASH_CEILING` on this claim's first draft. A blind that
+    # CRASHES the gate proves that Python throws on an empty; it does not prove the gate's
+    # own floor bites, and `instrument_gate.py` refuses the difference (197 §3).
+    _padded = str(_pad_paths(GOOD[0]) or "")
+    _parsed_rows = parse(_table(GOOD))[2]
+    claim("TABLE_PADS_PATHS",
+          len(COLUMNS) == 9 and _padded.count("|") == 10
+          and bool(_parsed_rows) and _parsed_rows[0].paths == NONE,
+          f"`_pad_paths` did not put an undeclared ninth cell into an eight-cell fixture, "
+          f"or the padded table did not parse: {_padded!r}, {len(_parsed_rows)} row(s)")
+
     # ── QUEUE_TIER_ORDER — the ordering (248) ─────────────────────────────────────────
     red("TIER_ORDER",
-        ["| u | OPEN | user | 246 | — | — | a defect a user can hit | — |",
+        ["| u | OPEN | user | 234 | — | — | a defect a user can hit | — |",
          f"| g | DONE | internal | 200 | {HEAD} | — | a gate row, finished instead | — |"],
         "QUEUE_TIER_ORDER")
     # 🔴 AND IT MUST BE SILENT WHEN TIER 1 IS EMPTY, or it is not an ordering, it is a
     # ban — the internal tier is deferred, not abandoned, and a session that has cleared
     # Tier 1 is exactly the session that should be spending itself on Tier 2.
     p, _n, _r, _o = check(_table(
-        ["| u | DONE | user | 246 | 240 | — | the last user row, closed | — |",
+        ["| u | DONE | user | 234 | 240 | — | the last user row, closed | — |",
          f"| g | DONE | internal | 200 | {HEAD} | — | and then a gate row | — |"]))
     claim("TIER_ORDER_ADMITS_EMPTY_TIER1", not any("TIER_ORDER" in x for x in p),
           "internal work was refused with no live user row")
     # 🔴 AND A LIVE USER ROW MUST NOT BLOCK CLOSING ANOTHER USER ROW, which is the
     # ordering doing its job rather than deadlocking on itself.
     p, _n, _r, _o = check(_table(
-        ["| u1 | OPEN | user | 246 | — | — | still open | — |",
+        ["| u1 | OPEN | user | 234 | — | — | still open | — |",
          f"| u2 | DONE | user | 200 | {HEAD} | — | and one finished | — |"]))
     claim("TIER_ORDER_ADMITS_USER_WORK", not any("TIER_ORDER" in x for x in p),
           "finishing a user row was refused while another user row was live")

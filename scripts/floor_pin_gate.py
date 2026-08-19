@@ -250,6 +250,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # shape exactly.
     ("queue.AGE_CEILING",       "../scripts/queue_gate.py",         r"(AGE_CEILING = )8",                                        ["../scripts/queue_gate.py", "--selftest"]),
     ("queue.QUEUE_ROW_FLOOR",   "../scripts/queue_gate.py",         r"(QUEUE_ROW_FLOOR = )20",                                   ["../scripts/queue_gate.py", "--selftest"]),
+    # 🆕 271 — THE THIRD QUEUE ROW, AND IT IS A CEILING OVER A BACKLOG RATHER THAN OVER A
+    # POPULATION. `UNDECLARED_CEILING` is how many live rows may still carry no `paths`
+    # evidence for the tier typed beside them; it was set to the number that were live
+    # when the column landed, so it can only fall. Raising it is a session buying itself
+    # room to keep typing an unchecked column, which is the defect the join closes.
+    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )18",                                ["../scripts/queue_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )15;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1286,6 +1292,17 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
         "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
         "whole subject is work nobody is doing.")),
+    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (18, (
+        "🆕 271 — the live rows still allowed to type a `reach` with no `paths` under it, "
+        "at `{FLOOR}`. Every row in the table carried an unchecked tier until this "
+        "session; retro-fitting evidence to the back catalogue would be guesses typed by "
+        "somebody who was not there, so they are grandfathered and COUNTED instead, at "
+        "exactly the number still live when the session that built the join finished. It "
+        "may only fall — a row opened or closed from that session on MUST declare, so "
+        "nothing can ever be added to the population this counts. A "
+        "session that raised it would be buying itself room to keep typing the one "
+        "column in this table nothing could check — which is what `reach-column-joins-"
+        "nothing` spent three sessions being.")),
     ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (18, (
         "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
         "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
