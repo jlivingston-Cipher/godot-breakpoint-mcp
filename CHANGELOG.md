@@ -6,6 +6,56 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.81.0] — 2026-08-19
+
+### Changed — the host's `write_failed` is now `send_failed`, because two producers shared one word
+
+- 🔴 **A request that never reached the socket answers `send_failed`, not `write_failed`.** The
+  addon raises `write_failed` from `operations.gd` for a FILE it could not open for writing, and
+  the host raised it for a TCP socket that went away. Both cross the wire as
+  `Bridge error [write_failed]` — the host re-raises the addon's code verbatim when it relays —
+  so a caller branching on the label could not tell the two apart, and `error_remedies.gd` can
+  answer only one of them: *check the target path is inside the project and not read-only* is a
+  next action for a file and a wrong turn for a connection that has no path at all. 1.80.0 fixed
+  the half a human reads and enqueued the wire question; this is the answer.
+- **The population was measured before the word was chosen, and it was one.** Eleven codes
+  originate in the host, fifty are raised in the addon, and `write_failed` was the entire
+  intersection — a single collision, repaired by renaming rather than by hanging an origin
+  discriminator on every error the wire carries.
+- **The younger producer yielded.** The addon's `write_failed` has crossed this wire since the
+  addon had a wire. The host's branch was believed unreachable until 1.80.0 measured it, and
+  before that release it shipped node's own `Cannot call write after a stream was destroyed` —
+  so a caller branching on what this site produced was branching on a Node internal. `send_failed`
+  also says the true thing outright: the request was never SENT. Anything matching the old code
+  for the host's socket failure needs one word changed; the addon's file failure is untouched.
+- **And the next collision is a refusal rather than a discovery.** `contract_check` check 32
+  gained a fourth arm: a code raised on both sides of this wire is refused at `git add`, with
+  the instruction to rename the younger producer rather than add a second meaning to a shipped
+  word.
+- Renamed in the host, all three together so the code, the sentence and the next action move as
+  one: `BRIDGE_SEND_FAILED`, `sendFailedMessage` and `SEND_FAILED_REMEDY`. The label a caller
+  reads is still built by `bridgeErrorLabel`, so nothing spells the rendered string by hand.
+  Untouched on the addon side: the raise in `operations.gd` and its row in `error_remedies.gd`.
+  The new arm's reader is `host_origin_error_codes`, which collects a code only where the host
+  names one — the relay passes an identifier, so it excludes itself by construction rather than
+  by a roster somebody has to keep true.
+
+### Fixed — the publish-lag reader could not see work that was never tagged
+
+- **`registry_lag` prints a second distance: the commits on HEAD that no tag names.** It counted
+  TAGS the registry has not got, so a merge that was never tagged was invisible to it — it
+  printed 🟢 on both sides of the same defect within twenty minutes at session 260, once over
+  four unpublished merges and once over a published artifact differing from its own tag by
+  +888/−72. `head_past_newest_tag` is the reader and the two numbers carry separate ceilings
+  rather than one over their sum, because they go stale in opposite directions.
+
+### Internal
+
+- `queue_gate` no longer counts a scheduled row whose target session has not arrived as work
+  being skipped, and names on every run what it set aside. `population_block_shape` judges every
+  shipped handoff status block by the rules a live one is judged by. Neither is observable from
+  the package; both are recorded here because they changed what this project's own gates refuse.
+
 ## [1.80.0] — 2026-08-18
 
 ### Changed — a debug session whose adapter never announces itself is now REFUSED

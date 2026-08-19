@@ -114,21 +114,32 @@ export function bridgeErrorLabel(code: string): string {
 /**
  * The code raised when the request could not be handed to the socket at all.
  *
- * 🔴 **ONE WORD, TWO PRODUCERS, AND ONLY ONE OF THEM HAS A REMEDY THAT FITS (268).** The
- * ADDON raises `write_failed` too, from `operations.gd`, for a FILE it could not open for
- * writing — and `error_remedies.gd` answers it with *"Check the target path is inside the
- * project and not read-only; the number is a Godot Error code."* That sentence is correct
- * for the addon and nonsense for this site, which has no path, no file and no Godot error
- * code: it is a TCP socket that went away. The collision was invisible while this branch
- * was believed unreachable; 268 measured it reachable 200/200 and it became live.
+ * 🔴 **IT WAS `write_failed` UNTIL 269, AND THAT WORD HAD TWO PRODUCERS.** The ADDON
+ * raises `write_failed` from `operations.gd` for a FILE it could not open for writing,
+ * and `error_remedies.gd` answers it with *"Check the target path is inside the project
+ * and not read-only; the number is a Godot Error code."* — a sentence that is correct
+ * there and nonsense here, where there is no path, no file and no Godot error code, only
+ * a TCP socket that went away. 268 fixed the half a human reads and enqueued the wire
+ * question rather than deciding it. This is the answer.
  *
- * The CODE is kept and the message and remedy are made to fit — 262's disposition for an
- * overloaded shipped code, for the same reason: fix what the reader acts on, and leave a
- * wire vocabulary that callers may already branch on alone. Whether the two producers
- * should share a word at all is a wire question, and it is enqueued as one rather than
- * decided here.
+ * 🔴 **THE POPULATION WAS MEASURED BEFORE THE WORD WAS CHOSEN, AND IT WAS ONE.** Eleven
+ * codes originate in the host, fifty in the addon, and `write_failed` was the entire
+ * intersection — this is a single collision and not a family, which is why it is repaired
+ * by renaming rather than by a discriminator field on every error the wire carries.
+ *
+ * 🔴 **AND THE YOUNGER PRODUCER YIELDS, WHICH IS THE WHOLE ARGUMENT.** The addon's
+ * `write_failed` has crossed this wire since the addon had a wire. THIS site was believed
+ * unreachable until 268 measured it 200/200, and until 1.80.0 it shipped node's own
+ * `Cannot call write after a stream was destroyed` — a caller branching on the sentence
+ * this site produced was branching on a Node internal. So the cost of moving it is one
+ * release of exposure, and the cost of moving the other is every integration that ever
+ * read a file-write refusal. `send_failed` also says the true thing outright: the request
+ * was never SENT.
+ *
+ * Check 32's `e` arm now refuses any code raised on both sides of the wire, so the next
+ * collision is a refusal at `git add` and not a discovery three sessions later.
  */
-export const BRIDGE_WRITE_FAILED = "write_failed";
+export const BRIDGE_SEND_FAILED = "send_failed";
 
 /**
  * The next action for a request that never reached the socket.
@@ -142,7 +153,7 @@ export const BRIDGE_WRITE_FAILED = "write_failed";
  * second. 264's rule — measure N families, speak for N — read in the direction that
  * licenses a stronger sentence rather than a weaker one.
  */
-export const WRITE_FAILED_REMEDY =
+export const SEND_FAILED_REMEDY =
   "Retry the call — the request was never sent, so nothing was applied and this is a " +
   "first attempt rather than a second. A recurrence means the host is tearing the " +
   "connection down mid-request.";
@@ -155,7 +166,7 @@ export const WRITE_FAILED_REMEDY =
  * Node stream and tells a caller of `node_add` nothing about their call, which is what
  * this site shipped until 268.
  */
-export function writeFailedMessage(method: string, cause: Error): string {
+export function sendFailedMessage(method: string, cause: Error): string {
   return (
     `Bridge request '${method}' was never sent — the connection was torn down between ` +
     `preparing the request and writing it, so the editor did not receive it (${cause.message}).`
@@ -559,7 +570,7 @@ export class BridgeClient {
           // editor and `bridge_closed` may have been too, so neither can tell a caller to
           // retry; this one can, and 267's rule is that a next action rides in the field
           // rather than inside the message.
-          reject(new BridgeError(BRIDGE_WRITE_FAILED, writeFailedMessage(method, err), WRITE_FAILED_REMEDY));
+          reject(new BridgeError(BRIDGE_SEND_FAILED, sendFailedMessage(method, err), SEND_FAILED_REMEDY));
         }
       });
     });

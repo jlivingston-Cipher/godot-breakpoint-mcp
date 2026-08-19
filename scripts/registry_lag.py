@@ -68,6 +68,37 @@ LAG_CEILING = 3
 # 206 §3 measured it at more than a hundred.
 TAG_FLOOR = 100
 
+# 🔴 269 — THE SECOND DISTANCE, AND `registry-lag-blind-past-tag` is the row it closes.
+#
+# `lag()` counts TAGS the registry has not got. It is therefore structurally unable to
+# see a COMMIT that no tag names, and it printed 🟢 on both sides of the same defect
+# within twenty minutes at 260 — before that publish, `distance one, within ceiling`,
+# while four merges of user-reaching work sat past the newest tag, among them a pipe
+# truncation that silently cut every piped `tools --json` at one buffer; after it,
+# `distance zero, within ceiling`, over a registry artifact that differed from its own
+# tag by nearly nine hundred inserted lines. Same blindness, opposite sign, green both
+# times.
+#
+# The instrument answers *how many tags has npm not got yet* and is read as *how far is
+# the registry behind the work*. Those are the same number only in a history where every
+# commit is tagged, and this history is not one: 248's own block already recorded the
+# other face of it — a merged-but-untagged release cut reads a lag of zero — and treated
+# it as a curiosity of the counter rather than opening the row.
+#
+# 🔴 TWO CEILINGS AND NOT A SUM, WHICH IS WHAT THE ROW ASKED FOR IN WORDS. The two
+# numbers go stale in OPPOSITE directions: publishing drives `lag` to zero and leaves
+# this one untouched; tagging drives this one to zero and leaves `lag` where it was. One
+# ceiling over their total would let either be hidden by the other going green, which is
+# the same reader-collapse this file exists to stop.
+#
+# 🔴 MEASURED, NOT PICKED. Every interval between consecutive tags across this
+# repository's last twenty-five releases has a median of two, and every one of them is
+# seven or under except `v1.74.0 -> v1.74.1`, which is twenty-six — the window 248's own
+# session measured as twenty-five commits carrying exactly one change a user could
+# observe. This ceiling admits the largest healthy interval and refuses that one, which
+# is `LAG_CEILING`'s own shape one axis over.
+UNTAGGED_CEILING = 8
+
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 
 
@@ -115,6 +146,50 @@ def lag(registry_version: str, tag_names: list[str],
     return len(newer), (f"{len(newer)} tag(s) newer than the published "
                         f"{registry_version}: "
                         f"{', '.join('v%d.%d.%d' % t for t in newer) or '(none)'}")
+
+
+def untagged(commits: int, tag_names: list[str],
+             tag_floor: int | None = None) -> tuple[int, str]:
+    """(commits past the newest tag, explanation) — the distance `lag()` cannot see.
+
+    🔴 THE DENOMINATOR IS THE SAME TAG CORPUS, so it carries the same floor, and for the
+    same reason: a reader whose population has silently emptied answers zero and reads as
+    healthy. `git rev-list --count v0.0.0..HEAD` against a clone with no tags does not
+    fail — it counts the whole history or nothing at all depending on how it is asked,
+    and either answer is a number this file would print beside a 🟢.
+
+    🔴 AND `commits` IS A PARAMETER, NOT A GIT CALL. `lag()`'s docstring records what
+    happened when its floor was a module global the self-test reassigned: three
+    `TAG_FLOOR = ...` statements in one file, two of which no gate could pin. The same
+    rule applies to the reading itself — the pure half is driven by the table below and
+    the impure half is `head_past_newest_tag()`, so the decision is provable without a
+    repository and the repository is read in exactly one place.
+    """
+    floor = TAG_FLOOR if tag_floor is None else tag_floor
+    tags = parse_tags(tag_names)
+    if len(tags) < floor:
+        return -1, (f"the tag population collapsed to {len(tags)} (floor {floor}). "
+                    f"A commit distance measured from a tag that is not there is not a "
+                    f"small number, it is no measurement")
+    if commits < 0:
+        return -1, (f"the commit count came back {commits}, which git does not produce "
+                    f"— treat it as unread rather than as zero")
+    newest = "v%d.%d.%d" % tags[-1]
+    return commits, (f"{commits} commit(s) on HEAD that {newest} does not name"
+                     if commits else f"HEAD is {newest}")
+
+
+def head_past_newest_tag() -> tuple[int, str]:
+    """(commits from the newest vX.Y.Z tag to HEAD, problem) — reads the repository."""
+    tags = parse_tags(git_tags())
+    if not tags:
+        return -1, "no vX.Y.Z tag in this clone — run `git fetch --tags`"
+    newest = "v%d.%d.%d" % tags[-1]
+    r = subprocess.run(["git", "rev-list", "--count", f"{newest}..HEAD"],
+                       cwd=str(ROOT), capture_output=True, text=True)
+    if r.returncode != 0:
+        return -1, f"`git rev-list {newest}..HEAD` exited {r.returncode}"
+    return int(r.stdout.strip() or -1), ""
 
 
 def registry_version() -> str | None:
@@ -176,6 +251,41 @@ SELFTEST = [
      "1.72.7", [], True, -1, False, "tag population collapsed"),
 ]
 
+# 🔴 269 — THE SECOND TABLE, FOR THE SECOND DISTANCE, AND ITS FIRST ROW IS AN ADMISSION.
+#
+# 260's own instance was FOUR commits past the newest tag, and four is inside a ceiling
+# of eight. This ceiling would NOT have refused it, and the row says so out loud rather
+# than being sized down until it did: a ceiling tight enough to refuse four would refuse
+# every ordinary mid-session state, because a session legitimately sits several merges
+# past its last tag while it works. What 260 was missing is not a refusal — it is a
+# NUMBER. `lag` printed 🟢 and nothing anywhere said *and four commits of user-reaching
+# work are past the tag*. That number is printed now, on every run, beside the one it was
+# being mistaken for. The ceiling is for the other failure, the one 248 measured at 26.
+#
+# (name, commits, tags, live_floor, want_distance, want_pass, want_reason_substring)
+UNTAGGED_SELFTEST = [
+    ("🟡 260's OWN INSTANCE — printed, and inside the ceiling; see the note above",
+     4, [f"v1.{n}.0" for n in range(29, 76)], False, 4, True, "does not name"),
+    ("HEAD is the newest tag — the healthy reading",
+     0, ["v1.79.0", "v1.80.0"], False, 0, True, "HEAD is v1.80.0"),
+    ("a session mid-flight, two merges past its tag",
+     2, ["v1.79.0", "v1.80.0"], False, 2, True, "does not name"),
+    ("at the ceiling — the largest healthy interval this repository has cut",
+     UNTAGGED_CEILING, ["v1.74.1", "v1.75.0"], False, UNTAGGED_CEILING, True,
+     "does not name"),
+    ("🔴 one past the ceiling — THE CEILING'S REFUSAL",
+     UNTAGGED_CEILING + 1, ["v1.74.1", "v1.75.0"], False, UNTAGGED_CEILING + 1, False,
+     "does not name"),
+    ("🔴 THE 248 WINDOW — twenty-five commits carrying one user-observable change",
+     26, ["v1.74.0", "v1.74.1"], False, 26, False, "does not name"),
+    ("🔴 a tag list UNDER the floor — THE FLOOR'S REFUSAL",
+     3, ["v1.80.0"], True, -1, False, "tag population collapsed"),
+    ("🔴 an empty tag list cannot anchor a commit distance",
+     3, [], True, -1, False, "tag population collapsed"),
+    ("🔴 a count git could not produce is UNREAD, never zero",
+     -1, ["v1.79.0", "v1.80.0"], False, -1, False, "unread rather than as zero"),
+]
+
 
 def selftest() -> int:
     """Drive `lag()` over the table. Asserts each constant REFUSES, not just that it runs."""
@@ -206,6 +316,39 @@ def selftest() -> int:
               f"({refusals} refusing rows, {floor_rows} floor rows) — a constant with "
               f"no refusing row is a constant nobody re-derives")
         return 1
+
+    # 🆕 269 — the second distance, driven the same way and held to the same rule.
+    print("\n  UNTAGGED — the commits no tag names, which `lag()` cannot see")
+    for name, commits, tags, live_floor, want_d, want_ok, want_msg in UNTAGGED_SELFTEST:
+        d, why = untagged(commits, tags, tag_floor=None if live_floor else 0)
+        ok = 0 <= d <= UNTAGGED_CEILING
+        verdict = "PASS" if ok else "REFUSE"
+        agree = (d == want_d) and (ok == want_ok) and (want_msg.lower() in why.lower())
+        print(f"  {'🟢' if agree else '🔴'} {verdict:<6} past={d:<3} want={want_d:<3} "
+              f"floor={'live' if live_floor else 'off ':<4} {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_msg!r} · got {why!r}")
+    u_refusals = sum(1 for r in UNTAGGED_SELFTEST if not r[5])
+    u_floor_rows = sum(1 for r in UNTAGGED_SELFTEST if r[3])
+    print(f"\n  {len(UNTAGGED_SELFTEST)} rows · {u_refusals} REFUSE · {u_floor_rows} run "
+          f"under the live TAG_FLOOR · "
+          f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
+    if u_refusals < 4 or u_floor_rows < 2:
+        print(f"  🔴 the untagged table has stopped proving what it exists to prove "
+              f"({u_refusals} refusing rows, {u_floor_rows} floor rows)")
+        return 1
+    # 🔴 AND THE TWO CEILINGS MUST NOT BE ONE NUMBER, which is not pedantry. This row
+    # exists because ONE reader was being read as the answer to two questions; two
+    # constants that happened to be equal would invite exactly that collapse back the
+    # next time somebody derived one from the other.
+    if LAG_CEILING == UNTAGGED_CEILING:
+        print(f"  🔴 LAG_CEILING and UNTAGGED_CEILING are both {LAG_CEILING} — they "
+              f"bound populations that go stale in opposite directions, and one number "
+              f"for both is how 260 happened")
+        return 1
+    print(f"\nREGISTRY_LAG_SELFTEST {len(SELFTEST) + len(UNTAGGED_SELFTEST)} rows · "
+          f"{refusals + u_refusals} REFUSE")
     return 1 if bad else 0
 
 
@@ -258,6 +401,31 @@ def main() -> int:
               f"window), or raise LAG_CEILING ON PURPOSE.", file=sys.stderr)
         return 1
     print(f"              🟢 within ceiling")
+
+    # 🆕 269 — AND THE OTHER DISTANCE, ALWAYS PRINTED, WHETHER OR NOT IT REFUSES. That is
+    # the whole of what 260 was missing: `lag` said 🟢 twice around a publish that shipped
+    # a tree four commits past its own tag, and no line anywhere carried the four. A
+    # number printed beside the one it is mistaken for is what stops the mistake.
+    n, problem = head_past_newest_tag()
+    if problem:
+        print(f"\n🔴 REGISTRY_LAG REFUSED — {problem}", file=sys.stderr)
+        return 1
+    u, u_why = untagged(n, git_tags())
+    print(f"              untagged {u} · ceiling {UNTAGGED_CEILING} — {u_why}")
+    if u < 0:
+        print(f"\n🔴 REGISTRY_LAG REFUSED: {u_why}", file=sys.stderr)
+        return 1
+    if u > UNTAGGED_CEILING:
+        print(f"\n🔴 REGISTRY_LAG REFUSED — {u} commit(s) past the newest tag, ceiling "
+              f"is {UNTAGGED_CEILING}.\n"
+              f"  `lag` above cannot see these: it counts TAGS the registry has not "
+              f"got, so work that was never tagged is invisible to it\n"
+              f"  in both directions — 🟢 before a publish that shipped it and 🟢 after "
+              f"(260). Cut and tag a release, or raise\n"
+              f"  UNTAGGED_CEILING ON PURPOSE. Do not read the green above as an answer "
+              f"to this question.", file=sys.stderr)
+        return 1
+    print("              🟢 within untagged ceiling")
     return 0
 
 

@@ -287,6 +287,22 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      "`CHECKS_RUN n/n`. Both halves, because the pair going equal-but-smaller is a check "
      "that quietly stopped being reached — 196 §2's datum, which is the whole reason the "
      "line prints a ratio instead of a count."),
+    # 🆕 269 — check 32's line, WHICH 268 PUT IN ITS BLOCK AND NEVER GAVE A ROW. That is
+    # how `--open` refused at this session's pickup: `error-code discipline 54 reads / 29
+    # raise sites / 0 problems` bound to nothing, so the one number in it that can go
+    # non-zero was a sentence rather than a claim. All five halves are read, because the
+    # populations are the part that can quietly collapse — `0 problem(s)` over a scan that
+    # found no raise sites and no codes is the empty-population green this whole file
+    # exists to refuse, and 267's finding is that it looks exactly like a clean one.
+    ("contract.error_codes", r"error-code discipline", 5,
+     ("python3", "../scripts/contract_check.py"), HOST,
+     r"^Error-code discipline\s*: (\d+) message read\(s\) scanned · (\d+) raise site\(s\) "
+     r"judged · (\d+) host-origin code\(s\) vs (\d+) addon · (\d+) problem\(s\)",
+     CHEAP, SINCE(269),
+     "`error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 53 addon / 0 "
+     "problems`. SINCE 269 because 268 is the first block to carry the line and it "
+     "carries a three-number spelling this reader does not extract — the row is declared "
+     "from the session that made the print match it."),
 
     # ── floor_pin_gate.py ─────────────────────────────────────────────────────────────
     ("floor_pin.targets", r"\bfloor_?pin\b", 1, ("python3", "scripts/floor_pin_gate.py"), ROOT,
@@ -994,6 +1010,114 @@ def block_main(session: int) -> "tuple[str, str]":
     return (shas[0], "")
 
 
+def population_block_shape() -> "list[str]":
+    """Every block in `BLOCK_POPULATION`, judged by the rules a LIVE block is judged by.
+
+    🔴 269 — AND THE FILE EVERY SESSION STANDS ON WAS THE ONE ARTIFACT NO GATE IN THE
+    RITUAL EVER READ. This module has a close path — the roster of REQUIRED counters, the
+    header floor, the rule that every atom must bind to a reader — and 268's own handoff
+    fails five of those claims. It shipped anyway, and the next session stood on it.
+
+    The mechanism is boring and total. `HANDOFF*.md` is in `.gitignore`, so no CI job can
+    see the document. The replay script runs `handoff_gate.py --selftest` and
+    `--patterns`, which prove the gate's PREDICATES on fixtures; neither of them is the
+    gate pointed at the block being written. The close path is real and correct and is
+    invoked, in practice, by the NEXT session at pickup — after the block has been
+    published, acted on, and used as the base for a release.
+
+    So 268's block dropped `ci.checks`, `instrument.not_loaded` and
+    `instrument.late_constructed`; carried one header atom against a floor of two;
+    invented `error-code discipline …` as a counter with no reader; and abbreviated its
+    replay list to *267's plus one, in full, in the script*, which `REPLAY_MISSING`
+    refuses in thirty-five places and 248 had already written down as a rule. 267's block,
+    run through the same path on the same tree, has none of it.
+
+    🔴 THE REPAIR IS THE POPULATION THAT WAS ALREADY HERE. 253's rule already requires the
+    previous block to be copied into `BLOCK_POPULATION` BEFORE the replay — so every block
+    enters the tree exactly one session after it ships, and from that moment CI can read
+    it. This is the reader. A block that shipped non-conformant is caught by the session
+    after it, by a machine, instead of by whoever next happens to run `--open` and read
+    past a green summary.
+
+    It cannot catch a block in the session that WROTE it — nothing in-tree can, while the
+    document is gitignored — and that is stated rather than papered over: the guarantee is
+    one session of lag, which is 253's rule turned from bookkeeping into a check. Running
+    the close gate on your own handoff before you ship it is still the ritual's job, and
+    §7.1 now says so.
+
+    Judged here: every atom binds; every counter REQUIRED of that block's session is
+    present; the header carries at least `HEADER_FLOOR` atoms. The replay list is NOT
+    judged — a block records a replay that ran against the tree of its own session, and
+    `ci.yml` has moved since, so re-reading it here would refuse old blocks for the
+    workflow changing underneath them. That exclusion is a property of what the roster
+    compares against, not a taste, which is why it is written down instead of rostered.
+
+    🔴 AND THE START OF THE POPULATION IS MEASURED, NOT CHOSEN. Run over all forty-one
+    blocks the first time, this reader returned forty-seven problems and every single one
+    of them was a DROPPED COUNTER on blocks 227–232 — a roster that has grown since,
+    against blocks that were correct about their own trees. Zero atom-binding failures and
+    zero header shortfalls, across all forty-one. Blocks 233 through 267 are clean on
+    every claim, thirty-five in a row. So the boundary is 233, the number the population
+    itself names, and it is the same session the `SINCE` convention already turns on for
+    exactly this reason. A boundary picked to make a gate green is an exemption; this one
+    is where the evidence changes, and the six blocks below it are history rather than
+    debt.
+    """
+    problems: "list[str]" = []
+    for session, text in BLOCK_POPULATION:
+        if session < POPULATION_SHAPE_FROM:
+            continue
+        block, why = status_block(text)
+        if why:
+            problems.append(f"block {session}: {why}")
+            continue
+        atoms, why = counter_atoms(block)
+        if why:
+            problems.append(f"block {session}: {why}")
+            continue
+        bound: "set[str]" = set()
+        for atom in atoms:
+            key, atom_why = bind(atom)
+            if atom_why:
+                problems.append(
+                    f"block {session} claims {atom!r}, which binds to NO reader — a "
+                    f"counter no instrument prints, shipped in the one document the "
+                    f"next session stands on")
+                continue
+            bound.add(key)
+        for key, _alias, _n, _cmd, _cwd, _ex, _cost, need, _why in COUNTER_READERS:
+            if needed(need, session) == REQUIRED and key not in bound:
+                problems.append(
+                    f"block {session} dropped `{key}`, a counter REQUIRED of it — a "
+                    f"status block quietly ceasing to report a field, which is the "
+                    f"class this whole module exists to refuse")
+        h_atoms, _exempt = header_atoms(block)
+        if len(h_atoms) < HEADER_FLOOR:
+            problems.append(
+                f"block {session} carries {len(h_atoms)} header atom(s) against a floor "
+                f"of {HEADER_FLOOR} — a parse that found fewer has stopped reading the "
+                f"header rather than found a block without one")
+    # 🔴 THE DEBT IS SUBTRACTED HERE AND CHECKED IN BOTH DIRECTIONS. A declared failure
+    # that no longer happens is refused just as loudly as an undeclared one: the first
+    # would mean a block in this tree had been edited to make a gate green, which is the
+    # one repair this reader must never accept.
+    kept: "list[str]" = []
+    for p in problems:
+        declared = [d for row in POPULATION_SHAPE_DEBT.values() for d in row
+                    if p.startswith(d)]
+        if not declared:
+            kept.append(p)
+    for session, row in sorted(POPULATION_SHAPE_DEBT.items()):
+        for d in row:
+            if not any(p.startswith(d) for p in problems):
+                kept.append(
+                    f"POPULATION_SHAPE_DEBT declares {d!r} and block {session} no longer "
+                    f"fails it. Either the reader stopped looking, or a block that has "
+                    f"already shipped was edited to make this gate green — the debt row "
+                    f"is the record of what was published, not a target to drive to zero")
+    return kept
+
+
 def moved_interval(block: "list[str]", session: "int | None" = None,
                    root: Path = ROOT) -> "tuple[int, str]":
     """(commits between the previous block's main and this one's, problem) — TREE.
@@ -1199,6 +1323,51 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
 ]
 
 HEADER_FLOOR = 2   # governed by floor_pin_gate's SIZE_LEDGER
+# 🆕 269 — the first block `population_block_shape` judges. MEASURED and not chosen: run
+# over all forty-one shipped blocks, that reader's only complaints were dropped counters
+# on 227-232, against a roster that has grown since; 233 through 267 are clean on every
+# claim, thirty-five consecutively. The number is where the evidence changes, and it is
+# the same session `SINCE` already turns on. Governed by floor_pin_gate's SIZE_LEDGER.
+POPULATION_SHAPE_FROM = 233
+
+# 🔴 269 — THE DEBT, WHICH IS THE FINDING ITSELF IN A FORM A MACHINE READS.
+#
+# `population_block_shape` refuses a shipped block that fails a claim the close path
+# already makes. Block 268 fails five of them, and it is in this tree because 253's rule
+# copies every block here one session after it ships. That leaves two honest options and
+# one dishonest one. The dishonest one is to CORRECT the block: it would make the gate
+# green over a document that never existed, and the whole point of the population is that
+# it is what actually shipped. The two honest ones are to refuse forever or to write the
+# failure down. This is the second, and the row is the measurement:
+#
+#   • `ci.checks` — the block spelled `26/26 green` on its `main` row and no atom in it
+#     reaches the derived CI counter, which 234 had to reconstruct by hand once already;
+#   • `instrument.not_loaded` and `instrument.late_constructed` — carried by every block
+#     since 233 and 246 respectively, and simply absent here;
+#   • the header carried ONE atom against a floor of two, because the npm row lost `lag`
+#     and `tags`.
+#
+# The fifth failure — `error-code discipline 54 reads / 29 raise sites / 0 problems`,
+# a counter 268 wrote into its block and never gave a row — is NOT here, because it was
+# ADMITTED rather than exempted: `contract.error_codes` is in `COUNTER_READERS` now, the
+# atom binds, and the claim stops failing because the tree gained the reader 268 owed it.
+# That is the difference this table is for. A missing reader is a gap in this file and
+# gets closed; a counter a published block never printed is a fact about a document
+# nobody may edit, and gets written down.
+#
+# 🔴 IT IS SELF-CLEARING, WHICH IS THE ONLY THING THAT KEEPS A ROSTER LIKE THIS HONEST. A
+# row naming a claim the block now passes is itself a REFUSAL, so this table cannot rot
+# into a general permission — it can only shrink, and it can only shrink by the block
+# changing, which nobody should do. A second row here means a second session shipped a
+# block nothing read, and that is a finding and not a maintenance task.
+POPULATION_SHAPE_DEBT: "dict[int, tuple[str, ...]]" = {
+    268: (
+        "block 268 dropped `ci.checks`",
+        "block 268 dropped `instrument.not_loaded`",
+        "block 268 dropped `instrument.late_constructed`",
+        "block 268 carries 1 header atom(s) against a floor of 2",
+    ),
+}
 
 
 # ── 🔴 238 §2 — TWO CLAIMS THE BLOCK WROTE WITHOUT A SEPARATOR ────────────────────────
@@ -2443,6 +2612,11 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
     ("exempt 36", "floor_pin.exempt", ""),
     ("term 275 file(s) / 21 suffixes", "term.swept", ""),
     ("26 CI jobs", "ci.checks", "the derived counter"),
+    ("error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 53 addon / 0 problems",
+     "contract.error_codes",
+     "🔴 CARRIES `code` AND MUST NOT REACH `contract.checks`, whose alias is the word "
+     "`contract` — 268 wrote this line into its block with no row at all, so the first "
+     "thing pinned about it is that it binds to one reader and not to none"),
     ("wire_invisible 27 + live", "wire_invisible.cases", "233's spelling"),
     ("wire_invisible 27 cases + live ok", "wire_invisible.cases",
      "🔴 231's SPELLING OF THE SAME CLAIM — the drift the alias exists to absorb"),
@@ -3502,8 +3676,30 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · release_names 61/33 · queue 42/42 claims · handoff 318 claims · 26 CI jobs
 > ```
 """),
+    (268, """> ```
+> main                 4820efb — the branches that answered to English (#329)   MERGED
+>                      26/26 green · branch deleted
+> branch 268           none live — this session's work is on main
+> tag                  🟢 v1.80.0 ANNOTATED at 4820efb, declaring its own release commit
+> host / addon         1.80.0 / 1.11.0  🟢 HOST MOVED, this session's own cut; addon
+>                      unmoved, still stamped at ca2d5d8, C4_OK — no second Asset Library
+>                      submission is owed while 1.11.0 is in review
+> npm                  🟡 1.80.0 · registry 1.79.0 — PUBLISH OWED, needs his TTY
+> 🟢 VERIFIED AFTER THE CHANGE   903/903 · contract 29/29 · scope 49 · control 71
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1691
+>               · py gates 18/4/14 · SIG 134/105
+>               · discover 53/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 104 · 48 governed · 1202 keys · 96 shortfalls
+>               · unswept 0 · exempt 39 · term 308 file(s) / 21 suffixes
+>               · seal 104 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3680 nodes / 20 keys / 0 unread
+>               · wire_invisible 326 refinements · lint_ceiling 18 py / 65 mjs
+>               · taut 4726 · mutlock 5 guarded · tree_quiet 13
+>               · release_names 61/33 · queue 91 rows / 21 OPEN · handoff 319 claims
+>               · error-code discipline 54 reads / 29 raise sites / 0 problems
+> ```
+"""),
 ]
-
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
 # 🔴 EVERY FLOOR THIS FILE HAS ON `BLOCK_POPULATION` IS A FLOOR ON ITS WIDTH.
@@ -3797,7 +3993,14 @@ def selftest() -> int:
             if key:
                 reached.add(key)
             elif "binds to NO reader" in problem:
-                unbound.append(f"{sess}: {a!r}")
+                # 🆕 269 — an unbound atom this table already declares is not evidence
+                # that an alias is too narrow. This claim's whole argument is that a
+                # spelling the roster cannot read means the ROSTER is wrong, which holds
+                # for a block written in good English and fails for 268's invented
+                # counter: there is no reader because 268 added a line and no row. The
+                # debt says which, so the alias does not move to accommodate it.
+                if not any(a in d for d in POPULATION_SHAPE_DEBT.get(sess, ())):
+                    unbound.append(f"{sess}: {a!r}")
             else:
                 ambiguous.append(f"{sess}: {a!r}")
 
@@ -4939,7 +5142,16 @@ def selftest() -> int:
             continue
         n = int(m.group(1))
         claims += 1
-        missing = sorted(s for s, ks in carried.items() if s >= n and key not in ks)
+        # 🆕 269 — a block whose omission is DECLARED in `POPULATION_SHAPE_DEBT` is not
+        # evidence that the boundary is wrong. This claim reads a missing counter as *the
+        # SINCE row was set too early*, which is the right reading for a block that
+        # predates the counter and the wrong one for a block that simply dropped it: 268
+        # is the second, it is written down as the second, and letting it argue here would
+        # make the roster move to accommodate a defect.
+        missing = sorted(s for s, ks in carried.items()
+                         if s >= n and key not in ks
+                         and not any(f"`{key}`" in d
+                                     for d in POPULATION_SHAPE_DEBT.get(s, ())))
         if missing:
             failed += 1
             print(f"  🔴 SINCE_FORWARD `{key}` is REQUIRED from {n} and block(s) "
@@ -4966,10 +5178,16 @@ def selftest() -> int:
     # struck all three rather than restate them unread. A boundary row per counter is the
     # only honest shape — every block in the table predates them — and the pin moves in the
     # commit that adds them, which is what makes it a record rather than a restatement.
-    if len(since_rows) != 10:
+    # 🆕 269 — TEN BECAME ELEVEN. `contract.error_codes` is declared `SINCE(269)` and not
+    # flat REQUIRED, because 268 IS in the population and DOES carry the line — in a
+    # three-number spelling this reader's extract does not read. A flat row would refuse
+    # the block that introduced the counter, which is the exact failure mode the boundary
+    # convention exists for and the reason the pin moves in the commit that adds the row.
+    if len(since_rows) != 11:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 10 — "
-              f"237 §3 measured six and 246 added four; the table is the only record of which")
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 11 — "
+              f"237 §3 measured six, 246 added four and 269 added one; the table is the "
+              f"only record of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))
@@ -5159,6 +5377,49 @@ def selftest() -> int:
     if got or not any("TIER1" in n for n in notes):
         failed += 1
         print("  🔴 TIER1_CLEAN — a TIER1 declaration needs no log and must not refuse")
+
+    # ── 🆕 269: THE SHIPPED BLOCKS, JUDGED BY THE RULES THEY WERE WRITTEN UNDER ───────
+    #
+    # 🔴 THE ONE DOCUMENT EVERY SESSION STANDS ON WAS THE ONE ARTIFACT NO GATE EVER READ,
+    # and 268's block is the evidence: it dropped three REQUIRED counters, carried one
+    # header atom against a floor of two, invented a counter that binds to no reader, and
+    # abbreviated a replay list 248 had already written a rule about. Every one of those
+    # is refused by the close path in this file. None of them was refused, because
+    # `HANDOFF*.md` is gitignored — CI cannot see it — and the replay runs `--selftest`
+    # and `--patterns`, which prove this gate's predicates on fixtures rather than
+    # pointing it at the block being written. The close path's real first reader is the
+    # NEXT session, at pickup, after the block has been published and acted on.
+    #
+    # `BLOCK_POPULATION` is the repair, and it was already here. 253's rule copies each
+    # block into this tree one session after it ships, so CI can read it from then on.
+    # The guarantee is one session of lag and it is stated rather than papered over —
+    # running the close gate on your own handoff before shipping it is still the ritual's
+    # job, and §7.1 says so now.
+    claims += 1
+    shape = population_block_shape()
+    if shape:
+        failed += 1
+        print(f"  🔴 POPULATION_SHAPE {len(shape)} problem(s) in shipped blocks: "
+              + "; ".join(p[:140] for p in shape[:4]))
+    # 🔴 AND THE POSITIVE CONTROL, because a reader that judged nothing would print the
+    # same green. A block with its counter line emptied to a single unbound atom must be
+    # refused on all three arms at once — the class 268 shipped, constructed here so the
+    # reader cannot pass by looking at an empty population.
+    claims += 1
+    _mutant = [(POPULATION_SHAPE_FROM, "> ```\n> 🟢 VERIFIED   nonsense 7 widgets\n> ```\n")]
+    _real, globals()["BLOCK_POPULATION"] = BLOCK_POPULATION, _mutant
+    _real_debt, globals()["POPULATION_SHAPE_DEBT"] = POPULATION_SHAPE_DEBT, {}
+    try:
+        _got = population_block_shape()
+    finally:
+        globals()["BLOCK_POPULATION"] = _real
+        globals()["POPULATION_SHAPE_DEBT"] = _real_debt
+    if not any("binds to NO reader" in p for p in _got) \
+            or not any("dropped" in p for p in _got) \
+            or not any("header atom" in p for p in _got):
+        failed += 1
+        print(f"  🔴 POPULATION_SHAPE_CONTROL a block claiming one unbound atom and "
+              f"nothing else was not refused on all three arms: {_got[:3]}")
 
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed")
     return 1 if failed else 0

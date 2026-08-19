@@ -337,6 +337,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # governs is 1.08x where 207 measured 1.20x.
     ("SCHEMA_PER_TOOL_CEILING", f"{S}/token-cost.mjs",              r"(export const SCHEMA_PER_TOOL_CEILING = )490;",            [f"{S}/token-cost.selftest.mjs"]),
     ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
+    ("UNTAGGED_CEILING",         "../scripts/registry_lag.py",             r"(UNTAGGED_CEILING = )8",                                   ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 213 §2 — THE REGISTRY-BYTES READER'S FLOOR. Its verdict is a COUNT OF
     # DIFFERENCES and zero is the healthy reading, so 181 §5's problem applies to the
     # POPULATION rather than to the answer: two EMPTY trees are byte-identical by
@@ -1436,6 +1437,16 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "incident it exists to catch: publishing stopped and the very next cut was "
         "already one behind, so a ceiling this low refuses within the first week while "
         "still admitting a same-session patch burst.")),
+    ("../scripts/registry_lag.py", "UNTAGGED_CEILING"): (8, (
+        "A CEILING and a budget, at `{FLOOR}` — how many commits past the newest tag "
+        "this repository will tolerate before a release cut refuses. It bounds the "
+        "distance `LAG_CEILING` cannot see, and the two are deliberately different "
+        "numbers: they go stale in opposite directions, so one ceiling over their sum "
+        "would let either be hidden by the other going green. Sized against MEASURED "
+        "history rather than picked — every interval between consecutive tags across "
+        "the last twenty-five releases is seven or under except one, which is the "
+        "window a much earlier session measured as twenty-five commits carrying "
+        "exactly one change a user could observe.")),
     ("../scripts/release_names.py", "NAME_FLOOR"): (5, (
         "The vocabulary a released CHANGELOG block must name before check one will "
         "make a claim about it, at `{FLOOR}`. 🔴 215 §3 — THIS IS THE FLOOR THAT "

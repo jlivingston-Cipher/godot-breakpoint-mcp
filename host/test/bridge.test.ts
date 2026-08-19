@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
-import { BridgeClient, BridgeError, BRIDGE_WRITE_FAILED, WRITE_FAILED_REMEDY, writeFailedMessage } from "../src/bridge.js";
+import { BridgeClient, BridgeError, BRIDGE_SEND_FAILED, SEND_FAILED_REMEDY, sendFailedMessage } from "../src/bridge.js";
 import { startTcpServer, makeLineParser, writeLine, waitFor, type TcpServer } from "./helpers/tcp.js";
 
 interface BridgeReq { id: string; method: string; params: Record<string, unknown> }
@@ -369,7 +369,7 @@ test("the late-reply ledger is bounded and keeps the most recent entries", async
  * is not exotic — it is what a shutdown mid-request looks like. Driven through the real
  * client below rather than described.
  */
-test("268: a request torn down inside request()'s await gap reaches write_failed, not bridge_closed", async () => {
+test("268: a request torn down inside request()'s await gap reaches send_failed, not bridge_closed", async () => {
   const srv = net.createServer((s) => { s.on("error", () => { /* the client is going away */ }); });
   await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
   const { port } = srv.address() as net.AddressInfo;
@@ -385,7 +385,7 @@ test("268: a request torn down inside request()'s await gap reaches write_failed
     const err = await inflight;
 
     assert.ok(err instanceof BridgeError, "the caller must receive a BridgeError");
-    assert.equal(err.code, "write_failed", "this is the branch 265 could not reach");
+    assert.equal(err.code, "send_failed", "this is the branch 265 could not reach, renamed off the addon's word at 269");
     // 🔴 THE SENTENCE IS THE DELIVERABLE. It used to be node's own
     // `Cannot call write after a stream was destroyed` — a true statement about a Node
     // stream that tells the caller of a tool nothing about their call.
@@ -400,8 +400,8 @@ test("268: a request torn down inside request()'s await gap reaches write_failed
 });
 
 test("268: and the remedy rides in the FIELD, so check 28 can read it and a reword cannot drop it", () => {
-  const e = new BridgeError(BRIDGE_WRITE_FAILED, writeFailedMessage("node_add", new Error("boom")), WRITE_FAILED_REMEDY);
-  assert.equal(e.remedy, WRITE_FAILED_REMEDY);
+  const e = new BridgeError(BRIDGE_SEND_FAILED, sendFailedMessage("node_add", new Error("boom")), SEND_FAILED_REMEDY);
+  assert.equal(e.remedy, SEND_FAILED_REMEDY);
   assert.doesNotMatch(e.message, /Retry the call/, "the next action must not ALSO sit in the message body");
   assert.match(e.message, /\(boom\)/, "node's own words are kept, in a parenthetical rather than as the whole answer");
 });
