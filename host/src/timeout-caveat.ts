@@ -41,15 +41,26 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { annotationsFor } from "./annotations.js";
+import { BRIDGE_TIMEOUT_CODE, bridgeErrorLabel } from "./bridge.js";
 
 /**
  * The marker identifying a bridge timeout envelope, built by
  * `tools/editor/common.ts`'s `fail()`. Deliberately narrow: LSP and DAP timeouts
- * are a different transport with a different failure mode (no editor-side
- * mutation is implied), and `tools/dap.ts:29` / `tools/csdap.ts:31` branch on
- * their own `/timed out after/` predicate, which this must not disturb.
+ * are a different transport with a different failure mode — no editor-side
+ * mutation is implied — and the two DAP planes classify their own by
+ * `DapError.code`, which this neither reads nor disturbs.
+ *
+ * 🔴 **DERIVED SINCE 268; A HAND-COPIED LITERAL BEFORE IT.** This constant used to
+ * spell `Bridge error [timeout]` out, here, while the template producing it lives in
+ * `tools/editor/common.ts` and the code it embeds is raised in `bridge.ts`. Three
+ * files, one sentence, nothing joining them — so a reword of `fail()`'s label would
+ * have left this matching nothing, and the caveat that tells a caller their timed-out
+ * `node_add` may ALREADY have landed would have gone quiet on every mutating tool
+ * with the whole suite still green. `dap-timeout-predicate-reads-prose` with a hundred
+ * times the blast radius, found only by asking what ELSE in the tree decides behaviour
+ * by matching English.
  */
-const BRIDGE_TIMEOUT_MARK = "Bridge error [timeout]";
+const BRIDGE_TIMEOUT_MARK = bridgeErrorLabel(BRIDGE_TIMEOUT_CODE);
 
 /** Mutating, but repeating it lands in the same state — retrying is safe. */
 export const CAVEAT_IDEMPOTENT =

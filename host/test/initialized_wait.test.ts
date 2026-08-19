@@ -4,7 +4,14 @@ import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DapClient, unorderedHandshakeWarning, INITIALIZED_WAIT_CEILING_MS } from "../src/dap.js";
+import {
+  DapClient,
+  DapError,
+  DAP_TIMEOUT_CODE,
+  DAP_UNANNOUNCED_CODE,
+  unorderedHandshakeWarning,
+  INITIALIZED_WAIT_CEILING_MS,
+} from "../src/dap.js";
 import { CsDapClient } from "../src/csdap.js";
 import { registerDapTools } from "../src/tools/dap.js";
 import { registerCsDapTools } from "../src/tools/csdap.js";
@@ -26,8 +33,14 @@ import { FramedConnection } from "../src/framing.js";
  * at the caller as the identical value.
  *
  * The fixtures below use a 200 ms client deadline, so the silent case costs 200 ms rather
- * than five seconds: the window is `min(timeoutMs, 5000)` and the test asserts on the
- * number actually waited, not on a literal.
+ * than five seconds, and every test asserts on the number actually waited, not on a literal.
+ *
+ * 🔴 268 SPLIT THIS FILE IN TWO, AND THE SPLIT IS THE POINT. 267's tests now run under
+ * `GODOT_DAP_REQUIRE_INITIALIZED=0` — they are the OPT-OUT's contract, preserved exactly,
+ * including the `min(timeoutMs, 5000)` window their warnings print. The 268 tests at the
+ * foot of the file are the shipped default: the session is REFUSED, the wait runs to the
+ * caller's own deadline instead of a five-second ceiling, and `configurationDone` is
+ * asserted ABSENT rather than merely late.
  */
 
 const WAIT_MS = 200;
@@ -117,10 +130,24 @@ before(async () => {
   });
 });
 
-function cfg(): Config {
+/**
+ * 🔴 `requireInitialized` IS AN EXPLICIT ARGUMENT AT EVERY CALL BELOW, NEVER A DEFAULT.
+ * 268 made refusal the shipped default, so a test that omits it is asserting whichever
+ * behaviour `loadConfig()` happens to produce — which is exactly the shape of the defect
+ * 267 §5 found one file over, where a fixture spread `loadConfig()` and inherited the
+ * developer's machine. Each test below states which of the two contracts it is testing.
+ */
+function cfg(requireInitialized: boolean): Config {
   cfgDir ??= fs.mkdtempSync(path.join(os.tmpdir(), "gcb-init-"));
   fs.writeFileSync(path.join(cfgDir, "project.godot"), "config_version=5\n");
-  return { ...loadConfig(), projectPath: cfgDir, csDapProjectPath: cfgDir, runtimeHost: "127.0.0.1", runtimePort: freeRuntimePort };
+  return {
+    ...loadConfig(),
+    projectPath: cfgDir,
+    csDapProjectPath: cfgDir,
+    runtimeHost: "127.0.0.1",
+    runtimePort: freeRuntimePort,
+    dapRequireInitialized: requireInitialized,
+  };
 }
 
 // ------------------------------------------------------------------- the sentence
@@ -147,7 +174,7 @@ test("267: dbg_launch reports initialized_seen true when the adapter announces i
   const { srv, order } = await adapter(true);
   const dap = new DapClient("127.0.0.1", srv.port, WAIT_MS);
   const rec = makeRecordingServer();
-  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg());
+  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(true));
 
   await withTeardown([() => dap.close(), () => srv.close()], async () => {
     const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
@@ -160,11 +187,11 @@ test("267: dbg_launch reports initialized_seen true when the adapter announces i
   });
 });
 
-test("267: dbg_launch reports initialized_seen FALSE and warns when the event never comes", async () => {
+test("267: under the opt-out, dbg_launch reports initialized_seen FALSE and warns when the event never comes", async () => {
   const { srv, order } = await adapter(false);
   const dap = new DapClient("127.0.0.1", srv.port, WAIT_MS);
   const rec = makeRecordingServer();
-  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg());
+  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(false));
 
   await withTeardown([() => dap.close(), () => srv.close()], async () => {
     const began = Date.now();
@@ -175,9 +202,12 @@ test("267: dbg_launch reports initialized_seen FALSE and warns when the event ne
     assert.equal(out.initialized_seen, false);
     assert.match(String(out.warning), /did not announce itself/);
     assert.match(String(out.warning), new RegExp(`within ${WAIT_MS}ms`));
-    // 🔴 THE LAUNCH STILL SUCCEEDS. Reported, not refused — an adapter that works today
-    // keeps working, and this assertion is what stops a future session quietly turning the
-    // report into a refusal without deciding to.
+    // 🔴 THE LAUNCH STILL SUCCEEDS **ON THIS PATH**, AND ONLY ON THIS PATH. 267 wrote
+    // here that this assertion "stops a future session quietly turning the report into a
+    // refusal without deciding to". It did its job: 268 turned it into a refusal, was
+    // stopped by this line, and the refusal was DECIDED — he took it when it was offered
+    // at pickup. The contract this test now defends is the opt-out, which exists to
+    // reproduce 267's behaviour exactly, down to the window its warning prints.
     assert.notEqual(res.isError, true);
     // The handshake DID run out of order, and the order is asserted rather than described:
     // this is the defect, not the fix.
@@ -187,13 +217,13 @@ test("267: dbg_launch reports initialized_seen FALSE and warns when the event ne
   });
 });
 
-test("267: the two dbg_launch answers DIFFER — a constant true or false would pass one alone", async () => {
+test("267: under the opt-out, the two dbg_attach answers DIFFER — a constant true or false would pass one alone", async () => {
   const announced = await adapter(true);
   const silent = await adapter(false);
   const run = async (srv: TcpServer): Promise<unknown> => {
     const dap = new DapClient("127.0.0.1", srv.port, WAIT_MS);
     const rec = makeRecordingServer();
-    registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg());
+    registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(false));
     return withTeardown([() => dap.close()], async () => {
       const res = (await rec.handler("dbg_attach")({})) as ToolResultLike;
       return (res.structuredContent as Record<string, unknown>).initialized_seen;
@@ -210,14 +240,14 @@ test("267: the two dbg_launch answers DIFFER — a constant true or false would 
 
 // ------------------------------------------------------------ C# plane, both directions
 
-test("267: cs_dbg_launch reports initialized_seen in both directions", async () => {
+test("267: under the opt-out, cs_dbg_attach reports initialized_seen in both directions", async () => {
   const announced = await adapter(true);
   const silent = await adapter(false);
   const run = async (srv: TcpServer): Promise<Record<string, unknown>> => {
     const conn = new FramedConnection("127.0.0.1", srv.port, "C# DAP", "hint");
     const cs = new CsDapClient(conn, WAIT_MS);
     const rec = makeRecordingServer();
-    registerCsDapTools(rec.server as unknown as Parameters<typeof registerCsDapTools>[0], cs, cfg());
+    registerCsDapTools(rec.server as unknown as Parameters<typeof registerCsDapTools>[0], cs, cfg(false));
     return withTeardown([() => conn.close()], async () => {
       const res = (await rec.handler("cs_dbg_attach")({ process_id: process.pid })) as ToolResultLike;
       return res.structuredContent as Record<string, unknown>;
@@ -233,4 +263,139 @@ test("267: cs_dbg_launch reports initialized_seen in both directions", async () 
     assert.match(String(bad.warning), new RegExp(`within ${WAIT_MS}ms`));
     assert.notEqual(good.initialized_seen, bad.initialized_seen);
   });
+});
+
+// ------------------------------------------ 268: the refusal, which is now the default
+
+/**
+ * 🔴 268 — REFUSED, NOT REPORTED, AND THE OBJECTION 267 RAISED IS PAID RATHER THAN
+ * ACCEPTED. 267 took the report because "refusing outright would have broken every
+ * adapter in the field to fix a silence" — true of a refusal that kept the five-second
+ * ceiling, and the ceiling is what 268 dropped. The wait now runs to the caller's OWN
+ * declared `dapTimeoutMs`, so an adapter that is merely slow SUCCEEDS where it used to be
+ * configured out of order at five seconds and told nobody. Only an adapter that never
+ * announces itself at all is refused, and the sentence names both ways out.
+ */
+
+test("268: dbg_launch REFUSES a session whose adapter never announces itself", async () => {
+  const { srv, order } = await adapter(false);
+  const dap = new DapClient("127.0.0.1", srv.port, WAIT_MS);
+  const rec = makeRecordingServer();
+  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(true));
+
+  await withTeardown([() => dap.close(), () => srv.close()], async () => {
+    const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    assert.equal(res.isError, true);
+    const text = res.content![0].text!;
+    assert.match(text, /never emitted `initialized`/);
+    // The window named is the one actually waited — the caller's deadline, not the ceiling.
+    assert.match(text, new RegExp(`within ${WAIT_MS}ms`));
+    assert.doesNotMatch(text, /within 5000ms/);
+    // Both ways out, because the host cannot tell a slow adapter from a silent one.
+    assert.match(text, /GODOT_DAP_TIMEOUT_MS/);
+    assert.match(text, /GODOT_DAP_REQUIRE_INITIALIZED=0/);
+    // 🔴 AND THE HANDSHAKE STOPPED BEFORE THE DEFECT. `configurationDone` is the request
+    // that completes a session the caller has just been told did not start; asserting its
+    // ABSENCE is the difference between refusing and merely reporting late.
+    assert.deepEqual(order, ["initialize", "launch"]);
+  });
+});
+
+test("268: the refusal leaves no session behind — the tools' own guard refuses afterwards", async () => {
+  const { srv } = await adapter(false);
+  const dap = new DapClient("127.0.0.1", srv.port, WAIT_MS);
+  const rec = makeRecordingServer();
+  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(true));
+
+  await withTeardown([() => dap.close(), () => srv.close()], async () => {
+    await rec.handler("dbg_launch")({ scene: "main" });
+    // 263's rule: a state left reading `running` by a session that never started unlocks
+    // every later tool. `dbg_continue` is the one that measured it.
+    assert.equal(dap.state, "terminated");
+    const after = (await rec.handler("dbg_continue")({})) as ToolResultLike;
+    assert.equal(after.isError, true);
+  });
+});
+
+test("268: a SLOW adapter now succeeds where the five-second ceiling used to configure it out of order", async () => {
+  // Announces at 120 ms — past any ceiling this test could set below it, inside the
+  // caller's own 400 ms deadline. This is the population 267 declined to break, and the
+  // reason the refusal did not simply inherit the old window.
+  const order: string[] = [];
+  const srv = await startTcpServer((s) => {
+    const parse = makeFrameParser((m) => {
+      const msg = m as unknown as { seq: number; type: string; command?: string };
+      if (msg.type !== "request" || !msg.command) return;
+      order.push(msg.command);
+      if (msg.command === "initialize") {
+        dapResponse(s, msg as never, { supportsConfigurationDoneRequest: true });
+        setTimeout(() => writeFrame(s, { seq: 0, type: "event", event: "initialized", body: {} }), 120);
+        return;
+      }
+      dapResponse(s, msg as never, {});
+    });
+    s.on("data", (c) => parse(Buffer.from(c)));
+  });
+  const dap = new DapClient("127.0.0.1", srv.port, 400);
+  const rec = makeRecordingServer();
+  registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(true));
+
+  await withTeardown([() => dap.close(), () => srv.close()], async () => {
+    const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    assert.notEqual(res.isError, true);
+    assert.equal((res.structuredContent as Record<string, unknown>).initialized_seen, true);
+    assert.deepEqual(order, ["initialize", "launch", "configurationDone"]);
+  });
+});
+
+test("268: cs_dbg_attach refuses on the same terms — the change names two planes", async () => {
+  const { srv, order } = await adapter(false);
+  const conn = new FramedConnection("127.0.0.1", srv.port, "C# DAP", "hint");
+  const cs = new CsDapClient(conn, WAIT_MS);
+  const rec = makeRecordingServer();
+  registerCsDapTools(rec.server as unknown as Parameters<typeof registerCsDapTools>[0], cs, cfg(true));
+
+  await withTeardown([() => conn.close(), () => srv.close()], async () => {
+    const res = (await rec.handler("cs_dbg_attach")({ process_id: process.pid })) as ToolResultLike;
+    assert.equal(res.isError, true);
+    assert.match(res.content![0].text!, /The C# debug adapter answered `initialize`/);
+    assert.match(res.content![0].text!, /GODOT_CSDAP_TIMEOUT_MS/);
+    assert.deepEqual(order, ["initialize", "attach"]);
+  });
+});
+
+test("268: the refusal carries the `unannounced` code, so a caller branches on a field", async () => {
+  const { srv } = await adapter(false);
+  const dap = new DapClient("127.0.0.1", srv.port, WAIT_MS);
+  await withTeardown([() => dap.close(), () => srv.close()], async () => {
+    const err = await dap.start("launch", { project: "x" }, 0, true).then(() => null, (e: unknown) => e);
+    assert.ok(err instanceof DapError);
+    assert.equal(err.code, DAP_UNANNOUNCED_CODE);
+    // NOT the timeout code — `isDapTimeout` gates two tools' answers and a handshake
+    // refusal is not a request deadline. Distinct causes get distinct codes, which is the
+    // whole argument of the row this ships beside.
+    assert.notEqual(err.code, DAP_TIMEOUT_CODE);
+  });
+});
+
+test("268: GODOT_DAP_REQUIRE_INITIALIZED reads only recognised falsehoods, and a typo keeps the guard on", () => {
+  const saved = process.env.GODOT_DAP_REQUIRE_INITIALIZED;
+  try {
+    for (const off of ["0", "false", "FALSE", "off", "no", " no "]) {
+      process.env.GODOT_DAP_REQUIRE_INITIALIZED = off;
+      assert.equal(loadConfig().dapRequireInitialized, false, `${off} must disable the refusal`);
+    }
+    // 🔴 THE TYPO KEEPS THE GUARD ON, which is the opposite of how this file reads a
+    // malformed DEADLINE. A bad number falls back because both outcomes are ordinary; a
+    // bad guard setting must not silently disable the guard.
+    for (const on of ["", "1", "true", "yes", "no thanks", "disabled"]) {
+      process.env.GODOT_DAP_REQUIRE_INITIALIZED = on;
+      assert.equal(loadConfig().dapRequireInitialized, true, `${on} must NOT disable the refusal`);
+    }
+    delete process.env.GODOT_DAP_REQUIRE_INITIALIZED;
+    assert.equal(loadConfig().dapRequireInitialized, true, "unset is the shipped default");
+  } finally {
+    if (saved === undefined) delete process.env.GODOT_DAP_REQUIRE_INITIALIZED;
+    else process.env.GODOT_DAP_REQUIRE_INITIALIZED = saved;
+  }
 });

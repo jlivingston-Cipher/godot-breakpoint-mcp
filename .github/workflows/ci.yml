@@ -274,6 +274,15 @@ jobs:
       # (FIFTY-FIFTH session running).
       - name: Every shipped root maps to a declared source, both ways (release names)
         run: python3 ../scripts/release_names.py --assert-map
+      # 🆕 268 — `publish-tarball-outruns-its-tag`'s guard, eight sessions after the row
+      # was opened. Only the SELFTEST runs here, and that is deliberate: the live half
+      # asks whether HEAD is the commit its own tag names, which is false by construction
+      # on every pre-release push and would refuse them all. The row's own finding is
+      # that a guard nobody has ever seen refuse is a guard that does not work, so its
+      # refusals are driven against throwaway repositories on every push, and the live
+      # check runs from `prepublishOnly`, where it can still stop a publish.
+      - name: The publish guard's own refusals still fire (publish guard selftest)
+        run: node scripts/publish_guard.mjs --selftest
       - name: Assert the resolved SDK is still 1.x
         # A v2 major changes the registerTool / import surface and needs the
         # migration in README before the package.json range is bumped.

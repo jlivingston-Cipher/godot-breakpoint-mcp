@@ -1,6 +1,6 @@
 {
   "name": "breakpoint-mcp",
-  "version": "1.79.0",
+  "version": "1.80.0",
   "description": "MCP server exposing Godot to AI coding assistants over the Model Context Protocol — developed and tested with Claude — across four planes (CLI, live editor, LSP+DAP, runtime) with elicitation-gated destructive tools, long jobs on the formal MCP task model, captured console output, and MCP resources.",
   "type": "module",
   "license": "MIT",
@@ -43,7 +43,8 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "stage-addon": "node scripts/stage-addon.mjs",
-    "prepublishOnly": "npm run build && npm run stage-addon",
+    "prepublishOnly": "npm run build && npm run stage-addon && node scripts/publish_guard.mjs",
+    "publish-guard": "node scripts/publish_guard.mjs --selftest && node scripts/publish_guard.mjs",
     "path-cohort": "node scripts/path-cohort.mjs",
     "tautology-gate": "node scripts/tautology_gate.selftest.mjs && node scripts/tautology_gate.mjs",
     "scope-gate": "python3 ../scripts/scope_gate.py",

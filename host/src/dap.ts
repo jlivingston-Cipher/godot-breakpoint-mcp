@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { FramedConnection, type FramedMessage } from "./framing.js";
 import { OverdueLedger, type LateReply } from "./late-reply.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
-import { timeoutRemedy } from "./timeout-cause.js";
+import { timeoutRemedy, unannouncedRemedy } from "./timeout-cause.js";
 
 /**
  * Who answers this plane, in the words its late-reply ledger already uses.
@@ -25,6 +25,30 @@ const DAP_PEER = "the debug adapter";
  */
 const DAP_TIMEOUT_KNOB = "GODOT_DAP_TIMEOUT_MS";
 
+/**
+ * The reasons a `DapError` can be raised BY THE HOST, as opposed to relayed from the
+ * adapter — the discriminator a caller is allowed to branch on.
+ *
+ * 🔴 **A UNION, NOT A `string`, AND THAT IS THE POINT OF THE ROW THIS CLOSES (268).**
+ * `dap-timeout-predicate-reads-prose` was open because both DAP tool layers decided a
+ * shipped tool's answer with `/timed out after/.test(err.message)`, and
+ * `timeout-caveat.ts` said out loud that the phrasing "must not be disturbed" — a
+ * comment doing a type's job. A comment cannot fail a build; this can.
+ *
+ * Absent means RELAYED: the adapter's own words, which the host has no business
+ * classifying. Exactly as `remedy` is absent when nobody has answered a site.
+ */
+export type DapErrorCode = "timeout" | "unannounced";
+
+/** This request hit its own deadline. The only code `isDapTimeout` answers to. */
+export const DAP_TIMEOUT_CODE: DapErrorCode = "timeout";
+
+/**
+ * The adapter answered `initialize` and never emitted `initialized`, so the handshake
+ * was refused rather than continued out of order. See `start()`.
+ */
+export const DAP_UNANNOUNCED_CODE: DapErrorCode = "unannounced";
+
 export class DapError extends Error {
   /**
    * The next action — the same field `BridgeError` has carried since 254, for the same
@@ -40,14 +64,29 @@ export class DapError extends Error {
    * here means nobody has answered that site yet, not that it is unanswerable.
    */
   remedy?: string;
+  /**
+   * Why the host raised this, for callers that branch — `undefined` on the six sites
+   * that relay the adapter's own failure.
+   *
+   * 🔴 **`LspError` HAS CARRIED ONE SINCE IT WAS WRITTEN AND THIS CLASS DID NOT, FOR NO
+   * REASON ANYBODY DECIDED.** `LspError`'s first constructor argument happens to be a
+   * code, so its two timeout sites pass `"timeout"` and every LSP caller branches on a
+   * field. This class's first argument is `command`, so its two timeout sites had
+   * nowhere to put one — and the tool layer read the message body instead. The shape of
+   * a constructor decided whether a shipped branch was structural or textual, and
+   * nothing ever asked.
+   */
+  code?: DapErrorCode;
   constructor(
     public command: string,
     message: string,
     remedy?: string,
+    code?: DapErrorCode,
   ) {
     super(message);
     this.name = "DapError";
     if (remedy) this.remedy = remedy;
+    if (code) this.code = code;
   }
 }
 
@@ -60,6 +99,27 @@ export class DapError extends Error {
  * was actually waited.
  */
 export const INITIALIZED_WAIT_CEILING_MS = 5000;
+
+/**
+ * The message both planes raise when the adapter never announces itself.
+ *
+ * 🔴 ONE BUILDER, TWO PLANES — the same discipline `timeoutRemedy` and `closeRemedy`
+ * already follow, and the reason is 267's finding one file over: the SAME question was
+ * pasted into `peers.ts` and `readiness.ts`, 266 fixed one, and the other survived the
+ * session that fixed it because nothing joined the two sites. A sentence shipped twice
+ * is a sentence that will be corrected once.
+ *
+ * `waitedMs` is the window ACTUALLY waited, not the ceiling — a refusal naming a wait
+ * that did not happen sends an operator to the wrong knob, which is exactly why 267
+ * captured the window instead of recomputing it at the report site.
+ */
+export function unannouncedMessage(peer: string, mode: string, waitedMs: number): string {
+  return (
+    `${peer} answered \`initialize\` for this ${mode} and never emitted \`initialized\` ` +
+    `within ${waitedMs}ms, so the session was refused rather than configured out of order. ` +
+    `No breakpoints were applied and no program was left running by this host.`
+  );
+}
 
 /**
  * What a launch/attach result says when the adapter never announced itself.
@@ -355,14 +415,17 @@ export class DapClient extends EventEmitter {
         // Remember the seq BEFORE rejecting, so a response already in flight is
         // reconciled rather than dropped as anonymous.
         this.ledger.note(seq, command, timeoutMs);
-        // The message keeps its exact `timed out after <n>ms` wording — `tools/dap.ts`'s
-        // `isDapTimeout` branches on it and `timeout-caveat.ts` says out loud that this
-        // predicate must not be disturbed. The next action rides beside it, not inside it.
+        // 🔴 THE WORDING IS NO LONGER LOAD-BEARING, AND THAT IS 268's CHANGE. It used to
+        // be: `tools/dap.ts`'s `isDapTimeout` regexed `/timed out after/` against this
+        // string, so a copy edit here silently changed which answer `dbg_evaluate` and
+        // `dbg_set_variable` gave, with every test green. The code below is what those
+        // branches read now; the sentence is free to be improved.
         reject(
           new DapError(
             command,
             `DAP '${command}' timed out after ${timeoutMs}ms`,
             timeoutRemedy(DAP_PEER, DAP_TIMEOUT_KNOB),
+            DAP_TIMEOUT_CODE,
           ),
         );
       }, timeoutMs);
@@ -568,6 +631,7 @@ export class DapClient extends EventEmitter {
     mode: "launch" | "attach",
     args: Record<string, unknown>,
     entryStopWaitMs = 0,
+    requireInitialized = true,
   ): Promise<{ entryStopSeen: boolean; initializedSeen: boolean; initializedWaitMs: number }> {
     // Remember how we started so restart() can reuse (or override) these params.
     this.lastStartMode = mode;
@@ -576,12 +640,20 @@ export class DapClient extends EventEmitter {
     // A fresh session re-detects against whatever adapter answers this time — a
     // restart may reach a different build than the one that dropped last time.
     this.droppedModifiers.clear();
-    // Listen for `initialized` before we ask, so we cannot miss it.
-    // The window is captured rather than recomputed at the report site: it is
-    // `min(timeoutMs, 5000)`, so a caller who raised the deadline gets 5000 and one who
-    // lowered it gets their own number, and a warning naming the wrong one is a warning
-    // that sends an operator to the wrong knob.
-    const initializedWaitMs = Math.min(this.timeoutMs, INITIALIZED_WAIT_CEILING_MS);
+    // Listen for `initialized` before we ask, so we cannot miss it. The window is
+    // captured rather than recomputed at the report site, so a warning or refusal names
+    // the wait that actually happened rather than the one the code would compute later.
+    //
+    // 🔴 TWO WINDOWS, AND WHICH ONE APPLIES IS THE WHOLE OF 268's DECISION. Refusing is
+    // the default now, so the ceiling that made a longer wait pointless has gone with it:
+    // when nothing is going to proceed regardless, the honest bound is the deadline the
+    // CALLER declared. A conformant adapter that takes six seconds used to be configured
+    // out of order at five and told nobody; it now simply succeeds. The five-second
+    // ceiling survives only on the opt-out path, where it must, because that path exists
+    // to reproduce 267's behaviour exactly — including the number its warning prints.
+    const initializedWaitMs = requireInitialized
+      ? this.timeoutMs
+      : Math.min(this.timeoutMs, INITIALIZED_WAIT_CEILING_MS);
     const onInit = this.waitEvent("initialized", initializedWaitMs);
     this.capabilities = await this.request("initialize", {
       clientID: "breakpoint-mcp",
@@ -615,6 +687,21 @@ export class DapClient extends EventEmitter {
     // that licenses it was invisible: the failing case and the succeeding case returned
     // the same `undefined`.
     const initializedSeen = await onInit;
+    // 🔴 THE REFUSAL GOES HERE AND NOWHERE LATER (268), because the next line is the
+    // defect. `applyAllBreakpoints()` is `setBreakpoints` going out ahead of the event
+    // the DAP specification says must precede it — the thing 266 measured against a stub
+    // adapter and 267 made observable without stopping. Refusing after it would leave the
+    // adapter holding breakpoints from a session the caller was told did not start.
+    if (!initializedSeen && requireInitialized) {
+      this.state = "terminated";
+      this.sessionStarted = false;
+      throw new DapError(
+        mode,
+        unannouncedMessage("The debug adapter", mode, initializedWaitMs),
+        unannouncedRemedy(DAP_PEER, DAP_TIMEOUT_KNOB),
+        DAP_UNANNOUNCED_CODE,
+      );
+    }
     await this.applyAllBreakpoints();
     await this.request("configurationDone", {}).catch(() => undefined);
     // 🔴 By the time we get here an already-arrived rejection has ALREADY run its

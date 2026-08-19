@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
-import { BridgeClient, BridgeError } from "../src/bridge.js";
+import { BridgeClient, BridgeError, BRIDGE_WRITE_FAILED, WRITE_FAILED_REMEDY, writeFailedMessage } from "../src/bridge.js";
 import { startTcpServer, makeLineParser, writeLine, waitFor, type TcpServer } from "./helpers/tcp.js";
 
 interface BridgeReq { id: string; method: string; params: Record<string, unknown> }
@@ -352,4 +352,56 @@ test("the late-reply ledger is bounded and keeps the most recent entries", async
   assert.equal(late.length, 32, "the ring caps at 32");
   assert.equal(late[late.length - 1].method, "m39", "the newest entry is retained");
   assert.ok(!late.some((l) => l.method === "m0"), "the oldest entries are evicted, not the newest");
+});
+
+// ----------------------------------------------- 268: write-failed-unreachable, answered
+
+/**
+ * 🔴 265 CONCLUDED THIS BRANCH WAS UNREACHABLE FROM FOUR DRIVES, AND THE FOURTH FACT WAS
+ * THE WINDOW IT USED. Its reasoning was that `onClose()` rejects the whole pending map
+ * before a failing write callback can land — true of every drive it ran, because each one
+ * broke a live socket and then WAITED. Measured at 268 at the node level, 300 sockets out
+ * of 300: on a destroyed socket the write callback fires with ERR_STREAM_DESTROYED
+ * **before** the `close` event. So the write path wins whenever the socket dies inside the
+ * await gap `request()` leaves between `await this.connect()` and `socket.write(...)`.
+ *
+ * `close()` on the statement after an un-awaited `request()` is exactly that input, and it
+ * is not exotic — it is what a shutdown mid-request looks like. Driven through the real
+ * client below rather than described.
+ */
+test("268: a request torn down inside request()'s await gap reaches write_failed, not bridge_closed", async () => {
+  const srv = net.createServer((s) => { s.on("error", () => { /* the client is going away */ }); });
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
+  const { port } = srv.address() as net.AddressInfo;
+  const client = new BridgeClient("127.0.0.1", port, 500);
+  try {
+    // Establish the socket so connect() takes its cached-socket fast path — the fast path
+    // is what makes the gap a microtask rather than a full connect, and it is the ordinary
+    // state of a server that has spoken to the editor at least once.
+    await client.ensureConnected();
+
+    const inflight = client.request("probe", {}).then(() => null, (e: unknown) => e);
+    client.close();                     // lands inside the gap
+    const err = await inflight;
+
+    assert.ok(err instanceof BridgeError, "the caller must receive a BridgeError");
+    assert.equal(err.code, "write_failed", "this is the branch 265 could not reach");
+    // 🔴 THE SENTENCE IS THE DELIVERABLE. It used to be node's own
+    // `Cannot call write after a stream was destroyed` — a true statement about a Node
+    // stream that tells the caller of a tool nothing about their call.
+    assert.match(err.message, /was never sent/);
+    assert.match(err.message, /'probe'/);
+    // And the one thing this failure knows that a timeout and a close do not.
+    assert.match(String(err.remedy), /first attempt rather than a second/i);
+  } finally {
+    client.close();
+    await new Promise<void>((r) => srv.close(() => r()));
+  }
+});
+
+test("268: and the remedy rides in the FIELD, so check 28 can read it and a reword cannot drop it", () => {
+  const e = new BridgeError(BRIDGE_WRITE_FAILED, writeFailedMessage("node_add", new Error("boom")), WRITE_FAILED_REMEDY);
+  assert.equal(e.remedy, WRITE_FAILED_REMEDY);
+  assert.doesNotMatch(e.message, /Retry the call/, "the next action must not ALSO sit in the message body");
+  assert.match(e.message, /\(boom\)/, "node's own words are kept, in a parenthetical rather than as the whole answer");
 });

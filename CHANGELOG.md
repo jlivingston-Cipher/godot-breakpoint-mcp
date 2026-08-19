@@ -6,6 +6,73 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.80.0] — 2026-08-18
+
+### Changed — a debug session whose adapter never announces itself is now REFUSED
+
+- 🔴 **`dbg_launch`, `dbg_attach`, `cs_dbg_launch` and `cs_dbg_attach` refuse when the adapter
+  answers `initialize` and never emits `initialized`.** 1.79.0 made that outcome observable and
+  deliberately only REPORTED it, because refusing outright would break any adapter in the field
+  that is merely slow. 268 pays that objection rather than accepting it: **the wait is no longer
+  capped at five seconds.** It runs to the caller's own `GODOT_DAP_TIMEOUT_MS` /
+  `GODOT_CSDAP_TIMEOUT_MS`, so a conformant adapter that takes six seconds now simply succeeds
+  where it used to be configured out of order at five and told nobody. Only an adapter that never
+  announces itself at all is refused — with code `unannounced`, before any breakpoint is applied,
+  and with a remedy naming both ways out.
+- **`GODOT_DAP_REQUIRE_INITIALIZED=0` restores 1.79.0's behaviour exactly**, five-second ceiling
+  and all. It reads only `0`, `false`, `off` and `no`: an unrecognised value keeps the guard ON,
+  which is the opposite of how this project reads a malformed deadline and is deliberate — a
+  malformed number falls back because both outcomes are ordinary, and a malformed guard setting
+  must not silently disable a guard.
+- **`write_failed` says what happened.** It shipped node's own
+  `Cannot call write after a stream was destroyed`, a true statement about a Node stream that
+  tells the caller of a tool nothing about their call. It now says the request was never sent,
+  and carries the one remedy in this class that can say *retry* without qualification: nothing
+  was applied, because nothing left the host. 🔴 The addon raises `write_failed` too, for a file
+  it could not open, and `error_remedies.gd` answers that one with *check the target path is
+  inside the project and not read-only* — correct there and nonsense over a socket. The code is
+  kept and the message and remedy are made to fit; whether the two producers should share a word
+  is enqueued as `write-failed-names-two-producers`.
+
+### Fixed — two shipped branches were selected by a regex over English
+
+- 🔴 **`dbg_set_variable` and `dbg_evaluate` answered for the adapter over the adapter's own
+  words.** Both DAP tool layers carried `err instanceof DapError && /timed out after/.test(
+  err.message)`, and that regex matched the message body of ANY `DapError` — including the one
+  built where the host RELAYS an adapter-reported failure. So an adapter answering `setVariable`
+  with a failure mentioning its own inner deadline was told by this host that *Godot's GDScript
+  debug adapter does not implement it*: a measured claim about a different build, invented over
+  a reply that had arrived. `DapError` now carries a `code`, typed as a union of `timeout` and
+  `unannounced` rather than as a `string`, and both predicates read the field. Three tests drive
+  it on both planes and all three go red against the old predicate.
+- 🔴 **The retry caveat was one reword away from silence on every mutating tool.**
+  `timeout-caveat.ts` decided whether a tool warns that a timed-out change MAY ALREADY HAVE
+  LANDED by matching the literal `Bridge error [timeout]` — a string it spelled out itself, one
+  file from the template that builds it and two from the code it embeds. It is derived from
+  `bridgeErrorLabel` now. Controlled by rewording the label and confirming the derived reader
+  still matches where a hand-copy would not.
+- **The dev tree was proved against a version no user runs.** `package-lock.json` pinned
+  `@modelcontextprotocol/sdk` at 1.29.0 while `package.json` declares `^1.29.0` and every
+  consumer resolves 1.30.0. Refreshed, lockfile-only, `package.json` byte-identical — and the
+  four advisories that survive `--omit=dev` cleared with it. A fresh `npm install breakpoint-mcp`
+  was driven and audits 0 vulnerabilities, which it did before this change too: the tarball
+  carries no lockfile.
+
+### Added — `publish-tarball-outruns-its-tag`'s guard, eight sessions after the row was opened
+
+- 🔴 **`prepublishOnly` now refuses a publish whose HEAD is not the commit its own tag names, or
+  whose working tree is dirty at the moment of packing.** 260 measured the first by committing it:
+  `1.75.0` uploaded from a HEAD four commits past `v1.75.0`, because npm reads the version out of
+  `host/package.json` and nothing else. 264 found the second, independent way in on a publish that
+  was otherwise correct — an `npm audit fix` dirtied the tree between the porcelain check and the
+  upload. The guard asks both, LAST in the `prepublishOnly` chain so its porcelain read cannot go
+  stale, fails CLOSED when git cannot answer, and refuses by exit code rather than by printing.
+  `BREAKPOINT_ALLOW_OFF_TAG_PUBLISH=1` waives it and says what it let through.
+- **Check 32 — the error-code discipline**, in three directions: no branch may match a `.message`;
+  a raise site whose message says it timed out must carry a timeout code, and a code must not
+  outlive its sentence; and the rendered bridge label may be spelled only where it is built. Four
+  positive controls, each driven by reintroducing the defect it exists to catch.
+
 ## [1.79.0] — 2026-08-18
 
 ### Added — the two DAP/LSP error classes gained the field the answers had nowhere to go

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
 import { CsDapClient } from "../csdap.js";
-import { DapError, unorderedHandshakeWarning } from "../dap.js";
+import { DapError, DAP_TIMEOUT_CODE, unorderedHandshakeWarning } from "../dap.js";
 import { remedyClause } from "../bridge.js";
 import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
@@ -71,9 +71,13 @@ function refuse(message: string, code: string): never {
  * adapter-reported failure or a dropped connection). Used to turn a
  * setVariable / evaluate non-response into a clear message rather than the
  * generic timeout — the same F1 discipline the GDScript DAP plane uses.
+ *
+ * 🔴 A CODE SINCE 268, A REGEX OVER ENGLISH BEFORE IT — see `tools/dap.ts`'s twin for
+ * the whole argument. Both planes carried the identical prose predicate, which is why
+ * the row named two files and not one.
  */
 function isDapTimeout(err: unknown): err is DapError {
-  return err instanceof DapError && /timed out after/.test(err.message);
+  return err instanceof DapError && err.code === DAP_TIMEOUT_CODE;
 }
 
 /**
@@ -287,7 +291,7 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
           cwd: cfg.csDapProjectPath,
           stopAtEntry: stop_on_entry ?? false,
           justMyCode: just_my_code ?? true,
-        });
+        }, cfg.dapRequireInitialized);
         const result: Record<string, unknown> = { session_id: "csharp", state: dap.state };
         reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
         return ok(result);
@@ -329,7 +333,7 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
             );
           }
         }
-        const { initializedSeen, initializedWaitMs } = await dap.start("attach", { processId: process_id });
+        const { initializedSeen, initializedWaitMs } = await dap.start("attach", { processId: process_id }, cfg.dapRequireInitialized);
         const result: Record<string, unknown> = { session_id: "csharp", state: dap.state };
         reportHandshakeOrder(result, initializedSeen, initializedWaitMs);
         return ok(result);
