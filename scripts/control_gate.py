@@ -668,6 +668,18 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "        expected: encodedValue.optional(),\n        actual: encodedValue.optional(),",
      "        expected: encodedValue,\n        actual: encodedValue,",
      "no `encodedValue.optional()` remains"),
+    # 🆕 269 — check 32's fourth arm, one code one producer. The mutation is THE DEFECT
+    # ITSELF PUT BACK, which is the strongest form a row in this table can take:
+    # `write_failed` is the word `operations.gd` raises for a file it could not open, and
+    # restoring it on the host's constant re-creates the collision 269 removed — two
+    # producers, one remedy row, and a caller who cannot tell a torn-down socket from a
+    # file that would not open. It edits the SHIPPED tree and not the checker, for 254's
+    # reason: this check's failure is a word colliding across a wire, and a mutation to
+    # the checker would prove only that the checker can be broken.
+    ("32.collide", "32", "sub", "host/src/bridge.ts",
+     'export const BRIDGE_SEND_FAILED = "send_failed";',
+     'export const BRIDGE_SEND_FAILED = "write_failed";',
+     "one code, two producers"),
     ("15.noshebang", "15", "sub", "scripts/validate.sh", "#!/", "##/",
      "does not begin with `#!`"),
 ]
@@ -779,7 +791,12 @@ CHECKS_CLOSED = ("3", "4c", "4d", "11c", "host", "17", "22",
                  "28",
                  # 255: check 29 the same way — two rows, one per direction of the join, and
                  # both edit the SHIPPED tree because that is where its failure lives
-                 "29")
+                 "29",
+                 # 269: check 32's one-code-one-producer arm, covered on arrival. Its
+                 # mutation is the only one in this table that is a DEFECT PUT BACK
+                 # rather than a construction — restoring `write_failed` on the host's
+                 # constant re-creates the exact collision the release removed
+                 "32")
 
 
 # ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
@@ -813,6 +830,10 @@ BLAST: dict[str, int] = {
     "28.deadtool": 2,                     # also: 24b
     "28.noattach": 2,                     # also: 24b, the tracked addon copies
     "28.hostdrops": 1,
+    # 🆕 269 — check 32's collision control. `bridge.ts` is host-only — the example
+    # projects track the ADDON, not the host — so no copy comparison arrives beside it,
+    # and the word it restores is read by exactly one arm. Predicted 1, MEASURED 1.
+    "32.collide": 1,
     # 🆕 255 — check 29's two. `29.keyrenamed` edits a file the two example projects also
     # track, so check 24b's copy comparison arrives beside it — 196 §4's rule, paid on the
     # way in. `29.nooptional` moves two fields INTO the required-any population as it

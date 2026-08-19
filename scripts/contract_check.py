@@ -996,6 +996,14 @@ ERROR_RAISE_RE = re.compile(r"new\s+(?:Bridge|Lsp|Dap)Error\s*\(")
 TIMEOUT_PHRASE = "timed out after"
 # The tokens that spell a timeout code at a raise site, in any of the three classes.
 TIMEOUT_CODE_TOKENS = ("BRIDGE_TIMEOUT_CODE", "DAP_TIMEOUT_CODE", '"timeout"')
+# 🆕 269 — the two spellings a HOST-ORIGIN code can have, and nothing else counts. A code
+# constant is declared once and read at its raise site; a raise site may also spell the
+# word inline. `new BridgeError(e.code, ..)` is neither, which is how the RELAY excludes
+# itself without anybody rostering it — see `host_origin_error_codes`.
+HOST_CODE_CONST_RE = re.compile(
+    r'^export const (BRIDGE_[A-Z0-9_]+)\s*=\s*"([a-z0-9_]+)";', re.M)
+HOST_RAISE_RE = re.compile(
+    r'new\s+BridgeError\s*\(\s*(?:"([a-z0-9_]+)"|([A-Za-z_$][\w$]*))')
 
 
 def _uncommented(line: str) -> str:
@@ -1101,6 +1109,55 @@ def error_prose_predicates() -> "tuple[list[str], int, int]":
                     f"the sentence is what they read, and these two now disagree."
                 )
     return problems, message_reads, raise_sites
+
+
+def host_origin_error_codes() -> "set[str]":
+    """Every error code the HOST itself originates, as opposed to relays.
+
+    🔴 269 — `write-failed-names-two-producers`, and the population was measured before
+    the word was chosen. `write_failed` was raised by `bridge.ts` for a socket the request
+    could not be handed to, and by `operations.gd` for a file that would not open. Two
+    failures with nothing in common except a word, and `error_remedies.gd` can answer only
+    one of them: a caller reading *"Check the target path is inside the project and not
+    read-only"* over a torn-down TCP connection is being told to check a path that does
+    not exist.
+
+    🔴 THE COLLISION WAS INVISIBLE FOR THE ORDINARY REASON — NOBODY OWNED THE UNION.
+    Check 23 already compares the addon's code vocabulary to the codes TypeScript
+    BRANCHES on, in both directions. It has never asked what the host itself RAISES,
+    because on the wire a host-origin failure and a relayed one are the same envelope:
+    `bridge.ts` re-raises the addon's code verbatim at its relay site, so `Bridge error
+    [write_failed]` was a sentence two unrelated producers could both write and no reader
+    could tell apart. The set difference nothing had ever taken is this one.
+
+    🔴 AND ITS ANSWER TODAY IS ONE, WHICH IS WHY THIS IS A GATE AND NOT A FIELD. Eleven
+    codes originate here, fifty are raised in the addon, and the intersection was exactly
+    `write_failed` — a single collision, repaired by renaming the younger producer to
+    `send_failed` rather than by hanging an origin discriminator on every error the wire
+    carries. A gate is what keeps that answer at one; the second collision would otherwise
+    be found the way this one was, which is three sessions after it shipped.
+
+    A LITERAL first argument is a code this file owns. `new BridgeError(e.code, ..)` — the
+    relay — is skipped BY CONSTRUCTION rather than by a roster: it passes an identifier
+    that is not one of our constants, and the addon's word arriving through it is not a
+    word this host chose. That distinction is the whole check, so it is drawn by what the
+    source says rather than by a list of exceptions somebody has to keep true.
+    """
+    codes: "set[str]" = set()
+    if not HOST_SRC.exists():
+        return codes
+    consts: "dict[str, str]" = {}
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        for m in HOST_CODE_CONST_RE.finditer(f.read_text()):
+            consts[m.group(1)] = m.group(2)
+    for f in sorted(HOST_SRC.rglob("*.ts")):
+        for m in HOST_RAISE_RE.finditer(f.read_text()):
+            literal, ident = m.group(1), m.group(2)
+            if literal:
+                codes.add(literal)
+            elif ident in consts:
+                codes.add(consts[ident])
+    return codes
 
 
 def test_count_constants() -> list[tuple[Path, int, str, int]]:
@@ -5052,12 +5109,46 @@ _ran("31")
 #     over a message that no longer says it — the join in both directions, so the fourth
 #     plane somebody adds cannot drop the discriminator in silence;
 #   • the rendered bridge label spelled outside the one module that builds it.
+#
+# 🆕 269 — A FOURTH DIRECTION, AND IT IS THE SAME CLASS ONE LEVEL OUT: ONE CODE, ONE
+# PRODUCER. 268 measured `write_failed` reachable in `bridge.ts` and found, in the same
+# breath, that `operations.gd` had been raising the word all along for a file it could
+# not open. Both cross this wire as `Bridge error [write_failed]`, because the relay site
+# re-raises the addon's code verbatim — so the two failures were indistinguishable to any
+# caller branching on the label, and `error_remedies.gd` answered both of them with
+# *check the target path is inside the project and not read-only*, which is a next action
+# for one of them and a wrong turn for the other.
+#
+# 🔴 THE POPULATION WAS MEASURED BEFORE THE REPAIR WAS CHOSEN, AND IT WAS ONE. Eleven
+# host-origin codes, fifty in the addon, one word in common. That is what licensed a
+# RENAME — `send_failed`, on the younger producer, whose sentence was one release old and
+# had shipped node's own prose before that — instead of an origin discriminator on every
+# error the wire carries. A family would have wanted the field; a single collision wants
+# the word fixed and a reader that keeps the answer at one.
+#
+# 🔴 AND IT IS CHECK 23's BLIND SPOT NAMED FROM THE OTHER SIDE. That check compares the
+# addon's vocabulary to the codes TypeScript BRANCHES on, in both directions, and has
+# never asked what the host RAISES — so the one set difference that could catch this was
+# the one nobody had taken.
 _prose_problems, _message_reads, _error_raises = error_prose_predicates()
 for _p in _prose_problems:
     errors.append(f"check 32: {_p}")
 
+_host_origin_codes = host_origin_error_codes()
+for _code in sorted(_host_origin_codes & addon_err_codes):
+    errors.append(
+        f"check 32: one code, two producers — {_code!r} is raised BOTH by the host "
+        f"and by an `_err(..)` in "
+        f"addons/breakpoint_mcp/. Both cross the wire as `{_code}` — the relay site "
+        f"re-raises the addon's code verbatim — so a caller branching on it cannot tell "
+        f"the two failures apart, and `error_remedies.gd` can answer only one of them. "
+        f"269 renamed the host's `write_failed` to `send_failed` for exactly this; rename "
+        f"the younger producer, do not add a second meaning to a shipped word."
+    )
+
 print(f"Error-code discipline  : "
       f"{_message_reads} message read(s) scanned · {_error_raises} raise site(s) judged · "
+      f"{len(_host_origin_codes)} host-origin code(s) vs {len(addon_err_codes)} addon · "
       f"{len(_prose_problems)} problem(s)")
 _ran("32")
 
@@ -5607,6 +5698,13 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("host.error_raise_sites", _error_raises, 20,
      "no failure raise site is judged, so a timeout that stops carrying its code and a "
      "code that outlives its sentence both pass the join in both directions"),
+    # 🆕 269 — check 32's fourth arm. The codes the host ORIGINATES, which is the half of
+    # the wire vocabulary nothing had ever read. Empty here and the intersection with the
+    # addon's fifty is empty for the wrong reason, so a second `write_failed` — one word,
+    # two producers, one remedy that can only fit one of them — lands green.
+    ("host.origin_error_codes", len(_host_origin_codes), 8,
+     "no code is read as host-origin, so the host and addon vocabularies never overlap "
+     "and check 32's one-code-one-producer arm agrees with any collision at all"),
     ("shapes.inputs_parsed", len(code_inputs), 250,
      "🔴 CHECK 16's UNIVERSE — the population it floors coverage against. Empty here, nothing is uncovered"),
     ("shapes.inputs_compared", len(input_comparable), 250,

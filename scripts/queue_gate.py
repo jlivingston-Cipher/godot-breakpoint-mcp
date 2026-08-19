@@ -314,7 +314,40 @@ def check(text: str) -> "tuple[list[str], list[str], int, int]":
     # lost one. What the loop was made of was sessions SPENDING themselves on internal
     # rows, so spending is the verb this claim reads. Open whatever you find; finish what
     # reaches somebody.
-    live_user = [r for r in rows if r.state in ("OPEN", "SCHEDULED") and r.reach == "user"]
+    #
+    # 🔴 269 — A `SCHEDULED` ROW WHOSE TARGET HAS NOT ARRIVED IS NOT WORK BEING SKIPPED,
+    # AND READING IT AS LIVE HAD LOCKED THE SECONDARY QUEUE SHUT FOR TWENTY SESSIONS.
+    # Measured off this file at head 268, which is the only reason it was found: from 240
+    # to 247 every closed row was `internal` — twenty-three of them. From 248, the session
+    # that added this claim, to 268, the count is ZERO out of thirty-nine. Not one internal
+    # row has closed since the ordering became enforceable.
+    #
+    # The cause is structural and it is one row. `sdk-v2-migration` is `user`, has been
+    # SCHEDULED since 226, and re-targets itself every time a session re-reads the registry
+    # and finds that the 2.x it would migrate to still does not exist. It is therefore
+    # PERMANENTLY live under the old reading, and permanently live is permanently blocking:
+    # Tier 2 holds twenty rows aged eight to forty-five sessions and nothing in the ritual
+    # could ever finish one of them.
+    #
+    # 🔴 AND THE PRESSURE CAME OUT SOMEWHERE, WHICH IS THE PART WORTH WRITING DOWN. 267 and
+    # 268 re-tiered five rows `internal` -> `user` between them and 268 read that as a
+    # typing bias in the `reach` column — five corrections, never once the other way. Every
+    # one of those re-tierings was defensible on its merits AND was the only direction that
+    # let the session close its work. A gate that makes one answer free and the other answer
+    # cost the session does not measure the column; it selects it. `reach-column-joins-
+    # nothing` is still the right row for the join, and this is the reason its evidence was
+    # never going to be balanced.
+    #
+    # So: a row scheduled for a session that has not arrived does not block. Its ceiling is
+    # `QUEUE_SCHEDULE_HONOURED`, which already refuses a target that has PASSED and is still
+    # not closed — the schedule is governed there, by a claim written for it, rather than
+    # here by a side effect of the word "live". An `OPEN` user row blocks exactly as before,
+    # and so does a SCHEDULED one whose target has come due.
+    live_user = [r for r in rows
+                 if r.reach == "user"
+                 and (r.state == "OPEN"
+                      or (r.state == "SCHEDULED"
+                          and (r.target == NONE or int(r.target) <= head)))]
     jumped = [r for r in closed_now if r.reach == "internal" and r.state == "DONE"]
     if live_user and jumped:
         problems.append(
@@ -327,6 +360,21 @@ def check(text: str) -> "tuple[list[str], list[str], int, int]":
     elif jumped:
         notes.append(f"QUEUE_TIER_ORDER internal work was in order — no user row was live "
                      f"when {', '.join(r.id for r in jumped)} closed")
+    # 🔴 AND WHAT THE CLAIM SET ASIDE IS PRINTED, NEVER ASSUMED. A user row parked on a
+    # future session is the exact thing that used to block silently — a session read
+    # "twenty internal rows and nothing I may finish" with no line anywhere saying which
+    # row said so. Naming them on every run is what keeps 269's reading from becoming its
+    # own blind spot: a schedule that keeps sliding forward is visible here as a row that
+    # is named every session and never comes due.
+    _parked = [r for r in rows
+               if r.reach == "user" and r.state == "SCHEDULED"
+               and r.target != NONE and int(r.target) > head]
+    if _parked:
+        notes.append(
+            "QUEUE_TIER_ORDER set aside " +
+            ", ".join(f"{r.id} (scheduled {r.target})" for r in _parked) +
+            " — user row(s) parked on a session that has not arrived, so they do not "
+            "block the internal tier; QUEUE_SCHEDULE_HONOURED governs the target itself")
 
     # ── QUEUE_NOT_ONLY_NEWEST — the loop ──────────────────────────────────────────────
     #
@@ -598,12 +646,38 @@ def selftest() -> int:
          f"| u2 | DONE | user | 200 | {HEAD} | — | and one finished | — |"]))
     claim("TIER_ORDER_ADMITS_USER_WORK", not any("TIER_ORDER" in x for x in p),
           "finishing a user row was refused while another user row was live")
-    # 🔴 AND A SCHEDULED USER ROW COUNTS AS LIVE. `SCHEDULED` was the state that
-    # laundered the ceiling off a row in 240; it must not launder the ordering off one.
+    # 🔴 AND A SCHEDULED USER ROW THAT HAS COME DUE COUNTS AS LIVE. `SCHEDULED` was the
+    # state that laundered the ceiling off a row in 240; it must not launder the ordering
+    # off one. The target here is BEHIND the head, so the row is work this session was
+    # supposed to be doing and the internal row jumped it.
     red("TIER_ORDER_SCHEDULED_IS_LIVE",
-        ["| u | SCHEDULED | user | 246 | — | 260 | promised, not done | — |",
+        [f"| u | SCHEDULED | user | 200 | — | {HEAD - 5} | due five sessions ago | — |",
          f"| g | DONE | internal | 200 | {HEAD} | — | jumped anyway | — |"],
         "QUEUE_TIER_ORDER")
+    # 🔴 AND ONE PARKED ON A SESSION THAT HAS NOT ARRIVED DOES NOT — 269, and this is the
+    # claim that would have caught twenty sessions of a locked secondary queue. Under the
+    # old reading `sdk-v2-migration`, `user` and scheduled forward since 226, made
+    # `live_user` non-empty on EVERY run: from 248 to 268 not one internal row closed, out
+    # of thirty-nine closed rows, while Tier 2 grew to twenty rows aged up to forty-five
+    # sessions. A row nobody is allowed to work yet is not work being skipped, and its
+    # schedule is `QUEUE_SCHEDULE_HONOURED`'s claim rather than this one's side effect.
+    p, _n, _r, _o = check(_table(
+        [f"| u | SCHEDULED | user | 200 | — | {HEAD + 2} | parked two sessions out | — |",
+         f"| g | DONE | internal | 200 | {HEAD} | — | and Tier 2 may move | — |"]))
+    claim("TIER_ORDER_SCHEDULED_AHEAD_IS_NOT_LIVE",
+          not any("TIER_ORDER" in x for x in p),
+          "a user row scheduled for a session that has not arrived blocked the internal "
+          "tier — which is the state that closed Tier 2 for twenty sessions")
+    # 🔴 AND THE ROW IT SET ASIDE IS NAMED, because the defect this replaces was SILENT:
+    # twenty sessions read "nothing I may finish" with no line anywhere saying which row
+    # said so. A claim on the refusal without one on the note would let the same blindness
+    # return wearing the opposite sign.
+    _p2, _n2, _r2, _o2 = check(_table(
+        [f"| u | SCHEDULED | user | 200 | — | {HEAD + 2} | parked two sessions out | — |",
+         f"| g | DONE | internal | 200 | {HEAD} | — | and Tier 2 may move | — |"]))
+    claim("TIER_ORDER_NAMES_WHAT_IT_SET_ASIDE",
+          any("set aside" in x and "u (scheduled" in x for x in _n2),
+          "the parked user row was not named on the run that let the internal tier move")
     # 🔴 AND AN UNDECLARED TIER IS A PARSE FAILURE, not a default. A row that defaulted
     # to `internal` would be a row the ordering silently deprioritises; one that
     # defaulted to `user` would block the whole Tier 2 queue. Neither is a reading

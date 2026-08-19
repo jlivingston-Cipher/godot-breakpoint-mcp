@@ -259,6 +259,7 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "prefix_family_claims": ("families.prefix_glob_lines",),
     "guide_recipe_tools": ("guide.recipe_tools", "guide.recipe_steps"),  # 🆕 261
     "error_prose_predicates": ("host.error_message_reads", "host.error_raise_sites"),  # 🆕 268
+    "host_origin_error_codes": ("host.origin_error_codes",),          # 🆕 269
     "privileged_tools": ("tools.privileged",),                        # 🆕 197
     "recipe_names_constant": ("recipes.names_constant",),             # 🆕 197
     "registered_recipes": ("recipes.registered",),
@@ -402,6 +403,13 @@ BLAST: dict[str, int] = {
     # nothing more. Predicted 2; MEASURED below rather than left as the prediction, which
     # is 259's rule and the one 267 paid for by predicting 1 and measuring 2.
     "error_prose_predicates": 2,
+    # 🆕 269 — check 32's fourth arm. Blinding it empties `host.origin_error_codes` and
+    # takes the one-code-one-producer intersection to the empty set at the same time, so
+    # the radius is that single ledger floor. Predicted 1; MEASURED below rather than
+    # left as the prediction, which is 259's rule and the one 267 paid for by predicting
+    # 1 and measuring 2 — the prediction is written here so the measurement can disagree
+    # with it in public.
+    "host_origin_error_codes": 1,
     # 🆕 261: 4 -> 9. Check 31 reads this roster to decide which tool a recipe names is
     # WITHHELD, so emptying it takes all five higher-trust entries in the guide's §10
     # declaration block into "declared but not privileged" at once. The row moved because
