@@ -6,6 +6,42 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Internal — a claim about the world that its own reader could not make
+
+Nothing in this section changes anything an installer of the package can observe; it is the
+handoff and queue apparatus, and it is recorded here because the defect it closes cost a real
+user a day.
+
+- 🔴 **A header atom whose reader answered UNREAD may no longer be CLAIMED.** `handoff_gate.py`
+  said exactly the right thing about a counter it could not read — *`gh` is not installed for
+  this run, which is not the same observation as zero open items* — printed it as a NOTE, and
+  accepted a status block asserting a number beside it. Session 269's block claimed `0 open
+  issues` while [#327](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/327),
+  a three-symptom report against a shipped tool, had been open for five and a half hours. It is
+  a refusal now. What is refused is the CLAIM and not the environment: a run that cannot dial
+  writes the counter as `UNREAD` with the reason, carries no numeral, and passes.
+- 🔴 **`gh_open` has a second route, so far fewer runs have to decline.** When `gh` is absent or
+  fails, the counters are read from `api.github.com` over plain HTTPS — no CLI, a token used if
+  the environment offers one and never required. Both reasons are reported together when both
+  fail, because a caller told only *`gh` is not installed* would install it and still get nothing.
+- 🔴 **`--gh-open` emits `GH_OPEN_ISSUES` / `GH_OPEN_PRS`, and `--open` accepts `--measured`.**
+  The roster has carried those two spellings as extracts since session 236 and nothing in the
+  tree had ever printed either one, so the only route to the counter was a live `gh`; and
+  `--open` returned before `--measured` was parsed, which 241 recorded as making a log-supplied
+  reading impossible at exactly the tier that re-reads the world. A session can now pay for the
+  reading wherever it is available and hand the file to the run that checks the block.
+- 🔴 **`QUEUE_AGE_DOMAIN`: the queue's derived ages are bounded.** `age` is `head - opened` and
+  nothing refused `opened > head`; a row added at session 255 rendered at **-1 session(s)**
+  through `--render`, `--ages` and the age ceiling, and every consumer printed the negative
+  without comment. The bound lives in the parser all three call. It fired on three of that
+  file's own test fixtures the first time it ran.
+- 🔴 **`QUEUE_REACH_JOIN`: the tier column is joined to the tree.** `reach` decides what a session
+  is permitted to work on and was typed by hand against a definition that existed only as a
+  sentence. Rows now declare the tracked paths their work touches; `REACH_PATHS` tiers each path
+  with the reason it lands where it does, any path an installer can observe makes the row `user`,
+  and a declared path this repository does not track is refused. The back catalogue is
+  grandfathered under a ceiling that can only fall.
+
 ## [1.82.0] — 2026-08-19
 
 ### Fixed — a property write that did not happen no longer reports success ([#327](https://github.com/jlivingston-Cipher/godot-breakpoint-mcp/issues/327))

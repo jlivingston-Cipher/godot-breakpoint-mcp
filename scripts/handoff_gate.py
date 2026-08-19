@@ -85,6 +85,8 @@ Run:  python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md
       python3 scripts/handoff_gate.py --selftest
       python3 scripts/handoff_gate.py --patterns [--measured run.log]   (237 §1)
       python3 scripts/handoff_gate.py ../HANDOFF_SESSION235.md --read   (parse only)
+      python3 scripts/handoff_gate.py --gh-open                         (271 §1, emitter)
+      python3 scripts/handoff_gate.py --open ../HANDOFF_SESSION270.md --measured run.log
 
 🔴 THE MEASURED LOG'S ORDER IS NOT FREE — 235 §1. `host.suite` reads `# tests` and
 `# pass` out of `npm test`'s own output, and the extract spans lines. It is linear now
@@ -100,6 +102,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1237,6 +1240,71 @@ def parent_of(sha: str, root: Path = ROOT) -> "tuple[str, str]":
     return (p.stdout.strip(), "")
 
 
+def origin_slug(root: Path = ROOT) -> "tuple[str, str]":
+    """(`owner/repo` for origin, problem) — TREE. Both remote spellings, no network."""
+    try:
+        p = subprocess.run(("git", "remote", "get-url", "origin"), cwd=root,
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return ("", f"`git remote get-url origin` could not run: {e}")
+    if p.returncode != 0:
+        return ("", f"`git remote get-url origin` exited {p.returncode}: "
+                    f"{(p.stderr or '').strip()[:120]}")
+    url = p.stdout.strip()
+    m = re.search(r"github\.com[:/]+([^/]+)/(.+?)(?:\.git)?/?$", url)
+    if not m:
+        return ("", f"origin {url!r} is not a github.com remote this reader can name")
+    return (f"{m.group(1)}/{m.group(2)}", "")
+
+
+def gh_rest(path: str, root: Path = ROOT) -> "tuple[list, str]":
+    """(the decoded JSON array, problem) — NETWORK, over plain HTTPS and no `gh`.
+
+    🆕 271 — THE SECOND ROUTE, AND IT EXISTS BECAUSE THE FIRST ONE IS A THIRD-PARTY CLI.
+    270's block claimed `1 open issues` in an environment with no `gh`, and the choice
+    the row handed over was *force `gh` into every checking environment, or omit a count
+    the maintainer wants to see*. This is the third answer: the counter is a public fact
+    about a public repository, `api.github.com` serves it unauthenticated, and an
+    environment that has a network but not a CLI can now answer for itself. A token is
+    used when the environment offers one and never required — the rate limit on an
+    anonymous read is sixty an hour and this reader makes two.
+
+    🔴 STILL NOT A ZERO ON ANY FAILURE PATH. Every branch below returns a problem, for
+    236 §4's reason: the counter whose correct value is almost always zero is the one an
+    unreachable endpoint imitates perfectly.
+    """
+    import urllib.error
+    import urllib.request
+
+    slug, prob = origin_slug(root)
+    if prob:
+        return ([], prob)
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{slug}/{path}",
+        headers={"Accept": "application/vnd.github+json",
+                 "User-Agent": "breakpoint-mcp-handoff-gate"})
+    for var in ("GH_TOKEN", "GITHUB_TOKEN"):
+        if os.environ.get(var):
+            req.add_header("Authorization", f"Bearer {os.environ[var]}")
+            break
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = r.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return ([], f"`GET /repos/{slug}/{path}` answered HTTP {e.code} — an endpoint "
+                    f"that refused is not an endpoint that counted zero")
+    except (urllib.error.URLError, OSError) as e:
+        return ([], f"`GET /repos/{slug}/{path}` could not be reached: {e}")
+    try:
+        out = json.loads(body)
+    except ValueError as e:
+        return ([], f"`GET /repos/{slug}/{path}` did not return JSON: {e}")
+    if not isinstance(out, list):
+        return ([], f"`GET /repos/{slug}/{path}` returned {type(out).__name__}, not the "
+                    f"array this reader counts")
+    return (out, "")
+
+
 def gh_open(kind: str, root: Path = ROOT) -> "tuple[int, str]":
     """(open issues or PRs on origin, problem) — NETWORK.
 
@@ -1246,23 +1314,78 @@ def gh_open(kind: str, root: Path = ROOT) -> "tuple[int, str]":
     empty parse would make exactly that mistake on the counter whose correct value is
     almost always 0. Every failure path here returns a problem, and a problem prints
     UNREAD rather than agreeing with the block.
+
+    🆕 271 — AND A SECOND ROUTE UNDERNEATH IT, tried only when the first one could not
+    run. `gh` stays FIRST because it carries the maintainer's own credentials and sees
+    exactly what he sees; `gh_rest` is the fallback for an environment that has a socket
+    and no CLI. The two reasons are joined into one when BOTH fail, because a caller told
+    only *`gh` is not installed* would go and install it and still get nothing.
     """
     try:
         p = subprocess.run(("gh", kind, "list", "--state", "open", "--json", "number",
                             "-L", "200"), cwd=root, capture_output=True, text=True,
                            timeout=60)
     except FileNotFoundError:
-        return (-1, "`gh` is not installed for this run — the tool never ran, which is "
-                    "not the same observation as zero open items")
+        why = ("`gh` is not installed for this run — the tool never ran, which is "
+               "not the same observation as zero open items")
+        return gh_open_rest(kind, why, root)
     except (OSError, subprocess.SubprocessError) as e:
-        return (-1, f"`gh {kind} list` could not run: {e}")
+        return gh_open_rest(kind, f"`gh {kind} list` could not run: {e}", root)
     if p.returncode != 0:
         first = next((ln for ln in (p.stderr or p.stdout).split("\n") if ln.strip()), "")
-        return (-1, f"`gh {kind} list` exited {p.returncode}: {first.strip()[:160]}")
+        return gh_open_rest(kind, f"`gh {kind} list` exited {p.returncode}: "
+                                  f"{first.strip()[:160]}", root)
     try:
         return (len(json.loads(p.stdout or "[]")), "")
     except ValueError as e:
         return (-1, f"`gh {kind} list --json` did not return JSON: {e}")
+
+
+def gh_open_rest(kind: str, why_cli: str, root: Path = ROOT) -> "tuple[int, str]":
+    """The `gh`-free half of `gh_open`, carrying the CLI's reason forward on failure.
+
+    🔴 `/issues` IS BOTH POPULATIONS AND THAT IS THE ONE TRAP IN THIS ENDPOINT. GitHub's
+    REST API answers `/issues` with issues AND pull requests — every PR is an issue in
+    that store — so a reader that counted the array would report `gh issue list`'s number
+    plus the open PRs. The discriminator is the `pull_request` key, which only the PR
+    rows carry, and dropping them is what makes this the same population `gh` reports.
+    """
+    if kind == "issue":
+        rows, prob = gh_rest("issues?state=open&per_page=100", root)
+        rows = [r for r in rows if isinstance(r, dict) and "pull_request" not in r]
+    else:
+        rows, prob = gh_rest("pulls?state=open&per_page=100", root)
+    if prob:
+        return (-1, f"{why_cli}; and the API route did not answer either: {prob}")
+    return (len(rows), "")
+
+
+# The two spellings `HEADER_READERS` extracts, kept beside the emitter that writes them so
+# a rename cannot make one of them stale in silence — `--selftest` joins the pair below to
+# the roster's own `extract` regex, which is the join `npm.lag` did not have for twelve
+# sessions (241 §1).
+GH_EMIT = (("gh.issues", "issue", "GH_OPEN_ISSUES"), ("gh.prs", "pr", "GH_OPEN_PRS"))
+
+
+def gh_emit(root: Path = ROOT) -> int:
+    """`--gh-open`: put the two GitHub counters into a log a later `--measured` can read.
+
+    🆕 271 §1 — AN EMITTER, NOT A GATE, AND IT EXITS 0 WHETHER OR NOT IT COULD READ.
+    The roster has carried `^GH_OPEN_ISSUES (\\d+)$` as an `extract` since 236 and NOTHING
+    IN THE TREE HAS EVER PRINTED THAT LINE: the only route to the counter was `--network`
+    plus a `gh`, which is why 270 typed a number instead. A replay can now pay for the
+    reading once, on whichever machine can make it, and every later reader of that log
+    gets the same answer rather than dialing again.
+
+    🔴 UNREAD IS PRINTED, NOT RAISED. An emitter that exited non-zero where the network is
+    absent would turn `the replay's exit sum` — the one verdict this project reads — into
+    a statement about connectivity. The unreadable case prints the reason with no numeral
+    on the line, so the roster's `(\\d+)` finds nothing and the atom stays honestly UNREAD.
+    """
+    for _key, kind, label in GH_EMIT:
+        n, prob = gh_open(kind, root)
+        print(f"{label} {n}" if not prob else f"{label} UNREAD — {prob}")
+    return 0
 
 
 # (key, alias, n, extract-from-log, reason). The header's roster is separate from
@@ -1472,6 +1595,37 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             continue
         claims.append((raw, cleaned, hits[0]))
 
+    # ── 🆕 271 §1 — `block-claims-a-count-its-own-read-could-not-make` (OPEN 270) ──────
+    #
+    # 🔴 AN ATOM WHOSE READER ANSWERED UNREAD MAY NOT BE CLAIMED, and the price of the
+    # missing half is on the record. 269's block asserted `0 open issues` while a real
+    # user's bug report had been open for five and a half hours, and this function said
+    # exactly the right thing about it — *UNREAD, `gh` is not installed for this run,
+    # which is not the same observation as zero open items* — in a NOTE, printed above an
+    # accepted claim. A note is what a session reads as `nothing to see`. That is 236 §4's
+    # finding arriving one layer up: `gh_open` was built so an absent tool could never be
+    # mistaken for a zero, and then its caller mistook it for a zero anyway, because
+    # nothing joined the reader's silence to the block's number.
+    #
+    # 🔴 WHAT IS REFUSED IS THE CLAIM, NOT THE ENVIRONMENT. Nothing here demands a socket,
+    # a token or a `gh`: a checkout that cannot dial is expected, and 249's own block
+    # already spells the honest alternative — ``gh UNREAD, no `gh` in this container`` —
+    # which carries no numeral, binds no atom and asserts nothing. The refused third thing
+    # is a number typed where a reading belongs. 270 §7 is the same class one document
+    # over: `1.11.0 is in review` was carried through three handoffs by sessions that
+    # never re-read it, and the library had already accepted it.
+    def unread(key: str, raw: str, claimed: "tuple[int, ...]", why_unread: str) -> None:
+        notes.append(f"{key}: UNREAD — {why_unread}")
+        problems.append(
+            f"🔴 HEADER_UNREAD_CLAIMED {key} — the block claims {list(claimed)} and "
+            f"nothing in this run could read it: {why_unread}\n"
+            f"     atom: {raw!r}\n"
+            f"     An atom whose reader answered UNREAD may not be CLAIMED. Either give "
+            f"this run the reading — `--network`, or a `--measured` log carrying the "
+            f"instrument's own line — or write the counter as UNREAD with the reason and "
+            f"make no claim, which is what 249's block did and what this gate has always "
+            f"accepted.")
+
     compared = 0
     for raw, cleaned, row in claims:
         key, _alias, n, extract, why = row
@@ -1489,13 +1643,13 @@ def check_header(block: "list[str]", log: str, run_network: bool,
         elif key in ("git.moved", "git.unmoved"):
             n_moved, prob = moved_interval(block, session)
             if prob:
-                notes.append(f"{key}: UNREAD — {prob}")
+                unread(key, raw, claimed, prob)
                 continue
             got = (n_moved,)
         elif key == "version.unmoved":
             n_ver, prob = version_interval(session)
             if prob:
-                notes.append(f"version.unmoved: UNREAD — {prob}")
+                unread("version.unmoved", raw, claimed, prob)
                 continue
             got = (n_ver,)
         elif key in ("gh.issues", "gh.prs"):
@@ -1506,7 +1660,7 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             elif run_network:
                 n_open, prob = gh_open("issue" if key == "gh.issues" else "pr")
                 if prob:
-                    notes.append(f"{key}: UNREAD — {prob}")
+                    unread(key, raw, claimed, prob)
                     continue
                 got = (n_open,)
         elif key == "npm.tags":
@@ -1515,7 +1669,8 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             if run_network:
                 n_remote, only_here, prob = origin_tags()
                 if prob:
-                    notes.append(f"npm.tags: origin unreachable — {prob}")
+                    unread("npm.tags", raw, claimed, f"origin unreachable — {prob}")
+                    continue
                 else:
                     got = (n_remote,)
                     local = clone_tags()
@@ -1539,7 +1694,7 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             elif run_network:
                 d, note, prob = npm_lag()
                 if prob:
-                    notes.append(f"npm.lag: UNREAD — {prob}")
+                    unread("npm.lag", raw, claimed, prob)
                     continue
                 got = (d,)
                 notes.append(note)
@@ -1547,22 +1702,24 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             got = tuple(int(g) for g in m.groups())
         if got is None:
             if key == "npm.lag":
-                unread = ("pass --network to dial the registry, or supply a `distance "
-                          "<n>` line from `registry_lag.py` in the measured log. Lag is a "
-                          "fact about the WORLD: nothing in this tree can answer it, and "
-                          "inheriting one across an --open is inheriting a number that "
-                          "may have changed while nobody looked")
+                why_unread = ("pass --network to dial the registry, or supply a `distance "
+                              "<n>` line from `registry_lag.py` in the measured log. Lag "
+                              "is a fact about the WORLD: nothing in this tree can answer "
+                              "it, and inheriting one across an --open is inheriting a "
+                              "number that may have changed while nobody looked")
             elif key == "npm.tags":
-                unread = (f"pass --network, or supply `ORIGIN_TAGS <n>` in the measured "
-                          f"log. This checkout reads {clone_tags()} and that is a fact "
-                          f"about the checkout, not the claim on the npm line")
+                why_unread = (f"pass --network, or supply `ORIGIN_TAGS <n>` in the "
+                              f"measured log. This checkout reads {clone_tags()} and that "
+                              f"is a fact about the checkout, not the claim on the npm "
+                              f"line")
             elif key in ("gh.issues", "gh.prs"):
-                unread = (f"pass --network to ask `gh`, or supply "
-                          f"`{'GH_OPEN_ISSUES' if key == 'gh.issues' else 'GH_OPEN_PRS'}"
-                          f" <n>` in the measured log. Nothing in the tree answers it")
+                why_unread = (f"pass --network to ask `gh` or the REST API, or supply "
+                              f"`{'GH_OPEN_ISSUES' if key == 'gh.issues' else 'GH_OPEN_PRS'}"
+                              f" <n>` from `handoff_gate.py --gh-open` in the measured "
+                              f"log. Nothing in the tree answers it")
             else:
-                unread = "no --measured log carries it"
-            notes.append(f"{key}: UNREAD — {unread}")
+                why_unread = "no --measured log carries it"
+            unread(key, raw, claimed, why_unread)
             continue
         compared += 1
         if len(claimed) != need or claimed != got:
@@ -3725,6 +3882,34 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (270, """> ```
+> main                 e35dc3e — the write that reported success (#331)   MERGED
+> branch 270           session270_issue327 — merged, deleted
+> tag                  🟢 v1.82.0 ANNOTATED at e35dc3e, declaring its own release commit
+> host / addon         1.82.0 / 1.12.0  🔴 BOTH MOVED — the addon's four scripts all
+>                      changed, so 1.11.0 could no longer name one tree. An Asset Library
+>                      submission for 1.12.0 is OWED; the card is written and 1.11.0 is
+>                      LIVE, not in review — see the postscript
+> npm                  🟡 1.82.0 · registry 1.81.0 · lag 1 · tags 133 ·
+>                      1 open issues / 0 open PRs
+>                      — PUBLISH OWED, needs his TTY. #327 is FIXED and its reply is
+>                      drafted, unsent, which is the only reason the issue is still open
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 50 · control 72 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1695
+>               · late not-loaded 0 · late constructed 197/160
+>               · py gates 18/4/14 · SIG 134/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 105 · 49 governed · 1207 keys · 97 shortfalls
+>               · unswept 0 · exempt 39 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 185 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4739 · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 44/44 claims · handoff 329 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -4519,6 +4704,60 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 HEADER_UNREAD_REASON npm.lag's UNREAD reason does not name --network "
               f"and does not say lag is a fact about the world: {_lag_note[:120]!r}")
+
+    # ── 🆕 271 §1 — `block-claims-a-count-its-own-read-could-not-make` (OPEN 270) ──────
+    #
+    # 🔴 EVERY UNREAD ROW ABOVE IS ALSO A REFUSAL NOW, and the two claims below are the
+    # same fixture read twice. The one directly above asserts that the REMOTE rows go
+    # UNREAD offline; this one asserts that going UNREAD while the block TYPED A NUMBER
+    # is a problem and not a note. 269's block is the negative example and it is not
+    # hypothetical: `0 open issues`, accepted, over a user's bug report that had been
+    # open for hours.
+    claims += 1
+    _uc = {x.split()[2] for x in _hp if x.startswith("🔴 HEADER_UNREAD_CLAIMED")}
+    if not _remote <= _uc:
+        failed += 1
+        print(f"  🔴 HEADER_UNREAD_CLAIMED {sorted(_remote - _uc)} went UNREAD against a "
+              f"block that claims a number for each of them and produced no problem — "
+              f"which is the state 270 shipped in: the reader was right, the note was "
+              f"printed, and the claim was accepted beside it")
+
+    # 🔴 AND THE OTHER DIRECTION, WHICH IS THE HALF THAT KEEPS THE RULE HONEST: an
+    # environment that cannot read is not being refused, a BLOCK THAT CLAIMS is. The
+    # fixture is 249's own npm row — the session that met this exactly, wrote
+    # ``gh UNREAD, no `gh` in this container``, and shipped a block with no numeral where
+    # the counter goes. It binds no atom, so there is nothing to compare and nothing to
+    # refuse, and it must stay that way or the rule becomes "own a `gh`".
+    claims += 1
+    _honest = [ln for ln in REAL_HEADER.strip("\n").split("\n")
+               if not ln.startswith("> npm ")]
+    _honest.insert(5, "> npm                  🟢 1.74.0 · lag UNREAD · tags UNREAD · gh "
+                      "UNREAD, no `gh` in this container")
+    _hp2, _hn2, _ha2, _hc2 = check_header(_honest, "", False, 234)
+    _uc2 = {x.split()[2] for x in _hp2 if x.startswith("🔴 HEADER_UNREAD_CLAIMED")}
+    if _uc2 & {"npm.lag", "npm.tags", "gh.issues", "gh.prs"}:
+        failed += 1
+        print(f"  🔴 HEADER_UNREAD_CLAIMED refused {sorted(_uc2)} on a block that made no "
+              f"claim — a row spelled UNREAD carries no numeral, so it is not an atom and "
+              f"there is nothing to compare. Refusing it would make this rule a "
+              f"requirement to own a network rather than a requirement to be honest")
+
+    # 🔴 THE EMITTER AND THE ROSTER, JOINED — the join `npm.lag` did not have for twelve
+    # sessions (241 §1). `GH_OPEN_ISSUES` has been an `extract` since 236 and nothing in
+    # the tree printed it, so the pattern could have been renamed on either side without a
+    # single test noticing. The claim runs the emitter's own format string against the
+    # roster's own regex; it does not dial, because the shape is what is being asserted.
+    claims += 1
+    _unjoined = []
+    for _k, _kind, _label in GH_EMIT:
+        _row = next((r for r in HEADER_READERS if r[0] == _k), None)
+        if _row is None or re.match(_row[3], f"{_label} 7") is None:
+            _unjoined.append(f"{_label} -> {_k}")
+    if _unjoined:
+        failed += 1
+        print(f"  🔴 GH_EMIT_JOIN {_unjoined} — the line `--gh-open` prints is not the "
+              f"line `HEADER_READERS` extracts. An emitter and a reader that agree only "
+              f"by coincidence are 236's `extract` with a producer bolted on")
 
     # 🔴 THE ROSTER'S OWN DISPATCH COVERAGE, ASKED THE WAY 232's DISCOVER HALF ASKS IT.
     # Every REMOTE row must be reachable by SOME route other than a log — that is what
@@ -5647,7 +5886,7 @@ def tier_trigger(prev: Path, root: Path = ROOT) -> "tuple[str, str, str, str]":
     return (TIER0, head, claimed, "")
 
 
-def open_tier(prev: Path, run_network: bool, root: Path = ROOT) -> int:
+def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -> int:
     """Tier 0: bind every counter atom without running an instrument, re-read the world."""
     tier, head, claimed, why = tier_trigger(prev, root)
     text = prev.read_text(encoding="utf-8")
@@ -5690,7 +5929,7 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT) -> int:
                         f"that reader is REQUIRED for session {session}")
 
     # ── the header: re-read, because the world moves and the tree does not ────────────
-    h_problems, h_notes, h_atoms, h_compared = check_header(block, "", run_network,
+    h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network,
                                                             session)
     for n in h_notes:
         print(f"  · {n}")
@@ -5720,15 +5959,25 @@ def declared_tier(text: str) -> "str | None":
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return selftest()
-    if "--open" in argv:
-        rest = [a for a in argv[argv.index("--open") + 1:] if not a.startswith("--")]
-        if not rest:
-            print("🔴 --open needs the PREVIOUS session's handoff")
-            return 2
-        return open_tier(Path(rest[0]).resolve(), run_network="--network" in argv)
+    if "--gh-open" in argv:
+        return gh_emit()
+    # 🆕 271 §1 — `--measured` IS PARSED BEFORE `--open` NOW, and the reorder is the whole
+    # of the fix. 241 §1 recorded that `--open` *returns from `main()` before `--measured`
+    # is even parsed*, which made a log-supplied reading unavailable at exactly the tier
+    # that re-reads the world; with UNREAD now refusing a claim, an environment that
+    # cannot dial had no route left but to drop the counter. It has one: run
+    # `--gh-open` wherever the reading is available, and hand the file to `--open`.
     log = ""
     if "--measured" in argv:
         log = Path(argv[argv.index("--measured") + 1]).read_text(encoding="utf-8")
+    if "--open" in argv:
+        rest = [a for a in argv[argv.index("--open") + 1:] if not a.startswith("--")]
+        rest = [a for a in rest if not log or a != argv[argv.index("--measured") + 1]]
+        if not rest:
+            print("🔴 --open needs the PREVIOUS session's handoff")
+            return 2
+        return open_tier(Path(rest[0]).resolve(), run_network="--network" in argv,
+                         log=log)
     if "--patterns" in argv:
         return patterns(log)
     paths = [a for a in argv[1:] if not a.startswith("--")]
