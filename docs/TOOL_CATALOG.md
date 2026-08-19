@@ -520,8 +520,10 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 - **Output**
 ```json
 { "type": "object", "required": ["path", "property", "value"],
-  "properties": { "path": { "type": "string" }, "property": { "type": "string" }, "value": { "$ref": "#/$defs/Variant" } } }
+  "properties": { "path": { "type": "string" }, "property": { "type": "string" }, "value": { "$ref": "#/$defs/Variant" },
+    "coerced": { "type": "boolean" }, "requested": { "$ref": "#/$defs/Variant" } } }
 ```
+`value` is read back from the engine AFTER the write and compared to what was asked for. A write that did not land is an **error** — `set_ignored` when the property is unchanged, `set_mismatch` when the engine stored an incompatible type — rather than a success carrying the old value. `coerced` and `requested` appear together, and only when the write landed and the engine then changed it (a setter that clamps, snaps or normalises), so a caller can tell *your value, stored* from *a value like yours, stored*.
 
 ### `node_get_property` ✅
 - **Input**
@@ -2643,7 +2645,7 @@ between belongs to this call and nothing else does.
 
 ### `runtime_get_property` / `runtime_set_property` ✔ ✅
 - **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
-- **Output** `{ path, property, value, engine_log? }` — the `node_get_property` shape plus the engine-error echo (D1a).
+- **Output** `{ path, property, value, coerced?, requested?, engine_log? }` — the `node_set_property` shape plus the engine-error echo (D1a). Same read-back comparison: `set_ignored` and `set_mismatch` are errors, and `coerced` marks a write the engine landed and then changed.
 
 ### `runtime_call_method` ✔ ✅ · arbitrary invocation
 - **Input**

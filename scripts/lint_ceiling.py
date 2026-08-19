@@ -105,7 +105,7 @@ PY_FILE_FLOOR = 18      # governed by floor_pin_gate's SIZE_LEDGER
 
 HOST = ROOT / "host"
 
-MJS_FILE_FLOOR = 65     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER.
+MJS_FILE_FLOOR = 66     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER; `270` added a probe.
                         # 🔴 AN EQUALITY, LIKE `PY_FILE_FLOOR` ABOVE, AND THE ASYMMETRY
                         # WAS DRAFTED AND THEN REJECTED. The first version floored this
                         # from below only, on the argument that the `.mjs` population is
@@ -163,12 +163,16 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
     ),
     "TS2775 Assertions require every name in the call target to be declared with an "
     "explicit type annotation.": (
-        420,
-        "One idiom, not 420 defects. TypeScript refuses to narrow through an assertion "
+        430,
+        "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "
         "`checkJs` meeting `node:assert`, and it would vanish under one annotation per "
-        "harness — which is work, not hygiene.",
+        "harness — which is work, not hygiene. Raised at 270 by ten: "
+        "`set-property-verify.integration.mjs` is a new probe of the same shape, calling "
+        "the same `Population.assert` through the same un-annotated binding, so it pays "
+        "the same tax per assertion. Raising it is recording what the probe costs; the "
+        "annotation that would zero the whole class is still the same one commit.",
     ),
     "TS2741 Property 'X' is missing in type 'X' but required in type 'X'.": (
         16, "Object literals built up across branches, judged against the fullest shape "

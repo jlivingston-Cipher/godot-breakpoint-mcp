@@ -23,6 +23,33 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 const encodedValue = z.any();
 
+/**
+ * The same Variant, on the way IN — and REQUIRED, which `z.any()` cannot be.
+ *
+ * 🔴 ISSUE #327, AND THE HALF OF IT NOBODY HAD REPORTED. `z.any()` answers true to
+ * zod's `isOptional()`, so every input key spelled that way was published to clients
+ * OUTSIDE the JSON Schema's `required` list — including `value` on seven shipped
+ * tools whose own descriptions call it "New value". A client omitting it was doing
+ * exactly what our schema told it it could do, and the addon then read
+ * `params.get("value")` as null and wrote the property type's ZERO over whatever was
+ * there. Measured on Godot 4.7: `rotation` 1.25 -> 0.0, `position` (123, 456) ->
+ * (0, 0), reported as success both times.
+ *
+ * 🔴 THE UNION IS THE POINT, NOT A NARROWING. It admits everything JSON can carry,
+ * including an explicit `null` — which is a real request (`material_override = null`)
+ * and is NOT the same request as sending nothing. What it stops admitting is
+ * ABSENCE. The addon refuses a missing key on its own side as well: a schema is the
+ * client's contract, and a direct socket has never had one.
+ */
+export const requiredEncodedValue = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.any()),
+  z.record(z.string(), z.any()),
+]);
+
 const capturedRaw = z.object({
   code: z.number().nullable(),
   stdout: z.string(),
@@ -201,7 +228,11 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   node_delete: { deleted: z.string() },
   node_rename: { path: z.string(), name: z.string() },
   node_reparent: { path: z.string() },
-  node_set_property: { path: z.string(), property: z.string(), value: encodedValue },
+  // `coerced`/`requested` appear only when the engine STORED something other than what
+  // was asked for and the type still matched — a clamp, a snap, a normalise (issue #327).
+  // Optional because the ordinary answer carries neither, and declared because a field the
+  // wire can carry and the schema cannot name is a field a strict client rejects.
+  node_set_property: { path: z.string(), property: z.string(), value: encodedValue, coerced: z.boolean().optional(), requested: encodedValue.optional() },
   node_get_property: { path: z.string(), property: z.string(), value: encodedValue },
   node_duplicate: { path: z.string(), name: z.string(), type: z.string() },
   node_get_children: { path: z.string(), children: z.array(z.object({ name: z.string(), type: z.string(), path: z.string() })) },
@@ -574,7 +605,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     children: z.array(runtimeNode).optional(),
   },
   runtime_get_property: { ...engineLog, path: z.string(), property: z.string(), value: encodedValue },
-  runtime_set_property: { ...engineLog, path: z.string(), property: z.string(), value: encodedValue },
+  runtime_set_property: { ...engineLog, path: z.string(), property: z.string(), value: encodedValue, coerced: z.boolean().optional(), requested: encodedValue.optional() },
   runtime_call_method: { ...engineLog, return: encodedValue },
   runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
   runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string() },

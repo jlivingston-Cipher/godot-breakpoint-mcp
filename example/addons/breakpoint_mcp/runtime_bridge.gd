@@ -20,7 +20,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.11.0"
+const ADDON_VERSION := "1.12.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -502,7 +502,35 @@ func _get_property(params: Dictionary) -> Dictionary:
 	if node == null:
 		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
 	var prop := String(params.get("property", ""))
-	return _ok({"path": _path_of(node), "property": prop, "value": Codec.encode(node.get(prop))})
+	if prop == "":
+		return _err("bad_params", "Missing 'property'")
+	return _ok({"path": _path_of(node), "property": prop, "value": Codec.encode(Codec.read_property(node, prop))})
+
+
+## 🔴 THIS FUNCTION USED TO ANSWER WITH A READ-BACK IT NEVER COMPARED TO WHAT IT WAS
+## ASKED FOR (issue #327). Every way a write can fail to land — a String coerced into
+## a bool, an untagged `{"x":..,"y":..}` landing in a Vector2 as (0,0), an indexed path
+## read with the wrong method, a `value` key that never arrived — produced the same
+## `ok` envelope carrying the value the property ALREADY HAD. The caller's next action
+## was therefore taken against a state it believed it had set, arbitrarily far from the
+## point where nothing happened.
+##
+## 🔴 THE THREE OUTCOMES, AND ONLY ONE OF THEM IS A FAILURE OF THE WRITE:
+##
+##   APPLIED    the engine holds what was asked for                    -> ok
+##   COERCED    same type, different value — a setter clamped, snapped
+##              or normalised it. Ordinary and its own business, but the
+##              caller must be TOLD, because it is not what it asked for -> ok, coerced
+##   REFUSED    the property is unchanged, or holds an incompatible
+##              type: nothing the caller wrote survived                  -> error
+static func _set_outcome(asked: Variant, before: Variant, after: Variant) -> String:
+	if Codec.values_equal(asked, after):
+		return "applied"
+	if not Codec.types_compatible(typeof(asked), typeof(after)):
+		return "mismatch"
+	if Codec.values_equal(before, after):
+		return "ignored"
+	return "coerced"
 
 
 func _set_property(params: Dictionary) -> Dictionary:
@@ -510,8 +538,57 @@ func _set_property(params: Dictionary) -> Dictionary:
 	if node == null:
 		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
 	var prop := String(params.get("property", ""))
-	node.set(prop, Codec.decode(params.get("value")))
-	return _ok({"path": _path_of(node), "property": prop, "value": Codec.encode(node.get(prop))})
+	if prop == "":
+		return _err("bad_params", "Missing 'property'")
+	# 🔴 A MISSING `value` IS NOT A NULL VALUE, and conflating them WIPED PROPERTIES.
+	# `Dictionary.get("value")` answers null for a key that is not there, and
+	# `Object.set(prop, null)` does not refuse — the engine coerces null to the
+	# property type's zero. Measured on 4.7: rotation 1.25 -> 0.0, position
+	# (123, 456) -> (0, 0), reported as success both times. The host's own published
+	# input schema left `value` OPTIONAL (`z.any()` is optional in zod), so a client
+	# omitting it was doing exactly what it was told it could do.
+	if not params.has("value"):
+		return _err(
+			"bad_params",
+			"Missing 'value'. Pass it explicitly — an absent value is not the same request as a null one, and writing null here would set %s to its type's zero." % prop
+		)
+	var asked: Variant = Codec.decode(params["value"])
+	var before: Variant = Codec.read_property(node, prop)
+	Codec.write_property(node, prop, asked)
+	var after: Variant = Codec.read_property(node, prop)
+	var outcome := _set_outcome(asked, before, after)
+	# 🔴 A REFUSED WRITE PUTS THE PROPERTY BACK, and the first draft of this fix did not.
+	# The engine has already coerced by the time we can compare, so `{"x":.., "y":..}`
+	# landing in a Vector2 had ALREADY overwritten (123, 456) with (0, 0) — and reporting
+	# that honestly would have left the caller with an accurate message and a broken
+	# scene. An error the tool raises about its own write must not also BE a write.
+	if outcome == "mismatch" or outcome == "ignored":
+		Codec.write_property(node, prop, before)
+	if outcome == "mismatch":
+		return _err(
+			"set_mismatch",
+			"%s.%s holds %s after the write and %s was asked for. Nothing the caller wrote survived: rich types cross this wire as {\"__type__\": \"Vector2\", \"x\": .., \"y\": ..} and a bare map, array or string is not that."
+				% [_path_of(node), prop, _describe(after), _describe(asked)]
+		)
+	if outcome == "ignored":
+		return _err(
+			"set_ignored",
+			"%s.%s is unchanged at %s after being asked for %s. The property may not exist on this node, or its setter refused the value."
+				% [_path_of(node), prop, _describe(after), _describe(asked)]
+		)
+	var out := {"path": _path_of(node), "property": prop, "value": Codec.encode(after)}
+	if outcome == "coerced":
+		# The write LANDED and the engine changed it — a clamp, a snap, a normalise.
+		# Saying so is the difference between a tool that is honest about what it did
+		# and one that lets the caller assume.
+		out["coerced"] = true
+		out["requested"] = Codec.encode(asked)
+	return _ok(out)
+
+
+## `type_string(typeof(v))` plus the value, for a message a reader can act on.
+static func _describe(v: Variant) -> String:
+	return "%s %s" % [type_string(typeof(v)), JSON.stringify(Codec.encode(v))]
 
 
 func _call_method(params: Dictionary) -> Dictionary:
@@ -600,23 +677,50 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			var mb := InputEventMouseButton.new()
 			mb.button_index = int(ev.get("button", 1))
 			mb.pressed = bool(ev.get("pressed", true))
-			var pos: Variant = Codec.decode(ev.get("position"))
-			if pos is Vector2:
-				mb.position = pos
+			var pos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mb.position = v)
+			if not pos_err.is_empty():
+				return pos_err
 			Input.parse_input_event(mb)
 			return _ok({"injected": true, "kind": kind})
 		"mouse_motion":
 			var mm := InputEventMouseMotion.new()
-			var mpos: Variant = Codec.decode(ev.get("position"))
-			if mpos is Vector2:
-				mm.position = mpos
-			var rel: Variant = Codec.decode(ev.get("relative"))
-			if rel is Vector2:
-				mm.relative = rel
+			var mpos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mm.position = v)
+			if not mpos_err.is_empty():
+				return mpos_err
+			var rel_err := _apply_vector2(ev, "relative", func(v: Vector2) -> void: mm.relative = v)
+			if not rel_err.is_empty():
+				return rel_err
 			Input.parse_input_event(mm)
 			return _ok({"injected": true, "kind": kind})
 		_:
 			return _err("bad_kind", "Unknown input kind: %s" % kind)
+
+
+## Apply an OPTIONAL Vector2 field of a synthetic input event, or say why not.
+##
+## 🔴 THIS WAS `if pos is Vector2:` WITH NO ELSE, and it is the one place in the addon
+## where something really did discard silently — the shape issue #327 reported as
+## *Vector2 in mouse-motion events makes mouse-driven controls unreachable*. An
+## untagged `{"x": .., "y": ..}` decodes to a Dictionary, fails the type test, and the
+## event was injected AT THE ORIGIN with `{"injected": true}` on the way back. The
+## caller then read a game that had been clicked at (0, 0).
+##
+## Absent stays absent — these fields are genuinely optional and an omitted position
+## means *wherever the event lands by default*. PRESENT AND UNUSABLE is the error:
+## the caller aimed at something and missed by the width of the screen.
+## Returns {} when there is nothing to report, an `_err` envelope otherwise.
+func _apply_vector2(ev: Dictionary, field: String, apply: Callable) -> Dictionary:
+	if not ev.has(field):
+		return {}
+	var decoded: Variant = Codec.decode(ev[field])
+	if decoded is Vector2:
+		apply.call(decoded as Vector2)
+		return {}
+	return _err(
+		"bad_event_field",
+		"event.%s is %s and a Vector2 is required. Rich types cross this wire tagged: {\"__type__\": \"Vector2\", \"x\": .., \"y\": ..} — a bare map, array or string is not that, and injecting the event without it would have aimed at the origin."
+			% [field, _describe(decoded)]
+	)
 
 
 func _get_monitors(params: Dictionary) -> Dictionary:

@@ -54,6 +54,8 @@ const EDITOR_REMEDIES := {
 	"create_failed": "Check the parent and the name in the message, then call again.",
 	"mkdir_failed": "Check the parent directory is inside the project and writable; `filesystem_create_dir` creates intermediate directories, and the number is a Godot Error code.",
 	"bad_source": "Create an atlas source first with `tileset_add_source`; the id above is not one.",
+	"set_mismatch": "Send the value tagged — `{\"__type__\": \"Vector2\", \"x\": .., \"y\": ..}` — then call again; `node_get_property` reports the type the property currently holds.",
+	"set_ignored": "Check the property exists on this node with `node_get_property`, and that its setter accepts the value — nothing changed.",
 	"unknown_method": "Re-run `breakpoint-mcp init --force`, then reopen the project — the addon installed here is older than the host and plain `init` skips an addon that is already present.",
 	"bad_request": "Send the request again with the field the message names — it was empty or unparseable.",
 	"no_viewport": "Switch the editor to the tab that owns that viewport with `main_screen_set`, then call again.",
@@ -100,6 +102,10 @@ const RUNTIME_REMEDIES := {
 	"instantiate_failed": "Check the class or scene loads in the editor first — it would not instantiate in the running game.",
 	"cannot_remove_root": "Call `runtime_node_remove` on a child instead, or `godot_stop` to end the run — the running scene root cannot be removed.",
 	"no_tree": "Call `godot_run_project` and wait for it to bind, then call again — the game is not running.",
+	"set_mismatch": "Send the value tagged — `{\"__type__\": \"Vector2\", \"x\": .., \"y\": ..}` — then call again; `runtime_get_property` reports the type the property currently holds.",
+	"set_ignored": "Check the property exists on this node with `runtime_get_property`, and that its setter accepts the value — nothing changed.",
+	"bad_event_field": "Send the field tagged — `{\"__type__\": \"Vector2\", \"x\": .., \"y\": ..}` — or omit it and let the event land at its default position.",
+	"bad_params": "Fix the parameter named above and call again — the message carries the accepted shape.",
 }
 
 

@@ -667,7 +667,13 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
     ("29.nooptional", "29", "sub", "host/src/schemas.ts",
      "        expected: encodedValue.optional(),\n        actual: encodedValue.optional(),",
      "        expected: encodedValue,\n        actual: encodedValue,",
-     "no `encodedValue.optional()` remains"),
+     # 🆕 270 — THE FINGERPRINT MOVED BECAUSE THE CLAIM DID. This arm asserted *at least
+     # one remains* until 270, and issue #327's fix added two more spellings, so emptying
+     # the two below left two behind and the claim held: the control observed nothing
+     # while the check it proves went on passing for the wrong reason. It is a declared
+     # count now (`OPTIONAL_ANY_SPELLINGS`), which is what makes this mutation decisive
+     # again — two is not four however many are left.
+     "OPTIONAL_ANY_SPELLINGS declares"),
     # 🆕 269 — check 32's fourth arm, one code one producer. The mutation is THE DEFECT
     # ITSELF PUT BACK, which is the strongest form a row in this table can take:
     # `write_failed` is the word `operations.gd` raises for a file it could not open, and

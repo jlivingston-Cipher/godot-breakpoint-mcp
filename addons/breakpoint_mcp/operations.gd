@@ -8,7 +8,7 @@ extends RefCounted
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
-const ADDON_VERSION := "1.11.0"
+const ADDON_VERSION := "1.12.0"
 
 var _plugin: EditorPlugin
 
@@ -648,14 +648,77 @@ func _node_set_property(params: Dictionary) -> Dictionary:
 	var prop := String(params.get("property", ""))
 	if prop == "":
 		return _err("bad_params", "Missing 'property'")
-	var old_value: Variant = node.get(prop)
-	var new_value: Variant = Codec.decode(params.get("value"))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: set %s.%s" % [node.name, prop])
-	ur.add_do_property(node, prop, new_value)
-	ur.add_undo_property(node, prop, old_value)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "property": prop, "value": Codec.encode(node.get(prop))})
+	# 🔴 SAME FAMILY AS THE RUNTIME PLANE'S `_set_property` (issue #327) — an absent
+	# `value` is not a null one, and letting it through wrote the property type's zero
+	# over whatever was there, under a success envelope. See runtime_bridge.gd for the
+	# measurement; this plane reached it by the same route and through UndoRedo, so the
+	# wipe landed in the undo history looking like a deliberate edit.
+	if not params.has("value"):
+		return _err(
+			"bad_params",
+			"Missing 'value'. Pass it explicitly — an absent value is not the same request as a null one, and writing null here would set %s to its type's zero." % prop
+		)
+	var old_value: Variant = Codec.read_property(node, prop)
+	var new_value: Variant = Codec.decode(params["value"])
+	# 🔴 TRIAL FIRST, HISTORY ONLY IF IT LANDS. The engine coerces at the moment of the
+	# write, so the outcome cannot be known before it happens — and a refused write must
+	# leave neither a changed property NOR an undo entry. Committing first and undoing
+	# afterwards would put a "Breakpoint: set .." action in the editor's history for an
+	# edit that never took, which is a worse artifact than the one being fixed.
+	Codec.write_property(node, prop, new_value)
+	var after: Variant = Codec.read_property(node, prop)
+	var outcome := _set_outcome(new_value, old_value, after)
+	Codec.write_property(node, prop, old_value)
+	if outcome == "applied" or outcome == "coerced":
+		var ur := _plugin.get_undo_redo()
+		ur.create_action("Breakpoint: set %s.%s" % [node.name, prop])
+		if Codec.is_indexed(prop):
+			# UndoRedo's property methods take a property NAME; a sub-property has to go
+			# through the indexed setter as a method call, or the action records an edit
+			# to a property called "position:x" that no node has.
+			ur.add_do_method(node, "set_indexed", NodePath(prop), new_value)
+			ur.add_undo_method(node, "set_indexed", NodePath(prop), old_value)
+		else:
+			ur.add_do_property(node, prop, new_value)
+			ur.add_undo_property(node, prop, old_value)
+		ur.commit_action()
+		after = Codec.read_property(node, prop)
+	if outcome == "mismatch":
+		return _err(
+			"set_mismatch",
+			"%s.%s holds %s after the write and %s was asked for. Nothing the caller wrote survived: rich types cross this wire as {\"__type__\": \"Vector2\", \"x\": .., \"y\": ..} and a bare map, array or string is not that."
+				% [_path_of(root, node), prop, _describe(after), _describe(new_value)]
+		)
+	if outcome == "ignored":
+		return _err(
+			"set_ignored",
+			"%s.%s is unchanged at %s after being asked for %s. The property may not exist on this node, or its setter refused the value."
+				% [_path_of(root, node), prop, _describe(after), _describe(new_value)]
+		)
+	var out := {"path": _path_of(root, node), "property": prop, "value": Codec.encode(after)}
+	if outcome == "coerced":
+		out["coerced"] = true
+		out["requested"] = Codec.encode(new_value)
+	return _ok(out)
+
+
+## The three outcomes of a write. Deliberately duplicated across the two planes rather
+## than hoisted into the codec: 254's per-plane split is the house rule and these two
+## scripts have separate lifetimes. See `runtime_bridge.gd::_set_outcome` for the
+## argument the three names carry.
+static func _set_outcome(asked: Variant, before: Variant, after: Variant) -> String:
+	if Codec.values_equal(asked, after):
+		return "applied"
+	if not Codec.types_compatible(typeof(asked), typeof(after)):
+		return "mismatch"
+	if Codec.values_equal(before, after):
+		return "ignored"
+	return "coerced"
+
+
+## `type_string(typeof(v))` plus the value, for a message a reader can act on.
+static func _describe(v: Variant) -> String:
+	return "%s %s" % [type_string(typeof(v)), JSON.stringify(Codec.encode(v))]
 
 
 func _node_get_property(params: Dictionary) -> Dictionary:
@@ -668,7 +731,7 @@ func _node_get_property(params: Dictionary) -> Dictionary:
 	var prop := String(params.get("property", ""))
 	if prop == "":
 		return _err("bad_params", "Missing 'property'")
-	return _ok({"path": _path_of(root, node), "property": prop, "value": Codec.encode(node.get(prop))})
+	return _ok({"path": _path_of(root, node), "property": prop, "value": Codec.encode(Codec.read_property(node, prop))})
 
 
 func _selection_get() -> Dictionary:
