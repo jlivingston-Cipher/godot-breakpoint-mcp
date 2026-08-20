@@ -21,6 +21,7 @@ import {
   BANNER_ATTRIBUTED_FLOOR,                                   // 193 — the fallback, counted as itself
   SECTION_ATTRIBUTED_FLOOR,                                  // 194 — the SECOND fallback, the executed one
   SHAPED_FLOOR, PRECONDITION_FLOOR,                          // 🆕 182 — the CLASSIFIER's own output
+  durationClaim, judgeDuration, DURATION_FLOOR, unquoted,    // 🆕 275 — 273's subject, as a rule
 } from "./tautology_gate.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -107,6 +108,59 @@ claim(V(wrap(`  assert.deepEqual(reply.paths, []);`)).offender.length === 0,
   "🔴 a deepEqual [] against a FIXED value is a real claim, not a scope-dependent one");
 claim(V(wrap(`  const bad = [];\n  for (const t of all) if (!t.ok) bad.push(t);\n  assert.deepEqual(bad, []);`)).offender.length === 1,
   "the loop-accumulator spelling of the same idiom is flagged too");
+
+// ── 5b. 🆕 275 — THE DURATION IDIOM (`duration-assertions-unguarded`, 273) ────────────
+// 🔴 BOTH DIRECTIONS ON EVERY ARM, because a rule that flags every comparison would
+// "catch" 273's defect and constrain nothing — 169's third false-positive mode, which is
+// the reason this file pins the DISMISSALS as hard as the catches.
+claim(durationClaim("elapsed >= 200")?.lower === true
+   && durationClaim("elapsed >= 200")?.guarded === false,
+  "a bare lower bound on an elapsed reading is a duration claim and is unguarded");
+claim(durationClaim("elapsed >= WAIT_MS - TIMER_SLACK_MS")?.guarded === true,
+  "a named slack term guards it — the shape 273 shipped");
+claim(durationClaim("Date.now() - started >= 250 - TIMER_SLACK_MS")?.lower === true,
+  "the inline `Date.now() - t` spelling is read the same way as a named `elapsed`");
+claim(durationClaim("Date.now() - started < 5000")?.lower === false,
+  "an UPPER bound is counted and is not the offence — 'it finished in time' is a different claim");
+claim(durationClaim("200 <= elapsed")?.lower === true,
+  "🔴 the reversed spelling is the same claim, and it is the one that would have shipped unread");
+claim(durationClaim("rows.length >= 3") === null && durationClaim("elapsed") === null,
+  "a length floor is not a duration claim, and neither is a mention with no comparison in it");
+
+// and the verdict wire, on both of the branches a healthy tree cannot reach
+claim(judgeDuration([{ c: { file: "a.ts", line: 3, cond: "elapsed >= 200", owner: { name: "t" } },
+                       d: { lower: true, guarded: false } }], 1).failed === true,
+  "an unguarded lower bound reddens the gate");
+claim(said(judgeDuration([{ c: { file: "a.ts", line: 3, cond: "elapsed >= 200", owner: { name: "t" } },
+                            d: { lower: true, guarded: false } }], 1), "TAUT_DURATION_UNGUARDED"),
+  "…and says so by name, with the condition beside it");
+claim(judgeDuration([{ c: { file: "a.ts", line: 3, cond: "elapsed >= 200 - SLACK", owner: { name: "t" } },
+                       d: { lower: true, guarded: true } }], 1).failed === false,
+  "a guarded one does not");
+claim(judgeDuration([], 1).failed === true && said(judgeDuration([], 1), "TAUT_DURATION_COLLAPSE"),
+  "🔴 and an EMPTY population reddens too — the offence is zero on a healthy tree, so only the site count can say the reader ran");
+claim(DURATION_FLOOR >= 1,
+  "the shipped floor is not zero — a floor of zero is the branch that can never fail (182 §11.3)");
+claim(V(wrap(`  assert.ok(Date.now() - t0 >= 200 - TIMER_SLACK_MS);`)).duration.length === 1,
+  "the whole route, end to end: `verdict()` collects the site off a real parse");
+// 🔴 AND THE CASE THAT CAUGHT THE FIRST DRAFT: the four claims above pass the idiom as a
+// STRING, and the live gate reported every one of them as an unguarded lower bound in a
+// file that asserts nothing about a clock. A comparison inside a quoted span is not a
+// comparison — in this file or in any suite whose assertion message quotes its own
+// expression, which is most of them.
+claim(durationClaim(`label === "elapsed >= 200"`) === null,
+  "🔴 an idiom inside a quoted string is not a duration claim — the gate's own fixtures are what proved it");
+claim(unquoted(`a === "x >= 1"`) === `a === ""`,
+  "the quoted span is BLANKED and not deleted, so the operator search cannot see the comparison it hid");
+// 🔴 AND THE WIRE, WHICH IS THE HALF A HEALTHY TREE CAN NEVER EXERCISE. `main()` calls
+// `combineFailed` twice now — once for the scope verdict and once for this one — and the
+// second call's argument is `false` on every green tree, so a LATE blind that answers
+// honestly and then returns its empty drops the duration refusal live and nothing reddens.
+// `instrument_gate.py`'s `LATE_DECLARED_GREEN` declares that and points here: this claim is
+// the axis where the second wire has a case with a known answer.
+claim(combineFailed(false, judgeDuration([{ c: { file: "a.ts", line: 3, cond: "elapsed >= 200", owner: { name: "t" } },
+                                             d: { lower: true, guarded: false } }], 1)) === true,
+  "🔴 the duration verdict reaches the exit code — the second `combineFailed` call, unreachable from a green tree");
 
 // ── 6. ONE-HOP RESOLUTION — 169's false-positive killer, still killing them ──────────
 claim(V(wrap(`  const good = r.status === "ok" && r.count === 3;\n  assert.ok(good);`)).vacuous.length === 0,
@@ -666,7 +720,7 @@ claim(A(wrap("  assert.equal((x as any).n, 1);"), "k.ts").length
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
 // 🆕 185: WRITTEN AT 125 FROM A COUNT OF THE CASES AND CAUGHT ITSELF AT 124 ON THE FIRST
 // RUN — 170 §5's experience for the fourth time, and the reason the literal stays.
-const EXPECTED = 160;  // 242: 157 -> 160 (the fixture name that reached nothing — `A` and `V` forwarding it, read off the row's own `file`, and the pinned agreement that says the name is documentary until `analyze` makes it otherwise) · 194: 141 -> 157 (the SECOND fallback — the executed `population.open`/`seal` marker the runtime already counts by, the two banner idioms the reader could not see, the ordering that puts the executed marker ahead of the comment, and SECTION_ATTRIBUTED_FLOOR) · 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+const EXPECTED = 175;  // 275: 160 -> 175 (the duration idiom — both directions on each arm of `durationClaim`, the two `judgeDuration` branches a healthy tree cannot reach, the floor that may not be zero, and the end-to-end parse) · 242: 157 -> 160 (the fixture name that reached nothing — `A` and `V` forwarding it, read off the row's own `file`, and the pinned agreement that says the name is documentary until `analyze` makes it otherwise) · 194: 141 -> 157 (the SECOND fallback — the executed `population.open`/`seal` marker the runtime already counts by, the two banner idioms the reader could not see, the ordering that puts the executed marker ahead of the comment, and SECTION_ATTRIBUTED_FLOOR) · 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);

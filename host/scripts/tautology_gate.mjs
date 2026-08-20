@@ -221,6 +221,13 @@ export const BANNER_ATTRIBUTED_FLOOR = 15;    // measured 21, 2026-08-04 (was 30
 // so a collapse here means the static scorer and the live probe have started disagreeing.
 export const SECTION_ATTRIBUTED_FLOOR = 380;  // measured 448, 2026-08-04
 
+// 🆕 275 — THE DURATION POPULATION'S OWN FLOOR, and it is the same argument as the two
+// above rather than a new one: the offence this rule reports is zero on a healthy tree,
+// so the only number that can say the reader RAN is the number of sites it recognised.
+// Measured on this tree: four elapsed comparisons in `test/` — two lower bounds, both
+// carrying `TIMER_SLACK_MS` since 273, and two upper bounds.
+export const DURATION_FLOOR = 4;              // measured 4 sites, 2026-08-20
+
 // 🔴 EVERY FILE IS A POPULATION (172). 171 §10.22 wrote the rule after watching a total
 // collapse in one directory hide behind a healthy number from the other: "any scope
 // assertion over more than one population needs one number per population." A DIRECTORY
@@ -323,6 +330,69 @@ const SHAPE_TYPEOF = new Set(["boolean", "number", "string", "object", "function
 // the first time this pattern learned a new self-flooring idiom.
 export const FLOOR_RE = /\.length|\.size|\bcount\b|\.byteLength|\.includes\s*\(|\.some\s*\(/;
 const DERIVING = /\.(filter|map|flatMap|flat|reduce|concat|entries|keys|values|from)\s*\(|\bObject\.(keys|values|entries)\b/;
+
+// ── 🆕 275 — `duration-assertions-unguarded` (OPEN 273) ───────────────────────────────
+//
+// 🔴 273's OWN SUBJECT, AS A RULE. An assertion that claims a wait ACTUALLY HAPPENED by
+// bracketing a `setTimeout` with a clock reading is not wrong about the code, it is wrong
+// about the CLOCK. Node schedules timers against libuv's loop clock, cached at the top of
+// each iteration, so a timer can return before its window has elapsed on any clock a test
+// can read — measured at 273 over 2000 rounds, `performance.now()` came back early 24
+// times, worst shortfall 0.609 ms, and `Date.now()` scored zero only because millisecond
+// truncation rounds it away on an idle machine. It rounded the other way on a GitHub
+// runner and `main` went red at `4a718f7` over `waited 199ms`.
+//
+// 🔴 SO THE RULE IS ABOUT THE BOUND AND NOT ABOUT THE CLOCK, which is the half careful
+// reasoning misses: no clock choice fixes it and the assertion has to carry slack. A
+// LOWER bound on an elapsed reading must subtract a named tolerance. An UPPER bound is
+// COUNTED AND NOT REFUSED — the tree's two (`< 5000` on a 250 ms wait, `< 2000` on a
+// refusal that never dials) have three orders of magnitude of margin, and "it finished in
+// time" is a different claim from "the wait happened".
+//
+// 🔴 AND THE POPULATION IS COUNTED BECAUSE THE OFFENCE CANNOT BE. A healthy tree has zero
+// unguarded lower bounds, so a rule that printed only its offences would read identically
+// whether it was working or had stopped recognising the idiom — 181 §5's problem, which
+// every floor in this file exists to answer. `TAUT_DURATION` prints the sites it found.
+export const ELAPSED_RE = /(?:\b(?:Date|performance)\.now\s*\(\s*\)\s*-)|\b(?:elapsed|waited|took|duration)\b/;
+export const SLACK_RE = /slack/i;
+const COMPARE_RE = /(>=|<=|>|<)/;
+
+/**
+ * The condition with every quoted span blanked — 🆕 275, and it is not defensive coding.
+ *
+ * 🔴 THE GATE'S OWN SELF-TEST CAUGHT THIS ON THE FIRST RUN, which is the fifth session
+ * running that a fixture beat the author. `durationClaim` reads the CONDITION TEXT, and
+ * this file's fixtures pass the idiom they are about as a string: the condition
+ * `durationClaim("elapsed >= 200")?.lower === true` contains `elapsed >= 200` and is not
+ * a duration claim at all — it is a claim ABOUT one. Four self-test cases were reported
+ * as unguarded lower bounds, in a file that asserts nothing about a clock.
+ *
+ * 🔴 AND THE RULE GENERALISES PAST THIS FILE: a comparison inside a quoted string is not
+ * a comparison, in any suite. The same shape reaches every assertion whose message quotes
+ * the expression it is about, which is most of them.
+ */
+export function unquoted(text) {
+  return text.replace(/`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+}
+
+/**
+ * (null | {lower, guarded}) — how a claim brackets a clock, if it does at all.
+ *
+ * 🔴 THE SIDE MATTERS AND A NAIVE READER WOULD MISS HALF THE POPULATION. `elapsed >= n`
+ * and `n <= elapsed` are the same claim written in two directions, and only the first is
+ * what anybody writes — which is exactly why the second is the one that would ship
+ * unread.
+ */
+export function durationClaim(cond) {
+  const text = unquoted(cond || "");
+  if (!ELAPSED_RE.test(text)) return null;
+  const m = COMPARE_RE.exec(text);
+  if (m === null) return null;
+  const onLeft = ELAPSED_RE.test(text.slice(0, m.index));
+  const op = m[1];
+  const lower = onLeft ? op === ">=" || op === ">" : op === "<=" || op === "<";
+  return { lower, guarded: SLACK_RE.test(text) };
+}
 // `family` is `_population.mjs`'s block form and `authoring-plane`'s own — the probe
 // equivalent of `test()`, and the unit its manifest is keyed on.
 const TEST_FNS = new Set(["test", "it", "family"]);
@@ -1213,6 +1283,11 @@ export function verdict(claims) {
     }),
     every: claims.filter((c) => c.anyEvery && !hasFloor(c)),
     offender: claims.filter((c) => c.anyOffender && !hasFloor(c)),
+    // 🆕 275 — read off the condition text here rather than flagged at the two claim
+    // construction sites, for `hasFloor`'s own reason one line up: it is a question about
+    // the WHOLE condition, and the third construction site (the helper-call form) has no
+    // condition to ask it of.
+    duration: claims.map((c) => ({ c, d: durationClaim(c.cond) })).filter((x) => x.d !== null),
   };
 }
 
@@ -1328,6 +1403,40 @@ export function combineFailed(failedSoFar, scope) {
   return failedSoFar || scope.failed;
 }
 
+/**
+ * The duration verdict — 🆕 275, `duration-assertions-unguarded` (273).
+ *
+ * 🔴 A SEPARATE FUNCTION FOR `judgeScope`'s REASON AND `combineFailed`'s: both of its
+ * failing branches are empty against the shipped tree by construction — the floor is
+ * below the live count and the offence list is empty — so neither can be reached from
+ * `main()` at all. Taking the population and the floor as parameters is what lets the
+ * self-test drive each of them.
+ */
+export function judgeDuration(rows, floor = DURATION_FLOOR) {
+  const out = { lines: [], failed: false };
+  const say = (s) => out.lines.push(s);
+  const lower = rows.filter((x) => x.d.lower);
+  const guarded = lower.filter((x) => x.d.guarded);
+  const bare = lower.filter((x) => !x.d.guarded);
+  say(`TAUT_DURATION  sites=${rows.length}/${floor} lower=${lower.length} guarded=${guarded.length}`);
+  if (rows.length < floor) {
+    out.failed = true;
+    say(`🔴 TAUT_DURATION_COLLAPSE ${rows.length} < ${floor} — either the elapsed assertions were`);
+    say(`   deleted, or this reader stopped recognising the idiom. The offence it reports is zero on a`);
+    say(`   healthy tree, so the site count is the only number that can tell those two apart.`);
+  }
+  for (const { c } of bare) {
+    out.failed = true;
+    say(`🔴 TAUT_DURATION_UNGUARDED ${c.file.replace(ROOT, "")}:${c.line} "${c.owner?.name ?? c.marker ?? "(module scope)"}"`);
+    say(`   ${c.cond}`);
+    say(`   a LOWER bound on an elapsed reading with no slack term. Node schedules timers against libuv's`);
+    say(`   loop clock, so a \`setTimeout(n)\` can return with fewer than n milliseconds on every clock a`);
+    say(`   test can read — 273 measured 24 early returns in 2000 rounds and \`main\` went red on one of`);
+    say(`   them. Subtract a named tolerance (\`TIMER_SLACK_MS\` in \`test/helpers/tcp.ts\`).`);
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────── main --
 function main() {
   let all = [], failed = false;
@@ -1427,6 +1536,16 @@ function main() {
   console.log(`TAUT_VACUOUS   ${v.vacuous.length}`);
   console.log(`TAUT_EVERY     ${v.every.length}`);
   console.log(`TAUT_OFFENDER  ${v.offender.length}`);
+  // 🆕 275 — `duration-assertions-unguarded` (273). Judged in `judgeDuration` for the
+  // reason `judgeScope` is a function: the floor's failing branch is unreachable on a
+  // tree that is above it, so a fixture has to be able to drive it from below.
+  // 🔴 `?? []` FOR THE `?? {}` REASON THIS FILE ALREADY CARRIES: a blind on `verdict`
+  // returns the contract's empty, and a field this call reads without a default turns
+  // that blind into a TypeError — RED WITHOUT A VERDICT, which proves that JavaScript
+  // throws on `undefined` and not that the gate's floor bites (`CRASH_CEILING`, 275).
+  const dur = judgeDuration(v.duration ?? []);
+  for (const l of dur.lines) console.log(l);
+  failed = combineFailed(failed, dur);
 
   for (const b of v.vacuous) {
     failed = true;

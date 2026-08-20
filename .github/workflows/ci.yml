@@ -199,6 +199,46 @@ jobs:
       - name: No item is past the ceiling undecided, no schedule has lapsed, and no
           session closed only what it invented (queue gate)
         run: python3 scripts/queue_gate.py
+      # 🆕 275 — THE WORKFLOW FILES GITHUB ITSELF WOULD REFUSE, AND IT IS THIS SESSION'S
+      # OWN PICKUP. 274 wrote `${{ runner.temp }}` into a job-level `env:` — not a context
+      # available there — and GitHub refused the FILE: the `ci` run failed at startup in
+      # 0s, created no jobs, and not one of the twenty-six required checks reported. Every
+      # gate in the local replay was green, because every one of them reads the workflow
+      # as TEXT and none of them asks whether Actions would accept it.
+      #
+      # 🔴 IT CANNOT CHECK ITS OWN FILE AND SAYS SO RATHER THAN IMPLYING OTHERWISE. A file
+      # GitHub refuses never runs, so a step inside `ci.yml` can never see `ci.yml`'s own
+      # breakage; what it covers is every OTHER workflow file, and what covers this one is
+      # the local fence (the replay runs the same command before a push) and
+      # `MEASURED_RUN_NOT_GREEN`, which refuses a close whose own run concluded `failure`.
+      # Three readers, none of them able to stand in for the others.
+      #
+      # 🔴 AND THE POSITIVE CONTROL RUNS FIRST, for `lint_ceiling.py`'s reason two jobs
+      # over: an off-the-shelf tool that silently installed wrong, or a `*.yml` glob that
+      # matched nothing, both exit 0 over a broken tree. The fixture is 274's own defect.
+      - name: The workflow files GitHub itself would refuse (actionlint)
+        shell: bash
+        run: |
+          pip install actionlint-py
+          ctl="$RUNNER_TEMP/wf-control/.github/workflows"
+          mkdir -p "$ctl"
+          printf '%s\n' \
+            'name: control' \
+            'on: push' \
+            'jobs:' \
+            '  a:' \
+            '    runs-on: ubuntu-latest' \
+            '    env:' \
+            '      LOG: ${{ runner.temp }}/x.log' \
+            '    steps:' \
+            '      - run: echo "$LOG"' > "$ctl/control.yml"
+          if (cd "$RUNNER_TEMP/wf-control" && actionlint .github/workflows/control.yml); then
+            echo "🔴 WORKFLOW_LINT_CONTROL actionlint accepted 274's own defect — a job-level"
+            echo "   env: reading the runner context. The tool ran and refused nothing, which is"
+            echo "   the one outcome that looks identical to a clean tree."
+            exit 1
+          fi
+          actionlint .github/workflows/*.yml
       # 🆕 243 — THE THIRD P0 REPORTER, AND IT IS HERE FOR ITS TWO SIBLINGS' REASON.
       # 242 put `p0_complexity.selftest.mjs` and `p0_testdup.selftest.mjs` in the `test`
       # job after both reporters shipped tracked in 241 importing a Node 22 export
