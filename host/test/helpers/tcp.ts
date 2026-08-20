@@ -1,5 +1,37 @@
 import net from "node:net";
 
+/**
+ * How far short of its own window a `setTimeout` is allowed to come back, for a test that
+ * asserts a wait ACTUALLY HAPPENED.
+ *
+ * 🔴 SESSION 273, AND THE FIRST FIX FOR IT WAS WRONG. `initialized_wait.test.ts` read
+ * `expected at least 200ms, waited 199ms` on `main` at `4a718f7` — a green tree, a timer
+ * that had in fact waited, and a red default branch. The obvious diagnosis is that
+ * `Date.now()` is the WALL clock while `setTimeout` runs on another one, so the bracket
+ * was comparing two clocks; the obvious fix is to bracket with `performance.now()`
+ * instead. **Both are wrong, and the measurement says so.** Bracketing `setTimeout(200)`
+ * two thousand times:
+ *
+ *     Date.now()          early    0/2000
+ *     performance.now()   early   24/2000   worst shortfall 0.609 ms
+ *
+ * The monotonic clock is not less accurate here, it is more HONEST. Node schedules a timer
+ * against libuv's loop clock, which is cached at the top of each iteration, so a timer
+ * really can fire before its window has elapsed on any clock a test is able to read.
+ * `Date.now()` scored zero only because truncating to whole milliseconds rounds that away
+ * on an idle machine — and on a loaded CI runner it rounded the other way, which is the
+ * failure above. No choice of clock removes this. The assertion has to admit it.
+ *
+ * 🔴 THE SLACK IS A MEASUREMENT PLUS HEADROOM, NOT A ROUND NUMBER THAT MADE THE RED GO
+ * AWAY. Worst observed shortfall is 0.609 ms from the timer and up to one millisecond more
+ * from truncation; five is that, with room for a runner slower than the one it was measured
+ * on. It is also one fortieth of the smallest window any caller here guards, so the thing
+ * these assertions exist to catch — a wait that never happened, returning in single-digit
+ * milliseconds — remains far outside the tolerance. A wait that is genuinely broken does
+ * not come back one millisecond early. It comes back immediately.
+ */
+export const TIMER_SLACK_MS = 5;
+
 /** Resolve after `ms` milliseconds. */
 export function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

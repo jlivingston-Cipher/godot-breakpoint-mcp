@@ -4,6 +4,7 @@ import net from "node:net";
 import { BridgeClient } from "../src/bridge.js";
 import { waitForBridge, waitForRuntimeBridge, notReadyRemedy, READY_POLL_INTERVAL_MS } from "../src/readiness.js";
 import type { Config } from "../src/config.js";
+import { TIMER_SLACK_MS } from "./helpers/tcp.js";
 
 /**
  * 🔴 THE HALF THAT MUST BE PROVEN IS THE ONE THAT SUCCEEDS.
@@ -57,7 +58,13 @@ test("waitForBridge gives up at the deadline rather than hanging", async () => {
   try {
     const ready = await waitForBridge(c, started + 250);
     assert.equal(ready, false);
-    assert.ok(Date.now() - started >= 250, "it must actually have waited its deadline");
+    // 🔴 THE SAME TIMER SLACK AS `initialized_wait.test.ts`, AND IT IS HERE BEFORE IT
+    // COSTS A RUN. This is the second of the two lower-bound duration assertions in the
+    // suite; the other one reddened `main` at `4a718f7` on a one-millisecond shortfall,
+    // and this line asserts the identical shape against a poll loop with the identical
+    // exposure. Fixing only the one that had already failed would have left the family
+    // half repaired and the next red indistinguishable from a real regression.
+    assert.ok(Date.now() - started >= 250 - TIMER_SLACK_MS, "it must actually have waited its deadline");
     assert.ok(Date.now() - started < 5000, "and it must not have waited past it");
   } finally {
     c.close();
