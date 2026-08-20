@@ -23,8 +23,16 @@ jobs:
     # it is otherwise clean; a capture file written under `github.workspace` would be an
     # untracked file every one of them sees, so the artifact that exists to make the
     # numbers readable would have changed the numbers.
+    #
+    # 🆕 275 — AND THE PATH IS ASSEMBLED IN A STEP, BECAUSE `runner` DOES NOT EXIST HERE.
+    # A job-level `env:` may read `github`, `inputs`, `matrix`, `needs`, `secrets`,
+    # `strategy` and `vars` and NOT `runner`, `job`, `steps` or `env` — no runner has been
+    # assigned when a job's own environment is evaluated. 274 wrote `${{ runner.temp }}` on
+    # this line and GitHub refused the whole FILE: the `ci` workflow failed at startup in
+    # 0s, created no jobs, and not one of the twenty-six required checks reported. The same
+    # directory is `$RUNNER_TEMP` inside a step, where it does exist.
     env:
-      CI_MEASURED_LOG: ${{ runner.temp }}/ci-measured/contract-check.log
+      CI_MEASURED_NAME: contract-check
     steps:
       # 🔴 fetch-depth: 0 — check 4 (`release_names.py --assert-addon`, below) walks
       # git history to ask whether the addon has moved since its own version was
@@ -47,8 +55,10 @@ jobs:
       - name: Open the captured log the close gate reads
         shell: bash
         run: |
-          mkdir -p "$(dirname "$CI_MEASURED_LOG")"
-          echo "CI_MEASURED sha=${{ github.sha }} run=${{ github.run_id }} attempt=${{ github.run_attempt }} job=contract-check workflow=${{ github.workflow }}" > "$CI_MEASURED_LOG"
+          log="$RUNNER_TEMP/ci-measured/$CI_MEASURED_NAME.log"
+          mkdir -p "$(dirname "$log")"
+          echo "CI_MEASURED_LOG=$log" >> "$GITHUB_ENV"
+          echo "CI_MEASURED sha=${{ github.sha }} run=${{ github.run_id }} attempt=${{ github.run_attempt }} job=$CI_MEASURED_NAME workflow=${{ github.workflow }}" > "$log"
       - name: Static parity check (no Godot / no registry needed)
         shell: bash
         run: python3 scripts/contract_check.py 2>&1 | tee -a "$CI_MEASURED_LOG"
@@ -345,8 +355,11 @@ jobs:
     # counter that is a fact about the MACHINE rather than about the tree — 239 §5.2's
     # class, *a green that is true of one disk* — is a disagreement between these three
     # files, and `handoff_gate.py` refuses one.
+    #
+    # 🆕 275 — `matrix` IS legal on this line and `runner` is not, which is why the leg's
+    # NAME lives here and the path is assembled in the step below (see `contract-check`).
     env:
-      CI_MEASURED_LOG: ${{ runner.temp }}/ci-measured/host-tests-node${{ matrix.node }}.log
+      CI_MEASURED_NAME: host-tests-node${{ matrix.node }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -357,8 +370,10 @@ jobs:
       - name: Open the captured log the close gate reads
         shell: bash
         run: |
-          mkdir -p "$(dirname "$CI_MEASURED_LOG")"
-          echo "CI_MEASURED sha=${{ github.sha }} run=${{ github.run_id }} attempt=${{ github.run_attempt }} job=host-tests-node${{ matrix.node }} workflow=${{ github.workflow }}" > "$CI_MEASURED_LOG"
+          log="$RUNNER_TEMP/ci-measured/$CI_MEASURED_NAME.log"
+          mkdir -p "$(dirname "$log")"
+          echo "CI_MEASURED_LOG=$log" >> "$GITHUB_ENV"
+          echo "CI_MEASURED sha=${{ github.sha }} run=${{ github.run_id }} attempt=${{ github.run_attempt }} job=$CI_MEASURED_NAME workflow=${{ github.workflow }}" > "$log"
       - name: Install against the real registry (reproducible)
         run: npm ci
       # 🔴 248 — THE PRODUCT IS BUILT HERE BECAUSE UNTIL 248 NOTHING NEEDED IT TO BE.
