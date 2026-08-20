@@ -222,6 +222,14 @@ jobs:
           pip install actionlint-py
           ctl="$RUNNER_TEMP/wf-control/.github/workflows"
           mkdir -p "$ctl"
+          # 🔴 THE FIXTURE IS ASSEMBLED FROM A SHELL VARIABLE BECAUSE ACTIONS REWRITES ITS
+          # OWN SYNTAX INSIDE A `run:` BLOCK — including inside single quotes, which is
+          # exactly where a reader assumes text is inert. Written literally, the two braces
+          # were substituted BEFORE bash ever saw the line, so the control file said
+          # `LOG: /home/runner/work/_temp/x.log`: valid, accepted, and not the defect at
+          # all. The control fired on its first real run and reported the tool as broken,
+          # which is the correct behaviour for a fixture the system under test had edited.
+          d='$'
           printf '%s\n' \
             'name: control' \
             'on: push' \
@@ -229,9 +237,14 @@ jobs:
             '  a:' \
             '    runs-on: ubuntu-latest' \
             '    env:' \
-            '      LOG: ${{ runner.temp }}/x.log' \
+            "      LOG: ${d}{{ runner.temp }}/x.log" \
             '    steps:' \
             '      - run: echo "$LOG"' > "$ctl/control.yml"
+          grep -q 'runner.temp' "$ctl/control.yml" || {
+            echo "🔴 WORKFLOW_LINT_FIXTURE the control file does not carry the expression it"
+            echo "   is about — something rewrote it between here and the disk."
+            exit 1
+          }
           # 🔴 `-shellcheck=` AND `-pyflakes=` ARE NOT A NARROWING FOR CONVENIENCE, THEY ARE
           # THIS SESSION'S OWN SUBJECT. `actionlint` shells out to whichever of those two
           # it finds on PATH, so its finding set depends on WHAT IS INSTALLED ON THE
