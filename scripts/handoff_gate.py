@@ -346,6 +346,14 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     ("taut.sites", r"\btaut\b", 1, ("node", "scripts/tautology_gate.mjs"), HOST,
      r"^TAUT_GATE ok — (\d+) claim site", CHEAP, REQUIRED,
      "claim sites read. `taut 4046`."),
+    # 🆕 275 — `duration-assertions-unguarded` (273). The OFFENCE is zero on a healthy
+    # tree and cannot be a counter; the POPULATION the rule recognised can, and is the
+    # only number that separates a reader working from a reader that stopped reading the
+    # idiom. SINCE 275 because 275 is the first block that can carry it.
+    ("taut.duration", r"\bduration\b", 3, ("node", "scripts/tautology_gate.mjs"), HOST,
+     r"^TAUT_DURATION\s+sites=(\d+)/\d+ lower=(\d+) guarded=(\d+)", CHEAP, SINCE(275),
+     "elapsed-time assertion sites, of which lower bounds, of which guarded by a named "
+     "slack term. `duration 4 sites / 2 lower / 2 guarded`."),
     ("seal.count", r"\bseal\b", 1, ("node", "scripts/seal_order_gate.mjs"), HOST,
      r"^SEAL_ORDER_GATE ok — (\d+) seal\(s\)", CHEAP, REQUIRED,
      "section seals. `seal 103`."),
@@ -1283,6 +1291,58 @@ def origin_slug(root: Path = ROOT) -> "tuple[str, str]":
     return (f"{m.group(1)}/{m.group(2)}", "")
 
 
+def gh_rest_fetch(path: str, root: Path = ROOT) -> "tuple[object, str]":
+    """(whatever the endpoint decoded to, problem) — the transport, with no shape rule.
+
+    🆕 275 — SPLIT OUT OF `gh_rest`, WHICH ASSERTED `list` INSIDE THE TRANSPORT. That
+    assertion is right for every route that COUNTS rows and wrong for `/actions/runs/<id>`,
+    which answers with one object; a second copy of the request would have been fifteen
+    duplicated lines whose token header could drift apart from this one's.
+    """
+    import urllib.error
+    import urllib.request
+
+    slug, prob = origin_slug(root)
+    if prob:
+        return (None, prob)
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{slug}/{path}",
+        headers={"Accept": "application/vnd.github+json",
+                 "User-Agent": "breakpoint-mcp-handoff-gate"})
+    for var in ("GH_TOKEN", "GITHUB_TOKEN"):
+        if os.environ.get(var):
+            req.add_header("Authorization", f"Bearer {os.environ[var]}")
+            break
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = r.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return (None, f"`GET /repos/{slug}/{path}` answered HTTP {e.code} — an endpoint "
+                      f"that refused is not an endpoint that counted zero")
+    except (urllib.error.URLError, OSError) as e:
+        return (None, f"`GET /repos/{slug}/{path}` could not be reached: {e}")
+    try:
+        return (json.loads(body), "")
+    except ValueError as e:
+        return (None, f"`GET /repos/{slug}/{path}` did not return JSON: {e}")
+
+
+def gh_rest_object(path: str, root: Path = ROOT) -> "tuple[dict, str]":
+    """(the decoded JSON object, problem) — `gh_rest`'s shape rule, one type over.
+
+    🆕 275 — A RUN IS NOT A LIST, and the array assertion above is not loosened to admit
+    it: an endpoint that answers with the wrong shape is a finding on either side, and
+    each reader says which shape its own question needs.
+    """
+    out, prob = gh_rest_fetch(path, root)
+    if prob:
+        return ({}, prob)
+    if not isinstance(out, dict):
+        return ({}, f"`GET /repos/…/{path}` returned {type(out).__name__}, not the object "
+                    f"this reader reads a verdict off")
+    return (out, "")
+
+
 def gh_rest(path: str, root: Path = ROOT) -> "tuple[list, str]":
     """(the decoded JSON array, problem) — NETWORK, over plain HTTPS and no `gh`.
 
@@ -1299,34 +1359,11 @@ def gh_rest(path: str, root: Path = ROOT) -> "tuple[list, str]":
     236 §4's reason: the counter whose correct value is almost always zero is the one an
     unreachable endpoint imitates perfectly.
     """
-    import urllib.error
-    import urllib.request
-
-    slug, prob = origin_slug(root)
+    out, prob = gh_rest_fetch(path, root)
     if prob:
         return ([], prob)
-    req = urllib.request.Request(
-        f"https://api.github.com/repos/{slug}/{path}",
-        headers={"Accept": "application/vnd.github+json",
-                 "User-Agent": "breakpoint-mcp-handoff-gate"})
-    for var in ("GH_TOKEN", "GITHUB_TOKEN"):
-        if os.environ.get(var):
-            req.add_header("Authorization", f"Bearer {os.environ[var]}")
-            break
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            body = r.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
-        return ([], f"`GET /repos/{slug}/{path}` answered HTTP {e.code} — an endpoint "
-                    f"that refused is not an endpoint that counted zero")
-    except (urllib.error.URLError, OSError) as e:
-        return ([], f"`GET /repos/{slug}/{path}` could not be reached: {e}")
-    try:
-        out = json.loads(body)
-    except ValueError as e:
-        return ([], f"`GET /repos/{slug}/{path}` did not return JSON: {e}")
     if not isinstance(out, list):
-        return ([], f"`GET /repos/{slug}/{path}` returned {type(out).__name__}, not the "
+        return ([], f"`GET /repos/…/{path}` returned {type(out).__name__}, not the "
                     f"array this reader counts")
     return (out, "")
 
@@ -3047,6 +3084,144 @@ def leg_disagreements(parts: "list[tuple[str, str]]", keys: "set[str]") -> "list
     return problems
 
 
+# ── 🆕 275 — THE VERDICT OF THE RUN THAT PRODUCED THE NUMBERS ─────────────────────────
+#
+# 🔴 273's FINDING, AND THE HALF 274 LEFT OPEN IN ITS OWN §5.9. *A check nobody reads
+# after it runs is not a check, it is a receipt.* 274 made the run's OUTPUT readable and
+# bound it to a commit; nothing reads whether the run PASSED. `main` can go red after a
+# merge and no instrument in the ritual says so — both of 273's finds were sitting in run
+# history, one of them for eighteen hours, and the only reason either was seen is that a
+# pickup happened to ask for a git assessment.
+#
+# 🔴 AND 274's OWN UPLOAD IS WHAT MAKES THIS URGENT RATHER THAN TIDY. The capture is
+# uploaded `if: always()`, deliberately — the run that REFUSED is the one worth reading —
+# so a download directory exists for a run whose gates went red, carries a `CI_MEASURED`
+# line, binds to the block's commit, and reads as *bound: these counters describe the tree
+# that shipped*. Every word of that is true and the run failed. The artifact cannot say so
+# and was never meant to: a verdict is a fact about the RUN, not about its output.
+#
+# 🔴 MEASURED AT 275, ON THIS SESSION'S OWN PICKUP. 274's `ci.yml` used `${{ runner.temp }}`
+# in a job-level `env:`, which is not a context available there, so GitHub refused the file:
+# the `ci` run at that commit concluded `failure` in 0s, created no jobs, and none of the
+# twenty-six required checks reported at all. The local replay was green. This reader is
+# the one thing in the tree that would have said so, and it is one API call.
+#
+# 🔴 NO EMITTED LINE AND NO BLOCK CLAIM, WHICH IS A NARROWING AND NOT AN OVERSIGHT. The
+# three world-facing readings need `--gh-open` because the machine that can read them and
+# the machine that closes may differ. This one cannot: only a machine that ran
+# `gh run download` has a run id to ask about, and that machine has the network by
+# construction. A carried-line route here would be a route for an environment that cannot
+# exist, and a second spelling to keep joined for nothing.
+RUN_GREEN = "success"
+
+
+def measured_run(text: str, parts: "list[tuple[str, str]] | None") -> str:
+    """The run id every attributed part agrees on, or "" when there is none.
+
+    `ci_provenance` already refuses a directory whose parts disagree on the run, so by the
+    time this is asked the answer is single-valued or the close is already refused.
+    """
+    for body in ([b for _n, b in parts] if parts is not None else [text]):
+        m = CI_MEASURED_RE.search(body)
+        if m is not None:
+            return m.group("run")
+    return ""
+
+
+def gh_run_verdict(run_id: str, root: Path = ROOT) -> "tuple[str, str, list[str], str]":
+    """(conclusion, status, jobs that did not pass, problem) — NETWORK.
+
+    🔴 AN UNREACHABLE FORGE IS NOT A GREEN, which is 236 §4's rule arriving at the one
+    counter in this file whose correct value is a WORD. Every failure path returns a
+    problem, and the caller refuses the close rather than assuming the run was fine.
+    """
+    try:
+        p = subprocess.run(("gh", "run", "view", run_id, "--json",
+                            "conclusion,status,headSha,jobs"),
+                           cwd=root, capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        return gh_run_verdict_rest(run_id, "`gh` is not installed for this run", root)
+    except (OSError, subprocess.SubprocessError) as e:
+        return gh_run_verdict_rest(run_id, f"`gh run view` could not run: {e}", root)
+    if p.returncode != 0:
+        first = next((ln for ln in (p.stderr or p.stdout).split("\n") if ln.strip()), "")
+        return gh_run_verdict_rest(run_id, f"`gh run view {run_id}` exited "
+                                           f"{p.returncode}: {first.strip()[:160]}", root)
+    try:
+        out = json.loads(p.stdout or "{}")
+    except ValueError as e:
+        return ("", "", [], f"`gh run view {run_id} --json` did not return JSON: {e}")
+    bad = [j.get("name", "?") for j in out.get("jobs") or []
+           if j.get("conclusion") not in (RUN_GREEN, "skipped", "")]
+    return (str(out.get("conclusion") or ""), str(out.get("status") or ""), bad, "")
+
+
+def gh_run_verdict_rest(run_id: str, why_cli: str, root: Path = ROOT
+                        ) -> "tuple[str, str, list[str], str]":
+    """The `gh`-free half, carrying the CLI's reason forward — `gh_open_rest`'s shape.
+
+    🔴 THE JOB NAMES ARE DROPPED ON THIS ROUTE AND THE VERDICT IS NOT. A second request
+    for `/jobs` would double the cost of the read to make a message nicer, and the refusal
+    is already actionable without it: it names the run and the run has a URL.
+    """
+    slug, prob = origin_slug(root)
+    if prob:
+        return ("", "", [], f"{why_cli}; and the API route has no origin to ask: {prob}")
+    rows, prob = gh_rest_object(f"actions/runs/{run_id}", root)
+    if prob:
+        return ("", "", [], f"{why_cli}; and the API route did not answer either: {prob}")
+    return (str(rows.get("conclusion") or ""), str(rows.get("status") or ""), [], "")
+
+
+def verdict_problems(run_id: str, log_sha: str, run_network: bool,
+                     read=gh_run_verdict) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — did the run these counters came from actually pass?"""
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    if not run_id:
+        return (problems, notes)
+    if not run_network:
+        problems.append(
+            f"🔴 MEASURED_VERDICT_UNREAD these counters were produced by run {run_id} and "
+            f"nothing in this run asked whether that run PASSED. The artifact is uploaded "
+            f"`if: always()` on purpose, so it exists for a run whose gates refused and "
+            f"reads exactly like one from a run that did not — bound, attributed, and "
+            f"about a red tree. Pass `--network`.")
+        return (problems, notes)
+    conclusion, status, bad, prob = read(run_id)
+    if prob:
+        problems.append(
+            f"🔴 MEASURED_VERDICT_UNREAD run {run_id} produced every counter below and its "
+            f"verdict could not be read: {prob}. An unreachable forge is not a green "
+            f"(236 §4) — a close standing on numbers from a run nobody graded is the "
+            f"receipt 273 named, one layer up.")
+        return (problems, notes)
+    if not conclusion:
+        problems.append(
+            f"🔴 MEASURED_VERDICT_PENDING run {run_id} is `{status or 'unknown'}` and has "
+            f"reached no verdict. Its artifacts are downloadable because the capture "
+            f"uploads as each job ends; a verdict that does not exist yet is not a green. "
+            f"Wait for the run, then close against it.")
+        return (problems, notes)
+    if conclusion != RUN_GREEN:
+        detail = f" — {', '.join(bad)} did not pass" if bad else \
+                 " — and it created no jobs at all, which is what a workflow file GitHub " \
+                 "refuses looks like from here"
+        problems.append(
+            f"🔴 MEASURED_RUN_NOT_GREEN run {run_id} produced every counter below and "
+            f"concluded `{conclusion}`{detail}. The numbers are real and the tree they "
+            f"describe is red: `if: always()` means an artifact is evidence of a run, "
+            f"never of a passing one. This is 273's other half — nothing in this ritual "
+            f"has ever read a post-merge run's verdict, and both of 273's finds were "
+            f"sitting in run history where nobody looked.")
+        return (problems, notes)
+    notes.append(
+        f"measured: run {run_id} concluded `{conclusion}` — the commit this block claims "
+        f"({log_sha[:7]}) is GREEN on the run that produced these counters, which is the "
+        f"post-merge verdict nothing in this ritual read before 275")
+    return (problems, notes)
+
+
 # ── 🆕 274 — AND THE ROUTING QUESTION, ASKED OF THE WORKFLOW ──────────────────────────
 #
 # 🔴 `replay_problems()` ASKS EVERY MUTATING AND SLOW ROW WHETHER THE FENCE RUNS ITS
@@ -3311,6 +3486,13 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
         cap_problems, cap_notes = ci_capture_problems(ci_capture_steps(), set(bound))
         problems.extend(cap_problems)
         r_notes.extend(cap_notes)
+        # 🆕 275 — and the run that produced them: did it PASS? The sha binding above says
+        # these numbers describe the tree that shipped; only this says the tree that
+        # shipped was green. `if: always()` is what makes the two different questions.
+        v_problems, v_notes = verdict_problems(measured_run(log, parts), log_sha,
+                                               run_network)
+        problems.extend(v_problems)
+        r_notes.extend(v_notes)
 
     # ── the second direction: a counter the block DROPPED ─────────────────────────────
     for key, _alias, _n, _cmd, _cwd, _ex, _cost, need, why in COUNTER_READERS:
@@ -3430,7 +3612,14 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # quiet second exemption list is what this would have become if the rows could outlive
 # the block that answers them, and the branch that deletes them is fixture-driven below
 # so it does not go silent now that the live table is empty.
-ALIAS_PENDING: "dict[str, str]" = {}
+ALIAS_PENDING: "dict[str, str]" = {
+    # 🆕 275 — `taut.duration`, and this is the ordering the table was built for. The
+    # counter first appears in 275's own block; 276 adds that block to
+    # `BLOCK_POPULATION` and this row goes STALE on the same run, deleted by the gate
+    # rather than by a session remembering.
+    "taut.duration": "275 — `TAUT_DURATION sites=…` is printed for the first time by the "
+                     "commit that adds this row, so no real block can carry it yet",
+}
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
@@ -3444,6 +3633,10 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
     ("unswept 0", "floor_pin.unswept", ""),
     ("exempt 36", "floor_pin.exempt", ""),
     ("term 275 file(s) / 21 suffixes", "term.swept", ""),
+    ("duration 4 sites / 2 lower / 2 guarded", "taut.duration",
+     "🔴 CARRIES THREE NUMBERS AND THE WORD `sites`, and must NOT reach `taut.sites`, "
+     "whose alias is the word `taut` — the same collision `wire_diff_key` is pinned "
+     "against two rows up"),
     ("26 CI jobs", "ci.checks", "the derived counter"),
     ("error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 53 addon / 0 problems",
      "contract.error_codes",
@@ -4613,6 +4806,98 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (272, """> ```
+> main                 d6ca644 — the mentions that were not answers (#333)   MERGED
+> branch 272           session272_the_mentions_that_were_not_answers — merged, deleted
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no product code changed this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 · tags 133 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. Both gh counters are a READING, taken on his Mac
+>                      and appended to the log: the container has neither route
+> assetlib             🟢 addon 1.11.0 live · the edit for the addon's current
+>                      version is pending review
+>                      — 🆕 THE FIRST BLOCK TO CARRY THIS ROW, and the first whose
+>                      Asset Library claim is compared to what the library serves
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 66 · control 74 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1782
+>               · late not-loaded 0 · late constructed 206/160
+>               · py gates 18/4/14 · SIG 139/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 106 · 51 governed · 1240 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4745 · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 336 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (273, """> ```
+> main                 255d139 — the timer that came back inside its own window,
+>                                and the refusal that showed its banner (#334)   MERGED
+> branch 273           session273_the_timer_that_came_back_inside_its_own_window
+>                                — merged, deleted
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no product code changed this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. Both gh counters are a READING taken on his Mac
+> assetlib             🟢 addon 1.11.0 live · the edit for the addon's current
+>                      version is pending review, and out of his hands
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 66 · control 74 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1782
+>               · late not-loaded 0 · late constructed 206/160
+>               · py gates 18/4/14 · SIG 139/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 106 · 51 governed · 1240 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4745 · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 336 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    # 🆕 275 — AND THE THREE BLOCKS ABOVE ARRIVED TOGETHER, WHICH IS THE FINDING.
+    # 253's standing rule is *add the previous block to `BLOCK_POPULATION` before the
+    # replay*, and 272, 273 and 274 each closed without it: the table's newest block
+    # was 271 while `main` had moved four times. Nothing refused, because every floor
+    # here pins the table's BACK and its WIDTH and none of them pins its FRONT — 244
+    # §2's own argument, one direction over. Two things were quietly broken by it: the
+    # `ALIAS_PENDING` row 246 designed to expire in ONE session had nothing that could
+    # expire it, and `moved_interval` answered confidently about an interval three
+    # sessions too long. `POPULATION_CONTIGUOUS` is what made the debt payable in one
+    # go — it refused 274 alone and named the hole.
+    (274, """> ```
+> main                 255d139 — the timer that came back inside its own window,
+>                                and the refusal that showed its banner (#334)
+> branch 274           db068c6 session274_the_numbers_that_described_a_tree_nobody_shipped
+>                                — PENDING, not merged, not pushed from here
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no product code changed this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. Both gh counters are a READING taken on his Mac
+> assetlib             🟢 addon 1.11.0 live · the edit for the addon's current
+>                      version is pending review, and out of his hands
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 66 · control 74 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1782
+>               · late not-loaded 0 · late constructed 206/160
+>               · py gates 18/4/14 · SIG 139/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 107 · 52 governed · 1267 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4745 · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 366 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -4836,7 +5121,7 @@ LINT_HEADERS: "list[tuple[str, str]]" = [
 
 
 def selftest() -> int:
-    claims = failed = 0
+    claims = failed = unread = 0
 
     for text, expected, why in NUMERAL_PINS:
         claims += 1
@@ -5824,10 +6109,27 @@ def selftest() -> int:
         failed += 1
         print("  🔴 UNMOVED_ACCEPTS no block in the population claims UNMOVED over an "
               "interval that really is zero, so nothing here proves the reader can agree")
-    for _s in _true:
+    # 🆕 275 — THE LOOP RUNS OVER THE POPULATION AND NOT OVER WHAT THE CHECKOUT COULD
+    # MEASURE, AND THAT IS THE WHOLE FIX. It used to iterate `_true`, which is EMPTY on a
+    # `--depth 1` clone — so this file's own claim count was six lower in the `test` job
+    # than in `contract-check`, which fetches full history for check 4. 274's
+    # `MEASURED_LEG_DISAGREEMENT` found it on the first real download: `handoff.claims`
+    # read 366 from one artifact and 360 from the other three, at one commit, and a status
+    # block carrying either number was true in one job and false in three. The counter was
+    # a fact about the CHECKOUT DEPTH wearing the shape of a fact about the tree, which is
+    # 239 §5.2's class exactly — measured, at last, rather than promised. `unmoved_blocks`
+    # is derived from the block TEXT, so the count below is the same in every environment
+    # and what a shallow store cannot measure is named UNREAD instead of subtracted in
+    # silence.
+    for _s in unmoved_blocks:
+        claims += 1
+        if _s not in pop_moved:
+            unread += 1
+            continue
+        if pop_moved[_s] != 0:
+            continue          # a FALSE `UNMOVED`, already refused by the claim above
         _txt = next(txt for ss, txt in BLOCK_POPULATION if ss == _s)
         _p, _n, _a, _c = check_header(status_block(_txt)[0], "", False, _s)
-        claims += 1
         if any("git.unmoved" in x for x in _p):
             failed += 1
             print(f"  🔴 UNMOVED_ACCEPTS {_s}'s block claims UNMOVED, main really did "
@@ -6175,11 +6477,14 @@ def selftest() -> int:
     # three-number spelling this reader's extract does not read. A flat row would refuse
     # the block that introduced the counter, which is the exact failure mode the boundary
     # convention exists for and the reason the pin moves in the commit that adds the row.
-    if len(since_rows) != 11:
+    # 🆕 275 — ELEVEN BECAME TWELVE. `taut.duration` is `SINCE(275)` for the plainest
+    # version of the reason: the line it reads is printed for the first time by the commit
+    # that adds the row, so every block in the population predates the counter.
+    if len(since_rows) != 12:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 11 — "
-              f"237 §3 measured six, 246 added four and 269 added one; the table is the "
-              f"only record of which")
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 12 — "
+              f"237 §3 measured six, 246 added four, 269 added one and 275 added one; the "
+              f"table is the only record of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))
@@ -6526,6 +6831,83 @@ def selftest() -> int:
         print("  🔴 MEASURED_LEG_AGREE two artifacts that AGREE were refused — the reader "
               "must fire on disagreement and be silent on the healthy case")
 
+    # ── 🆕 275 — THE RUN'S VERDICT, EVERY ARM DRIVEN ON A STUBBED READING ─────────────
+    #
+    # 🔴 THE READING IS INJECTED BECAUSE THE ONE THING THESE CLAIMS MUST NOT DO IS DIAL.
+    # `--selftest` runs merge-blocking in CI on every push and a fixture that reached
+    # `api.github.com` would make this file's own verdict a statement about connectivity —
+    # which is the exact confusion `gh_emit` was written to avoid one screen up.
+    claims += 1
+    _p, _n = verdict_problems("42", "255d139", True,
+                              read=lambda _r: (RUN_GREEN, "completed", [], ""))
+    if _p or not any("GREEN on the run that produced these counters" in x for x in _n):
+        failed += 1
+        print(f"  🔴 VERDICT_ACCEPT a run that concluded `{RUN_GREEN}` was refused, or "
+              f"said nothing about it: {_p or _n}")
+
+    # 🔴 THE CASE THE `if: always()` UPLOAD CREATES, and the reason this reader exists:
+    # a directory of real, attributed, correctly-bound counters from a run that went red.
+    claims += 1
+    _p, _n = verdict_problems("42", "255d139", True,
+                              read=lambda _r: ("failure", "completed",
+                                               ["host tests (node 22)"], ""))
+    if not any("MEASURED_RUN_NOT_GREEN" in x and "host tests (node 22)" in x for x in _p):
+        failed += 1
+        print(f"  🔴 VERDICT_RED_CONTROL counters from a FAILED run were accepted, or the "
+              f"refusal did not name the job that failed: {_p}")
+
+    # 🔴 AND THE SHAPE 275's OWN PICKUP FOUND: a run that created no jobs at all, which is
+    # what a workflow file GitHub refuses looks like from the outside. `bad` is empty and
+    # the conclusion is still not green — a reader that named the failing jobs and stopped
+    # would have had nothing to say about the only run that has ever failed this way here.
+    claims += 1
+    _p, _n = verdict_problems("42", "255d139", True,
+                              read=lambda _r: ("failure", "completed", [], ""))
+    if not any("MEASURED_RUN_NOT_GREEN" in x and "created no jobs" in x for x in _p):
+        failed += 1
+        print(f"  🔴 VERDICT_STARTUP_CONTROL a run that failed with no jobs was not "
+              f"named as such: {_p}")
+
+    claims += 1
+    _p, _n = verdict_problems("42", "255d139", True,
+                              read=lambda _r: ("", "in_progress", [], ""))
+    if not any("MEASURED_VERDICT_PENDING" in x for x in _p):
+        failed += 1
+        print(f"  🔴 VERDICT_PENDING_CONTROL an unfinished run was read as a green: {_p}")
+
+    claims += 1
+    _p, _n = verdict_problems("42", "255d139", True,
+                              read=lambda _r: ("", "", [], "`gh` is not installed"))
+    if not any("MEASURED_VERDICT_UNREAD" in x for x in _p):
+        failed += 1
+        print(f"  🔴 VERDICT_UNREAD_CONTROL an unreachable forge was read as a green — "
+              f"236 §4's rule, at the one atom whose value is a word: {_p}")
+
+    # 🔴 AND WITHOUT `--network` NOTHING IS DIALED AND NOTHING IS ASSUMED. The stub raises,
+    # so a draft that read first and checked the flag afterwards fails here rather than in
+    # a container with no socket.
+    claims += 1
+
+    def _never(_r):
+        raise AssertionError("verdict_problems dialed without --network")
+
+    _p, _n = verdict_problems("42", "255d139", False, read=_never)
+    if not any("MEASURED_VERDICT_UNREAD" in x and "--network" in x for x in _p):
+        failed += 1
+        print(f"  🔴 VERDICT_OFFLINE_CONTROL a close with no network neither read the "
+              f"verdict nor said so: {_p}")
+
+    # 🔴 THE OLD ROUTE IS UNTOUCHED, WHICH IS THE HALF A NEW REFUSAL BREAKS. A local replay
+    # log names no run, so there is no verdict to ask for and no claim to refuse — every
+    # block before 275 closed that way and still can.
+    claims += 1
+    if verdict_problems("", "", True, read=_never)[0] \
+            or measured_run(_SUITE, None) \
+            or measured_run("", [("a.log", f"{_PROV}\n{_SUITE}")]) != "42":
+        failed += 1
+        print("  🔴 VERDICT_LOCAL_LOG a log with no `CI_MEASURED` line was asked for a "
+              "run verdict, or the run id was not read back out of an attributed part")
+
     # ── the workflow routing question, both arms, at FLAG granularity (242's row) ─────
     claims += 1
     _caps = ci_capture_steps()
@@ -6651,7 +7033,11 @@ def selftest() -> int:
               f"in this tree's workflows, floor {CI_SCRIPT_FLOOR} — it is a REFINEMENT of "
               f"the basename walk and cannot be smaller than it")
 
-    print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed")
+    # 🆕 275 — `unread` IS PRINTED RATHER THAN SUBTRACTED. A claim this checkout
+    # cannot make is not a claim that does not exist: the count above is the same
+    # in every environment now, and the difference between them is this number.
+    print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed"
+          + (f", {unread} unread on this checkout" if unread else ""))
     return 1 if failed else 0
 
 

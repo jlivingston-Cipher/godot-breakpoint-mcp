@@ -199,6 +199,70 @@ jobs:
       - name: No item is past the ceiling undecided, no schedule has lapsed, and no
           session closed only what it invented (queue gate)
         run: python3 scripts/queue_gate.py
+      # 🆕 275 — THE WORKFLOW FILES GITHUB ITSELF WOULD REFUSE, AND IT IS THIS SESSION'S
+      # OWN PICKUP. 274 wrote `${{ runner.temp }}` into a job-level `env:` — not a context
+      # available there — and GitHub refused the FILE: the `ci` run failed at startup in
+      # 0s, created no jobs, and not one of the twenty-six required checks reported. Every
+      # gate in the local replay was green, because every one of them reads the workflow
+      # as TEXT and none of them asks whether Actions would accept it.
+      #
+      # 🔴 IT CANNOT CHECK ITS OWN FILE AND SAYS SO RATHER THAN IMPLYING OTHERWISE. A file
+      # GitHub refuses never runs, so a step inside `ci.yml` can never see `ci.yml`'s own
+      # breakage; what it covers is every OTHER workflow file, and what covers this one is
+      # the local fence (the replay runs the same command before a push) and
+      # `MEASURED_RUN_NOT_GREEN`, which refuses a close whose own run concluded `failure`.
+      # Three readers, none of them able to stand in for the others.
+      #
+      # 🔴 AND THE POSITIVE CONTROL RUNS FIRST, for `lint_ceiling.py`'s reason two jobs
+      # over: an off-the-shelf tool that silently installed wrong, or a `*.yml` glob that
+      # matched nothing, both exit 0 over a broken tree. The fixture is 274's own defect.
+      - name: The workflow files GitHub itself would refuse (actionlint)
+        shell: bash
+        run: |
+          pip install actionlint-py
+          ctl="$RUNNER_TEMP/wf-control/.github/workflows"
+          mkdir -p "$ctl"
+          # 🔴 THE FIXTURE IS ASSEMBLED FROM A SHELL VARIABLE BECAUSE ACTIONS REWRITES ITS
+          # OWN SYNTAX INSIDE A `run:` BLOCK — including inside single quotes, which is
+          # exactly where a reader assumes text is inert. Written literally, the two braces
+          # were substituted BEFORE bash ever saw the line, so the control file said
+          # `LOG: /home/runner/work/_temp/x.log`: valid, accepted, and not the defect at
+          # all. The control fired on its first real run and reported the tool as broken,
+          # which is the correct behaviour for a fixture the system under test had edited.
+          d='$'
+          printf '%s\n' \
+            'name: control' \
+            'on: push' \
+            'jobs:' \
+            '  a:' \
+            '    runs-on: ubuntu-latest' \
+            '    env:' \
+            "      LOG: ${d}{{ runner.temp }}/x.log" \
+            '    steps:' \
+            '      - run: echo "$LOG"' > "$ctl/control.yml"
+          grep -q 'runner.temp' "$ctl/control.yml" || {
+            echo "🔴 WORKFLOW_LINT_FIXTURE the control file does not carry the expression it"
+            echo "   is about — something rewrote it between here and the disk."
+            exit 1
+          }
+          # 🔴 `-shellcheck=` AND `-pyflakes=` ARE NOT A NARROWING FOR CONVENIENCE, THEY ARE
+          # THIS SESSION'S OWN SUBJECT. `actionlint` shells out to whichever of those two
+          # it finds on PATH, so its finding set depends on WHAT IS INSTALLED ON THE
+          # MACHINE: a GitHub runner ships shellcheck and this project's container does
+          # not, and the first run of this step reported eleven SC2016/SC2034 findings that
+          # no local fence could have shown. A gate whose population is a fact about the
+          # disk is the thing `MEASURED_LEG_DISAGREEMENT` exists to refuse. Turned off, the
+          # question this step asks is exactly the one it is named for: would Actions
+          # accept these files. Shell lint over `run:` blocks is a different population
+          # with its own ceiling question, and `lint_ceiling.py` is where that shape lives.
+          lint () { actionlint -shellcheck= -pyflakes= "$@"; }
+          if (cd "$RUNNER_TEMP/wf-control" && lint .github/workflows/control.yml); then
+            echo "🔴 WORKFLOW_LINT_CONTROL actionlint accepted 274's own defect — a job-level"
+            echo "   env: reading the runner context. The tool ran and refused nothing, which is"
+            echo "   the one outcome that looks identical to a clean tree."
+            exit 1
+          fi
+          lint .github/workflows/*.yml
       # 🆕 243 — THE THIRD P0 REPORTER, AND IT IS HERE FOR ITS TWO SIBLINGS' REASON.
       # 242 put `p0_complexity.selftest.mjs` and `p0_testdup.selftest.mjs` in the `test`
       # job after both reporters shipped tracked in 241 importing a Node 22 export

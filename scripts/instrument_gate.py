@@ -462,7 +462,12 @@ INSTRUMENTS = [
             # 🆕 182: `shaped` and `precondition` are in the blind at their HEALTHY values
             # for the same reason `scan()`'s blind returns four subjects — a blind that
             # trips the new floors proves the floor, not the finder.
-            "{SIG:verdict}": "return { blocks: 0, attributed: 0, shaped: 116, precondition: 61, vacuous: [], every: [], offender: [] };",
+            # 🆕 275 — `duration: []` JOINED THE EMPTY IN THE COMMIT THAT ADDED THE FIELD,
+            # and the first draft did not: `judgeDuration(v.duration)` got `undefined` from
+            # the blind and threw, so the row went RED WITHOUT A VERDICT and `CRASH_CEILING`
+            # went 0 -> 1. A blind's empty is the CONTRACT's empty, and a field added to the
+            # return shape is a change to that contract.
+            "{SIG:verdict}": "return { blocks: 0, attributed: 0, shaped: 116, precondition: 61, vacuous: [], every: [], offender: [], duration: [] };",
             # 🔴 180. THE OUTPUT FLOOR, AND IT IS A BLIND TARGET FOR THE SAME REASON THE
             # CLASSIFIER IS: `judgeScope` is the only thing standing between "attribution
             # resolved nothing" and `TAUT_GATE ok`. Blinded to a passing verdict it must
@@ -486,6 +491,16 @@ INSTRUMENTS = [
             # apart, which is 174 SS8 and verdict_gate's `combine()` a third time. Blinded
             # to "the scope verdict never reaches the exit code", the self-test must red.
             "{SIG:combineFailed}": "return failedSoFar;",
+            # 🆕 275 — `duration-assertions-unguarded` (273). The three members of the
+            # duration rule, each blinded to the answer that makes the rule silent: no
+            # site is a duration claim, nothing is judged, and every quoted span survives.
+            # The last one is the interesting blind — leaving the quotes in place puts the
+            # gate's own fixtures back in the population, which is how the first draft was
+            # caught, so its blind must redden the self-test rather than merely change a
+            # number.
+            "{SIG:durationClaim}": "return null;",
+            "{SIG:judgeDuration}": "return { lines: [], failed: false };",
+            "{SIG:unquoted}": "return text;",
         },
     },
     {
@@ -1602,6 +1617,23 @@ LATE_DECLARED_GREEN = {
     # 🔴 THIS IS 205 §25's RATIO ARGUMENT IN MINIATURE: the coverage is real, it is just
     # not re-read after the population is admitted. Closing it means a floor on the
     # classification that is re-derived rather than accumulated — recorded, not built.
+    # 🆕 275 — AND A SECOND CALL SITE IS WHAT PUT THIS ROW HERE, WHICH IS WORTH THE
+    # PARAGRAPH. `combineFailed` had exactly ONE caller until this session, so a blind that
+    # answers honestly once and returns its empty afterwards never got to lie: there was no
+    # second call. `duration-assertions-unguarded` added one, and the second argument's
+    # healthy value is `false` — so from call 2 the duration refusal stops reaching the exit
+    # code and a green tree stays green, by construction rather than by oversight.
+    # 🔴 THE GLOBAL BLIND ON THE SAME MEMBER STILL REDDENS (the A:gate row below), so the
+    # member is covered and it is the LATE axis that is not; and the second wire has a case
+    # with a known answer in `tautology_gate.selftest.mjs`, which is the axis where one can
+    # exist. The declaration reddens the day a third caller appears, or the day the duration
+    # rule's live population stops being clean — both of which are re-measured every run.
+    ("tautology_gate.mjs", "{SIG:combineFailed}", "B:live"):
+        "it has two callers and the second one's verdict is false on every healthy tree, so "
+        "a blind from call 2 drops a refusal that was not going to be made. The GLOBAL blind "
+        "reddens the gate, and the self-test drives `combineFailed(false, judgeDuration(<an "
+        "unguarded lower bound>))` directly, which is the only place the second wire can be "
+        "proved.",
     ("tautology_gate.mjs", "{SIG:isLiteralish}", "B:live"):
         "the two counts it moves (shaped, precondition) are floored from below with "
         "measured headroom, so a collapse from call 2 lands inside it. The GLOBAL blind "
@@ -1702,12 +1734,16 @@ LATE_DECLARED_GREEN = {
         "IS the healthy answer, so NO live axis can ever judge this target however the "
         "caller is shaped. Its coverage is `_population.selftest.mjs`, where a vacuous "
         "section is constructible on purpose — the same split `collapsed(n, floor)` has.",
-    ("tautology_gate.mjs", "{SIG:combineFailed}", "A:gate"):
-        "a 2x2 truth table called three times with LITERAL fixtures, not once per member "
-        "of a population. Only `combineFailed(false, {failed:true})` can distinguish the "
-        "function from `failedSoFar`, and it is the FIRST case — so a late blind here "
-        "deletes the cases AFTER the discriminating one and measures case ORDER rather "
-        "than coverage. The live axis calls it once, so it is N/A there.",
+    # 🆕 275 — 🟢 AND THE `A:gate` ROW THAT STOOD HERE IS DELETED BY THE GATE'S OWN
+    # REFUSAL, WHICH IS THE HALF A DECLARATION TABLE IS FOR. Its reason was that the
+    # `combineFailed` cases are a 2x2 truth table whose only discriminating case is the
+    # FIRST, so a late blind deletes the cases after it and measures case ORDER — and that
+    # a live axis calling the member once cannot judge it either. `duration-assertions-
+    # unguarded` changed both halves in one commit: the self-test now drives
+    # `combineFailed(false, judgeDuration(<an unguarded lower bound>))` as a LATER case, so
+    # the A:gate blind reddens and the declaration reported itself expired on the first run
+    # after the change (174 §5). The B:live row above replaces it, for the opposite reason:
+    # the live axis calls it TWICE now.
 }
 
 

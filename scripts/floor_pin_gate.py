@@ -453,6 +453,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # and every floor in this table is such a number. See §9 in the handoff.
     ("BANNER_ATTRIBUTED_FLOOR",  f"{S}/tautology_gate.mjs",          r"(export const BANNER_ATTRIBUTED_FLOOR = )\d+;",            [f"{S}/tautology_gate.selftest.mjs"]),
     ("SECTION_ATTRIBUTED_FLOOR", f"{S}/tautology_gate.mjs",          r"(export const SECTION_ATTRIBUTED_FLOOR = )\d+;",           [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🆕 275 — `duration-assertions-unguarded` (273). Same argument as the two above and
+    # the same runner: the offence the rule reports is zero on a healthy tree, so the
+    # POPULATION it recognised is the only number that can say the reader ran, and a floor
+    # nothing mutates is a number nobody would notice going to zero. `\d+` from the first
+    # line, for 194's reason.
+    ("DURATION_FLOOR",           f"{S}/tautology_gate.mjs",          r"(export const DURATION_FLOOR = )\d+;",                     [f"{S}/tautology_gate.selftest.mjs"]),
     # 🆕 200 §12.2 — RENAMED so the DISCOVER walk can name them, which is what took
     # `UNDISCOVERABLE_CEILING` to zero. The anchors move with the constants.
     ("LEDGER_SCOPE_FLOORS.classes",     f"{T}/_path_ledger.mjs",     r"(LEDGER_SCOPE_FLOORS = Object\.freeze\(\{ classes: )7,",   [f"{T}/_path_ledger.selftest.mjs"]),

@@ -6,6 +6,43 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Internal — the run that produced the numbers, and whether it passed
+
+Nothing in this section changes anything an installer of the package can observe; it is the
+handoff, queue and CI apparatus.
+
+- 🔴 **The workflow file GitHub would not parse, and the three readers that now cover it.**
+  The capture the next section describes was written with `${{ runner.temp }}` in a job-level
+  `env:`. A job's environment is evaluated before a runner is assigned, so `runner` is not among
+  the contexts available there — GitHub refused the **file**: the `ci` workflow failed at startup
+  in 0s, created no jobs, and not one of the twenty-six required checks reported. Every gate in
+  the local fence was green, because all of them read the workflow as text and none asks whether
+  Actions would accept it. `actionlint` runs merge-blocking in `contract-check` now, against a
+  fixture carrying that exact defect **first** — a tool that installed wrong and a glob that
+  matched nothing both exit 0 over a broken tree. It cannot check its own file, and says so: a
+  file the forge refuses never runs, so what covers `ci.yml` is the local fence and the verdict
+  reader below.
+- 🔴 **`MEASURED_RUN_NOT_GREEN`: an artifact is evidence a run happened, never that it passed.**
+  The capture uploads `if: always()` on purpose, so a download directory exists for a run whose
+  gates refused — attributed, bound to the block's commit, and about a red tree. Nothing in this
+  ritual had ever read a post-merge run's verdict; both of session 273's finds were sitting in
+  run history where nobody looked. A CI-measured close now asks GitHub what the run that produced
+  its counters concluded, and refuses a `failure`, an unfinished run (`MEASURED_VERDICT_PENDING`)
+  and a run nobody asked about (`MEASURED_VERDICT_UNREAD`). A local replay log names no run and is
+  untouched.
+- 🔴 **A lower bound on an elapsed reading must carry slack (`TAUT_DURATION`).** Session 273
+  measured it the expensive way: Node schedules timers against libuv's loop clock, so a
+  `setTimeout(n)` can return with fewer than n milliseconds on *any* clock a test can read, and
+  `main` went red on one millisecond of it. `tautology_gate.mjs` now recognises the idiom —
+  four sites in this tree, two lower bounds and two upper — and refuses a lower bound with no
+  named tolerance. Upper bounds are counted and not refused: *it finished in time* is a different
+  claim from *the wait happened*.
+- 🟢 **`BLOCK_POPULATION` is contiguous again.** Sessions 272, 273 and 274 each closed without
+  adding the previous block, so the table's newest entry was 271 while `main` had moved four
+  times — every floor on that table pins its back and its width, and none pins its front. All
+  three are added, and `POPULATION_CONTIGUOUS` is what made the debt payable in one go by
+  refusing 274 on its own.
+
 ### Internal — the measurement moves to the commit that merged
 
 Nothing in this section changes anything an installer of the package can observe; it is the
