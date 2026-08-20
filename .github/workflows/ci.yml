@@ -232,13 +232,24 @@ jobs:
             '      LOG: ${{ runner.temp }}/x.log' \
             '    steps:' \
             '      - run: echo "$LOG"' > "$ctl/control.yml"
-          if (cd "$RUNNER_TEMP/wf-control" && actionlint .github/workflows/control.yml); then
+          # 🔴 `-shellcheck=` AND `-pyflakes=` ARE NOT A NARROWING FOR CONVENIENCE, THEY ARE
+          # THIS SESSION'S OWN SUBJECT. `actionlint` shells out to whichever of those two
+          # it finds on PATH, so its finding set depends on WHAT IS INSTALLED ON THE
+          # MACHINE: a GitHub runner ships shellcheck and this project's container does
+          # not, and the first run of this step reported eleven SC2016/SC2034 findings that
+          # no local fence could have shown. A gate whose population is a fact about the
+          # disk is the thing `MEASURED_LEG_DISAGREEMENT` exists to refuse. Turned off, the
+          # question this step asks is exactly the one it is named for: would Actions
+          # accept these files. Shell lint over `run:` blocks is a different population
+          # with its own ceiling question, and `lint_ceiling.py` is where that shape lives.
+          lint () { actionlint -shellcheck= -pyflakes= "$@"; }
+          if (cd "$RUNNER_TEMP/wf-control" && lint .github/workflows/control.yml); then
             echo "🔴 WORKFLOW_LINT_CONTROL actionlint accepted 274's own defect — a job-level"
             echo "   env: reading the runner context. The tool ran and refused nothing, which is"
             echo "   the one outcome that looks identical to a clean tree."
             exit 1
           fi
-          actionlint .github/workflows/*.yml
+          lint .github/workflows/*.yml
       # 🆕 243 — THE THIRD P0 REPORTER, AND IT IS HERE FOR ITS TWO SIBLINGS' REASON.
       # 242 put `p0_complexity.selftest.mjs` and `p0_testdup.selftest.mjs` in the `test`
       # job after both reporters shipped tracked in 241 importing a Node 22 export
