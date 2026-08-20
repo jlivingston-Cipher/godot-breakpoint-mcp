@@ -2171,21 +2171,33 @@ def command_norm(seg: str) -> str:
     return " ".join(t.rsplit("/", 1)[-1] for t in seg.split())
 
 
-def ci_commands(root: Path = ROOT) -> "dict[str, set]":
-    """{normalised command: {workflow files running it}} — `ci_scripts()`'s walk, kept at
-    FLAG granularity instead of collapsed to basenames."""
+def ci_commands_text(files: "dict[str, str]") -> "dict[str, set]":
+    """{normalised command: {workflow file names running it}} over workflow TEXT.
+
+    🆕 275 — LIFTED OUT OF `ci_commands` SO A FIXTURE CAN DRIVE IT, which is the same
+    reason `judgeScope` and `pending_problems` are functions: this walk's every branch is
+    healthy on the shipped tree, so a rule it stops applying deletes invisibly.
+
+    🔴 A COMMENT IS NOT A COMMAND, AND THE SIBLING READER ALREADY KNEW THAT.
+    `replay_commands` has tested `seg.split("#")[0]` since it was written; this walk did
+    not, and the two are compared against each other — so a `#` line INSIDE a `run: |`
+    block naming any `.py`, `.mjs` or `.sh` became a CI command the replay could never
+    run. Measured at 275 on this session's own close: a comment in the new workflow-lint
+    step mentioning `lint_ceiling.py` normalised to the EMPTY STRING, and
+    `REPLAY_FLAG_MISSING` demanded the replay run `` — a refusal with nothing in it, about
+    a command that does not exist. 274 §3's class one turn further: the roster admitted
+    something that is not a script, and this time it was not even a name.
+    """
     out: "dict[str, set]" = {}
-    wf_dir = root / ".github" / "workflows"
-    if not wf_dir.is_dir():
-        return out
 
     def take(line: str, name: str) -> None:
         for seg in CHAINED_RE.split(line):
+            seg = seg.split("#")[0]
             if CI_SCRIPT_RE.search(seg):
                 out.setdefault(command_norm(seg), set()).add(name)
 
-    for f in sorted(wf_dir.glob("*.y*ml")):
-        lines = f.read_text().split("\n")
+    for name, body in sorted(files.items()):
+        lines = body.split("\n")
         i = 0
         while i < len(lines):
             ln = lines[i]
@@ -2194,13 +2206,23 @@ def ci_commands(root: Path = ROOT) -> "dict[str, set]":
                 i += 1
                 while i < len(lines) and (not lines[i].strip()
                                           or len(lines[i]) - len(lines[i].lstrip()) > indent):
-                    take(lines[i], f.name)
+                    take(lines[i], name)
                     i += 1
                 continue
             if (m := CI_RUN_ONE.match(ln)) is not None:
-                take(m.group(1), f.name)
+                take(m.group(1), name)
             i += 1
     return out
+
+
+def ci_commands(root: Path = ROOT) -> "dict[str, set]":
+    """`ci_commands_text` over the tree's own workflow files — `ci_scripts()`'s walk, kept
+    at FLAG granularity instead of collapsed to basenames."""
+    wf_dir = root / ".github" / "workflows"
+    if not wf_dir.is_dir():
+        return {}
+    return ci_commands_text({f.name: f.read_text(encoding="utf-8")
+                             for f in sorted(wf_dir.glob("*.y*ml"))})
 
 
 def replay_commands(text: str) -> "set":
@@ -7032,6 +7054,33 @@ def selftest() -> int:
         print(f"  🔴 CI_COMMANDS_LIVE the flag-granular walk found {len(_live)} command(s) "
               f"in this tree's workflows, floor {CI_SCRIPT_FLOOR} — it is a REFINEMENT of "
               f"the basename walk and cannot be smaller than it")
+
+    # 🆕 275 — AND NO ROW IN IT IS EMPTY, WHICH IS THE SHAPE THIS SESSION'S OWN CLOSE
+    # PRODUCED. A `#` line inside a `run: |` block naming any script became a command that
+    # normalises to the empty string, and the refusal it generated named nothing at all:
+    # ``REPLAY_FLAG_MISSING `` runs in ['ci.yml']``. The sibling reader `replay_commands`
+    # has stripped comments since it was written, so the two rosters this file compares
+    # were reading the same lines under different rules. Both directions, because a walk
+    # that returned nothing would satisfy the emptiness claim vacuously and the floor above
+    # is what stops that.
+    claims += 1
+    _blank = [k for k in _live if not k.strip()]
+    if _blank:
+        failed += 1
+        print(f"  🔴 CI_COMMANDS_BLANK the flag-granular walk yielded {len(_blank)} empty "
+              f"command(s). A comparison against one produces a refusal naming nothing, "
+              f"and the replay cannot run a command with no name")
+    claims += 1
+    _comment = ci_commands_text(
+        {"ci.yml": "      - run: |\n          echo hi\n          # see lint_ceiling.py for the shape\n"})
+    _real = ci_commands_text({"ci.yml": "      - run: python3 scripts/queue_gate.py --selftest\n"})
+    if _comment or list(_real) != ["python3 queue_gate.py --selftest"]:
+        failed += 1
+        print(f"  🔴 CI_COMMANDS_COMMENT a comment inside a `run:` block naming a script "
+              f"was read as a command, or a real command stopped being read — comment "
+              f"{_comment}, real {_real}. Both directions, because a walk that reads "
+              f"NOTHING satisfies the first half and is the collapse the floor above "
+              f"exists for")
 
     # 🆕 275 — `unread` IS PRINTED RATHER THAN SUBTRACTED. A claim this checkout
     # cannot make is not a claim that does not exist: the count above is the same
