@@ -37,6 +37,12 @@ handoff, queue and CI apparatus.
   four sites in this tree, two lower bounds and two upper — and refuses a lower bound with no
   named tolerance. Upper bounds are counted and not refused: *it finished in time* is a different
   claim from *the wait happened*.
+- 🟢 **A comment inside a `run:` block is no longer a CI command.** `replay_commands` has
+  stripped `#` since it was written and the flag-granular workflow walk it is compared
+  against had not, so a comment naming any script became a command that normalised to the
+  empty string — and the refusal it produced named nothing at all. Found on this session's
+  own close. The walk is a pure function over workflow text now, so both directions have a
+  fixture.
 - 🟢 **`BLOCK_POPULATION` is contiguous again.** Sessions 272, 273 and 274 each closed without
   adding the previous block, so the table's newest entry was 271 while `main` had moved four
   times — every floor on that table pins its back and its width, and none pins its front. All
