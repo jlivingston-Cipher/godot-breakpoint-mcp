@@ -1478,6 +1478,14 @@ test("a launch rejection arriving AFTER a stop still ends the session", async ()
   // presented as a suite that never finished, with no diagnostic anywhere.
   try {
     const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
+    // 🆕 275 — THE SHAPE IS ASSERTED BEFORE THE FIELD, AND IT IS NOT DEFENSIVE STYLE.
+    // This test failed once on a loaded `node 22` runner with `Cannot read properties of
+    // undefined (reading 'state')`: `dbg_launch` had returned an ERROR result, and the
+    // assertion that would have named the error read a field off it instead and threw. A
+    // TypeError is the one failure that carries none of its own diagnosis (273's Cause A,
+    // one file over), and the message below is what the next occurrence will say.
+    assert.ok(res.structuredContent,
+      `dbg_launch returned no structuredContent — ${JSON.stringify(res).slice(0, 400)}`);
     assert.equal((res.structuredContent as { state: string }).state, "stopped");
     assert.equal(dap.hasSession, true, "the session is live until the adapter says otherwise");
     // …and now the launch request itself fails, well after the handshake returned.
