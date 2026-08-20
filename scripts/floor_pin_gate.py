@@ -239,6 +239,12 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # other two floors exist: `ALIAS_POPULATION` and `ALIAS_UNUSED` are both SATISFIED by
     # eleven blocks that stopped parsing, so the coverage claim needs a floor that is not.
     ("handoff.ALIAS_SPELLING_FLOOR", "../scripts/handoff_gate.py",   r"(ALIAS_SPELLING_FLOOR = )76",                              ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 274 — the parts a `gh run download` directory must yield before its numbers are
+    # believed. Raising it reddens the two-part accept fixture; the reader's whole point
+    # is that an EMPTY download is NAMED as an empty download rather than reported as
+    # thirty-four patterns that stopped matching, and a floor of zero would restore
+    # exactly the silence it was written against.
+    ("handoff.CI_PART_FLOOR",   "../scripts/handoff_gate.py",       r"(CI_PART_FLOOR = )1",                                      ["../scripts/handoff_gate.py", "--selftest"]),
     # 🆕 240 — THE QUEUE GATE'S TWO, AND THEY ARE THE FIRST FLOORS IN THIS TABLE THAT PIN
     # A POLICY RATHER THAN A POPULATION. `AGE_CEILING` is the number of sessions an item
     # may sit OPEN before a decision is owed, and a session that found its own queue red
@@ -255,7 +261,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # evidence for the tier typed beside them; it was set to the number that were live
     # when the column landed, so it can only fall. Raising it is a session buying itself
     # room to keep typing an unchecked column, which is the defect the join closes.
-    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )14",                                ["../scripts/queue_gate.py", "--selftest"]),
+    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )13",                                ["../scripts/queue_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )15;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1272,6 +1278,20 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "when a session adds a block or an instrument. A commit that lowers it is a "
         "commit that lost a spelling an alias used to read, and the ledger row saying so "
         "is what tells that from a walk that quietly stopped reaching one.")),
+    ("../scripts/handoff_gate.py", "CI_PART_FLOOR"): (1, (
+        "🆕 274 — the `*.log` parts a `--measured` DIRECTORY must yield before anything "
+        "reads a number out of it, at `{FLOOR}`. It is the smallest floor in this table "
+        "and the argument for it is not margin, it is CAUSE: `gh run download` against "
+        "the wrong run id, or against a run whose artifacts have expired, SUCCEEDS and "
+        "leaves an empty directory. Without this row every counter reports UNMEASURED "
+        "with a message about a pattern that no longer matches — thirty-four true "
+        "refusals naming a cause that is not the live one, which is 235 §5's class and "
+        "this module's own subject. `{FLOOR}` rather than the number of artifacts a "
+        "green run uploads, because that count is a fact about the workflow's job "
+        "matrix and moves with it, while *at least one* is a fact about the download "
+        "having happened at all. It "
+        "moves only if a session decides an empty download should be readable, which is "
+        "the decision the row exists to make somebody write down.")),
     ("../scripts/handoff_gate.py", "HEADER_FLOOR"): (2, (
         "🆕 235 §3 — the counter-bearing atoms the block's LABELLED ROWS must yield, at "
         "`{FLOOR}`. It is small because the header is small: every block in this series "
@@ -1302,8 +1322,8 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
         "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
         "whole subject is work nobody is doing.")),
-    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (14, (
-        "🆕 `271`, lowered at `272` by the rows that closed with their paths declared — "
+    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (13, (
+        "🆕 `271`, lowered at `272` and again at `274` by the rows that closed with their paths declared — "
         "the live rows still allowed to type a `reach` with no `paths` under it, "
         "at `{FLOOR}`. Every row in the table carried an unchecked tier until this "
         "session; retro-fitting evidence to the back catalogue would be guesses typed by "

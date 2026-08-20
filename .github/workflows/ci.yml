@@ -18,6 +18,13 @@ jobs:
   contract-check:
     name: contract check (host↔addon↔catalog parity)
     runs-on: ubuntu-latest
+    # 🆕 274 — THE LOG LIVES IN `runner.temp` AND NOT IN THE WORKSPACE, WHICH IS NOT A
+    # TIDINESS PREFERENCE. Four of the steps below mutate the tracked tree and check that
+    # it is otherwise clean; a capture file written under `github.workspace` would be an
+    # untracked file every one of them sees, so the artifact that exists to make the
+    # numbers readable would have changed the numbers.
+    env:
+      CI_MEASURED_LOG: ${{ runner.temp }}/ci-measured/contract-check.log
     steps:
       # 🔴 fetch-depth: 0 — check 4 (`release_names.py --assert-addon`, below) walks
       # git history to ask whether the addon has moved since its own version was
@@ -29,8 +36,22 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
+      # 🆕 274 — `replay-measured-nowhere-but-locally`. Every command the session replay
+      # runs already runs here, merge-blocking, and until now their output went to a CI
+      # log nothing could consume: the close gate's `--measured` could only ever read a
+      # log produced on the author's machine, against a PRE-merge branch. This line is
+      # what binds the captured output to a commit — `handoff_gate.py` refuses a log
+      # whose `sha` is not the one the status block claims, which is the exact check
+      # 244's *"the measured log goes stale the moment any tracked file changes"* was a
+      # weaker stand-in for.
+      - name: Open the captured log the close gate reads
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "$CI_MEASURED_LOG")"
+          echo "CI_MEASURED sha=${{ github.sha }} run=${{ github.run_id }} attempt=${{ github.run_attempt }} job=contract-check workflow=${{ github.workflow }}" > "$CI_MEASURED_LOG"
       - name: Static parity check (no Godot / no registry needed)
-        run: python3 scripts/contract_check.py
+        shell: bash
+        run: python3 scripts/contract_check.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 THE CEILING'S REFUSAL, PROVED WITHOUT THE REGISTRY — 206 §3.
       # `scripts/registry_lag.py` is the reader 205 §8.3 asked for: it prints the
       # registry-vs-tags distance at a release cut and refuses above LAG_CEILING. The
@@ -78,7 +99,8 @@ jobs:
       # runs on every push exactly like the rest.
       # ~0.1s. A step, not a 27th job (FIFTY-FIFTH session running).
       - name: Check 1's refusals still fire (release names selftest)
-        run: python3 scripts/release_names.py --selftest
+        shell: bash
+        run: python3 scripts/release_names.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 CHECK 4, PROMOTED — 220 §8.10, CARRIED FOR FIVE SESSIONS AS "the cheapest
       # item on this list". It asks whether the addon has MOVED since its own version
       # was stamped, which is the question that matters most at an Asset Library
@@ -101,7 +123,8 @@ jobs:
       # true one. Both halves now run on every push, each on a machine it can be read on.
       # Pure stdlib, ~0.3s. A step, not a 27th job.
       - name: The interval controls run where the history is (handoff gate selftest)
-        run: python3 scripts/handoff_gate.py --selftest
+        shell: bash
+        run: python3 scripts/handoff_gate.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 THE SPEC-CONFORMANCE LEDGER — 223 §6.2 (B2 / M0 / D11). 223 fixed eleven
       # shipped strings naming methods revision 2026-07-28 deletes, and a human found
       # them by reading a changelog. This reader finds them mechanically: it classifies
@@ -121,7 +144,8 @@ jobs:
       - name: The terminology parser can still refuse (terminology selftest)
         run: python3 scripts/terminology_gate.py --selftest
       - name: No shipped file uses a retired term (terminology gate)
-        run: python3 scripts/terminology_gate.py
+        shell: bash
+        run: python3 scripts/terminology_gate.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 230 — 229 §5.2 / NEXT 3, THE ONLY ITEM ON THAT LIST WITH A MEASURED PRECEDENT.
       # `pyflakes` reported the duplicate `SIZE_LEDGER` key that opened session 229 for as
       # long as it has existed; 228 spent a session finding it by reading and 229 built a
@@ -160,7 +184,8 @@ jobs:
       # The queue is not a record of what one session measured — it is the state of the
       # project — so it belongs in the tree. ~0.1s, stdlib only. A step, not a job.
       - name: The queue parser can still refuse (queue gate selftest)
-        run: python3 scripts/queue_gate.py --selftest
+        shell: bash
+        run: python3 scripts/queue_gate.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"
       - name: No item is past the ceiling undecided, no schedule has lapsed, and no
           session closed only what it invented (queue gate)
         run: python3 scripts/queue_gate.py
@@ -190,6 +215,15 @@ jobs:
       # that is not the run the reporter was written for.
       - name: The comment inventory still prints its report (p0 comments default path)
         run: python3 scripts/p0_comments.py
+      # 🆕 274 — `if: always()` BECAUSE THE RUN THAT REFUSED IS THE ONE WORTH READING.
+      # A capture uploaded only on success is a receipt for the case nobody needed it in.
+      - name: Upload the captured log (the numbers a close gate can read)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-measured-contract-check
+          path: ${{ env.CI_MEASURED_LOG }}
+          if-no-files-found: error
       # 🔴 THE COMMENT THAT DESCRIBED A STEP THAT WAS NOT THERE — found in 224 and
       # fixed by deletion. Eight lines here described the token-cost selftest, quoting
       # pre-208 figures; the step itself has always lived in the `test` job, whose own
@@ -305,6 +339,14 @@ jobs:
     defaults:
       run:
         working-directory: host
+    # 🆕 274 — ONE CAPTURE PER LEG, NAMED BY THE LEG, AND THAT IS THE POINT RATHER THAN
+    # AN ACCIDENT OF THE MATRIX. Thirty of the thirty-four counters a status block
+    # carries are measured in this job, and three machines measure each of them. A
+    # counter that is a fact about the MACHINE rather than about the tree — 239 §5.2's
+    # class, *a green that is true of one disk* — is a disagreement between these three
+    # files, and `handoff_gate.py` refuses one.
+    env:
+      CI_MEASURED_LOG: ${{ runner.temp }}/ci-measured/host-tests-node${{ matrix.node }}.log
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -312,6 +354,11 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: host/package-lock.json
+      - name: Open the captured log the close gate reads
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "$CI_MEASURED_LOG")"
+          echo "CI_MEASURED sha=${{ github.sha }} run=${{ github.run_id }} attempt=${{ github.run_attempt }} job=host-tests-node${{ matrix.node }} workflow=${{ github.workflow }}" > "$CI_MEASURED_LOG"
       - name: Install against the real registry (reproducible)
         run: npm ci
       # 🔴 248 — THE PRODUCT IS BUILT HERE BECAUSE UNTIL 248 NOTHING NEEDED IT TO BE.
@@ -323,7 +370,8 @@ jobs:
       - name: Build the product the tests are about to run
         run: npm run build
       - name: Compile the suite and run it (node:test)
-        run: npm test
+        shell: bash
+        run: npm test 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 THE GATE ON THE GATE. `_population.mjs` is the only thing standing between
       # fourteen live probes and 169 §4's "…_ALL ok every claim held" — a sentence that
       # is true of the empty set. If the instrument silently stopped counting, all
@@ -390,7 +438,8 @@ jobs:
       - name: The tautology instrument, self-checked
         run: node scripts/tautology_gate.selftest.mjs
       - name: No test block asserts only shape (tautology gate)
-        run: node scripts/tautology_gate.mjs
+        shell: bash
+        run: node scripts/tautology_gate.mjs 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 175. THE PNG READER DECIDES WHAT A RENDERED FRAME IS, AND NOTHING HEADLESS HAD
       # EVER RUN IT. Measured before this step existed: `BLIND175 _png.mjs 2 of 2 STILL
       # GREEN` — both exports replaced with constants and every gate above still passed,
@@ -434,7 +483,8 @@ jobs:
       - name: The boundary instrument, self-checked
         run: node scripts/boundary_gate.selftest.mjs
       - name: No claim is compared against a value the addon hard-wires (boundary gate)
-        run: node scripts/boundary_gate.mjs
+        shell: bash
+        run: node scripts/boundary_gate.mjs 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 AND THE DEFECT `_population.mjs`'s OWN SIX GATES STRUCTURALLY CANNOT SEE — 184
       # §5. `seal()` attributes every claim made since the PREVIOUS seal, so a marker
       # written above its own assertions owns the section before it and hands its own to
@@ -452,7 +502,8 @@ jobs:
       - name: The seal-order instrument, self-checked
         run: node scripts/seal_order_gate.selftest.mjs
       - name: No marker is written above the claims it describes (seal order gate)
-        run: node scripts/seal_order_gate.mjs
+        shell: bash
+        run: node scripts/seal_order_gate.mjs 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 219 — 215 §7.4/§7.5, four sessions after they were named. `assert.deepEqual(
       # wire, [])` passes on a collection that CAN be non-empty and on one that never
       # fills, and only the claim's own UNIT separates them. The reader lived in gitignored
@@ -472,7 +523,8 @@ jobs:
       - name: Every emptiness claim is defended, exempt or floored (positive control gate)
         run: node scripts/positive_control_gate.mjs
       - name: Every derived population collapses loudly (scope gate)
-        run: python3 ../scripts/scope_gate.py
+        shell: bash
+        run: python3 ../scripts/scope_gate.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 AND THE SAME TECHNIQUE POINTED AT THE JS INSTRUMENTS — 172 §10.2, which named
       # `_population.mjs` and the path cohort as the two it had not reached. Measured in
       # 173: `reportOrDie()` could return 0 without reporting or exiting and the
@@ -502,9 +554,11 @@ jobs:
         run: python3 ../scripts/lint_ceiling.py --selftest
       - name: No new class of linter finding in either language, and no declared class
           grew (lint ceiling)
-        run: python3 ../scripts/lint_ceiling.py
+        shell: bash
+        run: python3 ../scripts/lint_ceiling.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       - name: Every JS instrument collapses loudly (instrument gate)
-        run: python3 ../scripts/instrument_gate.py
+        shell: bash
+        run: python3 ../scripts/instrument_gate.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 AND THE LIVE TOOL-SURFACE BUDGET — 206 §4. Needs the dist/ the step above
       # built, and spawns the server over stdio: no editor, no ports. The selftest in the
       # contract-check job proves the constants can refuse; THIS is the one that reads the
@@ -530,7 +584,8 @@ jobs:
       # carries and refuses one nothing reads. One server start against the `dist/` built
       # above, no worktree, no tags. ~3s.
       - name: Every key on the wire is one the classifier can read (wire diff discover)
-        run: node scripts/wire_diff.mjs --discover
+        shell: bash
+        run: node scripts/wire_diff.mjs --discover 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 234 §1 — THE READER FOR THE ONE TABLE IN THIS TREE NOTHING READ BACK. A
       # handoff's status block is two dozen claims about what these gates printed, it is
       # the first thing the next session stands on, and `FLOOR_PIN_LITERAL` was restated
@@ -541,7 +596,8 @@ jobs:
       # ambiguous roster. The live half is an authoring step (`tree_quiet.py`'s shape).
       # ~1s, no build, no server.
       - name: The handoff reader still reads (handoff gate self-test)
-        run: python3 ../scripts/handoff_gate.py --selftest
+        shell: bash
+        run: python3 ../scripts/handoff_gate.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 237 §1 — AND THE HALF THE SELF-TEST DECLARES OUT OF SCOPE. `--selftest`
       # measures nothing on purpose: `handoff.claims` runs it as a subprocess to read its
       # own counter back, so a self-test that measured would recurse. Correct, and it
@@ -563,7 +619,8 @@ jobs:
       # appears. The selftest is pure and runs first; the live half needs the dist/ built
       # above. ~1s each.
       - name: The wire-invisible roster can still refuse (wire invisible selftest)
-        run: node scripts/wire_invisible_gate.selftest.mjs
+        shell: bash
+        run: node scripts/wire_invisible_gate.selftest.mjs 2>&1 | tee -a "$CI_MEASURED_LOG"
       - name: Every refinement the emitter drops is rostered at its site (wire invisible gate)
         run: node scripts/wire_invisible_gate.mjs
       # 🔴 AND THE THIRD TECHNIQUE, POINTED AT THE FLOORS THE OTHER TWO REST ON — 180
@@ -576,7 +633,8 @@ jobs:
       # the only place the coverage can live. ~40s. A step, not a 27th job (EIGHTEENTH
       # session running).
       - name: Every floor's own value is pinned (floor pin gate)
-        run: python3 ../scripts/floor_pin_gate.py
+        shell: bash
+        run: python3 ../scripts/floor_pin_gate.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 AND THE FOURTH, POINTED AT THE STATEMENTS THE OTHER THREE CANNOT REACH — 182
       # §11.3, measured in 186 and closed here. `CHECKS_RUN 20/20` counts BLOCKS that
       # reach their own end; 186 counted the failure STATEMENTS inside those blocks and
@@ -589,7 +647,8 @@ jobs:
       # so it runs after every gate above it. A step, not a 27th job (TWENTY-FIFTH
       # session running).
       - name: Every check at zero can actually fail (control gate)
-        run: python3 ../scripts/control_gate.py
+        shell: bash
+        run: python3 ../scripts/control_gate.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 225 — 224 §6.6: two mutating gates run at once rewrote each other's tree and
       # produced a red that was entirely the harness. This is the LAST gate step because
       # it spawns the four above it to prove each refuses while the lock is held; each
@@ -601,8 +660,22 @@ jobs:
       # held lock on this tree. 227 §15 is the whole reason both lines are here and the
       # difference between them is written down.
       - name: The tree-quiet reader can still refuse (tree quiet selftest)
-        run: python3 ../scripts/tree_quiet.py --selftest
+        shell: bash
+        run: python3 ../scripts/tree_quiet.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"
       - name: The mutation-lock deriver can still refuse (mutation lock selftest)
-        run: python3 ../scripts/mutation_lock_gate.py --selftest
+        shell: bash
+        run: python3 ../scripts/mutation_lock_gate.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"
       - name: Every tree mutator takes the lock, closes its record, and every reader refuses beside one (mutation lock gate)
         run: python3 ../scripts/mutation_lock_gate.py
+      # 🆕 274 — `if: always()` BECAUSE THE RUN THAT REFUSED IS THE ONE WORTH READING.
+      # `main` sat red for eighteen hours across 271→273 and every instrument in the
+      # ritual was green, because every one of them reads the TREE and none reads the
+      # RUN. An upload conditioned on success would preserve exactly the runs nobody
+      # needed to look at.
+      - name: Upload the captured log (the numbers a close gate can read)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-measured-host-tests-node${{ matrix.node }}
+          path: ${{ env.CI_MEASURED_LOG }}
+          if-no-files-found: error

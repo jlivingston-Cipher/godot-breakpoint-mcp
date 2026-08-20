@@ -178,7 +178,12 @@ REACH_PATHS_SINCE = 271
 # the grandfathered population. The ceiling follows the population DOWN in the commit that
 # shrank it — left at eighteen it would be five rows of room to type an unchecked tier,
 # bought by work that had nothing to do with the back catalogue.
-UNDECLARED_CEILING = 14  # governed by floor_pin_gate's SIZE_LEDGER
+# 🆕 274 — LOWERED AGAIN, BY ONE, AND THE ROW THAT LEFT IS `replay-ci-flag-granularity`.
+# It was opened at 242 with no `paths`, so it sat in the grandfathered population for
+# thirty-two sessions; closing it at 274 makes it `due` under `REACH_PATHS_SINCE`, which
+# is what forced the declaration rather than allowing the `—` it had carried all along.
+# The back catalogue drains one row at a time and only ever by somebody finishing one.
+UNDECLARED_CEILING = 13  # governed by floor_pin_gate's SIZE_LEDGER
 
 
 class Row:
