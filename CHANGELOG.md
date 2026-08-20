@@ -6,6 +6,49 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Internal — the measurement moves to the commit that merged
+
+Nothing in this section changes anything an installer of the package can observe; it is the
+handoff, queue and CI apparatus.
+
+- 🔴 **CI captures the output of its own gates, and the close gate can read it.** Every command
+  the session replay runs already runs merge-blocking in `ci.yml`, including the mutating three,
+  and until now their output went to a run log nothing could consume — so a status block's
+  counters could only ever come from a log produced on the author's machine, against a
+  **pre-merge branch**. The `contract-check` and `test` jobs now open a log under `runner.temp`
+  with a `CI_MEASURED sha=… run=… attempt=… job=… workflow=…` line, tee nineteen counter-bearing
+  steps into it, and upload it with `if: always()` — the run that refused being the one worth
+  reading. The log lives outside `github.workspace` deliberately: four steps in that job check
+  the tree is otherwise clean, and a capture file inside it would have changed the numbers it
+  exists to make readable.
+- 🔴 **`--measured` takes a directory, so `gh run download` is the input.** Parts are
+  concatenated; `MEASURED_UNATTRIBUTED` refuses one that carries no provenance line *and answers
+  a counter*, which leaves room for the local file that carries the three world-facing readings
+  and the `TIER0` open line — neither of which a CI artifact can produce. `MEASURED_MIXED_SHA`
+  and `MEASURED_MIXED_RUN` refuse a merge of two commits or of two occasions at one commit, and
+  `MEASURED_EMPTY` names an empty download as an empty download instead of reporting thirty-four
+  patterns that stopped matching.
+- 🔴 **`MEASURED_SHA_MISMATCH`: the log is bound to the commit the block claims.** Session 244's
+  rule — *the measured log goes stale the moment any tracked file changes* — was an mtime-shaped
+  stand-in for a question CI has always been able to answer exactly. It is an equality now, and
+  the numbers describe the tree that shipped rather than a branch tip that no longer exists.
+- 🔴 **`MEASURED_LEG_DISAGREEMENT`: three machines, one commit, one answer required.** The `test`
+  job runs on Node 18, 20 and 22, so thirty counters are now measured three times on the same
+  tree. A counter that differs between legs is a fact about the machine rather than about the
+  repository — the failure mode the cheap opening tier's whole argument rests on, and the first
+  reader this project has had for it.
+- 🔴 **The routing question follows the log.** For a CI-measured close, *does something run this
+  instrument and keep its output* is asked of the workflow files rather than of the handoff's
+  own command fence, at **flag** granularity — and `CI_CAPTURE_UNGUARDED` refuses a captured step
+  that does not declare `shell: bash`, because the default shell has no `pipefail` and a gate
+  that REFUSED would exit with `tee`'s status.
+- 🔴 **The replay/CI comparison gained flags, and the walk that needed them found a roster
+  admitting things that are not scripts.** `CI_SCRIPT_RE`'s suffix was unanchored, so
+  `${{ github.sha }}` yielded the script `github.sh` and `OPS_UNIT_PASS rb.shot.mime` yielded
+  `rb.sh` — which had carried a written CI-only exemption, for eight sessions, for a file that
+  has never existed in this repository. The stale-exemption row could not see it, because the
+  roster did report the name.
+
 ### Internal — a claim about the world that its own reader could not make
 
 Nothing in this section changes anything an installer of the package can observe; it is the

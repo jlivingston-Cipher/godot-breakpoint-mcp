@@ -108,6 +108,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -2004,8 +2005,18 @@ REPLAY_CI_EXEMPT: "dict[str, str]" = {
     "gate.sh":
         "a shell helper inside `integration.yml`'s own steps; it has no existence outside "
         "that workflow, which is exempt above.",
-    "rb.sh": "same shape as `gate.sh` — an `integration.yml` step helper.",
 }
+# 🔴 274 — `rb.sh` WAS THE SIXTH ROW AND IT EXCUSED A FILE THAT HAS NEVER EXISTED. Its
+# reason read *"same shape as `gate.sh` — an `integration.yml` step helper"*, which is a
+# true sentence about `gate.sh` (a heredoc written to `/tmp` at integration.yml:1064) and
+# a sentence about nothing at all in the other case: the "script" came from the strings
+# `OPS_UNIT_PASS rb.shot.mime` and `OPS_UNIT_SKIP rb.shot.capture`, sliced by an
+# unanchored suffix pattern. So an exemption was carried for eight sessions, its prose
+# was plausible, `REPLAY_CI_EXEMPT_STALE` could not see it — the roster DID report the
+# name, which is exactly the condition that row tests for — and the only thing that ever
+# found it was anchoring the pattern for an unrelated reason. 233 §18's staleness class
+# has a third shape: an exemption that was never about a real thing, kept alive by the
+# same defect that invented it.
 # 🔴 `stage-addon.mjs` WAS THE FIFTH ROW AND THIS READER DELETED IT ON THE FIRST RUN.
 # It is drafted as CI-only because `ci.yml` runs `npm run stage-addon` — and that is a
 # PACKAGE SCRIPT, so no `run:` line in any workflow carries the basename and this reader
@@ -2055,8 +2066,175 @@ def ci_scripts(root: Path = ROOT) -> "dict[str, set]":
 
 CI_RUN_BLOCK = re.compile(r"^\s*(?:-\s*)?run:\s*[|>][-+]?\s*$")
 CI_RUN_ONE = re.compile(r"^\s*(?:-\s*)?run:\s*(.*\S)\s*$")
-CI_SCRIPT_RE = re.compile(r"([A-Za-z0-9_.-]+\.(?:py|mjs|sh))")
+# 🆕 274 — `(?![A-Za-z0-9_])` IS A DEFECT FIX AND IT WAS FOUND BY A LINE THAT HAS
+# NOTHING TO DO WITH SCRIPTS. The suffix was unanchored, so the extension could land in
+# the MIDDLE of a token: `${{ github.sha }}` — the expression every provenance step in
+# `ci.yml` now writes — yields the "script" `github.sh`, and `REPLAY_MISSING` demanded
+# the replay run it. The roster has been admitting non-scripts since 242 and nothing
+# noticed for one reason, which is that no workflow line had ever carried a token whose
+# tail happened to spell one. A population defined by a pattern is a derived population
+# like any other, and this one was WIDER than the thing it stands for.
+CI_SCRIPT_RE = re.compile(r"([A-Za-z0-9_.-]+\.(?:py|mjs|sh))(?![A-Za-z0-9_])")
 CI_SCRIPT_FLOOR = 55   # governed by floor_pin_gate's SIZE_LEDGER
+
+
+# ── 🆕 274 — `replay-ci-flag-granularity` (OPEN 242): THE SAME TWO ROSTERS, WITH FLAGS ─
+#
+# 🔴 242 NAMED SEVEN VARIANTS AND THE LIVE ANSWER IS THREE, WHICH IS WHY THE ROW WAS
+# WORTH MEASURING RATHER THAN IMPLEMENTING FROM ITS OWN DESCRIPTION. The row reads *CI
+# runs seven flag variants the replay does not (`--patterns`, `--assert-addon`,
+# `--assert-map`, three `--selftest`, `--refresh`)*. Measured at 274 against `ci.yml` and
+# 273's fence, five of those seven have since joined the replay and one — `--refresh` —
+# no longer exists in any workflow. What is left is three real divergences, and they are
+# not the same defect as each other:
+#
+#   `release_names.py --assert-map`      CI runs it, the replay does not
+#   `spec_conformance.py --selftest`     CI runs it, the replay runs only `--check`
+#   `registry_lag.py` (bare)             the replay runs it, CI runs only `--selftest`
+#
+# The first two are 241's defect exactly, one resolution finer: a session can perform its
+# whole ritual and be refused on push by a FLAG it never passed. Both are cheap and both
+# are now in the fence. The third is the row's OTHER direction and it is not a defect —
+# the bare command dials the npm registry to answer `npm.lag`, which is a fact about the
+# WORLD and not about the tree. A workflow asserting it would redden every unrelated pull
+# request the day somebody else publishes. That is what the exemption below says, and
+# saying it is the whole difference between a check nobody runs and a check nobody needs.
+#
+# 🔴 THE FLOOR IS BORROWED RATHER THAN INVENTED, AND THE REASON IS AN INVARIANT. Every
+# basename in `ci_scripts()` comes from at least one command line, so the flag-granular
+# population can never be smaller than the basename one — `CI_SCRIPT_FLOOR` therefore
+# floors both, and a second constant would be a second thing to keep in step for no
+# second guarantee.
+REPLAY_CI_FLAG_EXEMPT: "dict[str, str]" = {
+    "python3 registry_lag.py":
+        "the bare command DIALS THE NPM REGISTRY to answer `npm.lag`, a fact about the "
+        "world rather than about this tree. CI runs `--selftest`, which proves the "
+        "ceiling can still refuse, and deliberately not this — a workflow asserting a "
+        "registry distance reddens every unrelated pull request the moment somebody "
+        "publishes, which is a check that trains people to ignore it. The handoff header "
+        "is where that reading belongs and `HEADER_UNREAD_CLAIMED` is what makes it "
+        "honest there (271 §1).",
+    "python3 spec_conformance.py --refresh":
+        "`sdk-drift.yml` only, and that workflow is `schedule:` and `workflow_dispatch:` "
+        "— no `push`, no `pull_request`, so it never blocks a merge and is not part of "
+        "the ritual a session performs before cutting one. Same argument as "
+        "`assetlib_sweep.py`'s row one table up; it needs its own entry here because "
+        "`spec_conformance.py` DOES run merge-blocking in `ci.yml`, so the basename is "
+        "covered and only this FLAG is not — which is `replay-ci-flag-granularity` (242) "
+        "stating its own case.",
+}
+
+
+def command_norm(seg: str) -> str:
+    """One shell segment reduced to the command it runs: comments, redirections, pipes
+    and the path each token was spelled with, all dropped. `python3 ../scripts/x.py` and
+    `python3 scripts/x.py` are one command run from two working directories."""
+    seg = re.sub(r"(?<!\S)#.*$", "", seg).split("2>&1")[0].split("|")[0]
+    seg = re.sub(r"[<>]+\s*\S+", " ", seg)
+    return " ".join(t.rsplit("/", 1)[-1] for t in seg.split())
+
+
+def ci_commands(root: Path = ROOT) -> "dict[str, set]":
+    """{normalised command: {workflow files running it}} — `ci_scripts()`'s walk, kept at
+    FLAG granularity instead of collapsed to basenames."""
+    out: "dict[str, set]" = {}
+    wf_dir = root / ".github" / "workflows"
+    if not wf_dir.is_dir():
+        return out
+
+    def take(line: str, name: str) -> None:
+        for seg in CHAINED_RE.split(line):
+            if CI_SCRIPT_RE.search(seg):
+                out.setdefault(command_norm(seg), set()).add(name)
+
+    for f in sorted(wf_dir.glob("*.y*ml")):
+        lines = f.read_text().split("\n")
+        i = 0
+        while i < len(lines):
+            ln = lines[i]
+            if CI_RUN_BLOCK.match(ln) is not None:
+                indent = len(ln) - len(ln.lstrip())
+                i += 1
+                while i < len(lines) and (not lines[i].strip()
+                                          or len(lines[i]) - len(lines[i].lstrip()) > indent):
+                    take(lines[i], f.name)
+                    i += 1
+                continue
+            if (m := CI_RUN_ONE.match(ln)) is not None:
+                take(m.group(1), f.name)
+            i += 1
+    return out
+
+
+def replay_commands(text: str) -> "set":
+    """Every command the replay fence invokes, with its flags."""
+    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
+    body = blocks[-1] if blocks else text
+    out = set()
+    for ln in body.split("\n"):
+        # the reader's own `--measured` invocation is the thing being run, not a gate the
+        # run performs — the same exclusion the routing loop makes, for the same reason.
+        if REPLAY_MEASURED_RE.search(ln):
+            continue
+        for seg in CHAINED_RE.split(ln):
+            if CI_SCRIPT_RE.search(seg.split("#")[0]):
+                out.add(command_norm(seg))
+    return out
+
+
+def replay_ci_flag_problems(text: str, ci: "dict[str, set]",
+                            exempt: "dict[str, str] | None" = None,
+                            floor: "int | None" = None
+                            ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — the same two rosters as `replay_ci_problems`, with flags."""
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    exempt = REPLAY_CI_FLAG_EXEMPT if exempt is None else exempt
+    floor = CI_SCRIPT_FLOOR if floor is None else floor
+    if len(ci) < floor:
+        problems.append(
+            f"🔴 REPLAY_CI_FLAG_FLOOR this reader found {len(ci)} command(s) across the "
+            f"workflow files, floor {floor} — either the workflows lost steps or "
+            f"`CI_RUN_ONE`/`CI_RUN_BLOCK`/`CI_SCRIPT_RE` stopped matching, and a "
+            f"comparison against a collapsed roster reports perfect agreement. The floor "
+            f"is borrowed from the basename walk because this population is a REFINEMENT "
+            f"of that one and cannot be smaller than it; which of the two causes this is "
+            f"can be told apart by running `ci_scripts()` beside it, and this count "
+            f"alone cannot.")
+        return problems, notes
+    rep = replay_commands(text)
+    exempt_wf = set(INTEGRATION_WORKFLOW_EXEMPT)
+    bare_exempt = set(REPLAY_CI_EXEMPT)
+    for cmd, wfs in sorted(ci.items()):
+        if cmd in rep or cmd in exempt or wfs <= exempt_wf:
+            continue
+        if any(b in cmd for b in bare_exempt):
+            continue
+        problems.append(
+            f"🔴 REPLAY_FLAG_MISSING `{cmd}` runs in {sorted(wfs)} and the replay runs no "
+            f"command spelled that way. 241's defect one resolution finer: the basename "
+            f"comparison is satisfied by any invocation of the same file, so a session "
+            f"can run `x.py` its whole ritual and be refused on push by `x.py --flag` it "
+            f"never passed. Add it to the replay, or declare it in "
+            f"REPLAY_CI_FLAG_EXEMPT with the reason it is CI-only.")
+    for cmd in sorted(rep):
+        if cmd in ci or cmd in exempt:
+            continue
+        if any(b in cmd for b in bare_exempt):
+            continue
+        problems.append(
+            f"🔴 CI_FLAG_MISSING `{cmd}` is in the replay and no workflow runs a command "
+            f"spelled that way. A check that runs only where the handoff is written is a "
+            f"check that stops running the first time somebody skips a step — and at "
+            f"this resolution that includes a flag CI passes differently.")
+    stale = sorted(c for c in exempt if c not in rep and c not in ci)
+    for c in stale:
+        problems.append(
+            f"🔴 REPLAY_CI_FLAG_EXEMPT_STALE `{c}` is declared and neither roster runs it "
+            f"— an exemption that outlived the thing it exempts (174 §5).")
+    notes.append(f"replay/ci flags: {len(rep)} command(s) in the replay · {len(ci)} "
+                 f"across the workflows · {len(exempt)} declared CI-only or local-only")
+    return problems, notes
 
 
 def replay_scripts(text: str) -> "set":
@@ -2356,8 +2534,18 @@ def fenced(text: str) -> "list[str]":
     return out
 
 
-def replay_problems(text: str) -> "tuple[list[str], list[str]]":
+def replay_problems(text: str, ci_measured: bool = False
+                    ) -> "tuple[list[str], list[str]]":
     """(problems, notes) for the handoff's own replay block.
+
+    🆕 274 — `ci_measured` MOVES ONE QUESTION AND LEAVES THE REST. When the log came from
+    a CI artifact, *does the fence run this instrument and route its output* is being
+    asked of the wrong procedure: the commands ran in a workflow and the fence is two
+    lines of `gh run download`. That arm is answered by `ci_capture_problems()` against
+    the workflow files instead — at FLAG granularity, which is stricter than this loop
+    has ever been. Everything else here still applies, because everything else here is
+    about the DOCUMENT: the order rules, the `contract_check.py`-after-`git add` rule,
+    and the requirement that the document print the invocation at all.
 
     🔴 THE POPULATION IS THE FENCE, NOT THE DOCUMENT, AND THE FIRST DRAFT GOT IT WRONG IN
     THE WAY THIS FILE KEEPS GETTING THINGS WRONG. Scanning every line made a handoff that
@@ -2409,6 +2597,8 @@ def replay_problems(text: str) -> "tuple[list[str], list[str]]":
     # NEXT, and shipped the replay that does it.
     for key, _alias, _n, cmd, _cwd, _ex, cost, _need, _why in COUNTER_READERS:
         if cmd is None:
+            continue
+        if ci_measured:
             continue
         token = next((c.rsplit("/", 1)[-1] for c in reversed(cmd)
                       if c.endswith((".py", ".mjs"))), " ".join(cmd))
@@ -2462,6 +2652,16 @@ def replay_problems(text: str) -> "tuple[list[str], list[str]]":
     # made the real command a *later* one and refused the replay for clobbering itself.
     # The rule was right about the shape and wrong about the population, which is the
     # fourth reader this session to be wrong in exactly that way.
+    # 🆕 274 — AND THE RULES BELOW ARE LEFT RUNNING RATHER THAN SWITCHED OFF. They all
+    # anchor on a line that WRITES `{base}`, and a fence that downloads an artifact
+    # writes nothing, so each of them finds nothing by measurement instead of by
+    # exemption — which is the difference between a rule that does not apply and a rule
+    # somebody decided not to ask.
+    if ci_measured:
+        notes.append(
+            f"replay: `{log}` is a CI artifact, so the routing question is asked of the "
+            f"workflow files rather than of this fence — `ci_capture_problems()`, at "
+            f"flag granularity, which is stricter than the fence loop has ever been")
     cmds = [re.sub(r"(?<!\S)#.*$", "", ln) for ln in lines]
     routing = [i for i, ln in enumerate(cmds)
                if re.search(rf">>?\s*\S*{re.escape(base)}", ln)
@@ -2647,6 +2847,288 @@ def measure(keys: "set[str]", log: str, run_cheap: bool, run_slow: bool, run_loc
     return out, unmeasured, notes
 
 
+# ── 🆕 274 — `replay-measured-nowhere-but-locally`: THE MEASUREMENT MOVES TO THE MERGE ──
+#
+# 🔴 THE ROW'S FINDING IS THAT THE LOCAL REPLAY VERIFIES NOTHING CI HAD NOT ALREADY
+# VERIFIED. 272 §6.1 derived the replay list from `ci_scripts()` and recorded it as a
+# strict SUBSET; 273 §5.3 timed it — 54 commands, 863 s — and asked what the fourteen
+# minutes buy. The answer measured there was two things, and neither of them is
+# verification: a captured log `--measured` can read, and pre-push feedback. Every
+# command in the list, INCLUDING the mutating three, already runs merge-blocking on
+# every push.
+#
+# 🔴 AND IT MEASURES THE WRONG TREE, WHICH IS THE HALF THAT MATTERS. The local run
+# happens on a pre-merge branch; the commit that ships is the merge commit, and it is a
+# tree no local replay has ever been run against. 244's rule — *the measured log goes
+# stale the moment any tracked file changes* — is an mtime-shaped stand-in for a question
+# that has an exact answer: WHICH COMMIT WAS THIS LOG PRODUCED AT? CI knows. It has
+# always known. It threw the answer away with the output.
+#
+# So the log gets a provenance line, the workflow uploads it, and this reader binds it to
+# the SHA the status block claims. The staleness rule does not get worked around; it
+# dissolves, because a log that describes a different commit is now refused by name
+# instead of being suspected by timestamp.
+#
+# 🔴 THE READER TAKES A DIRECTORY BECAUSE `gh run download` PRODUCES ONE. Four artifacts
+# come back from a green run — one per matrix leg of `test`, one from `contract-check` —
+# and the counters are spread across them. Concatenating is the whole of the merge; what
+# is NOT free is the agreement between them, which is why `MEASURED_LEG_DISAGREEMENT`
+# exists two functions down.
+CI_MEASURED_RE = re.compile(
+    r"^CI_MEASURED\s+sha=(?P<sha>[0-9a-f]{7,40})\s+run=(?P<run>\d+)\s+"
+    r"attempt=(?P<attempt>\d+)\s+job=(?P<job>\S+)\s+workflow=(?P<workflow>\S+)\s*$", re.M)
+
+# 🔴 A FLOOR ON THE MERGE, AND IT IS NOT DECORATION. `gh run download` against a run
+# whose artifacts expired, or against the wrong run, succeeds and leaves an empty
+# directory; concatenating nothing produces a log that carries no counter, and every
+# counter then reports UNMEASURED — a refusal with a true message naming the wrong cause.
+# The reader says which it was.
+CI_PART_FLOOR = 1
+
+
+def read_measured(target: Path) -> "tuple[str, list[tuple[str, str]] | None]":
+    """(concatenated text, [(name, text)] or None for a plain file).
+
+    🔴 A FILE STAYS A FILE. The local replay's `run273.log` is one path with one text and
+    no provenance, and every session before this one produced exactly that; a reader that
+    demanded a directory would have made the new route the only route on the day it
+    landed.
+
+    🔴 AND `None` IS NOT `[]`, WHICH THE FIRST DRAFT COLLAPSED AND ITS OWN FIXTURE CAUGHT
+    ON THE FIRST RUN. Returning an empty list for a directory holding no `*.log` made an
+    EMPTY DOWNLOAD indistinguishable from a local file — so `MEASURED_EMPTY`, the refusal
+    written for exactly that case, was unreachable, and a `gh run download` against an
+    expired run would have been reported as an unattributed local log with all
+    thirty-four counters UNMEASURED. A true refusal naming the wrong cause is 235 §5's
+    class and this reader's own subject.
+    """
+    if target.is_dir():
+        parts = []
+        for f in sorted(target.rglob("*.log")):
+            parts.append((str(f.relative_to(target)), f.read_text(encoding="utf-8")))
+        return ("\n".join(t for _n, t in parts), parts)
+    return (target.read_text(encoding="utf-8"), None)
+
+
+# 🔴 THE POPULATION AN UNATTRIBUTED PART IS JUDGED AGAINST IS THE ONE `measure()` WOULD
+# ACTUALLY READ OUT OF IT, and the first draft used "every row in COUNTER_READERS", which
+# is wider. `ci.checks` is computed from the workflow files by `ci_check_runs()` and is
+# special-cased above the log search; it carries `cmd = None` and an EMPTY extract, and an
+# empty pattern matches every string ever written — so the fixture for a legitimate local
+# part was refused for supplying a counter no log has ever supplied. A derived population
+# that is wider than the thing it stands for is 246's class, and it took one fixture.
+def log_readable(cmd, extract) -> bool:
+    """Whether `measure()` would read this row's counter out of a measured log."""
+    return cmd is not None and bool(extract)
+
+
+def ci_provenance(text: str, parts: "list[tuple[str, str]] | None", target: str
+                  ) -> "tuple[list[str], list[str], str]":
+    """(problems, notes, sha) — what commit this measured log was produced at.
+
+    🔴 THE THREE REFUSALS ARE THREE DIFFERENT LIES A LOG CAN TELL and only the first is
+    obvious. A part with NO provenance line inside a download directory is a stray file
+    contributing numbers nobody can attribute. Parts disagreeing on `sha` is two commits
+    merged into one claim. Parts agreeing on `sha` and disagreeing on `run` is the same
+    commit measured on two occasions — which is not wrong about the tree and IS wrong
+    about the evidence, because a session that re-ran one leg after a fix and downloaded
+    both would be quoting a number the other three legs never saw.
+    """
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    if parts is None:
+        m = CI_MEASURED_RE.search(text)
+        if m is None:
+            notes.append(
+                f"measured: `{target}` carries no `CI_MEASURED` line, so it is a LOCAL "
+                f"replay log and 244's staleness rule is the only thing standing behind "
+                f"it — this run cannot tell which commit it was produced at")
+            return (problems, notes, "")
+        notes.append(f"measured: one file, CI-produced at {m.group('sha')[:7]}")
+        return (problems, notes, m.group("sha"))
+
+    if len(parts) < CI_PART_FLOOR:
+        problems.append(
+            f"🔴 MEASURED_EMPTY `{target}` is a directory holding {len(parts)} `*.log` "
+            f"file(s), floor {CI_PART_FLOOR}. Every counter below would report UNMEASURED "
+            f"with a message about a pattern that did not match, and the real cause is "
+            f"that there is nothing to match against: the download produced no artifact. "
+            f"Check the run id, and that the run's artifacts have not expired.")
+        return (problems, notes, "")
+
+    # 🔴 AN UNATTRIBUTED PART IS NOT AUTOMATICALLY A STRAY, AND THE FIRST DRAFT SAID IT
+    # WAS. Two readings a CI artifact structurally cannot carry have to travel with it:
+    # the three world-facing lines from `--gh-open`, which are facts about a registry and
+    # a forge rather than about the tree, and the `HANDOFF_OPEN … TIER0 … INHERITED FROM`
+    # line, which is produced at PICKUP on the session's own machine and is what
+    # `TIER_UNSUPPORTED` demands. Both are local by nature; neither is a counter.
+    #
+    # So the rule is not about the file's name — a convention this reader would then have
+    # to police — but about what the file SUPPLIES. An unattributed part may sit in the
+    # download directory and may carry the world and the tier. The moment one of them
+    # answers a COUNTER, it is a number nothing can attribute to a commit, and that is
+    # the defect the whole provenance line exists to make impossible.
+    seen: "dict[str, tuple[str, str]]" = {}
+    for name, body in parts:
+        m = CI_MEASURED_RE.search(body)
+        if m is None:
+            supplies = sorted(
+                key for key, _a, _n, c, _w, extract, _co, _nd, _wh in COUNTER_READERS
+                if log_readable(c, extract) and re.search(extract, body, re.M | re.S))
+            if supplies:
+                problems.append(
+                    f"🔴 MEASURED_UNATTRIBUTED `{name}` is in `{target}`, carries no "
+                    f"`CI_MEASURED sha=… run=…` line, and answers {len(supplies)} "
+                    f"counter(s): {', '.join(supplies)}. Those numbers would be read as "
+                    f"this commit's and nothing here can say which commit, run or "
+                    f"machine produced them. A local file may travel with the download "
+                    f"to carry the world-facing readings and the TIER0 open line — it "
+                    f"may not answer a counter.")
+            else:
+                notes.append(f"measured: `{name}` is unattributed and answers no counter "
+                             f"— carried for the world readings and the tier line")
+            continue
+        seen[name] = (m.group("sha"), m.group("run"))
+    if not seen:
+        return (problems, notes, "")
+    shas = {s for s, _r in seen.values()}
+    runs = {r for _s, r in seen.values()}
+    if len(shas) > 1:
+        detail = ", ".join(f"{n}={s[:7]}" for n, (s, _r) in sorted(seen.items()))
+        problems.append(
+            f"🔴 MEASURED_MIXED_SHA the parts of `{target}` were produced at "
+            f"{len(shas)} different commits: {detail}. Concatenating them makes one log "
+            f"claiming to describe one tree, and it describes none of them.")
+        return (problems, notes, "")
+    if len(runs) > 1:
+        detail = ", ".join(f"{n}=run {r}" for n, (_s, r) in sorted(seen.items()))
+        problems.append(
+            f"🔴 MEASURED_MIXED_RUN the parts of `{target}` agree on the commit and come "
+            f"from {len(runs)} different runs: {detail}. Same tree, different occasions — "
+            f"which is what a partial re-run produces, and a block quoting it would carry "
+            f"numbers no single run ever printed together.")
+        return (problems, notes, "")
+    sha = shas.pop()
+    notes.append(f"measured: {len(seen)} CI artifact(s) — {', '.join(sorted(seen))} — all "
+                 f"from run {runs.pop()} at {sha[:7]}")
+    return (problems, notes, sha)
+
+
+def leg_disagreements(parts: "list[tuple[str, str]]", keys: "set[str]") -> "list[str]":
+    """Counters two CI artifacts read differently on the same commit.
+
+    🔴 THIS IS THE READER 273 §6 ARGUED FOR WITHOUT NAMING IT. The whole case for
+    inheriting counters at TIER0 rests on *a counter that is a fact about the MACHINE
+    rather than the tree shows up as a disagreement on a tree whose source did not move* —
+    and until now nothing in this repository ever measured the same counter twice on the
+    same commit, so that sentence was a promise rather than a check. The `test` job runs
+    on three Node versions. Thirty counters are read on all three. Any of them that
+    differs is a green that is true of one disk, and it is a FINDING rather than a
+    tie-break to be resolved by picking one.
+    """
+    problems: "list[str]" = []
+    for key, _alias, _n, _cmd, _cwd, extract, _cost, _need, why in COUNTER_READERS:
+        if key not in keys or not log_readable(_cmd, extract):
+            continue
+        got: "dict[tuple[int, ...], list[str]]" = {}
+        for name, body in parts:
+            m = re.search(extract, body, re.M | re.S)
+            if m is None:
+                continue
+            got.setdefault(tuple(int(g) for g in m.groups()), []).append(name)
+        if len(got) > 1:
+            detail = "; ".join(f"{list(v)} from {', '.join(sorted(ns))}"
+                               for v, ns in sorted(got.items()))
+            problems.append(
+                f"🔴 MEASURED_LEG_DISAGREEMENT `{key}` was read on the same commit by "
+                f"{sum(len(ns) for ns in got.values())} artifact(s) and they do not "
+                f"agree: {detail}. One tree cannot have two answers, so this counter is "
+                f"a fact about the machine that measured it. ({why})")
+    return problems
+
+
+# ── 🆕 274 — AND THE ROUTING QUESTION, ASKED OF THE WORKFLOW ──────────────────────────
+#
+# 🔴 `replay_problems()` ASKS EVERY MUTATING AND SLOW ROW WHETHER THE FENCE RUNS ITS
+# INSTRUMENT AND SENDS THE OUTPUT TO THE LOG. Correct, and it is a question about a
+# procedure a human performs. When the log comes from CI the procedure is the WORKFLOW,
+# and the same question has to be asked one file over — otherwise a session that closes
+# against a CI artifact is asked nothing at all about where its numbers came from, which
+# is a weaker gate than the one it replaces.
+#
+# 🔴 AND IT IS ASKED AT FLAG GRANULARITY, WHICH CLOSES `replay-ci-flag-granularity`
+# (OPEN 242). `ci_scripts()` compares by BASENAME, so `mutation_lock_gate.py --selftest`
+# and `mutation_lock_gate.py` are one entry — and they are different commands printing
+# different things: `mutlock.guarded` comes from the first and nothing reads the second's
+# output. A basename comparison reports a captured `mutation_lock_gate.py` and cannot say
+# WHICH of the two the artifact carries. The roster below keeps the flags.
+#
+# 🔴 THE `shell: bash` ARM IS NOT STYLE. GitHub's default shell for a `run:` step on
+# Linux is `bash -e {0}` — no `pipefail` — so `gate.py | tee -a "$LOG"` exits with tee's
+# status and a REFUSING gate goes green. Every capture in `ci.yml` is a pipe, so a
+# capture that forgot the line would silently convert a merge-blocking check into a
+# receipt. That is this session's own finding pointed at the change this session is
+# making, and it is checked rather than remembered.
+CI_STEP_SPLIT = re.compile(r"^\s*-\s", re.M)
+CI_CAPTURE_TOKEN = "$CI_MEASURED_LOG"
+
+
+def ci_capture_steps(root: Path = ROOT) -> "list[tuple[str, str, bool]]":
+    """[(workflow file, command as written, guarded by `shell: bash`)] for every step
+    routing its output into the captured log."""
+    out: "list[tuple[str, str, bool]]" = []
+    wf_dir = root / ".github" / "workflows"
+    if not wf_dir.is_dir():
+        return out
+    for f in sorted(wf_dir.glob("*.y*ml")):
+        for step in CI_STEP_SPLIT.split(f.read_text(encoding="utf-8")):
+            guarded = re.search(r"^\s*shell:\s*bash\s*$", step, re.M) is not None
+            for ln in step.split("\n"):
+                m = CI_RUN_ONE.match(ln)
+                if m is None or CI_CAPTURE_TOKEN not in m.group(1):
+                    continue
+                cmd = m.group(1).split("2>&1")[0].split("|")[0].strip()
+                out.append((f.name, cmd, guarded))
+    return out
+
+
+def ci_capture_norm(cmd: str) -> str:
+    """The command with its flags and without its path — `ci.yml` spells the same
+    instrument `python3 scripts/x.py` in one job and `python3 ../scripts/x.py` in
+    another, because the working directory differs and the command does not."""
+    return " ".join(t.rsplit("/", 1)[-1] for t in cmd.split())
+
+
+def ci_capture_problems(captured: "list[tuple[str, str, bool]]", keys: "set[str]"
+                        ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — the routing question, asked of the workflow files."""
+    problems: "list[str]" = []
+    notes: "list[str]" = []
+    for wf, cmd, guarded in captured:
+        if not guarded:
+            problems.append(
+                f"🔴 CI_CAPTURE_UNGUARDED `{wf}` routes `{cmd}` into the captured log "
+                f"and the step does not declare `shell: bash`. The default shell has no "
+                f"`pipefail`, so the step exits with `tee`'s status: a gate that REFUSED "
+                f"would be reported green, and its refusal would be sitting in the "
+                f"artifact nobody's exit code reflected.")
+    have = {ci_capture_norm(c) for _wf, c, _g in captured}
+    for key, _alias, _n, cmd, _cwd, _ex, cost, _need, _why in COUNTER_READERS:
+        if key not in keys or cmd is None or cost == CHEAP:
+            continue
+        want = ci_capture_norm(" ".join(cmd))
+        if want not in have:
+            problems.append(
+                f"🔴 CI_CAPTURE_MISSING `{key}` is {cost}, so its counter can come from "
+                f"nowhere but the measured log — and no step in any workflow file sends "
+                f"`{want}` there. The artifact this block was closed against cannot "
+                f"carry it, whatever else it carries. Route the step "
+                f"(`… 2>&1 | tee -a \"$CI_MEASURED_LOG\"`, under `shell: bash`).")
+    notes.append(f"ci capture: {len(captured)} step(s) route into the captured log, "
+                 f"compared at FLAG granularity against {len(have)} distinct command(s)")
+    return problems, notes
+
+
 # 🔴 THE `>` IS NOT DECORATION AND THE FIRST DRAFT DROPPED IT. Every handoff in this
 # series opens with a BLOCKQUOTE, so the natural place to write the declaration is a line
 # beginning `> `, and a reader anchored on `^\s*ritual` reports UNDECLARED there — which
@@ -2729,7 +3211,8 @@ def tier_problems(text: str, log: str, session: "int | None"
 
 
 def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
-          run_locked: bool, run_network: bool = False
+          run_locked: bool, run_network: bool = False,
+          parts: "list[tuple[str, str]] | None" = None, measured: str = ""
           ) -> "tuple[list[str], list[str], int, int, int, int]":
     """(problems, notes, atoms read, compared, header atoms, header compared)."""
     problems: "list[str]" = []
@@ -2740,13 +3223,32 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     atoms, why = counter_atoms(block)
     if why:
         return ([f"🔴 {why}"], [], 0, 0, 0, 0)
-    r_problems, r_notes = replay_problems(text)
+
+    # ── 🆕 274 — WHERE THE LOG CAME FROM, BEFORE ANYTHING READS A NUMBER OUT OF IT ────
+    # 🔴 `parts or []` IS THE DEFECT `read_measured` WAS FIXED FOR, REINTRODUCED AT ITS
+    # CALL SITE, AND THIS GATE CAUGHT IT ON ITS OWN HANDOFF. `None` means *the argument
+    # was a FILE*; `[]` means *it was a directory and there was nothing in it*. Collapsing
+    # them here made `MEASURED_EMPTY` fire on the local replay log — a refusal naming a
+    # cause that could not possibly be the live one, printed by the reader written to
+    # stop exactly that. The distinction is worth two lines because it is load-bearing
+    # twice, and it was wrong at the second place within an hour of being fixed at the
+    # first.
+    p_problems, p_notes, log_sha = ci_provenance(log, parts, measured or "the log")
+    problems.extend(p_problems)
+    r_problems, r_notes = replay_problems(text, ci_measured=bool(log_sha))
     problems.extend(r_problems)
+    r_notes.extend(p_notes)
     # 🆕 242 — the replay list against the workflow files, both directions.
     _ci = ci_scripts()
     rc_problems, rc_notes = replay_ci_problems(text, _ci)
     problems.extend(rc_problems)
     r_notes.extend(rc_notes)
+    # 🆕 274 — and the same two rosters at FLAG granularity (`replay-ci-flag-granularity`,
+    # OPEN 242). The basename comparison above is satisfied by any invocation of the same
+    # file; this one is not.
+    rf_problems, rf_notes = replay_ci_flag_problems(text, ci_commands())
+    problems.extend(rf_problems)
+    r_notes.extend(rf_notes)
     # 🆕 243 — and the third direction: what the union of both rosters never reaches.
     un_problems, un_notes = unreached_problems(text, _ci)
     problems.extend(un_problems)
@@ -2771,6 +3273,44 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
             problems.append(f"🔴 UNREADABLE CLAIM — {why}")
             continue
         bound[key] = (atom, tuple(int(x) for x in COUNTER_RE.findall(atom)))
+
+    # ── 🆕 274 — THE LOG IS BOUND TO THE COMMIT THE BLOCK CLAIMS ──────────────────────
+    #
+    # 🔴 THIS IS THE LINE 244's STALENESS RULE WAS STANDING IN FOR. *The measured log
+    # goes stale the moment any tracked file changes* is true, unenforceable, and one
+    # question away from the thing actually worth knowing — which commit produced these
+    # numbers. A CI artifact answers that exactly, so the rule stops being a discipline
+    # somebody has to remember and becomes an equality somebody can fail.
+    if log_sha:
+        shas = main_shas(block)
+        if not shas:
+            problems.append(
+                f"🔴 MEASURED_UNBINDABLE the measured log was produced at {log_sha[:7]} "
+                f"and this block's `main` row carries no SHA to compare it to. A "
+                f"CI-measured close is only worth more than a local one because the two "
+                f"ends can be joined; with one end missing it is worth less, because it "
+                f"reads as bound and is not.")
+        else:
+            claimed = shas[0]
+            n = min(len(claimed), len(log_sha))
+            if claimed[:n] != log_sha[:n]:
+                problems.append(
+                    f"🔴 MEASURED_SHA_MISMATCH the block's `main` row says {claimed} and "
+                    f"the measured log was produced at {log_sha[:7]}. Every counter "
+                    f"below describes a tree this block does not claim to be about. This "
+                    f"is the defect 244 wrote its staleness rule against, and unlike the "
+                    f"rule it is a comparison rather than an instruction: download the "
+                    f"run for {claimed}, or correct the row.")
+            else:
+                r_notes.append(
+                    f"measured: bound — the log was produced at {log_sha[:7]} and the "
+                    f"block's `main` row claims {claimed}, so these counters describe "
+                    f"the tree that shipped rather than a branch tip that no longer "
+                    f"exists (274, replacing 244's staleness rule)")
+        problems.extend(leg_disagreements(parts or [], set(bound)))
+        cap_problems, cap_notes = ci_capture_problems(ci_capture_steps(), set(bound))
+        problems.extend(cap_problems)
+        r_notes.extend(cap_notes)
 
     # ── the second direction: a counter the block DROPPED ─────────────────────────────
     for key, _alias, _n, _cmd, _cwd, _ex, _cost, need, why in COUNTER_READERS:
@@ -5873,6 +6413,244 @@ def selftest() -> int:
         print(f"  🔴 POPULATION_SHAPE_CONTROL a block claiming one unbound atom and "
               f"nothing else was not refused on all three arms: {_got[:3]}")
 
+    # ── 🆕 274 — THE CI-MEASURED CLOSE, EVERY ARM DRIVEN ON A FIXTURE ─────────────────
+    #
+    # 🔴 EACH REFUSAL IS DRIVEN, NOT ASSERTED — 273 §2's own lesson one file over. The
+    # accept path and the refuse path of a reader that decides whether a number may be
+    # believed are different code, and the one that has never run is the one that will be
+    # wrong when it matters. `tautology_gate.mjs` grades these blocks by what satisfies
+    # them, so every claim below compares a real return value.
+    _PROV = ("CI_MEASURED sha=255d13980f1e2a3b4c5d6e7f8091a2b3c4d5e6f7 run=42 attempt=1 "
+             "job=host-tests-node22 workflow=ci")
+    _SUITE = "# tests 904\n# pass 904\n"          # host.suite's own two lines
+    _SCOPE = "SCOPE_GATE 66 enumerator(s) swept\n"
+
+    def _dir(files: "dict[str, str]") -> Path:
+        d = Path(tempfile.mkdtemp(prefix="handoff_ci_"))
+        for name, body in files.items():
+            (d / name).parent.mkdir(parents=True, exist_ok=True)
+            (d / name).write_text(body, encoding="utf-8")
+        return d
+
+    # ── the accept path: a directory of two attributed parts reads as one bound log ───
+    claims += 1
+    _d = _dir({"a/host.log": f"{_PROV}\n{_SUITE}", "b/contract.log": f"{_PROV}\nx 1\n"})
+    _text, _parts = read_measured(_d)
+    _p, _n, _sha = ci_provenance(_text, _parts, str(_d))
+    if _p or len(_parts) != 2 or not _sha.startswith("255d139") or "# tests 904" not in _text:
+        failed += 1
+        print(f"  🔴 CI_MEASURED_ACCEPT a directory of two attributed parts did not read "
+              f"back as one log bound to one commit: {_p or (_sha, len(_parts))}")
+
+    # ── and a plain file is still a plain file, carrying no provenance and no refusal ──
+    claims += 1
+    _f = _dir({"run.log": _SUITE}) / "run.log"
+    _text, _parts = read_measured(_f)
+    _p, _n, _sha = ci_provenance(_text, _parts, str(_f))
+    if _p or _parts or _sha or not any("no `CI_MEASURED` line" in x for x in _n):
+        failed += 1
+        print(f"  🔴 CI_MEASURED_FILE the local replay's own log was not read as an "
+              f"unattributed file: problems={_p} parts={len(_parts)} sha={_sha!r}")
+
+    # ── an unattributed part that ANSWERS A COUNTER is the defect the line exists for ──
+    claims += 1
+    _d = _dir({"ci.log": f"{_PROV}\nx 1\n", "stray.log": _SUITE})
+    _p, _n, _sha = ci_provenance(*read_measured(_d), str(_d))
+    if not any("MEASURED_UNATTRIBUTED" in x and "host.suite" in x for x in _p):
+        failed += 1
+        print(f"  🔴 MEASURED_UNATTRIBUTED_CONTROL a part with no provenance line "
+              f"supplied `host.suite` and was not refused: {_p}")
+
+    # ── and one that answers NO counter is what carries the world and the tier line ────
+    claims += 1
+    _d = _dir({"ci.log": f"{_PROV}\nx 1\n",
+               "open.log": "GH_OPEN_ISSUES 0\nHANDOFF_OPEN x · TIER0 · INHERITED FROM 273 "
+                           "AT 255d139\n"})
+    _p, _n, _sha = ci_provenance(*read_measured(_d), str(_d))
+    if _p or not _sha:
+        failed += 1
+        print(f"  🔴 MEASURED_UNATTRIBUTED_WORLD a local part answering no counter was "
+              f"refused, so the TIER0 line and the `--gh-open` readings have nowhere to "
+              f"travel: {_p}")
+
+    # ── two commits merged into one claim, and two runs at one commit ────────────────
+    claims += 1
+    _other = _PROV.replace("sha=255d139", "sha=d6ca644")
+    _p, _n, _sha = ci_provenance(*read_measured(
+        _dir({"a.log": f"{_PROV}\nx 1\n", "b.log": f"{_other}\nx 1\n"})), "d")
+    if not any("MEASURED_MIXED_SHA" in x for x in _p) or _sha:
+        failed += 1
+        print(f"  🔴 MEASURED_MIXED_SHA_CONTROL parts from two commits were not refused: {_p}")
+    claims += 1
+    _p, _n, _sha = ci_provenance(*read_measured(
+        _dir({"a.log": f"{_PROV}\nx 1\n", "b.log": f"{_PROV.replace('run=42', 'run=43')}\nx 1\n"})),
+        "d")
+    if not any("MEASURED_MIXED_RUN" in x for x in _p) or _sha:
+        failed += 1
+        print(f"  🔴 MEASURED_MIXED_RUN_CONTROL parts from two runs at one commit were "
+              f"not refused: {_p}")
+
+    # ── an empty download is named as an empty download, not as 34 moved patterns ─────
+    claims += 1
+    _p, _n, _sha = ci_provenance(*read_measured(_dir({"readme.txt": "nothing"})), "d")
+    if not any("MEASURED_EMPTY" in x for x in _p):
+        failed += 1
+        print(f"  🔴 MEASURED_EMPTY_CONTROL a download directory with no `*.log` in it "
+              f"was not named as the cause: {_p}")
+
+    # 🔴 `None` AND `[]` ARE DIFFERENT ANSWERS, PINNED AT THE READER RATHER THAN AT ITS
+    # CALLER — because the caller collapsed them an hour after the reader stopped, and
+    # `MEASURED_EMPTY` fired on a plain local replay log. A pair, both directions.
+    claims += 1
+    _p_file, _n_file, _ = ci_provenance(_SUITE, None, "run274.log")
+    _p_dir, _n_dir, _ = ci_provenance("", [], "ci274/")
+    if any("MEASURED_EMPTY" in x for x in _p_file) or \
+            not any("MEASURED_EMPTY" in x for x in _p_dir):
+        failed += 1
+        print(f"  🔴 MEASURED_NONE_IS_NOT_EMPTY a FILE (parts=None) and an EMPTY DIRECTORY "
+              f"(parts=[]) were not told apart: file={_p_file} dir={_p_dir}")
+
+    # ── the leg reader: one tree, two answers, on a counter read by both artifacts ────
+    claims += 1
+    _got = leg_disagreements(
+        [("node18.log", f"{_PROV}\n{_SCOPE}"),
+         ("node22.log", f"{_PROV}\nSCOPE_GATE 65 enumerator(s) swept\n")],
+        {"scope.enumerators"})
+    if not any("MEASURED_LEG_DISAGREEMENT" in x and "scope.enumerators" in x for x in _got):
+        failed += 1
+        print(f"  🔴 MEASURED_LEG_CONTROL two artifacts read `scope.enumerators` "
+              f"differently on one commit and nothing refused: {_got}")
+    claims += 1
+    if leg_disagreements([("a.log", _SCOPE), ("b.log", _SCOPE)], {"scope.enumerators"}):
+        failed += 1
+        print("  🔴 MEASURED_LEG_AGREE two artifacts that AGREE were refused — the reader "
+              "must fire on disagreement and be silent on the healthy case")
+
+    # ── the workflow routing question, both arms, at FLAG granularity (242's row) ─────
+    claims += 1
+    _caps = ci_capture_steps()
+    _p, _n = ci_capture_problems(_caps, {k for k, *_ in COUNTER_READERS})
+    if _p:
+        failed += 1
+        print(f"  🔴 CI_CAPTURE this tree's own workflows do not route every non-CHEAP "
+              f"counter into the captured log: {_p}")
+    claims += 1
+    if not any(g for _w, _c, g in _caps) or not _caps:
+        failed += 1
+        print(f"  🔴 CI_CAPTURE_EMPTY the reader found {len(_caps)} captured step(s) in "
+              f"this tree's workflows — a routing check over an empty roster reports "
+              f"perfect agreement")
+    claims += 1
+    _p, _n = ci_capture_problems([("ci.yml", "python3 ../scripts/scope_gate.py", False)],
+                                 {"scope.enumerators"})
+    if not any("CI_CAPTURE_UNGUARDED" in x for x in _p):
+        failed += 1
+        print(f"  🔴 CI_CAPTURE_UNGUARDED_CONTROL a captured step with no `shell: bash` "
+              f"was not refused, so a refusing gate would exit with tee's status: {_p}")
+    claims += 1
+    _p, _n = ci_capture_problems([("ci.yml", "python3 ../scripts/scope_gate.py", True)],
+                                 {"scope.enumerators", "control.controls"})
+    if not any("CI_CAPTURE_MISSING" in x and "control_gate.py" in x for x in _p):
+        failed += 1
+        print(f"  🔴 CI_CAPTURE_MISSING_CONTROL a MUTATING counter no workflow routes was "
+              f"not reported: {_p}")
+    # 🔴 THE GRANULARITY CLAIM ITSELF — `replay-ci-flag-granularity` (OPEN 242) IS THIS
+    # ROW AND NOTHING ELSE. A basename comparison calls `mutation_lock_gate.py` captured
+    # when the flagged variant is the one that prints the counter; this asserts the
+    # flagged and bare spellings are two different entries.
+    claims += 1
+    _p, _n = ci_capture_problems(
+        [("ci.yml", "python3 ../scripts/mutation_lock_gate.py", True)], {"mutlock.guarded"})
+    if not any("CI_CAPTURE_MISSING" in x and "--selftest" in x for x in _p):
+        failed += 1
+        print(f"  🔴 CI_CAPTURE_FLAGS the bare `mutation_lock_gate.py` satisfied a counter "
+              f"that only `--selftest` prints — the comparison collapsed to basenames, "
+              f"which is 242's row and not its fix: {_p}")
+    claims += 1
+    if ci_capture_norm("python3 ../scripts/x.py --flag") != ci_capture_norm(
+            "python3 scripts/x.py --flag"):
+        failed += 1
+        print("  🔴 CI_CAPTURE_NORM the same command run from two working directories did "
+              "not normalise to one entry")
+
+    # ── 🆕 274 — `replay-ci-flag-granularity` (242): THE ROSTERS, WITH FLAGS ──────────
+    #
+    # 🔴 THE ANCHOR FIRST, BECAUSE IT IS WHAT MADE THE ROW MEASURABLE. An unanchored
+    # suffix sliced `github.sha` into the script `github.sh` and `rb.shot.mime` into
+    # `rb.sh`, and the second of those carried a written exemption for eight sessions.
+    for probe, want, why in [
+        ("${{ github.sha }}", [], "a token whose TAIL spells an extension is not a script"),
+        ("OPS_UNIT_PASS rb.shot.mime", [], "the phantom `rb.sh` carried an exemption"),
+        ("python3 scripts/x.py", ["x.py"], "a real invocation is still found"),
+        ('node scripts/a.mjs --flag', ["a.mjs"], "a flagged invocation is still found"),
+        ("bash /tmp/gate.sh", ["gate.sh"], "a real `.sh` at end of token is still found"),
+    ]:
+        claims += 1
+        got = CI_SCRIPT_RE.findall(probe)
+        if got != want:
+            failed += 1
+            print(f"  🔴 CI_SCRIPT_ANCHOR {probe!r} -> {got}, pinned {want} — {why}")
+
+    for probe, want, why in [
+        ("python3 ../scripts/x.py --flag  | tee -a run.log", "python3 x.py --flag",
+         "the routing tail is not part of the command"),
+        ("python3 scripts/x.py --flag", "python3 x.py --flag",
+         "the same command from another working directory is the same command"),
+        ("npm test | tail -20 > run.log", "npm test", "a redirect is not an argument"),
+        ("python3 x.py   # 🆕 274", "python3 x.py", "a comment is not an argument"),
+    ]:
+        claims += 1
+        got = command_norm(probe)
+        if got != want:
+            failed += 1
+            print(f"  🔴 COMMAND_NORM {probe!r} -> {got!r}, pinned {want!r} — {why}")
+
+    # a flagged variant CI runs and the fence does not is refused; the same fence with
+    # the flag present is not — the pair, because a rule that only ever fires is a rule
+    # that would pass a roster it can no longer read.
+    _ci_flags = {"python3 gate.py --selftest": {"ci.yml"},
+                 "python3 gate.py": {"ci.yml"}}
+    _fence_no = "```bash\npython3 ../scripts/gate.py\n" \
+                "python3 ../scripts/handoff_gate.py x --measured run.log\n```"
+    _fence_yes = "```bash\npython3 ../scripts/gate.py\npython3 ../scripts/gate.py --selftest\n" \
+                 "python3 ../scripts/handoff_gate.py x --measured run.log\n```"
+    claims += 1
+    _p, _n = replay_ci_flag_problems(_fence_no, _ci_flags, exempt={}, floor=2)
+    if not any("REPLAY_FLAG_MISSING" in x and "--selftest" in x for x in _p):
+        failed += 1
+        print(f"  🔴 REPLAY_FLAG_MISSING_CONTROL a fence running `gate.py` and not "
+              f"`gate.py --selftest` was accepted — the comparison collapsed to "
+              f"basenames, which is 242's row and not its fix: {_p}")
+    claims += 1
+    _p, _n = replay_ci_flag_problems(_fence_yes, _ci_flags, exempt={}, floor=2)
+    if _p:
+        failed += 1
+        print(f"  🔴 REPLAY_FLAG_HEALTHY a fence carrying BOTH spellings was refused: {_p}")
+    claims += 1
+    _p, _n = replay_ci_flag_problems(_fence_yes, _ci_flags, exempt={"python3 nobody.py": "x"},
+                                     floor=2)
+    if not any("REPLAY_CI_FLAG_EXEMPT_STALE" in x for x in _p):
+        failed += 1
+        print(f"  🔴 REPLAY_CI_FLAG_EXEMPT_STALE_CONTROL an exemption neither roster runs "
+              f"was not reported: {_p}")
+    claims += 1
+    _p, _n = replay_ci_flag_problems(_fence_yes, {"python3 gate.py": {"ci.yml"}},
+                                     exempt={}, floor=9)
+    if not any("REPLAY_CI_FLAG_FLOOR" in x for x in _p):
+        failed += 1
+        print(f"  🔴 REPLAY_CI_FLAG_FLOOR_CONTROL a roster below its floor was compared "
+              f"anyway, and a comparison against a collapsed roster agrees with "
+              f"everything: {_p}")
+    # and the live walk is not empty — the floor above only fires on a roster this
+    # reader can still read at all
+    claims += 1
+    _live = ci_commands()
+    if len(_live) < CI_SCRIPT_FLOOR:
+        failed += 1
+        print(f"  🔴 CI_COMMANDS_LIVE the flag-granular walk found {len(_live)} command(s) "
+              f"in this tree's workflows, floor {CI_SCRIPT_FLOOR} — it is a REFINEMENT of "
+              f"the basename walk and cannot be smaller than it")
+
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed")
     return 1 if failed else 0
 
@@ -6175,9 +6953,13 @@ def main(argv: "list[str]") -> int:
     # that re-reads the world; with UNREAD now refusing a claim, an environment that
     # cannot dial had no route left but to drop the counter. It has one: run
     # `--gh-open` wherever the reading is available, and hand the file to `--open`.
-    log = ""
+    # 🆕 274 — `--measured` TAKES A DIRECTORY NOW, because `gh run download` produces
+    # one. A file is still a file and still carries no provenance; everything downstream
+    # branches on the `CI_MEASURED` line rather than on the shape of this argument.
+    log, parts, measured = "", [], ""
     if "--measured" in argv:
-        log = Path(argv[argv.index("--measured") + 1]).read_text(encoding="utf-8")
+        measured = argv[argv.index("--measured") + 1]
+        log, parts = read_measured(Path(measured))
     if "--open" in argv:
         rest = [a for a in argv[argv.index("--open") + 1:] if not a.startswith("--")]
         rest = [a for a in rest if not log or a != argv[argv.index("--measured") + 1]]
@@ -6213,7 +6995,7 @@ def main(argv: "list[str]") -> int:
     problems, notes, n_atoms, compared, h_atoms, h_compared = check(
         handoff, log, run_cheap="--no-run" not in argv, run_slow="--slow" in argv,
         run_locked="--no-locked" not in argv and "--no-run" not in argv,
-        run_network="--network" in argv)
+        run_network="--network" in argv, parts=parts, measured=measured)
     for n in notes:
         print(f"  · {n}")
     print(f"HANDOFF_GATE_TREE {tree_state()} — the counters below were measured HERE, and "
