@@ -5081,6 +5081,36 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    # 🆕 277 — 253's standing rule, honoured on time for the second session
+    # running. 276 verified 2032d04 with 26/26 green and its own block passed the
+    # CI-measured close against that commit.
+    (276, """> ```
+> main                 2032d04 — the column the document contradicted (#338)   MOVED +1
+> branch 276           session276-the-column-the-document-contradicted · PR #338
+>                      🟢 PUSHED AND MERGED, 26/26 green on the first run
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no version bump this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. Both gh counters are a READING taken on his Mac
+> assetlib             🟢 addon 1.11.0 live · the edit for the addon's current
+>                      version is pending review, and out of his hands
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 70 · control 80 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1806
+>               · late not-loaded 0 · late constructed 214/160
+>               · py gates 18/4/14 · SIG 144/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 108 · 52 governed · 1292 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4768 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 385 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
