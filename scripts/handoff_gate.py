@@ -7285,12 +7285,13 @@ def selftest() -> int:
     # taken at 247 and carried for twenty-nine sessions as though it were about the tree.
     #
     # Every one of the seventy-four was blinded to the empty its own annotation promises
-    # and this command run against it. Forty-nine reddened. Of the twenty-five that did
-    # not, nineteen CANNOT be reached from here — ten dial a network, six read an object
-    # store a `--depth 1` checkout does not have, three are the invocation itself — and
-    # they are written down in `instrument_gate.py`'s `NOT_A_TARGET` with that reason.
+    # and this command run against it. Fifty-six redden. Of the twenty-two that do not,
+    # every one is unreachable FROM HERE for one of three reasons — twelve dial a network,
+    # seven read an object store a `--depth 1` checkout does not have, three are the
+    # invocation itself — and each is written down in `instrument_gate.py`'s
+    # `NOT_A_TARGET` with which of the three it is.
     #
-    # 🔴 THE OTHER SIX WERE REACHABLE ALL ALONG AND NOBODY HAD ASKED. They are the file's
+    # 🔴 AND SIX OF THEM WERE REACHABLE ALL ALONG AND NOBODY HAD ASKED. They are the file's
     # ASSEMBLIES — `check` is what `main` calls to be the gate; `open_tier` is what
     # `--open` calls to be the open gate; `measure`, `tier_trigger`, `block_assetlib` and
     # `gh_emit` are the four readers those two are made of. Every claim above this line

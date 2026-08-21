@@ -37,7 +37,7 @@ handoff, queue and CI apparatus.
   `parts is None` on its first line; the two places that JUDGE that reader did not.
 - 🟢 **`handoff_gate.py` is swept.** It is the fifth Python instrument in `instrument_gate.py`:
   every one of its **seventy-eight** top-level members blinded to the empty its own annotation
-  promises, fifty-seven reddening and targeted, twenty-one declared with a reason that is one of
+  promises, fifty-six reddening and targeted, twenty-two declared with a reason that is one of
   three — the network, the git object store, the invocation. The row that asked for this said
   the file held forty-nine members; nothing had ever printed the number. Both defects above are
   what the first pass found, and the crash ceiling is what keeps them fixed.
@@ -56,7 +56,7 @@ handoff, queue and CI apparatus.
   lines CI writes with a `tee` and from two working directories, so an instrument's own gate step
   came back as evidence that it had a live axis.
 - 🔴 **A fourth failure dialect.** The blast radius reader counted three report spellings and
-  `handoff_gate.py` speaks a fourth, so its blast measured **zero** across fifty-seven blinds
+  `handoff_gate.py` speaks a fourth, so its blast measured **zero** across fifty-six blinds
   every one of which reddened. A floor taken from that would have been a floor at nothing.
 - 🔴 **The stash cleared itself before refilling.** `_gate_lock._stash()` copies an
   already-dirty file's bytes aside so a killed mutating gate cannot eat uncommitted work — and

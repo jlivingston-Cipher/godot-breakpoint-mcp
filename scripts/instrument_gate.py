@@ -1135,9 +1135,9 @@ INSTRUMENTS = [
     # again as many as the ones it could.
     #
     # 🔴 EVERY ONE OF THE SEVENTY-EIGHT WAS BLINDED AND THIS COMMAND RUN AGAINST IT before
-    # a line of this roster was written. Fifty-seven redden and are below. Twenty-one do
-    # not, and they are not twenty-one reasons — they are THREE, and each row in
-    # `NOT_A_TARGET` names which: twelve dial a network, six read an object store a
+    # a line of this roster was written. Fifty-six redden and are below. Twenty-two do
+    # not, and they are not twenty-two reasons — they are THREE, and each row in
+    # `NOT_A_TARGET` names which: twelve dial a network, SEVEN read an object store a
     # `--depth 1` checkout does not have, three are the invocation itself.
     #
     # 🔴 AND THE SWEEP FOUND TWO LIVE DEFECTS ON ITS FIRST PASS, which is why this entry
@@ -1168,7 +1168,6 @@ INSTRUMENTS = [
             "{SIG:header_rows}": "return ([], [],)",
             "{SIG:header_atoms}": "return ([], set(),)",
             "{SIG:main_shas}": "return [\"\"]",
-            "{SIG:previous_main}": "return (\"\", \"\",)",
             "{SIG:block_main}": "return (\"\", \"\",)",
             "{SIG:population_block_shape}": "return []",
             "{SIG:moved_interval}": "return (0, \"\",)",
@@ -1469,7 +1468,7 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
        for _n in ("ci_check_runs", "npm_lag", "gh_rest_fetch", "gh_rest_object", "gh_rest",
                   "gh_open", "gh_open_rest", "assetlib_live", "main_at_head",
                   "main_at_head_rest", "gh_run_verdict", "gh_run_verdict_rest")},
-    # ── II — the object store (6). Every one reads git history or git config, and 235
+    # ── II — the object store (7). Every one reads git history or git config, and 235
     # §6.3 is the standing finding: `actions/checkout` fetches one commit, so a claim over
     # tags, parents or a remote is a claim about the MACHINE. This file has paid for that
     # exact mistake once, in `MOVED_LIVE`, and the claim that survived it asserts a number
@@ -1482,6 +1481,27 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "Measured green under the blind on a FULL clone, where the objects do exist.")
        for _n in ("clone_tags", "origin_tag_names", "origin_tags", "parent_of",
                   "origin_slug", "tree_state")},
+    # 🔴 THE SEVENTH, AND IT IS THE ONLY ONE OF THE TWENTY-TWO THAT WAS MEASURED WRONG.
+    # `previous_main` REDDENS on a full clone, so 277's first sweep filed it as a target
+    # and this gate refused it on CI: `INSTRUMENT_GATE_BLIND … 🔴 STILL GREEN
+    # {SIG:previous_main}` on all three `host tests` legs and on no local run. The reason
+    # is `moved_interval`, its only consumer: it runs `git rev-list old..new`, and on a
+    # `--depth 1` checkout that command fails and the reader returns its documented
+    # refusal — *a fact about the clone and not about the claim* — with or without the
+    # blind. So the coverage a target here records is coverage this instrument has on one
+    # machine and not on the machine that gates the merge.
+    # 🔴 AND THE SESSION THAT WROTE IT HAD JUST SPENT A DAY ON THIS EXACT SENTENCE. The
+    # measurement was taken on a full clone and reported as a fact about the tree, which
+    # is 276's finding-to-carry happening to the person carrying it. 275's
+    # `MEASURED_LEG_DISAGREEMENT` found the same thing in a counter; this is it in a
+    # coverage claim, and CI is what said so both times.
+    ("handoff_gate.py", "previous_main"):
+        "reads the git object store, and unlike the six above it REDDENS on a full clone — "
+        "which is exactly why it may not be a target. Its only consumer, `moved_interval`, "
+        "runs `git rev-list old..new`; on CI's `--depth 1` checkout that fails and the "
+        "reader returns the same documented refusal blinded or not. Measured on both "
+        "machines, not assumed: caught locally, STILL GREEN on all three CI legs (235 "
+        "§6.3, and 275's `MEASURED_LEG_DISAGREEMENT` one layer down).",
     # ── III — the invocation (3), and the third is the one worth reading twice.
     ("handoff_gate.py", "main"):
         "the invocation, not a reader — see verdict_gate.mjs::main. Every command it "
@@ -2208,10 +2228,10 @@ def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
 # Two ceilings falling to zero (`LATE_CRASH_CEILING_A/_B`) is what let these gates finish
 # their reports on the late axis too.
 LATE_BLAST_FLOOR: dict[str, int] = {
-    # 🆕 277 §2 — measured 619 on A:gate, floored ~20% below. There is no B:live row
+    # 🆕 277 §2 — measured 613 on A:gate, floored ~20% below. There is no B:live row
     # here because there is no B:live axis: `LATE_LIVE_COST` prices it out, and the
     # blast tables say so in `LATE_LIVE_BLAST_UNCOUNTABLE` rather than by omission.
-    "handoff_gate.py": 495,   # 277: measured 619
+    "handoff_gate.py": 490,   # 277: measured 613
     "_population.mjs": 55,
     "_path_ledger.mjs": 35,   # 212: 26 -> 35, measured 39
     "_workspace.mjs": 85,     # 199: 32 -> 85, measured 96
@@ -2729,7 +2749,7 @@ PY_NOT_SWEPT: dict[str, str] = {
     # writing them here rather than leaving the files out: a row that says WHAT IS WRONG is
     # a work item, and a file with no row is a coverage claim nobody made.
     # 🟢 277 §2 — `handoff_gate.py` LEFT THIS TABLE. It is the fifth Python instrument
-    # above: 78 members, 57 targeted, 21 declared in `NOT_A_TARGET` under three reasons.
+    # above: 78 members, 56 targeted, 22 declared in `NOT_A_TARGET` under three reasons.
     # 247's row said FORTY-NINE and nothing printed the number, so the drift to 78 was
     # invisible for twenty-nine sessions — a count of what the reader could spell (276).
     "release_names.py":
@@ -3653,7 +3673,7 @@ C_FAIL = re.compile(r"^(?:ℹ|#) fail (\d+)$", re.M)                  # node:tes
 # `handoff_gate.py --selftest` prints its per-claim reds as `  🔴 NAME …` and its verdict
 # as `HANDOFF_SELFTEST <passed>/<claims> claims, <n> failed` — none of the three spellings
 # above. 🔴 MEASURED ON THE RUN THAT ADDED THAT INSTRUMENT: its blast read ZERO across
-# fifty-seven blinds every one of which reddened, so a floor taken from that measurement
+# fifty-six blinds every one of which reddened, so a floor taken from that measurement
 # would have been a floor at nothing — 172 §10.21 arriving inside the table built to stop
 # it. A fourth reader is right and a fourth GATE would not be: the number this file wants
 # is *how many claims did the instrument report*, and every dialect here answers it.
@@ -4158,10 +4178,10 @@ def blind(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
 # arriving at the numbers it was written about. Raised with ~10% headroom, still from
 # BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
-    # 🆕 277 §2 — measured 652 across fifty-seven blinds, floored ~20% below. The
+    # 🆕 277 §2 — measured 645 across fifty-six blinds, floored ~20% below. The
     # number was ZERO on the run that added this instrument and the reason was
     # `failure_lines`, not the sweep: this gate reports in a fourth dialect (`D_FAIL`).
-    "handoff_gate.py": 520,   # 277: measured 652
+    "handoff_gate.py": 515,   # 277: measured 645
     "_population.mjs": 80,
     "_path_ledger.mjs": 36,   # 212: 30 -> 36, measured 41 (+ledgerKey)
     "_workspace.mjs": 95,     # 199: 36 -> 95, measured 107
