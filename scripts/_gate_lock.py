@@ -221,23 +221,59 @@ def _stash(paths: dict[str, str]) -> dict[str, str]:
 
     Only the dirty ones: a file git calls unmodified is recoverable from git, and copying
     the whole tree at every gate run is the kind of cost that gets a guard removed.
+
+    ── 🆕 277 §4 — THE CLEAR CAME FIRST, AND THE STASH IS THE ONLY COPY ───────────────
+    🔴 THIS FUNCTION USED TO `rmtree(STASH_DIR)` BEFORE COPYING ANYTHING INTO IT. Between
+    that call and the last `copyfile` the only copy of a previously-dirty file's bytes did
+    not exist, and the record naming it had already been truncated one frame up. A kill in
+    that window takes a developer's uncommitted work with it and leaves `--recover` nothing
+    to put back — `git checkout --` restores the COMMITTED bytes, which is precisely not
+    what those files hold. This module's own docstring says the sentence three hundred
+    lines down (*it must not re-stash, because `_stash` clears `STASH_DIR` and the stash is
+    the only copy of the bytes*) and says it about `--recover` rather than about here.
+    🔴 IT IS ALSO THE ONLY SUCH WINDOW IN THIS MACHINERY, WHICH IS WHY THE ROW IT CLOSES
+    IS NOT THE ROW THAT WAS OPEN. `mutating-gate-writes-not-atomic` (272) priced a torn
+    MUTANT, and a torn mutant is recoverable byte-for-byte on both routes today — from git
+    if the file was clean when the lock was taken, from this stash if it was not, and
+    `tree_quiet.py --selftest` drives both. Per-file atomicity there buys no recoverability
+    and costs signal: a half-written file does not parse and an atomically-written one is a
+    valid module that behaves like a blinded instrument.
+    🔴 THE FIX IS AN ORDERING AND NOT A MECHANISM. Copy first, sweep the stale entries
+    after, so at every instant the bytes exist under one name or the other. A name is the
+    sha256 of the path, so a re-stash of the same path OVERWRITES its own entry rather
+    than colliding — and `copyfile` truncating its destination is the one write here that
+    genuinely wants to be atomic, because that destination IS the only copy.
     """
     keep: dict[str, str] = {}
     try:
-        shutil.rmtree(STASH_DIR, ignore_errors=True)
         STASH_DIR.mkdir(parents=True, exist_ok=True)
     except OSError:
         return keep
+    wanted = {hashlib.sha256(rel.encode("utf-8")).hexdigest()[:24] for rel in paths}
     for rel in paths:
         src = ROOT / rel
         if not src.is_file():
             continue
         name = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:24]
+        tmp = STASH_DIR / f"{name}.new"
         try:
-            shutil.copyfile(str(src), str(STASH_DIR / name))
+            shutil.copyfile(str(src), str(tmp))
+            os.replace(str(tmp), str(STASH_DIR / name))
         except OSError:
             continue
         keep[rel] = name
+    # 🔴 THE SWEEP IS LAST, AND IT IS SCOPED TO THE POPULATION RATHER THAN TO `keep`. The
+    # first draft swept everything not in `keep.values()` and its own fixture refused it:
+    # when a copy FAILS, that path is absent from `keep`, so the sweep deleted the previous
+    # holder's copy of exactly the file the copy had just failed to replace — the window
+    # this function is being edited to close, re-opened four lines below the comment
+    # explaining it. What is stale is an entry for a path this run is not tracking at all.
+    try:
+        for f in STASH_DIR.iterdir():
+            if f.name not in wanted:
+                f.unlink(missing_ok=True)
+    except OSError:
+        pass
     return keep
 
 

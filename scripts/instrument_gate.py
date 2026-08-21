@@ -1126,6 +1126,101 @@ INSTRUMENTS = [
             "{SIG:suffix_problems}": "return ([], {})",
         },
     },
+    # ══ 🆕 277 §2 — THE FIFTH PYTHON INSTRUMENT — `py-cohort-handoff-gate` (247) ══════
+    #
+    # 🔴 THE ROW SAID FORTY-NINE AND THE FILE HOLDS SEVENTY-EIGHT. 247 measured the count,
+    # nothing printed it, and twenty-nine sessions carried it as though it were a fact
+    # about the tree — 276's own finding-to-carry, arriving in the row 276 handed forward.
+    # It is not a small drift either: the members 247 could not see are more than half
+    # again as many as the ones it could.
+    #
+    # 🔴 EVERY ONE OF THE SEVENTY-EIGHT WAS BLINDED AND THIS COMMAND RUN AGAINST IT before
+    # a line of this roster was written. Fifty-seven redden and are below. Twenty-one do
+    # not, and they are not twenty-one reasons — they are THREE, and each row in
+    # `NOT_A_TARGET` names which: twelve dial a network, six read an object store a
+    # `--depth 1` checkout does not have, three are the invocation itself.
+    #
+    # 🔴 AND THE SWEEP FOUND TWO LIVE DEFECTS ON ITS FIRST PASS, which is why this entry
+    # is worth more than the coverage line it prints (`terminology_gate.py` at 247, same
+    # sentence). SEVEN of the seventy-eight originally CRASHED the self-test rather than
+    # reddening it, all seven through two sites in `selftest()` — `all()` over an empty
+    # `ends` sending the reader into `ends[0]`, and `len()` over a `read_measured` return
+    # its own annotation says may be `None`. A gate that dies partway reports only the
+    # failures it reached (199 §9.2): blinding `_runs` reddened five claims and killed the
+    # command, and with the two sites fixed it reddens EIGHTY-SEVEN. Both are in
+    # `handoff_gate.py` §277 §1 and the crash ceiling is what keeps them fixed.
+    {
+        "name": "handoff_gate.py",
+        "src": ROOT / "scripts" / "handoff_gate.py",
+        "gate": ["python3", "../scripts/handoff_gate.py", "--selftest"],
+        "cwd": HOST,
+        "floor": 40,
+        "why": "every reader under the one document that says what this project measured, "
+               "and the two assemblies that are the gate",
+        "targets": {
+            # ── the block and its atoms — the parse every claim downstream rests on ──
+            "{SIG:SINCE}": "return \"\"",
+            "{SIG:needed}": "return \"\"",
+            "{SIG:block_session}": "return (None, \"\")",
+            "{SIG:_split_atoms}": "return []",
+            "{SIG:_runs}": "return [(\"\", [])]",
+            "{SIG:counter_run}": "return ([], \"\",)",
+            "{SIG:header_rows}": "return ([], [],)",
+            "{SIG:header_atoms}": "return ([], set(),)",
+            "{SIG:main_shas}": "return [\"\"]",
+            "{SIG:previous_main}": "return (\"\", \"\",)",
+            "{SIG:block_main}": "return (\"\", \"\",)",
+            "{SIG:population_block_shape}": "return []",
+            "{SIG:moved_interval}": "return (0, \"\",)",
+            "{SIG:tree_versions}": "return ((\"\", \"\",), \"\",)",
+            "{SIG:block_versions}": "return ((\"\", \"\",), \"\",)",
+            "{SIG:block_assetlib}": "return (\"\", \"\",)",
+            "{SIG:version_interval}": "return (0, \"\",)",
+            "{SIG:split_compound}": "return (None, \"\")",
+            "{SIG:status_block}": "return ([\"\"], \"\")",
+            "{SIG:counter_atoms}": "return ([], \"\",)",
+            "{SIG:block_keys}": "return set()",
+            # ── the join — an atom to the reader that answers it, and the measured log's own half ──
+            "{SIG:main_at_head_of}": "return (\"\", \"\", [], \"\",)",
+            "{SIG:main_head_problems}": "return ([], [],)",
+            "{SIG:check_header}": "return ([], [], 0, 0,)",
+            "{SIG:bind}": "return (\"\", \"\",)",
+            "{SIG:measure}": "return ({}, [], [],)",
+            "{SIG:read_measured}": "return (\"\", [])",
+            "{SIG:log_readable}": "return False",
+            "{SIG:ci_provenance}": "return ([], [], \"\")",
+            "{SIG:leg_disagreements}": "return []",
+            "{SIG:measured_run}": "return \"\"",
+            "{SIG:verdict_problems}": "return ([], [],)",
+            "{SIG:pending_problems}": "return []",
+            "{SIG:population_reach_problems}": "return []",
+            "{SIG:declared_tier}": "return None",
+            # ── the replay and the workflows — 235 §8.1's list against what CI actually runs ──
+            "{SIG:ci_scripts}": "return {}",
+            "{SIG:command_norm}": "return \"\"",
+            "{SIG:ci_commands_text}": "return {}",
+            "{SIG:ci_commands}": "return {}",
+            "{SIG:replay_commands}": "return set()",
+            "{SIG:replay_ci_flag_problems}": "return ([], [],)",
+            "{SIG:replay_scripts}": "return set()",
+            "{SIG:replay_ci_problems}": "return ([], [],)",
+            "{SIG:tracked_scripts}": "return []",
+            "{SIG:import_edges}": "return {}",
+            "{SIG:reached_scripts}": "return set()",
+            "{SIG:unreached_problems}": "return ([], [],)",
+            "{SIG:fenced}": "return []",
+            "{SIG:replay_problems}": "return ([], [],)",
+            "{SIG:ci_capture_steps}": "return []",
+            "{SIG:ci_capture_norm}": "return \"\"",
+            "{SIG:ci_capture_problems}": "return ([], [],)",
+            # ── the two verdicts — the document gate, and the tier the open gate may grant ──
+            "{SIG:gh_emit}": "return 0",
+            "{SIG:tier_problems}": "return ([], [],)",
+            "{SIG:check}": "return ([], [], 0, 0, 0, 0,)",
+            "{SIG:tier_trigger}": "return (\"\", \"\", \"\", \"\",)",
+            "{SIG:open_tier}": "return 0",
+        },
+    },
 ]
 
 
@@ -1348,6 +1443,63 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     ("terminology_gate.py", "_selftest"):
         "the second half of the invocation — see p0_comments.py::_selftest. Blinded, the "
         "A:gate command prints no `TERMINOLOGY_SELFTEST_DONE` line at all.",
+    # ══ 🆕 277 §2 — `py-cohort-handoff-gate` (247): TWENTY-ONE ROWS AND THREE REASONS ══
+    #
+    # 🔴 EACH OF THESE WAS BLINDED AND MEASURED GREEN BEFORE IT WAS WRITTEN DOWN, which is
+    # 211 §19's difference between a roster row and an excuse. What makes them a table
+    # rather than twenty-one paragraphs is that they fall into three classes and the class
+    # is the reason: this file's self-test is fixture-driven by construction, so a member
+    # whose measurement is the NETWORK, the OBJECT STORE, or the INVOCATION ITSELF has
+    # nothing here that could redden it. Anything outside those three is a target.
+    #
+    # ── I — the network (12). Twelve members whose population is a forge, a registry or
+    # an asset library. `--selftest` runs with no network by design and CI's own container
+    # answers HTTP 403 to all three hosts, so a blind here would be green on a healthy
+    # tree for the same reason it is green on a broken one — `registry_lag.py`'s and
+    # `assetlib_sweep.py`'s reason in `PY_NOT_SWEPT`, one level down, at member scope.
+    # 🔴 AND THE PURE HALVES ARE TARGETED, WHICH IS WHAT MAKES THIS A SPLIT AND NOT AN
+    # EXEMPTION: `main_at_head_of` is `main_at_head`'s whole judgement with the dial taken
+    # out, `main_head_problems` is the refusal it feeds, and both are swept above. What is
+    # excused here is the transport, never the verdict.
+    **{("handoff_gate.py", _n): (
+        "reads the network — `--selftest` is fixture-driven by construction and dials "
+        "nothing, and the container CI runs it in answers HTTP 403 to github.com, "
+        "registry.npmjs.org and godotengine.org alike. Measured green under the blind, "
+        "not assumed. Where this member has a pure half, that half IS a target above.")
+       for _n in ("ci_check_runs", "npm_lag", "gh_rest_fetch", "gh_rest_object", "gh_rest",
+                  "gh_open", "gh_open_rest", "assetlib_live", "main_at_head",
+                  "main_at_head_rest", "gh_run_verdict", "gh_run_verdict_rest")},
+    # ── II — the object store (6). Every one reads git history or git config, and 235
+    # §6.3 is the standing finding: `actions/checkout` fetches one commit, so a claim over
+    # tags, parents or a remote is a claim about the MACHINE. This file has paid for that
+    # exact mistake once, in `MOVED_LIVE`, and the claim that survived it asserts a number
+    # where the objects are and a REFUSAL where they are not. A blind on these six is
+    # green on a full clone and green on CI's shallow one, and neither green is evidence.
+    **{("handoff_gate.py", _n): (
+        "reads the git object store or git config — CI's checkout is `--depth 1`, so a "
+        "self-test claim over tags, parents, remotes or working-tree state is a claim "
+        "about the machine (235 §6.3, which this file already paid for at `MOVED_LIVE`). "
+        "Measured green under the blind on a FULL clone, where the objects do exist.")
+       for _n in ("clone_tags", "origin_tag_names", "origin_tags", "parent_of",
+                  "origin_slug", "tree_state")},
+    # ── III — the invocation (3), and the third is the one worth reading twice.
+    ("handoff_gate.py", "main"):
+        "the invocation, not a reader — see verdict_gate.mjs::main. Every command it "
+        "dispatches to is a target above, which is where the claim lives.",
+    ("handoff_gate.py", "selftest"):
+        "🔴 THIS COMMAND. Blinding the self-test to `return 0` removes the axis every "
+        "judgement in this sweep is made on, so the mutant is not evidence about the "
+        "instrument — it is the harness measuring its own absence (`instrument_gate.py`'s "
+        "own reason in `PY_NOT_SWEPT`, one file over).",
+    ("handoff_gate.py", "patterns"):
+        "🔴 THE ONE ROW HERE THAT IS A COST AND NOT A KIND, and it is written down rather "
+        "than folded into the class above because the two are different work. `--patterns` "
+        "is a second command CI runs, so `LATE_LIVE_COST` gives it the [B:live] axis a "
+        "budget rather than an excuse; what it cannot be is a TARGET, because the only "
+        "claim `--selftest` could make about it is that it returns 0, which is exactly "
+        "what a blind returns. A claim on the printed line needs a tree with a broken "
+        "anchor in it, and that is a fixture nothing here builds — `queue_gate.py`'s "
+        "`{SIG:ages}` shape (247 §1) without `queue_gate.py`'s cheap live command.",
 }
 
 
@@ -1605,6 +1757,41 @@ LATE_CRASH_CEILING_B = 0   # state, reached). Kept as two numbers rather than on
 # leaves a gate green is not automatically a defect: two states produce it, and only one
 # of them is.
 LATE_DECLARED_GREEN = {
+    # ══ 🆕 277 §2 — FIVE, AND ALL FIVE SAY THE SAME THING ABOUT THE LATE AXIS ITSELF ══
+    #
+    # 🔴 A NEGATIVE CLAIM CANNOT CATCH A LATE BLIND, AND THAT IS A PROPERTY OF THE AXIS
+    # RATHER THAN A GAP IN THIS FILE. The late blind lets a member answer CORRECTLY once
+    # and return its empty for every call after; so whichever of a reader's claims runs
+    # LAST is the one under the blind, and a claim of the form *this reader finds nothing
+    # here* is satisfied by a reader that finds nothing anywhere. Each of the five below
+    # is called exactly twice by `--selftest`, and in each the second call is either the
+    # negative direction or a consumer that floors nothing.
+    #
+    # 🔴 MEASURED, NOT ASSUMED — every one of them is a target on the A:gate PRIMARY axis
+    # above, where the blind is global and all fifty-seven redden. What is declared here is
+    # narrower than an exemption: the member IS covered, and the late axis is the one axis
+    # that cannot see it. `p0_comments.py::_looks_like_code` below is the same sentence
+    # with a different cause, and 205 §25's ratio argument is the same one again.
+    ("handoff_gate.py", "{SIG:leg_disagreements}", "A:gate"):
+        "both directions are claimed and the NEGATIVE one runs second — `MEASURED_LEG_"
+        "AGREE` asserts this reader finds nothing across four agreeing legs, which is "
+        "exactly what a blinded reader answers. Caught globally on the primary axis.",
+    ("handoff_gate.py", "{SIG:ci_scripts}", "A:gate"):
+        "call two is inside `check()`, where the value is consumed by `replay_ci_problems` "
+        "and the floor that guards it (`CI_SCRIPT_FLOOR`) was already satisfied by call "
+        "one. Caught globally on the primary axis.",
+    ("handoff_gate.py", "{SIG:ci_commands}", "A:gate"):
+        "same shape as `ci_scripts` — `CI_COMMANDS_LIVE` floors the live walk on call one "
+        "and call two is the consumer inside `check()`. Caught globally on the primary "
+        "axis.",
+    ("handoff_gate.py", "{SIG:tracked_scripts}", "A:gate"):
+        "`SCRIPT_POPULATION_FLOOR` reads call one; call two is the same walk inside "
+        "`unreached_problems`, whose own refusal is about REACHABILITY and is satisfied "
+        "vacuously by an empty population. Caught globally on the primary axis.",
+    ("handoff_gate.py", "{SIG:import_edges}", "A:gate"):
+        "call two is `unreached_problems`' own edge read, and an empty edge set makes "
+        "every script unreached — which the floor above it catches only because call one "
+        "supplied the population. Caught globally on the primary axis.",
     # 🆕 245 §1 — MEASURED, AND THE REASON IS THE FLOOR TABLE'S OWN COMMENT. Blinded from
     # its second call, `_looks_like_code` decides exactly one bucket — `commented-out-code`,
     # SEVEN lines tree-wide — and `--floor` deliberately does not floor that bucket:
@@ -1936,13 +2123,42 @@ def late_marker_roster_problems(live: dict, markers: dict) -> list[str]:
 # every row then passes for the wrong reason — which is this gate's own U1, and the exact
 # shape `DISCOVER_EXEMPT` is fixture-proved against one screen down.
 CI_YML = ROOT / ".github" / "workflows" / "ci.yml"
-CI_RUN_RE = re.compile(r"^\s*-?\s*run:\s*(node\s+[^\n]+)$", re.M)
+# ── 🆕 277 §2 — AND THIS READER SPELLED ONE LANGUAGE, WHICH IS 247 §1 IN THE FILE THAT
+# FIXED 247 §1. `members_of` was taught Python the moment the instrument table gained a
+# `.py` row; the roster that decides whether an instrument may be EXCUSED from the live
+# axis was not, and has matched `run: node …` alone ever since. Four Python instruments
+# later it has never bitten — all four carry a `LATE_LIVE` row, so no NA row has ever
+# been checked against a Python step — and the first one that needed it would have bought
+# its exemption with a sentence this reader could not read the counter-evidence for.
+# 🔴 THE SAME SHAPE, THIRD TIME IN THREE SESSIONS: the population was the reader's
+# vocabulary, reported as a fact about ci.yml. Measured: `node` alone finds 28 steps in
+# this tree's ci.yml, `node|python3` finds 55.
+CI_RUN_RE = re.compile(r"^\s*-?\s*run:\s*((?:node|python3)\s+[^\n]+)$", re.M)
 CI_COMMAND_FLOOR = 8
 
 
 def ci_node_commands(text: str) -> set[str]:
-    """Every single-line `run: node …` step in ci.yml, whitespace-normalised."""
+    """Every single-line `run: node …` or `run: python3 …` step in ci.yml, normalised."""
     return {" ".join(m.group(1).split()) for m in CI_RUN_RE.finditer(text)}
+
+
+def ci_cmd_key(cmd: str) -> str:
+    """A command's identity, with the shell plumbing and the caller's cwd taken out.
+
+    🔴 274 TEES NINETEEN STEPS INTO THE CAPTURE LOG, and `late_na_ci_problems` compares an
+    instrument's gate to a workflow step with `!=`. So `python3 x.py --selftest` and
+    `python3 x.py --selftest 2>&1 | tee -a "$CI_MEASURED_LOG"` were two different commands
+    to this reader, and `../scripts/x.py` and `scripts/x.py` — the same file from the two
+    working directories ci.yml uses — were a third and a fourth.
+    🔴 MEASURED THE MOMENT THE WALK ABOVE LEARNED PYTHON: the first instrument to need
+    this got its OWN gate step back as *a second command that exercises this file*, which
+    is the reader disagreeing with itself. Both halves were invisible while the walk
+    spelled one language, and neither was ever about the language.
+    """
+    core = re.split(r"[|>&]", cmd, 1)[0].split()
+    if len(core) < 2:
+        return " ".join(core)
+    return " ".join([core[0], Path(core[1]).name, *core[2:]])
 
 
 def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
@@ -1966,10 +2182,10 @@ def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
                 f"LATE_LIVE_NA names {name!r}, which is not an instrument — an exclusion "
                 f"outliving its subject (174 §5)")
             continue
-        gate = " ".join(inst["gate"])
+        gate = ci_cmd_key(" ".join(inst["gate"]))
         src_name = Path(inst["src"]).name
         second = sorted(c for c in ci_cmds
-                        if c != gate and len(c.split()) > 1
+                        if ci_cmd_key(c) != gate and len(c.split()) > 1
                         and Path(c.split()[1]).name == src_name)
         if second:
             problems.append(
@@ -1992,6 +2208,10 @@ def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
 # Two ceilings falling to zero (`LATE_CRASH_CEILING_A/_B`) is what let these gates finish
 # their reports on the late axis too.
 LATE_BLAST_FLOOR: dict[str, int] = {
+    # 🆕 277 §2 — measured 619 on A:gate, floored ~20% below. There is no B:live row
+    # here because there is no B:live axis: `LATE_LIVE_COST` prices it out, and the
+    # blast tables say so in `LATE_LIVE_BLAST_UNCOUNTABLE` rather than by omission.
+    "handoff_gate.py": 495,   # 277: measured 619
     "_population.mjs": 55,
     "_path_ledger.mjs": 35,   # 212: 26 -> 35, measured 39
     "_workspace.mjs": 85,     # 199: 32 -> 85, measured 96
@@ -2079,6 +2299,12 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
 }
 
 LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
+    # 🆕 277 §2 — the SECOND row here that is not about the command's output. Like
+    # `mutation_lock_gate.py` below, `handoff_gate.py` reports zero on this axis because
+    # the axis did not run — `LATE_LIVE_COST` prices `--patterns` out of a fifty-seven
+    # target sweep. Kept as a row rather than special-cased, for the reason that row gives.
+    "handoff_gate.py": "no B:live axis ran — `LATE_LIVE_COST` prices `--patterns` at 172s "
+                       "per mutant, so this number would be zero for a third reason again",
     "tautology_gate.mjs": "it reports by collapsing a population, not by listing claims",
     "verdict_gate.mjs": "it reports by collapsing a population, not by listing claims",
     "boundary_gate.mjs": "it reports by collapsing a population, not by listing claims",
@@ -2185,6 +2411,61 @@ def late_locked_problems(locked: dict, root) -> list[str]:
                 f"call site. The reason has outlived the fact (174 §5) — either the lock "
                 f"was removed, in which case the axis is available and this row must go, "
                 f"or the row was wrong when it was written: {why[:60]}…")
+    return out
+
+
+# ══ 🆕 277 §2 — THE THIRD ANSWER: THE AXIS EXISTS, IS DRIVABLE, AND COSTS TOO MUCH ═════
+#
+# 🔴 `LATE_LIVE_NA` HAS EXACTLY ONE SENTENCE TO SAY AND IT WOULD BE FALSE HERE. ci.yml
+# runs `python3 ../scripts/handoff_gate.py --patterns`, so 232 §5.6's rule refuses an NA
+# row for that instrument outright — correctly, and only because the walk above learned to
+# spell Python this session. `LATE_LIVE_LOCKED` is false too: nothing about that command
+# takes the mutation lock. What IS true is a third sentence, and unlike the other two it
+# is a NUMBER: `--patterns` runs every instrument's live command and takes 172 s on this
+# tree, so a fifty-seven-target late sweep of it is 2.7 HOURS on every push.
+#
+# 🔴 A COST ROW IS FALSIFIABLE AND A PROSE EXCUSE IS NOT, which is the whole reason this
+# is a third table rather than a paragraph in the second. The row names the command and
+# the seconds; the check below refuses it if ci.yml stops running that command (the
+# exemption outliving its subject, 174 §5) and refuses it if the declared cost drops UNDER
+# the budget (the exemption outliving its reason — at that price the axis is simply owed).
+# Neither refusal needs anybody to remember this decision.
+LATE_LIVE_COST_BUDGET = 20      # seconds per mutant. One sweep is ~57 of them.
+LATE_LIVE_COST: dict[str, tuple[str, int]] = {
+    "handoff_gate.py": ("python3 handoff_gate.py --patterns", 172),
+}
+
+
+def late_live_cost_problems(cost: dict, instruments: list, ci_cmds: "set[str]",
+                            live: dict, na: dict, locked: dict,
+                            budget: int = LATE_LIVE_COST_BUDGET) -> "list[str]":
+    """PURE over its inputs (174 §8), so the self-check can drive every direction."""
+    out: "list[str]" = []
+    by_name = {i["name"]: i for i in instruments}
+    keys = {ci_cmd_key(c) for c in ci_cmds}
+    for name, (cmd, secs) in sorted(cost.items()):
+        if name not in by_name:
+            out.append(f"LATE_LIVE_COST names {name!r}, which is not an instrument — an "
+                       f"exclusion outliving its subject (174 §5)")
+            continue
+        for other, label in ((live, "LATE_LIVE"), (na, "LATE_LIVE_NA"),
+                             (locked, "LATE_LIVE_LOCKED")):
+            if name in other:
+                out.append(f"LATE_LIVE_COST {name} is also in {label} — two tables "
+                           f"answering one question is 180 §7.1, and only one of them "
+                           f"can be the reason this instrument has no live axis")
+        if ci_cmd_key(cmd) not in keys:
+            out.append(
+                f"LATE_LIVE_COST {name}: the row is bought with the price of "
+                f"`{cmd}` and ci.yml does not run it. A cost row for a command nobody "
+                f"runs is an exemption for an axis that was never available — which is a "
+                f"`LATE_LIVE_NA` row, said honestly, and belongs in that table")
+        if secs <= budget:
+            out.append(
+                f"LATE_LIVE_COST {name}: the row declares `{cmd}` at {secs}s per mutant "
+                f"and the budget is {budget}s. At that price the [B:live] axis is OWED, "
+                f"not excused — this is the reason outliving the fact (174 §5) with the "
+                f"fact written down beside it")
     return out
 
 
@@ -2447,13 +2728,10 @@ PY_NOT_SWEPT: dict[str, str] = {
     # every one names the members that would have to be closed first. That is the point of
     # writing them here rather than leaving the files out: a row that says WHAT IS WRONG is
     # a work item, and a file with no row is a coverage claim nobody made.
-    "handoff_gate.py":
-        "measured: 8 of 14 derived targets caught, `{SIG:clone_tags}` and `{SIG:tree_state}` "
-        "STILL GREEN under `--selftest`. Both read git and the self-test proves neither. "
-        "🆕 247 §1 — AND THE DERIVED FOURTEEN ARE NOT THE POPULATION: this file holds "
-        "FORTY-NINE top-level `def`s, and the coverage roster now asks for a target or a "
-        "written reason for every one of them. That is the biggest single row in this "
-        "cohort and it is nothing like the second-biggest; `py-cohort-handoff-gate` (247).",
+    # 🟢 277 §2 — `handoff_gate.py` LEFT THIS TABLE. It is the fifth Python instrument
+    # above: 78 members, 57 targeted, 21 declared in `NOT_A_TARGET` under three reasons.
+    # 247's row said FORTY-NINE and nothing printed the number, so the drift to 78 was
+    # invisible for twenty-nine sessions — a count of what the reader could spell (276).
     "release_names.py":
         "🆕 247 §1 — ITS OWN ROW NOW: `release-names-twelve-readers` (247), which is what "
         "246 NEXT 4 said to split out. Measured, 3 of 17 caught. TWELVE tree readers — "
@@ -2837,6 +3115,63 @@ def _self_check(floor: int) -> list[str]:
             "late_na_ci_problems passes over an EMPTY ci.yml read — a reader that stopped "
             "matching checks every row against nothing and reports no problem, which is "
             "this file's own U1 (172 §10.21)")
+    # 🆕 277 §2 — AND THE COMPARISON ITSELF, which was string equality on a line ci.yml
+    # writes with a tee and from two working directories. Both spellings of the gate must
+    # read as the gate; anything else and an instrument's own step comes back as evidence
+    # against it.
+    if late_na_ci_problems({"x.mjs": "why"}, _NA_INST,
+                           _NA_CI | {'node scripts/x.selftest.mjs 2>&1 | tee -a "$L"'},
+                           floor=8):
+        problems.append(
+            "late_na_ci_problems reads a TEED gate step as a second command — 274 tees "
+            "nineteen steps into the capture log, so `!=` on the raw line makes an "
+            "instrument's own gate evidence that it has a live axis")
+    if late_na_ci_problems(
+            {"x.mjs": "why"},
+            [{"name": "x.mjs", "src": Path("/r/scripts/x.mjs"),
+              "gate": ["node", "../scripts/x.selftest.mjs"]}], _NA_CI, floor=8):
+        problems.append(
+            "late_na_ci_problems reads the SAME script from a different working directory "
+            "as a second command — ci.yml runs steps from the repo root and from host/, "
+            "and `../scripts/x` is not a different file from `scripts/x`")
+    # 🆕 277 §2 — the cost table: named, priced, and refused in all four directions.
+    _C_LIVE = {"x.mjs": (["node", "scripts/x.mjs"], None)}
+    if late_live_cost_problems({"x.mjs": ("node scripts/x.mjs", 172)}, _NA_INST,
+                               _NA_CI | {"node scripts/x.mjs"}, {}, {}, {}, budget=20):
+        problems.append(
+            "late_live_cost_problems flags a row that names a command CI really runs, at "
+            "a price over the budget — which is the only shape this table is FOR")
+    if not late_live_cost_problems({"x.mjs": ("node scripts/x.mjs", 172)}, _NA_INST,
+                                   _NA_CI, {}, {}, {}, budget=20):
+        problems.append(
+            "late_live_cost_problems does NOT flag a row priced against a command ci.yml "
+            "never runs — an axis that was never available is a LATE_LIVE_NA row, and "
+            "buying it with a price hides which of the two sentences is true")
+    if not late_live_cost_problems({"x.mjs": ("node scripts/x.mjs", 9)}, _NA_INST,
+                                   _NA_CI | {"node scripts/x.mjs"}, {}, {}, {}, budget=20):
+        problems.append(
+            "late_live_cost_problems does NOT flag a row whose declared price is UNDER "
+            "the budget — at that price the axis is owed, and a cheap exemption is the "
+            "reason outliving the fact with the fact printed beside it (174 §5)")
+    if not late_live_cost_problems({"x.mjs": ("node scripts/x.mjs", 172)}, _NA_INST,
+                                   _NA_CI | {"node scripts/x.mjs"}, _C_LIVE, {}, {},
+                                   budget=20):
+        problems.append(
+            "late_live_cost_problems does NOT flag an instrument that is in LATE_LIVE and "
+            "in the cost table at once — two tables answering one question (180 §7.1)")
+    if not late_live_cost_problems({"gone.mjs": ("node scripts/gone.mjs", 172)}, _NA_INST,
+                                   _NA_CI, {}, {}, {}, budget=20):
+        problems.append(
+            "late_live_cost_problems does NOT flag a cost row naming something that is "
+            "not an instrument — an exclusion outliving its subject (174 §5)")
+    if LATE_LIVE_COST_BUDGET <= 0:
+        problems.append(
+            f"LATE_LIVE_COST_BUDGET is {LATE_LIVE_COST_BUDGET}. A budget at zero admits "
+            f"every price, which is the cost table degenerating into a prose excuse")
+    problems.extend(late_live_cost_problems(
+        LATE_LIVE_COST, INSTRUMENTS,
+        ci_node_commands(CI_YML.read_text(encoding="utf-8")) if CI_YML.exists() else set(),
+        LATE_LIVE, LATE_LIVE_NA, LATE_LIVE_LOCKED))
     # 🔴 AND THE FLOOR ITSELF, which a zero would make unable to bite (198 §36's rule
     # applied to the guard rather than to the population).
     if CI_COMMAND_FLOOR <= 0:
@@ -2878,6 +3213,18 @@ def _self_check(floor: int) -> list[str]:
         problems.append(
             "failure_lines does not read the node:test TAP dialect — which is the one CI "
             "gets, because node picks its reporter by whether stdout is a TTY (197 §5)")
+    # 🆕 277 §2 — the fourth dialect, both directions. The zero case matters more than
+    # the count: a verdict line reading `0 failed` is what a HEALTHY control prints, and a
+    # reader that counted it as one failure would make every control run look caught.
+    if failure_lines("HANDOFF_SELFTEST 379/385 claims, 6 failed\n") != 6:
+        problems.append(
+            "failure_lines does not read the COUNTED handoff dialect — the instrument "
+            "that reports this way measured a blast of zero across fifty-seven reddening "
+            "blinds until this reader existed (277 §2)")
+    if failure_lines("HANDOFF_SELFTEST 385/385 claims, 0 failed\n"):
+        problems.append(
+            "failure_lines counts a failure in the handoff dialect's HEALTHY verdict — "
+            "every control run would read as caught")
     if failure_lines("everything is fine\n  ok   NOT_A_FAILURE\n"):
         problems.append(
             "failure_lines counts a failure in clean output — the blast floors would then be "
@@ -3239,6 +3586,11 @@ VERDICT_MARKER: dict[str, str] = {
     # 🆕 247 §2 — same rule, same reason: `TERMINOLOGY selftest` is this file's FIRST
     # line, so the marker had to be a new one that only the end of the run prints.
     "terminology_gate.py": "TERMINOLOGY_SELFTEST_DONE",
+    # 🆕 277 §2 — and this one needed no new line, because `HANDOFF_SELFTEST <n>/<n>
+    # claims` is already a COUNTER_READERS `extract` (236): printed once, last, on the
+    # red path and the green one alike. A marker that is also a counter is the strongest
+    # shape available — a rename breaks the roster join before it breaks this sweep.
+    "handoff_gate.py": "HANDOFF_SELFTEST ",
     "_population.mjs": "POP_SELFTEST",
     "_path_ledger.mjs": "LEDGER_SELFTEST",
     "_workspace.mjs": "WORKSPACE_SELFTEST",
@@ -3297,12 +3649,23 @@ B_FAIL = re.compile(r"^🔴 FAILED: ", re.M)                          # the *_ga
 # `--test-reporter=spec` so the choice is not the terminal's to make, and this alternation
 # means a future instrument that forgets to pin it is merely read rather than read as zero.
 C_FAIL = re.compile(r"^(?:ℹ|#) fail (\d+)$", re.M)                  # node:test
+# 🆕 277 §2 — THE FOURTH DIALECT, AND IT IS A COUNT LIKE `C_FAIL` RATHER THAN A LINE.
+# `handoff_gate.py --selftest` prints its per-claim reds as `  🔴 NAME …` and its verdict
+# as `HANDOFF_SELFTEST <passed>/<claims> claims, <n> failed` — none of the three spellings
+# above. 🔴 MEASURED ON THE RUN THAT ADDED THAT INSTRUMENT: its blast read ZERO across
+# fifty-seven blinds every one of which reddened, so a floor taken from that measurement
+# would have been a floor at nothing — 172 §10.21 arriving inside the table built to stop
+# it. A fourth reader is right and a fourth GATE would not be: the number this file wants
+# is *how many claims did the instrument report*, and every dialect here answers it.
+D_FAIL = re.compile(r"^HANDOFF_SELFTEST \d+/\d+ claims, (\d+) failed", re.M)
 
 
 def failure_lines(out: str, _name: str = "") -> int:
     """How many failures the gate REPORTED. Not the exit code — the count."""
     c = C_FAIL.findall(out)
-    return len(A_FAIL.findall(out)) + len(B_FAIL.findall(out)) + (int(c[-1]) if c else 0)
+    d = D_FAIL.findall(out)
+    return (len(A_FAIL.findall(out)) + len(B_FAIL.findall(out))
+            + (int(c[-1]) if c else 0) + (int(d[-1]) if d else 0))
 
 
 # 🔴 THE BLINDS THAT CRASH THEIR GATE INSTEAD OF FAILING IT, DECLARED WITH THEIR REASON.
@@ -3795,6 +4158,10 @@ def blind(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
 # arriving at the numbers it was written about. Raised with ~10% headroom, still from
 # BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
+    # 🆕 277 §2 — measured 652 across fifty-seven blinds, floored ~20% below. The
+    # number was ZERO on the run that added this instrument and the reason was
+    # `failure_lines`, not the sweep: this gate reports in a fourth dialect (`D_FAIL`).
+    "handoff_gate.py": 520,   # 277: measured 652
     "_population.mjs": 80,
     "_path_ledger.mjs": 36,   # 212: 30 -> 36, measured 41 (+ledgerKey)
     "_workspace.mjs": 95,     # 199: 36 -> 95, measured 107
@@ -4166,6 +4533,12 @@ def main() -> int:
         # is distinguishable from a row that was never applicable.
         if inst["name"] not in LATE_LIVE:
             why = LATE_LIVE_NA.get(inst["name"]) or LATE_LIVE_LOCKED.get(inst["name"])
+            # 🆕 277 §2 — the third table, and its reason is a price rather than a kind.
+            if why is None and inst["name"] in LATE_LIVE_COST:
+                _cmd, _secs = LATE_LIVE_COST[inst["name"]]
+                why = (f"`{_cmd}` is a second command CI runs and it costs {_secs}s per "
+                       f"mutant — {_secs * len(inst['targets']) // 60} minutes for this "
+                       f"target list, over a budget of {LATE_LIVE_COST_BUDGET}s")
             if why is None:
                 problems.append(
                     f"{inst['name']}: no LATE_LIVE entry and no LATE_LIVE_NA reason — it "

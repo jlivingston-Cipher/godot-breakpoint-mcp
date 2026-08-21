@@ -102,7 +102,9 @@ which is that nobody ran the replay in the order the replay is written.
 
 from __future__ import annotations
 
+import contextlib
 import inspect
+import io
 import json
 import os
 import re
@@ -1481,6 +1483,128 @@ def assetlib_live(asset_id: int = ASSETLIB_ASSET_ID) -> "tuple[str, str]":
 # sessions (241 §1).
 GH_EMIT = (("gh.issues", "issue", "GH_OPEN_ISSUES"), ("gh.prs", "pr", "GH_OPEN_PRS"))
 
+# ══ 🆕 277 §3 — `main-red-between-sessions-unread` (276): THE FOURTH READING ══════════
+#
+# 🔴 EVERY GATE IN THIS TREE READS THE TREE, AND NOTHING READS WHETHER `main` IS GREEN.
+# 273 found `main` failing on its own twice, one of them for eighteen hours, and the only
+# reason either was seen is that a pickup happened to ask a git question. 275 built the
+# verdict reader and 276 wrote down what it still could not see: it fires at a CI-measured
+# CLOSE, which is the one moment a session already knows its own run passed. The window
+# nobody reads is BETWEEN sessions, and the moment to read it is PICKUP.
+#
+# 🔴 THE ATOM IS THE COMMIT AND NOT THE RUN. `gh_run_verdict` asks whether ONE run
+# concluded; a branch has several workflows and a session inherits the whole commit, so
+# the population is every run at `main`'s newest sha and the verdict is the worst of them.
+# A reader keyed on one run id answers green for a commit whose integration workflow
+# failed — 276's own finding about joins, one file over.
+RUN_PENDING = "pending"
+
+
+def main_at_head_of(rows: "list[dict]") -> "tuple[str, str, list[str], str]":
+    """(sha, conclusion, workflows that did not pass, problem) — PURE over the forge's
+    answer, so both directions are drivable from a fixture and neither needs a network.
+
+    🔴 A RUN STILL GOING IS NOT A GREEN AND IT IS NOT A RED EITHER. It is the third answer
+    this reader has to be able to give, because a pickup minutes after a merge is exactly
+    when it happens, and collapsing it into either of the other two is the reader lying
+    about which way it does not know.
+    """
+    if not rows:
+        return ("", "", [], "the forge lists no workflow run for `main` at all — either "
+                            "this repository has never run one, or the query was refused")
+    sha = str(rows[0].get("headSha") or rows[0].get("head_sha") or "")
+    if not sha:
+        return ("", "", [], "the newest run listed for `main` carries no head sha, so "
+                            "there is no commit to attribute a verdict to")
+    at = [r for r in rows if str(r.get("headSha") or r.get("head_sha") or "") == sha]
+    if any(str(r.get("status") or "") != "completed" for r in at):
+        return (sha, RUN_PENDING, [], "")
+    bad = sorted({str(r.get("workflowName") or r.get("name") or "?") for r in at
+                  if str(r.get("conclusion") or "") != RUN_GREEN})
+    return (sha, RUN_GREEN if not bad else "failure", bad, "")
+
+
+def main_at_head(root: Path = ROOT) -> "tuple[str, str, list[str], str]":
+    """The same reading, dialled — NETWORK. `gh_run_verdict`'s shape, one branch wider."""
+    try:
+        p = subprocess.run(("gh", "run", "list", "--branch", "main", "--limit", "20",
+                            "--json", "headSha,status,conclusion,workflowName"),
+                           cwd=root, capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        return main_at_head_rest("`gh` is not installed for this run", root)
+    except (OSError, subprocess.SubprocessError) as e:
+        return main_at_head_rest(f"`gh run list` could not run: {e}", root)
+    if p.returncode != 0:
+        first = next((ln for ln in (p.stderr or p.stdout).split("\n") if ln.strip()), "")
+        return main_at_head_rest(f"`gh run list --branch main` exited {p.returncode}: "
+                                 f"{first.strip()[:160]}", root)
+    try:
+        rows = json.loads(p.stdout or "[]")
+    except ValueError as e:
+        return ("", "", [], f"`gh run list --json` did not return JSON: {e}")
+    return main_at_head_of(rows if isinstance(rows, list) else [])
+
+
+def main_at_head_rest(why_cli: str, root: Path = ROOT) -> "tuple[str, str, list[str], str]":
+    """The `gh`-free half, carrying the CLI's reason forward — `gh_open_rest`'s shape."""
+    _slug, prob = origin_slug(root)
+    if prob:
+        return ("", "", [], f"{why_cli}; and the API route has no origin to ask: {prob}")
+    out, prob = gh_rest_object("actions/runs?branch=main&per_page=20", root)
+    if prob:
+        return ("", "", [], f"{why_cli}; and the API route did not answer either: {prob}")
+    return main_at_head_of(list(out.get("workflow_runs") or []))
+
+
+# 🔴 THE LINE A LATER `--open` BINDS TO. Same shape as the three above it: a numeral-free
+# UNREAD line carries no claim, and this pattern is what refuses to match it.
+MAIN_AT_HEAD_RE = re.compile(r"^MAIN_AT_HEAD ([0-9a-f]{7,40}) (\w+)", re.M)
+
+
+def main_head_problems(log: str, run_network: bool, head: str = "",
+                       read=main_at_head) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — is `main` green at the commit this session is picking up?
+
+    🔴 TIER0'S PREMISE IS THAT THE TREE HERE IS THE TREE THE PREVIOUS BLOCK WAS VERIFIED
+    AGAINST, and `tier_trigger` proves the IDENTITY of that tree and nothing about its
+    health. A branch protected by twenty-six required checks can still be red, because the
+    checks gate the MERGE and nothing re-reads them after it — 273's finding, written down
+    for four sessions and wired to nothing. Inheriting a counter line from a commit whose
+    own run failed is inheriting a green that is not there.
+
+    🔴 AND UNREAD IS A NOTE, NEVER A REFUSAL. 271 §1's rule for the three readings beside
+    this one holds identically: a pickup on a machine that cannot reach the forge must
+    still be able to open, and refusing on connectivity would make the tier a statement
+    about the network. What is refused is a verdict that WAS read and is not `success`.
+    """
+    m = MAIN_AT_HEAD_RE.search(log or "")
+    if m:
+        sha, concl, bad = m.group(1), m.group(2), []
+    elif run_network:
+        sha, concl, bad, prob = read()
+        if prob:
+            return ([], [f"main at HEAD: UNREAD — {prob}"])
+    else:
+        return ([], ["main at HEAD: UNREAD — no `MAIN_AT_HEAD` line in the measured log "
+                     "and no `--network`. Supply it from `handoff_gate.py --gh-open` on a "
+                     "machine that can reach the forge, or pass `--network`. Nothing in "
+                     "this tree can answer it: whether `main` passed is a fact about the "
+                     "forge"])
+    if concl == RUN_PENDING:
+        return ([], [f"main at HEAD: {sha[:7]} — the run has not concluded, so nothing "
+                     f"here knows yet whether the tree being inherited passed"])
+    if concl != RUN_GREEN:
+        return ([f"🔴 MAIN_RED_AT_HEAD `main` is {concl} at {sha[:7]}"
+                 + (f" ({', '.join(bad)})" if bad else "")
+                 + ". TIER0 inherits a counter line measured against this commit and the "
+                   "forge says this commit did not pass. Read the run before inheriting "
+                   "a green that is not there, or open at TIER1 and measure the tree."],
+                [])
+    drift = head and not (sha.startswith(head[:7]) or head.startswith(sha[:7]))
+    return ([], [f"main at HEAD: {sha[:7]} {concl}"
+                 + (f" — 🔴 and this checkout is at {head}, so the verdict above is about "
+                    f"a different commit" if drift else "")])
+
 
 def gh_emit(root: Path = ROOT) -> int:
     """`--gh-open`: put the two GitHub counters into a log a later `--measured` can read.
@@ -1506,6 +1630,13 @@ def gh_emit(root: Path = ROOT) -> int:
     # with no version on it carries no claim and the atom stays honestly UNREAD.
     v, prob = assetlib_live()
     print(f"ASSETLIB_VERSION {v}" if not prob else f"ASSETLIB_VERSION UNREAD — {prob}")
+    # 🆕 277 §3 — the fourth reading, and the only one of the four that is about THIS
+    # repository rather than about a registry. Same rule again: the unreadable case prints
+    # a reason and no sha, so `MAIN_AT_HEAD_RE` finds nothing and `--open` says nobody
+    # looked rather than inheriting a green it never saw.
+    sha, concl, bad, prob = main_at_head(root)
+    print(f"MAIN_AT_HEAD UNREAD — {prob}" if prob else
+          f"MAIN_AT_HEAD {sha[:7]} {concl}" + (f" — {', '.join(bad)}" if bad else ""))
     return 0
 
 
@@ -5970,15 +6101,35 @@ def selftest() -> int:
               f"own two SHAs, newest first. The FIRST is this counter's endpoint; the "
               f"second is read by `MOVED_PARENT` below and by nothing else")
 
-    have = all(subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
-                              capture_output=True).returncode == 0 for s in ends)
+    # ── 🆕 277 §1 — `all()` OVER AN EMPTY SEQUENCE IS TRUE, AND THAT IS NOT WHAT `have`
+    # MEANS. `ends` is short whenever the parse above failed, and a vacuous `have` sent
+    # this reader straight down the branch that asserts a NUMBER — the one thing the
+    # paragraph above says it must never do without the objects in hand — and then indexed
+    # `ends[0]` at `MOVED_PARENT` and took every claim below that line down with it.
+    #
+    # 🔴 MEASURED UNDER THE BLIND, NOT REASONED ABOUT (277 §1): emptying `main_shas`,
+    # `_runs` or `status_block` reddens four claims here and then dies with an
+    # `IndexError`, so ~200 claims further down went unrun and the command reported a
+    # traceback where its verdict line belongs. A parse failure is not a shallow clone: it
+    # is a THIRD state this reader did not have, and the two claims that rest on the parse
+    # are refused by name rather than skipped, invented, or crashed into.
+    parsed = len(ends) == 2
+    have = parsed and all(
+        subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
+                       capture_output=True).returncode == 0 for s in ends)
     claims += 1
     got_moved, moved_why = moved_interval(real_block, 234)
-    if have and (moved_why or got_moved != 1):
+    if not parsed:
+        failed += 1
+        print(f"  🔴 MOVED_ENDPOINTS {ends} — the main row yielded {len(ends)} SHA(s) and "
+              f"both claims here need two. Refused rather than skipped: `all()` over an "
+              f"empty sequence is True, so a vacuous `have` would send the branch below "
+              f"into asserting a number with no objects to read it from")
+    elif have and (moved_why or got_moved != 1):
         failed += 1
         print(f"  🔴 MOVED_LIVE {moved_why or got_moved}, pinned 1 — 233's block puts "
               f"main at c27953d and 234's at bcc0b85, so the session moved it once")
-    if not have and (not moved_why or got_moved != -1):
+    elif not have and (not moved_why or got_moved != -1):
         failed += 1
         print(f"  🔴 MOVED_SHALLOW {got_moved}/{moved_why!r} — a checkout missing an "
               f"endpoint must make this UNREAD with the reason, not a number: a shallow "
@@ -5989,7 +6140,7 @@ def selftest() -> int:
     # thing `rev-list old..new` over one row was ever able to test. As its own claim it
     # can fail; as a counter it could not.
     claims += 1
-    if have:
+    if parsed and have:
         par, par_why = parent_of(ends[0])
         if par_why or not par.startswith(ends[1][:7]) and not ends[1].startswith(par[:7]):
             failed += 1
@@ -6794,20 +6945,33 @@ def selftest() -> int:
     _d = _dir({"a/host.log": f"{_PROV}\n{_SUITE}", "b/contract.log": f"{_PROV}\nx 1\n"})
     _text, _parts = read_measured(_d)
     _p, _n, _sha = ci_provenance(_text, _parts, str(_d))
-    if _p or len(_parts) != 2 or not _sha.startswith("255d139") or "# tests 904" not in _text:
+    # ── 🆕 277 §1 — `_parts` IS `None` ON A HEALTHY SHAPE AND BOTH DIAGNOSTICS BELOW USED
+    # TO `len()` IT. `read_measured` is annotated `list[…] | None`, and `None` is exactly
+    # what it answers for a PLAIN FILE — which is what the second claim below is about. So
+    # the message describing that claim's failure could not be BUILT: any other clause of
+    # its assertion going wrong produced `TypeError: object of type 'NoneType' has no
+    # len()`, killed the command, and took every claim after it unrun. The shipped reader
+    # guards `parts is None` on `ci_provenance`'s first line; the two places that JUDGE
+    # that reader did not, which is 273's *a reader that cannot show its own refusal* one
+    # file over. Swept: names bound from the four readers whose annotation admits `None`,
+    # and the population of unguarded sites is these two.
+    _shape = "None" if _parts is None else f"{len(_parts)} part(s)"
+    if _p or _parts is None or len(_parts) != 2 or not _sha.startswith("255d139") \
+            or "# tests 904" not in _text:
         failed += 1
         print(f"  🔴 CI_MEASURED_ACCEPT a directory of two attributed parts did not read "
-              f"back as one log bound to one commit: {_p or (_sha, len(_parts))}")
+              f"back as one log bound to one commit: {_p or (_sha, _shape)}")
 
     # ── and a plain file is still a plain file, carrying no provenance and no refusal ──
     claims += 1
     _f = _dir({"run.log": _SUITE}) / "run.log"
     _text, _parts = read_measured(_f)
     _p, _n, _sha = ci_provenance(_text, _parts, str(_f))
+    _shape = "None" if _parts is None else f"{len(_parts)} part(s)"
     if _p or _parts or _sha or not any("no `CI_MEASURED` line" in x for x in _n):
         failed += 1
         print(f"  🔴 CI_MEASURED_FILE the local replay's own log was not read as an "
-              f"unattributed file: problems={_p} parts={len(_parts)} sha={_sha!r}")
+              f"unattributed file: problems={_p} parts={_shape} sha={_sha!r}")
 
     # ── an unattributed part that ANSWERS A COUNTER is the defect the line exists for ──
     claims += 1
@@ -7112,6 +7276,165 @@ def selftest() -> int:
               f"NOTHING satisfies the first half and is the collapse the floor above "
               f"exists for")
 
+    # ══ 🆕 277 §2 — THE SIX ASSEMBLIES THIS FILE PROVED THE PARTS OF AND NEVER THE SUM ══
+    #
+    # 🔴 MEASURED FIRST, WHICH IS THE ONLY REASON THESE SIX ARE HERE AND NOT NINETEEN.
+    # `py-cohort-handoff-gate` (247) asked for a target or a written reason for every
+    # top-level `def` in this file. The count in the row was FORTY-NINE and the file holds
+    # SEVENTY-FOUR — 276's own finding, one file over: a number nobody's reader printed,
+    # taken at 247 and carried for twenty-nine sessions as though it were about the tree.
+    #
+    # Every one of the seventy-four was blinded to the empty its own annotation promises
+    # and this command run against it. Forty-nine reddened. Of the twenty-five that did
+    # not, nineteen CANNOT be reached from here — ten dial a network, six read an object
+    # store a `--depth 1` checkout does not have, three are the invocation itself — and
+    # they are written down in `instrument_gate.py`'s `NOT_A_TARGET` with that reason.
+    #
+    # 🔴 THE OTHER SIX WERE REACHABLE ALL ALONG AND NOBODY HAD ASKED. They are the file's
+    # ASSEMBLIES — `check` is what `main` calls to be the gate; `open_tier` is what
+    # `--open` calls to be the open gate; `measure`, `tier_trigger`, `block_assetlib` and
+    # `gh_emit` are the four readers those two are made of. Every claim above this line
+    # proves a PART works. None of them proved the assembly still CALLS it, and on a green
+    # tree no input can tell those apart — 202 §4's call-wiring finding, arriving in the
+    # file that judges the handoff rather than in the one that judges the instruments.
+    #
+    # 🔴 AND THE FIXTURE'S SHA IS IMPOSSIBLE ON PURPOSE. A claim that `tier_trigger`
+    # answers TIER1 because HEAD happens to differ from a real block's commit is a claim
+    # about the machine (235 §6.3, and this file has paid for it once). Forty zeros is a
+    # commit no checkout can be at, so the two tier claims below are about the reader.
+    _asm_block, _asm_why = status_block(BLOCK_POPULATION[-1][1])
+    _asm_text = re.sub(r"\b[0-9a-f]{7,40}\b", "0" * 7, BLOCK_POPULATION[-1][1])
+    _asm_dir = _dir({f"HANDOFF_SESSION{BLOCK_POPULATION[-1][0]}.md": _asm_text})
+    _asm_doc = _asm_dir / f"HANDOFF_SESSION{BLOCK_POPULATION[-1][0]}.md"
+
+    claims += 1
+    _c_p, _c_n, _c_a, _c_c, _c_h, _c_hc = check(_asm_doc, "", False, False, False, False)
+    if _asm_why or _c_a < CLAIM_FLOOR or _c_h < HEADER_FLOOR or not _c_p:
+        failed += 1
+        print(f"  🔴 CHECK_ASSEMBLY the gate's own driver read {_c_a} atom(s) and "
+              f"{_c_h} header atom(s) out of a real shipped block and raised {len(_c_p)} "
+              f"problem(s) — floors {CLAIM_FLOOR}/{HEADER_FLOOR}, and a block belonging to "
+              f"another commit cannot be problem-free. `check` is called from exactly one "
+              f"place, `main`; every reader it assembles is proved above and until now "
+              f"nothing asserted the assembly")
+
+    claims += 1
+    _o_out = io.StringIO()
+    with contextlib.redirect_stdout(_o_out):
+        _o_rc = open_tier(_asm_doc, False)
+    if _o_rc != 1 or "TIER1_REQUIRED" not in _o_out.getvalue():
+        failed += 1
+        print(f"  🔴 OPEN_ASSEMBLY `--open` against a block verified at a commit no "
+              f"checkout can be at returned {_o_rc} and said {_o_out.getvalue()[:80]!r}. "
+              f"The cheap tier is the one thing this command can wrongly GRANT, so the "
+              f"claim is on the refusal and not on the pass")
+
+    claims += 1
+    _t_tier, _t_head, _t_claimed, _t_why = tier_trigger(_asm_doc)
+    if _t_tier != TIER1 or not _t_why:
+        failed += 1
+        print(f"  🔴 TIER_TRIGGER_ASSEMBLY {_t_tier!r}/{_t_why!r} — the trigger is MEASURED "
+              f"and never declared, so a block whose commit is unreachable must require "
+              f"the full replay AND say why. A tier with no reason is a tier nobody can "
+              f"check")
+
+    claims += 1
+    _m_out, _m_un, _m_notes = measure({"host.suite"}, "# tests 904\n# pass 904\n",
+                                      False, False, False)
+    if _m_out.get("host.suite") != (904, 904) or _m_un:
+        failed += 1
+        print(f"  🔴 MEASURE_ASSEMBLY a captured log carrying a counter this file has a "
+              f"reader for measured {_m_out!r} with {_m_un!r} unmeasured. The log arm is "
+              f"the only arm a CI-measured close ever uses (274), and it is the one arm "
+              f"that runs no command and therefore leaves no other trace")
+
+    claims += 1
+    _al_have = block_assetlib(_asm_block)
+    _al_none = block_assetlib(["> 🟢 VERIFIED AFTER THE CHANGE   904/904"])
+    if _al_have[1] or not _al_have[0] or _al_none[0] or not _al_none[1]:
+        failed += 1
+        print(f"  🔴 BLOCK_ASSETLIB_ASSEMBLY {_al_have} / {_al_none} — both directions, "
+              f"because a reader that answers the empty string for every block agrees "
+              f"with the world and refuses nothing. This is the reader that caught 276's "
+              f"block claiming a version the Asset Library had already moved past")
+
+    # 🔴 THE CLAIM IS ON THE LINE AND NOT ON THE EXIT CODE, and 271 §1 is why: this emitter
+    # exits 0 whether or not it could read, on purpose, so that a replay's exit sum stays a
+    # statement about the tree rather than about connectivity. A blind that returns 0 and
+    # prints nothing satisfies every claim a return code can carry — 247's own finding on
+    # `queue_gate.py`'s two reporters, in the one other file shaped like this.
+    claims += 1
+    _g_out = io.StringIO()
+    with contextlib.redirect_stdout(_g_out):
+        gh_emit()
+    _g_lines = [ln for ln in _g_out.getvalue().split("\n") if ln.strip()]
+    _g_want = ["GH_OPEN_ISSUES", "GH_OPEN_PRS", "ASSETLIB_VERSION", "MAIN_AT_HEAD"]
+    if [w for w in _g_want if not any(ln.startswith(w) for ln in _g_lines)]:
+        failed += 1
+        print(f"  🔴 GH_EMIT_ASSEMBLY `--gh-open` printed {len(_g_lines)} line(s) and the "
+              f"labels a later `--measured` binds to are {_g_want}: {_g_lines}. UNREAD is "
+              f"a line with a reason and no numeral — an emitter that prints NOTHING is "
+              f"the one shape no reader downstream can tell from a missing network")
+
+    # ══ 🆕 277 §3 — `main-red-between-sessions-unread` (276), BOTH READERS, BOTH WAYS ═══
+    #
+    # 🔴 THE THREE ANSWERS ARE DRIVEN AND NOT ARGUED FOR. A verdict reader with a green
+    # arm and a red arm and no PENDING arm is one that has to lie about a run in flight,
+    # and a pickup minutes after a merge is exactly when that happens. `main_at_head_of`
+    # is PURE over the forge's JSON precisely so all three are reachable from a fixture on
+    # a machine with no network — 231's rule about splitting the pure half out, applied to
+    # the one reader in this file whose whole subject is a thing the container cannot dial.
+    claims += 1
+    _ok = main_at_head_of([{"headSha": "abc1234", "status": "completed",
+                            "conclusion": "success", "workflowName": "ci"},
+                           {"headSha": "abc1234", "status": "completed",
+                            "conclusion": "success", "workflowName": "integration"}])
+    _red = main_at_head_of([{"headSha": "abc1234", "status": "completed",
+                             "conclusion": "success", "workflowName": "ci"},
+                            {"headSha": "abc1234", "status": "completed",
+                             "conclusion": "failure", "workflowName": "integration"}])
+    _pend = main_at_head_of([{"headSha": "abc1234", "status": "in_progress",
+                              "conclusion": None, "workflowName": "ci"}])
+    _older = main_at_head_of([{"headSha": "abc1234", "status": "completed",
+                               "conclusion": "success", "workflowName": "ci"},
+                              {"headSha": "dead999", "status": "completed",
+                               "conclusion": "failure", "workflowName": "ci"}])
+    if (_ok[:3] != ("abc1234", RUN_GREEN, []) or _red[1] != "failure"
+            or _red[2] != ["integration"] or _pend[1] != RUN_PENDING
+            or _older[1] != RUN_GREEN or not main_at_head_of([])[3]):
+        failed += 1
+        print(f"  🔴 MAIN_AT_HEAD_READER green={_ok[:3]} red={_red[:3]} "
+              f"pending={_pend[:3]} older-commit-ignored={_older[:3]} — the verdict is "
+              f"the WORST run at the newest sha, a run still going is neither answer, and "
+              f"a failure at an OLDER commit is not this commit's problem")
+
+    # 🔴 AND THE REFUSAL IS ON THE VERDICT, NEVER ON THE READING. Four directions, because
+    # three of them must NOT refuse: this gate's own premise is that a machine which
+    # cannot reach the forge can still open a session (271 §1).
+    claims += 1
+    _mh_red = main_head_problems("MAIN_AT_HEAD 2032d04 failure\n", False)
+    _mh_ok = main_head_problems("MAIN_AT_HEAD 2032d04 success\n", False)
+    _mh_pend = main_head_problems(f"MAIN_AT_HEAD 2032d04 {RUN_PENDING}\n", False)
+    _mh_none = main_head_problems("", False)
+    if (not any("MAIN_RED_AT_HEAD" in x for x in _mh_red[0]) or _mh_ok[0] or _mh_pend[0]
+            or _mh_none[0] or not all(any("main at HEAD" in n for n in x[1])
+                                      for x in (_mh_ok, _mh_pend, _mh_none))):
+        failed += 1
+        print(f"  🔴 MAIN_HEAD_PROBLEMS red={_mh_red[0]} ok={_mh_ok} pending={_mh_pend} "
+              f"unread={_mh_none} — a READ verdict that is not `success` refuses the cheap "
+              f"tier; success, a run in flight and no reading at all are notes. An UNREAD "
+              f"that refused would make the tier a statement about connectivity")
+
+    # 🔴 AND THE DRIFT ARM, which is the one that says the verdict is about a DIFFERENT
+    # commit — the shape 270 paid for three handoffs running, in the newest reading and
+    # therefore the one least likely to be doubted.
+    claims += 1
+    _mh_drift = main_head_problems("MAIN_AT_HEAD 2032d04 success\n", False, head="1fd4c97")
+    if _mh_drift[0] or not any("different commit" in n for n in _mh_drift[1]):
+        failed += 1
+        print(f"  🔴 MAIN_HEAD_DRIFT {_mh_drift} — a green read at a commit this checkout "
+              f"is not at is still a green, and it is a green about something else")
+
     # 🆕 275 — `unread` IS PRINTED RATHER THAN SUBTRACTED. A claim this checkout
     # cannot make is not a claim that does not exist: the count above is the same
     # in every environment now, and the difference between them is this number.
@@ -7353,13 +7676,18 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
               f"were not measured against.")
         return 1
 
+    # ── 🆕 277 §3 — and BEFORE any counter is inherited: is `main` green at HEAD? ──────
+    head_problems, head_notes = main_head_problems(log, run_network, head)
+    for n in head_notes:
+        print(f"  · {n}")
+
     # ── the counter line: bound, floored, and NOT re-run ──────────────────────────────
     block, _ = status_block(text)
     atoms, why2 = counter_atoms(block)
     if why2:
         print(f"🔴 HANDOFF_OPEN {why2}")
         return 1
-    problems: "list[str]" = []
+    problems: "list[str]" = list(head_problems)
     keys: "set[str]" = set()
     for a in atoms:
         key, problem = bind(a)

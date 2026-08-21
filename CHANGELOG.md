@@ -23,6 +23,48 @@ and the project uses [Semantic Versioning](https://semver.org/).
 Nothing in this section changes anything an installer of the package can observe; it is the
 handoff, queue and CI apparatus.
 
+- 🔴 **`all()` over an empty sequence is `True`, and that is not what `have` meant.**
+  `handoff_gate.py --selftest` reads two SHAs off a status block's `main` row and then asks
+  whether both commits exist in this checkout. When the parse returned nothing the question was
+  asked of an empty list, answered vacuously yes, sent the reader down the branch that asserts a
+  NUMBER — the one thing the paragraph above it says never to do without the objects — and then
+  indexed `ends[0]`. The command died with an `IndexError` roughly two hundred claims before its
+  verdict line. A short parse is a third state now, refused by name.
+- 🔴 **A refusal that could not describe itself.** The same self-test's `CI_MEASURED_FILE` claim
+  is about a plain log file, for which `read_measured` returns `None` parts by contract — and
+  the message reporting that claim's failure computed `len()` over exactly that value. The
+  diagnostic was unprintable in the only case it exists for. The shipped reader guards
+  `parts is None` on its first line; the two places that JUDGE that reader did not.
+- 🟢 **`handoff_gate.py` is swept.** It is the fifth Python instrument in `instrument_gate.py`:
+  every one of its **seventy-eight** top-level members blinded to the empty its own annotation
+  promises, fifty-seven reddening and targeted, twenty-one declared with a reason that is one of
+  three — the network, the git object store, the invocation. The row that asked for this said
+  the file held forty-nine members; nothing had ever printed the number. Both defects above are
+  what the first pass found, and the crash ceiling is what keeps them fixed.
+- 🟢 **Six claims for the two assemblies and the four readers they are made of.** `check` is
+  what `main` calls to be the gate and `open_tier` is what `--open` calls to be the open gate;
+  every reader they assemble was proved and nothing asserted the assembly still called it.
+- 🔴 **Is `main` green at HEAD?** `--gh-open` prints a fourth reading and `--open` refuses the
+  cheap tier on a verdict that was read and is not `success`. Inheriting a block's counters
+  assumes the tree they were measured against passed; nothing had ever asked. The atom is the
+  commit rather than one run id, so a green `ci` beside a failed `integration` is not a green —
+  and an UNREAD stays a note, because a pickup that cannot reach the forge must still open.
+- 🔴 **The live-axis roster spelled one language.** `instrument_gate.py` decides whether an
+  instrument may be excused from its second axis by reading `run: node …` steps out of `ci.yml`,
+  and had never read a `python3` one. Four Python instruments in, it has not yet bitten. Widened
+  — and the widening immediately showed the comparison underneath it was string equality on
+  lines CI writes with a `tee` and from two working directories, so an instrument's own gate step
+  came back as evidence that it had a live axis.
+- 🔴 **A fourth failure dialect.** The blast radius reader counted three report spellings and
+  `handoff_gate.py` speaks a fourth, so its blast measured **zero** across fifty-seven blinds
+  every one of which reddened. A floor taken from that would have been a floor at nothing.
+- 🔴 **The stash cleared itself before refilling.** `_gate_lock._stash()` copies an
+  already-dirty file's bytes aside so a killed mutating gate cannot eat uncommitted work — and
+  it began by deleting the directory holding them. Between that and the last copy the only copy
+  did not exist, in neither git nor the stash. Copy first, sweep the stale names after. This is
+  what pricing `mutating-gate-writes-not-atomic` turned up; that row asked for atomic writes at
+  a dozen mutant sites, where a torn file is already recoverable both ways, and is killed.
+
 - 🔴 **The catalog's `Status` column said ✅ about ten tools that answer "unsupported".** It was
   the last of the Tool Index's four columns with no reader and the only one with no stated
   predicate at all — a glyph with no rule and nothing in the code to disagree with. Its
