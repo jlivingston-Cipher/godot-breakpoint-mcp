@@ -6,6 +6,40 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — six debugging surfaces now say what a real Godot build advertises
+
+- **Three GDScript debugging tools and three breakpoint modifiers are unsupported on every
+  Godot build this project tests, and their descriptions say so now.** `dbg_goto`,
+  `dbg_data_breakpoints` and `dbg_set_exception_breakpoints` are gated on adapter
+  capabilities — `supportsGotoTargetsRequest`, `supportsDataBreakpoints`,
+  `exceptionBreakpointFilters` — that **neither Godot 4.3-stable nor 4.7-stable
+  advertises**, and the `conditions` / `hit_conditions` / `log_messages` modifiers on
+  `dbg_set_breakpoints` are dropped on both. Nothing was removed and nothing changed on the
+  wire: each still refuses, or drops and warns, exactly as before. What changed is that a
+  caller reads the measurement in the description **before** choosing the tool, instead of
+  reading "feature-detected" and discovering the answer by being refused.
+- **`dbg_set_exception_breakpoints` no longer names 4.3 as *the example*.** Its description
+  said the filters are absent on "e.g. Godot 4.3", which reads as though a newer build has
+  them. 4.7 does not either.
+- **`absent` and `false` are different facts, and two shipped paragraphs had them
+  confused.** `BREAKPOINT_MODIFIER_CAPS`'s docstring and `dbg_set_breakpoints`'s description
+  both said Godot "advertises all three false"; the adapter carries no such keys at all.
+  Both read the same way through `!== true`, which is why nothing ever caught it.
+
+### Added — what a real debug adapter actually advertised, written down
+
+- **`docs/dap_capability_ledger.json`.** The observed capability set per engine build, read
+  out of the integration workflow's own log and carrying the run and commit it came from.
+  Until now nothing in this repository recorded it: the live gate asserts a biconditional —
+  advertised implies it answers, unadvertised implies it refuses by reason — which is true
+  on either side of the question, so eleven families of green said nothing about which side
+  Godot is on. `unread` is a value in that file and is not the same as `absent`.
+- **Contract check 33** joins the ledger to `host/src` in both directions over a **derived**
+  population, refuses a surface called dead on a capability nobody has read, refuses one
+  whose capability has come **alive** on some build, and refuses a dead surface whose own
+  description does not say so. The integration gate reads the ledger and compares it to
+  what the adapter actually advertised, which is the only falsifier the record has.
+
 ### Fixed — the version every client is told is now read, not written
 
 - **`serverInfo.version` is `packageVersion()`.** The version the server announces at

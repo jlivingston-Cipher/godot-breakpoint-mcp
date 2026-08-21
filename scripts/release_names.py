@@ -1549,10 +1549,48 @@ OLDEST_SELFTEST = [
 ]
 
 
+def detail_or_refusal(d: dict, keys: "tuple[str, ...]", reader: str) -> str:
+    """`""` when the detail bag carries every key its row reads, else a NAMED refusal.
+
+    🆕 278 — A THIRD STATE, REFUSED BY NAME RATHER THAN CRASHED INTO. Every check in
+    this file answers `(code, why, detail)`, and each self-test row reads two or three
+    keys straight off that detail bag. When the bag does not carry one, the row died with
+    a `KeyError` — and a gate that dies partway reports only the rows it REACHED (199
+    §9.2), so the eight tables below the crash produced no verdict at all.
+
+    🔴 MEASURED, AND IT IS THE WHOLE OF THIS FILE'S CRASH POPULATION. 278's blind sweep of
+    all thirty-two top-level members found SIX that crashed the self-test instead of
+    reddening it, and FOUR of the six were this one shape: `verdict`, `population`,
+    `assert_map` and `addon_state` each returning the empty their own annotation promises
+    — `("", "", {})` — into a row that subscripts the dict. The other two are the
+    invocation itself. This is 277 §1.2 one file over: the reader guards nothing and the
+    thing that JUDGES the reader guards nothing either.
+
+    🔵 THE REFUSAL IS SPELLED INLINE AND IS NOT A MODULE-LEVEL `NAME = "NAME"`, WHICH IS
+    A DELIBERATE DIVERGENCE FROM EVERY OTHER REFUSAL IN THIS FILE. `selftest()` derives
+    the set of declared refusal codes from exactly that idiom and refuses any code with no
+    fixture row — correctly, because those are check verdicts a caller can receive. This
+    one is a self-test diagnostic about the harness, it can never cross the wire, and no
+    fixture table can carry it as a `want_code` because these rows call the real reader.
+    Its branch is watched by the two assertions at the end of `selftest()` instead.
+    """
+    missing = [k for k in keys if k not in d]
+    if not missing:
+        return ""
+    return (f"DETAIL_MISSING — `{reader}` answered with a detail bag carrying no "
+            f"{', '.join(repr(k) for k in missing)}. The row that reads it cannot report, "
+            f"and a self-test that dies here reports only the rows it reached (199 §9.2)")
+
+
 def selftest() -> int:
     bad = 0
     for name, rel, ship, bump, floor, win, want_code, want_c, want_a in SELFTEST:
         code, why, d = verdict(rel, ship, bump, floor=floor, changed_text=win)
+        short = detail_or_refusal(d, ("constants", "api"), "verdict")
+        if short:
+            bad += 1
+            print(f"  🔴 {code:<18} {short}  {name}")
+            continue
         agree = (code == want_code
                  and len(d["constants"]) == want_c
                  and len(d["api"]) == want_a)
@@ -1657,6 +1695,11 @@ def selftest() -> int:
     print("\n  CHECK 2 — the producer window, which reads no notes at all (🆕 217)")
     for name, diff, old, new, bump, tagv, want_code, want_r, want_s in C2_SELFTEST:
         code, why, d = population(diff, old, new, bump, tag_tree_version=tagv)
+        short = detail_or_refusal(d, ("ritual_only", "substantive"), "population")
+        if short:
+            bad += 1
+            print(f"  🔴 {code:<22} {short}  {name}")
+            continue
         agree = (code == want_code
                  and len(d["ritual_only"]) == want_r
                  and len(d["substantive"]) == want_s)
@@ -1669,6 +1712,11 @@ def selftest() -> int:
     print("\n  --assert-map — check 3's BOTH-WAYS assertion, promoted (🆕 217)")
     for name, tar, exists, want_code in MAP_SELFTEST:
         code, why, d = assert_map(tar, exists=exists)
+        short = detail_or_refusal(d, ("entries", "roots"), "assert_map")
+        if short:
+            bad += 1
+            print(f"  🔴 {code:<22} {short}  {name}")
+            continue
         agree = code == want_code
         print(f"  {'🟢' if agree else '🔴'} {code:<22} entries={d['entries']:<4} "
               f"roots={len(d['roots'])}  {name}")
@@ -1717,6 +1765,11 @@ def selftest() -> int:
     print("\n  check 4 — does the addon version still name the addon's tree? (🆕 219)")
     for name, stamp, moved, commits, want_code in ADDON_SELFTEST:
         code, why, d = addon_state("1.9.8", stamp, moved, commits)
+        short = detail_or_refusal(d, ("moved", "commits"), "addon_state")
+        if short:
+            bad += 1
+            print(f"  🔴 {code:<22} {short}  {name}")
+            continue
         agree = code == want_code
         print(f"  {'🟢' if agree else '🔴'} {code:<22} moved={len(d['moved'])} "
               f"commits={len(d['commits'])}  {name}")
@@ -1731,6 +1784,29 @@ def selftest() -> int:
               f"{got!r:<10} {name}")
         if not agree:
             bad += 1
+
+    # ── 🆕 278 — THE SHORT-BAG BRANCH, WATCHED IN BOTH DIRECTIONS ──────────────────
+    #
+    # 🔴 EVERY ROW ABOVE CALLS A REAL READER, WHICH ON A HEALTHY TREE ALWAYS ANSWERS WITH
+    # A COMPLETE DETAIL BAG — so `detail_or_refusal` returns `""` sixty-six times and its
+    # other branch is never executed by the run. That is the state 278's own sweep is
+    # about: a guard nothing exercises is a guard nobody has seen work, and this file has
+    # paid for one before (the `(?:\(\))?` at 215 §3). Both directions, because the
+    # positive alone is satisfied by a function that always refuses.
+    if detail_or_refusal({"constants": [], "api": []}, ("constants", "api"), "verdict"):
+        bad += 1
+        print("  🔴 detail_or_refusal REFUSES A COMPLETE BAG — every row above would "
+              "report DETAIL_MISSING and none would compare anything")
+    _short = detail_or_refusal({"constants": []}, ("constants", "api"), "verdict")
+    if "'api'" not in _short:
+        bad += 1
+        print(f"  🔴 detail_or_refusal does not NAME the missing key — got {_short!r}. A "
+              f"refusal that cannot say which key it wanted is 273's reader that cannot "
+              f"show its own refusal, in the guard written to stop exactly that")
+    else:
+        print("\n  🟢 the short-bag guard: a detail bag missing a key its row reads is "
+              "refused BY NAME rather than crashed into — 278's sweep found four members "
+              "whose blind died here, two hundred rows before the verdict line")
 
     rows = (len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
             + len(ADDON_SELFTEST) + len(OLDEST_SELFTEST) + len(MAJOR_SELFTEST)
@@ -1848,6 +1924,18 @@ def main() -> int:
 
     if a.assert_addon:
         code, why, d = _addon_live()
+        # 🆕 278 — THE SIXTH SITE OF THE SAME SHAPE, AND THE ONLY ONE ON A LIVE PATH.
+        # `detail_or_refusal`'s docstring counts four in `selftest()`; this is check 4's
+        # own PRINTER, which reads five keys straight off `_addon_live`'s detail bag. The
+        # 278 sweep found it on the B:live axis rather than the A:gate one — blinding
+        # `_addon_live` to the empty its annotation promises took `--assert-addon` down
+        # with a `KeyError: 'version'` BEFORE the refusal line, so the command could not
+        # say what was wrong with it. That is 273's reader that cannot show its own
+        # refusal, and it is the reason this guard is here and not only in the self-test.
+        short = detail_or_refusal(d, ("version", "stamp", "moved", "commits"), "_addon_live")
+        if short:
+            print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {short}", file=sys.stderr)
+            return 1
         print(f"RELEASE_NAMES --assert-addon  ·  addon {d['version']} · stamped "
               f"{(d['stamp'] or '?')[:12]} · {len(d['moved'])} file(s) moved since over "
               f"{len(d['commits'])} commit(s)")

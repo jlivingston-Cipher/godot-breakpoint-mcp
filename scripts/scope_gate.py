@@ -60,6 +60,14 @@ EMPTY: dict[str, str] = {
     # table could not spell, and the second where the row cost nothing but the line: 252
     # admitted `dict[str, bool]` and said the class would return, which it has.
     "dict[str, dict[str, str]]": "{}",
+    # 🆕 278 — 🔴 AND THE ROW THIS SESSION ADDED HERE WAS A DUPLICATE, WHICH IS A BETTER
+    # FINDING THAN THE ROW WOULD HAVE BEEN. `dap_ledger_arms` returns arm -> capability ->
+    # observed value, so its annotation is `dict[str, dict]`, and the note written above it
+    # claimed to be THE FIFTH SESSION RUNNING to add a shape this table could not spell.
+    # `dict[str, dict]` was already here, twice, further down. `FLOOR_PIN_LITERAL_REPEAT`
+    # caught it — Python keeps the LAST value under a repeated key, so the new row was
+    # UNREACHABLE while still looking like a row, and the sentence beside it was false about
+    # this table's history. A claim in a comment is still a claim; this one had a reader.
     # 🆕 255 — method -> (file, body). THE FOURTH SESSION RUNNING TO ADD A SHAPE THIS TABLE
     # COULD NOT SPELL, and the fourth where the row costs one line. 246 said the class would
     # return; 252, 254 and now this are the evidence. The rule has earned a stronger
@@ -302,6 +310,12 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "guide_recipe_tools": ("guide.recipe_tools", "guide.recipe_steps"),  # 🆕 261
     "error_prose_predicates": ("host.error_message_reads", "host.error_raise_sites"),  # 🆕 268
     "host_origin_error_codes": ("host.origin_error_codes",),          # 🆕 269
+    # 🆕 278 — check 33's two readers. The first DERIVES the population from host/src and
+    # the second compares the ledger against it; blinding either one is a different
+    # collapse, which is why they are two rows and not one.
+    "dap_capability_gates": ("dap.capability_gates",),                # 🆕 278
+    "dap_ledger_problems": ("dap.ledger_joins_read",),                # 🆕 278
+    "dap_ledger_arms": ("dap.ledger_arms_read",),                     # 🆕 278
     "privileged_tools": ("tools.privileged",),                        # 🆕 197
     "recipe_names_constant": ("recipes.names_constant",),             # 🆕 197
     "registered_recipes": ("recipes.registered",),
@@ -480,6 +494,22 @@ BLAST: dict[str, int] = {
     # 1 and measuring 2 — the prediction is written here so the measurement can disagree
     # with it in public.
     "host_origin_error_codes": 1,
+    # 🆕 278 — check 33's population reader. Blinding it to the empty set takes
+    # `dap.capability_gates` under its floor and, with it, every direction check 33 reads
+    # between host/src and the ledger. Predicted 1; MEASURED below (259's rule).
+    "dap_capability_gates": 10,   # predicted 1, MEASURED 10 — 259's rule in public
+    # 🆕 278 — check 33's join reader. 🔴 THE ONE ROW HERE WHOSE BLAST EXISTS ONLY BECAUSE
+    # THE READER WAS CHANGED TO PRODUCE IT. Blinded to `([], 0)` its problems are empty and
+    # its comparisons are zero, so the radius is the joins floor — before this session the
+    # same blind had a radius of NOTHING and this gate said so. Predicted 1; MEASURED.
+    "dap_ledger_problems": 1,
+    # 🆕 278 — the arms enumerator. Blinded to `{}` it takes its own floor under AND
+    # empties the arm loop inside the join reader, so the radius is more than the one row
+    # it names. Predicted 1; MEASURED below.
+    "dap_ledger_arms": 3,   # predicted 1, MEASURED 3 — the prediction was written down so
+                            # the measurement could disagree with it in public (259). It
+                            # collapses TWO ledger rows, which is what the note above said
+                            # would happen and one more line than that note allowed for.
     # 🆕 261: 4 -> 9. Check 31 reads this roster to decide which tool a recipe names is
     # WITHHELD, so emptying it takes all five higher-trust entries in the guide's §10
     # declaration block into "declared but not privileged" at once. The row moved because

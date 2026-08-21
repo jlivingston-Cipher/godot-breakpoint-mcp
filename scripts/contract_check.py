@@ -310,8 +310,13 @@ CHECKS_EXPECTED = (
     # sides of three joins. 🔴 AND NO ROUND BRACKETS HERE EITHER — see the note above
     # this tuple; the roster is read out of this file with a lazy bracket group.
     "32",
+    # 🆕 278 — check 33, the observed-capability ledger. A member and not a roster gate:
+    # it asks what a REAL debug adapter advertised, which is the one question every other
+    # capability claim in this tree holds true on either side of. 🔴 AND NO ROUND
+    # BRACKETS HERE EITHER — see the note above this tuple.
+    "33",
 )
-CHECKS_RUN_FLOOR = 29   # measured: twenty-nine blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 30   # measured: thirty blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -5420,6 +5425,151 @@ print(f"Guide recipes          : "
       f"{len([t for t in _recipe_tools if t in _priv_named])} higher-trust")
 _ran("31")
 
+DAP_LEDGER_FILE = ROOT / "docs/dap_capability_ledger.json"
+DAP_CAPS_READ_RE = re.compile(r"capabilities(?:\?)?(?:\.)?\[\"([A-Za-z]+)\"\]")
+DAP_MODIFIER_CAPS_RE = re.compile(
+    r"BREAKPOINT_MODIFIER_CAPS[^=]*=\s*\{([^}]*)\}", re.S)
+
+
+def dap_capability_gates(root: Path = ROOT) -> "set[str]":
+    """Every adapter capability name `host/src` GATES A SHIPPED BEHAVIOUR ON, derived.
+
+    🔴 THE POPULATION IS THE WHOLE POINT AND IT MUST NOT BE A LIST. The typed list this
+    replaces lived in `gdscript-dap-plane.integration.mjs`, described itself as *the gates
+    the host reads*, and was wrong in BOTH directions: it named `supportsTerminateRequest`,
+    which `host/src` reads nowhere, and omitted `supportsConfigurationDoneRequest`, which
+    it does — so the count it printed included one thing that is not a gate and could not
+    include one that is. 276's finding, in the file that measures a live engine.
+
+    Two spellings, because there are two: a direct subscript of `capabilities`, and the
+    three reached indirectly through `BREAKPOINT_MODIFIER_CAPS`, whose VALUES are
+    capability names and whose keys are wire fields. A reader that took only the first
+    would miss exactly the three modifiers this session found dead.
+    """
+    names: "set[str]" = set()
+    for path in sorted((root / "host/src").rglob("*.ts")):
+        text = path.read_text()
+        names.update(DAP_CAPS_READ_RE.findall(text))
+        for m in DAP_MODIFIER_CAPS_RE.finditer(text):
+            names.update(re.findall(r":\s*\"([A-Za-z]+)\"", m.group(1)))
+    return names
+
+
+def dap_ledger_arms(ledger: dict) -> "dict[str, dict]":
+    """The per-engine-arm readings, as their own enumerator rather than a subscript.
+
+    🔴 A SUBSCRIPT IS NOT A POPULATION AND `scope_gate.py` REFUSED THE FIRST DRAFT FOR IT.
+    `dap.ledger_arms_read` was floored off `ledger["observed"]` read inline, so no blind in
+    the sweep could collapse it — `SCOPE_GATE_LEDGER_REACH`, a floor never tested against
+    the collapse it names. One line of reader, and the floor can fail.
+    """
+    return ledger.get("observed", {})
+
+
+def dap_ledger_problems(gates: "set[str]", ledger: dict,
+                        tools_text: str, probe_text: str) -> "tuple[list[str], int]":
+    """(problems, JOINS ACTUALLY COMPARED) over `docs/dap_capability_ledger.json`.
+
+    🔴 THE SECOND HALF IS NOT DECORATION AND `scope_gate.py` IS WHY. The first draft
+    returned problems alone, and blinding it to `[]` left check 33 GREEN — of course it
+    did: a reader whose only output is *what went wrong* says nothing when it is not
+    called, and on a healthy tree that is indistinguishable from saying nothing when it
+    is. `SCOPE_GATE_BLIND dap_ledger_problems -> []: the run is STILL GREEN`, on the run
+    that added it. So the reader counts its own work and `dap.ledger_joins_read` floors
+    it: 172 §6's one-number-per-population, and the only shape that makes a
+    problem-reporter's absence observable on a tree with no problems in it.
+    """
+    out: "list[str]" = []
+    joins = 0
+    declared = set(ledger.get("gated_on", []))
+    joins += len(gates | declared)
+    for name in sorted(gates - declared):
+        out.append(
+            f"`{name}` is read off `capabilities` in host/src and is NOT in the ledger's "
+            f"`gated_on`. A capability the host gates on and nothing has ever observed is "
+            f"the state this ledger exists to end — add it, with `unread` on every arm "
+            f"until a run reads it")
+    for name in sorted(declared - gates):
+        out.append(
+            f"the ledger's `gated_on` names `{name}` and nothing in host/src gates on it. "
+            f"A ledger row for a capability no shipped behaviour reads is the stale half "
+            f"of the same defect — put it in `observed_beside_the_gates` or delete it")
+    arms = dap_ledger_arms(ledger)
+    if not arms:
+        out.append("the ledger records no arm at all — `observed` is empty, and a ledger "
+                   "with no reading is a claim about nothing (274)")
+    for arm, row in sorted(arms.items()):
+        joins += len(declared | set(row))
+        missing, extra = declared - set(row), set(row) - declared
+        if missing:
+            out.append(f"arm {arm!r} has no reading for {sorted(missing)} — an arm short a "
+                       f"key reads as agreement with every other arm on a key it never had")
+        if extra:
+            out.append(f"arm {arm!r} records {sorted(extra)}, which is not in `gated_on`")
+    prov = ledger.get("read_from", {})
+    joins += 4
+    for field in ("workflow", "run", "commit", "read_on"):
+        if not str(prov.get(field, "")).strip():
+            out.append(f"the ledger's provenance carries no {field!r}. A number that names "
+                       f"no tree is a claim about nothing (274) — and this one names a RUN, "
+                       f"because the reading exists on CI and nowhere else")
+    dead = ledger.get("dead_surface", {})
+    says = str(dead.get("says", "")).strip()
+    if not says:
+        out.append("`dead_surface.says` is empty, so nothing joins the measurement to the "
+                   "descriptions and the say-so half of this check cannot fail")
+    for entry in dead.get("surfaces", []):
+        joins += 1
+        surface, cap = entry.get("surface", ""), entry.get("capability", "")
+        seen = {arm: row.get(cap) for arm, row in sorted(arms.items())}
+        if any(v == "unread" for v in seen.values()):
+            out.append(
+                f"DEAD_UNREAD `{surface}` is listed as dead surface on account of `{cap}`, which is "
+                f"`unread` on {[a for a, v in seen.items() if v == 'unread']}. NOT KNOWING "
+                f"IS NOT THE SAME AS ABSENT (271) — a surface cannot be called dead on a "
+                f"reading nobody has taken")
+        elif any(v != "absent" for v in seen.values()):
+            out.append(
+                f"DEAD_ALIVE `{surface}` is listed as dead surface and `{cap}` is observed "
+                f"{ {a: v for a, v in seen.items() if v != 'absent'} } — a capability that "
+                f"came ALIVE on a build. That is the good news this ledger was built to "
+                f"deliver: retire the row and take the sentence back out of the description")
+        elif says and says not in _dap_surface_text(surface, tools_text):
+            out.append(
+                f"DEAD_SILENT `{surface}` is dead on every arm and its own description does not say so. "
+                f"The ledger's sentence is {says!r} and a caller reads the description "
+                f"BEFORE choosing — that is the half 278 was asked to ship")
+    if "dap_capability_ledger.json" not in probe_text:
+        out.append("gdscript-dap-plane.integration.mjs does not read the ledger, so nothing "
+                   "on a live engine can contradict it — the only falsifier this file has "
+                   "runs there")
+    return out, joins
+
+
+def _dap_surface_text(surface: str, tools_text: str) -> str:
+    """The description a caller sees for one tool, or for one parameter of one tool.
+
+    A parameter's `.describe(..)` and its tool's `description:` are different strings in
+    the same block, and the say-so has to land on the one the caller is reading when they
+    choose that surface — so a parameter is sliced to its own `.describe(..)` line.
+
+    🔴 ADJACENT LITERALS ARE JOINED FIRST, AND THE CHECK REFUSED ITS OWN AUTHOR WITHOUT
+    IT. These descriptions are written as `"…this " + "project tests…"` across a line
+    break, so the sentence a caller reads does not occur anywhere in the source that
+    produces it — the first draft of check 33 reported two surfaces as silent whose
+    descriptions said exactly what it wanted, and would have gone on reporting any
+    sentence that happened to land on a wrap. The atom is the STRING, never its layout.
+    """
+    m = re.search(rf"registerTool\(\s*\"{re.escape(surface)}\"", tools_text)
+    if m:
+        brace = tools_text.index("{", m.end())
+        region = tools_text[brace:_match_braces(tools_text, brace)]
+    else:
+        m = re.search(rf"(?m)^\s+{re.escape(surface)}:\s*z\..*$", tools_text)
+        region = m.group(0) if m else ""
+    return re.sub(r"\"\s*\+\s*\"", "", region)
+
+
 # --- 32: THE BRANCHES THAT ANSWERED TO ENGLISH -----------------------------
 #
 # 🔴 268 — `dap-timeout-predicate-reads-prose`, and the row named two of the three sites.
@@ -5493,6 +5643,77 @@ print(f"Error-code discipline  : "
       f"{len(_host_origin_codes)} host-origin code(s) vs {len(addon_err_codes)} addon · "
       f"{len(_prose_problems)} problem(s)")
 _ran("32")
+
+
+# --- 33: WHAT A REAL ADAPTER ACTUALLY ADVERTISED ---------------------------
+#
+# 🔴 276 FOUND IT AND 278 MEASURED IT: `dap-capability-dead-surface`. Three GDScript
+# debugging tools refuse as unsupported on every Godot build this repository has ever
+# described, and until now nothing in this tree RECORDED the capability set of a real
+# adapter. The integration gate asserts a BICONDITIONAL — advertised implies it answers,
+# unadvertised implies it refuses by reason — which is true on either side of the
+# question, so eleven families of green said nothing about which side Godot is on.
+#
+# 🔴 AND THE MEASUREMENT IS WIDER THAN THE ROW. Read out of the post-merge integration
+# run at `0be54af`, both arms green: 4.3-stable and 4.7-stable advertise an IDENTICAL
+# set. The dead surface is SIX callable things, not three — the three tools, plus the
+# `conditions` / `hit_conditions` / `log_messages` modifiers on `dbg_set_breakpoints`,
+# which that run reports dropped on both arms.
+#
+# 🔴 THE TYPED LIST THAT STOOD IN FOR THIS WAS WRONG IN BOTH DIRECTIONS, which is why
+# `dap_capability_gates` derives the population and this check joins it to the ledger
+# rather than to a roster. It named `supportsTerminateRequest`, which host/src gates on
+# nothing, and omitted `supportsConfigurationDoneRequest`, which it does — so the live
+# gate's own message said *3 gate(s) the host reads* about two gates and one bystander,
+# and the one capability that had never been observed was the one nobody could see was
+# missing. 276's finding-to-carry, arriving in the row 276 opened.
+#
+# Five directions, and the interesting two are the ones that fire on GOOD news:
+#   • the population, host/src <-> `gated_on`, both ways;
+#   • every arm carries a reading for every gated capability — an arm short a key agrees
+#     with every other arm about a key it never had;
+#   • provenance: the workflow, the RUN and the commit the reading came from, because
+#     this evidence exists on CI and nowhere else and a number that names no tree is a
+#     claim about nothing (274);
+#   • a surface may not be called dead on an `unread` capability — not knowing is not the
+#     same as absent (271);
+#   • a surface called dead whose capability is observed PRESENT on some build, and a
+#     surface dead on every arm whose description does not say so. The first is a
+#     capability coming alive, which is what this ledger was built to catch; the second
+#     is the say-so half — a caller reads the description before choosing, and until 278
+#     the one description that named a version named 4.3 as the example, which read as
+#     though a newer build had filters. None does.
+_dap_gates = dap_capability_gates()
+_dap_ledger = json.loads(DAP_LEDGER_FILE.read_text()) if DAP_LEDGER_FILE.exists() else {}
+_dap_probe_text = (ROOT / "host/test-integration/gdscript-dap-plane.integration.mjs").read_text()
+_dap_problems, _dap_joins = dap_ledger_problems(
+    _dap_gates, _dap_ledger, (HOST_SRC / "tools/dap.ts").read_text(), _dap_probe_text)
+# 🔴 THE THREE DEAD-SURFACE VERDICTS GET THEIR OWN APPEND STATEMENTS, and the reason is
+# `control_gate.py` rather than taste: a control's fingerprint is matched against the
+# STRING CONSTANTS under an `errors.append`, so three classes funnelled through one
+# `f"check 33: {p}"` are one statement and cannot be told apart by three controls. The
+# prose stays in the reader, where it is testable; the discriminator lives here, where it
+# is addressable. Found on the first run of the controls that prove this check.
+for _p in _dap_problems:
+    if _p.startswith("DEAD_SILENT "):
+        errors.append(f"check 33: a dead surface whose own description does not say so — "
+                      f"{_p[len('DEAD_SILENT '):]}")
+    elif _p.startswith("DEAD_ALIVE "):
+        errors.append(f"check 33: a capability came ALIVE on a build — "
+                      f"{_p[len('DEAD_ALIVE '):]}")
+    elif _p.startswith("DEAD_UNREAD "):
+        errors.append(f"check 33: NOT KNOWING IS NOT THE SAME AS ABSENT — "
+                      f"{_p[len('DEAD_UNREAD '):]}")
+    else:
+        errors.append(f"check 33: {_p}")
+
+_dap_arms = dap_ledger_arms(_dap_ledger)
+_dap_dead = _dap_ledger.get("dead_surface", {}).get("surfaces", [])
+print(f"DAP capability ledger  : "
+      f"{len(_dap_gates)} gated capabilit(y/ies) derived from host/src · "
+      f"{len(_dap_arms)} arm(s) read · {len(_dap_dead)} dead surface(s) · "
+      f"{_dap_joins} join(s) compared · {len(_dap_problems)} problem(s)")
+_ran("33")
 
 
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
@@ -6254,6 +6475,23 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 the (file, copy) pairs actually compared collapsed. This is the population the "
      "comparison READS; `copies_compared` counts only the files, and a file present in two "
      "copies looks identical to a file present in three"),
+    # 🆕 278 — check 33's two populations. The first is DERIVED from host/src and is the
+    # one 276's finding is about: a typed list stood here and was wrong in both
+    # directions, so a floor on the derived count is what stops the derivation quietly
+    # returning nothing and check 33 finding no disagreement with an empty set.
+    ("dap.capability_gates", len(_dap_gates), 8,
+     "🔴 the walk that derives which adapter capabilities host/src gates on collapsed, so "
+     "check 33 compares an EMPTY population to the ledger and every direction agrees. "
+     "This is the population, not the answer — it is what the typed list got wrong"),
+    ("dap.ledger_joins_read", _dap_joins, 30,
+     "🔴 check 33's reader stopped COMPARING. A join reader whose only other output is "
+     "`what went wrong` is silent on a healthy tree whether it ran or not — this is the "
+     "number that tells the two apart, and scope_gate proved it necessary by blinding "
+     "the reader to `[]` and watching the check stay green"),
+    ("dap.ledger_arms_read", len(_dap_arms), 2,
+     "🔴 the ledger stopped carrying a reading per engine arm. One arm cannot disagree "
+     "with another, and this evidence exists only on CI — an empty `observed` makes the "
+     "live gate's ledger join vacuous on every build"),
     ("addon.copies_compared", len(addon_copy_compared), 10,
      "🔴 the cross-copy walk stopped finding files that exist in more than one addon "
      "copy, so 'all copies agree' is being said about a population of one. The drift it "

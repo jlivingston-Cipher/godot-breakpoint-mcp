@@ -139,7 +139,22 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // and this raise is input-side — from 468 to 472 against a ceiling of 490, which is the
 // first time that number has moved since it was written. It is still inside its own
 // budget and it is still the one number a competitive claim may honestly quote.
-export const BYTES_CEILING = 367616;
+//
+// 🆕 278 — RAISED, AND WHAT BOUGHT IT IS A PRODUCT DECISION RATHER THAN A FEATURE. Six
+// shipped surfaces on the GDScript debug plane — `dbg_goto`, `dbg_data_breakpoints`,
+// `dbg_set_exception_breakpoints`, and the `conditions` / `hit_conditions` /
+// `log_messages` modifiers on `dbg_set_breakpoints` — are gated on adapter capabilities
+// that NO Godot build this project tests advertises. 278 measured that off the live
+// integration runs on 4.3-stable and 4.7-stable (`docs/dap_capability_ledger.json`) and
+// the maintainer chose to say so in each description, where a caller reads it before
+// choosing, rather than leave the measurement in a file only this repository reads.
+//
+// 🔴 THE COST IS THE POINT AND NOT AN ACCIDENT: a description is the tool surface, so
+// honesty about six dead surfaces is paid for in the same bytes a feature would spend.
+// Surface went 367,602 -> 369,157 B, or **0.42%**. Set at the live value plus fourteen
+// bytes, on 267's rule — a ceiling with slack in it is a budget the next session spends
+// without deciding to.
+export const BYTES_CEILING = 369171;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

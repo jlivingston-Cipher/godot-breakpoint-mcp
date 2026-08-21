@@ -448,6 +448,24 @@ jobs:
       # and it was the first thing in 743 tests to ask for the build.
       - name: Build the product the tests are about to run
         run: npm run build
+      # 🆕 278 — AND STAGE THE ADDON, BECAUSE THIS JOB'S OWN GATES READ THE TARBALL.
+      #
+      # 🔴 THE FIRST RUN OF THIS PR REFUSED HERE AND NOWHERE ELSE, which is 278's whole
+      # subject arriving on 278's own PR. `release_names.py --assert-map` is a B:live axis
+      # of the `release_names.py (--assert-addon)` instrument, and it reads the packed
+      # tarball — whose `addon` root does not exist on a fresh clone until `stage-addon`
+      # writes it (276's rule, already written down). The `build` job stages and this one
+      # did not, so the unmutated control passed on a container that had run the ritual by
+      # hand and failed on the machine that gates the merge: `CONTROL FAILED — the
+      # unmutated gate does not pass`, three legs, no local run able to see it.
+      #
+      # 🔵 STAGING HERE RATHER THAN RETREATING FROM THE AXIS is the fix that makes the two
+      # machines agree. The alternative — declaring the axis unavailable — would have
+      # bought a green by writing down that this job cannot do something it can do in one
+      # step. 277's rule said budget for one red CI run when sweeping a file that reads
+      # git; this is the same rule for a file that reads a BUILT ARTEFACT.
+      - name: Stage the addon the tarball readers expect
+        run: npm run stage-addon
       - name: Compile the suite and run it (node:test)
         shell: bash
         run: npm test 2>&1 | tee -a "$CI_MEASURED_LOG"

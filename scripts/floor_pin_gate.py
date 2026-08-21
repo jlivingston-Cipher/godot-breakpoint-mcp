@@ -335,7 +335,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # surface down rather than the other way round. `TOOL_FLOOR` is the usual collapse
     # guard — a reader listing zero tools would otherwise report a wonderfully small
     # surface and pass.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )367616;",                  [f"{S}/token-cost.selftest.mjs"]),
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )369171;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
@@ -1207,7 +1207,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (29, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (30, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1245,7 +1245,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "close the row about a shipped branch selected by a regex over an error message "
         "— the check asks, in three joins, whether behaviour is chosen by a FIELD or by a "
         "sentence, and it found a third site the row had not named, one whose blast radius "
-        "is the retry caveat on every non-idempotent tool.")),
+        "is the retry caveat on every non-idempotent tool. 🆕 278 — RAISED BY ONE A "
+        "FOURTH TIME, and the ledger row is where a deliberate raise is told from a "
+        "check that quietly went missing: check thirty-three closes "
+        "`dap-capability-dead-surface`, opened at 276 — what a REAL Godot debug "
+        "adapter advertised, which is the one question every other capability claim "
+        "in this tree holds true on either side of")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "
