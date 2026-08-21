@@ -410,6 +410,40 @@ def _selftest() -> int:
     print(f"  {'🟢' if ok else '🔴'} {'--recover returns UNCOMMITTED work a gate ate':<52} "
           f"exit={code} a.txt={(t / 'a.txt').read_text().strip()!r}")
 
+    # ── 🆕 277 §4 — AND THE WINDOW IN WHICH THAT ONLY COPY DID NOT EXIST ───────────────
+    #
+    # 🔴 THE ROW THAT WAS OPEN PRICED THE WRONG WRITE. `mutating-gate-writes-not-atomic`
+    # (272) is about a torn MUTANT, and the row above proves a torn mutant is recoverable
+    # on both routes. The write that could actually lose bytes is `_gate_lock._stash`'s
+    # own: it cleared `STASH_DIR` and then re-filled it, so a kill in between left the
+    # developer's uncommitted work in no copy at all — not in git, which holds the
+    # committed bytes, and not in a stash that had just been deleted.
+    #
+    # 🔴 DRIVEN, AND THE DRIVER IS A RE-STASH WHOSE COPY FAILS. That is the window made
+    # observable: under the old ordering the directory was cleared FIRST, so a copy that
+    # never completed left the bytes in no copy at all — not in git, which holds the
+    # committed version, and not in a stash that had just been deleted. The assertion is
+    # on the STASH DIRECTORY rather than on `--recover`, because `--recover` reading the
+    # bytes back is the row above and this is the row about whether they are still there.
+    # 🔴 AND `STRAY` IS THE SECOND HALF: a `.new` left behind by the failed copy would
+    # accumulate one file per killed run, which is the fix leaking where the defect used
+    # to delete.
+    t = _fixture(dirty={"a.txt": "my own work\n"})
+    src = ("import sys, os, glob, hashlib, shutil; sys.path.insert(0, 'scripts'); "
+           "import _gate_lock as g; b = g._dirty(); g._stash(b); "
+           "shutil.copyfile = lambda *a, **k: (_ for _ in ()).throw(OSError('killed')); "
+           "g._stash(b); "
+           "n = hashlib.sha256(b'a.txt').hexdigest()[:24]; "
+           "p = os.path.join('.gate_mutation.d', n); "
+           "print((open(p).read().strip() if os.path.exists(p) else 'GONE'), end=''); "
+           "print('|STRAY=' + str(len(glob.glob('.gate_mutation.d/*.new'))))")
+    r = subprocess.run([sys.executable, "-c", src], cwd=str(t), capture_output=True,
+                       text=True, env=dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null"))
+    ok = r.stdout.strip() == "my own work|STRAY=0"
+    bad += 0 if ok else 1
+    print(f"  {'🟢' if ok else '🔴'} {'a RE-STASH never leaves the bytes in no copy':<52} "
+          f"got={r.stdout.strip()[:46]!r}")
+
     # 🔴 `repairing` IS MORE EXCLUSION AND NOT LESS, AND THIS IS THE ROW THAT SAYS SO.
     # `--recover` skips the unrestored refusal; if it also skipped the LOCK it would put
     # bytes back underneath a gate that is mid-mutation and destroy that gate's own
