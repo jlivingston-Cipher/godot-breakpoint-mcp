@@ -5,8 +5,8 @@
 
   "read_from": {
     "workflow": "integration",
-    "run": "32465043372",
-    "commit": "0be54af515af09be440677a0f17a2167c0996af4",
+    "run": "32523483088",
+    "commit": "7af276b6e367d2da498895debeb23449421cfbb9",
     "read_on": "2026-08-21",
     "job": "GDScript DAP plane vs real adapter (headless)",
     "marker": "GD_DAP_CAPS"
@@ -16,7 +16,7 @@
     "true": "the adapter's `initialize` response advertises this and it is true",
     "false": "the adapter advertises this and it is FALSE - a different fact from not advertising it",
     "absent": "the response carries no such key at all",
-    "unread": "no integration run has ever read this key on this arm. NOT the same as absent, and the difference is the whole reason this value exists - 271's rule that a reader's silence is not an answer"
+    "unread": "no integration run has ever read this key on this arm. NOT the same as absent, and the difference is the whole reason this value exists - 271's rule that a reader's silence is not an answer. The file shipped with exactly one such key and the first run after it merged filled it: `supportsConfigurationDoneRequest` is gated on in `dap.ts` and was missing from the typed list this ledger replaced, so no run had ever looked. It is true on both arms."
   },
 
   "gated_on": [
@@ -35,7 +35,7 @@
     "4.3-stable": {
       "exceptionBreakpointFilters": "absent",
       "supportsConditionalBreakpoints": "absent",
-      "supportsConfigurationDoneRequest": "unread",
+      "supportsConfigurationDoneRequest": true,
       "supportsDataBreakpoints": "absent",
       "supportsGotoTargetsRequest": "absent",
       "supportsHitConditionalBreakpoints": "absent",
@@ -46,7 +46,7 @@
     "4.7-stable": {
       "exceptionBreakpointFilters": "absent",
       "supportsConditionalBreakpoints": "absent",
-      "supportsConfigurationDoneRequest": "unread",
+      "supportsConfigurationDoneRequest": true,
       "supportsDataBreakpoints": "absent",
       "supportsGotoTargetsRequest": "absent",
       "supportsHitConditionalBreakpoints": "absent",

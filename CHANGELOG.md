@@ -34,6 +34,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   advertised implies it answers, unadvertised implies it refuses by reason — which is true
   on either side of the question, so eleven families of green said nothing about which side
   Godot is on. `unread` is a value in that file and is not the same as `absent`.
+- **The one key nothing had ever read is read.** `supportsConfigurationDoneRequest` is
+  gated on in `dap.ts` and was missing from the typed list the ledger replaced, so no run
+  had ever looked at it. The ledger shipped carrying it as `unread`, and the first
+  integration run after that merge reported it **true on both arms**. It is written down
+  now — which is the whole mechanism working once, end to end, on the machine that holds
+  the evidence.
 - **Contract check 33** joins the ledger to `host/src` in both directions over a **derived**
   population, refuses a surface called dead on a capability nobody has read, refuses one
   whose capability has come **alive** on some build, and refuses a dead surface whose own
