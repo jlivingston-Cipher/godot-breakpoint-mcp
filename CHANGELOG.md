@@ -6,11 +6,51 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the version every client is told is now read, not written
+
+- **`serverInfo.version` is `packageVersion()`.** The version the server announces at
+  `initialize` was the one place in `host/src` where a version was a literal, while
+  `--version`, `lsp.ts`'s `clientInfo` and `cslsp.ts`'s all read it from `package.json`. It was
+  correct at 1.82.0 and it was correct only because a release checklist said so — which is the
+  arrangement `version.ts` was written to argue against, after twenty-odd releases in which
+  `lsp.ts` and `cslsp.ts` told every language server they met that they were `0.2.0`. Check 14
+  no longer carries the site; it walks `host/src` and refuses **any** `{ name, version: "…" }`
+  literal, which covers the two fields the original incident was actually about. **A release
+  bump is now four files, not five.**
+
 ### Internal — the run that produced the numbers, and whether it passed
 
 Nothing in this section changes anything an installer of the package can observe; it is the
 handoff, queue and CI apparatus.
 
+- 🔴 **The catalog's `Status` column said ✅ about ten tools that answer "unsupported".** It was
+  the last of the Tool Index's four columns with no reader and the only one with no stated
+  predicate at all — a glyph with no rule and nothing in the code to disagree with. Its
+  counterpart is the graceful-degradation answer a tool gives when it feature-detects a
+  capability the connected engine, language server or debug adapter does not have, and that
+  answer has **four** spellings in this tree: two generic helpers, two zero-argument ones, and
+  six inline returns across the two debug-adapter planes. Check 4e reads the ⚠️ against all four,
+  in both directions, on the Tool Index **and** on each tool's own section heading — and the ten
+  rows it reddened are corrected. The sharpest was `dbg_goto`, whose own section says in prose
+  that *no Godot build advertises `supportsGotoTargetsRequest`*, four hundred lines from a column
+  that said the tool works.
+- 🔴 **A join named after a function is a claim about that function.** The row this closes was
+  opened against a measurement that found **four** wrong rows by comparing the column to
+  `unsupportedLsp` by name. The predicate that helper implements is spelled three other ways, and
+  the real count was ten. The reader's atom is the MESSAGE now, which every spelling shares, and
+  a degradation message it cannot attribute to a registered tool is a refusal rather than a
+  silence.
+- 🔴 **The release classifier asked what our source did and never what the toolchain did.**
+  `wire_diff.mjs` compiles the baseline against *this* tree's `node_modules` on purpose, so a
+  schema moved by a dependency cancels on both sides and reads as PATCH — which its own header
+  had named as the reason to read the wire at all. It builds a **second** baseline now, against
+  the baseline's own lockfile, and classifies the same source under two resolutions; check 8
+  reads both lines and floors the bump at the worse of them, because a release is a statement
+  about the public API whichever of the two moved it. The atom is the **resolution**, never the
+  lockfile: the root package's own version moves at every cut, and a file-level diff would report
+  a toolchain change at every release and be read at none of them. Measured across
+  `v1.79.0 -> HEAD`, five dependencies moved — including the SDK and a major of
+  `@hono/node-server` — and the wire did not move at all. That sentence could not be said before.
 - 🔴 **The workflow file GitHub would not parse, and the three readers that now cover it.**
   The capture the next section describes was written with `${{ runner.temp }}` in a job-level
   `env:`. A job's environment is evaluated before a runner is assigned, so `runner` is not among

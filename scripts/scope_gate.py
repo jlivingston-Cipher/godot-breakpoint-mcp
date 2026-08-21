@@ -96,6 +96,13 @@ EMPTY: dict[str, str] = {
     # a count beside its list for exactly the reason 172 gave `uncaptured_tool_registrations`
     # one: an empty list means *nothing unanswered* and *did not look* identically.
     "tuple[list[tuple[str, int, str]], int]": "([], 0)",
+    # 🆕 276 — (names, message sites, sites this walk could not attribute). The SIXTH
+    # session running to add a shape this table could not spell, and the sixth where the
+    # row costs one line — 255 asked for a stronger statement than "add the row", and
+    # this is what remembering it in the same edit looks like. The third return is 267's
+    # reason again one plane over: a degradation message the walk cannot read is ABSENT,
+    # and absent is byte-identical to a tree that degrades nowhere.
+    "tuple[set[str], int, list[str]]": "(set(), 0, [])",
     "tuple[list[str], list[tuple[Path, int, int, str]], int]": "([], [], 0)",
     # 🆕 222 — `toolset_claims` grew a fourth return so check 25 can subtract what it
     # resolved at (file, line, VALUE) rather than at (file, line). Without the row the
@@ -233,6 +240,24 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # loud in check 4 when that pattern dies — so only the ATOM is its own. A row named
     # after a population it does not actually collapse reads as covered and is not.
     "catalog_index_planes": ("catalog.plane_atoms",),
+    # 🆕 276 — THE STATUS GLYPH, AND 253's ARGUMENT FOR NAMING ONE POPULATION HOLDS HERE
+    # TOO. The names come off `CATALOG_ROW_RE` — already floored as `catalog.index_tools`
+    # and already loud in check 4 when that pattern dies — so only the ⚠️ is this
+    # reader's own.
+    "catalog_index_status": ("catalog.status_caveated",),
+    # 🆕 276 — the heading half. It comes off `CATALOG_HEADING_RE`, whose name side is
+    # floored as `catalog.sections_read` on `catalog_heading_rows` above, so the glyph is
+    # again the only population this reader collapses alone.
+    "catalog_heading_status": ("catalog.heading_status",),
+    # 🆕 276 — ONE READER, TWO POPULATIONS, and 251's rule for which ones. The tool names
+    # and the message-site count are two different collapses of the same walk: the names
+    # die when attribution breaks, the sites die when the house phrase is reworded, and a
+    # row naming only one of them reads as covered and is not.
+    "degrading_tools": ("code.degrade_paths", "code.degrade_sites"),
+    # 🆕 276 — check 14's complement. The OFFENCE list is empty on a healthy tree, so
+    # blinding it changes no finding; what it collapses is the walk, and the ledger row
+    # is the only thing that can tell "nothing hardcoded" from "did not look".
+    "hardcoded_info_versions": ("versions.info_files_scanned",),
     "catalog_json_blocks": ("catalog.json_blocks",),
     # 🆕 254 — ONE READER, TWO POPULATIONS, and 251's rule for which ones. The rows and
     # the tool references both come off this one match, so the map names both. The
@@ -398,6 +423,20 @@ BLAST: dict[str, int] = {
     # subsumed, because an empty heading set makes the symmetric difference the whole
     # index set on one line.
     "catalog_heading_rows": 4,                # also: check 4c (sections + glyphs)
+    # 🆕 276 — check 4e's three, measured rather than predicted. The two DOCUMENT readers
+    # cost the same three lines each and for the same reason: the column's own direction,
+    # the index/heading cross-check that now has one side saying nothing, and the ledger
+    # row. The CODE reader is one wider — it collapses two populations, so its ledger
+    # reddens twice beside the two over-marking lines it produces on both doc copies.
+    "catalog_index_status": 3,                # also: 4e's index/heading cross-check
+    "catalog_heading_status": 3,              # also: 4e's index/heading cross-check
+    "degrading_tools": 4,                     # also: 4e's heading half + two ledger rows
+    # 🆕 276 — ONE, AND THE SMALLEST RADIUS ON THIS TABLE IS AGAIN THE HONEST NUMBER.
+    # The finding this reader produces is EMPTY on a healthy tree, so a blind cannot
+    # take a refusal away — it can only take the walk away, and the ledger row is the
+    # whole of what reddens. A reader whose blast radius is its ledger row alone is
+    # exactly the reader 197 §4 built the ledger comparison for.
+    "hardcoded_info_versions": 1,             # also: nothing — its own ledger row
     # 🆕 253 — ONE, AND THE SMALLEST RADIUS ON THIS TABLE IS THE HONEST NUMBER HERE.
     # Blinding the plane reader empties the atoms and 4d names every registered tool on
     # ONE line — its own. It cannot reach the index/heading comparisons, because the
@@ -486,7 +525,12 @@ BLAST: dict[str, int] = {
     # readers each name one more line when the registry is emptied under them. The radius
     # moved because the SURFACE moved, which is the other way this number changes and the
     # rarer one — declared in the commit that moved it, not discovered by a later run.
-    "registered_tools": 86,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d
+    # 🆕 276: 86 -> 90. Check 4e joins the catalog's `Status` column to the code in both
+    # directions on BOTH doc copies, and every one of its four comparisons is intersected
+    # with this roster — so emptying the registry silences all four and collapses the two
+    # new catalog populations with them. The radius moved because a NEW check started
+    # reading this reader, 255's shape exactly, declared in the commit that moved it.
+    "registered_tools": 90,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the

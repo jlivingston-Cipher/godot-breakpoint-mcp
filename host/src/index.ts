@@ -17,6 +17,7 @@ import { applyWireDefaults } from "./wire-defaults.js";
 import { applyOutputSchemas } from "./schemas.js";
 import { applyAnnotations } from "./annotations.js";
 import { applyTimeoutCaveat } from "./timeout-caveat.js";
+import { packageVersion } from "./version.js";
 import {
   applyCapabilities,
   applyDroppedToolRefusal,
@@ -95,8 +96,15 @@ async function main(): Promise<void> {
   // so long jobs (export/import/headless script) support poll/await/cancel.
   // D3: also advertise resources.subscribe so clients can subscribe to
   // godot://… resources and receive notifications/resources/updated.
+  // 🔴 READ, NEVER WRITTEN HERE (#248, twenty-eight sessions). This is the version every
+  // connected client is told at `initialize`, and it was the ONE place in host/src where
+  // a version was a literal — while `--version`, `lsp.ts`'s clientInfo and `cslsp.ts`'s
+  // all call `packageVersion()`. `version.ts` says why in its own words: the best
+  // outcome is not a gated literal but no literal at all, and the incident it documents
+  // is this exact field — twenty-odd releases announcing 0.2.0 to every language server
+  // they met, because a literal nobody compares to anything cannot go stale loudly.
   const server = new McpServer(
-    { name: "breakpoint-mcp", version: "1.82.0" },
+    { name: "breakpoint-mcp", version: packageVersion() },
     { capabilities: { ...TASK_CAPABILITIES, ...RESOURCE_CAPABILITIES }, taskStore },
   );
 

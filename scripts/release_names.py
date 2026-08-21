@@ -363,6 +363,10 @@ C8_OK = "C8_OK"
 C8_BENEATH = "C8_BENEATH"
 C8_UNREACHABLE = "C8_UNREACHABLE"
 C8_NOT_A_VERDICT = "C8_NOT_A_VERDICT"
+# 🆕 276 — the classifier answered about OUR source and said nothing about the
+# toolchain. A reading with one of its two comparisons missing is #256's blind
+# wearing a green verdict, and this refuses it rather than averaging over it.
+C8_TOOLCHAIN_UNREAD = "C8_TOOLCHAIN_UNREAD"
 
 # PATCH < MINOR < MAJOR. The rank is `wire_diff.mjs`'s own, restated here because the
 # two files cannot import each other across the language boundary — and the round trip
@@ -370,7 +374,8 @@ C8_NOT_A_VERDICT = "C8_NOT_A_VERDICT"
 WIRE_RANK = {"PATCH": 0, "MINOR": 1, "MAJOR": 2}
 
 
-def wire_floor(wire: str | None, bump: str) -> tuple[str, str, dict]:
+def wire_floor(wire: str | None, bump: str,
+               toolchain: "str | None" = "PATCH") -> tuple[str, str, dict]:
     """Check 8, PURE: may this bump be claimed over what the wire actually did?
 
     🔴 A FLOOR, NOT AN EQUALITY, AND THE ASYMMETRY IS THE DESIGN. Claiming LESS than
@@ -385,7 +390,7 @@ def wire_floor(wire: str | None, bump: str) -> tuple[str, str, dict]:
     will not build is not evidence that the public API held still"* — and this is that
     sentence with an exit code behind it.
     """
-    d = {"wire": wire, "bump": bump,
+    d = {"wire": wire, "bump": bump, "toolchain": toolchain,
          "rank_wire": WIRE_RANK.get(wire or ""), "rank_bump": WIRE_RANK.get(bump)}
     if wire is None:
         return C8_UNREACHABLE, (
@@ -394,6 +399,37 @@ def wire_floor(wire: str | None, bump: str) -> tuple[str, str, dict]:
             "builds, and a CURRENT build at host/dist — run `npm run build` before "
             "the cut. A release that cannot say what its public API did is not a "
             "release anybody can size."), d
+    # 🆕 276 — #256, NINETEEN SESSIONS. `wire_diff.mjs` borrows THIS tree's node_modules
+    # for the baseline on purpose, so the reading above is a statement about our SOURCE
+    # and a dependency that moved the wire cancels on both sides of it. The classifier
+    # answers both questions now, and a release is a statement about the public API
+    # whichever of the two moved it — so the floor is the WORSE of the two, and a
+    # classifier that did not answer the second one is refused rather than believed.
+    if toolchain is None:
+        return C8_TOOLCHAIN_UNREAD, (
+            "🔴 check 8 read a wire verdict and NO toolchain verdict. The classifier "
+            "isolates our source change by compiling the baseline against today's "
+            "node_modules, so a schema moved by a DEPENDENCY cancels on both sides and "
+            "reads as PATCH — which is #256 exactly. A reading missing its second half "
+            "is not a smaller reading, it is the blind one. `wire_diff.mjs` must print "
+            "`WIRE_TOOLCHAIN`; if it did not, its output format has moved."), d
+    # 🔴 AND THE VOCABULARY IS CHECKED BEFORE THE RANK, WHICH THIS TABLE HAD TO TEACH
+    # THE AUTHOR ON THE FIRST RUN. The draft read `toolchain in WIRE_RANK` as the guard
+    # on the comparison, so a toolchain verdict this reader cannot parse fell past it in
+    # silence and the cut passed on the source half alone — an unparseable answer treated
+    # as a passing one, in the check whose own C8_NOT_A_VERDICT exists to refuse exactly
+    # that. The sixth session running in which a fixture beat the author.
+    if toolchain not in WIRE_RANK:
+        return C8_NOT_A_VERDICT, (
+            f"🔴 check 8 read toolchain verdict {toolchain!r}, which is not a verdict this "
+            f"reader knows ({sorted(WIRE_RANK)}). `wire_diff.mjs`'s `WIRE_TOOLCHAIN` line "
+            f"has moved, or the parse did — and an unparseable second half is the blind "
+            f"reading wearing a green one."), d
+    if wire in WIRE_RANK and WIRE_RANK[toolchain] > WIRE_RANK[wire]:
+        wire = toolchain
+        d["wire"] = wire
+        d["rank_wire"] = WIRE_RANK[wire]
+        d["from_toolchain"] = True
     if wire not in WIRE_RANK or bump not in WIRE_RANK:
         return C8_NOT_A_VERDICT, (
             f"🔴 check 8 read {wire!r} against bump {bump!r} and one of them is not a "
@@ -860,6 +896,11 @@ def raw_window(previous: str, root: Path = ROOT, head: str = "HEAD") -> str:
 # emitted line through it rather than trusting a literal — `TAG_DECL_RE`'s argument,
 # across a language boundary this time.
 WIRE_VERDICT_RE = re.compile(r"^WIRE_VERDICT\s+([A-Z]+)\s*$", re.M)
+# 🆕 276 — THE SECOND LINE, IN THE SAME VOCABULARY AND WITH ITS OWN POPULATION BESIDE IT.
+# `deps=` is the number of dependencies whose RESOLUTION moved across the window; a
+# verdict with no population behind it cannot tell "the toolchain moved nothing" apart
+# from "nothing asked".
+WIRE_TOOLCHAIN_RE = re.compile(r"^WIRE_TOOLCHAIN\s+([A-Z]+)\s+deps=(\d+)\s*$", re.M)
 WIRE_DIFF_REL = "scripts/wire_diff.mjs"
 
 # 🔴 GENEROUS, AND IT IS NOT A GUESS. The classifier checks out the baseline into a
@@ -872,8 +913,10 @@ WIRE_TIMEOUT_S = 900
 
 
 def wire_read(previous: str, root: Path = ROOT,
-              timeout: int = WIRE_TIMEOUT_S) -> tuple[str | None, str]:
-    """Run the classifier against v{previous} and read its verdict. (verdict, transcript).
+              timeout: int = WIRE_TIMEOUT_S) -> "tuple[str | None, str | None, str]":
+    """Run the classifier against v{previous} and read BOTH verdicts.
+
+    Returns (source verdict, toolchain verdict, transcript).
 
     🔴 NONE IS THE HONEST ANSWER FOR EVERY WAY THIS CAN FAIL, and `wire_floor` turns
     every one of them RED. A baseline that will not build, a missing current build, a
@@ -886,15 +929,16 @@ def wire_read(previous: str, root: Path = ROOT,
         r = subprocess.run(cmd, cwd=str(root / "host"),
                            capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return None, (f"$ {' '.join(cmd)}\n🔴 TIMED OUT after {timeout}s — the baseline "
-                      f"build or one of the two servers never finished.")
+        return None, None, (f"$ {' '.join(cmd)}\n🔴 TIMED OUT after {timeout}s — the baseline "
+                            f"build or one of the two servers never finished.")
     except OSError as e:                                    # node absent, cwd gone
-        return None, f"$ {' '.join(cmd)}\n🔴 could not run it: {e}"
+        return None, None, f"$ {' '.join(cmd)}\n🔴 could not run it: {e}"
     transcript = f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}".rstrip()
     if r.returncode != 0:
-        return None, transcript
+        return None, None, transcript
     m = WIRE_VERDICT_RE.search(r.stdout)
-    return (m.group(1) if m else None), transcript
+    tc = WIRE_TOOLCHAIN_RE.search(r.stdout)
+    return (m.group(1) if m else None), (tc.group(1) if tc else None), transcript
 
 
 def engines_window(previous: str, root: Path = ROOT,
@@ -1299,19 +1343,33 @@ MAJOR_SELFTEST = [
 # can fail to answer — a baseline that will not build, no current build, a timeout, node
 # missing — and a reader that treated any of them as PATCH would be exactly the state
 # this check was written to end: a green line answering a smaller question.
+# (name, wire, bump, toolchain, expected code). 🆕 276 — the fourth column is the
+# toolchain reading; `"PATCH"` is *asked and told nothing*, which is what every row
+# written before 276 meant by saying nothing at all.
 C8_SELFTEST = [
-    ("PATCH claimed, wire held still — the ordinary green", "PATCH", "PATCH", C8_OK),
-    ("MINOR claimed, wire added surface", "MINOR", "MINOR", C8_OK),
+    ("PATCH claimed, wire held still — the ordinary green", "PATCH", "PATCH", "PATCH", C8_OK),
+    ("MINOR claimed, wire added surface", "MINOR", "MINOR", "PATCH", C8_OK),
     ("🔴 1.74.0 — MINOR CLAIMED, WIRE SAID MAJOR. THE CUT THIS CHECK EXISTS FOR",
-     "MAJOR", "MINOR", C8_BENEATH),
+     "MAJOR", "MINOR", "PATCH", C8_BENEATH),
     ("🔴 PATCH claimed, wire added surface — a MINOR under a PATCH name",
-     "MINOR", "PATCH", C8_BENEATH),
+     "MINOR", "PATCH", "PATCH", C8_BENEATH),
     ("ABOVE the wire is LEGAL — a MINOR whose schemas did not move",
-     "PATCH", "MINOR", C8_OK),
-    ("ABOVE by two — a MAJOR the classifier cannot see (engines)", "PATCH", "MAJOR", C8_OK),
-    ("🔴 UNREACHABLE IS RED, NOT A SKIP", None, "PATCH", C8_UNREACHABLE),
-    ("🔴 AN UNPARSEABLE ANSWER IS NOT A PASSING ONE", "PROBABLY", "PATCH",
+     "PATCH", "MINOR", "PATCH", C8_OK),
+    ("ABOVE by two — a MAJOR the classifier cannot see (engines)", "PATCH", "MAJOR", "PATCH", C8_OK),
+    ("🔴 UNREACHABLE IS RED, NOT A SKIP", None, "PATCH", "PATCH", C8_UNREACHABLE),
+    ("🔴 AN UNPARSEABLE ANSWER IS NOT A PASSING ONE", "PROBABLY", "PATCH", "PATCH",
      C8_NOT_A_VERDICT),
+    # 🆕 276 — #256's OWN SHAPE, AS A ROW. Our source moved nothing and the DEPENDENCY
+    # took the wire to MAJOR; before this session the cut was sized off the first
+    # number alone and the second was never asked.
+    ("🔴 #256 — OUR SOURCE HELD STILL AND THE TOOLCHAIN DID NOT",
+     "PATCH", "PATCH", "MAJOR", C8_BENEATH),
+    ("a toolchain MINOR a MINOR bump already covers", "PATCH", "MINOR", "MINOR", C8_OK),
+    ("the worse of the two wins, and it can be OURS", "MAJOR", "MAJOR", "PATCH", C8_OK),
+    ("🔴 A READING WITH ONE COMPARISON MISSING IS THE BLIND ONE",
+     "PATCH", "PATCH", None, C8_TOOLCHAIN_UNREAD),
+    ("🔴 AN UNPARSEABLE TOOLCHAIN ANSWER IS NOT A PASSING ONE",
+     "PATCH", "PATCH", "PROBABLY", C8_NOT_A_VERDICT),
 ]
 
 
@@ -1548,11 +1606,11 @@ def selftest() -> int:
         bad += 1
 
     print("\n  CHECK 8 — the wire, and the bump it is a statement ABOUT (🆕 227)")
-    for name, wire, bump, want_code in C8_SELFTEST:
-        code, why, d = wire_floor(wire, bump)
+    for name, wire, bump, toolchain, want_code in C8_SELFTEST:
+        code, why, d = wire_floor(wire, bump, toolchain)
         agree = code == want_code
         print(f"  {'🟢' if agree else '🔴'} {code:<22} wire={str(wire):<9} "
-              f"bump={bump:<6} {name}")
+              f"tool={str(toolchain):<9} bump={bump:<6} {name}")
         if not agree:
             bad += 1
             print(f"        want {want_code} · got {code} — {why}")
@@ -1575,6 +1633,25 @@ def selftest() -> int:
           f"`{WIRE_DIFF_REL}` actually PRINTS is the line `WIRE_VERDICT_RE` reads back. "
           f"A classifier whose output format moves must redden HERE, not at a cut.")
     if not emitter_ok:
+        bad += 1
+
+    # 🆕 276 — THE SAME ROUND TRIP FOR THE SECOND LINE, AND IT IS NOT OPTIONAL BECAUSE
+    # THIS ONE'S FAILURE IS SILENT IN A WAY THE FIRST'S IS NOT. A `WIRE_VERDICT` that
+    # stops parsing reads as UNREACHABLE and the cut refuses. A `WIRE_TOOLCHAIN` that
+    # stops parsing would read as C8_TOOLCHAIN_UNREAD — a refusal only because 276 made
+    # it one, and the entire reason that code exists rather than a default of "PATCH".
+    tool_ok = False
+    if wd.exists():
+        m = re.search(r'console\.log\(`(WIRE_TOOLCHAIN [^`]+)`\)', wd.read_text())
+        if m:
+            sample = (m.group(1).replace("${toolWorst}", "MINOR")
+                                .replace("${drift.length}", "3"))
+            hit = WIRE_TOOLCHAIN_RE.search(sample)
+            tool_ok = hit is not None and hit.group(1) == "MINOR" and hit.group(2) == "3"
+    print(f"  {'🟢' if tool_ok else '🔴'} the round trip, second line: the "
+          f"`WIRE_TOOLCHAIN` line `{WIRE_DIFF_REL}` PRINTS is the line "
+          f"`WIRE_TOOLCHAIN_RE` reads back, population and all.")
+    if not tool_ok:
         bad += 1
 
     print("\n  CHECK 2 — the producer window, which reads no notes at all (🆕 217)")
@@ -1662,14 +1739,14 @@ def selftest() -> int:
     seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
             | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST}
             | {r[4] for r in ADDON_SELFTEST} | {r[5] for r in MAJOR_SELFTEST}
-            | {r[3] for r in C8_SELFTEST})
+            | {r[4] for r in C8_SELFTEST})
     refusals = (sum(1 for r in SELFTEST if r[6] not in passing)
                 + sum(1 for r in C2_SELFTEST if r[6] not in passing)
                 + sum(1 for r in MAP_SELFTEST if r[3] not in passing)
                 + sum(1 for r in TAG_SELFTEST if r[3] not in passing)
                 + sum(1 for r in ADDON_SELFTEST if r[4] not in passing)
                 + sum(1 for r in MAJOR_SELFTEST if r[5] not in passing)
-                + sum(1 for r in C8_SELFTEST if r[3] not in passing))
+                + sum(1 for r in C8_SELFTEST if r[4] not in passing))
     print(f"\n  {rows} rows · {refusals} REFUSE · {len(seen)} distinct code(s) · "
           f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
     # 🔴 EVERY REFUSAL CODE MUST HAVE A ROW. A code with no row is a branch nobody
@@ -1834,9 +1911,9 @@ def main() -> int:
     # 8 refuses a bump BENEATH the wire, and the MAJOR arm accepts the wire as evidence
     # FOR one. A MAJOR wire under a MINOR name is 1.74.0; a MAJOR wire under a MAJOR
     # name is the thing the number is supposed to mean.
-    wire, wire_log = wire_read(a.previous)
+    wire, wire_toolchain, wire_log = wire_read(a.previous)
     engines = engines_window(a.previous, head=a.head_ref)
-    c8_code, c8_why, c8 = wire_floor(wire, a.bump)
+    c8_code, c8_why, c8 = wire_floor(wire, a.bump, wire_toolchain)
     code, why, d = verdict(released, corpus, a.bump, changed_text=window,
                            wire=wire, engines=engines)
     print(f"RELEASE_NAMES  {a.version} · {a.bump} · block {len(released):,} chars · "
@@ -1856,6 +1933,7 @@ def main() -> int:
     # are: a check that only ever runs on trees the checks above already passed is a
     # check nobody has watched fire on a red one.
     print(f"CHECK 8        wire v{a.previous} -> working tree: {wire or '🔴 UNREADABLE'}"
+          f" · toolchain {wire_toolchain or '🔴 UNREAD'}"
           f" · bump {a.bump} · engines {engines[0] if engines else '?'} -> "
           f"{engines[1] if engines else '?'}")
     if c8_code == C8_OK:

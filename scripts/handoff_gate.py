@@ -3634,14 +3634,15 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # quiet second exemption list is what this would have become if the rows could outlive
 # the block that answers them, and the branch that deletes them is fixture-driven below
 # so it does not go silent now that the live table is empty.
-ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 275 — `taut.duration`, and this is the ordering the table was built for. The
-    # counter first appears in 275's own block; 276 adds that block to
-    # `BLOCK_POPULATION` and this row goes STALE on the same run, deleted by the gate
-    # rather than by a session remembering.
-    "taut.duration": "275 — `TAUT_DURATION sites=…` is printed for the first time by the "
-                     "commit that adds this row, so no real block can carry it yet",
-}
+# 🆕 276 — AND IT IS EMPTY AGAIN, ON THE SCHEDULE THE ROW ITSELF PREDICTED. 275 wrote
+# `taut.duration` here with the note *276 adds 275's block to `BLOCK_POPULATION` and this
+# row goes STALE on the same run, deleted by the gate rather than by a session
+# remembering*. That is exactly what happened: adding the block put the key in `reached`,
+# `pending_problems` reported `ALIAS_PENDING_STALE`, and this session deleted the row
+# because it was told to rather than because it looked. Two sessions running that a
+# one-session exemption has expired on time, which is the only end state 246 designed
+# this table to have.
+ALIAS_PENDING: "dict[str, str]" = {}
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
@@ -4916,6 +4917,35 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · wire_invisible 34 cases · lint_ceiling 18 py
 >               · taut 4745 · mutlock 5 guarded / 12 cases · tree_quiet 13
 >               · queue 58/58 claims · handoff 366 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (275, """> ```
+> main                 1fd4c97 — a comment is not a command (#337)   MOVED +3
+>                      872326e — the verdict the artifact could not carry (#336)
+> branch 275           session275-the-verdict-the-artifact-could-not-carry · PR #336
+>                      session275b-a-comment-is-not-a-command · PR #337
+>                      🟢 BOTH PUSHED AND MERGED, 26/26 green
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no product code changed this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. Both gh counters are a READING taken on his Mac
+> assetlib             🟢 addon 1.11.0 live · the edit for the addon's current
+>                      version is pending review, and out of his hands
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 66 · control 74 · 26 CI jobs
+>               · instrument ok across 19 · LATE_LIVE 18/8 · 0 crashes · blast 1797
+>               · late not-loaded 0 · late constructed 212/160
+>               · py gates 18/4/14 · SIG 142/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 108 · 52 governed · 1273 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4761 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 384 claims
 >               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
 >                 addon / 0 problems
 > ```

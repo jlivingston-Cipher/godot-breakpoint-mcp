@@ -429,25 +429,84 @@ export async function surface(entry, env) {
 
 const run = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, encoding: "utf8" });
 
-function buildBaseline(ref) {
+// ── 🆕 276 — THE TOOLCHAIN, WHICH THIS FILE'S OWN HEADER NAMED AND COULD NOT SEE ──────
+//
+// 🔴 THE COMMENT INSIDE `buildBaseline` IS RIGHT ABOUT WHAT IT ISOLATES AND SAYS NOTHING
+// ABOUT WHAT IT THEREFORE CANNOT SEE. *One toolchain, two sources* makes the reading
+// above a statement about OUR source and nothing else — so a wire change driven by a
+// DEPENDENCY cancels on both sides by construction and leaves the classifier green. The
+// header four hundred lines up says exactly this and treats it as the reason to read the
+// wire at all: *"an SDK bump inside the declared caret range moves every schema on the
+// wire and leaves all seven checks green — a caret range does not move when the
+// resolution inside it does."* The reader that answers it is a SECOND baseline built
+// against the LOCKFILE'S OWN resolution, so the two comparisons together SEPARATE our
+// change from the toolchain's instead of silencing one of them (#256, nineteen sessions).
+//
+// 🔴 AND THE ATOM IS THE RESOLUTION, NEVER THE FILE. `host/package-lock.json` carries the
+// root package's own version, which moves on EVERY release — a file-level diff would
+// report a toolchain change at every cut and would therefore be read at none of them.
+export function depResolution(lockText) {
+  const lock = JSON.parse(lockText);
+  const out = {};
+  for (const [where, entry] of Object.entries(lock.packages ?? {})) {
+    if (where === "") {
+      // The root's DECLARED ranges are part of the toolchain question — a caret widened
+      // to a tilde resolves the same today and differently tomorrow — but its `version`
+      // is the release being cut and is deliberately not read.
+      for (const field of ["dependencies", "devDependencies"]) {
+        for (const [name, range] of Object.entries(entry?.[field] ?? {})) {
+          out[`<declared> ${name}`] = range;
+        }
+      }
+      continue;
+    }
+    out[where] = entry?.version ?? "";
+  }
+  return out;
+}
+
+export function resolutionDrift(before, after) {
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
+  return keys
+    .filter((k) => before[k] !== after[k])
+    .map((k) => `${k}: ${before[k] ?? "absent"} -> ${after[k] ?? "absent"}`);
+}
+
+// `ownDeps` is the whole difference between the two baselines: the first borrows this
+// tree's `node_modules` so only the SOURCE differs, the second installs the baseline's
+// own lockfile so only the TOOLCHAIN does.
+function buildBaseline(ref, { ownDeps = false } = {}) {
   const wt = fs.mkdtempSync(path.join(os.tmpdir(), "wire_diff_"));
   fs.rmSync(wt, { recursive: true, force: true });   // git wants the path absent
   const add = run("git", ["worktree", "add", "--detach", wt, ref], REPO_DIR);
   if (add.status !== 0) {
     throw new Error(`could not check out baseline ${ref}: ${add.stderr || add.stdout}`);
   }
-  // 🔴 THE CURRENT node_modules, DELIBERATELY. `npm ci` in the worktree would resolve the
-  // baseline's caret ranges against today's registry, so the two surfaces would differ by
-  // whatever the SDK shipped since — a dependency diff wearing an API diff's clothes.
-  // One toolchain, two sources, is the only comparison that isolates OUR change.
-  fs.symlinkSync(path.join(HOST_DIR, "node_modules"), path.join(wt, "host", "node_modules"));
+  const cleanup = () => run("git", ["worktree", "remove", "--force", wt], REPO_DIR);
+  if (ownDeps) {
+    // 🔴 `npm ci`, WHICH IS THE POINT AND NOT AN OVERSIGHT. It installs the lockfile's
+    // own resolution — the bytes that actually shipped at this ref — rather than today's.
+    const ci = run("npm", ["ci", "--include=dev"], path.join(wt, "host"));
+    if (ci.status !== 0) {
+      cleanup();
+      throw new Error(`baseline ${ref} would not install its own lockfile: npm ci exited `
+        + `${ci.status}\n${ci.stdout}${ci.stderr}`);
+    }
+  } else {
+    // 🔴 THE CURRENT node_modules, DELIBERATELY. `npm ci` in the worktree would resolve the
+    // baseline's caret ranges against today's registry, so the two surfaces would differ by
+    // whatever the SDK shipped since — a dependency diff wearing an API diff's clothes.
+    // One toolchain, two sources, is the only comparison that isolates OUR change.
+    fs.symlinkSync(path.join(HOST_DIR, "node_modules"), path.join(wt, "host", "node_modules"));
+  }
   const tsc = run("npx", ["tsc"], path.join(wt, "host"));
   const entry = path.join(wt, "host", "dist", "index.js");
   if (!fs.existsSync(entry)) {
+    cleanup();
     throw new Error(`baseline ${ref} did not build: tsc exited ${tsc.status}\n`
       + `${tsc.stdout}${tsc.stderr}`);
   }
-  return { entry, cleanup: () => run("git", ["worktree", "remove", "--force", wt], REPO_DIR) };
+  return { entry, cleanup };
 }
 
 const IS_MAIN = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
@@ -510,7 +569,7 @@ async function main() {
     process.exit(2);
   }
 
-  let built, out;
+  let built, aged, out, tool = null, drift = [];
   try {
     built = buildBaseline(ref);
     const here = path.join(HOST_DIR, "dist", "index.js");
@@ -524,14 +583,49 @@ async function main() {
       const env = { BREAKPOINT_PRIVILEGED_GROUPS: value };
       out.push([label, classify(await surface(built.entry, env), await surface(here, env))]);
     }
+
+    // 🆕 276 — THE SECOND COMPARISON, AND IT IS ASKED EVEN WHEN THE ANSWER IS ZERO.
+    // A reading that never asks what the toolchain did is not the same as one that
+    // asked and was told nothing — the first is #256's blind, the second is a fact
+    // about this window, and only the second can be written into a release note.
+    const shown = run("git", ["show", `${ref}:host/package-lock.json`], REPO_DIR);
+    if (shown.status !== 0) {
+      throw new Error(`could not read host/package-lock.json at ${ref}: `
+        + `${shown.stderr || shown.stdout}`);
+    }
+    drift = resolutionDrift(
+      depResolution(shown.stdout),
+      depResolution(fs.readFileSync(path.join(HOST_DIR, "package-lock.json"), "utf8")),
+    );
+    if (drift.length) {
+      // 🔴 THE SAME SOURCE ON BOTH SIDES. `built` is the baseline compiled against
+      // TODAY's dependencies; `aged` is the same commit compiled against its own. The
+      // only thing that differs between the two surfaces is the toolchain, which is
+      // the one comparison this file has never made.
+      aged = buildBaseline(ref, { ownDeps: true });
+      // 🔴 ANNOTATED, AND MEASURED BOTH WAYS FIRST (261's rule). The loop below is the
+      // same `[label, result]` idiom the arm above uses, and unannotated it infers a
+      // union that costs NINE `TS2339` findings — a ceiling raise for a shape this file
+      // already had. One line of JSDoc costs none, so `lint_ceiling.py`'s largest class
+      // does not move for a feature that added no new kind of duck-typing.
+      /** @type {Array<[string, any]>} */
+      const arms = [];
+      for (const [label, value] of [["secure-default", ""], ["privileged", "all"]]) {
+        const env = { BREAKPOINT_PRIVILEGED_GROUPS: value };
+        arms.push([label, classify(await surface(aged.entry, env), await surface(built.entry, env))]);
+      }
+      tool = arms;
+    }
   } catch (e) {
     console.error(`🔴 WIRE_DIFF UNREACHABLE — ${e.message}`);
     console.error("   Unreachable is RED, not a skip: a baseline that will not build is "
       + "not evidence that the public API held still.");
     if (built) built.cleanup();
+    if (aged) aged.cleanup();
     process.exit(2);
   }
   built.cleanup();
+  if (aged) aged.cleanup();
 
   // 🔴 THE WORST OF THE TWO VIEWS IS THE VERDICT. A tool added only under `all` is still
   // a tool added.
@@ -550,6 +644,38 @@ async function main() {
       }
     }
   }
+  // 🆕 276 — THE TOOLCHAIN'S OWN VERDICT, ON ITS OWN LINE AND IN THE SAME VOCABULARY.
+  // One rank scale, not two: "the dependencies moved nothing" IS a PATCH reading, and a
+  // fourth token here would be a word `release_names.py`'s `WIRE_RANK` does not know —
+  // which is the exact failure `C8_NOT_A_VERDICT` exists to refuse.
+  const toolWorst = tool
+    ? tool.reduce((w, [, r]) => (rank[r.verdict] > rank[w] ? r.verdict : w), "PATCH")
+    : "PATCH";
+  if (tool) {
+    for (const [label, r] of tool) {
+      console.log(`  toolchain ${label.padEnd(15)} ${String(r.counts.before).padStart(4)} -> `
+        + `${String(r.counts.after).padStart(4)} tools   ${r.verdict}`
+        + `   major ${r.major.length} · minor ${r.minor.length} · patch ${r.patch.length}`);
+      if (!argv.includes("--summary")) {
+        for (const kind of ["major", "minor", "patch"]) {
+          for (const line of r[kind].slice(0, 20)) console.log(`      ${kind.toUpperCase()}  ${line}`);
+          if (r[kind].length > 20) console.log(`      … and ${r[kind].length - 20} more ${kind}`);
+        }
+      }
+    }
+    for (const line of drift.slice(0, 20)) console.log(`      DEP   ${line}`);
+    if (drift.length > 20) console.log(`      … and ${drift.length - 20} more dependencies`);
+  }
+  console.log(`WIRE_TOOLCHAIN ${toolWorst} deps=${drift.length}`);
+  console.log(drift.length
+    ? "  🔴 THE SAME SOURCE, TWO RESOLUTIONS. The reading above isolates OUR change by "
+      + "borrowing this tree's node_modules for the baseline; this one isolates the "
+      + "DEPENDENCY's by compiling the baseline against its own lockfile. The release is "
+      + "a statement about the public API, and the API does not care which of the two "
+      + "moved it."
+    : "  🟢 The resolved dependency set is identical at this baseline, so the reading "
+      + "above isolates our source change by MEASUREMENT rather than by construction. "
+      + "That is a different sentence from the one this file could say before #276.");
   console.log(`WIRE_VERDICT ${worst}`);
   console.log("  🔴 THIS DOES NOT DECIDE THE RELEASE. It answers what the PUBLIC API did; "
     + "the caller asserts that against the bump it is making.");
