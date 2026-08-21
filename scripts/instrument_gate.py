@@ -785,6 +785,16 @@ INSTRUMENTS = [
             # discover floors and the second is covered by the self-test's twelve fixtures.
             "{SIG:schemaKeys}": "return { keys: new Map(), nodes: 0 };",
             "{SIG:keyProblems}": "return [];",
+            # 🆕 276 — THE TOOLCHAIN HALF'S TWO, ADDED IN THE COMMIT THAT SHIPPED THEM
+            # RATHER THAN IN A LATER ONE — this file's own standing rule, and it enforced
+            # the rule on the very run that added them by naming both as members that are
+            # neither a target nor declared. `depResolution` blinded is a lockfile reader
+            # that resolves nothing, so every window reads `deps=0`: the exact silence the
+            # second baseline was built to end. `resolutionDrift` blinded is the
+            # comparison itself answering *nothing moved* — the SAME observable a healthy
+            # window produces, which makes it the sharper of the two.
+            "{SIG:depResolution}": "return {};",
+            "{SIG:resolutionDrift}": "return [];",
         },
     },
     {
@@ -1831,6 +1841,23 @@ LATE_NOT_LOADED_CEILING = 0
 # by the time a row can reach this table the only remaining cause of a silent hook is "not
 # called". A row here says which member, on which axis, and why — never "not done yet".
 LATE_NOT_CALLED: dict[tuple[str, str, str], str] = {
+    # 🆕 276 — THE TOOLCHAIN HALF'S TWO, AND THE REASON IS THE COMMAND AND NOT THE
+    # MEMBER. The live axis is `wire_diff.mjs --discover`, which asks about the wire that
+    # is HERE and needs no baseline at all — that is the whole reason it can be a CI step
+    # where the classifier cannot. Neither of these is on that path: they read a lockfile
+    # at a REF, which `--discover` never resolves. The [A:gate] axis blinds both globally
+    # and reddens, and so does the release-time classifier, where they are the only two
+    # members that decide whether the second baseline gets built at all.
+    ("wire_diff.mjs", "{SIG:depResolution}", "B:live"):
+        "`--discover` returns before `main()` ever resolves a baseline ref, so no "
+        "lockfile is read on this command. The member is reachable only from the "
+        "release-time path, where the [A:gate] axis and `wire_diff.selftest.mjs`'s seven "
+        "resolution rows both redden on a blind.",
+    ("wire_diff.mjs", "{SIG:resolutionDrift}", "B:live"):
+        "the same command and the same reason, one hop further out: with no lockfile "
+        "read there is nothing to compare, so the drift walk is never entered. Its "
+        "coverage is the self-test, where a blind returning the empty list makes the "
+        "root-version row and the six drift rows disagree at once.",
     ("token-cost.mjs", "{SIG:parseResults}", "B:live"):
         "the live command is `--summary`, which reads a live `tools/list` and measures the "
         "CATALOGUE. This member parses the RESULT meter's log, which is reached only "

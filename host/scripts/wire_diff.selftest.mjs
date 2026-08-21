@@ -20,6 +20,8 @@ import {
   classify, normalise, shapeOf, typeName, effectiveTaskSupport, SURFACE_FLOOR, SHAPE_FLOOR,
   // 🆕 233 — the discover half
   schemaKeys, keyProblems, NOT_A_CONSTRAINT, STRUCTURAL, KEY_FLOOR, NODE_FLOOR,
+  // 🆕 276 — the toolchain half
+  depResolution, resolutionDrift,
 } from "./wire_diff.mjs";
 
 let ran = 0, bad = 0;
@@ -359,6 +361,42 @@ claim(keyProblems({ keys: new Map(), nodes: 0 }).length > 0,
   "🔴 …and does NOT pass over an EMPTY read, which is the shape that makes every case above vacuous");
 claim(KEY_FLOOR > 0 && NODE_FLOOR > 0 && STRUCTURAL.includes("properties"),
   "both key floors are pinned above zero and the structural roster still names the walk's own keys");
+
+// ── 🆕 276 — THE TOOLCHAIN HALF, WHOSE WHOLE POINT IS A COMPARISON THAT CANCELS ──────
+//
+// 🔴 THE LIVE ARM CANNOT BE DRIVEN BY THIS FILE and the reason is the finding itself:
+// the resolved dependency set has not moved across any tag this repository can reach
+// except one, so a fixture is the only way to hold the DRIFT arm to an answer. What the
+// table proves is the atom — that the reader reads the RESOLUTION and not the file.
+const _LOCK = (root, deps) => JSON.stringify({
+  name: "breakpoint-mcp", version: root,
+  packages: {
+    "": { version: root, dependencies: { "@modelcontextprotocol/sdk": "^1.29.0" } },
+    ...Object.fromEntries(Object.entries(deps).map(([k, v]) => [k, { version: v }])),
+  },
+});
+const _SDK = "node_modules/@modelcontextprotocol/sdk";
+const _A = safe(() => depResolution(_LOCK("1.79.0", { [_SDK]: "1.29.0" })), {});
+const _B = safe(() => depResolution(_LOCK("1.82.0", { [_SDK]: "1.29.0" })), {});
+const _C = safe(() => depResolution(_LOCK("1.82.0", { [_SDK]: "1.30.0" })), {});
+claim(safe(() => resolutionDrift(_A, _B).length, -1) === 0,
+  "🔴 THE ROOT PACKAGE'S OWN VERSION IS NOT A TOOLCHAIN CHANGE — it moves on every cut, and a reader that counted it would report drift at every release and therefore be read at none of them");
+claim(safe(() => resolutionDrift(_B, _C), []).some((m) => m.includes("1.29.0 -> 1.30.0")),
+  "…and a resolution that DID move is named with both sides, which is the whole population a caret range hides");
+claim(safe(() => resolutionDrift(_C, _B), []).some((m) => m.includes("1.30.0 -> 1.29.0")),
+  "…in both directions, because a downgrade moves the wire exactly as far as an upgrade");
+claim(safe(() => depResolution(_LOCK("1.0.0", {}))["<declared> @modelcontextprotocol/sdk"], "") === "^1.29.0",
+  "…and the DECLARED range is read beside the resolution — a caret widened to a tilde resolves the same today and differently tomorrow");
+claim(safe(() => resolutionDrift(
+  depResolution(_LOCK("1.0.0", {})),
+  depResolution(JSON.stringify({ packages: { "": { version: "1.0.0", dependencies: { "@modelcontextprotocol/sdk": "~1.29.0" } } } })),
+), []).some((m) => m.includes("<declared>")),
+  "🔴 …so a range that CHANGED while resolving identically is still drift — the case a version-only reader calls agreement");
+claim(safe(() => resolutionDrift(_A, {}), []).some((m) => m.includes("-> absent")),
+  "🔴 …and a dependency that went AWAY is drift and not a gap in the reading");
+claim(safe(() => depResolution("{}"), null) !== null
+  && safe(() => Object.keys(depResolution("{}")).length, -1) === 0,
+  "…a lockfile with no packages reads as an EMPTY resolution rather than throwing, so the caller's drift count is what reports it");
 
 console.log(`\n  ${ROWS.length} rows · ${nonPatch} answer something other than PATCH `
   + `(${majors} MAJOR) · collapse refuses on ${collapseShapes} shapes`);

@@ -2110,7 +2110,14 @@ def catalog_index_planes() -> dict[str, str]:
 # FOLLOWS, which is the whole reason the marker is a glyph on the name rather
 # than the word "destructive" somewhere in the trailing prose: three headings
 # name two tools each, and one of those has exactly one destructive member.
-CATALOG_HEADING_RE = re.compile(r"^###\s+((?:`[a-z0-9_]+`(?:\s*✔)?(?:\s*/\s*)?)+)", re.M)
+#
+# 🆕 276 — THE TRAILING TEXT IS CAPTURED NOW, BECAUSE THE HEADING CARRIES A SECOND
+# GLYPH AND NOTHING HAD EVER READ IT: `### `gd_workspace_symbols` ⚠️ · unsupported
+# by Godot ≤ 4.7 (handled gracefully)`. ONE pattern, two readers, for the reason
+# `_annotation_names` gives — a second copy of this regex could disagree with this
+# one about what a heading IS, and then one of the two is silently reading
+# something else. Group 1 is the names, group 2 is everything after them.
+CATALOG_HEADING_RE = re.compile(r"^###\s+((?:`[a-z0-9_]+`(?:\s*✔)?(?:\s*/\s*)?)+)(.*)$", re.M)
 CATALOG_HEADING_NAME_RE = re.compile(r"`([a-z0-9_]+)`(\s*✔)?")
 
 
@@ -2136,6 +2143,94 @@ def catalog_heading_rows() -> dict[str, bool]:
         for name, tick in CATALOG_HEADING_NAME_RE.findall(m.group(1)):
             marks[name] = bool(tick.strip())
     return marks
+
+
+# 🆕 276 — THE ⚠️ IS THE ATOM AND THE ✅ IS PROSE, WHICH IS THE ONLY READING OF THIS
+# COLUMN THAT SURVIVES ITS OWN CONTENTS. One heading already carries BOTH —
+# `### `gd_document_highlight` ✅ on Godot 4.7 · ⚠️ advertised `false` on Godot 4.3
+# (handled)` — so a rule that made ✅ the predicate would have to decide which of the
+# two glyphs wins, and any answer to that is a convention nobody can look up. The ⚠️
+# is present or it is not, it is one predicate, and it is the one a reader is about to
+# act on: *can this tool answer "unsupported" instead of a result?*
+def catalog_index_status() -> dict[str, bool]:
+    """Tool name -> whether its `Status` CELL warns the connected build may not support it."""
+    return {m.group(1): "⚠️" in m.group(3) for m in CATALOG_ROW_RE.finditer(CATALOG.read_text())}
+
+
+def catalog_heading_status() -> dict[str, bool]:
+    """Tool name -> whether its section HEADING carries the same ⚠️.
+
+    🆕 276 — 252's SECOND COPY, FOR THE SECOND PREDICATE. The Tool Index is a table
+    you scan and the heading is where a reader lands, and this glyph is written in
+    both places by hand. That the two AGREED on all 292 rows at 276 is not evidence
+    they were right: one hand wrote both at the same time, and both were wrong about
+    the same ten tools.
+    """
+    marks: dict[str, bool] = {}
+    for m in CATALOG_HEADING_RE.finditer(CATALOG.read_text()):
+        warned = "⚠️" in m.group(2)
+        for name, _tick in CATALOG_HEADING_NAME_RE.findall(m.group(1)):
+            marks[name] = warned
+    return marks
+
+
+# The house shape of a graceful-degradation answer, in the four spellings the tree
+# actually uses. The message ALWAYS names its own tool first — that is what makes
+# this readable at all, and check 4e asserts it stays true rather than assuming it.
+DEGRADE_PHRASE = "is unsupported by the connected"
+DEGRADE_ANY_RE = re.compile(re.escape(DEGRADE_PHRASE))
+DEGRADE_LITERAL_RE = re.compile(r'"([a-z0-9_]+) ' + re.escape(DEGRADE_PHRASE))
+DEGRADE_TEMPLATE_RE = re.compile(r'`\$\{(\w+)\} ' + re.escape(DEGRADE_PHRASE))
+DEGRADE_FUNC_RE = re.compile(r"^function\s+(\w+)\s*\(", re.M)
+
+
+def degrading_tools() -> "tuple[set[str], int, list[str]]":
+    """Tools that can answer "<tool> is unsupported by the connected …", the number of
+    message sites, and any site the walk could not attribute to a tool name.
+
+    🆕 276 — THE COLUMN'S COUNTERPART, AND IT IS NOT ONE FUNCTION. 275 §7 measured this
+    join against `unsupportedLsp` BY NAME and reported four disagreeing rows. The
+    predicate has FOUR spellings in this tree — a generic helper on the GDScript LSP
+    plane, a second generic helper on the C# one, two zero-argument helpers that name
+    their tool in the literal, and six inline returns on the two debug-adapter planes —
+    so a join named after one function was a claim about that function wearing the shape
+    of a claim about the thing it does. Ten rows were wrong, not four.
+
+    The atom is the MESSAGE, which every spelling shares, and the tool name is whatever
+    precedes it: a literal name, or `${param}` of an enclosing helper, resolved through
+    that helper's call sites. `unattributed` is the third return for
+    `uncaptured_tool_registrations`'s reason — a site this walk cannot read is not
+    under-reported, it is ABSENT, and absent is byte-identical to a healthy tree.
+    """
+    texts = {p: p.read_text(encoding="utf-8") for p in sorted(TOOLS.glob("*.ts"))}
+    named: set[str] = set()
+    helpers: dict[str, tuple[str, int]] = {}
+    sites = 0
+    for path, text in texts.items():
+        sites += len(DEGRADE_ANY_RE.findall(text))
+        named |= {m.group(1) for m in DEGRADE_LITERAL_RE.finditer(text)}
+        for m in DEGRADE_TEMPLATE_RE.finditer(text):
+            enclosing = [f.group(1) for f in DEGRADE_FUNC_RE.finditer(text, 0, m.start())]
+            if enclosing:
+                helpers[enclosing[-1]] = (path.name, text.count("\n", 0, m.start()) + 1)
+    for helper in helpers:
+        call = re.compile(r"\b" + re.escape(helper) + r'\(\s*"([a-z0-9_]+)"')
+        for text in texts.values():
+            named |= {m.group(1) for m in call.finditer(text)}
+    unattributed = sorted(
+        f"{where[0]}:{where[1]} `{helper}` — a templated degradation message with no "
+        f"call site passing a literal tool name"
+        for helper, where in helpers.items()
+        if not any(re.search(r"\b" + re.escape(helper) + r'\(\s*"[a-z0-9_]+"', t) for t in texts.values())
+    )
+    literal_sites = sum(len(DEGRADE_LITERAL_RE.findall(t)) for t in texts.values())
+    template_sites = sum(len(DEGRADE_TEMPLATE_RE.findall(t)) for t in texts.values())
+    if literal_sites + template_sites != sites:
+        unattributed.append(
+            f"{sites - literal_sites - template_sites} degradation message(s) named by "
+            f"neither a literal tool name nor a `${{param}}` this walk can resolve"
+        )
+    return named, sites, unattributed
 
 
 def catalog_json_blocks() -> list[str]:
@@ -2774,6 +2869,73 @@ plane_drift = sorted(
 )
 if plane_drift:
     errors.append(f"Catalog `Plane` column disagrees with the toolset registry: {plane_drift}")
+
+# --- 4e: the Status COLUMN, against the answer the tool can actually give ------
+# 🔴 THE LAST OF 251's FOUR, AND THE ONLY ONE WHOSE COLUMN HAD NO STATED PREDICATE.
+# `Plane` and `Destructive` each carry a "Reading the … column" paragraph naming the
+# file they are derived from. `Status` carried a glyph and nothing else — no rule, no
+# counterpart, nothing to disagree WITH — which is how ten of 292 rows came to say ✅
+# about a tool that answers "unsupported by the connected …" instead of a result, with
+# the whole suite green for the twenty-four sessions since the column was written.
+#
+# 🔴 AND THE SHARPEST ROW IS ONE THE DOCUMENT ITSELF CONTRADICTS. `dbg_goto`'s own
+# section says, in prose, that *no Godot build advertises `supportsGotoTargetsRequest`,
+# so the capability check returns first* — the tool cannot run on any shipped engine —
+# and the column a reader scans before choosing it said ✅. The two sentences are four
+# hundred lines apart and nothing had ever put them side by side.
+#
+# 🔴 THE ATTRIBUTION LINE IS THE READER'S OWN NET, AND IT IS NOT OPTIONAL. A
+# degradation message this walk cannot attribute to a tool name is not reported small,
+# it is reported ABSENT — which is indistinguishable from a plane that degrades
+# nowhere. Same failure `uncaptured_tool_registrations` was given a second return for.
+degrade, degrade_sites, degrade_unattributed = degrading_tools()
+if degrade_unattributed:
+    errors.append(
+        f"Graceful-degradation message(s) whose tool this walk cannot name (invisible to "
+        f"the catalog Status join): {degrade_unattributed}"
+    )
+degrade_orphan = sorted(degrade - tool_set)
+if degrade_orphan:
+    errors.append(
+        f"Graceful-degradation messages naming tools that are not registered: {degrade_orphan}"
+    )
+degrade &= tool_set
+status_caveated = {n for n, warned in catalog_index_status().items() if warned} & tool_set
+heading_status = catalog_heading_status()
+heading_caveated = {n for n, warned in heading_status.items() if warned} & tool_set
+status_under = sorted(degrade - status_caveated)
+status_over = sorted(status_caveated - degrade)
+if status_under:
+    errors.append(
+        f"Catalog Tool Index `Status` says these tools are fine and the code can answer "
+        f"'{DEGRADE_PHRASE} …' for them (a reader is told it works): {status_under}"
+    )
+if status_over:
+    errors.append(
+        f"Catalog Tool Index `Status` warns ⚠️ about tools with no graceful-degradation "
+        f"path in the code (the doc is stricter than the tool): {status_over}"
+    )
+head_status_under = sorted(set(degrade) - heading_caveated - set(undocumented))
+head_status_over = sorted(heading_caveated - degrade)
+if head_status_under:
+    errors.append(
+        f"Catalog section headings carry no ⚠️ for tools the code can answer "
+        f"'{DEGRADE_PHRASE} …' for: {head_status_under}"
+    )
+if head_status_over:
+    errors.append(
+        f"Catalog section headings carry ⚠️ for tools with no graceful-degradation path "
+        f"in the code: {head_status_over}"
+    )
+# 252's cross-check, for the second predicate. Both sides are compared to the code
+# above, so this can only fire when one of the two READERS is misreading its own file —
+# the failure that would otherwise look like two documents agreeing.
+status_disagree = sorted(status_caveated ^ heading_caveated)
+if status_disagree:
+    errors.append(
+        f"The catalog's Tool Index and its section headings disagree about which tools "
+        f"the connected build may not support: {status_disagree}"
+    )
 
 _ran("4")
 
@@ -3559,6 +3721,43 @@ VERSION_SCAN_SKIP = {
 }
 
 
+# 🆕 276 — `serverinfo-version-literal` (#248, twenty-eight sessions), AND THE CLOSE IS
+# A DELETION PLUS A READER. The row asked why `index.ts` wrote the server's advertised
+# version as a literal where `packageVersion()` exists; `version.ts`'s own docstring
+# answers it — *the best outcome is not a gated literal but no literal at all, so
+# anything that merely needs to REPORT the version should call this instead of being
+# added to the roster* — and check 14's roster was the workaround, not the answer.
+#
+# 🔴 SO THE SITE IS GONE AND THIS IS WHAT STOPS IT COMING BACK, over a population WIDER
+# than the one row that was wrong. The incident `version.ts` documents is not the server
+# at all: `lsp.ts` and `cslsp.ts` told Godot's language server and OmniSharp they were
+# `0.2.0` from the initial commit to 1.26.0 — twenty-odd releases — and nothing noticed,
+# because a literal nobody compares to anything cannot go stale loudly. Both of those
+# fields are `clientInfo`, neither was ever on check 14's roster, and a gate that only
+# knew the site that had already been found would have watched the wrong three.
+INFO_VERSION_RE = re.compile(
+    r'\{\s*name:\s*"[^"]+",\s*version:\s*"(\d+\.\d+\.\d+[^"]*)"\s*\}'
+)
+
+
+def hardcoded_info_versions() -> "tuple[list[str], int]":
+    """(`file:line` for every serverInfo/clientInfo literal version, files scanned).
+
+    The count is the second return for `uncaptured_tool_registrations`'s reason: an
+    empty offence list means *nothing hardcoded* and *did not look* identically, and
+    this walk is over a directory whose layout a refactor can move.
+    """
+    found: list[str] = []
+    scanned = 0
+    for path in sorted(HOST_SRC.rglob("*.ts")):
+        scanned += 1
+        text = path.read_text(encoding="utf-8")
+        for m in INFO_VERSION_RE.finditer(text):
+            found.append(f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, m.start()) + 1} "
+                         f"says {m.group(1)}")
+    return found, scanned
+
+
 def _text(rel):
     return (ROOT / rel).read_text(encoding="utf-8")
 
@@ -3667,18 +3866,31 @@ if lock_only:
 host_sites = [
     ("host/package-lock.json .version", lock_root),
     ('host/package-lock.json .packages[""].version', lock_self),
-    ("host/src/index.ts serverInfo", _one(r'\{ name: "breakpoint-mcp", version: "([^"]+)" \}', Path("host/src/index.ts"), "serverInfo version")),
     ("README.md badge", _one(r"^> \*\*npm ([0-9]+\.[0-9]+\.[0-9]+) ", Path("README.md"), "npm version")),
     ("docs/USER_GUIDE.md stamp", _one(r"^- \*\*Version:\*\* host ([0-9]+\.[0-9]+\.[0-9]+) ", Path("docs/USER_GUIDE.md"), "host version")),
 ]
+# 🆕 276 — THE ROSTER'S COMPLEMENT, ASKED OF THE WHOLE DIRECTORY. Everything above
+# compares a literal this file KNOWS ABOUT to the manifest; this asks whether a literal
+# exists that nobody knows about, which is the state `lsp.ts` and `cslsp.ts` shipped in
+# for twenty releases. It is an OFFENCE list and is empty on a healthy tree, so what
+# needs a floor is the number of files walked, not the number of findings.
+info_literals, info_files_scanned = hardcoded_info_versions()
+if info_literals:
+    errors.append(
+        f"Hardcoded version(s) in a serverInfo/clientInfo literal under host/src — call "
+        f"`packageVersion()` instead of adding a site to check 14's roster, which is "
+        f"what `version.ts` asks for in its own words: {info_literals}"
+    )
+
 host_compared = [(w, g) for w, g in host_sites if g is not None]
 bad_host = [f"{where} says {got}" for where, got in host_compared if got != host_version]
 if bad_host:
     errors.append(
         f"Host version drift — {HOST_VERSION_SOURCE} says {host_version}, but: "
         + "; ".join(bad_host)
-        + ". A release bump touches FIVE files (package-lock.json carries two fields); "
-        "missing one ships a binary whose serverInfo or docs contradict the tarball."
+        + ". A release bump touches FOUR files (package-lock.json carries two fields) "
+        "since 276 took the serverInfo literal off this roster and out of the source; "
+        "missing one ships a binary whose docs contradict the tarball."
     )
 
 # --- addon version: two plugin.cfg + two ADDON_VERSION + two doc stamps -----
@@ -5716,6 +5928,24 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     ("catalog.plane_atoms", len([n for n in plane_atoms.values() if n]), 250,
      "check 4d reads NO toolset id out of the Plane column, so every cell agrees with "
      "the registry by saying nothing — the state the column shipped in until 253"),
+    # 🆕 276 — THE FOURTH COLUMN'S TWO DOCUMENT SIDES AND ITS ONE CODE SIDE. Each of
+    # the three collapses ALONE is loud in 4e, because the join is symmetric and an
+    # empty side makes the other side's whole population an error. What these rows buy
+    # is the attribution: without them a blinded reader reddens the run with a list of
+    # twenty tool names and nothing anywhere says which finder went quiet.
+    ("catalog.status_caveated", len(status_caveated), 12,
+     "check 4e compares an EMPTY set of ⚠️ rows and every degrading tool reads as "
+     "undermarked — the state the column shipped in until 276"),
+    ("catalog.heading_status", len(heading_caveated), 12,
+     "check 4e's heading half goes quiet and the index/heading cross-check finds the "
+     "two copies in agreement by comparing one of them to nothing"),
+    ("code.degrade_paths", len(degrade), 12,
+     "check 4e reads NO graceful-degradation path anywhere in host/src/tools and every "
+     "⚠️ in the catalog reads as the doc being stricter than the tool"),
+    ("code.degrade_sites", degrade_sites, 6,
+     "the house message shape is gone from every plane at once — the collapse a "
+     "reworded phrase produces, and the one the population above cannot tell apart "
+     "from a tree that genuinely degrades nowhere"),
     # 🆕 253 — THE MEMBERSHIP HALF OF THE SAME JOIN. `families.toolset_sizes` floors
     # how many GROUPS resolve; this floors how many TOOLS they name. A member
     # extractor that resolves all 14 ids and captures no names leaves that row green,
@@ -5843,6 +6073,13 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
      "🔴 the same universe on the output side (172's measurement blinded both)"),
     ("shapes.outputs_compared", len(output_comparable), 250,
      "check 7 compares zero output shapes to the catalog and reports parity"),
+    # 🆕 276 — the complement's own walk. An empty OFFENCE list is what a healthy tree
+    # looks like AND what a walk over the wrong directory looks like, and only this
+    # number separates them.
+    ("versions.info_files_scanned", info_files_scanned, 20,
+     "check 14's hardcoded-literal complement walks NO files, so every serverInfo and "
+     "clientInfo version in host/src reads as derived — the state the tree shipped in "
+     "from the initial commit to 1.26.0"),
     ("versions.sites_checked", version_sites_checked, 8,
      "check 14's release ritual verifies no stamp — a half-bumped release passes"),
     # 🆕 228: 2 -> 3, and the CONTROLS are what asked for it. `.githooks/pre-commit`

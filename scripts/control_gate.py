@@ -274,6 +274,60 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      "",
      "Registered tools in no toolset"),
 
+    # ── check 4e — the catalog's Status column vs the answer the tool can give ────
+    # 🆕 276. The last of 251's four columns, and the only one that had no predicate at
+    # all — a glyph with no rule and nothing in the code to disagree with. Five controls
+    # because the join has five ways to rot and three of them are not the column: the two
+    # document copies each drifting on their own, the code losing a degradation path, a
+    # message naming a tool nothing registers, and a message this walk cannot attribute
+    # at all. The last two are the reader's own net — 275 §7 measured this join against
+    # ONE helper by name and reported four wrong rows where there were ten, so a control
+    # that only edits the document would leave the exact failure that produced this row.
+    ("4e.under", "4e", "sub", "docs/TOOL_CATALOG.md",
+     "| `gd_call_hierarchy` | `lsp` · D / LSP | ⚠️ engine-missing through 4.7 (handled) |",
+     "| `gd_call_hierarchy` | `lsp` · D / LSP | ✅ engine-missing through 4.7 (handled) |",
+     "`Status` says these tools are fine"),
+    ("4e.over", "4e", "sub", "docs/TOOL_CATALOG.md",
+     "| `gd_completion` | `lsp` · D / LSP | ✅ |",
+     "| `gd_completion` | `lsp` · D / LSP | ⚠️ |",
+     "`Status` warns ⚠️ about tools with no graceful-degradation"),
+    ("4e.head", "4e", "sub", "docs/TOOL_CATALOG.md",
+     "### `gd_semantic_tokens` ⚠️ · engine-missing through Godot 4.7 (handled)",
+     "### `gd_semantic_tokens` ✅ · engine-missing through Godot 4.7 (handled)",
+     "section headings carry no ⚠️ for tools"),
+    # 🔴 THE TWO THAT MOVE THE CODE, AND THEY ASSERT WHAT NO DOCUMENT EDIT CAN. The
+    # first is a degradation message that names a tool the registry does not have — a
+    # rename landing on the message but not on the registration, which reads to a
+    # careless eye as the tool simply not degrading. The second renames the generic
+    # helper's DEFINITION and leaves its ten call sites where they are, so the walk sees
+    # a templated message with nowhere to resolve `${tool}` from: ten tools drop out of
+    # the population silently, which is 275 §7's own defect reproduced on purpose.
+    ("4e.orphan", "4e", "sub", "host/src/tools/dap.ts",
+     '"dbg_goto is unsupported by the connected',
+     '"dbg_gotoo is unsupported by the connected',
+     "degradation messages naming tools that are not registered"),
+    ("4e.unattributed", "4e", "sub", "host/src/tools/lsp.ts",
+     "function unsupportedLsp(tool: string,",
+     "function unsupportedLspUncalled(tool: string,",
+     "whose tool this walk cannot name"),
+
+    # ── check 14's host half — a version literal nobody compares to anything ────
+    # 🔴 DECLARED AGAINST `host` AND NOT `14`, WHICH THE GATE HAD TO SAY OUT LOUD. The
+    # statement lives inside the host-version block, and `control_gate.py` resolves a
+    # fingerprint to the section it lands in rather than to the number a row claims —
+    # so a row declaring `14` here reads as a control for a check its own mutation does
+    # not fire, which is `CONTROL_GATE_UNRESOLVED` doing exactly its job.
+    # 🆕 276. #248 asked why `index.ts` wrote the advertised version as a literal; the
+    # answer was that check 14's roster was the workaround and not the fix, so the site
+    # is gone and the complement watches the whole directory. The control puts the exact
+    # literal back — the shape `lsp.ts` and `cslsp.ts` shipped for twenty releases —
+    # because a walk that stopped matching is indistinguishable, from the outside, from
+    # a tree that has none.
+    ("14.infoliteral", "host", "sub", "host/src/index.ts",
+     '{ name: "breakpoint-mcp", version: packageVersion() },',
+     '{ name: "breakpoint-mcp", version: "{V}" },',
+     "serverInfo/clientInfo literal under host/src"),
+
     # ── check 11c — the test suite's own size ─────────────────────────────────────
     # The vacuous-anchor case, and the only control here that is not a text edit: the
     # statement fires when NOTHING can be counted, so the subject has to go away. That
@@ -824,7 +878,11 @@ CHECKS_CLOSED = ("3", "4c", "4d", "11c", "host", "17", "22",
                  # mutation is the only one in this table that is a DEFECT PUT BACK
                  # rather than a construction — restoring `write_failed` on the host's
                  # constant re-creates the exact collision the release removed
-                 "32")
+                 "32",
+                 # 276: check 4e the same way — five rows, covered on arrival, and three
+                 # of the five edit the SHIPPED tree rather than the document, because
+                 # the failure this check was written for lives on both sides of the join
+                 "4e")
 
 
 # ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
@@ -893,6 +951,18 @@ BLAST: dict[str, int] = {
     "4d.drift": 1,
     "4d.noatom": 1,
     "4d.unreachable": 3,                  # also: 4d's unknown-id line, 25
+    # 🆕 276 — check 4e's five, measured. Every one of the three document edits reddens
+    # its own statement AND 4e's index/heading cross-check, because moving one copy of a
+    # predicate written twice by hand is exactly what that comparison exists to see. The
+    # two CODE edits are wider by one for the mirror-image reason: a path the code loses
+    # leaves the ⚠️ standing in BOTH documents, so the over-marking line fires twice.
+    "4e.under": 2,                        # also: 4e's index/heading cross-check
+    "4e.over": 2,                         # also: 4e's index/heading cross-check
+    "4e.head": 2,                         # also: 4e's index/heading cross-check
+    "4e.orphan": 3,                       # also: both doc copies now over-mark `dbg_goto`
+    "4e.unattributed": 4,                 # also: both copies over-mark ten tools, and
+                                          # code.degrade_paths falls through its floor
+    "14.infoliteral": 1,
     "11c.drift": 1,
     "host.nofield": 1,
     "host.drift": 1,

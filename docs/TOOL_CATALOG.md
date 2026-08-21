@@ -1995,7 +1995,7 @@ Resolve the implementation location(s) of the symbol at a position (e.g. the con
 - **Input** same `{ path, line, character }`.
 - **Output** same `locations` array shape as `gd_definition`.
 
-### `gd_declaration` ✅ · confirmed live on Godot 4.3-stable
+### `gd_declaration` ✅ confirmed live on Godot 4.3-stable · ⚠️ handled if a build advertises no `declarationProvider`
 Resolve the declaration location(s) of the symbol at a position (coincides with the definition for most symbols; differs for forward-declared / re-exported names). Advertises `declarationProvider`; feature-detected with a `-32601` fallback. **Confirmed returning a location live in CI on 4.3-stable.**
 - **Input** same `{ path, line, character }`.
 - **Output** same `locations` array shape as `gd_definition`.
@@ -2013,7 +2013,7 @@ List the foldable regions of a script (functions, blocks, comment/region markers
     "start_line": { "type": "integer" }, "end_line": { "type": "integer" }, "kind": { "type": "string" } } } } } }
 ```
 
-### `gd_document_link` ✅ · confirmed live on Godot 4.3-stable
+### `gd_document_link` ✅ confirmed live on Godot 4.3-stable · ⚠️ handled if a build advertises no `documentLinkProvider`
 List the links embedded in a script (res:// paths or URLs the language server recognizes) with their source ranges and targets. Read-only. Advertises `documentLinkProvider`; feature-detected with a `-32601` fallback. **Confirmed implemented live in CI on 4.3-stable (empty list for a link-free file).**
 - **Input**
 ```json
@@ -2239,7 +2239,7 @@ the guard is about absence, not size.
 { "type": "object", "required": ["symbols"], "properties": { "symbols": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "kind": { "type": "string" }, "line": { "type": "integer" } } } } } }
 ```
 
-### `cs_workspace_symbols` ✅
+### `cs_workspace_symbols` ✅ · ⚠️ handled if the C# server advertises no `workspaceSymbolProvider`
 Unlike Godot's GDScript server, OmniSharp implements LSP `workspace/symbol`, so this returns real project-wide results; it stays feature-detected (advertised `workspaceSymbolProvider` capability plus a `-32601` belt-and-suspenders) so a server lacking it degrades to an explicit "unsupported" message rather than a raw JSON-RPC error.
 - **Input**
 ```json
@@ -2275,7 +2275,7 @@ Unlike Godot's GDScript server, OmniSharp implements LSP `workspace/symbol`, so 
       "line": { "type": "integer", "minimum": 0 }, "character": { "type": "integer", "minimum": 0 } } } } } }
 ```
 
-### `cs_code_action` ✅ · OmniSharp implements it
+### `cs_code_action` ✅ OmniSharp implements it · ⚠️ handled if a server advertises no `codeActionProvider`
 List the code actions (quick fixes / refactors) OmniSharp offers for a range — the lightbulb menu. Read-only: returns the available actions without applying any (`has_edit` flags those carrying a `WorkspaceEdit`; `command` names any attached command; both a CodeAction and a bare Command are normalized). Unlike Godot's GDScript server (which advertises `codeActionProvider: false`), OmniSharp implements code actions, so this returns real results; still feature-detected with a `-32601` belt-and-suspenders. `end_line`/`end_character` default to the start position (a caret, not a selection).
 - **Input** same shape as `gd_code_action`: `{ path, start_line, start_character, end_line?, end_character?, only?: string[] }`.
 - **Output** same `actions` shape as `gd_code_action`: `{ "actions": [{ "title", "kind", "has_edit", "command": string|null }] }`.
@@ -2401,7 +2401,7 @@ Manage a persistent set of watch expressions and re-evaluate them in the current
 { "type": "object", "required": ["watches"], "properties": { "watches": { "type": "array", "items": { "type": "object", "required": ["expression", "value", "type", "error"], "properties": { "expression": { "type": "string" }, "value": { "type": "string" }, "type": { "type": "string" }, "error": { "type": ["string", "null"] } } } } } }
 ```
 
-### `dbg_set_exception_breakpoints` ✅
+### `dbg_set_exception_breakpoints` ⚠️ · Godot 4.3 advertises no exception filters (handled)
 Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching error is thrown (DAP `setExceptionBreakpoints`). Pass filter IDs to enable; call with no filters (or `[]`) to clear. The result echoes the active `filters` and reports `available_filters` — the exception filters the connected adapter advertises. Requires a running session; **not** gated (it only configures the debugger). Feature-detected: on an adapter that advertises no `exceptionBreakpointFilters` (e.g. Godot 4.3, which also does not answer the request — it would otherwise time out) it returns a clear "unsupported" message **without sending anything**.
 - **Input**
 ```json
@@ -2412,7 +2412,7 @@ Enable (replace) the debugger's exception breakpoint filters so execution halts 
 { "type": "object", "required": ["filters", "available_filters", "breakpoints"], "properties": { "filters": { "type": "array", "items": { "type": "string" } }, "available_filters": { "type": "array", "items": { "type": "object", "properties": { "filter": { "type": "string" }, "label": { "type": "string" } } } }, "breakpoints": { "type": "array", "items": { "type": "object", "properties": { "verified": { "type": "boolean" } } } } } }
 ```
 
-### `dbg_set_variable` ✔ ✅ · mutates live program state — gate hard
+### `dbg_set_variable` ✔ ✅ · mutates live program state — gate hard · ⚠️ handled on an adapter advertising no `supportsSetVariable`
 🔴 **It does not work on any current Godot build, and the tool now says which side that is.** The GDScript adapter advertises `supportsSetVariable` and never answers the request — measured unanswered on 4.3 and, at a REAL stop, on **4.7**. The shipped message read *"this Godot build (e.g. 4.3) does not implement setVariable"*, written when 4.3 was the build in hand, so the only sentence this tool has ever emitted told a current-build reader they were behind. It names the adapter now: there is nothing for the reader to upgrade to.
 Change a variable's value in a stopped frame (DAP `setVariable`). `variables_ref` is the container's `variablesReference` (from `dbg_scopes`, or a complex `dbg_variables` entry), `name` is the variable within it, `value` is a GDScript literal/expression. Feature-detected: on an adapter that advertises `supportsSetVariable: false` it returns a clear "unsupported" message **without prompting**.
 - **Input**
@@ -2435,7 +2435,7 @@ Restart the current debug session. Uses the DAP `restart` request when the adapt
 { "type": "object", "required": ["session_id", "method", "state"], "properties": { "session_id": { "type": "string" }, "method": { "enum": ["restart", "relaunch"] }, "state": { "type": "string" }, "scene": { "type": ["string", "null"] } } }
 ```
 
-### `dbg_goto` ✔ ✅ · moves execution — gate hard
+### `dbg_goto` ✔ ⚠️ · moves execution — gate hard · no Godot build advertises `supportsGotoTargetsRequest` (handled)
 Move the program counter within the current stopped frame — 'set next statement' (DAP `gotoTargets` + `goto`). Call with `path` + `line` to list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear "unsupported" message **without prompting**. Refuses a source that can never carry a target — a missing file, a directory, an empty path (which resolves to the project root), or a path resolving outside the Godot project root — the same guard `dbg_set_breakpoints` applies. Only meaningful while stopped at a breakpoint.
 
 Until 1.40.0 this tool resolved `path` with a bare `toFsPath` and handed the result to the adapter as `source.path` with **no** containment or existence check — the one path-taking tool on this plane that was never wired to the guard. It was unreachable in practice (no Godot build advertises `supportsGotoTargetsRequest`, so the capability check returns first), but that is a capability rather than a boundary, and this is the destructive tool on the plane.
@@ -2448,7 +2448,7 @@ Until 1.40.0 this tool resolved `path` with a bare `toFsPath` and handed the res
 { "type": "object", "required": ["targets", "jumped", "target_id"], "properties": { "targets": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "integer" }, "label": { "type": "string" }, "line": { "type": "integer" } } } }, "jumped": { "type": "boolean" }, "target_id": { "type": ["integer", "null"] } } }
 ```
 
-### `dbg_data_breakpoints` ✅
+### `dbg_data_breakpoints` ⚠️ · handled on an adapter advertising no `supportsDataBreakpoints`
 Set (replace) data breakpoints — 'watchpoints' that halt when a variable's value changes (DAP `dataBreakpointInfo` + `setDataBreakpoints`). Each `watch` entry `{ name, variables_ref?, access_type? }` is resolved to a dataId, then every resolvable id is armed in one `setDataBreakpoints` call. Call with no `watch` (or `[]`) to clear all data breakpoints. The result reports the armed `breakpoints` (with `data_id` + `verified`) and any `unresolved` variables the adapter cannot watch. Requires a running session; **not** gated. Feature-detected on `supportsDataBreakpoints`.
 - **Input**
 ```json
@@ -2556,7 +2556,7 @@ Evaluate a C# expression in the current stopped frame (DAP `evaluate`, repl cont
 { "type": "object", "required": ["result"], "properties": { "result": { "type": "string" }, "type": { "type": "string" }, "variables_ref": { "type": "integer" } } }
 ```
 
-### `cs_dbg_set_variable` ✔ ✅ · mutates live program state — gate hard
+### `cs_dbg_set_variable` ✔ ✅ · mutates live program state — gate hard · ⚠️ handled on an adapter advertising no `supportsSetVariable`
 Change a variable's value in a stopped C# frame (DAP `setVariable`). `variables_ref` is the container's `variablesReference` (from `cs_dbg_scopes`, or a complex `cs_dbg_variables` entry), `name` is the variable within it, `value` is a C# literal/expression. Feature-detected: on an adapter that advertises `supportsSetVariable: false` it returns a clear "unsupported" message **without prompting**; otherwise a bounded deadline (`GODOT_CSDAP_SETVAR_TIMEOUT_MS`) turns a non-answering adapter into a clear message rather than a hang.
 - **Input**
 ```json
@@ -2583,7 +2583,7 @@ Manage a persistent set of C# watch expressions and re-evaluate them in the curr
 { "type": "object", "required": ["watches"], "properties": { "watches": { "type": "array", "items": { "type": "object", "required": ["expression", "value", "type", "error"], "properties": { "expression": { "type": "string" }, "value": { "type": "string" }, "type": { "type": "string" }, "error": { "type": ["string", "null"] } } } } } }
 ```
 
-### `cs_dbg_set_exception_breakpoints` ✅
+### `cs_dbg_set_exception_breakpoints` ✅ · ⚠️ handled on an adapter advertising no exception filters
 Enable (replace) the debugger's exception breakpoint filters so execution halts when a matching .NET exception is thrown (DAP `setExceptionBreakpoints`). Pass filter IDs to enable; call with no filters (or `[]`) to clear. The result echoes the active `filters` and reports `available_filters` — the exception filters the connected adapter advertises (**netcoredbg exposes `all` and `user-unhandled`**). Requires a session but **not** a stop — exception filters are armed for the future, so a live running program is a legitimate caller. **Not** gated (it only configures the debugger). Feature-detected: on an adapter that advertises no `exceptionBreakpointFilters` it returns a clear "unsupported" message **without sending anything** — but only once a session exists. With no session that read found a null `capabilities` and the tool told the caller their debugger advertises no exception filters, about an adapter it had never spoken to; it names the missing session instead. **A filter id the adapter never advertised is refused by name, listing the real ones** — the empty case was validated but membership was not, so an unknown id went to the wire and came back `Failed command 'setExceptionBreakpoints' : 0x80070057`: a hex code for a question the host already had `available_filters` to answer.
 - **Input**
 ```json
@@ -4308,6 +4308,8 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 
 **Reading the `Destructive` column.** The **✔** is the tool's MCP `destructiveHint` annotation, exactly as it crosses the wire — *may overwrite or discard state the caller did not supply* — and it is derived from `host/src/annotations.ts`, not typed here: `contract_check.py`'s check 4 refuses a ✔ this file and that file disagree about, in either direction — and check 4c holds the same ✔ on each tool's own section heading to the same roster, so the table and the page cannot drift apart either. The words beside it say **what** the tool writes and are a note, not a flag. The two are different questions and this column used to conflate them: `undoable` describes how you get your work back, and a tool can be undoable and destructive at once.
 
+**Reading the `Status` column.** The **⚠️** means the tool can answer *“<tool> is unsupported by the connected …”* instead of a result: it feature-detects a capability the connected engine, language server or debug adapter may not have, and returns a clear handled message rather than leaking a raw error. It is derived from `host/src/tools/*.ts`, not typed here — `contract_check.py`'s check 4e refuses a ⚠️ this file and that code disagree about, in either direction, and holds the same ⚠️ on each tool's own section heading to the same roster so the table and the page cannot drift apart. The **✅** and the words beside either glyph are prose and say *what* was observed on *which* build; a cell may carry both, because “works on 4.7” and “handled if the build lacks it” are two different facts. This was the last of the four columns to get a predicate: for its whole life it carried a glyph with no stated rule and nothing in the code to disagree with, and it said ✅ about every degrading tool outside the GDScript LSP plane — `dbg_goto` among them, whose own section below says no Godot build advertises the capability it needs.
+
 | Tool | Plane | Status | Destructive |
 |---|---|---|---|
 | `breakpoint_doctor` | `cli` · B / CLI | ✅ | – |
@@ -4476,9 +4478,9 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `gd_document_highlight` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
 | `gd_type_definition` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
 | `gd_implementation` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_declaration` | `lsp` · D / LSP | ✅ confirmed live (4.3) | – |
+| `gd_declaration` | `lsp` · D / LSP | ⚠️ confirmed live (4.3); handled if absent | – |
 | `gd_folding_ranges` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
-| `gd_document_link` | `lsp` · D / LSP | ✅ confirmed live (4.3) | – |
+| `gd_document_link` | `lsp` · D / LSP | ⚠️ confirmed live (4.3); handled if absent | – |
 | `gd_formatting` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
 | `gd_document_color` | `lsp` · D / LSP | ⚠️ 4.3 advertises false (handled) | – |
 | `gd_call_hierarchy` | `lsp` · D / LSP | ⚠️ engine-missing through 4.7 (handled) | – |
@@ -4489,10 +4491,10 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `cs_references` | `cslsp` · D / C# LSP | ✅ | – |
 | `cs_rename` | `cslsp` · D / C# LSP | ✅ | ✔ |
 | `cs_document_symbols` | `cslsp` · D / C# LSP | ✅ | – |
-| `cs_workspace_symbols` | `cslsp` · D / C# LSP | ✅ (OmniSharp implements it) | – |
+| `cs_workspace_symbols` | `cslsp` · D / C# LSP | ⚠️ OmniSharp implements it; handled if absent | – |
 | `cs_signature_help` | `cslsp` · D / C# LSP | ✅ | – |
 | `cs_diagnostics` | `cslsp` · D / C# LSP | ✅ | – |
-| `cs_code_action` | `cslsp` · D / C# LSP | ✅ (OmniSharp implements it) | – |
+| `cs_code_action` | `cslsp` · D / C# LSP | ⚠️ OmniSharp implements it; handled if absent | – |
 | `dbg_launch` | `dap` · D / DAP | ✅ | runs code |
 | `dbg_attach` | `dap` · D / DAP | ✅ | – |
 | `dbg_set_breakpoints` | `dap` · D / DAP | ✅ | – |
@@ -4503,11 +4505,11 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `dbg_variables` | `dap` · D / DAP | ✅ | – |
 | `dbg_evaluate` | `dap` · D / DAP | ✅ | ✔ arbitrary code |
 | `dbg_watch` | `dap` · D / DAP | ✅ | – |
-| `dbg_set_exception_breakpoints` | `dap` · D / DAP | ✅ | – |
-| `dbg_set_variable` | `dap` · D / DAP | ✅ | ✔ mutates state |
+| `dbg_set_exception_breakpoints` | `dap` · D / DAP | ⚠️ no filters on Godot 4.3 (handled) | – |
+| `dbg_set_variable` | `dap` · D / DAP | ⚠️ adapter-dependent (handled) | ✔ mutates state |
 | `dbg_restart` | `dap` · D / DAP | ✅ | – |
-| `dbg_goto` | `dap` · D / DAP | ✅ | ✔ moves execution |
-| `dbg_data_breakpoints` | `dap` · D / DAP | ✅ | – |
+| `dbg_goto` | `dap` · D / DAP | ⚠️ no Godot build advertises it (handled) | ✔ moves execution |
+| `dbg_data_breakpoints` | `dap` · D / DAP | ⚠️ adapter-dependent (handled) | – |
 | `cs_dbg_launch` | `csdap` · D / C# DAP | ✅ | runs code |
 | `cs_dbg_attach` | `csdap` · D / C# DAP | ✅ | – |
 | `cs_dbg_set_breakpoints` | `csdap` · D / C# DAP | ✅ | – |
@@ -4517,9 +4519,9 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `cs_dbg_scopes` | `csdap` · D / C# DAP | ✅ | – |
 | `cs_dbg_variables` | `csdap` · D / C# DAP | ✅ | – |
 | `cs_dbg_evaluate` | `csdap` · D / C# DAP | ✅ | ✔ arbitrary code |
-| `cs_dbg_set_variable` | `csdap` · D / C# DAP | ✅ | ✔ mutates state |
+| `cs_dbg_set_variable` | `csdap` · D / C# DAP | ⚠️ adapter-dependent (handled) | ✔ mutates state |
 | `cs_dbg_watch` | `csdap` · D / C# DAP | ✅ | – |
-| `cs_dbg_set_exception_breakpoints` | `csdap` · D / C# DAP | ✅ | – |
+| `cs_dbg_set_exception_breakpoints` | `csdap` · D / C# DAP | ⚠️ adapter-dependent (handled) | – |
 | `cs_dbg_restart` | `csdap` · D / C# DAP | ✅ | – |
 | `runtime_get_tree` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_get_property` | `runtime` · C / Runtime | ✅ | – |
