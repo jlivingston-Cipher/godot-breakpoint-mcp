@@ -1,0 +1,81 @@
+{
+  "what": "What a REAL Godot debug adapter advertised, per engine build, for every capability the host gates a shipped tool on. Read out of the integration workflow's own log; not derived from the engine's source, not inferred from a changelog.",
+  "why_here": "Three GDScript debugging tools and three breakpoint modifiers refuse or drop on every build this project tests, and until 278 nothing in this tree RECORDED that. The integration gate asserts a BICONDITIONAL - advertised implies it answers, unadvertised implies it refuses by reason - which holds identically on either side of the question, so a green run said nothing about which side Godot is on. This file is the side.",
+  "the_population_is_derived": "`gated_on` is every capability name `host/src` reads off `capabilities`, including the three reached through `BREAKPOINT_MODIFIER_CAPS`. Check 33 joins it to the source in BOTH directions. It is not typed here as a list somebody maintains: the typed list this file replaces named `supportsTerminateRequest`, which the host reads nowhere, and omitted `supportsConfigurationDoneRequest`, which it does - so the claim `3 gate(s) the host reads` counted one thing that is not a gate and could not count one that is.",
+
+  "read_from": {
+    "workflow": "integration",
+    "run": "32465043372",
+    "commit": "0be54af515af09be440677a0f17a2167c0996af4",
+    "read_on": "2026-08-21",
+    "job": "GDScript DAP plane vs real adapter (headless)",
+    "marker": "GD_DAP_CAPS"
+  },
+
+  "values": {
+    "true": "the adapter's `initialize` response advertises this and it is true",
+    "false": "the adapter advertises this and it is FALSE - a different fact from not advertising it",
+    "absent": "the response carries no such key at all",
+    "unread": "no integration run has ever read this key on this arm. NOT the same as absent, and the difference is the whole reason this value exists - 271's rule that a reader's silence is not an answer"
+  },
+
+  "gated_on": [
+    "exceptionBreakpointFilters",
+    "supportsConditionalBreakpoints",
+    "supportsConfigurationDoneRequest",
+    "supportsDataBreakpoints",
+    "supportsGotoTargetsRequest",
+    "supportsHitConditionalBreakpoints",
+    "supportsLogPoints",
+    "supportsRestartRequest",
+    "supportsSetVariable"
+  ],
+
+  "observed": {
+    "4.3-stable": {
+      "exceptionBreakpointFilters": "absent",
+      "supportsConditionalBreakpoints": "absent",
+      "supportsConfigurationDoneRequest": "unread",
+      "supportsDataBreakpoints": "absent",
+      "supportsGotoTargetsRequest": "absent",
+      "supportsHitConditionalBreakpoints": "absent",
+      "supportsLogPoints": "absent",
+      "supportsRestartRequest": true,
+      "supportsSetVariable": true
+    },
+    "4.7-stable": {
+      "exceptionBreakpointFilters": "absent",
+      "supportsConditionalBreakpoints": "absent",
+      "supportsConfigurationDoneRequest": "unread",
+      "supportsDataBreakpoints": "absent",
+      "supportsGotoTargetsRequest": "absent",
+      "supportsHitConditionalBreakpoints": "absent",
+      "supportsLogPoints": "absent",
+      "supportsRestartRequest": true,
+      "supportsSetVariable": true
+    }
+  },
+
+  "observed_beside_the_gates": {
+    "what": "Advertised, read by the integration gate, and gated on by NOTHING in `host/src`. Here so the number in the gate's own message stays honest - these are not gates the host reads.",
+    "4.3-stable": { "supportsTerminateRequest": true },
+    "4.7-stable": { "supportsTerminateRequest": true }
+  },
+
+  "the_two_arms_agree": "Four engine minor versions apart and the advertised set is IDENTICAL. integration.yml says the LSP/DAP planes matrix 4.3/4.7 `for capability divergence`; in this plane it has never found any. The matrix earns its keep elsewhere - `dbg_restart` settles at state=running on 4.7 and state=stopped on 4.3 in the same run - but the reason written beside it is not the reason it pays.",
+
+  "dead_surface": {
+    "what": "Callable surface gated on a capability observed `absent` on EVERY arm that has read it. A caller can reach each of these and be refused, or pass it and have it dropped, on every Godot build this project tests.",
+    "not_a_removal_proposal": "A capability is not a boundary - it can start being advertised under us, and `dbg_goto` is the DESTRUCTIVE tool on this plane and is guarded on its own merits rather than on the engine's current answer. What 278 changed is that the description now SAYS what was measured, where a caller reads it before choosing.",
+    "surfaces": [
+      { "surface": "dbg_goto", "kind": "tool", "capability": "supportsGotoTargetsRequest" },
+      { "surface": "dbg_data_breakpoints", "kind": "tool", "capability": "supportsDataBreakpoints" },
+      { "surface": "dbg_set_exception_breakpoints", "kind": "tool", "capability": "exceptionBreakpointFilters" },
+      { "surface": "conditions", "kind": "parameter of dbg_set_breakpoints", "capability": "supportsConditionalBreakpoints" },
+      { "surface": "hit_conditions", "kind": "parameter of dbg_set_breakpoints", "capability": "supportsHitConditionalBreakpoints" },
+      { "surface": "log_messages", "kind": "parameter of dbg_set_breakpoints", "capability": "supportsLogPoints" }
+    ],
+    "says": "Measured: no Godot build this project tests advertises it",
+    "says_why_that_wording": "A sentence with a measurement in it can be falsified and a prose excuse cannot - 277's `LATE_LIVE_COST` rule, applied to a tool description. The builds are named in this file and the run that read them is named beside them, so `no build this project tests` is a claim about a population a reader can check rather than a claim about Godot."
+  }
+}

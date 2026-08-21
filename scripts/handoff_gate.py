@@ -2302,6 +2302,125 @@ def command_norm(seg: str) -> str:
     return " ".join(t.rsplit("/", 1)[-1] for t in seg.split())
 
 
+# ══ 🆕 278 §3 — `sweep-evidence-depth-sensitive` (277 §1.4) ═══════════════════════════
+#
+# 🔴 277's FINDING WAS THAT A GREEN IS ONLY EVER GREEN ON A MACHINE, and it left the
+# question open: *on which of the two machines is this evidence, and does the other one
+# know?* This is that question turned into a claim, over the one axis 277 measured — the
+# depth of the git object store the evidence was taken against.
+#
+# 🔴 PRICED FIRST, AS 277 NEXT 3 INSTRUCTED, AND THE PRICE CHANGED THE ANSWER. A
+# `--depth 1` clone of this repository costs **0.39 s**, so "a second sweep against a
+# shallow clone" — which that row called the expensive option — is affordable, and the
+# cheap option it recommended is not the only one available. What the shallow clone then
+# showed is sharper than the row predicted, and it is why this roster is keyed on the
+# COMMAND rather than on the reader:
+#
+#   `release_names.py --assert-addon` is GREEN on both machines AND ANSWERS A DIFFERENT
+#   QUESTION ON EACH. On the container's full clone it reports the addon stamped at
+#   `e35dc3e7`; on a `--depth 1` clone of the same commit it reports HEAD, with *0 file(s)
+#   moved since over 0 commit(s)* — vacuously true, because a store holding one commit has
+#   nothing to move across. Both exit 0. Both print a 🟢.
+#
+# 🔴 SO THE HAZARD IS NOT "READS GIT", IT IS "ANSWERS INSTEAD OF REFUSING". 277's seven
+# object-store rows in `instrument_gate.py` are the safe kind: on a shallow store their
+# readers return a documented refusal — *a fact about the clone and not about the claim* —
+# which is 271's rule doing its job. A reader that instead produces a confident, cheerful,
+# WRONG answer is invisible to every one of them.
+#
+# 🔵 AND CI IS ALREADY RIGHT ABOUT THIS, WHICH IS THE POINT. `contract-check` carries
+# `fetch-depth: 0` and a comment naming check 4 as the reason. That invariant lives in a
+# YAML file with nothing joining it to the reader that needs it: change the 0, or move the
+# step to any other job, and the check goes green-and-vacuous with no gate anywhere saying
+# so. Every other job in all three workflows is shallow. A comment is not a claim.
+DEPTH_REQUIRED: "dict[str, str]" = {
+    "python3 release_names.py --assert-addon":
+        "check 4 walks history for the commit that STAMPED the addon's version and then "
+        "asks what has moved since. Measured at 278 on both machines at the same commit: "
+        "a full clone answers `stamped e35dc3e73a8c`, a `--depth 1` clone answers `stamped "
+        "0be54af515af` — HEAD, the only object it has — with `0 file(s) moved over 0 "
+        "commit(s)`. Both exit 0. The shallow answer is not a refusal, it is a different "
+        "claim wearing the same green.",
+}
+
+_JOB_RE = re.compile(r"(?m)^  ([A-Za-z0-9_-]+):[ \t]*$")
+_CHECKOUT_RE = re.compile(r"uses:\s*actions/checkout")
+_FETCH_DEPTH_RE = re.compile(r"fetch-depth:\s*(\S+)")
+
+
+def workflow_jobs(text: str) -> "list[tuple[str, str]]":
+    """(job name, job body) for every real job in ONE workflow's text.
+
+    🔴 `runs-on:` IS THE DISCRIMINATOR AND NOT THE INDENT. `on:`'s own keys sit at the same
+    two-space depth as a job's, so a walk keyed on indentation alone reports `push` and
+    `pull_request` as jobs — and then reports them as jobs with no checkout, which is the
+    quiet direction. Pure over text so a fixture can drive both.
+    """
+    hits = list(_JOB_RE.finditer(text))
+    out: "list[tuple[str, str]]" = []
+    for i, m in enumerate(hits):
+        end = hits[i + 1].start() if i + 1 < len(hits) else len(text)
+        body = text[m.start():end]
+        if "runs-on:" in body:
+            out.append((m.group(1), body))
+    return out
+
+
+def job_depth(body: str) -> "str | None":
+    """`"0"` full history, `"1"` the shallow default, `None` when the job checks out nothing.
+
+    🔴 THE DEFAULT IS THE WHOLE POINT. `actions/checkout` with no `fetch-depth:` fetches
+    ONE commit, so the absence of a line is a decision — and it is the decision this reader
+    exists to see. Returning `None` for it would collapse *shallow* into *no checkout at
+    all*, which is the two-states-one-observable shape this project keeps paying for.
+    """
+    if not _CHECKOUT_RE.search(body):
+        return None
+    m = _FETCH_DEPTH_RE.search(body)
+    return m.group(1) if m else "1"
+
+
+def depth_problems(files: "dict[str, str]",
+                   required: "dict[str, str]") -> "tuple[list[str], list[str]]":
+    """(problems, rows) — every DEPTH_REQUIRED command against the depth its job takes.
+
+    Both directions, because a roster rots both ways: a command that needs history running
+    in a shallow job is the defect, and a roster naming a command no workflow runs is an
+    exemption outliving its subject (174 §5).
+    """
+    problems: "list[str]" = []
+    rows: "list[str]" = []
+    seen: "dict[str, list[tuple[str, str, str]]]" = {k: [] for k in required}
+    # 🔴 THE COMMANDS COME FROM `ci_commands_text`, RUN PER JOB, AND NOT FROM A SECOND
+    # WALK. The first draft re-implemented the line scan here and the fixture refused it
+    # within a minute: a `run:` step's text is `- run: python3 …`, so `command_norm` over
+    # the raw line kept the `- run:` and matched nothing. That walk already handles the
+    # block form, the one-line form, chained segments and comments — a second copy of it
+    # is 203 §2's ONE LIST rule broken in a reader written to enforce joins.
+    for wf, text in sorted(files.items()):
+        for job, body in workflow_jobs(text):
+            depth = job_depth(body)
+            for key in ci_commands_text({f"{wf}:{job}": body}):
+                if key in required:
+                    seen[key].append((wf, job, depth or "none"))
+    for key, why in sorted(required.items()):
+        if not seen[key]:
+            problems.append(
+                f"DEPTH_REQUIRED names `{key}`, which no workflow job runs. An exemption "
+                f"outliving its subject is a claim nobody re-argued (174 §5) — either the "
+                f"step moved and this row should follow it, or the command is gone and so "
+                f"should the row be")
+            continue
+        for wf, job, depth in seen[key]:
+            rows.append(f"DEPTH_REQUIRED {key} · {wf}:{job} · fetch-depth {depth}")
+            if depth != "0":
+                problems.append(
+                    f"`{key}` runs in {wf}:{job} at fetch-depth {depth}, and it needs the "
+                    f"whole object store. {why} A shallow checkout does not make this step "
+                    f"fail — it makes it ANSWER, greenly, about a history that is not there")
+    return problems, rows
+
+
 def ci_commands_text(files: "dict[str, str]") -> "dict[str, set]":
     """{normalised command: {workflow file names running it}} over workflow TEXT.
 
@@ -3581,6 +3700,17 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     un_problems, un_notes = unreached_problems(text, _ci)
     problems.extend(un_problems)
     r_notes.extend(un_notes)
+    # 🆕 278 §3 — AND A FOURTH, WHICH IS ABOUT THE MACHINE RATHER THAN THE LIST. The three
+    # above ask whether the replay and CI run the same commands; this one asks whether the
+    # commands that need a whole object store are run somewhere that HAS one. See
+    # `DEPTH_REQUIRED`. It is checked here, at every close, because the answer lives in the
+    # workflow files and changes when somebody moves a step between jobs.
+    _wf_dir = ROOT / ".github" / "workflows"
+    _wf_files = ({f.name: f.read_text(encoding="utf-8")
+                  for f in sorted(_wf_dir.glob("*.y*ml"))} if _wf_dir.is_dir() else {})
+    d_problems, d_rows = depth_problems(_wf_files, DEPTH_REQUIRED)
+    problems.extend(d_problems)
+    r_notes.extend(d_rows)
 
     session, how = block_session(handoff.name, block)
     t_problems, t_notes = tier_problems(text, log, session)
@@ -5111,7 +5241,76 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
-]
+    # 🆕 278 — 253's standing rule, honoured in the FIRST PR for the third session
+    # running. 277 paid a whole extra PR for remembering it after the first had merged.
+    (277, """> **STATUS — 2026-08-21: TWO ROWS CLOSED, ONE PRICED AND KILLED, AND THE ROW THAT ASKED
+> FOR A COUNT WAS WRONG ABOUT ITS OWN BY TWENTY-FIVE.**
+> Two PRs, seven files, no release, no version bump, no behaviour change to any shipped
+> tool.
+>
+> 🔴 **THE ROW SAID FORTY-NINE TOP-LEVEL `def`s AND `handoff_gate.py` HOLDS SEVENTY-EIGHT.**
+> 247 measured the number, nothing ever printed it, and twenty-nine sessions carried it as
+> a fact about the tree. That is 276's own finding-to-carry arriving inside the row 276
+> handed forward. Every member was blinded to the empty its own annotation promises and
+> the command run against it before a line of the roster was written: fifty-six redden,
+> twenty-two do not, and the twenty-two are THREE reasons rather than twenty-two. §1.
+>
+> 🔴 **AND THE SWEEP FOUND TWO LIVE DEFECTS ON ITS FIRST PASS.** Seven members CRASHED the
+> self-test instead of reddening it, all seven through two sites in `selftest()`: `all()`
+> over an empty sequence is `True`, so a failed parse sent the reader into the branch that
+> asserts a NUMBER and then indexed `ends[0]`; and `len()` over a `read_measured` return
+> its own annotation says may be `None`, so the message describing a failure could not be
+> built in the case that failure is about. Blinding `_runs` reddened five claims and
+> killed the command; with both fixed it reddens eighty-seven. §1.
+>
+> 🔴 **CI REFUSED THE SWEEP ON THIS SESSION'S OWN SUBJECT.** `{SIG:previous_main}` reddens
+> on a full clone and cannot on a `--depth 1` one — its only consumer runs `git rev-list
+> old..new`, which fails there and returns the same documented refusal blinded or not.
+> Three `host tests` legs said so and no local run could. The measurement was taken on one
+> checkout and reported as a fact about the tree, by the session spending the day on
+> exactly that sentence. §1.4.
+>
+> 🔴 **`mutating-gate-writes-not-atomic` (272) WAS PRICED AS INSTRUCTED AND THE ANSWER IS
+> NOT TO BUILD IT.** A torn mutant is already recoverable byte-for-byte on both routes,
+> and atomicity there converts a loud residue into a quiet one. The pricing found the
+> window that DOES lose bytes — five lines, one file over, in `_gate_lock._stash()`. §3.
+>
+> ritual TIER1 — the full fence was run rather than inherited. `main` was clean at pickup
+> and matched 276's block exactly, so TIER0 was available; this session edited three of
+> the gates the fence is made of and took TIER1.
+>
+> ```
+> main                 0be54af — the previous block joins the population (#340)   MOVED +2
+>                      16ac0cd — of what, exactly, is this a count? (#339)
+> branch 277           session277-of-what-is-this-a-count · PR #339
+>                      session277b-block-population · PR #340
+>                      🟢 BOTH PUSHED AND MERGED, 26/26 green
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no version bump this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — nothing owed. Both gh counters are a READING taken on his Mac
+> assetlib             🟢 addon 1.12.0 live · accepted between sessions, and the open
+>                      gate is what noticed
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 29/29 · scope 70 · control 80 · 26 CI jobs
+>               · instrument ok across 20 · LATE_LIVE 18/8 · 0 crashes · blast 2447
+>               · late not-loaded 0 · late constructed 266/160
+>               · py gates 18/5/13 · SIG 200/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 108 · 52 governed · 1413 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 309 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4768 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 395 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+>
+> 🔵 **THIRD BLOCK IN THE SERIES CLOSED AGAINST CI'S OWN OUTPUT**, on the route 275 wrote
+> and 276 confirmed. It needed no re-derivation for the second session running.
+"""),]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
 # 🔴 EVERY FLOOR THIS FILE HAS ON `BLOCK_POPULATION` IS A FLOOR ON ITS WIDTH.
@@ -7469,6 +7668,68 @@ def selftest() -> int:
     # 🆕 275 — `unread` IS PRINTED RATHER THAN SUBTRACTED. A claim this checkout
     # cannot make is not a claim that does not exist: the count above is the same
     # in every environment now, and the difference between them is this number.
+    # ── 🆕 278 §3 — THE DEPTH ROSTER, DRIVEN BOTH WAYS FROM FIXTURES ────────────────
+    #
+    # 🔴 EVERY BRANCH BELOW IS UNEXECUTED BY THE LIVE RUN, which is exactly why it is here.
+    # `depth_problems` returns `[]` on the shipped tree — `contract-check` already carries
+    # `fetch-depth: 0` — so a rule this reader stopped applying would delete in silence,
+    # and the sentence it exists to say would go with it. Three shapes: the defect, the
+    # healthy case, and the exemption that outlived its subject.
+    _DEPTH_FULL = ("name: ci\n"
+                   "on:\n"
+                   "  push:\n"
+                   "jobs:\n"
+                   "  contract-check:\n"
+                   "    runs-on: ubuntu-latest\n"
+                   "    steps:\n"
+                   "      - uses: actions/checkout@v6\n"
+                   "        with:\n"
+                   "          fetch-depth: 0\n"
+                   "      - run: python3 scripts/release_names.py --assert-addon\n")
+    _DEPTH_SHALLOW = _DEPTH_FULL.replace("        with:\n          fetch-depth: 0\n", "")
+    _DEPTH_GONE = _DEPTH_FULL.replace(
+        "      - run: python3 scripts/release_names.py --assert-addon\n", "")
+
+    for _label, _text, _want, _why in (
+        ("full", _DEPTH_FULL, 0,
+         "a required command in a job that fetches the whole history is the HEALTHY case, "
+         "and a reader that refuses it refuses the shipped tree"),
+        ("shallow", _DEPTH_SHALLOW, 1,
+         "the defect: `actions/checkout` with no `fetch-depth:` takes ONE commit, and the "
+         "step then answers greenly about a history that is not there"),
+        ("gone", _DEPTH_GONE, 1,
+         "the roster naming a command no job runs — an exemption outliving its subject "
+         "(174 §5), and the direction a one-way reader would never see"),
+    ):
+        claims += 1
+        _got, _ = depth_problems({"ci.yml": _text}, DEPTH_REQUIRED)
+        if len(_got) != _want:
+            failed += 1
+            print(f"  🔴 DEPTH_{_label.upper()} -> {len(_got)} problem(s), want {_want} "
+                  f"— {_why}. Got: {_got}")
+
+    # 🔴 AND THE WALK ITSELF, BECAUSE `on:`'s KEYS SIT AT A JOB'S INDENT. A reader that
+    # counted `push` as a job would report it as a job with no checkout, which is the quiet
+    # direction — every DEPTH_REQUIRED row would then pass for the wrong reason.
+    claims += 1
+    _jobs = [n for n, _b in workflow_jobs(_DEPTH_FULL)]
+    if _jobs != ["contract-check"]:
+        failed += 1
+        print(f"  🔴 DEPTH_JOB_WALK -> {_jobs}, want ['contract-check'] — `runs-on:` is the "
+              f"discriminator, not the indent: `on:`'s own keys sit at the same depth")
+
+    # 🔴 AND THE DEFAULT IS A DECISION, NOT AN ABSENCE. Collapsing *shallow* into *no
+    # checkout at all* is the two-states-one-observable shape this project keeps paying for.
+    for _label, _body, _want in (("full", _DEPTH_FULL, "0"),
+                                 ("shallow", _DEPTH_SHALLOW, "1"),
+                                 ("no checkout", "runs-on: ubuntu-latest\n    steps:\n", None)):
+        claims += 1
+        _d = job_depth(_body)
+        if _d != _want:
+            failed += 1
+            print(f"  🔴 DEPTH_DEFAULT {_label} -> {_d!r}, want {_want!r} — a missing "
+                  f"`fetch-depth:` means ONE commit and must not read as 'no checkout'")
+
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed"
           + (f", {unread} unread on this checkout" if unread else ""))
     return 1 if failed else 0

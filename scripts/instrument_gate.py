@@ -1218,6 +1218,118 @@ INSTRUMENTS = [
             "{SIG:check}": "return ([], [], 0, 0, 0, 0,)",
             "{SIG:tier_trigger}": "return (\"\", \"\", \"\", \"\",)",
             "{SIG:open_tier}": "return 0",
+            # ── 🆕 278 §3 — the depth roster, `sweep-evidence-depth-sensitive` (277) ──
+            # Three members, and every branch of all three is unexecuted by the live run:
+            # `depth_problems` returns `[]` on the shipped tree because `contract-check`
+            # already carries `fetch-depth: 0`. That is the shape this instrument exists
+            # for — a rule whose healthy answer is silence deletes in silence too.
+            "{SIG:workflow_jobs}": "return []",
+            "{SIG:job_depth}": "return None",
+            "{SIG:depth_problems}": "return ([], [])",
+        },
+    },
+    # ══ 🆕 278 §4 — THE SIXTH PYTHON INSTRUMENT — `release-names-twelve-readers` (247) ══
+    #
+    # 🔴 THE ROW SAID SEVENTEEN MEMBERS AND THE FILE HOLDS THIRTY-THREE. 277 §1 found
+    # `handoff_gate.py`'s row wrong by twenty-nine; this is its SIBLING, split out of the
+    # same 247 cohort, wrong the same way in the same direction, measured one session
+    # later. 276's finding-to-carry has now landed in three consecutive sessions and every
+    # time the reason was identical: the count was taken by hand, nothing printed it, and
+    # a claim with no reader cannot be wrong.
+    #
+    # 🔴 AND THE BLAST READ ZERO BEFORE `E_FAIL` EXISTED. This file reports in a FIFTH
+    # dialect and `failure_lines` could spell four, so the sweep that produced the roster
+    # below measured 0 across ten reddening blinds — a floor taken from it would have been
+    # a floor at nothing (172 §10.21), which is precisely what 277 §4 recorded about the
+    # instrument directly above this one. 245 measured the same thing about the first three
+    # Python instruments. Three sessions, three hand measurements, no refusal — so 278
+    # shipped `BLAST_UNREADABLE` beside the fifth regex, and THAT is the part that stops a
+    # sixth being found by hand.
+    #
+    # 🔴 THE SWEEP FOUND SIX CRASHES AND FIXED FOUR OF THEM INTO CATCHES. Every one was the
+    # same shape as 277 §1.2 one file over — `selftest()` subscripting a detail bag straight
+    # off a reader whose own annotation permits the empty — and a fifth was on the LIVE path
+    # (`--assert-addon`'s printer, `KeyError: 'version'` BEFORE the refusal line, so the
+    # command could not say what was wrong with it). `detail_or_refusal` in that file is the
+    # third state, refused by name. Measured: 10 red / 6 crash before, 15 red / 2 crash
+    # after, and the blast went 63 -> 110 across the same population.
+    #
+    # 🔵 THE TWO REMAINING CRASHES ARE THE INVOCATION ITSELF, exactly as `handoff_gate.py`'s
+    # three are: blinding `selftest` or `main` makes the command do nothing and exit 0, which
+    # is a fact about argv rather than about the instrument. Both are in `NOT_A_TARGET`.
+    {
+        "name": "release_names.py",
+        "src": ROOT / "scripts" / "release_names.py",
+        "gate": ["python3", "../scripts/release_names.py", "--selftest"],
+        "cwd": HOST,
+        "floor": 12,
+        "why": "every predicate under the one file that decides what a release is ALLOWED "
+               "to be called, and the guard that keeps its own self-test reporting",
+        "targets": {
+            # ── check 1 and check 8 — the names in the block, and the wire beneath them ──
+            "{SIG:read_names}": "return ([], [])",
+            "{SIG:verdict}": "return (\"\", \"\", {})",
+            "{SIG:wire_floor}": "return (\"\", \"\", {})",
+            "{SIG:major_evidence}": "return []",
+            # ── check 2 — the producer window, which reads no notes at all ──
+            "{SIG:parse_diff}": "return {}",
+            "{SIG:is_version_bump_hunk}": "return False",
+            "{SIG:split_window}": "return ([], [])",
+            "{SIG:population}": "return (\"\", \"\", {})",
+            # ── check 3 and check 4 — the tarball map, and the addon's own tree ──
+            "{SIG:assert_map}": "return (\"\", \"\", {})",
+            "{SIG:addon_state}": "return (\"\", \"\", {})",
+            "{SIG:_oldest}": "return None",
+            # ── the tag the NEXT cut reads, and the fixture the whole table is built on ──
+            "{SIG:tag_message}": "return \"\"",
+            "{SIG:tag_command}": "return (\"\", \"\")",
+            "{SIG:_pack}": "return []",
+            # 🆕 278 — THE GUARD ADDED THIS SESSION IS A TARGET LIKE ANY OTHER. A guard
+            # that can return "the bag is complete" for a bag that is not is the defect it
+            # was written against, wearing the fix's name.
+            "{SIG:detail_or_refusal}": "return \"\"",
+        },
+    },
+    # ══ 🆕 278 §4 — THE SAME FILE, A SECOND COMMAND, AND THE REASON IS STRUCTURAL ═══════
+    #
+    # 🔴 BOTH OF THIS HARNESS'S AXES ARE ANCHORED TO ONE TARGET LIST, and until this entry
+    # existed that made a whole class of member unreachable. A target must redden on
+    # `inst["gate"]` — there is no `DECLARED_GREEN` for the primary axis and deliberately
+    # so — and the B:live late sweep iterates the SAME list. So a member that is green
+    # under the gate command and CAUGHT by a different live command has nowhere to be
+    # declared: not a target, because the primary axis would refuse it STILL GREEN; not
+    # an exclusion either, because it is demonstrably covered.
+    #
+    # 🔴 MEASURED, AND IT IS EXACTLY THE ROW 247 OPENED. Blinding all sixteen members that
+    # survive `--selftest` against BOTH live commands: four die under `--assert-addon`,
+    # one under `--assert-map`, eleven under neither. 247 said *the readers are exercised
+    # only by `--assert-addon` and `--assert-map`* and was right — there was simply no
+    # shape in this file that could say so, which is why the row sat for thirty sessions.
+    #
+    # 🔵 THE SHAPE ALREADY EXISTED AND IS ONE ROW UP: `path-cohort (compiled walk)` is a
+    # SECOND entry over a second artefact with its own name, targets and floors. This is
+    # that, over a second COMMAND rather than a second file. Entry one is
+    # gate `--selftest` / live `--assert-addon`; this one is gate `--assert-addon` / live
+    # `--assert-map`, so between them all three commands ci.yml runs against this file are
+    # an axis rather than a claim about one.
+    {
+        "name": "release_names.py (--assert-addon)",
+        "src": ROOT / "scripts" / "release_names.py",
+        "gate": ["python3", "../scripts/release_names.py", "--assert-addon"],
+        "cwd": HOST,
+        "floor": 4,
+        "why": "check 4's four live readers — the ones that ask whether the addon's version "
+               "still names exactly one tree, and which no fixture can reach",
+        "targets": {
+            "{SIG:addon_version}": "return None",
+            "{SIG:addon_stamp_commit}": "return None",
+            "{SIG:_first_commit_introducing}": "return None",
+            # 🔴 AND THIS ONE IS THE SIXTH CRASH SITE, NOW A CATCH. Blinded, it used to take
+            # `--assert-addon` down with `KeyError: 'version'` from check 4's own printer,
+            # BEFORE the refusal line — so the command could not say what was wrong with
+            # it (273's reader that cannot show its own refusal). `detail_or_refusal` at
+            # the printer is what turned that crash into this target.
+            "{SIG:_addon_live}": "return (\"\", \"\", {})",
         },
     },
 ]
@@ -1520,6 +1632,92 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "what a blind returns. A claim on the printed line needs a tree with a broken "
         "anchor in it, and that is a fixture nothing here builds — `queue_gate.py`'s "
         "`{SIG:ages}` shape (247 §1) without `queue_gate.py`'s cheap live command.",
+    # ══ 🆕 278 §4 — `release-names-twelve-readers` (247): FOURTEEN ROWS, THREE REASONS ══
+    #
+    # 🔴 EVERY ONE BLINDED AND MEASURED ON BOTH AXES BEFORE IT WAS WRITTEN DOWN — all
+    # thirty-three members against `--selftest`, then all sixteen A:gate greens against
+    # BOTH `--assert-map` AND `--assert-addon`. That second sweep is what turned five of
+    # the sixteen into targets and left eleven, so the number below is a residue rather
+    # than a starting position: 247's row guessed twelve unreachable readers, the first
+    # axis found sixteen, and the second put four of them on the live axis and named the
+    # command that catches the fifth.
+    #
+    # ── I — the RELEASE RITUAL, and there is no command CI can run to reach it (11) ──
+    #
+    # 🔴 THIS IS THE ONE REASON HERE THAT IS ABOUT A MACHINE RATHER THAN A POPULATION, AND
+    # IT WAS MEASURED RATHER THAN ARGUED. These eleven are called only by `main()`'s
+    # no-flag path — the cut itself — and that path refuses on any ordinary commit before
+    # it reaches them, because a released block for the version being cut does not exist
+    # until the cut writes one. The axis needs a tree no CI run has.
+    #
+    # 🔵 AND A PATH TO IT DOES EXIST, WHICH IS WHY THIS IS A ROW AND NOT A DEAD END.
+    # `--head-ref` replays a PAST cut, and 278 drove one green — version 1.82.0 against
+    # previous 1.81.0 at that tag, claiming MAJOR — which exercises checks 1, 2, 4 and 8
+    # and exits 0. It is not adopted here because it pins two tag literals and a bump that
+    # are facts about one historical window; a third axis built on those is a claim about
+    # the machine in a different costume. Opened as `release-names-ritual-axis`.
+    **{("release_names.py", _n): (
+        "reached only by the RELEASE RITUAL — `main()`'s no-flag path — and that path "
+        "refuses before it reaches this member on any tree without a released block for "
+        "the version being cut, which is every tree CI ever checks out. Measured on both "
+        "of the commands CI DOES run: green under the blind against `--assert-map` AND "
+        "against `--assert-addon`. `release-names-ritual-axis` is where the third axis "
+        "is priced.")
+       for _n in ("shipped_corpus", "released_block", "changed_window", "raw_window",
+                  "wire_read", "engines_window", "tag_tree_version", "tag_release_commit",
+                  "tag_shadow", "addon_moved_since", "release_commit")},
+    # ── II — the one caught by the OTHER live command (1) ──
+    #
+    # 🔴 AN EXCLUSION WITH A MEASUREMENT IN IT CAN BE FALSIFIED (277 §4), so this row names
+    # the command that catches it and the refusal that command prints.
+    ("release_names.py", "tarball_entries"):
+        "caught, but by the live command this instrument's B:live axis does not run. "
+        "Blinded to its empty it takes `--assert-map` red with `MAP_TARBALL_THIN — the "
+        "tarball has 0 entr(y/ies), below the floor`; `--assert-addon`, which IS this "
+        "file's live axis, does not call it. `LATE_LIVE` is keyed one command per "
+        "instrument and `--assert-addon` catches four members against this one — so the "
+        "four win and this row names what would catch it. Falsify by making the axis run "
+        "both commands.",
+    # ── III — the invocation (2), exactly as `handoff_gate.py`'s three are ──
+    ("release_names.py", "main"):
+        "the invocation, not a reader — see verdict_gate.mjs::main. Blinded to `return 0` "
+        "the command produces no output at all and never prints its VERDICT_MARKER, so the "
+        "sweep files it a CRASH: a judgement about argv rather than about the instrument.",
+    ("release_names.py", "selftest"):
+        "🔴 THIS COMMAND — see handoff_gate.py::selftest above. Blinding the self-test "
+        "removes the axis every judgement in this sweep is made on, so the mutant measures "
+        "the harness's own absence rather than the instrument.",
+    # ── IV — covered by the SECOND ENTRY, which is the whole reason it exists (4) ──
+    #
+    # 🔵 THE ONLY ROWS IN THIS TABLE THAT MEAN *COVERED ELSEWHERE* RATHER THAN *NOT
+    # COVERED*. Each is green under `--selftest` — the fixtures never call it — and each
+    # reddens `--assert-addon`, which is `release_names.py (--assert-addon)`'s gate. The
+    # exclusion is falsified by deleting that entry: `INSTRUMENT_GATE_COVERAGE` would then
+    # report four members with a reason naming an instrument that does not exist.
+    **{("release_names.py", _n): (
+        "green under `--selftest` because the fixtures never call it, and a TARGET of "
+        "`release_names.py (--assert-addon)` — the second entry over this same file, whose "
+        "gate is the live command that does. Measured on both, not assumed.")
+       for _n in ("addon_version", "addon_stamp_commit", "_first_commit_introducing",
+                  "_addon_live")},
+    # ── 🆕 278 §4 — THE SECOND ENTRY'S COVERAGE, and it is one sentence twenty-nine times.
+    #
+    # `coverage_problems` reads `members_of(src)` per ENTRY, and both entries share a
+    # source file — so every member this command does not reach needs a row here under the
+    # second name. That is not duplication: it is the check refusing to let a second entry
+    # quietly narrow the population it is judged against. The four it DOES reach are its
+    # targets; `selftest` and `main` are the invocation for the same reason as above.
+    **{("release_names.py (--assert-addon)", _n): (
+        "targeted under `release_names.py`, whose gate is `--selftest`. This entry exists "
+        "only for the four members that command cannot reach (see its header), and "
+        "`--assert-addon` does not call this one — measured under the blind, green.")
+       for _n in ("wire_floor", "major_evidence", "read_names", "verdict", "parse_diff",
+                  "is_version_bump_hunk", "split_window", "population", "assert_map",
+                  "shipped_corpus", "released_block", "changed_window", "raw_window",
+                  "wire_read", "engines_window", "tag_tree_version", "tag_release_commit",
+                  "tag_shadow", "addon_state", "_oldest", "addon_moved_since",
+                  "release_commit", "tag_message", "tag_command", "tarball_entries",
+                  "_pack", "detail_or_refusal", "selftest", "main")},
 }
 
 
@@ -1638,6 +1836,28 @@ LATE_LIVE = {
     # self-test. Declaring it NA would have been an exclusion bought with a sentence
     # anybody could check and find false — 211 §5's whole point about the reasons.
     "positive_control_gate.mjs": (["node", "scripts/positive_control_gate.mjs"], None),
+    # 🆕 278 §4 — AND THIS ONE HAD NO EXEMPTION AVAILABLE TO IT, WHICH IS THE GATE DOING
+    # ITS JOB. `LATE_LIVE_NA` has one sentence to say — *there is no second command that
+    # exercises this file* — and ci.yml runs TWO (`--assert-map` in the build job,
+    # `--assert-addon` in contract-check), so 232 §5.6 refuses it. `LATE_LIVE_COST` is
+    # refused the other way: it is falsified when the declared price drops UNDER budget,
+    # and these cost 0.69 s and 0.08 s per mutant against a 20 s budget. Neither excuse
+    # was buyable, so the file got the axis. That is `LATE_LIVE_COST`'s design working in
+    # the direction 277 built it for.
+    #
+    # 🔴 `--assert-addon` AND NOT `--assert-map`, AND THE CHOICE IS MEASURED. Blinding all
+    # sixteen A:gate greens against BOTH commands: `--assert-addon` catches four
+    # (`addon_version`, `addon_stamp_commit`, `_first_commit_introducing`, `_addon_live`)
+    # and `--assert-map` catches one (`tarball_entries`). This roster takes one command per
+    # instrument, so the four win and the one carries its own `NOT_A_TARGET` row naming the
+    # command that DOES catch it — an exclusion with a measurement in it (277 §4).
+    "release_names.py": (["python3", "../scripts/release_names.py", "--assert-addon"], None),
+    # 🆕 278 §4 — and the second entry's live axis is the third of the three commands, so
+    # between the two entries `--selftest`, `--assert-addon` and `--assert-map` are each
+    # either a gate or a live axis. Same reasoning as the row above: `LATE_LIVE_NA` would
+    # be false and `LATE_LIVE_COST` is falsified by its own price.
+    "release_names.py (--assert-addon)": (
+        ["python3", "../scripts/release_names.py", "--assert-map"], None),
     # 🆕 244 §4 — THE TWO P0 REPORTERS, AND THIS PAIR OF ROWS IS THE ROW ITSELF. 241's
     # `DISCOVER_EXEMPT` entries said the late axis had nothing to blind because a reporter
     # that prints cannot redden. `--floor` is a second command that CAN: it asks each
@@ -1728,6 +1948,15 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     # the red path (draft 2's failure) and it is absent from a stack-frame trace (draft 1's
     # failure). The census line, never the `ok —` line.
     "node scripts/seal_order_gate.mjs": "SEAL_ORDER_GATE files=",
+    # 🆕 278 §4 — draft 3's rule again, and this command has TWO report paths rather than
+    # the usual one: a green run prints `RELEASE_NAMES --assert-addon · addon …` and a
+    # refusal prints `🔴 RELEASE_NAMES REFUSED [<code>]: …` on stderr, which `run_counting`
+    # concatenates. 🔴 AND SINCE 278 THERE IS A THIRD: a detail bag short a key its printer
+    # reads is refused BEFORE the header line, so a marker taken from the header alone
+    # would classify exactly the catch this session ADDED as a crash. `RELEASE_NAMES ` is
+    # the substring all three share.
+    "python3 ../scripts/release_names.py --assert-addon": "RELEASE_NAMES ",
+    "python3 ../scripts/release_names.py --assert-map": "RELEASE_NAMES ",
     "node scripts/token-cost.mjs --summary": "TOKEN_COST ",
     "node scripts/wire_invisible_gate.mjs": "WIRE_INVISIBLE_SURFACE ",
     "node scripts/wire_diff.mjs --discover": "WIRE_DIFF_KEY ",
@@ -1777,6 +2006,19 @@ LATE_CRASH_CEILING_B = 0   # state, reached). Kept as two numbers rather than on
 # leaves a gate green is not automatically a defect: two states produce it, and only one
 # of them is.
 LATE_DECLARED_GREEN = {
+    # ══ 🆕 278 §4 — ONE ROW, AND IT IS 277's SENTENCE ABOUT THE AXIS AGAIN ══════════════
+    #
+    # 🔴 `_pack` IS A FIXTURE BUILDER CALLED AT IMPORT TIME, SIX TIMES, BEFORE ANY CLAIM
+    # RUNS. The late injector blinds from the SECOND call, so on the `--assert-addon` axis
+    # the five calls after the first return `[]` into module-level tables that command
+    # never reads — nothing downstream of them is exercised, so nothing can redden.
+    # Measured, not assumed: it is a target on the A:gate primary axis above, where the
+    # blind is global and it reddens with five reported failures.
+    ("release_names.py", "{SIG:_pack}", "B:live"):
+        "a fixture builder run at IMPORT time, six times, into module-level tables that "
+        "`--assert-addon` never reads. The late blind takes effect from call two, so every "
+        "affected table is one this command does not consult — 277 §1.5's sentence about "
+        "the axis, with a different cause. Caught on A:gate, where the blind is global.",
     # ══ 🆕 277 §2 — FIVE, AND ALL FIVE SAY THE SAME THING ABOUT THE LATE AXIS ITSELF ══
     #
     # 🔴 A NEGATIVE CLAIM CANNOT CATCH A LATE BLIND, AND THAT IS A PROPERTY OF THE AXIS
@@ -2275,6 +2517,19 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     "queue_gate.py": 160,          # 271: 78 -> 160, measured 202 (+5 targets)
     "mutation_lock_gate.py": 15,   # 247: 6 -> 19 measured, floored from below
     "terminology_gate.py": 9,      # 247: measured 11 on [A:gate]
+    # 🆕 278 §4 — measured 101 on [A:gate], floored ~20% below. Close to the primary
+    # blast (110) rather than well under it, unlike every JavaScript row above: this
+    # self-test reads most members MORE than once across its eight fixture tables, so a
+    # blind from call two still reaches nearly every claim.
+    "release_names.py": 80,                       # 278: measured 101 on [A:gate]
+    # 🆕 278 §4 — 🔵 A ROSTER ROW OVER AN EMPTY POPULATION, AND IT SAYS SO. All four of
+    # this entry's targets are called exactly ONCE by `--assert-addon`, so a late blind is
+    # not constructible on either of its axes and neither ever records a blast. The row
+    # exists because `LATE_BLAST_FLOOR` is checked for COMPLETENESS — an instrument with no
+    # row reads as an instrument nobody measured — and the number is the smallest that can
+    # separate "reported something" from "reported nothing" if one ever becomes
+    # constructible. It is not a measurement and does not pretend to be one.
+    "release_names.py (--assert-addon)": 1,       # 278: not constructible; completeness row
 }
 # ══ 🆕 245 §3 — `late-live-blast-unfloored` (244) ══════════════════════════════════
 #
@@ -2316,6 +2571,15 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
     # this session floored the excluded population it reads. The pin is the smallest
     # number that separates "reported something" from "reported nothing".
     "terminology_gate.py": 1,     # 247: measured 1
+    # 🆕 278 §4 — measured 101 on [A:gate], floored ~20% below. Close to the primary
+    # blast (110) rather than well under it, unlike every JavaScript row above: this
+    # self-test reads most members MORE than once across its eight fixture tables, so a
+    # blind from call two still reaches nearly every claim.
+    # 🆕 278 §4 — ONLY THE SECOND ENTRY IS FLOORED HERE. The first is in
+    # `LATE_LIVE_BLAST_UNCOUNTABLE` with the measurement that says why: its live command
+    # calls exactly one of its fifteen targets twice. Two entries over one file, two
+    # different answers about the same axis, and both are readings rather than opinions.
+    "release_names.py (--assert-addon)": 1,       # 278: not constructible; see A:gate row
 }
 
 LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
@@ -2323,6 +2587,18 @@ LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
     # `mutation_lock_gate.py` below, `handoff_gate.py` reports zero on this axis because
     # the axis did not run — `LATE_LIVE_COST` prices `--patterns` out of a fifty-seven
     # target sweep. Kept as a row rather than special-cased, for the reason that row gives.
+    # 🆕 278 §4 — AND THIS ONE IS NOT "THE AXIS DID NOT RUN". It ran, over all fifteen
+    # targets, and reddened NOTHING — which is a different sentence and gets its own row
+    # rather than a floor of one nobody could ever meet. Measured: `--assert-addon` calls
+    # exactly one of this instrument's fifteen targets more than once (`_pack`, six times
+    # at import), and that one is declared in `LATE_DECLARED_GREEN` with its reason. The
+    # other fourteen are `not-called` on this axis by construction, so there is no
+    # population for a blast to be taken over. 🔵 The coverage those fourteen would want
+    # is `release_names.py (--assert-addon)`'s, which is why that entry exists.
+    "release_names.py": "the live axis ran and had nothing to redden — `--assert-addon` "
+                        "calls exactly one of the fifteen targets twice and that one is in "
+                        "LATE_DECLARED_GREEN. A floor over an empty population is 172 "
+                        "§10.21 wearing a number.",
     "handoff_gate.py": "no B:live axis ran — `LATE_LIVE_COST` prices `--patterns` at 172s "
                        "per mutant, so this number would be zero for a third reason again",
     "tautology_gate.mjs": "it reports by collapsing a population, not by listing claims",
@@ -2752,13 +3028,12 @@ PY_NOT_SWEPT: dict[str, str] = {
     # above: 78 members, 56 targeted, 22 declared in `NOT_A_TARGET` under three reasons.
     # 247's row said FORTY-NINE and nothing printed the number, so the drift to 78 was
     # invisible for twenty-nine sessions — a count of what the reader could spell (276).
-    "release_names.py":
-        "🆕 247 §1 — ITS OWN ROW NOW: `release-names-twelve-readers` (247), which is what "
-        "246 NEXT 4 said to split out. Measured, 3 of 17 caught. TWELVE tree readers — "
-        "`shipped_corpus`, `released_block`, the four window readers, the four tag readers, "
-        "`addon_version`, `tarball_entries` — can each return their empty with `--selftest` "
-        "green, because that command proves the PREDICATES on fixtures and the readers are "
-        "exercised only by `--assert-addon` and `--assert-map`.",
+    # 🟢 278 §4 — `release_names.py` LEFT THIS TABLE. It is the sixth Python instrument
+    # above: 33 members, 15 targeted on A:gate, 4 more on the B:live axis `--assert-addon`
+    # gives it, 14 declared in `NOT_A_TARGET` under three reasons. 247's row said
+    # SEVENTEEN and nothing printed the number, so the drift to 33 was invisible for
+    # thirty sessions — a count of what the reader could spell (276), for the third
+    # consecutive session and in the sibling of the row 277 closed.
     "spec_conformance.py":
         "measured: 3 of 7 caught. 🆕 247 §1 — AND ONE OF THE TWO GREENS WAS NOT A COVERAGE "
         "GAP AT ALL. `scanned_files` was called by NOTHING in this repository, so its blind "
@@ -2796,7 +3071,7 @@ def py_discovery_stats(files, instruments, declared) -> dict:
     """The census line's numbers. Split from the refusals so `_call_wiring_problems` can
     stub the predicate without the stats call collapsing with it — the two answer different
     questions and only one of them is a verdict."""
-    swept = {i["name"] for i in instruments if str(i["src"]).endswith(".py")}
+    swept = {Path(i["src"]).name for i in instruments if str(i["src"]).endswith(".py")}
     walked = set(files)
     probs = py_discovery_problems(files, instruments, declared)
     return {
@@ -2809,9 +3084,18 @@ def py_discovery_stats(files, instruments, declared) -> dict:
 
 def py_discovery_problems(files, instruments, declared) -> list[str]:
     """PURE over its inputs — 174 §8's rule, so `_self_check` can hand it a tree that
-    cannot exist and drive both directions of every refusal."""
+    cannot exist and drive both directions of every refusal.
+
+    🆕 278 §4 — SWEPT IS KEYED ON THE SOURCE FILE, NOT ON THE ENTRY NAME. This half asks
+    *is this tracked Python gate swept by anything*, and an entry's `name` is a LABEL: it
+    is `release_names.py (--assert-addon)` for the second entry over that same file, and
+    `path-cohort (compiled walk)` has never been a filename at all. Keyed on the label, a
+    second entry over an already-swept file reported `PY OUTSIDE` — the walk cannot reach
+    a name that is not a path — which is this reader answering a question about labels
+    while describing itself as answering one about files.
+    """
     problems: list[str] = []
-    swept = {i["name"] for i in instruments if str(i["src"]).endswith(".py")}
+    swept = {Path(i["src"]).name for i in instruments if str(i["src"]).endswith(".py")}
     walked = set(files)
     for name in sorted(walked - swept - set(declared)):
         problems.append(
@@ -3245,6 +3529,29 @@ def _self_check(floor: int) -> list[str]:
         problems.append(
             "failure_lines counts a failure in the handoff dialect's HEALTHY verdict — "
             "every control run would read as caught")
+    # 🆕 278 §4 — THE FIFTH DIALECT, ASSERTED THE SAME WAY AND FOR THE SAME REASON.
+    if failure_lines("\n  66 rows · 36 REFUSE · 34 distinct code(s) · 🔴 13 DISAGREE\n") != 13:
+        problems.append(
+            "failure_lines does not read the COUNTED release-names dialect — the "
+            "instrument that reports this way measured a blast of zero across ten "
+            "reddening blinds until this reader existed (278 §4)")
+    if failure_lines("\n  66 rows · 36 REFUSE · 34 distinct code(s) · 🟢 all agree\n"):
+        problems.append(
+            "failure_lines counts a failure in the release-names dialect's HEALTHY "
+            "verdict — every control run would read as caught")
+    # 🆕 278 §4 — THE SIXTH DIALECT, AND THE HEALTHY DIRECTION MATTERS MORE HERE THAN
+    # ANYWHERE ELSE IN THIS LIST: this is the house refusal spelling, so a reader that
+    # matched the GREEN header of the same commands would count a failure on every clean
+    # run and make every blast floor unfalsifiable from below.
+    if failure_lines("🔴 RELEASE_NAMES REFUSED [C4_ADDON_UNFINDABLE]: nope\n") != 1:
+        problems.append(
+            "failure_lines does not read the house REFUSED dialect — the instrument that "
+            "reports this way measured a blast of zero across four caught blinds, and "
+            "BLAST_UNREADABLE is what said so (278 §4)")
+    if failure_lines("RELEASE_NAMES --assert-addon  ·  addon 1.12.0 · stamped abc\n"):
+        problems.append(
+            "failure_lines counts a failure in the house dialect's HEALTHY header — every "
+            "clean run of those commands would read as caught")
     if failure_lines("everything is fine\n  ok   NOT_A_FAILURE\n"):
         problems.append(
             "failure_lines counts a failure in clean output — the blast floors would then be "
@@ -3611,6 +3918,19 @@ VERDICT_MARKER: dict[str, str] = {
     # red path and the green one alike. A marker that is also a counter is the strongest
     # shape available — a rename breaks the roster join before it breaks this sweep.
     "handoff_gate.py": "HANDOFF_SELFTEST ",
+    # 🆕 278 §4 — same rule, same reason, and 277's row above is the precedent: a marker
+    # that is ALSO a counter is the strongest shape available, because a rename breaks the
+    # roster join before it breaks this sweep. `<rows> rows · <n> REFUSE · <n> distinct
+    # code(s) · …` is printed ONCE, LAST, before either early `return 1`, and on the red
+    # path and the green one alike — the `🟢 all agree` / `🔴 n DISAGREE` tail is on that
+    # same line. Chosen by RUNNING the command red (245's rule), not by reading a
+    # neighbour: the substring is the part BEFORE the verdict tail, so it survives both.
+    "release_names.py": " distinct code(s) · ",
+    # 🆕 278 §4 — the second entry's gate command. `RELEASE_NAMES ` is the substring its
+    # THREE report paths share: the green header, the `🔴 RELEASE_NAMES REFUSED [code]`
+    # on stderr, and the short-bag refusal this session added, which prints BEFORE the
+    # header and would have been classified a crash by any marker taken from it.
+    "release_names.py (--assert-addon)": "RELEASE_NAMES ",
     "_population.mjs": "POP_SELFTEST",
     "_path_ledger.mjs": "LEDGER_SELFTEST",
     "_workspace.mjs": "WORKSPACE_SELFTEST",
@@ -3678,14 +3998,44 @@ C_FAIL = re.compile(r"^(?:ℹ|#) fail (\d+)$", re.M)                  # node:tes
 # it. A fourth reader is right and a fourth GATE would not be: the number this file wants
 # is *how many claims did the instrument report*, and every dialect here answers it.
 D_FAIL = re.compile(r"^HANDOFF_SELFTEST \d+/\d+ claims, (\d+) failed", re.M)
+# 🆕 278 §4 — THE FIFTH DIALECT, AND IT IS THE THIRD SESSION RUNNING THAT ONE WAS FOUND
+# BY HAND ON THE RUN THAT ADDED AN INSTRUMENT. `release_names.py --selftest` prints its
+# per-row reds as `  🔴 CODE …` and its verdict as
+# `<rows> rows · <n> REFUSE · <n> distinct code(s) · 🔴 <bad> DISAGREE`, and speaks none of
+# the four spellings above. 🔴 MEASURED BEFORE THE ROSTER BELOW WAS WRITTEN: ten blinds
+# reddened and `failure_lines` read ZERO off all ten, so the floor this session would have
+# taken was a floor at nothing — 277 §4's finding, one file over, one session later.
+# The counted half is what this file wants (how many rows did the instrument report), so
+# it is a `C_FAIL`-shaped reader rather than a line count.
+# 🔵 AND `BLAST_UNREADABLE` IS THE HALF THAT STOPS A SIXTH BEING FOUND BY HAND — see the
+# blast loop. A fifth regex answers this instrument; a refusal answers the class.
+E_FAIL = re.compile(r"^\s*\d+ rows · \d+ REFUSE · \d+ distinct code\(s\) · 🔴 (\d+) DISAGREE", re.M)
+# 🆕 278 §4 — A SIXTH, AND `BLAST_UNREADABLE` IS WHAT FOUND IT RATHER THAN A PERSON.
+#
+# 🔴 THE REFUSAL SHIPPED IN THIS COMMIT CAUGHT THE NEXT INSTRUMENT ADDED IN THE SAME
+# COMMIT, on its first run: `release_names.py (--assert-addon)` reported *4 blind(s) were
+# CAUGHT and `failure_lines` read ZERO failure line(s) off them*. That is the whole
+# argument for building the refusal rather than a fifth regex — the sixth dialect was
+# nineteen lines away and three sessions of care had not been enough to see it.
+#
+# 🔵 AND IT IS DELIBERATELY WIDER THAN ONE COMMAND. This project's Python gates refuse
+# with `🔴 <GATE_NAME> REFUSED [<code>]: …` on stderr, one line, no count — a shape
+# `release_names.py`, `registry_lag.py` and `registry_bytes.py` all speak. Reading the
+# FAMILY rather than the instance is what stops a seventh row being needed for the next
+# file that uses the house spelling. It is a line count like `A_FAIL`/`B_FAIL`, because a
+# command that refuses once reports one failure.
+F_FAIL = re.compile(r"^🔴 [A-Z][A-Z0-9_]* REFUSED\b", re.M)
 
 
 def failure_lines(out: str, _name: str = "") -> int:
     """How many failures the gate REPORTED. Not the exit code — the count."""
     c = C_FAIL.findall(out)
     d = D_FAIL.findall(out)
+    e = E_FAIL.findall(out)
     return (len(A_FAIL.findall(out)) + len(B_FAIL.findall(out))
-            + (int(c[-1]) if c else 0) + (int(d[-1]) if d else 0))
+            + len(F_FAIL.findall(out))
+            + (int(c[-1]) if c else 0) + (int(d[-1]) if d else 0)
+            + (int(e[-1]) if e else 0))
 
 
 # 🔴 THE BLINDS THAT CRASH THEIR GATE INSTEAD OF FAILING IT, DECLARED WITH THEIR REASON.
@@ -4181,7 +4531,21 @@ BLAST_FLOOR: dict[str, int] = {
     # 🆕 277 §2 — measured 645 across fifty-six blinds, floored ~20% below. The
     # number was ZERO on the run that added this instrument and the reason was
     # `failure_lines`, not the sweep: this gate reports in a fourth dialect (`D_FAIL`).
-    "handoff_gate.py": 515,   # 277: measured 645
+    # 🆕 278 — 530, measured 664 across fifty-nine blinds. Raised in the commit that
+    # outgrew it (198 §36) rather than left at 277's 515, which the three new §3 targets
+    # had already put 29% under the live number.
+    "handoff_gate.py": 530,   # 278: measured 664 (277: 515/645)
+    # 🆕 278 §4 — measured 110 across fifteen blinds, floored ~20% below. 🔴 THE NUMBER WAS
+    # SIXTY-THREE ON THE FIRST SWEEP AND ZERO BEFORE `E_FAIL`: sixty-three because four
+    # members CRASHED the self-test instead of reddening it and a gate that dies partway
+    # reports only the failures it reached (199 §9.2), zero because this file speaks a
+    # fifth dialect. Both are fixed in the commit that takes this floor, which is the only
+    # honest order — see `BLAST_UNREADABLE`.
+    "release_names.py": 88,   # 278: measured 110
+    # 🆕 278 §4 — measured 4 across its four blinds, one house-spelling refusal each, and
+    # the number was ZERO until `F_FAIL` existed. `BLAST_UNREADABLE` is what said so, on
+    # the first run of the commit that shipped it — see the note beside `F_FAIL`.
+    "release_names.py (--assert-addon)": 3,   # 278: measured 4
     "_population.mjs": 80,
     "_path_ledger.mjs": 36,   # 212: 30 -> 36, measured 41 (+ledgerKey)
     "_workspace.mjs": 95,     # 199: 36 -> 95, measured 107
@@ -4235,6 +4599,11 @@ BLAST_FLOOR: dict[str, int] = {
     "terminology_gate.py": 12,     # 247: measured 15 across its five blinds, 0 crashed
 }
 BLAST_OBSERVED: dict[str, int] = {}
+# 🆕 278 — HOW MANY BLINDS THE GATE ACTUALLY CAUGHT, per instrument, beside how many
+# failure lines were READ off them. The two numbers exist to be compared: see
+# `BLAST_UNREADABLE` in the blast loop for the third time this project has measured a
+# blast of zero over blinds every one of which reddened.
+CAUGHT_OBSERVED: dict[str, int] = {}
 CRASHED: list[tuple[str, str]] = []
 
 
@@ -4329,6 +4698,7 @@ def sweep(inst: dict) -> tuple[int, int, list[str]]:
                 mark = "declared-crash" if (inst["name"], sig) in CRASH_DECLARED else "🔴 CRASHED"
                 print(f"   {mark:<14} {sig[:52]}  no verdict, {fails} failure line(s)")
             else:
+                CAUGHT_OBSERVED[inst["name"]] = CAUGHT_OBSERVED.get(inst["name"], 0) + 1
                 print(f"   ok            {sig[:52]}  red · {fails} failure line(s) reported")
         return (len(still_green), len(targets), problems + [
             f"{inst['name']}: `{s}` can return the empty its contract promises and the gate stays GREEN — "
@@ -4711,9 +5081,41 @@ def main() -> int:
     print("")
     for inst in INSTRUMENTS:
         n = BLAST_OBSERVED.get(inst["name"], 0)
+        caught = CAUGHT_OBSERVED.get(inst["name"], 0)
         floor = BLAST_FLOOR.get(inst["name"])
         print(f"INSTRUMENT_GATE_BLAST {inst['name']}: {n}/{floor} failure line(s) reported "
-              f"across its blinds")
+              f"across its blinds · {caught} caught")
+        # ── 🆕 278 — `BLAST_UNREADABLE`, AND IT IS THE THIRD TIME THIS WAS MEASURED ────
+        #
+        # 🔴 A BLAST OF ZERO OVER BLINDS THAT REDDENED IS THE READER FAILING, NOT THE
+        # TREE PASSING. `failure_lines` sums four dialects; an instrument reporting in a
+        # fifth returns zero from it while its gate exits 1 on every mutant, so the floor
+        # a session takes from that measurement is a floor at NOTHING — 172 §10.21 inside
+        # the table built to stop it.
+        #
+        # 🔴 THREE TIMES, AND UNTIL NOW NOTHING REFUSED IT. 245 §1 recorded the first
+        # three Python instruments measuring 0/0/0 while their self-tests reported real
+        # failed claims. 277 §4 recorded `handoff_gate.py` measuring ZERO across
+        # fifty-six blinds every one of which reddened, and added a fourth dialect.
+        # 278 measured `release_names.py` at ZERO across ten, and added a fifth. Each
+        # session found it by hand, on the run that added the instrument, and each wrote
+        # the lesson into a comment rather than into a refusal — so the next one paid for
+        # it again. This is the refusal.
+        #
+        # 🔵 IT CANNOT FIRE ON A HEALTHY TREE AND IT CANNOT FIRE ON AN HONEST ZERO. An
+        # instrument whose sweep caught nothing has `caught == 0` and is already refused,
+        # loudly, one line per target, by `STILL GREEN`. The only state this reaches is
+        # the one that has cost three sessions: reddening blinds, an unreadable report.
+        if caught and n == 0:
+            problems.append(
+                f"{inst['name']}: BLAST_UNREADABLE — {caught} blind(s) were CAUGHT and "
+                f"`failure_lines` read ZERO failure line(s) off them. The gate is working "
+                f"and the reader that counts its output is not: this instrument reports in "
+                f"a dialect none of the patterns in `failure_lines` can spell, and a "
+                f"BLAST_FLOOR taken from this run would be a floor at nothing (172 §10.21). "
+                f"Add the dialect beside `A_FAIL`..`E_FAIL` and assert it in `selftest()` — "
+                f"245, 277 and 278 each measured this by hand and none of them left a "
+                f"refusal behind")
         if floor is None:
             problems.append(
                 f"{inst['name']} has no BLAST_FLOOR — its sweep could stop reddening "

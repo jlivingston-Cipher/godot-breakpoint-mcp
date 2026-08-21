@@ -160,9 +160,15 @@ export type DapState = "disconnected" | "initialized" | "running" | "stopped" | 
 
 /**
  * Per-line breakpoint modifier fields, each gated by an adapter capability. Godot
- * advertises all three false AND ignores them — a "conditional" breakpoint halts
+ * advertises none of the three AND ignores them — a "conditional" breakpoint halts
  * unconditionally (measured live on 4.3 and 4.7), so an undropped modifier is not a
  * no-op, it is the opposite of what the caller asked for.
+ *
+ * 🔴 278 — THE KEYS ARE ABSENT, NOT `false`, AND THIS PARAGRAPH SAID `false` FOR AS LONG
+ * AS IT HAS EXISTED. Both read the same way through `!== true`, which is why nothing ever
+ * caught it; they are different facts about the adapter, and `docs/dap_capability_ledger.json`
+ * is where the difference is now recorded rather than described. The ledger carries the run
+ * the reading came from, so the next reader can check it instead of believing this comment.
  */
 export const BREAKPOINT_MODIFIER_CAPS: Record<string, string> = {
   condition: "supportsConditionalBreakpoints",

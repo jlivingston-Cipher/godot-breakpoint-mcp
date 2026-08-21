@@ -49,6 +49,14 @@ let crashed = null;
 process.on("unhandledRejection", (e) => { crashed = `unhandledRejection ${e?.command ?? ""}: ${e?.message ?? e}`; });
 process.on("uncaughtException", (e) => { crashed = `uncaughtException: ${e?.message ?? e}`; });
 
+// 🆕 278 — THE OBSERVED-CAPABILITY LEDGER, AND IT IS READ RATHER THAN RESTATED.
+// `docs/dap_capability_ledger.json` is the one place this tree records what a real
+// adapter advertised, per build. This file supplied the typed list that stood in for it
+// and got the population wrong in both directions (§ the note beside `capNamesRead`), so
+// the list lives there now and check 33 joins it to `host/src` in both directions.
+const LEDGER = JSON.parse(fs.readFileSync(
+  path.join(import.meta.dirname, "..", "..", "docs", "dap_capability_ledger.json"), "utf8"));
+
 const cfg = loadConfig();
 const ROOT = fs.realpathSync(cfg.projectPath);
 console.log(`GD_DAP target ${cfg.dapHost}:${cfg.dapPort}  project=${ROOT}`);
@@ -555,19 +563,75 @@ try {
     // feature gates read — the minimum that distinguishes "captured" from "empty".
     // Measured on 4.7: supportsRestartRequest / supportsSetVariable /
     // supportsTerminateRequest all true, the other five absent.
-    const capNamesRead = ["supportsRestartRequest", "supportsGotoTargetsRequest", "supportsDataBreakpoints", "supportsSetVariable", "supportsConditionalBreakpoints", "supportsHitConditionalBreakpoints", "supportsLogPoints", "supportsTerminateRequest", "exceptionBreakpointFilters"];
+    //
+    // ── 🆕 278 — THE LIST LEFT THIS FILE, AND BOTH HALVES OF WHY ARE MEASUREMENTS ──
+    //
+    // 🔴 IT NAMED A CAPABILITY THE HOST GATES ON NOTHING, AND OMITTED ONE IT DOES.
+    // `supportsTerminateRequest` appears nowhere in `host/src` — and it is one of the
+    // THREE this adapter advertises, so the message below called it a "gate the host
+    // reads" and counted 3 where the gates that were actually read number 2.
+    // `supportsConfigurationDoneRequest` IS read (`dap.ts`) and was not in the list, so
+    // no run has ever observed it: the ledger carries it as `unread`, which is a
+    // different fact from `absent` (271 — a reader's silence is not an answer).
+    //
+    // 🔴 A TYPED LIST OF "WHAT THE HOST READS" IS A COUNT OF WHAT THE LIST CAN SPELL
+    // (276), so it is derived now: `gated_on` in the ledger, joined to `host/src` in
+    // BOTH directions by contract_check's check 33. This file reads that one file.
+    const capNamesRead = LEDGER.gated_on;
     const capsPresent = capNamesRead.filter((k) => caps?.[k] !== undefined);
     check(
       caps !== null && typeof caps === "object" && capsPresent.length > 0,
       "GD_DAP_CAPS",
       `the handshake captured a NON-EMPTY capabilities object naming ${capsPresent.length} gate(s) the host reads (${capsPresent.join(", ") || "none"}) — an empty {} is the silent-disable build`,
     );
-    const capNames = ["supportsRestartRequest", "supportsGotoTargetsRequest", "supportsDataBreakpoints", "supportsSetVariable", "supportsConditionalBreakpoints", "supportsHitConditionalBreakpoints", "supportsLogPoints", "supportsTerminateRequest"];
+    // 🆕 278 — THE `.length` IS A FLOOR AND NOT DECORATION. This list was a LITERAL until
+    // this session and is DERIVED now, so `every` over it is satisfied by an empty one —
+    // the exact shape `positive_control_gate.mjs` refused on the run that made the change
+    // (`PC_UNDEFENDED_EXCESS`, first try). A derived population needs its own floor.
+    const capNames = capNamesRead.filter((k) => k !== "exceptionBreakpointFilters");
     check(
-      capNames.every((k) => caps?.[k] === undefined || typeof caps[k] === "boolean"),
+      capNames.length >= 8 && capNames.every((k) => caps?.[k] === undefined || typeof caps[k] === "boolean"),
       "GD_DAP_CAPS",
-      `every advertised capability the host gates on is a boolean or absent: ${capNames.map((k) => `${k}=${caps?.[k] ?? "-"}`).join(" ")}`,
+      `all ${capNames.length} (floor 8) advertised capabilities the host gates on are boolean or absent: ${capNames.map((k) => `${k}=${caps?.[k] ?? "-"}`).join(" ")}`,
     );
+
+    // ── 🆕 278 — THE LEDGER JOIN, AND IT IS THE ONLY FALSIFIER THIS FILE HAS ─────────
+    //
+    // 🔴 EVERY OTHER CAPABILITY CLAIM ABOVE HOLDS ON EITHER SIDE OF THE QUESTION. §7's
+    // biconditional says *advertised implies it answers, unadvertised implies it refuses
+    // by reason*, which is true whether Godot advertises the capability or not — so a
+    // green run has never said WHICH. This is the claim that does: the observed value
+    // must be the one `docs/dap_capability_ledger.json` recorded for THIS arm, and a
+    // build that starts (or stops) advertising something reddens here naming both values.
+    //
+    // 🔵 AN `unread` LEDGER ENTRY IS A NOTE AND NEVER A REFUSAL — 271 §1, the same rule
+    // the four world-facing readings use. A key nothing has ever observed cannot have a
+    // recorded value, and the run that first observes it is the one that supplies it;
+    // refusing here would only ever punish the session that closed the gap. Check 33
+    // refuses an `unread` key being CITED as the reason a surface is dead, which is the
+    // place where not knowing would actually cost something.
+    {
+      const arm = process.env.GODOT_VERSION ?? "";
+      const row = LEDGER.observed[arm];
+      check(
+        row !== undefined,
+        "GD_DAP_LEDGER",
+        `the ledger has a row for this arm (GODOT_VERSION=${JSON.stringify(arm)}; rows: ${Object.keys(LEDGER.observed).join(", ")})`,
+      );
+      for (const k of capNamesRead) {
+        const seen = caps?.[k] === undefined ? "absent" : caps[k];
+        const want = row?.[k];
+        if (want === "unread") {
+          check(true, "GD_DAP_LEDGER", `${k}: ledger says unread — OBSERVED HERE AS ${JSON.stringify(seen)}. Write it into docs/dap_capability_ledger.json for ${arm}`);
+          continue;
+        }
+        check(
+          JSON.stringify(seen) === JSON.stringify(want),
+          "GD_DAP_LEDGER",
+          `${k}: observed ${JSON.stringify(seen)} and the ledger records ${JSON.stringify(want)} for ${arm}`,
+        );
+      }
+    }
 
     // ── ported: breakpoints VERIFIED on a live session (D_DAP_BP) ─────────────
     // 🔴 The gate only ever asserted the BUFFERED answer (`buffered:true`,
@@ -753,18 +817,24 @@ if (crashed) {
 //
 // 🔴 EACH GATE ASSERTS ITS OWN SCOPE (168 §6): if this list is ever emptied, the gate
 // passes while covering nothing, so its length is checked before its contents.
+//
+// 🆕 278 — A TWELFTH, `GD_DAP_LEDGER`, AND IT IS THE FIRST FAMILY HERE THAT CAN TELL THE
+// TWO SIDES OF A CAPABILITY APART. Ten claims: one that this arm has a ledger row, nine
+// comparing an observed capability to the value recorded for it.
 const GD_DAP_FAMILIES = [
   "GD_DAP_LIVE", "GD_DAP_SCENE", "GD_DAP_NOSESSION", "GD_DAP_NOTSTOPPED", "GD_DAP_SOURCE",
   "GD_DAP_PHANTOM", "GD_DAP_MODIFIERS", "GD_DAP_ENTRY", "GD_DAP_GATED", "GD_DAP_CAPS",
-  "GD_DAP_RESTART",
+  "GD_DAP_RESTART", "GD_DAP_LEDGER",
 ];
 // The coarse backstop, kept alongside the manifest: it catches a family that shrank from
 // twenty-one claims to one, which the manifest alone cannot see.
-const GD_DAP_CLAIM_FLOOR = 98;
+// 🆕 278 — 98 -> 108: measured 105 at 0be54af and `GD_DAP_LEDGER` adds ten, so 115 run on
+// a healthy tree. The floor keeps 169's margin rather than pinning the live number.
+const GD_DAP_CLAIM_FLOOR = 108;
 
 console.log(`\nGD_DAP_CLAIMS ${claims} (floor ${GD_DAP_CLAIM_FLOOR}) across ${seen.size}/${GD_DAP_FAMILIES.length} famil(ies): ${[...seen].map(([m, n]) => `${m}=${n}`).join(" ")}`);
 
-if (GD_DAP_FAMILIES.length < 11) {
+if (GD_DAP_FAMILIES.length < 12) {
   console.log(`  FAIL GD_DAP_POPULATION_SCOPE — the manifest itself has ${GD_DAP_FAMILIES.length} entries; a gate whose scope collapsed passes while covering nothing`);
   failures++;
 }

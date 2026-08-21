@@ -762,6 +762,37 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      'export const BRIDGE_SEND_FAILED = "send_failed";',
      'export const BRIDGE_SEND_FAILED = "write_failed";',
      "one code, two producers"),
+    # ── 🆕 278 — check 33, the observed-capability ledger ─────────────────────────
+    #
+    # 🔴 THREE CONTROLS, AND ALL THREE EDIT THE SHIPPED TREE OR THE SHIPPED RECORD, for
+    # 254's reason: this check's failure is a document disagreeing with a live engine, and
+    # a mutation to the checker would prove only that the checker can be broken.
+    #
+    # 33.silent is the SAY-SO half — the product decision 278 was asked to make. Taking
+    # the measured sentence back out of one dead surface's description restores exactly
+    # the state 276 found: a tool a caller reads about, chooses, calls, and is refused by
+    # on every build that exists.
+    ("33.silent", "33", "sub", "host/src/tools/dap.ts",
+     "Measured: no Godot build this " + "project tests advertises it — 4.3-stable and "
+     "4.7-stable both refuse this tool, so on a shipped engine it ",
+     "It ",
+     "a dead surface whose own description does not say so"),
+    # 33.alive is the control that fires on GOOD NEWS, and it is the one this ledger was
+    # built for. A build that starts advertising `supportsGotoTargetsRequest` makes
+    # `dbg_goto` reachable — the check must notice and say *retire the row*, not stay green
+    # because a document still calls it dead.
+    ("33.alive", "33", "sub", "docs/dap_capability_ledger.json",
+     '"supportsGotoTargetsRequest": "absent",\n      "supportsHitConditionalBreakpoints": "absent",\n      "supportsLogPoints": "absent",\n      "supportsRestartRequest": true,\n      "supportsSetVariable": true\n    },\n    "4.7-stable"',
+     '"supportsGotoTargetsRequest": true,\n      "supportsHitConditionalBreakpoints": "absent",\n      "supportsLogPoints": "absent",\n      "supportsRestartRequest": true,\n      "supportsSetVariable": true\n    },\n    "4.7-stable"',
+     "a capability came ALIVE on a build"),
+    # 33.unread is 271's rule with teeth: NOT KNOWING is not the same as ABSENT. A surface
+    # may not be called dead on a capability no run has read, and this is the mutation that
+    # asks — the one key in the ledger that genuinely is `unread` today is proof the two
+    # states are distinguishable at all.
+    ("33.unread", "33", "sub", "docs/dap_capability_ledger.json",
+     '"supportsDataBreakpoints": "absent",\n      "supportsGotoTargetsRequest": "absent",\n      "supportsHitConditionalBreakpoints": "absent",\n      "supportsLogPoints": "absent",\n      "supportsRestartRequest": true,\n      "supportsSetVariable": true\n    },\n    "4.7-stable"',
+     '"supportsDataBreakpoints": "unread",\n      "supportsGotoTargetsRequest": "absent",\n      "supportsHitConditionalBreakpoints": "absent",\n      "supportsLogPoints": "absent",\n      "supportsRestartRequest": true,\n      "supportsSetVariable": true\n    },\n    "4.7-stable"',
+     "NOT KNOWING IS NOT THE SAME AS ABSENT"),
     ("15.noshebang", "15", "sub", "scripts/validate.sh", "#!/", "##/",
      "does not begin with `#!`"),
 ]
@@ -882,7 +913,13 @@ CHECKS_CLOSED = ("3", "4c", "4d", "11c", "host", "17", "22",
                  # 276: check 4e the same way — five rows, covered on arrival, and three
                  # of the five edit the SHIPPED tree rather than the document, because
                  # the failure this check was written for lives on both sides of the join
-                 "4e")
+                 "4e",
+                 # 278: check 33, the observed-capability ledger, covered on arrival.
+                 # Three rows, and TWO of them fire on good news rather than on rot — a
+                 # capability coming alive, and a reading nobody has taken being called
+                 # absent. A check whose only controls are decay controls is a check that
+                 # has never been asked what it does when the world improves
+                 "33")
 
 
 # ── 🔴 THE BLAST RADIUS, DECLARED PER ROW (196 §4) ────────────────────────────────
@@ -1054,6 +1091,10 @@ BLAST: dict[str, int] = {
     "12.partial": 2,
     "12.silentcount": 1,
     "15.noshebang": 2,                    # also: 20
+    # 🆕 278 — check 33's three. PLACEHOLDERS; measured on the run below (259's rule).
+    "33.silent": 1,
+    "33.alive": 1,
+    "33.unread": 1,
 }
 
 

@@ -432,17 +432,18 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "or a path resolving outside the Godot project root — Godot binds breakpoints only to scripts in the project it runs, so " +
         "unlike cs_dbg_set_breakpoints an absolute path outside the root is refused here too. " +
         "Feature-detected: the per-line conditions / hit_conditions / log_messages modifiers are only sent when the connected adapter " +
-        "advertises support (supportsConditionalBreakpoints / supportsHitConditionalBreakpoints / supportsLogPoints). On an adapter that " +
-        "advertises them unsupported (Godot advertises all three false and IGNORES them, so the breakpoint would halt unconditionally) the " +
-        "modifier is dropped and the result includes `unsupported_modifiers` plus a `warning`. Detection happens when the breakpoints are " +
+        "advertises support (supportsConditionalBreakpoints / supportsHitConditionalBreakpoints / supportsLogPoints). Measured: no Godot " +
+        "build this project tests advertises it — 4.3-stable and 4.7-stable advertise none of the three (the keys are ABSENT rather than " +
+        "false) and IGNORE the modifiers, so such a breakpoint would halt unconditionally; see docs/dap_capability_ledger.json. All three " +
+        "are therefore dropped on every build measured, and the result includes `unsupported_modifiers` plus a `warning`. Detection happens when the breakpoints are " +
         "applied, so it covers buffered ones too: setting modifiers before a session exists returns `modifier_detection: \"deferred\"` with a " +
         "warning, and dbg_launch then reports the `unsupported_modifiers` actually dropped during the handshake.",
       inputSchema: {
         path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
         lines: z.array(z.number().int().positive()).describe("1-based line numbers"),
-        conditions: z.array(z.string().nullable()).optional().describe("Optional per-line condition expressions (aligned to lines, use null to skip a line); break only when the expression is true"),
-        hit_conditions: z.array(z.string().nullable()).optional().describe("Optional per-line hit expressions aligned to lines, e.g. '>3' or '%5' — break based on hit count (null to skip)"),
-        log_messages: z.array(z.string().nullable()).optional().describe("Optional per-line log messages aligned to lines; a message turns that breakpoint into a LOGPOINT (logs and continues, never halts). {expr} interpolates (null to skip)."),
+        conditions: z.array(z.string().nullable()).optional().describe("Optional per-line condition expressions (aligned to lines, use null to skip a line); break only when the expression is true. Gated on supportsConditionalBreakpoints — Measured: no Godot build this project tests advertises it, so this is dropped and reported on every build measured."),
+        hit_conditions: z.array(z.string().nullable()).optional().describe("Optional per-line hit expressions aligned to lines, e.g. '>3' or '%5' — break based on hit count (null to skip). Gated on supportsHitConditionalBreakpoints — Measured: no Godot build this project tests advertises it, so this is dropped and reported on every build measured."),
+        log_messages: z.array(z.string().nullable()).optional().describe("Optional per-line log messages aligned to lines; a message turns that breakpoint into a LOGPOINT (logs and continues, never halts). {expr} interpolates (null to skip). Gated on supportsLogPoints — Measured: no Godot build this project tests advertises it, so this is dropped and reported on every build measured."),
       },
     },
     async ({ path, lines, conditions, hit_conditions, log_messages }) => {
@@ -693,8 +694,11 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "(DAP setExceptionBreakpoints). Pass the filter IDs to enable; call with no filters (or []) to clear them. The result echoes the " +
         "active filters and lists `available_filters` — the exception filters the connected adapter actually advertises. " +
         "Requires a running debug session. Not gated (it only configures the debugger). " +
-        "Feature-detected: on an adapter that advertises no exceptionBreakpointFilters (e.g. Godot 4.3, which also does not answer " +
-        "the request — it would otherwise time out) it returns a clear \"unsupported\" message WITHOUT sending anything.",
+        "Feature-detected: on an adapter that advertises no exceptionBreakpointFilters (which also does not answer the request — it would " +
+        "otherwise time out) it returns a clear \"unsupported\" message WITHOUT sending anything. Measured: no Godot build this project " +
+        "tests advertises it — 4.3-stable AND 4.7-stable both advertise no filters, so on a shipped engine it is unsupported surface today " +
+        "rather than a feature you can reach; see docs/dap_capability_ledger.json. This sentence used to name 4.3 alone as the example, " +
+        "which read as though a newer build had filters. None does.",
       inputSchema: {
         filters: z.array(z.string()).optional().describe("Exception filter IDs to enable (default none = clear). Choose from available_filters in the result."),
       },
@@ -839,6 +843,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "list the valid goto targets on that line; when the line has exactly one target (or you pass `target_id`) it jumps there. " +
         "DESTRUCTIVE: skips or repeats code by moving execution — confirm with the user and keep this gated. " +
         "Feature-detected: on an adapter that does not advertise `supportsGotoTargetsRequest` it returns a clear \"unsupported\" message WITHOUT prompting. " +
+        "Measured: no Godot build this project tests advertises it — 4.3-stable and 4.7-stable both refuse this tool, so on a shipped engine it " +
+        "is unsupported surface today rather than a feature you can reach; see docs/dap_capability_ledger.json. It is kept, and kept guarded, " +
+        "because a capability is not a boundary and a build can start advertising it. " +
         "Refuses a source that can never carry a target — a missing file, a directory, an empty path (which resolves to the project root), " +
         "or a path resolving outside the Godot project root — the same guard dbg_set_breakpoints applies. " +
         "Only meaningful while stopped at a breakpoint.",
@@ -913,7 +920,9 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
         "resolvable id is armed in one setDataBreakpoints call. Call with no `watch` (or []) to clear all data breakpoints. The result reports the " +
         "armed `breakpoints` (each with its resolved data_id and verified flag) and any `unresolved` variables the adapter cannot watch. " +
         "Requires a running session; NOT gated (it only configures the debugger). Feature-detected: on an adapter that does not advertise " +
-        "`supportsDataBreakpoints` it returns a clear \"unsupported\" message without sending any request.",
+        "`supportsDataBreakpoints` it returns a clear \"unsupported\" message without sending any request. Measured: no Godot build this " +
+        "project tests advertises it — 4.3-stable and 4.7-stable both refuse this tool, so on a shipped engine it is unsupported surface " +
+        "today rather than a feature you can reach; see docs/dap_capability_ledger.json.",
       inputSchema: {
         watch: z.array(z.object({
           name: z.string().describe("Variable name to watch"),
