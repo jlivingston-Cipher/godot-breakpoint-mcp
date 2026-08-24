@@ -262,6 +262,15 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # when the column landed, so it can only fall. Raising it is a session buying itself
     # room to keep typing an unchecked column, which is the defect the join closes.
     ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )13",                                ["../scripts/queue_gate.py", "--selftest"]),
+    # 🆕 280 — THE FOURTH QUEUE ROW, AND IT IS A FLOOR UNDER A DERIVED BAR RATHER THAN
+    # A CEILING OVER ANYTHING. `QUEUE_SCHEDULE_SET` takes its bar from the `closed`
+    # column — the most `user` rows any one session has FINISHED — and a derived
+    # population that empties answers zero, which reads as strictness and would refuse
+    # every schedule this table has ever carried. The digit decides two live fixtures:
+    # against a history whose best session finished ONE, a pair parked on a target is
+    # admitted BY THIS FLOOR and a trio is refused. Lower it and the pair reddens;
+    # raise it and the trio stops reddening. Both directions are claims.
+    ("queue.SCHEDULE_SET_FLOOR", "../scripts/queue_gate.py",        r"(SCHEDULE_SET_FLOOR = )2",                                 ["../scripts/queue_gate.py", "--selftest"]),
     ("pc.CLAIM_FLOOR",           f"{S}/positive_control_gate.mjs",   r"(export const CLAIM_FLOOR = )40;",                         [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )15;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
@@ -1345,6 +1354,16 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "session that raised it would be buying itself room to keep typing the one "
         "column in this table nothing could check — which is what `reach-column-joins-"
         "nothing` spent three sessions being.")),
+    ("../scripts/queue_gate.py", "SCHEDULE_SET_FLOOR"): (2, (
+        "🆕 280 — the smallest set of `user` rows a session may be handed, at `{FLOOR}`, "
+        "under a bar that is otherwise DERIVED from the `closed` column: the most any "
+        "one session has actually finished. This number is what stands in when that "
+        "population is empty, and it is not a taste — it is the precedent this project "
+        "already judged honest, in the words of the session that set it: read-then-"
+        "decide rows are a set one session can carry. A derived bar over nothing "
+        "answers zero and reads as strictness, which would refuse every schedule the "
+        "table has ever held; a larger one would forbid the arrangement two sessions "
+        "have now used on purpose.")),
     ("../scripts/lint_ceiling.py", "PY_FILE_FLOOR"): (18, (
         "🆕 230 — every tracked `.py` in this repository, at `{FLOOR}`, which is the whole "
         "population `pyflakes` is run over: `git ls-files '*.py'` and `scripts/` are the "
