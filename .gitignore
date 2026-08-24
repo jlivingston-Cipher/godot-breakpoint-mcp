@@ -61,3 +61,12 @@ __pycache__/
 #   .gate_mutation.undo/  what `tree_quiet.py --recover` found immediately before it put
 #                         anything back, so the recovery itself is never one-way.
 .gate_mutation.*/
+
+# 🆕 279 — the CI-measured close's download directories. `handoff_gate.py --measured`
+# takes a `gh run download` directory (274), so every session since 275 has left a
+# `ciNNN/` behind — and `publish_guard.mjs` reads `git status --porcelain`, where an
+# untracked directory is dirt like any other. 279 found out the way you would expect:
+# the publish refused on `?? ci278/`, a directory two sessions old. 246's rule — put the
+# ritual's scratch where `.gitignore` covers it — applied to the artefact rather than to
+# the script that produces it.
+/ci[0-9]*/
