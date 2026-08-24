@@ -1084,6 +1084,25 @@ INSTRUMENTS = [
             # not evidence about the instrument (197 §5), and this file's own marker would
             # have filed it as a catch.
             "{SIG:classify}": 'return ({"guarded": [], "unguarded": [], "temp_only": []}, 0, 0)',
+            # ══ 🆕 279 §6 — THE FIVE `mutlock-controls-unblindable` (247) HELD FOR
+            # THIRTY-TWO SESSIONS, AND THE EMPTY IS THE ROW'S OWN ARGUMENT ══════════════
+            #
+            # 🔴 EACH CONTROL RETURNS A PAIR, AND `(False, "")` IS THE FAILURE IT CANNOT
+            # DESCRIBE. 247 priced the work as *a `--selftest` claim per control that
+            # asserts the PAIR, so `(False, "")` fails on the empty reason rather than
+            # passing as "did not refuse"* — so that pair is exactly the empty to blind
+            # them to, and the claims that catch it are the ones the row asked for.
+            # Every claim drives the member over a FIXTURE script: no lock is taken and no
+            # real gate is spawned, which is what lets them sit on the A:gate axis at all.
+            #
+            # 🔵 AND 278 §2.3's SECOND-ENTRY SHAPE WAS JUDGED AND DOES NOT TRANSFER: the
+            # second command IS the locked one, so no arrangement of entries dissolves a
+            # lock. The row closed on the work it priced, not on the shape 278 suggested.
+            "{SIG:refuses_under_lock}": 'return (False, "")',
+            "{SIG:reader_refuses_under_lock}": 'return (False, "")',
+            "{SIG:hook_refuses_under_lock}": 'return (False, "")',
+            "{SIG:negative_control}": 'return (False, "")',
+            "{SIG:_js_mutators}": "return ([], 0)",
             # 🆕 247 §1 — the two the coverage roster found that the A:gate axis already
             # reaches. `_base_name` strips a mutating gate's temp suffix and `_temp_roots`
             # is the set of directories a write is allowed to land in; both are read by
@@ -1181,6 +1200,16 @@ INSTRUMENTS = [
             "{SIG:block_keys}": "return set()",
             # ── the join — an atom to the reader that answers it, and the measured log's own half ──
             "{SIG:main_at_head_of}": "return (\"\", \"\", [], \"\",)",
+            # 🆕 279 — THE POPULATION `main_at_head_of` CANNOT SEE, AND THE TWO ACCESSORS
+            # BOTH READINGS SHARE. `elsewhere_red_of` reports the newest run of every
+            # workflow that did NOT land on `main`'s newest sha and did not pass — a
+            # `schedule:` workflow is in that position for all but the window between its
+            # cron run and the next merge, which is how a red `sdk-drift` survived two
+            # sessions unread. Its empty is the list, and the empty list is exactly the
+            # answer it gave for a week.
+            "{SIG:elsewhere_red_of}": "return []",
+            "{SIG:wf_name}": "return \"\"",
+            "{SIG:wf_sha}": "return \"\"",
             "{SIG:main_head_problems}": "return ([], [],)",
             "{SIG:check_header}": "return ([], [], 0, 0,)",
             "{SIG:bind}": "return (\"\", \"\",)",
@@ -1519,33 +1548,17 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "runner, which is what the five rows below are about.",
     ("mutation_lock_gate.py", "_selftest"):
         "the second half of the invocation — see p0_comments.py::_selftest.",
-    # 🔴 AND THESE FIVE ARE THE FINDING, NOT A FORMALITY. `mutation_lock_gate.py` splits in
-    # two: `--selftest` proves the DERIVERS on fixtures, and `main` with no flag runs the
-    # LIVE CONTROLS — each guarded gate spawned while the lock is held, the reader, the
-    # hook, and the negative control that proves the classifier reads the call rather than
-    # the file. The A:gate axis is `--selftest`, so it cannot reach one of them; and
-    # `LATE_LIVE_LOCKED` says the B:live axis is unavailable BY THE LOCK. Neither axis this
-    # harness has can blind the controls that decide whether every mutating gate in this
-    # tree refuses to run beside another. 🔴 THAT IS A HARNESS LIMITATION REPORTED UNDER A
-    # CEILING (197 §3), and `mutlock-controls-unblindable` (247) is the row that prices it:
-    # the work is a `--selftest` claim per control that asserts the PAIR each returns, so
-    # `(False, "")` fails on the empty reason rather than passing as "did not refuse".
-    ("mutation_lock_gate.py", "refuses_under_lock"):
-        "measured green on A:gate: it is called by `main`'s live control loop and by "
-        "nothing in `--selftest`, and the B:live axis is unavailable by the lock "
-        "(LATE_LIVE_LOCKED). Priced as `mutlock-controls-unblindable` (247).",
-    ("mutation_lock_gate.py", "reader_refuses_under_lock"):
-        "the same — `main`'s reader control, unreachable from either axis. See "
-        "`refuses_under_lock` above.",
-    ("mutation_lock_gate.py", "hook_refuses_under_lock"):
-        "the same — `main`'s hook control, unreachable from either axis.",
-    ("mutation_lock_gate.py", "negative_control"):
-        "the same, and it is the control that proves the classifier reads the CALL and not "
-        "the file. It is also the one member here with no return annotation, so the "
-        "derivation that measured the other four had nothing to spell an empty from.",
-    ("mutation_lock_gate.py", "_js_mutators"):
-        "the same: `main` reads it to report how many `host/scripts/*.mjs` writes are "
-        "confined to a `mkdtempSync` root, and `--selftest` never calls it.",
+    # 🟢 279 §5 — THE FIVE LEFT THIS TABLE. `mutlock-controls-unblindable` (247) is closed:
+    # `refuses_under_lock`, `reader_refuses_under_lock`, `hook_refuses_under_lock`,
+    # `negative_control` and `_js_mutators` are each driven from `--selftest` now, over
+    # fixture scripts and a fixture directory, so all five are A:gate TARGETS and none is
+    # declared. Three of them were hard-wired to one path and are parameters now, which is
+    # 228's own move on `negative_control` repeated for its neighbours; every live caller
+    # is byte-identical because the default is the path that was hard-wired.
+    #
+    # 🔵 AND 278 §2.3's SECOND-ENTRY SHAPE WAS JUDGED AND DOES NOT TRANSFER — the second
+    # command IS the locked one, so no arrangement of entries dissolves a lock. The row
+    # closed on the work it priced at 247 rather than on the shape 278 suggested.
     # 🆕 247 §2 — the fourth Python instrument's invocation pair.
     ("terminology_gate.py", "main"):
         "the invocation, not a reader — see verdict_gate.mjs::main. 🔴 AND IT IS THE ONE "
@@ -1579,7 +1592,13 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "not assumed. Where this member has a pure half, that half IS a target above.")
        for _n in ("ci_check_runs", "npm_lag", "gh_rest_fetch", "gh_rest_object", "gh_rest",
                   "gh_open", "gh_open_rest", "assetlib_live", "main_at_head",
-                  "main_at_head_rest", "gh_run_verdict", "gh_run_verdict_rest")},
+                  # 🆕 279 — `main_at_head_rest` LEFT THIS LIST BECAUSE IT LEFT THE FILE.
+                  # Both readings of `main` are taken off ONE dial now, so the transport is
+                  # `main_run_rows` and its `gh`-free half; a second function dialling for
+                  # the same list would be two chances for the two readings to disagree
+                  # about which world they describe (275's `MEASURED_LEG_DISAGREEMENT`).
+                  "main_run_rows", "main_run_rows_rest",
+                  "gh_run_verdict", "gh_run_verdict_rest")},
     # ── II — the object store (7). Every one reads git history or git config, and 235
     # §6.3 is the standing finding: `actions/checkout` fetches one commit, so a claim over
     # tags, parents or a remote is a claim about the MACHINE. This file has paid for that

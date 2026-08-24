@@ -285,6 +285,25 @@ def _selftest() -> int:
     if not _tf_ok:
         _fail(f"tracked_files() does not reach the policy it enforces -> {len(_tf)}")
     # 🔴 AND THE FLOORS THEMSELVES, which a zero would make unable to bite.
+    # 🆕 279 — THE EXEMPTION NEEDS BOTH HALVES, DRIVEN OVER FIXTURES. Naming the policy
+    # bought the exemption on its own until this session, and two files took it by
+    # accident while a third had been holding it for free.
+    _d = Path(tempfile.mkdtemp(prefix="term_excl_"))
+    _terms = retired_terms(POLICY.read_text(encoding="utf-8"))
+    _cases = [
+        ("names the policy AND spells the term", f"see {POLICY.name}\nthe word rival\n", True),
+        ("names the policy and spells nothing", f"see {POLICY.name}\n", False),
+        ("spells the term and names no policy", "the word rival\n", False),
+    ]
+    for _name, _body, _want in _cases:
+        _f = _d / "case.md"
+        _f.write_text(_body, encoding="utf-8")
+        _got = (POLICY.name in _body) and any(offenders(t, _f) for t in _terms)
+        _ok = _got == _want
+        print(f"  {'🟢' if _ok else '🔴'} {_name:<52} excused={_got}")
+        if not _ok:
+            _fail(f"the exclusion predicate lost a half -> {_name}")
+
     _f_ok = TRACKED_FLOOR > 0 and SUFFIX_FLOOR > 0
     bad += 0 if _f_ok else 1
     print(f"  {'🟢' if _f_ok else '🔴'} {'both suffix floors are pinned above zero':<62} "
@@ -367,10 +386,28 @@ def main() -> int:
         print(f"  FAIL TERMINOLOGY_WALK {len(files)} != {_st['swept']}")
         return 1
     # The derivation: a file that cites the policy by path is a file ABOUT the rule.
+    # 🆕 279 — 🔴 THE EXEMPTION WAS EARNED BY NAMING A FILENAME, AND THIS SESSION EARNED
+    # IT TWICE BY ACCIDENT. `cites in text` excused every tracked file that mentions
+    # `LANDSCAPE_TRACKING_POLICY.md` for any reason at all — a comment, a `paths` cell in
+    # `QUEUE.md`, a docstring pointing a reader at the rule. 279 referenced the policy in
+    # `QUEUE.md` and in `assetlib_sweep.py` while working on something else, and both
+    # silently left the swept population: 310 files became 308, the total was unchanged,
+    # and the gate printed 🟢 both times.
+    #
+    # 🔴 AND THE AGGREGATE IS WHY IT WAS INVISIBLE. `TERMINOLOGY_EXCLUSION` below already
+    # refuses an exclusion carrying ZERO occurrences — but it asks that of the whole set,
+    # so a file excused with nothing in it hides behind the seventeen legitimate hits in
+    # the files that really do state the rule. A column with no per-member predicate
+    # cannot be wrong about a member (276), and this one was wrong about two.
+    #
+    # The exemption's own reason is the predicate: a file is excused because it has to
+    # SPELL the retired word in order to retire it. So it must do both — name the policy
+    # AND carry an occurrence. Naming the policy alone buys nothing now.
     cites = POLICY.name
     states_the_rule = {
         p for p in files
-        if p == POLICY or cites in p.read_text(encoding="utf-8", errors="replace")
+        if p == POLICY or (cites in p.read_text(encoding="utf-8", errors="replace")
+                           and any(offenders(t, p) for t in terms))
     }
     excluded = states_the_rule | {CHANGELOG}
     swept = [p for p in files if p not in excluded]

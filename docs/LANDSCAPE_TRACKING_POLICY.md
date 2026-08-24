@@ -55,6 +55,23 @@ that one carried project had shipped a debugger 48 hours after the document that
 category could not. The fix is not to read everything deeply every time — it is to make
 "nothing changed" a *measured* result rather than an *unexamined* one.
 
+🔴 **AND IT HAPPENED AGAIN, TO THE SAME PROJECT, BECAUSE ONLY THE FIRST HALF OF THAT
+CONDITION WAS EVER IMPLEMENTED.** The "No change" row above has two clauses and
+`assetlib_sweep.py` read one of them: the Asset Library card. `godot-mcp-enhanced` shipped
+a complete interactive debugger at `6394ddb` on 2026-08-09 — an `EditorDebuggerPlugin`
+subclass with ten handlers covering breakpoints, stepping, the call stack, frame
+inspection and expression evaluation — and did not re-publish its card until 2026-08-22.
+For thirteen days the sweep reported it as *no change*, with the evidence, and the
+evidence was about the card. The roster's own two fields disagreed about when the pass had
+happened as well: `last_analysed` read 2026-08-09 against a `last_analysed_commit` dated
+2026-08-08, and the commit in the gap is the one that overturned the ruling.
+
+Since 279 the sweep reads both clauses. `source_state` compares each entry's
+`last_analysed_commit` against its repository's live head and answers three ways — held,
+moved, and **unread**, because a forge that will not answer is not a green — and `--check`
+refuses on a repository that moved even when the card did not. Every row the card leg
+alone would call *no change* is marked as such in the printout.
+
 ## Rule 3 — The Asset Library is swept mechanically, not by memory
 
 `scripts/assetlib_sweep.py` queries the live Asset Library API and reports, on every run:
@@ -64,6 +81,15 @@ category could not. The fix is not to read everything deeply every time — it i
   all** — the leg that catches what manual monitoring misses,
 - and **the number of discovery hits its relevance filter dropped**, so the excluded scope
   is something a reader can argue with rather than something nobody can see.
+
+🔴 **AND EVERY NEVER-TRACKED ENTRY OWES A ROSTER ROW, INCLUDING THE ONES THAT ARE NOT
+MCP SERVERS.** Until 279 the sweep printed *record on the roster* beside each new
+in-editor AI addon and refused only on MCP-shaped ones, so fourteen accumulated that
+nothing would ever go red about — while the roster's own first line already said it holds
+*every product that has appeared in any prior sweep* and that *an entry is never dropped*.
+The check now reads that population. Recording an in-editor AI addon costs one row and no
+source-level pass, which is the cheap thing the roster already promises rather than the
+expensive thing only an MCP-shaped entry owes.
 
 The population is defined by the **live query**, minus what the roster already tracks.
 Adding a product to the roster shrinks the new-entries list automatically; it can never
