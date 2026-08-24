@@ -143,6 +143,17 @@ jobs:
       # OFFLINE by construction — the ledger is checked in, so CI never depends on
       # github.com being up; `--refresh` re-derives it from upstream and lives on the
       # sdk-drift schedule instead. Pure stdlib, ~0.3s. A step, not a 27th job.
+      # 🆕 279 — 🔴 AND `sdk-drift.yml` ALREADY SAID THIS STEP EXISTED. Its own comment
+      # reads *"The OFFLINE halves of both are merge-blocking in ci.yml"* about
+      # `spec_conformance.py` and `assetlib_sweep.py`. It was true of one of them: the
+      # sweep had no offline command at all, so its only reader was a weekly `schedule:`
+      # job — and `--check` stayed red from 2026-08-17 to 2026-08-24 with two sessions
+      # closing their blocks 🟢 *nothing owed* over the top of it. The selftest drives the
+      # pure readers: Rule 2's second clause in all three of its answers, the relevance
+      # and shape filters that decide what the refusal counts, and the 2026-08-09
+      # recurrence as a positive control. No network, ~0.1s.
+      - name: The landscape sweep's pure readers can still refuse (assetlib selftest)
+        run: python3 scripts/assetlib_sweep.py --selftest
       - name: The scanner's own refusals still fire (spec conformance selftest)
         run: python3 scripts/spec_conformance.py --selftest
       - name: No shipped string names a method the spec removed (spec conformance)

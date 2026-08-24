@@ -259,8 +259,14 @@ def negative_control(script: Path, token: str = "acquire(",
 
 # ── 🆕 228 — the READER's side, and it is a live control or it is nothing ───────────────
 
-def reader_refuses_under_lock() -> tuple[bool, str]:
+def reader_refuses_under_lock(reader: "Path | None" = None) -> tuple[bool, str]:
     """Spawn `tree_quiet.py` while THIS process holds the lock. It must refuse.
+
+    🆕 279 — THE READER IS A PARAMETER NOW, FOR 228's OWN REASON ONE MEMBER OVER.
+    `negative_control` was parameterised at 228 because a control that covers one of two
+    identical predicates covers one of two identical predicates; this is the same move for
+    the same purpose — a default that keeps every live caller byte-identical, and an
+    argument the self-test can point at a fixture. See `mutlock-controls-unblindable`.
 
     🔴 THIS IS THE ROW 227 §15 IS ABOUT. `tree_quiet.py --selftest` proves the comparison
     can classify fixtures; that is a claim about the READER. This proves that on THIS
@@ -268,7 +274,7 @@ def reader_refuses_under_lock() -> tuple[bool, str]:
     no — which is a claim about the SUBJECT, and it is the only one of the two that would
     have stopped 227 §7.2.
     """
-    p = subprocess.run([sys.executable, str(SCRIPTS / "tree_quiet.py")],
+    p = subprocess.run([sys.executable, str(reader or (SCRIPTS / "tree_quiet.py"))],
                        capture_output=True, text=True, cwd=str(ROOT), timeout=120)
     if p.returncode != MUTATING_EXIT:
         return False, f"exit {p.returncode}, wanted {MUTATING_EXIT} — it did not refuse"
@@ -277,10 +283,14 @@ def reader_refuses_under_lock() -> tuple[bool, str]:
     return True, "refused while a mutator held the lock"
 
 
-def hook_refuses_under_lock() -> tuple[bool, str]:
+def hook_refuses_under_lock(hook: "Path | None" = None) -> tuple[bool, str]:
     """And the hook, not just the script it calls. 🔴 A HOOK THAT SWALLOWS THE EXIT CODE
-    IS A HOOK THAT PRINTS A WARNING, and the two are one `set -e` apart."""
-    hook = ROOT / ".githooks" / "pre-commit"
+    IS A HOOK THAT PRINTS A WARNING, and the two are one `set -e` apart.
+
+    🆕 279 — parameterised for `reader_refuses_under_lock`'s reason, and this one has THREE
+    refusals a fixture can drive that no live run ever will: absent, not executable, and
+    exited zero."""
+    hook = hook or (ROOT / ".githooks" / "pre-commit")
     if not hook.exists():
         return False, "no .githooks/pre-commit — the one reader a human walks into is gone"
     if not os.access(hook, os.X_OK):
@@ -292,7 +302,7 @@ def hook_refuses_under_lock() -> tuple[bool, str]:
     return True, f"refused with exit {p.returncode}"
 
 
-def _js_mutators() -> tuple[list[str], int]:
+def _js_mutators(where: "Path | None" = None) -> tuple[list[str], int]:
     """The docstring claims no `host/scripts/*.mjs` rewrites the tree. Assert it, with the
     same rule the Python deriver uses — a write is confined when its ROOT identifier was
     assigned from a temp-directory factory.
@@ -306,7 +316,7 @@ def _js_mutators() -> tuple[list[str], int]:
     bad: list[str] = []
     confined = 0
     import re as _re
-    for p in sorted((ROOT / "host" / "scripts").glob("*.mjs")):
+    for p in sorted((where or (ROOT / "host" / "scripts")).glob("*.mjs")):
         text = p.read_text(encoding="utf-8")
         roots = set(_re.findall(r"(?:const|let|var)\s+(\w+)\s*=\s*mkdtempSync", text))
         for _ in range(3):                  # `const a = mkdtempSync(); const b = join(a, …)`
@@ -396,9 +406,95 @@ def _selftest() -> int:
           f"floor={GUARDED_FLOOR} live={live}")
     if not ok:
         print("  FAIL MUTATION_LOCK_SELFTEST GUARDED_FLOOR")
+    # ══ 🆕 279 §5 — `mutlock-controls-unblindable` (247, THIRTY-TWO SESSIONS) ═══════════
+    #
+    # 🔴 THE FIVE CONTROLS THAT DECIDE WHETHER EVERY MUTATING GATE IN THIS TREE REFUSES
+    # BESIDE ANOTHER WERE REACHABLE BY NEITHER AXIS. `--selftest` never called them, and
+    # `LATE_LIVE_LOCKED` says the B:live axis is unavailable by the lock this file takes.
+    #
+    # 🔵 AND 278 §2.3's SECOND-ENTRY SHAPE DOES NOT TRANSFER, WHICH IS THE JUDGEMENT 278's
+    # NEXT ASKED FOR. That shape gives a file a second instrument entry over a second
+    # COMMAND, so a member green under the gate command can be a target of the other one.
+    # Here the second command IS the locked one: `mutation_lock_gate.py` bare is what takes
+    # the lock, so a sweep that blinds it cannot also run it. The constraint is the lock and
+    # not the target list, and no arrangement of entries dissolves a lock.
+    #
+    # 🟢 SO WHAT SHIPS IS WHAT THE ROW PRICED, IN THE ROW'S OWN WORDS — *a `--selftest`
+    # claim per control that asserts the PAIR each returns, so `(False, "")` fails on the
+    # empty reason rather than passing as "did not refuse"*. Every control is driven over a
+    # FIXTURE: a throwaway script that refuses correctly, and the three ways refusing can
+    # be wrong. No lock is taken, no real gate is spawned, and nothing here touches the
+    # tree — which is why these can live on the A:gate axis at all.
+    print("  — the live controls, driven over fixtures (279)")
+    _fix = Path(tempfile.mkdtemp(prefix="mutlock_ctl_"))
+
+    def _script(name: str, body: str) -> Path:
+        f = _fix / name
+        f.write_text(body, encoding="utf-8")
+        f.chmod(0o755)
+        return f
+
+    _good = _script("refuses.py", f"import sys\nprint({REFUSAL!r})\nsys.exit({REFUSAL_EXIT})\n")
+    _wrong_exit = _script("wrong_exit.py", f"import sys\nprint({REFUSAL!r})\nsys.exit(0)\n")
+    _no_marker = _script("no_marker.py", f"import sys\nsys.exit({REFUSAL_EXIT})\n")
+    _controls = [
+        ("refuses_under_lock: a gate that refuses with its marker",
+         lambda: refuses_under_lock(_good), True),
+        ("refuses_under_lock: the right marker and the wrong exit",
+         lambda: refuses_under_lock(_wrong_exit), False),
+        ("refuses_under_lock: the right exit and no marker at all",
+         lambda: refuses_under_lock(_no_marker), False),
+        ("reader_refuses_under_lock: a reader that refuses",
+         lambda: reader_refuses_under_lock(
+             _script("reader_ok.py",
+                     f"import sys\nprint({MUTATING!r})\nsys.exit({MUTATING_EXIT})\n")), True),
+        ("reader_refuses_under_lock: a reader that says nothing",
+         lambda: reader_refuses_under_lock(
+             _script("reader_quiet.py", f"import sys\nsys.exit({MUTATING_EXIT})\n")), False),
+        # 🔴 THE HOOK'S THREE REFUSALS, NONE OF WHICH A LIVE RUN EVER REACHES.
+        ("hook_refuses_under_lock: a hook that refuses",
+         lambda: hook_refuses_under_lock(
+             _script("hook_ok", "#!/bin/sh\nexit 3\n")), True),
+        ("hook_refuses_under_lock: a hook that swallows the refusal",
+         lambda: hook_refuses_under_lock(
+             _script("hook_zero", "#!/bin/sh\nexit 0\n")), False),
+        ("hook_refuses_under_lock: no hook at all",
+         lambda: hook_refuses_under_lock(_fix / "hook_absent"), False),
+        ("negative_control: the classifier stops reading a renamed call",
+         lambda: negative_control(_script("neg_ok.py", "acquire('x.py')\n")), True),
+        ("negative_control: a file with no call to rename",
+         lambda: negative_control(_script("neg_none.py", "print(1)\n")), False),
+    ]
+    for _name, _run, _want in _controls:
+        _ok, _why = _run()
+        # 🔴 THE PAIR, NOT THE BOOLEAN. `(False, "")` is a control reporting a failure it
+        # cannot describe — 273's *a reader that cannot show its own refusal*, and the
+        # exact shape this row was opened to stop passing as "did not refuse".
+        agree = (_ok == _want) and bool(_why)
+        bad += 0 if agree else 1
+        print(f"  {'🟢' if agree else '🔴'} {_name:<62} -> {_ok} {_why[:44]!r}")
+        if not agree:
+            print(f"  FAIL MUTATION_LOCK_SELFTEST {_name}")
+
+    # `_js_mutators`, pointed at a fixture directory rather than at `host/scripts`.
+    _js = _fix / "js"
+    _js.mkdir()
+    (_js / "confined.mjs").write_text(
+        "const root = mkdtempSync('x');\nwriteFileSync(join(root, 'a'), 'x');\n", encoding="utf-8")
+    (_js / "loose.mjs").write_text(
+        "const here = 'src';\nwriteFileSync(join(here, 'a'), 'x');\n", encoding="utf-8")
+    _jbad, _jconf = _js_mutators(_js)
+    _ok = len(_jbad) == 1 and _jconf == 1 and "loose.mjs" in _jbad[0]
+    bad += 0 if _ok else 1
+    print(f"  {'🟢' if _ok else '🔴'} {'_js_mutators separates a temp root from a tracked one':<62} "
+          f"-> bad={len(_jbad)} confined={_jconf}")
+    if not _ok:
+        print("  FAIL MUTATION_LOCK_SELFTEST _js_mutators")
+
     # 🆕 245 §1 — a DISTINCT end token; see p0_comments.py for why the header line cannot
     # be the marker (198 §3's draft 1: a string printed first survives a crash).
-    print(f"MUTATION_LOCK_SELFTEST_DONE {'ok' if not bad else f'🔴 {bad} FAILED'} — {len(cases) + 7} case(s)")
+    print(f"MUTATION_LOCK_SELFTEST_DONE {'ok' if not bad else f'🔴 {bad} FAILED'} — "
+          f"{len(cases) + 7 + len(_controls) + 1} case(s)")
     return 1 if bad else 0
 
 

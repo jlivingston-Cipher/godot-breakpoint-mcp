@@ -206,6 +206,154 @@ def local_version() -> str:
     return json.loads((ROOT / "host" / "package.json").read_text())["version"]
 
 
+# ══ 🆕 279 — THE SECOND REGISTRY QUESTION, AND SIX SESSIONS ASKED IT OF ONE NAME ══════
+#
+# 🔴 `sdk-v2-migration` (226) HAS BEEN RE-READ AT 250, 257, 262, 267 AND 278, AND EVERY
+# ONE OF THOSE READINGS RAN `npm view @modelcontextprotocol/sdk dist-tags`, SAW NO 2.x,
+# AND RE-TARGETED THE ROW. All five readings were correct about that package and none of
+# them could have answered the question: the TypeScript SDK's version 2 shipped on
+# 2026-07-27 as `@modelcontextprotocol/core`, `/server`, `/client`, `/node` and
+# `/express`, published from the same repository, while `@modelcontextprotocol/sdk`
+# stayed frozen at its 1.x. The row's own text pinned the reader to one name — *check
+# `npm view @modelcontextprotocol/sdk dist-tags` first* — and a Tier 1 row waited
+# fifty-three sessions for a release that had already happened under different ones.
+#
+# So the population is DERIVED and never typed: every package the registry serves from
+# the same repository as the dependency `host/package.json` actually pins. A rename, a
+# split or a sixth sibling joins the reading by itself; a curated list of names is the
+# thing that just cost fifty-three sessions.
+#
+# The comparison is on the MAJOR only. A minor upstream of the pinned range is
+# `sdk-drift.yml`'s job — that workflow rebuilds against the newest version IN RANGE, and
+# a range cannot contain a new major, which is why the early-warning built for exactly
+# this class was structurally unable to see it.
+UPSTREAM_SCOPE = "@modelcontextprotocol"
+
+
+def major_of(spec: str) -> int:
+    """The major a version or range denotes, or -1 when nothing in it is a version.
+
+    PURE. `^1.29.0`, `~1.29.0`, `>=1.29.0 <2`, `1.29.0` and `v1.29.0` all read 1.
+    """
+    m = re.search(r"(\d+)\.\d+", str(spec or ""))
+    return int(m.group(1)) if m else -1
+
+
+def pinned_upstream(root: Path = ROOT) -> "dict[str, str]":
+    """{package: range} — every `UPSTREAM_SCOPE` dependency `host/package.json` pins."""
+    pkg = json.loads((root / "host" / "package.json").read_text())
+    out = {}
+    for field in ("dependencies", "devDependencies", "peerDependencies"):
+        for name, spec in (pkg.get(field) or {}).items():
+            if name.startswith(UPSTREAM_SCOPE + "/"):
+                out[name] = str(spec)
+    return out
+
+
+def siblings_of(rows: "list[dict]", repo: str) -> "dict[str, str]":
+    """{package: newest version} for every search row published from `repo` — PURE.
+
+    The repository is the join, not the scope: `@modelcontextprotocol/inspector` and
+    `/conformance` carry the same scope and are different projects, and a package that
+    moved out of the scope entirely would still be found by its repository.
+    """
+    want = repo_key(repo)
+    if not want:
+        return {}
+    out = {}
+    for r in rows or []:
+        name = str(r.get("name") or "")
+        got = repo_key(str((r.get("links") or {}).get("repository")
+                           or r.get("repository") or ""))
+        if name and got and got == want:
+            out[name] = str(r.get("version") or "")
+    return out
+
+
+def repo_key(url: str) -> str:
+    """`git+https://github.com/owner/name.git` -> `github.com/owner/name` — PURE."""
+    s = re.sub(r"^git\+", "", str(url or "")).strip()
+    s = re.sub(r"^[a-z+]+://", "", s)
+    s = re.sub(r"^[^@/]+@", "", s).replace(":", "/", 1) if s.startswith("git@") else s
+    return re.sub(r"\.git$", "", s).rstrip("/").lower()
+
+
+def upstream_problems(pins: "dict[str, str]",
+                      family: "dict[str, str]") -> "tuple[list[str], list[str]]":
+    """(problems, notes) — is a MAJOR newer than what this tree pins on the registry?
+
+    PURE over both readings, so every direction is drivable from a fixture and none of it
+    needs a network — 235 §6.3, and the reason five hand-run readings of this question
+    left nothing behind that a later session could re-run.
+
+    🔴 A TREE THAT PINS NOTHING IN THE SCOPE IS UNREAD AND NOT GREEN. There is no newest
+    major to compare against a pin that does not exist, and answering *no newer major*
+    about a tree with no dependency is the confident-and-wrong shape this whole reader
+    exists to stop.
+    """
+    if not pins:
+        return ([], [f"SDK_UPSTREAM UNREAD — `host/package.json` pins nothing in "
+                     f"{UPSTREAM_SCOPE}, so there is no major to compare"])
+    if not family:
+        return ([], ["SDK_UPSTREAM UNREAD — the registry listed no package published "
+                     "from the same repository as the pinned dependency"])
+    ours = max(major_of(s) for s in pins.values())
+    ahead = sorted((n, v) for n, v in family.items() if major_of(v) > ours)
+    if not ahead:
+        return ([], [f"SDK_UPSTREAM 🟢 major {ours} — {len(family)} package(s) from that "
+                     f"repository and none is ahead of what this tree pins"])
+    return ([f"🔴 SDK_UPSTREAM REFUSED — the tree pins major {ours} and the registry "
+             f"serves major {max(major_of(v) for _, v in ahead)} from the same "
+             f"repository: " + ", ".join(f"{n} {v}" for n, v in ahead)
+             + ".\n  This is the reading `sdk-v2-migration` (226) has been re-targeted "
+               "against five times while asking one package name. Migrate, or say in the "
+               "row which packages the answer lives in and why they do not apply."], [])
+
+
+def npm_search_scope(scope: str = UPSTREAM_SCOPE) -> "tuple[list, str]":
+    """(search rows, problem) — NETWORK. Never raises."""
+    try:
+        r = subprocess.run(["npm", "search", scope, "--json"],
+                           capture_output=True, text=True, timeout=90)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return ([], f"`npm search {scope}` could not run: {e}")
+    if r.returncode != 0:
+        return ([], f"`npm search {scope}` exited {r.returncode}")
+    try:
+        rows = json.loads(r.stdout or "[]")
+    except ValueError as e:
+        return ([], f"`npm search {scope} --json` did not return JSON: {e}")
+    return (rows if isinstance(rows, list) else [], "")
+
+
+def npm_repo_of(name: str) -> "tuple[str, str]":
+    """(repository url, problem) for one package — NETWORK. Never raises."""
+    try:
+        r = subprocess.run(["npm", "view", name, "repository.url"],
+                           capture_output=True, text=True, timeout=45)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return ("", f"`npm view {name} repository.url` could not run: {e}")
+    if r.returncode != 0:
+        return ("", f"`npm view {name} repository.url` exited {r.returncode}")
+    return (r.stdout.strip(), "")
+
+
+def upstream_reading(root: Path = ROOT) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — the dialled half. Everything it decides, it decides in
+    `upstream_problems`; this function only fetches."""
+    pins = pinned_upstream(root)
+    if not pins:
+        return upstream_problems(pins, {})
+    anchor = sorted(pins)[0]
+    repo, why = npm_repo_of(anchor)
+    if why:
+        return ([], [f"SDK_UPSTREAM UNREAD — {why}"])
+    rows, why = npm_search_scope()
+    if why:
+        return ([], [f"SDK_UPSTREAM UNREAD — {why}"])
+    return upstream_problems(pins, siblings_of(rows, repo))
+
+
 def git_tags() -> list[str]:
     r = subprocess.run(["git", "tag", "--list", "v*"], cwd=str(ROOT),
                        capture_output=True, text=True, check=True)
@@ -347,8 +495,64 @@ def selftest() -> int:
               f"bound populations that go stale in opposite directions, and one number "
               f"for both is how 260 happened")
         return 1
-    print(f"\nREGISTRY_LAG_SELFTEST {len(SELFTEST) + len(UNTAGGED_SELFTEST)} rows · "
-          f"{refusals + u_refusals} REFUSE")
+    # 🆕 279 — THE UPSTREAM SCOPE, AND THE ROW IT SHIPPED FOR IS THE FIRST FIXTURE.
+    # Every row below is PURE over two readings, so none of it dials anything: 235 §6.3,
+    # and the reason five hand-run readings of this question left nothing re-runnable.
+    print("\n  SDK_UPSTREAM — a major on the registry the tree does not pin")
+    _SDK = "@modelcontextprotocol/sdk"
+    _REPO = "git+https://github.com/modelcontextprotocol/typescript-sdk.git"
+    _rows = [
+        {"name": _SDK, "version": "1.30.0", "links": {"repository": _REPO}},
+        {"name": "@modelcontextprotocol/core", "version": "2.0.0",
+         "links": {"repository": _REPO}},
+        {"name": "@modelcontextprotocol/server", "version": "2.0.0",
+         "links": {"repository": _REPO}},
+        # 🔴 SAME SCOPE, DIFFERENT PROJECT — the join is the repository and not the scope.
+        {"name": "@modelcontextprotocol/inspector", "version": "2.3.0",
+         "links": {"repository": "git+https://github.com/modelcontextprotocol/inspector.git"}},
+        {"name": "figma-mcp", "version": "0.1.4", "links": {}},
+    ]
+    _fam = siblings_of(_rows, _REPO)
+    UPSTREAM_SELFTEST = [
+        ("the reading five sessions could not make", {_SDK: "^1.29.0"}, _fam, False,
+         "serves major 2"),
+        ("a tree already on the newest major", {_SDK: "^2.0.0"}, _fam, True, "none is ahead"),
+        ("an exact pin reads its major the same way", {_SDK: "2.0.0"}, _fam, True,
+         "none is ahead"),
+        ("a range spelling reads its major the same way", {_SDK: ">=1.29.0 <2"}, _fam,
+         False, "serves major 2"),
+        # 🔴 UNREAD IS NOT GREEN, in both of the two directions it can be unread.
+        ("a tree that pins nothing in the scope", {}, _fam, True, "pins nothing"),
+        ("a registry that listed no sibling", {_SDK: "^1.29.0"}, {}, True, "no package"),
+    ]
+    u2_bad = 0
+    for name, pins, fam, want_ok, want_msg in UPSTREAM_SELFTEST:
+        probs, notes = upstream_problems(pins, fam)
+        ok = not probs
+        said = " ".join(probs + notes).lower()
+        agree = (ok == want_ok) and (want_msg.lower() in said)
+        print(f"  {'🟢' if agree else '🔴'} {'PASS' if ok else 'REFUSE':<6} {name}")
+        if not agree:
+            u2_bad += 1
+            print(f"        want ok={want_ok} {want_msg!r} · got ok={ok} {said[:160]!r}")
+    # The join itself, and the two shapes it has to reject.
+    if sorted(_fam) != ["@modelcontextprotocol/core", "@modelcontextprotocol/sdk",
+                        "@modelcontextprotocol/server"]:
+        u2_bad += 1
+        print(f"  🔴 siblings_of admitted the wrong population: {sorted(_fam)}")
+    if repo_key(_REPO) != "github.com/modelcontextprotocol/typescript-sdk":
+        u2_bad += 1
+        print(f"  🔴 repo_key did not normalise the git+https spelling: {repo_key(_REPO)}")
+    if major_of("^1.29.0") != 1 or major_of("") != -1 or major_of("v2.0.0") != 2:
+        u2_bad += 1
+        print("  🔴 major_of misread a range, an empty spec or a v-prefixed version")
+    u2_refusals = sum(1 for r in UPSTREAM_SELFTEST if not r[3])
+    print(f"\n  {len(UPSTREAM_SELFTEST)} rows · {u2_refusals} REFUSE · "
+          f"{'🟢 all agree' if not u2_bad else f'🔴 {u2_bad} DISAGREE'}")
+    bad += u2_bad
+
+    print(f"\nREGISTRY_LAG_SELFTEST {len(SELFTEST) + len(UNTAGGED_SELFTEST) + len(UPSTREAM_SELFTEST)} "
+          f"rows · {refusals + u_refusals + u2_refusals} REFUSE")
     return 1 if bad else 0
 
 
@@ -356,6 +560,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--selftest", action="store_true",
                     help="drive the pure reader over its table; no network")
+    ap.add_argument("--upstream", action="store_true",
+                    help="the upstream-major reading ALONE, for a workflow whose subject "
+                         "is upstream and not this repository's own release state")
     ap.add_argument("--offline-declared", action="store_true",
                     help="record on the record that the registry was unreachable "
                          "and the cut proceeded anyway")
@@ -364,6 +571,27 @@ def main() -> int:
     if a.selftest:
         print("REGISTRY_LAG selftest — the ceiling's refusal, proved without network")
         return selftest()
+
+    # 🆕 279 — THE UPSTREAM READING GOES FIRST, AND THAT ORDER IS THE POINT.
+    # Every refusal below returns immediately, so a reading placed after them is a reading
+    # that only ever prints on a healthy tree — and this tree is not healthy today: it is
+    # eleven commits past its newest tag, which returns 1 before the last line of this
+    # function. 199 §9.2 and 277 §1.2 are the same finding twice: a gate that dies partway
+    # reports only the failures it reached. This one reports before it can die.
+    up_bad, up_notes = upstream_reading()
+    for line in up_notes:
+        print(f"              {line}")
+    for line in up_bad:
+        print(f"\n{line}", file=sys.stderr)
+
+    # 🆕 279 — AND IT IS AVAILABLE ALONE, because the two subjects are different worlds.
+    # `sdk-drift.yml` asks what UPSTREAM has done; the ceilings below ask what THIS
+    # repository owes its own registry. Running the whole command there would redden the
+    # early-warning workflow every time a release is owed, which is a check that trains
+    # people to ignore it — the argument `python3 registry_lag.py`'s own `REPLAY_CI_EXEMPT`
+    # row already makes about `ci.yml`, one workflow over.
+    if a.upstream:
+        return 1 if up_bad else 0
 
     local = local_version()
     reg = registry_version()
@@ -426,7 +654,7 @@ def main() -> int:
               f"to this question.", file=sys.stderr)
         return 1
     print("              🟢 within untagged ceiling")
-    return 0
+    return 1 if up_bad else 0
 
 
 if __name__ == "__main__":

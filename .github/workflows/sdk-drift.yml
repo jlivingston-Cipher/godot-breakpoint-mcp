@@ -32,6 +32,30 @@ jobs:
       - name: Build against it
         run: npm run build
 
+  # 🆕 279 — 🔴 THE JOB ABOVE CANNOT SEE THE ONE THING IT WAS BUILT FOR.
+  # It rebuilds against the newest version IN RANGE, and a range cannot contain a new
+  # major. The TypeScript SDK's version 2 shipped on 2026-07-27 as
+  # @modelcontextprotocol/core, /server, /client, /node and /express — published from the
+  # same repository, while @modelcontextprotocol/sdk stayed on its 1.x — and the early
+  # warning built for exactly this class was structurally blind to it for four weeks,
+  # while `sdk-v2-migration` (226) was re-targeted five times against the one package
+  # name the row happened to type.
+  #
+  # The population is DERIVED: every package the registry serves from the same repository
+  # as the dependency host/package.json actually pins. It is its own job because a red
+  # here means UPSTREAM moved, which is a different fact from the landscape job below and
+  # from anything this repository owes its own registry.
+  upstream-major:
+    name: no newer major upstream than this tree pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: The registry serves no major the tree does not pin
+        run: python3 scripts/registry_lag.py --upstream
+
   # 🆕 224 — THE TWO READERS THAT NEED THE NETWORK, ON THE ONLY SCHEDULE THAT CAN
   # AFFORD THEM. `assetlib_sweep.py --check` shipped in 223 and was wired to nothing
   # (223 §6.13, "SIXTY-FIRST SESSION RUNNING"); `spec_conformance.py --refresh` asks

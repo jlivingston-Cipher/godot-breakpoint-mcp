@@ -1500,6 +1500,35 @@ GH_EMIT = (("gh.issues", "issue", "GH_OPEN_ISSUES"), ("gh.prs", "pr", "GH_OPEN_P
 RUN_PENDING = "pending"
 
 
+def wf_name(r: dict) -> str:
+    return str(r.get("workflowName") or r.get("name") or "?")
+
+
+def wf_sha(r: dict) -> str:
+    return str(r.get("headSha") or r.get("head_sha") or "")
+
+
+# 🆕 279 — 🔴 AND THE POPULATION AT ONE SHA IS AN ACCIDENT OF THE SCHEDULE.
+#
+# 277 wrote *the atom is the commit and not the run*, and it is — for the merge path,
+# where every workflow is triggered by the push that made the commit. It is not true of a
+# workflow triggered by `schedule:`. `sdk-drift.yml` runs on a cron; its run sits at
+# whatever sha `main` happened to hold that morning, so it is inside `main`'s newest-sha
+# population only in the window between that run and the next merge, and outside it
+# afterwards — with nothing anywhere reporting the difference.
+#
+# 🔴 MEASURED, ON THE PICKUP THAT FOUND IT: `sdk-drift` failed on 2026-08-17 and again on
+# 2026-08-24. Sessions 277 and 278 each read this line and each got a clean `success`,
+# because on both of their pickups `main` had moved past the failing run — and both closed
+# their blocks 🟢 *nothing owed* over a job that had been red for a week. 279 saw it only
+# because `main` had not moved since Friday.
+#
+# So the reading is two readings. The COMMIT verdict is unchanged and still refuses: a run
+# at the commit being inherited that did not pass is 277's finding and it stands. Beside
+# it, the newest run of every OTHER workflow — at whatever sha it landed on — is reported
+# by name. That half is a NOTE and never a refusal: it is a fact about a workflow's own
+# subject and not about the health of the tree this session is picking up (271 §1's rule
+# for every other world reading in this file).
 def main_at_head_of(rows: "list[dict]") -> "tuple[str, str, list[str], str]":
     """(sha, conclusion, workflows that did not pass, problem) — PURE over the forge's
     answer, so both directions are drivable from a fixture and neither needs a network.
@@ -1512,53 +1541,101 @@ def main_at_head_of(rows: "list[dict]") -> "tuple[str, str, list[str], str]":
     if not rows:
         return ("", "", [], "the forge lists no workflow run for `main` at all — either "
                             "this repository has never run one, or the query was refused")
-    sha = str(rows[0].get("headSha") or rows[0].get("head_sha") or "")
+    sha = wf_sha(rows[0])
     if not sha:
         return ("", "", [], "the newest run listed for `main` carries no head sha, so "
                             "there is no commit to attribute a verdict to")
-    at = [r for r in rows if str(r.get("headSha") or r.get("head_sha") or "") == sha]
+    at = [r for r in rows if wf_sha(r) == sha]
     if any(str(r.get("status") or "") != "completed" for r in at):
         return (sha, RUN_PENDING, [], "")
-    bad = sorted({str(r.get("workflowName") or r.get("name") or "?") for r in at
+    bad = sorted({wf_name(r) for r in at
                   if str(r.get("conclusion") or "") != RUN_GREEN})
     return (sha, RUN_GREEN if not bad else "failure", bad, "")
 
 
-def main_at_head(root: Path = ROOT) -> "tuple[str, str, list[str], str]":
-    """The same reading, dialled — NETWORK. `gh_run_verdict`'s shape, one branch wider."""
+def elsewhere_red_of(rows: "list[dict]") -> "list[tuple[str, str]]":
+    """[(workflow, sha)] — workflows whose NEWEST run on `main` did not pass and did not
+    run at `main`'s newest sha. PURE, and `main_at_head_of`'s blind spot by construction.
+
+    Ordered newest-first by the forge, so the first row per workflow is that workflow's
+    newest run. A workflow already named by the commit verdict is not repeated here.
+    """
+    if not rows:
+        return []
+    head = wf_sha(rows[0])
+    newest: "dict[str, dict]" = {}
+    for r in rows:
+        newest.setdefault(wf_name(r), r)
+    out = []
+    for name, r in newest.items():
+        if wf_sha(r) == head:
+            continue
+        if str(r.get("status") or "") != "completed":
+            continue
+        if str(r.get("conclusion") or "") != RUN_GREEN:
+            out.append((name, wf_sha(r)[:7]))
+    return sorted(out)
+
+
+def main_run_rows(root: Path = ROOT) -> "tuple[list, str]":
+    """(the forge's rows for `main`, problem) — NETWORK, and dialled ONCE.
+
+    🆕 279 — both readings are taken off one answer. Two functions that each dial for the
+    same list would be two chances for the two readings to disagree about which world
+    they are describing, which is the shape 275's `MEASURED_LEG_DISAGREEMENT` found.
+    """
     try:
-        p = subprocess.run(("gh", "run", "list", "--branch", "main", "--limit", "20",
+        p = subprocess.run(("gh", "run", "list", "--branch", "main", "--limit", "40",
                             "--json", "headSha,status,conclusion,workflowName"),
                            cwd=root, capture_output=True, text=True, timeout=60)
     except FileNotFoundError:
-        return main_at_head_rest("`gh` is not installed for this run", root)
+        return main_run_rows_rest("`gh` is not installed for this run", root)
     except (OSError, subprocess.SubprocessError) as e:
-        return main_at_head_rest(f"`gh run list` could not run: {e}", root)
+        return main_run_rows_rest(f"`gh run list` could not run: {e}", root)
     if p.returncode != 0:
         first = next((ln for ln in (p.stderr or p.stdout).split("\n") if ln.strip()), "")
-        return main_at_head_rest(f"`gh run list --branch main` exited {p.returncode}: "
-                                 f"{first.strip()[:160]}", root)
+        return main_run_rows_rest(f"`gh run list --branch main` exited {p.returncode}: "
+                                  f"{first.strip()[:160]}", root)
     try:
         rows = json.loads(p.stdout or "[]")
     except ValueError as e:
-        return ("", "", [], f"`gh run list --json` did not return JSON: {e}")
-    return main_at_head_of(rows if isinstance(rows, list) else [])
+        return ([], f"`gh run list --json` did not return JSON: {e}")
+    return (rows if isinstance(rows, list) else [], "")
 
 
-def main_at_head_rest(why_cli: str, root: Path = ROOT) -> "tuple[str, str, list[str], str]":
+def main_run_rows_rest(why_cli: str, root: Path = ROOT) -> "tuple[list, str]":
     """The `gh`-free half, carrying the CLI's reason forward — `gh_open_rest`'s shape."""
     _slug, prob = origin_slug(root)
     if prob:
-        return ("", "", [], f"{why_cli}; and the API route has no origin to ask: {prob}")
-    out, prob = gh_rest_object("actions/runs?branch=main&per_page=20", root)
+        return ([], f"{why_cli}; and the API route has no origin to ask: {prob}")
+    out, prob = gh_rest_object("actions/runs?branch=main&per_page=40", root)
     if prob:
-        return ("", "", [], f"{why_cli}; and the API route did not answer either: {prob}")
-    return main_at_head_of(list(out.get("workflow_runs") or []))
+        return ([], f"{why_cli}; and the API route did not answer either: {prob}")
+    return (list(out.get("workflow_runs") or []), "")
+
+
+def main_at_head(root: Path = ROOT) -> "tuple[str, str, list[str], str]":
+    """The same reading, dialled — NETWORK. `gh_run_verdict`'s shape, one branch wider."""
+    rows, prob = main_run_rows(root)
+    if prob:
+        return ("", "", [], prob)
+    return main_at_head_of(rows)
 
 
 # 🔴 THE LINE A LATER `--open` BINDS TO. Same shape as the three above it: a numeral-free
 # UNREAD line carries no claim, and this pattern is what refuses to match it.
-MAIN_AT_HEAD_RE = re.compile(r"^MAIN_AT_HEAD ([0-9a-f]{7,40}) (\w+)", re.M)
+#
+# 🆕 279 — 🔴 AND IT DROPPED THE ONE THING THE REFUSAL NEEDED TO SAY. `--gh-open` has
+# printed the failing workflow names since 277 (`MAIN_AT_HEAD e65ed07 failure —
+# sdk-drift`) and this pattern captured the sha and the conclusion only, so through the
+# measured-log route the refusal read *`main` is failure at e65ed07* and stopped there.
+# 273's *a reader that cannot show its own refusal*, found in the first refusal this
+# reader ever issued. The printed line is UNCHANGED — what was missing was a third group.
+MAIN_AT_HEAD_RE = re.compile(r"^MAIN_AT_HEAD ([0-9a-f]{7,40}) (\w+)(?: — ([^\n]+))?", re.M)
+
+# 🆕 279 — the second line, and the population `MAIN_AT_HEAD` cannot see by construction.
+WORKFLOW_RED_ELSEWHERE_RE = re.compile(r"^WORKFLOW_RED_ELSEWHERE (\S+) ([0-9a-f]{7,40})",
+                                       re.M)
 
 
 def main_head_problems(log: str, run_network: bool, head: str = "",
@@ -1577,33 +1654,52 @@ def main_head_problems(log: str, run_network: bool, head: str = "",
     still be able to open, and refusing on connectivity would make the tier a statement
     about the network. What is refused is a verdict that WAS read and is not `success`.
     """
+    elsewhere = [(w, s) for w, s in WORKFLOW_RED_ELSEWHERE_RE.findall(log or "")]
+
+    def _with_elsewhere(problems: "list[str]", notes: "list[str]") -> "tuple[list, list]":
+        # 🆕 279 — LOUD, NAMED, AND NEVER A REFUSAL. A workflow triggered by `schedule:`
+        # sits at whatever sha `main` held that morning, so it leaves the commit
+        # population the moment anything merges — which is how a red `sdk-drift` survived
+        # two sessions unread. It is reported here because its subject is the world and
+        # not the health of the tree being inherited (271 §1).
+        for w, s in elsewhere:
+            notes.append(f"🔴 WORKFLOW_RED_ELSEWHERE `{w}` did not pass at {s[:7]}, which "
+                         f"is not `main`'s newest commit — so the verdict above cannot "
+                         f"see it and never could. It is owed work, not a reason to "
+                         f"refuse the tier")
+        return (problems, notes)
+
     m = MAIN_AT_HEAD_RE.search(log or "")
     if m:
-        sha, concl, bad = m.group(1), m.group(2), []
+        sha, concl = m.group(1), m.group(2)
+        bad = [b.strip() for b in (m.group(3) or "").split(",") if b.strip()]
     elif run_network:
         sha, concl, bad, prob = read()
         if prob:
-            return ([], [f"main at HEAD: UNREAD — {prob}"])
+            return _with_elsewhere([], [f"main at HEAD: UNREAD — {prob}"])
     else:
-        return ([], ["main at HEAD: UNREAD — no `MAIN_AT_HEAD` line in the measured log "
-                     "and no `--network`. Supply it from `handoff_gate.py --gh-open` on a "
-                     "machine that can reach the forge, or pass `--network`. Nothing in "
-                     "this tree can answer it: whether `main` passed is a fact about the "
-                     "forge"])
+        return _with_elsewhere([], [
+            "main at HEAD: UNREAD — no `MAIN_AT_HEAD` line in the measured log "
+            "and no `--network`. Supply it from `handoff_gate.py --gh-open` on a "
+            "machine that can reach the forge, or pass `--network`. Nothing in "
+            "this tree can answer it: whether `main` passed is a fact about the "
+            "forge"])
     if concl == RUN_PENDING:
-        return ([], [f"main at HEAD: {sha[:7]} — the run has not concluded, so nothing "
-                     f"here knows yet whether the tree being inherited passed"])
+        return _with_elsewhere([], [f"main at HEAD: {sha[:7]} — the run has not "
+                                    f"concluded, so nothing here knows yet whether the "
+                                    f"tree being inherited passed"])
     if concl != RUN_GREEN:
-        return ([f"🔴 MAIN_RED_AT_HEAD `main` is {concl} at {sha[:7]}"
-                 + (f" ({', '.join(bad)})" if bad else "")
-                 + ". TIER0 inherits a counter line measured against this commit and the "
-                   "forge says this commit did not pass. Read the run before inheriting "
-                   "a green that is not there, or open at TIER1 and measure the tree."],
-                [])
+        return _with_elsewhere(
+            [f"🔴 MAIN_RED_AT_HEAD `main` is {concl} at {sha[:7]}"
+             + (f" ({', '.join(bad)})" if bad else "")
+             + ". TIER0 inherits a counter line measured against this commit and the "
+               "forge says this commit did not pass. Read the run before inheriting "
+               "a green that is not there, or open at TIER1 and measure the tree."],
+            [])
     drift = head and not (sha.startswith(head[:7]) or head.startswith(sha[:7]))
-    return ([], [f"main at HEAD: {sha[:7]} {concl}"
-                 + (f" — 🔴 and this checkout is at {head}, so the verdict above is about "
-                    f"a different commit" if drift else "")])
+    return _with_elsewhere([], [f"main at HEAD: {sha[:7]} {concl}"
+                                + (f" — 🔴 and this checkout is at {head}, so the verdict "
+                                   f"above is about a different commit" if drift else "")])
 
 
 def gh_emit(root: Path = ROOT) -> int:
@@ -1634,9 +1730,19 @@ def gh_emit(root: Path = ROOT) -> int:
     # repository rather than about a registry. Same rule again: the unreadable case prints
     # a reason and no sha, so `MAIN_AT_HEAD_RE` finds nothing and `--open` says nobody
     # looked rather than inheriting a green it never saw.
-    sha, concl, bad, prob = main_at_head(root)
-    print(f"MAIN_AT_HEAD UNREAD — {prob}" if prob else
-          f"MAIN_AT_HEAD {sha[:7]} {concl}" + (f" — {', '.join(bad)}" if bad else ""))
+    rows, prob = main_run_rows(root)
+    if prob:
+        print(f"MAIN_AT_HEAD UNREAD — {prob}")
+    else:
+        sha, concl, bad, prob = main_at_head_of(rows)
+        print(f"MAIN_AT_HEAD UNREAD — {prob}" if prob else
+              f"MAIN_AT_HEAD {sha[:7]} {concl}" + (f" — {', '.join(bad)}" if bad else ""))
+        # 🆕 279 — the second line, off the same answer. A workflow whose newest run did
+        # not pass and did not land on `main`'s newest commit is invisible to the verdict
+        # above BY CONSTRUCTION, and a `schedule:` workflow is in that position for all
+        # but the window between its run and the next merge.
+        for name, wsha in elsewhere_red_of(rows):
+            print(f"WORKFLOW_RED_ELSEWHERE {name} {wsha}")
     return 0
 
 
@@ -5310,6 +5416,40 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >
 > 🔵 **THIRD BLOCK IN THE SERIES CLOSED AGAINST CI'S OWN OUTPUT**, on the route 275 wrote
 > and 276 confirmed. It needed no re-derivation for the second session running.
+"""),
+    # 🆕 279 — 253's rule, honoured in the FIRST PR, which is what 277 paid a second PR to
+    # learn and 278 then did correctly. The population is what `git.moved` reads to know
+    # which endpoint a block's own diff is measured from.
+    (278, """> ```
+> main                 e65ed07 — the key nobody had ever read (#342)   MOVED +2
+>                      7af276b — on which machine is this evidence? (#341)
+> branch 278           session278-on-which-machine-is-this-evidence · PR #341
+>                      session278b-the-key-nobody-had-read · PR #342
+>                      🟢 BOTH PUSHED AND MERGED, 26/26 green
+> host / addon         1.82.0 / 1.12.0  🟢 unmoved — no version bump this session
+> npm                  🟢 1.82.0 · registry 1.82.0 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — 🔴 AND THE LAG READING IS NOT THE WHOLE ANSWER: see Owed
+> assetlib             🟢 addon 1.12.0 live · unchanged since the previous session
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 30/30 · scope 73 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2575
+>               · late not-loaded 0 · late constructed 285/160
+>               · py gates 18/6/12 · SIG 222/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 108 · 52 governed · 1478 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 310 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4771 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 12 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 403 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+>
+> 🔵 **FOURTH BLOCK IN THE SERIES CLOSED AGAINST CI'S OWN OUTPUT**, on the route 275 wrote.
+> Third session running that it needed no re-derivation.
 """),]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -7664,6 +7804,61 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 MAIN_HEAD_DRIFT {_mh_drift} — a green read at a commit this checkout "
               f"is not at is still a green, and it is a green about something else")
+
+    # ── 🆕 279 — THE POPULATION THE COMMIT VERDICT CANNOT SEE, DRIVEN FROM FIXTURES ──
+    #
+    # 🔴 THE FIRST ROW IS THE WORLD AS 279 FOUND IT, AND THE SECOND IS THE WORLD AS 277
+    # AND 278 FOUND IT — the same failing `sdk-drift` run, once inside `main`'s newest-sha
+    # population and once outside it, with nothing but a merge between them. `_at` refuses
+    # and `_after` does not, and before this session `_after` said nothing at all.
+    claims += 1
+    _sched_red = {"headSha": "0be54af", "status": "completed",
+                  "conclusion": "failure", "workflowName": "sdk-drift"}
+    _at = [{"headSha": "0be54af", "status": "completed", "conclusion": RUN_GREEN,
+            "workflowName": "ci"}, _sched_red]
+    _after = [{"headSha": "e65ed07", "status": "completed", "conclusion": RUN_GREEN,
+               "workflowName": "ci"},
+              {"headSha": "e65ed07", "status": "completed", "conclusion": RUN_GREEN,
+               "workflowName": "integration"}, _sched_red]
+    if (elsewhere_red_of(_at) != []
+            or elsewhere_red_of(_after) != [("sdk-drift", "0be54af")]
+            or elsewhere_red_of([]) != []):
+        failed += 1
+        print(f"  🔴 ELSEWHERE_RED at={elsewhere_red_of(_at)} "
+              f"after={elsewhere_red_of(_after)} — a scheduled workflow leaves the "
+              f"newest-sha population on the next merge and must not leave the reading")
+
+    # 🔴 AND A WORKFLOW ALREADY GREEN SOMEWHERE OLDER IS NOT REPORTED, or the note would
+    # fire on every repository that has ever had a red run.
+    claims += 1
+    _healed = [{"headSha": "e65ed07", "status": "completed", "conclusion": RUN_GREEN,
+                "workflowName": "sdk-drift"},
+               {"headSha": "0be54af", "status": "completed", "conclusion": "failure",
+                "workflowName": "sdk-drift"}]
+    _running = [{"headSha": "e65ed07", "status": "completed", "conclusion": RUN_GREEN,
+                 "workflowName": "ci"},
+                {"headSha": "0be54af", "status": "in_progress", "conclusion": "",
+                 "workflowName": "sdk-drift"}]
+    if elsewhere_red_of(_healed) != [] or elsewhere_red_of(_running) != []:
+        failed += 1
+        print(f"  🔴 ELSEWHERE_RED_STALE healed={elsewhere_red_of(_healed)} "
+              f"running={elsewhere_red_of(_running)} — only a workflow's NEWEST run "
+              f"counts, and a run still going is not a red")
+
+    # 🔴 AND THE NAMES SURVIVE THE MEASURED-LOG ROUTE NOW. The refusal that fired on 279's
+    # own pickup could not say `sdk-drift` because the pattern had two groups.
+    claims += 1
+    _named = main_head_problems("MAIN_AT_HEAD e65ed07 failure — sdk-drift\n", False)
+    _note = main_head_problems("MAIN_AT_HEAD e65ed07 success\n"
+                               "WORKFLOW_RED_ELSEWHERE sdk-drift 0be54af\n", False)
+    if (not any("sdk-drift" in p for p in _named[0])
+            or _note[0]
+            or not any("WORKFLOW_RED_ELSEWHERE" in n and "sdk-drift" in n
+                       for n in _note[1])):
+        failed += 1
+        print(f"  🔴 MAIN_HEAD_NAMES named={_named[0]} note={_note} — a refusal that "
+              f"cannot say what failed, and a note that is a refusal, are the two ways "
+              f"this pair goes wrong")
 
     # 🆕 275 — `unread` IS PRINTED RATHER THAN SUBTRACTED. A claim this checkout
     # cannot make is not a claim that does not exist: the count above is the same
