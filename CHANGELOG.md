@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.82.1] — 2026-08-24
+
 ### Changed — six debugging surfaces now say what a real Godot build advertises
 
 - **Three GDScript debugging tools and three breakpoint modifiers are unsupported on every
@@ -22,8 +26,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   said the filters are absent on "e.g. Godot 4.3", which reads as though a newer build has
   them. 4.7 does not either.
 - **`absent` and `false` are different facts, and two shipped paragraphs had them
-  confused.** `BREAKPOINT_MODIFIER_CAPS`'s docstring and `dbg_set_breakpoints`'s description
-  both said Godot "advertises all three false"; the adapter carries no such keys at all.
+  confused.** The breakpoint-modifier capability guard's own documentation and
+  `dbg_set_breakpoints`'s description both said Godot "advertises all three false"; the
+  adapter carries no such keys at all.
   Both read the same way through `!== true`, which is why nothing ever caught it.
 
 ### Added — what a real debug adapter actually advertised, written down
