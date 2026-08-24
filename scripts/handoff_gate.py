@@ -666,6 +666,11 @@ TREE, CLONE, REMOTE = "TREE", "CLONE", "REMOTE"
 PROVENANCE: "dict[str, str]" = {
     "npm.tags": REMOTE,     # origin's tag list — NOT `git tag`, which is CLONE and wrong
     "npm.lag": REMOTE,      # registry_lag.py dials npm
+    "npm.untagged": REMOTE,  # 🆕 280 — commits past ORIGIN's newest tag. REMOTE for
+                            # the reason the row had to be written to discover: the
+                            # denominator is origin's tag list and NOT `git tag`,
+                            # which is 234 §4.8's class one counter over. See
+                            # `npm_untagged` for why a clone cannot answer it.
     "ci.green": TREE,       # derived from .github/workflows, like `ci.checks`
     "git.moved": TREE,      # `rev-list prev..this` — the PREVIOUS block's main, and this
                             # one's. Two SHAs off one row was 239 §2's tautology.
@@ -943,6 +948,60 @@ def npm_lag(root: Path = ROOT) -> "tuple[int, str, str]":
     return (d, f"npm.lag: registry at {published}, origin holds {len(names)} tag(s) — {why}", "")
 
 
+def npm_untagged(root: Path = ROOT) -> "tuple[int, str, str]":
+    """(commits past the newest tag ORIGIN holds, note, problem) — NETWORK.
+
+    🆕 280 — `untagged-count-unbound` (279). `registry_lag.py` has printed this
+    number beside `distance` since 269 and no header atom has ever read it, so 277,
+    278 and 279 each carried a `lag 0` that was true beside a commit distance nobody
+    compared: 278's block records nine, 279's pickup measured ELEVEN, and the first
+    block that tried to state the number at all was refused for claiming a counter
+    nothing binds. 🔴 THE READING THAT DECIDES WHETHER A RELEASE IS OWED WAS THE ONE
+    READING NOTHING BOUND.
+
+    🔴 AND BINDING IT IS WHAT FORCED THE POPULATION TO BE NAMED, which is 279's own
+    finding arriving one file over. `registry_lag.untagged()` is fed `git_tags()` —
+    THIS CHECKOUT's tag list — and 234 §4.8 already measured what that is worth on
+    the authoring machine: six tags that existed on one disk and nowhere else. A
+    distance counted from a tag origin does not have is a fact about the disk, and a
+    distance counted from a tag this checkout does not have cannot be counted at all.
+    So the header's reader takes ORIGIN's names, exactly as `npm.lag` does, and
+    REFUSES rather than measuring when the newest of them is not here. `PROVENANCE`
+    is where that question got asked, because a row cannot be added to it without
+    answering *what is this counter a fact ABOUT*.
+
+    The pure half is `registry_lag.untagged()`, imported rather than rewritten (229
+    §5.2's rule pointed at this tree's own shelf); only the two inputs are dialed.
+    """
+    names, prob = origin_tag_names(root)
+    if prob:
+        return (-1, "", prob)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from registry_lag import parse_tags as _parse, untagged as _untagged  # noqa: E402
+    tags = _parse(names)
+    if not tags:
+        return (-1, "", "origin holds no vX.Y.Z tag — a commit distance measured "
+                        "from a tag that is not there is not a small number, it is "
+                        "no measurement")
+    newest = "v%d.%d.%d" % tags[-1]
+    p = subprocess.run(("git", "rev-list", "--count", f"{newest}..HEAD"), cwd=root,
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        return (-1, "", f"origin's newest tag is {newest} and `git rev-list "
+                        f"{newest}..HEAD` exited {p.returncode} — this checkout "
+                        f"cannot measure a distance from a tag it does not hold. "
+                        f"`git fetch --tags`, then read it again")
+    d, why = _untagged(int(p.stdout.strip() or -1), names)
+    if d < 0:
+        # 🔴 A REFUSAL IS NOT A NUMBER — `npm_lag`'s rule, and the same three
+        # conditions reach it here: a collapsed tag population, a `git` that answered
+        # with something that is not a count, and a floor nobody re-derived.
+        return (-1, "", f"`registry_lag.untagged()` refused rather than measuring: "
+                        f"{why}")
+    return (d, f"npm.untagged: origin's newest tag is {newest}, origin holds "
+               f"{len(names)} tag(s) — {why}", "")
+
+
 def origin_tags(root: Path = ROOT) -> "tuple[int, list[str], str]":
     """(tags origin holds, the ones only in this checkout, problem) — NETWORK.
 
@@ -1201,6 +1260,122 @@ def block_versions(block: "list[str]") -> "tuple[tuple[str, str], str]":
         if m:
             return ((m.group(1), m.group(2)), "")
     return (("", ""), "no `host / addon` row in this block")
+
+
+# ══ 🆕 280 §3 — `release-1820-bump-under-wire` (278) ══════════════════════════════════
+#
+# 🔴 1.82.0 WAS A MAJOR CUT AS A MINOR, AND CHECK 8 WOULD HAVE SAID SO. Replayed at the
+# real release commit — a worktree at `v1.82.0`, `npm ci`, `npm run build`, corpus and
+# window both at `e35dc3e`, and NO `--head-ref` — `release_names.py` refuses it
+# `C8_BENEATH`: `WIRE_VERDICT MAJOR`, `major 7 · minor 4 · patch 0`, on both surfaces.
+# 278 named two things that could have excused that reading and both are false. The
+# `--head-ref` audit was not involved, because this replay does not use it. And 276's
+# toolchain arm was not involved either: at `v1.82.0`, `release_names.py` contains the
+# string `toolchain` ZERO times and `wire_diff.mjs` never printed `WIRE_TOOLCHAIN`. The
+# refusal is the SOURCE verdict, from the cut's own classifier, at the cut's own commit.
+#
+# The seven MAJORs are one change: `value` on seven tools went from `type: unknown` —
+# unconstrained AND, because `z.any()` answers true to zod's `isOptional()`, published
+# OUTSIDE `required` — to a required six-variant `anyOf`. A client that omitted it was
+# obeying our published schema and is refused now. 279 tools -> 279; nothing added or
+# removed. That is MAJOR, exactly, and the CHANGELOG says every word of it. Only the
+# number does not.
+#
+# 🔴 AND THE REASON NOTHING CAUGHT IT IS THE ROW THIS READER CLOSES: session 270's replay
+# list ran `release_names.py --selftest` and `--assert-addon`. The full
+# `--version/--previous/--date/--bump` invocation — the one that runs checks 1, 2 and 8 —
+# was never run at the cut. The check existed, would have refused, and nothing invoked it.
+# `release-names-ritual-axis` (278) names eleven readers reachable only by the ritual; the
+# ritual is whatever the person cutting remembers to type, and 279 remembered where 270
+# did not. **A reading nothing binds to a commit is a reading somebody has to remember.**
+#
+# 🔵 SO THE BINDING IS THE SAME ONE `untagged-count-unbound` GOT ONE SECTION OVER, and
+# deliberately so: the block states the verdict, the gate compares it, and the comparison
+# is `release_names.wire_floor` ITSELF — imported, not restated (229 §5.2), so the gate's
+# rule and the ritual's rule cannot drift into two opinions. What this reader adds is not
+# a second classifier. It is the refusal that fires when a block cuts a release and says
+# NOTHING about what the wire did, which is the state 270 shipped in and 271 inherited.
+#
+# 🔴 AND THE BUMP IS DERIVED FROM THE TWO VERSION STRINGS, NEVER TYPED. A block that
+# could name its own bump could name the one that passes; the two `host / addon` rows are
+# already there, already read by `version.unmoved`, and semver is not a matter of opinion.
+RELEASE_VERDICT_FROM = 280
+RELEASE_WIRE_RE = re.compile(r"\bwire (PATCH|MINOR|MAJOR)\b")
+RELEASE_TOOLCHAIN_RE = re.compile(r"\btoolchain (PATCH|MINOR|MAJOR)\b")
+
+
+def release_bump(previous: str, now: str) -> "tuple[str, str]":
+    """(the bump these two version strings describe, problem) — PURE, no tree, no tags."""
+    try:
+        p = [int(x) for x in previous.split(".")]
+        n = [int(x) for x in now.split(".")]
+    except ValueError:
+        return ("", f"{previous!r} -> {now!r} is not a pair of semver versions")
+    if len(p) != 3 or len(n) != 3:
+        return ("", f"{previous!r} -> {now!r} is not a pair of semver versions")
+    if n < p:
+        return ("", f"{previous} -> {now} goes BACKWARDS, which is not a bump")
+    if n[0] != p[0]:
+        return ("MAJOR", "")
+    if n[1] != p[1]:
+        return ("MINOR", "")
+    return ("PATCH", "")
+
+
+def release_verdict_problems(block: "list[str]", session: "int | None",
+                             population: "list | None" = None
+                             ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — a block that CUT a release must say what the wire did.
+
+    Silent on every block that cut nothing, which is most of them: the subject is the
+    CUT and not the session. Silent as well on blocks older than `RELEASE_VERDICT_FROM`,
+    because `BLOCK_POPULATION` carries every block since 227 and not one of them printed
+    the pair — 279's own §7 records check 8's answer in PROSE, which is the shape this
+    reader exists to stop being enough.
+    """
+    pop = BLOCK_POPULATION if population is None else population
+    if session is None or session < RELEASE_VERDICT_FROM:
+        return [], []
+    (host, _addon), why = block_versions(block)
+    if why:
+        return [], []                       # `VERSION_PAIR_UNREAD` already refuses this
+    earlier = [txt for s, txt in pop if s < session]
+    if not earlier:
+        return [], []
+    prev_block, why = status_block(earlier[-1])
+    if why:
+        return [], []
+    (prev_host, _prev_addon), why = block_versions(prev_block)
+    if why:
+        return [], []
+    if host == prev_host:
+        return [], [f"release verdict: host stayed at {host} — no cut in this session, "
+                    f"so check 8 is owed nothing and this reader says so out loud rather "
+                    f"than by being silent"]
+    bump, why = release_bump(prev_host, host)
+    if why:
+        return [f"🔴 RELEASE_VERDICT — this block's `host / addon` row and the previous "
+                f"one cannot be read as a bump: {why}"], []
+    text = "\n".join(block)
+    m_wire = RELEASE_WIRE_RE.search(text)
+    m_tool = RELEASE_TOOLCHAIN_RE.search(text)
+    if m_wire is None or m_tool is None:
+        return [f"🔴 RELEASE_VERDICT_UNREAD — this block cuts {prev_host} -> {host}, "
+                f"which is a {bump}, and carries no `wire <VERDICT>` / `toolchain "
+                f"<VERDICT>` pair. That pair is `release_names.py --version {host} "
+                f"--previous {prev_host} --date <the block's date> --bump {bump}`'s own "
+                f"CHECK 8 line, and running it is the step 270 skipped when it cut "
+                f"1.82.0 as a MINOR over a MAJOR wire. A cut whose block cannot say what "
+                f"the public API did is a cut nobody sized."], []
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from release_names import wire_floor as _wire_floor, C8_OK   # noqa: E402
+    code, why8, _d = _wire_floor(m_wire.group(1), bump, m_tool.group(1))
+    if code != C8_OK:
+        return [f"🔴 RELEASE_VERDICT [{code}] — {prev_host} -> {host} is a {bump} and "
+                f"this block states wire {m_wire.group(1)}, toolchain "
+                f"{m_tool.group(1)}. {why8}"], []
+    return [], [f"release verdict: {prev_host} -> {host} is a {bump}; the block states "
+                f"wire {m_wire.group(1)}, toolchain {m_tool.group(1)} — {why8}"]
 
 
 # 🆕 272 — the `assetlib` row's own claim: WHICH ADDON VERSION THE ASSET LIBRARY SERVES.
@@ -1762,6 +1937,21 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
     ("npm.lag", r"\blag\b", 1, r"^\s*distance (\d+)",
      "`registry_lag.py`'s `distance n` — tags newer than what npm has published. REMOTE, "
      "read out of the instrument's own output rather than dialed from here."),
+    # 🆕 280 — `untagged-count-unbound` (279). THE OTHER DISTANCE, and the one that
+    # actually says whether a release is owed. `lag` counts TAGS THE REGISTRY HAS NOT
+    # GOT, so work that was never tagged is invisible to it in BOTH directions — 🟢
+    # before a publish that shipped a tree four commits past its own tag and 🟢 after
+    # (260). `registry_lag.py` has printed the second number beside the first since
+    # 269 and the header read one of them. 🔴 THE ALIAS IS ONE WORD BOUNDARY FROM
+    # `npm.tags`: `\btags?\b` does not match inside `untagged` and this row must not
+    # match `tags 121`, which `HEADER_AMBIGUOUS` asserts on every atom of every block.
+    ("npm.untagged", r"\buntagged\b", 1, r"^\s*untagged (\d+) ",
+     "🆕 280 — `registry_lag.py`'s `untagged n`: commits on HEAD that the newest tag does "
+     "not name. REMOTE, and the row had to answer WHY to be added at all — the "
+     "denominator is ORIGIN's tag list, because a distance counted from a tag only one "
+     "disk holds is 234 §4.8's class, and a distance counted from a tag this checkout "
+     "does not hold is not a small number but no measurement. Read from the measured "
+     "log first and derived from origin second, exactly as `npm.lag` is."),
     ("ci.green", r"\d+/\d+ green", 2, "",
      "`26/26 green` on the branch line is the same derivation `ci.checks` already does "
      "for the VERIFIED line's `26 CI jobs`, restated as a ratio — so it is checked "
@@ -2056,6 +2246,21 @@ def check_header(block: "list[str]", log: str, run_network: bool,
                     continue
                 got = (d,)
                 notes.append(note)
+        elif key == "npm.untagged":
+            # 🆕 280 — THE SAME TWO ROUTES AS `npm.lag`, IN THE SAME ORDER AND FOR THE
+            # SAME TWO REASONS: a `--measured` run has already paid for
+            # `registry_lag.py` and re-deriving would be a second answer to an answered
+            # question; `--open` has no log at all, which is precisely the branch 241 §1
+            # found missing on this row's sibling after twelve sessions.
+            if extract and log and (m := re.search(extract, log, re.M)) is not None:
+                got = tuple(int(g) for g in m.groups())
+            elif run_network:
+                d, note, prob = npm_untagged()
+                if prob:
+                    unread("npm.untagged", raw, claimed, prob)
+                    continue
+                got = (d,)
+                notes.append(note)
         elif extract and log and (m := re.search(extract, log, re.M)) is not None:
             got = tuple(int(g) for g in m.groups())
         if got is None:
@@ -2065,6 +2270,14 @@ def check_header(block: "list[str]", log: str, run_network: bool,
                               "is a fact about the WORLD: nothing in this tree can answer "
                               "it, and inheriting one across an --open is inheriting a "
                               "number that may have changed while nobody looked")
+            elif key == "npm.untagged":
+                why_unread = ("pass --network to derive it from ORIGIN's tags, or "
+                              "supply an `untagged <n>` line from `registry_lag.py` "
+                              "in the measured log. It is a fact about the WORLD in "
+                              "the same sense lag is — the denominator is what origin "
+                              "holds — and a count taken from this checkout's own tag "
+                              "list is a fact about the disk, which is the reading "
+                              "234 §4.8 measured wrong by six")
             elif key == "npm.tags":
                 why_unread = (f"pass --network, or supply `ORIGIN_TAGS <n>` in the "
                               f"measured log. This checkout reads {clone_tags()} and that "
@@ -2467,15 +2680,112 @@ def command_norm(seg: str) -> str:
 # YAML file with nothing joining it to the reader that needs it: change the 0, or move the
 # step to any other job, and the check goes green-and-vacuous with no gate anywhere saying
 # so. Every other job in all three workflows is shallow. A comment is not a claim.
-DEPTH_REQUIRED: "dict[str, str]" = {
-    "python3 release_names.py --assert-addon":
-        "check 4 walks history for the commit that STAMPED the addon's version and then "
-        "asks what has moved since. Measured at 278 on both machines at the same commit: "
-        "a full clone answers `stamped e35dc3e73a8c`, a `--depth 1` clone answers `stamped "
-        "0be54af515af` — HEAD, the only object it has — with `0 file(s) moved over 0 "
-        "commit(s)`. Both exit 0. The shallow answer is not a refusal, it is a different "
-        "claim wearing the same green.",
+# ══ 🆕 280 §4 — `gate-input-requirements-untabled` (279) ══════════════════════════════
+#
+# 🔴 278 ASKED WHAT A GATE NEEDS IN ORDER TO BE EVIDENCE AND ANSWERED IT IN ONE COLUMN.
+# The row 279 opened names the rest — *a full object store, a network, a compiled
+# `dist/`, a staged addon, a live engine* — and the reason they were never a table is
+# not that nobody knew them. Every one of them is already WRITTEN DOWN, in prose, in the
+# file it is about:
+#
+#   • `wire_invisible_gate.mjs` line 50: *"(needs dist/ — run `npm run build`)"*
+#   • `ci.yml`, above the `--assert-map` step: the tarball *"whose `addon` root does not
+#     exist on a fresh clone until `stage-addon`"*
+#   • `integration.yml`, above `vcs-plane`: *"The one plane that needs NO Godot"*
+#   • `sdk-drift.yml`: the two live halves that must not be merge-blocking (279 §4)
+#
+# Four true statements, each in the one file that would never be read by anyone checking
+# a different file. **A comment is not a claim** — 278's own sentence about `fetch-depth`,
+# and it was true of four more columns while it was being written.
+#
+# 🔴 AND EVERY COLUMN HAS A DERIVED PROVIDER, WHICH IS THE PART 279's FINDING DEMANDS.
+# A requirements table whose SUPPLY side is typed is a roster that agrees with itself and
+# can never be short: that is *a population nobody derived*, and 279 found four of them by
+# tripping over them. `job_provides` reads all five off the JOB's own text, so moving a
+# step between jobs, dropping a build, or giving a schedule-only workflow a `push:`
+# trigger changes the answer without anybody editing a row here.
+INPUT_OBJECTS, INPUT_DIST, INPUT_ADDON, INPUT_ENGINE, INPUT_NETWORK = (
+    "objects", "dist", "addon", "engine", "network")
+
+# {input: (what the command needs, how a JOB is READ as supplying it)}. The second half
+# is the predicate `job_provides` implements, written where the requirement is stated so
+# that a row and its provider cannot drift into two different questions.
+INPUT_PROVIDERS: "dict[str, tuple[str, str]]" = {
+    INPUT_OBJECTS: ("the whole git object store",
+                    "`actions/checkout` carrying `fetch-depth: 0`"),
+    INPUT_DIST: ("a compiled `host/dist`",
+                 "a step in the same job running `npm run build`"),
+    INPUT_ADDON: ("the canonical addon staged into `host/addon`",
+                  "a step in the same job running `npm run stage-addon`"),
+    INPUT_ENGINE: ("a real Godot binary",
+                   "a step exporting `GODOT_BIN` into `$GITHUB_ENV`"),
+    INPUT_NETWORK: ("a socket to somewhere outside the runner",
+                    "a workflow with NO `push`/`pull_request` trigger. 🔴 THE COLUMN IS "
+                    "NOT *does the runner have a network* — every runner does. It is "
+                    "*may this reading fail a merge*: a command whose subject is the "
+                    "WORLD turns an npm outage or a forge's bad afternoon into a red "
+                    "pull request, which is why both live halves sit in `sdk-drift.yml` "
+                    "and only their offline halves are merge-blocking (279 §4)"),
 }
+
+# {normalised command: {input: why THIS command needs it}}. Six rows, four columns, and
+# every reason is a measurement or a quotation from the file the command lives in.
+GATE_INPUTS: "dict[str, dict[str, str]]" = {
+    "python3 release_names.py --assert-addon": {
+        INPUT_OBJECTS:
+            "check 4 walks history for the commit that STAMPED the addon's version and "
+            "then asks what has moved since. Measured at 278 on both machines at the "
+            "same commit: a full clone answers `stamped e35dc3e73a8c`, a `--depth 1` "
+            "clone answers `stamped 0be54af515af` — HEAD, the only object it has — with "
+            "`0 file(s) moved over 0 commit(s)`. Both exit 0. The shallow answer is not "
+            "a refusal, it is a different claim wearing the same green."},
+    "python3 release_names.py --assert-map": {
+        INPUT_ADDON:
+            "check 3 asserts the packed tarball's roots BOTH WAYS against "
+            "`SHIPPED_SOURCE`, and `ci.yml`'s own comment above the step already says "
+            "what this row is: the tarball *whose `addon` root does not exist on a fresh "
+            "clone until `stage-addon`*. Without the staged copy the assertion is made "
+            "over a tarball missing one of the roots it exists to assert about — and it "
+            "PASSES, because both directions agree about a root neither of them can see."},
+    "node wire_invisible_gate.mjs": {
+        INPUT_DIST:
+            "it records the shipped surface by importing `host/dist`, and its own line 50 "
+            "says so in the imperative: *(needs dist/ — run `npm run build`)*. 231 §2 "
+            "wrote it to read what check 8 cannot see. On a tree with no build it prints "
+            "`WIRE_INVISIBLE_UNREACHABLE`, which is the honest half — this row exists so "
+            "that a job which quietly stopped building is caught by a gate rather than by "
+            "whoever next reads the count and believes it."},
+    "node set-property-verify.integration.mjs": {
+        INPUT_ENGINE:
+            "1.82.0's own live probe, driving all three write families against a real "
+            "engine on every supported Godot. Its subject is what the ENGINE stores — "
+            "`set_ignored` when a write does not land, `set_mismatch` when the type is "
+            "incompatible, `coerced`/`requested` when a setter clamps — and not one of "
+            "those questions has an answer without a binary to ask. `integration.yml` "
+            "names the negative control itself: `vcs-plane` is *the one plane that needs "
+            "NO Godot*, and it is the job this predicate must not accept."},
+    "python3 registry_lag.py --upstream": {
+        INPUT_NETWORK:
+            "it dials the registry for every package published from the same repository "
+            "as the dependency `host/package.json` actually pins (279 §2) — the reading "
+            "`sdk-v2-migration` waited fifty-three sessions for. It refuses today, on "
+            "purpose, and a refusal about the world must not be able to block a merge."},
+    "python3 assetlib_sweep.py --check": {
+        INPUT_NETWORK:
+            "the sweep's live half asks godotengine.org for each tracked card and each "
+            "tracked forge for its head (279 §3). Its OFFLINE half — `--selftest` — is "
+            "the one that became merge-blocking at 279, and 279 §9 records what it cost "
+            "to get the two halves' rosters straight. This row is what keeps them from "
+            "swapping places."},
+}
+
+_BUILD_RE = re.compile(r"npm run build")
+_STAGE_ADDON_RE = re.compile(r"npm run stage-addon")
+# 🔴 THE ENGINE PREDICATE IS THE EXPORT AND NOT THE WORD. `integration.yml` mentions
+# Godot in a dozen comments and in the `vcs-plane` comment that says it needs none; the
+# observable that distinguishes a job which HAS a binary is the install step writing
+# `GODOT_BIN=…` into `$GITHUB_ENV`, which is how every probe below it finds the engine.
+_GODOT_BIN_RE = re.compile(r"(?m)^.*GODOT_BIN=.*GITHUB_ENV.*$")
 
 _JOB_RE = re.compile(r"(?m)^  ([A-Za-z0-9_-]+):[ \t]*$")
 _CHECKOUT_RE = re.compile(r"uses:\s*actions/checkout")
@@ -2514,16 +2824,86 @@ def job_depth(body: str) -> "str | None":
     return m.group(1) if m else "1"
 
 
-def depth_problems(files: "dict[str, str]",
-                   required: "dict[str, str]") -> "tuple[list[str], list[str]]":
-    """(problems, rows) — every DEPTH_REQUIRED command against the depth its job takes.
+def workflow_merge_blocking(text: str) -> bool:
+    """Does THIS workflow report a check run on a pull request? Pure over its text.
 
-    Both directions, because a roster rots both ways: a command that needs history running
-    in a shallow job is the defect, and a roster naming a command no workflow runs is an
-    exemption outliving its subject (174 §5).
+    🔴 THE SAME PREDICATE `ci_check_runs` USES, LIFTED SO TWO READERS CANNOT DISAGREE
+    ABOUT WHICH WORKFLOWS ARE MERGE-BLOCKING. That function reads the trigger block to
+    decide whether a workflow's jobs are in the `26/26 green` population; this one reads
+    it to decide whether a job may be handed a command whose answer is about the world.
+    Two copies of one question is how `sdk-drift.yml` would end up in one population and
+    not the other, with nothing anywhere saying so.
+    """
+    head = text.split("\njobs:", 1)[0]
+    return re.search(r"^\s*(pull_request|push)\s*:", head, re.M) is not None
+
+
+def job_provides(body: str, merge_blocking: bool) -> "set[str]":
+    """Which of `INPUT_PROVIDERS`' five inputs THIS job supplies. Pure over the job text.
+
+    🔴 DERIVED, ONE PREDICATE PER MEMBER, AND THAT IS THE WHOLE POINT OF THE TABLE ABOVE.
+    276's rule is that a column with no stated predicate cannot be wrong; 279 measured
+    the sharper version four times in one session — a population nobody derived cannot
+    report that it is short. A requirements roster whose supply side was typed beside its
+    demand side would be two halves of one opinion. Every branch below reads the job's own
+    text, so the answer changes when the workflow changes and not when somebody remembers.
+    """
+    have: "set[str]" = set()
+    if job_depth(body) == "0":
+        have.add(INPUT_OBJECTS)
+    if _BUILD_RE.search(body):
+        have.add(INPUT_DIST)
+    if _STAGE_ADDON_RE.search(body):
+        have.add(INPUT_ADDON)
+    if _GODOT_BIN_RE.search(body):
+        have.add(INPUT_ENGINE)
+    if not merge_blocking:
+        have.add(INPUT_NETWORK)
+    return have
+
+
+def provider_coverage(required: "dict[str, dict[str, str]]") -> "list[str]":
+    """Which `INPUT_PROVIDERS` columns no row in the LIVE roster needs.
+
+    🆕 280 — SEPARATE FROM `input_problems` BECAUSE IT IS A QUESTION ABOUT THE WHOLE
+    TABLE AND NOT ABOUT A ROSTER. The first draft asked it inside that function, and
+    every per-column fixture below — each of which passes a deliberately one-row
+    roster — came back with four complaints about columns it was not testing. A pure
+    reader handed a subset must answer about the subset; the coverage question has a
+    population of exactly one table, and it is this one. Caught by the fixtures on
+    the run that added them, which is what a per-member claim is for (276).
+
+    A column with no member is a predicate nothing exercises — the shape 276 named
+    and 279 measured four times in one session.
+    """
+    named = {i for need in required.values() for i in need}
+    return [f"`INPUT_PROVIDERS` defines `{inp}` and no GATE_INPUTS row needs it — a "
+            f"column with no member is a predicate nothing exercises"
+            for inp in sorted(set(INPUT_PROVIDERS) - named)]
+
+
+def input_problems(files: "dict[str, str]",
+                   required: "dict[str, dict[str, str]]") -> "tuple[list[str], list[str]]":
+    """(problems, rows) — every GATE_INPUTS command against what its job actually supplies.
+
+    Both directions, because a roster rots both ways: a command that needs an input running
+    in a job that does not supply it is the defect, and a roster naming a command no
+    workflow runs is an exemption outliving its subject (174 §5).
+
+    🆕 280 — AND A THIRD, WHICH THE ONE-COLUMN VERSION COULD NOT HAVE: an input named by
+    a row and by no provider is a requirement nothing can ever satisfy. The fourth —
+    a provider no row needs — is `provider_coverage` above, because it is a question
+    about the whole table rather than about the roster this call was handed.
     """
     problems: "list[str]" = []
     rows: "list[str]" = []
+    for key, need in sorted(required.items()):
+        for inp in sorted(need):
+            if inp not in INPUT_PROVIDERS:
+                problems.append(
+                    f"GATE_INPUTS row `{key}` needs `{inp}`, which `INPUT_PROVIDERS` does "
+                    f"not define — a requirement with no way to be satisfied is not a "
+                    f"stricter check, it is a row nothing can read")
     seen: "dict[str, list[tuple[str, str, str]]]" = {k: [] for k in required}
     # 🔴 THE COMMANDS COME FROM `ci_commands_text`, RUN PER JOB, AND NOT FROM A SECOND
     # WALK. The first draft re-implemented the line scan here and the fixture refused it
@@ -2532,26 +2912,38 @@ def depth_problems(files: "dict[str, str]",
     # block form, the one-line form, chained segments and comments — a second copy of it
     # is 203 §2's ONE LIST rule broken in a reader written to enforce joins.
     for wf, text in sorted(files.items()):
+        mb = workflow_merge_blocking(text)
         for job, body in workflow_jobs(text):
-            depth = job_depth(body)
+            have = job_provides(body, mb)
             for key in ci_commands_text({f"{wf}:{job}": body}):
                 if key in required:
-                    seen[key].append((wf, job, depth or "none"))
-    for key, why in sorted(required.items()):
+                    seen[key].append((wf, job, have))
+    for key, need in sorted(required.items()):
         if not seen[key]:
             problems.append(
-                f"DEPTH_REQUIRED names `{key}`, which no workflow job runs. An exemption "
+                f"GATE_INPUTS names `{key}`, which no workflow job runs. An exemption "
                 f"outliving its subject is a claim nobody re-argued (174 §5) — either the "
                 f"step moved and this row should follow it, or the command is gone and so "
                 f"should the row be")
             continue
-        for wf, job, depth in seen[key]:
-            rows.append(f"DEPTH_REQUIRED {key} · {wf}:{job} · fetch-depth {depth}")
-            if depth != "0":
+        for wf, job, have in seen[key]:
+            rows.append(f"GATE_INPUTS {key} · {wf}:{job} · needs "
+                        f"{'+'.join(sorted(need))} · supplies "
+                        f"{'+'.join(sorted(have)) or 'nothing'}")
+            # 🔴 AN INPUT THIS TABLE CANNOT DEFINE HAS ALREADY BEEN REPORTED ABOVE
+            # AND IS NOT REPORTED TWICE HERE. The first draft looked it up anyway and
+            # the undefined-input fixture raised `KeyError` on the run that added it:
+            # a reader that refuses a roster and then CRASHES on the same roster has
+            # told the caller nothing it can act on. Caught by the claim, in the
+            # session that wrote both — the cheap direction.
+            for inp in sorted(set(need) - have):
+                if inp not in INPUT_PROVIDERS:
+                    continue
+                what, how = INPUT_PROVIDERS[inp]
                 problems.append(
-                    f"`{key}` runs in {wf}:{job} at fetch-depth {depth}, and it needs the "
-                    f"whole object store. {why} A shallow checkout does not make this step "
-                    f"fail — it makes it ANSWER, greenly, about a history that is not there")
+                    f"`{key}` runs in {wf}:{job}, which does not supply `{inp}` — {what}, "
+                    f"read as {how}. {need[inp]} A missing input does not make this step "
+                    f"FAIL, it makes it ANSWER, greenly, about something that is not there")
     return problems, rows
 
 
@@ -3836,17 +4228,26 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     r_notes.extend(un_notes)
     # 🆕 278 §3 — AND A FOURTH, WHICH IS ABOUT THE MACHINE RATHER THAN THE LIST. The three
     # above ask whether the replay and CI run the same commands; this one asks whether the
-    # commands that need a whole object store are run somewhere that HAS one. See
-    # `DEPTH_REQUIRED`. It is checked here, at every close, because the answer lives in the
-    # workflow files and changes when somebody moves a step between jobs.
+    # commands that need a particular input are run somewhere that SUPPLIES it. 🆕 280 —
+    # and it is five inputs now rather than one: see `GATE_INPUTS`. It is checked here, at
+    # every close, because the answer lives in the workflow files and changes when somebody
+    # moves a step between jobs — or gives a schedule-only workflow a `push:` trigger.
     _wf_dir = ROOT / ".github" / "workflows"
     _wf_files = ({f.name: f.read_text(encoding="utf-8")
                   for f in sorted(_wf_dir.glob("*.y*ml"))} if _wf_dir.is_dir() else {})
-    d_problems, d_rows = depth_problems(_wf_files, DEPTH_REQUIRED)
+    d_problems, d_rows = input_problems(_wf_files, GATE_INPUTS)
+    d_problems.extend(provider_coverage(GATE_INPUTS))
     problems.extend(d_problems)
     r_notes.extend(d_rows)
 
     session, how = block_session(handoff.name, block)
+    # 🆕 280 §3 — AND WHAT THE WIRE DID, IF THIS SESSION CUT ANYTHING. Read here
+    # rather than in `check_header` because it is not a counter: the claim is a
+    # VERDICT, its population is the cuts and not the sessions, and the comparison is
+    # `release_names.wire_floor` rather than an equality between two numerals.
+    rv_problems, rv_notes = release_verdict_problems(block, session)
+    problems.extend(rv_problems)
+    r_notes.extend(rv_notes)
     t_problems, t_notes = tier_problems(text, log, session)
     problems.extend(t_problems)
     notes_session = [f"block session {session} — read from {how}"] if session is not None \
@@ -4038,6 +4439,34 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {}
+
+# 🆕 280 — `untagged-count-unbound` (279) NEEDED THE HEADER HALF OF 246's TABLE AND
+# THERE WAS NOT ONE. `ALIAS_PENDING` governs `COUNTER_READERS`; `HEADER_ALIAS_UNUSED`
+# has refused an unreached header row since 236 with no way to add one, so a new
+# header reader could be shipped only by editing a block that had already shipped —
+# which is the ONE repair `population_block_shape` says out loud it must never accept.
+# 🔴 THE ASYMMETRY WAS INVISIBLE BECAUSE NOBODY HAD ADDED A HEADER READER SINCE THE
+# TABLE WAS BUILT: 243 §3's two word-claims were about counters the blocks already
+# printed, so they reached a real block on the run that added them. A roster whose
+# only untried path is the one a new row takes is a roster nobody has added to.
+#
+# The predicate is `pending_problems`, unchanged and SHARED with `ALIAS_PENDING` —
+# two tables checked by one reader is 203 §2's rule, and two readers is how the two
+# halves of this file drift apart in the first place.
+#
+# 🔴 AND THE ROW EXPIRES AT 281, DELETED BY THE GATE RATHER THAN BY A SESSION
+# REMEMBERING. 280's block prints `untagged 0` on its npm row; 253's rule copies that
+# block into `BLOCK_POPULATION` in 281's FIRST PR, which puts `npm.untagged` into
+# `h_reached` and turns this row into `HEADER_ALIAS_PENDING_STALE` on the same run.
+# 275's `taut.duration` did exactly this one roster over, and 246 designed the shape.
+HEADER_ALIAS_PENDING: "dict[str, str]" = {
+    "npm.untagged": "🆕 280 — no block has ever printed the counter, which IS the "
+                    "row: `registry_lag.py` has printed `untagged n` beside "
+                    "`distance` since 269, and 279's was the first block that tried "
+                    "to state it — refused, correctly, for claiming a counter "
+                    "nothing bound. 280's block is the first that can carry it, and "
+                    "adding that block at 281 deletes this row.",
+}
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
@@ -5478,7 +5907,50 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >
 > 🔵 **FOURTH BLOCK IN THE SERIES CLOSED AGAINST CI'S OWN OUTPUT**, on the route 275 wrote.
 > Third session running that it needed no re-derivation.
-"""),]
+"""),
+    # 🆕 280 — 253's RULE, HONOURED IN THE FIRST PR. 279's block enters before the
+    # replay runs, not as this session ships: `git.moved` reads its `main` row as the
+    # FAR endpoint of 280's own interval, and `version_interval` reads its
+    # `host / addon` pair the same way. Adding it afterwards costs a second PR and a
+    # full re-replay against a moved HEAD, which is 241's lesson and 253's rule.
+    #
+    # 🔵 AND IT IS THE LAST BLOCK THAT WILL BE ADMITTED WITHOUT A WIRE VERDICT ON A
+    # CUT. 279 cut 1.82.1 and states check 8's answer — *the wire did PATCH* — in
+    # §7, in prose, where no reader goes. `release_verdict_problems` starts at 280
+    # (`RELEASE_VERDICT_FROM`) for exactly that reason: this block is correct and
+    # could not have known.
+    (279, """> ```
+> main                 21d4699 — the exemption whose reason expired (#345)  MOVED +3
+>                      6febf1a — release: 1.82.1 (#344)
+>                      3cca3c5 — of what population is this a reading? (#343)
+> branch 279           session279-of-what-population-is-this-a-reading · PR #343
+>                      the release branch · PR #344
+>                      session279c-the-exemption-whose-reason-expired · PR #345
+>                      🟢 ALL THREE PUSHED AND MERGED
+> host / addon         1.82.1 / 1.12.0  🟢 host BUMPED, PUBLISHED and TAGGED
+> npm                  🟢 1.82.1 · registry 1.82.1 · lag 0 ·
+>                      0 open issues / 0 open PRs
+>                      — 🔴 AND A SECOND REGISTRY READING REFUSES ON PURPOSE: SDK_UPSTREAM
+>                      — 🔵 the other ceiling is in Owed, and the reason it is not here is
+>                        `untagged-count-unbound`: no header atom reads it
+> assetlib             🟢 addon 1.12.0 live · unchanged since the previous session
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 30/30 · scope 73 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2602
+>               · late not-loaded 0 · late constructed 292/160
+>               · py gates 18/6/12 · SIG 230/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 108 · 52 governed · 1547 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 311 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4771 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 58/58 claims · handoff 407 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```"""),
+]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
 # 🔴 EVERY FLOOR THIS FILE HAS ON `BLOCK_POPULATION` IS A FLOOR ON ITS WIDTH.
@@ -5899,11 +6371,29 @@ def selftest() -> int:
                 "half of this file.")
 
     claims += 1
-    h_never = [k for k, *_ in HEADER_READERS if k not in h_reached]
+    h_never = [k for k, *_ in HEADER_READERS
+               if k not in h_reached and k not in HEADER_ALIAS_PENDING]
     if h_never:
         failed += 1
         print(f"  🔴 HEADER_ALIAS_UNUSED {h_never} — no header atom in any real block "
               f"reaches these rows")
+
+    # 🆕 280 — AND THE OTHER DIRECTION, ON THE SAME PREDICATE `ALIAS_PENDING` USES. A
+    # pending row whose key IS now reached is an exemption its own walk can see is
+    # over, and a pending row naming no reader at all is a row about nothing. Neither
+    # is a maintenance task: the first means the block that answers it has landed and
+    # the row must go, which is the whole reason the table is allowed to exist.
+    claims += 1
+    h_stale = pending_problems(HEADER_ALIAS_PENDING, h_reached,
+                               {k for k, *_ in HEADER_READERS})
+    if h_stale:
+        failed += 1
+        print(f"  🔴 HEADER_ALIAS_PENDING_STALE {h_stale} — an exemption its own walk "
+              f"can see is over. Delete the row; do not edit the block that ended it")
+    if HEADER_ALIAS_PENDING:
+        print(f"  · HEADER_ALIAS_PENDING {len(HEADER_ALIAS_PENDING)} header reader(s) "
+              f"whose first block is the one being written this session: "
+              f"{sorted(HEADER_ALIAS_PENDING)}")
 
     # 🔴 THE SPLIT'S NEGATIVE, AND IT IS 231's OWN ATOM WITH ONE DOCUMENTED EDIT — the
     # `2` removed. Two aliases still match, the spans are still disjoint, and the second
@@ -6245,7 +6735,16 @@ def selftest() -> int:
     _hp, _hn, _ha, _hc = check_header(REAL_HEADER.strip("\n").split("\n"), "", False, 234)
     _named = {n.split(":", 1)[0] for n in _hn if "UNREAD" in n}
     _remote = {k for k, p in PROVENANCE.items() if p == REMOTE}
-    if not _remote <= _named:
+    # 🆕 280 — THE POPULATION OF THIS CLAIM IS DERIVED AND NOT ASSUMED, which is 279's
+    # finding turned on this file's own self-test. 234's header is a SHIPPED block and
+    # may not be edited, so it carries exactly the REMOTE rows that existed when it was
+    # written; a claim asserting the whole REMOTE set against it fails the moment a
+    # REMOTE row is added, and reads as the new row being broken rather than as the
+    # fixture being silent about it. The rows this fixture can speak for are the ones
+    # it BINDS; the ones it cannot are driven below over a fixture that does.
+    _bound_here = {k for k, alias, *_ in HEADER_READERS
+                   if any(re.search(alias, c, re.I) for _r, c in h_atoms)}
+    if not (_remote & _bound_here) <= _named:
         failed += 1
         print(f"  🔴 HEADER_OFFLINE {sorted(_remote - _named)} answered itself with no log "
               f"and no socket while declared REMOTE — a row that quietly becomes readable "
@@ -6283,9 +6782,14 @@ def selftest() -> int:
     # open for hours.
     claims += 1
     _uc = {x.split()[2] for x in _hp if x.startswith("🔴 HEADER_UNREAD_CLAIMED")}
-    if not _remote <= _uc:
+    # 🆕 280 — SAME DERIVED POPULATION AS THE CLAIM ABOVE, AND FOR THE SAME REASON.
+    # A block cannot fail to refuse a claim it never made: 234's npm row carries no
+    # `untagged` segment, so asserting the whole REMOTE set here would report the
+    # NEW row as broken on the run that added it. `npm.untagged` is driven against a
+    # fixture that does claim it, below.
+    if not (_remote & _bound_here) <= _uc:
         failed += 1
-        print(f"  🔴 HEADER_UNREAD_CLAIMED {sorted(_remote - _uc)} went UNREAD against a "
+        print(f"  🔴 HEADER_UNREAD_CLAIMED {sorted((_remote & _bound_here) - _uc)} went UNREAD against a "
               f"block that claims a number for each of them and produced no problem — "
               f"which is the state 270 shipped in: the reader was right, the note was "
               f"printed, and the claim was accepted beside it")
@@ -6309,6 +6813,63 @@ def selftest() -> int:
               f"claim — a row spelled UNREAD carries no numeral, so it is not an atom and "
               f"there is nothing to compare. Refusing it would make this rule a "
               f"requirement to own a network rather than a requirement to be honest")
+
+    # ── 🆕 280 — `untagged-count-unbound` (279), DRIVEN IN FOUR DIRECTIONS ──────────
+    #
+    # 🔴 THE ROW 279's BLOCK WAS REFUSED FOR TRYING TO STATE. 234's header predates
+    # the counter and cannot speak for it, and it is a shipped document nobody may
+    # edit — so the fixture is that header with the segment the npm row should have
+    # been carrying since 269. Offline on purpose, like every claim around it.
+    _u_lines = [ln for ln in REAL_HEADER.strip("\n").split("\n")
+                if not ln.startswith("> npm ")]
+    _u_lines.insert(5, "> npm                  🟢 1.74.0 · lag 0 · untagged 4 · tags 121")
+    _up, _un, _ua, _uc3 = check_header(_u_lines, "", False, 234)
+    # 🔴 `check_header` RETURNS A COUNT OF ATOMS AND `header_atoms` RETURNS THE
+    # ATOMS. The first draft of this claim read the count as the list, and python
+    # said so loudly — which is the cheap direction. The expensive one is a reader
+    # that iterates something plausible and reports agreement.
+    _u_block, _ = status_block("\n".join(_u_lines))
+    _u_atoms, _ = header_atoms(_u_block)
+    _u_bound = {k for k, alias, *_ in HEADER_READERS
+                if any(re.search(alias, c, re.I) for _r, c in _u_atoms)}
+
+    claims += 1
+    if "npm.untagged" not in _u_bound:
+        failed += 1
+        print("  🔴 HEADER_UNTAGGED_UNBOUND `untagged 4` on the npm row binds to no "
+              "reader — which is the exact refusal 279's block took on the first "
+              "block that ever tried to print the number, and the row this claim "
+              "exists to keep closed")
+
+    claims += 1
+    if "npm.untagged" not in {n.split(":", 1)[0] for n in _un if "UNREAD" in n}:
+        failed += 1
+        print("  🔴 HEADER_UNTAGGED_OFFLINE `npm.untagged` answered itself with no "
+              "log and no socket while declared REMOTE — the denominator is origin's "
+              "tag list, and a reader that finds it in the tree is reading the disk")
+
+    claims += 1
+    if "npm.untagged" not in {x.split()[2] for x in _up
+                              if x.startswith("🔴 HEADER_UNREAD_CLAIMED")}:
+        failed += 1
+        print("  🔴 HEADER_UNTAGGED_CLAIMED the block typed a number for `untagged` "
+              "and the reader went UNREAD beside it without refusing — 271 §1's "
+              "shape, on the counter that says whether a release is owed")
+
+    # 🔴 AND THE NEGATIVE CONTROL, BECAUSE `untagged` CONTAINS `tags`. `npm.tags`'s
+    # alias is `\btags?\b` and it is one word boundary away from swallowing this row;
+    # a single reader answering both would compare the wrong number against the wrong
+    # claim and report agreement. `HEADER_AMBIGUOUS` above asks this of 234's atoms,
+    # which do not include an `untagged` one — so it is asked again here, of a block
+    # that carries both words on one line.
+    claims += 1
+    _u_amb = [(raw, [k for k, alias, *_ in HEADER_READERS
+                     if re.search(alias, cleaned, re.I)])
+              for raw, cleaned in _u_atoms]
+    if any(len(hits) != 1 for _raw, hits in _u_amb):
+        failed += 1
+        print(f"  🔴 HEADER_UNTAGGED_AMBIGUOUS {_u_amb} — `lag 0`, `untagged 4` and "
+              f"`tags 121` on one row must bind to exactly three readers, one each")
 
     # 🔴 THE EMITTER AND THE ROSTER, JOINED — the join `npm.lag` did not have for twelve
     # sessions (241 §1). `GH_OPEN_ISSUES` has been an `extract` since 236 and nothing in
@@ -7894,7 +8455,7 @@ def selftest() -> int:
     # ── 🆕 278 §3 — THE DEPTH ROSTER, DRIVEN BOTH WAYS FROM FIXTURES ────────────────
     #
     # 🔴 EVERY BRANCH BELOW IS UNEXECUTED BY THE LIVE RUN, which is exactly why it is here.
-    # `depth_problems` returns `[]` on the shipped tree — `contract-check` already carries
+    # `input_problems` returns `[]` on the shipped tree — `contract-check` already carries
     # `fetch-depth: 0` — so a rule this reader stopped applying would delete in silence,
     # and the sentence it exists to say would go with it. Three shapes: the defect, the
     # healthy case, and the exemption that outlived its subject.
@@ -7909,6 +8470,9 @@ def selftest() -> int:
                    "        with:\n"
                    "          fetch-depth: 0\n"
                    "      - run: python3 scripts/release_names.py --assert-addon\n")
+    _DEPTH_ONE = {"python3 release_names.py --assert-addon":
+                  {INPUT_OBJECTS: "the objects column, alone, so the three fixtures "
+                                  "below measure the DEPTH rule and not the table."}}
     _DEPTH_SHALLOW = _DEPTH_FULL.replace("        with:\n          fetch-depth: 0\n", "")
     _DEPTH_GONE = _DEPTH_FULL.replace(
         "      - run: python3 scripts/release_names.py --assert-addon\n", "")
@@ -7925,15 +8489,179 @@ def selftest() -> int:
          "(174 §5), and the direction a one-way reader would never see"),
     ):
         claims += 1
-        _got, _ = depth_problems({"ci.yml": _text}, DEPTH_REQUIRED)
+        _got, _ = input_problems({"ci.yml": _text}, _DEPTH_ONE)
         if len(_got) != _want:
             failed += 1
             print(f"  🔴 DEPTH_{_label.upper()} -> {len(_got)} problem(s), want {_want} "
                   f"— {_why}. Got: {_got}")
 
+    # ── 🆕 280 §3 — `release-1820-bump-under-wire` (278), AND THE INCIDENT IS ROW 1 ──
+    #
+    # 🔴 A CHECK THAT HAS NEVER REFUSED IS UNAUDITED (204 §8.27), and this one has an
+    # incident to be driven over rather than a construction: 1.82.0, replayed at its own
+    # commit with its own classifier, is `wire MAJOR` under a MINOR bump. Row 2 is the
+    # shape 270 ACTUALLY shipped — the same cut with the pair simply absent, because the
+    # ritual step that produces it was never run. Row 3 is 279's cut, which is the healthy
+    # case and must not be refused.
+    def _blk(host, extra=""):
+        return ["> ```",
+                "> main                 abc1234 — a commit (#1)          MOVED +1",
+                f"> host / addon         {host} / 1.12.0  🟢 host BUMPED{extra}",
+                "> npm                  🟢 " + host + " · lag 0 · tags 134",
+                "> ```"]
+
+    _prev_1810 = [(279, "\n".join(_blk("1.81.0")))]
+    _prev_1820 = [(279, "\n".join(_blk("1.82.0")))]
+    for _label, _block, _pop, _want, _why in (
+        ("beneath", _blk("1.82.0", " · wire MAJOR · toolchain PATCH"), _prev_1810, 1,
+         "1.82.0 ITSELF: a MINOR bump over a wire that did MAJOR. `wire_floor` is the "
+         "comparison and it returns C8_BENEATH — the reading the cut never took"),
+        ("unread", _blk("1.82.0"), _prev_1810, 1,
+         "the shape 270 shipped: a cut whose block says NOTHING about the wire, because "
+         "the invocation that answers it was not in the replay list"),
+        ("healthy", _blk("1.82.1", " · wire PATCH · toolchain PATCH"), _prev_1820, 0,
+         "279's cut — a PATCH over a PATCH wire. A reader that refuses this refuses the "
+         "shipped tree, which is the direction that makes the other two worthless"),
+        ("no-cut", _blk("1.82.1", " · wire PATCH · toolchain PATCH"),
+         [(279, "\n".join(_blk("1.82.1")))], 0,
+         "the host version did not move, so no cut happened and check 8 is owed nothing "
+         "— the population is the CUTS and not the sessions"),
+        ("above", _blk("1.83.0", " · wire PATCH · toolchain PATCH"), _prev_1820, 0,
+         "a MINOR whose schemas held still is legal and REPORTED, never refused: the "
+         "floor is one-sided by design (`wire_floor`'s own docstring), and a reader that "
+         "demanded equality would refuse every behaviour change the classifier is blind to"),
+        ("toolchain", _blk("1.82.1", " · wire PATCH · toolchain MAJOR"), _prev_1820, 1,
+         "276's arm, reached through this reader: a PATCH source verdict beside a MAJOR "
+         "TOOLCHAIN verdict floors at the worse of the two, so a dependency that moved "
+         "the wire cannot cancel on both sides and read as a patch (#256)"),
+    ):
+        claims += 1
+        _got, _ = release_verdict_problems(_block, 280, _pop)
+        if len(_got) != _want:
+            failed += 1
+            print(f"  🔴 RELEASE_VERDICT_{_label.upper()} -> {len(_got)} problem(s), want "
+                  f"{_want} — {_why}. Got: {_got}")
+
+    # 🔴 AND THE POPULATION BOUNDARY IS A CLAIM, NOT A COMMENT. Every block in
+    # `BLOCK_POPULATION` predates the `wire`/`toolchain` pair — 279's own §7 states check
+    # 8's answer in PROSE — so a reader without this boundary would refuse forty shipped
+    # documents for not anticipating 280, which is `block_assetlib`'s rule at 272 and the
+    # one repair `population_block_shape` says out loud it must never accept.
+    claims += 1
+    _old, _ = release_verdict_problems(_blk("1.82.0"), RELEASE_VERDICT_FROM - 1,
+                                       _prev_1810)
+    if _old:
+        failed += 1
+        print(f"  🔴 RELEASE_VERDICT_BOUNDARY a block older than {RELEASE_VERDICT_FROM} "
+              f"was refused for not carrying a pair that did not exist when it shipped "
+              f"— {_old}")
+
+    # 🔴 AND THE BUMP IS DERIVED. A block that could NAME its own bump could name the one
+    # that passes, which is the entire failure mode 1.82.0 is an instance of.
+    for _prev, _now, _want in (("1.81.0", "1.82.0", "MINOR"), ("1.82.0", "1.82.1", "PATCH"),
+                               ("1.82.1", "2.0.0", "MAJOR"), ("1.82.1", "1.82.1", "PATCH")):
+        claims += 1
+        _b, _w = release_bump(_prev, _now)
+        if _b != _want or _w:
+            failed += 1
+            print(f"  🔴 RELEASE_BUMP {_prev} -> {_now} read as {_b!r} ({_w}), want "
+                  f"{_want!r} — semver is not a matter of opinion and this is the one "
+                  f"input to check 8 the block is not allowed to supply")
+    claims += 1
+    _b, _w = release_bump("1.82.1", "1.82.0")
+    if _b or "BACKWARDS" not in _w:
+        failed += 1
+        print(f"  🔴 RELEASE_BUMP_BACKWARDS 1.82.1 -> 1.82.0 read as {_b!r} ({_w}) — a "
+              f"version going backwards is not a PATCH, it is a block that cannot be read")
+
+    # ── 🆕 280 — ONE FIXTURE PER COLUMN, IN BOTH DIRECTIONS ──────────────────────────
+    #
+    # 🔴 AN AGGREGATE CANNOT BE WRONG ABOUT A MEMBER (276, and 279 §5 paid for it in a
+    # different roster in the same tree). The three claims above drive `objects` and
+    # would pass unchanged if `dist`, `addon`, `engine` and `network` were decoration:
+    # each new column needs its own supplying job and its own withholding one, or the
+    # table has four predicates nothing has ever exercised.
+    _J = ("name: {name}\n"
+          "on:\n"
+          "{trigger}"
+          "jobs:\n"
+          "  the-job:\n"
+          "    runs-on: ubuntu-latest\n"
+          "    steps:\n"
+          "      - uses: actions/checkout@v6\n"
+          "{supply}"
+          "      - run: {cmd}\n")
+    _PUSH, _CRON = "  push:\n", "  schedule:\n    - cron: '0 6 * * 1'\n"
+    _BUILD_STEP = "      - run: npm run build\n"
+    _STAGE_STEP = "      - run: npm run stage-addon\n"
+    _GODOT_STEP = ("      - run: |\n"
+                   "          echo \"GODOT_BIN=$PWD/godot\" >> \"$GITHUB_ENV\"\n")
+    for _inp, _cmd, _supply, _short in (
+        (INPUT_DIST, "node scripts/wire_invisible_gate.mjs", _BUILD_STEP,
+         "a job with no `npm run build` hands the surface reader an empty `dist/`, and "
+         "it prints UNREACHABLE rather than a surface"),
+        (INPUT_ADDON, "python3 scripts/release_names.py --assert-map", _STAGE_STEP,
+         "a job with no `npm run stage-addon` packs a tarball whose `addon` root does "
+         "not exist, and check 3 agrees with itself about a root neither direction sees"),
+        (INPUT_ENGINE, "node test-integration/set-property-verify.integration.mjs",
+         _GODOT_STEP,
+         "a job that never exports `GODOT_BIN` has no engine to ask what it stored — "
+         "`integration.yml` names that job itself: `vcs-plane`, *the one plane that "
+         "needs NO Godot*"),
+    ):
+        _row = {command_norm(_cmd): {_inp: "fixture"}}
+        claims += 1
+        _ok, _ = input_problems(
+            {"w.yml": _J.format(name="w", trigger=_PUSH, supply=_supply, cmd=_cmd)}, _row)
+        _bad, _ = input_problems(
+            {"w.yml": _J.format(name="w", trigger=_PUSH, supply="", cmd=_cmd)}, _row)
+        if len(_ok) != 0 or len(_bad) != 1:
+            failed += 1
+            print(f"  🔴 GATE_INPUT_{_inp.upper()} supplying job -> {len(_ok)} "
+                  f"problem(s) (want 0), withholding job -> {len(_bad)} (want 1) — "
+                  f"{_short}. Got: {_ok or _bad}")
+
+    # 🔴 AND `network` IS THE COLUMN WHOSE PROVIDER IS THE WORKFLOW AND NOT THE JOB, so
+    # its two fixtures differ in the TRIGGER BLOCK and in nothing else. This is the
+    # claim that would have refused 279 §9's near-miss in advance: `assetlib_sweep.py`'s
+    # offline half moved into `ci.yml` that session and its live half must never follow.
+    claims += 1
+    _nrow = {"python3 assetlib_sweep.py --check": {INPUT_NETWORK: "fixture"}}
+    _ncmd = "python3 scripts/assetlib_sweep.py --check"
+    _n_ok, _ = input_problems(
+        {"sdk-drift.yml": _J.format(name="d", trigger=_CRON, supply="", cmd=_ncmd)}, _nrow)
+    _n_bad, _ = input_problems(
+        {"ci.yml": _J.format(name="ci", trigger=_PUSH, supply="", cmd=_ncmd)}, _nrow)
+    if len(_n_ok) != 0 or len(_n_bad) != 1:
+        failed += 1
+        print(f"  🔴 GATE_INPUT_NETWORK schedule-only -> {len(_n_ok)} problem(s) (want "
+              f"0), merge-blocking -> {len(_n_bad)} (want 1) — a reading whose subject "
+              f"is the WORLD must not be able to fail a pull request. Got: "
+              f"{_n_ok or _n_bad}")
+
+    # 🔴 AND THE TWO TABLE-SHAPED WAYS TO BE WRONG, WHICH ONLY EXIST BECAUSE THERE ARE
+    # COLUMNS NOW: a row needing an input no provider defines is a requirement nothing
+    # can satisfy, and a provider no row needs is a predicate nothing exercises.
+    claims += 1
+    _undef, _ = input_problems({"ci.yml": _DEPTH_FULL},
+                               {"python3 release_names.py --assert-addon":
+                                {INPUT_OBJECTS: "ok", "a-cluster-of-gpus": "invented"}})
+    if not any("INPUT_PROVIDERS` does not define" in p for p in _undef):
+        failed += 1
+        print(f"  🔴 GATE_INPUT_UNDEFINED a row needing an undefined input was accepted "
+              f"— {_undef}")
+    claims += 1
+    _unused = provider_coverage(_DEPTH_ONE)
+    if len(_unused) != 4 or provider_coverage(GATE_INPUTS):
+        failed += 1
+        print(f"  🔴 GATE_INPUT_UNUSED a one-column roster left four of the five "
+              f"providers unexercised and this reader did not say so, or the LIVE "
+              f"table has a column no row needs — {_unused} / "
+              f"{provider_coverage(GATE_INPUTS)}")
+
     # 🔴 AND THE WALK ITSELF, BECAUSE `on:`'s KEYS SIT AT A JOB'S INDENT. A reader that
     # counted `push` as a job would report it as a job with no checkout, which is the quiet
-    # direction — every DEPTH_REQUIRED row would then pass for the wrong reason.
+    # direction — every GATE_INPUTS row would then pass for the wrong reason.
     claims += 1
     _jobs = [n for n, _b in workflow_jobs(_DEPTH_FULL)]
     if _jobs != ["contract-check"]:

@@ -371,6 +371,23 @@ that fixes the timing assertion. Both times the instrument that refused was
   the direction check 29 had never taken — refusing any input key published as both unconstrained
   and optional unless the roster names it deliberately.
 
+### Note — added 2026-08-24: the number understates what this release did
+
+- 🔴 **1.82.0 is a MAJOR wearing a MINOR's name, and the section above is where the truth
+  already was.** `value` became a **required** parameter, constrained to six accepted
+  shapes, on `runtime_set_property`, `node_set_property`, `project_set_setting`,
+  `resource_set_property`, `shadermaterial_set_param`, `anim_insert_key` and
+  `runtime_await_condition`. Until this release it was published as optional and
+  unconstrained. A client that omitted it — or that sends a shape outside those six — was
+  obeying the schema we published and is refused from 1.82.0 onward. No tool was added or
+  removed on either surface; the break is entirely in what those seven inputs accept.
+- The classifier that sizes a release against its own published surface answers MAJOR for
+  this window, and it answered MAJOR at the release commit, with the code that shipped in
+  it. It was not run at the cut. Nothing about 1.82.0's behaviour changes retroactively
+  and 1.82.1 is unaffected; what is corrected here is the claim the version number makes.
+  A caller who read the notes was told everything. A caller who read only the number was
+  told the schemas stayed compatible, and they did not.
+
 ### Note
 
 - **Nothing was ever dropping falsy values.** #327 reported `false`, `0` and `0.0` as silently

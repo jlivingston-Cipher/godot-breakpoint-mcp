@@ -58,6 +58,7 @@ Run:  python3 scripts/queue_gate.py
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import io
 import re
@@ -540,6 +541,27 @@ def check(text: str, tracked: "set[str] | None" = None
                 f"or KILL it — a schedule nobody re-reads is the prose this table "
                 f"replaced")
 
+    # ── 🆕 280 — QUEUE_SCHEDULE_SET — the same promise, read by the SESSION ───────────
+    _set_ceiling, _set_how = best_finished_set(rows)
+    _sets = schedule_sets(rows)
+    if not _sets:
+        notes.append(f"QUEUE_SCHEDULE_SET no `user` row is parked on any session — "
+                     f"{_set_how}, and there is nothing for that bar to be about")
+    for _target, _ids in sorted(_sets.items()):
+        if len(_ids) > _set_ceiling:
+            problems.append(
+                f"🔴 QUEUE_SCHEDULE_SET session {_target} is carrying {len(_ids)} `user` "
+                f"row(s) — {', '.join(_ids)} — and {_set_how}. A schedule is a promise "
+                f"about a session, and a session is one context: parking a set nothing "
+                f"in this table's history has ever finished is not planning, it is a "
+                f"lapse written in advance. 243 and 244 each opened carrying six. "
+                f"Re-target the ones that are not the point, or say in the rows why this "
+                f"set is different")
+        else:
+            notes.append(f"QUEUE_SCHEDULE_SET session {_target} carries {len(_ids)} "
+                         f"`user` row(s) — {', '.join(_ids)} — against a derived bar of "
+                         f"{_set_ceiling}: {_set_how}")
+
     # 🔴 AND A KILL IS NOT A CLOSURE — 241 §2, FOUND BY THE GATE FIRING ON ITS AUTHOR.
     # The first draft counted any old row closed at `head`, and the very first session
     # under it satisfied the claim by KILLING five items it had no intention of doing.
@@ -750,6 +772,65 @@ def _pad_paths(row: str) -> str:
     return "| " + " | ".join(cells) + " |"
 
 
+# ══ 🆕 280 — `schedule-set-unread` (244, thirty-six sessions) ═════════════════════════
+#
+# 🔴 `QUEUE_SCHEDULE_HONOURED` READS ONE ROW AT A TIME. It refuses a target that has
+# PASSED, which is the right question asked of the wrong unit: a row scheduled for 281 is
+# a promise about 281, and five of them are a promise about 281 that nothing in this
+# table has ever kept. 243 and 244 each opened carrying six, and no claim anywhere had an
+# opinion — the row has been open ever since, which is itself the measurement.
+#
+# 🔴 THE CEILING IS DERIVED FROM THIS TABLE AND NOT CHOSEN, which is 280's own lesson one
+# file over: a typed ceiling is a number nobody re-derives, and a *population nobody
+# derived cannot report that it is short* (279). The bar is the most `user` rows any ONE
+# session has actually FINISHED — measured off the `closed` column at head 280: four, by
+# 248, 252, 261, 267 and 268, over twenty-two sessions that closed any at all, with a
+# median of one. It rises only when a session really does finish more, which is evidence
+# rather than permission, and 241 §2's rule already applies to the input: **only `DONE`
+# counts.** A session cannot raise the bar by KILLING five rows.
+#
+# 🔴 AND A FLOOR, BECAUSE A DERIVED POPULATION THAT EMPTIES ANSWERS ZERO AND READS AS
+# STRICT. Two is 278's own precedent, written down at 279 in its own words — *read-then-
+# decide rows are a set one session can honestly carry* — and it is the smallest bar that
+# does not forbid the arrangement this project has already judged honest.
+SCHEDULE_SET_FLOOR = 2
+
+
+def best_finished_set(rows: "list") -> "tuple[int, str]":
+    """(the most `user` rows any one session has FINISHED, how that was derived).
+
+    PURE over the parsed rows: no tree, no network, no head. `DONE` only — a KILL is a
+    decision to abandon work and 241 §2 already refused it as progress one claim over.
+    """
+    by = collections.Counter(
+        int(r.closed) for r in rows
+        if r.state == "DONE" and r.reach == "user" and r.closed != NONE)
+    if not by:
+        return (SCHEDULE_SET_FLOOR,
+                f"no session in this table has FINISHED a `user` row, so the floor of "
+                f"{SCHEDULE_SET_FLOOR} stands in — a derived bar whose population has "
+                f"emptied answers zero and reads as strictness")
+    best = max(by.values())
+    who = ", ".join(str(s) for s in sorted(s for s, c in by.items() if c == best))
+    return (max(best, SCHEDULE_SET_FLOOR),
+            f"{best} is the most any one session has FINISHED ({who}), over {len(by)} "
+            f"session(s) that closed one, floor {SCHEDULE_SET_FLOOR}")
+
+
+def schedule_sets(rows: "list") -> "dict[int, list[str]]":
+    """{target session: the `user` row ids parked on it}. PURE.
+
+    🔴 THE UNIT IS THE TARGET AND NOT THE ROW, which is the whole of this claim.
+    `QUEUE_SCHEDULE_HONOURED` above reads each row against the head; this reads each
+    SESSION against what a session has ever managed.
+    """
+    out: "dict[int, list[str]]" = {}
+    for r in rows:
+        if r.state == "SCHEDULED" and r.reach == "user" and r.target != NONE:
+            out.setdefault(int(r.target), []).append(r.id)
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def _table(rows: "list[str]", head: int = HEAD, fmt: int = 1) -> str:
     pad = [f"| filler-{i} | DONE | internal | — | 100 | 101 | — | filler | — |"
            for i in range(QUEUE_ROW_FLOOR)]
@@ -801,6 +882,59 @@ def selftest() -> int:
     claim("QUEUE_CLEAN_SATISFIED",
           any("NOT_ONLY_NEWEST satisfied" in n for n in notes),
           "the clean fixture closes two old rows and the note did not say so")
+
+    # ── 🆕 280 — QUEUE_SCHEDULE_SET, IN BOTH DIRECTIONS AND ON ITS DERIVATION ────────
+    #
+    # 🔴 THE BAR IS DERIVED, SO THE FIXTURE HAS TO SUPPLY THE HISTORY THAT DERIVES IT.
+    # A table whose `user` rows were never finished by anybody falls to the floor, and a
+    # claim driven only against the live table would be a claim about today's numbers.
+    _fin = [f"| fin-{i} | DONE | user | — | 200 | 201 | — | finished at 201 | — |"
+            for i in range(3)]
+    _park = [f"| park-{i} | SCHEDULED | user | — | 238 | — | 999 | parked on 999 | — |"
+             for i in range(4)]
+    _p, _n, _r, _o = check(_table(GOOD + _fin + _park[:3]))
+    claim("SCHEDULE_SET_AT_BAR", not any("QUEUE_SCHEDULE_SET" in x for x in _p),
+          "three rows parked on one session, against a history in which a session "
+          "finished three, was refused — the bar is what has been done, and a reader "
+          "that refuses its own evidence refuses every honest schedule: "
+          + "; ".join(x[:90] for x in _p))
+    red("SCHEDULE_SET_OVER", GOOD + _fin + _park, "QUEUE_SCHEDULE_SET")
+
+    # 🔴 AND A KILL MAY NOT RAISE THE BAR — 241 §2's rule, reaching the input of a
+    # DERIVED ceiling rather than the output of a counted one. A session that abandons
+    # five rows has demonstrated nothing about what a session can carry.
+    _killed = [f"| kil-{i} | KILLED | user | — | 200 | 201 | — | abandoned | why |"
+               for i in range(5)]
+    red("SCHEDULE_SET_KILL_NO_CREDIT", GOOD + _killed + _park, "QUEUE_SCHEDULE_SET")
+
+    # 🔴 AND THE FLOOR STANDS IN WHEN THE DERIVED BAR IS LOWER, because a bar taken from
+    # a population that has barely filled reads as strictness — at the limit it refuses
+    # every schedule this table has ever carried, including the pair 278 judged honest.
+    #
+    # 🔴 AND THE DIGIT DECIDES BOTH FIXTURES, WHICH THE FIRST DRAFT OF THIS CLAIM DID
+    # NOT. It read `best_finished_set([])[0] == SCHEDULE_SET_FLOOR` — the constant
+    # compared against itself, true for every value it could hold, which is a pin that
+    # cannot be wrong and therefore is not one. `floor_pin_gate.py` sweeps this file:
+    # a claim satisfied by any digit is a floor nothing governs.
+    _one_done = ["| onefin | DONE | user | — | 200 | 201 | — | one, at 201 | — |"]
+    _pair = [f"| duo-{i} | SCHEDULED | user | — | 238 | — | 999 | parked on 999 | — |"
+             for i in range(2)]
+    _trio = _pair + ["| duo-2 | SCHEDULED | user | — | 238 | — | 999 | parked | — |"]
+    _pp, _n, _r, _o = check(_table(GOOD + _one_done + _pair))
+    claim("SCHEDULE_SET_FLOOR_ADMITS_PAIR",
+          not any("QUEUE_SCHEDULE_SET" in x for x in _pp),
+          "a PAIR parked on one session, against a history whose best session finished "
+          "ONE, was refused — the derived bar is 1 here and the FLOOR is what admits "
+          "it, so this fixture is where the digit is read: "
+          + "; ".join(x[:90] for x in _pp))
+    red("SCHEDULE_SET_FLOOR_REFUSES_TRIO", GOOD + _one_done + _trio,
+        "QUEUE_SCHEDULE_SET")
+    _bar, _how = best_finished_set(
+        parse(_table(GOOD + _fin + _park))[2])
+    claim("SCHEDULE_SET_DERIVED", _bar == 3 and "201" in _how,
+          f"the bar derived from a history whose best session finished three came back "
+          f"{_bar} ({_how}) — the number must come from the `closed` column and name the "
+          f"session it came from, or it is a literal wearing a derivation")
 
     # ── QUEUE_PARSE ───────────────────────────────────────────────────────────────────
     p, _n, _r, _o = check("no markers here at all")

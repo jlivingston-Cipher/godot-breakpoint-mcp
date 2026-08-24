@@ -1061,6 +1061,13 @@ INSTRUMENTS = [
             "{SIG:reach_of}": "return ([], [])",
             "{SIG:tracked_prefixes}": "return set()",
             "{SIG:_pad_paths}": 'return ""',
+            # 🆕 280 — `schedule-set-unread` (244). `QUEUE_SCHEDULE_SET` reads the TARGET
+            # as its unit, and both halves of it are here. `best_finished_set` derives
+            # the bar from the `closed` column — blinded to a large number, every set
+            # passes and the claim is a comment. `schedule_sets` is the population it
+            # judges — blinded to empty, there is nothing to be over the bar.
+            "{SIG:best_finished_set}": 'return (999, "")',
+            "{SIG:schedule_sets}": "return {}",
         },
     },
     {
@@ -1249,12 +1256,28 @@ INSTRUMENTS = [
             "{SIG:open_tier}": "return 0",
             # ── 🆕 278 §3 — the depth roster, `sweep-evidence-depth-sensitive` (277) ──
             # Three members, and every branch of all three is unexecuted by the live run:
-            # `depth_problems` returns `[]` on the shipped tree because `contract-check`
-            # already carries `fetch-depth: 0`. That is the shape this instrument exists
-            # for — a rule whose healthy answer is silence deletes in silence too.
+            # `input_problems` returns `[]` on the shipped tree because every GATE_INPUTS
+            # row runs in a job that supplies what it needs. That is the shape this
+            # instrument exists for — a rule whose healthy answer is silence deletes in
+            # silence too.
             "{SIG:workflow_jobs}": "return []",
             "{SIG:job_depth}": "return None",
-            "{SIG:depth_problems}": "return ([], [])",
+            # 🆕 280 §4 — `depth_problems` IS `input_problems` NOW, and the rename is not
+            # cosmetic: `gate-input-requirements-untabled` (279) turned one column into
+            # five, so the four members below are the supply side that column never had.
+            # `job_provides` reads each input off the job's own text and
+            # `workflow_merge_blocking` reads the trigger block — blind either and every
+            # requirement is satisfied by a job that supplies nothing.
+            "{SIG:input_problems}": "return ([], [])",
+            "{SIG:provider_coverage}": "return []",
+            "{SIG:job_provides}": "return set()",
+            "{SIG:workflow_merge_blocking}": "return True",
+            # 🆕 280 §3 — `release-1820-bump-under-wire` (278). The reader that refuses a
+            # block which cut a release and said nothing about what the wire did, and the
+            # pure semver derivation it may not be handed instead. Blind the first and
+            # 1.82.0 ships again; blind the second and every cut reads as a PATCH.
+            "{SIG:release_verdict_problems}": "return ([], [])",
+            "{SIG:release_bump}": "return (\"PATCH\", \"\")",
         },
     },
     # ══ 🆕 278 §4 — THE SIXTH PYTHON INSTRUMENT — `release-names-twelve-readers` (247) ══
@@ -1590,7 +1613,12 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "nothing, and the container CI runs it in answers HTTP 403 to github.com, "
         "registry.npmjs.org and godotengine.org alike. Measured green under the blind, "
         "not assumed. Where this member has a pure half, that half IS a target above.")
-       for _n in ("ci_check_runs", "npm_lag", "gh_rest_fetch", "gh_rest_object", "gh_rest",
+       # 🆕 280 — `npm_untagged` JOINS ITS SIBLING, and for its sibling's reason: its
+       # transport is `origin_tag_names`, which is `git ls-remote`, and the pure half
+       # it defers to — `registry_lag.untagged()` — is a target in that file's own
+       # roster. What is excused here is the dial, never the verdict.
+       for _n in ("ci_check_runs", "npm_lag", "npm_untagged", "gh_rest_fetch",
+                  "gh_rest_object", "gh_rest",
                   "gh_open", "gh_open_rest", "assetlib_live", "main_at_head",
                   # 🆕 279 — `main_at_head_rest` LEFT THIS LIST BECAUSE IT LEFT THE FILE.
                   # Both readings of `main` are taken off ONE dial now, so the transport is
