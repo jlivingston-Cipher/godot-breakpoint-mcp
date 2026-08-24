@@ -2271,11 +2271,22 @@ INTEGRATION_WORKFLOW_EXEMPT = {
 }
 
 # Scripts CI runs that the replay deliberately does not, each with the reason.
+# 🆕 279 — 🔴 `assetlib_sweep.py`'s BASENAME ROW IS GONE, AND ITS OWN REASON IS WHY.
+# The row said *`sdk-drift.yml` only*, and that WAS true: the file had no offline command at
+# all, so its only reader was a weekly `schedule:` job — which is how `--check` stayed red
+# from 2026-08-17 to 2026-08-24 with two sessions closing 🟢 *nothing owed* over it.
+# `--selftest` shipped at 279 and runs merge-blocking in `ci.yml`, so the basename is covered
+# and only the NETWORK flag is not, which moves the exemption one table down —
+# `spec_conformance.py --refresh`'s exact shape, and `replay-ci-flag-granularity` (242)
+# stating its case for a second file.
+#
+# 🔴 AND NOTHING WOULD HAVE CAUGHT THE ROW GOING FALSE. `REPLAY_CI_EXEMPT_STALE` asks
+# whether ANY workflow still runs the basename, and one still does; it cannot ask whether
+# the row's stated reason — *`sdk-drift.yml` only* — is still true. An exemption whose
+# reason has expired reads exactly like one whose reason holds. 174 §5's staleness class
+# has a fourth shape, and this is 279's own finding one table over: a claim with no reader
+# is not wrong, it is unfalsifiable.
 REPLAY_CI_EXEMPT: "dict[str, str]" = {
-    "assetlib_sweep.py":
-        "`sdk-drift.yml` only, which is `schedule:` and `workflow_dispatch:` — it has no "
-        "`push` or `pull_request` trigger, so it never blocks a merge and is not part of "
-        "the ritual a session performs before cutting one.",
     "gate.sh":
         "a shell helper inside `integration.yml`'s own steps; it has no existence outside "
         "that workflow, which is exempt above.",
@@ -2388,6 +2399,23 @@ REPLAY_CI_FLAG_EXEMPT: "dict[str, str]" = {
         "publishes, which is a check that trains people to ignore it. The handoff header "
         "is where that reading belongs and `HEADER_UNREAD_CLAIMED` is what makes it "
         "honest there (271 §1).",
+    "python3 assetlib_sweep.py --check":
+        "🆕 279 — `sdk-drift.yml` only, and that workflow is `schedule:` and "
+        "`workflow_dispatch:` — no `push`, no `pull_request`, so it never blocks a merge "
+        "and is not part of the ritual a session performs before cutting one. Its "
+        "population is godotengine.org and, since 279, the forge each roster entry names, "
+        "so it cannot run on a container that reaches neither. 🔴 AND THAT IS THE WHOLE "
+        "COST OF THIS ROW: a reader whose only trigger is a weekly cron is unread for up "
+        "to a week BY CONSTRUCTION, which is what 279's pickup found it had been. The "
+        "offline half is in the replay and merge-blocking in `ci.yml`.",
+    "python3 registry_lag.py --upstream":
+        "🆕 279 — `sdk-drift.yml` only, same trigger and the same argument. It asks whether "
+        "the registry serves a MAJOR newer than the one `host/package.json` pins, which is "
+        "a fact about upstream and not about this tree; the replay runs "
+        "`python3 registry_lag.py` bare, which carries the same reading beside the two "
+        "ceilings that ARE about this tree. Running the whole command in that workflow "
+        "would redden the early warning every time a release is owed, which is the check "
+        "that trains people to ignore it — the argument the row above makes about `ci.yml`.",
     "python3 spec_conformance.py --refresh":
         "`sdk-drift.yml` only, and that workflow is `schedule:` and `workflow_dispatch:` "
         "— no `push`, no `pull_request`, so it never blocks a merge and is not part of "
