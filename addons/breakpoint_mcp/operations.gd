@@ -8,7 +8,7 @@ extends RefCounted
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
-const ADDON_VERSION := "1.12.0"
+const ADDON_VERSION := "1.13.0"
 
 var _plugin: EditorPlugin
 
@@ -373,6 +373,50 @@ func _path_of(root: Node, node: Node) -> String:
 	return String(root.get_path_to(node))
 
 
+## THE ONE PLACE A NODE JOINS THE EDITED SCENE.
+##
+## 🔴 `force_readable_name = true` IS LOAD-BEARING, NOT COSMETIC. Left at Godot's
+## default of false — which is what all twenty-two authoring tools did before 283 —
+## the engine answers ANY name collision with the machine form `@Type@N`, a name no
+## caller asked for and no human reads. Measured on 4.7: `node_add {name: "SFX"}`
+## twice returned "SFX" and then "@AudioStreamPlayer3D@19825", with no error and no
+## flag, so the caller's next call addressing "SFX" got `bad_path`. `node_duplicate`
+## had NO non-colliding case at all — a duplicate always collides with its source,
+## so "@Label@19826" was that tool's ONLY behaviour, where the editor's own Duplicate
+## gives "Label2". With `true` the engine takes the readable path the editor's Add
+## Node and Duplicate take, and the host's shipped promise that a name "defaults to
+## the class name" is true for the first time.
+##
+## 🔵 AND THE RENAME IS REPORTED, BECAUSE "SFX2" IS STILL NOT WHAT WAS ASKED FOR.
+## The returned Dictionary carries `coerced: true` and `requested` whenever the
+## engine's name differs — the shape `node_set_property` has answered with since
+## 1.82.0, so a caller parses one convention rather than two. `requested` is read
+## off the node itself rather than passed in, so a site cannot report a name it did
+## not actually ask the engine for.
+##
+## 🔴 A BARE `add_child` IN AN AUTHORING HANDLER IS THE DEFECT AGAIN, so this is the
+## only registration site in this file and `contract_check.py` check 31 refuses a
+## second one. A twenty-third authoring tool is covered by USING the seam, not by
+## somebody remembering the flag.
+func _commit_add(node: Node, parent: Node, root: Node, action: String, also_own: Array = []) -> Dictionary:
+	var requested := String(node.name)
+	var ur := _plugin.get_undo_redo()
+	ur.create_action(action)
+	ur.add_do_method(parent, "add_child", node, true)
+	ur.add_do_method(node, "set_owner", root)
+	for d in also_own:
+		ur.add_do_method(d, "set_owner", root)
+	ur.add_do_reference(node)
+	ur.add_undo_method(parent, "remove_child", node)
+	ur.commit_action()
+	var actual := String(node.name)
+	var out := {"path": _path_of(root, node), "name": actual}
+	if actual != requested:
+		out["coerced"] = true
+		out["requested"] = requested
+	return out
+
+
 # ------------------------------------------------------------- handlers ------
 
 func _ping() -> Dictionary:
@@ -561,14 +605,9 @@ func _node_add(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "Cannot instantiate class: %s" % type)
 	var node: Node = ClassDB.instantiate(type)
 	node.name = String(params.get("name", type))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": type})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = type
+	return _ok(added)
 
 
 func _node_delete(params: Dictionary) -> Dictionary:
@@ -1101,16 +1140,9 @@ func _node_duplicate(params: Dictionary) -> Dictionary:
 	var dup: Node = node.duplicate()
 	if params.has("name"):
 		dup.name = String(params.get("name"))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: duplicate %s" % node.name)
-	ur.add_do_method(parent, "add_child", dup)
-	ur.add_do_method(dup, "set_owner", root)
-	for d in _descendants(dup):
-		ur.add_do_method(d, "set_owner", root)
-	ur.add_do_reference(dup)
-	ur.add_undo_method(parent, "remove_child", dup)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, dup), "name": String(dup.name), "type": dup.get_class()})
+	var added := _commit_add(dup, parent, root, "Breakpoint: duplicate %s" % node.name, _descendants(dup))
+	added["type"] = dup.get_class()
+	return _ok(added)
 
 
 func _node_get_children(params: Dictionary) -> Dictionary:
@@ -1221,14 +1253,10 @@ func _node_instantiate_scene(params: Dictionary) -> Dictionary:
 		return _err("instantiate_failed", "Could not instantiate %s" % scene_path)
 	if params.has("name"):
 		inst.name = String(params.get("name"))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: instance scene %s" % scene_path)
-	ur.add_do_method(parent, "add_child", inst)
-	ur.add_do_method(inst, "set_owner", root)
-	ur.add_do_reference(inst)
-	ur.add_undo_method(parent, "remove_child", inst)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, inst), "name": String(inst.name), "type": inst.get_class(), "scene": scene_path})
+	var added := _commit_add(inst, parent, root, "Breakpoint: instance scene %s" % scene_path)
+	added["type"] = inst.get_class()
+	added["scene"] = scene_path
+	return _ok(added)
 
 
 func _node_move_child(params: Dictionary) -> Dictionary:
@@ -2282,14 +2310,9 @@ func _anim_player_create(params: Dictionary) -> Dictionary:
 	var node := AnimationPlayer.new()
 	node.name = String(params.get("name", "AnimationPlayer"))
 	node.add_animation_library("", AnimationLibrary.new())
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add AnimationPlayer %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": "AnimationPlayer"})
+	var added := _commit_add(node, parent, root, "Breakpoint: add AnimationPlayer %s" % node.name)
+	added["type"] = "AnimationPlayer"
+	return _ok(added)
 
 
 func _anim_create(params: Dictionary) -> Dictionary:
@@ -2607,14 +2630,12 @@ func _anim_tree_create(params: Dictionary) -> Dictionary:
 	if anim_player_path != "":
 		node.set("anim_player", NodePath(anim_player_path))
 	node.set("active", bool(params.get("active", false)))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add AnimationTree %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": "AnimationTree", "root_type": rt, "anim_player": anim_player_path, "active": bool(node.get("active"))})
+	var added := _commit_add(node, parent, root, "Breakpoint: add AnimationTree %s" % node.name)
+	added["type"] = "AnimationTree"
+	added["root_type"] = rt
+	added["anim_player"] = anim_player_path
+	added["active"] = bool(node.get("active"))
+	return _ok(added)
 
 
 func _anim_tree_add_node(params: Dictionary) -> Dictionary:
@@ -2886,14 +2907,10 @@ func _tilemaplayer_create(params: Dictionary) -> Dictionary:
 		if ts == null:
 			return _err("not_found", "TileSet not found: %s" % tileset_path)
 		layer.tile_set = ts
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add TileMapLayer %s" % layer.name)
-	ur.add_do_method(parent, "add_child", layer)
-	ur.add_do_method(layer, "set_owner", root)
-	ur.add_do_reference(layer)
-	ur.add_undo_method(parent, "remove_child", layer)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, layer), "name": String(layer.name), "type": "TileMapLayer", "tile_set": tileset_path})
+	var added := _commit_add(layer, parent, root, "Breakpoint: add TileMapLayer %s" % layer.name)
+	added["type"] = "TileMapLayer"
+	added["tile_set"] = tileset_path
+	return _ok(added)
 
 
 func _tilemap_set_cell(params: Dictionary) -> Dictionary:
@@ -3041,14 +3058,11 @@ func _body_create(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "Cannot instantiate class: %s" % cls)
 	var node: Node = ClassDB.instantiate(cls)
 	node.name = String(params.get("name", cls))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": cls, "body": kind, "dim": ("3d" if dim3 else "2d")})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = cls
+	added["body"] = kind
+	added["dim"] = ("3d" if dim3 else "2d")
+	return _ok(added)
 
 
 func _make_collision_shape(kind: String, dim3: bool, params: Dictionary):
@@ -3118,14 +3132,12 @@ func _collisionshape_add(params: Dictionary) -> Dictionary:
 		cs2.set("shape", shape_res)
 		node = cs2
 	node.name = String(params.get("name", node.get_class()))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": node.get_class(), "shape": kind, "shape_class": shape_res.get_class(), "dim": ("3d" if dim3 else "2d")})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = node.get_class()
+	added["shape"] = kind
+	added["shape_class"] = shape_res.get_class()
+	added["dim"] = ("3d" if dim3 else "2d")
+	return _ok(added)
 
 
 func _body_set_collision_layer(params: Dictionary) -> Dictionary:
@@ -3282,14 +3294,13 @@ func _joint_create(params: Dictionary) -> Dictionary:
 		node.set("node_a", NodePath(String(params.get("node_a"))))
 	if params.has("node_b"):
 		node.set("node_b", NodePath(String(params.get("node_b"))))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": cls, "joint": kind, "dim": ("3d" if dim3 else "2d"), "node_a": String(node.get("node_a")), "node_b": String(node.get("node_b"))})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = cls
+	added["joint"] = kind
+	added["dim"] = ("3d" if dim3 else "2d")
+	added["node_a"] = String(node.get("node_a"))
+	added["node_b"] = String(node.get("node_b"))
+	return _ok(added)
 
 
 func _joint_set_bodies(params: Dictionary) -> Dictionary:
@@ -3341,14 +3352,11 @@ func _collisionpolygon_add(params: Dictionary) -> Dictionary:
 			c2.set("build_mode", bm)
 		node = c2
 	node.name = String(params.get("name", node.get_class()))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": node.get_class(), "dim": ("3d" if dim3 else "2d"), "points": pts.size()})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = node.get_class()
+	added["dim"] = ("3d" if dim3 else "2d")
+	added["points"] = pts.size()
+	return _ok(added)
 
 
 func _rigidbody_set_properties(params: Dictionary) -> Dictionary:
@@ -3461,14 +3469,13 @@ func _particles_create(params: Dictionary) -> Dictionary:
 		node.set("lifetime", float(params.get("lifetime")))
 	if params.has("emitting"):
 		node.set("emitting", bool(params.get("emitting")))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": node.get_class(), "dim": ("3d" if dim3 else "2d"), "amount": int(node.get("amount")), "lifetime": float(node.get("lifetime")), "emitting": bool(node.get("emitting"))})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = node.get_class()
+	added["dim"] = ("3d" if dim3 else "2d")
+	added["amount"] = int(node.get("amount"))
+	added["lifetime"] = float(node.get("lifetime"))
+	added["emitting"] = bool(node.get("emitting"))
+	return _ok(added)
 
 
 func _particles_set_process_material(params: Dictionary) -> Dictionary:
@@ -3769,14 +3776,14 @@ func _audio_player_create(params: Dictionary) -> Dictionary:
 		if not (sres is AudioStream):
 			return _err("bad_type", "%s is not an AudioStream" % stream_path)
 		node.set("stream", sres as AudioStream)
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": node.get_class(), "dim": dim, "autoplay": bool(node.get("autoplay")), "volume_db": float(node.get("volume_db")), "bus": String(node.get("bus")), "stream_path": stream_path})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = node.get_class()
+	added["dim"] = dim
+	added["autoplay"] = bool(node.get("autoplay"))
+	added["volume_db"] = float(node.get("volume_db"))
+	added["bus"] = String(node.get("bus"))
+	added["stream_path"] = stream_path
+	return _ok(added)
 
 
 func _audio_set_stream(params: Dictionary) -> Dictionary:
@@ -3876,14 +3883,9 @@ func _control_create(params: Dictionary) -> Dictionary:
 	node.name = String(params.get("name", type))
 	if params.has("text") and _has_property(node, "text"):
 		node.set("text", String(params.get("text")))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": type})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = type
+	return _ok(added)
 
 
 func _container_add_child(params: Dictionary) -> Dictionary:
@@ -3902,14 +3904,10 @@ func _container_add_child(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "%s is not a Control subclass" % type)
 	var node: Node = ClassDB.instantiate(type)
 	node.name = String(params.get("name", type))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s to container" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": type, "container": _path_of(root, parent)})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s to container" % node.name)
+	added["type"] = type
+	added["container"] = _path_of(root, parent)
+	return _ok(added)
 
 
 func _control_set_anchors(params: Dictionary) -> Dictionary:
@@ -4216,14 +4214,10 @@ func _meshinstance_create(params: Dictionary) -> Dictionary:
 	node.name = String(params.get("name", "MeshInstance3D"))
 	if mesh_res != null:
 		node.mesh = mesh_res
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": "MeshInstance3D", "mesh_path": mesh_path})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = "MeshInstance3D"
+	added["mesh_path"] = mesh_path
+	return _ok(added)
 
 
 func _mesh_set_surface_material(params: Dictionary) -> Dictionary:
@@ -4297,14 +4291,10 @@ func _light_create(params: Dictionary) -> Dictionary:
 	var cls := String(classes[kind])
 	var node: Node = ClassDB.instantiate(cls)
 	node.name = String(params.get("name", cls))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": cls, "kind": kind})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = cls
+	added["kind"] = kind
+	return _ok(added)
 
 
 func _camera_create(params: Dictionary) -> Dictionary:
@@ -4318,14 +4308,10 @@ func _camera_create(params: Dictionary) -> Dictionary:
 	node.name = String(params.get("name", "Camera3D"))
 	if bool(params.get("current", false)):
 		node.current = true
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": "Camera3D", "current": node.current})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = "Camera3D"
+	added["current"] = node.current
+	return _ok(added)
 
 
 func _environment_create(params: Dictionary) -> Dictionary:
@@ -4389,14 +4375,10 @@ func _csg_create(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "Cannot instantiate class: %s" % cls)
 	var node: Node = ClassDB.instantiate(cls)
 	node.name = String(params.get("name", cls))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": cls, "shape": shape})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = cls
+	added["shape"] = shape
+	return _ok(added)
 
 
 func _navregion_create(params: Dictionary) -> Dictionary:
@@ -4410,14 +4392,10 @@ func _navregion_create(params: Dictionary) -> Dictionary:
 	node.name = String(params.get("name", "NavigationRegion3D"))
 	if bool(params.get("with_navmesh", true)):
 		node.navigation_mesh = NavigationMesh.new()
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": "NavigationRegion3D", "has_navmesh": node.navigation_mesh != null})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = "NavigationRegion3D"
+	added["has_navmesh"] = node.navigation_mesh != null
+	return _ok(added)
 
 
 func _navagent_configure(params: Dictionary) -> Dictionary:
@@ -4441,14 +4419,10 @@ func _navagent_configure(params: Dictionary) -> Dictionary:
 		node.target_desired_distance = float(params.get("target_desired_distance"))
 	if params.has("avoidance_enabled"):
 		node.avoidance_enabled = bool(params.get("avoidance_enabled"))
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % node.name)
-	ur.add_do_method(parent, "add_child", node)
-	ur.add_do_method(node, "set_owner", root)
-	ur.add_do_reference(node)
-	ur.add_undo_method(parent, "remove_child", node)
-	ur.commit_action()
-	return _ok({"path": _path_of(root, node), "name": String(node.name), "type": "NavigationAgent3D", "config": {"radius": node.radius, "height": node.height, "max_speed": node.max_speed, "path_desired_distance": node.path_desired_distance, "target_desired_distance": node.target_desired_distance, "avoidance_enabled": node.avoidance_enabled}})
+	var added := _commit_add(node, parent, root, "Breakpoint: add %s" % node.name)
+	added["type"] = "NavigationAgent3D"
+	added["config"] = {"radius": node.radius, "height": node.height, "max_speed": node.max_speed, "path_desired_distance": node.path_desired_distance, "target_desired_distance": node.target_desired_distance, "avoidance_enabled": node.avoidance_enabled}
+	return _ok(added)
 
 
 # ------------------------------------------------ Group I: input/config/testing ----
@@ -4757,20 +4731,11 @@ func _mp_add_spawner(params: Dictionary) -> Dictionary:
 		if sp.begins_with("res://"):
 			spawner.add_spawnable_scene(sp)
 			added_scenes.append(sp)
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % spawner.name)
-	ur.add_do_method(parent, "add_child", spawner)
-	ur.add_do_method(spawner, "set_owner", root)
-	ur.add_do_reference(spawner)
-	ur.add_undo_method(parent, "remove_child", spawner)
-	ur.commit_action()
-	return _ok({
-		"path": _path_of(root, spawner),
-		"name": String(spawner.name),
-		"type": "MultiplayerSpawner",
-		"spawn_path": String(spawner.spawn_path),
-		"spawnable_scenes": added_scenes,
-	})
+	var added := _commit_add(spawner, parent, root, "Breakpoint: add %s" % spawner.name)
+	added["type"] = "MultiplayerSpawner"
+	added["spawn_path"] = String(spawner.spawn_path)
+	added["spawnable_scenes"] = added_scenes
+	return _ok(added)
 
 
 func _mp_add_synchronizer(params: Dictionary) -> Dictionary:
@@ -4801,20 +4766,11 @@ func _mp_add_synchronizer(params: Dictionary) -> Dictionary:
 			cfg.property_set_replication_mode(np, mode)
 			added_props.append(String(p))
 		sync.replication_config = cfg
-	var ur := _plugin.get_undo_redo()
-	ur.create_action("Breakpoint: add %s" % sync.name)
-	ur.add_do_method(parent, "add_child", sync)
-	ur.add_do_method(sync, "set_owner", root)
-	ur.add_do_reference(sync)
-	ur.add_undo_method(parent, "remove_child", sync)
-	ur.commit_action()
-	return _ok({
-		"path": _path_of(root, sync),
-		"name": String(sync.name),
-		"type": "MultiplayerSynchronizer",
-		"root_path": String(sync.root_path),
-		"properties": added_props,
-	})
+	var added := _commit_add(sync, parent, root, "Breakpoint: add %s" % sync.name)
+	added["type"] = "MultiplayerSynchronizer"
+	added["root_path"] = String(sync.root_path)
+	added["properties"] = added_props
+	return _ok(added)
 
 
 func _mp_set_authority(params: Dictionary) -> Dictionary:

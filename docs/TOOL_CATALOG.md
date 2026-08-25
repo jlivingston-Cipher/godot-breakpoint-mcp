@@ -22,6 +22,19 @@ about a tool the wire calls destructive.
 
 **Node paths.** All editor/runtime node paths are **relative to the scene root**; `"."` (or `""`) denotes the root itself. Example: `"Player/Camera3D"`.
 
+**The name a new node actually got (`coerced` / `requested`).** Every tool that adds a node
+to the edited scene — 22 of them, `node_add` and `node_duplicate` through `light_create`,
+`body_create` and `mp_add_spawner` — answers with `path` and `name`, and with
+`coerced: true` plus `requested` whenever the engine's name differs from the one asked for.
+Godot resolves a name collision itself, the way the editor's own **Add Node** does: ask for
+`SFX` when a sibling already holds it and the node is created as `SFX2`. Since **1.83.0**
+that difference is reported rather than left for the caller to notice by diffing, using the
+same two field names `node_set_property` has carried since 1.82.0 — one convention for *the
+engine stored something other than what you asked for*, not two. **Address the node by the
+returned `name`, never by the requested one.** Before 1.83.0 these tools passed Godot's
+`force_readable_name: false`, so a collision produced the machine form `@Type@N` — and
+`node_duplicate`, which always collides with its source, produced it every time.
+
 **Tagged Variants (`$defs.Variant`).** JSON cannot express Godot's rich value types, so any property value that isn't a plain scalar/array/object is encoded as a tagged object. This applies to `node_set_property` / `node_get_property` values and `project_*_setting` values.
 
 ```json
@@ -468,7 +481,8 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["path", "name", "type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" } } }
+{ "type": "object", "required": ["path", "name", "type"], "properties": { "path": { "type": "string" }, "name": { "type": "string" }, "type": { "type": "string" },
+  "coerced": { "type": "boolean" }, "requested": { "type": "string" } } }
 ```
 
 ### `node_delete` ✔ ✅ · undoable

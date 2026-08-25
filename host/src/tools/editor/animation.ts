@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { requiredEncodedValue } from "../../schemas.js";
+import { requiredEncodedValue, NAME_TAKEN_CLAUSE } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall } from "./common.js";
 
@@ -14,7 +14,7 @@ export function registerAnimationTools(server: McpServer, call: EditorCall): voi
         "Add an AnimationPlayer node under a parent (undoable). Seeds an empty default animation library so anim_create works immediately.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default \"AnimationPlayer\")"),
+        name: z.string().optional().describe("Node name (default \"AnimationPlayer\")" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ parent_path, name }) => call("anim.player_create", { parent_path, name }),
@@ -182,7 +182,7 @@ export function registerAnimationTools(server: McpServer, call: EditorCall): voi
         "Add an AnimationTree node under a parent (undoable) with a fresh tree_root graph. root_type \"blend_tree\" (AnimationNodeBlendTree) or \"state_machine\" (AnimationNodeStateMachine). Created inactive by default; set anim_player_path to the AnimationPlayer it should drive.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default \"AnimationTree\")"),
+        name: z.string().optional().describe("Node name (default \"AnimationTree\")" + NAME_TAKEN_CLAUSE),
         root_type: z.enum(["blend_tree", "state_machine"]).optional().describe("tree_root graph type (default blend_tree)"),
         anim_player_path: z.string().optional().describe("NodePath to the AnimationPlayer this tree drives, relative to the AnimationTree node"),
         active: z.boolean().optional().describe("Whether the tree processes immediately (default false)"),

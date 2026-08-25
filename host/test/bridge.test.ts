@@ -71,7 +71,7 @@ test("request() rejects with code 'timeout' when no response arrives", async () 
   await srv.close();
 });
 
-test("262: a timeout carries the hold probe's remedy, and carries none when nothing is holding", async () => {
+test("262: a timeout carries the hold probe's remedy; 283: and names the stranger when nothing is holding", async () => {
   // 🔴 USER_GUIDE §10 B step 5 walks the reader into this: the addon services `runtime_*`
   // from `_process`, so a breakpoint inside the method being called halts the frame that
   // owes the reply. The peer is not slow and the network is not down — the debugger this
@@ -82,11 +82,19 @@ test("262: a timeout carries the hold probe's remedy, and carries none when noth
   let holding = false;
   client.setHoldProbe(() => (holding ? "Release the game with `dbg_continue` — it is stopped at a breakpoint." : undefined));
 
-  // The control FIRST, because a remedy that is always attached is not a diagnosis:
-  // nothing is holding, so this timeout must stay exactly as bare as it has always been.
+  // 🔴 283 — THE CONTROL ARM MOVED, AND THIS STUB IS WHY IT HAD TO. 262 asserted that a
+  // timeout with nothing holding stays BARE, on the reasoning that "a peer that never
+  // answered leaves nothing behind". Measured at 283 against a real install, that is
+  // false in the case users actually hit: a port held by a process that is not our
+  // bridge at all — a leaked headless game, another project's editor — produced this
+  // exact bare timeout after a full 15 s and said nothing about the port. And this
+  // stub is that case: it accepts the connection and never speaks the protocol. So the
+  // control now asserts the DIAGNOSIS rather than the silence, and the hold-probe arm
+  // below asserts that a positive fact still outranks the inference.
   await assert.rejects(
     client.request("runtime.get_property", {}, 60),
-    (e: unknown) => isBridgeError("timeout")(e) && (e as BridgeError).remedy === undefined,
+    (e: unknown) =>
+      isBridgeError("timeout")(e) && /has ever spoken the Breakpoint bridge protocol/.test(String((e as BridgeError).remedy)),
   );
 
   holding = true;
@@ -96,6 +104,51 @@ test("262: a timeout carries the hold probe's remedy, and carries none when noth
   );
   client.close();
   await srv.close();
+});
+
+test("283: a peer that refuses our key is not reported as a game that shut down", async () => {
+  // 🔴 MEASURED AT 283 AGAINST A REAL LEAK. A headless `example/` game left over from a
+  // probe run six days earlier was still holding 9081. Every `runtime_*` call answered
+  // `bridge_closed` — *"the running game … closed the connection in an orderly way rather
+  // than dropping it, which is what a shutdown looks like from here"* — when there was no
+  // game of ours at all, and `doctor` and `dbg_launch`, reading the same port, both said
+  // the true thing. The addon's pre-auth denial is that fact on the wire, and the host had
+  // been throwing it away: `onMessage` drops any frame with no id.
+  const srv = await startBridge((_req, s) => {
+    writeLine(s, { id: null, ok: false, error: { code: "unauthorized" } });
+    s.end();
+  });
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  await assert.rejects(
+    client.request("runtime.get_tree", {}, 2000),
+    (e: unknown) => {
+      const r = String((e as BridgeError).remedy);
+      assert.match(r, /unauthorized/, "names what the peer actually said");
+      assert.match(r, /breakpoint_mcp\.secret/, "and the next action");
+      assert.doesNotMatch(r, /shutdown looks like from here/, "and NOT the shutdown story");
+      return true;
+    },
+  );
+  client.close();
+  await srv.close();
+});
+
+test("283: a peer that HAS spoken keeps its own close cause — the inference does not overrule it", async () => {
+  // The guard on the other side: once a real frame has arrived, this connection is our
+  // bridge, and 264's errno distinction is the better answer to why it went away.
+  const srv = await startBridge((req, s) => {
+    writeLine(s, { id: req.id, ok: true, result: { first: true } });
+  });
+  const client = new BridgeClient("127.0.0.1", srv.port, 5000);
+  const first = await client.request<{ first: boolean }>("m1");
+  assert.equal(first.first, true);
+  await srv.close();
+  await assert.rejects(
+    client.request("m2", {}, 2000),
+    (e: unknown) =>
+      !/has ever spoken the Breakpoint bridge protocol/.test(String((e as BridgeError).remedy ?? "")),
+  );
+  client.close();
 });
 
 test("262: the hold probe is consulted at the DEADLINE, not at the send", async () => {

@@ -307,6 +307,65 @@ export class BridgeClient {
    */
   private lastSocketError: Error | null = null;
 
+  /**
+   * 283 §2 — WHAT THE PEER ON THIS PORT HAS ACTUALLY PROVED ABOUT ITSELF.
+   *
+   * 🔴 FOUR READERS OF ONE FACT AND TWO OF THEM WERE WRONG. `doctor` says "open,
+   * but no Breakpoint bridge answered" and `dbg_launch` refuses with the port
+   * conflict spelled out; the `runtime_*` family — reading the same socket —
+   * answered a foreign Godot with `bridge_closed`'s *"the running game closed the
+   * connection in an orderly way … which is what a shutdown looks like from here"*
+   * when there was never a game of ours, and answered a foreign listener that
+   * simply never speaks by hanging for the full timeout and then saying nothing
+   * about the port at all. Measured against a headless game leaked from a probe
+   * run six days earlier that was still holding 9081.
+   *
+   * 🔵 THE HOST ALREADY HELD BOTH ANSWERS AND NEVER LOOKED AT THEM. A peer that
+   * speaks the protocol sends a frame; a peer whose secret is wrong sends exactly
+   * one — `{"id": null, "ok": false, "error": {"code": "unauthorized"}}` — and
+   * closes. So "is this our bridge" and "is this our bridge with the wrong key"
+   * are DERIVED from what arrived on the wire, not from a roster of ports, and the
+   * two failures that look most alike get different sentences.
+   *
+   * 🔴 THE CODES DO NOT MOVE. `bridge_closed` and the timeout code are branched on
+   * by callers and tests (264, 268); what changes is the remedy a human reads —
+   * 254's rule about fixing what the reader acts on and leaving the wire
+   * vocabulary alone.
+   */
+  private sawBridgeFrame = false;
+  private sawAuthDenial = false;
+
+  /**
+   * DEFINITIVE: the peer spoke our protocol and refused this key.
+   *
+   * 🔵 STRONG ENOUGH TO OVERRULE THE CLOSE CAUSE, because it is not an inference.
+   * The peer sent `unauthorized` and hung up, so "why did the socket go away" —
+   * which is all `closeRemedy` can answer — is the wrong question: it went away on
+   * purpose, and the reader needs the secret, not the errno.
+   */
+  private authDenialRemedy(): string | undefined {
+    if (!this.sawAuthDenial) return undefined;
+    return `${this.hostKnob} answered the Breakpoint handshake with "unauthorized", so something IS listening with our protocol but not with this project's secret — another Godot instance, or a stale key. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the project to remint it.`;
+  }
+
+  /**
+   * INFERENCE: nothing on this connection has ever spoken the protocol.
+   *
+   * 🔴 AND IT IS ONLY SAFE ON THE DEADLINE, WHICH IS WHY IT IS NOT ON THE CLOSE
+   * PATH. A bridge that IS ours also sends no frame if the game is killed before it
+   * can answer — so on a close, "never spoke" cannot separate a foreign listener
+   * from our own peer dying mid-request, and asserting it there would throw away
+   * 264's errno distinction between a reset and a clean shutdown to say something
+   * weaker. Past a FULL deadline on a socket that accepted the connection and then
+   * said nothing at all, the reading holds: that is the 15 s of silence measured at
+   * 283 against a foreign listener, where the only thing the caller was told was
+   * `timed out after 15000ms`.
+   */
+  private silentPeerRemedy(): string | undefined {
+    if (this.sawBridgeFrame) return undefined;
+    return `Nothing on ${this.hostKnob} has ever spoken the Breakpoint bridge protocol on this connection, so this is not ${this.peerNoun} failing — it is a port held by something else. Check what holds it (\`lsof -i :<port>\`), or point this plane elsewhere with the host/port knobs.`;
+  }
+
   private connect(): Promise<net.Socket> {
     if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
     if (this.connecting) return this.connecting;
@@ -319,6 +378,10 @@ export class BridgeClient {
         this.socket = socket;
         this.connecting = null;
         this.lastSocketError = null;
+        // A new socket has proved nothing yet — 283 §2. Reset both, or a peer that
+        // once answered would vouch for whatever holds the port after it.
+        this.sawBridgeFrame = false;
+        this.sawAuthDenial = false;
         this.clearReconnect();
         // Loopback-auth handshake: if a secret is available it MUST be the first
         // line on the connection. TCP preserves order and the addon drains lines
@@ -426,6 +489,11 @@ export class BridgeClient {
       log("bridge sent non-JSON line:", line);
       return;
     }
+    // 283 §2: a parsed frame is the peer proving it speaks this protocol, and the
+    // pre-auth denial is it proving it speaks the protocol with the WRONG key. Both
+    // are recorded HERE because this is the only place a line from the peer is read.
+    this.sawBridgeFrame = true;
+    if (msg.id == null && msg.ok === false && msg.error?.code === "unauthorized") this.sawAuthDenial = true;
     // D3: unsolicited change events carry an `event` field and no request id.
     if (msg.event === "resource.changed" && typeof msg.uri === "string") {
       const uri = msg.uri;
@@ -503,7 +571,13 @@ export class BridgeClient {
     // sentence, differing by one parenthetical nothing instructed the caller to act on.
     // `cause.code` separates them, and this is the one close site whose class has a field
     // to put the answer in — see close-cause.ts for the four that do not.
-    const remedy = closeRemedy(cause, this.peerNoun);
+    // 283 §2: closeRemedy answers "why did the peer go away", which is the wrong
+    // question when the peer hung up ON PURPOSE because our key was wrong — the case
+    // that read as *the running game closed the connection in an orderly way … which
+    // is what a shutdown looks like from here* against a foreign Godot holding 9081.
+    // Only the DEFINITIVE signal is allowed to overrule the errno here; see
+    // silentPeerRemedy for why the weaker one is not.
+    const remedy = this.authDenialRemedy() ?? closeRemedy(cause, this.peerNoun);
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
       p.reject(
@@ -547,7 +621,17 @@ export class BridgeClient {
         // line — a peer that never answered really does leave nothing behind — which is
         // why the one cause the host can supply comes from outside the socket: its own
         // debugger holding the game. See `setHoldProbe`, and 264's census for the rest.
-        reject(new BridgeError(BRIDGE_TIMEOUT_CODE, `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? undefined));
+        // 283 §2: a full timeout against a port that has never produced a frame is
+        // not a slow peer, and saying only "timed out after 15000ms" left the user
+        // with no next action at all.
+        //
+        // 🔴 THE HOLD PROBE STILL GOES FIRST, AND THE ORDER IS THE ARGUMENT. It reports
+        // a POSITIVE fact this host owns — our own debugger has the game stopped — while
+        // the stranger reading is an INFERENCE from silence. When the debugger is
+        // holding, the peer IS ours and is merely halted, so "nothing here speaks our
+        // protocol" would be a confident wrong answer. Inference fills the gap the
+        // positive fact leaves; it never overrules it.
+        reject(new BridgeError(BRIDGE_TIMEOUT_CODE, `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? this.authDenialRemedy() ?? this.silentPeerRemedy() ?? undefined));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       socket.write(payload, (err) => {

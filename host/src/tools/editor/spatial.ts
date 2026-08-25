@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
+import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
 
 /** 3D & navigation. meshinstance/mesh/light/camera/csg/navregion/navagent mutate the EDITED scene and are undoable + ungated (the node_* model). primitive_mesh_create and the two environment_* tools author a resource on disk, so are file-writers gated by confirmation. */
 export function registerSpatialTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -13,7 +14,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         "Add a MeshInstance3D under a parent (undoable). Optional 'mesh_path' loads a Mesh resource (e.g. a primitive_mesh_create output) and assigns it. Returns the new node's path.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default MeshInstance3D)"),
+        name: z.string().optional().describe("Node name (default MeshInstance3D)" + NAME_TAKEN_CLAUSE),
         mesh_path: z.string().optional().describe("Mesh resource res:// path to assign to the instance's 'mesh'"),
       },
     },
@@ -80,7 +81,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         kind: z.enum(["dir", "directional", "omni", "spot"]).optional().describe("Light kind: dir | omni | spot (default omni)"),
-        name: z.string().optional().describe("Node name (defaults to the class name)"),
+        name: z.string().optional().describe("Node name (defaults to the class name)" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ parent_path, kind, name }) => {
@@ -99,7 +100,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         "Add a Camera3D under a parent (undoable). Optional 'current' makes it the active camera. Returns the new node's path.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default Camera3D)"),
+        name: z.string().optional().describe("Node name (default Camera3D)" + NAME_TAKEN_CLAUSE),
         current: z.boolean().optional().describe("Make this the current/active camera (default false)"),
       },
     },
@@ -120,7 +121,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         shape: z.string().optional().describe("box | sphere | cylinder | torus | polygon | mesh | combiner (default box)"),
-        name: z.string().optional().describe("Node name (defaults to the class name)"),
+        name: z.string().optional().describe("Node name (defaults to the class name)" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ parent_path, shape, name }) => {
@@ -139,7 +140,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         "Add a NavigationRegion3D under a parent (undoable). By default seeds a fresh empty NavigationMesh (set with_navmesh=false to skip). Returns the new node's path and whether a navmesh was attached.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default NavigationRegion3D)"),
+        name: z.string().optional().describe("Node name (default NavigationRegion3D)" + NAME_TAKEN_CLAUSE),
         with_navmesh: z.boolean().optional().describe("Seed a fresh empty NavigationMesh resource (default true)"),
       },
     },
@@ -159,7 +160,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         "Add a NavigationAgent3D under a parent (undoable) and set any of its steering/avoidance properties. Returns the new node's path and the resulting config (radius, height, max_speed, path/target desired distances, avoidance_enabled).",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default NavigationAgent3D)"),
+        name: z.string().optional().describe("Node name (default NavigationAgent3D)" + NAME_TAKEN_CLAUSE),
         radius: z.number().optional().describe("Agent radius"),
         height: z.number().optional().describe("Agent height"),
         max_speed: z.number().optional().describe("Maximum movement speed"),

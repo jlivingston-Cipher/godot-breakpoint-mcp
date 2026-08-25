@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
+import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
 
 /** TileSet authoring (disk-backed, gated) + TileMapLayer cell painting. */
 export function registerTileTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -117,7 +118,7 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
         "Add a TileMapLayer node under a parent in the edited scene (undoable), optionally binding a TileSet .tres so cells can be painted. In-scene and undoable — not gated.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default \"TileMapLayer\")"),
+        name: z.string().optional().describe("Node name (default \"TileMapLayer\")" + NAME_TAKEN_CLAUSE),
         tileset_path: z.string().optional().describe("TileSet res:// .tres path to bind as tile_set (e.g. from tileset_create)"),
       },
     },

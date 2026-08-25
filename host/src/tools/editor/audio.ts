@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
+import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
 
 /** AudioStreamPlayer nodes + audio bus layout / effects. */
 export function registerAudioTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -14,7 +15,7 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         dim: z.enum(["none", "2d", "3d"]).optional().describe("Player kind: \"none\" (default, AudioStreamPlayer), \"2d\" (AudioStreamPlayer2D), or \"3d\" (AudioStreamPlayer3D)"),
-        name: z.string().optional().describe("Node name (default matches the player class)"),
+        name: z.string().optional().describe("Node name (default matches the player class)" + NAME_TAKEN_CLAUSE),
         stream_path: z.string().optional().describe("res:// path to an AudioStream to assign to the new player"),
         autoplay: z.boolean().optional().describe("Whether the player starts automatically on scene load"),
         volume_db: z.number().optional().describe("Player volume in dB"),
