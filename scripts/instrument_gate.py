@@ -1035,6 +1035,12 @@ INSTRUMENTS = [
             "{SIG:_cells}": "return []",
             "{SIG:parse}": "return (1, HEAD, [], [])",
             "{SIG:check}": "return ([], [], 0, 0)",
+            # 🆕 281 — `reach-paths-unjoined-to-the-diff` (271). `session_diff` blinded
+            # to None does NOT go quiet: `SHIPPED_QUEUE_CLEAN` reads the live table
+            # through `check`, the diff comes back unreadable, and `QUEUE_PATHS_UNREAD`
+            # refuses — which is the reader's own stance proving itself under the blind.
+            "{SIG:paths_join}": "return []",
+            "{SIG:session_diff}": "return None",
             # 🆕 247 §1 — THE THREE THE COVERAGE ROSTER ASKED FOR THE MOMENT IT COULD
             # READ PYTHON, and two of them are where this gate's premise is cashed.
             # `ages` derives the number `QUEUE.md` deleted the column for; `render`
@@ -1271,6 +1277,20 @@ INSTRUMENTS = [
             "{SIG:input_problems}": "return ([], [])",
             "{SIG:provider_coverage}": "return []",
             "{SIG:job_provides}": "return set()",
+            # 🆕 281 — `counter-provenance-undeclared` (280). Eight members, and the two
+            # worth naming are `code_only` and `reader_corpus`: they decide the
+            # POPULATION the derivation reads, and both of them were measured wrong
+            # before they were right. A blinded `code_only` hands the raw source back and
+            # the prose fixtures start matching; a blinded `reader_corpus` drops
+            # `_gate_lock.py` and every mutating gate's counter reads TRACKED.
+            "{SIG:code_only}": "return ''",
+            "{SIG:subject_of}": "return ('TRACKED', [])",
+            "{SIG:reader_source}": "return None",
+            "{SIG:reader_corpus}": "return []",
+            "{SIG:derive_subjects}": "return {}",
+            "{SIG:subject_coverage}": "return []",
+            "{SIG:counter_subject_problems}": "return []",
+            "{SIG:_stronger}": "return False",
             "{SIG:workflow_merge_blocking}": "return True",
             # 🆕 280 §3 — `release-1820-bump-under-wire` (278). The reader that refuses a
             # block which cut a release and said nothing about what the wire did, and the
