@@ -279,7 +279,10 @@ def repo_key(url: str) -> str:
 
 
 def upstream_problems(pins: "dict[str, str]",
-                      family: "dict[str, str]") -> "tuple[list[str], list[str]]":
+                      family: "dict[str, str]",
+                      deprecated: "dict[str, str] | None" = None,
+                      deferred: "dict[str, dict] | None" = None
+                      ) -> "tuple[list[str], list[str]]":
     """(problems, notes) — is a MAJOR newer than what this tree pins on the registry?
 
     PURE over both readings, so every direction is drivable from a fixture and none of it
@@ -290,6 +293,12 @@ def upstream_problems(pins: "dict[str, str]",
     major to compare against a pin that does not exist, and answering *no newer major*
     about a tree with no dependency is the confident-and-wrong shape this whole reader
     exists to stop.
+
+    🆕 281 — `deferred` is the written argument for staying, `deprecated` is what the
+    registry says about the packages that argument rests on. Both default to the shape
+    that changes nothing: no deferral, and a deprecation reading nobody took. A caller
+    that passes a deferral and no deprecation reading is refused by `deferral_problems`
+    rather than believed.
     """
     if not pins:
         return ([], [f"SDK_UPSTREAM UNREAD — `host/package.json` pins nothing in "
@@ -302,12 +311,167 @@ def upstream_problems(pins: "dict[str, str]",
     if not ahead:
         return ([], [f"SDK_UPSTREAM 🟢 major {ours} — {len(family)} package(s) from that "
                      f"repository and none is ahead of what this tree pins"])
+    held, why_held = deferral_problems(family, deprecated, deferred)
+    if held:
+        return (held, [])
+    if why_held:
+        return ([], why_held)
     return ([f"🔴 SDK_UPSTREAM REFUSED — the tree pins major {ours} and the registry "
              f"serves major {max(major_of(v) for _, v in ahead)} from the same "
              f"repository: " + ", ".join(f"{n} {v}" for n, v in ahead)
              + ".\n  This is the reading `sdk-v2-migration` (226) has been re-targeted "
                "against five times while asking one package name. Migrate, or say in the "
                "row which packages the answer lives in and why they do not apply."], [])
+
+
+# ══ 🆕 281 — A DEFERRAL A READER CAN REFUSE ═══════════════════════════════════════════
+#
+# 280 closed `sdk-v2-migration` (226) against a full measurement and NOT by migrating:
+# v2 kept the four task RPCs and dropped the server-side implementation behind them, so
+# the whole cost of moving is one import with no home. That is a decision, and a decision
+# a reader cannot see is the thing this file was built at 279 to stop.
+#
+# 🔴 THE READING ABOVE REFUSES FOREVER UNTIL SOMEBODY MIGRATES, WHICH IS THE SAME DEFECT
+# ONE TURN LATER. A check that is red for a reason everybody already knows is a check
+# people stop reading — 279's own argument for keeping `--upstream` out of `ci.yml`, made
+# there about a red that would train people to ignore it, and true here of a red that
+# would sit in `sdk-drift.yml` every Monday for as long as the deferral holds. Silencing
+# it is not the answer either: that is 205 §3's forty-two sessions.
+#
+# So a deferral is a ROW, and the row is refused the moment its argument stops holding.
+# 279's own refusal text asked for exactly this — *migrate, or say in the row which
+# packages the answer lives in and why they do not apply* — and had nowhere to say it.
+#
+# 🔴 AND THE ROW CANNOT BE WRITTEN WITHOUT NAMING THE UPSTREAM IT WAS ARGUED AGAINST.
+# That is 280's finding-to-carry applied to the row that produced it: `PROVENANCE` found
+# `npm.untagged`'s population because a table would not take a row without answering
+# *TREE, CLONE or REMOTE*. This table will not take a row without `seen` — the family's
+# API coordinates at the moment the argument was made — so the argument is pinned to a
+# measurement rather than to a memory of one. 279 §9's rule is the whole point: AN
+# EXEMPTION WHOSE REASON HAS EXPIRED READS EXACTLY LIKE ONE WHOSE REASON HOLDS, unless
+# the reason is re-derived on every run.
+#
+# The coordinate is `MAJOR.MINOR` and not the full version, and that is semver's own
+# line rather than a taste: a PATCH adds no API, so it cannot give the missing symbols a
+# home and it does not move the argument. A MINOR can, and does move it.
+DEFER_SEEN, DEFER_WHY, DEFER_BLOCKED = "seen", "why", "blocked_by"
+
+UPSTREAM_DEFERRED: "dict[str, dict]" = {
+    "@modelcontextprotocol/sdk": {
+        # Measured at 281 by `npm search @modelcontextprotocol --json`, joined on the
+        # repository exactly as `siblings_of` joins it.
+        DEFER_SEEN: {
+            "@modelcontextprotocol/sdk": "1.30",
+            "@modelcontextprotocol/core": "2.0",
+            "@modelcontextprotocol/server": "2.0",
+            "@modelcontextprotocol/client": "2.0",
+            "@modelcontextprotocol/node": "2.0",
+            "@modelcontextprotocol/express": "2.0",
+        },
+        DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",
+                        "assertToolsCallTaskCapability"),
+        DEFER_WHY:
+            "280 §1 measured the whole migration: 115 import statements over 70 files, "
+            "112 of them rename-only, and ONE with no v2 home — `sdk/experimental/"
+            "tasks`. v2 kept the PROTOCOL (all four task RPCs, byte-identical method "
+            "names, in `core`) and dropped the SERVER-SIDE implementation behind it. "
+            "Migrating means either vendoring ~600 lines of machinery upstream "
+            "deliberately deleted and still calls experimental, or withdrawing a "
+            "capability this server advertises in `initialize` and declares on all 289 "
+            "tools — a MAJOR, one session after 1.82.0 measured what a MAJOR cut as a "
+            "MINOR costs a caller. And it buys nothing on the wire today: v2's "
+            "`LATEST_PROTOCOL_VERSION` is `2025-11-25`, the same as v1's, so no client "
+            "could tell the two apart. Held at 281 by his decision, against this "
+            "measurement.",
+    },
+}
+
+
+def api_coord(version: str) -> str:
+    """`2.0.0` -> `2.0` — the coordinates at which an API can gain a member. PURE.
+
+    Semver's own line, not a taste: a PATCH publishes no new export, so it cannot give a
+    missing symbol a home. A MINOR can. Anything unparseable returns "", which
+    `deferral_problems` reads as a coordinate it cannot compare rather than as agreement.
+    """
+    m = re.match(r"v?(\d+)\.(\d+)", str(version or "").strip())
+    return f"{m.group(1)}.{m.group(2)}" if m else ""
+
+
+def deferral_problems(family: "dict[str, str]",
+                      deprecated: "dict[str, str] | None",
+                      deferred: "dict[str, dict] | None"
+                      ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — does a written deferral still hold against the live registry?
+
+    PURE, so every direction is a fixture. `deprecated` is {package: message} for the
+    packages the registry marks deprecated; `{}` means asked-and-none, and **None means
+    NOT ASKED**, which is refused rather than assumed — a deferral resting on *v1 is not
+    deprecated* cannot be honoured by a reading that never looked.
+
+    Empty `deferred` is not a problem here: it means nothing is deferred, and the caller's
+    own refusal is what should speak.
+    """
+    if not deferred:
+        return ([], [])
+    live = {n: api_coord(v) for n, v in (family or {}).items()}
+    if deprecated is None:
+        return ([f"🔴 SDK_UPSTREAM REFUSED — {len(deferred)} deferral(s) on the record and "
+                 f"the registry was never asked whether the pinned package is "
+                 f"DEPRECATED.\n  A deferral is an argument about upstream's state, and "
+                 f"an unasked question is not an answer. UNREAD IS NOT GREEN."], [])
+    notes = []
+    for name, row in sorted(deferred.items()):
+        seen = row.get(DEFER_SEEN) or {}
+        if not seen:
+            return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} names no "
+                     f"upstream it was argued against. A row with no `{DEFER_SEEN}` is a "
+                     f"memory, and this table takes measurements."], [])
+        if name not in live:
+            return ([f"🔴 SDK_UPSTREAM REFUSED — {name} is deferred and the registry no "
+                     f"longer serves it from that repository. The deferral is about a "
+                     f"package nobody is offered; re-argue it against what is there."], [])
+        gone = sorted(set(seen) - set(live))
+        joined = sorted(set(live) - set(seen))
+        moved = sorted(f"{n} {seen[n]} -> {live[n]}" for n in set(seen) & set(live)
+                       if seen[n] != live[n])
+        if gone or joined or moved:
+            return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} was argued "
+                     f"against an upstream that has since moved, so nothing here knows "
+                     f"whether it still holds.\n"
+                     + (f"  joined: {', '.join(joined)}\n" if joined else "")
+                     + (f"  gone: {', '.join(gone)}\n" if gone else "")
+                     + (f"  moved: {'; '.join(moved)}\n" if moved else "")
+                     + f"  The deferral rests on {', '.join(row.get(DEFER_BLOCKED) or ())}"
+                       f" having no home in that family. Re-read it, then update "
+                       f"`{DEFER_SEEN}` — or migrate."], [])
+        bad = sorted(p for p in seen if deprecated.get(p))
+        if bad:
+            return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} holds and the "
+                     f"registry has DEPRECATED {', '.join(bad)}.\n"
+                     f"  Staying is no longer the cheap door: upstream has said out loud "
+                     f"that the version this tree pins is not the one to be on."], [])
+        notes.append(f"SDK_UPSTREAM 🟢 DEFERRED — {name}: {len(seen)} package(s) at the "
+                     f"coordinates the deferral was argued against, none deprecated. "
+                     f"Blocked on {', '.join(row.get(DEFER_BLOCKED) or ())}.")
+    return ([], notes)
+
+
+def npm_deprecated(name: str) -> "tuple[str, str]":
+    """(deprecation message, problem) for one package — NETWORK. Never raises.
+
+    `npm view <pkg> deprecated` prints the message and nothing at all when the package is
+    not deprecated, so an empty stdout on a clean exit IS the answer and not a silence.
+    A non-zero exit is a silence, and it is returned as a problem.
+    """
+    try:
+        r = subprocess.run(["npm", "view", name, "deprecated"],
+                           capture_output=True, text=True, timeout=45)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return ("", f"`npm view {name} deprecated` could not run: {e}")
+    if r.returncode != 0:
+        return ("", f"`npm view {name} deprecated` exited {r.returncode}")
+    return (r.stdout.strip(), "")
 
 
 def npm_search_scope(scope: str = UPSTREAM_SCOPE) -> "tuple[list, str]":
@@ -351,7 +515,24 @@ def upstream_reading(root: Path = ROOT) -> "tuple[list[str], list[str]]":
     rows, why = npm_search_scope()
     if why:
         return ([], [f"SDK_UPSTREAM UNREAD — {why}"])
-    return upstream_problems(pins, siblings_of(rows, repo))
+    family = siblings_of(rows, repo)
+    # 🆕 281 — THE DEPRECATION READING IS TAKEN ONLY WHEN A DEFERRAL RESTS ON IT, and its
+    # population is the deferral's own `seen` rather than the whole family: a question
+    # asked of packages no argument depends on is a network call that cannot change an
+    # answer. A package the registry will not answer for leaves `deprecated` as None,
+    # which `deferral_problems` refuses — an unasked question is not an answer.
+    deprecated: "dict[str, str] | None" = None
+    wanted = sorted({p for row in UPSTREAM_DEFERRED.values()
+                     for p in (row.get(DEFER_SEEN) or {})})
+    if wanted:
+        got: "dict[str, str]" = {}
+        for name in wanted:
+            msg, why = npm_deprecated(name)
+            if why:
+                return ([], [f"SDK_UPSTREAM UNREAD — {why}"])
+            got[name] = msg
+        deprecated = got
+    return upstream_problems(pins, family, deprecated, UPSTREAM_DEFERRED)
 
 
 def git_tags() -> list[str]:
@@ -513,21 +694,59 @@ def selftest() -> int:
         {"name": "figma-mcp", "version": "0.1.4", "links": {}},
     ]
     _fam = siblings_of(_rows, _REPO)
+    # 🆕 281 — A DEFERRAL AND THE UPSTREAM IT WAS ARGUED AGAINST. `_held` is the argument
+    # in force; the rows below move exactly one thing about the world at a time and read
+    # what the table says, which is the only way to know a deferral is refusable at all.
+    _NONE: "dict[str, str]" = {}          # asked, and nothing is deprecated
+    _held = {_SDK: {DEFER_SEEN: {n: api_coord(v) for n, v in _fam.items()},
+                    DEFER_BLOCKED: ("InMemoryTaskStore",),
+                    DEFER_WHY: "the fixture's argument"}}
+    _patched = dict(_fam, **{"@modelcontextprotocol/core": "2.0.9"})
+    _minor = dict(_fam, **{"@modelcontextprotocol/core": "2.1.0"})
+    _joined = dict(_fam, **{"@modelcontextprotocol/tasks": "2.0.0"})
+    # (name, pins, family, deprecated, deferred, want_ok, want_msg)
     UPSTREAM_SELFTEST = [
-        ("the reading five sessions could not make", {_SDK: "^1.29.0"}, _fam, False,
-         "serves major 2"),
-        ("a tree already on the newest major", {_SDK: "^2.0.0"}, _fam, True, "none is ahead"),
-        ("an exact pin reads its major the same way", {_SDK: "2.0.0"}, _fam, True,
-         "none is ahead"),
-        ("a range spelling reads its major the same way", {_SDK: ">=1.29.0 <2"}, _fam,
+        ("the reading five sessions could not make", {_SDK: "^1.29.0"}, _fam, None, None,
          False, "serves major 2"),
+        ("a tree already on the newest major", {_SDK: "^2.0.0"}, _fam, None, None,
+         True, "none is ahead"),
+        ("an exact pin reads its major the same way", {_SDK: "2.0.0"}, _fam, None, None,
+         True, "none is ahead"),
+        ("a range spelling reads its major the same way", {_SDK: ">=1.29.0 <2"}, _fam,
+         None, None, False, "serves major 2"),
         # 🔴 UNREAD IS NOT GREEN, in both of the two directions it can be unread.
-        ("a tree that pins nothing in the scope", {}, _fam, True, "pins nothing"),
-        ("a registry that listed no sibling", {_SDK: "^1.29.0"}, {}, True, "no package"),
+        ("a tree that pins nothing in the scope", {}, _fam, None, None, True,
+         "pins nothing"),
+        ("a registry that listed no sibling", {_SDK: "^1.29.0"}, {}, None, None, True,
+         "no package"),
+        # 🆕 281 — the deferral, and every way it stops holding.
+        ("🟢 a deferral argued against THIS upstream", {_SDK: "^1.29.0"}, _fam, _NONE,
+         _held, True, "DEFERRED"),
+        ("🟢 a PATCH upstream does not move the argument — semver's own line",
+         {_SDK: "^1.29.0"}, _patched, _NONE, _held, True, "DEFERRED"),
+        ("🔴 a MINOR upstream CAN give the missing symbol a home",
+         {_SDK: "^1.29.0"}, _minor, _NONE, _held, False, "has since moved"),
+        ("🔴 A SIXTH SIBLING JOINED — the population the whole reader is derived over",
+         {_SDK: "^1.29.0"}, _joined, _NONE, _held, False, "joined"),
+        ("🔴 upstream DEPRECATED the version the deferral rests on staying at",
+         {_SDK: "^1.29.0"}, _fam, {_SDK: "use @modelcontextprotocol/core"}, _held,
+         False, "DEPRECATED"),
+        # 🔴 THE TWO SHAPES A DEFERRAL CAN TAKE THAT ARE NOT ARGUMENTS AT ALL.
+        ("🔴 a deferral that names no upstream is a memory, not a measurement",
+         {_SDK: "^1.29.0"}, _fam, _NONE,
+         {_SDK: {DEFER_SEEN: {}, DEFER_BLOCKED: ("InMemoryTaskStore",), DEFER_WHY: "x"}},
+         False, "memory"),
+        ("🔴 a deferral honoured by a run that never asked about deprecation",
+         {_SDK: "^1.29.0"}, _fam, None, _held, False, "UNREAD IS NOT GREEN"),
+        ("🔴 a deferral for a package the registry no longer serves from that repository",
+         {_SDK: "^1.29.0"}, _fam, _NONE,
+         {"@modelcontextprotocol/gone": {DEFER_SEEN: {"a": "1.0"},
+                                         DEFER_BLOCKED: ("X",), DEFER_WHY: "x"}},
+         False, "no longer serves"),
     ]
     u2_bad = 0
-    for name, pins, fam, want_ok, want_msg in UPSTREAM_SELFTEST:
-        probs, notes = upstream_problems(pins, fam)
+    for name, pins, fam, dep, defer, want_ok, want_msg in UPSTREAM_SELFTEST:
+        probs, notes = upstream_problems(pins, fam, dep, defer)
         ok = not probs
         said = " ".join(probs + notes).lower()
         agree = (ok == want_ok) and (want_msg.lower() in said)
@@ -546,7 +765,37 @@ def selftest() -> int:
     if major_of("^1.29.0") != 1 or major_of("") != -1 or major_of("v2.0.0") != 2:
         u2_bad += 1
         print("  🔴 major_of misread a range, an empty spec or a v-prefixed version")
-    u2_refusals = sum(1 for r in UPSTREAM_SELFTEST if not r[3])
+    if api_coord("2.0.0") != "2.0" or api_coord("v1.30.7") != "1.30" or api_coord("") != "":
+        u2_bad += 1
+        print("  🔴 api_coord did not read MAJOR.MINOR off a version, a v-prefix or a blank")
+    # 🔴 AND THE SHIPPED ROW IS DRIVEN, IN BOTH DIRECTIONS, over a family derived from its
+    # own `seen`. The PASS alone would be close to `X == X` — 280 §5's tautology, one file
+    # over — so it is the REFUSAL beside it that makes the pair evidence: the same row,
+    # against a world one MINOR different, must not hold.
+    for _live_name, _live_row in sorted(UPSTREAM_DEFERRED.items()):
+        _seen = _live_row.get(DEFER_SEEN) or {}
+        _as_argued = {n: f"{c}.0" for n, c in _seen.items()}
+        _one_minor = dict(_as_argued)
+        _first = sorted(_as_argued)[0]
+        _mj, _mn = api_coord(_as_argued[_first]).split(".")
+        _one_minor[_first] = f"{_mj}.{int(_mn) + 1}.0"
+        _p_hold, _n_hold = upstream_problems({_SDK: "^1.29.0"}, _as_argued, _NONE,
+                                             {_live_name: _live_row})
+        _p_move, _ = upstream_problems({_SDK: "^1.29.0"}, _one_minor, _NONE,
+                                       {_live_name: _live_row})
+        if _p_hold or not any("DEFERRED" in n for n in _n_hold):
+            u2_bad += 1
+            print(f"  🔴 the SHIPPED deferral for {_live_name} does not hold against the "
+                  f"upstream it names: {' '.join(_p_hold)[:160]}")
+        if not _p_move:
+            u2_bad += 1
+            print(f"  🔴 the SHIPPED deferral for {_live_name} survived a MINOR moving "
+                  f"under it — a deferral nothing can refuse is not an argument")
+        if not (_live_row.get(DEFER_BLOCKED) and _live_row.get(DEFER_WHY)):
+            u2_bad += 1
+            print(f"  🔴 the deferral for {_live_name} names no blocking symbol or no "
+                  f"reason — the two things a reader of this table needs to re-argue it")
+    u2_refusals = sum(1 for r in UPSTREAM_SELFTEST if not r[5])
     print(f"\n  {len(UPSTREAM_SELFTEST)} rows · {u2_refusals} REFUSE · "
           f"{'🟢 all agree' if not u2_bad else f'🔴 {u2_bad} DISAGREE'}")
     bad += u2_bad

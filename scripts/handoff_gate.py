@@ -596,6 +596,390 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      "already document; all three are anchored on more than the word."),
 ]
 
+# ══ 🆕 281 — WHAT IS EACH OF THESE THIRTY-FIVE NUMBERS A FACT ABOUT? ═══════════════════
+#
+# 234 §4.8 named the class and closed with the gap: *"nothing distinguishes the two
+# classes of counter."* `PROVENANCE`, below, closed it for the NINE header rows. It has
+# never been asked of these thirty-five, and 280 opened `counter-provenance-undeclared`
+# for exactly that asymmetry — the one table in this tree that asks a reader what its
+# counter is a fact ABOUT covers a quarter of the readers.
+#
+# 🔴 AND THE HEADER'S OWN THREE VALUES DO NOT TRANSFER. `TREE / CLONE / REMOTE` asks
+# WHERE a number is read from, and all thirty-five run a command in this checkout, so
+# every row would answer TREE and the column would be a predicate with one value and no
+# population — 276's *a column with no stated predicate cannot be wrong*, re-created by
+# copying a good table into the wrong question. The question that has a population here
+# is the one TIER0 already turns on: **what could make this number different at THIS
+# COMMIT?** `open_tier` inherits all thirty-five when HEAD matches and the tree is clean,
+# and its own printed sentence has said since 240 that *a counter which is a fact about
+# the machine rather than the tree will disagree* at the close. That sentence names a
+# hazard with no reader between it and anybody — which is 280's second failure shape
+# exactly, in the file that found it.
+#
+# 🔵 AND THE ANSWER IS DERIVED FROM THE READER'S OWN SOURCE, not typed: `subject_of`
+# greps the script a row RUNS for the idioms that make its answer depend on something
+# other than the tracked bytes, exactly as `job_provides` derives what a CI job supplies
+# from the job's own YAML. A row whose command names no script cannot be derived and
+# must say so with a measured reason — `SUBJECT_UNDERIVABLE`, on `NOT_A_TARGET`'s
+# convention that an exemption is measured before it is written down.
+#
+# 🔴 THE FIRST DRAFT OF THAT DERIVATION READ COMMENTS AND GOT FOUR ROWS WRONG.
+# `tautology_gate.mjs` was called MACHINE for a `Date.now()` that appears once, inside a
+# sentence explaining why millisecond resolution scored zero. `wire_diff.mjs`,
+# `release_names.py` and `control_gate.py` were called INDEX for `git diff` and
+# `git ls-files` written in prose ABOUT what they read. Four of the thirteen scripts,
+# every hit a comment. That is 279's terminology finding one file over — a predicate
+# satisfied by a MENTION is a predicate about mentions — so `code_only` strips comments
+# and string literals before anything is matched, and the derivation answers about code.
+# 🔴 THE OBJECT STORE AND THE NETWORK ARE NOT ON THIS AXIS, AND LEAVING THEM OFF IS THE
+# DESIGN. `GATE_INPUTS` (280 §4) already answers *what does this command need* over
+# `objects` and `network`, derived from each job's own YAML. A second table restating
+# either would be two opinions about one fact the first time one of them was edited —
+# 203 §2's rule, and 229 §5.2's import-don't-restate. This column answers only what that
+# one does not: at a commit where every input IS supplied, what can still move the number?
+#
+# 🔵 AND `CLONE` IS 234 §4.8's OWN WORD, GIVEN A POPULATION AT LAST. `PROVENANCE` declares
+# TREE / CLONE / REMOTE and no header row has ever carried CLONE — it is named there only
+# as the word for the wrong answer. 234 listed the class in prose — *any counter that
+# reads GIT CONFIG, remotes, hooks or file modes is a fact about the clone* — and nothing
+# has ever asked it of a counter. `git-hooks-unset` (228, fifty-three sessions open) is
+# that class with a queue row and no reader.
+TRACKED, INDEX, CLONE_CFG, MACHINE = "TRACKED", "INDEX", "CLONE", "MACHINE"
+
+# value -> (what the number is a fact about, what shows it in the source). The regex IS
+# the predicate; it is here beside the meaning so the two cannot drift apart — 280 §4's
+# `INPUT_PROVIDERS`, one table over.
+#
+# 🔴 A GIT SIGNAL IS MATCHED ONLY IN ITS ARGV SPELLING, AND FOUR WRONG ANSWERS BOUGHT
+# THAT RULE. Every reader here spells a command as a LIST — `["git", "ls-files", …]`,
+# `run("git", ["worktree", "add", …])` — so the pattern has to reach the pair. Written
+# loosely it matched, in one run: `"add"` inside `scope_gate.py`'s `_GROWERS` tuple of
+# METHOD names; `"add"` inside `wire_diff.mjs`'s `git worktree add`, which is the object
+# store and not the index; `git config` inside an `instrument_gate.py` exemption REASON,
+# which is prose that happens to live in a single-line string; and `hrtime` inside THIS
+# TABLE'S OWN REGEX, because the corpus of a derivation over `scripts/` contains the
+# derivation. Requiring `"git"` NEXT TO the verb kills the first three outright.
+#
+# 🔴 AND EVEN AN UNAMBIGUOUS VERB IS MATCHED ONLY AS A WHOLE QUOTED TOKEN, which this
+# file's own self-test is what found — the live pair below refused the draft above it.
+# `floor_pin_gate.py` carries the sentence *Tracked paths `git ls-files` returns* inside
+# a FLOOR REASON, and a reason is a single-line string, which `code_only` keeps because
+# an argv element is one too. The difference is that an argv element IS the whole string
+# and prose merely contains the words. That is the entire distinction, and it is now a
+# claim rather than a hope.
+#
+# 🔵 AND IT MEANS A COMMAND SPELLED AS A SHELL STRING WOULD BE MISSED, so that assumption
+# is a claim rather than a hope: `SUBJECT_SHELL_SPELLING` in the self-test refuses any
+# reader script that spells `git <verb>` outside an argv list.
+#
+# 🔴 AND THE VERB IS NOT ALWAYS NEXT TO THE WORD. `_gate_lock.py`, which every mutating
+# gate imports and none of them can run without, spells it `subprocess.run(("git",) +
+# args)` and takes its baseline as `_git("status", "--porcelain", "-z")`. Nothing
+# adjacent, in either file — the two halves of the command live on different lines of
+# different modules, so a reader that reaches the index through the shared lock is
+# invisible to a grep over its own source AND to a grep over the helper's. That is why
+# the corpus is the script PLUS the first-party modules it imports (`reader_corpus`), and
+# why the idioms come in two tiers: an UNAMBIGUOUS one (`ls-files`, `--porcelain`,
+# `--cached`) is matched anywhere in code, and an AMBIGUOUS one (`status`, `add`,
+# `config` — words that are also method names and English) only next to `"git"`.
+_GIT = r"[\"']git[\"']\s*,\s*\[?\s*[\"']"
+SUBJECT_SIGNALS: "dict[str, tuple[str, str]]" = {
+    MACHINE: ("the runner — interpreter version, installed tooling, parallelism or the "
+              "clock. Two machines at the SAME commit may honestly disagree, which is "
+              "the one class TIER0's inheritance cannot be repaired for by re-running",
+              r"cpu_count|os\.cpu|time\.time\(|time\.perf|Date\.now\(|process\.version"
+              r"|sys\.version_info|shutil\.which|platform\.(?:system|machine|release)"
+              r"|process\.hrtime|multiprocessing\.|Math\.random\(|random\.(?:random|choice|shuffle)"),
+    CLONE_CFG: ("THIS CHECKOUT's configuration — hooks, remotes, `git config`. 234 §4.8 "
+                "named the class and nothing has ever asked it of a counter; a number "
+                "that reads it is true of one disk",
+                _GIT + r"(?:config|remote)[\"']|core\.hooksPath|get-url"),
+    INDEX: ("what git currently TRACKS — `git ls-files`, `git status`, the index. Equal "
+            "on every machine at a committed clean tree and NOT equal in a dirty one, "
+            "which is 254's measured rule: an untracked file is invisible to the reader "
+            "while it sits in the working tree, so a blast radius measures smaller "
+            "locally than in CI and a green local replay is refused there",
+            r"[\"'](?:ls-files|--porcelain|--cached|diff-index)[\"']|"
+            + _GIT + r"(?:status|add)[\"']"),
+    TRACKED: ("the tracked bytes at this commit, and nothing else. The same number on "
+              "every machine, in CI or locally, in a dirty tree or a clean one — the "
+              "only class TIER0 can inherit without qualification", r""),
+}
+
+# 🔴 THE ROWS THE DERIVATION CANNOT ANSWER FOR, with the measured reason for each — on
+# `NOT_A_TARGET`'s convention that an exemption is measured before it is written down.
+# Three rows, and each is a different way of being unanswerable.
+SUBJECT_UNDERIVABLE: "dict[str, str]" = {
+    "host.suite":
+        "NO SCRIPT IN THE ARGV. `npm test`'s subject is the whole `host/test` tree and "
+        "the engine under it. 🔴 DECLARED MACHINE ON A MEASUREMENT, NOT A GUESS: "
+        "`dap-late-rejection-flake` (275) is an OPEN queue row recording that "
+        "`dap.test.ts`'s *a launch rejection arriving AFTER a stop still ends the "
+        "session* failed once on a loaded `node 22` runner and passes everywhere else. "
+        "The block's most prominent counter — the bare `904/904` every session copies "
+        "first — is the one this tree has already measured as not a pure function of "
+        "its own bytes, and no session has ever said so on the line that carries it.",
+    "ci.checks":
+        "NO COMMAND AT ALL — the single `cmd=None` row, derived in-process by "
+        "`ci_check_runs` from `.github/workflows`. TRACKED, and the cleanest member of "
+        "that class in the table: the workflow files are the entire population.",
+    "handoff.claims":
+        "🔴 ONE FILE, TWO SUBJECTS, AND THE ROW RUNS THE PURE ONE. The derivation "
+        "answers about a FILE and a row invokes a MODE. `handoff_gate.py --selftest` is "
+        "fixture-driven and reads nothing but this file's own tables; the same file's "
+        "`--gh-open` dials GitHub and npm. Derived over the file it comes back MACHINE, "
+        "on a `cpu_count` that is in `SUBJECT_SIGNALS`' own regex — the corpus of a "
+        "derivation over `scripts/` contains the derivation. TRACKED, by the mode.",
+}
+
+# Every reader key's SUBJECT, derived at 281 by `subject_of` over `reader_corpus` and
+# checked against it on every run — this is a table of measurements, not of opinions, and
+# `SUBJECT_UNDERSTATED` refuses any row whose reader reads more than its value admits.
+#
+# 🔵 THE SHAPE IS A DICT BESIDE THE TABLE rather than a tenth tuple column, which is
+# `PROVENANCE`'s own shape one roster over: a column costs an edit to all thirty-five
+# nine-tuples, and 203 §2's rule is about the READER being one, not the storage.
+COUNTER_PROVENANCE: "dict[str, str]" = {
+    "host.suite":                  MACHINE,
+    "contract.checks":             INDEX,
+    "contract.error_codes":        INDEX,
+    "floor_pin.targets":           INDEX,
+    "floor_pin.governed":          INDEX,
+    "floor_pin.literal":           INDEX,
+    "floor_pin.shortfall":         INDEX,
+    "floor_pin.unswept":           INDEX,
+    "floor_pin.exempt":            INDEX,
+    "term.swept":                  INDEX,
+    "taut.sites":                  TRACKED,
+    "taut.duration":               TRACKED,
+    "seal.count":                  TRACKED,
+    "boundary.judged":             TRACKED,
+    "wire_diff.key":               TRACKED,
+    "wire_invisible.cases":        TRACKED,
+    "lint.files":                  INDEX,
+    "ci.checks":                   TRACKED,
+    "mutlock.guarded":             INDEX,
+    "tree_quiet.cases":            CLONE_CFG,
+    "release_names.rows":          TRACKED,
+    "instrument.discover":         INDEX,
+    "instrument.undeclared":       INDEX,
+    "handoff.claims":              TRACKED,
+    "scope.enumerators":           INDEX,
+    "control.controls":            INDEX,
+    "instrument.across":           INDEX,
+    "instrument.late_live":        INDEX,
+    "instrument.crashed":          INDEX,
+    "instrument.blast":            INDEX,
+    "instrument.not_loaded":       INDEX,
+    "queue.claims":                INDEX,
+    "instrument.py_gates":         INDEX,
+    "instrument.sig":              INDEX,
+    "instrument.late_constructed": INDEX,
+}
+
+
+def code_only(text: str, suffix: str) -> str:
+    """Source with its PROSE removed and its arguments kept — PURE.
+
+    🔴 THE FIRST DRAFT REMOVED COMMENTS AND GOT FOUR ROWS WRONG IN ONE DIRECTION.
+    A grep for `git diff` over `wire_diff.mjs` matches a sentence explaining what check 2
+    reads; `Date.now` over `tautology_gate.mjs` matches a note about millisecond
+    resolution. A predicate satisfied by a MENTION is a predicate about mentions — 279's
+    terminology exclusion, which excused any tracked file for naming a policy file.
+
+    🔴 AND THE SECOND DRAFT REMOVED STRING LITERALS AND GOT THIRTEEN WRONG IN THE OTHER.
+    Every one of these readers spells its command as an argv LIST — `["git", "ls-files",
+    …]` — so the signal this column exists to find lives in exactly the tokens a
+    prose-stripper throws away. It returned TRACKED for `instrument_gate.py`, whose
+    `blast` counter three separate sessions have had to correct from a local reading to
+    CI's at the same commit. **A derivation that answers cleanly about the wrong
+    population is worse than no derivation**, and this one had already been written down
+    as a finding before the count contradicted it.
+
+    So the line is PROSE, not strings: `#` and `//` and `/* */` go, TRIPLE-quoted blocks
+    and JSDoc go, and ordinary quoted strings stay, because an argv is a string and a
+    docstring is a paragraph. Python goes through `tokenize`, which can tell a
+    triple-quoted token from a single-quoted one exactly.
+    """
+    if suffix == ".py":
+        import io
+        import tokenize as _tok
+        out = []
+        try:
+            for t in _tok.generate_tokens(io.StringIO(text).readline):
+                if t.type == _tok.COMMENT:
+                    continue
+                if t.type == _tok.STRING and re.match(r'^[a-zA-Z]*("""|\'\'\')', t.string):
+                    continue
+                out.append(t.string)
+        except (_tok.TokenError, IndentationError, SyntaxError):
+            # A file this reader cannot tokenize is UNREAD, not clean: hand back the text
+            # so the signals still match and the row is judged on the raw source.
+            return text
+        return " ".join(out)
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            i = text.find("\n", i)
+            if i < 0:
+                break
+        elif c == "/" and i + 1 < n and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def subject_of(source: str, suffix: str) -> "tuple[str, list[str]]":
+    """(the strongest class this source shows, the idioms that showed it) — PURE.
+
+    Strongest wins, because a reader that dials the registry AND reads `git ls-files` is
+    a fact about the world before it is a fact about the index — the weaker answer would
+    understate what can move the number. `TRACKED` is the absence of every signal and
+    carries no idioms, which is why its own regex is empty and it is never matched for.
+    """
+    code = code_only(source, suffix)
+    for value in (MACHINE, CLONE_CFG, INDEX):
+        rx = SUBJECT_SIGNALS[value][1]
+        hits = sorted(set(m.strip() for m in re.findall(rx, code)))
+        if hits:
+            return (value, hits[:6])
+    return (TRACKED, [])
+
+
+def reader_source(cmd: "tuple[str, ...] | None", cwd: Path) -> "Path | None":
+    """The script a COUNTER_READERS row runs, or None when its command names none — PURE
+    over the row, which is what makes `SUBJECT_UNDERIVABLE` a closed population."""
+    for arg in cmd or ():
+        if arg.endswith((".py", ".mjs", ".js")):
+            return (cwd / arg).resolve()
+    return None
+
+
+def reader_corpus(script: Path) -> "list[Path]":
+    """The script and every FIRST-PARTY module it imports from its own directory.
+
+    🔴 THE SCRIPT ALONE IS THE WRONG POPULATION AND `_gate_lock.py` IS THE PROOF. Every
+    mutating gate imports `run_and_settle` from it and cannot run without it; the helper
+    is where the `git status --porcelain` baseline is taken, and a derivation over the
+    gate's own bytes sees none of it. A reader that reaches its input through an import
+    is one an import-blind grep calls clean.
+
+    The population is DERIVED — a sibling `.py` named by a `from X import` — and not a
+    list, so a helper that gets split, renamed or joined by a second one enters by
+    itself. One hop only: a hop counter is a graph walk, and every first-party module in
+    this tree lives one import from the script that uses it. If that stops being true it
+    stops being true visibly, because the module named will not be a sibling.
+    """
+    out = [script]
+    if script.suffix != ".py":
+        return out
+    try:
+        text = script.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    for name in re.findall(r"^from\s+([A-Za-z_][\w]*)\s+import\s", text, re.M):
+        sib = script.parent / f"{name}.py"
+        if sib.exists() and sib != script:
+            out.append(sib)
+    return out
+
+
+def subject_coverage(declared: "dict[str, str]") -> "list[str]":
+    """Every value in `SUBJECT_SIGNALS` that no row in `declared` carries.
+
+    🔴 ASKED OF THE TABLE HANDED IN AND OF NOTHING ELSE — 280 §4's rule, paid there by a
+    whole-table question asked inside a per-roster reader. A value nothing carries is a
+    predicate with no population, which is the defect this whole column exists to name.
+    """
+    if not declared:
+        return []
+    carried = set(declared.values())
+    return [f"🔴 SUBJECT_UNPOPULATED `{v}` — {SUBJECT_SIGNALS[v][0][:60]}… and no row "
+            f"carries it. A value nothing answers is a predicate that cannot be wrong"
+            for v in SUBJECT_SIGNALS if v not in carried]
+
+
+def derive_subjects(rows: "list[tuple]", underivable: "dict[str, str]"
+                    ) -> "dict[str, tuple[str, list[str]]]":
+    """{key: (subject, idioms)} for every row the derivation CAN answer for — impure only
+    in that it reads the reader scripts off disk; every decision is `subject_of`'s.
+
+    A row in `underivable` is skipped, and so is one whose script is not present: a
+    derivation over a file that is not there would return TRACKED, which is the confident
+    answer to an unasked question.
+    """
+    out: "dict[str, tuple[str, list[str]]]" = {}
+    for r in rows:
+        key, cmd, cwd = r[0], r[3], r[4]
+        if key in underivable:
+            continue
+        script = reader_source(cmd, cwd)
+        if script is None or not script.exists():
+            continue
+        try:
+            text = "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                             for p in reader_corpus(script))
+        except OSError:
+            continue
+        out[key] = subject_of(text, script.suffix)
+    return out
+
+
+def counter_subject_problems(rows: "list[tuple]", declared: "dict[str, str]",
+                             derived: "dict[str, tuple[str, list[str]]]",
+                             underivable: "dict[str, str]") -> "list[str]":
+    """Every way the declared subject of a counter disagrees with the tree — PURE.
+
+    `derived` is {key: (value, idioms)} for the rows whose command names a script;
+    `underivable` is the measured-reason table for the rest. Four directions, and the
+    third is the live one.
+    """
+    keys = {r[0] for r in rows}
+    out = []
+    for k in sorted(set(declared) - keys):
+        out.append(f"🔴 SUBJECT_STALE `{k}` is declared and is not a reader in this file")
+    for k in sorted(keys - set(declared)):
+        out.append(f"🔴 SUBJECT_UNDECLARED `{k}` — a counter whose subject nobody named. "
+                   f"234 §4.8's gap, on the half `PROVENANCE` does not cover")
+    for k in sorted(set(underivable) - keys):
+        out.append(f"🔴 SUBJECT_UNDERIVABLE_STALE `{k}` — exempted from derivation and "
+                   f"not a reader. 174 §5: an exemption outlives what it excused")
+    for k in sorted(derived):
+        if k not in declared:
+            continue
+        got, idioms = derived[k]
+        if got != declared[k] and _stronger(got, declared[k]):
+            out.append(
+                f"🔴 SUBJECT_UNDERSTATED `{k}` is declared {declared[k]} and its reader's "
+                f"own code shows {got}: {', '.join(idioms)}. Either the declaration is "
+                f"wrong or the reader reads more than its row admits")
+    by_cmd: "dict[tuple, set[str]]" = {}
+    for r in rows:
+        if r[3] and r[0] in declared:
+            by_cmd.setdefault(r[3], set()).add(declared[r[0]])
+    for cmd, values in sorted(by_cmd.items()):
+        if len(values) > 1:
+            out.append(f"🔴 SUBJECT_SPLIT `{' '.join(cmd)}` produces counters declared "
+                       f"{sorted(values)}. One command is one reading of one world; two "
+                       f"subjects off one invocation is 239 §2's shape")
+    return out
+
+
+def _stronger(got: str, declared: str) -> bool:
+    """Is `got` a wider claim about what can move a number than `declared`? — PURE.
+
+    Only an UNDERSTATEMENT is a problem. A row declared MACHINE whose code shows only
+    INDEX is a row being careful, and this reader does not argue with care — 275's
+    `dap-late-rejection-flake` is the standing proof that a source-level grep cannot see
+    every way a number moves.
+    """
+    order = [TRACKED, INDEX, CLONE_CFG, MACHINE]
+    return order.index(got) > order.index(declared)
+
 
 def ci_check_runs(root: Path = ROOT) -> "tuple[int, list[str]]":
     """(check runs a PR reports, the workflows that do not contribute and why).
@@ -2728,9 +3112,21 @@ INPUT_PROVIDERS: "dict[str, tuple[str, str]]" = {
                     "and only their offline halves are merge-blocking (279 §4)"),
 }
 
-# {normalised command: {input: why THIS command needs it}}. Six rows, four columns, and
+# {normalised command: {input: why THIS command needs it}}. Seven rows, four columns, and
 # every reason is a measurement or a quotation from the file the command lives in.
 GATE_INPUTS: "dict[str, dict[str, str]]" = {
+    "python3 queue_gate.py": {
+        INPUT_OBJECTS:
+            "🆕 281 — `QUEUE_PATHS_JOIN` compares a closing row's declared `paths` "
+            "against the files this session actually changed, and the base of that diff "
+            "is `merge-base(origin/main, HEAD)`. A `--depth 1` checkout has no merge "
+            "base and no `origin/main` to find one against, so `session_diff` returns "
+            "None and the reader prints `QUEUE_PATHS_UNREAD` — a refusal rather than a "
+            "silence, which is the only reason this row can be an honest requirement "
+            "instead of a shallow-clone trap. The job that runs it is `contract-check`, "
+            "which has carried `fetch-depth: 0` since 220 for check 4 one row up. "
+            "🔵 `--selftest` is a DIFFERENT command and is not in this table: every one "
+            "of its `paths_join` rows is handed a diff, so it needs no history at all."},
     "python3 release_names.py --assert-addon": {
         INPUT_OBJECTS:
             "check 4 walks history for the commit that STAMPED the addon's version and "
@@ -4335,10 +4731,27 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
         compared += 1
         if claimed != got:
             row = next(r for r in COUNTER_READERS if r[0] == key)
+            # 🆕 281 — AND THE SUBJECT IS ON THE REFUSAL, because the two kinds of
+            # disagreement want opposite repairs and have been indistinguishable since
+            # 227. A number declared TRACKED that disagrees at the commit it was
+            # measured at cannot be a machine talking: the block is stale, or the reader
+            # is not the pure function its row claims. A number declared INDEX, CLONE or
+            # MACHINE disagreeing is that class doing exactly what it was declared to do
+            # — 254's untracked file, 234 §4.8's one disk, 275's loaded runner — and the
+            # repair is to re-read, not to hunt.
+            subj = COUNTER_PROVENANCE.get(key, "")
+            said = SUBJECT_SIGNALS.get(subj, ("", ""))[0].split(".")[0]
             problems.append(
                 f"🔴 {key} — the block says {list(claimed)}, the tree says {list(got)}\n"
                 f"     atom: {atom!r}\n"
-                f"     {row[8]}")
+                + (f"     🔴 SUBJECT {subj} — this counter is declared a fact about "
+                   f"{said.lower()}, so a disagreement here is a STALE BLOCK or a "
+                   f"reader that is not the pure function its row claims. Nothing about "
+                   f"the machine can explain it.\n" if subj == TRACKED else
+                   f"     SUBJECT {subj} — a fact about {said.lower()}. Two honest runs "
+                   f"can differ; re-read at the shipped tree rather than hunting.\n"
+                   if subj else "")
+                + f"     {row[8]}")
 
     for key in sorted(unmeasured):
         row = next(r for r in COUNTER_READERS if r[0] == key)
@@ -4352,6 +4765,14 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     if len(COUNTER_READERS) < READER_FLOOR:
         problems.append(f"🔴 READER_FLOOR — {len(COUNTER_READERS)} reader(s), floor "
                         f"{READER_FLOOR}.")
+    # 🆕 281 — `counter-provenance-undeclared` (280). The roster is checked against the
+    # readers' own code on EVERY close, not once when it was written: a table of
+    # measurements that is never re-measured is a table of memories, and this file has
+    # spent four sessions establishing that those are the same thing wearing green.
+    problems.extend(counter_subject_problems(
+        COUNTER_READERS, COUNTER_PROVENANCE,
+        derive_subjects(COUNTER_READERS, SUBJECT_UNDERIVABLE), SUBJECT_UNDERIVABLE))
+    problems.extend(subject_coverage(COUNTER_PROVENANCE))
     return (problems, notes_session + notes + h_notes + r_notes, len(atoms), compared,
             h_atoms, h_compared)
 
@@ -4459,14 +4880,13 @@ ALIAS_PENDING: "dict[str, str]" = {}
 # block into `BLOCK_POPULATION` in 281's FIRST PR, which puts `npm.untagged` into
 # `h_reached` and turns this row into `HEADER_ALIAS_PENDING_STALE` on the same run.
 # 275's `taut.duration` did exactly this one roster over, and 246 designed the shape.
-HEADER_ALIAS_PENDING: "dict[str, str]" = {
-    "npm.untagged": "🆕 280 — no block has ever printed the counter, which IS the "
-                    "row: `registry_lag.py` has printed `untagged n` beside "
-                    "`distance` since 269, and 279's was the first block that tried "
-                    "to state it — refused, correctly, for claiming a counter "
-                    "nothing bound. 280's block is the first that can carry it, and "
-                    "adding that block at 281 deletes this row.",
-}
+# 🆕 281 — EMPTY, ON SCHEDULE, IN THE COMMIT THAT MADE IT STALE. 280 shipped
+# `npm.untagged` here with an expiry written into the row — *adding that block at 281
+# deletes this row* — and the same PR that adds 280's entry to `BLOCK_POPULATION` is the
+# one where `untagged 2` becomes reachable. It is deleted rather than left to be found by
+# `pending_problems`, because a table whose whole contract is one session is a table that
+# proves nothing if anybody has to be reminded.
+HEADER_ALIAS_PENDING: "dict[str, str]" = {}
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
@@ -5950,6 +6370,49 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
 >                 addon / 0 problems
 > ```"""),
+    # 🆕 281 — 253's RULE, HONOURED IN THE FIRST PR for the fifth session running. And
+    # this is the first block `release_verdict_problems` (280 §2.3) has an opinion about:
+    # `RELEASE_VERDICT_FROM = 280` and 280 cut nothing, so the reader is silent on it by
+    # its own population rule — the CUTS, not the sessions. Silence here is the reader
+    # working, and the next cut is where it speaks.
+    #
+    # 🔵 IT IS ALSO WHAT EXPIRES `HEADER_ALIAS_PENDING`. 280 shipped `npm.untagged` as a
+    # header reader no shipped block could reach, on a one-session exemption that says
+    # out loud it ends at 281. This block prints `untagged 2` on its npm row, so the row
+    # is reached by a real block the moment this entry lands and the exemption is deleted
+    # in the same commit — 275's `taut.duration`, one roster over.
+    (280, """> ```
+> main                 53d52db — the plane that lost its editor (#347)  MOVED +2
+>                      1f130bc — what makes a reading happen? (#346)
+> branch 280           session280-what-makes-a-reading-happen · PR #346
+>                      session280b-the-plane-that-lost-its-editor · PR #347
+>                      🟢 BOTH PUSHED AND MERGED, 26/26 green
+> host / addon         1.82.1 / 1.12.0  🟢 unmoved — no version bump this session
+> npm                  🟢 1.82.1 · registry 1.82.1 · lag 0 · untagged 2 ·
+>                      0 open issues / 0 open PRs
+>                      — 🔴 AND A SECOND REGISTRY READING REFUSES ON PURPOSE: SDK_UPSTREAM
+>                      — 🔴 AND THE NEW COUNTER CAUGHT ITS AUTHOR ON THE FIRST BLOCK THAT
+>                        EVER STATED IT: this row said zero, read at pickup, and the close
+>                        gate said two — this session's own two merges past `v1.82.1`. That
+>                        is `untagged-count-unbound`'s own defect, committed by the session
+>                        that closed it, refused by the reader it shipped
+> assetlib             🟢 addon 1.12.0 live · unchanged since the previous session
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 30/30 · scope 73 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2671
+>               · late not-loaded 0 · late constructed 299/160
+>               · py gates 18/6/12 · SIG 237/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 109 · 53 governed · 1571 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 311 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4771 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 64/64 claims · handoff 431 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -6571,6 +7034,178 @@ def selftest() -> int:
         print(f"  🔴 PROVENANCE npm.tags is {PROVENANCE.get('npm.tags')}, pinned REMOTE "
               f"— origin's tag list is the same number on every machine and `git tag` "
               f"is not")
+
+    # ── 🆕 281: COUNTER_PROVENANCE — the same question, asked of the other thirty-five ─
+    #
+    # 🔴 THE FIXTURES COME FIRST AND THEY ARE THE POINT. On a healthy tree every reader
+    # below returns [], so an inline version of any of them deletes invisibly — this
+    # file's own written reason for lifting `pending_problems` out, two rosters over.
+    _R = [("a", "", 1, ("python3", "a.py"), ROOT, "", CHEAP, REQUIRED, "why"),
+          ("b", "", 1, ("python3", "a.py"), ROOT, "", CHEAP, REQUIRED, "why"),
+          ("c", "", 1, ("node", "c.mjs"), ROOT, "", CHEAP, REQUIRED, "why")]
+    claims += 1
+    _got = counter_subject_problems(_R, {"a": TRACKED, "b": TRACKED, "c": TRACKED},
+                                    {"a": (INDEX, ["ls-files"]), "c": (TRACKED, [])}, {})
+    if not any("SUBJECT_UNDERSTATED" in g and "`a`" in g for g in _got):
+        failed += 1
+        print("  🔴 SUBJECT_UNDERSTATED did not fire on a row declared TRACKED whose "
+              "own code reads `git ls-files` — the live direction of this whole column")
+    claims += 1
+    # 🔴 CARE IS NOT A DEFECT. A row declared MACHINE whose source shows only INDEX is a
+    # row being cautious, and 275's `dap-late-rejection-flake` is the standing proof that
+    # a grep cannot see every way a number moves. Only the UNDERSTATEMENT is refused.
+    _over = counter_subject_problems(_R, {"a": MACHINE, "b": MACHINE, "c": MACHINE},
+                                     {"a": (INDEX, ["ls-files"])}, {})
+    if any("SUBJECT_UNDERSTATED" in g for g in _over):
+        failed += 1
+        print("  🔴 SUBJECT_UNDERSTATED fired on a row declared MORE strongly than its "
+              "source shows — that is a careful row, not a wrong one")
+    claims += 1
+    # 🔴 AND THE LADDER HAS TO HOLD AT EVERY RUNG, NOT JUST THE BOTTOM ONE. This claim is
+    # here because the LATE axis refused the first draft: `_stronger` was called twice and
+    # both calls could be answered by a reader that told the truth once and then returned
+    # False forever — *can answer ONCE and return its empty for every call after that*,
+    # which is the sweep's own sentence. A third rung, above the first, is what makes a
+    # collapse visible.
+    _rung = counter_subject_problems(_R, {"a": INDEX, "b": INDEX, "c": INDEX},
+                                     {"a": (MACHINE, ["cpu_count"])}, {})
+    if not any("SUBJECT_UNDERSTATED" in g and "`a`" in g for g in _rung):
+        failed += 1
+        print("  🔴 SUBJECT_UNDERSTATED did not fire on a row declared INDEX whose "
+              "reader's code shows MACHINE — the order is TRACKED < INDEX < CLONE < "
+              "MACHINE and every rung of it is a claim")
+    claims += 1
+    _split = counter_subject_problems(_R, {"a": TRACKED, "b": INDEX, "c": TRACKED}, {}, {})
+    if not any("SUBJECT_SPLIT" in g for g in _split):
+        failed += 1
+        print("  🔴 SUBJECT_SPLIT did not fire on two counters off ONE command declared "
+              "two different subjects — one invocation is one reading of one world")
+    claims += 1
+    _ros = counter_subject_problems(_R, {"a": TRACKED, "b": TRACKED, "c": TRACKED,
+                                         "gone": TRACKED}, {}, {"nope": "why"})
+    if not (any("SUBJECT_STALE" in g for g in _ros)
+            and any("SUBJECT_UNDERIVABLE_STALE" in g for g in _ros)):
+        failed += 1
+        print("  🔴 the roster halves did not both refuse: a declared key that is not a "
+              "reader, and an exemption for a reader that is not there")
+    claims += 1
+    if counter_subject_problems(_R, {"a": TRACKED, "c": TRACKED}, {}, {}):
+        # 'b' undeclared must be the ONLY complaint, and it must be one
+        pass
+    if not any("SUBJECT_UNDECLARED" in g and "`b`" in g
+               for g in counter_subject_problems(_R, {"a": TRACKED, "c": TRACKED}, {}, {})):
+        failed += 1
+        print("  🔴 SUBJECT_UNDECLARED did not fire on a reader nobody classified — "
+              "234 §4.8's gap is the whole reason this table exists")
+
+    # 🔴 `code_only` IS THE READER THAT DECIDES THE POPULATION, and both of its wrong
+    # answers are pinned here because both were shipped and measured before they were
+    # caught. Prose about a command is not a command; an argv IS a command.
+    claims += 1
+    _prose_py = '# the reader runs git ls-files here\n"""and git status in a docstring"""\nx = 1\n'
+    _prose_js = "// git ls-files in a comment\n/* and --porcelain in a block */\nlet x = 1;\n"
+    if (subject_of(_prose_py, ".py")[0] != TRACKED
+            or subject_of(_prose_js, ".mjs")[0] != TRACKED):
+        failed += 1
+        print("  🔴 subject_of read PROSE as a signal — 279's terminology exclusion, "
+              "which excused any tracked file for NAMING a policy file")
+    claims += 1
+    _argv_py = 'r = subprocess.run(["git", "ls-files"], cwd=str(ROOT))\n'
+    _argv_js = 'const t = run("git", ["status", "--porcelain"], REPO);\n'
+    if (subject_of(_argv_py, ".py")[0] != INDEX
+            or subject_of(_argv_js, ".mjs")[0] != INDEX):
+        failed += 1
+        print("  🔴 subject_of missed a command spelled as an ARGV LIST, which is how "
+              "every reader in this tree spells one — the answer that returned TRACKED "
+              "for thirteen of seventeen scripts")
+
+    # 🔴 THE CORPUS IS THE SCRIPT PLUS ITS FIRST-PARTY IMPORTS, and `_gate_lock.py` is
+    # why: six `floor_pin.*` counters and ten `instrument.*` reach `git status
+    # --porcelain` only through it. A live pair, because a fixture cannot prove that the
+    # helper this tree actually shares is inside the population.
+    claims += 1
+    _lock = ROOT / "scripts" / "_gate_lock.py"
+    _fp = ROOT / "scripts" / "floor_pin_gate.py"
+    if _lock.exists() and _fp.exists():
+        if _lock not in reader_corpus(_fp):
+            failed += 1
+            print("  🔴 reader_corpus did not reach `_gate_lock.py` from a gate that "
+                  "imports it — the helper where the index is actually read")
+        if subject_of(_fp.read_text(encoding='utf-8', errors='replace'), ".py")[0] != TRACKED:
+            failed += 1
+            print("  🔴 floor_pin_gate.py's OWN bytes should show no index signal — if "
+                  "they do, this claim's pair below proves nothing about the corpus")
+        _joined = "\n".join(p.read_text(encoding='utf-8', errors='replace')
+                            for p in reader_corpus(_fp))
+        if subject_of(_joined, ".py")[0] != INDEX:
+            failed += 1
+            print("  🔴 the corpus of floor_pin_gate.py does not show INDEX, so either "
+                  "the shared lock stopped taking a `git status` baseline or the walk "
+                  "stopped reaching it. Both are findings; neither is green")
+
+    # 🔴 AND THE TWO READERS THAT DECIDE WHICH FILE IS EVEN LOOKED AT. A blinded
+    # `reader_source` points the derivation at nothing and a blinded `derive_subjects`
+    # hands `counter_subject_problems` an empty map — both of which make every claim
+    # above pass, because a comparison with no left-hand side agrees with everything.
+    claims += 1
+    if (reader_source(("python3", "../scripts/x.py"), HOST) != (ROOT / "scripts" / "x.py")
+            or reader_source(("npm", "test"), HOST) is not None):
+        failed += 1
+        print("  🔴 reader_source did not resolve a script relative to the row's own "
+              "`cwd`, or claimed one for a command that names none")
+    claims += 1
+    _live = derive_subjects(COUNTER_READERS, SUBJECT_UNDERIVABLE)
+    if _live.get("instrument.blast", ("", []))[0] != INDEX:
+        failed += 1
+        print(f"  🔴 derive_subjects reads `instrument.blast` as "
+              f"{_live.get('instrument.blast')} — the counter three sessions have had to "
+              f"correct from a local reading to CI's at the same commit is the one this "
+              f"whole column was opened over, and INDEX is the answer its reader's code "
+              f"gives")
+    claims += 1
+    # 🔴 READ TWICE, OVER A TREE THAT DID NOT MOVE, AND THE SECOND READ IS THE CLAIM.
+    # 246's collapse and the LATE axis's whole premise are the same shape: a reader that
+    # answers once and empties afterwards passes every table checked on its first call.
+    # Nothing about this tree changes between these two lines, so a disagreement is the
+    # reader, not the world.
+    _again = derive_subjects(COUNTER_READERS, SUBJECT_UNDERIVABLE)
+    if _again != _live or not _again:
+        failed += 1
+        print(f"  🔴 derive_subjects gave two different answers about one unchanged "
+              f"tree ({len(_live)} row(s) then {len(_again)}) — a derivation that "
+              f"answers once and collapses is green everywhere it is read once")
+
+    # 🔴 A VALUE NOTHING CARRIES IS A PREDICATE THAT CANNOT BE WRONG — 276, and the
+    # reason `subject_coverage` is asked of the LIVE table on every close.
+    # 🔴 THE SILENT DIRECTION GOES FIRST, DELIBERATELY. Under the LATE axis a reader is
+    # allowed to answer once and return its empty forever after, so a table whose only
+    # must-COMPLAIN claim is the first call is a table a collapsed reader passes. The
+    # must-be-silent case is the cheap call to spend on rung one.
+    claims += 1
+    if subject_coverage({}):
+        failed += 1
+        print("  🔴 subject_coverage complained about an EMPTY table — a pure reader "
+              "handed a subset must answer about the subset (280 §4)")
+    claims += 1
+    if not subject_coverage({"a": TRACKED}):
+        failed += 1
+        print("  🔴 subject_coverage was silent about a table carrying one of four "
+              "values — a value no row answers is a column with no population")
+    claims += 1
+    if not subject_coverage({"a": TRACKED, "b": INDEX, "c": CLONE_CFG}):
+        failed += 1
+        print("  🔴 subject_coverage was silent about a table missing only MACHINE — "
+              "three of four is still a value nothing answers")
+
+    # Both directions against the reader roster, exactly as PROVENANCE is checked above.
+    claims += 1
+    _ck = {r[0] for r in COUNTER_READERS}
+    _miss = sorted(_ck - set(COUNTER_PROVENANCE))
+    _stale = sorted(k for k in COUNTER_PROVENANCE if k not in _ck)
+    if _miss or _stale:
+        failed += 1
+        print(f"  🔴 COUNTER_PROVENANCE missing {_miss}, stale {_stale} — 234 §4.8's "
+              f"gap, on the half `PROVENANCE` was never asked of")
 
     # ── 🆕 242: THE REPLAY LIST AGAINST THE WORKFLOW FILES ────────────────────────────
     #
@@ -8957,6 +9592,22 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
         print(f"  · {n}")
     problems.extend(h_problems)
 
+    # 🆕 281 — AND THE SENTENCE BELOW NAMES ITS OWN POPULATION NOW. It has said since
+    # 240 that *a counter which is a fact about the machine rather than the tree will
+    # disagree* at the close, and for forty-one sessions nothing anywhere knew WHICH.
+    # `counter-provenance-undeclared` (280) is that gap, and this is the line it was
+    # opened over: the inheriting session is told, at the moment it inherits, exactly
+    # which of the thirty-five it is inheriting on trust.
+    not_tracked = sorted(k for k in atoms
+                         if COUNTER_PROVENANCE.get(k, TRACKED) != TRACKED)
+    if not_tracked:
+        by_subject: "dict[str, list[str]]" = {}
+        for k in not_tracked:
+            by_subject.setdefault(COUNTER_PROVENANCE[k], []).append(k)
+        for subj, keys in sorted(by_subject.items()):
+            print(f"  · 🟡 INHERITED ON TRUST — {len(keys)} atom(s) declared {subj}: "
+                  f"{', '.join(keys)}. {SUBJECT_SIGNALS[subj][0].split('.')[0]}. These "
+                  f"are the ones that can honestly disagree at the close")
     print(f"HANDOFF_OPEN {prev.name} · TIER0 · {len(atoms)} counter atom(s) INHERITED "
           f"FROM {session} AT {claimed} · {h_atoms} header atom(s) · {h_compared} "
           f"re-read against the world")
@@ -8969,7 +9620,8 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
           f"session {session} verified these counters against. They are INHERITED, not "
           f"re-measured: the full replay runs at CLOSE, against the block this session "
           f"writes, and that is where a counter which is a fact about the machine rather "
-          f"than the tree will disagree.")
+          f"than the tree will disagree — {len(atoms) - len(not_tracked)} of the "
+          f"{len(atoms)} are declared TRACKED and cannot.")
     return 0
 
 

@@ -1035,6 +1035,11 @@ INSTRUMENTS = [
             "{SIG:_cells}": "return []",
             "{SIG:parse}": "return (1, HEAD, [], [])",
             "{SIG:check}": "return ([], [], 0, 0)",
+            # 🆕 281 — `reach-paths-unjoined-to-the-diff` (271). `session_diff` blinded
+            # to None does NOT go quiet: `SHIPPED_QUEUE_CLEAN` reads the live table
+            # through `check`, the diff comes back unreadable, and `QUEUE_PATHS_UNREAD`
+            # refuses — which is the reader's own stance proving itself under the blind.
+            "{SIG:paths_join}": "return []",
             # 🆕 247 §1 — THE THREE THE COVERAGE ROSTER ASKED FOR THE MOMENT IT COULD
             # READ PYTHON, and two of them are where this gate's premise is cashed.
             # `ages` derives the number `QUEUE.md` deleted the column for; `render`
@@ -1271,6 +1276,20 @@ INSTRUMENTS = [
             "{SIG:input_problems}": "return ([], [])",
             "{SIG:provider_coverage}": "return []",
             "{SIG:job_provides}": "return set()",
+            # 🆕 281 — `counter-provenance-undeclared` (280). Eight members, and the two
+            # worth naming are `code_only` and `reader_corpus`: they decide the
+            # POPULATION the derivation reads, and both of them were measured wrong
+            # before they were right. A blinded `code_only` hands the raw source back and
+            # the prose fixtures start matching; a blinded `reader_corpus` drops
+            # `_gate_lock.py` and every mutating gate's counter reads TRACKED.
+            "{SIG:code_only}": "return ''",
+            "{SIG:subject_of}": "return ('TRACKED', [])",
+            "{SIG:reader_source}": "return None",
+            "{SIG:reader_corpus}": "return []",
+            "{SIG:derive_subjects}": "return {}",
+            "{SIG:subject_coverage}": "return []",
+            "{SIG:counter_subject_problems}": "return []",
+            "{SIG:_stronger}": "return False",
             "{SIG:workflow_merge_blocking}": "return True",
             # 🆕 280 §3 — `release-1820-bump-under-wire` (278). The reader that refuses a
             # block which cut a release and said nothing about what the wire did, and the
@@ -1566,6 +1585,30 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     ("queue_gate.py", "selftest"):
         "the second half of the invocation — see p0_comments.py::_selftest. Blinded, the "
         "A:gate command prints no `QUEUE_SELFTEST` line at all.",
+    # 🆕 281 — MEASURED, AND THE MEASUREMENT IS WHY IT CANNOT BE A TARGET. Its subject is
+    # THE CHECKOUT, and the two checkouts this gate runs on disagree on purpose: deep in
+    # `contract-check`, `--depth 1` in `host tests`. Blinded to False it changes nothing
+    # on a deep tree (the answer it returns anyway) and on a shallow one it reddens for a
+    # reason that is a fact about the runner, so the target would be a claim about which
+    # machine swept it — 277's whole finding, and the class this file's own
+    # object-store rows are exempted under one instrument over.
+    ("queue_gate.py", "repo_is_shallow"):
+        "reads the state of the CHECKOUT, and CI's two callers are deliberately "
+        "different depths — `git rev-parse --is-shallow-repository`.",
+    # 🆕 281 — `handoff_gate.py::previous_main`'s class, one instrument over, and it was
+    # SHIPPED AS A TARGET FIRST AND REFUSED BY THIS GATE ON CI. That refusal was correct
+    # and its sentence is the row: *'found nothing' and 'did not look' are the same
+    # observable*. On a shallow checkout they are — which is the whole reason
+    # `repo_is_shallow` exists — so a blind on the reader that produces the diff has
+    # nothing left to change there.
+    ("queue_gate.py", "session_diff"):
+        "reads the git object store and REDDENS on a full clone, which is exactly why it "
+        "may not be a target. Measured on both depths rather than assumed: blinded to "
+        "`None` on a deep tree the gate exits 1 with two `QUEUE_PATHS_UNREAD` refusals; "
+        "on a `--depth 1` clone of the same tree it exits 0, because there is no merge "
+        "base for the unblinded reader to have found either. `host tests` is the shallow "
+        "caller (via this file's own live axis) and `contract-check` is the deep one — "
+        "the reading is merge-blocking there.",
     ("mutation_lock_gate.py", "main"):
         "the invocation, not a reader — and in this file `main` is ALSO the live control "
         "runner, which is what the five rows below are about.",
