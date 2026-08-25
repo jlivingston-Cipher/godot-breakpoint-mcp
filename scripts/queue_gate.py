@@ -493,8 +493,23 @@ def repo_is_shallow(root: Path = ROOT) -> bool:
     return p.returncode == 0 and p.stdout.strip() == "true"
 
 
-def session_diff(root: Path = ROOT) -> "set[str] | None":
-    """The tracked paths this session's close changes, or None when git cannot say.
+def session_diff(root: Path = ROOT) -> "tuple[set[str], set[str]] | None":
+    """(paths this session changed, row ids whose table line it ADDS) — None when git
+    cannot say.
+
+    🆕 282 — THE SECOND HALF IS NEW AND IT IS DELIBERATELY NOT A SECOND FUNCTION.
+    `QUEUE_PATHS_JOIN` needs to know WHICH rows this diff closed, not only which files it
+    touched, because a session can have more than one branch: 282's second PR is one edit
+    to `scripts/handoff_gate.py` cut from the already-merged main, so
+    `merge-base(origin/main, HEAD)` is the FIRST PR's merge commit and all seven rows
+    closed at 282 read as work that never happened.
+    🔴 IT LIVES HERE BECAUSE A SEPARATE READER WOULD HAVE BEEN A SILENT ONE. Written as
+    its own member it is a blindable target whose empty — `set()` — makes the join judge
+    NOTHING, so the blind is green on both axes by construction and the instrument gate
+    would have had to take a `NOT_A_TARGET` row weaker than `session_diff`'s own.
+    Returned from the reader that is ALREADY exempt, and exempt on a MEASURED reason
+    (blinded to `None` it reddens with `QUEUE_PATHS_UNREAD`), the new reading inherits
+    that refusal instead of introducing a quiet one.
 
     The base is `merge-base(origin/main, HEAD)` on a branch. 🔴 ON `main` ITSELF THAT
     BASE IS HEAD and the diff is empty, which would read as *this session changed
@@ -529,48 +544,10 @@ def session_diff(root: Path = ROOT) -> "set[str] | None":
     if out is None:
         return None
     new = _git("ls-files", "--others", "--exclude-standard") or ""
-    return {ln.strip() for ln in (out + "\n" + new).splitlines() if ln.strip()}
-
-
-def closed_here(root: Path = ROOT) -> "set[str] | None":
-    """Row ids whose table line this session's diff ADDS, or None when git cannot say.
-
-    🆕 282 — THE PER-ROW HALF OF `QUEUE_PATHS_JOIN`'s POPULATION, AND THE FIRST DRAFT OF
-    IT WAS TOO COARSE BY EXACTLY ONE STEP. A session can have more than one branch: 282's
-    second PR is one edit to `scripts/handoff_gate.py`, cut from the already-merged main,
-    so `merge-base(origin/main, HEAD)` is the FIRST PR's merge commit and all seven rows
-    closed at 282 read as work that never happened.
-
-    🔴 THE FIRST FIX ASKED *does this diff touch `QUEUE.md`* AND WOULD HAVE BROKEN THE
-    MOMENT THE SECOND BRANCH ANNOTATED AN OPEN ROW — which is a thing sessions do, and
-    which this one was about to do to `authoring-plane-bridge-drop-flake`. Touching the
-    file is not closing a row. The question is per-ROW and the diff answers it directly:
-    a row this branch closed has its table line among the ADDED lines.
-
-    🔵 AND `None` STAYS A REFUSAL, not a skip — `paths_join`'s whole stance.
-    """
-    def _git(*args: str) -> "str | None":
-        try:
-            p = subprocess.run(("git",) + args, cwd=str(root), capture_output=True,
-                               text=True, timeout=60)
-        except (OSError, subprocess.SubprocessError):
-            return None
-        return p.stdout if p.returncode == 0 else None
-
-    head = _git("rev-parse", "HEAD")
-    base = _git("merge-base", "origin/main", "HEAD")
-    if head is None:
-        return None
-    base = (base or "").strip()
-    if not base or base == head.strip():
-        base = (_git("rev-parse", "HEAD~1") or "").strip()
-    if not base:
-        return None
-    out = _git("diff", "-U0", base, "--", QUEUE.name)
-    if out is None:
-        return None
+    paths = {ln.strip() for ln in (out + "\n" + new).splitlines() if ln.strip()}
     ids: "set[str]" = set()
-    for ln in out.splitlines():
+    rows_diff = _git("diff", "-U0", base, "--", QUEUE.name)
+    for ln in (rows_diff or "").splitlines():
         if not ln.startswith("+") or ln.startswith("+++"):
             continue
         body = ln[1:].strip()
@@ -579,7 +556,7 @@ def closed_here(root: Path = ROOT) -> "set[str] | None":
         cell = body.strip("|").split("|", 1)[0].strip()
         if cell:
             ids.add(cell)
-    return ids
+    return (paths, ids)
 
 
 def age_domain(rows: "list[Row]", head: int) -> "list[str]":
@@ -704,10 +681,12 @@ def check(text: str, tracked: "set[str] | None" = None,
     # set, so none of them pays for a question none of them asks. `changed=None` means
     # a caller explicitly passed no diff and is asking the pure question; the live path
     # supplies `session_diff()`, which returns None only when git could not answer.
+    here: "set[str] | None" = None
     if changed is _UNSET:
-        changed = (session_diff()
-                   if any(r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
-                          and r.paths != NONE for r in rows) else set())
+        _read = (session_diff()
+                 if any(r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
+                        and r.paths != NONE for r in rows) else (set(), set()))
+        changed, here = (None, None) if _read is None else _read
         # 🆕 281 — A TRUNCATED CHECKOUT IS NOT A FAILED READING, and the difference is
         # measured rather than declared. See `repo_is_shallow` for what this cost.
         if changed is None and repo_is_shallow():
@@ -720,7 +699,6 @@ def check(text: str, tracked: "set[str] | None" = None,
         # 🆕 282 — THE PER-ROW POPULATION, AND THE DECLINE IS PRINTED RATHER THAN
         # INFERRED: a reader going quiet and a reader finding nothing are the two states
         # this tree spends its sessions telling apart.
-        here = closed_here() if changed is not None else None
         _closing = [r for r in rows
                     if r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
                     and r.paths != NONE]

@@ -1608,7 +1608,13 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "on a `--depth 1` clone of the same tree it exits 0, because there is no merge "
         "base for the unblinded reader to have found either. `host tests` is the shallow "
         "caller (via this file's own live axis) and `contract-check` is the deep one — "
-        "the reading is merge-blocking there.",
+        "the reading is merge-blocking there. 🆕 282 — AND IT NOW RETURNS TWO READINGS "
+        "RATHER THAN ONE, deliberately: the row ids whose table line the diff ADDS live "
+        "here instead of in a member of their own, because that member's empty is "
+        "`set()` and a `set()` makes `QUEUE_PATHS_JOIN` judge NOTHING — silent on both "
+        "axes by construction, which would have bought a `NOT_A_TARGET` row weaker than "
+        "this one. Returned from the reader already exempt on a MEASURED refusal, the "
+        "new reading inherits that refusal rather than introducing a quiet one.",
     ("mutation_lock_gate.py", "main"):
         "the invocation, not a reader — and in this file `main` is ALSO the live control "
         "runner, which is what the five rows below are about.",
