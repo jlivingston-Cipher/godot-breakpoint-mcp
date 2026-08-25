@@ -277,7 +277,17 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
 
   const before = stashOid(d);
   assert.ok(before.startsWith("ERR:"), "a fresh repo has no stash ref");
-  const noop = await h.vcs_stash({ op: "push", message: "nothing here" });
+  // 🆕 282 — `push` IS GATED NOW, AND THE LIVE PLANE IS WHERE THAT WAS FOUND. The unit
+  // suite was updated for the new gate; THIS file calls the same tool against a real
+  // repository and was not, so CI refused the PR that shipped it — 1.42.0's *the second
+  // call site is the interesting one*, paid again. The claim below is the live version of
+  // the unit one: a push with no confirmation is BLOCKED, and refs/stash does not move.
+  const blocked = await h.vcs_stash({ op: "push", message: "nothing here" });
+  assert.equal(blocked.isError, true, "an unconfirmed push must be blocked, not run");
+  assert.match(txt(blocked), /confirm: true/);
+  assert.ok(stashOid(d).startsWith("ERR:"), "and a blocked push must not have touched refs/stash");
+
+  const noop = await h.vcs_stash({ op: "push", message: "nothing here", confirm: true });
   assert.equal(noop.isError, true, `a push that stashes nothing must ERROR — got ${JSON.stringify(sc(noop))}`);
   assert.match(txt(noop), /nothing was stashed/i);
   assert.ok(stashOid(d).startsWith("ERR:"), "and it must genuinely not have created an entry");
@@ -285,13 +295,13 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
 
   // untracked-only is ALSO nothing: `git stash push` without -u does not take it
   fs.writeFileSync(path.join(d, "fresh.txt"), "untracked\n");
-  const untracked = await h.vcs_stash({ op: "push", message: "untracked only" });
+  const untracked = await h.vcs_stash({ op: "push", message: "untracked only", confirm: true });
   assert.equal(untracked.isError, true, "an untracked-only tree stashes nothing and must error");
   assert.ok(fs.existsSync(path.join(d, "fresh.txt")), "and the untracked file must still be there");
 
   // a REAL change still stashes, and reverts the working tree
   fs.appendFileSync(path.join(d, "a.gd"), "\n# real edit\n");
-  const real = await h.vcs_stash({ op: "push", message: "real work" });
+  const real = await h.vcs_stash({ op: "push", message: "real work", confirm: true });
   assert.ok(!real.isError, `a real change must stash — got ${txt(real)}`);
   const after = stashOid(d);
   assert.ok(!after.startsWith("ERR:") && after !== before, "refs/stash must actually have moved");
@@ -303,14 +313,14 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
 
   // a second no-op push, with an entry ALREADY present, must still error — the check is
   // OID inequality, not emptiness
-  const noop2 = await h.vcs_stash({ op: "push", message: "still nothing" });
+  const noop2 = await h.vcs_stash({ op: "push", message: "still nothing", confirm: true });
   assert.equal(noop2.isError, true, "a no-op push must error even when a stash already exists");
   assert.equal(stashOid(d), after, "and must not have added a second entry");
 
   const pop = await h.vcs_stash({ op: "pop" });
   assert.ok(!pop.isError, `pop must restore — got ${txt(pop)}`);
   assert.ok(fs.readFileSync(path.join(d, "a.gd"), "utf8").includes("# real edit"), "pop must bring the edit back");
-  population.seal("VCS_LIVE_STASH_NOOP", "ok clean and untracked-only pushes error with refs/stash untouched; a real push moves it and reverts the tree");
+  population.seal("VCS_LIVE_STASH_NOOP", "ok an unconfirmed push is blocked; clean and untracked-only pushes error with refs/stash untouched; a real push moves it and reverts the tree");
 }
 
 // 7b) 🔴 D5 — vcs_restore echoing paths it did not change. Carried since 155 §2 as a
@@ -408,7 +418,7 @@ console.log(`VCS_LIVE_PING ok ${execFileSync("git", ["--version"], { encoding: "
   const d2 = newRepo("popconflict", { "a.gd": "base\n" });
   const h2 = tools(d2);
   fs.writeFileSync(path.join(d2, "a.gd"), "stashed version\n");
-  assert.ok(!(await h2.vcs_stash({ op: "push", message: "w" })).isError);
+  assert.ok(!(await h2.vcs_stash({ op: "push", message: "w", confirm: true })).isError);
   fs.writeFileSync(path.join(d2, "a.gd"), "conflicting version\n");
   g(d2, "add", "-A");
   g(d2, "commit", "-q", "-m", "conflict");

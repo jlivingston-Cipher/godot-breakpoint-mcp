@@ -350,15 +350,40 @@ jobs:
       - name: The path cohort is at its floors and agrees with the ledger
         run: node scripts/path-cohort.mjs --summary
       - name: Onboarding CLI smoke — doctor runs headless (host-only, no Godot)
-        # The bin dispatches `doctor` without touching the stdio server path.
-        # /bin/echo stands in for the Godot binary (prints a version, exits 0);
-        # no project.godot in host/ so the addon checks skip, and the four bridge
-        # probes fail fast (nothing listening) as informational — so the report is
-        # ok and exit code 0. Proves the built dist actually routes the subcommand.
+        # The bin dispatches `doctor` without touching the stdio server path, and the
+        # four bridge probes fail fast (nothing listening) as informational.
+        #
+        # 🔴 282 — THIS STEP WAS RESTING ON THE DEFECT IT WAS SUPPOSED TO SMOKE, AND
+        # THE COMMENT SAID SO WITHOUT SEEING IT. It read `/bin/echo stands in for the
+        # Godot binary (prints a version, exits 0)`. `/bin/echo --version` prints
+        # `--version`; it has never printed a version. The check passed because its
+        # predicate was "spawnSync did not error" — the same false green that let
+        # `GODOT_BIN=/bin/ls` report `✓ godot-binary  ls (GNU coreutils) 9.4` to a
+        # real user. The stub now prints a real Godot version line, which is what the
+        # comment always claimed it did.
+        #
+        # 🔴 AND `doctor` EXITS 1 HERE NOW, ON PURPOSE. There is no project.godot in
+        # `host/`, so `project` skips and the three addon checks are never produced —
+        # a run that never looked at the addon has not answered doctor's question, and
+        # the exit code says so. That is the behaviour change and this is where CI
+        # pins it: the withheld set is named, `ok` is false, and the exit code is 1.
         run: |
-          GODOT_BIN=/bin/echo node dist/index.js doctor --json > /tmp/doctor.json
+          printf '#!/bin/sh\necho "4.4.1.stable.official"\n' > /tmp/godot-stub
+          chmod +x /tmp/godot-stub
+          set +e
+          GODOT_BIN=/tmp/godot-stub node dist/index.js doctor --json > /tmp/doctor.json
+          code=$?
+          set -e
           cat /tmp/doctor.json
-          node -e "const r=JSON.parse(require('node:fs').readFileSync('/tmp/doctor.json','utf8')); const g=r.checks.find(c=>c.name==='godot-binary'); if(!g||g.status!=='ok'){console.error('::error::doctor: godot-binary check not ok');process.exit(1);} if(!r.checks.some(c=>c.name==='editor-bridge')){console.error('::error::doctor: missing bridge checks');process.exit(1);} console.log('ONBOARD_DOCTOR_OK');"
+          test "$code" = "1" || { echo "::error::doctor: expected exit 1 with checks withheld, got $code"; exit 1; }
+          node -e "const r=JSON.parse(require('node:fs').readFileSync('/tmp/doctor.json','utf8')); const g=r.checks.find(c=>c.name==='godot-binary'); if(!g||g.status!=='ok'){console.error('::error::doctor: godot-binary check not ok');process.exit(1);} if(!r.checks.some(c=>c.name==='editor-bridge')){console.error('::error::doctor: missing bridge checks');process.exit(1);} const w=(r.withheld||[]).slice().sort().join(','); if(w!=='addon-enabled,addon-installed,addon-version'){console.error('::error::doctor: withheld set is '+JSON.stringify(r.withheld));process.exit(1);} if(r.ok!==false){console.error('::error::doctor: a run with checks withheld must not report ok');process.exit(1);} console.log('ONBOARD_DOCTOR_OK');"
+          # And the other direction: a project WITH the addon answers ok and exits 0,
+          # so the refusal above is a measurement rather than a doctor that always says no.
+          tmpd="$(mktemp -d)"
+          printf 'config_version=5\n\n[application]\n\nconfig/name="smoke"\n' > "$tmpd/project.godot"
+          node dist/index.js init --project "$tmpd" --client none > /dev/null
+          GODOT_BIN=/tmp/godot-stub node dist/index.js doctor --project "$tmpd" --json > /tmp/doctor2.json
+          node -e "const r=JSON.parse(require('node:fs').readFileSync('/tmp/doctor2.json','utf8')); if((r.withheld||[]).length){console.error('::error::doctor: nothing may be withheld once the addon is installed');process.exit(1);} if(r.ok!==true){console.error('::error::doctor: an installed project must report ok');process.exit(1);} console.log('ONBOARD_DOCTOR_INSTALLED_OK');"
       - name: Onboarding CLI smoke — init installs + enables the addon (host-only)
         # Resolves the addon from the repo-root addons/ in a fresh checkout, copies
         # it into a throwaway project, and enables it in project.godot.
