@@ -32,6 +32,49 @@ export const SYNOPSIS: string[] = [
   "Every subcommand also accepts --help.",
 ];
 
+/**
+ * 🆕 282 — THE `--trust` VOCABULARY, WHERE THE PARSER AND THE HELP BOTH READ IT.
+ *
+ * 🔴 MEASURED ON THE PUBLISHED 1.82.1. `--help` documented `secure | full`;
+ * `init.ts`'s alias map spelled the safe preset `safe`, and `secure` was not a
+ * key. So `breakpoint-mcp init --trust secure` — the value the tool's own help
+ * names first, and names as the default — fell through to the
+ * `--privileged-groups` parser, printed *ignoring unknown trust group(s): secure
+ * (valid: code-execution, all)*, and EXITED 0. The user was told the wrong next
+ * action for the flag they typed, in a different flag's vocabulary, on the flag
+ * that sets the security posture — while `--client bogus` (exit 1),
+ * `--surface bogus` (exit 2) and `--require-live=yes` (exit 2) all refuse.
+ *
+ * 🔵 THE REPAIR IS THE ONE THIS FILE'S OWN HEADER ALREADY ARGUES FOR: the
+ * rosters here are the PARSER'S INPUT, not documentation, so the help line below
+ * is DERIVED from this map and the two cannot disagree. A value documented and
+ * not accepted is now impossible rather than merely absent from a test.
+ */
+export const TRUST_LEVELS: Readonly<Record<string, string>> = Object.freeze({
+  secure: "",
+  full: "all",
+});
+
+/**
+ * Undocumented back-compat spellings, accepted and deliberately NOT printed.
+ * They predate the help text and removing them would break a working command
+ * line; documenting them would offer four names for two states.
+ */
+export const TRUST_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  safe: "",
+  none: "",
+  off: "",
+  all: "all",
+});
+
+/** Every spelling `--trust` accepts. Documented first, in the help's own order. */
+export const TRUST_ACCEPTED: Readonly<Record<string, string>> = Object.freeze({
+  ...TRUST_LEVELS,
+  ...TRUST_ALIASES,
+});
+
+const TRUST_DOC = Object.keys(TRUST_LEVELS);
+
 export const INIT_USAGE: string[] = [
   "Usage: breakpoint-mcp init [options]",
   "",
@@ -44,7 +87,7 @@ export const INIT_USAGE: string[] = [
   "  --dry-run           Print what would change without writing anything.",
   "  --from-github [ref] Fetch the editor addon from GitHub at [ref] (default: this package's version tag) instead of the bundled copy.",
   "  --repo <owner/repo> With --from-github, the source repo (default: jlivingston-Cipher/godot-breakpoint-mcp).",
-  "  --trust <level>     secure | full. `full` enables every higher-trust group (default: secure).",
+  `  --trust <level>     ${TRUST_DOC.join(" | ")}. \`full\` enables every higher-trust group (default: ${TRUST_DOC[0]}).`,
   "  --privileged-groups <a,b>  Enable named higher-trust groups instead of all of them.",
 ];
 

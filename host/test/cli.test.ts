@@ -96,15 +96,30 @@ test("godot_version returns the captured version string and exit code 0", { skip
   assert.equal((sc(r).raw as { code: number }).code, 0);
 });
 
-test("godot_version degrades (no throw) when the binary is missing", { skip: !POSIX }, async () => {
+test("godot_version REFUSES when the binary is missing, and names the remedy", { skip: !POSIX }, async () => {
+  // 🔴 282 — THIS TEST USED TO ASSERT THE DEFECT. It read `assert.notEqual(
+  // r.isError, true, "a missing binary should be reported, not thrown")` — two
+  // different properties in one assertion, and only the second was being
+  // measured. "Not thrown" is right and still holds below; "not an error" was
+  // the bug: the published 1.82.1 answered `{"version": "", "raw": {"code":
+  // null, "stderr": ""}}` with no `isError`, so an assistant relaying it told
+  // the user the Godot version was EMPTY rather than that Godot was not there.
   const tools = setup("/no/such/godot-binary-xyz", dir);
   const r = await tools.get("godot_version")!({});
-  // A spawn failure resolves to a result (never throws): exit code is null and
-  // timed_out is false — the tool reports the failure instead of crashing.
-  assert.notEqual(r.isError, true, "a missing binary should be reported, not thrown");
-  const raw = sc(r).raw as { code: number | null; timedOut: boolean };
-  assert.equal(raw.code, null);
-  assert.equal(raw.timedOut, false);
+  assert.equal(r.isError, true, "a binary that cannot be started is an error, not an empty version");
+  const text = (r.content as Array<{ text: string }>)[0].text;
+  assert.match(text, /no such file or directory/);
+  assert.match(text, /GODOT_BIN/, "254's rule: the message names the next action");
+  assert.match(text, /doctor/);
+});
+
+test("a binary that RUNS and fails is NOT a spawn failure — the two states stay apart", { skip: !POSIX }, async () => {
+  // The refusal above is only evidence if something distinguishes it from an
+  // ordinary non-zero exit, which is the state `code: null` used to collide with.
+  const tools = setup("/usr/bin/false", dir);
+  const r = await tools.get("godot_version")!({});
+  assert.notEqual(r.isError, true, "a process that started and exited 1 is not a spawn failure");
+  assert.equal((sc(r).raw as { code: number | null }).code, 1);
 });
 
 test("godot_version records a non-zero exit code without throwing", { skip: !POSIX }, async () => {

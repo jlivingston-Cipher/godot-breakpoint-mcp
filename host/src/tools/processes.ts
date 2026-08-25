@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "../config.js";
@@ -8,6 +8,7 @@ import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
 import { describeExit } from "../exit-cause.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
+import { spawnGuarded } from "../spawn-guard.js";
 
 interface LogLine {
   seq: number;
@@ -17,7 +18,7 @@ interface LogLine {
 
 interface Managed {
   id: string;
-  child: ChildProcess;
+  child: ChildProcess | null;
   lines: LogLine[];
   seq: number;
   exited: boolean;
@@ -39,6 +40,15 @@ interface Managed {
    * which is a name `registerTool` has never been given.
    */
   exitSignal: NodeJS.Signals | null;
+  /**
+   * The refusal sentence when the child NEVER STARTED, and `null` when it did.
+   *
+   * 🔴 282 — `child` IS NULLABLE FOR EXACTLY THIS CASE AND FOR NO OTHER. A
+   * record whose process failed to spawn has no `ChildProcess` to hold, and the
+   * alternative — a synthetic child object — would make "never started" and
+   * "started and exited instantly" indistinguishable at every reader.
+   */
+  spawnError: string | null;
 }
 
 const LINE_CAP = 5000;
@@ -64,14 +74,32 @@ export class ProcessRegistry {
    * passthrough plus a port allocator, with no protocol, transport or handshake
    * change. See `peers.ts`.
    */
-  run(cfg: Config, extraArgs: string[], env?: Record<string, string>): Managed {
+  async run(cfg: Config, extraArgs: string[], env?: Record<string, string>): Promise<Managed> {
     const id = `godot-${++this.counter}`;
-    const child = spawn(cfg.godotBin, ["--path", cfg.projectPath, ...extraArgs], {
+    // 🔴 282 — THE THIRD SPAWN OF THE CONFIGURED BINARY, AND IT TOOK THE SERVER
+    // DOWN THE SAME WAY THE OTHER TWO DID. A child with no `'error'` listener
+    // re-throws a failure to START on the process, and this registry attached
+    // listeners for `data` and `exit` and none for `error` — so a wrong
+    // `GODOT_BIN` killed the host through `godot_run_managed` and through every
+    // peer `runtime_spawn_peers` tried to start. `spawnGuarded` attaches both
+    // outcome listeners in the statement that creates the child and resolves
+    // only once the outcome is known.
+    const started = await spawnGuarded(cfg.godotBin, ["--path", cfg.projectPath, ...extraArgs], {
       cwd: cfg.projectPath,
       stdio: ["ignore", "pipe", "pipe"],
       ...(env ? { env: { ...process.env, ...env } } : {}),
     });
-    const m: Managed = { id, child, lines: [], seq: 0, exited: false, exitCode: null, exitSignal: null };
+    if (!started.ok) {
+      const m: Managed = {
+        id, child: null, lines: [], seq: 0, exited: true,
+        exitCode: null, exitSignal: null, spawnError: started.message,
+      };
+      this.procs.set(id, m);
+      log(`managed process ${id} never started — ${started.message}`);
+      return m;
+    }
+    const child = started.child;
+    const m: Managed = { id, child, lines: [], seq: 0, exited: false, exitCode: null, exitSignal: null, spawnError: null };
     const ingest = (stream: "stdout" | "stderr") => (buf: Buffer | string) => {
       const text = typeof buf === "string" ? buf : buf.toString("utf8");
       for (const line of text.split(/\r?\n/)) {
@@ -112,7 +140,7 @@ export class ProcessRegistry {
   killAll(): void {
     for (const m of this.procs.values()) {
       try {
-        m.child.kill();
+        m.child?.kill();
       } catch {
         /* ignore */
       }
@@ -171,11 +199,12 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
         return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
       }
-      const m = registry.run(cfg, scene ? [scene] : []);
+      const m = await registry.run(cfg, scene ? [scene] : []);
+      if (m.spawnError) return { isError: true, content: [{ type: "text" as const, text: m.spawnError }] };
       const readiness = await waitForRuntimeBridge(cfg, wait_timeout_ms ?? cfg.runtimeTimeoutMs);
       return ok({
         id: m.id,
-        pid: m.child.pid ?? null,
+        pid: m.child?.pid ?? null,
         running: true,
         scene: scene ?? null,
         bridge_ready: readiness.ready,
@@ -222,7 +251,7 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
       const m = registry.get(id);
       if (!m) return { isError: true, content: [{ type: "text", text: `No managed process with id "${id}"` }] };
       try {
-        m.child.kill();
+        m.child?.kill();
       } catch {
         /* ignore */
       }

@@ -1,5 +1,4 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { pauseLatch } from "./pause.js";
 
 export interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
@@ -23,27 +22,19 @@ export async function gate(
   confirm: boolean | undefined,
   summary: string,
 ): Promise<ToolResult | null> {
-  // Track 2 — global-pause overlay. Coarser than the per-tool elicitation below
-  // (which stays the lead control): while the operator has the agent paused, hold
-  // ENTRY to this mutating action until they resume or the wait times out — then
-  // block rather than act. In-flight ops and read-only tools are never affected.
-  if (pauseLatch.isPaused()) {
-    const resumed = await pauseLatch.awaitResumed();
-    if (!resumed) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text:
-              `Paused — the agent is currently paused, so "${summary}" was held and NOT executed. ` +
-              `Resume the agent (SIGUSR2), then re-run the tool.`,
-          },
-        ],
-      };
-    }
-  }
-  pauseLatch.record(summary);
+  // 🔴 282 — THE PAUSE LATCH USED TO LIVE HERE, AND THAT IS EXACTLY WHY THE
+  // DOCUMENTED GUARANTEE WAS FALSE. `USER_GUIDE.md` §9 says the latch holds
+  // mutating actions "across the whole tool surface"; this function runs only
+  // for the confirmation-gated ones, so 111 of the 279 secure-default tools
+  // wrote while paused — measured, on the published 1.82.1. The latch is now a
+  // `registerTool` wrapper over every tool whose `readOnlyHint` is false
+  // (`mutation-guard.ts`), which is the surface the sentence describes.
+  //
+  // 🔵 AND IT IS NOT ALSO KEPT HERE. Two holds would each be correct and would
+  // record the same call twice under two different names, which is 203 §2's rule
+  // about two opinions on one fact — the first edit to either makes the pair
+  // disagree, and the reader of the activity ring could not tell which one it
+  // was looking at. One seam, one claim.
   if (confirm === true) return null;
   try {
     const res = await server.server.elicitInput({

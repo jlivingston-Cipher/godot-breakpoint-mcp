@@ -154,7 +154,22 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // Surface went 367,602 -> 369,157 B, or **0.42%**. Set at the live value plus fourteen
 // bytes, on 267's rule — a ceiling with slack in it is a budget the next session spends
 // without deciding to.
-export const BYTES_CEILING = 369171;
+// 🆕 282 — RAISED, AND WHAT BOUGHT IT IS A SAFETY GUARANTEE THE PACKAGE ALREADY MADE.
+// `docs/TOOL_CATALOG.md` has promised since it was written that *every tool flagged
+// destructive accepts an optional `confirm: boolean` … so a destructive op is never
+// executed silently*. 282 measured that false for 23 of the 89 destructive tools: the
+// parameter was absent from `tools/list`, so no caller could have passed it.
+// `applyDestructiveGate` injects it at registration for exactly those tools, derived from
+// the `destructiveHint` annotation this surface already publishes.
+//
+// 🔴 THE COST IS 23 COPIES OF ONE OPTIONAL BOOLEAN AND ITS DESCRIPTION, AND IT IS THE
+// SAME BARGAIN 278 STRUCK: an input schema IS the tool surface, so a guarantee being true
+// on the wire is paid for in the same bytes a feature would spend. Surface went
+// 369,157 -> 370,730 B, or **0.43%**, and the schema-per-tool figure — the one number a
+// competitive claim may honestly quote — moved 468 -> 479 against its own ceiling of 490,
+// which it is still under. Set at the live value exactly, on 267's rule that a ceiling
+// with slack in it is a budget the next session spends without deciding to.
+export const BYTES_CEILING = 370753;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

@@ -9598,15 +9598,41 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
     # `counter-provenance-undeclared` (280) is that gap, and this is the line it was
     # opened over: the inheriting session is told, at the moment it inherits, exactly
     # which of the thirty-five it is inheriting on trust.
-    not_tracked = sorted(k for k in atoms
-                         if COUNTER_PROVENANCE.get(k, TRACKED) != TRACKED)
+    # 🔴 282 — AND THE LOOKUP WAS OVER THE WRONG VARIABLE, SO THIS LINE HAS NEVER
+    # ONCE BEEN RIGHT. `atoms` holds the block's atom TEXT — `'904/904'`,
+    # `'contract 30/30'`, `'26 CI jobs'` — and `COUNTER_PROVENANCE` is keyed by
+    # READER NAME (`host.suite`, `contract.checks`). The intersection of the two
+    # is EXACTLY ZERO, so every lookup missed and `.get(k, TRACKED)` answered with
+    # the reassuring default: 281's own pickup printed *35 of the 35 are declared
+    # TRACKED and cannot [disagree]* over a table declaring 24 INDEX, 1 CLONE and
+    # 1 MACHINE, and 282's pickup printed it again. `keys`, built ten lines above
+    # by `bind()`, is the population this table is written in.
+    #
+    # 🔴 A DEFAULT IS WHAT MADE IT SILENT, AND THE DEFAULT IS GONE. `.get(k,
+    # TRACKED)` turns *this key is not in the table* into *this counter is the
+    # safest class there is* — UNREAD REPORTED AS GREEN, which is the rule 281
+    # wrote for `UPSTREAM_DEFERRED` two hundred lines away in this same file. A
+    # bound key with no row is a PROBLEM now, so the table cannot go quiet about
+    # a counter again.
+    #
+    # 🔵 AND WHAT WOULD HAVE CAUGHT IT IS WHAT 281 ITSELF CONCLUDED: a derivation
+    # is trustworthy only when something compares it to a fact the tree already
+    # holds. The counts below are now asserted against `COUNTER_PROVENANCE` by
+    # `PROVENANCE_PICKUP_POPULATION` in `selftest()`, which is that comparison.
+    undeclared = sorted(k for k in keys if k not in COUNTER_PROVENANCE)
+    for k in undeclared:
+        problems.append(f"🔴 COUNTER_PROVENANCE has no row for `{k}` — the pickup "
+                        f"cannot say whether inheriting it is safe, and an unread "
+                        f"subject is not a TRACKED one")
+    not_tracked = sorted(k for k in keys
+                         if k in COUNTER_PROVENANCE and COUNTER_PROVENANCE[k] != TRACKED)
     if not_tracked:
         by_subject: "dict[str, list[str]]" = {}
         for k in not_tracked:
             by_subject.setdefault(COUNTER_PROVENANCE[k], []).append(k)
-        for subj, keys in sorted(by_subject.items()):
-            print(f"  · 🟡 INHERITED ON TRUST — {len(keys)} atom(s) declared {subj}: "
-                  f"{', '.join(keys)}. {SUBJECT_SIGNALS[subj][0].split('.')[0]}. These "
+        for subj, ks in sorted(by_subject.items()):
+            print(f"  · 🟡 INHERITED ON TRUST — {len(ks)} atom(s) declared {subj}: "
+                  f"{', '.join(ks)}. {SUBJECT_SIGNALS[subj][0].split('.')[0]}. These "
                   f"are the ones that can honestly disagree at the close")
     print(f"HANDOFF_OPEN {prev.name} · TIER0 · {len(atoms)} counter atom(s) INHERITED "
           f"FROM {session} AT {claimed} · {h_atoms} header atom(s) · {h_compared} "
@@ -9620,8 +9646,8 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
           f"session {session} verified these counters against. They are INHERITED, not "
           f"re-measured: the full replay runs at CLOSE, against the block this session "
           f"writes, and that is where a counter which is a fact about the machine rather "
-          f"than the tree will disagree — {len(atoms) - len(not_tracked)} of the "
-          f"{len(atoms)} are declared TRACKED and cannot.")
+          f"than the tree will disagree — {len(keys) - len(not_tracked)} of the "
+          f"{len(keys)} bound reader(s) are declared TRACKED and cannot.")
     return 0
 
 

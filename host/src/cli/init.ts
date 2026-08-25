@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, preflight } from "./args.js";
-import { INIT_FLAGS, INIT_USAGE } from "./usage.js";
+import { INIT_FLAGS, INIT_USAGE, TRUST_ACCEPTED, TRUST_LEVELS } from "./usage.js";
 import {
   ADDON_REL,
   ADDON_SKEW_HINT,
@@ -39,13 +39,31 @@ import {
  * every printed example of this flag is derived from `CAPABILITY_GROUPS` rather
  * than restated: a restated one named `network` long after it was deleted.
  */
-export function resolvePrivilegedGroups(flags: Record<string, string | boolean>): { value: string; warn?: string } {
-  const trustAlias: Record<string, string> = { safe: "", none: "", off: "", full: "all", all: "all" };
+export function resolvePrivilegedGroups(
+  flags: Record<string, string | boolean>,
+): { value: string; warn?: string; error?: string } {
+  // 🔴 282 — AN UNKNOWN `--trust` VALUE IS REFUSED IN ITS OWN VOCABULARY, not
+  // passed through to the `--privileged-groups` parser to be reported in that
+  // flag's. `TRUST_ACCEPTED` is `usage.ts`'s map, which is also what the help
+  // line is rendered from, so the set the user is offered and the set the parser
+  // takes are one object.
+  if (typeof flags.trust === "string" && typeof flags["privileged-groups"] !== "string") {
+    const key = flags.trust.trim().toLowerCase();
+    if (!(key in TRUST_ACCEPTED)) {
+      return {
+        value: "",
+        error:
+          `--trust: unknown level ${JSON.stringify(flags.trust)}. ` +
+          `Valid levels: ${Object.keys(TRUST_LEVELS).join(" | ")}. ` +
+          `To enable named groups instead, use --privileged-groups <${CAPABILITY_GROUPS.join(",")}>.`,
+      };
+    }
+  }
   const raw =
     typeof flags["privileged-groups"] === "string"
       ? flags["privileged-groups"]
       : typeof flags.trust === "string"
-        ? (trustAlias[flags.trust.toLowerCase()] ?? flags.trust)
+        ? (TRUST_ACCEPTED[flags.trust.trim().toLowerCase()] ?? "")
         : "";
   if (!raw) return { value: "" };
   let warn: string | undefined;
@@ -240,7 +258,14 @@ export async function runInit(argv: string[], deps: { fetchFn?: FetchLike } = {}
   const client = typeof flags.client === "string" ? flags.client : "none";
   const godotBin = process.env.GODOT_BIN ?? "godot";
   // Guided trust preset → BREAKPOINT_PRIVILEGED_GROUPS ("" = safe default).
-  const { value: privilegedGroups, warn: privilegedWarn } = resolvePrivilegedGroups(flags);
+  const { value: privilegedGroups, warn: privilegedWarn, error: privilegedError } = resolvePrivilegedGroups(flags);
+  // 🔴 282 — A BAD SECURITY-POSTURE VALUE EXITS 2, like every other bad flag
+  // value on this CLI. It used to warn and continue with the safe default, which
+  // is the safe OUTCOME reported as if the command had done what was asked.
+  if (privilegedError) {
+    process.stderr.write(privilegedError + "\n");
+    return 2;
+  }
 
   // --from-github [ref]: source the addon from GitHub instead of the bundled copy.
   const fromGitHub = "from-github" in flags;

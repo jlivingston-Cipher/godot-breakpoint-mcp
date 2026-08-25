@@ -3066,7 +3066,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
 
 ## Group L — Version control (git) (Plane B / host)
 
-Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, no shell). Host-side (Plane B): they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane. `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; never a hang. Paths accept `res://…` (project-relative) or repo-relative; large patch/file output is head-truncated with a `truncated` flag. Two tiers: **six read-only** tools (`vcs_status`/`log`/`diff`/`show`/`branch_list`/`blame`) that never touch the index or working tree, and **six Tier-A mutating** tools (`vcs_add`/`commit`/`restore`/`stash`/`branch_create`/`switch`) — safe local only, **no network** (push/pull/fetch stay Mac-side). Mutation posture: only ops that lose work or rewrite history are **elicitation-gated** — `vcs_restore` and `vcs_stash op=drop` reuse the `gate()` in `host/src/confirm.ts` (confirm:true bypasses, and a non-eliciting client is blocked, never run silently); the reversible ops (`add`/`commit`/`branch_create`/`switch`) are ungated. Markers `AUTH_L_*` in the authoring-plane probe.
+Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, no shell). Host-side (Plane B): they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane. `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; never a hang. Paths accept `res://…` (project-relative) or repo-relative; large patch/file output is head-truncated with a `truncated` flag. Two tiers: **six read-only** tools (`vcs_status`/`log`/`diff`/`show`/`branch_list`/`blame`) that never touch the index or working tree, and **six Tier-A mutating** tools (`vcs_add`/`commit`/`restore`/`stash`/`branch_create`/`switch`) — safe local only, **no network** (push/pull/fetch stay Mac-side). Mutation posture: only ops that lose work or rewrite history are **elicitation-gated** — `vcs_restore`, `vcs_stash op=push` and `vcs_stash op=drop` reuse the `gate()` in `host/src/confirm.ts` (confirm:true bypasses, and a non-eliciting client is blocked, never run silently); the reversible ops (`add`/`commit`/`branch_create`/`switch`) and `vcs_stash op=pop`/`list` are ungated. `op=push` was ungated until it was measured reverting a whole working tree unattended: recoverable with `pop` is not the same as not done. Markers `AUTH_L_*` in the authoring-plane probe.
 
 ### `vcs_status` ✅ (Plane B / host)
 - **Input**
@@ -3264,8 +3264,8 @@ Discard uncommitted working-tree changes to the given paths (`git restore -- <pa
   } }
 ```
 
-### `vcs_stash` ✔ ✅ (Plane B / host) — mutating (**drop gated**)
-Manage stashes. `push` saves + reverts working changes; `pop` re-applies the latest; `list` returns the entries; `drop` deletes an entry. Only `drop` is destructive and gated; push/pop/list are not.
+### `vcs_stash` ✔ ✅ (Plane B / host) — mutating (**push and drop gated**)
+Manage stashes. `push` saves + reverts working changes; `pop` re-applies the latest; `list` returns the entries; `drop` deletes an entry. `push` and `drop` are gated — one reverts every uncommitted change in the working tree, the other deletes an entry unrecoverably; `pop` and `list` are not.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["op"],
@@ -3273,7 +3273,7 @@ Manage stashes. `push` saves + reverts working changes; `pop` re-applies the lat
     "op": { "enum": ["push", "pop", "list", "drop"] },
     "message": { "type": "string", "description": "Message for op=push" },
     "ref": { "type": "string", "description": "Stash ref for op=drop/pop, e.g. stash@{1}" },
-    "confirm": { "type": "boolean", "description": "Skip the confirmation prompt (op=drop)" }
+    "confirm": { "type": "boolean", "description": "Skip the confirmation prompt (op=push / op=drop)" }
   } }
 ```
 - **Output**
@@ -4207,7 +4207,7 @@ Mark a node as a drop target that validates an incoming payload and emits a sign
 
 ## Destructive-action gating (elicitation) — Phase 4
 
-Every tool flagged **destructive** accepts an optional `confirm: boolean`. When it is omitted, the host issues an MCP **elicitation** (a client-side confirmation prompt) before executing: on *accept* it proceeds; on *decline/cancel* it returns a non-error "cancelled" result. If the client does not support elicitation, the tool blocks and instructs the caller to re-invoke with `confirm: true` — so a destructive op is never executed silently. Gated tools: `node_delete`, `project_set_setting`, `scene_new`, `gd_rename` (when `apply=true`), `cs_rename` (when `apply=true`), `dbg_evaluate`, `dbg_set_variable`, `dbg_goto`, `runtime_set_property`, `runtime_call_method`, `runtime_emit_signal`, `runtime_inject_input`.
+Every tool flagged **destructive** accepts an optional `confirm: boolean`. When it is omitted, the host issues an MCP **elicitation** (a client-side confirmation prompt) before executing: on *accept* it proceeds; on *decline/cancel* it returns a non-error "cancelled" result. If the client does not support elicitation, the tool blocks and instructs the caller to re-invoke with `confirm: true` — so a destructive op is never executed silently. **The gated set is DERIVED from the `destructiveHint` annotation this document's own tables publish, not enumerated here**: at registration, every tool annotated destructive that does not already declare `confirm` is given the parameter and the gate, so the two sets cannot drift apart and a partial list cannot go stale. Two shapes sit outside the prompt and say so in the reply: a call refused **before** the gate because it can never legally succeed (`resolveInsideProject` on a path outside the project), and `asset_gen_*` with no backend configured, which returns `no_backend` having written nothing.
 
 The long-running tools (`godot_export`, `godot_import`, `godot_run_headless_script`) run under the formal MCP **task-execution model** (D2), registered with `taskSupport: 'optional'`. A task-aware client calls the tool with a `task` augmentation to get a task handle back immediately, then drives it with the task methods its negotiated revision defines — polling status, and cancelling to stop the run, which aborts the underlying headless Godot process. The verbs are the client’s side of the wire and they move between revisions, so this page names the capability rather than the RPC. A plain client that omits the `task` augmentation is unaffected: the host auto-creates a task, polls it to completion, and returns the result synchronously, exactly as before.
 
@@ -4571,7 +4571,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `vcs_add` | `vcs` · L / Host | ✅ | – |
 | `vcs_commit` | `vcs` · L / Host | ✅ | – |
 | `vcs_restore` | `vcs` · L / Host | ✅ | ✔ discards changes |
-| `vcs_stash` | `vcs` · L / Host | ✅ | ✔ drop only |
+| `vcs_stash` | `vcs` · L / Host | ✅ | ✔ push + drop |
 | `vcs_branch_create` | `vcs` · L / Host | ✅ | – |
 | `vcs_switch` | `vcs` · L / Host | ✅ | – |
 

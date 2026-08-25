@@ -1891,11 +1891,52 @@ def coverage_problems(instruments) -> list[str]:
 # axes. The other four are reachable only through a probe that boots the editor under
 # Xvfb, so their self-test is the only place a late blind can be constructed at all.
 LATE_MARK = "LATE_BLIND_CALLS"
-LATE_HOOK = (
-    'if(!globalThis.__LBH){globalThis.__LBH=1;'
+
+# ── 🆕 282 — `js-late-register-in-body` (247), THIRTY-FIVE SESSIONS OPEN ─────────────
+#
+# 🔴 THE JAVASCRIPT HALF OF 247 §3's FIX, WHICH 247 WROTE DOWN AND DID NOT MAKE.
+# `PY_LATE_REGISTER` below already separates the two: the exit handler is a MODULE-LEVEL
+# statement, so it runs on import, and the body carries only the counter. `LATE_HOOK` did
+# both from inside the member — so a JavaScript target that LOADED PERFECTLY and simply
+# was never CALLED on that axis printed no marker line at all, and `not hook` filed it as
+# a mutant that never loaded. Two failures, one bucket, and only one of them is about the
+# instrument.
+#
+# 🔴 THE ROW SAT BECAUSE NO JS TARGET HAD EXPOSED IT YET, which is `LATE_NOT_LOADED`'s
+# ceiling of ZERO doing its job in the least useful way: it cannot go red until a target
+# is added that one axis does not call, and on the day it does the message will name the
+# wrong cause. 247 found it on the Python side the first time such a target was added
+# (`queue_gate.py`'s `{SIG:ages}`, `{SIG:render}`, `{SIG:_table}` — three mutants that had
+# loaded, run and behaved exactly as the table says they should). Waiting for the same
+# accident in the other language is waiting to be told a wrong answer.
+#
+# 🔵 THE REGISTRATION GOES AT THE TOP OF THE MODULE RATHER THAN ABOVE THE MEMBER, and the
+# difference from the Python port is a fact about the two languages: a Python `def` has a
+# column-zero line above it to sit on, while a JS member may be a nested object property
+# or an arrow inside an expression, with no statement position anywhere near it. The top
+# of the module is a statement position in every case and runs at import in every case,
+# which is the only property the registration needs. A shebang keeps its first line.
+JS_LATE_REGISTER = (
+    'if(!globalThis.__LBH){globalThis.__LBH=1;globalThis.__LB=0;'
     'process.on("exit",()=>{try{process.stdout.write("\\n%s "+(globalThis.__LB||0)+"\\n")}catch(e){}});}'
-    'globalThis.__LB=(globalThis.__LB||0)+1;' % LATE_MARK
+    '  // INSTRUMENT_GATE LATE' % LATE_MARK
 )
+LATE_HOOK = 'globalThis.__LB=(globalThis.__LB||0)+1;'
+
+
+def js_late_register(text: str) -> str:
+    """Put the module-level registration at the top, after any shebang.
+
+    🔴 NO HOOK LINE STILL MEANS NO MODULE, which is the property 247 §3 was protecting
+    and the reason this cannot simply be moved into the body's first call. A file that
+    fails to parse or throws at import never runs this line either, so the marker's
+    absence keeps meaning exactly what it meant.
+    """
+    if text.startswith("#!"):
+        nl = text.find("\n")
+        if nl >= 0:
+            return text[: nl + 1] + JS_LATE_REGISTER + "\n" + text[nl + 1 :]
+    return JS_LATE_REGISTER + "\n" + text
 
 # The LIVE caller for each instrument that has one that runs headless. The second element
 # overrides which FILE to blind: `path-cohort.mjs` imports `dist/`, while the unit-test
@@ -2309,10 +2350,12 @@ def late(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
         return py_late(text, sig, empty)
     brace = body_brace(text, sig)
     if brace is None:
-        return concise_blind(text, sig, empty, late_hook=True)
-    return (text[: brace + 1]
-            + f"\n    {LATE_HOOK} if(globalThis.__LB>1){{ {empty} }}  // INSTRUMENT_GATE LATE"
-            + text[brace + 1 :])
+        concise = concise_blind(text, sig, empty, late_hook=True)
+        return None if concise is None else js_late_register(concise)
+    return js_late_register(
+        text[: brace + 1]
+        + f"\n    {LATE_HOOK} if(globalThis.__LB>1){{ {empty} }}  // INSTRUMENT_GATE LATE"
+        + text[brace + 1 :])
 
 
 def late_marker(cmd, inst_name: str, axis: str) -> str:

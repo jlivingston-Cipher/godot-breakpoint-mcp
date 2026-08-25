@@ -532,7 +532,19 @@ def host_tool_blocks() -> "dict[str, str]":
 READINESS_KEYS = ("bridge_ready", "bridge_wait_ms", "bridge_note")
 
 #: The spawns that produce a long-lived Godot process.
-LAUNCH_CALLS = ("launchDetached(", "registry.run(")
+#
+# 🔴 282 — `launchDetached(` IS GONE AND THE FLOOR IS WHAT SAID SO. The helper was
+# replaced by `spawnGuarded(` (`host/src/spawn-guard.ts`) so a failure to START the
+# binary stops taking the server down, and the population behind check 30 fell from
+# 2 to 1 in the same edit — `SCOPE COLLAPSE xlang.game_launchers: 1 < floor 2`,
+# which is the exact sentence the floor's own reason predicts: *the finder going
+# quiet looks exactly like a tree with no launchers in it*. It was not a tree with
+# no launchers; it was a finder reading a spelling nobody uses any more.
+#
+# 🔵 AND THE DERIVED EXCLUSION SURVIVED THE RENAME UNTOUCHED. `godot_launch_editor`
+# spawns through the same new helper and still excludes itself by passing `-e`,
+# which is what a roster of names would not have done.
+LAUNCH_CALLS = ("spawnGuarded(", "registry.run(")
 
 #: The engine flag that makes a launch an EDITOR launch rather than a game launch.
 EDITOR_LAUNCH_FLAG = '"-e"'

@@ -99,7 +99,7 @@ const sc = (r: ToolResultLike) => r.structuredContent as Record<string, unknown>
 
 test("ProcessRegistry captures stdout and stderr separately and records the exit code", { skip: !POSIX }, async () => {
   const reg = new ProcessRegistry();
-  const m = reg.run(cfg(), ["3"]);
+  const m = await reg.run(cfg(), ["3"]);
   await waitFor(() => m.exited);
 
   const outs = m.lines.filter((l) => l.stream === "stdout").map((l) => l.text);
@@ -115,7 +115,7 @@ test("ProcessRegistry captures stdout and stderr separately and records the exit
 
 test("the capture ring buffer caps at 5000 lines, dropping the oldest", { skip: !POSIX }, async () => {
   const reg = new ProcessRegistry();
-  const m = reg.run(cfg(), ["5100"]); // 5100 stdout + 1 stderr = 5101 emitted
+  const m = await reg.run(cfg(), ["5100"]); // 5100 stdout + 1 stderr = 5101 emitted
   await waitFor(() => m.exited, 20000);
 
   assert.equal(m.lines.length, 5000, "ring buffer must cap at LINE_CAP");

@@ -17,6 +17,7 @@ import { applyWireDefaults } from "./wire-defaults.js";
 import { applyOutputSchemas } from "./schemas.js";
 import { applyAnnotations } from "./annotations.js";
 import { applyTimeoutCaveat } from "./timeout-caveat.js";
+import { applyDestructiveGate, applyPauseLatch } from "./mutation-guard.js";
 import { packageVersion } from "./version.js";
 import {
   applyCapabilities,
@@ -148,6 +149,19 @@ async function main(): Promise<void> {
     log(`ignoring unknown BREAKPOINT_PRIVILEGED_GROUPS token(s): ${unknown.join(", ")}`),
   );
   applyCapabilities(server, privilegedGroups);
+
+  // 🆕 282 — THE TWO MUTATION GUARDS, AND THEY GO LAST BECAUSE THE ORDER IS THE
+  // SEMANTIC. Each `apply*` makes itself the OUTERMOST registerTool wrapper, so
+  // the last one applied is the first one a call passes through. The pause latch
+  // must be outermost: while the operator has the agent paused, a destructive
+  // call should be HELD, not put to the user as a confirmation prompt they are
+  // not there to answer. `applyDestructiveGate` therefore precedes it.
+  //
+  // Both derive their populations from `annotationsFor`, so they must follow
+  // `applyAnnotations`; both wrap the HANDLER, so a tool dropped by
+  // `applyCapabilities` above is never wrapped at all.
+  applyDestructiveGate(server);
+  applyPauseLatch(server);
 
   // The A/B/C/D planes ARE the grouping. Build the ordered toolset registry
   // (the single source of truth, shared with the registration tests) and

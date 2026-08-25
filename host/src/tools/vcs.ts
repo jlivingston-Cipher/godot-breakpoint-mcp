@@ -471,7 +471,21 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
     },
   );
 
-  // ---- vcs_stash — push/pop/list ungated; drop GATED (destroys an entry) ----
+  // ---- vcs_stash — pop/list ungated; push and drop GATED ----
+  //
+  // 🔴 282 — `push` MOVED FROM UNGATED TO GATED, AND THE EVIDENCE IS THIS
+  // SESSION'S OWN WORKING TREE. The posture above read *push/pop/list ungated*
+  // on the argument that `push` is reversible with `pop`. It is — and reversible
+  // is not the predicate the shipped sentence makes: `docs/TOOL_CATALOG.md`
+  // promises *a destructive op is never executed silently*, and `git stash push`
+  // REVERTS EVERY UNCOMMITTED CHANGE IN THE WORKING TREE. A probe added earlier
+  // in this same session called it unattended against this repository and took a
+  // day of uncommitted work out of the tree; it was recovered only because
+  // somebody knew to look in `refs/stash`. An assistant doing that to a user's
+  // project is the exact event the sentence exists to prevent, and "you can get
+  // it back if you know the command" is not the same thing as not doing it.
+  //
+  // `pop` and `list` stay ungated: one RESTORES work and the other reads.
   server.registerTool(
     "vcs_stash",
     {
@@ -479,7 +493,8 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       description:
         "Manage stashes: op='push' saves and reverts your working changes (optional message); 'pop' " +
         "re-applies the latest stash; 'list' returns the stash entries; 'drop' deletes a stash entry. " +
-        "Only 'drop' is destructive and elicitation-gated (confirm:true bypasses); push/pop/list are not. " +
+        "'push' and 'drop' are destructive and elicitation-gated (confirm:true bypasses) — push reverts every " +
+        "uncommitted change in the working tree, and drop deletes an entry unrecoverably; pop and list are not gated. " +
         "op='push' ERRORS when nothing was stashed (no tracked file has uncommitted changes) rather than " +
         "reporting success — a success there would tell you work is parked when it is not. Untracked files " +
         "are never stashed.",
@@ -487,7 +502,7 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
         op: z.enum(["push", "pop", "list", "drop"]).describe("Stash operation"),
         message: z.string().optional().describe("Message for op='push'"),
         ref: z.string().optional().describe("Stash ref for op='drop'/'pop', e.g. stash@{1} (default latest)"),
-        confirm: z.boolean().optional().describe("Skip the confirmation prompt (op='drop')"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (op='push' / op='drop')"),
       },
     },
     async ({ op, message, ref, confirm }) => {
@@ -515,6 +530,12 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
         // switch or restore over it. Decide on refs/stash BEFORE vs AFTER rather than
         // on git's wording, which is not a stable interface across versions.
         // Note untracked-only trees stash NOTHING here (no -u) — measured.
+        const blocked = await gate(
+          server,
+          confirm,
+          `Stash and REVERT every uncommitted change in the working tree${message ? ` (message: ${message})` : ""}`,
+        );
+        if (blocked) return blocked;
         const before = await git(cfg, ["rev-parse", "--quiet", "--verify", "refs/stash"]);
         const r = await git(cfg, ["stash", "push", ...(message ? ["-m", message] : [])]);
         if (!r.ok) return gitFail(r);
