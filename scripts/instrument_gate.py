@@ -1040,7 +1040,6 @@ INSTRUMENTS = [
             # through `check`, the diff comes back unreadable, and `QUEUE_PATHS_UNREAD`
             # refuses — which is the reader's own stance proving itself under the blind.
             "{SIG:paths_join}": "return []",
-            "{SIG:session_diff}": "return None",
             # 🆕 247 §1 — THE THREE THE COVERAGE ROSTER ASKED FOR THE MOMENT IT COULD
             # READ PYTHON, and two of them are where this gate's premise is cashed.
             # `ages` derives the number `QUEUE.md` deleted the column for; `render`
@@ -1596,6 +1595,20 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     ("queue_gate.py", "repo_is_shallow"):
         "reads the state of the CHECKOUT, and CI's two callers are deliberately "
         "different depths — `git rev-parse --is-shallow-repository`.",
+    # 🆕 281 — `handoff_gate.py::previous_main`'s class, one instrument over, and it was
+    # SHIPPED AS A TARGET FIRST AND REFUSED BY THIS GATE ON CI. That refusal was correct
+    # and its sentence is the row: *'found nothing' and 'did not look' are the same
+    # observable*. On a shallow checkout they are — which is the whole reason
+    # `repo_is_shallow` exists — so a blind on the reader that produces the diff has
+    # nothing left to change there.
+    ("queue_gate.py", "session_diff"):
+        "reads the git object store and REDDENS on a full clone, which is exactly why it "
+        "may not be a target. Measured on both depths rather than assumed: blinded to "
+        "`None` on a deep tree the gate exits 1 with two `QUEUE_PATHS_UNREAD` refusals; "
+        "on a `--depth 1` clone of the same tree it exits 0, because there is no merge "
+        "base for the unblinded reader to have found either. `host tests` is the shallow "
+        "caller (via this file's own live axis) and `contract-check` is the deep one — "
+        "the reading is merge-blocking there.",
     ("mutation_lock_gate.py", "main"):
         "the invocation, not a reader — and in this file `main` is ALSO the live control "
         "runner, which is what the five rows below are about.",
