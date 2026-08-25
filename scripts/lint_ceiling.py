@@ -171,7 +171,13 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
         # and two TS2322, and three `/** @type {any} */` casts took BOTH of those classes
         # back to where they were. This one has no such cast — the binding TypeScript
         # cannot narrow through is `assert` itself — so it is recorded rather than hidden.
-        434,
+        # 🆕 282: raised by TWO, same idiom, same file. `vcs.integration.mjs` gained the
+        # live claim that an unconfirmed `vcs_stash op=push` is BLOCKED and that
+        # `refs/stash` does not move — two `assert` calls through the same un-annotated
+        # binding, at the same two-per-assertion tax. The class is a property of `checkJs`
+        # meeting `node:assert`, so a probe that asserts more pays more; recording it is
+        # the row's whole job.
+        436,
         "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "
