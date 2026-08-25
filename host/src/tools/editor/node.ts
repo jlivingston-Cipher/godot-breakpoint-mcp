@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { requiredEncodedValue } from "../../schemas.js";
+import { requiredEncodedValue, NAME_TAKEN_CLAUSE } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
 
@@ -14,7 +14,7 @@ export function registerNodeTools(server: McpServer, call: EditorCall, guard: Pa
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         type: z.string().describe("Node class to instance, e.g. Sprite2D, AudioStreamPlayer3D"),
-        name: z.string().optional().describe("Node name (defaults to the class name)"),
+        name: z.string().optional().describe("Node name (defaults to the class name)" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ parent_path, type, name }) => call("node.add", { parent_path, type, name }),
@@ -101,7 +101,7 @@ export function registerNodeTools(server: McpServer, call: EditorCall, guard: Pa
       description: "Duplicate a node and its children under the same parent (undoable). Returns the new node's path.",
       inputSchema: {
         path: z.string().describe("Node path relative to the scene root"),
-        name: z.string().optional().describe("Name for the duplicate (defaults to Godot's auto-numbered name)"),
+        name: z.string().optional().describe("Name for the duplicate (defaults to the source node's name)" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ path, name }) => call("node.duplicate", name !== undefined ? { path, name } : { path }),
@@ -183,7 +183,7 @@ export function registerNodeTools(server: McpServer, call: EditorCall, guard: Pa
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         scene_path: z.string().describe("Scene to instance, e.g. res://actors/enemy.tscn"),
-        name: z.string().optional().describe("Node name (defaults to the instanced scene's root name)"),
+        name: z.string().optional().describe("Node name (defaults to the instanced scene's root name)" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ parent_path, scene_path, name }) => {

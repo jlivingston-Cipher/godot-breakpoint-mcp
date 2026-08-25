@@ -8,6 +8,81 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 _Nothing yet._
 
+## [1.83.0] — 2026-08-25
+
+Found by installing the published 1.82.1 and following `docs/USER_GUIDE.md` against a live
+Godot 4.7 — the engine-backed half of the pass that produced 1.82.1's fixes from a
+container. Two of these are things the guide's own quick start does.
+
+### Changed — the names the engine gave back
+
+- **Every tool that adds a node asked Godot for a name and then let it be replaced without
+  saying so.** All 22 authoring tools — `node_add`, `node_duplicate`,
+  `node_instantiate_scene`, `body_create`, `light_create`, `camera_create`,
+  `collisionshape_add`, `particles_create`, the rest — called `add_child` with
+  `force_readable_name` at Godot's default of `false`, which reserves the machine form
+  `@Type@N` for **any** name collision. The guide's own §7 step 3, run twice, returned
+  `"SFX"` and then `"@AudioStreamPlayer3D@19825"` with no error and no flag — and a caller
+  that then addressed `SFX` got `bad_path`. `node_duplicate` had no non-colliding case at
+  all, because a duplicate always collides with its source: `@Label@19826` was that tool's
+  only behaviour, where the editor's own **Duplicate** gives `Label2`.
+- **They now ask for the readable name, the way the editor's own Add Node does.** A taken
+  name comes back as `SFX2`; the shipped promise that a name "defaults to the class name"
+  is true for the first time.
+- **And the rename is reported, because `SFX2` is still not what was asked for.** The
+  result carries `coerced: true` with `requested` beside it — the same two fields
+  `node_set_property` has answered with since 1.82.0, declared on all 22 output schemas so
+  it is machine-readable rather than prose. **This is the wire change that makes this
+  release a MINOR:** the returned `name` differs from 1.82.1 in the collision case, and
+  two optional fields are new.
+- **`vcs_stash op=push` and 23 destructive tools' `confirm` parameter** — carried from
+  1.82.1's merge, which moved the wire and was never cut.
+
+### Fixed — a port held by a stranger read as your game shutting down
+
+- **Four readers of one fact, and two of them were wrong.** With something other than
+  Breakpoint holding the runtime port, `doctor` said *"open, but no Breakpoint bridge
+  answered"* and `dbg_launch` refused with the conflict spelled out — while every
+  `runtime_*` call answered `bridge_closed`: *"the running game … closed the connection in
+  an orderly way rather than dropping it, which is what a shutdown looks like from here."*
+  There was no game of ours at all. Measured against a headless game leaked from a probe
+  run six days earlier that was still holding 9081.
+- **The host already held the answer and was discarding it.** A peer whose key is wrong
+  sends exactly one frame — `{"error": {"code": "unauthorized"}}` — and closes; `onMessage`
+  dropped it because it carries no request id. That frame now names the real remedy (the
+  stale secret, or another Godot), and it is the only signal allowed to overrule the close
+  cause, because a bridge that *is* ours also sends nothing when it is killed mid-request.
+- **A foreign listener that never speaks used to cost a full 15-second timeout and say
+  nothing about the port.** Past the deadline with no frame ever received, the error now
+  says the port is held by something else and how to find out what.
+- The error **codes** are unchanged — `bridge_closed` and `timeout` are branched on by
+  callers and tests. Only what a human reads has moved.
+
+### Fixed — two places the guide told you the wrong next step
+
+- **`doctor --require-live` ended by telling you to re-run with `--require-live`.** The
+  advice is about the invocation and was printed without ever asking what the invocation
+  was. Each row now declares which tier would clear it, so a still-informational row names
+  the level that actually promotes it — `--require-live=all` for the runtime bridge — and
+  says it needs the game running, not just the editor.
+- **§7's "what a fresh install cannot run" box was short by one.** It named `dbg_evaluate`,
+  `runtime_call_method` and `godot_run_headless_script`; step 5's `godot_run_managed` is
+  also in the `code-execution` group, so the quick start hit an unannounced wall. The box
+  now names all four, every privileged step is marked **(higher-trust)**, and step 5 says
+  plainly that `godot_run_project` beside it is not privileged and does work as written.
+
+### Added — two gates over populations that had none
+
+- **`contract_check` check 34** — `operations.gd` may register `add_child` into an undo
+  action in exactly one place, and that place must pass `force_readable_name`. A roster of
+  the 22 sites would have been the same defect again: nobody passed the flag because
+  nobody knew to, and a list of sites-to-fix is a list somebody has to keep true.
+- **`contract_check` check 31 now reads §7.** The check exists because 261 found recipes
+  naming tools a default install does not load, and its own header diagnoses the §7
+  warning box as where that started — *"written before the recipes existed, never joined
+  to them"* — and then joined §10/§11 and left §7 governed by nobody. It went stale again
+  on schedule. Same four directions, one more window.
+
 ## [1.82.1] — 2026-08-24
 
 ### Changed — six debugging surfaces now say what a real Godot build advertises

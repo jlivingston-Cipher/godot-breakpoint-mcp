@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall } from "./common.js";
+import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
 
 /** Physics & collision: bodies, shapes, areas, joints, rigidbody tuning, gravity. */
 export function registerPhysicsTools(server: McpServer, call: EditorCall): void {
@@ -15,7 +16,7 @@ export function registerPhysicsTools(server: McpServer, call: EditorCall): void 
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         type: z.enum(["static", "rigid", "character", "area"]).describe("Body kind: static | rigid | character | area"),
         dim: z.enum(["2d", "3d"]).optional().describe("Dimension: \"2d\" (default) or \"3d\""),
-        name: z.string().optional().describe("Node name (default the class name, e.g. \"StaticBody2D\")"),
+        name: z.string().optional().describe("Node name (default the class name, e.g. \"StaticBody2D\")" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ parent_path, type, dim, name }) => {
@@ -36,7 +37,7 @@ export function registerPhysicsTools(server: McpServer, call: EditorCall): void 
         parent_path: z.string().describe("Parent node path (usually a body) relative to the scene root; \".\" for the root"),
         shape: z.enum(["rect", "circle", "capsule", "polygon"]).describe("Shape kind: rect | circle | capsule | polygon"),
         dim: z.enum(["2d", "3d"]).optional().describe("Dimension: \"2d\" (default) or \"3d\""),
-        name: z.string().optional().describe("Node name (default \"CollisionShape2D\"/\"CollisionShape3D\")"),
+        name: z.string().optional().describe("Node name (default \"CollisionShape2D\"/\"CollisionShape3D\")" + NAME_TAKEN_CLAUSE),
         size: z.array(z.number()).optional().describe("rect: [w, h] (2D) or [w, h, d] (3D)"),
         radius: z.number().optional().describe("circle/capsule radius"),
         height: z.number().optional().describe("capsule height"),
@@ -137,7 +138,7 @@ export function registerPhysicsTools(server: McpServer, call: EditorCall): void 
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         type: z.enum(["pin", "groove", "spring", "hinge", "slider", "cone_twist", "generic6dof"]).describe("Joint kind; pin works in both dims, the rest are dim-specific"),
         dim: z.enum(["2d", "3d"]).optional().describe("Dimension: \"2d\" (default) or \"3d\""),
-        name: z.string().optional().describe("Node name (default the class name, e.g. \"PinJoint2D\")"),
+        name: z.string().optional().describe("Node name (default the class name, e.g. \"PinJoint2D\")" + NAME_TAKEN_CLAUSE),
         node_a: z.string().optional().describe("NodePath (relative to the joint) of the first body"),
         node_b: z.string().optional().describe("NodePath (relative to the joint) of the second body"),
       },
@@ -182,7 +183,7 @@ export function registerPhysicsTools(server: McpServer, call: EditorCall): void 
         parent_path: z.string().describe("Parent node path (usually a body) relative to the scene root; \".\" for the root"),
         points: z.array(z.array(z.number())).describe("Polygon outline points [[x, y], …] (≥3); a 2D outline even for 3D"),
         dim: z.enum(["2d", "3d"]).optional().describe("Dimension: \"2d\" (default) or \"3d\""),
-        name: z.string().optional().describe("Node name (default \"CollisionPolygon2D\"/\"CollisionPolygon3D\")"),
+        name: z.string().optional().describe("Node name (default \"CollisionPolygon2D\"/\"CollisionPolygon3D\")" + NAME_TAKEN_CLAUSE),
         build_mode: z.enum(["solids", "segments"]).optional().describe("2D only: solids (default) or segments"),
         depth: z.number().optional().describe("3D only: extrusion depth along Z (default 1.0)"),
       },

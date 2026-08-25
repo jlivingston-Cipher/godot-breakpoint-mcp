@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.82.1 · addon 1.12.0
+- **Version:** host 1.83.0 · addon 1.13.0
 - **License:** MIT
 - **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -597,7 +597,7 @@ addon enabled and the host registered (Sections 3–4).
 
 **5. Run the project and see it.**
 
-- `godot_run_project` (or `godot_run_managed` to also capture console output). Both wait until
+- `godot_run_project` (or `godot_run_managed` **(higher-trust)** to also capture console output). Both wait until
   the game's runtime bridge answers and report `bridge_ready`, so the next `runtime_*` call has
   something to reach; both refuse if the runtime bridge port is already held by another game —
   see Troubleshooting.
@@ -609,25 +609,28 @@ addon enabled and the host registered (Sections 3–4).
 - `dbg_set_breakpoints` `{ path: "res://player.gd", lines: [38] }`.
 - `dbg_launch` → the game starts under the debugger.
 - Trigger the code path, then `dbg_stack_trace` → `dbg_scopes` → `dbg_variables` to read
-  locals; `dbg_evaluate` to evaluate an expression (this one asks you to confirm first).
+  locals; `dbg_evaluate` **(higher-trust)** to evaluate an expression (this one asks you to confirm first).
 - `dbg_continue` to resume.
 
 **7. Drive the running game.**
 
 - `runtime_get_tree` → the live SceneTree.
 - `runtime_get_property` `{ path: ".", property: "counter" }` → read live state.
-- `runtime_call_method` `{ path: ".", method: "take_damage", args: [10] }` → invoke a
+- `runtime_call_method` **(higher-trust)** `{ path: ".", method: "take_damage", args: [10] }` → invoke a
   method (asks you to confirm first).
 - `runtime_get_monitors`, `runtime_screenshot` → observe performance and grab a frame.
 
 **8. Run tests headlessly.**
 
-- `godot_run_headless_script` on your test runner script → captured exit code and output.
+- `godot_run_headless_script` **(higher-trust)** on your test runner script → captured exit code and output.
 
-> **`dbg_evaluate`, `runtime_call_method` and `godot_run_headless_script` are not loaded on a
-> default install.** They belong to the `code-execution` capability group, which is OFF unless
-> you asked for it — so on the secure default these three steps are the ones a fresh setup
-> cannot run, and the server will say so by name. Turn the group on with
+> **`godot_run_managed`, `dbg_evaluate`, `runtime_call_method` and
+> `godot_run_headless_script` are not loaded on a default install** — every step above that
+> names one is marked **(higher-trust)**. They belong to the `code-execution` capability
+> group, which is OFF unless you asked for it, so on the secure default those are the steps a
+> fresh setup cannot run, and the server will say so by name rather than answering `not
+> found`. Step 5 still works as written on a default install: `godot_run_project` is not
+> privileged, and only the `godot_run_managed` variant beside it is. Turn the group on with
 > `breakpoint-mcp init --trust full`, or set `BREAKPOINT_PRIVILEGED_GROUPS=code-execution` in
 > the server's env, then restart the server. Read `godot://capabilities` for the full list of
 > what is withheld and why.

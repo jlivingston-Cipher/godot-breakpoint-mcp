@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
+import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
 
 /** UI / Control / theming. control_* + container_add_child mutate the EDITED scene and are undoable via EditorUndoRedoManager and ungated (the node_* model). theme_* author a Theme on disk via ResourceSaver, so — like resource_* — they are file-writers gated by confirmation. */
 export function registerUiTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -14,7 +15,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         type: z.string().describe("Control subclass to instance, e.g. Button, Label, Panel, VBoxContainer, TextureRect"),
-        name: z.string().optional().describe("Node name (defaults to the class name)"),
+        name: z.string().optional().describe("Node name (defaults to the class name)" + NAME_TAKEN_CLAUSE),
         text: z.string().optional().describe("Initial text; applied only if the control has a 'text' property"),
       },
     },
@@ -35,7 +36,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       inputSchema: {
         container_path: z.string().describe("Container node path relative to the scene root"),
         type: z.string().describe("Control subclass to instance as the container's child, e.g. Button, Label"),
-        name: z.string().optional().describe("Node name (defaults to the class name)"),
+        name: z.string().optional().describe("Node name (defaults to the class name)" + NAME_TAKEN_CLAUSE),
       },
     },
     async ({ container_path, type, name }) =>

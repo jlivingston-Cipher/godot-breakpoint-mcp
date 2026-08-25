@@ -315,8 +315,13 @@ CHECKS_EXPECTED = (
     # capability claim in this tree holds true on either side of. 🔴 AND NO ROUND
     # BRACKETS HERE EITHER — see the note above this tuple.
     "33",
+    # 🆕 283 — check 34, the node-naming seam. A member and not a roster gate: it asks
+    # whether the ONE place a node joins the edited scene still asks the engine for a
+    # readable name. The twenty-two tools it collapses were each defective for as long
+    # as they existed, and none of them had a list to fall off.
+    "34",
 )
-CHECKS_RUN_FLOOR = 30   # measured: thirty blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 31   # measured: thirty-one blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -965,6 +970,20 @@ def doc_recipe_count_claims() -> tuple[
     return exact, prose
 
 
+def capability_group_names() -> "list[str]":
+    """The capability group names, read out of `CAPABILITY_GROUPS` in capabilities.ts.
+
+    🔴 283 — READ, NOT TYPED. Check 31 classifies a User Guide blockquote as a
+    withholding DECLARATION by whether it talks about withholding, and the vocabulary
+    that means "withholding" here is the group roster itself. A group added tomorrow
+    joins this list by being declared, which is the property the §7 warning box
+    famously did not have.
+    """
+    text = CAPABILITIES.read_text()
+    m = re.search(r"export const CAPABILITY_GROUPS:[^=]*=\s*\[(.*?)\]", text, re.S)
+    return re.findall(r'"([a-z][a-z0-9-]*)"', m.group(1)) if m else []
+
+
 def privileged_tools() -> set[str]:
     """Tool names carrying a capability group in `capabilities.ts`
     `TOOL_CAPABILITIES` — i.e. the tools DROPPED at registration by default.
@@ -1016,32 +1035,76 @@ def guide_recipe_tools() -> "dict[str, dict]":
     known = set(registered_tools())
     families = {t.split("_")[0] for t in known}
     lines = guide.read_text().splitlines()
-    try:
-        start = next(i for i, l in enumerate(lines) if l.startswith("## 10. Typical workflows"))
-        end = next(i for i, l in enumerate(lines) if l.startswith("## 12. FAQ"))
-    except StopIteration:
+
+    def _window(head: str, tail: str) -> "tuple[int, int] | None":
+        try:
+            return (next(i for i, l in enumerate(lines) if l.startswith(head)),
+                    next(i for i, l in enumerate(lines) if l.startswith(tail)))
+        except StopIteration:
+            return None
+
+    # 🔴 283 — §7 WAS THE SECTION THIS CHECK WAS WRITTEN ABOUT AND THE ONE IT DID NOT
+    # READ. The header above diagnoses the §7 warning box by name — "written before the
+    # recipes existed, never joined to them, and therefore stale the day recipe C was
+    # added" — and then joined §10/§11 and left §7 governed by nobody. It went stale
+    # again on schedule: `godot_run_managed` is named by §7 step 5 and is in the
+    # `code-execution` group, and §7's box still named the same three tools it named at
+    # 248, so a reader following the quick start hit an unannounced wall at step 5.
+    # Measured at 283 against a live Godot 4.7 by running the section as written.
+    #
+    # 🔵 THE SAME FOUR DIRECTIONS OVER ONE MORE WINDOW, not a second check with its own
+    # opinion. §7's convention is already this one — a blockquote is the declaration,
+    # everything else is a step — so the join is a window, not a rule.
+    windows = [w for w in (_window("## 7. Quick start", "## 8. Tool reference"),
+                           _window("## 10. Typical workflows", "## 12. FAQ")) if w]
+    if not windows:
         return {}
+    # 🔴 283 — A BLOCKQUOTE IS NOT AUTOMATICALLY A WITHHOLDING DECLARATION, and §7 is
+    # where that stops being true. §10's only blockquote IS the higher-trust block, so
+    # "line starts with >" was a sufficient discriminator for as long as §10 was the
+    # whole population. §7 also carries a blockquote about tagging rich values, which
+    # names `node_set_property` and `runtime_set_property` — neither privileged — and
+    # reading it as a declaration accused the guide of withholding two tools nobody
+    # withholds. The declaring blockquote is the one that talks about WITHHOLDING, so
+    # the run is classified by its own subject rather than by its punctuation.
+    withhold_vocab = tuple(capability_group_names()) + ("--trust", "privileged", "not loaded")
+    declaring_line = [False] * len(lines)
+    i = 0
+    while i < len(lines):
+        if not lines[i].lstrip().startswith(">"):
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and lines[j].lstrip().startswith(">"):
+            j += 1
+        block = "\n".join(lines[i:j])
+        if any(v in block for v in withhold_vocab):
+            for k in range(i, j):
+                declaring_line[k] = True
+        i = j
+
     out: "dict[str, dict]" = {}
-    section = 10
-    for i in range(start, end):
-        line = lines[i]
-        if line.startswith("## 11."):
-            section = 11
-        declaring = line.lstrip().startswith(">")
-        marked = "(higher-trust)" in line
-        for tok in re.findall(r"`([^`]+)`", line):
-            if not re.fullmatch(r"[a-z][a-z0-9_]*_[a-z0-9_]+", tok):
-                continue
-            # An identifier shaped like a tool AND sharing a family with a real one.
-            # `viewport_not_active` and `exit_code` share a family with nothing, so an
-            # error code and a result field never enter the population.
-            if tok not in known and tok.split("_")[0] not in families:
-                continue
-            row = out.setdefault(tok, {"steps": [], "declared": False})
-            if declaring:
-                row["declared"] = True
-            else:
-                row["steps"].append((i + 1, section, marked))
+    for start, end in windows:
+        section = 7 if lines[start].startswith("## 7.") else 10
+        for i in range(start, end):
+            line = lines[i]
+            if line.startswith("## 11."):
+                section = 11
+            declaring = declaring_line[i]
+            marked = "(higher-trust)" in line
+            for tok in re.findall(r"`([^`]+)`", line):
+                if not re.fullmatch(r"[a-z][a-z0-9_]*_[a-z0-9_]+", tok):
+                    continue
+                # An identifier shaped like a tool AND sharing a family with a real one.
+                # `viewport_not_active` and `exit_code` share a family with nothing, so an
+                # error code and a result field never enter the population.
+                if tok not in known and tok.split("_")[0] not in families:
+                    continue
+                row = out.setdefault(tok, {"steps": [], "declared": False})
+                if declaring:
+                    row["declared"] = True
+                else:
+                    row["steps"].append((i + 1, section, marked))
     return out
 
 
@@ -5388,7 +5451,7 @@ for _tool, _row in sorted(_recipe_tools.items()):
     _recipe_steps_judged += len(_steps)
     if _tool not in _known_tools:
         errors.append(
-            f"check 31: docs/USER_GUIDE.md names `{_tool}` in a §10/§11 step "
+            f"check 31: docs/USER_GUIDE.md names `{_tool}` in a §7/§10/§11 step "
             f"(line{'s' if len(_steps) > 1 else ''} "
             f"{', '.join(str(n) for n, _s, _m in _steps) or '—'}) and no such tool is "
             f"registered. It shares a family with tools that are, so this is a rename or "
@@ -5417,7 +5480,7 @@ for _tool, _row in sorted(_recipe_tools.items()):
             )
     if _steps and not _row["declared"]:
         errors.append(
-            f"check 31: `{_tool}` is named by a §10/§11 step and is missing from the "
+            f"check 31: `{_tool}` is named by a §7/§10/§11 step and is missing from the "
             f"section's higher-trust declaration block. That block is the list a reader "
             f"acts on before starting, and a recipe naming a privileged tool the block "
             f"omits is 261's defect returning."
@@ -5426,13 +5489,13 @@ for _tool, _row in sorted(_recipe_tools.items()):
     if _row["declared"] and not _row["steps"]:
         errors.append(
             f"check 31: docs/USER_GUIDE.md's §10 higher-trust declaration names `{_tool}` "
-            f"and no step in §10 or §11 uses it. The declaration exists to warn about the "
+            f"and no step in §7, §10 or §11 uses it. The declaration exists to warn about the "
             f"steps below it; an entry with no step behind it is the list going stale in "
             f"the direction that still reads as maintained."
         )
 
 print(f"Guide recipes          : "
-      f"{len(_recipe_tools)} tool(s) named across §10/§11 · {_recipe_steps_judged} step "
+      f"{len(_recipe_tools)} tool(s) named across §7/§10/§11 · {_recipe_steps_judged} step "
       f"mention(s) judged · "
       f"{len([t for t in _recipe_tools if t in _priv_named])} higher-trust")
 _ran("31")
@@ -5726,6 +5789,51 @@ print(f"DAP capability ledger  : "
       f"{len(_dap_arms)} arm(s) read · {len(_dap_dead)} dead surface(s) · "
       f"{_dap_joins} join(s) compared · {len(_dap_problems)} problem(s)")
 _ran("33")
+
+# --- 34: THE ONE PLACE A NODE JOINS THE EDITED SCENE ------------------------
+#
+# 🔴 MEASURED AT 283 BY BEING THE USER, ON A LIVE GODOT 4.7. Every one of the twenty-two
+# authoring tools that creates a node called `add_child` with `force_readable_name` left
+# at Godot's default of false, so the engine answered ANY name collision with the machine
+# form `@Type@N`. `node_add {name: "SFX"}` twice returned "SFX" and then
+# "@AudioStreamPlayer3D@19825" — no error, no flag, and the caller's next call addressing
+# "SFX" got `bad_path`. `node_duplicate` had no non-colliding case at all: a duplicate
+# always collides with its source, so `@Label@19826` was that tool's ONLY behaviour.
+#
+# 🔴 A ROSTER OF THE TWENTY-TWO WOULD BE THE DEFECT AGAIN (282 §2.3). Nobody passed the
+# flag because nobody knew to, and a list of sites-to-fix is a list somebody has to keep
+# true. The population is instead collapsed to ONE: `_commit_add` is the only place this
+# file registers an `add_child` into an undo action, and a twenty-third authoring tool is
+# covered by using the seam rather than by being remembered.
+#
+# 🔵 AND THE FLAG IS ASSERTED, NOT JUST THE SINGULARITY. One site that passes nothing is
+# exactly the tree this check was written to refuse — it would simply have all
+# twenty-two defects behind one call instead of twenty-two.
+_OPS_GD = ROOT / "addons/breakpoint_mcp/operations.gd"
+_add_child_sites = re.findall(
+    r'^\s*ur\.add_do_method\([^,]+,\s*"add_child"(?P<rest>[^\n]*)$',
+    _OPS_GD.read_text(), re.M,
+)
+if len(_add_child_sites) != 1:
+    errors.append(
+        f"check 34: operations.gd registers `add_child` into an undo action at "
+        f"{len(_add_child_sites)} site(s); the seam `_commit_add` must be the only one. "
+        f"A second site is an authoring tool that does not get "
+        f"`force_readable_name`, which is 283 §1's defect returning: the engine renames "
+        f"the caller's node to `@Type@N` on any collision and nothing says so."
+    )
+elif "true" not in _add_child_sites[0]:
+    errors.append(
+        "check 34: operations.gd's single `add_child` registration does not pass "
+        "`force_readable_name = true`. Godot's default answers a name collision with the "
+        "machine form `@Type@N`; the editor's own Add Node passes true and answers "
+        "`SFX2`. One site with the flag missing is all twenty-two tools defective again."
+    )
+_commit_add_callers = len(re.findall(r"_commit_add\(", _OPS_GD.read_text())) - 1
+print(f"Node naming seam       : "
+      f"{len(_add_child_sites)} add_child registration(s) · "
+      f"{_commit_add_callers} authoring tool(s) through the seam · readable names asserted")
+_ran("34")
 
 
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------
@@ -6121,6 +6229,15 @@ _prose_masked = sum(prose_numerals_masked(p) for p in PROSE_NUMERAL_DOCS)
 
 SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     # (population, measured now, literal floor, what a collapse would mean)
+    # 🆕 283 — the withholding vocabulary check 31 classifies a User Guide blockquote by.
+    # A collapse here is silent in the direction that matters: with no group names, §7's
+    # rich-values blockquote stops being told from its higher-trust one, and the check
+    # goes back to accusing the guide of withholding tools nobody withholds — or, worse,
+    # reading a declaration as a step. The floor is 1 and not len(): a roster compared to
+    # itself is not a pin (280 §5).
+    ("capabilities.group_names", len(capability_group_names()), 1,
+     "check 31 loses the vocabulary that tells a withholding blockquote from any other, so "
+     "a guide section's declaration and its prose become the same thing to it"),
     ("gdscript.editor_methods", len(editor_methods), 120,
      "checks 1 & 2 stop comparing the host's bridge calls to any GDScript handler"),
     ("gdscript.runtime_methods", len(runtime_methods), 18,

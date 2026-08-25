@@ -20,7 +20,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.12.0"
+const ADDON_VERSION := "1.13.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081

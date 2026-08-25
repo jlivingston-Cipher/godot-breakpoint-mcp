@@ -495,6 +495,7 @@ test("the summary line does not contradict the glyphs above it", { skip: !POSIX 
     const mixed = summaryLine({
       ok: true,
       withheld: [],
+      liveLevel: "none",
       checks: [
         ...report.checks,
         { name: "addon-version", status: "fail", severity: "info", detail: "older than this host" },
@@ -506,9 +507,9 @@ test("the summary line does not contradict the glyphs above it", { skip: !POSIX 
     assert.notEqual(line, "All required checks passed.", "the sentence that was the whole defect");
 
     // A clean tree still gets the short sentence — and it is a DIFFERENT one.
-    assert.equal(summaryLine({ checks: report.checks.filter((c) => c.status !== "fail"), ok: true, withheld: [] }), "All checks passed.");
+    assert.equal(summaryLine({ checks: report.checks.filter((c) => c.status !== "fail"), ok: true, withheld: [], liveLevel: "none" }), "All checks passed.");
     // A required failure keeps its own wording, unchanged.
-    assert.match(summaryLine({ checks: report.checks, ok: false, withheld: [] }), /Some required checks failed/);
+    assert.match(summaryLine({ checks: report.checks, ok: false, withheld: [], liveLevel: "none" }), /Some required checks failed/);
   } finally {
     delete process.env.BREAKPOINT_ADDON_SRC;
     restoreEnv();

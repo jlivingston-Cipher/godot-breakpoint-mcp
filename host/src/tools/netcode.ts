@@ -4,6 +4,7 @@ import { BridgeClient, BridgeError, remedyClause } from "../bridge.js";
 import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
 import { readFileText, resolveExistingFile, resolveInsideProject } from "../paths.js";
+import { NAME_TAKEN_CLAUSE } from "../schemas.js";
 
 /**
  * Group M — Netcode & backend scaffolding (native multiplayer family, `mp_*`).
@@ -242,7 +243,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         "register the scenes it may spawn. Pure node authoring — no service is started.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default MultiplayerSpawner)"),
+        name: z.string().optional().describe("Node name (default MultiplayerSpawner)" + NAME_TAKEN_CLAUSE),
         spawn_path: z.string().optional().describe("NodePath (relative to the spawner) whose children are auto-replicated"),
         spawnable_scenes: z.array(z.string()).optional().describe("res:// scenes the spawner may instantiate (add_spawnable_scene)"),
       },
@@ -280,7 +281,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         "Pure node authoring — no service is started.",
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
-        name: z.string().optional().describe("Node name (default MultiplayerSynchronizer)"),
+        name: z.string().optional().describe("Node name (default MultiplayerSynchronizer)" + NAME_TAKEN_CLAUSE),
         root_path: z.string().optional().describe("NodePath the replicated property paths are relative to (default \"..\")"),
         properties: z.array(z.string()).optional().describe("Property NodePaths to replicate, e.g. [\".:position\", \".:rotation\"]"),
         replication_mode: z.enum(["always", "on_change", "never"]).optional().describe("Replication mode for the properties (default always)"),

@@ -84,6 +84,48 @@ const runtimeNode: z.ZodType = z.lazy(() =>
 );
 
 /**
+ * The one sentence every "add a node" tool appends to its `name` parameter — 283 §1.
+ *
+ * 🔴 ONE LITERAL, TWENTY-TWO READERS (203 §2). Before 283 a taken name was answered
+ * with `@Type@N` and nothing said so; now the engine appends a number the way the
+ * editor's own Add Node does, and the result reports the difference. A caller has to
+ * be told that BEFORE it picks a name, which is what a parameter description is for —
+ * and told it in one place, so twenty-two copies cannot drift apart.
+ *
+ * 🔴 AND KEPT SHORT, BECAUSE `token-cost.mjs` REFUSED THE FIRST DRAFT. Input schemas are
+ * what every client pays for on every `tools/list`, and the long version pushed the
+ * per-tool cost to 492 B against a 490 B ceiling — a real cost, correctly refused. The
+ * full explanation lives in TOOL_CATALOG's Conventions section, which nobody pays for
+ * per call; this is the pointer, not the essay.
+ */
+export const NAME_TAKEN_CLAUSE =
+  " A taken name gets a number appended (`SFX`->`SFX2`), reported as `coerced` + `requested`.";
+
+/**
+ * The naming envelope EVERY authoring tool that adds a node to the edited scene
+ * answers with — 283 §1.
+ *
+ * 🔴 `coerced`/`requested` are here because the ENGINE renames on a collision and
+ * used to say nothing. `add_child` at Godot's default of `force_readable_name:
+ * false` answers a collision with the machine form `@Type@N`; the addon now takes
+ * the readable path the editor's own Add Node takes, which answers "SFX2" — still
+ * not the "SFX" that was asked for, so the difference is REPORTED rather than left
+ * for a caller to notice by diffing. Deliberately the same two field names
+ * `node_set_property` has carried since 1.82.0: one convention for "the engine
+ * stored something other than what you asked for", not two.
+ *
+ * 🔵 SPREAD, NOT RESTATED. The twenty-two tools below share this shape by
+ * including it, so a twenty-third cannot be added with the naming half missing —
+ * the failure mode that put all twenty-two here in the first place.
+ */
+const addedNode = {
+  path: z.string(),
+  name: z.string(),
+  coerced: z.boolean().optional(),
+  requested: z.string().optional(),
+};
+
+/**
  * D1a — the engine-error echo, declared once and spread into the 22 runtime
  * tools whose `structuredContent` IS the bridge reply verbatim.
  *
@@ -224,7 +266,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     dependency_uids: z.array(z.string()),
   },
   scene_save_as: { saved_as: z.string() },
-  node_add: { path: z.string(), name: z.string(), type: z.string() },
+  node_add: { ...addedNode, type: z.string() },
   node_delete: { deleted: z.string() },
   node_rename: { path: z.string(), name: z.string() },
   node_reparent: { path: z.string() },
@@ -234,13 +276,13 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // wire can carry and the schema cannot name is a field a strict client rejects.
   node_set_property: { path: z.string(), property: z.string(), value: encodedValue, coerced: z.boolean().optional(), requested: encodedValue.optional() },
   node_get_property: { path: z.string(), property: z.string(), value: encodedValue },
-  node_duplicate: { path: z.string(), name: z.string(), type: z.string() },
+  node_duplicate: { ...addedNode, type: z.string() },
   node_get_children: { path: z.string(), children: z.array(z.object({ name: z.string(), type: z.string(), path: z.string() })) },
   node_find: { matches: z.array(z.object({ name: z.string(), type: z.string(), path: z.string() })), count: z.number() },
   node_list_groups: { path: z.string(), groups: z.array(z.string()) },
   node_add_to_group: { path: z.string(), group: z.string(), added: z.boolean() },
   node_remove_from_group: { path: z.string(), group: z.string(), removed: z.boolean() },
-  node_instantiate_scene: { path: z.string(), name: z.string(), type: z.string(), scene: z.string() },
+  node_instantiate_scene: { ...addedNode, type: z.string(), scene: z.string() },
   node_move_child: { path: z.string(), index: z.number() },
   node_change_type: { path: z.string(), name: z.string(), type: z.string(), old_type: z.string() },
   node_set_owner: { path: z.string(), owner: z.string().nullable() },
@@ -304,7 +346,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   filesystem_create_dir: { created: z.string(), existed: z.boolean() },
 
   // ---- Group C: animation (tools/editor.ts -> operations.gd _anim_*) ----
-  anim_player_create: { path: z.string(), name: z.string(), type: z.string() },
+  anim_player_create: { ...addedNode, type: z.string() },
   anim_create: { player: z.string(), library: z.string(), name: z.string() },
   anim_delete: { player: z.string(), library: z.string(), deleted: z.string() },
   anim_add_track: { track: z.number(), type: z.string(), path: z.string() },
@@ -314,7 +356,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   anim_set_loop: { mode: z.string(), previous: z.string() },
   anim_get_track_keys: { track: z.number(), type: z.string(), path: z.string(), keys: z.array(z.object({ index: z.number(), time: z.number(), value: encodedValue, transition: z.number() })) },
   anim_list: { player: z.string(), animations: z.array(z.object({ name: z.string(), library: z.string(), animation: z.string(), length: z.number(), loop_mode: z.string(), track_count: z.number() })) },
-  anim_tree_create: { path: z.string(), name: z.string(), type: z.string(), root_type: z.string(), anim_player: z.string(), active: z.boolean() },
+  anim_tree_create: { ...addedNode, type: z.string(), root_type: z.string(), anim_player: z.string(), active: z.boolean() },
   anim_tree_add_node: { tree: z.string(), node_name: z.string(), node_type: z.string(), position: z.array(z.number()) },
   anim_statemachine_add_state: { tree: z.string(), state_machine: z.string(), state_name: z.string(), node_type: z.string(), animation: z.string(), position: z.array(z.number()) },
   anim_statemachine_add_transition: { tree: z.string(), state_machine: z.string(), from_state: z.string(), to_state: z.string(), xfade_time: z.number(), switch_mode: z.string(), advance_mode: z.string(), transition_count: z.number() },
@@ -326,30 +368,30 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   tileset_set_tile_collision: { tileset: z.string(), source_id: z.number(), atlas_coords: z.array(z.number()), physics_layer: z.number(), polygon_index: z.number(), points: z.number(), one_way: z.boolean() },
 
   // ---- Group D batch 2: TileMapLayer + cell painting (tools/editor.ts -> operations.gd _tilemap*) ----
-  tilemaplayer_create: { path: z.string(), name: z.string(), type: z.string(), tile_set: z.string() },
+  tilemaplayer_create: { ...addedNode, type: z.string(), tile_set: z.string() },
   tilemap_set_cell: { path: z.string(), coords: z.array(z.number()), source_id: z.number(), atlas_coords: z.array(z.number()), alternative: z.number(), erased: z.boolean() },
   tilemap_set_cells_rect: { path: z.string(), rect: z.array(z.number()), cells: z.number(), source_id: z.number(), atlas_coords: z.array(z.number()), alternative: z.number(), erased: z.boolean() },
   tilemap_get_cell: { path: z.string(), coords: z.array(z.number()), source_id: z.number(), atlas_coords: z.array(z.number()), alternative: z.number(), empty: z.boolean() },
   tilemap_clear: { path: z.string(), cleared_cells: z.number() },
 
   // ---- Group E: Physics & collision (tools/editor.ts -> operations.gd _body_*/_collisionshape_add) ----
-  body_create: { path: z.string(), name: z.string(), type: z.string(), body: z.string(), dim: z.string() },
-  collisionshape_add: { path: z.string(), name: z.string(), type: z.string(), shape: z.string(), shape_class: z.string(), dim: z.string() },
+  body_create: { ...addedNode, type: z.string(), body: z.string(), dim: z.string() },
+  collisionshape_add: { ...addedNode, type: z.string(), shape: z.string(), shape_class: z.string(), dim: z.string() },
   body_set_collision_layer: { path: z.string(), collision_layer: z.number() },
   body_set_collision_mask: { path: z.string(), collision_mask: z.number() },
 
   // ---- Group E batch 2: areas, joints, collision polygons, rigidbody tuning, physics material, project gravity ----
   area_set_monitoring: { path: z.string(), monitoring: z.boolean(), monitorable: z.boolean() },
   area_set_gravity: { path: z.string(), space_override: z.string(), gravity: z.number(), direction: z.array(z.number()), gravity_point: z.boolean(), dim: z.string() },
-  joint_create: { path: z.string(), name: z.string(), type: z.string(), joint: z.string(), dim: z.string(), node_a: z.string(), node_b: z.string() },
+  joint_create: { ...addedNode, type: z.string(), joint: z.string(), dim: z.string(), node_a: z.string(), node_b: z.string() },
   joint_set_bodies: { path: z.string(), node_a: z.string(), node_b: z.string() },
-  collisionpolygon_add: { path: z.string(), name: z.string(), type: z.string(), dim: z.string(), points: z.number() },
+  collisionpolygon_add: { ...addedNode, type: z.string(), dim: z.string(), points: z.number() },
   rigidbody_set_properties: { path: z.string(), mass: z.number(), gravity_scale: z.number(), linear_damp: z.number(), angular_damp: z.number() },
   body_set_physics_material: { path: z.string(), friction: z.number(), bounce: z.number(), rough: z.boolean(), absorbent: z.boolean() },
   physics_set_gravity: { dim: z.string(), magnitude: z.number(), direction: z.array(z.number()), saved: z.boolean() },
 
   // ---- Group F batch 1: VFX particles (tools/editor.ts -> operations.gd _particles_*) ----
-  particles_create: { path: z.string(), name: z.string(), type: z.string(), dim: z.string(), amount: z.number(), lifetime: z.number(), emitting: z.boolean() },
+  particles_create: { ...addedNode, type: z.string(), dim: z.string(), amount: z.number(), lifetime: z.number(), emitting: z.boolean() },
   particles_set_process_material: { path: z.string(), gravity: z.array(z.number()), direction: z.array(z.number()), spread: z.number(), initial_velocity_min: z.number(), initial_velocity_max: z.number(), scale_min: z.number(), scale_max: z.number(), color: z.array(z.number()) },
   particles_set_amount: { path: z.string(), amount: z.number() },
   particles_set_lifetime: { path: z.string(), lifetime: z.number() },
@@ -363,7 +405,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   shadermaterial_set_shader: { path: z.string(), shader_path: z.string() },
   shadermaterial_set_param: { path: z.string(), param: z.string(), value: encodedValue },
   // ---- Group F batch 3: audio (tools/editor.ts -> operations.gd _audio_*) ----
-  audio_player_create: { path: z.string(), name: z.string(), type: z.string(), dim: z.string(), autoplay: z.boolean(), volume_db: z.number(), bus: z.string(), stream_path: z.string() },
+  audio_player_create: { ...addedNode, type: z.string(), dim: z.string(), autoplay: z.boolean(), volume_db: z.number(), bus: z.string(), stream_path: z.string() },
   audio_set_stream: { path: z.string(), stream_path: z.string() },
   audio_bus_add: { index: z.number(), name: z.string(), send: z.string(), count: z.number() },
   audio_bus_add_effect: { bus: z.string(), bus_index: z.number(), effect: z.string(), effect_count: z.number() },
@@ -371,8 +413,8 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   audio_set_bus_layout: { saved: z.string(), bus_count: z.number() },
 
   // ---- Group G: UI / Control / theming (tools/editor.ts -> operations.gd _control_* / _container_* / _theme_*) ----
-  control_create: { path: z.string(), name: z.string(), type: z.string() },
-  container_add_child: { path: z.string(), name: z.string(), type: z.string(), container: z.string() },
+  control_create: { ...addedNode, type: z.string() },
+  container_add_child: { ...addedNode, type: z.string(), container: z.string() },
   control_set_anchors: {
     path: z.string(),
     anchors: z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() }),
@@ -387,16 +429,15 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   theme_set_constant: { path: z.string(), name: z.string(), theme_type: z.string(), value: z.number() },
 
   // ---- Group H: 3D & navigation (tools/editor.ts -> operations.gd _meshinstance_* / _mesh_* / _primitive_mesh_* / _light_* / _camera_* / _csg_* / _navregion_* / _navagent_* / _environment_*) ----
-  meshinstance_create: { path: z.string(), name: z.string(), type: z.string(), mesh_path: z.string() },
+  meshinstance_create: { ...addedNode, type: z.string(), mesh_path: z.string() },
   mesh_set_surface_material: { path: z.string(), material_path: z.string(), surface: z.number() },
   primitive_mesh_create: { created: z.string(), type: z.string(), shape: z.string() },
-  light_create: { path: z.string(), name: z.string(), type: z.string(), kind: z.string() },
-  camera_create: { path: z.string(), name: z.string(), type: z.string(), current: z.boolean() },
-  csg_create: { path: z.string(), name: z.string(), type: z.string(), shape: z.string() },
-  navregion_create: { path: z.string(), name: z.string(), type: z.string(), has_navmesh: z.boolean() },
+  light_create: { ...addedNode, type: z.string(), kind: z.string() },
+  camera_create: { ...addedNode, type: z.string(), current: z.boolean() },
+  csg_create: { ...addedNode, type: z.string(), shape: z.string() },
+  navregion_create: { ...addedNode, type: z.string(), has_navmesh: z.boolean() },
   navagent_configure: {
-    path: z.string(),
-    name: z.string(),
+    ...addedNode,
     type: z.string(),
     config: z.object({
       radius: z.number(),
@@ -900,8 +941,8 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
 
   // ---- Group M: netcode & backend scaffolding (tools/netcode.ts) ----
   // Node authoring (undoable, over the editor bridge).
-  mp_add_spawner: { path: z.string(), name: z.string(), type: z.string(), spawn_path: z.string(), spawnable_scenes: z.array(z.string()) },
-  mp_add_synchronizer: { path: z.string(), name: z.string(), type: z.string(), root_path: z.string(), properties: z.array(z.string()) },
+  mp_add_spawner: { ...addedNode, type: z.string(), spawn_path: z.string(), spawnable_scenes: z.array(z.string()) },
+  mp_add_synchronizer: { ...addedNode, type: z.string(), root_path: z.string(), properties: z.array(z.string()) },
   mp_set_authority: { path: z.string(), peer_id: z.number(), previous: z.number(), recursive: z.boolean() },
   // The four codegen tools share one envelope validating both the "written" and
   // "unsupported" (webrtc feature-detect) outcomes — path nullable, tool-specific

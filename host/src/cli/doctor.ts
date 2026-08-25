@@ -95,6 +95,17 @@ export interface Check {
    * population, and let each member declare which explanation is its own.
    */
   liveness?: boolean;
+  /**
+   * 🆕 283 — which of the two things that bring bridges up would clear this row.
+   *
+   * The summary used to end every liveness sentence with *re-run with
+   * --require-live*, which is advice about the INVOCATION and was printed without
+   * ever asking what the invocation was. Run WITH the flag and it told you to use
+   * the flag you had just used. The level that would promote a row is derivable
+   * from the row's own tier, so the row carries it and the sentence reads it —
+   * `liveness`'s own comment, one axis over.
+   */
+  tier?: BridgeTier;
 }
 
 export interface DoctorReport {
@@ -110,6 +121,11 @@ export interface DoctorReport {
   ok: boolean;
   /** Checks that were never run because a check gating them did not pass. */
   withheld: string[];
+  /**
+   * 🆕 283 — what THIS run was asked to require. Carried so the summary can stop
+   * giving advice about a flag without knowing whether the flag was given.
+   */
+  liveLevel: LiveLevel;
 }
 
 /**
@@ -619,6 +635,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
           status: "fail",
           severity,
           liveness,
+          tier: b.tier,
           detail: `${b.host}:${b.port} unreachable`,
           hint: b.hint,
         };
@@ -638,6 +655,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
             status: "fail",
             severity,
             liveness,
+            tier: b.tier,
             detail: `${b.host}:${b.port} open, but no Breakpoint bridge answered`,
             hint: "Something holds that port without speaking the bridge protocol, or the shared secret is stale. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the editor to remint it.",
           };
@@ -648,6 +666,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
         status: "ok",
         severity,
         liveness,
+        tier: b.tier,
         detail: `${b.host}:${b.port} reachable${b.secretEnv ? " · bridge answered" : ""}`,
       };
     }),
@@ -670,7 +689,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
 
   const withheld = withheldChecks(checks);
   const ok = checks.every((c) => c.severity !== "required" || c.status !== "fail") && withheld.length === 0;
-  return { checks, ok, withheld };
+  return { checks, ok, withheld, liveLevel: opts.liveLevel };
 }
 
 /**
@@ -722,9 +741,30 @@ export function summaryLine(report: DoctorReport): string {
   // those about the whole set is how the line contradicted the glyphs the first time.
   const parts = [head];
   if (live.length) {
+    // 🔴 283 §4 — THE ADVICE IS ABOUT THE INVOCATION, SO IT HAS TO READ THE
+    // INVOCATION. This sentence ended in *re-run with --require-live* no matter how
+    // the command was run, so `doctor --require-live` answered a user who had just
+    // passed the flag by telling them to pass the flag. What actually promotes a
+    // still-informational row is the level covering its OWN tier, which the row now
+    // declares — so the remedy is derived per run instead of asserted once.
+    const names = live.map((c) => c.name).join(", ");
+    const isAre = live.length === 1 ? "is" : "are";
+    const needed = [...new Set(live.map((c) => c.tier).filter((t): t is BridgeTier => t !== undefined))];
+    const flag =
+      needed.length === 0
+        ? "--require-live"
+        : needed.length === 1 && needed[0] !== "editor"
+          ? `--require-live=${needed[0]}`
+          : needed.length > 1
+            ? "--require-live=all"
+            : "--require-live";
     parts.push(
-      `${live.map((c) => c.name).join(", ")} ${live.length === 1 ? "is" : "are"} expected when the editor ` +
-        `or the game is not running; re-run with --require-live once the project is open in Godot.`,
+      report.liveLevel === "none"
+        ? `${names} ${isAre} expected when the editor or the game is not running; re-run with ${flag} once the project is open in Godot.`
+        : `${names} ${isAre} still informational because \`--require-live=${report.liveLevel}\` does not cover ` +
+          `${needed.length === 1 ? `the ${needed[0]} tier` : "their tier"}; \`${flag}\` is the level that requires ` +
+          `${live.length === 1 ? "it" : "them"}, and ${live.length === 1 ? "it needs" : "they need"} the matching ` +
+          `${needed.includes("runtime") ? "game" : "editor"} to be running.`,
     );
   }
   if (standing.length) {

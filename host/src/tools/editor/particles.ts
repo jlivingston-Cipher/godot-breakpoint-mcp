@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { EditorCall, PathGuard } from "./common.js";
+import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
 
 /** GPUParticles authoring (process material, amount, lifetime, texture). */
 export function registerParticleTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -13,7 +14,7 @@ export function registerParticleTools(server: McpServer, call: EditorCall, guard
       inputSchema: {
         parent_path: z.string().describe("Parent node path relative to the scene root; \".\" for the root"),
         dim: z.enum(["2d", "3d"]).optional().describe("Dimension: \"2d\" (default, GPUParticles2D) or \"3d\" (GPUParticles3D)"),
-        name: z.string().optional().describe("Node name (default \"GPUParticles2D\"/\"GPUParticles3D\")"),
+        name: z.string().optional().describe("Node name (default \"GPUParticles2D\"/\"GPUParticles3D\")" + NAME_TAKEN_CLAUSE),
         amount: z.number().optional().describe("Number of particles (> 0, default 8)"),
         lifetime: z.number().optional().describe("Particle lifetime in seconds (> 0, default 1)"),
         emitting: z.boolean().optional().describe("Whether the system is emitting (default true)"),

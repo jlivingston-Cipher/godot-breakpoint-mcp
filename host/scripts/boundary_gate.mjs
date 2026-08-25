@@ -174,6 +174,35 @@ function bodies(lines) {
 const OK_DICT = { one: /_ok\(\{(.*)\}\)/, open: /_ok\(\{\s*$/, close: /^\s*\}\)/ };
 const PLAIN_DICT = { one: /^\s*return \{(.*)\}\s*$/, open: /^\s*return \{\s*$/, close: /^\s*\}\s*$/ };
 
+/**
+ * 🆕 283 — THE THIRD REPLY SPELLING, AND THIS GATE CAUGHT ITS OWN BLINDNESS TO IT.
+ *
+ * 🔴 THE CONSTS FLOOR REFUSED THIS SESSION AND BLAMED THE ADDON. It was wrong about
+ * which side had gone quiet: 283 collapsed twenty-two authoring handlers onto one seam, so each now
+ * reads `var added := _commit_add(…)` / `added["type"] = "AnimationPlayer"` /
+ * `return _ok(added)` — the same hard-wired fields, assembled instead of written inline.
+ * The `_ok({…})` reader saw an unreadable return, called the whole operation `opaque`,
+ * and the population fell by twenty-two. The floor's own reason predicted the shape
+ * exactly: a finder going quiet looks identical to a tree with nothing in it.
+ *
+ * 🔵 AND ONLY THE ASSIGNMENTS AT THE FUNCTION'S OWN INDENT COUNT, which is what keeps
+ * "literal on EVERY return path" honest. A key set inside an `if` is a key that some
+ * paths do not carry, and 178's rule is that absence is not sameness — so a nested
+ * assignment is deliberately NOT read here, and its operation keeps whatever the other
+ * spellings can prove about it.
+ */
+function assembledDict(body) {
+  const ret = body.find((l) => /^\treturn _ok\((\w+)\)$/.test(l));
+  if (!ret) return [];
+  const name = ret.match(/^\treturn _ok\((\w+)\)$/)[1];
+  const pairs = [];
+  for (const l of body) {
+    const m = l.match(new RegExp('^\\t' + name + '\\["(\\w+)"\\] = (.*)$'));
+    if (m) pairs.push({ key: m[1], val: m[2].trim() });
+  }
+  return pairs.length ? [pairs] : [];
+}
+
 /** Read every dict of one spelling out of a function body. */
 function dictsIn(body, spell) {
   const out = [];
@@ -232,6 +261,10 @@ export function hardwired(gdText) {
     // A dispatcher arm may name the builder itself (`"ping": return _ok(_ping())`), in
     // which case the builder's own plain returns ARE the operation's replies.
     if (!rets.length && targets.has(fn)) rets.push(...dictsIn(lns, PLAIN_DICT));
+    // 283's seam spelling — see assembledDict. Added before the opacity test, because
+    // these returns ARE readable and calling them opaque is what emptied the population.
+    const assembled = assembledDict(lns);
+    rets.push(...assembled);
     // 🔴 HOW MANY REPLY RETURNS COULD NOT BE READ. `_asset_gen_placeholder` has three
     // `return _ok(descN)` paths and none of them is a dict this reader can see. "Literal
     // on EVERY path" is unanswerable when a path is invisible, so the operation yields
@@ -239,6 +272,7 @@ export function hardwired(gdText) {
     // and printed, because an under-reach that states its own size is not silence.
     const okReturns = lns.filter((l) => /return _ok\(/.test(l)).length;
     const readable = dictsIn(lns, OK_DICT).length
+      + assembled.length
       + lns.filter((l) => /return _ok\(_\w+\(/.test(l))
            .filter((l) => dictsIn(body.get(l.match(/return _ok\((_\w+)\(/)[1]) ?? [], PLAIN_DICT).length > 0).length;
     if (okReturns > 0 && readable < okReturns) { opaque.push(fn); continue; }
