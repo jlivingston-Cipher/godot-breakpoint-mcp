@@ -1586,6 +1586,16 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     ("queue_gate.py", "selftest"):
         "the second half of the invocation — see p0_comments.py::_selftest. Blinded, the "
         "A:gate command prints no `QUEUE_SELFTEST` line at all.",
+    # 🆕 281 — MEASURED, AND THE MEASUREMENT IS WHY IT CANNOT BE A TARGET. Its subject is
+    # THE CHECKOUT, and the two checkouts this gate runs on disagree on purpose: deep in
+    # `contract-check`, `--depth 1` in `host tests`. Blinded to False it changes nothing
+    # on a deep tree (the answer it returns anyway) and on a shallow one it reddens for a
+    # reason that is a fact about the runner, so the target would be a claim about which
+    # machine swept it — 277's whole finding, and the class this file's own
+    # object-store rows are exempted under one instrument over.
+    ("queue_gate.py", "repo_is_shallow"):
+        "reads the state of the CHECKOUT, and CI's two callers are deliberately "
+        "different depths — `git rev-parse --is-shallow-repository`.",
     ("mutation_lock_gate.py", "main"):
         "the invocation, not a reader — and in this file `main` is ALSO the live control "
         "runner, which is what the five rows below are about.",

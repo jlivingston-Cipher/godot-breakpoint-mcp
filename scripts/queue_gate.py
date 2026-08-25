@@ -434,9 +434,10 @@ def paths_join(rows: "list[Row]", head: int,
         return []
     if changed is None:
         return [f"🔴 QUEUE_PATHS_UNREAD {len(closing)} row(s) close at {head} and the "
-                f"diff that closes them could not be read. Green over an unread "
-                f"comparison is the defect this gate exists to refuse — run where "
-                f"`origin/main` and the merge base are present"]
+                f"diff that closes them could not be read on a tree that HAS its "
+                f"history. Green over an unread comparison is the defect this gate "
+                f"exists to refuse — run where `origin/main` and the merge base are "
+                f"present"]
     out = []
     for r in closing:
         declared = [p.strip() for p in r.paths.split(";") if p.strip()]
@@ -452,6 +453,32 @@ def paths_join(rows: "list[Row]", head: int,
             f"closed it, that is `KILLED` with the reason — `DONE` claims the work in the "
             f"title happened")
     return out
+
+
+def repo_is_shallow(root: Path = ROOT) -> bool:
+    """Is this checkout truncated? — `git rev-parse --is-shallow-repository`.
+
+    🔴 THIS IS A MEASUREMENT, NOT AN EXCUSE, AND THE DIFFERENCE IS THE WHOLE ROW.
+    An unreadable diff on a tree that HAS its history is a defect and refuses. An
+    unreadable diff on a tree that was checked out `--depth 1` is a question this machine
+    was never given the material to answer, and the answer *no history here* is a fact
+    about the checkout rather than about the queue.
+
+    🔴 IT COST A RED CI RUN TO LEARN WHERE THE SECOND CALLER WAS. `GATE_INPUTS` declares
+    that `python3 queue_gate.py` needs `objects`, and its supply-side reader derives the
+    answer from each workflow JOB's own text — so it saw `contract-check`, which runs the
+    command as a step and carries `fetch-depth: 0`, and could not see `host tests`, which
+    runs it as `instrument_gate.py`'s live axis on a shallow checkout. **A command
+    invoked BY ANOTHER GATE is not in the population of commands a workflow step names.**
+    The reading is still enforced: it happens in the deep job, and the shallow one says
+    out loud that it did not take it.
+    """
+    try:
+        p = subprocess.run(("git", "rev-parse", "--is-shallow-repository"),
+                           cwd=str(root), capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return p.returncode == 0 and p.stdout.strip() == "true"
 
 
 def session_diff(root: Path = ROOT) -> "set[str] | None":
@@ -619,7 +646,16 @@ def check(text: str, tracked: "set[str] | None" = None,
         changed = (session_diff()
                    if any(r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
                           and r.paths != NONE for r in rows) else set())
-    problems += paths_join(rows, head, changed)
+        # 🆕 281 — A TRUNCATED CHECKOUT IS NOT A FAILED READING, and the difference is
+        # measured rather than declared. See `repo_is_shallow` for what this cost.
+        if changed is None and repo_is_shallow():
+            notes.append("QUEUE_PATHS_JOIN not taken — this checkout is `--depth 1`, so "
+                         "there is no merge base to diff against. The reading is "
+                         "merge-blocking in the job that supplies `objects`; this one "
+                         "says so instead of passing quietly")
+            changed = _UNSET
+    if changed is not _UNSET:
+        problems += paths_join(rows, head, changed)
 
     # ── QUEUE_AGE_CEILING — the loop-breaker's first half ─────────────────────────────
     for r in rows:
@@ -1422,6 +1458,18 @@ def selftest() -> int:
     claim("PATHS_JOIN_UNREAD_REFUSES",
           any("QUEUE_PATHS_UNREAD" in x for x in paths_join(_PJ, 281, None)),
           "a diff git could not produce was treated as a clean comparison")
+    # 🔴 AND THE DISTINCTION A RED CI RUN BOUGHT IS A SHAPE CLAIM, NOT A TREE CLAIM.
+    # `repo_is_shallow` answers about THIS checkout, and the checkouts this self-test
+    # runs on disagree ON PURPOSE — deep on his Mac and in `contract-check`, `--depth 1`
+    # in `host tests`. A claim asserting either answer would be a claim about which
+    # machine ran it, which is the whole class 277 named. What IS assertable everywhere
+    # is that the reader returns a decided boolean rather than a truthy string: the
+    # command prints the WORD `false` on a deep tree, and `bool("false")` is True.
+    claim("PATHS_JOIN_SHALLOW_IS_A_BOOL",
+          repo_is_shallow(ROOT) in (True, False),
+          "repo_is_shallow returned something other than a bool — `git rev-parse "
+          "--is-shallow-repository` prints the word `false`, and a reader that hands "
+          "that back raw excuses every deep tree it is asked about")
     claim("PATHS_JOIN_EMPTY_POPULATION",
           not paths_join(_mk("| open | OPEN | internal | scripts/a.py | 270 | — | — "
                              "| t | w |\n"), 281, None),
