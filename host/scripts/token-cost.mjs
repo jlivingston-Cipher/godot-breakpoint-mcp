@@ -169,7 +169,21 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // competitive claim may honestly quote — moved 468 -> 479 against its own ceiling of 490,
 // which it is still under. Set at the live value exactly, on 267's rule that a ceiling
 // with slack in it is a budget the next session spends without deciding to.
-export const BYTES_CEILING = 370753;
+//
+// 🆕 283 — RAISED AGAIN, AND THIS CEILING ASKED FOR THE NOTE IN ITS OWN REFUSAL TEXT.
+// What bought the growth: `coerced`/`requested` on the 23 tools that add a node, plus one
+// shared sentence on each of their `name` parameters. Both halves are the feature, not
+// packaging — the output fields are the machine-readable channel for *the engine named
+// your node something else*, and the input sentence is the only warning a caller gets
+// BEFORE it picks a name it cannot keep. Measured 370,730 -> 374,208 B, or 0.94%.
+//
+// 🔴 AND THE FIRST DRAFT WAS REFUSED BY THE OTHER CEILING FIRST, WHICH IS THE ONE THAT
+// MATTERS. The long form of that sentence put schema-per-tool at 492 B against 490 — the
+// single number a competitive claim may honestly quote. It was cut to a pointer and the
+// essay moved to TOOL_CATALOG's Conventions section, which nobody pays for per call:
+// 486 B, back under. A ceiling that refuses prose before it refuses a feature is the
+// ceiling working.
+export const BYTES_CEILING = 374208;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

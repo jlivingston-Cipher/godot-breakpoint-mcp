@@ -344,7 +344,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # surface down rather than the other way round. `TOOL_FLOOR` is the usual collapse
     # guard — a reader listing zero tools would otherwise report a wonderfully small
     # surface and pass.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )370753;",                  [f"{S}/token-cost.selftest.mjs"]),
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )374208;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
@@ -1216,7 +1216,7 @@ USE_RAISE = "999999"
 # `TARGETS` for a reason no file gave. A rule visible only as an absence is a rule the
 # next reader re-derives, and re-derivation is where it stops being the same rule.
 SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
-    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (30, (
+    ("../scripts/contract_check.py", "CHECKS_RUN_FLOOR"): (31, (
         "`{FLOOR}` blocks reach their own end on a healthy tree. Moves only when a check "
         "is ADDED or REMOVED, which is the datum 196 §2 named and every session since "
         "has failed to obtain. 🆕 RAISED BY ONE THIS SESSION, AND THIS IS THAT DATUM "
@@ -1259,7 +1259,15 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "check that quietly went missing: check thirty-three closes "
         "`dap-capability-dead-surface`, opened at 276 — what a REAL Godot debug "
         "adapter advertised, which is the one question every other capability claim "
-        "in this tree holds true on either side of")),
+        "in this tree holds true on either side of. "
+        "🆕 283 — RAISED BY ONE AGAIN: the node-naming seam. Every one of the "
+        "twenty-two authoring tools that creates a node handed the caller's name to "
+        "`add_child` at the engine default, so any collision came back as the machine "
+        "form and nothing said so — measured on a live engine by running the guide's "
+        "own quick start twice. The check asks that ONE place in the addon registers "
+        "an add into an undo action and that it asks for the readable name, on both "
+        "engine planes; a roster of the twenty-two would have been the same defect "
+        "again, since not one of the forty-nine call sites passed the flag")),
     ("../scripts/handoff_gate.py", "CLAIM_FLOOR"): (15, (
         "🆕 234 — the atoms a status block must yield before this reader is entitled to "
         "an opinion, at `{FLOOR}`. Derived rather than chosen, and both bounds are real "

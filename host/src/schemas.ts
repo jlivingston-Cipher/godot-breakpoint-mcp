@@ -91,9 +91,15 @@ const runtimeNode: z.ZodType = z.lazy(() =>
  * editor's own Add Node does, and the result reports the difference. A caller has to
  * be told that BEFORE it picks a name, which is what a parameter description is for —
  * and told it in one place, so twenty-two copies cannot drift apart.
+ *
+ * 🔴 AND KEPT SHORT, BECAUSE `token-cost.mjs` REFUSED THE FIRST DRAFT. Input schemas are
+ * what every client pays for on every `tools/list`, and the long version pushed the
+ * per-tool cost to 492 B against a 490 B ceiling — a real cost, correctly refused. The
+ * full explanation lives in TOOL_CATALOG's Conventions section, which nobody pays for
+ * per call; this is the pointer, not the essay.
  */
 export const NAME_TAKEN_CLAUSE =
-  " If that name is already taken the engine appends a number (\"SFX\" becomes \"SFX2\"), and the result says so with `coerced: true` and the `requested` name beside it.";
+  " A taken name gets a number appended (`SFX`->`SFX2`), reported as `coerced` + `requested`.";
 
 /**
  * The naming envelope EVERY authoring tool that adds a node to the edited scene

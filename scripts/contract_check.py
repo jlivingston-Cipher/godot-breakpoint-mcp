@@ -6229,6 +6229,15 @@ _prose_masked = sum(prose_numerals_masked(p) for p in PROSE_NUMERAL_DOCS)
 
 SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     # (population, measured now, literal floor, what a collapse would mean)
+    # 🆕 283 — the withholding vocabulary check 31 classifies a User Guide blockquote by.
+    # A collapse here is silent in the direction that matters: with no group names, §7's
+    # rich-values blockquote stops being told from its higher-trust one, and the check
+    # goes back to accusing the guide of withholding tools nobody withholds — or, worse,
+    # reading a declaration as a step. The floor is 1 and not len(): a roster compared to
+    # itself is not a pin (280 §5).
+    ("capabilities.group_names", len(capability_group_names()), 1,
+     "check 31 loses the vocabulary that tells a withholding blockquote from any other, so "
+     "a guide section's declaration and its prose become the same thing to it"),
     ("gdscript.editor_methods", len(editor_methods), 120,
      "checks 1 & 2 stop comparing the host's bridge calls to any GDScript handler"),
     ("gdscript.runtime_methods", len(runtime_methods), 18,

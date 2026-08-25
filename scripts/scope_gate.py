@@ -229,6 +229,9 @@ LEDGER: dict[str, tuple[str, ...]] = {
     "all_false_annotation_claims": ("families.allfalse_lines",),
     "annotated_tools": ("annotations.roster",),
     "annotation_class_claims": ("families.annclass_lines",),
+    # 🆕 283 — check 31's withholding vocabulary. Blinding it empties the group roster, so
+    # the ledger population goes to zero and the floor of 1 reddens.
+    "capability_group_names": ("capabilities.group_names",),
     "catalog_index_tools": ("catalog.index_tools",),
     # 🆕 259 — the two readers check 28's CLI half and its host fallback are computed from.
     "host_fallback_remedies": ("xlang.host_fallback_rows",),
@@ -614,7 +617,13 @@ BLAST: dict[str, int] = {
     "codec_emitted": 13,                      # also: check 23, the encoder half
     "addon_copy_compared": 3,                 # also: check 24b's roots and pairs
     "unsupported_kinds": 3,                   # also: check 24's two keys — keys kept, values emptied
-    "addon_err_codes": 2,                     # also: check 23's GDScript codes
+    # 🆕 283 — 2 -> 3. Check 34 (the node-naming seam) reads operations.gd, so this blind's
+    # radius grew by the FAIL line that check raises. 251's rule: a new reader in
+    # contract_check.py costs three scope_gate rows, and this is the third — the raise on
+    # an existing blind whose radius the new population widens.
+    "addon_err_codes": 3,                     # also: check 23's GDScript codes, check 34
+    # 🆕 283 — one line: the SCOPE_LEDGER floor of 1 on capabilities.group_names.
+    "capability_group_names": 1,
     "err_branch_bindings": 2,                 # also: check 23's TS branch join
     "addon_copy_pairs": 1,
     "addon_copy_roots_read": 1,
