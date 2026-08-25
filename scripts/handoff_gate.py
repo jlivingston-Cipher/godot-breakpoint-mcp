@@ -6441,6 +6441,41 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    # 🆕 283 — 282's block, added LATE and that is the whole note. 253's rule says this
+    # goes in the session's FIRST PR; 282's own handoff says so in capitals, having paid
+    # 241's price for missing it one session earlier. 283 missed it too, so `MOVED +N` was
+    # measured from 281's endpoint and the close refused the same way. The rule is not
+    # hard; it is simply not part of any ritual a gate runs, which is why three sessions
+    # in a row have now discovered it at the close instead of at the start.
+    (282, """> ```
+> main                 28eb2ed — 281's block into BLOCK_POPULATION (#350)  MOVED +2
+> branch 282           session282-the-session-that-looked-from-the-users-side · PR #349
+>                      🟢 PUSHED AND MERGED, 26/26 green — at the THIRD push.
+>                      Three commits: the work, and two fixups CI found
+> branch 282b          session282-the-block-that-was-not-registered · PR #350
+>                      🟢 253's rule, paid late — see the standing rule below
+> host / addon         1.82.1 / 1.12.0  🟢 unmoved — no version bump this session
+>                      🔴 A MINOR IS OWED — the wire grew an optional field
+> npm                  🟢 1.82.1 · registry 1.82.1 · lag 0 · untagged 5 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.12.0 live · unchanged since the previous session
+> 🟢 VERIFIED AFTER THE CHANGE   930/930 · contract 30/30 · scope 73 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2716
+>               · late not-loaded 0 · late constructed 308/160
+>               · py gates 18/6/12 · SIG 246/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 109 · 53 governed · 1680 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 316 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3760 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4868 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 75/75 claims · handoff 449 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
