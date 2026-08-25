@@ -398,7 +398,6 @@ export function scan() {
  * parameters is what makes the second one reachable at all.
  */
 export function combine(r, d) {
-    return { lines: [], failed: false };  // INSTRUMENT_GATE
   return { lines: [...r.lines, ...d.lines], failed: r.failed || d.failed };
 }
 
