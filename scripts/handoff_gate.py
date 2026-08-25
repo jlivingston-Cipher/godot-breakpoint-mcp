@@ -6413,6 +6413,34 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
 >                 addon / 0 problems
 > ```"""),
+    (281, """> ```
+> main                 fad1fb8 — the reader that argues with the tree (#348)  MOVED +1
+> branch 281           session281-the-reader-that-argues-with-the-tree · PR #348
+>                      🟢 PUSHED AND MERGED, 26/26 green — at the THIRD push.
+>                      Three commits: the work, and two fixups CI found
+> host / addon         1.82.1 / 1.12.0  🟢 unmoved — no version bump this session
+> npm                  🟢 1.82.1 · registry 1.82.1 · lag 0 · untagged 3 ·
+>                      0 open issues / 0 open PRs
+>                      — 🟢 AND THE SECOND REGISTRY READING IS NO LONGER RED: SDK_UPSTREAM
+>                        reads DEFERRED against a measurement it retakes every run
+> assetlib             🟢 addon 1.12.0 live · unchanged since the previous session
+> 🟢 VERIFIED AFTER THE CHANGE   904/904 · contract 30/30 · scope 73 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2705
+>               · late not-loaded 0 · late constructed 308/160
+>               · py gates 18/6/12 · SIG 246/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 109 · 53 governed · 1667 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 311 file(s) / 21 suffixes
+>               · seal 104 · boundary 187 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3747 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4771 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 72/72 claims · handoff 448 claims
+>               · error-code discipline 54 reads / 29 raise sites / 11 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #

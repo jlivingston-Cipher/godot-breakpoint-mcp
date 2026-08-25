@@ -418,7 +418,8 @@ def reach_join(rows: "list[Row]", head: int,
 # and 244's rule that only `DONE` answers `QUEUE_NOT_ONLY_NEWEST` is what stops the
 # distinction being a laundering route.
 def paths_join(rows: "list[Row]", head: int,
-               changed: "set[str] | None") -> "list[str]":
+               changed: "set[str] | None",
+               closed_by_this_diff: "set[str] | None" = None) -> "list[str]":
     """Declared `paths` against the files this session's close actually changed — PURE.
 
     🔴 `changed is None` IS A REFUSAL AND NOT A SKIP. It means the object store could not
@@ -432,6 +433,17 @@ def paths_join(rows: "list[Row]", head: int,
                and r.paths != NONE]
     if not closing:
         return []
+    # 🆕 282 — AND THE POPULATION IS PER-ROW, BECAUSE A SESSION CAN HAVE MORE THAN ONE
+    # BRANCH. `closed_by_this_diff` is the set of row ids whose table line THIS diff
+    # adds; a row closing at `head` that this diff did not close was closed by some other
+    # change, and asking this branch about it is asking a question its diff cannot answer.
+    # Measured on 282's second PR — seven rows read as work that never happened. `None`
+    # means the caller is asking the pure question and every closing row is in scope,
+    # which is what every self-test row does.
+    if closed_by_this_diff is not None:
+        closing = [r for r in closing if r.id in closed_by_this_diff]
+        if not closing:
+            return []
     if changed is None:
         return [f"🔴 QUEUE_PATHS_UNREAD {len(closing)} row(s) close at {head} and the "
                 f"diff that closes them could not be read on a tree that HAS its "
@@ -481,8 +493,23 @@ def repo_is_shallow(root: Path = ROOT) -> bool:
     return p.returncode == 0 and p.stdout.strip() == "true"
 
 
-def session_diff(root: Path = ROOT) -> "set[str] | None":
-    """The tracked paths this session's close changes, or None when git cannot say.
+def session_diff(root: Path = ROOT) -> "tuple[set[str], set[str]] | None":
+    """(paths this session changed, row ids whose table line it ADDS) — None when git
+    cannot say.
+
+    🆕 282 — THE SECOND HALF IS NEW AND IT IS DELIBERATELY NOT A SECOND FUNCTION.
+    `QUEUE_PATHS_JOIN` needs to know WHICH rows this diff closed, not only which files it
+    touched, because a session can have more than one branch: 282's second PR is one edit
+    to `scripts/handoff_gate.py` cut from the already-merged main, so
+    `merge-base(origin/main, HEAD)` is the FIRST PR's merge commit and all seven rows
+    closed at 282 read as work that never happened.
+    🔴 IT LIVES HERE BECAUSE A SEPARATE READER WOULD HAVE BEEN A SILENT ONE. Written as
+    its own member it is a blindable target whose empty — `set()` — makes the join judge
+    NOTHING, so the blind is green on both axes by construction and the instrument gate
+    would have had to take a `NOT_A_TARGET` row weaker than `session_diff`'s own.
+    Returned from the reader that is ALREADY exempt, and exempt on a MEASURED reason
+    (blinded to `None` it reddens with `QUEUE_PATHS_UNREAD`), the new reading inherits
+    that refusal instead of introducing a quiet one.
 
     The base is `merge-base(origin/main, HEAD)` on a branch. 🔴 ON `main` ITSELF THAT
     BASE IS HEAD and the diff is empty, which would read as *this session changed
@@ -517,7 +544,19 @@ def session_diff(root: Path = ROOT) -> "set[str] | None":
     if out is None:
         return None
     new = _git("ls-files", "--others", "--exclude-standard") or ""
-    return {ln.strip() for ln in (out + "\n" + new).splitlines() if ln.strip()}
+    paths = {ln.strip() for ln in (out + "\n" + new).splitlines() if ln.strip()}
+    ids: "set[str]" = set()
+    rows_diff = _git("diff", "-U0", base, "--", QUEUE.name)
+    for ln in (rows_diff or "").splitlines():
+        if not ln.startswith("+") or ln.startswith("+++"):
+            continue
+        body = ln[1:].strip()
+        if not body.startswith("|"):
+            continue
+        cell = body.strip("|").split("|", 1)[0].strip()
+        if cell:
+            ids.add(cell)
+    return (paths, ids)
 
 
 def age_domain(rows: "list[Row]", head: int) -> "list[str]":
@@ -642,10 +681,12 @@ def check(text: str, tracked: "set[str] | None" = None,
     # set, so none of them pays for a question none of them asks. `changed=None` means
     # a caller explicitly passed no diff and is asking the pure question; the live path
     # supplies `session_diff()`, which returns None only when git could not answer.
+    here: "set[str] | None" = None
     if changed is _UNSET:
-        changed = (session_diff()
-                   if any(r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
-                          and r.paths != NONE for r in rows) else set())
+        _read = (session_diff()
+                 if any(r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
+                        and r.paths != NONE for r in rows) else (set(), set()))
+        changed, here = (None, None) if _read is None else _read
         # 🆕 281 — A TRUNCATED CHECKOUT IS NOT A FAILED READING, and the difference is
         # measured rather than declared. See `repo_is_shallow` for what this cost.
         if changed is None and repo_is_shallow():
@@ -655,7 +696,22 @@ def check(text: str, tracked: "set[str] | None" = None,
                          "says so instead of passing quietly")
             changed = _UNSET
     if changed is not _UNSET:
-        problems += paths_join(rows, head, changed)
+        # 🆕 282 — THE PER-ROW POPULATION, AND THE DECLINE IS PRINTED RATHER THAN
+        # INFERRED: a reader going quiet and a reader finding nothing are the two states
+        # this tree spends its sessions telling apart.
+        _closing = [r for r in rows
+                    if r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
+                    and r.paths != NONE]
+        if here is not None and _closing:
+            _elsewhere = [r.id for r in _closing if r.id not in here]
+            if _elsewhere:
+                notes.append(
+                    f"QUEUE_PATHS_JOIN not taken for {len(_elsewhere)} row(s) closing at "
+                    f"{head} — this diff does not ADD their table line, so some other "
+                    f"change closed them: {', '.join(sorted(_elsewhere))}. Measured at "
+                    f"282's SECOND PR, where all seven of the first PR's rows read as "
+                    f"work that never happened")
+        problems += paths_join(rows, head, changed, here)
 
     # ── QUEUE_AGE_CEILING — the loop-breaker's first half ─────────────────────────────
     for r in rows:
@@ -1431,7 +1487,7 @@ def selftest() -> int:
         "| nested | DONE | internal | scripts | 270 | 281 | — | t | w |\n"
         "| earlier | DONE | internal | scripts/a.py | 270 | 280 | — | t | w |\n"
         "| undeclared | DONE | internal | — | 270 | 281 | — | t | w |\n")
-    _hit = paths_join(_PJ, 281, {"scripts/b.py"})
+    _hit = paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})
     claim("PATHS_JOIN_REFUSES",
           len(_hit) == 1 and "shipped" in _hit[0],
           f"a DONE row whose close touched none of its declared paths was not refused, "
@@ -1439,22 +1495,46 @@ def selftest() -> int:
     # 🔴 KILLED IS THE STATE THIS READER POINTS AT, so it cannot also be a thing it
     # refuses — a reader whose only repair its own predicate rejects has no repair.
     claim("PATHS_JOIN_KILLED_IS_THE_REPAIR",
-          not any("decided" in x for x in paths_join(_PJ, 281, {"scripts/b.py"})),
+          not any("decided" in x for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})),
           "a KILLED row was refused for touching none of its paths — that is the state "
           "the refusal tells the author to use")
     claim("PATHS_JOIN_PREFIX",
-          not any("nested" in x for x in paths_join(_PJ, 281, {"scripts/deep/c.py"})),
+          not any("nested" in x for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/deep/c.py"})),
           "a declared DIRECTORY was not matched by a file inside it")
     claim("PATHS_JOIN_POPULATION",
           not any("earlier" in x or "undeclared" in x
-                  for x in paths_join(_PJ, 281, {"scripts/b.py"})),
+                  for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})),
           "the population is rows closing at THIS head with declared paths — a row "
           "closed earlier, or declaring none, is somebody else's question")
     claim("PATHS_JOIN_TOUCHED_IS_SILENT",
-          not paths_join(_PJ, 281, {"scripts/a.py", "scripts/deep/c.py"}),
+          not paths_join(_PJ, 281, {"QUEUE.md", "scripts/a.py", "scripts/deep/c.py"}),
           "a close that DID touch the declared paths was refused anyway")
     # 🔴 UNREAD IS NOT GREEN — the whole reader's stance, and the one direction a reader
     # that shells out can fail silently in.
+    # 🆕 282 — AND THE POPULATION IS PER-ROW, BECAUSE A SESSION CAN HAVE MORE THAN ONE
+    # BRANCH.
+    #
+    # 🔴 MEASURED ON 282's SECOND PR. Seven rows closed at 282 in PR #349; #350 is one
+    # edit to `scripts/handoff_gate.py` cut from the merged main, so the merge base is
+    # #349's own merge commit and all seven read as work that never happened.
+    #
+    # 🔴 AND THE FIRST FIX — *does this diff touch `QUEUE.md`* — WAS TOO COARSE BY ONE
+    # STEP, which this session caught by being about to annotate an OPEN row on that same
+    # second branch. Touching the file is not closing a row. Driven in BOTH directions,
+    # because a reader that declines is one edit from a reader that always declines.
+    claim("PATHS_JOIN_ONLY_ROWS_THIS_DIFF_CLOSED",
+          not paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"}, {"somebody-else"}),
+          "a row this diff did not close was judged against this diff anyway — some "
+          "other change closed it, and this branch cannot answer for it")
+    claim("PATHS_JOIN_STILL_REFUSES_A_ROW_THIS_DIFF_DID_CLOSE",
+          any("shipped" in x
+              for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"}, {"shipped"})),
+          "a row THIS diff closed, whose declared paths it did not touch, must still be "
+          "refused — that is the case this check was written for")
+    claim("PATHS_JOIN_NO_POPULATION_IS_EVERY_ROW",
+          any("shipped" in x for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})),
+          "the pure question — no per-row population handed in — must still judge every "
+          "row closing at this head, or every fixture below is asking nothing")
     claim("PATHS_JOIN_UNREAD_REFUSES",
           any("QUEUE_PATHS_UNREAD" in x for x in paths_join(_PJ, 281, None)),
           "a diff git could not produce was treated as a clean comparison")
