@@ -432,6 +432,27 @@ def paths_join(rows: "list[Row]", head: int,
                and r.paths != NONE]
     if not closing:
         return []
+    # 🆕 282 — A BRANCH THAT DOES NOT TOUCH THIS FILE CLOSED NOTHING, AND JUDGING IT
+    # AGAINST THESE ROWS ASKS A QUESTION ITS DIFF CANNOT ANSWER.
+    #
+    # 🔴 MEASURED ON 282's SECOND PR, WHICH EXISTED ONLY BECAUSE 253's RULE WAS PAID
+    # LATE. Seven rows closed at 282 in PR #349; #350 is one edit to
+    # `scripts/handoff_gate.py` cut from the merged main, so `merge-base(origin/main,
+    # HEAD)` is #349's own merge commit and every one of those seven rows read as work
+    # that never happened. The rows were right, the diff was right, and the reader was
+    # asking the second branch about the first branch's work.
+    #
+    # 🔵 THE PREDICATE IS DERIVED FROM THE ONE FILE THE CLOSE HAS TO GO THROUGH. A row
+    # moves to `DONE` by an edit to `QUEUE.md`; a diff that does not contain `QUEUE.md`
+    # therefore closed nothing, whatever `head` says. That is not a widening of the base
+    # — 281 deliberately made this reader judge the SESSION's tree — it is the reader
+    # declining to speak about a change it can see is not the closing one.
+    #
+    # 🔴 AND IT IS NOT A HOLE. A branch that closes rows by touching ONLY `QUEUE.md` is
+    # still judged, and every row whose declared paths are not `QUEUE.md` still refuses,
+    # which is the case this check was written for.
+    if changed is not None and QUEUE.name not in {Path(f).name for f in changed}:
+        return []
     if changed is None:
         return [f"🔴 QUEUE_PATHS_UNREAD {len(closing)} row(s) close at {head} and the "
                 f"diff that closes them could not be read on a tree that HAS its "
@@ -655,6 +676,20 @@ def check(text: str, tracked: "set[str] | None" = None,
                          "says so instead of passing quietly")
             changed = _UNSET
     if changed is not _UNSET:
+        # 🆕 282 — AND WHEN THE JOIN DECLINES, IT SAYS SO. `paths_join` returns nothing
+        # for a diff that does not contain this file, because a row moves to DONE by an
+        # edit to it and a diff without it is not the closing one — but a reader going
+        # quiet and a reader finding nothing are the two states this tree spends its
+        # sessions telling apart, so the decline is printed rather than inferred.
+        if (changed is not None
+                and any(r.closed != NONE and r.closed.isdigit() and int(r.closed) == head
+                        and r.paths != NONE for r in rows)
+                and QUEUE.name not in {Path(f).name for f in changed}):
+            notes.append(f"QUEUE_PATHS_JOIN not taken — this diff does not touch "
+                         f"{QUEUE.name}, so it closed no row and the rows closing at "
+                         f"{head} were closed by some other change. Measured at 282's "
+                         f"SECOND PR, which is why this reads as a decline rather than "
+                         f"as seven rows that never happened")
         problems += paths_join(rows, head, changed)
 
     # ── QUEUE_AGE_CEILING — the loop-breaker's first half ─────────────────────────────
@@ -1431,7 +1466,7 @@ def selftest() -> int:
         "| nested | DONE | internal | scripts | 270 | 281 | — | t | w |\n"
         "| earlier | DONE | internal | scripts/a.py | 270 | 280 | — | t | w |\n"
         "| undeclared | DONE | internal | — | 270 | 281 | — | t | w |\n")
-    _hit = paths_join(_PJ, 281, {"scripts/b.py"})
+    _hit = paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})
     claim("PATHS_JOIN_REFUSES",
           len(_hit) == 1 and "shipped" in _hit[0],
           f"a DONE row whose close touched none of its declared paths was not refused, "
@@ -1439,22 +1474,38 @@ def selftest() -> int:
     # 🔴 KILLED IS THE STATE THIS READER POINTS AT, so it cannot also be a thing it
     # refuses — a reader whose only repair its own predicate rejects has no repair.
     claim("PATHS_JOIN_KILLED_IS_THE_REPAIR",
-          not any("decided" in x for x in paths_join(_PJ, 281, {"scripts/b.py"})),
+          not any("decided" in x for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})),
           "a KILLED row was refused for touching none of its paths — that is the state "
           "the refusal tells the author to use")
     claim("PATHS_JOIN_PREFIX",
-          not any("nested" in x for x in paths_join(_PJ, 281, {"scripts/deep/c.py"})),
+          not any("nested" in x for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/deep/c.py"})),
           "a declared DIRECTORY was not matched by a file inside it")
     claim("PATHS_JOIN_POPULATION",
           not any("earlier" in x or "undeclared" in x
-                  for x in paths_join(_PJ, 281, {"scripts/b.py"})),
+                  for x in paths_join(_PJ, 281, {"QUEUE.md", "scripts/b.py"})),
           "the population is rows closing at THIS head with declared paths — a row "
           "closed earlier, or declaring none, is somebody else's question")
     claim("PATHS_JOIN_TOUCHED_IS_SILENT",
-          not paths_join(_PJ, 281, {"scripts/a.py", "scripts/deep/c.py"}),
+          not paths_join(_PJ, 281, {"QUEUE.md", "scripts/a.py", "scripts/deep/c.py"}),
           "a close that DID touch the declared paths was refused anyway")
     # 🔴 UNREAD IS NOT GREEN — the whole reader's stance, and the one direction a reader
     # that shells out can fail silently in.
+    # 🆕 282 — AND A DIFF THAT DOES NOT CONTAIN THIS FILE CLOSED NOTHING.
+    #
+    # 🔴 MEASURED ON 282's SECOND PR. Seven rows closed at 282 in PR #349; #350 is one
+    # edit to `scripts/handoff_gate.py` cut from the merged main, so the merge base is
+    # #349's own merge commit and all seven read as work that never happened. A row
+    # moves to DONE by an edit to `QUEUE.md` — a diff without it is not the closing one,
+    # whatever `head` says. Driven in BOTH directions here, because a reader that
+    # declines is one edit away from a reader that always declines.
+    claim("PATHS_JOIN_NOT_THE_CLOSING_DIFF",
+          not paths_join(_PJ, 281, {"scripts/b.py"}),
+          "a branch that does not touch QUEUE.md closed no row, and the join must not "
+          "judge it against rows some other branch closed")
+    claim("PATHS_JOIN_STILL_REFUSES_A_QUEUE_ONLY_CLOSE",
+          any("shipped" in x for x in paths_join(_PJ, 281, {"QUEUE.md"})),
+          "a close that touched ONLY QUEUE.md must still be refused for every row whose "
+          "declared paths it did not touch — that is the case this check was written for")
     claim("PATHS_JOIN_UNREAD_REFUSES",
           any("QUEUE_PATHS_UNREAD" in x for x in paths_join(_PJ, 281, None)),
           "a diff git could not produce was treated as a clean comparison")
