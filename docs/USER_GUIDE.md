@@ -845,12 +845,18 @@ your MCP client to confirm. On accept it proceeds; on decline it returns a non-e
 call. If your client cannot show a prompt, the tool **blocks** and tells you to re-invoke
 with `confirm: true` — so a destructive operation is **never executed silently**.
 
-Gated tools include (among others): `node_delete`, `project_set_setting`, `scene_new`,
-`gd_rename` (when applying), `cs_rename` (when applying), `dbg_evaluate`,
-`dbg_set_variable`, `dbg_goto`, and the runtime mutators `runtime_set_property`,
-`runtime_call_method`, `runtime_emit_signal`, and `runtime_inject_input`. Scene, resource,
-filesystem, and asset writers are gated too. The authoritative per-tool list of what is
-destructive is in [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
+**Which tools this covers is derived, not listed.** Every tool that publishes
+`destructiveHint: true` on `tools/list` accepts `confirm` and passes the gate — the two
+sets are one set, resolved at registration from the same annotation table the client
+reads. So the answer to *is this call gated* is the annotation your own client already
+has, and a tool cannot be advertised as destructive while quietly taking no confirmation.
+Read the per-tool detail in [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
+
+Two shapes are deliberately outside it, and both are visible in the reply rather than
+silent: a call refused **before** the prompt because it could never legally succeed (a
+path outside the project, say) — asking you to approve a doomed write would be noise —
+and `asset_gen_*` with no generation backend configured, which reports `no_backend` and
+writes nothing.
 
 ### Bridge authentication (shared secret)
 
@@ -868,7 +874,11 @@ dock has a **"Pause Agent"** toggle: while engaged, the editor and runtime bridg
 commands on those two planes (an op already running finishes; a bare liveness `ping` still
 answers). Headless or scripted, the host also honors **`SIGUSR1`** (pause) / **`SIGUSR2`**
 (resume) — a finer latch that holds only *mutating* actions but across the **whole** tool
-surface, with `BREAKPOINT_START_PAUSED=1` to start held. Neither is an "emergency stop": both
+surface, with `BREAKPOINT_START_PAUSED=1` to start held. "Whole surface" is derived the
+same way the confirmation gate is: every tool whose published `readOnlyHint` is **false**
+is held, so a read stays answerable while you work out what is going on and nothing that
+writes gets through. A held call waits for `SIGUSR2` and, if the wait expires, **blocks**
+rather than proceeding. Neither is an "emergency stop": both
 hold *entry* to a new action and never interrupt one already in flight, and the per-tool
 confirmation above stays the primary control for destructive ops.
 

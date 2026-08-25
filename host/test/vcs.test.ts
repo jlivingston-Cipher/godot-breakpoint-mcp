@@ -354,11 +354,20 @@ test("restoreOutcome separates restored, requested and stranded from the two rea
   assert.deepEqual(noop.stranded, []);
 });
 
-test("vcs_stash push/list/pop work; drop is gated", async () => {
+test("vcs_stash push/list/pop work; push and drop are gated", async () => {
   const dir = mkrepo();
   try {
-    const h = setup(dir); // default elicit throws (for the drop-block assertion)
-    const push = await h.vcs_stash({ op: "push", message: "wip" });
+    const h = setup(dir); // default elicit throws (for the block assertions)
+    // 🔴 282 — `push` IS GATED NOW, and this is the claim that says so. It was
+    // ungated on the argument that `pop` undoes it; a probe added in the same
+    // session called it unattended and reverted a whole working tree, which is
+    // the event `docs/TOOL_CATALOG.md` promises against.
+    const blockedPush = await h.vcs_stash({ op: "push", message: "wip" });
+    assert.equal(blockedPush.isError, true, "push without confirmation must be blocked");
+    assert.match(blockedPush.content?.[0].text ?? "", /confirm: true/);
+    assert.equal(g(dir, "stash", "list"), "", "and nothing may have been stashed");
+
+    const push = await h.vcs_stash({ op: "push", message: "wip", confirm: true });
     assert.ok(!push.isError, JSON.stringify(push.content));
     // tracked changes are now stashed → working tree clean of them
     const st = await h.vcs_status({});
@@ -437,21 +446,22 @@ test("vcs_stash push ERRORS when nothing was stashed, and does not create an ent
     g(dir, "stash", "-q", "-u"); // park everything so the tree is genuinely clean
     g(dir, "stash", "drop", "-q");
 
-    const noop = await h.vcs_stash({ op: "push", message: "nothing" });
+    const noop = await h.vcs_stash({ op: "push", message: "nothing", confirm: true });
     assert.equal(noop.isError, true, "a push that stashes nothing must not report success");
     assert.match(noop.content?.[0].text ?? "", /nothing was stashed/i);
     assert.equal(g(dir, "stash", "list"), "", "and no entry may exist");
 
     // a real change still stashes
     fs.appendFileSync(path.join(dir, "player.gd"), "\n# real\n");
-    const real = await h.vcs_stash({ op: "push", message: "real" });
+    const real = await h.vcs_stash({ op: "push", message: "real", confirm: true });
     assert.ok(!real.isError, JSON.stringify(real.content));
     assert.match(g(dir, "stash", "list"), /stash@/);
 
     // with an entry already present, a no-op push must STILL error (the check is OID
     // inequality, not emptiness)
-    const noop2 = await h.vcs_stash({ op: "push", message: "still nothing" });
+    const noop2 = await h.vcs_stash({ op: "push", message: "still nothing", confirm: true });
     assert.equal(noop2.isError, true);
+    assert.match(noop2.content?.[0].text ?? "", /nothing was stashed/i, "the refusal is the no-op one, not the gate's");
     assert.equal(g(dir, "stash", "list").split("\n").length, 1, "and must not add a second entry");
   } finally { cleanup(dir); }
 });
@@ -513,6 +523,11 @@ test("vcs_branch_list flags remote-tracking branches (the prefix test could neve
     assert.ok(all.branches.some((x) => !x.remote && x.current), "the local branch is still there and current");
 
     const local = (await h.vcs_branch_list({})).structuredContent as { branches: Array<{ remote: boolean }> };
+    // 🆕 282 — THE FLOOR UNDER THE `every`, which `positive_control_gate` was right
+    // about: `[].every(..)` is true, so this claim was equally green against a reader
+    // that returned no branches at all — the exact silence the whole gate exists to
+    // refuse, one assertion below a `some` that carries its own control.
+    assert.ok(local.branches.length >= 1, `remotes=false still lists the local branch, got ${JSON.stringify(local.branches)}`);
     assert.ok(local.branches.every((x) => !x.remote), "remotes=false must not leak tracking branches");
   } finally { cleanup(dir); cleanup(bare); }
 });

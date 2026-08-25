@@ -248,7 +248,18 @@ export class PeerRegistry {
       };
       if (opts.role) env.BREAKPOINT_PEER_ROLE = opts.role;
 
-      const managed = this.procs.run(this.cfg, extraArgs, env);
+      const managed = await this.procs.run(this.cfg, extraArgs, env);
+      // 🔴 282 — A PEER THAT NEVER STARTED IS REPORTED, NOT REGISTERED. Before
+      // this, a wrong `GODOT_BIN` took the whole host down on the first peer;
+      // `spawnGuarded` now hands back the refusal, and a peer with no process is
+      // not an entry anybody can address.
+      if (managed.spawnError) {
+        throw new BridgeError(
+          "godot_spawn_failed",
+          `Peer ${id} could not be started. ${managed.spawnError}`,
+          "Fix GODOT_BIN (or put `godot` on PATH) and restart the server, then retry.",
+        );
+      }
       const client = new BridgeClient(
         this.cfg.runtimeHost,
         port,
@@ -267,7 +278,7 @@ export class PeerRegistry {
         "BREAKPOINT_RUNTIME_HOST",
       );
       const entry: Entry = {
-        info: { id, port, pid: managed.child.pid ?? null, role: opts.role ?? null, ready: false },
+        info: { id, port, pid: managed.child?.pid ?? null, role: opts.role ?? null, ready: false },
         client,
         managedId: managed.id,
         stopped: false,
@@ -331,7 +342,7 @@ export class PeerRegistry {
         /* ignore */
       }
       try {
-        this.procs.get(e.managedId)?.child.kill();
+        this.procs.get(e.managedId)?.child?.kill();
       } catch {
         /* ignore */
       }

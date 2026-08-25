@@ -1,4 +1,4 @@
-import { spawn, execFile } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -10,6 +10,7 @@ import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
 import { runDoctorChecks } from "../cli/doctor.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
+import { spawnGuarded, godotSpawnFailure, isSpawnFailure } from "../spawn-guard.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -20,13 +21,30 @@ interface CapturedResult {
   timedOut: boolean;
 }
 
-/** Run the Godot binary to completion, capturing stdout/stderr. */
+/**
+ * Run the Godot binary to completion, capturing stdout/stderr.
+ *
+ * 🔴 282 — THE FAILURE TO START WAS BEING RENDERED AS AN EMPTY SUCCESS, AND TWO
+ * SEPARATE COERCIONS HAD TO BE WRONG TOGETHER FOR THAT TO HAPPEN. `execFile`
+ * reports ENOENT with `code` set to the STRING `"ENOENT"`, so
+ * `typeof e.code === "number"` is false and `code` became `null` — the same
+ * value a killed-by-signal child produces. And `e.stderr ?? e.message` never
+ * reached the message, because the promisified `execFile` attaches `stderr: ""`
+ * to its rejection and `""` is not nullish. Measured on the published 1.82.1:
+ * `godot_version` answered `{"version": "", "raw": {"code": null, "stderr": ""}}`
+ * with no `isError`, so an assistant relaying it told the user *the Godot
+ * version is empty* rather than *Godot is not installed*.
+ *
+ * `spawn_failed` is the third state, named — 277's rule that a reader with two
+ * states for three outcomes reports one of them wrongly, and `detail_or_refusal`
+ * in `release_names.py` is the same shape one file over.
+ */
 async function runCaptured(
   cfg: Config,
   args: string[],
   timeoutMs: number,
   signal?: AbortSignal,
-): Promise<CapturedResult> {
+): Promise<CapturedResult & { spawn_failed: string | null }> {
   try {
     const { stdout, stderr } = await execFileAsync(cfg.godotBin, args, {
       cwd: cfg.projectPath,
@@ -34,27 +52,26 @@ async function runCaptured(
       maxBuffer: 32 * 1024 * 1024,
       signal,
     });
-    return { code: 0, stdout, stderr, timedOut: false };
+    return { code: 0, stdout, stderr, timedOut: false, spawn_failed: null };
   } catch (err: unknown) {
-    const e = err as { code?: number; killed?: boolean; signal?: string; stdout?: string; stderr?: string; message?: string };
+    const e = err as { code?: unknown; killed?: boolean; signal?: string; stdout?: string; stderr?: string; message?: string };
+    const started = !isSpawnFailure(err);
+    const errno = typeof e.code === "string" ? e.code : null;
     return {
       code: typeof e.code === "number" ? e.code : null,
       stdout: e.stdout ?? "",
-      stderr: e.stderr ?? e.message ?? "",
+      // A process that never started has no stderr of its own; the empty string
+      // it carries is an artifact of the promise wrapper, not an observation.
+      stderr: started ? (e.stderr || e.message || "") : "",
       timedOut: Boolean(e.killed) && e.signal === "SIGTERM",
+      spawn_failed: started ? null : godotSpawnFailure(cfg.godotBin, errno, e.message ?? ""),
     };
   }
 }
 
-/** Launch the Godot binary detached (for long-lived editor/game processes). */
-function launchDetached(cfg: Config, args: string[]): number | null {
-  const child = spawn(cfg.godotBin, args, {
-    cwd: cfg.projectPath,
-    detached: true,
-    stdio: "ignore",
-  });
-  child.unref();
-  return child.pid ?? null;
+/** The tool result for a Godot binary that would not start. */
+function refuseSpawn(message: string) {
+  return { isError: true as const, content: [{ type: "text" as const, text: message }] };
 }
 
 /** Truncate long output so a single tool result stays reasonable. */
@@ -72,7 +89,8 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       inputSchema: {},
     },
     async () => {
-      const r = await runCaptured(cfg, ["--version"], 15000);
+      const { spawn_failed, ...r } = await runCaptured(cfg, ["--version"], 15000);
+      if (spawn_failed) return refuseSpawn(spawn_failed);
       return ok({ version: r.stdout.trim() || r.stderr.trim(), raw: r });
     },
   );
@@ -86,9 +104,19 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       inputSchema: {},
     },
     async () => {
-      const pid = launchDetached(cfg, ["-e", "--path", cfg.projectPath]);
-      log(`launched editor pid=${pid}`);
-      return ok({ launched: true, pid, project: cfg.projectPath });
+      // 🔴 282 — `launched: true` USED TO BE WRITTEN BEFORE THE LAUNCH WAS KNOWN
+      // TO HAVE HAPPENED, and the process that would have contradicted it was
+      // already dying. `spawnGuarded` resolves on `'spawn'` or `'error'`, so
+      // this line is reached only once the outcome exists.
+      const s = await spawnGuarded(cfg.godotBin, ["-e", "--path", cfg.projectPath], {
+        cwd: cfg.projectPath,
+        detached: true,
+        stdio: "ignore",
+      });
+      if (!s.ok) return refuseSpawn(s.message);
+      s.child.unref();
+      log(`launched editor pid=${s.pid}`);
+      return ok({ launched: true, pid: s.pid, project: cfg.projectPath });
     },
   );
 
@@ -143,11 +171,17 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
       }
       const args = ["--path", cfg.projectPath];
       if (scene) args.push(scene);
-      const pid = launchDetached(cfg, args);
+      const s = await spawnGuarded(cfg.godotBin, args, {
+        cwd: cfg.projectPath,
+        detached: true,
+        stdio: "ignore",
+      });
+      if (!s.ok) return refuseSpawn(s.message);
+      s.child.unref();
       const readiness = await waitForRuntimeBridge(cfg, wait_timeout_ms ?? cfg.runtimeTimeoutMs);
       return ok({
         running: true,
-        pid,
+        pid: s.pid,
         scene: scene ?? null,
         bridge_ready: readiness.ready,
         bridge_wait_ms: readiness.waited_ms,
@@ -188,6 +222,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms ?? 600000,
         signal,
       );
+      if (r.spawn_failed) return refuseSpawn(r.spawn_failed);
       return ok({
         preset,
         output_path,
@@ -218,6 +253,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms ?? 600000,
         signal,
       );
+      if (r.spawn_failed) return refuseSpawn(r.spawn_failed);
       return ok({ exit_code: r.code, timed_out: r.timedOut, stdout: tail(r.stdout), stderr: tail(r.stderr) });
     },
   );
@@ -251,6 +287,7 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         timeout_ms ?? 600000,
         signal,
       );
+      if (r.spawn_failed) return refuseSpawn(r.spawn_failed);
       return ok({
         script_path,
         exit_code: r.code,

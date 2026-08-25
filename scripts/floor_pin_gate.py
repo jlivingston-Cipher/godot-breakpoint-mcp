@@ -344,7 +344,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # surface down rather than the other way round. `TOOL_FLOOR` is the usual collapse
     # guard — a reader listing zero tools would otherwise report a wonderfully small
     # surface and pass.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )369171;",                  [f"{S}/token-cost.selftest.mjs"]),
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )370753;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of

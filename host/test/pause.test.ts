@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PauseLatch, pauseLatch } from "../src/pause.js";
+import { applyPauseLatch } from "../src/mutation-guard.js";
 import { gate } from "../src/confirm.js";
 
 // ---------------------------------------------------------------- PauseLatch --
@@ -91,29 +92,89 @@ test("gate proceeds normally when the latch is not paused", async () => {
   assert.equal(await gate(server, true, "delete node"), null);
 });
 
-test("gate holds while paused, then proceeds once resumed", async () => {
-  const { server } = fakeServer(async () => ({ action: "accept", content: { proceed: true } }));
-  pauseLatch.pause("test");
-  const pending = gate(server, true, "set property"); // confirm:true, but pause is checked first
-  setTimeout(() => pauseLatch.resume("test"), 10); // operator resumes while the call is held
-  assert.equal(await pending, null, "held gate proceeds after resume");
-  assert.equal(pauseLatch.isPaused(), false);
-});
-
-test("gate blocks (never elicits/executes) when paused and the wait expires", async () => {
+test("gate no longer consults the latch — the hold moved to the whole mutating surface", async () => {
+  // 🔴 282 — THIS IS THE DEFECT'S OWN TEST, INVERTED ON PURPOSE. It used to
+  // assert that `gate()` holds while paused, and that assertion was TRUE and was
+  // exactly why the documented guarantee was false: only the 74 gated tools ever
+  // reached this seam, so `USER_GUIDE.md` §9's "across the whole tool surface"
+  // described a surface `gate()` could not see. The hold now lives in
+  // `applyPauseLatch`, and the two tests below drive it over the REAL annotation
+  // table rather than over a roster.
   const { server, calls } = fakeServer(async () => ({ action: "accept", content: { proceed: true } }));
   const orig = pauseLatch.awaitResumed.bind(pauseLatch);
-  pauseLatch.awaitResumed = async () => false; // force a deterministic, fast timeout
+  pauseLatch.awaitResumed = async () => false;
   pauseLatch.pause("test");
   try {
-    const r = await gate(server, true, "overwrite scene");
-    assert.ok(r, "expected a blocking result");
-    assert.equal(r?.isError, true);
-    assert.match(r!.content[0].text, /Paused/);
-    assert.match(r!.content[0].text, /overwrite scene/);
-    assert.equal(calls.length, 0, "must not elicit while paused (pause overrides confirm:true)");
+    assert.equal(await gate(server, true, "overwrite scene"), null, "confirm:true proceeds; pause is not this seam's question");
+    assert.equal(calls.length, 0, "confirm:true still skips elicitation");
   } finally {
     pauseLatch.awaitResumed = orig;
     pauseLatch.resume("test");
   }
+});
+
+// ------------------------------------------- applyPauseLatch (the whole surface)
+
+/**
+ * A recorder in `registration.test.ts`'s shape: the wrapper under test rewrites
+ * `registerTool`, so the only honest way to read what it did is to register
+ * through it and call what comes out the far side.
+ */
+function latchRig(latch: PauseLatch) {
+  const handlers = new Map<string, (...a: unknown[]) => Promise<unknown>>();
+  const ran: string[] = [];
+  const server = {
+    registerTool(name: string, _config: unknown, handler: (...a: unknown[]) => Promise<unknown>) {
+      handlers.set(name, handler);
+      return { name };
+    },
+  } as unknown as Parameters<typeof applyPauseLatch>[0];
+  applyPauseLatch(server, latch);
+  const reg = (name: string) =>
+    (server as unknown as { registerTool: (n: string, c: unknown, h: unknown) => unknown }).registerTool(
+      name,
+      { inputSchema: {} },
+      async () => {
+        ran.push(name);
+        return { content: [{ type: "text", text: "did it" }] };
+      },
+    );
+  return { reg, handlers, ran };
+}
+
+test("applyPauseLatch HOLDS a mutating tool that never calls gate(), and lets it through on resume", async () => {
+  // 🔴 THE MEASURED CASE. On the published 1.82.1 `node_add` and `scene_save`
+  // were DISPATCHED at t=1.00s and t=1.50s of a run that was paused from t=0 —
+  // neither is confirmation-gated, and neither reached the old seam.
+  const l = new PauseLatch({ startPaused: true });
+  const rig = latchRig(l);
+  rig.reg("node_add");
+  const pending = rig.handlers.get("node_add")!({});
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(rig.ran, [], "the handler must NOT have run while paused");
+  l.resume("test");
+  await pending;
+  assert.deepEqual(rig.ran, ["node_add"], "and it runs once the operator resumes");
+});
+
+test("applyPauseLatch BLOCKS rather than acts when the wait expires", async () => {
+  const l = new PauseLatch({ startPaused: true, waitTimeoutMs: 5 });
+  const rig = latchRig(l);
+  rig.reg("scene_save");
+  const r = (await rig.handlers.get("scene_save")!({})) as { isError?: boolean; content: Array<{ text: string }> };
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /Paused/);
+  assert.match(r.content[0].text, /scene_save/);
+  assert.deepEqual(rig.ran, [], "a timed-out hold blocks; it never falls through to the action");
+});
+
+test("applyPauseLatch leaves READ-ONLY tools alone, which is the half that must NOT change", async () => {
+  // The refusal beside the pass is what makes the pair evidence (280 §5): a latch
+  // that held everything would satisfy the test above and would break every
+  // read a paused operator makes to work out what is going on.
+  const l = new PauseLatch({ startPaused: true, waitTimeoutMs: 5 });
+  const rig = latchRig(l);
+  rig.reg("scene_get_tree");
+  await rig.handlers.get("scene_get_tree")!({});
+  assert.deepEqual(rig.ran, ["scene_get_tree"], "a read-only tool answers while paused");
 });

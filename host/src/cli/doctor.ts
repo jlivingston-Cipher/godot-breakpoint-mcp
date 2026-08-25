@@ -57,6 +57,30 @@ export interface Check {
   detail: string;
   hint?: string;
   /**
+   * 🆕 282 — THE CHECKS THIS ONE'S NON-PASS PREVENTED FROM BEING RUN AT ALL.
+   *
+   * 🔴 MEASURED ON THE PUBLISHED 1.82.1 BY RUNNING `doctor` FROM THE WRONG
+   * DIRECTORY, WHICH IS THE DOCUMENTED INVOCATION (`breakpoint-mcp doctor`, no
+   * flags). `project` skips, `checkAddon` returns that one row and NEVER
+   * PRODUCES `addon-installed`, `addon-version` or `addon-enabled` — and the
+   * summary and the exit code came back byte-identical to a correctly-installed
+   * project: *All required checks passed*, exit 0.
+   *
+   * 🔴 AND IT IS THE GLYPH DEFECT ONE LEVEL UP, IN THE FILE THAT FIXED THE
+   * GLYPH DEFECT. `glyph()` above already reasons that a tool whose whole job is
+   * telling a user whether they are okay cannot print `✗` and *all required
+   * checks passed* in one breath. A check that was never RUN is the same
+   * contradiction with nothing on screen to contradict: `every()` over a
+   * population is vacuously true about the members that are not in it, so
+   * required checks that never existed could not fail. The population had to
+   * declare itself.
+   *
+   * Declared on the check that GATES them, so the dependency lives next to the
+   * branch that acts on it and `withheldChecks` derives the report's list rather
+   * than a second table restating it (203 §2).
+   */
+  withholds?: readonly string[];
+  /**
    * 🆕 259 — is this check's failure a LIVENESS fact, cleared by opening the editor
    * or launching the game?
    *
@@ -75,8 +99,36 @@ export interface Check {
 
 export interface DoctorReport {
   checks: Check[];
-  /** True when no required check failed. */
+  /**
+   * True when no required check failed AND no check was withheld.
+   *
+   * 🔴 282 — THE SECOND CLAUSE IS NEW AND IT IS WHY THE EXIT CODE MOVED. `doctor`
+   * answers one question — *is this setup okay* — and a run that never looked at
+   * the addon has not answered it. Exit 0 there told a user they were fine on the
+   * strength of checks that did not happen.
+   */
   ok: boolean;
+  /** Checks that were never run because a check gating them did not pass. */
+  withheld: string[];
+}
+
+/**
+ * The withheld population, DERIVED from the checks' own `withholds` and from
+ * which names the report actually carries.
+ *
+ * A gating check that PASSED withholds nothing, so the subtraction is against
+ * the report rather than against the branch: a future check that starts
+ * producing one of its dependents on some other path drops out of this list
+ * without anybody remembering to edit it.
+ */
+export function withheldChecks(checks: readonly Check[]): string[] {
+  const present = new Set(checks.map((c) => c.name));
+  const out = new Set<string>();
+  for (const c of checks) {
+    if (c.status === "ok" || !c.withholds) continue;
+    for (const n of c.withholds) if (!present.has(n)) out.add(n);
+  }
+  return [...out].sort();
 }
 
 /**
@@ -150,6 +202,28 @@ export function isPluginEnabled(projectGodotText: string): boolean {
   return false;
 }
 
+/**
+ * The minimum engine this host supports, as ONE pair of numbers.
+ *
+ * 🔴 282 — `USER_GUIDE.md` §2 and this check's own failure hint have both said
+ * *4.2+* since they were written, and nothing anywhere enforced it. Written here
+ * as the single literal both the check and its self-test read, because the
+ * alternative is the shape 203 §2 has a rule about: a number in a sentence and a
+ * number in a branch, agreeing until somebody edits one of them.
+ */
+export const MIN_GODOT: readonly [number, number] = [4, 2];
+
+/**
+ * The engine version a `--version` line names, or `null` when it names none.
+ *
+ * Godot prints `4.4.1.stable.official.f47bb5e` or `4.3.stable.official`; the
+ * pair is all this check needs and the rest is deliberately not parsed.
+ */
+export function parseGodotVersion(line: string): [number, number] | null {
+  const m = /^(\d+)\.(\d+)(?:[.\s]|$)/.exec(line.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
 function checkGodotBinary(bin: string, timeoutMs: number): Check {
   const res = spawnSync(bin, ["--version"], { timeout: timeoutMs, encoding: "utf8" });
   if (res.error) {
@@ -163,6 +237,34 @@ function checkGodotBinary(bin: string, timeoutMs: number): Check {
     };
   }
   const version = (res.stdout ?? "").trim().split(/\r?\n/)[0] || "(no version output)";
+  // 🔴 282 — THE PASS PATH USED TO ACCEPT ANYTHING THAT SPAWNED. Measured on the
+  // published 1.82.1: `GODOT_BIN=/bin/ls` produced `✓ godot-binary  /bin/ls → ls
+  // (GNU coreutils) 9.4`, and a real Godot 3.5 binary passed a check whose own
+  // failure hint says *Install Godot 4.2+*. `spawnSync` not erroring answers
+  // "something ran", which is not the question this row's name asks — 276's *a
+  // column with no stated predicate cannot be wrong*, spelled as a check whose
+  // predicate was the absence of an exception.
+  const parsed = parseGodotVersion(version);
+  if (parsed === null) {
+    return {
+      name: "godot-binary",
+      status: "fail",
+      severity: "required",
+      detail: `${bin} ran but did not report a Godot version (${version})`,
+      hint: `That binary answered '--version' with something that is not a Godot version. Point GODOT_BIN at the Godot executable itself (on macOS: /Applications/Godot.app/Contents/MacOS/Godot).`,
+    };
+  }
+  const [maj, min] = parsed;
+  const [needMaj, needMin] = MIN_GODOT;
+  if (maj < needMaj || (maj === needMaj && min < needMin)) {
+    return {
+      name: "godot-binary",
+      status: "fail",
+      severity: "required",
+      detail: `${bin} → ${version} (below the minimum ${needMaj}.${needMin})`,
+      hint: `This host needs Godot ${needMaj}.${needMin} or newer. Install it and put it on PATH, or set GODOT_BIN to its absolute path.`,
+    };
+  }
   return {
     name: "godot-binary",
     status: "ok",
@@ -232,7 +334,17 @@ function checkAddon(projectPath: string): Check[] {
         status: "skip",
         severity: "info",
         detail: `no project.godot at ${projectPath}`,
-        hint: "Pass --project <dir> pointing at your Godot project, or run from the project root.",
+        // 🔴 282 — THE HINT NAMED A FLAG THAT DOES NOT EXIST ON ONE OF ITS TWO
+        // SURFACES. The same `Check` is returned by the `breakpoint_doctor` MCP
+        // tool, whose input schema is `additionalProperties: false` over
+        // `require_live`, `live_level`, `include_csharp`, `timeout_ms` — there is
+        // no `--project` to pass in a conversation, and an assistant reading the
+        // remedy would try an argument that cannot be accepted. Both remedies are
+        // named because the reader is sometimes a terminal and sometimes not.
+        hint:
+          "Point this at your Godot project: pass `--project <dir>` on the command line, " +
+          "or set GODOT_PROJECT in the server's environment and restart the server.",
+        withholds: ["addon-installed", "addon-version", "addon-enabled"],
       },
     ];
   }
@@ -556,8 +668,9 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
     checks.push(checkCsharpTool("csharp-dap", config.csDapCmd));
   }
 
-  const ok = checks.every((c) => c.severity !== "required" || c.status !== "fail");
-  return { checks, ok };
+  const withheld = withheldChecks(checks);
+  const ok = checks.every((c) => c.severity !== "required" || c.status !== "fail") && withheld.length === 0;
+  return { checks, ok, withheld };
 }
 
 /**
@@ -583,6 +696,21 @@ function glyph(c: Check): string {
 export function summaryLine(report: DoctorReport): string {
   const failed = report.checks.filter((c) => c.status === "fail");
   const noted = failed.filter((c) => c.severity === "info");
+  // 🔴 282 — THE WITHHELD SET IS NAMED BEFORE THE FAILED SET, because it is the
+  // stronger statement: a check that failed was run and answered, and a check
+  // that was withheld was not run at all. Saying "some required checks failed"
+  // over a run that skipped three of them would be true and would still leave
+  // the reader to work out that the answer is *unknown* rather than *no*.
+  if (report.withheld.length) {
+    const gates = report.checks
+      .filter((c) => c.status !== "ok" && c.withholds?.some((n) => report.withheld.includes(n)))
+      .map((c) => c.name)
+      .join(", ");
+    return (
+      `Not verified — ${report.withheld.length} check(s) never ran because ${gates} did not pass: ` +
+      `${report.withheld.join(", ")}. This is not a pass; see the ↳ hints above.`
+    );
+  }
   if (!report.ok) return "Some required checks failed — see the ↳ hints above.";
   if (noted.length === 0) return "All checks passed.";
   const names = noted.map((c) => c.name).join(", ");
@@ -612,7 +740,14 @@ function printReport(report: DoctorReport): void {
   const out: string[] = ["breakpoint-mcp doctor", ""];
   for (const c of report.checks) {
     out.push(`  ${glyph(c)} ${c.name.padEnd(width)}  ${c.detail}`);
-    if (c.status === "fail" && c.hint) out.push(`      ↳ ${c.hint}`);
+    // 🔴 282 — `status === "fail"` DROPPED EVERY HINT THIS TOOL WROTE FOR THE
+    // OTHER TWO STATES, under a footer that says *see the ↳ hints above*. The
+    // `skip` on `project` carries the remedy for the most common first-run
+    // mistake; the `ok` on `addon-version` carries *the addon is ahead of this
+    // host — upgrade the host rather than overwriting*. Both were reachable only
+    // through `--json`, and the human-readable surface — the one a first-run user
+    // reads — is the one that lost them.
+    if (c.hint) out.push(`      ↳ ${c.hint}`);
   }
   out.push("");
   out.push(summaryLine(report));
@@ -648,7 +783,28 @@ export async function runDoctor(argv: string[]): Promise<number> {
   if (pre !== null) return pre;
   const { flags } = parsed;
 
+  // 🔴 282 — A FLAG GIVEN NO VALUE, OR A VALUE THIS PARSER CANNOT READ, IS
+  // REFUSED RATHER THAN DROPPED. Measured on the published 1.82.1:
+  // `doctor --timeout abc` and a bare `--timeout` both fell back to 1500ms in
+  // silence, and a bare `--project` silently checked the current directory —
+  // while `--require-live=yes` on the same command line is a hard exit 2. A user
+  // who mistypes the timeout is told nothing and reads the result as a
+  // measurement taken the way they asked for.
+  if (flags.project === true) {
+    process.stderr.write("--project: expected a directory, e.g. --project /path/to/game\n");
+    return 2;
+  }
   if (typeof flags.project === "string") process.env.GODOT_PROJECT = flags.project;
+  if (flags.timeout !== undefined) {
+    const raw = typeof flags.timeout === "string" ? flags.timeout : "";
+    const n = /^\d+$/.test(raw.trim()) ? Number.parseInt(raw, 10) : NaN;
+    if (!Number.isFinite(n) || n <= 0) {
+      process.stderr.write(
+        `--timeout: expected a positive whole number of milliseconds, got ${JSON.stringify(raw)} (default 1500)\n`,
+      );
+      return 2;
+    }
+  }
   const timeoutRaw = typeof flags.timeout === "string" ? Number.parseInt(flags.timeout, 10) : NaN;
   const timeoutMs = Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 1500;
 
