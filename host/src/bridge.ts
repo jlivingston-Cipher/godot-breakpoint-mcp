@@ -345,7 +345,7 @@ export class BridgeClient {
    */
   private authDenialRemedy(): string | undefined {
     if (!this.sawAuthDenial) return undefined;
-    return `${this.hostKnob} answered the Breakpoint handshake with "unauthorized", so something IS listening with our protocol but not with this project's secret — another Godot instance, or a stale key. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the project to remint it.`;
+    return `The peer on ${this.host}:${this.port} answered the Breakpoint handshake with "unauthorized", so something IS listening with our protocol but not with this project's secret — another Godot instance, or a stale key. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the project to remint it.`;
   }
 
   /**
@@ -363,7 +363,7 @@ export class BridgeClient {
    */
   private silentPeerRemedy(): string | undefined {
     if (this.sawBridgeFrame) return undefined;
-    return `Nothing on ${this.hostKnob} has ever spoken the Breakpoint bridge protocol on this connection, so this is not ${this.peerNoun} failing — it is a port held by something else. Check what holds it (\`lsof -i :<port>\`), or point this plane elsewhere with the host/port knobs.`;
+    return `Nothing on ${this.host}:${this.port} has ever spoken the Breakpoint bridge protocol on this connection, so this is not ${this.peerNoun} failing — it is a port held by something else. Find what holds it with \`lsof -nP -iTCP:${this.port} -sTCP:LISTEN\`, or point this plane elsewhere with ${this.hostKnob} and its port knob.`;
   }
 
   private connect(): Promise<net.Socket> {

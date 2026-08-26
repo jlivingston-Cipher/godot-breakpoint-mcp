@@ -5810,10 +5810,25 @@ _ran("33")
 # exactly the tree this check was written to refuse — it would simply have all
 # twenty-two defects behind one call instead of twenty-two.
 _OPS_GD = ROOT / "addons/breakpoint_mcp/operations.gd"
+_RT_GD = ROOT / "addons/breakpoint_mcp/runtime_bridge.gd"
 _add_child_sites = re.findall(
     r'^\s*ur\.add_do_method\([^,]+,\s*"add_child"(?P<rest>[^\n]*)$',
     _OPS_GD.read_text(), re.M,
 )
+# 🔴 THE RUNTIME PLANE IS THE SECOND CALL SITE, AND IT IS THE ONE THIS CHECK WOULD HAVE
+# MISSED (1.42.0's rule, paid again at 282 §11.1). `runtime_node_add` had the identical
+# defect and was WORSE: its reply carried `path` and `type` and no `name` at all, so a
+# caller could not even see that the name had been replaced. A check that reads one
+# plane licenses the other.
+_rt_add_child = re.findall(r'^\s*\w+\.add_child\((?P<args>[^\n]*)$', _RT_GD.read_text(), re.M)
+for _call in _rt_add_child:
+    if "true" not in _call:
+        errors.append(
+            f"check 34: runtime_bridge.gd calls `add_child({_call.rstrip()}` without "
+            f"`force_readable_name = true`. The runtime plane authors nodes into a LIVE "
+            f"scene tree and collides exactly the same way the editor plane did; a caller "
+            f"that asks twice for one name gets `@Type@N` and cannot address it."
+        )
 if len(_add_child_sites) != 1:
     errors.append(
         f"check 34: operations.gd registers `add_child` into an undo action at "
@@ -5832,7 +5847,8 @@ elif "true" not in _add_child_sites[0]:
 _commit_add_callers = len(re.findall(r"_commit_add\(", _OPS_GD.read_text())) - 1
 print(f"Node naming seam       : "
       f"{len(_add_child_sites)} add_child registration(s) · "
-      f"{_commit_add_callers} authoring tool(s) through the seam · readable names asserted")
+      f"{_commit_add_callers} authoring tool(s) through the seam · "
+      f"{len(_rt_add_child)} runtime-plane call(s) · readable names asserted on both planes")
 _ran("34")
 
 

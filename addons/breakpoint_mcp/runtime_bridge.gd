@@ -1131,8 +1131,20 @@ func _node_add(params: Dictionary) -> Dictionary:
 	var nm := String(params.get("name", ""))
 	if nm != "":
 		child.name = nm
-	parent.add_child(child)
-	return _ok({"added": true, "path": _path_of(child), "type": child.get_class()})
+	# 🔴 283 §1's DEFECT ON THE OTHER PLANE, AND THIS ONE COULD NOT EVEN BE SEEN.
+	# `force_readable_name = true` for the same reason the twenty-two editor sites now
+	# pass it: Godot's default answers ANY name collision with the machine form
+	# `@Type@N`, so a caller asking twice for the same name got a node it could not
+	# address. Worse here than there — this reply carried `path` and `type` and NO
+	# `name`, so nothing in the answer even hinted the name had been replaced. 1.42.0's
+	# rule about the second call site, and 282 §11.1 paying it again.
+	var requested := String(child.name)
+	parent.add_child(child, true)
+	var out := {"added": true, "path": _path_of(child), "name": String(child.name), "type": child.get_class()}
+	if String(child.name) != requested:
+		out["coerced"] = true
+		out["requested"] = requested
+	return _ok(out)
 
 
 func _node_remove(params: Dictionary) -> Dictionary:

@@ -736,7 +736,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     speed_scale: z.number(),
     animations: z.array(z.string()),
   },
-  runtime_node_add: { ...engineLog, added: z.boolean(), path: z.string(), type: z.string() },
+  runtime_node_add: { ...engineLog, ...addedNode, added: z.boolean(), type: z.string() },
   runtime_node_remove: { ...engineLog, removed: z.boolean(), path: z.string() },
   // F4 additions: deterministic playtesting (time control / frame stepping / state digest / RNG seed).
   runtime_time_scale: { ...engineLog, previous: z.number(), current: z.number() },

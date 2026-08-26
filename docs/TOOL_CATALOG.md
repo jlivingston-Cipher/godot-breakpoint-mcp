@@ -23,8 +23,9 @@ about a tool the wire calls destructive.
 **Node paths.** All editor/runtime node paths are **relative to the scene root**; `"."` (or `""`) denotes the root itself. Example: `"Player/Camera3D"`.
 
 **The name a new node actually got (`coerced` / `requested`).** Every tool that adds a node
-to the edited scene — 22 of them, `node_add` and `node_duplicate` through `light_create`,
-`body_create` and `mp_add_spawner` — answers with `path` and `name`, and with
+to a scene — the 22 editor-plane authoring tools, `node_add` and `node_duplicate` through
+`light_create`, `body_create` and `mp_add_spawner`, plus `runtime_node_add` on the live
+game — answers with `path` and `name`, and with
 `coerced: true` plus `requested` whenever the engine's name differs from the one asked for.
 Godot resolves a name collision itself, the way the editor's own **Add Node** does: ask for
 `SFX` when a sibling already holds it and the node is created as `SFX2`. Since **1.83.0**
@@ -2827,7 +2828,7 @@ between belongs to this call and nothing else does.
     "scene": { "type": "string", "description": "res:// PackedScene to instantiate (mutually exclusive with type)" },
     "name": { "type": "string" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ added, path, type, engine_log? }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
+- **Output** `{ added, path, name, type, coerced?, requested?, engine_log? }` — instantiates `scene` (a `PackedScene`) or `type` (a ClassDB class that `can_instantiate`), optionally renames it to `name`, and adds it under `parent`; `path` is the new node's live path. **`name` is new in 1.83.0 and so is the naming convention above** — this reply used to carry `path` and `type` only, so a node the engine renamed on a collision could not be seen to have been renamed at all. Errors: `bad_scene` / `bad_type` / `not_a_node` / `bad_args` (neither `scene` nor `type` given).
 
 ### `runtime_node_remove` ✔ ✅
 - **Input**
