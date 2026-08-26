@@ -250,22 +250,41 @@ def pinned_upstream(root: Path = ROOT) -> "dict[str, str]":
     return out
 
 
-def siblings_of(rows: "list[dict]", repo: str) -> "dict[str, str]":
+def siblings_of(rows: "list[dict]", repo: str,
+                scope: str = UPSTREAM_SCOPE) -> "dict[str, str]":
     """{package: newest version} for every search row published from `repo` — PURE.
 
     The repository is the join, not the scope: `@modelcontextprotocol/inspector` and
-    `/conformance` carry the same scope and are different projects, and a package that
-    moved out of the scope entirely would still be found by its repository.
+    `/conformance` carry the same scope and are different projects, and the repository
+    tells them apart where the scope cannot.
+
+    🆕 284 — AND THE SCOPE IS NOW A SECOND CONDITION, BECAUSE A REPOSITORY URL IS A CLAIM
+    IN SOMEBODY ELSE'S `package.json` RATHER THAN A FACT ABOUT OWNERSHIP. Raising the
+    search cap from npm's default of twenty made that visible immediately: the repo-only
+    join returned twelve more "siblings", and they are FORKS AND RE-PUBLISHES —
+    `@big-whale-labs/modelcontextprotocol-sdk`, `composiohq-modelcontextprotocol-
+    typescript-sdk`, `modelcontextprotocol-cjs` and nine others. A fork keeps the
+    upstream repository in its manifest, so every one of them answered the join, and the
+    deferral row refused because a stranger had "joined the family".
+
+    🔵 THE CONJUNCTION KEEPS BOTH ARGUMENTS AND COSTS ONE. Same repository excludes
+    `inspector` and `conformance`, which is 281's reason for the join; same scope excludes
+    the forks, which is 284's. What it gives up is 281's other case — a genuine sibling
+    published OUTSIDE the scope would now be missed — and that is the smaller error by a
+    wide margin: the cost of missing one is an unasked question, and the cost of admitting
+    twelve is a gate that refuses every week about people we have no relationship with.
+    Stated rather than silently traded, because it is a real narrowing.
     """
     want = repo_key(repo)
     if not want:
         return {}
+    prefix = scope if scope.endswith("/") else scope + "/"
     out = {}
     for r in rows or []:
         name = str(r.get("name") or "")
         got = repo_key(str((r.get("links") or {}).get("repository")
                            or r.get("repository") or ""))
-        if name and got and got == want:
+        if name and got and got == want and name.startswith(prefix):
             out[name] = str(r.get("version") or "")
     return out
 
@@ -385,6 +404,16 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             "@modelcontextprotocol/node": "2.0",
             "@modelcontextprotocol/express": "2.0",
             "@modelcontextprotocol/hono": "2.0",
+            # 🆕 284, SECOND READING — and the first one had the wrong family. Raising the
+            # search cap and adding the scope condition surfaced two more genuine siblings
+            # that npm's default twenty rows had never shown: `codemod` (a migration
+            # tool for the v1->v2 rename) and `fastify` (a transport adapter). Both
+            # packed and read at 2.0.0; a full-tree grep for all four blocked symbols
+            # returns nothing in either, exactly as in `hono`. The deferral is unchanged
+            # for the third time today, and the value of writing that down is that the
+            # NEXT sibling gets read rather than assumed.
+            "@modelcontextprotocol/codemod": "2.0",
+            "@modelcontextprotocol/fastify": "2.0",
         },
         DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",
                         "assertToolsCallTaskCapability"),
@@ -495,7 +524,15 @@ def npm_deprecated(name: str) -> "tuple[str, str]":
 def npm_search_scope(scope: str = UPSTREAM_SCOPE) -> "tuple[list, str]":
     """(search rows, problem) — NETWORK. Never raises."""
     try:
-        r = subprocess.run(["npm", "search", scope, "--json"],
+        # 🆕 284 — `--searchlimit`, BECAUSE THE DEFAULT IS TWENTY AND THIS IS NOT A LIST.
+        # `npm search` is a RANKED query with a result cap, not an enumeration of a scope.
+        # Measured at 284: the same scope returned twelve packages on one machine and
+        # twenty rows containing six of the family on another, on the same afternoon —
+        # which is how 284 came to "add" `@modelcontextprotocol/hono` to `seen` and then
+        # be told it was "gone" two hours later. Raising the cap makes under-reporting
+        # rarer; it cannot make it impossible, which is what the confirmation in
+        # `upstream_reading` is for.
+        r = subprocess.run(["npm", "search", scope, "--json", "--searchlimit=250"],
                            capture_output=True, text=True, timeout=90)
     except (OSError, subprocess.TimeoutExpired) as e:
         return ([], f"`npm search {scope}` could not run: {e}")
@@ -506,6 +543,23 @@ def npm_search_scope(scope: str = UPSTREAM_SCOPE) -> "tuple[list, str]":
     except ValueError as e:
         return ([], f"`npm search {scope} --json` did not return JSON: {e}")
     return (rows if isinstance(rows, list) else [], "")
+
+
+def npm_version_of(name: str) -> "tuple[str, str]":
+    """(newest version, problem) for one package — NETWORK. Never raises.
+
+    🆕 284 — the other half of confirming a package a ranked search did not list. The
+    search row carries a version; a direct read has to supply one too, or a confirmed
+    survivor would rejoin the family with an empty version and read as MOVED.
+    """
+    try:
+        r = subprocess.run(["npm", "view", name, "version"],
+                           capture_output=True, text=True, timeout=45)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return ("", f"`npm view {name} version` could not run: {e}")
+    if r.returncode != 0:
+        return ("", f"`npm view {name} version` exited {r.returncode}")
+    return (r.stdout.strip(), "")
 
 
 def npm_repo_of(name: str) -> "tuple[str, str]":
@@ -534,6 +588,37 @@ def upstream_reading(root: Path = ROOT) -> "tuple[list[str], list[str]]":
     if why:
         return ([], [f"SDK_UPSTREAM UNREAD — {why}"])
     family = siblings_of(rows, repo)
+    # 🆕 284 — AND A NAME MISSING FROM A RANKED SEARCH IS NOT A NAME THAT LEFT.
+    #
+    # 🔴 281 BUILT THIS ROW TO RE-DERIVE ITS ARGUMENT EVERY RUN, WHICH IS RIGHT, AND
+    # SOURCED THE POPULATION FROM A QUERY THAT IS NOT A POPULATION. `npm search` ranks and
+    # caps; two machines asking the same scope on the same afternoon got different answers,
+    # so `set(seen) - set(live)` flapped and `sdk-drift` refused in BOTH directions within
+    # two hours — first because `@modelcontextprotocol/hono` had JOINED, then, once it was
+    # recorded, because it had GONE. Neither was true of the registry.
+    #
+    # 🔵 THE ASYMMETRY IS THE FIX, AND IT IS THE SAME ONE 283 §2.2 DREW FOR THE BRIDGE. A
+    # search that lists a package is DEFINITIVE — it cannot invent one. A search that omits
+    # a package is an INFERENCE from a ranked cap, and an inference may only fill a gap it
+    # has first tried to close. So every `seen` name absent from the rows is asked about
+    # DIRECTLY, and only a package the registry itself will not place in this repository
+    # counts as gone. A JOIN still needs no confirmation: the search found it, so it is
+    # there.
+    for _name in sorted({p for row in UPSTREAM_DEFERRED.values()
+                         for p in (row.get(DEFER_SEEN) or {})}):
+        if _name in family:
+            continue
+        _url, _why = npm_repo_of(_name)
+        if _why:
+            return ([], [f"SDK_UPSTREAM UNREAD — {_name} is on a deferral's record, the "
+                         f"search did not list it, and the registry could not be asked "
+                         f"whether it is still there: {_why}"])
+        if repo_key(_url) == repo_key(repo):
+            _ver, _vwhy = npm_version_of(_name)
+            if _vwhy:
+                return ([], [f"SDK_UPSTREAM UNREAD — {_name} is published from that "
+                             f"repository and its version could not be read: {_vwhy}"])
+            family[_name] = _ver
     # 🆕 281 — THE DEPRECATION READING IS TAKEN ONLY WHEN A DEFERRAL RESTS ON IT, and its
     # population is the deferral's own `seen` rather than the whole family: a question
     # asked of packages no argument depends on is a network call that cannot change an
