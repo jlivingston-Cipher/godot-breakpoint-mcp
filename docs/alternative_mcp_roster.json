@@ -18,7 +18,7 @@
     "docs/LANDSCAPE_TRACKING_POLICY.md."
   ],
   "policy": "docs/LANDSCAPE_TRACKING_POLICY.md",
-  "last_full_sweep": "2026-08-24",
+  "last_full_sweep": "2026-08-26",
   "entries": [
     {
       "name": "godot-mcp-go",
@@ -94,14 +94,14 @@
       "category": "alternative-mcp-server",
       "assetlib_version": "1.12.1",
       "assetlib_modify_date": "2026-07-31",
-      "last_analysed": "2026-08-05",
-      "last_analysed_commit": "fbd9b3d",
+      "last_analysed": "2026-08-26",
+      "last_analysed_commit": "947ee6b",
       "real_dap_client": false,
       "real_lsp_client": false,
-      "csharp": false,
+      "csharp": true,
       "cadence": "weekly",
       "status": "active",
-      "note": "Source of the per-call engine-error echo idea (Breakpoint D1)."
+      "note": "SOURCE PASS 284 — card said no change, head moved fbd9b3d -> 947ee6b, and the source moved substantially: three commits, 23 files, +1863/-93, and the addon is at 1.14.0 while the card still reads 1.12.1. 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — tools/csharp_tools.gd:28 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics. It has been there since v1.5.0 and was already present at the previously recorded commit, so the roster value was wrong BEFORE this window rather than newly changed. The v1.14 theme is context cost: a `help` tool serves long-form argument catalogues on demand and is deliberately excluded from tools/list, and descriptions were trimmed to capability statements. A new capture:// resource store parks screenshots under user:// and returns an MCP resource_link instead of megabytes of base64, degrading link -> both for peers below protocol revision 2025-06-18. 55 tools by two agreeing derivations (registry.register literals; and the generated glama/tools.json), corroborated by ci-smoke.ps1 -ExpectedTools 55; the delta from 54 is exactly `help`. No DAP and no LSP — zero hits for either. Zero-sidecar transport: hand-rolled HTTP/1.1 + SSE on a Godot TCPServer inside the editor process. This repo is the MIT Lite edition — core/effort.gd enumerates 91 tool names across six cumulative tiers and 55 register here."
     },
     {
       "name": "Godot-MCP-Native",
@@ -140,16 +140,16 @@
       "repo": "IvanMurzak/Godot-MCP",
       "asset_id": 5245,
       "category": "alternative-mcp-server",
-      "assetlib_version": "0.21.0",
-      "assetlib_modify_date": "2026-08-17",
-      "last_analysed": "2026-08-24",
-      "last_analysed_commit": "bd1b8e4",
+      "assetlib_version": "0.22.0",
+      "assetlib_modify_date": "2026-08-25",
+      "last_analysed": "2026-08-26",
+      "last_analysed_commit": "b91650c",
       "real_dap_client": false,
       "real_lsp_client": false,
       "csharp": true,
       "cadence": "monthly",
       "status": "active",
-      "note": "C# implementation; requires the Mono/.NET Godot build even for GDScript-only projects. Nine CI workflows — broadest workflow set in the roster. No debugger surface: RuntimeErrorCapture.cs collects errors on three passive channels and runtime-errors-get polls the buffer, with no execution control and no live variable read. 42 tools by two derivations ([AiTool] attributes; ToolId constants). The MCP server itself is a separate binary (gamedev-mcp-server 9.2.5) shared with the author's Unity and Unreal plugins — this repo is a client. adac6de..bd1b8e4 is four commits, all machine-wide auth and version.",
+      "note": "SOURCE PASS 284. bd1b8e4..b91650c is two commits, 24 files, +842/-39, and it is auth and UX only — no tool and no transport change. A 'D4 assisted ladder' (GodotAssistedSignIn.cs) auto-opens the browser at the device-auth verification URL once per editor session; GodotAccountAuth.cs re-hooks SignInRequired/AuthStateChanged across provider swaps; and a silent-failure fix in ConnectionPanelView.cs, where a dead machine-store credential previously rendered nothing for a signed-in user. 42 tools by two agreeing derivations ([AiTool] attributes; and the first positional argument of every [AiTool(] block with ToolId constants resolved) — of which 39 are advertised to MCP clients, the other three being System tools routed to a disjoint registry reachable only over HTTP /api/system-tools/. DEBUGGER STILL 'none', with a nuance worth recording: there IS structured runtime-error capture via the Godot 4.5+ OS.AddLogger hook plus AppDomain.UnhandledException, surfacing multi-frame ScriptBacktrace data through runtime-errors-get — richer than log scraping, but passive post-hoc diagnostics with no execution control, so not a debugger. No DAP and no LSP: zero repo-wide hits for Content-Length, setBreakpoints, :6005 or textDocument. C# is real and total — the addon IS C# and needs the .NET Godot build — but script-validate is GDScript-only by its own comment, since there is no in-editor C# compiler to reach cheaply. Cloud-first: the addon is a SignalR client dialling a hosted backend at ai-game.dev or a self-hosted URL. Effectively single-maintainer, 220 of 221 commits.",
       "debugger": "none"
     },
     {
@@ -205,15 +205,15 @@
       "category": "alternative-mcp-server",
       "assetlib_version": "1.0.0",
       "assetlib_modify_date": "2026-07-16",
-      "last_analysed": "2026-08-10",
-      "last_analysed_commit": "2c6127b",
+      "last_analysed": "2026-08-26",
+      "last_analysed_commit": "3148cda",
       "real_dap_client": false,
       "real_lsp_client": false,
-      "csharp": false,
+      "csharp": true,
       "protocol_revision": "2025-11-25",
       "cadence": "biweekly",
       "status": "active",
-      "note": "Shipped v2.0.0 on 2026-08-04. Behavioural-evaluation CI and a Godot-latest compatibility job."
+      "note": "SOURCE PASS 284 — card said no change, head moved 2c6127b -> 3148cda, and this window is real behaviour: 13 commits, 26 files, +896/-71, with ~490 lines of new tests and no version bump (3.0.0 both ends). 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — verify_dotnet_project (inspect|restore|build|run) probes dotnet --version and runs restore/build against a versioned Godot.NET.Sdk. Unchanged in this window, so the roster value was already wrong at the previously recorded commit. The substantive change is child-environment sanitization: every spawned Godot process now gets a 22-key allowlist rather than inheriting process.env, on the stated reasoning that project GDScript runs with the user's OS permissions and can therefore read any inherited credential. Short-lived CLI runs additionally get GODOT_MCP_RUNTIME_DISABLED=true so validate/test/import/export never open a runtime listener. Startup failures now surface instead of hanging — a GameStartupError carrying exitCode/signal, thrown when the process exits during the connect delay. 56 tools by three agreeing routes (rawToolDefinitions; the toolManifest record keys; the handler dispatch keys), unchanged across the window. Only 16 core tools are advertised by default, the other 40 reached through godot_catalog progressive disclosure, against a pinned context budget. No DAP, and LSP is explicitly scoped OUT in docs/coverage/engine-scope.json: diagnostics come from validate_script via --check-only rather than from driving the language server. Node stdio sidecar plus an authenticated loopback TCP channel to an injected in-game interaction server. Card is at 1.0.0 against a source 3.0.0."
     },
     {
       "name": "Doyunha-Gopeak",
@@ -255,30 +255,30 @@
       "category": "alternative-mcp-server",
       "assetlib_version": "0.1.0",
       "assetlib_modify_date": "2026-04-26",
-      "last_analysed": "2026-08-10",
-      "last_analysed_commit": "99806df",
+      "last_analysed": "2026-08-26",
+      "last_analysed_commit": "5540357",
       "debugger": "real-dap-client",
       "real_dap_client": true,
       "real_lsp_client": true,
       "csharp": true,
-      "cadence": "monthly",
+      "cadence": "dependency-only since 2026-04-30",
       "status": "active",
-      "note": "Found by the first automated Asset Library sweep; never tracked before. Server written in C#, with its own Godot DAP and LSP clients."
+      "note": "SOURCE PASS 284, and this entry is why Rule 2 has a second clause: the Asset Library card has not moved since 2026-04-26 and the head moved 99806df -> 5540357. Reading it: FIVE commits, all 2026-08-13, 3 files, +10/-10 — Dependabot bumps (MessagePack, Roslyn, Microsoft.Extensions.*) and one CI action. No src/, tests/ or addons/ file touched; the tool surface, DAP, LSP and C# paths are byte-identical. 'Nothing that matters changed' is the finding, and it is a MEASURED one. 64 tools by two agreeing derivations ([McpServerTool] attributes across 12 [McpServerToolType] classes; and the declarative catalog in DefaultToolGroups.cs) — agreement is CI-enforced by DefaultToolGroupsTests.cs, not coincidence. Only 17 are advertised out of the box: tools are gated into five opt-in pillars via WICK_GROUPS, defaulting to core. Still the only tracked entry with BOTH a real DAP client and a real LSP client, and both are confirmed at source: GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake; GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and a second CSharpLspClient.cs spawns csharp-ls over stdio. SCOPE CAVEAT WORTH CARRYING: the DAP verbs are launch, configurationDone, stackTrace, evaluate and variables — there is no setBreakpoints and no continue/step, so it is a real DAP client with launch-and-inspect verbs rather than debug-session control. C# is the centre of gravity, not a bolt-on: MSBuildWorkspace, GetSemanticModel, SymbolFinder, with tests. VERSION DIVERGENCE: source has been 1.0.0 since tag v1.0.0 while the card still reads 0.1.0 — one major version and four months behind, which is the sharpest evidence in this roster that an Asset Library version is not a usable freshness signal. Cadence: last substantive source commit 2026-04-30; everything since is Dependabot or CI. Maintained rather than developed."
     },
     {
       "name": "godot-mcp (tomyud)",
       "repo": "tomyud1/godot-mcp",
       "asset_id": 4767,
       "category": "alternative-mcp-server",
-      "assetlib_version": "0.5.0",
-      "assetlib_modify_date": "2026-04-21",
-      "last_analysed": "2026-08-10",
-      "last_analysed_commit": "0d3f473",
+      "assetlib_version": "0.6.0",
+      "assetlib_modify_date": "2026-08-24",
+      "last_analysed": "2026-08-26",
+      "last_analysed_commit": "3037a5b",
       "real_dap_client": false,
       "real_lsp_client": false,
-      "cadence": "quarterly",
-      "status": "dormant",
-      "note": "Found by the first automated Asset Library sweep. No commits since 2026-04-21, no CI."
+      "cadence": "release-squashed",
+      "status": "active",
+      "note": "SOURCE PASS 284. Resumed after a 125-day gap: one squashed release commit (3037a5b, 2026-08-24, +5369/-316) took it 0.5.0 -> 0.6.0, so the 'dormant' ruling recorded at 2026-08-10 no longer holds. The new work is transactional editing — a disk-backed snapshot store (snapshot_store.gd, undo_manager.gd) with a _MUTATING_TOOLS registry that auto-snapshots every mutating tool, plus batch_execute with atomic rollback as one undo entry. Deliberately NOT wired to EditorUndoRedoManager, so the editor's own Ctrl+Z does not reach AI edits. 75 tools registered by two independent derivations (allTools in mcp-server/src/tools/index.ts, executed; and the GDScript _tool_map union in tool_executor.gd), 77 advertised on the wire (index.ts:279 prepends get_godot_status and get_guide). Its own READMEs disagree with each other (75, 42 and 32) — counts here are from source. Debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP. GDScript only: create_script hard-rejects non-.gd. Node stdio server hosting a WebSocket on 127.0.0.1:6505 that the editor addon and an in-game autoload both dial into."
     },
     {
       "name": "godot-mcp (DaxianLee)",
@@ -287,11 +287,13 @@
       "category": "alternative-mcp-server",
       "assetlib_version": "1.0.0",
       "assetlib_modify_date": "2026-06-24",
-      "last_analysed": "2026-07-01",
+      "last_analysed": "2026-08-26",
       "real_dap_client": false,
       "real_lsp_client": false,
       "cadence": "monthly",
-      "status": "active"
+      "status": "dormant",
+      "last_analysed_commit": "1b03129",
+      "note": "BASELINED AT 284 — this entry had NO last_analysed_commit, so the sweep's Rule 2 second clause was blind to it and reported SRC ?. Head is 1b03129 (2026-01-14); source version 1.0.0 matches the card. 🔴 STATUS CORRECTION active -> dormant: the ENTIRE history is three commits, 2026-01-04 to 2026-01-14, and nothing in six months. Category confirmed — mcp_server.gd:122 listens on TCP and :443 handles tools/list. 74 tools, derived from the 22 executors registered at mcp_server.gd:200-231 against the flattened _tool_definitions. No DAP, no LSP, no C# (zero .cs in tree)."
     },
     {
       "name": "Ziva",
@@ -300,10 +302,11 @@
       "category": "alternative-mcp-server",
       "assetlib_version": "0.2.5",
       "assetlib_modify_date": "2026-06-16",
-      "last_analysed": "2026-07-01",
+      "last_analysed": "2026-08-26",
       "cadence": "quarterly",
-      "status": "active",
-      "note": "Closed source, subscription. Source-level analysis not possible; track listing metadata only."
+      "status": "dormant",
+      "note": "BASELINED AT 284, and the baselining overturned the classification. 🔴 THE TRACKED REPO IS AN INSTALLER SHELL, NOT AN MCP SERVER. ziva-via-godot-asset-library-installer contains a C++ GDExtension whose only network call fetches the latest release of ziva-sh/ziva-agent-plugin-godot (installer_download.gd:35); there are zero MCP or JSON-RPC references anywhere in it. The agent repo it installs was also read at 284 (head fae411b, 2026-02-15) and holds only README, assets and llms.txt — the agent ships as release BINARIES, so there is no source to take a pass over, and its own README says code is sent to Ziva's servers for processing. `alternative-mcp-server` is therefore UNVERIFIABLE from source rather than confirmed, and this note records that rather than a category change, because Rule 2's remedy for an unreadable entry is evidence and not a guess. Status active -> dormant: 35 commits 2026-03-08 to 2026-06-15, nothing since. Head 65fab39, source 0.2.5, matching the card.",
+      "last_analysed_commit": "65fab39"
     },
     {
       "name": "godot-mcp (tugcantopaloglu)",
@@ -384,10 +387,11 @@
       "category": "asset-generation",
       "assetlib_version": "1.0.0",
       "assetlib_modify_date": "2026-08-07",
-      "last_analysed": null,
+      "last_analysed": "2026-08-26",
       "cadence": "quarterly",
-      "status": "new",
-      "note": "Found by the first automated Asset Library sweep. Asset-generation bridge, adjacent category; no source-level pass yet."
+      "status": "active",
+      "note": "BASELINED AT 284 — the entry carried last_analysed: null, so the sweep could say nothing about it. Head 1bf3f99 (2026-08-07); plugin.cfg reads 1.0 against a card 1.0.0, cosmetic only. Category `asset-generation` CONFIRMED and it is not MCP-shaped: a single 193-line GDScript listens on 127.0.0.1:6969 for a POST carrying a .glb URL, downloads it and inserts it into the open scene via gltf_doc.generate_scene. No tool table, no DAP, no LSP, no C#. Status new -> active, low volume: 10 commits, seven in 2026-02 and three in 2026-08.",
+      "last_analysed_commit": "1bf3f99"
     },
     {
       "name": "AI Assistant Hub",
@@ -452,10 +456,11 @@
       "category": "not-in-category",
       "assetlib_version": "1.6.0",
       "assetlib_modify_date": "2026-03-02",
-      "last_analysed": "2026-07-01",
+      "last_analysed": "2026-08-26",
       "cadence": "archive",
       "status": "ruled-out",
-      "note": "Behaviour trees and state machines for NPC logic. 'AI' in the game-AI sense. Ruled out 2026-07."
+      "note": "RULING UNCHANGED, COMMIT RECORDED AT 284. The entry had no last_analysed_commit, so the sweep reported it as unreadable every run; head is dc56e8b (2026-08-24). The out-of-category ruling was NOT re-litigated — only the one question that could overturn it was asked, and the answer is no: a full-tree scan for mcp, model context protocol, tools/list and jsonrpc returns no source match, and there is no socket server for AI clients. Very much alive as a behaviour-tree addon — 1409 commits, ~8/month recently — which is precisely why the ruling needs a recorded commit rather than an assumption.",
+      "last_analysed_commit": "dc56e8b"
     },
     {
       "name": "OpenAI Assistant",
