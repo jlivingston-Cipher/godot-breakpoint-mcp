@@ -360,6 +360,23 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
     "@modelcontextprotocol/sdk": {
         # Measured at 281 by `npm search @modelcontextprotocol --json`, joined on the
         # repository exactly as `siblings_of` joins it.
+        #
+        # 🆕 284 — AND THE ROW DID ITS JOB: IT REFUSED, ON A SIBLING JOINING. `sdk-drift`
+        # had been red for two weeks and this was one of its two causes.
+        # `@modelcontextprotocol/hono` published at 2.0.0 and `deferral_problems` stopped
+        # the run — not because anything about the argument had changed, but because
+        # NOBODY HAD LOOKED, which is the only state 281 built this table to make
+        # visible. 279 §9's rule, enforced: an exemption whose reason has expired reads
+        # exactly like one whose reason holds.
+        #
+        # 🔵 SO IT WAS READ, NOT BUMPED. `npm pack @modelcontextprotocol/hono` at 2.0.0:
+        # a Hono HTTP-transport adapter, ZERO dependencies, ONE entry point, and a
+        # full-tree grep for all four blocked symbols returns nothing. It gives none of
+        # them a home, so the deferral is unchanged and this line records the reading
+        # rather than the conclusion. The distinction is the whole value of the row —
+        # updating `seen` without opening the tarball would satisfy this gate forever
+        # while meaning nothing, and that is the failure mode 205 §3 spent forty-two
+        # sessions inside.
         DEFER_SEEN: {
             "@modelcontextprotocol/sdk": "1.30",
             "@modelcontextprotocol/core": "2.0",
@@ -367,6 +384,7 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             "@modelcontextprotocol/client": "2.0",
             "@modelcontextprotocol/node": "2.0",
             "@modelcontextprotocol/express": "2.0",
+            "@modelcontextprotocol/hono": "2.0",
         },
         DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",
                         "assertToolsCallTaskCapability"),
