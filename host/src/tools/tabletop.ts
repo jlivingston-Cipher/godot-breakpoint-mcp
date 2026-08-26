@@ -442,7 +442,20 @@ export async function emitCardTemplate(emit: Emit, spec: TemplateSpec): Promise<
   for (const slot of spec.slots) assertNodeName(slot.name);
 
   // 1. fresh scene rooted at the card node.
-  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName });
+  // 🆕 284 — `overwrite: true` ON EVERY INTERNAL COMPOSE, AND THE REASON IS THE SEAM'S
+  // OWN BOUNDARY. `scene.new` and `resource.create` now REFUSE an occupied destination,
+  // which is the whole point of 284's fix — but these calls are not a caller reaching a
+  // tool, they are one tool building its own output. The existence question was already
+  // asked and answered ONE level up, by `guardWriteTarget` at the tool boundary, where
+  // the caller could say yes; asking it again here turns an authorised replace into a
+  // half-written scene.
+  //
+  // 🔴 FOUND BY THE TABLETOP PLANE ON A REAL EDITOR, WHICH IS THE ONLY PLACE IT COULD BE.
+  // `TT_OVERWRITE_TRUE` expected `overwrite_unsupported` and got the addon's `exists` — a
+  // refusal from two layers down, on a call the user had already approved. The unit suite
+  // could not see it: it is exactly the class of defect that exists only when a tool CALLS
+  // another tool, and 283's finding-to-carry is that nothing here calls twice.
+  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName, overwrite: true });
 
   // 2. the face container that holds every slot.
   await emit("control.create", { parent_path: ".", type: "Control", name: "Face" });
@@ -463,11 +476,11 @@ export async function emitCardTemplate(emit: Emit, spec: TemplateSpec): Promise<
         for (const s of ["left", "top", "right", "bottom"]) props[`border_width_${s}`] = sb.border_width;
       }
       if (sb.border_color) props.border_color = colorVariant(sb.border_color);
-      await emit("resource.create", { class_name: "StyleBoxFlat", to_path: stylePath, properties: props });
-      await emit("theme.create", { to_path: themePath });
+      await emit("resource.create", { class_name: "StyleBoxFlat", to_path: stylePath, properties: props, overwrite: true });
+      await emit("theme.create", { to_path: themePath, overwrite: true });
       await emit("theme.set_stylebox", { path: themePath, name: "panel", theme_type: rootType, stylebox_path: stylePath });
     } else {
-      await emit("theme.create", { to_path: themePath });
+      await emit("theme.create", { to_path: themePath, overwrite: true });
     }
     if (spec.theme.base_color) {
       await emit("theme.set_color", { path: themePath, name: "font_color", theme_type: "Label", color: parseHexColor(spec.theme.base_color) });
@@ -532,7 +545,7 @@ export async function emitCardTemplate(emit: Emit, spec: TemplateSpec): Promise<
 
   // 6. generate + attach the card script.
   const source = buildCardScript(rootType, spec.slots, hasBack);
-  await emit("resource.create", { class_name: "GDScript", to_path: scriptPath, properties: { source_code: source } });
+  await emit("resource.create", { class_name: "GDScript", to_path: scriptPath, properties: { source_code: source }, overwrite: true });
   await emit("node.set_property", { path: ".", property: "script", value: resourceVariant("GDScript", scriptPath) });
 
   // 7. assign the theme (if any), then persist.
@@ -918,7 +931,7 @@ export async function emitBoardCreate(emit: Emit, spec: BoardSpec): Promise<Boar
   }
 
   // 1. fresh scene rooted at the board node.
-  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName });
+  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName, overwrite: true });
 
   // 2. optional background (emitted first so it draws behind the cells).
   let backgroundNodes = 0;
@@ -1062,12 +1075,12 @@ export async function emitBoardTileCreate(emit: Emit, spec: TileBoardSpec): Prom
   const tilesetPath = spec.tileset ?? deriveTilesetPath(spec.path);
 
   // 1. fresh Node2D scene rooted at the board node.
-  await emit("scene.new", { root_type: "Node2D", path: spec.path, name: rootName });
+  await emit("scene.new", { root_type: "Node2D", path: spec.path, name: rootName, overwrite: true });
 
   // 2. the coordinate frame: bind a supplied TileSet, or create a fresh one so
   //    the layer has a real tile_size (map_to_local reads it) even when unpainted.
   if (tilesetCreated) {
-    await emit("tileset.create", { to_path: tilesetPath, tile_size: tile });
+    await emit("tileset.create", { to_path: tilesetPath, tile_size: tile, overwrite: true });
   }
 
   // 3. the TileMapLayer that holds the cells.
@@ -1263,7 +1276,7 @@ export async function emitPieceTemplate(emit: Emit, spec: PieceSpec): Promise<Pi
   const nodes: Array<{ name: string; node_path: string; type: string }> = [];
 
   // 1. fresh scene rooted at the piece node.
-  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName });
+  await emit("scene.new", { root_type: rootType, path: spec.path, name: rootName, overwrite: true });
 
   // 2. the Art node (Sprite2D / TextureRect) + optional texture / tint / size.
   await emit("node.add", { parent_path: ".", type: artType, name: "Art" });
@@ -1297,7 +1310,7 @@ export async function emitPieceTemplate(emit: Emit, spec: PieceSpec): Promise<Pi
     const shapeProps = shapeKind === "circle"
       ? { radius: Math.min(spec.size.width, spec.size.height) / 2 }
       : { size: vec2(spec.size.width, spec.size.height) };
-    await emit("resource.create", { class_name: shapeClass, to_path: shapePath, properties: shapeProps });
+    await emit("resource.create", { class_name: shapeClass, to_path: shapePath, properties: shapeProps, overwrite: true });
     await emit("node.add", { parent_path: "HitArea", type: "CollisionShape2D", name: "Shape" });
     nodes.push({ name: "Shape", node_path: "HitArea/Shape", type: "CollisionShape2D" });
     await emit("node.set_property", { path: "HitArea/Shape", property: "shape", value: resourceVariant(shapeClass, shapePath) });
@@ -1318,7 +1331,7 @@ export async function emitPieceTemplate(emit: Emit, spec: PieceSpec): Promise<Pi
 
   // 6. generate + attach the piece script.
   const source = buildPieceScript(rootType, { hasLabel, hasBack });
-  await emit("resource.create", { class_name: "GDScript", to_path: scriptPath, properties: { source_code: source } });
+  await emit("resource.create", { class_name: "GDScript", to_path: scriptPath, properties: { source_code: source }, overwrite: true });
   await emit("node.set_property", { path: ".", property: "script", value: resourceVariant("GDScript", scriptPath) });
 
   // 7. persist.
@@ -1657,7 +1670,7 @@ export async function emitMakeDraggable(emit: Emit, args: MakeDraggableArgs): Pr
   const baseScript = existing && existing !== args.script_path ? existing : null;
 
   const source = buildDraggableScript(mode, payload, { preview: args.preview, button: args.button, baseScript: baseScript ?? undefined });
-  await emit("resource.create", { class_name: "GDScript", to_path: args.script_path, properties: { source_code: source } });
+  await emit("resource.create", { class_name: "GDScript", to_path: args.script_path, properties: { source_code: source }, overwrite: true });
   await emit("node.set_property", { path: args.node, property: "script", value: resourceVariant("GDScript", args.script_path) });
   // Finding C: write the payload as a per-node property override, so the shared
   // script above can serve many draggables — each carrying its own payload.
@@ -1717,13 +1730,13 @@ export async function emitAddDropZone(emit: Emit, args: AddDropZoneArgs): Promis
     const shapeProps = shapeKind === "circle"
       ? { radius: Math.min(size.width, size.height) / 2 }
       : { size: vec2(size.width, size.height) };
-    await emit("resource.create", { class_name: shapeClass, to_path: shapePath, properties: shapeProps });
+    await emit("resource.create", { class_name: shapeClass, to_path: shapePath, properties: shapeProps, overwrite: true });
     await emit("node.add", { parent_path: areaPath, type: "CollisionShape2D", name: "Shape" });
     await emit("node.set_property", { path: joinPath(areaPath, "Shape"), property: "shape", value: resourceVariant(shapeClass, shapePath) });
   }
 
   const source = buildDropZoneScript(mode, { acceptKey, acceptValues, onDrop });
-  await emit("resource.create", { class_name: "GDScript", to_path: args.script_path, properties: { source_code: source } });
+  await emit("resource.create", { class_name: "GDScript", to_path: args.script_path, properties: { source_code: source }, overwrite: true });
   await emit("node.set_property", { path: args.node, property: "script", value: resourceVariant("GDScript", args.script_path) });
   // Finding E: the on_drop signal is now declared IN the generated script (see
   // buildDropZoneScript), so no runtime-only signal.add_user_signal is emitted —
