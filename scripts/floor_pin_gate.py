@@ -1985,9 +1985,94 @@ LITERAL_DIRS = [
 JS_LITERAL = re.compile(r"`(?:[^`\\]|\\.)*`|\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'", re.S)
 
 
-def _literal_bodies(text: str):
-    """(line, body) for every string literal, interpolations rendered as `{}`."""
-    for m in JS_LITERAL.finditer(text):
+# 🆕 284 — `shortfall-cause-reads-prose` (OPEN 283) — AND THE FILTER CAN ONLY SUBTRACT.
+#
+# 🔴 THE READER BELOW HAS ALWAYS READ COMMENTS, AND 283 WALKED INTO IT WHILE WRITING
+# ABOUT A REFUSAL. Explaining the boundary-gate episode in a comment, it quoted that
+# gate's refusal sentence verbatim — and this reader, which has no call graph and no
+# parser, judged the quotation as a live refusal site asserting one cause. The session
+# reworded the comment to get green, which fixes one comment and leaves the reader.
+#
+# 🔴 281 ALREADY WROTE THIS LESSON ONE FILE OVER AND THIS READER NEVER GOT IT.
+# `COUNTER_PROVENANCE` was given comment-stripping for exactly this class — *an argv
+# element is the whole string; prose merely CONTAINS the words* — after four consecutive
+# drafts were green about four different populations. The gap was never an argument; it
+# was that nobody carried the repair sideways.
+#
+# 🔴 AND THE FIRST DRAFT OF THE REPAIR HERE ADDED TWENTY-FOUR REFUSAL SITES NOBODY WROTE,
+# WHICH IS WHY THE SHAPE BELOW IS THE SHAPE. Blanking comments out of the text before
+# running the finder means the finder runs over text it has never seen, and a JS REGEX
+# literal — `/["\']/` in two of this tree's own gates — desynchronises the walk that
+# decides what is a string. Measured: 6,717 literals dropped and 24 GAINED, several of
+# them multi-line slabs of code read as one quotation. A reader whose failure mode was
+# going quiet had been given a second failure mode of INVENTING, which is worse, and the
+# floor underneath it cannot see the difference.
+#
+# 🔴 SO THE FINDER'S OUTPUT IS THE POPULATION AND THE COMMENT PASS ONLY SUBTRACTS FROM IT.
+# `JS_LITERAL` runs over the ORIGINAL text, unchanged, so every span it produces today it
+# produces tomorrow; the pass below walks left to right and drops the spans that START
+# inside a comment. Nothing can be added by construction, the bodies and line numbers of
+# every surviving literal are bit-identical to what shipped, and the only direction
+# available to a bug in the comment walk is the direction `SHORTFALL_LITERAL_FLOOR`
+# already governs.
+#
+# 🔴 AND THE AMBIGUITY IS RESOLVED IN READING ORDER, WHICH IS THE ONLY HONEST ORDER.
+# `"https://x"` is not a comment and `// see \`x\`` is not a literal; both questions are
+# the same question asked from different positions. One pass that takes whichever starts
+# FIRST answers both without a second notion of what a string is — and a second notion is
+# precisely what let the first draft disagree with the finder it was filtering.
+LINE_COMMENT: "dict[str, tuple[str, ...]]" = {
+    ".gd": ("#",),
+    ".ts": ("//",),
+    ".mjs": ("//",),
+}
+BLOCK_COMMENT: "dict[str, tuple[str, str] | None]" = {
+    ".gd": None,          # GDScript has no block comment; `##` is a doc line comment
+    ".ts": ("/*", "*/"),
+    ".mjs": ("/*", "*/"),
+}
+
+
+def _comment_free(text: str, suffix: str) -> "list[re.Match]":
+    """Every `JS_LITERAL` match in `text` that does not begin inside a comment."""
+    marks = LINE_COMMENT.get(suffix, ())
+    block = BLOCK_COMMENT.get(suffix)
+    spans = list(JS_LITERAL.finditer(text))
+    kept: "list[re.Match]" = []
+    i, n, k = 0, len(text), 0
+    while i < n:
+        while k < len(spans) and spans[k].start() < i:
+            k += 1
+        nxt = spans[k].start() if k < len(spans) else n
+        # the earliest comment opener strictly before the next literal wins
+        best, opener = nxt, None
+        for mk in marks:
+            j = text.find(mk, i)
+            if 0 <= j < best:
+                best, opener = j, ("line", mk)
+        if block:
+            j = text.find(block[0], i)
+            if 0 <= j < best:
+                best, opener = j, ("block", block[0])
+        if opener is None:
+            if k >= len(spans):
+                break
+            kept.append(spans[k])
+            i = spans[k].end()
+            k += 1
+            continue
+        if opener[0] == "line":
+            end = text.find("\n", best)
+            i = n if end < 0 else end + 1
+        else:
+            end = text.find(block[1], best + len(block[0]))
+            i = n if end < 0 else end + len(block[1])
+    return kept
+
+
+def _literal_bodies(text: str, suffix: str = ".mjs"):
+    """(line, body) for every string literal IN CODE, interpolations rendered as `{}`."""
+    for m in _comment_free(text, suffix):
         body = m.group(0)[1:-1]
         if m.group(0)[0] == "`":
             body = re.sub(r"\$\{[^{}]*\}", "{}", body)
@@ -2038,7 +2123,7 @@ def shortfall_refusals(dirs=None, literal_dirs=None) -> list[tuple[str, int, str
         for f in sorted(d.glob(pat)):
             if "_to_delete" in f.parts or "node_modules" in f.parts:
                 continue
-            for line, body in _literal_bodies(f.read_text()):
+            for line, body in _literal_bodies(f.read_text(), f.suffix):
                 if SHORTFALL_MARK.search(body):
                     out.append((_rel(f), line, body))
     return out
@@ -2442,6 +2527,50 @@ def _self_check() -> list[str]:
     if not shortfall_problems([("f.py", 0, "<unparseable>")], 0):
         bad.append("_self_check: shortfall_problems treated an UNPARSEABLE file as a "
                    "clean answer (228 §6.5)")
+
+    # ── 🆕 284 — the comment filter, driven in BOTH directions on one fixture ─────────
+    #
+    # 283 wrote a comment about a refusal and this reader judged the comment. The fixture
+    # below is that episode reduced: the same sentence, once quoted in a comment and once
+    # actually raised, in one file. The reader must see exactly the second.
+    _CODE = 'push("X_COLLAPSE {} < {} because the roster shrank");\n'
+    for _suffix, _cmt in ((".mjs", '// "X_COLLAPSE {} < {} because the roster shrank"\n'),
+                          (".ts", '/* "X_COLLAPSE {} < {} because the roster shrank" */\n'),
+                          (".gd", '# "X_COLLAPSE {} < {} because the roster shrank"\n')):
+        _got = [b for _l, b in _literal_bodies(_cmt + _CODE, _suffix)]
+        if any("because the roster shrank" in b for b in _got) and len(_got) != 1:
+            bad.append(f"_self_check: _literal_bodies read a {_suffix} COMMENT as a "
+                       f"refusal site — 283's own episode, and the reader 281 gave this "
+                       f"repair to one file over: {_got}")
+        if not any("X_COLLAPSE" in b for b in _got):
+            bad.append(f"_self_check: _literal_bodies lost the REAL {_suffix} refusal "
+                       f"while dropping the commented one — a filter that narrows past "
+                       f"its target is the failure SHORTFALL_LITERAL_FLOOR governs")
+    # 🔴 AND THE OTHER DIRECTION, WHICH IS THE ONE THE FIRST DRAFT GOT WRONG. A `//` inside
+    # a string is not a comment, and a filter that can only SUBTRACT must never subtract
+    # here. This is the case that made blanking-before-finding unusable.
+    _url = [b for _l, b in _literal_bodies('const u = "https://x/y"; // `q`\n', ".mjs")]
+    if _url != ["https://x/y"]:
+        bad.append(f"_self_check: _literal_bodies mis-read a URL's `//` as a comment "
+                   f"opener, or kept the comment's own literal: {_url}")
+    # 🔴 AND THE STRUCTURAL GUARANTEE, ASSERTED RATHER THAN ARGUED: over the live tree the
+    # filter's output must be a SUBSET of the unfiltered finder's. Nothing may be gained.
+    _gained = 0
+    for _d, _pat in LITERAL_DIRS:
+        if not _d.is_dir():
+            continue
+        for _f in sorted(_d.glob(_pat)):
+            if "_to_delete" in _f.parts or "node_modules" in _f.parts:
+                continue
+            _txt = _f.read_text()
+            _all = {(m.start(), m.end()) for m in JS_LITERAL.finditer(_txt)}
+            _gained += len({(m.start(), m.end()) for m in _comment_free(_txt, _f.suffix)}
+                           - _all)
+    if _gained:
+        bad.append(f"_self_check: _comment_free INVENTED {_gained} literal span(s) the "
+                   f"finder itself does not produce — the filter is supposed to be "
+                   f"incapable of adding, and a reader that can add has a second failure "
+                   f"mode no floor underneath it can see")
     if not measured_cause_stale([]):
         bad.append("_self_check: measured_cause_stale stayed quiet over an EMPTY "
                    "population while MEASURED_CAUSE declares rows — every exemption in "

@@ -1469,6 +1469,105 @@ def block_main(session: int) -> "tuple[str, str]":
     return (shas[0], "")
 
 
+QUEUE_HEAD_RE = re.compile(r"<!--\s*QUEUE_HEAD\s+(\d+)\s*-->")
+
+
+def queue_head(root: Path = ROOT) -> "tuple[int, str]":
+    """(the session `QUEUE.md` says the tree is at, problem).
+
+    🆕 284 — THE TREE ALREADY KNEW WHICH SESSION IT WAS, AND NOTHING IN THIS FILE ASKED.
+    `QUEUE.md` carries `<!-- QUEUE_HEAD N -->` because `queue_gate.py` derives every row's
+    age from it, and 240 deleted the age column precisely so that number could not be
+    typed twice. It is therefore the one tracked, gate-read fact that names the session
+    the working tree belongs to — and a handoff document, which is the other thing that
+    knows, is in `.gitignore` and unreadable from CI by construction (269).
+    """
+    f = root / "QUEUE.md"
+    if not f.is_file():
+        return (0, "QUEUE.md is not in this tree, so nothing here can say which session "
+                   "it belongs to")
+    m = QUEUE_HEAD_RE.search(f.read_text(encoding="utf-8"))
+    if not m:
+        return (0, "QUEUE.md carries no `<!-- QUEUE_HEAD N -->`, and `queue_gate.py` "
+                   "derives every row age from it — so this is a refusal there too")
+    return (int(m.group(1)), "")
+
+
+def population_currency(head: "int | None" = None,
+                        population: "list[tuple[int, str]] | None" = None) -> "list[str]":
+    """253's rule, DERIVED and enforced — every block a shipped session left behind is in
+    `BLOCK_POPULATION` before this tree can call itself a later session.
+
+    🆕 284 — 253'S RULE HAS BEEN ENFORCED BY A SENTENCE FOR THIRTY-ONE SESSIONS AND THE
+    SENTENCE HAS BEEN GETTING LOUDER. *Add the previous block to `BLOCK_POPULATION`
+    before the replay.* 241 missed it and paid a second PR and a full re-replay against a
+    moved HEAD. 282 missed it, wrote it in capitals, and paid the same price. 283 read
+    282's capitals, missed it anyway, and paid it a third time — then wrote the row this
+    reader closes: *the warning is not what is failing; nothing RUNS at pickup that would
+    catch it.*
+
+    🔴 AND THE REASON IT KEPT BEING MISSED IS THAT IT IS THE ONE STEP WITH NO NATURAL
+    TRIGGER. Every other opening action is provoked by something — the pickup runs
+    `--open`, the work provokes the gates, the close provokes the replay. Copying a block
+    into a table is provoked by nothing at all until `previous_main` falls back to the
+    wrong endpoint six hours later, and by then the price is fixed.
+
+    🔴 SO THE TRIGGER IS THE FACT THE TREE ALREADY MOVES. A session that does any queue
+    work at all bumps `QUEUE_HEAD`, and the moment it reads 284 this reader requires 283's
+    block — because a tree that calls itself session 284 is a tree in which session 283 has
+    SHIPPED. Nothing new has to be remembered and nothing new has to be typed: the
+    requirement is derived from a number the session was going to change anyway, which is
+    282 §2.3's rule (*a guarantee is false until something derives its population*) applied
+    to the one guarantee this apparatus keeps making and breaking about itself.
+
+    🔴 IT DEMANDS A CONTIGUOUS RUN, NOT JUST THE NEWEST. Requiring only `head - 1` would
+    be satisfied by a table with a hole in the middle, and both readers that take their FAR
+    endpoint out of this table (`previous_main`, `version_interval`) resolve by scanning
+    BACKWARD from a session — so a gap is not a cosmetic absence, it is a wrong answer
+    delivered confidently, which is the exact failure 244 §2 floored the table's reach for.
+
+    🔴 AND IT CANNOT DEMAND A BLOCK THAT HAS NOT SHIPPED. The population it requires ends
+    at `head - 1`: at session 284's pickup `QUEUE_HEAD` still reads 283 and 283's block is
+    correctly absent, because 283 is the session whose document this one is standing on and
+    a session does not register its own. That asymmetry is why the trigger is the bump and
+    not the pickup.
+    """
+    pop = BLOCK_POPULATION if population is None else population
+    have = {s for s, _ in pop}
+    if head is None:
+        head, why = queue_head()
+        if why:
+            return [f"🔴 POPULATION_CURRENCY {why}"]
+    # 🔴 AND A HEAD THIS READER CANNOT BELIEVE IS A REFUSAL, NOT AN EMPTY REQUIREMENT.
+    # `range(233, head)` is empty for any head at or below the population's own floor, so
+    # a `queue_head` that answered 0 would take the requirement to nothing and this
+    # reader would report CLEAN over a tree it had learned nothing about — the exact
+    # shape 281 wrote `UPSTREAM_DEFERRED` for (*unread is not green*), and the exact
+    # thing `instrument_gate.py` blinds a reader to find. The blind is what asked for
+    # this line: with the head reader emptied, every claim below stayed green.
+    if head <= POPULATION_SHAPE_FROM:
+        return [f"🔴 POPULATION_CURRENCY `QUEUE.md` reads head {head}, at or below the "
+                f"oldest block this table is judged from ({POPULATION_SHAPE_FROM}). "
+                f"Either the head is unreadable or this is not a tree of this project — "
+                f"and an empty requirement derived from an unreadable number is a green "
+                f"that has checked nothing"]
+    need = [n for n in range(POPULATION_SHAPE_FROM, head)]
+    missing = [n for n in need if n not in have]
+    if not missing:
+        return []
+    newest = max(missing)
+    lead = (f"🔴 POPULATION_CURRENCY `QUEUE.md` says this tree is session {head}, so "
+            f"session {newest} has SHIPPED and its status block is not in "
+            f"`BLOCK_POPULATION`")
+    if len(missing) > 1:
+        lead += f" — nor are {len(missing) - 1} other(s): {missing[:-1]}"
+    return [lead + (". 253's rule: the previous block goes in THIS session's FIRST PR, "
+                    "before the replay. `previous_main` resolves by scanning backward "
+                    "from a session, so until it is there the close measures `MOVED +N` "
+                    "from the wrong endpoint and `git.moved` refuses — which is what 241, "
+                    "282 and 283 each paid a second PR and a full re-replay to discover.")]
+
+
 def population_block_shape() -> "list[str]":
     """Every block in `BLOCK_POPULATION`, judged by the rules a LIVE block is judged by.
 
@@ -6476,6 +6575,50 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    # 🆕 284 — 283's block, added in this session's FIRST PR, which is where 253's rule
+    # has said it goes since 253. 241, 282 and 283 each added it late and each paid the
+    # same price: `previous_main` fell back to the block BEFORE the one being opened
+    # against, `MOVED +N` was measured from the wrong endpoint, and `git.moved` refused
+    # the close. Three sessions, three second PRs, three louder warnings — and the
+    # warning was never the thing that was failing. `POPULATION_CURRENCY` below is what
+    # runs now, so the fourth session to forget is told by a gate instead of by a
+    # sentence.
+    (283, """> ```
+> main                 1a5eb13 — the rule no gate runs (#354)  MOVED +4
+> branch 283           session283-the-names-the-engine-gave-back · PR #351
+>                      🟢 PUSHED AND MERGED, 26/26 green — at the SECOND push.
+>                      Two commits: the work, and the gate refusals it caused
+> branch 283b          session283b-282s-block-into-block-population · PR #352
+>                      🟢 253's rule, paid late for the THIRD session running
+> branch 283d          session283d-the-rule-no-gate-runs · PR #354
+>                      🟢 one QUEUE row — the lead this handoff first wrote as PROSE
+> branch 283c          session283c-the-runtime-plane-the-crossing-dropped · PR #353
+>                      🔴 PUSHED AND MERGED, 26/26 green — at the FOURTH push.
+>                      Work an amend orphaned; see the section on crossing a patch
+> host / addon         1.83.0 / 1.14.1  🔴 BOTH MOVED — the owed MINOR, cut here ·
+>                      wire MINOR · toolchain PATCH
+>                      The addon line moved THREE times inside one unpublished cut
+> npm                  🟢 registry 1.82.1 · the cut is merged and NOT published ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.12.0 live · 1.14.1 submission now owed
+> 🔴 WORKFLOW_RED_ELSEWHERE  sdk-drift at e65ed07 — two weeks red, see §7
+> 🟢 VERIFIED AFTER THE CHANGE   932/932 · contract 31/31 · scope 74 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2722
+>               · late not-loaded 0 · late constructed 308/160
+>               · py gates 18/6/12 · SIG 246/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 109 · 53 governed · 1682 keys · 100 shortfalls
+>               · unswept 0 · exempt 40 · term 316 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3807 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4883 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 75/75 claims · handoff 450 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -8577,6 +8720,54 @@ def selftest() -> int:
         print(f"  🔴 POPULATION_SHAPE_CONTROL a block claiming one unbound atom and "
               f"nothing else was not refused on all three arms: {_got[:3]}")
 
+    # ── 🆕 284 — `POPULATION_CURRENCY`, and it runs HERE because here is where CI runs ──
+    #
+    # The shape reader above judges the blocks that ARE in the table. This one judges the
+    # blocks that are NOT — the direction 253's rule is about, and the one nothing has
+    # ever read. It is a claim about the live tree rather than a fixture, exactly like
+    # `POPULATION_SHAPE`, and it is cheap: one regex over `QUEUE.md` and a set difference.
+    claims += 1
+    _cur = population_currency()
+    if _cur:
+        failed += 1
+        print("  " + _cur[0][:400])
+    # 🔴 AND THE POSITIVE CONTROL IS THE INSTANCE, NOT A SHAPE. Drop the newest block and
+    # advance the head by one — the exact tree 241, 282 and 283 each shipped — and this
+    # reader must name that session. A control that only proved "some missing block is
+    # refused" would pass over a reader that reported the OLDEST gap, which is the answer
+    # that reads as history rather than as this session's own first action.
+    claims += 1
+    _newest = max(s for s, _ in BLOCK_POPULATION)
+    _thinned = [(s, b) for s, b in BLOCK_POPULATION if s != _newest]
+    _ctl = population_currency(head=_newest + 1, population=_thinned)
+    if not _ctl or f"session {_newest} has SHIPPED" not in _ctl[0]:
+        failed += 1
+        print(f"  🔴 POPULATION_CURRENCY_CONTROL a tree calling itself session "
+              f"{_newest + 1} with {_newest}'s block missing was not refused by name: "
+              f"{_ctl[:1]}")
+    # 🔴 AND THE OTHER DIRECTION, because a reader that refused everything would satisfy
+    # the control above and stop every session at its pickup. A tree whose head is the
+    # newest block PLUS nothing — the pristine pickup state, where the block being opened
+    # against is correctly absent — must be CLEAN.
+    claims += 1
+    if population_currency(head=_newest, population=_thinned):
+        failed += 1
+        print("  🔴 POPULATION_CURRENCY_PICKUP the pristine pickup state was refused — "
+              "a session does not register its own block, and demanding it here would "
+              "refuse every opening this apparatus has")
+    # 🔴 AND THE HEAD READER'S OWN BLIND. `instrument_gate.py` empties `queue_head` to
+    # `(0, "")` and asks whether anything reddens. `range(233, 0)` is empty, so the first
+    # draft answered CLEAN over a tree it had learned nothing about — a requirement
+    # derived from an unreadable number, reported as a green. This is the claim that
+    # keeps the blind red.
+    claims += 1
+    _blind = population_currency(head=0)
+    if not _blind or "checked nothing" not in _blind[0]:
+        failed += 1
+        print(f"  🔴 POPULATION_CURRENCY_HEAD an unreadable head was turned into an EMPTY "
+              f"requirement and reported clean, which is the reader going quiet rather "
+              f"than the tree being right: {_blind[:1]}")
+
     # ── 🆕 274 — THE CI-MEASURED CLOSE, EVERY ARM DRIVEN ON A FIXTURE ─────────────────
     #
     # 🔴 EACH REFUSAL IS DRIVEN, NOT ASSERTED — 273 §2's own lesson one file over. The
@@ -9621,6 +9812,27 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
     head_problems, head_notes = main_head_problems(log, run_network, head)
     for n in head_notes:
         print(f"  · {n}")
+
+    # ── 🆕 284 — 253's RULE, NAMED AT THE MOMENT IT APPLIES ───────────────────────────
+    #
+    # `population_currency` cannot refuse here and must not: at a pristine pickup the
+    # block being opened against is correctly absent, because a session does not register
+    # its own. What this reader CAN do is the half that was missing — say the sentence
+    # while it is still cheap to act on, addressed to the session that has to act, with
+    # the name of the block and the number of sessions that have paid for reading it late.
+    #
+    # 🔴 IT IS NOT A WARNING STANDING ALONE, WHICH IS THE WHOLE POINT. 241, 282 and 283
+    # each read a louder warning than this one, in a document, and missed it anyway. This
+    # line is the reminder; `POPULATION_CURRENCY` in `--selftest` is the refusal, and it
+    # arrives on the first commit that touches `QUEUE.md`. A rule enforced only by a
+    # sentence gets discovered at the close — so the sentence now has something behind it.
+    if session is not None and session not in {s for s, _ in BLOCK_POPULATION}:
+        print(f"  · 🔵 FIRST ACTION — {session}'s status block is not in "
+              f"`BLOCK_POPULATION` yet, which is correct at a pickup and wrong by the "
+              f"first commit. 253's rule puts it in THIS session's FIRST PR; "
+              f"`POPULATION_CURRENCY` refuses as soon as `QUEUE.md` reads "
+              f"{session + 1}. 241, 282 and 283 each paid a second PR for reading "
+              f"that sentence in a document instead of from a gate")
 
     # ── the counter line: bound, floored, and NOT re-run ──────────────────────────────
     block, _ = status_block(text)

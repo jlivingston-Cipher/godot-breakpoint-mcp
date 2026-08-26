@@ -68,26 +68,19 @@ export function godotSpawnRemedy(): string {
   // action, it begins 'Cannot'*. A second description of the failure is what the
   // message already carried. The description now lives in `godotSpawnFailure`,
   // which is deliberately not named `*Remedy` because it is not one.
+  //
+  // 🆕 284 — AND THE `doctor` POINTER IS BACK INSIDE IT, WHICH IS THE POINT OF CLOSING
+  // `ledger-population-with-two-producers` (282). 282 moved this clause OUT of the remedy
+  // and into the failure sentence beside it, so the user-facing text was unchanged and the
+  // span left check 28's join — the reachability of `breakpoint-mcp doctor` stopped being
+  // checked by anything. That was a knowing, written-down loss of coverage taken because
+  // `scope_gate.py`'s ledger could not spell a population with two producers. It can now.
   return (
     `Set GODOT_BIN to the Godot executable and restart the server — on macOS that is ` +
-    `inside the bundle, at /Applications/Godot.app/Contents/MacOS/Godot.`
+    `inside the bundle, at /Applications/Godot.app/Contents/MacOS/Godot. ` +
+    `Run \`breakpoint-mcp doctor\` to check it.`
   );
 }
-
-/**
- * 🔴 THE `doctor` POINTER LIVES HERE AND NOT IN THE REMEDY, AND THAT IS A MEASURED
- * DECISION RATHER THAN A LAYOUT CHOICE. `contract_check.py`'s check 28 harvests every
- * `` `breakpoint-mcp …` `` span out of every remedy into `xlang.remedy_cli_refs` and joins
- * it to the CLI surface — good. But `scope_gate.py`'s LEDGER declares that population
- * collapsible by blinding ONE reader, `remedy_tables`, and a span written into a host
- * `*Remedy` export reaches the same list through a DIFFERENT producer
- * (`host_remedy_sentences`). Measured: the blind then reddens 70 lines instead of 71 and
- * `SCOPE_GATE_LEDGER` refuses, because the population it is supposed to collapse does not.
- * A population with two producers cannot be collapsed by blinding one of them, and the
- * ledger's one-blind-per-population shape cannot say so — `ledger-population-with-two-
- * producers` (282) is the row.
- */
-const DOCTOR_POINTER = "Run `breakpoint-mcp doctor` to check it.";
 
 /** The whole user-facing sentence: what failed, then what to do about it. */
 export function godotSpawnFailure(bin: string, errno: string | null, detail: string): string {
@@ -99,7 +92,7 @@ export function godotSpawnFailure(bin: string, errno: string | null, detail: str
         : errno === "EISDIR"
           ? `that path is a directory, not an executable`
           : detail || "the operating system refused to start it";
-  return `Cannot start the Godot binary \`${bin}\` — ${what}. ${godotSpawnRemedy()} ${DOCTOR_POINTER}`;
+  return `Cannot start the Godot binary \`${bin}\` — ${what}. ${godotSpawnRemedy()}`;
 }
 
 /** True when an error object is a failure to START a process, not a failure OF one. */
