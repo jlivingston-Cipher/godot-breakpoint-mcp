@@ -106,7 +106,10 @@ export class GodotTaskStore extends InMemoryTaskStore {
 export const taskStore = new GodotTaskStore();
 
 // The per-request task store the SDK injects as `extra.taskStore`.
-interface RequestTaskStoreLike {
+// 🆕 284 — EXPORTED, because a guard that has to REFUSE a task tool must answer in the
+// task model's own currency. See `refuseAsTask` in mutation-guard.ts: `createTask` has a
+// return type, and a plain ToolResult is not it.
+export interface RequestTaskStoreLike {
   createTask(opts: { ttl?: number | null; pollInterval?: number }): Promise<Task>;
   getTask(taskId: string): Promise<Task>;
   getTaskResult(taskId: string): Promise<Result>;

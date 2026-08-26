@@ -84,6 +84,24 @@ container. Two of these are things the guide's own quick start does.
   now names all four, every privileged step is marked **(higher-trust)**, and step 5 says
   plainly that `godot_run_project` beside it is not privileged and does work as written.
 
+### Fixed — a confirmation refusal one tool could not carry
+
+- **`godot_run_headless_script` answered a caller who omitted `confirm` with a raw JavaScript
+  `TypeError`.** The text was `Cannot read properties of undefined (reading 'taskId')` — no
+  confirmation prompt, no remedy, and nothing naming the tool. With `confirm: true` the
+  identical call ran normally, which is what made the shape findable. It is the only tool on
+  this surface that is both destructive-gated and registered under the task model, and
+  `createTask` has a return type — `{ task }` — that the SDK immediately dereferences. The
+  gate was handing it an ordinary tool result. Both guards now refuse in the task model's own
+  currency: the task is created and its result stored as `failed` in the same tick, so a
+  task-aware client sees an ordinary failed task and a plain client's auto-poll returns
+  refusal text identical to what the other seventy-three gated tools return. The pause latch
+  had the same defect on the same tool and is repaired by the same seam.
+
+  _Found at 284 by driving the packed 1.83.0 tarball against a live Godot 4.7 the way
+  `docs/USER_GUIDE.md` tells a user to — the second engine-backed pass in two sessions, and
+  the second time it found something no gate in the tree could._
+
 ### Added — two gates over populations that had none
 
 - **`contract_check` check 34** — `operations.gd` may register `add_child` into an undo

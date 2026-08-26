@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { annotationsFor } from "./annotations.js";
+import { TASK_TTL_MS, TASK_POLL_INTERVAL_MS, type RequestTaskStoreLike } from "./tasks.js";
+import type { Result } from "@modelcontextprotocol/sdk/types.js";
 import { pauseLatch, type PauseLatch } from "./pause.js";
 import { gate, type ToolResult } from "./confirm.js";
 
@@ -107,13 +109,66 @@ function isTaskHandler(h: unknown): h is TaskHandler {
  * `null` when it has neither — a shape this reader does not understand is
  * reported by `UNGUARDED_HANDLER_SHAPE` in the test rather than passed through.
  */
-function wrapEntry(handler: unknown, wrap: (inner: (...a: unknown[]) => unknown) => (...a: unknown[]) => unknown): unknown | null {
-  if (typeof handler === "function") return wrap(handler as (...a: unknown[]) => unknown);
+function wrapEntry(handler: unknown, check: (args: unknown[]) => Promise<ToolResult | null>): unknown | null {
+  if (typeof handler === "function") {
+    const fn = handler as (...a: unknown[]) => unknown;
+    return async (...args: unknown[]) => (await check(args)) ?? fn(...args);
+  }
   if (isTaskHandler(handler)) {
     const h = handler as TaskHandler;
-    return { ...h, createTask: wrap(h.createTask.bind(h)) };
+    const inner = h.createTask.bind(h);
+    return {
+      ...h,
+      createTask: async (...args: unknown[]) => {
+        const blocked = await check(args);
+        return blocked ? refuseAsTask(args, blocked) : inner(...args);
+      },
+    };
   }
   return null;
+}
+
+/**
+ * 🆕 284 — A REFUSAL THE TASK MODEL CAN CARRY, because a ToolResult is not one.
+ *
+ * 🔴 282 GAVE BOTH GUARDS A TASK-HANDLER BRANCH AND DROVE ONLY THE PASS-THROUGH HALF.
+ * The branch above was written because `typeof handler !== "function"` is FAIL-OPEN and
+ * `godot_run_headless_script` — the one tool on this surface that EXECUTES a GDScript —
+ * had fallen through both guards. It was wrapped correctly. What nobody could call from a
+ * container is the OTHER direction: the guard actually blocking.
+ *
+ * `createTask` has a return type, `{ task }`, and the SDK immediately reads `.task.taskId`
+ * off it. Returning the gate's ToolResult there means the SDK dereferences `undefined`,
+ * so a user who omitted `confirm` got `Cannot read properties of undefined (reading
+ * 'taskId')` — a raw JS TypeError, with no confirmation prompt, no remedy and nothing
+ * naming the tool. Measured at 284 against a live Godot 4.7 by calling the tool the way
+ * the guide does; with `confirm: true` the same call runs fine, which is what made the
+ * shape obvious.
+ *
+ * 🔵 THE REPAIR ANSWERS IN THE TASK'S CURRENCY RATHER THAN AROUND IT. The task is
+ * created and its result is stored as `failed` in the same tick, so a task-aware client
+ * sees an ordinary failed task and a plain client gets the SDK's auto-poll returning the
+ * refusal text — which is byte-identical to what the same refusal looks like on every
+ * non-task gated tool. Throwing instead would have been fewer lines and would have made
+ * one tool answer a confirmation refusal in a different dialect from the other 73.
+ *
+ * 🔴 AND THE POPULATION IS ONE TOOL TODAY, WHICH IS THE ARGUMENT FOR THE SEAM AND NOT
+ * AGAINST IT. Destructive ∩ task-registered = `godot_run_headless_script` alone. The
+ * moment `godot_export` or `godot_import` is annotated destructive — and `godot_export`
+ * writes a caller-supplied path — it joins, and nothing would have said so.
+ */
+async function refuseAsTask(args: unknown[], refusal: ToolResult): Promise<unknown> {
+  const extra = args[1] as { taskStore?: RequestTaskStoreLike } | undefined;
+  const store = extra?.taskStore;
+  if (!store) {
+    // Nothing to answer in: fail loudly rather than let the call through. A guard that
+    // silently passes because it could not build its refusal is the fail-open shape 282
+    // opened this branch to remove.
+    throw new Error(refusal.content.map((c) => c.text).join(" "));
+  }
+  const task = await store.createTask({ ttl: TASK_TTL_MS, pollInterval: TASK_POLL_INTERVAL_MS });
+  await store.storeTaskResult(task.taskId, "failed", refusal as unknown as Result);
+  return { task };
 }
 
 /** True when the registered config already offers the caller a `confirm`. */
@@ -165,13 +220,18 @@ export function pausedResult(name: string): ToolResult {
 export function applyPauseLatch(server: McpServer, latch: PauseLatch = pauseLatch): void {
   wrapBothPaths(server, (raw) => (name: string, config: unknown, handler: unknown) => {
     if (annotationsFor(name).readOnlyHint) return raw(name, config, handler);
-    const held = wrapEntry(handler, (inner) => async (...args: unknown[]) => {
+    // 🆕 284 — `check` returns the refusal or `null` for pass-through, and the
+    // pass-through side effect belongs to the check. `wrapEntry` owns the SHAPE
+    // difference between a plain handler and a task handler, so it is answered in
+    // exactly one place rather than once per guard — which is what let the task
+    // branch be half-written for two sessions without either caller noticing.
+    const held = wrapEntry(handler, async () => {
       if (latch.isPaused()) {
         const resumed = await latch.awaitResumed();
         if (!resumed) return pausedResult(name);
       }
       latch.record(name);
-      return inner(...args);
+      return null;
     });
     return raw(name, config, held ?? handler);
   });
@@ -201,11 +261,9 @@ export function applyDestructiveGate(server: McpServer): void {
     if (!annotationsFor(name).destructiveHint || declaresConfirm(config)) {
       return raw(name, config, handler);
     }
-    const gated = wrapEntry(handler, (inner) => async (...args: unknown[]) => {
+    const gated = wrapEntry(handler, async (args: unknown[]) => {
       const a = (args[0] ?? {}) as { confirm?: boolean };
-      const blocked = await gate(server, a.confirm, `${name} (destructive)`);
-      if (blocked) return blocked;
-      return inner(...args);
+      return await gate(server, a.confirm, `${name} (destructive)`);
     });
     if (gated === null) return raw(name, config, handler);
     const cfg = config as { inputSchema?: Record<string, unknown> } | undefined;
