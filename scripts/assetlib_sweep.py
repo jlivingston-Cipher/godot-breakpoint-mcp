@@ -188,7 +188,30 @@ def source_state(entry: dict, head: "tuple[str, str]") -> "tuple[str, str]":
     Three answers and not two: `held`, `moved`, and `unread`. A pass that recorded no
     commit at all is `unread` with that as its reason — an entry nobody has ever analysed
     at source level cannot be said to have moved since a pass that did not happen.
+
+    🆕 284 — AND A RULED-OUT ENTRY OWES NO SOURCE PASS, WHICH 284 LEARNED BY CREATING THE
+    PROBLEM. Four entries carried no `last_analysed_commit`, so this reader was blind to
+    them and said `unread` every run; 284 baselined all four, including `LimboAI`, which
+    is `not-in-category` and has been for a year. LimboAI is also very much alive —
+    1,409 commits, roughly eight a month — so the FIRST sweep after the baseline refused
+    on it, and every sweep after that would have.
+
+    🔵 THE RULE IS ABOUT WHAT A MOVEMENT COULD CHANGE. Rule 2's second clause exists
+    because a tracked ALTERNATIVE can ship something that changes our analysis of it —
+    `godot-mcp-enhanced` shipping a debugger forty-eight hours after a document said the
+    category could not. A ruled-out project's ordinary development cannot change an
+    analysis that concluded it is not in this category at all. The one movement that
+    COULD is it becoming MCP-shaped, and that is what the discovery leg watches for, on
+    every run, without needing a commit.
+
+    🔴 THE COMMIT IS STILL RECORDED, DELIBERATELY. Dropping the field would put the entry
+    back in `unread`, which is the state 284 baselined it out of: *unread* and *ruled out*
+    are different answers and this reader distinguishes them. What changes is only whether
+    a movement is OWED WORK.
     """
+    if str(entry.get("status") or "") == "ruled-out":
+        return ("held", "ruled out of category — its commits cannot change that reading, "
+                        "and the discovery leg watches the one movement that could")
     was = str(entry.get("last_analysed_commit") or "")
     sha, prob = head if head else ("", "the repository head was not read on this run")
     if prob:
