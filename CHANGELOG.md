@@ -10,6 +10,13 @@ _Nothing yet._
 
 ## [1.83.0] — 2026-08-25
 
+_Addon **1.14.1**. The addon line moved three times inside this one unpublished cut: `1.13.0` was
+stamped before the runtime plane's copy of the naming defect was found, and
+`release_names --assert-addon` refused each commit that moved the addon without re-stamping
+it — more than one tree answering to one addon name is how the Asset Library ends up serving
+something that no longer identifies itself. None of the three was ever published; the gate's
+point is that a version must name exactly one tree, not that a tree may only be cut once._
+
 Found by installing the published 1.82.1 and following `docs/USER_GUIDE.md` against a live
 Godot 4.7 — the engine-backed half of the pass that produced 1.82.1's fixes from a
 container. Two of these are things the guide's own quick start does.
@@ -35,6 +42,12 @@ container. Two of these are things the guide's own quick start does.
   it is machine-readable rather than prose. **This is the wire change that makes this
   release a MINOR:** the returned `name` differs from 1.82.1 in the collision case, and
   two optional fields are new.
+- **The live-game plane had the same defect and could not even show it.**
+  `runtime_node_add` answered with `path` and `type` and **no `name`**, so a node the
+  engine renamed on a collision could not be seen to have been renamed by any means. It
+  now takes the readable name too and answers with the same `coerced`/`requested`
+  envelope, and its integration probe drives the tool **twice** — the second call being
+  where the whole defect lived, and the thing nothing in the suite was doing.
 - **`vcs_stash op=push` and 23 destructive tools' `confirm` parameter** — carried from
   1.82.1's merge, which moved the wire and was never cut.
 

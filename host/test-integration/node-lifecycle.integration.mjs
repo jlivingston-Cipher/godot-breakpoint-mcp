@@ -359,26 +359,64 @@ try {
   population.seal("NODE_LIVE_TYPE", `ok ${added.path} is a live Timer (get_time_left=${timeLeft.return})`);
 
   // ========================== 3. no `name` — the engine names it, and the path works ===
-  // Verified against a live engine before being asserted: a node added with no name does
-  // NOT get the bare class name. Godot assigns an auto-unique name of the form @Class@N,
-  // where N is a process-wide counter — so the only safe assertions are its SHAPE and,
-  // much more usefully, that the path the tool returned actually RESOLVES. That is a real
-  // round-trip through _path_of: a caller has no way to guess this path and must use the
-  // one it was given.
+  // 🔴 283 — THIS BLOCK USED TO ASSERT THE DEFECT, AND IT WAS RIGHT TO, AT THE TIME. It
+  // read: *a node added with no name does NOT get the bare class name; Godot assigns an
+  // auto-unique name of the form @Class@N* — verified against a live engine, and true for
+  // as long as this plane called `add_child` at Godot's default of
+  // `force_readable_name: false`. That default is what 283 measured as a user-facing
+  // defect: a caller that asked for a name twice got `@Type@N` the second time with no
+  // error and no flag, and could not address the node it had just made. The plane now
+  // passes `true`, the way the editor's own Add Node does, so the engine's answer is the
+  // readable name — and the assertion moves WITH the behaviour rather than outliving it.
+  //
+  // 🔵 AND THE SECOND CALL IS THE ONE THAT MATTERS, which is 283's whole finding: nothing
+  // in this tree called an authoring tool TWICE and compared, which is exactly where the
+  // defect lived. Both calls are asserted here, and the collision report with them.
   const autoNamed = await call("runtime_node_add", { parent: "Host", type: "Marker2D", confirm: true });
   MADE.push(autoNamed.path);
-  assert.match(
+  assert.equal(
     autoNamed.path,
-    /^Host\/@Marker2D@\d+$/,
-    `an unnamed add is auto-named @Class@N by the engine, so the reply path must be scene-relative ` +
-      `and engine-generated, got ${autoNamed.path}`,
+    "Host/Marker2D",
+    `an unnamed add takes the readable class name the editor's own Add Node gives it, so the ` +
+      `reply path must be scene-relative and class-named, got ${autoNamed.path}`,
   );
   assert.equal(autoNamed.type, "Marker2D", `the reply must still name the class, got ${autoNamed.type}`);
+  assert.equal(autoNamed.coerced, undefined, "nothing collided, so no coercion is reported");
   await expectPresent(
     [{ path: autoNamed.path, type: "Marker2D" }],
     "the returned path must resolve — it is the only handle the caller gets for an unnamed add",
   );
-  population.seal("NODE_LIVE_AUTONAME", `ok engine-named ${autoNamed.path} and the returned path resolves`);
+
+  // The SECOND unnamed one collides and gets a NUMBER, not the machine form — and it is
+  // still not `coerced`, because a caller that named nothing had nothing taken from it.
+  const collided = await call("runtime_node_add", { parent: "Host", type: "Marker2D", confirm: true });
+  MADE.push(collided.path);
+  assert.equal(
+    collided.path,
+    "Host/Marker2D2",
+    `a colliding add gets a NUMBER appended, not the machine form — got ${collided.path}`,
+  );
+  assert.equal(collided.coerced, undefined, "no name was asked for, so nothing was coerced");
+
+  // 🔵 AND HERE IS THE CASE THE REPORT EXISTS FOR: a caller that DID name its node, twice.
+  const named = await call("runtime_node_add", { parent: "Host", type: "Marker2D", name: "Spawn", confirm: true });
+  MADE.push(named.path);
+  assert.equal(named.path, "Host/Spawn", `an available name is kept, got ${named.path}`);
+  assert.equal(named.coerced, undefined, "the name was available, so nothing was coerced");
+  const namedAgain = await call("runtime_node_add", { parent: "Host", type: "Marker2D", name: "Spawn", confirm: true });
+  MADE.push(namedAgain.path);
+  assert.equal(namedAgain.path, "Host/Spawn2", `a taken name gets a number, got ${namedAgain.path}`);
+  assert.equal(namedAgain.coerced, true, "a name the engine changed must be reported as coerced");
+  assert.equal(namedAgain.requested, "Spawn", `and the name that was asked for must ride with it, got ${namedAgain.requested}`);
+  await expectPresent(
+    [{ path: namedAgain.path, type: "Marker2D" }],
+    "the coerced path must resolve — a reported rename is worthless if the path it names does not work",
+  );
+  population.seal(
+    "NODE_LIVE_AUTONAME",
+    `ok ${autoNamed.path} then ${collided.path} unnamed (no coercion claimed), ` +
+      `and ${named.path} then ${namedAgain.path} coerced from ${namedAgain.requested}`,
+  );
 
   // ================= 4. the `scene:` branch — authored name, values and SUBTREE ===
   // The branch that a mocked test cannot touch and that a type: add cannot fake.
@@ -389,7 +427,7 @@ try {
     inst.path,
     `Host/${PAYLOAD_ROOT}`,
     `no 'name' was given, so the AUTHORED root name must survive instantiate() — contrast the ` +
-      `@Class@N above, which is what an engine-created node gets; got ${inst.path}`,
+      `class-named node above, which is what an engine-created node gets; got ${inst.path}`,
   );
   assert.equal(inst.type, "Node2D", `the reply reports the payload root's class, got ${inst.type}`);
 
@@ -524,7 +562,16 @@ try {
   // failing. This lane is the only DESTRUCTIVE one in the runtime plane, so it is also the
   // only one where "pristine" is a claim worth checking rather than an assumption — and
   // the scriptless fixture is what makes it checkable at all.
-  for (const path of [`Host/${TIMER}`, autoNamed.path]) {
+  // 🔴 283 — THIS LIST USED TO BE TYPED BY HAND AND IT LEAKED THE MOMENT A CASE WAS
+  // ADDED. It read `[Host/${TIMER}, autoNamed.path]` while `MADE` — the list the pristine
+  // check below judges against — had grown three more entries, so the probe created nodes
+  // it never removed and blamed the tree for holding them. That is this session's own
+  // finding wearing different clothes: a roster somebody has to keep true, beside a
+  // derived population that is always right. Cleanup is now derived from `MADE`, and a
+  // path already removed by §8 is skipped rather than removed twice.
+  let cleaned = 0;
+  for (const path of MADE) {
+    if ((await structure([{ path, absent: true }])).ok) continue;   // §8 already took it
     // call() throws on isError, so a cleanup that cannot run says so by name rather than
     // leaving the tree dirty for a pristine check that would then blame the wrong thing.
     const r = await call("runtime_node_remove", { path, confirm: true });
@@ -532,7 +579,9 @@ try {
     // nothing this line reaches; `waitAbsent` below is what proves the node left the tree.
     assert.equal(typeof r.removed, "boolean", `the reply must carry a \`removed\` flag: ${JSON.stringify(r)}`);
     await waitAbsent(path, "the probe's own cleanup must complete");
+    cleaned++;
   }
+  assert.ok(cleaned > 0, "a cleanup that removed nothing has not proved it can remove anything");
   await expectAbsent(MADE, "the probe must leave nothing it created behind");
 
   const hostAtEnd = await childCount("Host");
@@ -546,7 +595,7 @@ try {
     ],
     "and the fixture itself must have survived the whole run",
   );
-  population.seal("NODE_LIVE_PRISTINE", `ok created ${MADE.length}, removed ${MADE.length}, host=${hostAtEnd} root=${rootAtEnd}`);
+  population.seal("NODE_LIVE_PRISTINE", `ok created ${MADE.length}, removed ${cleaned} here + the rest in §8, host=${hostAtEnd} root=${rootAtEnd}`);
 
   console.log(
     `NODE_LIVE_RESULT add=type+scene+nested errors=7reasons remove=subtree+root_guard pristine=restored`,

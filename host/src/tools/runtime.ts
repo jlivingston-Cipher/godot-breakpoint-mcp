@@ -7,6 +7,7 @@ import { gate } from "../confirm.js";
 import { ok, failPath } from "./lsp-common.js";
 import type { Config } from "../config.js";
 import { resolveInsideProject } from "../paths.js";
+import { NAME_TAKEN_CLAUSE } from "../schemas.js";
 
 const confirmField = {
   confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
@@ -610,7 +611,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         parent: z.string().describe("Path to the parent node in the running scene"),
         type: z.string().optional().describe("Class name to instantiate (e.g. Node2D) — mutually exclusive with `scene`"),
         scene: z.string().optional().describe("res:// path to a PackedScene to instantiate — mutually exclusive with `type`"),
-        name: z.string().optional().describe("Optional name for the new node"),
+        name: z.string().optional().describe("Optional name for the new node" + NAME_TAKEN_CLAUSE),
         ...confirmField,
         ...peerField,
       },

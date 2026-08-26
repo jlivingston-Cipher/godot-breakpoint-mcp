@@ -20,7 +20,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.13.0"
+const ADDON_VERSION := "1.14.1"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -1131,8 +1131,25 @@ func _node_add(params: Dictionary) -> Dictionary:
 	var nm := String(params.get("name", ""))
 	if nm != "":
 		child.name = nm
-	parent.add_child(child)
-	return _ok({"added": true, "path": _path_of(child), "type": child.get_class()})
+	# 🔴 283 §1's DEFECT ON THE OTHER PLANE, AND THIS ONE COULD NOT EVEN BE SEEN.
+	# `force_readable_name = true` for the same reason the twenty-two editor sites now
+	# pass it: Godot's default answers ANY name collision with the machine form
+	# `@Type@N`, so a caller asking twice for the same name got a node it could not
+	# address. Worse here than there — this reply carried `path` and `type` and NO
+	# `name`, so nothing in the answer even hinted the name had been replaced. 1.42.0's
+	# rule about the second call site, and 282 §11.1 paying it again.
+	# 🔴 ONLY A NAME THE CALLER ASKED FOR CAN BE COERCED, and the first draft of this got
+	# it wrong in a way the live probe caught: an unparented `ClassDB.instantiate()` node
+	# has an EMPTY name, so reading `requested` off the node reported every unnamed add as
+	# `coerced` from `""`. That is noise dressed as a diagnosis — the caller asked for
+	# nothing, so nothing was taken from it. The editor plane cannot hit this because it
+	# always writes a default name before adding; this plane deliberately does not.
+	parent.add_child(child, true)
+	var out := {"added": true, "path": _path_of(child), "name": String(child.name), "type": child.get_class()}
+	if nm != "" and String(child.name) != nm:
+		out["coerced"] = true
+		out["requested"] = nm
+	return _ok(out)
 
 
 func _node_remove(params: Dictionary) -> Dictionary:
