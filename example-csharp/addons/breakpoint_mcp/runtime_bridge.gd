@@ -1138,12 +1138,17 @@ func _node_add(params: Dictionary) -> Dictionary:
 	# address. Worse here than there — this reply carried `path` and `type` and NO
 	# `name`, so nothing in the answer even hinted the name had been replaced. 1.42.0's
 	# rule about the second call site, and 282 §11.1 paying it again.
-	var requested := String(child.name)
+	# 🔴 ONLY A NAME THE CALLER ASKED FOR CAN BE COERCED, and the first draft of this got
+	# it wrong in a way the live probe caught: an unparented `ClassDB.instantiate()` node
+	# has an EMPTY name, so reading `requested` off the node reported every unnamed add as
+	# `coerced` from `""`. That is noise dressed as a diagnosis — the caller asked for
+	# nothing, so nothing was taken from it. The editor plane cannot hit this because it
+	# always writes a default name before adding; this plane deliberately does not.
 	parent.add_child(child, true)
 	var out := {"added": true, "path": _path_of(child), "name": String(child.name), "type": child.get_class()}
-	if String(child.name) != requested:
+	if nm != "" and String(child.name) != nm:
 		out["coerced"] = true
-		out["requested"] = requested
+		out["requested"] = nm
 	return _ok(out)
 
 

@@ -387,7 +387,8 @@ try {
     "the returned path must resolve — it is the only handle the caller gets for an unnamed add",
   );
 
-  // The SECOND one collides, and the reply says so rather than handing back @Class@N.
+  // The SECOND unnamed one collides and gets a NUMBER, not the machine form — and it is
+  // still not `coerced`, because a caller that named nothing had nothing taken from it.
   const collided = await call("runtime_node_add", { parent: "Host", type: "Marker2D", confirm: true });
   MADE.push(collided.path);
   assert.equal(
@@ -395,15 +396,26 @@ try {
     "Host/Marker2D2",
     `a colliding add gets a NUMBER appended, not the machine form — got ${collided.path}`,
   );
-  assert.equal(collided.coerced, true, "a name the engine changed must be reported as coerced");
-  assert.equal(collided.requested, "Marker2D", `and the name that was asked for must ride with it, got ${collided.requested}`);
+  assert.equal(collided.coerced, undefined, "no name was asked for, so nothing was coerced");
+
+  // 🔵 AND HERE IS THE CASE THE REPORT EXISTS FOR: a caller that DID name its node, twice.
+  const named = await call("runtime_node_add", { parent: "Host", type: "Marker2D", name: "Spawn", confirm: true });
+  MADE.push(named.path);
+  assert.equal(named.path, "Host/Spawn", `an available name is kept, got ${named.path}`);
+  assert.equal(named.coerced, undefined, "the name was available, so nothing was coerced");
+  const namedAgain = await call("runtime_node_add", { parent: "Host", type: "Marker2D", name: "Spawn", confirm: true });
+  MADE.push(namedAgain.path);
+  assert.equal(namedAgain.path, "Host/Spawn2", `a taken name gets a number, got ${namedAgain.path}`);
+  assert.equal(namedAgain.coerced, true, "a name the engine changed must be reported as coerced");
+  assert.equal(namedAgain.requested, "Spawn", `and the name that was asked for must ride with it, got ${namedAgain.requested}`);
   await expectPresent(
-    [{ path: collided.path, type: "Marker2D" }],
-    "the coerced path must resolve too — a reported rename is worthless if the path it names does not work",
+    [{ path: namedAgain.path, type: "Marker2D" }],
+    "the coerced path must resolve — a reported rename is worthless if the path it names does not work",
   );
   population.seal(
     "NODE_LIVE_AUTONAME",
-    `ok ${autoNamed.path} then ${collided.path} (coerced from ${collided.requested}), both paths resolve`,
+    `ok ${autoNamed.path} then ${collided.path} unnamed (no coercion claimed), ` +
+      `and ${named.path} then ${namedAgain.path} coerced from ${namedAgain.requested}`,
   );
 
   // ================= 4. the `scene:` branch — authored name, values and SUBTREE ===
