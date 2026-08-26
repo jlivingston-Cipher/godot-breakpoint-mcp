@@ -1201,6 +1201,15 @@ INSTRUMENTS = [
             "{SIG:main_shas}": "return [\"\"]",
             "{SIG:block_main}": "return (\"\", \"\",)",
             "{SIG:population_block_shape}": "return []",
+            # 🆕 284 — the two readers `POPULATION_CURRENCY` is made of, and the
+            # SECOND one is why this pair is worth the note. Blinding the reader that
+            # finds the gap is the obvious axis; blinding the one that says WHICH
+            # SESSION THE TREE IS turns the requirement into `range(233, 0)`, which is
+            # empty, which is green. The first draft passed that blind. It reddens now
+            # because `population_currency` refuses a head it cannot believe rather
+            # than deriving an empty requirement from it.
+            "{SIG:population_currency}": "return []",
+            "{SIG:queue_head}": "return (0, \"\",)",
             "{SIG:moved_interval}": "return (0, \"\",)",
             "{SIG:tree_versions}": "return ((\"\", \"\",), \"\",)",
             "{SIG:block_versions}": "return ((\"\", \"\",), \"\",)",

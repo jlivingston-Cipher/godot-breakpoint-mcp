@@ -1538,6 +1538,19 @@ def population_currency(head: "int | None" = None,
         head, why = queue_head()
         if why:
             return [f"🔴 POPULATION_CURRENCY {why}"]
+    # 🔴 AND A HEAD THIS READER CANNOT BELIEVE IS A REFUSAL, NOT AN EMPTY REQUIREMENT.
+    # `range(233, head)` is empty for any head at or below the population's own floor, so
+    # a `queue_head` that answered 0 would take the requirement to nothing and this
+    # reader would report CLEAN over a tree it had learned nothing about — the exact
+    # shape 281 wrote `UPSTREAM_DEFERRED` for (*unread is not green*), and the exact
+    # thing `instrument_gate.py` blinds a reader to find. The blind is what asked for
+    # this line: with the head reader emptied, every claim below stayed green.
+    if head <= POPULATION_SHAPE_FROM:
+        return [f"🔴 POPULATION_CURRENCY `QUEUE.md` reads head {head}, at or below the "
+                f"oldest block this table is judged from ({POPULATION_SHAPE_FROM}). "
+                f"Either the head is unreadable or this is not a tree of this project — "
+                f"and an empty requirement derived from an unreadable number is a green "
+                f"that has checked nothing"]
     need = [n for n in range(POPULATION_SHAPE_FROM, head)]
     missing = [n for n in need if n not in have]
     if not missing:
@@ -8742,6 +8755,18 @@ def selftest() -> int:
         print("  🔴 POPULATION_CURRENCY_PICKUP the pristine pickup state was refused — "
               "a session does not register its own block, and demanding it here would "
               "refuse every opening this apparatus has")
+    # 🔴 AND THE HEAD READER'S OWN BLIND. `instrument_gate.py` empties `queue_head` to
+    # `(0, "")` and asks whether anything reddens. `range(233, 0)` is empty, so the first
+    # draft answered CLEAN over a tree it had learned nothing about — a requirement
+    # derived from an unreadable number, reported as a green. This is the claim that
+    # keeps the blind red.
+    claims += 1
+    _blind = population_currency(head=0)
+    if not _blind or "checked nothing" not in _blind[0]:
+        failed += 1
+        print(f"  🔴 POPULATION_CURRENCY_HEAD an unreadable head was turned into an EMPTY "
+              f"requirement and reported clean, which is the reader going quiet rather "
+              f"than the tree being right: {_blind[:1]}")
 
     # ── 🆕 274 — THE CI-MEASURED CLOSE, EVERY ARM DRIVEN ON A FIXTURE ─────────────────
     #
