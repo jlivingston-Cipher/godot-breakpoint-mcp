@@ -10,11 +10,12 @@ _Nothing yet._
 
 ## [1.83.0] — 2026-08-25
 
-_Addon **1.14.0**. The addon line moved twice inside this one unpublished cut: `1.13.0` was
+_Addon **1.14.1**. The addon line moved three times inside this one unpublished cut: `1.13.0` was
 stamped before the runtime plane's copy of the naming defect was found, and
-`release_names --assert-addon` refused the second commit for exactly that — more than one
-tree answering to one addon name is how the Asset Library ends up serving something that
-no longer identifies itself._
+`release_names --assert-addon` refused each commit that moved the addon without re-stamping
+it — more than one tree answering to one addon name is how the Asset Library ends up serving
+something that no longer identifies itself. None of the three was ever published; the gate's
+point is that a version must name exactly one tree, not that a tree may only be cut once._
 
 Found by installing the published 1.82.1 and following `docs/USER_GUIDE.md` against a live
 Godot 4.7 — the engine-backed half of the pass that produced 1.82.1's fixes from a

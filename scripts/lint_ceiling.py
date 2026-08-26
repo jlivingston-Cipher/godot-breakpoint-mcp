@@ -183,8 +183,11 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
         # because the defect 283 closed was invisible to any caller that only ever made
         # the first call. Nine more `assert` calls through the same un-annotated binding
         # is what asking the second question costs, and it is a price worth paying twice
-        # over: this class is cosmetic, and the one it bought was on the wire.
-        445,
+        # over: this class is cosmetic, and the one it bought was on the wire. Plus ONE
+        # more for the cleanup assertion that catches a cleanup which removed nothing —
+        # the loop is derived from `MADE` now, and a derived loop over an empty list is
+        # exactly the silent pass this tree refuses everywhere else.
+        446,
         "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "

@@ -562,7 +562,16 @@ try {
   // failing. This lane is the only DESTRUCTIVE one in the runtime plane, so it is also the
   // only one where "pristine" is a claim worth checking rather than an assumption — and
   // the scriptless fixture is what makes it checkable at all.
-  for (const path of [`Host/${TIMER}`, autoNamed.path]) {
+  // 🔴 283 — THIS LIST USED TO BE TYPED BY HAND AND IT LEAKED THE MOMENT A CASE WAS
+  // ADDED. It read `[Host/${TIMER}, autoNamed.path]` while `MADE` — the list the pristine
+  // check below judges against — had grown three more entries, so the probe created nodes
+  // it never removed and blamed the tree for holding them. That is this session's own
+  // finding wearing different clothes: a roster somebody has to keep true, beside a
+  // derived population that is always right. Cleanup is now derived from `MADE`, and a
+  // path already removed by §8 is skipped rather than removed twice.
+  let cleaned = 0;
+  for (const path of MADE) {
+    if ((await structure([{ path, absent: true }])).ok) continue;   // §8 already took it
     // call() throws on isError, so a cleanup that cannot run says so by name rather than
     // leaving the tree dirty for a pristine check that would then blame the wrong thing.
     const r = await call("runtime_node_remove", { path, confirm: true });
@@ -570,7 +579,9 @@ try {
     // nothing this line reaches; `waitAbsent` below is what proves the node left the tree.
     assert.equal(typeof r.removed, "boolean", `the reply must carry a \`removed\` flag: ${JSON.stringify(r)}`);
     await waitAbsent(path, "the probe's own cleanup must complete");
+    cleaned++;
   }
+  assert.ok(cleaned > 0, "a cleanup that removed nothing has not proved it can remove anything");
   await expectAbsent(MADE, "the probe must leave nothing it created behind");
 
   const hostAtEnd = await childCount("Host");
@@ -584,7 +595,7 @@ try {
     ],
     "and the fixture itself must have survived the whole run",
   );
-  population.seal("NODE_LIVE_PRISTINE", `ok created ${MADE.length}, removed ${MADE.length}, host=${hostAtEnd} root=${rootAtEnd}`);
+  population.seal("NODE_LIVE_PRISTINE", `ok created ${MADE.length}, removed ${cleaned} here + the rest in §8, host=${hostAtEnd} root=${rootAtEnd}`);
 
   console.log(
     `NODE_LIVE_RESULT add=type+scene+nested errors=7reasons remove=subtree+root_guard pristine=restored`,
