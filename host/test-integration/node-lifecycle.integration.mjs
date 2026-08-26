@@ -359,26 +359,52 @@ try {
   population.seal("NODE_LIVE_TYPE", `ok ${added.path} is a live Timer (get_time_left=${timeLeft.return})`);
 
   // ========================== 3. no `name` — the engine names it, and the path works ===
-  // Verified against a live engine before being asserted: a node added with no name does
-  // NOT get the bare class name. Godot assigns an auto-unique name of the form @Class@N,
-  // where N is a process-wide counter — so the only safe assertions are its SHAPE and,
-  // much more usefully, that the path the tool returned actually RESOLVES. That is a real
-  // round-trip through _path_of: a caller has no way to guess this path and must use the
-  // one it was given.
+  // 🔴 283 — THIS BLOCK USED TO ASSERT THE DEFECT, AND IT WAS RIGHT TO, AT THE TIME. It
+  // read: *a node added with no name does NOT get the bare class name; Godot assigns an
+  // auto-unique name of the form @Class@N* — verified against a live engine, and true for
+  // as long as this plane called `add_child` at Godot's default of
+  // `force_readable_name: false`. That default is what 283 measured as a user-facing
+  // defect: a caller that asked for a name twice got `@Type@N` the second time with no
+  // error and no flag, and could not address the node it had just made. The plane now
+  // passes `true`, the way the editor's own Add Node does, so the engine's answer is the
+  // readable name — and the assertion moves WITH the behaviour rather than outliving it.
+  //
+  // 🔵 AND THE SECOND CALL IS THE ONE THAT MATTERS, which is 283's whole finding: nothing
+  // in this tree called an authoring tool TWICE and compared, which is exactly where the
+  // defect lived. Both calls are asserted here, and the collision report with them.
   const autoNamed = await call("runtime_node_add", { parent: "Host", type: "Marker2D", confirm: true });
   MADE.push(autoNamed.path);
-  assert.match(
+  assert.equal(
     autoNamed.path,
-    /^Host\/@Marker2D@\d+$/,
-    `an unnamed add is auto-named @Class@N by the engine, so the reply path must be scene-relative ` +
-      `and engine-generated, got ${autoNamed.path}`,
+    "Host/Marker2D",
+    `an unnamed add takes the readable class name the editor's own Add Node gives it, so the ` +
+      `reply path must be scene-relative and class-named, got ${autoNamed.path}`,
   );
   assert.equal(autoNamed.type, "Marker2D", `the reply must still name the class, got ${autoNamed.type}`);
+  assert.equal(autoNamed.coerced, undefined, "nothing collided, so no coercion is reported");
   await expectPresent(
     [{ path: autoNamed.path, type: "Marker2D" }],
     "the returned path must resolve — it is the only handle the caller gets for an unnamed add",
   );
-  population.seal("NODE_LIVE_AUTONAME", `ok engine-named ${autoNamed.path} and the returned path resolves`);
+
+  // The SECOND one collides, and the reply says so rather than handing back @Class@N.
+  const collided = await call("runtime_node_add", { parent: "Host", type: "Marker2D", confirm: true });
+  MADE.push(collided.path);
+  assert.equal(
+    collided.path,
+    "Host/Marker2D2",
+    `a colliding add gets a NUMBER appended, not the machine form — got ${collided.path}`,
+  );
+  assert.equal(collided.coerced, true, "a name the engine changed must be reported as coerced");
+  assert.equal(collided.requested, "Marker2D", `and the name that was asked for must ride with it, got ${collided.requested}`);
+  await expectPresent(
+    [{ path: collided.path, type: "Marker2D" }],
+    "the coerced path must resolve too — a reported rename is worthless if the path it names does not work",
+  );
+  population.seal(
+    "NODE_LIVE_AUTONAME",
+    `ok ${autoNamed.path} then ${collided.path} (coerced from ${collided.requested}), both paths resolve`,
+  );
 
   // ================= 4. the `scene:` branch — authored name, values and SUBTREE ===
   // The branch that a mocked test cannot touch and that a type: add cannot fake.
@@ -389,7 +415,7 @@ try {
     inst.path,
     `Host/${PAYLOAD_ROOT}`,
     `no 'name' was given, so the AUTHORED root name must survive instantiate() — contrast the ` +
-      `@Class@N above, which is what an engine-created node gets; got ${inst.path}`,
+      `class-named node above, which is what an engine-created node gets; got ${inst.path}`,
   );
   assert.equal(inst.type, "Node2D", `the reply reports the payload root's class, got ${inst.type}`);
 

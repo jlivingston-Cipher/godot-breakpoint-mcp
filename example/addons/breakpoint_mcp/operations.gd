@@ -8,7 +8,7 @@ extends RefCounted
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
-const ADDON_VERSION := "1.13.0"
+const ADDON_VERSION := "1.14.0"
 
 var _plugin: EditorPlugin
 
