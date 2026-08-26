@@ -183,7 +183,20 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // essay moved to TOOL_CATALOG's Conventions section, which nobody pays for per call:
 // 486 B, back under. A ceiling that refuses prose before it refuses a feature is the
 // ceiling working.
-export const BYTES_CEILING = 374208;
+//
+// 🆕 284 — RAISED AGAIN, 374,208 -> 376,320 B, AND WHAT BOUGHT IT IS `overwrite` ON
+// SEVENTEEN INPUT SCHEMAS PLUS `replaced` ON TWENTY-FOUR OUTPUT ONES. Nineteen tools took
+// a destination path and destroyed whatever was there, answering exactly as they answer a
+// fresh create — measured live, nine sentinel files for nine. Two kilobytes is what it
+// costs to make that a refusal the caller can override and a fact the caller is told.
+//
+// 🔴 AND THE OTHER CEILING REFUSED FIRST AGAIN, ON THE SAME PROSE MISTAKE, ONE SESSION
+// LATER. `overwrite`'s first description was fifty-eight characters across seventeen
+// tools and put schema-per-tool at 492 B against 490 — the identical digit 283 hit. Cut
+// to four words behind one shared literal, with the explanation in TOOL_CATALOG's
+// Conventions section. Twice in two sessions is not a coincidence; it is the ceiling
+// doing precisely the job it was set for.
+export const BYTES_CEILING = 376320;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

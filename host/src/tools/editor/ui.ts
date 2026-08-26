@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
-import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
+import { NAME_TAKEN_CLAUSE, OVERWRITE_DOC } from "../../schemas.js";
 
 /** UI / Control / theming. control_* + container_add_child mutate the EDITED scene and are undoable via EditorUndoRedoManager and ungated (the node_* model). theme_* author a Theme on disk via ResourceSaver, so — like resource_* — they are file-writers gated by confirmation. */
 export function registerUiTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -138,15 +138,16 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
         "Create a new empty Theme resource and save it to a res:// path. DESTRUCTIVE (writes a file) — gated by confirmation.",
       inputSchema: {
         to_path: z.string().describe("Destination res:// path, e.g. res://ui/main.theme or res://ui/main.tres"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ to_path, confirm }) => {
+    async ({ to_path, overwrite, confirm }) => {
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create Theme resource at ${to_path}`);
       if (blocked) return blocked;
-      return call("theme.create", { to_path });
+      return call("theme.create", { to_path, overwrite });
     },
   );
 

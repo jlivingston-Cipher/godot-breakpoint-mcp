@@ -126,6 +126,40 @@ const addedNode = {
 };
 
 /**
+ * 🆕 284 — THE OVERWRITE CLAUSE, and it is 283's `NAME_TAKEN_CLAUSE` one axis over.
+ *
+ * 🔴 KEPT TO FOUR WORDS, AND `token-cost.mjs` IS WHY — TWICE NOW. 283's long
+ * `NAME_TAKEN_CLAUSE` draft was refused at 492 B against a 490 B ceiling; 284's first
+ * `overwrite` description, at fifty-eight characters across seventeen tools, was refused
+ * at exactly the same 492 B. Input schemas are what every client pays for on every
+ * `tools/list`, so the ceiling is a real cost correctly defended. The explanation lives
+ * in TOOL_CATALOG's Conventions section, which nobody pays for per call.
+ */
+export const OVERWRITE_DOC = "Replace if it exists";
+
+/**
+ * The envelope EVERY tool that writes a resource to a destination the caller NAMED
+ * answers with — 284.
+ *
+ * 🔴 `replaced` IS HERE BECAUSE NINETEEN TOOLS DESTROYED A FILE AND SAID NOTHING.
+ * Measured against a live Godot 4.7: nine resources created, a sentinel appended to each
+ * on disk, each tool called a SECOND time with identical arguments — nine sentinels gone,
+ * nine replies reading `created` / `saved` / `packed` exactly as they read the first
+ * time. `resource_create` reset an Environment somebody had configured, and then turned
+ * it into a StandardMaterial3D when asked for one at the same path.
+ *
+ * 🔵 SAME SHAPE AS `coerced`/`requested`, DELIBERATELY. A field that appears when the
+ * engine did something other than the plain thing and is absent otherwise — one
+ * convention for "what happened is not quite what you asked for", not a third.
+ *
+ * 🔵 SPREAD, NOT RESTATED. A tool that gains a destination cannot be added with the
+ * reporting half missing, which is exactly how these nineteen came to exist.
+ */
+const wroteDestination = {
+  replaced: z.boolean().optional(),
+};
+
+/**
  * D1a — the engine-error echo, declared once and spread into the 22 runtime
  * tools whose `structuredContent` IS the bridge reply verbatim.
  *
@@ -250,11 +284,11 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   main_screen_set: { active: z.string().nullable(), available: z.array(z.string()), requested: z.string() },
   scene_open: { opened: z.string() },
   scene_save: { saved: z.string() },
-  scene_new: { created: z.string(), root_type: z.string() },
+  scene_new: { ...wroteDestination, created: z.string(), root_type: z.string() },
   scene_list_open: { scenes: z.array(z.string()), current: z.string().nullable(), unsaved: z.array(z.string()), unsaved_supported: z.boolean() },
   scene_reload: { reloaded: z.string() },
   scene_close: { closed: z.string() },
-  scene_pack: { packed: z.string(), branch: z.string() },
+  scene_pack: { ...wroteDestination, packed: z.string(), branch: z.string() },
   // `dependencies` are LOADABLE res:// paths as of 1.48.0; `dependencies_raw` keeps the
   // engine's own `uid://X::::res://Y` encoding, which is what the field used to carry and
   // which resource_load answers `not_found` for (169 §5). `dependency_uids` is
@@ -317,15 +351,15 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   },
 
   // ---- Group B: resources (tools/editor.ts -> operations.gd _resource_*) ----
-  resource_create: { created: z.string(), type: z.string() },
+  resource_create: { ...wroteDestination, created: z.string(), type: z.string() },
   resource_load: {
     path: z.string(),
     type: z.string(),
     resource_name: z.string(),
     properties: z.array(z.object({ name: z.string(), type: z.number(), class_name: z.string(), usage: z.number() })),
   },
-  resource_save: { saved: z.string(), from: z.string() },
-  resource_duplicate: { duplicated: z.string(), from: z.string(), deep: z.boolean() },
+  resource_save: { ...wroteDestination, saved: z.string(), from: z.string() },
+  resource_duplicate: { ...wroteDestination, duplicated: z.string(), from: z.string(), deep: z.boolean() },
   resource_get_property: { path: z.string(), property: z.string(), value: encodedValue },
   resource_set_property: { path: z.string(), property: z.string(), value: encodedValue },
   resource_get_import_settings: { path: z.string(), imported: z.boolean(), importer: z.string(), settings: z.record(z.string(), encodedValue) },
@@ -362,7 +396,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   anim_statemachine_add_transition: { tree: z.string(), state_machine: z.string(), from_state: z.string(), to_state: z.string(), xfade_time: z.number(), switch_mode: z.string(), advance_mode: z.string(), transition_count: z.number() },
 
   // ---- Group D: TileSet (tools/editor.ts -> operations.gd _tileset_*) ----
-  tileset_create: { created: z.string(), tile_size: z.array(z.number()) },
+  tileset_create: { ...wroteDestination, created: z.string(), tile_size: z.array(z.number()) },
   tileset_add_source: { tileset: z.string(), source_id: z.number(), texture: z.string(), texture_region_size: z.array(z.number()), source_count: z.number() },
   tileset_add_tile: { tileset: z.string(), source_id: z.number(), atlas_coords: z.array(z.number()), size: z.array(z.number()), tiles_count: z.number() },
   tileset_set_tile_collision: { tileset: z.string(), source_id: z.number(), atlas_coords: z.array(z.number()), physics_layer: z.number(), polygon_index: z.number(), points: z.number(), one_way: z.boolean() },
@@ -399,7 +433,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   particles_set_texture: { path: z.string(), texture_path: z.string() },
 
   // ---- Group F batch 2: shaders (tools/editor.ts -> operations.gd _shader_* / _shadermaterial_*) ----
-  shader_create: { created: z.string(), type: z.string(), code_length: z.number() },
+  shader_create: { ...wroteDestination, created: z.string(), type: z.string(), code_length: z.number() },
   shader_set_code: { path: z.string(), code_length: z.number() },
   shadermaterial_create: { path: z.string(), target_property: z.string(), type: z.string(), shader_path: z.string() },
   shadermaterial_set_shader: { path: z.string(), shader_path: z.string() },
@@ -410,7 +444,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   audio_bus_add: { index: z.number(), name: z.string(), send: z.string(), count: z.number() },
   audio_bus_add_effect: { bus: z.string(), bus_index: z.number(), effect: z.string(), effect_count: z.number() },
   audio_bus_set_volume: { bus: z.string(), bus_index: z.number(), volume_db: z.number() },
-  audio_set_bus_layout: { saved: z.string(), bus_count: z.number() },
+  audio_set_bus_layout: { ...wroteDestination, saved: z.string(), bus_count: z.number() },
 
   // ---- Group G: UI / Control / theming (tools/editor.ts -> operations.gd _control_* / _container_* / _theme_*) ----
   control_create: { ...addedNode, type: z.string() },
@@ -422,7 +456,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   control_set_layout_preset: { path: z.string(), preset: z.number(), preset_name: z.string() },
   control_set_size_flags: { path: z.string(), horizontal: z.number(), vertical: z.number(), stretch_ratio: z.number() },
   control_set_theme: { path: z.string(), theme_path: z.string() },
-  theme_create: { created: z.string(), type: z.string() },
+  theme_create: { ...wroteDestination, created: z.string(), type: z.string() },
   theme_set_color: { path: z.string(), name: z.string(), theme_type: z.string(), color: z.array(z.number()) },
   theme_set_font: { path: z.string(), name: z.string(), theme_type: z.string(), font_path: z.string() },
   theme_set_stylebox: { path: z.string(), name: z.string(), theme_type: z.string(), stylebox_path: z.string() },
@@ -431,7 +465,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // ---- Group H: 3D & navigation (tools/editor.ts -> operations.gd _meshinstance_* / _mesh_* / _primitive_mesh_* / _light_* / _camera_* / _csg_* / _navregion_* / _navagent_* / _environment_*) ----
   meshinstance_create: { ...addedNode, type: z.string(), mesh_path: z.string() },
   mesh_set_surface_material: { path: z.string(), material_path: z.string(), surface: z.number() },
-  primitive_mesh_create: { created: z.string(), type: z.string(), shape: z.string() },
+  primitive_mesh_create: { ...wroteDestination, created: z.string(), type: z.string(), shape: z.string() },
   light_create: { ...addedNode, type: z.string(), kind: z.string() },
   camera_create: { ...addedNode, type: z.string(), current: z.boolean() },
   csg_create: { ...addedNode, type: z.string(), shape: z.string() },
@@ -448,7 +482,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       avoidance_enabled: z.boolean(),
     }),
   },
-  environment_create: { created: z.string(), type: z.string(), background_mode: z.string() },
+  environment_create: { ...wroteDestination, created: z.string(), type: z.string(), background_mode: z.string() },
   environment_set_sky: { path: z.string(), background_mode: z.string(), sky_material: z.string() },
 
   // ---- Group I: input / project config / testing (tools/editor.ts -> operations.gd _inputmap_* / _project_add_autoload / _project_remove_autoload / _project_add_export_preset / _project_set_main_scene / _project_list_settings / _editorsettings_get_set / _test_detect / _test_list) ----
@@ -922,6 +956,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // (path/prompt nullable; width/height/bytes/imported_type/request optional).
   ...(() => {
     const assetGenResult: z.ZodRawShape = {
+      ...wroteDestination,
       status: z.string(),
       kind: z.string(),
       backend: z.string(),
@@ -954,11 +989,17 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       path: z.string().nullable(),
       message: z.string(),
     };
+    // 🆕 284 — `mp_wire_rpc` SPLITS OFF, AND THE SHARED SHAPE WAS HIDING A REAL
+    // DIFFERENCE. The other three WRITE a file at a destination the caller named and
+    // therefore can land on somebody else's; `mp_wire_rpc` edits an annotation inside a
+    // script that already exists, idempotently, and has no destination to collide with.
+    // It takes no `overwrite` and must report no `replaced` — one shape for two jobs is
+    // how a symmetry claim ends up unfalsifiable.
     return {
-      mp_setup_enet_peer: netcodeScaffold,
-      mp_setup_webrtc_peer: netcodeScaffold,
+      mp_setup_enet_peer: { ...wroteDestination, ...netcodeScaffold },
+      mp_setup_webrtc_peer: { ...wroteDestination, ...netcodeScaffold },
       mp_wire_rpc: netcodeScaffold,
-      mp_scaffold_lobby: netcodeScaffold,
+      mp_scaffold_lobby: { ...wroteDestination, ...netcodeScaffold },
     };
   })(),
 
@@ -988,15 +1029,15 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       message: z.string(),
     };
     return {
-      backend_configure: backendScaffold,
-      leaderboard_scaffold: backendScaffold,
-      cloudsave_scaffold: backendScaffold,
-      auth_scaffold: backendScaffold,
+      backend_configure: { ...wroteDestination, ...backendScaffold },
+      leaderboard_scaffold: { ...wroteDestination, ...backendScaffold },
+      cloudsave_scaffold: { ...wroteDestination, ...backendScaffold },
+      auth_scaffold: { ...wroteDestination, ...backendScaffold },
     };
   })(),
 
   // ---- Group N: card/board/piece authoring composites (tools/tabletop.ts) ----
-  card_template_create: {
+  card_template_create: { ...wroteDestination,
     scene_path: z.string(),
     script_path: z.string(),
     root_type: z.string(),
@@ -1036,7 +1077,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     player_path: z.string().nullable(),
     anim: z.string().nullable(),
   },
-  board_create: {
+  board_create: { ...wroteDestination,
     scene_path: z.string(),
     root_type: z.string(),
     cell_kind: z.string(),
@@ -1053,7 +1094,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     node_path: z.string(),
     align: z.object({ x: z.number(), y: z.number() }),
   },
-  board_tile_create: {
+  board_tile_create: { ...wroteDestination,
     scene_path: z.string(),
     layer_path: z.string(),
     layer_name: z.string(),
@@ -1078,7 +1119,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     align: z.object({ x: z.number(), y: z.number() }),
     reparented: z.boolean(),
   },
-  piece_template_create: {
+  piece_template_create: { ...wroteDestination,
     scene_path: z.string(),
     script_path: z.string(),
     root_type: z.string(),

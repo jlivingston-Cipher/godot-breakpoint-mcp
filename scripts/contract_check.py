@@ -320,8 +320,13 @@ CHECKS_EXPECTED = (
     # readable name. The twenty-two tools it collapses were each defective for as long
     # as they existed, and none of them had a list to fall off.
     "34",
+    # 🆕 284 — check 35, the resource-save seam, and it is 283's lesson arriving a second
+    # time on a second uncounted population. A member and not a roster gate: it asks
+    # whether the ONE place a resource reaches disk still asks whether the destination
+    # is already somebody's file. Nineteen tools destroyed one and answered `created`.
+    "35",
 )
-CHECKS_RUN_FLOOR = 31   # measured: thirty-one blocks reach their own end on a healthy tree
+CHECKS_RUN_FLOOR = 32   # measured: thirty-two blocks reach their own end on a healthy tree
 checks_ran: "list[str]" = []
 
 
@@ -5850,6 +5855,89 @@ print(f"Node naming seam       : "
       f"{_commit_add_callers} authoring tool(s) through the seam · "
       f"{len(_rt_add_child)} runtime-plane call(s) · readable names asserted on both planes")
 _ran("34")
+
+
+# --- 35: THE ONE PLACE A RESOURCE REACHES DISK -----------------------------
+#
+# 🔴 MEASURED AT 284 BY BEING THE USER, ON A LIVE GODOT 4.7, AND IT IS 283 §1 ONE AXIS
+# OVER WITH A WORSE ANSWER. 283 found a name collision answered by inventing `@Type@N`.
+# Here the collision is a FILE and the answer was DELETION. Nine resources were created,
+# a sentinel line appended to each on disk, and each tool called a SECOND time with
+# identical arguments: nine sentinels gone, nine replies reading `created` / `saved` /
+# `packed` in exactly the shape they read the first time. `resource_create` reset an
+# Environment somebody had configured, then turned it into a StandardMaterial3D when
+# asked for one at the same path. `scene_new` replaced a scene on disk while the editor
+# still held the old one in memory.
+#
+# 🔴 AND THE PRODUCT HELD FOUR ANSWERS TO ONE QUESTION. `filesystem_move` refused
+# `exists` with no way to force; the seven scaffold tools under `_mp_write_script`
+# refused `exists` unless `overwrite`; `filesystem_create_dir` reported `existed`; the
+# other nineteen destroyed silently. The seven that were right were right because they
+# share a SEAM. This check makes `_commit_save` the same kind of fact for the
+# twenty-four `ResourceSaver.save` sites, which were a roster in exactly 282 §2.3's
+# sense — nobody wrote the check because nobody had counted the population.
+#
+# 🔵 AND THE SINGULARITY ALONE IS NOT THE CLAIM. One site that never asks whether the
+# destination is taken is the tree this check exists to refuse: it would hold all
+# nineteen defects behind one call instead of nineteen. So the seam's own body is read
+# for the existence test and for both kinds, which is what makes `SAVE_NEW` mean
+# something.
+_ops_src = _OPS_GD.read_text()
+_save_sites = re.findall(r'^\s*var \w+ := ResourceSaver\.save\(', _ops_src, re.M)
+_save_sites += re.findall(r'^\s*\w+ = ResourceSaver\.save\(', _ops_src, re.M)
+if len(_save_sites) != 1:
+    errors.append(
+        f"check 35: operations.gd writes a resource to disk at {len(_save_sites)} "
+        f"site(s); the seam `_commit_save` must be the only one. A second site is a tool "
+        f"that does not ask whether the destination is taken, which is 284's defect "
+        f"returning: it destroys the file that was there and answers exactly as it "
+        f"answers a fresh create."
+    )
+_seam_body = re.search(
+    r"func _commit_save\(.*?\n(?=\n\n)", _ops_src, re.S)
+if _seam_body is None:
+    errors.append(
+        "check 35: `_commit_save` is not in operations.gd. Nineteen tools took a "
+        "destination path and nothing asked whether it was occupied; the seam is what "
+        "makes that one question instead of nineteen."
+    )
+else:
+    _body = _seam_body.group(0)
+    if "FileAccess.file_exists" not in _body:
+        errors.append(
+            "check 35: `_commit_save` never asks whether the destination exists. The "
+            "seam without the question is the roster without the fix — one call site "
+            "holding all nineteen defects."
+        )
+    if "SAVE_NEW" not in _body or "overwrite" not in _body:
+        errors.append(
+            "check 35: `_commit_save` does not gate a SAVE_NEW write on `overwrite`. "
+            "A destination the caller named is somebody else's file until they say "
+            "otherwise; a save-back to the resource's own home is the operation itself."
+        )
+    if '"replaced"' not in _body:
+        errors.append(
+            "check 35: `_commit_save` does not report `replaced`. *I created a file* and "
+            "*I overwrote your file because you asked me to* are not the same sentence, "
+            "and 1.82.0's `coerced`/`requested` is the convention for saying so."
+        )
+# 🔵 THE KINDS ARE COUNTED AND BOTH MUST BE LIVE. A tree where every site is SAVE_BACK
+# passes the singularity test and gates nothing; one where every site is SAVE_NEW has
+# broken every `*_set_property` tool on the surface.
+_new_sites = len(re.findall(r"_commit_save\([^\n]*SAVE_NEW", _ops_src))
+_back_sites = len(re.findall(r"_commit_save\([^\n]*SAVE_BACK", _ops_src))
+if _new_sites < 1 or _back_sites < 1:
+    errors.append(
+        f"check 35: the seam is called with SAVE_NEW {_new_sites} time(s) and SAVE_BACK "
+        f"{_back_sites} time(s), and both must be live. All-SAVE_BACK passes the "
+        f"singularity test while gating nothing; all-SAVE_NEW refuses every tool whose "
+        f"job is to write a resource back to its own path."
+    )
+print(f"Resource save seam     : "
+      f"{len(_save_sites)} ResourceSaver.save site(s) · "
+      f"{_new_sites} destination write(s) gated on `overwrite` · "
+      f"{_back_sites} save-back(s) · `replaced` reported")
+_ran("35")
 
 
 # --- 24: ONE WORD, TWO MEANINGS — AND THE COPIES NOBODY COMPARED ------------

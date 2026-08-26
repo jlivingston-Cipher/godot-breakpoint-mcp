@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
+import { OVERWRITE_DOC } from "../../schemas.js";
 
 /** Scene lifecycle: open / save / new / reload / pack / dependencies. */
 export function registerSceneTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -44,15 +45,16 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
         root_type: z.string().describe("Root node class, e.g. Node2D, Node3D, Control"),
         path: z.string().describe("Where to save, e.g. res://scenes/new.tscn"),
         name: z.string().optional().describe("Root node name (defaults to the class name)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ root_type, path, name, confirm }) => {
+    async ({ root_type, path, name, overwrite, confirm }) => {
       const escaped = guard(path, "path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create and overwrite scene file "${path}"`);
       if (blocked) return blocked;
-      return call("scene.new", { root_type, path, name });
+      return call("scene.new", { root_type, path, name, overwrite });
     },
   );
 
@@ -117,17 +119,18 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       inputSchema: {
         path: z.string().describe("Branch root node path relative to the scene root"),
         to_path: z.string().describe("Where to save the PackedScene, e.g. res://scenes/branch.tscn"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ path, to_path, confirm }) => {
+    async ({ path, to_path, overwrite, confirm }) => {
       // `path` is a NODE path inside the open scene, not a file path — it cannot
       // express a filesystem escape and is deliberately left alone.
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Pack branch "${path}" to ${to_path}`);
       if (blocked) return blocked;
-      return call("scene.pack", { path, to_path });
+      return call("scene.pack", { path, to_path, overwrite });
     },
   );
 

@@ -189,6 +189,57 @@ test("every registered handler has a shape the guards understand", () => {
   assert.equal(rejected.length, 1, "the predicate rejects a handler that is neither shape");
 });
 
+test("a gated TASK tool REFUSES in the task model's own currency", async () => {
+  // 🔴 284, MEASURED AGAINST A LIVE GODOT 4.7 BEFORE IT WAS UNDERSTOOD HERE.
+  // 282 gave both guards a task-handler branch — because `typeof handler !==
+  // "function"` is fail-open and `godot_run_headless_script` had fallen through
+  // both — and drove only the PASS-THROUGH half. The other direction, the guard
+  // actually blocking, could not be called from a container.
+  //
+  // `createTask` has a return type and the SDK reads `.task.taskId` straight off
+  // it. Returning the gate's ToolResult there dereferences `undefined`, so a
+  // caller who omitted `confirm` got `Cannot read properties of undefined
+  // (reading 'taskId')` — a raw JS TypeError with no prompt, no remedy, and
+  // nothing naming the tool. With `confirm: true` the identical call ran fine.
+  const { calls } = registerGuarded();
+  const gatedTasks = calls.filter((c) => {
+    const h = c.handler as unknown as { createTask?: unknown };
+    return typeof h?.createTask === "function" && annotationsFor(c.name).destructiveHint;
+  });
+  // The population is derived, not typed, and it is asserted NON-EMPTY: a filter
+  // that matched nothing would make every assertion below vacuously true, which
+  // is how this class of test goes quiet.
+  assert.ok(gatedTasks.length >= 1,
+    `no destructive task-registered tool found — this claim would pass over an empty set`);
+
+  for (const c of gatedTasks) {
+    const stored: Array<{ taskId: string; status: string; result: unknown }> = [];
+    const taskStore = {
+      createTask: async () => ({ taskId: "t-1", status: "working" }),
+      getTask: async () => ({ taskId: "t-1" }),
+      getTaskResult: async () => ({}),
+      storeTaskResult: async (taskId: string, status: string, result: unknown) => {
+        stored.push({ taskId, status, result });
+      },
+    };
+    const h = c.handler as unknown as { createTask: (...a: unknown[]) => Promise<unknown> };
+    const out = await h.createTask({}, { taskStore, taskId: "t-1", signal: undefined });
+
+    // 1 — it must answer in the shape `createTask` promises, or the SDK reads
+    //     `.taskId` off undefined and the user sees a TypeError.
+    assert.ok(out && typeof out === "object" && "task" in (out as object),
+      `${c.name}: a blocked createTask returned ${JSON.stringify(out)}, not { task }`);
+
+    // 2 — and the refusal must actually be delivered, as a FAILED task result,
+    //     so a plain client's auto-poll returns the same text every other gated
+    //     tool returns. A `{ task }` that never settles is a hang, not a refusal.
+    assert.equal(stored.length, 1, `${c.name}: the refusal was not stored as a task result`);
+    assert.equal(stored[0].status, "failed", `${c.name}: refusal stored as ${stored[0].status}`);
+    const text = JSON.stringify(stored[0].result);
+    assert.match(text, /confirm/i, `${c.name}: the stored refusal does not mention confirm: ${text}`);
+  }
+});
+
 test("EVERY destructive tool on the registered surface accepts `confirm`", () => {
   // docs/TOOL_CATALOG.md: "Every tool flagged destructive accepts an optional
   // `confirm: boolean`". Measured false on the published 1.82.1 for 23 tools —

@@ -36,6 +36,35 @@ returned `name`, never by the requested one.** Before 1.83.0 these tools passed 
 `force_readable_name: false`, so a collision produced the machine form `@Type@N` — and
 `node_duplicate`, which always collides with its source, produced it every time.
 
+**Writing to a destination that is already taken (`overwrite` / `replaced`).** Every tool
+that saves a resource to a path the caller NAMED — `resource_create`, `resource_save`,
+`resource_duplicate`, `scene_new`, `scene_pack`, `theme_create`, `shader_create`,
+`tileset_create`, `primitive_mesh_create`, `environment_create`, `audio_set_bus_layout`
+and the six `asset_gen_*` generators — **refuses** an occupied destination with the error
+code `exists` and takes an optional `overwrite: true` to proceed anyway. When it does
+proceed over an existing file the reply carries `replaced: true`, and carries nothing when
+the destination was free. That is the same shape as `coerced` / `requested` above and as
+`node_set_property` since 1.82.0: one convention for *what happened is not quite what you
+asked for*, present only when it happened.
+
+Before **1.83.0** these tools destroyed whatever was at the path and answered exactly as
+they answer a fresh create — the same `created` / `saved` / `packed` reply, with no error,
+no flag and no field. Measured against a live Godot 4.7: nine resources were created, a
+sentinel line appended to each on disk, and each tool called a second time with identical
+arguments; all nine sentinels were gone. `resource_create` reset an `Environment` that had
+been configured, and turned it into a `StandardMaterial3D` when asked for one at the same
+path, so anything referencing it by type then held the wrong one.
+
+The same two fields now cover the scaffolding writers — `mp_setup_enet_peer`,
+`mp_setup_webrtc_peer`, `mp_scaffold_lobby`, `auth_scaffold`, `backend_configure`,
+`cloudsave_scaffold`, `leaderboard_scaffold` — and the four tabletop template writers,
+which already refused a collision but had no way to say when they had accepted one.
+`mp_wire_rpc` deliberately has neither field: it edits an annotation inside a script that
+already exists and has no destination to collide with. Tools that write a resource **back
+to its own path** — every `*_set_property`, `theme_set_*`, `tileset_add_*`,
+`shader_set_code`, `environment_set_sky` — are unaffected: overwriting there is the
+operation, not a hazard, and refusing it would break the tool.
+
 **Tagged Variants (`$defs.Variant`).** JSON cannot express Godot's rich value types, so any property value that isn't a plain scalar/array/object is encoded as a tagged object. This applies to `node_set_property` / `node_get_property` values and `project_*_setting` values.
 
 ```json
@@ -400,7 +429,8 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
   "properties": {
     "root_type": { "type": "string", "default": "Node" },
     "path": { "type": "string", "pattern": "^res://" },
-    "name": { "type": "string" }
+    "name": { "type": "string" },
+    "overwrite": { "type": "boolean" }
   } }
 ```
 - **Output**
@@ -443,7 +473,7 @@ Run a GDScript headless (`godot --headless -s <script>`). Use for GdUnit4/GUT te
 ### `scene_pack` ✔ ✅ · writes a new file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path", "to_path"], "properties": { "path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" } } }
+{ "type": "object", "additionalProperties": false, "required": ["path", "to_path"], "properties": { "path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "overwrite": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -841,7 +871,7 @@ scene does **not** switch the tab.
 ### `resource_create` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["class_name", "to_path"], "properties": { "class_name": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "properties": { "type": "object" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["class_name", "to_path"], "properties": { "class_name": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "properties": { "type": "object" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -861,7 +891,7 @@ scene does **not** switch the tab.
 ### `resource_save` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["from_path"], "properties": { "from_path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "flags": { "type": "integer" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["from_path"], "properties": { "from_path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "flags": { "type": "integer" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -871,7 +901,7 @@ scene does **not** switch the tab.
 ### `resource_duplicate` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["path", "to_path"], "properties": { "path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "deep": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["path", "to_path"], "properties": { "path": { "type": "string" }, "to_path": { "type": "string", "pattern": "^res://" }, "deep": { "type": "boolean" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -1113,7 +1143,7 @@ Batch 2 (`tilemaplayer_create`, `tilemap_*`) is the other half: it authors a `Ti
 ### `tileset_create` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string", "pattern": "^res://" }, "tile_size": { "type": "array", "items": { "type": "integer" } }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string", "pattern": "^res://" }, "tile_size": { "type": "array", "items": { "type": "integer" } }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -1391,7 +1421,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 ### `shader_create` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "code": { "type": "string" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "code": { "type": "string" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -1491,7 +1521,7 @@ In-scene VFX authoring. Every tool mutates the **edited scene** and is **undoabl
 ### `audio_set_bus_layout` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": [], "properties": { "to_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": [], "properties": { "to_path": { "type": "string" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -1565,7 +1595,7 @@ The user-interface authoring surface. `control_create` and `container_add_child`
 ### `theme_create` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -1639,7 +1669,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 ### `primitive_mesh_create` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "shape": { "type": "string" }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "shape": { "type": "string" }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -1699,7 +1729,7 @@ The 3D authoring surface. `meshinstance_create` adds a **MeshInstance3D** — op
 ### `environment_create` ✔ ✅ · writes a file
 - **Input**
 ```json
-{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "background": { "type": "string" }, "ambient_color": { "type": "array", "items": { "type": "number" } }, "confirm": { "type": "boolean" } } }
+{ "type": "object", "additionalProperties": false, "required": ["to_path"], "properties": { "to_path": { "type": "string" }, "background": { "type": "string" }, "ambient_color": { "type": "array", "items": { "type": "number" } }, "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" } } }
 ```
 - **Output**
 ```json
@@ -3402,7 +3432,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
     "height": { "type": "integer", "minimum": 1 },
     "duration_ms": { "type": "integer", "minimum": 1 },
     "shape": { "enum": ["box", "sphere", "cylinder", "prism"] },
-    "confirm": { "type": "boolean" }
+    "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" }
   } }
 ```
 - **Output** — the shared generator result envelope above (`status: "placeholder"`).
@@ -3417,7 +3447,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
     "width": { "type": "integer", "minimum": 1 },
     "height": { "type": "integer", "minimum": 1 },
     "placeholder": { "type": "boolean" },
-    "confirm": { "type": "boolean" }
+    "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" }
   } }
 ```
 - **Output** — the shared generator result envelope above.
@@ -3439,7 +3469,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
     "to_path": { "type": "string" },
     "duration_ms": { "type": "integer", "minimum": 1 },
     "placeholder": { "type": "boolean" },
-    "confirm": { "type": "boolean" }
+    "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" }
   } }
 ```
 - **Output** — the shared generator result envelope above.
@@ -3453,7 +3483,7 @@ The shared generator result envelope (`asset_gen_placeholder` and the five typed
     "to_path": { "type": "string" },
     "shape": { "enum": ["box", "sphere", "cylinder", "prism"] },
     "placeholder": { "type": "boolean" },
-    "confirm": { "type": "boolean" }
+    "overwrite": { "type": "boolean" }, "confirm": { "type": "boolean" }
   } }
 ```
 - **Output** — the shared generator result envelope above.

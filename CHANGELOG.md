@@ -10,12 +10,14 @@ _Nothing yet._
 
 ## [1.83.0] — 2026-08-25
 
-_Addon **1.14.1**. The addon line moved three times inside this one unpublished cut: `1.13.0` was
-stamped before the runtime plane's copy of the naming defect was found, and
-`release_names --assert-addon` refused each commit that moved the addon without re-stamping
-it — more than one tree answering to one addon name is how the Asset Library ends up serving
-something that no longer identifies itself. None of the three was ever published; the gate's
-point is that a version must name exactly one tree, not that a tree may only be cut once._
+_Addon **1.15.0**. The addon line moved FOUR times inside this one unpublished cut: `1.13.0`
+was stamped before the runtime plane's copy of the naming defect was found; `1.14.1`
+followed; and 284 took it to `1.15.0` because the addon's write behaviour changed materially
+after that stamp. `release_names --assert-addon` refused each commit that moved the addon
+without re-stamping it — more than one tree answering to one addon name is how the Asset
+Library ends up serving something that no longer identifies itself. None of the four was ever
+published; the gate's point is that a version must name exactly one tree, not that a tree may
+only be cut once._
 
 Found by installing the published 1.82.1 and following `docs/USER_GUIDE.md` against a live
 Godot 4.7 — the engine-backed half of the pass that produced 1.82.1's fixes from a
@@ -83,6 +85,64 @@ container. Two of these are things the guide's own quick start does.
   also in the `code-execution` group, so the quick start hit an unannounced wall. The box
   now names all four, every privileged step is marked **(higher-trust)**, and step 5 says
   plainly that `godot_run_project` beside it is not privileged and does work as written.
+
+### Changed — writing to a path that was already taken
+
+- **Nineteen tools destroyed the file at their destination and answered exactly as they
+  answer a fresh create.** `resource_create`, `resource_save`, `resource_duplicate`,
+  `scene_new`, `scene_pack`, `theme_create`, `shader_create`, `tileset_create`,
+  `primitive_mesh_create`, `environment_create`, `audio_set_bus_layout` and the six
+  `asset_gen_*` generators saved over whatever was at the path — no error, no warning, no
+  field. Measured against a live Godot 4.7: nine resources created, a sentinel line
+  appended to each on disk, each tool called a second time with identical arguments, and
+  all nine sentinels gone. `resource_create` reset an `Environment` that had been
+  configured, then turned it into a `StandardMaterial3D` when asked for one at the same
+  path, so anything referencing it by type held the wrong one. `scene_new` replaced a
+  scene on disk while the editor still held the old one in memory.
+
+  These tools now **refuse** an occupied destination with the error code `exists`, naming
+  the remedy, and take an optional `overwrite: true` to proceed. When they do proceed over
+  an existing file the reply carries `replaced: true`, and carries nothing when the
+  destination was free — the same shape `coerced` / `requested` has carried since 1.83.0
+  and `node_set_property` since 1.82.0. **This changes shipped behaviour**: a caller that
+  relied on create-to-replace now gets a refusal until it passes `overwrite`.
+
+  Tools that write a resource **back to its own path** are unaffected — every
+  `*_set_property`, `theme_set_*`, `tileset_add_*`, `shader_set_code` and
+  `environment_set_sky`. Overwriting there is the operation, not a hazard. The distinction
+  is a property of the call site rather than of the caller's arguments, so no caller can
+  turn `theme_set_color` into a refusal.
+
+- **The product gave four different answers to one question, and now gives one.**
+  `filesystem_move` refused `exists` with no way to force; the seven scaffolding writers
+  refused unless `overwrite`; `filesystem_create_dir` succeeded and reported `existed`; the
+  rest destroyed silently. The scaffolding writers and the four tabletop template writers
+  refused correctly but had no way to say when they had *accepted* a collision — they
+  report `replaced` now too. `mp_wire_rpc` deliberately gains neither field: it edits an
+  annotation inside an existing script and has no destination to collide with.
+
+  Underneath, the twenty-four `ResourceSaver.save` sites in the addon are collapsed to
+  one — `_commit_save` — and `contract_check.py`'s new check 35 refuses a second one. A
+  roster of nineteen tools to fix is a roster somebody has to keep true; this is the same
+  repair 1.83.0 made for `add_child`, on the population found one session later.
+
+### Fixed — a confirmation refusal one tool could not carry
+
+- **`godot_run_headless_script` answered a caller who omitted `confirm` with a raw JavaScript
+  `TypeError`.** The text was `Cannot read properties of undefined (reading 'taskId')` — no
+  confirmation prompt, no remedy, and nothing naming the tool. With `confirm: true` the
+  identical call ran normally, which is what made the shape findable. It is the only tool on
+  this surface that is both destructive-gated and registered under the task model, and
+  `createTask` has a return type — `{ task }` — that the SDK immediately dereferences. The
+  gate was handing it an ordinary tool result. Both guards now refuse in the task model's own
+  currency: the task is created and its result stored as `failed` in the same tick, so a
+  task-aware client sees an ordinary failed task and a plain client's auto-poll returns
+  refusal text identical to what the other seventy-three gated tools return. The pause latch
+  had the same defect on the same tool and is repaired by the same seam.
+
+  _Found at 284 by driving the packed 1.83.0 tarball against a live Godot 4.7 the way
+  `docs/USER_GUIDE.md` tells a user to — the second engine-backed pass in two sessions, and
+  the second time it found something no gate in the tree could._
 
 ### Added — two gates over populations that had none
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
-import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
+import { NAME_TAKEN_CLAUSE, OVERWRITE_DOC } from "../../schemas.js";
 
 /** 3D & navigation. meshinstance/mesh/light/camera/csg/navregion/navagent mutate the EDITED scene and are undoable + ungated (the node_* model). primitive_mesh_create and the two environment_* tools author a resource on disk, so are file-writers gated by confirmation. */
 export function registerSpatialTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -58,16 +58,18 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       inputSchema: {
         to_path: z.string().describe("Destination res:// path, e.g. res://meshes/box.tres"),
         shape: z.string().optional().describe("box | sphere | cylinder | plane | capsule | prism | torus | quad (default box)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ to_path, shape, confirm }) => {
+    async ({ to_path, shape, overwrite, confirm }) => {
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create ${shape ?? "box"} PrimitiveMesh at ${to_path}`);
       if (blocked) return blocked;
       const params: Record<string, unknown> = { to_path };
       if (shape !== undefined) params.shape = shape;
+      if (overwrite !== undefined) params.overwrite = overwrite;
       return call("primitive_mesh.create", params);
     },
   );
@@ -192,10 +194,11 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         to_path: z.string().describe("Destination res:// path, e.g. res://world.tres"),
         background: z.string().optional().describe("clear_color | color | sky | canvas (default clear_color)"),
         ambient_color: z.array(z.number()).optional().describe("Ambient light color [r,g,b] or [r,g,b,a], 0..1"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ to_path, background, ambient_color, confirm }) => {
+    async ({ to_path, background, ambient_color, overwrite, confirm }) => {
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create Environment at ${to_path}`);
@@ -203,6 +206,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       const params: Record<string, unknown> = { to_path };
       if (background !== undefined) params.background = background;
       if (ambient_color !== undefined) params.ambient_color = ambient_color;
+      if (overwrite !== undefined) params.overwrite = overwrite;
       return call("environment.create", params);
     },
   );

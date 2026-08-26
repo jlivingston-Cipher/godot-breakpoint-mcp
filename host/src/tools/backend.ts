@@ -478,6 +478,10 @@ export function registerBackendTools(server: McpServer, bridge: BridgeClient, co
         path: (r.path as string | null) ?? opts.toPath,
         bytes: r.bytes ?? content.length,
         created: r.created ?? true,
+        // 🆕 284 — forwarded from the addon's write seam, present only when the write
+        // landed on an existing file. These four already REFUSED a collision correctly;
+        // what they could not do was say they had accepted one.
+        ...(r.replaced === true ? { replaced: true } : {}),
         message: `Wrote a ${opts.kind} scaffold for ${info.label} to ${opts.toPath}.`,
       });
     } catch (err) {

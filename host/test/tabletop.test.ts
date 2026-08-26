@@ -70,6 +70,13 @@ const methods = (calls: Call[]) => calls.map((c) => c.method);
 
 // ---------------------------------------------------- card_template_create ----
 
+// 🆕 284 — `overwrite: true` JOINS EVERY INTERNAL `scene.new`, AND THE ASSERTION MOVES
+// WITH THE BEHAVIOUR RATHER THAN OUTLIVING IT. `scene.new` now refuses an occupied
+// destination; these composers are not callers reaching a tool, they are one tool
+// building its own output, and the existence question was answered one level up by
+// `guardWriteTarget` where the caller could say yes. 283 §5.1 named this exact shape from
+// the other side — a probe that had pinned a DEFECT so precisely that fixing the defect
+// broke the test — and the rule it drew is the one applied here.
 test("card_template_create emits scene.new → Face → one node per slot → script → save, in order", async () => {
   const { calls, emit } = recorder();
   const res = await emitCardTemplate(emit, {
@@ -90,7 +97,7 @@ test("card_template_create emits scene.new → Face → one node per slot → sc
     "node.set_property", // attach script
     "scene.save",
   ]);
-  assert.deepEqual(calls[0].params, { root_type: "PanelContainer", path: "res://ui/cards/Card.tscn", name: "Card" });
+  assert.deepEqual(calls[0].params, { root_type: "PanelContainer", path: "res://ui/cards/Card.tscn", name: "Card", overwrite: true });
   assert.deepEqual(calls[1].params, { parent_path: ".", type: "Control", name: "Face" });
   assert.equal(calls[2].params.type, "Label");
   assert.equal(calls[3].params.type, "TextureRect");
@@ -476,7 +483,7 @@ test("board_create (explicit cells) emits scene.new → per-cell add/position/gr
     "node.add", "node.set_property", "node.add_to_group", // cell b
     "scene.save",
   ]);
-  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/board/Board.tscn", name: "Board" });
+  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/board/Board.tscn", name: "Board", overwrite: true });
   assert.deepEqual(calls[1].params, { parent_path: ".", type: "Marker2D", name: "cell_a" });
   assert.deepEqual(calls[2].params, { path: "cell_a", property: "position", value: { __type__: "Vector2", x: 10, y: 20 } });
   assert.deepEqual(calls[3].params, { path: "cell_a", group: "board_cells" });
@@ -603,8 +610,8 @@ test("board_tile_create (no tileset) emits scene.new → tileset.create → tile
   const res = await emitBoardTileCreate(emit, { path: "res://ui/board/Tiles.tscn", rows: 3, cols: 4 });
 
   assert.deepEqual(methods(calls), ["scene.new", "tileset.create", "tilemaplayer.create", "scene.save"]);
-  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/board/Tiles.tscn", name: "Tiles" });
-  assert.deepEqual(calls[1].params, { to_path: "res://ui/board/Tiles_tiles.tres", tile_size: [64, 64] });
+  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/board/Tiles.tscn", name: "Tiles", overwrite: true });
+  assert.deepEqual(calls[1].params, { to_path: "res://ui/board/Tiles_tiles.tres", tile_size: [64, 64], overwrite: true });
   assert.deepEqual(calls[2].params, { parent_path: ".", name: "Cells", tileset_path: "res://ui/board/Tiles_tiles.tres" });
 
   assert.equal(res.layer_path, "Cells");
@@ -711,7 +718,7 @@ test("piece_template_create emits scene.new → Art → Label → script → sav
     "node.set_property", // attach script
     "scene.save",
   ]);
-  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/pieces/Piece.tscn", name: "Piece" });
+  assert.deepEqual(calls[0].params, { root_type: "Node2D", path: "res://ui/pieces/Piece.tscn", name: "Piece", overwrite: true });
   assert.deepEqual(calls[1].params, { parent_path: ".", type: "Sprite2D", name: "Art" });
   assert.deepEqual(calls[2].params, { parent_path: ".", type: "Label", name: "Label" });
   assert.equal(calls[3].params.class_name, "GDScript");
