@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { requiredEncodedValue } from "../../schemas.js";
+import { requiredEncodedValue, OVERWRITE_DOC } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
 
@@ -22,15 +22,16 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         class_name: z.string().describe("Resource subclass to instantiate, e.g. StyleBoxFlat, Theme, GDScript"),
         to_path: z.string().describe("Destination res:// path, e.g. res://styles/panel.tres"),
         properties: z.record(z.string(), z.any()).optional().describe("Initial property values (JSON scalars or __type__-tagged Variants)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ class_name, to_path, properties, confirm }) => {
+    async ({ class_name, to_path, properties, overwrite, confirm }) => {
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create ${class_name} resource at ${to_path}`);
       if (blocked) return blocked;
-      return call("resource.create", properties !== undefined ? { class_name, to_path, properties } : { class_name, to_path });
+      return call("resource.create", properties !== undefined ? { class_name, to_path, properties, overwrite } : { class_name, to_path, overwrite });
     },
   );
 
@@ -58,10 +59,11 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         from_path: z.string().describe("Source resource res:// path"),
         to_path: z.string().optional().describe("Destination res:// path (default: overwrite from_path)"),
         flags: z.number().int().optional().describe("ResourceSaver.SaverFlags bitmask (e.g. 32 = FLAG_COMPRESS)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ from_path, to_path, flags, confirm }) => {
+    async ({ from_path, to_path, flags, overwrite, confirm }) => {
       // 🔴 BOTH parameters. Measured: `from_path: res://../…` LOADED a resource from
       // outside the root and saved a copy inside it. Guarding only the destination
       // would leave this tool half-wired — the failure mode 161, 162 and 163 each
@@ -73,6 +75,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
       const params: Record<string, unknown> = { from_path };
       if (to_path !== undefined) params.to_path = to_path;
       if (flags !== undefined) params.flags = flags;
+      if (overwrite !== undefined) params.overwrite = overwrite;
       return call("resource.save", params);
     },
   );
@@ -87,15 +90,16 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         path: z.string().describe("Source resource res:// path"),
         to_path: z.string().describe("Destination res:// path for the copy"),
         deep: z.boolean().optional().describe("Deep-duplicate subresources (default false)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ path, to_path, deep, confirm }) => {
+    async ({ path, to_path, deep, overwrite, confirm }) => {
       const escaped = guard(path, "path") ?? guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Duplicate resource ${path} to ${to_path}`);
       if (blocked) return blocked;
-      return call("resource.duplicate", deep !== undefined ? { path, to_path, deep } : { path, to_path });
+      return call("resource.duplicate", deep !== undefined ? { path, to_path, deep, overwrite } : { path, to_path, overwrite });
     },
   );
 

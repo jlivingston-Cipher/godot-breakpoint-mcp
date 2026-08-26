@@ -1767,8 +1767,18 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
    * the same path took a 5-node scene to 9, reported `saved: true` and a
    * `node_count` of 5, and never mentioned the four orphans it had just made.
    */
-  function guardWriteTarget(p: string, overwrite: boolean | undefined, label: string): void {
-    resolveWriteTarget(p, config.projectPath, { overwrite, label });
+  // 🆕 284 — AND IT RETURNS WHETHER THE TARGET WAS THERE. `resolveWriteTarget` has
+  // always known; nothing asked, so a caller who passed `overwrite:true` was told
+  // `saved` and never told that something had been replaced. These four tools refused a
+  // collision correctly — what they could not do was SAY they had accepted one. One
+  // convention for "the engine did something other than the plain thing" (284 §1).
+  function guardWriteTarget(p: string, overwrite: boolean | undefined, label: string): boolean {
+    return resolveWriteTarget(p, config.projectPath, { overwrite, label }).exists;
+  }
+
+  /** `{ replaced: true }` when the write landed on an existing file, `{}` otherwise. */
+  function replacedField(existed: boolean): Record<string, unknown> {
+    return existed ? { replaced: true } : {};
   }
 
   /**
@@ -1876,8 +1886,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const a = raw as unknown as TemplateSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
       if (a.theme_path && a.theme) return fail({ code: "bad_params", message: "Pass either theme_path or an inline theme, not both" });
+      let existed = false;
       try {
-        guardWriteTarget(a.path, a.overwrite, "path");
+        existed = guardWriteTarget(a.path, a.overwrite, "path");
         if (a.script_path !== undefined) resolveInsideProject(a.script_path, config.projectPath, "script_path");
         if (a.theme_path !== undefined) resolveInsideProject(a.theme_path, config.projectPath, "theme_path");
         // 🔴 NESTED. `back.art` and `theme.font_path` live ONE LEVEL DOWN in the schema,
@@ -1892,7 +1903,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>);
+        return ok({ ...(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
       } catch (err) {
         return fail(err);
       }
@@ -2091,8 +2102,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     async (raw) => {
       const a = raw as unknown as BoardSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
+      let existed = false;
       try {
-        guardWriteTarget(a.path, a.overwrite, "path");
+        existed = guardWriteTarget(a.path, a.overwrite, "path");
         // 🔴 NESTED — `background.art` is stored verbatim in the saved board scene.
         if (a.background?.art !== undefined) resolveInsideProject(a.background.art, config.projectPath, "background.art");
       } catch (err) { return fail(err); }
@@ -2100,7 +2112,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>);
+        return ok({ ...(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
       } catch (err) {
         return fail(err);
       }
@@ -2160,8 +2172,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const a = raw as unknown as TileBoardSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
       if (a.tileset !== undefined && !(a.tileset.startsWith("res://") && a.tileset.endsWith(".tres"))) return fail({ code: "bad_params", message: "'tileset' must be a res:// .tres path" });
+      let existed = false;
       try {
-        guardWriteTarget(a.path, a.overwrite, "path");
+        existed = guardWriteTarget(a.path, a.overwrite, "path");
         // A supplied tileset is READ, not written — but `res://../x.tres` would
         // reach outside the root just the same, so it is resolved too.
         if (a.tileset !== undefined) resolveInsideProject(a.tileset, config.projectPath, "tileset");
@@ -2170,7 +2183,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>);
+        return ok({ ...(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
       } catch (err) {
         return fail(err);
       }
@@ -2236,8 +2249,9 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
     async (raw) => {
       const a = raw as unknown as PieceSpec & { confirm?: boolean };
       if (!a.path.startsWith("res://") || !a.path.endsWith(".tscn")) return fail({ code: "bad_params", message: "'path' must be a res:// .tscn path" });
+      let existed = false;
       try {
-        guardWriteTarget(a.path, a.overwrite, "path");
+        existed = guardWriteTarget(a.path, a.overwrite, "path");
         if (a.script_path !== undefined) resolveInsideProject(a.script_path, config.projectPath, "script_path");
         // 🔴 `art` is STORED, not loaded: the escaping path was written verbatim into
         // the generated .tscn, so the template carried a reference out of the project.
@@ -2251,7 +2265,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>);
+        return ok({ ...(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
       } catch (err) {
         return fail(err);
       }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
-import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
+import { NAME_TAKEN_CLAUSE, OVERWRITE_DOC } from "../../schemas.js";
 
 /** TileSet authoring (disk-backed, gated) + TileMapLayer cell painting. */
 export function registerTileTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -15,15 +15,16 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
       inputSchema: {
         to_path: z.string().describe("Destination res:// path, e.g. res://tiles/world.tres"),
         tile_size: z.array(z.number().int()).optional().describe("Base tile grid size [x, y] in pixels (default [16, 16])"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ to_path, tile_size, confirm }) => {
+    async ({ to_path, tile_size, overwrite, confirm }) => {
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create TileSet resource at ${to_path}`);
       if (blocked) return blocked;
-      return call("tileset.create", tile_size !== undefined ? { to_path, tile_size } : { to_path });
+      return call("tileset.create", tile_size !== undefined ? { to_path, tile_size, overwrite } : { to_path, overwrite });
     },
   );
 

@@ -357,7 +357,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
       const content = buildEnetScript({ className: class_name, port: port ?? 24565, maxClients: max_clients ?? 32 });
       try {
         const r = await writeScript(to_path, content, overwrite ?? false);
-        return ok({ status: String(r.status ?? "written"), kind: "enet", path: (r.path as string | null) ?? to_path, bytes: r.bytes ?? content.length, created: r.created ?? true, message: `Wrote an ENetMultiplayerPeer helper to ${to_path}.` });
+        return ok({ status: String(r.status ?? "written"), kind: "enet", path: (r.path as string | null) ?? to_path, bytes: r.bytes ?? content.length, created: r.created ?? true, ...(r.replaced === true ? { replaced: true } : {}), message: `Wrote an ENetMultiplayerPeer helper to ${to_path}.` });
       } catch (err) {
         return fail(err);
       }
@@ -397,7 +397,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
             message: "WebRTCMultiplayerPeer is not available in this Godot build — enable the WebRTC module/extension, or use mp_setup_enet_peer.",
           });
         }
-        return ok({ status: String(r.status ?? "written"), kind: "webrtc", path: (r.path as string | null) ?? to_path, bytes: r.bytes ?? content.length, created: r.created ?? true, message: `Wrote a WebRTCMultiplayerPeer helper to ${to_path}.` });
+        return ok({ status: String(r.status ?? "written"), kind: "webrtc", path: (r.path as string | null) ?? to_path, bytes: r.bytes ?? content.length, created: r.created ?? true, ...(r.replaced === true ? { replaced: true } : {}), message: `Wrote a WebRTCMultiplayerPeer helper to ${to_path}.` });
       } catch (err) {
         return fail(err);
       }
@@ -488,7 +488,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
       const content = buildLobbyScript({ className: class_name, port: port ?? 24565, maxPlayers: max_players ?? 8 });
       try {
         const r = await writeScript(to_path, content, overwrite ?? false);
-        return ok({ status: String(r.status ?? "written"), kind: "lobby", path: (r.path as string | null) ?? to_path, bytes: r.bytes ?? content.length, created: r.created ?? true, message: `Wrote a multiplayer lobby controller to ${to_path}.` });
+        return ok({ status: String(r.status ?? "written"), kind: "lobby", path: (r.path as string | null) ?? to_path, bytes: r.bytes ?? content.length, created: r.created ?? true, ...(r.replaced === true ? { replaced: true } : {}), message: `Wrote a multiplayer lobby controller to ${to_path}.` });
       } catch (err) {
         return fail(err);
       }

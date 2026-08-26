@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
-import { NAME_TAKEN_CLAUSE } from "../../schemas.js";
+import { NAME_TAKEN_CLAUSE, OVERWRITE_DOC } from "../../schemas.js";
 
 /** AudioStreamPlayer nodes + audio bus layout / effects. */
 export function registerAudioTools(server: McpServer, call: EditorCall, guard: PathGuard): void {
@@ -127,10 +127,11 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
         "Save the current AudioServer bus layout (buses, effects, volumes) to a .tres resource on disk (default res://default_bus_layout.tres) via generate_bus_layout + ResourceSaver.save. DESTRUCTIVE (writes a file) — gated by confirmation.",
       inputSchema: {
         to_path: z.string().optional().describe("Destination res:// path (default res://default_bus_layout.tres)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ to_path, confirm }) => {
+    async ({ to_path, overwrite, confirm }) => {
       // `to_path` is OPTIONAL here — an omitted one takes the addon's documented
       // default and has nothing to escape, which is why the guard passes `undefined`
       // through untouched rather than refusing it.
@@ -138,7 +139,7 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Save audio bus layout to ${to_path ?? "res://default_bus_layout.tres"}`);
       if (blocked) return blocked;
-      return call("audio.set_bus_layout", to_path !== undefined ? { to_path } : {});
+      return call("audio.set_bus_layout", to_path !== undefined ? { to_path, overwrite } : { overwrite });
     },
   );
 }

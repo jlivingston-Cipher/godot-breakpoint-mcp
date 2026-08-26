@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { requiredEncodedValue } from "../../schemas.js";
+import { requiredEncodedValue, OVERWRITE_DOC } from "../../schemas.js";
 import { gate } from "../../confirm.js";
 import type { EditorCall, PathGuard } from "./common.js";
 
@@ -15,15 +15,16 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
       inputSchema: {
         to_path: z.string().describe("Destination res:// path, e.g. res://shaders/glow.gdshader"),
         code: z.string().optional().describe("Initial GDShader source (e.g. \"shader_type canvas_item; ...\")"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ to_path, code, confirm }) => {
+    async ({ to_path, code, overwrite, confirm }) => {
       const escaped = guard(to_path, "to_path");
       if (escaped) return escaped;
       const blocked = await gate(server, confirm, `Create shader at ${to_path}`);
       if (blocked) return blocked;
-      return call("shader.create", code !== undefined ? { to_path, code } : { to_path });
+      return call("shader.create", code !== undefined ? { to_path, code, overwrite } : { to_path, overwrite });
     },
   );
 

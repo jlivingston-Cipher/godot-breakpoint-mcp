@@ -84,6 +84,46 @@ container. Two of these are things the guide's own quick start does.
   now names all four, every privileged step is marked **(higher-trust)**, and step 5 says
   plainly that `godot_run_project` beside it is not privileged and does work as written.
 
+### Changed — writing to a path that was already taken
+
+- **Nineteen tools destroyed the file at their destination and answered exactly as they
+  answer a fresh create.** `resource_create`, `resource_save`, `resource_duplicate`,
+  `scene_new`, `scene_pack`, `theme_create`, `shader_create`, `tileset_create`,
+  `primitive_mesh_create`, `environment_create`, `audio_set_bus_layout` and the six
+  `asset_gen_*` generators saved over whatever was at the path — no error, no warning, no
+  field. Measured against a live Godot 4.7: nine resources created, a sentinel line
+  appended to each on disk, each tool called a second time with identical arguments, and
+  all nine sentinels gone. `resource_create` reset an `Environment` that had been
+  configured, then turned it into a `StandardMaterial3D` when asked for one at the same
+  path, so anything referencing it by type held the wrong one. `scene_new` replaced a
+  scene on disk while the editor still held the old one in memory.
+
+  These tools now **refuse** an occupied destination with the error code `exists`, naming
+  the remedy, and take an optional `overwrite: true` to proceed. When they do proceed over
+  an existing file the reply carries `replaced: true`, and carries nothing when the
+  destination was free — the same shape `coerced` / `requested` has carried since 1.83.0
+  and `node_set_property` since 1.82.0. **This changes shipped behaviour**: a caller that
+  relied on create-to-replace now gets a refusal until it passes `overwrite`.
+
+  Tools that write a resource **back to its own path** are unaffected — every
+  `*_set_property`, `theme_set_*`, `tileset_add_*`, `shader_set_code` and
+  `environment_set_sky`. Overwriting there is the operation, not a hazard. The distinction
+  is a property of the call site rather than of the caller's arguments, so no caller can
+  turn `theme_set_color` into a refusal.
+
+- **The product gave four different answers to one question, and now gives one.**
+  `filesystem_move` refused `exists` with no way to force; the seven scaffolding writers
+  refused unless `overwrite`; `filesystem_create_dir` succeeded and reported `existed`; the
+  rest destroyed silently. The scaffolding writers and the four tabletop template writers
+  refused correctly but had no way to say when they had *accepted* a collision — they
+  report `replaced` now too. `mp_wire_rpc` deliberately gains neither field: it edits an
+  annotation inside an existing script and has no destination to collide with.
+
+  Underneath, the twenty-four `ResourceSaver.save` sites in the addon are collapsed to
+  one — `_commit_save` — and `contract_check.py`'s new check 35 refuses a second one. A
+  roster of nineteen tools to fix is a roster somebody has to keep true; this is the same
+  repair 1.83.0 made for `add_child`, on the population found one session later.
+
 ### Fixed — a confirmation refusal one tool could not carry
 
 - **`godot_run_headless_script` answered a caller who omitted `confirm` with a raw JavaScript

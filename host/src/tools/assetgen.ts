@@ -7,6 +7,7 @@ import type { Config } from "../config.js";
 import { gate } from "../confirm.js";
 import { toFsPath, resolveInsideProject } from "../paths.js";
 import { failPath } from "./lsp-common.js";
+import { OVERWRITE_DOC } from "../schemas.js";
 
 /**
  * Group J — AI asset generation.
@@ -210,10 +211,11 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
       shape?: string;
       placeholder?: boolean;
       confirm?: boolean;
+      overwrite?: boolean;
       forcePlaceholder?: boolean;
     },
   ) {
-    const { prompt, to_path, width, height, duration_ms, shape, placeholder, confirm, forcePlaceholder } = args;
+    const { prompt, to_path, width, height, duration_ms, shape, placeholder, confirm, overwrite, forcePlaceholder } = args;
 
     // 🔴 BEFORE THE BACKEND CHECK, NOT AFTER — 163 §3's shape. All six generators
     // funnel through here, and MEASURED against a live editor every one of them wrote
@@ -267,6 +269,7 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
           ...(height !== undefined ? { height } : {}),
           ...(duration_ms !== undefined ? { duration_ms } : {}),
           ...(shape !== undefined ? { shape } : {}),
+          ...(overwrite !== undefined ? { overwrite } : {}),
         })) as Record<string, unknown>;
         return ok({
           status: "placeholder",
@@ -347,11 +350,12 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         height: z.number().int().positive().optional().describe("Image height for sprite/texture/icon (default per-kind)"),
         duration_ms: z.number().int().positive().optional().describe("Length in ms for audio_sfx (default 300)"),
         shape: z.enum(["box", "sphere", "cylinder", "prism"]).optional().describe("Primitive for model (default box)"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ kind, to_path, prompt, width, height, duration_ms, shape, confirm }) =>
-      generate(kind as Kind, { prompt, to_path, width, height, duration_ms, shape, confirm, forcePlaceholder: true }),
+    async ({ kind, to_path, prompt, width, height, duration_ms, shape, overwrite, confirm }) =>
+      generate(kind as Kind, { prompt, to_path, width, height, duration_ms, shape, overwrite, confirm, forcePlaceholder: true }),
   );
 
   // The five typed generators share `generate`; they differ only in the fixed
@@ -362,6 +366,7 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
     width: z.number().int().positive().optional().describe("Image width (default 64 sprite / 128 texture,icon)"),
     height: z.number().int().positive().optional().describe("Image height (default matches width)"),
     placeholder: z.boolean().optional().describe("Force a deterministic in-engine stand-in even if a real backend is configured"),
+    overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
     confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
   } as const;
 
@@ -375,8 +380,8 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         "deterministic stand-in. DESTRUCTIVE (writes a file when a backend/placeholder is used) — gated by confirmation.",
       inputSchema: imageInput,
     },
-    async ({ prompt, to_path, width, height, placeholder, confirm }) =>
-      generate("sprite", { prompt, to_path, width, height, placeholder, confirm }),
+    async ({ prompt, to_path, width, height, placeholder, overwrite, confirm }) =>
+      generate("sprite", { prompt, to_path, width, height, placeholder, overwrite, confirm }),
   );
 
   server.registerTool(
@@ -389,8 +394,8 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         "DESTRUCTIVE (writes a file when a backend/placeholder is used) — gated by confirmation.",
       inputSchema: imageInput,
     },
-    async ({ prompt, to_path, width, height, placeholder, confirm }) =>
-      generate("texture", { prompt, to_path, width, height, placeholder, confirm }),
+    async ({ prompt, to_path, width, height, placeholder, overwrite, confirm }) =>
+      generate("texture", { prompt, to_path, width, height, placeholder, overwrite, confirm }),
   );
 
   server.registerTool(
@@ -403,8 +408,8 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         "backend/placeholder is used) — gated by confirmation.",
       inputSchema: imageInput,
     },
-    async ({ prompt, to_path, width, height, placeholder, confirm }) =>
-      generate("icon", { prompt, to_path, width, height, placeholder, confirm }),
+    async ({ prompt, to_path, width, height, placeholder, overwrite, confirm }) =>
+      generate("icon", { prompt, to_path, width, height, placeholder, overwrite, confirm }),
   );
 
   server.registerTool(
@@ -420,11 +425,12 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         to_path: z.string().describe("Destination res:// path (a .tres AudioStreamWAV for the placeholder backend)"),
         duration_ms: z.number().int().positive().optional().describe("Length in milliseconds (default 300)"),
         placeholder: z.boolean().optional().describe("Force a deterministic in-engine stand-in even if a real backend is configured"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ prompt, to_path, duration_ms, placeholder, confirm }) =>
-      generate("audio_sfx", { prompt, to_path, duration_ms, placeholder, confirm }),
+    async ({ prompt, to_path, duration_ms, placeholder, overwrite, confirm }) =>
+      generate("audio_sfx", { prompt, to_path, duration_ms, placeholder, overwrite, confirm }),
   );
 
   server.registerTool(
@@ -440,10 +446,11 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         to_path: z.string().describe("Destination res:// path (a .tres mesh resource for the placeholder backend)"),
         shape: z.enum(["box", "sphere", "cylinder", "prism"]).optional().describe("Primitive shape for the placeholder (default box)"),
         placeholder: z.boolean().optional().describe("Force a deterministic in-engine stand-in even if a real backend is configured"),
+        overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
         confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
       },
     },
-    async ({ prompt, to_path, shape, placeholder, confirm }) =>
-      generate("model", { prompt, to_path, shape, placeholder, confirm }),
+    async ({ prompt, to_path, shape, placeholder, overwrite, confirm }) =>
+      generate("model", { prompt, to_path, shape, placeholder, overwrite, confirm }),
   );
 }

@@ -417,6 +417,57 @@ func _commit_add(node: Node, parent: Node, root: Node, action: String, also_own:
 	return out
 
 
+## 🆕 284 — THE ONE PLACE THIS FILE WRITES A RESOURCE TO DISK.
+##
+## 🔴 MEASURED FROM A USER'S SIDE AGAINST A LIVE GODOT 4.7, AND IT IS 283 §1 ONE AXIS
+## OVER. 283 found that every tool taking a `name` handed it to `add_child` with
+## `force_readable_name` defaulted false, so a collision came back as `@Type@N` with no
+## flag. The collision here is a FILE and the answer was DELETION. Nine resources were
+## created, a sentinel line appended to each on disk, and each tool called a SECOND time
+## with identical arguments: every sentinel was gone, and every reply read `created` /
+## `saved` / `packed` — the same words, in the same shape, as the first call.
+##
+## `resource_create` overwrote an Environment a property had been set on, resetting it;
+## asked for a StandardMaterial3D at the same path it silently turned that resource into
+## a material, so anything referencing it as an Environment now holds the wrong type.
+## `scene_new` replaced a saved scene on disk while the editor's open copy still held the
+## node that had been added, so file and editor disagree and nothing says so.
+##
+## 🔴 AND THE PRODUCT GAVE FOUR ANSWERS TO ONE QUESTION. `filesystem_move` refused
+## `exists` with no way to force; the seven scaffold tools under `_mp_write_script`
+## refused `exists` unless `overwrite`; `filesystem_create_dir` succeeded and reported
+## `existed`; and the rest destroyed silently. `_mp_write_script` was already right, and
+## it was right because it is a SEAM — one function, one answer, seven tools. This is
+## that function for the twenty-four `ResourceSaver.save` sites, which were a roster:
+## 282 §2.3's rule, paid on a second uncounted population one session after the first.
+##
+## 🔵 THE TWO KINDS ARE A PROPERTY OF THE CALL SITE, NOT OF THE CALLER'S ARGUMENTS, and
+## that distinction is the whole design. `SAVE_NEW` means `to_path` is a DESTINATION the
+## caller named — a collision there is somebody else's file. `SAVE_BACK` means the path
+## is the resource's own home, loaded a few lines above and written back: overwriting is
+## not a hazard there, it IS the operation, and refusing it would break every
+## `*_set_property` tool on the surface. A flag the CALLER could set would let a caller
+## turn `theme_set_color` into a refusal; a constant at the SITE cannot.
+##
+## 🔵 `replaced` IS REPORTED ONLY WHEN IT HAPPENED — the shape `node_set_property` has
+## carried since 1.82.0 and `_commit_add` since 283: a field that appears when the engine
+## did something other than the plain thing, and is absent otherwise. *I created a file*
+## and *I overwrote your file because you asked me to* are not the same sentence.
+const SAVE_NEW := 0
+const SAVE_BACK := 1
+
+
+func _commit_save(res: Resource, to_path: String, params: Dictionary, kind: int,
+		flags: int = 0) -> Dictionary:
+	var existed := FileAccess.file_exists(to_path)
+	if kind == SAVE_NEW and existed and not bool(params.get("overwrite", false)):
+		return {"error": _err("exists", "File already exists (pass overwrite): %s" % to_path)}
+	var e := ResourceSaver.save(res, to_path, flags)
+	if e != OK:
+		return {"error": _err("save_failed", "ResourceSaver.save() returned %d" % e)}
+	return {"fields": {"replaced": true} if (existed and kind == SAVE_NEW) else {}}
+
+
 # ------------------------------------------------------------- handlers ------
 
 func _ping() -> Dictionary:
@@ -586,11 +637,11 @@ func _scene_new(params: Dictionary) -> Dictionary:
 	var e := packed.pack(root)
 	if e != OK:
 		return _err("pack_failed", "PackedScene.pack() returned %d" % e)
-	e = ResourceSaver.save(packed, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(packed, path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
 	EditorInterface.open_scene_from_path(path)
-	return _ok({"created": path, "root_type": root_type})
+	return _ok({"created": path, "root_type": root_type}.merged(saved["fields"]))
 
 
 func _node_add(params: Dictionary) -> Dictionary:
@@ -1597,11 +1648,11 @@ func _scene_pack(params: Dictionary) -> Dictionary:
 	if e != OK:
 		dup.free()
 		return _err("pack_failed", "PackedScene.pack() returned %d" % e)
-	e = ResourceSaver.save(packed, to_path)
+	var saved := _commit_save(packed, to_path, params, SAVE_NEW)
 	dup.free()
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"packed": to_path, "branch": _path_of(root, branch)})
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"packed": to_path, "branch": _path_of(root, branch)}.merged(saved["fields"]))
 
 
 func _scene_save_as(params: Dictionary) -> Dictionary:
@@ -1807,10 +1858,10 @@ func _resource_create(params: Dictionary) -> Dictionary:
 		return _err("create_failed", "Could not instantiate %s" % cls)
 	for key in params.get("properties", {}):
 		res.set(String(key), Codec.decode(params["properties"][key]))
-	var e := ResourceSaver.save(res, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"created": to_path, "type": cls})
+	var saved := _commit_save(res, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"created": to_path, "type": cls}.merged(saved["fields"]))
 
 
 func _resource_load(params: Dictionary) -> Dictionary:
@@ -1841,10 +1892,15 @@ func _resource_save(params: Dictionary) -> Dictionary:
 	if res == null:
 		return _err("load_failed", "Could not load resource: %s" % from_path)
 	var flags := int(params.get("flags", 0))
-	var e := ResourceSaver.save(res, to_path, flags)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"saved": to_path, "from": from_path})
+	# 🔵 THE KIND IS DERIVED HERE AND NOWHERE ELSE: `to_path` DEFAULTS to `from_path`,
+	# so this one tool is a save-back when the caller named no destination and a
+	# create when they did. Reading it off the arguments at the site is the honest
+	# version; a constant would be wrong half the time.
+	var kind := SAVE_BACK if to_path == from_path else SAVE_NEW
+	var saved := _commit_save(res, to_path, params, kind, flags)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"saved": to_path, "from": from_path}.merged(saved["fields"]))
 
 
 func _resource_duplicate(params: Dictionary) -> Dictionary:
@@ -1861,10 +1917,10 @@ func _resource_duplicate(params: Dictionary) -> Dictionary:
 	var dup := res.duplicate(deep)
 	if dup == null:
 		return _err("duplicate_failed", "Could not duplicate resource")
-	var e := ResourceSaver.save(dup, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"duplicated": to_path, "from": from_path, "deep": deep})
+	var saved := _commit_save(dup, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"duplicated": to_path, "from": from_path, "deep": deep}.merged(saved["fields"]))
 
 
 func _resource_get_property(params: Dictionary) -> Dictionary:
@@ -1891,9 +1947,9 @@ func _resource_set_property(params: Dictionary) -> Dictionary:
 	if prop == "":
 		return _err("bad_params", "Missing 'property'")
 	res.set(prop, Codec.decode(params.get("value")))
-	var e := ResourceSaver.save(res, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(res, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "property": prop, "value": Codec.encode(res.get(prop))})
 
 
@@ -2130,10 +2186,11 @@ func _asset_gen_placeholder(params: Dictionary) -> Dictionary:
 			# pipeline) — the placeholder must be usable synchronously. External
 			# formats (a real backend's .png) go through asset.import instead.
 			var tex := ImageTexture.create_from_image(img)
-			var e := ResourceSaver.save(tex, to_path)
-			if e != OK:
-				return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+			var saved_e := _commit_save(tex, to_path, params, SAVE_NEW)
+			if saved_e.has("error"):
+				return saved_e["error"]
 			var desc := _import_and_describe(to_path)
+			desc.merge(saved_e["fields"])
 			desc["kind"] = kind
 			desc["width"] = w
 			desc["height"] = h
@@ -2142,10 +2199,11 @@ func _asset_gen_placeholder(params: Dictionary) -> Dictionary:
 		"audio_sfx":
 			var dur := clampi(int(params.get("duration_ms", 300)), 20, 5000)
 			var stream := _gen_audio(seed_hash, dur)
-			var e2 := ResourceSaver.save(stream, to_path)
-			if e2 != OK:
-				return _err("save_failed", "ResourceSaver.save() returned %d" % e2)
+			var saved_e2 := _commit_save(stream, to_path, params, SAVE_NEW)
+			if saved_e2.has("error"):
+				return saved_e2["error"]
 			var desc2 := _import_and_describe(to_path)
+			desc2.merge(saved_e2["fields"])
 			desc2["kind"] = kind
 			desc2["duration_ms"] = dur
 			desc2["format"] = "AudioStreamWAV"
@@ -2153,10 +2211,11 @@ func _asset_gen_placeholder(params: Dictionary) -> Dictionary:
 		"model":
 			var shape := String(params.get("shape", "box"))
 			var mesh := _gen_mesh(shape, seed_hash)
-			var e3 := ResourceSaver.save(mesh, to_path)
-			if e3 != OK:
-				return _err("save_failed", "ResourceSaver.save() returned %d" % e3)
+			var saved_e3 := _commit_save(mesh, to_path, params, SAVE_NEW)
+			if saved_e3.has("error"):
+				return saved_e3["error"]
 			var desc3 := _import_and_describe(to_path)
+			desc3.merge(saved_e3["fields"])
 			desc3["kind"] = kind
 			desc3["shape"] = shape
 			desc3["format"] = mesh.get_class()
@@ -2781,11 +2840,11 @@ func _tileset_create(params: Dictionary) -> Dictionary:
 	var ts := TileSet.new()
 	if params.has("tile_size"):
 		ts.set("tile_size", _to_vec2i(params.get("tile_size")))
-	var e := ResourceSaver.save(ts, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(ts, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
 	var tsz: Vector2i = ts.get("tile_size")
-	return _ok({"created": to_path, "tile_size": [tsz.x, tsz.y]})
+	return _ok({"created": to_path, "tile_size": [tsz.x, tsz.y]}.merged(saved["fields"]))
 
 
 func _tileset_add_source(params: Dictionary) -> Dictionary:
@@ -2810,9 +2869,9 @@ func _tileset_add_source(params: Dictionary) -> Dictionary:
 	if params.has("separation"):
 		atlas.set("separation", _to_vec2i(params.get("separation")))
 	var assigned: int = ts.add_source(atlas, int(params.get("source_id", -1)))
-	var e := ResourceSaver.save(ts, tileset_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(ts, tileset_path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"tileset": tileset_path, "source_id": assigned, "texture": texture_path, "texture_region_size": [region.x, region.y], "source_count": ts.get_source_count()})
 
 
@@ -2834,9 +2893,9 @@ func _tileset_add_tile(params: Dictionary) -> Dictionary:
 	if params.has("size"):
 		size = _to_vec2i(params.get("size"))
 	src.create_tile(coords, size)
-	var e := ResourceSaver.save(ts, tileset_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(ts, tileset_path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"tileset": tileset_path, "source_id": sid, "atlas_coords": [coords.x, coords.y], "size": [size.x, size.y], "tiles_count": src.get_tiles_count()})
 
 
@@ -2871,9 +2930,9 @@ func _tileset_set_tile_collision(params: Dictionary) -> Dictionary:
 	var one_way := bool(params.get("one_way", false))
 	if params.has("one_way"):
 		td.set_collision_polygon_one_way(layer, poly_index, one_way)
-	var e := ResourceSaver.save(ts, tileset_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(ts, tileset_path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"tileset": tileset_path, "source_id": sid, "atlas_coords": [coords.x, coords.y], "physics_layer": layer, "polygon_index": poly_index, "points": poly.size(), "one_way": one_way})
 
 
@@ -3628,10 +3687,10 @@ func _shader_create(params: Dictionary) -> Dictionary:
 	var sh := Shader.new()
 	if params.has("code"):
 		sh.code = String(params.get("code"))
-	var e := ResourceSaver.save(sh, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"created": to_path, "type": "Shader", "code_length": sh.code.length()})
+	var saved := _commit_save(sh, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"created": to_path, "type": "Shader", "code_length": sh.code.length()}.merged(saved["fields"]))
 
 
 func _shader_set_code(params: Dictionary) -> Dictionary:
@@ -3645,9 +3704,9 @@ func _shader_set_code(params: Dictionary) -> Dictionary:
 		return _err("bad_type", "%s is not a Shader" % path)
 	var sh := res as Shader
 	sh.code = String(params.get("code"))
-	var e := ResourceSaver.save(sh, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(sh, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "code_length": sh.code.length()})
 
 
@@ -3854,10 +3913,10 @@ func _audio_set_bus_layout(params: Dictionary) -> Dictionary:
 	if not to_path.begins_with("res://"):
 		return _err("bad_params", "'to_path' must be a res:// path")
 	var layout = AudioServer.generate_bus_layout()
-	var e := ResourceSaver.save(layout, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"saved": to_path, "bus_count": AudioServer.get_bus_count()})
+	var saved := _commit_save(layout, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"saved": to_path, "bus_count": AudioServer.get_bus_count()}.merged(saved["fields"]))
 
 
 # ---------------------------------------------------------------- Group G: UI / control / theming ----
@@ -4041,10 +4100,10 @@ func _theme_create(params: Dictionary) -> Dictionary:
 	if not to_path.begins_with("res://"):
 		return _err("bad_params", "'to_path' must be a res:// path")
 	var theme := Theme.new()
-	var e := ResourceSaver.save(theme, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"created": to_path, "type": "Theme"})
+	var saved := _commit_save(theme, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"created": to_path, "type": "Theme"}.merged(saved["fields"]))
 
 
 func _theme_set_color(params: Dictionary) -> Dictionary:
@@ -4058,9 +4117,9 @@ func _theme_set_color(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "Missing 'name' or 'theme_type'")
 	var col := _to_color(params.get("color"))
 	theme.set_color(iname, ttype, col)
-	var e := ResourceSaver.save(theme, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(theme, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "name": iname, "theme_type": ttype, "color": [col.r, col.g, col.b, col.a]})
 
 
@@ -4080,9 +4139,9 @@ func _theme_set_font(params: Dictionary) -> Dictionary:
 	if not (fres is Font):
 		return _err("bad_type", "%s is not a Font" % font_path)
 	theme.set_font(iname, ttype, fres as Font)
-	var e := ResourceSaver.save(theme, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(theme, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "name": iname, "theme_type": ttype, "font_path": font_path})
 
 
@@ -4102,9 +4161,9 @@ func _theme_set_stylebox(params: Dictionary) -> Dictionary:
 	if not (sres is StyleBox):
 		return _err("bad_type", "%s is not a StyleBox" % sb_path)
 	theme.set_stylebox(iname, ttype, sres as StyleBox)
-	var e := ResourceSaver.save(theme, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(theme, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "name": iname, "theme_type": ttype, "stylebox_path": sb_path})
 
 
@@ -4121,9 +4180,9 @@ func _theme_set_constant(params: Dictionary) -> Dictionary:
 		return _err("bad_params", "Missing 'value'")
 	var val := int(params.get("value"))
 	theme.set_constant(iname, ttype, val)
-	var e := ResourceSaver.save(theme, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(theme, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "name": iname, "theme_type": ttype, "value": val})
 
 
@@ -4271,10 +4330,10 @@ func _primitive_mesh_create(params: Dictionary) -> Dictionary:
 	var mesh: Mesh = ClassDB.instantiate(cls)
 	if mesh == null:
 		return _err("create_failed", "Could not instantiate %s" % cls)
-	var e := ResourceSaver.save(mesh, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"created": to_path, "type": cls, "shape": shape})
+	var saved := _commit_save(mesh, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"created": to_path, "type": cls, "shape": shape}.merged(saved["fields"]))
 
 
 func _light_create(params: Dictionary) -> Dictionary:
@@ -4326,10 +4385,10 @@ func _environment_create(params: Dictionary) -> Dictionary:
 	env.background_mode = int(modes[bg])
 	if params.has("ambient_color"):
 		env.ambient_light_color = _to_color(params.get("ambient_color"))
-	var e := ResourceSaver.save(env, to_path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
-	return _ok({"created": to_path, "type": "Environment", "background_mode": bg})
+	var saved := _commit_save(env, to_path, params, SAVE_NEW)
+	if saved.has("error"):
+		return saved["error"]
+	return _ok({"created": to_path, "type": "Environment", "background_mode": bg}.merged(saved["fields"]))
 
 
 func _environment_set_sky(params: Dictionary) -> Dictionary:
@@ -4353,9 +4412,9 @@ func _environment_set_sky(params: Dictionary) -> Dictionary:
 			return _err("bad_params", "Unknown sky_material: %s (procedural/physical/panorama)" % mat_kind)
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
-	var e := ResourceSaver.save(env, path)
-	if e != OK:
-		return _err("save_failed", "ResourceSaver.save() returned %d" % e)
+	var saved := _commit_save(env, path, params, SAVE_BACK)
+	if saved.has("error"):
+		return saved["error"]
 	return _ok({"path": path, "background_mode": "sky", "sky_material": mat_kind})
 
 
@@ -4818,7 +4877,15 @@ func _mp_write_script(params: Dictionary) -> Dictionary:
 	var efs := EditorInterface.get_resource_filesystem()
 	efs.update_file(to_path)
 	efs.scan()
-	return _ok({"status": "written", "path": to_path, "bytes": content.to_utf8_buffer().size(), "created": not existed})
+	# 🆕 284 — `replaced` JOINS `created`, IT DOES NOT REPLACE IT. This reply has carried
+	# `created: false` since the scaffold family was built, which is a fifth spelling of
+	# the one question 284 unified — and callers branch on it, so it stays. What is added
+	# is the field every other destination-writing tool now answers with, present only
+	# when it happened, so one convention covers the whole surface.
+	var out := {"status": "written", "path": to_path, "bytes": content.to_utf8_buffer().size(), "created": not existed}
+	if existed:
+		out["replaced"] = true
+	return _ok(out)
 
 
 ## Detect which known game-backend SDKs are installed in this project. Each is
