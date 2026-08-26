@@ -92,8 +92,8 @@
       "repo": "beckettlab/beckett-godot-mcp",
       "asset_id": 5296,
       "category": "alternative-mcp-server",
-      "assetlib_version": "1.12.1",
-      "assetlib_modify_date": "2026-07-31",
+      "assetlib_version": "1.14.0",
+      "assetlib_modify_date": "2026-08-26",
       "last_analysed": "2026-08-26",
       "last_analysed_commit": "947ee6b",
       "real_dap_client": false,
@@ -101,7 +101,7 @@
       "csharp": true,
       "cadence": "weekly",
       "status": "active",
-      "note": "SOURCE PASS 284 — card said no change, head moved fbd9b3d -> 947ee6b, and the source moved substantially: three commits, 23 files, +1863/-93, and the addon is at 1.14.0 while the card still reads 1.12.1. 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — tools/csharp_tools.gd:28 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics. It has been there since v1.5.0 and was already present at the previously recorded commit, so the roster value was wrong BEFORE this window rather than newly changed. The v1.14 theme is context cost: a `help` tool serves long-form argument catalogues on demand and is deliberately excluded from tools/list, and descriptions were trimmed to capability statements. A new capture:// resource store parks screenshots under user:// and returns an MCP resource_link instead of megabytes of base64, degrading link -> both for peers below protocol revision 2025-06-18. 55 tools by two agreeing derivations (registry.register literals; and the generated glama/tools.json), corroborated by ci-smoke.ps1 -ExpectedTools 55; the delta from 54 is exactly `help`. No DAP and no LSP — zero hits for either. Zero-sidecar transport: hand-rolled HTTP/1.1 + SSE on a Godot TCPServer inside the editor process. This repo is the MIT Lite edition — core/effort.gd enumerates 91 tool names across six cumulative tiers and 55 register here."
+      "note": "SOURCE PASS 284 — card said no change, head moved fbd9b3d -> 947ee6b, and the source moved substantially: three commits, 23 files, +1863/-93, and the addon is at 1.14.0 while the card still reads 1.12.1. 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — tools/csharp_tools.gd:28 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics. It has been there since v1.5.0 and was already present at the previously recorded commit, so the roster value was wrong BEFORE this window rather than newly changed. The v1.14 theme is context cost: a `help` tool serves long-form argument catalogues on demand and is deliberately excluded from tools/list, and descriptions were trimmed to capability statements. A new capture:// resource store parks screenshots under user:// and returns an MCP resource_link instead of megabytes of base64, degrading link -> both for peers below protocol revision 2025-06-18. 55 tools by two agreeing derivations (registry.register literals; and the generated glama/tools.json), corroborated by ci-smoke.ps1 -ExpectedTools 55; the delta from 54 is exactly `help`. No DAP and no LSP — zero hits for either. Zero-sidecar transport: hand-rolled HTTP/1.1 + SSE on a Godot TCPServer inside the editor process. This repo is the MIT Lite edition — core/effort.gd enumerates 91 tool names across six cumulative tiers and 55 register here. 🔵 **AND THE CARD CAUGHT UP THE SAME DAY.** Hours after this pass the Asset Library listing moved 1.12.1 -> 1.14.0 (2026-08-26), which is the version already read here at `947ee6b`. Recorded rather than re-passed: the source was analysed at 284 and has not moved since, so what changed is the card catching up to it, not the product."
     },
     {
       "name": "Godot-MCP-Native",
