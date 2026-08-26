@@ -75,6 +75,12 @@ EMPTY: dict[str, str] = {
     # outside this gate silently, so writing a new enumerator means checking this table in
     # the same edit — the gate cannot tell you, because what it cannot spell it cannot count.
     "dict[str, tuple[str, str]]": "{}",
+    # 🆕 284 — `ledger-population-with-two-producers` (OPEN 282). A producer that returns
+    # NOTHING and appends into module-level accumulators is still an enumerator: its
+    # empty answer is the one where the loop never runs. `-> None` had no row here, which
+    # is why the only shared producer in this file was outside the gate BY CONSTRUCTION —
+    # 255's rule, and the sixth session to pay it, this time on a shape rather than a type.
+    "None": "None",
     # 🆕 259 — (subcommands, subcommand -> its flags). THE FIFTH SESSION RUNNING TO ADD A
     # SHAPE THIS TABLE COULD NOT SPELL, and the first where the reader is a PAIR: check 28's
     # CLI join needs both halves at once, and a reader returning two populations is outside
@@ -167,7 +173,21 @@ def targets(text: str) -> list[tuple[str, str, int]]:
     found: list[tuple[str, str, int]] = []
     for m in re.finditer(r"^def (\w+)\([^)]*\)\s*->\s*(.+?):\s*$", text, re.M):
         name, ret = m.group(1), m.group(2).strip().strip('"')
-        if name.startswith("_") and name != "_tracked_modes":
+        # 🆕 284 — AND THE EXCEPTION IS DERIVED NOW, NOT ROSTERED. This line read
+        # `!= "_tracked_modes"` for thirty-odd sessions: one private helper, admitted by
+        # name, with nothing saying what made it different from every other underscore
+        # `def` in the file. `ledger-population-with-two-producers` (282) is what a roster
+        # of one costs — `_remedy_grammar` is the second such helper, it is the SHARED
+        # producer of two declared populations, and admitting it meant either typing a
+        # second name here or answering the question the first name never had to.
+        #
+        # 🔵 THE ANSWER WAS ALREADY IN THIS FILE. `LEDGER` declares, per blind, the
+        # populations that blind must empty — so a private helper is blindable exactly
+        # when the ledger names it, and it is the ledger row (which `roster_problems`
+        # already compares against the tree) that carries the justification. A name typed
+        # in two places cannot disagree with itself; a name typed HERE and derived THERE
+        # can, and the ledger is where the disagreement is already read.
+        if name.startswith("_") and name not in LEDGER:
             continue
         empty = EMPTY.get(ret)
         if empty is None and ret.endswith("| None"):
@@ -278,7 +298,19 @@ LEDGER: dict[str, tuple[str, ...]] = {
     # spans are found, so blinding this collapses the command join too — the radius moved
     # because a new reader started consuming an existing blind's output, which is 251's
     # third cost and the one that is easiest to leave unwritten.
-    "remedy_tables": ("xlang.remedy_rows", "xlang.remedy_tool_refs", "xlang.remedy_cli_refs"),
+    # 🆕 284 — NARROWED, AND THE NARROWING IS THE FINDING. This row claimed that blinding
+    # the addon table reader empties all three populations. It stopped being true the day
+    # 282 wrote a `breakpoint-mcp` pointer into a HOST remedy: `_remedy_grammar` harvests
+    # the CLI and tool spans and is called for the addon tables AND for the host's
+    # `*Remedy` exports, so the addon half alone no longer takes either to empty.
+    # `SCOPE_GATE_LEDGER remedy_tables: … did NOT: ['xlang.remedy_cli_refs']` is the gate
+    # saying so. 🔴 AND `xlang.remedy_tool_refs` WAS IN THE SAME POSITION AND HAPPENED TO
+    # STILL COLLAPSE — no host remedy names a tool in backticks TODAY. That is a fact
+    # about the current text of two strings, not a property of the code, and leaving it
+    # declared here would have been the guarantee holding by luck until somebody wrote an
+    # ordinary sentence. Both move to the shared producer that actually owns them.
+    "remedy_tables": ("xlang.remedy_rows",),
+    "_remedy_grammar": ("xlang.remedy_cli_refs", "xlang.remedy_tool_refs"),
     "remedy_renderers_read": ("xlang.remedy_renderers",),
     "host_invented_error_sites": ("xlang.host_invented_sites",),
     "host_cause_remedies": ("xlang.host_cause_sentences",),
@@ -370,7 +402,19 @@ BLAST: dict[str, int] = {
     # `bad_params` row — which it had never needed until `_set_property` gained a
     # parameter it can refuse. Each remedy names a tool, so emptying the tables collapses
     # the tool-reference join beside the row join.
-    "remedy_tables": 71,                      # 🆕 259: 64 -> 65, the CLI span join
+    "remedy_tables": 70,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 284 — 71 -> 70. The addon tables are no longer the ONLY source of a CLI span, so
+    # blinding them leaves check 28's join able to answer and one refusal stops firing.
+    # 🔵 AND THE OBSERVED COLLAPSE STILL INCLUDES `xlang.remedy_tool_refs` WHILE THE
+    # LEDGER NO LONGER CLAIMS IT — deliberately. No host remedy names a tool in backticks
+    # today, so that population happens to empty; the ledger declares only what holds by
+    # CONSTRUCTION, and this row is the difference between the two being visible instead
+    # of a guarantee quietly resting on the current text of one sentence.
+    # 🆕 284 — the shared producer, and its radius is where check 28's SENTENCE rules
+    # live: every full-stop, length, imperative and span-harvest statement runs inside it,
+    # on both planes. Declared here because a blind with no BLAST row is a blind whose
+    # reach nothing compares — 251's three rows for one new reader, this being the second.
+    "_remedy_grammar": 2,
     "remedy_renderers_read": 1,
     # 🆕 255 — check 29's three, and the asymmetry is the check's own shape. Emptying the
     # LEFT side asks nothing and reports nothing but its ledger row; emptying either RIGHT
@@ -423,7 +467,12 @@ BLAST: dict[str, int] = {
     # `init` in each `unknown_method` remedy stops being a command and is joined to
     # `registerTool(..)`, which has never had one. A blind whose radius reaches a rule written
     # to EXEMPT things from another rule is exactly what a predicted number gets wrong.
-    "cli_surface": 7,
+    # 🆕 284 — 7 -> 8, ON PURPOSE AND IN THE COMMIT THAT MOVED IT. Restoring the `doctor`
+    # pointer to `godotSpawnRemedy` puts a second `breakpoint-mcp <sub>` span into check 28's
+    # CLI join, so blinding the CLI surface now refuses one more line. This is 251's third
+    # row — the raise on an EXISTING blind whose radius a new population widened — and it is
+    # the one a session forgets, because nothing about the edit looks like it touches here.
+    "cli_surface": 8,
     "catalog_index_tools": 2,                 # also: check 4
     # 🆕 251 — FOUR, AND TWO OF THEM ARE THE LEDGER'S. Blinding the row reader empties
     # both populations it feeds: check 4 names every registered tool as missing from the
