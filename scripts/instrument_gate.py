@@ -798,6 +798,30 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🆕 285 — AND THE DISCOVER HALF NAMED IT BEFORE ITS AUTHOR DID, WHICH IS TWICE IN
+        # ONE SESSION THAT A DISCOVER HALF HAS DONE THAT. `HANDOFF_SESSION285.md` §7 NEXT
+        # #5 was written to say this entry was DELIBERATELY not added and left as cheap-tier
+        # work for the next session. `INSTRUMENT_GATE_DISCOVER UNDECLARED` disagreed:
+        # a file that EXPORTS members can be reached by a blind, so "I'll do it next time"
+        # is not one of the two answers this roster accepts. The other is DISCOVER_EXEMPT
+        # with a reason, and there is no reason — the selftest reddens on the blind.
+        "name": "difference_field_gate.mjs",
+        "src": HOST / "scripts" / "difference_field_gate.mjs",
+        "gate": ["node", "scripts/difference_field_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 1,
+        "why": "the difference-field classifier — PRESENCE vs VALUE, and the name that is both",
+        "targets": {
+            # 🔴 THE HEALTHY ANSWER, NOT A FAILING ONE (175's `_png.mjs` rule): an empty
+            # `bad` is exactly what a clean tree looks like here, so a judge blinded to it
+            # is this gate's own subject — a reader that measures nothing and says ok.
+            # Every one of the thirty selftest claims goes through this function, and the
+            # green-case claim (`GREEN_BASE_SPOKE`) reads a LINE rather than the verdict,
+            # so the blind cannot be satisfied by returning a passing shape either.
+            "{SIG:judge}": "return { lines: [], bad: [] };",
+        },
+    },
+    {
         # 🆕 231 — THE TWELFTH, ADDED IN THE COMMIT THAT SHIPPED IT RATHER THAN IN A
         # LATER ONE. 🔴 AND THE REASON IS THE PARAGRAPH ABOVE, WHICH SAYS A PROSE
         # CONFESSION DOES NOT RE-ASSERT ITSELF: this gate's population is a HAND-WRITTEN
@@ -1505,6 +1529,26 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     # readers `main` calls are targeted individually, which is where the claim lives.
     ("verdict_gate.mjs", "main"): "the invocation, not a reader — blinding it removes the "
                                   "verdict marker and produces a crash rather than a catch",
+    ("difference_field_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
+    # 🆕 285 — THE SAME SHAPE AS `wire_diff.mjs::surface` BELOW, AND IT IS THE SAME MEMBER
+    # DOING THE SAME JOB. `readWire` boots a built server over stdio and pages `tools/list`;
+    # `difference_field_gate.selftest.mjs` is fixture-driven BY CONSTRUCTION, because a
+    # selftest that spawned the server would be testing the tree rather than the judgement
+    # and would go green the day the derivation broke (its own header says so). So no gate
+    # this harness runs can reach this member, and blinding it to `return []` would be
+    # scored as a green.
+    # 🔴 THE HONEST STATEMENT IS THAT THIS INSTRUMENT'S WIRE READER IS UNCOVERED BY THIS
+    # HARNESS, and it is written HERE — where a member appearing or a driver arriving
+    # reddens the roster — rather than in a paragraph silent on every green run (211 §19).
+    # 🔵 IT IS NOT UNCOVERED BY CI. `difference_field_gate.mjs` itself runs as its own CI
+    # step against the `dist/` built in that job, and a `readWire` returning [] makes
+    # DF_POPULATION refuse there. That is a different axis from this one and it is the
+    # reason this row is narrower than `wire_diff.mjs::surface`, whose live half has no
+    # CI step at all.
+    ("difference_field_gate.mjs", "readWire"):
+        "boots a built server over stdio and pages tools/list; the self-test is "
+        "fixture-driven by construction, so no gate this harness runs can reach it — the "
+        "live CI step for the gate itself is the only driver, and it is on another axis",
     ("boundary_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
     ("seal_order_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
     # 🔴 MEASURED BEFORE IT WAS DECLARED, WHICH IS THE DIFFERENCE BETWEEN A ROSTER ROW AND
