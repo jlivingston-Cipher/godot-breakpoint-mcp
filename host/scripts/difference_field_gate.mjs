@@ -265,9 +265,21 @@ export function judge(full, dflt, { populationFloor = POPULATION_FLOOR, defaultO
 }
 
 export async function main() {
+  // 🔴 BEFORE ANY VERDICT BRANCH (233's draft-3 rule): a marker printed only on the green
+  // path cannot tell a caught mutant from a crashed gate.
+  console.log(`DIFFERENCE_FIELD_BEGIN reads ${REACH.reads.length} · cannot see ${REACH.cannotSee.length}`);
   const full = await readWire({ BREAKPOINT_PRIVILEGED_GROUPS: "all" });
   const dflt = await readWire({ BREAKPOINT_PRIVILEGED_GROUPS: "" });
   const { lines, bad } = judge(full, dflt);
+  // 🔴 A JUDGEMENT THAT PRODUCED NO READINGS AT ALL IS NOT A CLEAN TREE, and without this
+  // the live axis is strictly weaker than the self-test: a `judge` blinded to
+  // `{lines: [], bad: []}` prints nothing, exits 0, and reads exactly like a green run.
+  // 284 §1.3 is the same sentence about `range(233, 0)`.
+  if (!lines.length) {
+    console.log("🔴 DIFFERENCE_FIELD produced no readings at all — the judgement measured "
+      + "nothing, and an empty verdict is not the same observation as a clean one.");
+    process.exit(1);
+  }
   for (const l of lines) console.log(l);
   for (const b of bad) console.log(b);
   if (bad.length) {

@@ -2003,6 +2003,11 @@ def js_late_register(text: str) -> str:
 # the wrong one sweeps a walk that is not the one the live gate reads.
 LATE_LIVE = {
     "tautology_gate.mjs": (["node", "scripts/tautology_gate.mjs"], None),
+    # 🆕 285 — the STRONGER axis, and `LATE_LIVE_NA` is empty on purpose so there was never
+    # a second answer available. The live command boots two servers over stdio against the
+    # `dist/` this job builds; `main` now REFUSES a judgement that produced no readings, so
+    # the blind that the self-test catches is caught here too rather than reading as green.
+    "difference_field_gate.mjs": (["node", "scripts/difference_field_gate.mjs"], None),
     "verdict_gate.mjs": (["node", "scripts/verdict_gate.mjs"], None),
     "boundary_gate.mjs": (["node", "scripts/boundary_gate.mjs"], None),
     "_path_ledger.mjs": (["node", "scripts/path-cohort.mjs", "--summary"], None),
@@ -2124,6 +2129,9 @@ LATE_LIVE = {
 #            only one of the six that does.
 LATE_VERDICT_MARKER: dict[str, str] = {
     "node scripts/tautology_gate.mjs": "TAUT_GATE",
+    # 🆕 285 — `main`'s first line, emitted before the wire is read and before any verdict
+    # branch, so it survives the refusal path AND the empty-judgement path added with it.
+    "node scripts/difference_field_gate.mjs": "DIFFERENCE_FIELD_BEGIN",
     "node scripts/verdict_gate.mjs": "VERDICT_GATE",
     "node scripts/boundary_gate.mjs": "BOUNDARY_GATE",
     "node scripts/path-cohort.mjs --summary": "PATH_COHORT",
@@ -4099,6 +4107,13 @@ VERDICT_MARKER: dict[str, str] = {
     # survives the red path (draft 2's failure) and is absent from a Python traceback
     # (draft 1's failure). Chosen by RUNNING each command red, never by reading a
     # neighbour — 244 §4.3 is what that costs when it is not.
+    # 🆕 285 — draft 3's rule, and the file was CHANGED to satisfy it rather than the
+    # marker chosen to fit the file. `difference_field_gate.selftest.mjs` printed only a
+    # tally at the bottom, which is absent from every red run — so a caught mutant and a
+    # crashed gate were one observable (181 §4). It prints a BEGIN banner as its first line
+    # now, before any assertion, and the shared prefix below matches that line and the
+    # tally both.
+    "difference_field_gate.mjs": "DIFFERENCE_FIELD_SELFTEST",
     "p0_comments.py": "P0_COMMENTS_SELFTEST_DONE",
     "queue_gate.py": "QUEUE_SELFTEST ",
     "mutation_lock_gate.py": "MUTATION_LOCK_SELFTEST_DONE",

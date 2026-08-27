@@ -27,6 +27,14 @@
 import assert from "node:assert/strict";
 import { judge, REACH, POPULATION_FLOOR } from "./difference_field_gate.mjs";
 
+// 🔴 THE MARKER IS THE FIRST LINE AND IT IS EMITTED BEFORE ANY VERDICT BRANCH — 233's
+// draft-3 rule, which `instrument_gate` refused this file for not having. A marker printed
+// only on success (the tally at the bottom) is absent from every red run, so "the gate
+// caught the mutant" and "the mutant crashed the gate" become one observable (181 §4). This
+// line survives an assertion failure and is absent from an import-time crash, which is
+// exactly the discrimination the blinding harness needs.
+console.log("DIFFERENCE_FIELD_SELFTEST_BEGIN 7 section(s) — every reader is blinded below");
+
 let claims = 0;
 const counted = () => { claims += 1; return true; };
 
