@@ -1058,6 +1058,13 @@ INSTRUMENTS = [
         "targets": {
             "{SIG:_cells}": "return []",
             "{SIG:parse}": "return (1, HEAD, [], [])",
+            # 🆕 286 — `queue-row-drop-is-silent` (285 §9.4). THE SECOND DERIVATION, and
+            # it is rostered in the commit that adds it because `INSTRUMENT_GATE_DISCOVER`
+            # accepts exactly two answers and "next session" is not one of them (285 §5.6).
+            # Blinded to `(0, [])` it does NOT go quiet: `QUEUE_BLOCK_VACUOUS` refuses a
+            # derivation that counted nothing over a block another reader read rows from —
+            # a second opinion that counted nothing agrees with every number it is shown.
+            "{SIG:block_shape}": "return (0, [])",
             "{SIG:check}": "return ([], [], 0, 0)",
             # 🆕 281 — `reach-paths-unjoined-to-the-diff` (271). `session_diff` blinded
             # to None does NOT go quiet: `SHIPPED_QUEUE_CLEAN` reads the live table
@@ -1213,6 +1220,12 @@ INSTRUMENTS = [
         "why": "every reader under the one document that says what this project measured, "
                "and the two assemblies that are the gate",
         "targets": {
+            # 🆕 286 — `git-hooks-unset` (228, fifty-eight sessions). The pickup's
+            # reader for whether `git commit` in THIS checkout consults the tracked
+            # pre-commit hook. Blinded to `[]` it is 228's own shipped state — a promise
+            # printed beside a green — and the self-test drives BOTH directions, because
+            # a reader that refused every checkout would refuse the fixtures too.
+            "{SIG:hook_problems}": "return []",
             # ── the block and its atoms — the parse every claim downstream rests on ──
             "{SIG:SINCE}": "return \"\"",
             "{SIG:needed}": "return \"\"",
