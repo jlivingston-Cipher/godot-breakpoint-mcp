@@ -273,6 +273,13 @@ export const NO_CLAIMS_EXPECTED = {
   // — are in positive_control_gate.selftest.mjs beside it, which IS classified.
   "positive_control_gate.mjs": "the positive-control classifier — it reads assertion units and asserts nothing itself; its 43 claims are in positive_control_gate.selftest.mjs (219)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
+  // 🆕 285 — the sixth file of exactly the shape the five above describe, admitted for the
+  // same written reason and not by any rule about its name. `difference_field_gate.mjs`
+  // reads `tools/list` input and output schemas and classifies every difference-field name
+  // as PRESENCE or VALUE; it asserts nothing itself, and its 29 claims — including the five
+  // blinded readers that must redden — are in difference_field_gate.selftest.mjs beside it,
+  // which IS classified.
+  "difference_field_gate.mjs": "the difference-field classifier — it reads schemas and asserts nothing itself; its 29 claims are in difference_field_gate.selftest.mjs (285)",
   "token-cost.mjs": "a reporting tool that PRINTS the tool-surface cost; its two governed constants are asserted in token-cost.selftest.mjs",
 
   // 🆕 241 — THE TWO P0 REPORTERS, admitted for `token-cost.mjs`'s written reason and not

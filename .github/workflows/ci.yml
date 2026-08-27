@@ -719,6 +719,29 @@ jobs:
       - name: Every key on the wire is one the classifier can read (wire diff discover)
         shell: bash
         run: node scripts/wire_diff.mjs --discover 2>&1 | tee -a "$CI_MEASURED_LOG"
+      # 🆕 285 — THE PRECONDITION THE SECOND-CALL GATE READS, AND THE ONE THING
+      # `SECOND_CALL_GATE_DESIGN_2026-08-27.md` §6 GOT WRONG. That brief says to read the
+      # declared-difference field FROM THE REGISTRY rather than from a list inside the
+      # gate, which is right and under-specified: measured on this wire, `replaced` is
+      # optional on all 23 and `coerced` on all 25, but `requested` is optional on 25 and
+      # REQUIRED on `main_screen_set` and `vcs_restore`, where it echoes the argument
+      # beside a measured result. A reader keying on the NAME reads an echo as a
+      # measurement twice out of twenty-seven — 284 §2.3 on the second envelope.
+      #
+      # 🔴 AND IT READS BOTH WIRES, WHICH IS WHY IT LIVES HERE RATHER THAN IN THE UNIT
+      # SUITE. `destination_overwrite.test.ts` walks `buildToolsets` through a stub that
+      # never applies the capability wrapper, so it records all 292 registrations and is
+      # right to. A LIVE client sees 279, and five of the twenty-eight destination writers
+      # are in the default-off `code-execution` group. A future second-call gate deriving
+      # its population from a default client would drive 23 of 28 and call it complete —
+      # 284 §1.3's `range(233, 0)` one file over. The gap is declared per tool here.
+      # Two server starts against the `dist/` built above, no engine. ~4s.
+      - name: The difference-field classifier can still refuse (difference field selftest)
+        shell: bash
+        run: node scripts/difference_field_gate.selftest.mjs 2>&1 | tee -a "$CI_MEASURED_LOG"
+      - name: A difference field is an optional name, and the default-wire gap is declared (difference field gate)
+        shell: bash
+        run: node scripts/difference_field_gate.mjs 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🆕 234 §1 — THE READER FOR THE ONE TABLE IN THIS TREE NOTHING READ BACK. A
       # handoff's status block is two dozen claims about what these gates printed, it is
       # the first thing the next session stands on, and `FLOOR_PIN_LITERAL` was restated
