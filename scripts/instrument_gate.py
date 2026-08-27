@@ -2670,6 +2670,14 @@ def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
 # Two ceilings falling to zero (`LATE_CRASH_CEILING_A/_B`) is what let these gates finish
 # their reports on the late axis too.
 LATE_BLAST_FLOOR: dict[str, int] = {
+    # 🆕 285 — measured 11 across the one constructible late blind on [A:gate], floored
+    # ~20% below. 🔴 THE NUMBER WAS ZERO ON THE FIRST SWEEP THAT ADDED THIS INSTRUMENT AND
+    # THE REASON WAS THE SELF-TEST, NOT THE AXIS: it died at its first bad assertion and
+    # reported the failure as a stack trace, so `failure_lines` read nothing and
+    # `BLAST_UNREADABLE` refused — 172 §10.21's floor at nothing. The file reports
+    # `FAIL <LABEL>` per section now (`A_FAIL`), which is what that table's own header says
+    # the way out is.
+    "difference_field_gate.mjs": 8,   # 285: measured 11 (calls=14 fails=11)
     # 🆕 277 §2 — measured 613 on A:gate, floored ~20% below. There is no B:live row
     # here because there is no B:live axis: `LATE_LIVE_COST` prices it out, and the
     # blast tables say so in `LATE_LIVE_BLAST_UNCOUNTABLE` rather than by omission.
@@ -2783,6 +2791,21 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
 }
 
 LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
+    # 🆕 285 — AND IT IS THE "NOTHING TO REDDEN" SENTENCE, NOT THE "AXIS DID NOT RUN" ONE.
+    # The axis ran: `INSTRUMENT_GATE_LATE difference_field_gate.mjs [B:live]: 0 of 1 STILL
+    # GREEN`. But `main` calls `judge` exactly ONCE — `1 target(s) called once — a late
+    # blind is not constructible there` — so there is no second call for a late blind to
+    # land on and no population for a blast to be taken over. A floor of one over an empty
+    # population is 172 §10.21, the defect this table exists to avoid.
+    # 🔵 THE PRIMARY AXIS COVERS THE MEMBER: `BLAST_FLOOR` is 9 over a measured 12, and the
+    # live command's own CI step reddens on the blind through the empty-judgement refusal
+    # `main` gained in the same commit. This row is about the LATE axis only.
+    # 🔴 AND IT EXPIRES BY ITSELF, like every row here: the moment this instrument reports
+    # a nonzero live blast, the excuse is refused by the run's own output.
+    "difference_field_gate.mjs":
+        "the live axis ran and had nothing to redden — `main` calls `judge` exactly once, "
+        "so no late blind is constructible on this axis and there is no population for a "
+        "blast. The primary axis floors the same member at 9 over a measured 12",
     # 🆕 277 §2 — the SECOND row here that is not about the command's output. Like
     # `mutation_lock_gate.py` below, `handoff_gate.py` reports zero on this axis because
     # the axis did not run — `LATE_LIVE_COST` prices `--patterns` out of a fifty-seven
@@ -4735,6 +4758,9 @@ def blind(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
 # arriving at the numbers it was written about. Raised with ~10% headroom, still from
 # BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
+    # 🆕 285 — measured 12 across its one blind, floored ~20% below. Same story as the
+    # late row: zero on the first sweep because the self-test threw instead of reporting.
+    "difference_field_gate.mjs": 9,   # 285: measured 12
     # 🆕 277 §2 — measured 645 across fifty-six blinds, floored ~20% below. The
     # number was ZERO on the run that added this instrument and the reason was
     # `failure_lines`, not the sweep: this gate reports in a fourth dialect (`D_FAIL`).
