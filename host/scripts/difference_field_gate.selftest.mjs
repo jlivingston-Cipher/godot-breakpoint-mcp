@@ -31,12 +31,24 @@ let claims = 0;
 const counted = () => { claims += 1; return true; };
 
 /** One row of the shape `readWire` returns. */
+/**
+ * @param {string} name
+ * @param {string[]} [input]
+ * @param {string[]} [output]
+ * @param {string[]} [outputRequired]
+ * @returns {{name: string, input: Set<string>, output: Set<string>, outputRequired: Set<string>}}
+ */
 const row = (name, input = [], output = [], outputRequired = []) => ({
   name, input: new Set(input), output: new Set(output), outputRequired: new Set(outputRequired),
 });
 
 /** A minimal shipped-shaped surface: N destination writers, plus the three live oddities. */
+/**
+ * @param {number} [n]
+ * @param {{extra?: Array<{name: string, input: Set<string>, output: Set<string>, outputRequired: Set<string>}>, defaultHidden?: string[]}} [opts]
+ */
 function fixture(n = 26, { extra = [], defaultHidden = [] } = {}) {
+  /** @type {Array<{name: string, input: Set<string>, output: Set<string>, outputRequired: Set<string>}>} */
   const full = [];
   for (let i = 0; i < n; i += 1) full.push(row(`writer_${i}`, ["overwrite", "to_path"], ["replaced", "saved"], ["saved"]));
   full.push(row("namer", ["name"], ["coerced", "requested", "path"], ["path"]));

@@ -104,6 +104,7 @@ export const POPULATION_FLOOR = 24;
  * not a count. This table is what a later second-call gate must print as its unreached
  * set — the alternative is a green over a population five short of the one it names.
  */
+/** @type {Record<string, string>} */
 export const DEFAULT_OFF = {
   asset_gen_sprite: "capability group `code-execution`, OFF by default",
   asset_gen_texture: "capability group `code-execution`, OFF by default",
@@ -123,6 +124,7 @@ export const DEFAULT_OFF = {
  * session's to spend. What IS this session's is that the ambiguity stops being invisible:
  * a reader keying on the name gets a refusal here rather than a wrong answer later.
  */
+/** @type {Record<string, Record<string, string>>} */
 export const DUAL_SENSE = {
   requested: {
     main_screen_set: "REQUIRED: echoes the requested main-screen tab beside the MEASURED `active`",
@@ -131,6 +133,7 @@ export const DUAL_SENSE = {
 };
 
 /** Names read by VALUE — always present, never a presence signal. */
+/** @type {Record<string, Record<string, string>>} */
 export const VALUE_KIND = {
   existed: {
     filesystem_create_dir: "REQUIRED boolean: the operation is a directory, and `existed` answers it by value",
@@ -149,6 +152,10 @@ const required = (s) => new Set(s?.required ?? []);
  * Read one wire. Separated from `judge` so the selftest can drive the judgement over
  * fixtures without spawning a server, and so a failure to READ is never a green.
  */
+/**
+ * @param {Record<string, string>} [env]
+ * @returns {Promise<Array<{name: string, input: Set<string>, output: Set<string>, outputRequired: Set<string>}>>}
+ */
 export async function readWire(env = {}) {
   const { surface } = await import("./wire_diff.mjs");
   const tools = await surface(ENTRY, { GODOT_PROJECT: process.env.GODOT_PROJECT ?? path.join(HOST, "..", "example"), ...env });
@@ -164,9 +171,16 @@ export async function readWire(env = {}) {
  * 🔴 EVERY CLAIM RUNS. None short-circuits another (175's rule) — a gate that stops at
  * its first failure reports one defect and hides the population behind it.
  */
+/**
+ * @param {Array<{name: string, input: Set<string>, output: Set<string>, outputRequired: Set<string>}>} full
+ * @param {Array<{name: string, input: Set<string>, output: Set<string>, outputRequired: Set<string>}>} dflt
+ * @param {{populationFloor?: number, defaultOff?: Record<string, string>,
+ *          dualSense?: Record<string, Record<string, string>>,
+ *          valueKind?: Record<string, Record<string, string>>}} [opts]
+ */
 export function judge(full, dflt, { populationFloor = POPULATION_FLOOR, defaultOff = DEFAULT_OFF, dualSense = DUAL_SENSE, valueKind = VALUE_KIND } = {}) {
-  const lines = [];
-  const bad = [];
+  /** @type {string[]} */ const lines = [];
+  /** @type {string[]} */ const bad = [];
   const name = (rows, f, side = "input") => rows.filter((r) => r[side].has(f)).map((r) => r.name).sort();
 
   // ── DF_POPULATION ── derived, floored, never empty ─────────────────────────────────
@@ -205,7 +219,7 @@ export function judge(full, dflt, { populationFloor = POPULATION_FLOOR, defaultO
   }
 
   // ── DF_KIND ── presence vs value, and the name that is both ────────────────────────
-  const kinds = new Map();
+  /** @type {Map<string, {presence: string[], value: string[]}>} */ const kinds = new Map();
   for (const r of full) {
     for (const f of r.output) {
       if (!kinds.has(f)) kinds.set(f, { presence: [], value: [] });
