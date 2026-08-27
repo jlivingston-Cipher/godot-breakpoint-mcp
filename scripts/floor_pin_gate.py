@@ -192,7 +192,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
     # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
     # — at or under the live count, refusing one below, quiet one above.
-    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )66",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )68",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
@@ -451,6 +451,17 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # in one session here. An anchor embedding the value would test nothing the moment the
     # rule it guards did its job, which is what it did on this session's first run.
     ("ORPHAN_CEILING",           f"{S}/tautology_gate.mjs",          r"(export const ORPHAN_CEILING = )\d+;",                    [f"{S}/tautology_gate.selftest.mjs"]),
+    # 🆕 285 — AND THE DISCOVER HALF FOUND THIS ONE BEFORE ITS AUTHOR DID, WHICH IS THE
+    # WHOLE POINT OF HAVING A DISCOVER HALF. `difference_field_gate.mjs` shipped a
+    # floor-shaped constant with a self-test that blinds every reader around it, and no
+    # entry here — so `FLOOR_PIN_UNSWEPT` named it on the first run, in a container,
+    # because the 45-second command ceiling on the authoring machine could not finish
+    # this gate at all (58s). A floor whose own movement nothing proves is 176's G12
+    # shape, and the runner below is the one that already reddens on it:
+    # `BLIND_POPULATION_SHRUNK` drives a population one under the floor and asserts the
+    # judgement refuses, and `POPULATION_AT_FLOOR` asserts exactly-at passes — so
+    # lowering the literal makes the shrunk case stop refusing and the file reddens.
+    ("POPULATION_FLOOR",         f"{S}/difference_field_gate.mjs",   r"(export const POPULATION_FLOOR = )\d+;",                  [f"{S}/difference_field_gate.selftest.mjs"]),
     # 🔴 THE POSITIVE SIDE OF THE SAME FACT (193 §9.3). The ceiling says few claims are
     # orphans; it does not say the banner path RAN. Both would survive an `enclosingTest`
     # that stopped reading banners on a tree that had meanwhile grown `test()` blocks.
@@ -1415,7 +1426,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`git ls-files` failing to answer — which yields an empty population, no "
         "findings, and a green run that opened no files. Same argument as "
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
-    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (66, (
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (68, (
         "🆕 `270` RAISED IT BY ONE, FOR THE REASON THE ROW ITSELF PREDICTED: this "
         "population grows whenever a plane gains a probe, and issue #327's fix added "
         "`set-property-verify.integration.mjs` to prove a live engine's coercions. "
@@ -1558,7 +1569,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "it to make an abort go away is the failure it exists to catch, and the "
         "self-test's counterfactual compares BOTH populations to this literal so that "
         "moving it reddens rather than quietly widening what counts as legible.")),
-    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (48, (
+    ("../scripts/contract_check.py", "SHEBANG_NONEXEC_EXPECTED"): (50, (
         "Tracked `.mjs`/`.ts`/`.py`/`.sh` files carrying a shebang while committed "
         "non-executable, at `{FLOOR}`. They are invoked as `python3 <file>` or "
         "`node <file>`, so the non-executable mode is correct — but the COUNT is "

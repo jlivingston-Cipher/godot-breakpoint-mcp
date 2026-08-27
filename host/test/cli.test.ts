@@ -87,7 +87,38 @@ after(() => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const sc = (r: ToolResult) => r.structuredContent as Record<string, unknown>;
+/**
+ * 🔴 285 — A GUARD IN A HELPER IS A PRECONDITION, NOT A CLAIM, AND SPELLING IT
+ * `assert.ok` TOLD THE CLAIM-COUNTER IT WAS ONE. The first version of this guard used
+ * `assert.ok(r.structuredContent, …)`, which is a claim site at MODULE SCOPE — inside no
+ * `test()` block and under no section marker — so `tautology_gate` counted two new
+ * ORPHANS and refused on all three legs: `TAUT_ORPHAN_RISE 46 > 44 — 2 claim site(s)
+ * reached`. That ceiling was pinned AT the live value hours earlier by
+ * `orphan-ceiling-headroom` (248, closed at 285) precisely so the next rise would be
+ * looked at rather than absorbed, and the next rise was this one.
+ *
+ * 🔵 RAISING THE CEILING WOULD HAVE BEEN THE WRONG FIX EVEN THOUGH THE GATE OFFERS IT.
+ * This helper asserts nothing about the tree. It refuses to hand back garbage, and the
+ * CLAIMS are the `assert.equal(sc(r).field, …)` lines at the call sites, which are
+ * inside their own `test()` blocks and already attributed. A `throw` says that; an
+ * `assert` misfiles a precondition as a claim and then asks for headroom to hold it.
+ *
+ * The diagnostic is unchanged — `node:test` reports a thrown Error's message in the
+ * same `error:` field an AssertionError lands in.
+ *
+ * WHY IT IS HERE AT ALL: measured in CI on PR #360,
+ * `not ok 100 - godot_run_project tells NOT WAITED apart from WAITED AND LOST` with
+ * `error: "Cannot read properties of undefined (reading 'bridge_ready')"` — a TypeError
+ * one line after this helper handed back `undefined`, carrying none of its own
+ * diagnosis. `shape-before-field-uncounted` (285) is the row; one line here guards every
+ * call site in this file, where an inline cast has to be guarded one at a time.
+ */
+const sc = (r: ToolResult) => {
+  if (!r.structuredContent) {
+    throw new Error(`the CLI tool returned no structuredContent — ${JSON.stringify(r).slice(0, 400)}`);
+  }
+  return r.structuredContent as Record<string, unknown>;
+};
 
 test("godot_version returns the captured version string and exit code 0", { skip: !POSIX }, async () => {
   const tools = setup(fakeGodot, dir);

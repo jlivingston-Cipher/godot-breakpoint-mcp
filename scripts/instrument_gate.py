@@ -798,6 +798,30 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🆕 285 — AND THE DISCOVER HALF NAMED IT BEFORE ITS AUTHOR DID, WHICH IS TWICE IN
+        # ONE SESSION THAT A DISCOVER HALF HAS DONE THAT. `HANDOFF_SESSION285.md` §7 NEXT
+        # #5 was written to say this entry was DELIBERATELY not added and left as cheap-tier
+        # work for the next session. `INSTRUMENT_GATE_DISCOVER UNDECLARED` disagreed:
+        # a file that EXPORTS members can be reached by a blind, so "I'll do it next time"
+        # is not one of the two answers this roster accepts. The other is DISCOVER_EXEMPT
+        # with a reason, and there is no reason — the selftest reddens on the blind.
+        "name": "difference_field_gate.mjs",
+        "src": HOST / "scripts" / "difference_field_gate.mjs",
+        "gate": ["node", "scripts/difference_field_gate.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 1,
+        "why": "the difference-field classifier — PRESENCE vs VALUE, and the name that is both",
+        "targets": {
+            # 🔴 THE HEALTHY ANSWER, NOT A FAILING ONE (175's `_png.mjs` rule): an empty
+            # `bad` is exactly what a clean tree looks like here, so a judge blinded to it
+            # is this gate's own subject — a reader that measures nothing and says ok.
+            # Every one of the thirty selftest claims goes through this function, and the
+            # green-case claim (`GREEN_BASE_SPOKE`) reads a LINE rather than the verdict,
+            # so the blind cannot be satisfied by returning a passing shape either.
+            "{SIG:judge}": "return { lines: [], bad: [] };",
+        },
+    },
+    {
         # 🆕 231 — THE TWELFTH, ADDED IN THE COMMIT THAT SHIPPED IT RATHER THAN IN A
         # LATER ONE. 🔴 AND THE REASON IS THE PARAGRAPH ABOVE, WHICH SAYS A PROSE
         # CONFESSION DOES NOT RE-ASSERT ITSELF: this gate's population is a HAND-WRITTEN
@@ -1505,6 +1529,26 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     # readers `main` calls are targeted individually, which is where the claim lives.
     ("verdict_gate.mjs", "main"): "the invocation, not a reader — blinding it removes the "
                                   "verdict marker and produces a crash rather than a catch",
+    ("difference_field_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
+    # 🆕 285 — THE SAME SHAPE AS `wire_diff.mjs::surface` BELOW, AND IT IS THE SAME MEMBER
+    # DOING THE SAME JOB. `readWire` boots a built server over stdio and pages `tools/list`;
+    # `difference_field_gate.selftest.mjs` is fixture-driven BY CONSTRUCTION, because a
+    # selftest that spawned the server would be testing the tree rather than the judgement
+    # and would go green the day the derivation broke (its own header says so). So no gate
+    # this harness runs can reach this member, and blinding it to `return []` would be
+    # scored as a green.
+    # 🔴 THE HONEST STATEMENT IS THAT THIS INSTRUMENT'S WIRE READER IS UNCOVERED BY THIS
+    # HARNESS, and it is written HERE — where a member appearing or a driver arriving
+    # reddens the roster — rather than in a paragraph silent on every green run (211 §19).
+    # 🔵 IT IS NOT UNCOVERED BY CI. `difference_field_gate.mjs` itself runs as its own CI
+    # step against the `dist/` built in that job, and a `readWire` returning [] makes
+    # DF_POPULATION refuse there. That is a different axis from this one and it is the
+    # reason this row is narrower than `wire_diff.mjs::surface`, whose live half has no
+    # CI step at all.
+    ("difference_field_gate.mjs", "readWire"):
+        "boots a built server over stdio and pages tools/list; the self-test is "
+        "fixture-driven by construction, so no gate this harness runs can reach it — the "
+        "live CI step for the gate itself is the only driver, and it is on another axis",
     ("boundary_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
     ("seal_order_gate.mjs", "main"): "the invocation, not a reader — see verdict_gate.mjs::main",
     # 🔴 MEASURED BEFORE IT WAS DECLARED, WHICH IS THE DIFFERENCE BETWEEN A ROSTER ROW AND
@@ -1959,6 +2003,11 @@ def js_late_register(text: str) -> str:
 # the wrong one sweeps a walk that is not the one the live gate reads.
 LATE_LIVE = {
     "tautology_gate.mjs": (["node", "scripts/tautology_gate.mjs"], None),
+    # 🆕 285 — the STRONGER axis, and `LATE_LIVE_NA` is empty on purpose so there was never
+    # a second answer available. The live command boots two servers over stdio against the
+    # `dist/` this job builds; `main` now REFUSES a judgement that produced no readings, so
+    # the blind that the self-test catches is caught here too rather than reading as green.
+    "difference_field_gate.mjs": (["node", "scripts/difference_field_gate.mjs"], None),
     "verdict_gate.mjs": (["node", "scripts/verdict_gate.mjs"], None),
     "boundary_gate.mjs": (["node", "scripts/boundary_gate.mjs"], None),
     "_path_ledger.mjs": (["node", "scripts/path-cohort.mjs", "--summary"], None),
@@ -2080,6 +2129,9 @@ LATE_LIVE = {
 #            only one of the six that does.
 LATE_VERDICT_MARKER: dict[str, str] = {
     "node scripts/tautology_gate.mjs": "TAUT_GATE",
+    # 🆕 285 — `main`'s first line, emitted before the wire is read and before any verdict
+    # branch, so it survives the refusal path AND the empty-judgement path added with it.
+    "node scripts/difference_field_gate.mjs": "DIFFERENCE_FIELD_BEGIN",
     "node scripts/verdict_gate.mjs": "VERDICT_GATE",
     "node scripts/boundary_gate.mjs": "BOUNDARY_GATE",
     "node scripts/path-cohort.mjs --summary": "PATH_COHORT",
@@ -2618,6 +2670,14 @@ def late_na_ci_problems(na: dict, instruments: list, ci_cmds: set[str],
 # Two ceilings falling to zero (`LATE_CRASH_CEILING_A/_B`) is what let these gates finish
 # their reports on the late axis too.
 LATE_BLAST_FLOOR: dict[str, int] = {
+    # 🆕 285 — measured 11 across the one constructible late blind on [A:gate], floored
+    # ~20% below. 🔴 THE NUMBER WAS ZERO ON THE FIRST SWEEP THAT ADDED THIS INSTRUMENT AND
+    # THE REASON WAS THE SELF-TEST, NOT THE AXIS: it died at its first bad assertion and
+    # reported the failure as a stack trace, so `failure_lines` read nothing and
+    # `BLAST_UNREADABLE` refused — 172 §10.21's floor at nothing. The file reports
+    # `FAIL <LABEL>` per section now (`A_FAIL`), which is what that table's own header says
+    # the way out is.
+    "difference_field_gate.mjs": 8,   # 285: measured 11 (calls=14 fails=11)
     # 🆕 277 §2 — measured 613 on A:gate, floored ~20% below. There is no B:live row
     # here because there is no B:live axis: `LATE_LIVE_COST` prices it out, and the
     # blast tables say so in `LATE_LIVE_BLAST_UNCOUNTABLE` rather than by omission.
@@ -2731,6 +2791,21 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
 }
 
 LATE_LIVE_BLAST_UNCOUNTABLE: dict[str, str] = {
+    # 🆕 285 — AND IT IS THE "NOTHING TO REDDEN" SENTENCE, NOT THE "AXIS DID NOT RUN" ONE.
+    # The axis ran: `INSTRUMENT_GATE_LATE difference_field_gate.mjs [B:live]: 0 of 1 STILL
+    # GREEN`. But `main` calls `judge` exactly ONCE — `1 target(s) called once — a late
+    # blind is not constructible there` — so there is no second call for a late blind to
+    # land on and no population for a blast to be taken over. A floor of one over an empty
+    # population is 172 §10.21, the defect this table exists to avoid.
+    # 🔵 THE PRIMARY AXIS COVERS THE MEMBER: `BLAST_FLOOR` is 9 over a measured 12, and the
+    # live command's own CI step reddens on the blind through the empty-judgement refusal
+    # `main` gained in the same commit. This row is about the LATE axis only.
+    # 🔴 AND IT EXPIRES BY ITSELF, like every row here: the moment this instrument reports
+    # a nonzero live blast, the excuse is refused by the run's own output.
+    "difference_field_gate.mjs":
+        "the live axis ran and had nothing to redden — `main` calls `judge` exactly once, "
+        "so no late blind is constructible on this axis and there is no population for a "
+        "blast. The primary axis floors the same member at 9 over a measured 12",
     # 🆕 277 §2 — the SECOND row here that is not about the command's output. Like
     # `mutation_lock_gate.py` below, `handoff_gate.py` reports zero on this axis because
     # the axis did not run — `LATE_LIVE_COST` prices `--patterns` out of a fifty-seven
@@ -4055,6 +4130,13 @@ VERDICT_MARKER: dict[str, str] = {
     # survives the red path (draft 2's failure) and is absent from a Python traceback
     # (draft 1's failure). Chosen by RUNNING each command red, never by reading a
     # neighbour — 244 §4.3 is what that costs when it is not.
+    # 🆕 285 — draft 3's rule, and the file was CHANGED to satisfy it rather than the
+    # marker chosen to fit the file. `difference_field_gate.selftest.mjs` printed only a
+    # tally at the bottom, which is absent from every red run — so a caught mutant and a
+    # crashed gate were one observable (181 §4). It prints a BEGIN banner as its first line
+    # now, before any assertion, and the shared prefix below matches that line and the
+    # tally both.
+    "difference_field_gate.mjs": "DIFFERENCE_FIELD_SELFTEST",
     "p0_comments.py": "P0_COMMENTS_SELFTEST_DONE",
     "queue_gate.py": "QUEUE_SELFTEST ",
     "mutation_lock_gate.py": "MUTATION_LOCK_SELFTEST_DONE",
@@ -4676,6 +4758,9 @@ def blind(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
 # arriving at the numbers it was written about. Raised with ~10% headroom, still from
 # BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
+    # 🆕 285 — measured 12 across its one blind, floored ~20% below. Same story as the
+    # late row: zero on the first sweep because the self-test threw instead of reporting.
+    "difference_field_gate.mjs": 9,   # 285: measured 12
     # 🆕 277 §2 — measured 645 across fifty-six blinds, floored ~20% below. The
     # number was ZERO on the run that added this instrument and the reason was
     # `failure_lines`, not the sweep: this gate reports in a fourth dialect (`D_FAIL`).

@@ -4105,7 +4105,16 @@ EXEC_ROSTER = {
 # WITHIN A MINUTE OF `git add` — and 234's new file is the one that reads a handoff's
 # counters back off the instruments, so the check catching it is the argument for it
 # arriving from the other side.
-SHEBANG_NONEXEC_EXPECTED = 48  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+SHEBANG_NONEXEC_EXPECTED = 50  # governed by floor_pin_gate SIZE_LEDGER (§9.3)
+                               # 🆕 285: 48 -> 50, `host/scripts/difference_field_gate.mjs`
+                               # and its `.selftest.mjs` — the difference-field classifier and
+                               # the file that blinds it, both invoked as `node <file>` from
+                               # `ci.yml` like every instrument beside them. 🔴 FOURTH SESSION
+                               # RUNNING THAT THIS CHECK HAS READ THE SESSION'S OWN NEW FILES
+                               # WITHIN A MINUTE OF `git add`, and 285's are a gate written to
+                               # stop a later gate keying on a name that means two things —
+                               # so a count that would have gone stale silently is caught by
+                               # the check whose whole subject is prose that goes stale.
                                # 🆕 268: 47 -> 48, `host/scripts/publish_guard.mjs` —
                                # the publish guard, invoked as `node <file>` from
                                # `prepublishOnly` like every instrument beside it. 🔴 AND

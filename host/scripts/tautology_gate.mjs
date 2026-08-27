@@ -187,17 +187,32 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // reason and no other. 191 pinned 508 and went red at 509; 193 pinned 147 and went red at
 // 148; this is the same mechanism a third time, and a rule whose own arrival it can
 // measure is a rule that works.
-export const ORPHAN_CEILING = 46;       // measured 3746 sites - 3700 attributed, 2026-08-04
-                                        //   (41 + 5: this session's self-test, as in 191/193)
-                                        //   🔴 THE LIVE VALUE IS 42 SINCE 248, NOT 46, and
-                                        //   this is deliberately NOT lowered here: the
-                                        //   self-test pins the digit absolutely in ten
-                                        //   places (184 §7 — pinning the key is not
-                                        //   pinning the value), and a release commit is
-                                        //   the wrong place to move ten pins. The four
-                                        //   sessions of headroom are the licence this
-                                        //   file says it will not issue, so the row that
-                                        //   spends it is `orphan-ceiling-headroom` (248).
+export const ORPHAN_CEILING = 44;       // measured 4923 sites - 4879 attributed, 2026-08-27
+                                        //   🆕 285 — `orphan-ceiling-headroom` (248, 37
+                                        //   sessions) CLOSED, AND PINNED AT THE LIVE
+                                        //   VALUE RATHER THAN ABOVE IT. 248 set 46 over a
+                                        //   live 42 and would not lower it on a release
+                                        //   commit; 276 read 43 and 278 read 43 and both
+                                        //   declined for the same good reason. The row's
+                                        //   own condition was "the next session that opens
+                                        //   this file for another reason", and 285 opened
+                                        //   it to roster a sixth classifier under
+                                        //   NO_CLAIMS_EXPECTED.
+                                        //   🔴 AND THE HEADROOM WAS NOT SPENT GETTING
+                                        //   HERE, WHICH IS WHY 44 IS HONEST. 285's own
+                                        //   self-test first funnelled 30 claims through
+                                        //   one `claim()` helper — ONE site the classifier
+                                        //   could not attribute, 44 -> 45. Written out,
+                                        //   thirty claims are thirty attributed sites and
+                                        //   the count came back to 44. A ceiling set above
+                                        //   the live value is a licence to add orphans
+                                        //   nobody reads (191's own words, line 173); 191
+                                        //   pinned 508 and went red at 509, 193 pinned 147
+                                        //   and went red at 148, and this is that
+                                        //   convention a third time. The ten absolute pins
+                                        //   the row priced are moved with it: the "sits
+                                        //   exactly ON the ceiling" fixture is 3744-3700
+                                        //   and the rise that reddens is 3745.
 
 // 🔴 AND THE POSITIVE SIDE OF THE SAME FACT, BECAUSE A SUBTRACTION IS NOT A POPULATION.
 // The ceiling above says "few claims are orphans"; it does not say the banner path RAN.
@@ -273,6 +288,13 @@ export const NO_CLAIMS_EXPECTED = {
   // — are in positive_control_gate.selftest.mjs beside it, which IS classified.
   "positive_control_gate.mjs": "the positive-control classifier — it reads assertion units and asserts nothing itself; its 43 claims are in positive_control_gate.selftest.mjs (219)",
   "path-cohort.mjs": "a reporting tool that PRINTS the cohort; the ledger comparison it feeds is asserted in _path_ledger.selftest.mjs",
+  // 🆕 285 — the sixth file of exactly the shape the five above describe, admitted for the
+  // same written reason and not by any rule about its name. `difference_field_gate.mjs`
+  // reads `tools/list` input and output schemas and classifies every difference-field name
+  // as PRESENCE or VALUE; it asserts nothing itself, and its 29 claims — including the five
+  // blinded readers that must redden — are in difference_field_gate.selftest.mjs beside it,
+  // which IS classified.
+  "difference_field_gate.mjs": "the difference-field classifier — it reads schemas and asserts nothing itself; its 29 claims are in difference_field_gate.selftest.mjs (285)",
   "token-cost.mjs": "a reporting tool that PRINTS the tool-surface cost; its two governed constants are asserted in token-cost.selftest.mjs",
 
   // 🆕 241 — THE TWO P0 REPORTERS, admitted for `token-cost.mjs`'s written reason and not
