@@ -1278,6 +1278,12 @@ INSTRUMENTS = [
             "{SIG:leg_disagreements}": "return []",
             "{SIG:measured_run}": "return \"\"",
             "{SIG:verdict_problems}": "return ([], [],)",
+            # 🆕 287 — the fifth world reading's emitter and its reader. `verdict_of_log`
+            # answers `("", [], "")` for "nobody wrote one down", which is the empty that
+            # sends the caller to the live dial — so a blind here does not fake a green,
+            # it removes the route and the close falls back to needing the forge.
+            "{SIG:verdict_of_log}": "return (\"\", [], \"\")",
+            "{SIG:verdict_emit}": "return 0",
             "{SIG:pending_problems}": "return []",
             "{SIG:population_reach_problems}": "return []",
             "{SIG:declared_tier}": "return None",
@@ -1295,6 +1301,12 @@ INSTRUMENTS = [
             "{SIG:reached_scripts}": "return set()",
             "{SIG:unreached_problems}": "return ([], [],)",
             "{SIG:fenced}": "return []",
+            # 🆕 287 — the fence, and the empty its contract promises is "there is no
+            # fence": `("", False)`. Blinded, every reader below reads the whole document
+            # as the replay, which is the state 285 shipped and 286 §1.2 measured at 122
+            # problems — so the blind reproduces the defect the function was written to
+            # remove rather than merely silencing it.
+            "{SIG:replay_fence}": "return (\"\", False)",
             "{SIG:replay_problems}": "return ([], [],)",
             "{SIG:ci_capture_steps}": "return []",
             "{SIG:ci_capture_norm}": "return \"\"",
