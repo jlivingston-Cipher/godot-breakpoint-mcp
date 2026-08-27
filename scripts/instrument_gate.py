@@ -1220,6 +1220,12 @@ INSTRUMENTS = [
         "why": "every reader under the one document that says what this project measured, "
                "and the two assemblies that are the gate",
         "targets": {
+            # 🆕 286 — `git-hooks-unset` (228, fifty-eight sessions). The pickup's
+            # reader for whether `git commit` in THIS checkout consults the tracked
+            # pre-commit hook. Blinded to `[]` it is 228's own shipped state — a promise
+            # printed beside a green — and the self-test drives BOTH directions, because
+            # a reader that refused every checkout would refuse the fixtures too.
+            "{SIG:hook_problems}": "return []",
             # ── the block and its atoms — the parse every claim downstream rests on ──
             "{SIG:SINCE}": "return \"\"",
             "{SIG:needed}": "return \"\"",

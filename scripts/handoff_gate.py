@@ -6657,6 +6657,33 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (285, """> ```
+> main                 32f90f3 — session285 the difference field is an optional name (#360)  MOVED +1
+> branch 285           session285-the-difference-field-is-an-optional-name · PR #360
+>                      🟢 PUSHED AND MERGED, 26/26 green at `5621c87` — at the THIRD run
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 1 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.12.0 live · 1.15.0 submitted, in review —
+>                      DO NOT RESUBMIT
+> 🟢 CI GREEN — 26 of 26 required checks at 5621c87, third run; §9 is how
+> 🟢 VERIFIED AFTER THE CHANGE   935/935 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2746
+>               · late not-loaded 0 · late constructed 310/160
+>               · py gates 18/6/12 · SIG 249/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 110 · 53 governed · 1712 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 319 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4928 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 75/75 claims · handoff 456 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -9321,6 +9348,48 @@ def selftest() -> int:
         print(f"  🔴 MAIN_HEAD_DRIFT {_mh_drift} — a green read at a commit this checkout "
               f"is not at is still a green, and it is a green about something else")
 
+    # ── 🆕 286 — `git-hooks-unset` (228), DRIVEN IN A REAL REPOSITORY ─────────────
+    #
+    # 🔴 FOUR STATES AND THE POSITIVE CONTROL IS ONE OF THEM. A reader that refused
+    # every checkout would refuse the fixtures too and be removed within a session; one
+    # that refused none is the promise 228 shipped. Both directions are driven here, in a
+    # throwaway repo, because `core.hooksPath` is a fact about a real `.git/config` and a
+    # fixture that stubbed it would be testing the stub (228's own `_probe` rule).
+    claims += 1
+    with tempfile.TemporaryDirectory() as _hd:
+        _ht = Path(_hd)
+        subprocess.run(["git", "init", "-q", str(_ht)], capture_output=True)
+        (_ht / ".githooks").mkdir()
+        _hp = _ht / ".githooks" / "pre-commit"
+        _hp.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+        _hp.chmod(0o755)
+        subprocess.run(["git", "add", "-A"], cwd=str(_ht), capture_output=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", "hook"], cwd=str(_ht), capture_output=True)
+        _h_unset = hook_problems(_ht)
+        subprocess.run(["git", "config", "core.hooksPath", ".githooks"],
+                       cwd=str(_ht), capture_output=True)
+        _h_set = hook_problems(_ht)
+        # the drift case: an executable `pre-commit` git would run that the tree does not
+        # track, which satisfies "a hook exists" and is a second copy
+        subprocess.run(["git", "config", "--unset", "core.hooksPath"],
+                       cwd=str(_ht), capture_output=True)
+        (_ht / ".git" / "hooks").mkdir(exist_ok=True)
+        _hc = _ht / ".git" / "hooks" / "pre-commit"
+        _hc.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+        _hc.chmod(0o755)
+        _h_drift = hook_problems(_ht)
+    _h_nogit = hook_problems(Path(tempfile.gettempdir()))
+    if (not any("HOOK_UNINSTALLED" in x for x in _h_unset) or _h_set
+            or not any("HOOK_UNINSTALLED" in x for x in _h_drift) or _h_nogit
+            or not any("no `diff` or `add` hook" in x for x in _h_unset)):
+        failed += 1
+        print(f"  🔴 HOOK_PROBLEMS unset={_h_unset} set={_h_set} drift={_h_drift} "
+              f"nogit={_h_nogit} — an unset `core.hooksPath` and an UNTRACKED hook git "
+              f"would run must both refuse, an installed tracked hook must be silent, a "
+              f"directory that is not a work tree must say nothing (the fixtures live "
+              f"there), and the refusal must declare the half it cannot cover")
+
     # ── 🆕 279 — THE POPULATION THE COMMIT VERDICT CANNOT SEE, DRIVEN FROM FIXTURES ──
     #
     # 🔴 THE FIRST ROW IS THE WORLD AS 279 FOUND IT, AND THE SECOND IS THE WORLD AS 277
@@ -9830,6 +9899,63 @@ def tier_trigger(prev: Path, root: Path = ROOT) -> "tuple[str, str, str, str]":
     return (TIER0, head, claimed, "")
 
 
+# ── 🆕 286 — `git-hooks-unset` (228, fifty-eight sessions) ─────────────────────────
+#
+# 🔴 THE PICKUP HAS NAMED THIS GAP IN PROSE EVERY SESSION AND NEVER ONCE CHECKED IT.
+# `--open` prints `🟡 INHERITED ON TRUST — n atom(s) declared CLONE: … THIS CHECKOUT's
+# configuration — hooks, remotes, `git config`` and then inherits it. 228 opened a row
+# saying the hook is not installed in a fresh clone, wrote `hook_state()` and
+# `--install-hook` in `tree_quiet.py`, and left the reading as a 🟡 NOTE printed on the
+# read path when the tree is quiet — *"the honest reading here is that this half is a
+# promise, so it is labelled one instead of counted as coverage"*. A promise printed
+# beside a green is 211 §19's shape, and it held for fifty-eight sessions.
+#
+# 🔴 AND 286 IS THE SESSION THAT PAID IT. Three commits were made in a fresh container
+# clone with NO hook firing at all, while the identical commit on the device VM was
+# refused by it — `GATE_TREE_UNRESTORED`, a killed `floor_pin_gate` leaving its record
+# open. Same tree, same commit, one environment protected and one not, and nothing said
+# which was which.
+#
+# 🔴 IT REFUSES AT THE PICKUP BECAUSE THAT IS THE ONE MOMENT EVERY SESSION PASSES
+# THROUGH (284 §1.2 — the trigger should be something the session was going to do anyway),
+# and because a refusal in CI would be a claim about a machine that never commits.
+#
+# 🔴 AND IT ASKS WHETHER GIT WOULD RUN *THE TRACKED HOOK*, NOT WHETHER SOME HOOK EXISTS.
+# `core.hooksPath` unset resolves to `.git/hooks`, which is untracked by construction, so
+# a hand-copied `pre-commit` there would satisfy "an executable hook exists" while being a
+# second copy that drifts from the one in the tree. The resolved file must be TRACKED.
+#
+# 🔵 WHAT IT CANNOT SEE, SAID OUT LOUD (281 §1.2): git has no `diff` or `add` hook, so
+# the other half of 228's row is not a thing this or any reader can close — `git add` and
+# `git diff` walk into no reader and never will. This covers `git commit`, which is where
+# `tree_quiet`'s refusal lives, and it says so rather than implying it covers the row.
+def hook_problems(root: "Path" = ROOT) -> "list[str]":
+    """Would `git commit` in THIS checkout consult the tracked pre-commit hook?"""
+    inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=str(root),
+                            capture_output=True, text=True)
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        return []
+    got = subprocess.run(["git", "config", "--get", "core.hooksPath"], cwd=str(root),
+                         capture_output=True, text=True).stdout.strip()
+    resolved = (root / got) if got else (root / ".git" / "hooks")
+    hook = resolved / "pre-commit"
+    tracked = subprocess.run(["git", "ls-files", "--error-unmatch", str(hook)],
+                             cwd=str(root), capture_output=True, text=True).returncode == 0
+    if hook.is_file() and os.access(hook, os.X_OK) and tracked:
+        return []
+    why = (f"`core.hooksPath` is {got or 'unset, so git resolves .git/hooks'}"
+           if not (hook.is_file() and os.access(hook, os.X_OK))
+           else f"`core.hooksPath` is {got or '.git/hooks'} and the `pre-commit` there is "
+                f"not a tracked file, so it is a second copy that drifts")
+    return [f"🔴 HOOK_UNINSTALLED {why} — `git commit` in this checkout does NOT "
+            f"consult `tree_quiet.py`, so a commit made while a mutating gate's record is "
+            f"open is not refused. 286 made three commits in a fresh clone this way while "
+            f"the same commit on another machine was refused. Install it with "
+            f"`python3 scripts/tree_quiet.py --install-hook`. 🔵 This covers `git commit` "
+            f"only: git has no `diff` or `add` hook, which is the half of 228's row "
+            f"nothing can close"]
+
+
 def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -> int:
     """Tier 0: bind every counter atom without running an instrument, re-read the world."""
     tier, head, claimed, why = tier_trigger(prev, root)
@@ -9932,6 +10058,7 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
     # is trustworthy only when something compares it to a fact the tree already
     # holds. The counts below are now asserted against `COUNTER_PROVENANCE` by
     # `PROVENANCE_PICKUP_POPULATION` in `selftest()`, which is that comparison.
+    problems += hook_problems(root)
     undeclared = sorted(k for k in keys if k not in COUNTER_PROVENANCE)
     for k in undeclared:
         problems.append(f"🔴 COUNTER_PROVENANCE has no row for `{k}` — the pickup "
