@@ -432,13 +432,13 @@ claim(said(judgeScope(S({ blocks: 1408, attributed: 3317 }), 3360), "orphan=43")
 // `sites` is free to grow, which is why it went 472 → 508 with every floor in this file
 // green the whole way. THE DISMISSAL FIRST, as this repo's self-tests do: the live shape
 // must not fire, or the rule is just a red build.
-claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3746).failed === false,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3744).failed === false,
   "🔴 THE DISMISSAL: the shipped tree sits exactly ON the ceiling and passes — 148 of 148");
-claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3747).failed === true,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3745).failed === true,
   "🔴 and ONE more claim site that reaches no unit reddens — the drift that has run for nine sessions");
-claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3747), "TAUT_ORPHAN_RISE"),
+claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3745), "TAUT_ORPHAN_RISE"),
   "…named TAUT_ORPHAN_RISE, not folded into an attribution collapse — a different failure");
-claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3747), "47 > 46"),
+claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3745), "45 > 44"),
   "…and it prints both numbers, so the reading needed to raise it deliberately is in the log");
 // 🔴 THE ARM THE LIVE TREE CANNOT REACH: a rise caused by attribution FALLING rather than
 // by sites rising. Same subtraction, opposite input, and a ceiling reads them identically
@@ -449,8 +449,8 @@ claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).failed === true,
 claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("TAUT_ORPHAN_RISE"))
   && !judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("COLLAPSE CLAIMS")),
   "🔴 and ONLY this rule names it — the case that proves the ceiling is not a restatement of the floor");
-claim(ORPHAN_CEILING === 46, `the shipped orphan ceiling is 46, not ${ORPHAN_CEILING}`);
-claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3746, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 47).failed === false,
+claim(ORPHAN_CEILING === 44, `the shipped orphan ceiling is 44, not ${ORPHAN_CEILING}`);
+claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3744, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 45).failed === false,
   "and the ceiling is a PARAMETER — raising it is what a deliberate rise looks like, and it is reachable from a fixture");
 
 // 🔴 193 — THE BANNER FALLBACK, AND THE ARM THAT PROVES THE CEILING ALONE IS NOT ENOUGH.
@@ -460,30 +460,30 @@ claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3746, UNIT_FLOOR, ATTRIB
 // The fallback reads the section banners those files already write, and attributes 362.
 //
 // THE DISMISSAL FIRST. The live shape must not fire.
-claim(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 362 }), 3746).failed === false,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 362 }), 3744).failed === false,
   "🔴 THE DISMISSAL: 362 banner-attributed claims clear the floor — the shape 193 shipped, kept as a case even though the live number is now 21 (194 moved ten of eleven files to the section path)");
-claim(said(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 362 }), 3746), "TAUT_BANNER_ATTRIBUTED 362/15"),
+claim(said(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 362 }), 3744), "TAUT_BANNER_ATTRIBUTED 362/15"),
   "…and the number is PRINTED with its floor, so a drift is readable before it is a failure");
-claim(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 14 }), 3746).failed === true,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 14 }), 3744).failed === true,
   "🔴 one under the floor reddens — the fallback silently ceasing to attribute is the failure");
-claim(said(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 14 }), 3746), "TAUT_BANNER_COLLAPSE"),
+claim(said(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 14 }), 3744), "TAUT_BANNER_COLLAPSE"),
   "…named as its own class, not folded into an orphan rise");
 // 🔴 THE ARM THAT IS THE WHOLE ARGUMENT FOR THIS FLOOR EXISTING. A verdict where the banner
 // path has died but somebody has meanwhile ADDED enough test() blocks to keep the orphan
 // count under its ceiling: every other number in this file reads healthy, and only this one
 // says the integration suite stopped being scored. The ceiling cannot see this; a
 // subtraction never can.
-claim(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 0 }), 3746).failed === true,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 0 }), 3744).failed === true,
   "🔴 banner attribution at ZERO with orphan/units/claims all healthy still reddens — the case the ceiling is blind to");
-claim(!judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 0 }), 3746).lines.some((l) => l.includes("TAUT_ORPHAN_RISE")),
+claim(!judgeScope(S({ blocks: 1739, attributed: 3700, bannerAttributed: 0 }), 3744).lines.some((l) => l.includes("TAUT_ORPHAN_RISE")),
   "…and the orphan rule stays SILENT through it, which is what makes the two rules different rules");
 // 🔴 AND A FIXTURE THAT DOES NOT EXERCISE THE PATH MUST NOT BE ABLE TO REDDEN IT. Every
 // judgeScope case above this block builds a verdict with no `bannerAttributed` at all;
 // treating that as 0 would have turned all of them red and the floor would have been
 // weakened to fit, which is 188 §9's failure mode exactly.
-claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3746).failed === false,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3744).failed === false,
   "🔴 an unmeasured banner count is NOT a collapse — absent and zero are different readings");
-claim(!said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3746), "TAUT_BANNER_ATTRIBUTED"),
+claim(!said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3744), "TAUT_BANNER_ATTRIBUTED"),
   "…and nothing is printed for it either, so the log does not claim a measurement it did not take");
 claim(BANNER_ATTRIBUTED_FLOOR === 15 && BANNER_ATTRIBUTED_FLOOR < 21,
   `🔴 the floor is a literal UNDER the live value, not a rounding of it (${BANNER_ATTRIBUTED_FLOOR} vs 21 measured)`);

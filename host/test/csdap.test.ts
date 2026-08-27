@@ -481,6 +481,7 @@ test("cs_dbg_watch reports a per-expression error without failing the call, and 
   assert.deepEqual(sc.watches.map((w) => w.expression), ["Counter"]);
   // clear empties the set
   const cleared = (await rec.handler("cs_dbg_watch")({ clear: true })) as ToolResultLike;
+  assert.ok(cleared.structuredContent, `cs_dbg_watch_clear returned no structuredContent — ${JSON.stringify(cleared).slice(0, 400)}`);
   assert.deepEqual((cleared.structuredContent as { watches: unknown[] }).watches, []);
   dap.close();
   await srv.close();
@@ -667,6 +668,7 @@ test("cs_dbg_launch honours allow_port_conflict for the Godot binary", async () 
   try {
     const res = (await rec.handler("cs_dbg_launch")({ allow_port_conflict: true })) as ToolResultLike;
     assert.notEqual(res.isError, true);
+    assert.ok(res.structuredContent, `the launch returned no structuredContent — ${JSON.stringify(res).slice(0, 400)}`);
     assert.equal((res.structuredContent as Record<string, unknown>).state, "running");
   } finally {
     dap.close();
@@ -888,6 +890,18 @@ test("cs_dbg_launch WITHOUT stop_on_entry does not wait for a stop", async () =>
     // reads identically to one that ought not to be — which is why the deep-equal is kept
     // rather than loosened to a subset match. `true` here is a claim about the mock: it
     // DOES emit `initialized`, and a test asserting the false side is next door.
+    // 🆕 285 — `cs-dap-launch-race-unrostered` (284). THE SHAPE IS ASSERTED BEFORE THE
+    // FIELD, WHICH IS THE DIAGNOSTIC 275 SHIPPED AND THE ONLY THING THIS ROW ASKED FOR.
+    // This test failed once on a loaded node-18 post-merge leg with `undefined` where the
+    // session object belongs. `undefined` says the reply carried no `structuredContent`;
+    // it does NOT say whether the tool refused, what it refused with, or whether the
+    // handshake timed out — and the deep-equal below cannot say either, because it prints
+    // the absence rather than the reply. The message here is what the next occurrence
+    // will print, and fixing the flake needs it: nothing in this tree can produce that
+    // sentence until it happens again (275's rule, and 273's session is the argument for
+    // not guessing at it from here).
+    assert.ok(res.structuredContent,
+      `cs_dbg_launch returned no structuredContent — ${JSON.stringify(res).slice(0, 400)}`);
     assert.deepEqual(res.structuredContent, { session_id: "csharp", state: "running", initialized_seen: true });
   } finally { dap.close(); srv.close(); }
 });
@@ -1115,6 +1129,7 @@ test("263: cs_dbg_watch still manages the set while the program runs, and says w
   const before = received.length;
   const res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "i"] })) as ToolResultLike;
   assert.equal(res.isError, undefined, "managing the set is not an error");
+  assert.ok(res.structuredContent, `cs_dbg_watch returned no structuredContent — ${JSON.stringify(res).slice(0, 400)}`);
   const watches = (res.structuredContent as { watches: Array<{ expression: string; value: string; error: string | null }> }).watches;
   assert.deepEqual(watches.map((w) => w.expression), ["Counter", "i"], "the set change was applied");
   for (const w of watches) {
@@ -1163,6 +1178,7 @@ test("263: cs_dbg_set_exception_breakpoints requires a session but NOT a stop", 
   await rec.handler("cs_dbg_launch")({});
   const warm = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
   assert.equal(warm.isError, undefined, "a running session may still arm exception filters");
+  assert.ok(warm.structuredContent, `the warm call returned no structuredContent — ${JSON.stringify(warm).slice(0, 400)}`);
   assert.deepEqual((warm.structuredContent as { filters: string[] }).filters, ["all"]);
   dap.close();
   await srv.close();
