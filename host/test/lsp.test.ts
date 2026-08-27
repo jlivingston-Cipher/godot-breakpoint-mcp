@@ -11,6 +11,7 @@ import { loadConfig } from "../src/config.js";
 import type { Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, waitFor, type TcpServer } from "./helpers/tcp.js";
+import { structured } from "./helpers/structured.js";
 
 interface LspMsg { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: unknown }
 
@@ -144,7 +145,7 @@ test("gd_diagnostics matches a publishDiagnostics URI spelled differently (res:/
   });
   const { lsp, rec } = lspToolHarness(srv.port, projectPath);
   const res = (await rec.handler("gd_diagnostics")({ path: "player.gd", wait_ms: 1000 })) as ToolResultLike;
-  const sc = res.structuredContent as { diagnostics: Array<{ severity: string; message: string; line: number }> };
+  const sc = structured<{ diagnostics: Array<{ severity: string; message: string; line: number }> }>(res);
   assert.equal(sc.diagnostics.length, 1);
   assert.equal(sc.diagnostics[0].severity, "error");
   assert.equal(sc.diagnostics[0].message, "Expected expression");
@@ -166,7 +167,7 @@ test("gd_rename dry-run (apply=false) returns the plan and writes nothing, witho
   });
   const { lsp, rec } = lspToolHarness(srv.port, projectPath, async () => { elicited++; return { action: "accept", content: { proceed: true } }; });
   const res = (await rec.handler("gd_rename")({ path: "player.gd", line: 0, character: 4, new_name: "velocity", apply: false })) as ToolResultLike;
-  const sc = res.structuredContent as { edit_count: number; applied: boolean; written: string[] };
+  const sc = structured<{ edit_count: number; applied: boolean; written: string[] }>(res);
   assert.equal(sc.edit_count, 1);
   assert.equal(sc.applied, false);
   assert.deepEqual(sc.written, []);
@@ -188,7 +189,7 @@ test("gd_rename apply=true writes the edited text to disk (applyTextEdits/offset
   });
   const { lsp, rec } = lspToolHarness(srv.port, projectPath, async () => ({ action: "accept", content: { proceed: true } }));
   const res = (await rec.handler("gd_rename")({ path: "player.gd", line: 0, character: 4, new_name: "velocity", apply: true, confirm: true })) as ToolResultLike;
-  const sc = res.structuredContent as { applied: boolean; written: string[]; edit_count: number };
+  const sc = structured<{ applied: boolean; written: string[]; edit_count: number }>(res);
   assert.equal(sc.applied, true);
   assert.equal(sc.edit_count, 1);
   assert.equal(sc.written.length, 1);

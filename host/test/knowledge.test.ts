@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { registerKnowledgeTools } from "../src/tools/knowledge.js";
 import type { Config } from "../src/config.js";
+import { structured } from "./helpers/structured.js";
 
 type Handler = (args: Record<string, unknown>) => Promise<{
   isError?: boolean;
@@ -57,7 +58,7 @@ test("project_search finds a literal across files, uses res:// paths, and skips 
   try {
     const h = setup(dir);
     const r = await h.project_search({ query: "take_damage" });
-    const sc = r.structuredContent as { matches: Array<{ file: string; line: number; column: number }>; count: number };
+    const sc = structured<{ matches: Array<{ file: string; line: number; column: number }>; count: number }>(r);
     const files = sc.matches.map((m) => m.file);
     assert.ok(sc.count >= 2, `expected >=2 matches, got ${sc.count}`);
     assert.ok(files.includes("res://player.gd"));
@@ -72,7 +73,7 @@ test("project_search supports regex and reports an invalid pattern as an error",
   try {
     const h = setup(dir);
     const good = await h.project_search({ query: "func\\s+\\w+", regex: true });
-    const sc = good.structuredContent as { count: number };
+    const sc = structured<{ count: number }>(good);
     assert.ok(sc.count >= 2, `expected >=2 func decls, got ${sc.count}`);
 
     const bad = await h.project_search({ query: "func(", regex: true });
@@ -86,19 +87,19 @@ test("find_symbol locates declarations by kind and honours exact vs substring", 
   try {
     const h = setup(dir);
     const fn = await h.find_symbol({ name: "take_damage", kinds: ["func"] });
-    const sc = fn.structuredContent as { matches: Array<{ file: string; kind: string; symbol: string }>; count: number };
+    const sc = structured<{ matches: Array<{ file: string; kind: string; symbol: string }>; count: number }>(fn);
     assert.equal(sc.count, 1, `expected exactly one func decl (cache skipped), got ${sc.count}`);
     assert.equal(sc.matches[0].symbol, "take_damage");
     assert.equal(sc.matches[0].kind, "func");
     assert.equal(sc.matches[0].file, "res://player.gd");
 
     const cls = await h.find_symbol({ name: "Player", kinds: ["class_name"] });
-    assert.equal((cls.structuredContent as { count: number }).count, 1);
+    assert.equal((structured<{ count: number }>(cls)).count, 1);
 
     const sub = await h.find_symbol({ name: "damage" });
-    assert.ok((sub.structuredContent as { count: number }).count >= 1, "substring should match take_damage");
+    assert.ok((structured<{ count: number }>(sub)).count >= 1, "substring should match take_damage");
     const exact = await h.find_symbol({ name: "damage", exact: true });
-    assert.equal((exact.structuredContent as { count: number }).count, 0, "exact must not match take_damage");
+    assert.equal((structured<{ count: number }>(exact)).count, 0, "exact must not match take_damage");
   } finally { cleanup(dir); }
 });
 
@@ -107,7 +108,7 @@ test("find_usages counts word-boundary occurrences across files, skipping caches
   try {
     const h = setup(dir);
     const r = await h.find_usages({ name: "take_damage" });
-    const sc = r.structuredContent as { usages: Array<{ file: string }>; count: number };
+    const sc = structured<{ usages: Array<{ file: string }>; count: number }>(r);
     const files = new Set(sc.usages.map((u) => u.file));
     assert.ok(sc.count >= 2, `expected >=2 usages, got ${sc.count}`);
     assert.ok(files.has("res://player.gd") && files.has("res://enemies/goblin.gd"));
@@ -115,7 +116,7 @@ test("find_usages counts word-boundary occurrences across files, skipping caches
 
     // Word-boundary: "damage" must NOT match inside the identifier "take_damage".
     const dmg = await h.find_usages({ name: "damage" });
-    assert.equal((dmg.structuredContent as { count: number }).count, 0);
+    assert.equal((structured<{ count: number }>(dmg)).count, 0);
   } finally { cleanup(dir); }
 });
 
@@ -124,13 +125,13 @@ test("example_snippet matches by keyword and lists all topics when unqueried", a
   try {
     const h = setup(dir);
     const s = await h.example_snippet({ query: "connect signal" });
-    const sc = s.structuredContent as { count: number; snippets: Array<{ id: string }>; available: string[] };
+    const sc = structured<{ count: number; snippets: Array<{ id: string }>; available: string[] }>(s);
     assert.ok(sc.count >= 1);
     assert.equal(sc.snippets[0].id, "signal_connect");
     assert.ok(sc.available.includes("autoload_singleton"));
 
     const none = await h.example_snippet({});
-    const nsc = none.structuredContent as { query: string | null; count: number; available: string[] };
+    const nsc = structured<{ query: string | null; count: number; available: string[] }>(none);
     assert.equal(nsc.query, null);
     assert.equal(nsc.count, 0);
     assert.ok(nsc.available.length >= 10);

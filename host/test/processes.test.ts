@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { ProcessRegistry, registerProcessTools } from "../src/tools/processes.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import type { Config } from "../src/config.js";
+import { structured } from "./helpers/structured.js";
 
 /**
  * Behavior tests for the managed-process plane (tools/processes.ts). This is
@@ -121,12 +122,11 @@ async function waitFor(cond: () => boolean | undefined, timeoutMs = 10000): Prom
  * diagnosis. `shape-before-field-uncounted` (285) is the row; one line here guards every
  * call site in this file, where an inline cast has to be guarded one at a time.
  */
-const sc = (r: ToolResultLike) => {
-  if (!r.structuredContent) {
-    throw new Error(`the tool returned no structuredContent — ${JSON.stringify(r).slice(0, 400)}`);
-  }
-  return r.structuredContent as Record<string, unknown>;
-};
+// 🆕 287 — ONE GUARD, NOT NINE. This helper was written here at 285 and the sweep that
+// closed `shape-before-field-uncounted` needed the same precondition in nine more files,
+// so it moved to `helpers/structured.ts` and this is the local spelling of it. Two
+// implementations of one precondition is how the two drift apart.
+const sc = (r: ToolResultLike) => structured<Record<string, unknown>>(r);
 
 test("ProcessRegistry captures stdout and stderr separately and records the exit code", { skip: !POSIX }, async () => {
   const reg = new ProcessRegistry();

@@ -9,6 +9,7 @@ import { registerDapTools } from "../src/tools/dap.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, encodeFrame, type TcpServer } from "./helpers/tcp.js";
+import { structured } from "./helpers/structured.js";
 
 interface DapMsg { seq: number; type: string; command?: string; arguments?: Record<string, unknown>; request_seq?: number; success?: boolean; event?: string; body?: unknown }
 
@@ -184,7 +185,7 @@ test("dbg_set_breakpoints buffers before a session is configured", async () => {
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
   const res = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10, 20] })) as ToolResultLike;
-  const sc = res.structuredContent as { buffered: boolean; breakpoints: unknown[] };
+  const sc = structured<{ buffered: boolean; breakpoints: unknown[] }>(res);
   assert.equal(sc.buffered, true);
   assert.deepEqual(sc.breakpoints, []);
   dap.close();
@@ -199,7 +200,7 @@ test("dbg_set_breakpoints applies immediately once the session is configured", a
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_launch")({ scene: "main" });
   const res = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10, 20] })) as ToolResultLike;
-  const sc = res.structuredContent as { buffered: boolean; breakpoints: Array<{ line: number; verified: boolean }> };
+  const sc = structured<{ buffered: boolean; breakpoints: Array<{ line: number; verified: boolean }> }>(res);
   assert.equal(sc.buffered, false);
   assert.deepEqual(sc.breakpoints, [{ line: 10, verified: true }, { line: 20, verified: false }]);
   dap.close();
@@ -276,7 +277,7 @@ test("dbg_watch adds expressions, evaluates them in 'watch' context, and reports
   const { dap, rec } = dapHarness(srv.port);
   await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("dbg_watch")({ add: ["hp", "bogus"] })) as ToolResultLike;
-  const sc = res.structuredContent as { watches: Array<{ expression: string; value: string; type: string; error: string | null }> };
+  const sc = structured<{ watches: Array<{ expression: string; value: string; type: string; error: string | null }> }>(res);
   assert.equal(sc.watches.length, 2);
   assert.deepEqual(sc.watches[0], { expression: "hp", value: "hp=7", type: "int", error: null });
   assert.equal(sc.watches[1].expression, "bogus");
@@ -296,7 +297,7 @@ test("dbg_watch persists the set and re-evaluates on a bare call (after a step/c
   await rec.handler("dbg_launch")({ scene: "main" });
   await rec.handler("dbg_watch")({ add: ["a", "b"] });
   const res = (await rec.handler("dbg_watch")({})) as ToolResultLike; // no mutation → re-read
-  const sc = res.structuredContent as { watches: Array<{ expression: string }> };
+  const sc = structured<{ watches: Array<{ expression: string }> }>(res);
   assert.deepEqual(sc.watches.map((w) => w.expression), ["a", "b"]);
   dap.close();
   await srv.close();
@@ -310,7 +311,7 @@ test("dbg_watch remove and clear mutate the persistent set", async () => {
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_launch")({ scene: "main" });
   await rec.handler("dbg_watch")({ add: ["a", "b", "c"] });
-  let sc = ((await rec.handler("dbg_watch")({ remove: ["b"] })) as ToolResultLike).structuredContent as { watches: Array<{ expression: string }> };
+  let sc = structured<{ watches: Array<{ expression: string }> }>(((await rec.handler("dbg_watch")({ remove: ["b"] })) as ToolResultLike));
   assert.deepEqual(sc.watches.map((w) => w.expression), ["a", "c"]);
   sc = ((await rec.handler("dbg_watch")({ clear: true, add: ["z"] })) as ToolResultLike).structuredContent as { watches: Array<{ expression: string }> };
   assert.deepEqual(sc.watches.map((w) => w.expression), ["z"]);
@@ -369,7 +370,7 @@ test("dbg_set_breakpoints drops condition/hitCondition/logMessage and warns when
     hit_conditions: [null, ">3"],
     log_messages: [null, "hit {hp}"],
   })) as ToolResultLike;
-  const sc = res.structuredContent as { unsupported_modifiers?: string[]; warning?: string; breakpoints: unknown[] };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string; breakpoints: unknown[] }>(res);
   assert.deepEqual(sc.unsupported_modifiers, ["condition", "hitCondition", "logMessage"]);
   assert.match(sc.warning ?? "", /unsupported|halt unconditionally/i);
   // The dropped modifiers must NOT reach the adapter — only plain line breakpoints do.
@@ -399,7 +400,7 @@ test("dbg_set_breakpoints buffered before a session says detection is deferred r
   const res = (await rec.handler("dbg_set_breakpoints")({
     path: "player.gd", lines: [10], conditions: ["hp < 0"],
   })) as ToolResultLike;
-  const sc = res.structuredContent as { buffered: boolean; modifier_detection?: string; warning?: string; unsupported_modifiers?: string[] };
+  const sc = structured<{ buffered: boolean; modifier_detection?: string; warning?: string; unsupported_modifiers?: string[] }>(res);
   assert.equal(sc.buffered, true);
   assert.equal(sc.modifier_detection, "deferred", "a buffered modifier cannot be feature-detected yet and must say so");
   assert.match(sc.warning ?? "", /could not be feature-detected/i);
@@ -429,7 +430,7 @@ test("a breakpoint buffered before launch has its unsupported modifiers dropped 
   assert.equal(bps[0].hitCondition, undefined);
   assert.equal(bps[0].logMessage, undefined);
   // …and the caller who buffered it is told, on the launch that applied it.
-  const sc = launch.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(launch);
   assert.deepEqual(sc.unsupported_modifiers, ["condition", "hitCondition", "logMessage"]);
   assert.match(sc.warning ?? "", /halt unconditionally/i);
   dap.close();
@@ -459,7 +460,7 @@ test("a buffered modifier the adapter DOES advertise is forwarded, and the launc
   assert.equal(bps[0].condition, "hp < 0", "a supported condition must still reach the adapter");
   assert.equal(bps[0].hitCondition, ">3");
   assert.equal(bps[0].logMessage, "hit {hp}");
-  const sc = launch.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(launch);
   assert.equal(sc.unsupported_modifiers, undefined, "nothing was dropped, so nothing may be reported");
   assert.equal(sc.warning, undefined);
   dap.close();
@@ -473,7 +474,7 @@ test("a buffered breakpoint with NO modifiers does not claim deferred detection"
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
   const res = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] })) as ToolResultLike;
-  const sc = res.structuredContent as { buffered: boolean; modifier_detection?: string; warning?: string };
+  const sc = structured<{ buffered: boolean; modifier_detection?: string; warning?: string }>(res);
   assert.equal(sc.buffered, true);
   assert.equal(sc.modifier_detection, undefined, "nothing was requested, so detection is not 'deferred' — it is irrelevant");
   assert.equal(sc.warning, undefined);
@@ -490,7 +491,7 @@ test("an all-null modifier array does not count as a modifier request", async ()
   const res = (await rec.handler("dbg_set_breakpoints")({
     path: "player.gd", lines: [10, 20], conditions: [null, null], log_messages: [null, ""],
   })) as ToolResultLike;
-  const sc = res.structuredContent as { modifier_detection?: string; warning?: string };
+  const sc = structured<{ modifier_detection?: string; warning?: string }>(res);
   assert.equal(sc.modifier_detection, undefined, "an all-null modifier array requests nothing");
   assert.equal(sc.warning, undefined);
   dap.close();
@@ -509,9 +510,9 @@ test("a later dbg_set_breakpoints does not re-report a drop an earlier call alre
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_launch")({ scene: "main" });
   const first = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] })) as ToolResultLike;
-  assert.deepEqual((first.structuredContent as { unsupported_modifiers?: string[] }).unsupported_modifiers, ["condition"]);
+  assert.deepEqual((structured<{ unsupported_modifiers?: string[] }>(first)).unsupported_modifiers, ["condition"]);
   const second = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [20] })) as ToolResultLike;
-  const sc = second.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(second);
   assert.equal(sc.unsupported_modifiers, undefined, "this call dropped nothing and must not inherit the last one's report");
   assert.equal(sc.warning, undefined);
   dap.close();
@@ -537,7 +538,7 @@ test("an adapter that advertises NO capabilities at all has its modifiers droppe
   const launch = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
   const bps = (bpReq!.arguments as { breakpoints: Array<Record<string, unknown>> }).breakpoints;
   assert.equal(bps[0].condition, undefined, "an adapter advertising nothing supports nothing");
-  assert.deepEqual((launch.structuredContent as { unsupported_modifiers?: string[] }).unsupported_modifiers, ["condition"]);
+  assert.deepEqual((structured<{ unsupported_modifiers?: string[] }>(launch)).unsupported_modifiers, ["condition"]);
   dap.close();
   await srv.close();
 });
@@ -573,7 +574,7 @@ test("dbg_launch's stop_on_entry warning is kept when a dropped-modifier note is
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] });
   const launch = (await rec.handler("dbg_launch")({ scene: "main", stop_on_entry: true })) as ToolResultLike;
-  const sc = launch.structuredContent as { stop_on_entry_honored?: boolean; unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ stop_on_entry_honored?: boolean; unsupported_modifiers?: string[]; warning?: string }>(launch);
   assert.equal(sc.stop_on_entry_honored, false);
   assert.deepEqual(sc.unsupported_modifiers, ["condition"]);
   assert.match(sc.warning ?? "", /did not stop at entry/i, "the stop_on_entry warning must survive");
@@ -590,7 +591,7 @@ test("dbg_attach reports modifiers the handshake dropped, the same as dbg_launch
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], log_messages: ["hit {hp}"] });
   const res = (await rec.handler("dbg_attach")({ port: 6007 })) as ToolResultLike;
-  const sc = res.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(res);
   assert.deepEqual(sc.unsupported_modifiers, ["logMessage"]);
   assert.match(sc.warning ?? "", /halt unconditionally/i);
   dap.close();
@@ -608,11 +609,11 @@ test("the dropped-modifier record is cleared by a new session, so it cannot leak
   const { dap, rec } = dapHarness(srv.port);
   await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] });
   const first = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-  assert.deepEqual((first.structuredContent as { unsupported_modifiers?: string[] }).unsupported_modifiers, ["condition"]);
+  assert.deepEqual((structured<{ unsupported_modifiers?: string[] }>(first)).unsupported_modifiers, ["condition"]);
   // Re-arm without modifiers, then launch again: the previous drop must not follow.
   await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10] });
   const second = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-  const sc = second.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(second);
   assert.equal(sc.unsupported_modifiers, undefined, "the second session dropped nothing and must say nothing");
   assert.equal(sc.warning, undefined);
   dap.close();
@@ -794,7 +795,7 @@ test("dbg_watch fails fast per expression (bounded by dapEvaluateTimeoutMs) when
   const res = (await rec.handler("dbg_watch")({ add: ["hp"] })) as ToolResultLike;
   // A stalling watch does NOT error the whole call — it surfaces as a per-entry error…
   assert.notEqual(res.isError, true);
-  const sc = res.structuredContent as { watches: Array<{ expression: string; value: string; type: string; error: string | null }> };
+  const sc = structured<{ watches: Array<{ expression: string; value: string; type: string; error: string | null }> }>(res);
   assert.equal(sc.watches.length, 1);
   assert.equal(sc.watches[0].expression, "hp");
   // …and that error is the bounded 200 ms deadline, not the full 3 s client timeout.
@@ -1027,7 +1028,7 @@ test("dbg_launch honours allow_port_conflict, and the override does not stick", 
   try {
     const ok = (await rec.handler("dbg_launch")({ scene: "main", allow_port_conflict: true })) as ToolResultLike;
     assert.notEqual(ok.isError, true, "the override must actually launch");
-    assert.equal((ok.structuredContent as Record<string, unknown>).state, "running");
+    assert.equal((structured<Record<string, unknown>>(ok)).state, "running");
 
     const again = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
     assert.equal(again.isError, true, "allow_port_conflict must not persist across calls");
@@ -1146,7 +1147,7 @@ test("a 'stopped' arriving mid-handshake is not clobbered by the state assignmen
   });
   const { dap, rec } = dapHarness(srv.port);
   const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-  assert.equal((res.structuredContent as { state: string }).state, "stopped");
+  assert.equal((structured<{ state: string }>(res)).state, "stopped");
   assert.equal(dap.threadId(), 7, "the adapter's own thread id survives, not the ?? 1 fallback");
   dap.close();
   await srv.close();
@@ -1159,7 +1160,7 @@ test("dbg_launch reports stop_on_entry_honored, with a warning when the adapter 
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
   const res = (await rec.handler("dbg_launch")({ scene: "main", stop_on_entry: true })) as ToolResultLike;
-  const body = res.structuredContent as { state: string; stop_on_entry_honored?: boolean; warning?: string };
+  const body = structured<{ state: string; stop_on_entry_honored?: boolean; warning?: string }>(res);
   assert.equal(body.stop_on_entry_honored, false);
   assert.equal(body.state, "running");
   assert.match(String(body.warning), /did not stop at entry/);
@@ -1180,7 +1181,7 @@ test("dbg_launch reports stop_on_entry_honored: true on an adapter that DOES hon
   });
   const { dap, rec } = dapHarness(srv.port);
   const res = (await rec.handler("dbg_launch")({ scene: "main", stop_on_entry: true })) as ToolResultLike;
-  const body = res.structuredContent as { state: string; stop_on_entry_honored?: boolean; warning?: string };
+  const body = structured<{ state: string; stop_on_entry_honored?: boolean; warning?: string }>(res);
   assert.equal(body.stop_on_entry_honored, true);
   assert.equal(body.state, "stopped");
   assert.equal(body.warning, undefined, "an honoured stop must not carry the warning");
@@ -1270,7 +1271,7 @@ test("262: dbg_watch still manages the set while the program runs, and says why 
   const before = received.length;
   const res = (await rec.handler("dbg_watch")({ add: ["total", "i"] })) as ToolResultLike;
   assert.equal(res.isError, undefined, "managing the set is not an error");
-  const watches = (res.structuredContent as { watches: Array<{ expression: string; value: string; error: string | null }> }).watches;
+  const watches = (structured<{ watches: Array<{ expression: string; value: string; error: string | null }> }>(res)).watches;
   assert.deepEqual(watches.map((w) => w.expression), ["total", "i"], "the set change was applied");
   for (const w of watches) {
     assert.equal(w.value, "", "no value may be invented while the program runs");
@@ -1345,7 +1346,7 @@ test("dbg_* tools work normally once a session IS live — the guard is about ab
   const cont = (await rec.handler("dbg_continue")({})) as ToolResultLike;
   assert.equal(cont.isError, undefined);
   const st = (await rec.handler("dbg_stack_trace")({})) as ToolResultLike;
-  assert.equal((st.structuredContent as { frames: unknown[] }).frames.length, 1);
+  assert.equal((structured<{ frames: unknown[] }>(st)).frames.length, 1);
   dap.close();
   await srv.close();
 });

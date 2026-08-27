@@ -19,6 +19,7 @@ import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, TIMER_SLACK_MS, type TcpServer } from "./helpers/tcp.js";
 import { FramedConnection } from "../src/framing.js";
+import { structured } from "./helpers/structured.js";
 
 /**
  * 267 — the wait for `initialized` RESOLVES on timeout, and until this release both
@@ -178,7 +179,7 @@ test("267: dbg_launch reports initialized_seen true when the adapter announces i
 
   await withTeardown([() => dap.close(), () => srv.close()], async () => {
     const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
-    const out = res.structuredContent as Record<string, unknown>;
+    const out = structured<Record<string, unknown>>(res);
     assert.equal(out.initialized_seen, true);
     // No warning: nothing went wrong, and a warning on the healthy path is the defect that
     // makes every warning ignorable.
@@ -197,7 +198,7 @@ test("267: under the opt-out, dbg_launch reports initialized_seen FALSE and warn
     const began = Date.now();
     const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
     const elapsed = Date.now() - began;
-    const out = res.structuredContent as Record<string, unknown>;
+    const out = structured<Record<string, unknown>>(res);
 
     assert.equal(out.initialized_seen, false);
     assert.match(String(out.warning), /did not announce itself/);
@@ -233,7 +234,7 @@ test("267: under the opt-out, the two dbg_attach answers DIFFER — a constant t
     registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg(false));
     return withTeardown([() => dap.close()], async () => {
       const res = (await rec.handler("dbg_attach")({})) as ToolResultLike;
-      return (res.structuredContent as Record<string, unknown>).initialized_seen;
+      return (structured<Record<string, unknown>>(res)).initialized_seen;
     });
   };
   await withTeardown([() => announced.srv.close(), () => silent.srv.close()], async () => {
@@ -257,7 +258,7 @@ test("267: under the opt-out, cs_dbg_attach reports initialized_seen in both dir
     registerCsDapTools(rec.server as unknown as Parameters<typeof registerCsDapTools>[0], cs, cfg(false));
     return withTeardown([() => conn.close()], async () => {
       const res = (await rec.handler("cs_dbg_attach")({ process_id: process.pid })) as ToolResultLike;
-      return res.structuredContent as Record<string, unknown>;
+      return structured<Record<string, unknown>>(res);
     });
   };
   await withTeardown([() => announced.srv.close(), () => silent.srv.close()], async () => {
@@ -350,7 +351,7 @@ test("268: a SLOW adapter now succeeds where the five-second ceiling used to con
   await withTeardown([() => dap.close(), () => srv.close()], async () => {
     const res = (await rec.handler("dbg_launch")({ scene: "main" })) as ToolResultLike;
     assert.notEqual(res.isError, true);
-    assert.equal((res.structuredContent as Record<string, unknown>).initialized_seen, true);
+    assert.equal((structured<Record<string, unknown>>(res)).initialized_seen, true);
     assert.deepEqual(order, ["initialize", "launch", "configurationDone"]);
   });
 });

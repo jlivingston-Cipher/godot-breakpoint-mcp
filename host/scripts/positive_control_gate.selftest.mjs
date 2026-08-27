@@ -18,6 +18,8 @@ import {
   PC_TRAP_UNFLOORED, PC_UNDEFENDED_EXCESS, PC_UNREADABLE_EXCESS,
   CLAIM_FLOOR, FILE_FLOOR, DEFECT_CEILING, RESIDUE_CEILING, ACCEPTANCE,
   IMPORT_HOPS, CHAIN_DEPTH, IMPORTED,
+  shapeSites, shapeScan, judgeShape, PC_SHAPE_POPULATION, PC_SHAPE_UNGUARDED,
+  SHAPE_POPULATION_FLOOR, SHAPE_UNGUARDED_CEILING,
 } from "./positive_control_gate.mjs";
 
 let ran = 0, bad = 0;
@@ -31,7 +33,7 @@ const claim = (cond, what) => {
 // 🆕 246 — 44 -> 58, raised from BELOW in the commit that outgrew it (198 §36). The
 // import-hop section added seventeen cases; a floor left at 44 would have let every one
 // of them be deleted while this file still reported a healthy run.
-const CLAIM_FLOOR_SELF = 58;
+const CLAIM_FLOOR_SELF = 71;
 
 // 🔴 THE UNIT FUNCTION IS SPELLED IN PIECES, AND IT HAS TO BE. `tautology_gate` decides
 // whether a file is unit-shaped by looking for the unit function's name followed by an
@@ -431,6 +433,85 @@ claim(!shape(hopped({
 })).includes('"terminal":"none"'),
   "🔴 and the deepest live shape does not exhaust the budget — terminal `none` is a reader that stopped walking");
 
+
+// ── 🆕 287. `shape-before-field-uncounted` (285) — THE POPULATION, ITS UNIT, AND THE
+//           THREE THINGS THAT ARE NOT DEFECTS ─────────────────────────────────────────
+//
+// 🔴 EVERY CASE HERE IS A FIXTURE, NOT THE TREE, because a reader driven only against
+// the tree it was written for is green on the arrangement that happened to exist. The
+// four spellings 286 §5 measured are each driven, and so is each of the three ways a
+// read is already safe — the sweep found the third one by breaking it.
+const shapeOf = (body) => shapeSites("f.ts", `import assert from "node:assert/strict";\n${body}`);
+
+// the unguarded four: inline, bound-const, a helper that returns the cast, and the
+// bound const whose field is read through a later statement.
+claim(shapeOf(`const f = async (r: X) => { const sc = r.structuredContent as { a: number }; assert.equal(sc.a, 1); };`)
+        .filter((s) => s.deref && !s.guarded && s.spelling === "bound-const").length === 1,
+  "🔴 a bound const whose field is read later is an unguarded read");
+claim(shapeOf(`const f = async (r: X) => { assert.equal((r.structuredContent as { a: number }).a, 1); };`)
+        .filter((s) => s.deref && !s.guarded && s.spelling === "inline").length === 1,
+  "🔴 an inline cast read straight through is an unguarded read");
+claim(shapeOf(`const sc = (r: X) => r.structuredContent as Record<string, unknown>;`)
+        .filter((s) => s.deref && !s.guarded && s.spelling === "helper").length === 1,
+  "🔴 a helper that returns the cast with no precondition is ONE unguarded read, not one per call site");
+// 🔴 AND THE UNIT IS THE CAST: a helper's call sites carry no cast of their own, which is
+// the confusion 285 §6.1 and §9.3 wrote into one row — 98 sites, then "32 of the 98
+// closed" by two helper edits that guarded two casts and collapsed thirty into them.
+claim(shapeOf(`const g = (r: X) => { if (!r.structuredContent) { throw new Error("no"); } return r.structuredContent as Y; };\nconst a = g(p).f; const b = g(q).f; const c = g(s).f;`)
+        .filter((s) => !s.guarded).length === 0,
+  "🔴 three call sites behind one guarded helper are not three unguarded reads");
+
+// the three that are NOT defects, each for a different reason
+// 🔴 EACH ONE BINDS ITS COUNT BEFORE IT ASKS `every`, AND THIS GATE IS WHY. The first
+// draft asked only `.every((s) => s.guarded)`, which is TRUE of a reader that found
+// nothing — 172 §10.21's floor-at-nothing, written into the self-test of the file whose
+// whole subject is collections that never show they can be non-empty, and caught by that
+// file's own run on the commit that added it.
+const throwGuarded = shapeOf(`const f = (r: X) => { if (!r.structuredContent) { throw new Error("no"); } return r.structuredContent as Y; };`);
+claim(throwGuarded.length === 1 && throwGuarded.every((s) => s.guarded),
+  `🔴 a throwing precondition on the same subject is a guard (285 §8.5 — a precondition, not a claim), got ${JSON.stringify(throwGuarded)}`);
+const assertGuarded = shapeOf(`const f = (r: X) => { assert.ok(r.structuredContent); return (r.structuredContent as Y).a; };`);
+claim(assertGuarded.length === 1 && assertGuarded.every((s) => s.guarded),
+  `🔴 an existence assertion on the same subject, before the read, is a guard, got ${JSON.stringify(assertGuarded)}`);
+const chained = shapeOf(`const f = (r: X) => (r.structuredContent as { a?: number } | undefined)?.a;`);
+claim(chained.length === 1 && chained.every((s) => s.guarded && s.spelling === "optional-chained"),
+  `🔴 an optional-chained read cannot throw, so it is not this rule's population — the sweep proved it by breaking csdap.test.ts's rejected-launch claim, got ${JSON.stringify(chained)}`);
+
+// 🔴 AND THE GUARD MUST BE ABOUT THE SAME SUBJECT. The first draft credited any earlier
+// `assert` whose text mentioned `structuredContent`, so a member of this very population
+// counted as a guard for the NEXT cast in the same test, on a different object: 32
+// guarded where the honest answer was 7.
+claim(shapeOf(`const f = (a: X, b: X) => { assert.equal((a.structuredContent as { n: number }).n, 1); return (b.structuredContent as { n: number }).n; };`)
+        .filter((s) => !s.guarded).length === 2,
+  "🔴 a read off ANOTHER subject is not a guard — a reader satisfied by the defect it looks for");
+
+// the two ceilings, over populations the tree cannot produce
+claim(judgeShape([{ deref: true, guarded: false, cast: true, spelling: "inline", file: "f", line: 1 }],
+                 { populationFloor: 0, unguardedCeiling: 0 }).codes.includes(PC_SHAPE_UNGUARDED),
+  "🔴 one unguarded read over a ceiling of zero must refuse by name");
+claim(judgeShape([], { populationFloor: 3, unguardedCeiling: 0 }).codes.includes(PC_SHAPE_POPULATION),
+  "🔴 an empty population must refuse — a reader that stopped matching prints a clean green over nothing");
+claim(judgeShape([{ deref: true, guarded: true, cast: false, spelling: "guarded-helper-call", file: "f", line: 1 },
+                  { deref: true, guarded: true, cast: true, spelling: "inline", file: "f", line: 2 }],
+                 { populationFloor: 2, unguardedCeiling: 0 }).codes.length === 0,
+  "🔴 a guarded population at its floor is green, and the helper's CALL SITES are in it — floored on casts alone the sweep itself would have read as a collapse");
+claim(SHAPE_POPULATION_FLOOR === 80 && SHAPE_UNGUARDED_CEILING === 0,
+  `the shipped shape floor/ceiling are 80/0, not ${SHAPE_POPULATION_FLOOR}/${SHAPE_UNGUARDED_CEILING}`);
+
+// 🔴 AND THE WALK ITSELF, WHICH IS THE ONE CLAIM IN THIS FILE THAT READS THE TREE — put
+// here because `instrument_gate` asked for it BY NAME on the sweep that added these
+// rows: blinded to `[]`, `shapeScan` left every case above green, because every case
+// above is a fixture and `shapeSites` is what fixtures reach. *Found nothing* and *did
+// not look* were the same observable, in the self-test of the gate whose entire subject
+// is that distinction. The floor is the SHIPPED constant rather than a literal — a
+// floor supplied by the finder it bounds is 172 §10.21 wearing a disguise, and this one
+// is pinned in `floor_pin_gate`'s TARGETS, so moving it reddens this case too.
+const liveShape = shapeScan();
+claim(liveShape.length >= SHAPE_POPULATION_FLOOR,
+  `the live walk found ${liveShape.length} read(s) of structuredContent, below the shipped floor of ${SHAPE_POPULATION_FLOOR}`);
+claim(liveShape.some((s) => s.cast) && liveShape.some((s) => s.spelling === "guarded-helper-call"),
+  `🔴 the live walk must see BOTH halves — raw casts and the guarded helper's call sites — or half the population can vanish under a floor the other half satisfies: ${JSON.stringify(liveShape.slice(0, 2))}`);
+
 // ── 11. THE FLOORS THEMSELVES, NAMED ─────────────────────────────────────────────────
 // 175's G9: a literal nothing asserts is a literal anyone can move.
 claim(CLAIM_FLOOR === 40, `the shipped claim floor is 40, not ${CLAIM_FLOOR}`);
@@ -441,7 +522,7 @@ claim(RESIDUE_CEILING === 1, `the shipped residue ceiling is 1, not ${RESIDUE_CE
 // above was pinned by an exact comparison and this one was read by a single branch and
 // asserted by nothing, so setting it to zero left the file green — the collapse
 // detector switched off with no case noticing. 175's G9, in the file that quotes it.
-claim(CLAIM_FLOOR_SELF === 58, `this file's own claim floor is 58, not ${CLAIM_FLOOR_SELF}`);
+claim(CLAIM_FLOOR_SELF === 71, `this file's own claim floor is 71, not ${CLAIM_FLOOR_SELF}`);
 
 if (ran < CLAIM_FLOOR_SELF) {
   bad++;

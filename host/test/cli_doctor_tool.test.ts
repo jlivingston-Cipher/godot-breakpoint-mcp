@@ -4,6 +4,7 @@ import { registerCliTools } from "../src/tools/cli.js";
 import { applyOutputSchemas, outputSchemas } from "../src/schemas.js";
 import { annotationsFor, ALL_ANNOTATED } from "../src/annotations.js";
 import { loadConfig } from "../src/config.js";
+import { structured } from "./helpers/structured.js";
 
 /**
  * D4 — `breakpoint_doctor`, the diagnostic reachable from inside the session.
@@ -89,7 +90,7 @@ test("🔴 it REPORTS a broken setup instead of throwing on one", async () => {
   try {
     const entry = registerCli().get("breakpoint_doctor");
     const res = await entry!.handler({ timeout_ms: 250 });
-    const out = res.structuredContent as { ok: boolean; failed: number; checks: unknown[] };
+    const out = structured<{ ok: boolean; failed: number; checks: unknown[] }>(res);
     assert.ok(Array.isArray(out.checks) && out.checks.length > 0, "it answered with checks");
     assert.equal(typeof out.ok, "boolean");
     assert.equal(typeof out.failed, "number");
