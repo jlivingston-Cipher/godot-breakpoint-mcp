@@ -276,12 +276,17 @@ export async function main() {
   // `{lines: [], bad: []}` prints nothing, exits 0, and reads exactly like a green run.
   // 284 §1.3 is the same sentence about `range(233, 0)`.
   if (!lines.length) {
-    console.log("🔴 DIFFERENCE_FIELD produced no readings at all — the judgement measured "
-      + "nothing, and an empty verdict is not the same observation as a clean one.");
+    console.log("  FAIL DF_NO_READINGS 🔴 the judgement produced no readings at all — it "
+      + "measured nothing, and an empty verdict is not the same observation as a clean one.");
     process.exit(1);
   }
   for (const l of lines) console.log(l);
-  for (const b of bad) console.log(b);
+  // 🔴 PRINTED IN THIS TREE'S OWN SELF-TEST DIALECT (`A_FAIL`), NOT ONLY IN PROSE.
+  // `instrument_gate`'s late-live blast is a COUNT of reported failures, and a command
+  // that reports by prose alone lands in `LATE_LIVE_BLAST_UNCOUNTABLE` — a table whose own
+  // header says the way to leave it is to give the command a `FAIL <NAME>` line. The
+  // judgement's shape is unchanged; only the printing is.
+  for (const b of bad) console.log(b.replace(/^🔴 (DF_[A-Z_]+)/, "  FAIL $1 🔴"));
   if (bad.length) {
     console.log(`🔴 DIFFERENCE_FIELD refused — ${bad.length} problem(s).`);
     process.exit(1);
