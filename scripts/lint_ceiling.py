@@ -105,7 +105,14 @@ PY_FILE_FLOOR = 18      # governed by floor_pin_gate's SIZE_LEDGER
 
 HOST = ROOT / "host"
 
-MJS_FILE_FLOOR = 66     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER; `270` added a probe.
+MJS_FILE_FLOOR = 68     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER; `270` added a probe.
+                        # 🆕 285: 66 -> 68 — `difference_field_gate.mjs` and its `.selftest.mjs`.
+                        # This is an EQUALITY, not a floor, and it is the sharpest reader in this
+                        # file: two new tracked `.mjs` files made it disagree with the tree within
+                        # minutes of `git add`, and it reached the author through `floor_pin_gate`'s
+                        # unmutated CONTROL rather than through this gate's own live run, which was
+                        # green. A count that must EQUAL a population is the one shape that cannot
+                        # be satisfied by a file being added quietly.
                         # 🔴 AN EQUALITY, LIKE `PY_FILE_FLOOR` ABOVE, AND THE ASYMMETRY
                         # WAS DRAFTED AND THEN REJECTED. The first version floored this
                         # from below only, on the argument that the `.mjs` population is

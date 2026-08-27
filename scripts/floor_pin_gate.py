@@ -192,7 +192,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
     # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
     # — at or under the live count, refusing one below, quiet one above.
-    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )66",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )68",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
@@ -1426,7 +1426,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`git ls-files` failing to answer — which yields an empty population, no "
         "findings, and a green run that opened no files. Same argument as "
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
-    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (66, (
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (68, (
         "🆕 `270` RAISED IT BY ONE, FOR THE REASON THE ROW ITSELF PREDICTED: this "
         "population grows whenever a plane gains a probe, and issue #327's fix added "
         "`set-property-verify.integration.mjs` to prove a live engine's coercions. "
