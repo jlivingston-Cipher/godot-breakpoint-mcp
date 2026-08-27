@@ -9356,8 +9356,15 @@ def selftest() -> int:
     # throwaway repo, because `core.hooksPath` is a fact about a real `.git/config` and a
     # fixture that stubbed it would be testing the stub (228's own `_probe` rule).
     claims += 1
-    with tempfile.TemporaryDirectory() as _hd:
-        _ht = Path(_hd)
+    # 🔴 `mkdtemp` AND NOT `TemporaryDirectory`, BECAUSE `mutation_lock_gate` READS THE
+    # CALL. Its confinement walker proves a write lands under a temp directory by hopping
+    # from `Path(tempfile.mkdtemp())`; a `with TemporaryDirectory() as d` binding is a
+    # shape it cannot follow, so the first draft of this fixture was reported as
+    # `MUTATION_LOCK_UNGUARDED handoff_gate.py — 2 unconfined write(s)`. The gate is right
+    # and the fixture was written in a dialect it does not read (172 §10.21's cousin: a
+    # reader that cannot see a thing reports the thing, not itself).
+    if True:
+        _ht = Path(tempfile.mkdtemp(prefix="handoff_hook_"))
         subprocess.run(["git", "init", "-q", str(_ht)], capture_output=True)
         (_ht / ".githooks").mkdir()
         _hp = _ht / ".githooks" / "pre-commit"
