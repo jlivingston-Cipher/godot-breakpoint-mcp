@@ -1801,7 +1801,27 @@ def main(argv: "list[str]") -> int:
 
     problems, notes, n_rows, n_open = check(text)
     _fmt, head, rows, _p = parse(text)
+    # 🆕 286 — AND THE SECOND READ IS COMPARED, WHICH IS 245 §3's REPAIR APPLIED TO
+    # THE READER 286 ADDED. `instrument_gate`'s late blind found the same shape in
+    # `block_shape` within the hour of it shipping: it is called TWICE on this path — once
+    # inside `check()`, once here for the ok line — so a reader that answers HONESTLY the
+    # first time and returns its empty afterwards leaves `check()` silent (it used the
+    # first call) and prints `a second derivation counted the same 0 row(s)` under a green
+    # gate. `QUEUE_BLOCK_VACUOUS` lives in `check()` and cannot see the collapse, because
+    # the collapse happens after `check()` has already read.
+    #
+    # 🔴 THE POINT IS NOT THAT THE OK LINE WOULD PRINT A ZERO. It is that a gate whose
+    # whole subject is a population shrinking in silence would have shrunk its own in
+    # silence, one function below the paragraph saying so.
     n_block, _bp = block_shape(text)
+    if n_block != len(rows):
+        problems.append(
+            f"🔴 QUEUE_BLOCK_REPARSE_DISAGREES `check()` accepted this table and the "
+            f"re-read for the ok line counted {n_block} candidate(s) against {len(rows)} "
+            f"row(s). Both are this file reading one block; `block_shape` is called twice "
+            f"on this path, so a reader that goes quiet between them leaves the refusal "
+            f"above unreachable and the census line printed from a call that no longer "
+            f"agrees with it (245 §3, one reader over)")
     # 🆕 245 §3 — 🔴 TWO READS OF ONE TABLE THAT HAD NEVER BEEN COMPARED. `check()` parses
     # the file and reports `n_rows`; the line above parses it AGAIN for the ages, and until
     # now nothing asked whether the two agreed. The late blind found it: `parse` is called
