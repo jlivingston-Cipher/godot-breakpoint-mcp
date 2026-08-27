@@ -14,6 +14,7 @@ import { loadConfig } from "../src/config.js";
 import type { Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, waitFor, type TcpServer } from "./helpers/tcp.js";
+import { structured } from "./helpers/structured.js";
 
 interface LspMsg { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: unknown }
 
@@ -96,7 +97,7 @@ test("cs_hover returns the MarkupContent value (e.g. the Counter : int type)", a
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath);
   const res = (await rec.handler("cs_hover")({ path: "Player.cs", line: 0, character: 11 })) as ToolResultLike;
-  const sc = res.structuredContent as { contents: string };
+  const sc = structured<{ contents: string }>(res);
   assert.match(sc.contents, /int Player\.Counter/);
   cslsp.close();
   await srv.close();
@@ -142,7 +143,7 @@ test("cs_references forwards includeDeclaration and maps locations", async () =>
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath);
   const res = (await rec.handler("cs_references")({ path: "Player.cs", line: 13, character: 15, include_declaration: false })) as ToolResultLike;
-  const sc = res.structuredContent as { locations: unknown[] };
+  const sc = structured<{ locations: unknown[] }>(res);
   assert.equal(sc.locations.length, 2);
   assert.equal((sent!.params as { context: { includeDeclaration: boolean } }).context.includeDeclaration, false);
   cslsp.close();
@@ -268,7 +269,7 @@ test("cs_diagnostics matches a publishDiagnostics URI via diagKey and maps sever
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath);
   const res = (await rec.handler("cs_diagnostics")({ path: "Player.cs", wait_ms: 1000 })) as ToolResultLike;
-  const sc = res.structuredContent as { diagnostics: Array<{ severity: string; message: string; line: number }> };
+  const sc = structured<{ diagnostics: Array<{ severity: string; message: string; line: number }> }>(res);
   assert.equal(sc.diagnostics.length, 1);
   assert.equal(sc.diagnostics[0].severity, "error");
   assert.equal(sc.diagnostics[0].message, "; expected");
@@ -294,7 +295,7 @@ test("cs_rename dry-run (apply=false) returns the plan and writes nothing, witho
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath, async () => { elicited++; return { action: "accept", content: { proceed: true } }; });
   const res = (await rec.handler("cs_rename")({ path: "Player.cs", line: 0, character: 4, new_name: "Velocity", apply: false })) as ToolResultLike;
-  const sc = res.structuredContent as { edit_count: number; applied: boolean; written: string[] };
+  const sc = structured<{ edit_count: number; applied: boolean; written: string[] }>(res);
   assert.equal(sc.edit_count, 1);
   assert.equal(sc.applied, false);
   assert.deepEqual(sc.written, []);
@@ -316,7 +317,7 @@ test("cs_rename apply=true writes the edited text to disk (changes shape)", asyn
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath, async () => ({ action: "accept", content: { proceed: true } }));
   const res = (await rec.handler("cs_rename")({ path: "Player.cs", line: 0, character: 4, new_name: "Velocity", apply: true, confirm: true })) as ToolResultLike;
-  const sc = res.structuredContent as { applied: boolean; written: string[]; edit_count: number };
+  const sc = structured<{ applied: boolean; written: string[]; edit_count: number }>(res);
   assert.equal(sc.applied, true);
   assert.equal(sc.edit_count, 1);
   assert.equal(sc.written.length, 1);
@@ -339,7 +340,7 @@ test("cs_rename handles OmniSharp's documentChanges WorkspaceEdit encoding (not 
   });
   const { cslsp, rec } = csToolHarness(srv.port, projectPath, async () => ({ action: "accept", content: { proceed: true } }));
   const res = (await rec.handler("cs_rename")({ path: "Player.cs", line: 0, character: 4, new_name: "Velocity", apply: true, confirm: true })) as ToolResultLike;
-  const sc = res.structuredContent as { edit_count: number; written: string[] };
+  const sc = structured<{ edit_count: number; written: string[] }>(res);
   assert.equal(sc.edit_count, 1);
   assert.equal(sc.written.length, 1);
   assert.equal(fs.readFileSync(path.join(projectPath, "Player.cs"), "utf8"), "int Velocity = 10;\n");

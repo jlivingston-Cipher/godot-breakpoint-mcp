@@ -275,7 +275,16 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("pc.FILE_FLOOR",            f"{S}/positive_control_gate.mjs",   r"(export const FILE_FLOOR = )90;",                          [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.DEFECT_CEILING",        f"{S}/positive_control_gate.mjs",   r"(export const DEFECT_CEILING = )15;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
     ("pc.RESIDUE_CEILING",       f"{S}/positive_control_gate.mjs",   r"(export const RESIDUE_CEILING = )1;",                      [f"{S}/positive_control_gate.selftest.mjs"]),
-    ("pc.CLAIM_FLOOR_SELF",      f"{S}/positive_control_gate.selftest.mjs", r"(const CLAIM_FLOOR_SELF = )58;",                    [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.CLAIM_FLOOR_SELF",      f"{S}/positive_control_gate.selftest.mjs", r"(const CLAIM_FLOOR_SELF = )71;",                    [f"{S}/positive_control_gate.selftest.mjs"]),
+    # 🆕 287 — `shape-before-field-uncounted` (285)'s two, and they fail in OPPOSITE
+    # directions, which is why both are swept. Zeroing the floor lets the population
+    # collapse in silence — and after the sweep the population is 92 helper CALL sites
+    # and 11 raw casts, so a reader that stopped seeing one of the two halves still
+    # prints a plausible number. Raising the ceiling off zero re-permits the unguarded
+    # cast the whole row is about. Both are asserted BY NAME in the self-test as well as
+    # driven from either side, the 172 §10.21 form.
+    ("pc.SHAPE_POPULATION_FLOOR", f"{S}/positive_control_gate.mjs",  r"(export const SHAPE_POPULATION_FLOOR = )80;",              [f"{S}/positive_control_gate.selftest.mjs"]),
+    ("pc.SHAPE_UNGUARDED_CEILING", f"{S}/positive_control_gate.mjs", r"(export const SHAPE_UNGUARDED_CEILING = )0;",               [f"{S}/positive_control_gate.selftest.mjs"]),
     ("wd.COLLAPSE_SHAPE_FLOOR",  f"{S}/wire_diff.selftest.mjs",      r"(const COLLAPSE_SHAPE_FLOOR = )6;",                        [f"{S}/wire_diff.selftest.mjs"]),
     ("SUBJECT_FLOOR",            f"{S}/verdict_gate.mjs",            r"(export const SUBJECT_FLOOR = )4;",                        [f"{S}/verdict_gate.selftest.mjs"]),
     ("DISCARD_SITE_FLOOR",       f"{S}/verdict_gate.mjs",            r"(export const DISCARD_SITE_FLOOR = )55;",                  [f"{S}/verdict_gate.selftest.mjs"]),

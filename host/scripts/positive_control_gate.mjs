@@ -975,6 +975,212 @@ export function judge(rows, files, fixture = ACCEPTANCE, floors = {}) {
   return { lines, failed, codes };
 }
 
+// ── 🆕 287 — `shape-before-field-uncounted` (285), AND THE POPULATION IT NEVER HAD ───
+//
+// 🔴 275 SHIPPED *ASSERT THE SHAPE BEFORE READING THE FIELD* AT THE ONE SITE ITS FLAKE
+// HAPPENED. `godot_run_project` handed back a result with no `structuredContent`, the
+// next line read a field off the cast, and the failure arrived as `Cannot read properties
+// of undefined (reading 'bridge_ready')` — a TypeError one line after the defect,
+// carrying none of its own diagnosis. The rule was written down and the population it
+// belongs to was never derived, which is 282 §2.3's standing rule: a guarantee is false
+// until something derives its population.
+//
+// 🔴 AND TWO SESSIONS COUNTED IT BY HAND AND DISAGREED WITH THEMSELVES. 285 §6.1 counted
+// 98 SITES from two greps; §9.3 then said two helper edits "closed 32 of the 98" — but a
+// call site behind a guarded helper carries no cast, so those 32 left the population by
+// being COLLAPSED INTO ONE guarded cast rather than guarded one at a time. 286 §5
+// re-derived it from the AST and found the unit was the CAST: 103 casts, 101 of them
+// dereferenced, spelled 67 bound-const · 31 inline · 3 helper. This reader is that
+// derivation, committed — because a number two sessions produced by hand and a third
+// re-produced by hand is still a number nothing re-takes.
+//
+// 🔴 A CEILING ON THE UNGUARDED AND A FLOOR UNDER THE POPULATION, WHICH ARE TWO
+// DIFFERENT FAILURES. The ceiling stops a new unguarded cast arriving. The floor stops
+// this reader quietly ceasing to match — `.structuredContent as T` is a syntactic shape,
+// and a test file that switched to a typed envelope would empty the population and print
+// a clean green over nothing, which is `PC_POPULATION`'s own argument one axis over.
+export const PC_SHAPE_POPULATION = "PC_SHAPE_POPULATION";
+export const PC_SHAPE_UNGUARDED = "PC_SHAPE_UNGUARDED";
+// Measured 103 casts across the four floored directories; set below it so ordinary
+// editing has room and a collapse has none.
+export const SHAPE_POPULATION_FLOOR = 80;
+// 🔴 ZERO, AND IT IS THE LIVE VALUE — which is the only reason a ceiling may be zero.
+// 286 §5 measured 99 unguarded and priced the sweep; 287 ran it from this reader and the
+// remainder is nothing. A ceiling pinned above a population that has been driven to zero
+// is headroom nobody voted for (246's rule on `DEFECT_CEILING`), so it moves in the
+// commit that empties it.
+export const SHAPE_UNGUARDED_CEILING = 0;
+
+const SHAPE_ASSERT_RE = /^(assert|assert\.\w+|ok|equal|deepEqual|match)$/;
+
+function shapeEnclosingFn(n) {
+  for (let p = n.parent; p; p = p.parent) {
+    if (ts.isFunctionDeclaration(p) || ts.isFunctionExpression(p) ||
+        ts.isArrowFunction(p) || ts.isMethodDeclaration(p)) return p;
+  }
+  return null;
+}
+
+/** Every `X.structuredContent as T` in one file, classified — 🆕 287.
+ *
+ * 🔴 THE UNIT IS THE CAST, NOT THE READ, AND 285's ROW USED BOTH. A call site behind a
+ * guarded helper reads a field off a value that was cast ONCE, somewhere else, with a
+ * guard in front of it; counting those sites again is counting the same cast as many
+ * times as it is used. `deref` is reported beside the count rather than folded into it,
+ * because a cast nothing reads a field off is genuinely out of this rule's scope (285
+ * §6.1) and saying so is not the same as not seeing it.
+ *
+ * 🔴 A GUARD IS AN EXISTENCE TEST ON THE SAME SUBJECT, AND NOTHING ELSE COUNTS. The
+ * first draft credited any earlier `assert` whose text mentioned `structuredContent`,
+ * which read `assert.equal((a.structuredContent as {c: number}).c, 1)` — itself a member
+ * of this population — as a guard for the NEXT cast in the same test, on a different
+ * object. That is a reader satisfied by the defect it is looking for, and it scored 32
+ * guarded where the honest answer was 7.
+ */
+export function shapeSites(rel, text) {
+  const sf = sourceFileOf(rel, text);
+  const txt = (n) => n.getText(sf);
+  const out = [];
+  const walk = (n) => {
+    if (ts.isAsExpression(n) && ts.isPropertyAccessExpression(n.expression) &&
+        n.expression.name.text === "structuredContent") {
+      const subject = txt(n.expression.expression);
+      const line = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+      const par = n.parent;
+      const fn = shapeEnclosingFn(n);
+      let spelling = "other";
+      let deref = false;
+      // 🔴 AN OPTIONAL-CHAINED READ CANNOT THROW, SO IT IS NOT WHAT THIS RULE IS ABOUT,
+      // AND THE SWEEP IS WHAT PROVED IT. `csdap.test.ts` asserts that a launch the
+      // adapter REJECTED does not report `state: "running"`, and it is written
+      // `(res.structuredContent as { state?: string } | undefined)?.state` — the absent
+      // envelope is the EXPECTED answer there, and `undefined !== "running"` is the
+      // assertion passing for the right reason. Guarding it turned a passing claim into
+      // a thrown precondition, and the suite said so within the minute. 275's defect is
+      // a TypeError carrying no diagnosis; `?.` produces a value, and the claim that
+      // reads it fails honestly with its own message.
+      let optional = false;
+      const accessOf = (x) =>
+        (ts.isPropertyAccessExpression(x) || ts.isElementAccessExpression(x)) ? x : null;
+      const acc = accessOf(par) ||
+        (ts.isParenthesizedExpression(par) ? accessOf(par.parent) : null);
+      if (acc && acc.questionDotToken) optional = true;
+      if (ts.isPropertyAccessExpression(par) || ts.isElementAccessExpression(par)) {
+        spelling = "inline"; deref = true;
+      } else if (ts.isParenthesizedExpression(par) &&
+                 (ts.isPropertyAccessExpression(par.parent) ||
+                  ts.isElementAccessExpression(par.parent))) {
+        spelling = "inline"; deref = true;
+      } else if (ts.isVariableDeclaration(par) && ts.isIdentifier(par.name)) {
+        spelling = "bound-const";
+        const name = par.name.text;
+        const scope = shapeEnclosingFn(par) || sf;
+        const seek = (m) => {
+          if ((ts.isPropertyAccessExpression(m) || ts.isElementAccessExpression(m)) &&
+              ts.isIdentifier(m.expression) && m.expression.text === name) deref = true;
+          ts.forEachChild(m, seek);
+        };
+        ts.forEachChild(scope, seek);
+      }
+      if (ts.isReturnStatement(par) || (fn && ts.isArrowFunction(fn) && fn.body === n)) {
+        spelling = "helper"; deref = true;
+      }
+      let guarded = optional;
+      if (!guarded && fn && fn.body) {
+        const want = `${subject}.structuredContent`.replace(/\s+/g, "");
+        const isExistenceTest = (m) => {
+          const t = txt(m).replace(/\s+/g, "");
+          return t === want || t === `!${want}`;
+        };
+        const before = [];
+        const collect = (m) => {
+          if (m.getStart(sf) < n.getStart(sf)) before.push(m);
+          ts.forEachChild(m, collect);
+        };
+        ts.forEachChild(fn.body, collect);
+        for (const m of before) {
+          if (ts.isIfStatement(m) && isExistenceTest(m.expression) &&
+              /throw|return/.test(txt(m.thenStatement))) { guarded = true; break; }
+          if (ts.isCallExpression(m) && SHAPE_ASSERT_RE.test(txt(m.expression)) &&
+              m.arguments.length && isExistenceTest(m.arguments[0])) { guarded = true; break; }
+        }
+      }
+      if (optional) spelling = "optional-chained";
+      out.push({ file: rel, line, spelling, deref, guarded, subject, cast: true,
+                 type: txt(n.type), start: n.getStart(sf), end: n.getEnd() });
+    }
+    // 🔴 AND THE CALL SITES OF THE GUARDED HELPER ARE IN THE POPULATION, WHICH IS THE
+    // HALF THE FIRST DRAFT GOT WRONG AND THE SWEEP PROVED WITHIN THE MINUTE. Floored on
+    // CASTS alone, this reader went from 103 to 9 the moment the sweep replaced them —
+    // a collapse indistinguishable from the reader ceasing to match, printed by the very
+    // floor written to catch that. The population is every READ of `structuredContent`:
+    // each is either a raw cast, guarded or not, or a call to the helper that casts once
+    // behind a precondition. 285's row confused these two units in one sentence (§6.1's
+    // 98 sites against §9.3's "closed 32 of them"); this is the unit that survives the
+    // repair.
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) &&
+        n.expression.text === "structured") {
+      out.push({ file: rel, line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1,
+                 spelling: "guarded-helper-call", deref: true, guarded: true, cast: false,
+                 subject: n.arguments.length ? txt(n.arguments[0]) : "",
+                 type: n.typeArguments?.length ? txt(n.typeArguments[0]) : "",
+                 start: n.getStart(sf), end: n.getEnd() });
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return out;
+}
+
+export function judgeShape(sites, {
+  populationFloor = SHAPE_POPULATION_FLOOR,
+  unguardedCeiling = SHAPE_UNGUARDED_CEILING } = {}) {
+  const lines = [];
+  const codes = [];
+  const say = (l) => lines.push(l);
+  const reads = sites.filter((s) => s.deref);
+  const casts = sites.filter((s) => s.cast);
+  const viaHelper = sites.filter((s) => !s.cast);
+  const unguarded = reads.filter((s) => !s.guarded);
+  const spell = (rows) => ["bound-const", "inline", "helper", "optional-chained",
+                           "guarded-helper-call", "other"]
+    .map((k) => [k, rows.filter((r) => r.spelling === k).length])
+    .filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`).join(" \u00b7 ");
+  say(`SHAPE_BEFORE_FIELD ${reads.length} read(s) of structuredContent \u00b7 ` +
+      `${casts.length} raw cast(s) \u00b7 ${viaHelper.length} through the guarded helper \u00b7 ` +
+      `${unguarded.length} unguarded \u00b7 ceiling ${unguardedCeiling} \u00b7 floor ${populationFloor}`);
+  say(`   by spelling: ${spell(reads) || "(none)"}`);
+  if (reads.length < populationFloor) {
+    codes.push(PC_SHAPE_POPULATION);
+    say(`\ud83d\udd34 ${PC_SHAPE_POPULATION} ${reads.length} < ${populationFloor} — this reader stopped`);
+    say(`   matching. Both halves are syntactic — \`.structuredContent as T\` and a call to`);
+    say(`   \`structured<T>()\` — and a population that collapsed prints a clean green over`);
+    say(`   nothing, which is what a ceiling of ${unguardedCeiling} would then be measuring.`);
+  }
+  if (unguarded.length > unguardedCeiling) {
+    codes.push(PC_SHAPE_UNGUARDED);
+    say(`\ud83d\udd34 ${PC_SHAPE_UNGUARDED} ${unguarded.length} > ${unguardedCeiling} — a field is read off a`);
+    say(`   cast \`structuredContent\` with nothing asserting it is there. 275's TypeError`);
+    say(`   arrives one line later carrying none of its own diagnosis. Use the guarded`);
+    say(`   \`structured<T>(r)\` helper, or assert the shape on the same subject first.`);
+    for (const s of unguarded.slice(0, 20)) say(`   ${s.file}:${s.line}  ${s.spelling}`);
+  }
+  return { lines, codes };
+}
+
+export function shapeScan(root = ROOT) {
+  const sites = [];
+  for (const dir of Object.keys(FLOORS)) {
+    const d = join(root, dir);
+    for (const f of readdirSync(d)
+      .filter((f) => /\.(mjs|ts)$/.test(f) && statSync(join(d, f)).isFile()).sort()) {
+      const rel = dir === "." ? f : `${dir}/${f}`;
+      sites.push(...shapeSites(rel, readFileSync(join(d, f), "utf8")));
+    }
+  }
+  return sites;
+}
+
 // ── the real tree ───────────────────────────────────────────────────────────────────
 export function scan(root = ROOT) {
   const rows = [];
@@ -996,6 +1202,13 @@ export function main() {
   const { rows, files } = scan();
   const r = judge(rows, files);
   for (const l of r.lines) console.log(l);
+  // 🆕 287 — `shape-before-field-uncounted` (285), in the gate that already reads
+  // TypeScript through the compiler API. Its codes join this gate's, so the population
+  // collapsing and an unguarded cast arriving are both this gate's exit code.
+  const shape = judgeShape(shapeScan());
+  for (const l of shape.lines) console.log(l);
+  r.codes.push(...shape.codes);
+  r.failed = r.failed || shape.codes.length > 0;
   for (const v of [EXEMPT_TRAP, POPULATION_FLOORED, DEFECT]) {
     const g = rows.filter((x) => x.verdict === v);
     if (!g.length) continue;

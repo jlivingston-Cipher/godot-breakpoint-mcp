@@ -375,7 +375,13 @@ const HELPERS = fileURLToPath(new URL("../test/helpers/", import.meta.url));
 const helperClaims = readdirSync(HELPERS)
   .filter((f) => /\.(mjs|ts)$/.test(f))
   .map((f) => [f, analyze(join(HELPERS, f), readFileSync(join(HELPERS, f), "utf8")).length]);
-claim(helperClaims.length === 2, `test/helpers holds exactly 2 files (got ${helperClaims.length})`);
+// 🆕 287 — TWO BECAME THREE, AND THE DECISION WAS RE-MADE RATHER THAN THE NUMBER
+// BUMPED. `structured.ts` is the guard `shape-before-field-uncounted` (285) collapsed
+// ninety-two casts into. It belongs here for the same reason the other two do — it is
+// apparatus, not a suite — and it asserts NOTHING: the precondition THROWS, because a
+// guard in a helper is a precondition and not a claim (285 §8.5). An `assert` in this
+// file would be a claim no suite counts, which is exactly what the case below refuses.
+claim(helperClaims.length === 3, `test/helpers holds exactly 3 files (got ${helperClaims.length})`);
 claim(helperClaims.every(([, n]) => n === 0),
   `🔴 HELPERS_NOT_ROSTERED — test/helpers asserts nothing, so a non-recursive sweep costs no coverage: ${JSON.stringify(helperClaims)}`);
 

@@ -991,7 +991,7 @@ INSTRUMENTS = [
         "src": HOST / "scripts" / "positive_control_gate.mjs",
         "gate": ["node", "scripts/positive_control_gate.selftest.mjs"],
         "cwd": HOST,
-        "floor": 6,   # every one of the six targets must be swept
+        "floor": 9,   # every one of the nine targets must be swept
         "why": "the reader that decides whether an empty collection was ever proved able "
                "to be non-empty",
         # The empty each member's own contract promises, read off the returns rather than
@@ -1019,6 +1019,16 @@ INSTRUMENTS = [
                                 "resolveDecl: () => null, rootDeclKey: () => null };",
             "{SIG:importedFrom}": "return null;",
             "{SIG:exportedInitializer}": "return null;",
+            # 🆕 287 — `shape-before-field-uncounted` (285)'s three, in the commit that
+            # ships them. 🔴 EACH EMPTY IS THE ANSWER THAT LOOKS HEALTHIEST, which is this
+            # instrument's whole point: a `shapeSites` that finds no casts and a
+            # `shapeScan` that walks no files both report ZERO unguarded reads, which is
+            # the number a fully swept tree also reports. `SHAPE_POPULATION_FLOOR` is the
+            # claim that tells them apart, and blinding either is how the sweep proves the
+            # floor is doing the work rather than the ceiling.
+            "{SIG:shapeSites}": "return [];",
+            "{SIG:shapeScan}": "return [];",
+            "{SIG:judgeShape}": "return { lines: [], codes: [] };",
         },
     },
     # ══ 🆕 245 §1 — THE FIRST THREE PYTHON INSTRUMENTS — `blind-py-gates` (234) ══════
@@ -1278,6 +1288,12 @@ INSTRUMENTS = [
             "{SIG:leg_disagreements}": "return []",
             "{SIG:measured_run}": "return \"\"",
             "{SIG:verdict_problems}": "return ([], [],)",
+            # 🆕 287 — the fifth world reading's emitter and its reader. `verdict_of_log`
+            # answers `("", [], "")` for "nobody wrote one down", which is the empty that
+            # sends the caller to the live dial — so a blind here does not fake a green,
+            # it removes the route and the close falls back to needing the forge.
+            "{SIG:verdict_of_log}": "return (\"\", [], \"\")",
+            "{SIG:verdict_emit}": "return 0",
             "{SIG:pending_problems}": "return []",
             "{SIG:population_reach_problems}": "return []",
             "{SIG:declared_tier}": "return None",
@@ -1295,6 +1311,12 @@ INSTRUMENTS = [
             "{SIG:reached_scripts}": "return set()",
             "{SIG:unreached_problems}": "return ([], [],)",
             "{SIG:fenced}": "return []",
+            # 🆕 287 — the fence, and the empty its contract promises is "there is no
+            # fence": `("", False)`. Blinded, every reader below reads the whole document
+            # as the replay, which is the state 285 shipped and 286 §1.2 measured at 122
+            # problems — so the blind reproduces the defect the function was written to
+            # remove rather than merely silencing it.
+            "{SIG:replay_fence}": "return (\"\", False)",
             "{SIG:replay_problems}": "return ([], [],)",
             "{SIG:ci_capture_steps}": "return []",
             "{SIG:ci_capture_norm}": "return \"\"",

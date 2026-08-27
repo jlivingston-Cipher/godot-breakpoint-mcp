@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { registerRuntimeTools } from "../src/tools/runtime.js";
 import { BridgeError } from "../src/bridge.js";
+import { structured } from "./helpers/structured.js";
 import {
   makeRecordingServer,
   type ElicitFn,
@@ -447,8 +448,8 @@ test("runtime_await_condition resolves met:true on the first matching poll (read
   assert.notEqual(r.isError, true);
   assert.equal(h.elicitReqs.length, 0, "await is read-only and must not prompt");
   assert.equal(h.calls[0].method, "runtime.get_property");
-  assert.equal((r.structuredContent as { met: boolean }).met, true);
-  assert.equal((r.structuredContent as { polls: number }).polls, 1);
+  assert.equal((structured<{ met: boolean }>(r)).met, true);
+  assert.equal((structured<{ polls: number }>(r)).polls, 1);
 });
 
 test("runtime_await_condition polls to a fast timeout when the condition never holds", async () => {
@@ -463,7 +464,7 @@ test("runtime_await_condition polls to a fast timeout when the condition never h
     poll_interval_ms: 5,
   });
   assert.notEqual(r.isError, true);
-  const sc = r.structuredContent as { met: boolean; polls: number };
+  const sc = structured<{ met: boolean; polls: number }>(r);
   assert.equal(sc.met, false);
   assert.ok(sc.polls >= 1, "should have polled at least once");
 });

@@ -12,6 +12,7 @@ import { registerCsDapTools } from "../src/tools/csdap.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike, type ElicitFn } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
+import { structured } from "./helpers/structured.js";
 
 interface DapMsg { seq: number; type: string; command?: string; arguments?: Record<string, unknown>; request_seq?: number; success?: boolean; event?: string; body?: unknown }
 
@@ -177,7 +178,7 @@ test("cs_dbg_set_breakpoints buffers before a session is configured", async () =
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port);
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30] })) as ToolResultLike;
-  const sc = res.structuredContent as { buffered: boolean; breakpoints: unknown[] };
+  const sc = structured<{ buffered: boolean; breakpoints: unknown[] }>(res);
   assert.equal(sc.buffered, true);
   assert.deepEqual(sc.breakpoints, []);
   dap.close();
@@ -192,7 +193,7 @@ test("cs_dbg_set_breakpoints applies immediately once the session is configured 
   const { dap, rec } = csDapHarness(srv.port);
   await rec.handler("cs_dbg_launch")({});
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30] })) as ToolResultLike;
-  const sc = res.structuredContent as { buffered: boolean; breakpoints: Array<{ line: number; verified: boolean }> };
+  const sc = structured<{ buffered: boolean; breakpoints: Array<{ line: number; verified: boolean }> }>(res);
   assert.equal(sc.buffered, false);
   assert.deepEqual(sc.breakpoints, [{ line: 30, verified: true }]);
   dap.close();
@@ -209,7 +210,7 @@ test("cs_dbg_set_breakpoints forwards a condition when the adapter advertises su
   const { dap, rec } = csDapHarness(srv.port);
   await rec.handler("cs_dbg_launch")({});
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30], conditions: ["Counter < 50"] })) as ToolResultLike;
-  const sc = res.structuredContent as { unsupported_modifiers?: string[] };
+  const sc = structured<{ unsupported_modifiers?: string[] }>(res);
   assert.equal(sc.unsupported_modifiers, undefined);
   const bps = (bpReq!.arguments as { breakpoints: Array<Record<string, unknown>> }).breakpoints;
   assert.equal(bps[0].line, 30);
@@ -228,7 +229,7 @@ test("cs_dbg_set_breakpoints drops the condition and warns when the adapter does
   const { dap, rec } = csDapHarness(srv.port);
   await rec.handler("cs_dbg_launch")({});
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30], conditions: ["Counter < 50"] })) as ToolResultLike;
-  const sc = res.structuredContent as { unsupported_modifiers?: string[]; warning?: string };
+  const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(res);
   assert.deepEqual(sc.unsupported_modifiers, ["condition"]);
   assert.match(sc.warning ?? "", /halt unconditionally/i);
   const bps = (bpReq!.arguments as { breakpoints: Array<Record<string, unknown>> }).breakpoints;
@@ -446,7 +447,7 @@ test("cs_dbg_watch adds expressions and evaluates them in DAP 'watch' context", 
   const { dap, rec } = csDapHarness(srv.port);
   await launchAndStop(dap, rec, stop);
   const res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "Lives"] })) as ToolResultLike;
-  const sc = res.structuredContent as { watches: Array<{ expression: string; value: string; type: string; error: string | null }> };
+  const sc = structured<{ watches: Array<{ expression: string; value: string; type: string; error: string | null }> }>(res);
   assert.deepEqual(sc.watches, [
     { expression: "Counter", value: "95", type: "int", error: null },
     { expression: "Lives", value: "3", type: "int", error: null },
@@ -468,7 +469,7 @@ test("cs_dbg_watch reports a per-expression error without failing the call, and 
   const { dap, rec } = csDapHarness(srv.port);
   await launchAndStop(dap, rec, stop);
   let res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "bogus"] })) as ToolResultLike;
-  let sc = res.structuredContent as { watches: Array<{ expression: string; value: string; error: string | null }> };
+  let sc = structured<{ watches: Array<{ expression: string; value: string; error: string | null }> }>(res);
   assert.equal(sc.watches.length, 2);
   assert.equal(sc.watches[0].error, null);
   // A failed evaluate yields a non-null error on that entry (the adapter's message is at the
@@ -497,7 +498,7 @@ test("cs_dbg_set_exception_breakpoints enables filters when the adapter advertis
   const { dap, rec } = csDapHarness(srv.port);
   await rec.handler("cs_dbg_launch")({});
   const res = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
-  const sc = res.structuredContent as { filters: string[]; available_filters: Array<{ filter: string; label: string }>; breakpoints: Array<{ verified: boolean }> };
+  const sc = structured<{ filters: string[]; available_filters: Array<{ filter: string; label: string }>; breakpoints: Array<{ verified: boolean }> }>(res);
   assert.deepEqual(sc.filters, ["all"]);
   assert.deepEqual(sc.available_filters.map((f) => f.filter), ["all", "user-unhandled"]);
   assert.deepEqual(sc.breakpoints, [{ verified: true }]);
@@ -549,7 +550,7 @@ test("cs_dbg_restart uses the native DAP restart when the adapter advertises sup
   const { dap, rec } = csDapHarness(srv.port);
   await rec.handler("cs_dbg_launch")({ stop_on_entry: true });
   const res = (await rec.handler("cs_dbg_restart")({ stop_on_entry: true })) as ToolResultLike;
-  const sc = res.structuredContent as { session_id: string; method: string; state: string };
+  const sc = structured<{ session_id: string; method: string; state: string }>(res);
   assert.equal(sc.method, "restart");
   assert.equal(sc.session_id, "csharp");
   assert.ok(restartReq, "the native DAP restart request must be sent");

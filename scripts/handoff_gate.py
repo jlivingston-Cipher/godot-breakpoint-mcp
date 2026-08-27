@@ -356,6 +356,37 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      r"^TAUT_DURATION\s+sites=(\d+)/\d+ lower=(\d+) guarded=(\d+)", CHEAP, SINCE(275),
      "elapsed-time assertion sites, of which lower bounds, of which guarded by a named "
      "slack term. `duration 4 sites / 2 lower / 2 guarded`."),
+    # 🆕 287 — `block-counters-without-readers` (286 §1.3). 285 shipped
+    # `difference_field_gate.mjs` and pinned `ORPHAN_CEILING` at its live value, then put
+    # BOTH counters in its block with no row here — two numbers the block asserted that
+    # nothing in this tree could check. `INSTRUMENT_GATE_DISCOVER` accepts a roster entry
+    # or a declared exemption and nothing else; this reader accepts a reader or SILENCE,
+    # and 285 took a third option that does not exist. They were dropped from the block
+    # to get the close green, which is the weaker of the two answers.
+    #
+    # 🔴 SINCE 287 IS A MEASUREMENT, NOT A COURTESY. 285's block is the only one that ever
+    # carried either spelling and 286 dropped both, so there is no run of blocks to make
+    # them REQUIRED of — 287 is the first block that can carry them, which is
+    # `taut.duration`'s boundary for `taut.duration`'s reason. The row and the counter
+    # ship in the same PR, which is 286 §7.5.
+    ("taut.orphan", r"\borphan\b", 2, ("node", "scripts/tautology_gate.mjs"), HOST,
+     r"orphan=(\d+)/(\d+)", CHEAP, SINCE(287),
+     "🔴 THE READER WAS ALREADY WRITTEN. `tautology_gate.mjs` has printed "
+     "`TAUT_ATTRIBUTED units=… claims=… orphan=44/44` since 258 and 285 restated the "
+     "pair by hand with nothing comparing it. Bound to the gate's own line rather than "
+     "to the block's phrasing, for `instrument.across`'s reason: the block's spelling is "
+     "a session's synthesis of two lines and the roster line is the one whose subject is "
+     "the population. The pair is claims-attributed over the ceiling, so it costs "
+     "nothing beyond `taut.sites` — same command, already run."),
+    ("difference_field.population", r"\bdifference_?field\b", 3,
+     ("node", "scripts/difference_field_gate.mjs"), HOST,
+     r"^DIFFERENCE_FIELD (\d+) in population · (\d+) unreachable by default "
+     r"\((\d+) declared\)", CHEAP, SINCE(287),
+     "`difference_field 28 population / 5 unreachable / 5 declared` — the population, "
+     "the half of it no ordinary client can reach, and the half of THAT which is "
+     "declared. Three numbers in one atom because the second is meaningless without the "
+     "first and the third is the whole verdict on the second: a session that let the "
+     "undeclared count drift would be reporting an unreachable tool as accounted for."),
     ("seal.count", r"\bseal\b", 1, ("node", "scripts/seal_order_gate.mjs"), HOST,
      r"^SEAL_ORDER_GATE ok — (\d+) seal\(s\)", CHEAP, REQUIRED,
      "section seals. `seal 103`."),
@@ -752,6 +783,8 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "term.swept":                  INDEX,
     "taut.sites":                  TRACKED,
     "taut.duration":               TRACKED,
+    "taut.orphan":                 TRACKED,
+    "difference_field.population": TRACKED,
     "seal.count":                  TRACKED,
     "boundary.judged":             TRACKED,
     "wire_diff.key":               TRACKED,
@@ -2327,6 +2360,37 @@ def main_head_problems(log: str, run_network: bool, head: str = "",
                          f"refuse the tier")
         return (problems, notes)
 
+    # 🆕 287 — 🔴 TWO READINGS THAT DISAGREE ABOUT WHAT WAS ASKED ARE NOT DRIFT.
+    #
+    # `MAIN_AT_HEAD` is matched with `re.search` over `read_measured`'s concatenation of
+    # `sorted(rglob("*.log"))`, so the FIRST match wins and a `ci<N>/` that was APPENDED
+    # to carries the pickup's reading above the close's. 285 appended, and its close
+    # verified the block against `5233a71` — the commit before the merge, a tree the
+    # block was not written about — and said so only in the DRIFT NOTE below, which is
+    # deliberately not a refusal (286 §1.1).
+    #
+    # 🔴 THE DRIFT ARM IS RIGHT FOR WHAT IT COVERS AND THIS IS NOT IT. Drift is ONE
+    # honest reading that is about another commit, and the note is correct because the
+    # reading is. Two readings naming DIFFERENT commits are a reader that cannot say
+    # which one the session meant, and taking the first is answering by file order.
+    #
+    # 🔴 AND TWO LINES NAMING THE SAME COMMIT MUST PASS, because that is `--gh-open` run
+    # twice into one directory — a wasteful ritual, not a wrong one. The comparison is by
+    # short-sha prefix for the same reason `drift` below is: the emitter prints seven
+    # characters and the forge answers forty.
+    named: "list[str]" = []
+    for _sha, _concl, _bad in MAIN_AT_HEAD_RE.findall(log or ""):
+        if not any(_sha.startswith(s[:7]) or s.startswith(_sha[:7]) for s in named):
+            named.append(_sha)
+    if len(named) > 1:
+        return _with_elsewhere(
+            [f"🔴 MAIN_AT_HEAD_AMBIGUOUS the measured log names {len(named)} different "
+             f"commits — {', '.join(s[:7] for s in named)} — and this reader takes the "
+             f"first, which is an answer chosen by file order rather than by the session. "
+             f"REPLACE the four `--gh-open` readings at the close; never append them "
+             f"(286 §7.2). Keep the pickup's set beside them under a name `*.log` cannot "
+             f"see — `open.pickup.txt` is the spelling 286 used."], [])
+
     m = MAIN_AT_HEAD_RE.search(log or "")
     if m:
         sha, concl = m.group(1), m.group(2)
@@ -3496,10 +3560,49 @@ def ci_commands(root: Path = ROOT) -> "dict[str, set]":
                              for f in sorted(wf_dir.glob("*.y*ml"))})
 
 
+# 🆕 287 — WHAT THE DEPENDENT READERS SAY INSTEAD OF REFUSING. Each of the three compares
+# a roster it derives FROM the fence against one it derives from the workflow files, so
+# with no fence every one of them would report the whole of CI missing from the replay.
+# 286 §1 is the arithmetic: one omission, 122 problems, and the thirteen real ones under
+# them. The note is loud, names the reader that stayed silent, and points at the one
+# refusal that is about the actual defect.
+NO_FENCE_NOTE = ("{reader}: NOT COMPARED — this document has no replay fence, so both "
+                 "rosters would be compared against nothing. `REPLAY_FENCE_MISSING` is "
+                 "the refusal; this reader stays silent rather than restating it (287)")
+
+
+def replay_fence(text: str) -> "tuple[str, bool]":
+    """(the fence's body, whether the document HAS one) — 🆕 287.
+
+    🔴 A HANDOFF WITH NO REPLAY FENCE IS ONE WHOSE FENCE IS THE WHOLE DOCUMENT. Three
+    readers each opened `blocks[-1] if blocks else text`, and that fallback defeats the
+    guard the population exists to be. `replay_problems`'s own docstring states the rule
+    it walks around — *prose about a command is not the command* — and then hands the
+    entire document to the loop the moment no fenced block carries an invocation. 285
+    shipped §8.6, WHAT WAS MEASURED AND ON WHICH MACHINE, which is a better artifact for
+    a person and invisible to this reader, in place of §8.7; its close read 135 problems
+    and 122 of them were prose lines graded as commands (286 §1.2).
+
+    🔴 THE REFUSAL IS ONE AND IT IS `replay_problems`'S. The readers below answer the
+    EMPTY SET rather than the document, so a missing fence costs ONE refusal naming what
+    is missing instead of fifty derived from a body that was never a replay — the same
+    arithmetic 286 §1 measured, one omission and 122 problems. A reader that cannot show
+    its own refusal (273) has the shape where the true one is buried in what it caused.
+
+    🔴 AND THE FALLBACK MAY NOT SIMPLY BE DELETED. A gate that went quiet on a document
+    with no fence would accept `§8.6 instead of §8.7` in silence, which is the state 285
+    shipped. What replaces it has to REFUSE and name what belongs in the block, or the
+    next session satisfies the reader with a fence containing one line.
+    """
+    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
+    return (blocks[-1], True) if blocks else ("", False)
+
+
 def replay_commands(text: str) -> "set":
     """Every command the replay fence invokes, with its flags."""
-    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
-    body = blocks[-1] if blocks else text
+    body, has_fence = replay_fence(text)
+    if not has_fence:
+        return set()
     out = set()
     for ln in body.split("\n"):
         # the reader's own `--measured` invocation is the thing being run, not a gate the
@@ -3519,6 +3622,8 @@ def replay_ci_flag_problems(text: str, ci: "dict[str, set]",
     """(problems, notes) — the same two rosters as `replay_ci_problems`, with flags."""
     problems: "list[str]" = []
     notes: "list[str]" = []
+    if not replay_fence(text)[1]:
+        return (problems, [NO_FENCE_NOTE.format(reader="replay/ci flags")])
     exempt = REPLAY_CI_FLAG_EXEMPT if exempt is None else exempt
     floor = CI_SCRIPT_FLOOR if floor is None else floor
     if len(ci) < floor:
@@ -3570,8 +3675,9 @@ def replay_ci_flag_problems(text: str, ci: "dict[str, set]",
 def replay_scripts(text: str) -> "set":
     """Every script the replay fence invokes, by basename. Comments stripped first —
     241's own list carries `# 🆕 241` and `# -> 724/724` on command lines."""
-    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
-    body = blocks[-1] if blocks else text
+    body, has_fence = replay_fence(text)
+    if not has_fence:
+        return set()
     out = set()
     for ln in body.split("\n"):
         for s in CI_SCRIPT_RE.findall(ln.split("#")[0]):
@@ -3600,6 +3706,8 @@ def replay_ci_problems(text: str, ci: "dict[str, set]", floor: "int | None" = No
     exempt = REPLAY_CI_EXEMPT if exempt is None else exempt
     problems: "list[str]" = []
     notes: "list[str]" = []
+    if not replay_fence(text)[1]:
+        return (problems, [NO_FENCE_NOTE.format(reader="replay/ci")])
     if len(ci) < floor:
         problems.append(
             f"🔴 REPLAY_CI_FLOOR this reader found {len(ci)} script(s) across the workflow "
@@ -3802,6 +3910,8 @@ def unreached_problems(text: str, ci: "dict[str, set]", paths: "list[str] | None
     paths = tracked_scripts() if paths is None else paths
     problems: "list[str]" = []
     notes: "list[str]" = []
+    if not replay_fence(text)[1]:
+        return (problems, [NO_FENCE_NOTE.format(reader="unreached")])
     # 🔴 THE FLOOR IS OVER THE POPULATION, NOT OVER THE FINDINGS. A `git ls-files` that
     # returns nothing — no git, a different cwd, a subprocess that failed quietly —
     # yields an empty population, an empty unreached list, and a green run that has read
@@ -3885,11 +3995,25 @@ def replay_problems(text: str, ci_measured: bool = False
     """
     problems: "list[str]" = []
     notes: "list[str]" = []
-    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
-    text = blocks[-1] if blocks else text
-    hits = REPLAY_MEASURED_RE.findall(text)
-    if not hits:
-        if "handoff_gate.py" in text:
+    # 🆕 287 — `replay_fence()` REPLACES `blocks[-1] if blocks else text`, and the three
+    # arms below are the three states that fallback collapsed into one. A document whose
+    # only `--measured` invocation is PROSE is not a document with a fence; it is the
+    # state 285 shipped, and it is refused here rather than read as a fence the size of
+    # the file.
+    body, has_fence = replay_fence(text)
+    if not has_fence:
+        if REPLAY_MEASURED_RE.search(text):
+            problems.append(
+                "🔴 REPLAY_FENCE_MISSING this document names a `handoff_gate.py "
+                "--measured` invocation and every one of them is PROSE — no fenced block "
+                "carries one, so there is no replay for this reader to grade and the "
+                "counters below came from a procedure the document does not print. §8.7 "
+                "is the block that carries it: the commands as run, IN ORDER, each "
+                "routed into the log the last line reads back. 285 wrote §8.6 instead — "
+                "the same facts addressed to a person — and a reader cannot run a "
+                "paragraph (286 §7.1). A fence containing one line satisfies nothing "
+                "either: what is owed is the replay, not a block that parses.")
+        elif "handoff_gate.py" in text:
             notes.append("replay: the document runs `handoff_gate.py` with no "
                          "`--measured`, so every MUTATING counter it claims is UNREAD")
         else:
@@ -3897,6 +4021,8 @@ def replay_problems(text: str, ci_measured: bool = False
                          "a handoff nobody runs the gate against is unchecked, and the "
                          "next session cannot tell which it is")
         return (problems, notes)
+    text = body
+    hits = REPLAY_MEASURED_RE.findall(text)
     log = hits[-1].strip("`'\"")
     base = log.rsplit("/", 1)[-1]
     lines = [ln for ln in text.split("\n") if base in ln]
@@ -4466,12 +4592,119 @@ def gh_run_verdict_rest(run_id: str, why_cli: str, root: Path = ROOT
     return (str(rows.get("conclusion") or ""), str(rows.get("status") or ""), [], "")
 
 
+# 🆕 287 — THE FIFTH WORLD READING, AND THE ONLY ONE THAT HAD NO EMITTER.
+#
+# 🔴 `GH_OPEN_ISSUES`, `GH_OPEN_PRS`, `ASSETLIB_VERSION` and `MAIN_AT_HEAD` were each
+# given `--gh-open` — 271 §1, 272 §3, 277 §3 — for one argument stated once and never
+# revisited: *a replay can pay for the reading once, on whichever machine can make it,
+# and every later reader of that log gets the same answer rather than dialling again.*
+# The run VERDICT is the same kind of fact about the same forge, and it was left dialling
+# LIVE inside the close, with two routes and no third: `gh`, or the REST endpoint.
+#
+# 🔴 SO THE CLOSE COULD ONLY EVER RUN WHERE THE FORGE WAS REACHABLE AT THAT MOMENT, and
+# 286 §0 read that constraint one layer too high. It recorded *a Cowork session cannot
+# perform a close* and attributed it to the artifact download being 401 anonymous, which
+# is true and is not the whole of it: the download is one authenticated command a person
+# can run, and the verdict was a live dial inside the gate itself. 287 measured the
+# difference — everything else in the close ran in a container against `ci286/`, and this
+# was the one refusal left.
+#
+# 🔴 AND THE LINE IS BOUND TO ITS RUN, WHICH THE OTHER FOUR DO NOT NEED TO BE. A stale
+# `ASSETLIB_VERSION` is a wrong version; a stale `MEASURED_VERDICT` is a GREEN belonging
+# to some other run, laid over the numbers of this one. That is the receipt 273 named,
+# so the run id is IN the line and a line about a different run is refused rather than
+# skipped — 285's appended `MAIN_AT_HEAD` is what skipping looks like (286 §1.1).
+MEASURED_VERDICT_RE = re.compile(r"^MEASURED_VERDICT (\d+) (\w+)(?: — ([^\n]+))?", re.M)
+
+
+def verdict_emit(run_id: str, root: Path = ROOT, read=gh_run_verdict) -> int:
+    """`--gh-verdict <run>`: put the run's verdict into a log a later `--measured` reads.
+
+    🔴 AN EMITTER, NOT A GATE, AND IT EXITS 0 WHETHER OR NOT IT COULD READ — `gh_emit`'s
+    rule, for `gh_emit`'s reason. An emitter that exited non-zero where the network is
+    absent would turn the replay's exit sum into a statement about connectivity. The
+    unreadable case prints the reason with no verdict word on the line, so
+    `MEASURED_VERDICT_RE` finds nothing and the close says nobody looked rather than
+    standing on a green it never saw.
+    """
+    conclusion, status, bad, prob = read(run_id, root)
+    if prob:
+        print(f"MEASURED_VERDICT UNREAD — {prob}")
+    elif not conclusion:
+        print(f"MEASURED_VERDICT UNREAD — run {run_id} is `{status or 'unknown'}` and has "
+              f"reached no verdict yet")
+    else:
+        print(f"MEASURED_VERDICT {run_id} {conclusion}"
+              + (f" — {', '.join(bad)}" if bad else ""))
+    return 0
+
+
+def verdict_of_log(run_id: str, log: str) -> "tuple[str, list[str], str]":
+    """(conclusion, jobs that did not pass, problem) off the measured log — 🆕 287.
+
+    🔴 THE THREE ANSWERS ARE NOT TWO. A log with no line is *nobody wrote one down*, and
+    the caller falls through to the live dial; a log whose line is about ANOTHER run, or
+    whose lines disagree, is a reading that cannot be used and must not be silently
+    dropped. `main_head_problems`' ambiguity arm, on the counter this close stands on.
+    """
+    rows = MEASURED_VERDICT_RE.findall(log or "")
+    if not rows:
+        return ("", [], "")
+    mine = [(c, b) for r, c, b in rows if r == run_id]
+    foreign = sorted({r for r, _c, _b in rows if r != run_id})
+    if foreign and not mine:
+        return ("", [], f"the measured log carries MEASURED_VERDICT for run(s) "
+                        f"{', '.join(foreign)} and none for {run_id}, whose artifacts "
+                        f"produced these counters. A verdict about another run is not "
+                        f"this run's verdict. REPLACE the emitted readings at the close; "
+                        f"never append them (286 §7.2)")
+    if foreign:
+        return ("", [], f"the measured log carries MEASURED_VERDICT for {run_id} and "
+                        f"also for run(s) {', '.join(foreign)} — the directory holds "
+                        f"readings from more than one run and this reader cannot say "
+                        f"which the session meant. REPLACE the emitted readings at the "
+                        f"close; never append them (286 §7.2)")
+    said = sorted({c for c, _b in mine})
+    if len(said) > 1:
+        return ("", [], f"the measured log names run {run_id} with {len(said)} different "
+                        f"verdicts — {', '.join(said)} — and two readings that disagree "
+                        f"are not a verdict")
+    concl, bad = mine[0][0], [b.strip() for b in (mine[0][1] or "").split(",") if b.strip()]
+    return (concl, bad, "")
+
+
 def verdict_problems(run_id: str, log_sha: str, run_network: bool,
-                     read=gh_run_verdict) -> "tuple[list[str], list[str]]":
+                     read=gh_run_verdict, log: str = "") -> "tuple[list[str], list[str]]":
     """(problems, notes) — did the run these counters came from actually pass?"""
     problems: "list[str]" = []
     notes: "list[str]" = []
     if not run_id:
+        return (problems, notes)
+    # 🆕 287 — THE LOG ROUTE IS ASKED FIRST, AND IT IS ASKED BEFORE `--network` IS EVEN
+    # CONSULTED. A reading already taken, on a machine that could take it, is not
+    # improved by dialling again — and dialling again is the second chance for two
+    # readings to describe two different worlds that 279 removed from `main_run_rows`.
+    _concl, _bad, _prob = verdict_of_log(run_id, log)
+    if _prob:
+        problems.append(
+            f"🔴 MEASURED_VERDICT_UNUSABLE {_prob}. An unreachable forge is not a green "
+            f"(236 §4) and neither is a green about something else.")
+        return (problems, notes)
+    if _concl:
+        if _concl != RUN_GREEN:
+            problems.append(
+                f"🔴 MEASURED_RUN_RED run {run_id} produced every counter below and the "
+                f"log says it concluded `{_concl}`"
+                + (f" — {', '.join(_bad)} did not pass" if _bad else "")
+                + ". The artifact is uploaded `if: always()` on purpose, so it exists "
+                  "for a run whose gates refused and reads exactly like one from a run "
+                  "that did not.")
+            return (problems, notes)
+        notes.append(
+            f"measured: run {run_id} concluded `{_concl}` — read from a "
+            f"`MEASURED_VERDICT` line in the measured directory rather than dialled "
+            f"here, which is what lets a close run where the forge cannot be reached "
+            f"(287, the rule 271 §1 wrote for the other four world readings)")
         return (problems, notes)
     if not run_network:
         problems.append(
@@ -4479,7 +4712,9 @@ def verdict_problems(run_id: str, log_sha: str, run_network: bool,
             f"nothing in this run asked whether that run PASSED. The artifact is uploaded "
             f"`if: always()` on purpose, so it exists for a run whose gates refused and "
             f"reads exactly like one from a run that did not — bound, attributed, and "
-            f"about a red tree. Pass `--network`.")
+            f"about a red tree. Pass `--network`, or supply "
+            f"`MEASURED_VERDICT {run_id} <conclusion>` from `handoff_gate.py "
+            f"--gh-verdict {run_id}` in the measured directory (287).")
         return (problems, notes)
     conclusion, status, bad, prob = read(run_id)
     if prob:
@@ -4487,7 +4722,10 @@ def verdict_problems(run_id: str, log_sha: str, run_network: bool,
             f"🔴 MEASURED_VERDICT_UNREAD run {run_id} produced every counter below and its "
             f"verdict could not be read: {prob}. An unreachable forge is not a green "
             f"(236 §4) — a close standing on numbers from a run nobody graded is the "
-            f"receipt 273 named, one layer up.")
+            f"receipt 273 named, one layer up. 🆕 287 — and the reading can be paid for "
+            f"elsewhere: run `handoff_gate.py --gh-verdict {run_id}` on a machine that "
+            f"can reach the forge and put its line in the measured directory, the same "
+            f"route the other four world readings have had since 271.")
         return (problems, notes)
     if not conclusion:
         problems.append(
@@ -4803,7 +5041,7 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
         # these numbers describe the tree that shipped; only this says the tree that
         # shipped was green. `if: always()` is what makes the two different questions.
         v_problems, v_notes = verdict_problems(measured_run(log, parts), log_sha,
-                                               run_network)
+                                               run_network, log=log)
         problems.extend(v_problems)
         r_notes.extend(v_notes)
 
@@ -4958,7 +5196,21 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # because it was told to rather than because it looked. Two sessions running that a
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
-ALIAS_PENDING: "dict[str, str]" = {}
+ALIAS_PENDING: "dict[str, str]" = {
+    # 🆕 287 — `block-counters-without-readers` (286 §1.3), and this table is why the row
+    # can be closed in ONE session instead of two. 285 hit 246's gap from the other side:
+    # it had the counters, had no rows, and the three-step order says a row cannot land
+    # until a real block carries the atom — so it STRUCK both counters from its block to
+    # get the close green, which is how a number an instrument already prints stops being
+    # reported at all. Both keys leave this table at 288, when 287's block joins
+    # `BLOCK_POPULATION` and `ALIAS_PENDING_STALE` deletes them by refusing rather than by
+    # anyone remembering.
+    "taut.orphan": "287's block is the first to carry `orphan 44/44` — 285 wrote it, "
+                   "nothing in the tree could read it, and 286 dropped it",
+    "difference_field.population":
+        "287's block is the first to carry `difference_field 28 population / 5 "
+        "unreachable / 5 declared` — same session, same removal, same reason",
+}
 
 # 🆕 280 — `untagged-count-unbound` (279) NEEDED THE HEADER HALF OF 246's TABLE AND
 # THERE WAS NOT ONE. `ALIAS_PENDING` governs `COUNTER_READERS`; `HEADER_ALIAS_UNUSED`
@@ -4992,6 +5244,17 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
     ("wire_diff_key 292 tools / 3474 nodes / 17 keys / 0 unread", "wire_diff.key",
      "🔴 THE COLLISION. Carries `keys` and must NOT reach `floor_pin.literal`"),
     ("blast 1383", "instrument.blast", "the total"),
+    # 🆕 287 — `block-counters-without-readers` (286 §1.3). Both spellings are
+    # 285's OWN, taken from the block it wrote and then had to strip: these are the
+    # two atoms whose close said `UNREADABLE CLAIM`, and the fixture is the sentence
+    # that could not be read.
+    # 🔴 A ROW WITH NO PIN IS A BINDING NOTHING WOULD NOTICE THE LOSS OF, and these
+    # two need one more than most — no SHIPPED block carries either spelling, because
+    # the one session that wrote them removed them rather than write the rows.
+    ("orphan 44/44", "taut.orphan", "285's, and the reader was already printing it"),
+    ("difference_field 28 population / 5 unreachable / 5 declared",
+     "difference_field.population",
+     "285's, three numbers with no instrument behind them"),
     ("late not-loaded 0", "instrument.not_loaded",
      "🔴 CARRIES `late` AND MUST NOT REACH `instrument.late_live`"),
     ("724/724", "host.suite", "the unlabelled ratio"),
@@ -6684,6 +6947,33 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (286, """> ```
+> main                 c6443a2 — session286 a second derivation that disagrees (#361)  MOVED +1
+> branch 286           session286-a-second-derivation-that-disagrees · PR #361
+>                      🟢 PUSHED AND MERGED, 26/26 green at `a3c606f` — AT THE FIRST PUSH
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 2 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.12.0 live · 1.15.0 submitted, in review —
+>                      DO NOT RESUBMIT
+> 🟢 CI GREEN — 26 of 26 required checks at c6443a2, the post-merge run
+> 🟢 VERIFIED AFTER THE CHANGE   935/935 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2806
+>               · late not-loaded 0 · late constructed 313/160
+>               · py gates 18/6/12 · SIG 251/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 110 · 53 governed · 1714 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 319 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4928 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 458 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -7504,6 +7794,50 @@ def selftest() -> int:
         failed += 1
         print("  🔴 REPLAY_CI a command that runs only where the handoff is written was "
               "not reported — the other direction, and a check nobody else ever runs")
+
+    # ── 🆕 287 — THE FENCE ITSELF, AND THE THREE STATES THE FALLBACK COLLAPSED ────────
+    #
+    # 🔴 `blocks[-1] if blocks else text` MADE *NO FENCE* AND *A FENCE CONTAINING THE
+    # WHOLE DOCUMENT* THE SAME INPUT, and 285's close is what that costs: 135 problems,
+    # 122 of them prose lines graded as commands, and the thirteen real ones underneath.
+    # Four directions, because three of them must NOT refuse — a document that runs the
+    # gate without `--measured` and one that names no gate at all are both notes, and
+    # they are different notes.
+    claims += 1
+    _prose_only = ("§7 then says: run `python3 ../scripts/handoff_gate.py "
+                   "../HANDOFF_SESSION285.md --measured ci285/ --network` on his Mac.\n"
+                   "\n```bash\nnpm test | tail -20 > run.log\n```\n")
+    _po = replay_problems(_prose_only)
+    _has = replay_problems(_fence)
+    _quiet = replay_problems("this document names no gate and runs nothing")
+    _nomeas = replay_problems("```bash\npython3 handoff_gate.py --selftest\n```")
+    if (not any("REPLAY_FENCE_MISSING" in p for p in _po[0])
+            or any("REPLAY_FENCE_MISSING" in p for p in _has[0])
+            or _quiet[0] or _nomeas[0]
+            or not any("prints no `handoff_gate.py` invocation" in n for n in _quiet[1])
+            or not any("no `--measured`" in n for n in _nomeas[1])):
+        failed += 1
+        print(f"  🔴 REPLAY_FENCE prose={_po[0][:1]} fenced={_has[0][:1]} "
+              f"quiet={_quiet} nomeasured={_nomeas} — a `--measured` invocation that "
+              f"appears ONLY in prose is a document with no replay, and the two silent "
+              f"states are notes with different reasons")
+
+    # 🔴 AND THE DEPENDENT READERS MUST STAY SILENT, WHICH IS THE HALF THAT MAKES THE
+    # REFUSAL READABLE. Each of them compares a roster derived FROM the fence against one
+    # derived from the workflows, so on a fence-less document every CI command reads as
+    # missing from the replay — one omission and fifty findings, which is the arithmetic
+    # this whole change exists to stop.
+    claims += 1
+    _nf_ci = replay_ci_problems(_prose_only, _CI, floor=4, exempt={})
+    _nf_flag = replay_ci_flag_problems(_prose_only, {"python3 a.py": {"ci.yml"}},
+                                       exempt={}, floor=1)
+    if (_nf_ci[0] or _nf_flag[0]
+            or not all(any("NOT COMPARED" in n for n in x[1])
+                       for x in (_nf_ci, _nf_flag))):
+        failed += 1
+        print(f"  🔴 REPLAY_FENCE_CASCADE ci={_nf_ci} flags={_nf_flag} — with no fence "
+              f"these two readers have nothing to compare, and a reader that restates "
+              f"another reader's refusal fifty times buries it")
     # 🔴 THE FLOOR ON THE READER ITSELF, which is the one that matters: a regex that
     # stopped matching reports an EMPTY CI roster and perfect agreement with everything.
     claims += 1
@@ -8547,9 +8881,15 @@ def selftest() -> int:
     # 🆕 275 — ELEVEN BECAME TWELVE. `taut.duration` is `SINCE(275)` for the plainest
     # version of the reason: the line it reads is printed for the first time by the commit
     # that adds the row, so every block in the population predates the counter.
-    if len(since_rows) != 12:
+    # 🆕 287 — TWELVE BECAME FOURTEEN, and these two are the version of that reason where
+    # the line was ALREADY being printed and no block had ever bound it. `taut.orphan`
+    # has been in `tautology_gate.mjs`'s output since 258; 285 restated it and its pair
+    # by hand, nothing compared either, and 286 dropped both to get the close green
+    # (§1.3). The counter is not new — the ROW is, so 287 is the first block that can
+    # carry them and the pin moves in the commit that adds them.
+    if len(since_rows) != 14:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 12 — "
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 14 — "
               f"237 §3 measured six, 246 added four, 269 added one and 275 added one; the "
               f"table is the only record of which")
     for key, nd in since_rows:
@@ -9036,6 +9376,74 @@ def selftest() -> int:
         print("  🔴 VERDICT_LOCAL_LOG a log with no `CI_MEASURED` line was asked for a "
               "run verdict, or the run id was not read back out of an attributed part")
 
+    # ── 🆕 287 — THE LOG ROUTE, AND WHY IT IS BOUND TO ITS RUN ────────────────────────
+    #
+    # 🔴 SIX DIRECTIONS, AND `_never` IS IN FIVE OF THEM. A route that answered off the
+    # log and dialled anyway would be two readings of one world (279); a route that
+    # accepted any `MEASURED_VERDICT` line would let a green about ANOTHER run stand over
+    # these counters, which is the receipt 273 named. The green arm is the only one that
+    # may be silent, and it must be silent WITHOUT the network — that is the whole point
+    # of the emitter.
+    claims += 1
+    _v_green = verdict_problems("42", "255d139", False,
+                                read=_never, log="MEASURED_VERDICT 42 success\n")
+    _v_red = verdict_problems("42", "255d139", False,
+                              read=_never, log="MEASURED_VERDICT 42 failure — ci\n")
+    _v_other = verdict_problems("42", "255d139", False,
+                                read=_never, log="MEASURED_VERDICT 41 success\n")
+    _v_both = verdict_problems("42", "255d139", False, read=_never,
+                               log="MEASURED_VERDICT 42 success\nMEASURED_VERDICT 41 "
+                                   "success\n")
+    _v_two = verdict_problems("42", "255d139", False, read=_never,
+                              log="MEASURED_VERDICT 42 success\nMEASURED_VERDICT 42 "
+                                  "failure\n")
+    _v_twice = verdict_problems("42", "255d139", False, read=_never,
+                                log="MEASURED_VERDICT 42 success\nMEASURED_VERDICT 42 "
+                                    "success\n")
+    if (_v_green[0] or not any("concluded `success`" in n for n in _v_green[1])
+            or not any("MEASURED_RUN_RED" in p and "ci" in p for p in _v_red[0])
+            or not any("MEASURED_VERDICT_UNUSABLE" in p for p in _v_other[0])
+            or not any("MEASURED_VERDICT_UNUSABLE" in p for p in _v_both[0])
+            or not any("MEASURED_VERDICT_UNUSABLE" in p for p in _v_two[0])
+            or _v_twice[0]):
+        failed += 1
+        print(f"  🔴 VERDICT_LOG_ROUTE green={_v_green} red={_v_red[0][:1]} "
+              f"foreign={_v_other[0][:1]} both={_v_both[0][:1]} two={_v_two[0][:1]} "
+              f"twice={_v_twice[0][:1]} — a verdict emitted onto the log is read where "
+              f"the forge cannot be reached; a red one still refuses; a green about "
+              f"another run is not this run's; and the same reading written twice is "
+              f"`--gh-verdict` run twice, not a disagreement")
+
+    # 🔴 AND THE EMITTER ITSELF PRINTS A LINE THIS READER BINDS TO, which is the property
+    # 271 §1's four readings have and the thing that makes an emitter more than a print.
+    # `MAIN_AT_HEAD`'s own reason: an UNREAD line carries no numeral, so the pattern finds
+    # nothing and the close says nobody looked.
+    claims += 1
+
+    def _emit(answer):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            verdict_emit("42", read=lambda _r, _root=None: answer)
+        return buf.getvalue()
+
+    _e_green = _emit((RUN_GREEN, "completed", [], ""))
+    _e_red = _emit(("failure", "completed", ["host tests (node 18)"], ""))
+    _e_dead = _emit(("", "", [], "the forge could not be reached"))
+    _e_pend = _emit(("", "in_progress", [], ""))
+    if (verdict_of_log("42", _e_green) != (RUN_GREEN, [], "")
+            or verdict_of_log("42", _e_red)[0] != "failure"
+            or "host tests (node 18)" not in verdict_of_log("42", _e_red)[1]
+            or verdict_of_log("42", _e_dead) != ("", [], "")
+            or verdict_of_log("42", _e_pend) != ("", [], "")
+            or not verdict_problems("42", "255d139", False, read=_never,
+                                    log=_e_red)[0]):
+        failed += 1
+        print(f"  🔴 VERDICT_EMIT_SHAPE green={_e_green!r} red={_e_red!r} "
+              f"dead={_e_dead!r} pending={_e_pend!r} — the emitter's own spelling is what "
+              f"the reader binds to, and a line with no verdict word on it carries no "
+              f"claim: an unreachable forge and a run still going are both UNREAD, which "
+              f"is `MAIN_AT_HEAD`'s rule (277 §3) on the fifth reading")
+
     # ── the workflow routing question, both arms, at FLAG granularity (242's row) ─────
     claims += 1
     _caps = ci_capture_steps()
@@ -9347,6 +9755,32 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 MAIN_HEAD_DRIFT {_mh_drift} — a green read at a commit this checkout "
               f"is not at is still a green, and it is a green about something else")
+
+    # ── 🆕 287 — TWO READINGS THAT DISAGREE ABOUT WHAT WAS ASKED ─────────────────────
+    #
+    # 🔴 THE SHA PAIR IS 285's OWN. `5233a71` is the pickup's reading and `32f90f3` the
+    # close's, and 285's `ci285/` held both because the ritual said APPEND — so the close
+    # graded the block against the commit before the merge and the only thing that said
+    # so was a note (286 §1.1). The SAME-commit arm is the one that keeps this from being
+    # a rule against running `--gh-open` twice, and the long-sha arm is why the
+    # comparison is a prefix rather than equality.
+    claims += 1
+    _mh_two = main_head_problems("MAIN_AT_HEAD 5233a71 success\n"
+                                 "MAIN_AT_HEAD 32f90f3 success\n", False)
+    _mh_same = main_head_problems("MAIN_AT_HEAD 32f90f3 success\n"
+                                  "MAIN_AT_HEAD 32f90f3 success\n", False)
+    _mh_wide = main_head_problems(
+        "MAIN_AT_HEAD 32f90f3 success\n"
+        "MAIN_AT_HEAD 32f90f3d0a1b2c3d4e5f60718293a4b5c6d7e8f90 success\n", False)
+    if (not any("MAIN_AT_HEAD_AMBIGUOUS" in x for x in _mh_two[0])
+            or _mh_same[0] or _mh_wide[0]
+            or not all(any("main at HEAD" in n for n in x[1])
+                       for x in (_mh_same, _mh_wide))):
+        failed += 1
+        print(f"  🔴 MAIN_HEAD_AMBIGUOUS two={_mh_two[0][:1]} same={_mh_same} "
+              f"wide={_mh_wide} — two lines naming DIFFERENT commits are a reader that "
+              f"cannot say which the session meant; two naming the SAME one are "
+              f"`--gh-open` run twice, and the short sha is a prefix of the long one")
 
     # ── 🆕 286 — `git-hooks-unset` (228), DRIVEN IN A REAL REPOSITORY ─────────────
     #
@@ -10108,6 +10542,14 @@ def main(argv: "list[str]") -> int:
         return selftest()
     if "--gh-open" in argv:
         return gh_emit()
+    # 🆕 287 — the fifth world reading, emitted the same way and for the same reason.
+    # It takes the run id because a verdict with no run is a green with no subject.
+    if "--gh-verdict" in argv:
+        rest = [a for a in argv[argv.index("--gh-verdict") + 1:] if not a.startswith("--")]
+        if not rest:
+            print("🔴 --gh-verdict needs the run id whose artifacts the close will read")
+            return 2
+        return verdict_emit(rest[0])
     # 🆕 271 §1 — `--measured` IS PARSED BEFORE `--open` NOW, and the reorder is the whole
     # of the fix. 241 §1 recorded that `--open` *returns from `main()` before `--measured`
     # is even parsed*, which made a log-supplied reading unavailable at exactly the tier

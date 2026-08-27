@@ -75,8 +75,9 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 //              never once classified by it, and `verdict_gate.selftest.mjs` (29) is new.
 //   .          11 sites — the live drivers. Admitted only AFTER `collectFailers`, which
 //              removed seventeen sites this gate had INVENTED here (see CHECK_FNS).
-//   test/helpers  DELIBERATELY NOT ROSTERED, and pinned: `recording-server.ts` and
-//              `tcp.ts` are fixtures — a recording MCP server and a socket harness. They
+//   test/helpers  DELIBERATELY NOT ROSTERED, and pinned: `recording-server.ts`,
+//              `tcp.ts` and (🆕 287) `structured.ts` are fixtures — a recording MCP
+//              server, a socket harness, and the guarded `structuredContent` reader. They
 //              make no claims and are not suites. 174's D5 corollary is why this is
 //              written down AND asserted rather than left as a quiet omission: see
 //              `tautology_gate.selftest.mjs`'s HELPERS_NOT_ROSTERED case, which fails if

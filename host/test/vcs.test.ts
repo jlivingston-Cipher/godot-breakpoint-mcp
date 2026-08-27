@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { registerVcsTools, restoreOutcome } from "../src/tools/vcs.js";
 import type { Config } from "../src/config.js";
+import { structured } from "./helpers/structured.js";
 
 type Handler = (args: Record<string, unknown>) => Promise<{
   isError?: boolean;
@@ -75,10 +76,10 @@ test("vcs_status reports branch, staged/unstaged/untracked and clean=false", asy
     const h = setup(dir);
     const r = await h.vcs_status({});
     assert.ok(!r.isError, `unexpected error: ${JSON.stringify(r.content)}`);
-    const sc = r.structuredContent as {
+    const sc = structured<{
       branch: string | null; clean: boolean;
       staged: Array<{ path: string }>; unstaged: Array<{ path: string }>; untracked: string[];
-    };
+    }>(r);
     assert.ok(sc.branch && sc.branch.length > 0, "branch should be resolved");
     assert.equal(sc.clean, false);
     assert.ok(sc.staged.some((e) => e.path === "enemy.gd"), "enemy.gd should be staged");
@@ -92,20 +93,20 @@ test("vcs_log returns commits newest-first; path filter narrows", async () => {
   try {
     const h = setup(dir);
     const all = await h.vcs_log({});
-    const sc = all.structuredContent as { commits: Array<{ subject: string; hash: string; short: string }>; count: number };
+    const sc = structured<{ commits: Array<{ subject: string; hash: string; short: string }>; count: number }>(all);
     assert.equal(sc.count, 2);
     assert.equal(sc.commits[0].subject, "add attack()"); // newest first
     assert.equal(sc.commits[1].subject, "initial commit");
     assert.equal(sc.commits[0].short, sc.commits[0].hash.slice(0, sc.commits[0].short.length));
 
     const filtered = await h.vcs_log({ path: "enemy.gd" });
-    const fsc = filtered.structuredContent as { commits: Array<{ subject: string }>; count: number };
+    const fsc = structured<{ commits: Array<{ subject: string }>; count: number }>(filtered);
     assert.equal(fsc.count, 1, "enemy.gd only appears in the initial commit");
     assert.equal(fsc.commits[0].subject, "initial commit");
 
     // res:// prefix is accepted and stripped
     const resFiltered = await h.vcs_log({ path: "res://enemy.gd" });
-    assert.equal((resFiltered.structuredContent as { count: number }).count, 1);
+    assert.equal((structured<{ count: number }>(resFiltered)).count, 1);
   } finally { cleanup(dir); }
 });
 
@@ -114,14 +115,14 @@ test("vcs_diff (working tree) lists changed files and includes the hunk; staged 
   try {
     const h = setup(dir);
     const wt = await h.vcs_diff({});
-    const wsc = wt.structuredContent as { files: string[]; patch: string; staged: boolean };
+    const wsc = structured<{ files: string[]; patch: string; staged: boolean }>(wt);
     assert.equal(wsc.staged, false);
     assert.ok(wsc.files.includes("player.gd"), "working-tree diff should show player.gd");
     assert.ok(!wsc.files.includes("enemy.gd"), "enemy.gd change is staged, not in the working-tree diff");
     assert.ok(wsc.patch.includes("# tweak"), "patch should contain the added line");
 
     const staged = await h.vcs_diff({ staged: true });
-    const ssc = staged.structuredContent as { files: string[]; staged: boolean };
+    const ssc = structured<{ files: string[]; staged: boolean }>(staged);
     assert.equal(ssc.staged, true);
     assert.ok(ssc.files.includes("enemy.gd"), "staged diff should show enemy.gd");
     assert.ok(!ssc.files.includes("player.gd"), "player.gd is unstaged, not in the staged diff");
@@ -133,7 +134,7 @@ test("vcs_show returns commit metadata+patch, and a file's content at a ref", as
   try {
     const h = setup(dir);
     const commit = await h.vcs_show({});
-    const csc = commit.structuredContent as { ref: string; subject: string; patch: string; hash: string };
+    const csc = structured<{ ref: string; subject: string; patch: string; hash: string }>(commit);
     assert.equal(csc.ref, "HEAD");
     assert.equal(csc.subject, "add attack()");
     assert.ok(csc.patch.includes("func attack"), "commit patch should include the added function");
@@ -141,7 +142,7 @@ test("vcs_show returns commit metadata+patch, and a file's content at a ref", as
     // file mode: player.gd at the FIRST commit had no attack()
     const first = g(dir, "rev-parse", "HEAD~1");
     const fileAtFirst = await h.vcs_show({ ref: first, path: "player.gd" });
-    const fsc = fileAtFirst.structuredContent as { content: string; path: string; ref: string };
+    const fsc = structured<{ content: string; path: string; ref: string }>(fileAtFirst);
     assert.equal(fsc.path, "player.gd");
     assert.ok(fsc.content.includes("func _ready"), "content at HEAD~1 should include _ready");
     assert.ok(!fsc.content.includes("func attack"), "content at HEAD~1 should NOT yet include attack()");
@@ -153,7 +154,7 @@ test("vcs_branch_list flags the current branch", async () => {
   try {
     const h = setup(dir);
     const r = await h.vcs_branch_list({});
-    const sc = r.structuredContent as { current: string | null; branches: Array<{ name: string; current: boolean }>; count: number };
+    const sc = structured<{ current: string | null; branches: Array<{ name: string; current: boolean }>; count: number }>(r);
     assert.ok(sc.count >= 1);
     assert.ok(sc.current, "a current branch should be reported");
     const cur = sc.branches.find((b) => b.current);
@@ -166,14 +167,14 @@ test("vcs_blame attributes lines with commit/author/text; line range restricts o
   try {
     const h = setup(dir);
     const full = await h.vcs_blame({ path: "player.gd" });
-    const sc = full.structuredContent as { lines: Array<{ line: number; commit: string; author: string; text: string }>; count: number };
+    const sc = structured<{ lines: Array<{ line: number; commit: string; author: string; text: string }>; count: number }>(full);
     assert.ok(sc.count >= 3, `expected several blamed lines, got ${sc.count}`);
     assert.equal(sc.lines[0].line, 1);
     assert.ok(sc.lines[0].author === "Test User", "author should be attributed");
     assert.ok(sc.lines.some((l) => l.text.includes("extends Node")), "blamed text should include a source line");
 
     const ranged = await h.vcs_blame({ path: "player.gd", start: 1, end: 2 });
-    const rsc = ranged.structuredContent as { lines: Array<{ line: number }>; count: number };
+    const rsc = structured<{ lines: Array<{ line: number }>; count: number }>(ranged);
     assert.equal(rsc.count, 2, "range 1,2 yields exactly two lines");
     assert.deepEqual(rsc.lines.map((l) => l.line), [1, 2]);
   } finally { cleanup(dir); }
@@ -197,11 +198,11 @@ test("vcs_add stages a specific path (res:// accepted)", async () => {
     const h = setup(dir);
     const r = await h.vcs_add({ paths: ["res://notes.txt"] });
     assert.ok(!r.isError, JSON.stringify(r.content));
-    const staged = (r.structuredContent as { staged: Array<{ path: string }> }).staged.map((e) => e.path);
+    const staged = (structured<{ staged: Array<{ path: string }> }>(r)).staged.map((e) => e.path);
     assert.ok(staged.includes("notes.txt"), "notes.txt should now be staged");
     // confirmed independently via status
     const st = await h.vcs_status({});
-    assert.ok((st.structuredContent as { untracked: string[] }).untracked.length === 0, "nothing untracked after staging notes.txt");
+    assert.ok((structured<{ untracked: string[] }>(st)).untracked.length === 0, "nothing untracked after staging notes.txt");
   } finally { cleanup(dir); }
 });
 
@@ -211,7 +212,7 @@ test("vcs_commit commits the staged changes and reports the new hash; empty inde
     const h = setup(dir);
     const r = await h.vcs_commit({ message: "stage enemy.gd hit()" });
     assert.ok(!r.isError, JSON.stringify(r.content));
-    const sc = r.structuredContent as { committed: boolean; hash: string; short: string; summary: string };
+    const sc = structured<{ committed: boolean; hash: string; short: string; summary: string }>(r);
     assert.equal(sc.committed, true);
     assert.match(sc.hash, /^[0-9a-f]{40}$/);
     assert.equal(sc.summary, "stage enemy.gd hit()");
@@ -247,7 +248,7 @@ test("vcs_restore is gated: blocks without elicitation, proceeds on confirm/acce
     assert.ok(!r.isError, JSON.stringify(r.content));
     assert.ok(!fs.readFileSync(path.join(dir, "player.gd"), "utf8").includes("# tweak"), "the tweak should be discarded");
     const st = await h.vcs_status({});
-    assert.ok(!(st.structuredContent as { unstaged: Array<{ path: string }> }).unstaged.some((e) => e.path === "player.gd"));
+    assert.ok(!(structured<{ unstaged: Array<{ path: string }> }>(st)).unstaged.some((e) => e.path === "player.gd"));
   } finally { cleanup(dir); }
 
   // (c) elicit decline → cancelled, file untouched
@@ -291,7 +292,7 @@ test("vcs_restore reports the paths git actually changed, not the paths it was a
 
     const r = await h.vcs_restore({ paths: ["player.gd", "enemy.gd"], confirm: true });
     assert.ok(!r.isError, JSON.stringify(r.content));
-    const out = r.structuredContent as { restored: string[]; count: number; requested: string[]; stranded: string[] };
+    const out = structured<{ restored: string[]; count: number; requested: string[]; stranded: string[] }>(r);
 
     assert.deepEqual(out.restored, ["player.gd"], "only the path git actually changed is reported restored");
     assert.equal(out.count, 1, "count follows the measurement, not the request length");
@@ -312,7 +313,7 @@ test("vcs_restore over a path with nothing to discard reports zero rather than a
     const before = fs.readFileSync(path.join(dir, "enemy.gd"), "utf8");
     const r = await h.vcs_restore({ paths: ["enemy.gd"], confirm: true });
     assert.ok(!r.isError, JSON.stringify(r.content));
-    const out = r.structuredContent as { restored: string[]; count: number; requested: string[]; stranded: string[] };
+    const out = structured<{ restored: string[]; count: number; requested: string[]; stranded: string[] }>(r);
 
     assert.deepEqual(out.restored, [], "a clean path is NOT reported as discarded work");
     assert.equal(out.count, 0, "and the count is zero, which is what the caller needs to see");
@@ -371,18 +372,18 @@ test("vcs_stash push/list/pop work; push and drop are gated", async () => {
     assert.ok(!push.isError, JSON.stringify(push.content));
     // tracked changes are now stashed → working tree clean of them
     const st = await h.vcs_status({});
-    const sc = st.structuredContent as { staged: unknown[]; unstaged: unknown[] };
+    const sc = structured<{ staged: unknown[]; unstaged: unknown[] }>(st);
     assert.equal(sc.staged.length, 0);
     assert.equal(sc.unstaged.length, 0);
 
     const list = await h.vcs_stash({ op: "list" });
-    assert.equal((list.structuredContent as { stashes: unknown[] }).stashes.length, 1);
+    assert.equal((structured<{ stashes: unknown[] }>(list)).stashes.length, 1);
 
     // drop without elicitation → blocked, stash still present
     const blockedDrop = await h.vcs_stash({ op: "drop" });
     assert.equal(blockedDrop.isError, true);
     const stillThere = await h.vcs_stash({ op: "list" });
-    assert.equal((stillThere.structuredContent as { stashes: unknown[] }).stashes.length, 1, "blocked drop must NOT delete the stash");
+    assert.equal((structured<{ stashes: unknown[] }>(stillThere)).stashes.length, 1, "blocked drop must NOT delete the stash");
 
     const pop = await h.vcs_stash({ op: "pop" });
     assert.ok(!pop.isError, JSON.stringify(pop.content));
@@ -394,17 +395,17 @@ test("vcs_branch_create (+switch) and vcs_switch move HEAD between branches", as
   const dir = mkrepo();
   try {
     const h = setup(dir);
-    const start = (await h.vcs_branch_list({})).structuredContent as { current: string };
+    const start = structured<{ current: string }>((await h.vcs_branch_list({})));
     const create = await h.vcs_branch_create({ name: "feature/x", switch: true });
     assert.ok(!create.isError, JSON.stringify(create.content));
-    const csc = create.structuredContent as { created: boolean; switched: boolean; name: string };
+    const csc = structured<{ created: boolean; switched: boolean; name: string }>(create);
     assert.equal(csc.created, true);
     assert.equal(csc.switched, true);
     assert.equal((await h.vcs_branch_list({})).structuredContent!.current, "feature/x");
 
     const back = await h.vcs_switch({ branch: start.current });
     assert.ok(!back.isError, JSON.stringify(back.content));
-    assert.equal((back.structuredContent as { branch: string }).branch, start.current);
+    assert.equal((structured<{ branch: string }>(back)).branch, start.current);
     assert.equal((await h.vcs_branch_list({})).structuredContent!.current, start.current);
 
     // creating an existing branch errors clearly
@@ -425,17 +426,17 @@ test("vcs_blame accepts a range bound given ALONE (start without end ran to a gi
     const h = setup(dir);
     // player.gd is 6 lines after mkrepo's edits; assert relative to the full blame so the
     // test does not encode the fixture's exact length.
-    const full = (await h.vcs_blame({ path: "player.gd" })).structuredContent as { count: number };
+    const full = structured<{ count: number }>((await h.vcs_blame({ path: "player.gd" })));
 
     const startOnly = await h.vcs_blame({ path: "player.gd", start: 2 });
     assert.ok(!startOnly.isError, `start-without-end must succeed: ${startOnly.content?.[0].text}`);
-    const s = startOnly.structuredContent as { lines: Array<{ line: number }>; count: number };
+    const s = structured<{ lines: Array<{ line: number }>; count: number }>(startOnly);
     assert.equal(s.lines[0].line, 2, "start alone begins at `start`");
     assert.equal(s.count, full.count - 1, "and runs to end-of-file");
 
     const endOnly = await h.vcs_blame({ path: "player.gd", end: 2 });
     assert.ok(!endOnly.isError, `end-without-start must succeed: ${endOnly.content?.[0].text}`);
-    assert.deepEqual((endOnly.structuredContent as { lines: Array<{ line: number }> }).lines.map((l) => l.line), [1, 2]);
+    assert.deepEqual((structured<{ lines: Array<{ line: number }> }>(endOnly)).lines.map((l) => l.line), [1, 2]);
   } finally { cleanup(dir); }
 });
 
@@ -493,10 +494,10 @@ test("vcs_branch_list reports a detached HEAD as detached, agreeing with vcs_sta
     const h = setup(dir);
     g(dir, "stash", "-q", "-u");
     g(dir, "checkout", "-q", "--detach", "HEAD~1");
-    const b = (await h.vcs_branch_list({})).structuredContent as {
+    const b = structured<{
       current: string | null; detached: boolean; branches: Array<{ name: string }>; count: number;
-    };
-    const s = (await h.vcs_status({})).structuredContent as { branch: string | null };
+    }>((await h.vcs_branch_list({})));
+    const s = structured<{ branch: string | null }>((await h.vcs_status({})));
     assert.equal(b.current, null, "git's '(HEAD detached at …)' pseudo-entry is not a branch");
     assert.equal(b.detached, true);
     assert.equal(s.branch, b.current, "the two tools must agree");
@@ -513,16 +514,16 @@ test("vcs_branch_list flags remote-tracking branches (the prefix test could neve
     g(dir, "remote", "add", "origin", bare);
     g(dir, "push", "-q", "-u", "origin", "HEAD");
     const h = setup(dir);
-    const all = (await h.vcs_branch_list({ remotes: true })).structuredContent as {
+    const all = structured<{
       branches: Array<{ name: string; remote: boolean; current: boolean }>;
-    };
+    }>((await h.vcs_branch_list({ remotes: true })));
     const tracking = all.branches.filter((x) => x.remote);
     assert.equal(tracking.length, 1, `exactly one tracking branch expected, got ${JSON.stringify(all.branches)}`);
     assert.match(tracking[0].name, /^origin\//);
     assert.equal(tracking[0].current, false, "a tracking branch is never current");
     assert.ok(all.branches.some((x) => !x.remote && x.current), "the local branch is still there and current");
 
-    const local = (await h.vcs_branch_list({})).structuredContent as { branches: Array<{ remote: boolean }> };
+    const local = structured<{ branches: Array<{ remote: boolean }> }>((await h.vcs_branch_list({})));
     // 🆕 282 — THE FLOOR UNDER THE `every`, which `positive_control_gate` was right
     // about: `[].every(..)` is true, so this claim was equally green against a reader
     // that returned no branches at all — the exact silence the whole gate exists to
