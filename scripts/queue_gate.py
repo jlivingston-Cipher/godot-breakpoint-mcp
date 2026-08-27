@@ -230,17 +230,35 @@ def parse(text: str) -> "tuple[int, int, list[Row], list[str]]":
     rows: "list[Row]" = []
     in_table = False
     for lineno, line in enumerate(text.split("\n"), 1):
-        cells = _cells(line)
-        if not cells:
+        stripped = line.strip()
+        # 🆕 286 — `queue-row-drop-is-silent` (285 §9.4). 🔴 THE BLOCK ENDS AT A LINE
+        # WITH NO PIPE IN IT, NOT AT A LINE THIS READER COULD NOT PARSE. Until 286 those
+        # were one branch: `_cells` answers `[]` for a row missing its trailing pipe, that
+        # `[]` was read as *the table ended*, and every row BELOW the malformation left the
+        # population without a word. Measured at 286 over the live table: a missing pipe at
+        # row n leaves exactly n rows, at every one of 139 positions, reporting nothing.
+        if not stripped or "|" not in stripped:
             in_table = False
             continue
-        if [c.lower() for c in cells] == list(COLUMNS):
+        cells = _cells(line)
+        if cells and [c.lower() for c in cells] == list(COLUMNS):
             in_table = True
             continue
         if not in_table:
             continue
-        if all(set(c) <= set("-: ") for c in cells) and cells:
+        if cells and all(set(c) <= set("-: ") for c in cells):
             continue                                    # the |---|---| separator
+        # 🔴 AND THE MALFORMATION IS NAMED BY LINE NUMBER RATHER THAN COUNTED AS ZERO
+        # CELLS. 285 §9.4 measured the asymmetry this repairs: a row with too MANY cells was
+        # refused loudly and by line, a row with too FEW was not refused at all. Both halves
+        # are loud now, and only the silent one ever moved what the gate is quantified over.
+        if not cells:
+            problems.append(
+                f"🔴 QUEUE_ROW_UNDELIMITED line {lineno}: a line inside the queue table "
+                f"that does not both open and close with `|` — {stripped[:80]!r}. Before 286 "
+                f"this line ENDED the table and took every row below it out of the "
+                f"population in silence")
+            continue
         if len(cells) != len(COLUMNS):
             problems.append(f"🔴 QUEUE_PARSE line {lineno}: {len(cells)} cell(s), "
                             f"{len(COLUMNS)} column(s) — {line.strip()[:80]!r}")
@@ -248,6 +266,70 @@ def parse(text: str) -> "tuple[int, int, list[Row], list[str]]":
         rows.append(Row(cells, lineno))
     problems += age_domain(rows, head)
     return (fmt, head, rows, problems)
+
+
+# ── 🆕 286 — `queue-row-drop-is-silent` (285 §9.4) ─────────────────────────────
+#
+# 🔴 `🟢 QUEUE_GATE ok — every row parses` IS TRUE AND THAT IS WHY IT IS DANGEROUS. The
+# claim is quantified over the rows the parser could READ, so the one shape it cannot see
+# is the shape that shrinks the set it is quantified over. 245 §3 already compares two
+# reads of this table — and both of them call `parse`, so they share a blind spot by
+# construction and a malformation neither can see leaves them agreeing on a smaller number.
+#
+# 🔴 AND A BIGGER FLOOR IS NOT THE REPAIR. `QUEUE_ROW_FLOOR` is 20 against 139 rows, and
+# the loss is POSITIONAL: a missing pipe at row n leaves exactly n rows, so the floor sees
+# a malformation only in the first 20 positions — 14% of them today, and a smaller share
+# every session the table grows. A fixed floor against a growing population decays.
+#
+# So this is the second derivation, and it does not share `_cells`. It counts PIPE
+# CHARACTERS per line rather than splitting on them: a row missing a delimiter has nine
+# where ten are required, which is a reading the delimiter-splitter cannot make because
+# the split is what it lost. Two readers, deliberately with different blind spots —
+# `tabletop-plane`'s two-oracle argument (161) applied to a markdown table.
+_PIPES_PER_ROW = len(COLUMNS) + 1
+
+
+def block_shape(text: str) -> "tuple[int, list[str]]":
+    """(candidate rows in the queue table's block, problems). PURE over the text.
+
+    A CANDIDATE is any non-separator line in the block, whether or not it parses. The
+    block runs from the header to the first line that is blank or carries no pipe at all
+    — which is what ends a markdown table, and is not the same question as whether a
+    reader could parse a line."""
+    problems: "list[str]" = []
+    lines = text.split("\n")
+    header = -1
+    for i, line in enumerate(lines):
+        low = line.lower()
+        if line.count("|") == _PIPES_PER_ROW and all(c in low for c in COLUMNS):
+            header = i
+            break
+    if header < 0:
+        return (0, ["🔴 QUEUE_BLOCK_NO_HEADER the second derivation could not find the "
+                    "row that declares this queue's own columns, so it can disagree with "
+                    "nothing. A reader that cannot locate its population agrees with every "
+                    "number it is shown"])
+    n = 0
+    for i in range(header + 1, len(lines)):
+        stripped = lines[i].strip()
+        if not stripped or "|" not in stripped:
+            break
+        # 🔴 THE SEPARATOR IS POSITIONAL HERE, AND IN `parse` IT IS A CHARACTER CLASS —
+        # WHICH IS THE DIFFERENCE THAT MAKES THIS A SECOND READING. Markdown puts exactly
+        # one `|---|---|` under the header and never again; `parse` will skip a dash-only
+        # line ANYWHERE in the block and skip it in silence. The first draft of this
+        # function copied that character class and was measured agreeing with `parse` on
+        # a row of dashes — two readers with one blind spot are one reader (161).
+        if i == header + 1 and set(stripped) <= set("-:| "):
+            continue                                    # the |---|---| separator
+        pipes = stripped.count("|")
+        if pipes != _PIPES_PER_ROW:
+            problems.append(
+                f"🔴 QUEUE_BLOCK_SHAPE line {i + 1}: {pipes} pipe character(s), "
+                f"{_PIPES_PER_ROW} required for {len(COLUMNS)} column(s) — "
+                f"{stripped[:80]!r}")
+        n += 1
+    return (n, problems)
 
 
 # ── 🆕 271 §2 — `queue-age-can-be-negative` (OPEN 256, fifteen sessions) ───────────────
@@ -602,6 +684,33 @@ def check(text: str, tracked: "set[str] | None" = None,
     a set (including an empty one) is asking the pure question and nothing dials out.
     """
     fmt, head, rows, problems = parse(text)
+    # 🆕 286 — `queue-row-drop-is-silent` (285 §9.4). THE SECOND DERIVATION, COMPARED.
+    # 🔴 A COUNT THAT MUST *EQUAL* A POPULATION IS THE SHARPEST READER YOU CAN WRITE
+    # (285 §8.5), and the equality is only asked when `parse` is SILENT — because a parse
+    # that already refused by line number is loud, and the class this row is about is the
+    # one where nothing is said. `block_shape` counts pipe characters and `parse` splits on
+    # them, so the two cannot lose a row for the same reason.
+    n_block, block_problems = block_shape(text)
+    problems += block_problems
+    # 🔴 THE VACUITY FLOOR, AND BLINDING THE READER IS WHAT ASKED FOR IT. A derivation
+    # blinded to `(0, [])` still makes `n_block != len(rows)` true, so `QUEUE_BLOCK_DISAGREES`
+    # fired under the blind and the claim on it passed — a reader that counted NOTHING
+    # satisfying the claim that it disagreed. That is 172 §10.21's floor-at-nothing inside
+    # the instrument written to refuse exactly that, caught by the positive control it was
+    # given four minutes after it was written.
+    if not n_block and rows:
+        problems.append(
+            f"🔴 QUEUE_BLOCK_VACUOUS the pipe-counting derivation read 0 candidate(s) off "
+            f"a block the row-splitting parser read {len(rows)} row(s) from. A second "
+            f"opinion that counted nothing disagrees with every number it is shown, and "
+            f"is indistinguishable from one that is not running")
+    if not problems and n_block != len(rows):
+        problems.append(
+            f"🔴 QUEUE_BLOCK_DISAGREES the row-splitting parser read {len(rows)} row(s) "
+            f"and the pipe-counting derivation read {n_block} candidate(s) off the same "
+            f"block, and NEITHER of them said anything was wrong. `every row parses` is "
+            f"quantified over the rows a reader could read, so a shape it cannot see "
+            f"leaves the population smaller under a green gate (285 §9.4)")
     notes: "list[str]" = []
     if problems and not rows:
         return (problems, notes, 0, 0)
@@ -1164,6 +1273,89 @@ def selftest() -> int:
     red("PARSE_NO_TITLE", GOOD + ["| eps | OPEN | internal | 239 | — | — | — | — |"], "has no title")
     red("PARSE_WIDTH", GOOD + ["| eps | OPEN | internal | 239 | — | — |"], "column(s)")
 
+    # ── 🆕 286 — QUEUE_BLOCK, and the fixture is built the way 285 §9.4 found it ────
+    #
+    # 🔴 THE MALFORMATION CANNOT GO THROUGH `_table`, because `_pad_paths` re-delimits
+    # every row it is handed — the defect is in the DELIMITERS, so a fixture builder that
+    # normalises them cannot express it. It is cut into the assembled text instead, which
+    # is exactly how the live table lost thirteen rows: by hand, on one line.
+    def _undelimited(rows: "list[str]", which: int) -> "tuple[str, int]":
+        text = _table(rows)
+        lines = text.split("\n")
+        hits = [i for i, l in enumerate(lines)
+                if l.strip().startswith("| ") and " | OPEN | " in l or
+                (l.strip().startswith("| ") and " | DONE | " in l)]
+        i = hits[which]
+        lines[i] = lines[i].rstrip()[:-1]
+        return ("\n".join(lines), i + 1)
+
+    _t, _ln = _undelimited(GOOD, 0)
+    _p, _n, _r, _o = check(_t)
+    claim("PARSE_UNDELIMITED", any("QUEUE_ROW_UNDELIMITED" in x for x in _p),
+          f"a row missing its trailing pipe at line {_ln} was not refused — that is the "
+          f"whole of `queue-row-drop-is-silent` (285 §9.4)")
+    claim("PARSE_UNDELIMITED_BY_LINE",
+          any("QUEUE_ROW_UNDELIMITED" in x and f"line {_ln}" in x for x in _p),
+          f"the refusal did not name line {_ln}. 285 §9.4's asymmetry is that a row with "
+          f"too MANY cells is refused by line number and a row with too few is not "
+          f"refused at all; naming the line is the half that was missing")
+
+    # 🔴 THE REGRESSION CLAIM, AND IT IS THE ROW ITSELF. One malformed row must cost
+    # ONE row. Before 286 it cost that row and every row below it — measured on the live
+    # table at 139 rows: a missing pipe at row n left exactly n rows and said nothing.
+    _, _, _rows_bad, _ = parse(_t)
+    _, _, _rows_ok, _ = parse(_table(GOOD))
+    claim("PARSE_UNDELIMITED_KEEPS_THE_REST",
+          len(_rows_bad) == len(_rows_ok) - 1,
+          f"one undelimited row took {len(_rows_ok) - len(_rows_bad)} row(s) out of a "
+          f"population of {len(_rows_ok)}. A malformation may cost its own row and may "
+          f"not cost the ones below it — a reader that ends its table on a line it could "
+          f"not parse is quantified over a set the malformation chose")
+
+    # 🔴 THE SECOND DERIVATION'S OWN POSITIVE CONTROL, FIRST. A reader that disagrees
+    # with everything is not a second opinion.
+    _nb, _bp = block_shape(_table(GOOD))
+    claim("BLOCK_AGREES_ON_A_CLEAN_TABLE",
+          _nb == len(_rows_ok) and not _bp,
+          f"the pipe-counting derivation read {_nb} candidate(s) and the row-splitting "
+          f"parser read {len(_rows_ok)} off a table with nothing wrong ({len(_bp)} block "
+          f"problem(s)) — two readers that disagree on a clean table disagree about "
+          f"nothing useful afterwards")
+
+    # 🔴 AND THE RESIDUAL CLASS, WHICH THE ROW DID NOT NAME AND WRITING THIS FOUND. A
+    # row whose cells are all dashes is read by `parse` as the `|---|---|` separator —
+    # ANYWHERE in the block, not just under the header — and skipped in silence. Both
+    # readers were silent about it until `block_shape`'s separator rule was made
+    # POSITIONAL; the first draft copied `parse`'s character class and agreed with it.
+    _dash = _table(GOOD).split("\n")
+    _di = [i for i, l in enumerate(_dash) if l.strip().startswith("| alpha |")][0]
+    _dash[_di] = "| - | - | - | - | - | - | - | - | - |"
+    _dp, _dn, _dr, _do = check("\n".join(_dash))
+    # 🔴 AND THE EXPECTED NUMBERS COME FROM THE FIXTURE, NOT FROM THE READER UNDER
+    # TEST. The first draft recomputed both counts by calling `block_shape` again, so a
+    # derivation blinded to garbage produced a garbage refusal, the claim recomputed the
+    # same garbage and the two agreed — a positive control grading a reader against
+    # itself. `_table` puts `len(GOOD) + QUEUE_ROW_FLOOR` candidate lines in the block and
+    # the dash row costs the row-splitter exactly one of them.
+    _exp_block = len(GOOD) + QUEUE_ROW_FLOOR
+    claim("BLOCK_DISAGREES_ON_A_DASH_ROW",
+          any("QUEUE_BLOCK_DISAGREES" in x
+              and f"read {_exp_block - 1} row(s)" in x
+              and f"read {_exp_block} candidate(s)" in x for x in _dp),
+          "a row of dashes was skipped as a separator by the row-splitting parser and "
+          "counted as a candidate by the pipe-counting one, and nothing refused. That is "
+          "the shape a second derivation exists for: neither reader said a word, and the "
+          "population was one row smaller than the block it was read from")
+
+    # 🔴 AND IT REFUSES WHEN IT CANNOT FIND ITS OWN POPULATION (285 §8.5 / 281 §1.2 —
+    # unread is not green). A derivation that answers 0 over a block it never located
+    # agrees with every number it is shown.
+    _nh, _hp = block_shape("<!-- QUEUE_FORMAT 1 -->\n<!-- QUEUE_HEAD 240 -->\n\nno table\n")
+    claim("BLOCK_NO_HEADER_REFUSES", _nh == 0 and any("QUEUE_BLOCK_NO_HEADER" in x for x in _hp),
+          f"the second derivation read {_nh} candidate(s) off a file with no queue header "
+          f"and reported {len(_hp)} problem(s) — a reader that cannot locate its "
+          f"population must say so rather than return a number")
+
     # 🔴 THE FLOOR'S OWN CONTROL. A parser that stopped matching reads zero rows, finds
     # zero violations and prints ok — the exact silence `CLAIM_FLOOR` exists for, one
     # file over. The fixture is the good table with the pad removed.
@@ -1590,6 +1782,7 @@ def main(argv: "list[str]") -> int:
 
     problems, notes, n_rows, n_open = check(text)
     _fmt, head, rows, _p = parse(text)
+    n_block, _bp = block_shape(text)
     # 🆕 245 §3 — 🔴 TWO READS OF ONE TABLE THAT HAD NEVER BEEN COMPARED. `check()` parses
     # the file and reports `n_rows`; the line above parses it AGAIN for the ages, and until
     # now nothing asked whether the two agreed. The late blind found it: `parse` is called
@@ -1620,9 +1813,14 @@ def main(argv: "list[str]") -> int:
               f"list of what this project intends to do, and for twenty sessions it was "
               f"the only table here nothing read.")
         return 1
-    print("🟢 QUEUE_GATE ok — every row parses, every state carries the fields it "
-          "requires, no OPEN row is past the ceiling, no schedule has lapsed, and this "
-          "session did not close only what it invented")
+    # 🆕 286 — `queue-row-drop-is-silent` (285 §9.4). 🔴 THE SENTENCE USED TO SAY ONLY
+    # `every row parses`, which is true of any table by the rows that parsed and was
+    # printed unchanged over a population thirteen rows smaller. It now says what is
+    # actually backed: a second derivation counted the same block and got the same number.
+    print(f"🟢 QUEUE_GATE ok — every row parses AND a second derivation counted the "
+          f"same {n_block} row(s) off the same block, every state carries the fields it "
+          f"requires, no OPEN row is past the ceiling, no schedule has lapsed, and this "
+          f"session did not close only what it invented")
     return 0
 
 
