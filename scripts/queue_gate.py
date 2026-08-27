@@ -1279,23 +1279,38 @@ def selftest() -> int:
     # every row it is handed — the defect is in the DELIMITERS, so a fixture builder that
     # normalises them cannot express it. It is cut into the assembled text instead, which
     # is exactly how the live table lost thirteen rows: by hand, on one line.
+    # 🔴 AND IT RETURNS AN UNBUILDABLE FIXTURE INSTEAD OF INDEXING INTO ONE, WHICH
+    # `instrument_gate` ASKED FOR WITHIN THE HOUR. The first draft ended `hits[which]`, so
+    # blinding `_table` or `_pad_paths` — both rostered targets whose empty is `""` — made
+    # this helper raise `IndexError` before any claim ran: `{SIG:_table}` and
+    # `{SIG:_pad_paths}` went RED WITHOUT the gate reaching its own verdict, `CRASH_CEILING
+    # 2 > 0`, and those rows then proved that PYTHON THROWS ON AN EMPTY rather than that
+    # this gate's claims bite (198 §3). 285 §5.7 paid the same lesson one session earlier
+    # in `difference_field_gate.selftest.mjs` — a self-test that dies reports nothing.
+    # An unbuildable fixture is now a claim that FAILS, with the reason on the line.
     def _undelimited(rows: "list[str]", which: int) -> "tuple[str, int]":
         text = _table(rows)
         lines = text.split("\n")
         hits = [i for i, l in enumerate(lines)
-                if l.strip().startswith("| ") and " | OPEN | " in l or
-                (l.strip().startswith("| ") and " | DONE | " in l)]
+                if l.strip().startswith("| ")
+                and (" | OPEN | " in l or " | DONE | " in l)]
+        if len(hits) <= which:
+            return (text, -1)
         i = hits[which]
         lines[i] = lines[i].rstrip()[:-1]
         return ("\n".join(lines), i + 1)
 
     _t, _ln = _undelimited(GOOD, 0)
     _p, _n, _r, _o = check(_t)
-    claim("PARSE_UNDELIMITED", any("QUEUE_ROW_UNDELIMITED" in x for x in _p),
+    claim("PARSE_UNDELIMITED_FIXTURE", _ln > 0,
+          "`_table`/`_pad_paths` produced no row line to un-delimit, so every claim below "
+          "would be graded against a fixture that does not carry the defect. A fixture "
+          "builder that cannot build is a claim that fails, not an exception")
+    claim("PARSE_UNDELIMITED", _ln > 0 and any("QUEUE_ROW_UNDELIMITED" in x for x in _p),
           f"a row missing its trailing pipe at line {_ln} was not refused — that is the "
           f"whole of `queue-row-drop-is-silent` (285 §9.4)")
     claim("PARSE_UNDELIMITED_BY_LINE",
-          any("QUEUE_ROW_UNDELIMITED" in x and f"line {_ln}" in x for x in _p),
+          _ln > 0 and any("QUEUE_ROW_UNDELIMITED" in x and f"line {_ln}" in x for x in _p),
           f"the refusal did not name line {_ln}. 285 §9.4's asymmetry is that a row with "
           f"too MANY cells is refused by line number and a row with too few is not "
           f"refused at all; naming the line is the half that was missing")
@@ -1306,7 +1321,7 @@ def selftest() -> int:
     _, _, _rows_bad, _ = parse(_t)
     _, _, _rows_ok, _ = parse(_table(GOOD))
     claim("PARSE_UNDELIMITED_KEEPS_THE_REST",
-          len(_rows_bad) == len(_rows_ok) - 1,
+          _ln > 0 and len(_rows_bad) == len(_rows_ok) - 1,
           f"one undelimited row took {len(_rows_ok) - len(_rows_bad)} row(s) out of a "
           f"population of {len(_rows_ok)}. A malformation may cost its own row and may "
           f"not cost the ones below it — a reader that ends its table on a line it could "
@@ -1328,8 +1343,9 @@ def selftest() -> int:
     # readers were silent about it until `block_shape`'s separator rule was made
     # POSITIONAL; the first draft copied `parse`'s character class and agreed with it.
     _dash = _table(GOOD).split("\n")
-    _di = [i for i, l in enumerate(_dash) if l.strip().startswith("| alpha |")][0]
-    _dash[_di] = "| - | - | - | - | - | - | - | - | - |"
+    _dhits = [i for i, l in enumerate(_dash) if l.strip().startswith("| alpha |")]
+    for _di in _dhits[:1]:
+        _dash[_di] = "| - | - | - | - | - | - | - | - | - |"
     _dp, _dn, _dr, _do = check("\n".join(_dash))
     # 🔴 AND THE EXPECTED NUMBERS COME FROM THE FIXTURE, NOT FROM THE READER UNDER
     # TEST. The first draft recomputed both counts by calling `block_shape` again, so a
@@ -1338,8 +1354,11 @@ def selftest() -> int:
     # itself. `_table` puts `len(GOOD) + QUEUE_ROW_FLOOR` candidate lines in the block and
     # the dash row costs the row-splitter exactly one of them.
     _exp_block = len(GOOD) + QUEUE_ROW_FLOOR
+    claim("BLOCK_DASH_FIXTURE", bool(_dhits),
+          "`_table`/`_pad_paths` produced no `alpha` row to replace with dashes — the "
+          "fixture below would be graded against a table that never carried the shape")
     claim("BLOCK_DISAGREES_ON_A_DASH_ROW",
-          any("QUEUE_BLOCK_DISAGREES" in x
+          bool(_dhits) and any("QUEUE_BLOCK_DISAGREES" in x
               and f"read {_exp_block - 1} row(s)" in x
               and f"read {_exp_block} candidate(s)" in x for x in _dp),
           "a row of dashes was skipped as a separator by the row-splitting parser and "
