@@ -6619,6 +6619,44 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (284, """> ```
+> main                 5233a71 — a ruled-out entry owes no source pass (#359)  MOVED +5
+> branch 284           session284-the-rule-that-runs-at-the-bump · PR #355
+>                      🟢 PUSHED AND MERGED, 26/26 green — AT THE FIRST PUSH
+> branch 284b          session284b-the-sweep-that-read-the-source · PR #356
+>                      🟢 PUSHED AND MERGED, 26/26 green — the landscape sweep
+> branch 284c          session284c-the-second-call-is-where-it-shows · PR #357
+>                      🟢 PUSHED AND MERGED, 26/26 green — at the SECOND push; the
+>                      tabletop plane on a real editor found the fixup
+> branch 284d          session284d-a-ranked-search-is-not-a-population · PR #358
+>                      🟢 PUSHED AND MERGED, 26/26 green — sdk-drift's second cause
+> branch 284e          session284e-a-ruled-out-entry-owes-no-source-pass · PR #359
+>                      🟢 PUSHED AND MERGED, 26/26 green — cleaning up after 284's
+>                      own baselining, which made the next sweep refuse
+> host / addon         1.83.0 / 1.15.0  🔴 ADDON MOVED — the write behaviour changed
+>                      after the 1.14.1 stamp, so `--assert-addon` refused the commit
+> npm                  🔴 registry 1.82.1 · the cut is merged and NOT published ·
+>                      `npm whoami` REFUSED, the stored token is rejected — `npm login`
+>                      first · 0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.12.0 live · 1.15.0 submission now owed
+> 🟢 sdk-drift SUCCESS at 5233a71 — red since 2026-08-17, green now; all three legs
+> 🟢 VERIFIED AFTER THE CHANGE   935/935 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 22 · LATE_LIVE 20/8 · 0 crashes · blast 2730
+>               · late not-loaded 0 · late constructed 309/160
+>               · py gates 18/6/12 · SIG 248/105
+>               · discover 54/14/14/26 · 0 exempt · 0 undeclared
+>               · floor_pin 109 · 53 governed · 1696 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 317 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4893 · duration 4 sites / 2 lower / 2 guarded
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 75/75 claims · handoff 455 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
