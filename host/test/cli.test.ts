@@ -87,7 +87,29 @@ after(() => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const sc = (r: ToolResult) => r.structuredContent as Record<string, unknown>;
+/**
+ * 🔴 285 — MEASURED IN CI ON PR #360, WHICH IS THE ROW'S OWN FIRST INSTANCE.
+ * `not ok 100 - godot_run_project tells NOT WAITED apart from WAITED AND LOST`
+ * `error: "Cannot read properties of undefined (reading 'bridge_ready')"`, a
+ *   TypeError at `cli.test.ts:164`, one line after this helper handed back
+ *   `undefined`. Node 20 only; node 18 and node 22 green on the same commit.
+ *
+ * 🔴 THE TYPEERROR IS THE DEFECT `shape-before-field-uncounted` (285) NAMES: the
+ * assertion read a reply it had never established arrived, so the log says what
+ * JavaScript did and NOT what `godot_run_project` returned. 275 shipped this exact
+ * guard at `dap.test.ts` after `Cannot read properties of undefined (reading
+ * 'state')` cost a CI round-trip; the class was never counted, and this is the
+ * third file it has now bitten in.
+ *
+ * 🔵 AND THE HELPER SPELLING IS THE CHEAP HALF OF THAT POPULATION. One line here
+ * guards every call site in this file, where an inline
+ * `(res.structuredContent as X).field` has to be guarded one at a time.
+ */
+const sc = (r: ToolResult) => {
+  assert.ok(r.structuredContent,
+    `the CLI tool returned no structuredContent — ${JSON.stringify(r).slice(0, 400)}`);
+  return r.structuredContent as Record<string, unknown>;
+};
 
 test("godot_version returns the captured version string and exit code 0", { skip: !POSIX }, async () => {
   const tools = setup(fakeGodot, dir);
