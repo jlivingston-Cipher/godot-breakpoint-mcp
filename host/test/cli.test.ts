@@ -88,26 +88,35 @@ after(() => {
 });
 
 /**
- * 🔴 285 — MEASURED IN CI ON PR #360, WHICH IS THE ROW'S OWN FIRST INSTANCE.
- * `not ok 100 - godot_run_project tells NOT WAITED apart from WAITED AND LOST`
- * `error: "Cannot read properties of undefined (reading 'bridge_ready')"`, a
- *   TypeError at `cli.test.ts:164`, one line after this helper handed back
- *   `undefined`. Node 20 only; node 18 and node 22 green on the same commit.
+ * 🔴 285 — A GUARD IN A HELPER IS A PRECONDITION, NOT A CLAIM, AND SPELLING IT
+ * `assert.ok` TOLD THE CLAIM-COUNTER IT WAS ONE. The first version of this guard used
+ * `assert.ok(r.structuredContent, …)`, which is a claim site at MODULE SCOPE — inside no
+ * `test()` block and under no section marker — so `tautology_gate` counted two new
+ * ORPHANS and refused on all three legs: `TAUT_ORPHAN_RISE 46 > 44 — 2 claim site(s)
+ * reached`. That ceiling was pinned AT the live value hours earlier by
+ * `orphan-ceiling-headroom` (248, closed at 285) precisely so the next rise would be
+ * looked at rather than absorbed, and the next rise was this one.
  *
- * 🔴 THE TYPEERROR IS THE DEFECT `shape-before-field-uncounted` (285) NAMES: the
- * assertion read a reply it had never established arrived, so the log says what
- * JavaScript did and NOT what `godot_run_project` returned. 275 shipped this exact
- * guard at `dap.test.ts` after `Cannot read properties of undefined (reading
- * 'state')` cost a CI round-trip; the class was never counted, and this is the
- * third file it has now bitten in.
+ * 🔵 RAISING THE CEILING WOULD HAVE BEEN THE WRONG FIX EVEN THOUGH THE GATE OFFERS IT.
+ * This helper asserts nothing about the tree. It refuses to hand back garbage, and the
+ * CLAIMS are the `assert.equal(sc(r).field, …)` lines at the call sites, which are
+ * inside their own `test()` blocks and already attributed. A `throw` says that; an
+ * `assert` misfiles a precondition as a claim and then asks for headroom to hold it.
  *
- * 🔵 AND THE HELPER SPELLING IS THE CHEAP HALF OF THAT POPULATION. One line here
- * guards every call site in this file, where an inline
- * `(res.structuredContent as X).field` has to be guarded one at a time.
+ * The diagnostic is unchanged — `node:test` reports a thrown Error's message in the
+ * same `error:` field an AssertionError lands in.
+ *
+ * WHY IT IS HERE AT ALL: measured in CI on PR #360,
+ * `not ok 100 - godot_run_project tells NOT WAITED apart from WAITED AND LOST` with
+ * `error: "Cannot read properties of undefined (reading 'bridge_ready')"` — a TypeError
+ * one line after this helper handed back `undefined`, carrying none of its own
+ * diagnosis. `shape-before-field-uncounted` (285) is the row; one line here guards every
+ * call site in this file, where an inline cast has to be guarded one at a time.
  */
 const sc = (r: ToolResult) => {
-  assert.ok(r.structuredContent,
-    `the CLI tool returned no structuredContent — ${JSON.stringify(r).slice(0, 400)}`);
+  if (!r.structuredContent) {
+    throw new Error(`the CLI tool returned no structuredContent — ${JSON.stringify(r).slice(0, 400)}`);
+  }
   return r.structuredContent as Record<string, unknown>;
 };
 
