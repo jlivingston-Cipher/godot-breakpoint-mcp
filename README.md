@@ -7,7 +7,7 @@
 > connect too (see [Compatibility](#compatibility)).
 >
 > **npm 1.83.0 · addon 1.15.0 · full 292 / secure-default 279 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 925-test suite plus
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 933-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -401,6 +401,42 @@ Examples: `BREAKPOINT_TOOLSETS=c` → 27 runtime tools; `a,b` → 155 (editor + 
 falls back to the full surface — a typo never yields an empty server. This is a **menu filter,
 not a capability cut**: every tool that loads is the same typed, schema-validated, undoable
 tool it always was.
+
+### Tool limits — if your client refuses to load Breakpoint
+
+Some clients cap how many tools a server may advertise and **refuse the whole server** past
+that cap. The refusal happens before any Breakpoint code runs, so there is no Breakpoint log
+to read and nothing in this repository the symptom obviously points at — which is why the
+exact text is quoted here, to be searchable:
+
+| Client | Cap | What you see |
+|---|---|---|
+| Google Antigravity | 100 | `enabled tools would exceed max limit of 100`, and the server does not load at all |
+| VS Code (agent mode) | 128 | agent mode is blocked once the total across every enabled server goes over |
+
+The default surface is larger than both, so on a capped client pick a preset that fits.
+These two are published **and measured** — `host/test/client_caps.test.ts` counts each one
+against the smallest cap above on every run, so a tool added later reddens a test here
+instead of an editor there:
+
+| Preset | Size | What you keep |
+|---|---|---|
+| `BREAKPOINT_TOOLSETS=d` | → **58** | Plane D whole: GDScript **and** C# language servers, GDScript **and** C# debuggers — breakpoints, stepping, stack frames, scopes, watch expressions, variable writes |
+| `BREAKPOINT_TOOLSETS=b,c,d` | → **92** | The above plus the headless CLI (Plane B) and the running-game runtime and verification family (Plane C) — everything except live editor authoring |
+
+Both fit under every cap in the table. `d` is the debugging-first preset and the one the
+startup line recommends; `b,c,d` is the largest published preset that still fits, so it has
+the least headroom as the surface grows.
+
+Every run also prints what it actually registered, on stderr, at startup:
+
+```
+[breakpoint-mcp] tool surface: 279 tool(s) registered · groups assetgen,backend,cli,…
+```
+
+That line is the count your client is being offered — after the toolset filter and after the
+default-off capability groups are dropped — and it names the remedy whenever it is over the
+smallest cap. A configuration you can read is a configuration you can fix.
 
 ## Recipes (free, curated task workflows)
 
