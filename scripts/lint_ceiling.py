@@ -80,6 +80,31 @@ silently dropped them would be reporting on a population it had not named, which
     that took one parameter and dropped it. 185 §19 swept that gate's SUBJECT for
     arguments that do not reach the assertion; the same defect was in its own two helpers.
 Both are fixed at the same commit as this reader, so both classes are absent below.
+
+🆕 289 — THE STRICTNESS QUESTION IS DECIDED, AND THE ANSWER IS NO. `ts-strict-mjs-undeclared`
+(242) asked whether the instruments should be judged at the strictness the shipped product
+already meets, and sat OPEN for forty-seven sessions. Forty-seven sessions of not deciding was
+the defect; the row was never 2,568 problems to fix. THE DECISION: this half keeps running
+non-strict, on the reasons measured at 242 and restated at the top of this file rather than on
+new ones —
+
+  * 1,558 of the 1,558-finding delta is `noImplicitAny` saying a parameter carries no
+    annotation. Over untyped JavaScript that is an ANNOTATION-DENSITY measure, not a defect
+    measure, and summing it with a real class such as `TS2339` destroys the by-class
+    distinction §2 of this file exists to make.
+  * A ceiling that moves whenever anybody writes a function parameter is a gate people route
+    around, which is the failure mode this whole shelf is built against.
+  * The population is not the product. Every file in it is an instrument or a build script;
+    none of it is run by an installer of the package; and the shipped TypeScript is already
+    `tsc --strict` on every push. The strictness the product meets is a fact about the
+    product, and this population is not the product.
+
+🔴 AND WHAT WOULD REVERSE IT IS WRITTEN DOWN, because a decision with no reversal condition is
+a preference wearing a verdict's clothes: a strict-only finding in a class that is NOT
+`noImplicitAny`, or a tracked `.mjs` that starts shipping to users. Either makes strict a
+defect measure here, and the row reopens on that evidence rather than on the size of the
+number. The measurement stays one command — `tsc --allowJs --checkJs --strict` over
+`git ls-files '*.mjs'` — so re-asking costs a minute and re-deciding costs a paragraph.
 """
 
 from __future__ import annotations

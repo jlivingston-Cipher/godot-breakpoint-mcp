@@ -1256,6 +1256,15 @@ INSTRUMENTS = [
             # because `population_currency` refuses a head it cannot believe rather
             # than deriving an empty requirement from it.
             "{SIG:population_currency}": "return []",
+            # 🆕 289 — THE THIRD READER `POPULATION_CURRENCY` IS NOW MADE OF, AND IT IS
+            # THE ONLY ROUTE PAST IT. `BLOCK_ABSENT` lets a session that shipped nothing
+            # owe no block; `block_absent_problems` is what keeps that roster from being
+            # a hole anybody can widen — it refuses a declared absence that contradicts a
+            # block, names a session at or after the head, sits below the floor, or
+            # carries no reason. Blinded to its empty, every one of those refusals
+            # vanishes and the roster becomes an unchecked allowlist, which is the shape
+            # this whole harness exists to find.
+            "{SIG:block_absent_problems}": "return []",
             "{SIG:queue_head}": "return (0, \"\",)",
             "{SIG:moved_interval}": "return (0, \"\",)",
             "{SIG:tree_versions}": "return ((\"\", \"\",), \"\",)",

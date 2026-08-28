@@ -30,6 +30,8 @@ import { taskStore, TASK_CAPABILITIES } from "./tasks.js";
 import { RESOURCE_CAPABILITIES, registerResourceSubscriptions } from "./subscriptions.js";
 import { pauseLatch, installPauseSignalHandlers } from "./pause.js";
 import { applyResultCost } from "./result-cost.js";
+import { installToolCensus } from "./tool-census.js";
+import { capAdvice } from "./client-caps.js";
 import { log } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -118,6 +120,15 @@ async function main(): Promise<void> {
   // not merely early: McpServer installs its tools/list handler from inside the FIRST
   // registerTool, so a wrapper added after any registration wraps nothing.
   applyWireDefaults(server);
+
+  // 🆕 289 — THE CENSUS, AND IT IS FIRST BECAUSE FIRST IS INNERMOST. Every apply*
+  // below makes itself the OUTERMOST registerTool wrapper, so the earliest one
+  // installed is the LAST in the call chain and counts only what reached the SDK —
+  // after `applyCapabilities` dropped a privileged tool and after the toolset
+  // filter declined a whole group. Installed later it would count 292 attempts on
+  // every configuration and be wrong exactly on the default one. `applyWireDefaults`
+  // keeps its FIRST claim above: it wraps setRequestHandler, not registerTool.
+  const toolCensus = installToolCensus(server);
 
   // B1: enforce frozen output schemas on every structured tool. Must run before
   // any register*Tools call — it wraps server.registerTool.
@@ -237,6 +248,19 @@ async function main(): Promise<void> {
     const on = [...privilegedGroups].sort().join(", ") || "(none)";
     log(`privileged groups enabled: ${on}; dropped ${droppedTools(privilegedGroups).length} tool(s) from the surface`);
   }
+
+  // 🆕 289 — THE COUNT A CAPPED CLIENT JUDGES THIS SERVER BY, PRINTED WHERE ITS
+  // OPERATOR CAN SEE IT. Unconditional, because the configurations that need it
+  // most are the ones nobody configured: a client that refuses a long tool list
+  // refuses BEFORE anything here runs, so a user whose editor went quiet has no
+  // output to search and no reason to suspect a count. The advice clause is
+  // silent under the smallest cap and names the remedy above it — a number
+  // without a remedy is what the client's own error message already gives them.
+  const registeredTools = toolCensus();
+  log(
+    `tool surface: ${registeredTools} tool(s) registered · groups ` +
+      `${[...enabled].sort().join(",")}${capAdvice(registeredTools)}`,
+  );
 
   // Track 2 — global-pause latch (prototype). A coarse overlay on the destructive
   // gate: SIGUSR1 pauses, SIGUSR2 resumes; BREAKPOINT_START_PAUSED starts held.

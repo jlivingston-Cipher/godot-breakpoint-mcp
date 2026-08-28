@@ -718,7 +718,16 @@ SUBJECT_SIGNALS: "dict[str, tuple[str, str]]" = {
     MACHINE: ("the runner — interpreter version, installed tooling, parallelism or the "
               "clock. Two machines at the SAME commit may honestly disagree, which is "
               "the one class TIER0's inheritance cannot be repaired for by re-running",
-              r"cpu_count|os\.cpu|time\.time\(|time\.perf|Date\.now\(|process\.version"
+              # 🆕 289 — `cpu_count` WAS THE ONE BARE TOKEN IN THIS PATTERN, and every
+              # sibling idiom beside it is call-shaped or module-qualified (`time.time(`,
+              # `Date.now(`, `os.cpu`, `process.hrtime`). Bare, it matched two things that
+              # are not readings of a machine: this regex's own source text, and the
+              # selftest fixture below that drives it — so the derivation over `scripts/`
+              # answered MACHINE about the file that defines the derivation (281's row,
+              # re-measured at 282). Call-shaping it costs nothing an idiom-shaped grep
+              # was buying and removes both. The expensive half of that row — deriving per
+              # INVOCATION rather than per file — is still open and still worth having.
+              r"cpu_count\(|os\.cpu|time\.time\(|time\.perf|Date\.now\(|process\.version"
               r"|sys\.version_info|shutil\.which|platform\.(?:system|machine|release)"
               r"|process\.hrtime|multiprocessing\.|Math\.random\(|random\.(?:random|choice|shuffle)"),
     CLONE_CFG: ("THIS CHECKOUT's configuration — hooks, remotes, `git config`. 234 §4.8 "
@@ -758,9 +767,13 @@ SUBJECT_UNDERIVABLE: "dict[str, str]" = {
         "🔴 ONE FILE, TWO SUBJECTS, AND THE ROW RUNS THE PURE ONE. The derivation "
         "answers about a FILE and a row invokes a MODE. `handoff_gate.py --selftest` is "
         "fixture-driven and reads nothing but this file's own tables; the same file's "
-        "`--gh-open` dials GitHub and npm. Derived over the file it comes back MACHINE, "
-        "on a `cpu_count` that is in `SUBJECT_SIGNALS`' own regex — the corpus of a "
-        "derivation over `scripts/` contains the derivation. TRACKED, by the mode.",
+        "`--gh-open` dials GitHub and npm. 🆕 289 — RE-MEASURED, AND THE ANSWER MOVED "
+        "WITHOUT THE ROW MOVING: it came back MACHINE on a bare `cpu_count` that was in "
+        "`SUBJECT_SIGNALS`' own regex, and call-shaping that idiom drops it to CLONE on "
+        "`\"git\", \"config\"`, `\"git\", \"remote\"`, `core.hooksPath` and `get-url` — "
+        "the network and configuration path `--selftest` does not reach. The exemption "
+        "is unchanged and its reason is stronger: the file still holds two subjects and "
+        "this row still runs the pure one. TRACKED, by the mode.",
 }
 
 # Every reader key's SUBJECT, derived at 281 by `subject_of` over `reader_corpus` and
@@ -1526,6 +1539,86 @@ def queue_head(root: Path = ROOT) -> "tuple[int, str]":
     return (int(m.group(1)), "")
 
 
+# ══ 🆕 289 — A SESSION THAT SHIPPED NOTHING LEAVES NOTHING TO REGISTER ═══════════════
+#
+# 🔴 `population_currency` DERIVES ITS REQUIREMENT FROM `QUEUE_HEAD`, AND THAT DERIVATION
+# CARRIES AN ASSUMPTION NOBODY HAD WRITTEN DOWN: that every session between 233 and the
+# head SHIPPED. 288 did not. It was asked for analysis and documentation only — no commit,
+# no branch, nothing under `godot-claude-bridge/` touched — and it therefore published no
+# status block, on its own §7.2 argument that a block is a claim that somebody verified a
+# tree and a session that verified none has nothing to claim. Its handoff predicted this
+# collision in words (*"would then owe a `BLOCK_POPULATION` row for a session that shipped
+# nothing"*) and could not resolve it, because the resolution is a line of code in this
+# file and 288 was not allowed to touch this file.
+#
+# 🔴 THE ANSWER IS A DECLARATION, NOT AN INFERENCE. A gap this reader ignored on its own
+# would be a hole any session could open by not registering a block — the precise failure
+# `POPULATION_CURRENCY` exists to close, and one that `previous_main` and
+# `version_interval` would answer confidently and wrongly through. So an absence is
+# admitted only when it is TYPED here with its reason, and the roster is judged in both
+# directions: a session cannot be declared absent AND carry a block (that is a
+# contradiction, and the block is the stronger evidence), a session at or after the head
+# cannot be declared at all (that is a claim about a future nobody has run), and a row
+# below the population's own floor exempts nothing.
+#
+# 🔵 AND THE SUBSTANTIVE REASON THE SKIP IS SAFE IS THE SAME FACT THAT MAKES THE SESSION
+# ABSENT. Both backward-scanning readers want the last tree that MOVED; a session that
+# shipped no commit did not move it, so scanning past it reaches the same answer it would
+# have reached if that session had never opened. The declaration says the tree did not
+# move; `git.moved` at the next close is what would catch the claim being false.
+BLOCK_ABSENT: "dict[int, str]" = {
+    288: "🔴 ANALYSIS AND DOCUMENTATION ONLY, BY INSTRUCTION — a PR was inflight with CI "
+         "running, so 288 opened no queue row, ran no mutating gate, made no commit and "
+         "left the tree clean at 287's branch tip. It published no status block "
+         "deliberately (288 §0.2, §7.2): every counter on a VERIFIED line is a "
+         "measurement of a tree, 288 measured none, and a block copied forward would be "
+         "287's numbers wearing 288's name. 289 therefore opened against "
+         "`HANDOFF_SESSION287.md`, whose block was still the live one because the tree "
+         "had not moved. What 288 produced is in the shared folder — the landscape "
+         "refresh and the screened unified plan — and 289's Rank 1 is the first of it to "
+         "ship.",
+}
+
+
+def block_absent_problems(head: "int | None" = None,
+                          population: "list[tuple[int, str]] | None" = None,
+                          absent: "dict[int, str] | None" = None) -> "list[str]":
+    """The absence roster judged against the population and the head — PURE.
+
+    An entry that contradicts a block, names a session this tree cannot have seen ship,
+    or sits below the floor is refused: a roster of exemptions nobody re-reads is 174 §5,
+    and this one is the only route past a reader that exists to have no routes past it.
+    """
+    pop = BLOCK_POPULATION if population is None else population
+    ros = BLOCK_ABSENT if absent is None else absent
+    have = {s for s, _ in pop}
+    out: "list[str]" = []
+    for session in sorted(ros):
+        if session in have:
+            out.append(
+                f"🔴 POPULATION_ABSENT_CONTRADICTED session {session} is declared to have "
+                f"shipped nothing AND its block is in `BLOCK_POPULATION`. A block is a "
+                f"measurement somebody took; the declaration is a sentence somebody "
+                f"typed. Delete the row")
+        if head is not None and session >= head:
+            out.append(
+                f"🔴 POPULATION_ABSENT_FUTURE session {session} is declared absent and "
+                f"this tree calls itself session {head} — a session at or after the head "
+                f"has not finished, so nothing can yet be said about what it left behind")
+        if session < POPULATION_SHAPE_FROM:
+            out.append(
+                f"🔴 POPULATION_ABSENT_UNDERFLOOR session {session} is below "
+                f"{POPULATION_SHAPE_FROM}, the oldest session this table is judged from, "
+                f"so the row exempts nothing and hides the next one")
+        if len((ros[session] or "").strip()) < 80:
+            out.append(
+                f"🔴 POPULATION_ABSENT_UNREASONED session {session} is declared absent "
+                f"with no substantive reason. The whole cost of this roster is that "
+                f"somebody has to say why, in a sentence the next reader can disagree "
+                f"with")
+    return out
+
+
 def population_currency(head: "int | None" = None,
                         population: "list[tuple[int, str]] | None" = None) -> "list[str]":
     """253's rule, DERIVED and enforced — every block a shipped session left behind is in
@@ -1585,7 +1678,11 @@ def population_currency(head: "int | None" = None,
                 f"and an empty requirement derived from an unreadable number is a green "
                 f"that has checked nothing"]
     need = [n for n in range(POPULATION_SHAPE_FROM, head)]
-    missing = [n for n in need if n not in have]
+    # 🆕 289 — a session DECLARED to have shipped nothing owes no block; the declaration
+    # is judged by `block_absent_problems`, which is where an undeclared hole stays a
+    # refusal and a declared one stays somebody's typed sentence.
+    absent = set(BLOCK_ABSENT)
+    missing = [n for n in need if n not in have and n not in absent]
     if not missing:
         return []
     newest = max(missing)
@@ -5197,19 +5294,12 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 287 — `block-counters-without-readers` (286 §1.3), and this table is why the row
-    # can be closed in ONE session instead of two. 285 hit 246's gap from the other side:
-    # it had the counters, had no rows, and the three-step order says a row cannot land
-    # until a real block carries the atom — so it STRUCK both counters from its block to
-    # get the close green, which is how a number an instrument already prints stops being
-    # reported at all. Both keys leave this table at 288, when 287's block joins
-    # `BLOCK_POPULATION` and `ALIAS_PENDING_STALE` deletes them by refusing rather than by
-    # anyone remembering.
-    "taut.orphan": "287's block is the first to carry `orphan 44/44` — 285 wrote it, "
-                   "nothing in the tree could read it, and 286 dropped it",
-    "difference_field.population":
-        "287's block is the first to carry `difference_field 28 population / 5 "
-        "unreachable / 5 declared` — same session, same removal, same reason",
+    # 🆕 289 — EMPTY AGAIN, AND BOTH ROWS LEFT THE WAY THE TABLE IS DESIGNED FOR: 287's
+    # block joined `BLOCK_POPULATION` in this session's first PR, `taut.orphan` and
+    # `difference_field.population` became reached on that same run, and
+    # `ALIAS_PENDING_STALE` refused them by name. Deleted because the gate said so, not
+    # because a session remembered — the third table in a row to expire on time (276,
+    # 287, 289), which is the only end state 246 designed this one to have.
 }
 
 # 🆕 280 — `untagged-count-unbound` (279) NEEDED THE HEADER HALF OF 246's TABLE AND
@@ -6970,6 +7060,33 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · taut 4928 · duration 4 sites / 2 lower / 2 guarded
 >               · mutlock 5 guarded / 23 cases · tree_quiet 13
 >               · queue 83/83 claims · handoff 458 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (287, """> ```
+> main                 96b5d48 — session287 a reading paid for once (#362)  MOVED +1
+> branch 287           session287-a-reading-paid-for-once · PR #362
+>                      🟢 PUSHED AND MERGED at `b253467`, squashed to `96b5d48`
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 3 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — run 33124129058 concluded `success` at 96b5d48, the post-merge run
+> 🟢 VERIFIED AFTER THE CHANGE   935/935 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2880
+>               · late not-loaded 0 · late constructed 318/160
+>               · py gates 18/6/12 · SIG 257/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 112 · 53 governed · 1726 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 320 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4942 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 476 claims
 >               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
 >                 addon / 0 problems
 > ```
@@ -9172,6 +9289,73 @@ def selftest() -> int:
         print(f"  🔴 POPULATION_CURRENCY_HEAD an unreadable head was turned into an EMPTY "
               f"requirement and reported clean, which is the reader going quiet rather "
               f"than the tree being right: {_blind[:1]}")
+
+    # ── 🆕 289 — `BLOCK_ABSENT`, THE ONLY ROUTE PAST THE READER ABOVE ────────────────
+    #
+    # 🔴 THE ROSTER IS DRIVEN, NOT ASSERTED. It is the one way a session can satisfy
+    # `POPULATION_CURRENCY` without registering a block, so every arm that admits and
+    # every arm that refuses runs here on a fixture — 273 §2's rule, and the reason a
+    # roster whose refusals have never executed is a roster nobody has.
+    claims += 1
+    if block_absent_problems(head=queue_head()[0]):
+        failed += 1
+        print("  " + block_absent_problems(head=queue_head()[0])[0][:300])
+    # The pair that makes the roster meaningful rather than permissive: the SAME hole is
+    # clean when declared and refused when not. A reader that skipped every gap would
+    # satisfy the first half alone.
+    claims += 1
+    _hole = [(s, b) for s, b in BLOCK_POPULATION if s != 285]
+    _undeclared = population_currency(head=287, population=_hole)
+    if not _undeclared or "session 285 has SHIPPED" not in _undeclared[0]:
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_PAIR an UNDECLARED hole at 285 was not refused by "
+              f"name: {_undeclared[:1]}")
+    # …and the same tree with that one session declared is CLEAN. Both halves on one
+    # fixture, because a reader that refused everything and a reader that skipped
+    # everything each satisfy exactly one of them.
+    claims += 1
+    _saved = dict(BLOCK_ABSENT)
+    try:
+        BLOCK_ABSENT[285] = "d" * 100
+        _declared = population_currency(head=287, population=_hole)
+    finally:
+        BLOCK_ABSENT.clear()
+        BLOCK_ABSENT.update(_saved)
+    if _declared:
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_PAIR a DECLARED absence was still refused, so the "
+              f"roster is not the route past this reader it claims to be: {_declared[:1]}")
+    claims += 1
+    _both = block_absent_problems(head=999, population=BLOCK_POPULATION,
+                                  absent={287: "a" * 100})
+    if not any("POPULATION_ABSENT_CONTRADICTED" in g for g in _both):
+        failed += 1
+        print("  🔴 POPULATION_ABSENT_CONTRADICTED did not fire on a session declared "
+              "absent whose block is in the population — the block is the measurement "
+              "and the declaration is a sentence")
+    claims += 1
+    _future = block_absent_problems(head=289, population=BLOCK_POPULATION,
+                                    absent={289: "b" * 100})
+    if not any("POPULATION_ABSENT_FUTURE" in g for g in _future):
+        failed += 1
+        print("  🔴 POPULATION_ABSENT_FUTURE did not fire on a session declared absent at "
+              "or after the head — a session that has not finished has left nothing to "
+              "say anything about")
+    claims += 1
+    _thin = block_absent_problems(head=999, population=[], absent={288: "too short"})
+    if not any("POPULATION_ABSENT_UNREASONED" in g for g in _thin):
+        failed += 1
+        print("  🔴 POPULATION_ABSENT_UNREASONED did not fire on a row with no "
+              "substantive reason — the whole cost of this roster is that somebody has "
+              "to say why")
+    claims += 1
+    _floor = block_absent_problems(head=999, population=[],
+                                   absent={POPULATION_SHAPE_FROM - 1: "c" * 100})
+    if not any("POPULATION_ABSENT_UNDERFLOOR" in g for g in _floor):
+        failed += 1
+        print("  🔴 POPULATION_ABSENT_UNDERFLOOR did not fire on a row below the oldest "
+              "session this table is judged from — an exemption for a session nothing "
+              "asks about hides the next one")
 
     # ── 🆕 274 — THE CI-MEASURED CLOSE, EVERY ARM DRIVEN ON A FIXTURE ─────────────────
     #

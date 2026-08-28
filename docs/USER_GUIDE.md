@@ -408,6 +408,30 @@ to load the **full 292**. `breakpoint-mcp init --trust full` sets this for you, 
 |---|---|---|
 | `BREAKPOINT_PRIVILEGED_GROUPS` | *(empty → none)* | Comma/space list of groups to enable: `code-execution` (runs GDScript / invokes arbitrary methods / paused-frame `evaluate` / the local asset-gen `command` backend), or `all`. There is no `network` group: nothing on the surface egresses beyond loopback. |
 
+### Toolsets, and the client tool-count caps they exist for
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BREAKPOINT_TOOLSETS` | *(unset → every group)* | Comma/space list of planes or group ids to register. Planes: `a` editor, `b` CLI, `c` runtime, `d` GDScript & C# LSP/DAP, `csharp`, `all`. Group ids: `cli editor lsp cslsp dap csdap runtime processes knowledge vcs assetgen netcode backend tabletop resources`. Unknown tokens are ignored, and an all-unknown filter falls back to the full surface. |
+
+**Some clients refuse a server whose tool list is too long, and they refuse it whole.**
+Google Antigravity caps the list at 100 and VS Code blocks agent mode at 128 across every
+enabled server; Antigravity's refusal reads `enabled tools would exceed max limit of 100` and
+loads nothing. That refusal happens before this server runs, so no Breakpoint log records it —
+if Breakpoint never appears in a client that caps, check this before anything else.
+
+Two presets are published as fitting under both caps, and both are measured by the suite rather
+than typed: `BREAKPOINT_TOOLSETS=d` → **58** (both language servers and both debuggers — the
+whole debugging surface), and `b,c,d` → **92** (that plus the headless CLI and the running-game
+runtime family). Every start also prints the count actually registered, on stderr:
+
+```
+[breakpoint-mcp] tool surface: 279 tool(s) registered · groups assetgen,backend,cli,…
+```
+
+See [Tool limits](../README.md#tool-limits--if-your-client-refuses-to-load-breakpoint) for the
+full table and the exact symptoms.
+
 ### AI asset generation (opt-in)
 
 Asset generation is **off by default**. See
@@ -1006,6 +1030,16 @@ underlying steps.
 
 Most problems are a plane that is not reachable yet, or a port mismatch. Work from the
 plane you are using.
+
+### The client never loads the server at all (`enabled tools would exceed max limit of 100`)
+
+- The client capped the tool list and refused the whole server: Google Antigravity stops at 100 and VS Code blocks agent mode at 128.
+  Nothing here ran, so there is no Breakpoint log to check — the message came from the client.
+- Set `BREAKPOINT_TOOLSETS` to a preset that fits: `d` (**58** — both language servers and both
+  debuggers) or `b,c,d` (**92** — that plus the CLI and runtime planes). Both are measured
+  against the smallest cap by the test suite, not typed into a document.
+- Once it loads, the startup line on stderr reports the count that was actually registered, so
+  the next configuration can be judged from output instead of guessed.
 
 ### `editor_ping` fails / editor tools do nothing
 
