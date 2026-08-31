@@ -186,6 +186,33 @@ counts them as `unclassified` rather than defaulting them into the leg that prob
 them — a visible number that falls as sessions classify rows, rather than a silent
 assumption that this rule's own defect never happened.
 
+### 🆕 292 — What a never-tracked project owes is a property of its CHANNEL
+
+🔴 **291 SHIPPED THIS RULE AND LEFT THE OLD ONE STANDING BESIDE IT.** The paragraphs above
+say everything a leg surfaces owes a row; the Asset Library leg went on demanding a
+source-level pass for a never-tracked MCP-shaped entry. So *a project exists and we have not
+read it* had two prices, and which one applied depended on which shop found it — with
+nothing anywhere saying the difference was intended.
+
+🔵 **THE ASYMMETRY IS KEPT, BECAUSE THE ARGUMENT FOR IT IS REAL.** The Asset Library serves
+roughly ten new MCP-shaped entries a year, each an addon a Godot user installs into the same
+editor Breakpoint runs in; npm and the MCP Registry surfaced fifty untracked projects on the
+first afternoon anybody queried them. Pricing by arrival rate is a defensible decision. What
+was not defensible was leaving it undeclared.
+
+🔴 **SO IT IS A DECLARED FIELD.** Every row of `CHANNELS` in `scripts/assetlib_sweep.py`
+carries `severity` — `row` or `analysis` — and a `severity_why` giving the argument. Both
+refusal sites read it through `severity_of()`; neither spells its own price any more, and a
+project surfaced by several channels owes the **dearest** of them, because a cheap channel
+seeing a project an expensive one also sees does not discount it. Three controls hold the
+field up, all merge-blocking through `--census`: a channel that declares no severity, one
+declaring a value no refusal site can spend, and one declaring a price with no argument
+beside it are each refused by name. An unknown channel defaults to `analysis`, because the
+failure this file has actually suffered is a population priced cheaply by accident.
+
+**The rule, in one line:** *the price of being unread is set by the channel and written down
+where the channel is declared — never by the branch of an `if` a project fell down.*
+
 ## Rule 4 — Write about our capability, not about anyone's deficiency
 
 Every sweep and every piece of public material follows this:
