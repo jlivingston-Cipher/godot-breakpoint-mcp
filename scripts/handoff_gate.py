@@ -3316,6 +3316,20 @@ REPLAY_CI_FLAG_EXEMPT: "dict[str, str]" = {
         "COST OF THIS ROW: a reader whose only trigger is a weekly cron is unread for up "
         "to a week BY CONSTRUCTION, which is what 279's pickup found it had been. The "
         "offline half is in the replay and merge-blocking in `ci.yml`.",
+    "python3 assetlib_sweep.py --emit":
+        "🆕 291 — `sdk-drift.yml` only, the same job and the same four hosts as `--check` "
+        "one row up, and the emitter is exempt for the reason the reading it emits exists. "
+        "It prints the world-facing landscape numbers — what each channel served, what the "
+        "relevance filters dropped, how many projects folded out of them — and a container "
+        "that answers HTTP 403 to godotengine.org, registry.npmjs.org and "
+        "registry.modelcontextprotocol.io alike would emit four honest `unread` lines and "
+        "nothing else. \U0001f534 A REPLAY LINE THAT CAN ONLY EVER RECORD *THIS MACHINE "
+        "CANNOT DIAL* IS A STATEMENT ABOUT THE MACHINE (235 \u00a76.3), and the session "
+        "that reads the log a week later cannot tell it from a landscape that went quiet. "
+        "The reading belongs where `--gh-open`'s does: taken once on a machine that CAN "
+        "reach the hosts, written into the measured directory, and spent from there (287). "
+        "The offline half \u2014 `--selftest` and `--census` \u2014 is in the replay and "
+        "merge-blocking in `ci.yml`.",
     "python3 registry_lag.py --upstream":
         "🆕 279 — `sdk-drift.yml` only, same trigger and the same argument. It asks whether "
         "the registry serves a MAJOR newer than the one `host/package.json` pins, which is "
