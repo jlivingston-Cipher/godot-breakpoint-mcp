@@ -1265,6 +1265,16 @@ INSTRUMENTS = [
             # vanishes and the roster becomes an unchecked allowlist, which is the shape
             # this whole harness exists to find.
             "{SIG:block_absent_problems}": "return []",
+            # 🆕 290 — AND ITS BLIND IS THE DEFECT IT WAS WRITTEN TO FIX, WHICH IS THE
+            # STRONGEST EMPTY THIS ROSTER CAN CARRY. `shipped_predecessor` resolves *the
+            # previous session* through `BLOCK_ABSENT` for the two readers that ask it —
+            # the tier, and the shape of the table. Its degenerate answer is not `None`
+            # or a zero: it is `session - 1, []`, exactly what both readers assumed
+            # before this session, so the blind restores the state in which 289's own
+            # honest close refused `TIER0_PREDECESSOR` and paid a full replay for it. A
+            # blind that reddens by returning nonsense proves the reader is called; this
+            # one proves the reader is RIGHT.
+            "{SIG:shipped_predecessor}": "return session - 1, []",
             "{SIG:queue_head}": "return (0, \"\",)",
             "{SIG:moved_interval}": "return (0, \"\",)",
             "{SIG:tree_versions}": "return ((\"\", \"\",), \"\",)",
