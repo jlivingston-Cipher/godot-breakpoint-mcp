@@ -15,10 +15,35 @@
     "is a complete and sufficient result for that entry.",
     "",
     "House terminology: these are ALTERNATIVE MCP SERVERS, not rivals.  See",
-    "docs/LANDSCAPE_TRACKING_POLICY.md."
+    "docs/LANDSCAPE_TRACKING_POLICY.md.",
+    "",
+    "🆕 291 — THIS ROSTER HAS TWO POPULATIONS, AND THE SPLIT IS THE POINT.",
+    "",
+    "`entries` are products READ AT SOURCE, each with a ruling: debugger, real_dap_client,",
+    "real_lsp_client, csharp, protocol_revision and a note. The cost of a row here is a",
+    "source-level pass, so a row is ELECTED and never automatic.",
+    "",
+    "`surfaced` are products a DISCOVERY LEG has seen, carried permanently, holding only",
+    "what the leg itself supplies: channel, repository slug, package, version, publish date",
+    "and the session that first saw them. No capability claim, because no one has read them.",
+    "The cost of a row here is one row, so EVERY project any leg surfaces owes one, and",
+    "`assetlib_sweep.py --check` refuses when one is missing.",
+    "",
+    "🔴 WHY IT IS TWO AND NOT ONE. Until 291 the sweep had a single severity — a",
+    "never-tracked MCP-shaped entry owed a source-level pass — which was affordable while",
+    "the population was ONE channel serving roughly ten new entries a year. The first run",
+    "across three channels surfaced fifty. A rule demanding fifty source-level passes in one",
+    "commit does not produce fifty analyses; it produces a gate that is red forever and a",
+    "roster nobody can make green. Fifty rows with the capability fields blank would be",
+    "worse still: that is a coverage claim nobody made.",
+    "",
+    "`channel` records where a product SHIPS, and it is optional. Forty-five entries predate",
+    "the channel legs and nobody has recorded where any of them ships; `assetlib_sweep.py",
+    "--census` prints that count as `unclassified` rather than defaulting it, so the number",
+    "is a visible intake that falls as sessions classify rows."
   ],
   "policy": "docs/LANDSCAPE_TRACKING_POLICY.md",
-  "last_full_sweep": "2026-08-26",
+  "last_full_sweep": "2026-08-31",
   "entries": [
     {
       "name": "godot-mcp-go",
@@ -671,6 +696,749 @@
       "cadence": "annual",
       "status": "active",
       "note": "Recorded at 279 from the discovery leg, which had been reporting it as NEW with nothing refusing. In-editor AI addon: it opens no socket and cannot be driven by an MCP client, so it owes no source-level pass until it moves into category."
+    },
+    {
+      "name": "coding-solo-godot-mcp",
+      "repo": "Coding-Solo/godot-mcp",
+      "asset_id": null,
+      "channel": "npm",
+      "npm": "@coding-solo/godot-mcp",
+      "npm_version": "0.1.1",
+      "npm_publish_date": "2026-02-03",
+      "category": "alternative-mcp-server",
+      "stars_at_analysis": 5399,
+      "last_analysed": "2026-08-27",
+      "last_analysed_commit": null,
+      "source_verifiable": true,
+      "debugger": "none",
+      "real_dap_client": false,
+      "real_lsp_client": false,
+      "csharp": false,
+      "protocol_revision": null,
+      "cadence": "dormant",
+      "status": "active",
+      "note": "🔴 THE ENTRY THIS ROSTER'S POPULATION WAS BLIND TO, AND THE MOST-STARRED PROJECT IN THE CATEGORY. 5,399 stars at the 2026-08-27 reading against hi-godot/godot-ai's 1,954, which this roster and two published analyses both called the clear popularity leader; that claim was wrong for as long as it was made and no health in the Asset Library leg could have said so. Ships on npm only — verified by grepping every .md/.json/.gd/.ts/.yml in the repository for Asset Library install instructions, zero hits. 14 tools, MIT, last commit 2026-04-16. It is the UPSTREAM of tugcantopaloglu/godot-mcp, which this roster has tracked since it had 439 stars. 🟢 Credit where it is due (Rule 4): it has a visible security posture — external hardening pull requests for shell injection and arbitrary GDScript instantiation were merged promptly. `last_analysed_commit` is deliberately null: the 2026-08-27 pass recorded capabilities, not a SHA, and 284's rule is that a baseline nobody read is worse than an honest `unread`."
+    },
+    {
+      "name": "satelliteoflove-godot-mcp",
+      "repo": "satelliteoflove/godot-mcp",
+      "asset_id": null,
+      "channel": "npm",
+      "npm": "@satelliteoflove/godot-mcp",
+      "npm_version": "4.1.11",
+      "npm_publish_date": "2026-08-27",
+      "mcp_registry_name": "io.github.satelliteoflove/godot-mcp",
+      "category": "alternative-mcp-server",
+      "stars_at_analysis": 147,
+      "last_analysed": "2026-08-27",
+      "last_analysed_commit": null,
+      "source_verifiable": true,
+      "debugger": "none",
+      "real_dap_client": false,
+      "real_lsp_client": false,
+      "csharp": false,
+      "protocol_revision": "2025-06-18",
+      "cadence": "daily",
+      "status": "active",
+      "note": "🟢 THE MOST ACTIVE PROJECT IN THE CATEGORY AND THE ONE WITH THE BROADEST CI, AND SAYING SO IS RULE 4 WORKING. 21 tools / 88 actions, MIT, 309 commits with a release cut on the day it was read. MCP revision 2025-06-18, SDK 1.30.0. Roughly 458 TypeScript tests, 24 GDScript headless tests and 8 agent evals across 4 CI workflows, including a wire-level protocol smoke test against the BUILT artifact and tool-schema snapshot tests — a shape worth learning from. Deterministic game-time control: `freeze` / `step` / `step_until` / `thaw`. It is the first project found on all three enumerable channels at once (npm, the official MCP Registry, GitHub Releases), which is what makes it the fold's own positive control."
+    },
+    {
+      "name": "ryanmazzolini-minimal-godot-mcp",
+      "repo": "ryanmazzolini/minimal-godot-mcp",
+      "asset_id": null,
+      "channel": "npm",
+      "npm": "@ryanmazzolini/minimal-godot-mcp",
+      "npm_version": "0.1.6",
+      "npm_publish_date": "2026-02-26",
+      "category": "alternative-mcp-server",
+      "last_analysed": "2026-08-27",
+      "last_analysed_commit": null,
+      "source_verifiable": true,
+      "debugger": "dap-client-output-only",
+      "real_dap_client": true,
+      "real_lsp_client": true,
+      "csharp": false,
+      "protocol_revision": null,
+      "cadence": "dormant",
+      "status": "active",
+      "note": "🟢 A FOURTH REAL DAP CLIENT, AND IT MOVED NOTHING — WHICH IS RULE 4's DEPTH RULE DEMONSTRATED RATHER THAN ARGUED. It opens a socket to port 6006 and speaks the Debug Adapter Protocol, and to port 6005/6007 for LSP, so `real_dap_client` and `real_lsp_client` are both true. Measured at source: it sends exactly TWO DAP requests — `initialize` and `attach` — and uses the connection as a pipe for `output` events. Its four tools are `get_diagnostics`, `scan_workspace_diagnostics`, `get_console_output`, `clear_console_output`. No breakpoints, no stepping, no stack trace, no scopes, no variables, no C#. So the category now has four projects with a real DAP client and the number that can step through a breakpoint is unchanged: an existence claim would have decayed here for the fourth time; the depth claim did not move at all."
+    },
+    {
+      "name": "bradypp-godot-mcp",
+      "repo": "bradypp/godot-mcp",
+      "asset_id": null,
+      "channel": null,
+      "category": "alternative-mcp-server",
+      "last_analysed": "2026-08-27",
+      "last_analysed_commit": null,
+      "source_verifiable": true,
+      "debugger": "none",
+      "real_dap_client": false,
+      "real_lsp_client": false,
+      "csharp": false,
+      "protocol_revision": null,
+      "cadence": "dormant",
+      "status": "dormant",
+      "note": "16 tools, a clean decomposition of Coding-Solo's monolith with a genuine read-only mode. Dormant since 2025-05-31. 🔴 `channel` IS NULL AND THAT IS THE MEASUREMENT: it ships by `git clone` alone — no addon, no package, no registry entry — so no enumerable channel can surface it and no leg in this file will ever re-read it. It is here because a human named it, which is the same standing as the `commercial` rows and is why `channel: null` prints as `unclassified` rather than being defaulted into a channel that never saw it."
+    },
+    {
+      "name": "gdai-mcp-plugin-godot",
+      "repo": "3ddelano/gdai-mcp-plugin-godot",
+      "asset_id": null,
+      "channel": "commercial",
+      "category": "alternative-mcp-server",
+      "stars_at_analysis": 97,
+      "last_analysed": "2026-08-27",
+      "last_analysed_commit": null,
+      "source_verifiable": false,
+      "debugger": "unknown",
+      "real_dap_client": null,
+      "real_lsp_client": null,
+      "csharp": null,
+      "protocol_revision": null,
+      "cadence": "unknown",
+      "status": "active",
+      "note": "Closed-source commercial product, sold from gdaimcp.com. The GitHub repository is a shopfront and a version-check endpoint — 11 files, and `main.gd` is one line; \"All rights reserved\", no LICENSE. 🔴 `source_verifiable: false` IS THE POINT OF THE ROW. Every capability field is `null` and not `false`: this roster's other rows carry rulings taken by reading source, and writing `false` here would be a ruling nobody is able to take. A later sweep that finds these nulls should leave them alone rather than treat them as a gap to close — the gap is the licence, not the analysis."
+    },
+    {
+      "name": "summer-engine",
+      "repo": null,
+      "asset_id": null,
+      "channel": "commercial",
+      "category": "adjacent-hosted-product",
+      "last_analysed": "2026-08-27",
+      "last_analysed_commit": null,
+      "source_verifiable": false,
+      "debugger": "unknown",
+      "real_dap_client": null,
+      "real_lsp_client": null,
+      "csharp": null,
+      "protocol_revision": null,
+      "cadence": "unknown",
+      "status": "active",
+      "note": "An AI-native desktop game engine with a HOSTED MCP server — free tier plus paid plans. Engine-level rather than file-level: it runs the scene, reads live runtime errors and generates assets. 🔵 CATEGORISED `adjacent-hosted-product` RATHER THAN `alternative-mcp-server` BECAUSE IT IS NOT AN ALTERNATIVE TO BREAKPOINT — a user choosing it is choosing a different engine, not a different MCP server for Godot. It is on the roster because the tracking policy carries every product any sweep has seen and because a hosted engine-level MCP server is the shape of the category's next question, not because it competes for the same install. No repository: `source_verifiable: false` for the same reason as GDAI, one channel over."
+    }
+  ],
+  "surfaced": [
+    {
+      "key": "64ix/godot-playtest",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "64ix/godot-playtest",
+      "npm": "godot-playtest-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.1",
+      "last_published": "2026-08-20",
+      "description": "Thin proxy MCP server to the godot-playtest Bridge: tools 1:1 with the protocol's verbs (docs/protocol/DRAFT-v0.md), plus launch_game/attach."
+    },
+    {
+      "key": "6ninelives/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "6ninelives/godot-mcp",
+      "npm": "@xianlee/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.2.2",
+      "last_published": "2026-03-03",
+      "description": "MCP server for Godot Engine — zero-config auto-detection, semantic search, visual diff UI, and full editor integration."
+    },
+    {
+      "key": "advik-b/conduitmcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "advik-b/conduitmcp",
+      "npm": "conduit-mcp-server",
+      "mcp_registry_name": null,
+      "version": "0.8.0",
+      "last_published": "2026-08-25",
+      "description": "MCP stdio server giving an AI agent native control of the Godot editor and running game"
+    },
+    {
+      "key": "craigsteyn/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "craigsteyn/godot-mcp",
+      "npm": "godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2025-07-29",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
+    },
+    {
+      "key": "cwchanap/godot-agent-plugin",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "cwchanap/godot-agent-plugin",
+      "npm": "@cwchanap/godot-plugin",
+      "mcp_registry_name": null,
+      "version": "0.1.4",
+      "last_published": "2026-08-23",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
+    },
+    {
+      "key": "diegobr4nd/godot-gut-mcp",
+      "channels": [
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "diegobr4nd/godot-gut-mcp",
+      "npm": null,
+      "mcp_registry_name": "io.github.DiegoBr4nd/godot-gut-mcp",
+      "version": "0.1.2",
+      "last_published": "2026-07-01",
+      "description": "Servidor MCP que permite ejecutar tests de Godot con GUT desde cualquier IA"
+    },
+    {
+      "key": "elfensky/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "elfensky/godot-mcp",
+      "npm": "@elfensky/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.3.0",
+      "last_published": "2026-03-31",
+      "description": "MCP server for Godot game engine integration"
+    },
+    {
+      "key": "erodenn/godot-mcp-runtime",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "erodenn/godot-mcp-runtime",
+      "npm": "godot-mcp-runtime",
+      "mcp_registry_name": "io.github.Erodenn/godot-mcp-runtime",
+      "version": "3.2.2",
+      "last_published": "2026-08-07",
+      "description": "A lightweight, zero-footprint TypeScript MCP server that lets AI assistants interact with the Godot 4.x game engine: not just editing files, but playing the gam"
+    },
+    {
+      "key": "fastmcp-me/kooix-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "fastmcp-me/kooix-godot-mcp",
+      "npm": "@fastmcp-me/kooix-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.1.17",
+      "last_published": "2025-10-15",
+      "description": "A comprehensive Model Context Protocol server for Godot game engine development assistance with AI-powered debugging, code generation, and project analysis",
+      "via": "republisher"
+    },
+    {
+      "key": "fernforestgames/mcp-server-godot",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "fernforestgames/mcp-server-godot",
+      "npm": "@fernforestgames/mcp-server-godot",
+      "mcp_registry_name": null,
+      "version": "0.3.0",
+      "last_published": "2025-10-08",
+      "description": "MCP server for Godot integration"
+    },
+    {
+      "key": "fernforestgames/mcp-server-godot-docs",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "fernforestgames/mcp-server-godot-docs",
+      "npm": "@fernforestgames/mcp-server-godot-docs",
+      "mcp_registry_name": null,
+      "version": "0.1.1",
+      "last_published": "2026-01-02",
+      "description": "MCP server to help agents search Godot engine documentation"
+    },
+    {
+      "key": "funplayai/funplay-godot-mcp",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "funplayai/funplay-godot-mcp",
+      "npm": "funplay-godot-mcp",
+      "mcp_registry_name": "io.github.FunplayAI/funplay-godot-mcp",
+      "version": "0.10.0",
+      "last_published": "2026-07-31",
+      "description": "stdio bridge for the local Funplay MCP for Godot editor addon."
+    },
+    {
+      "key": "gregario/godot-forge",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "gregario/godot-forge",
+      "npm": "godot-forge",
+      "mcp_registry_name": "io.github.gregario/godot-forge",
+      "version": "0.1.4",
+      "last_published": "2026-04-26",
+      "description": "The definitive AI development companion for Godot 4 — MCP server with test runner, docs search, script analysis, and more"
+    },
+    {
+      "key": "had0yun/gopeak-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "had0yun/gopeak-godot-mcp",
+      "npm": "gopeak",
+      "mcp_registry_name": null,
+      "version": "2.3.8",
+      "last_published": "2026-06-17",
+      "description": "GoPeak — MCP server for trusted Godot 4 workflows with compact/dynamic tool profiles, setup-gated LSP/DAP/runtime integrations, and migration-safe legacy compat"
+    },
+    {
+      "key": "heichan2000/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "heichan2000/godot-mcp",
+      "npm": "@cradial/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-07-04",
+      "description": "MCP server that bridges AI agents to the Godot 4 game engine over stdio."
+    },
+    {
+      "key": "ivanmurzak/ai-game-dev-cli-core",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "ivanmurzak/ai-game-dev-cli-core",
+      "npm": "@baizor/gamedev-cli-core",
+      "mcp_registry_name": null,
+      "version": "0.4.1",
+      "last_published": "2026-08-24",
+      "description": "Shared TypeScript CLI core for the AI Game Dev engine CLIs (Unity/Unreal/Godot): project identity/pin, OAuth device login, machine credential store, and setup-m"
+    },
+    {
+      "key": "jmsansan/godot-assistant",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "jmsansan/godot-assistant",
+      "npm": "godot-assistant",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-08-05",
+      "description": "Production-grade MCP server for the Godot Engine. Lets AI coding agents inspect, edit, run, and visually verify Godot 4 projects."
+    },
+    {
+      "key": "k0nkupa/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "k0nkupa/godot-mcp",
+      "npm": "@godot-mcp/mcp-server",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-07-22",
+      "description": "Godot MCP is an open-source, security-first MCP server and Godot editor addon. Phase 7 provides reversible installation, authenticated Godot 4.7 editor attachme"
+    },
+    {
+      "key": "keeveeg/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "keeveeg/godot-mcp",
+      "npm": "@keeveeg/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.1.0-a",
+      "last_published": "2026-07-12",
+      "description": "MCP server for Godot Engine — 300+ AI-powered tools for game development"
+    },
+    {
+      "key": "letsagents/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "letsagents/godot-mcp",
+      "npm": "@letsagents/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-08-10",
+      "description": "MCP server that gives AI clients runtime feedback from Godot (errors / scene tree / node props / screenshot) for an AI self-correction loop."
+    },
+    {
+      "key": "mindsung/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "mindsung/godot-mcp",
+      "npm": "@mindsung/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "22.16.1",
+      "last_published": "2026-03-24",
+      "description": "MCP server for Godot Engine integration"
+    },
+    {
+      "key": "miniruiii/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "miniruiii/godot-mcp",
+      "npm": "@minirui/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-05-23",
+      "description": "Model Context Protocol server for Godot 4.6.2+"
+    },
+    {
+      "key": "n24q02m/better-godot-mcp",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "n24q02m/better-godot-mcp",
+      "npm": "@n24q02m/better-godot-mcp",
+      "mcp_registry_name": "io.github.n24q02m/better-godot-mcp",
+      "version": "1.23.2",
+      "last_published": "2026-08-29",
+      "description": "Composite MCP server for Godot Engine -- 17 composite tools for AI-assisted game development."
+    },
+    {
+      "key": "nghialxx/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "nghialxx/godot-mcp",
+      "npm": "@nghialxx/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.1",
+      "last_published": "2026-07-12",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
+    },
+    {
+      "key": "nguyenchiencong/godot-mcp-cli",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "nguyenchiencong/godot-mcp-cli",
+      "npm": "godot-mcp-cli",
+      "mcp_registry_name": null,
+      "version": "1.5.1",
+      "last_published": "2026-08-27",
+      "description": "CLI and MCP server for AI assistants to interact with Godot Engine"
+    },
+    {
+      "key": "npgamedev/godot-mcp-server",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "npgamedev/godot-mcp-server",
+      "npm": "@npgamedev/godot-mcp-server",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-07-26",
+      "description": "MCP server that connects AI coding assistants to the Godot 4.2+ editor (scenes, nodes, scripts, ClassDB, playtests) via the companion godot-mcp-toolkit plugin."
+    },
+    {
+      "key": "npm:@arhend/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "@arhend/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-06-04",
+      "description": "MCP server for Godot 4 — docs lookup and project file analysis"
+    },
+    {
+      "key": "npm:@iflow-mcp/ee0pdt-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "@iflow-mcp/ee0pdt-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-02-12",
+      "description": "Godot MCP Server using FastMCP",
+      "via": "republisher"
+    },
+    {
+      "key": "npm:@iflow-mcp/leesinliang-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "@iflow-mcp/leesinliang-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-04-20",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output.",
+      "via": "republisher"
+    },
+    {
+      "key": "npm:@iflow-mcp/sharks820-godot-mcp-ultimate",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "@iflow-mcp/sharks820-godot-mcp-ultimate",
+      "mcp_registry_name": null,
+      "version": "2.0.0",
+      "last_published": "2026-03-03",
+      "description": "The ULTIMATE MCP server for Godot game development - semantic analysis, testing, quality, and sub-agents",
+      "via": "republisher"
+    },
+    {
+      "key": "npm:@lpenguin/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "@lpenguin/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.1.0",
+      "last_published": "2025-11-26",
+      "description": "MCP server for generating Godot ResourceUID strings via TCP connection to Godot Editor"
+    },
+    {
+      "key": "npm:@snopek-games/godai",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "@snopek-games/godai",
+      "mcp_registry_name": null,
+      "version": "0.4.2",
+      "last_published": "2026-08-22",
+      "description": "Godot automation CLI, with an MCP server for AI agents"
+    },
+    {
+      "key": "npm:ai-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "ai-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.4",
+      "last_published": "2026-06-29",
+      "description": "Production-grade Godot MCP service for AI-driven game development"
+    },
+    {
+      "key": "npm:arhend-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "arhend-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-06-04",
+      "description": "MCP server for Godot 4 — docs lookup and project file analysis"
+    },
+    {
+      "key": "npm:godot-mcp-enhanced",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "godot-mcp-enhanced",
+      "mcp_registry_name": null,
+      "version": "0.32.11",
+      "last_published": "2026-08-21",
+      "description": "Enhanced MCP server for Godot game engine - closed-loop AI development with dynamic GDScript execution, scene tree query, node inspection, and more"
+    },
+    {
+      "key": "npm:vberai-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": null,
+      "npm": "vberai-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.5",
+      "last_published": "2026-08-11",
+      "description": "VberAI helper for Godot MCP: fetch DaxianLee/godot-mcp addon, install into projects, and configure Cursor HTTP MCP."
+    },
+    {
+      "key": "pushks18/godot-mcp-pilot",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "pushks18/godot-mcp-pilot",
+      "npm": "godot-mcp-pilot",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-04-16",
+      "description": "MCP server for AI-driven Godot game development — launch editor, run projects, edit scenes and scripts via natural language"
+    },
+    {
+      "key": "pzalutski-pixel/godotlens-mcp",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "pzalutski-pixel/godotlens-mcp",
+      "npm": "godotlens-mcp",
+      "mcp_registry_name": "io.github.pzalutski-pixel/godotlens",
+      "version": "1.1.1",
+      "last_published": "2026-07-27",
+      "description": "MCP server giving AI agents Godot's own view of a GDScript project: navigation, diagnostics, engine API, and scene verification"
+    },
+    {
+      "key": "reza2kn/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "reza2kn/godot-mcp",
+      "npm": "godot-mcp-1969",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-07-13",
+      "description": "MCP server for full Godot 4.x engine control — 1,969 tools for AI-driven game development"
+    },
+    {
+      "key": "salvo10f/godotiq",
+      "channels": [
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "salvo10f/godotiq",
+      "npm": null,
+      "mcp_registry_name": "io.github.salvo10f/godotiq",
+      "version": "0.1.3",
+      "last_published": "2026-03-13",
+      "description": "Intelligent MCP server for Godot 4. Spatial intelligence, code analysis, 35 tools."
+    },
+    {
+      "key": "sandraschi/godot-mcp",
+      "channels": [
+        "mcp-registry"
+      ],
+      "first_seen": 291,
+      "repo": "sandraschi/godot-mcp",
+      "npm": null,
+      "mcp_registry_name": "io.github.sandraschi/godot-mcp",
+      "version": "0.5.0-beta.1",
+      "last_published": "2026-08-28",
+      "description": "Godot MCP server - Godot 4.x engine control via TCP bridge, STL/GLB/OBJ import, GPU particles, an..."
+    },
+    {
+      "key": "smalldy/godot-bridge",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "smalldy/godot-bridge",
+      "npm": "@zgy666/godot-bridge",
+      "mcp_registry_name": null,
+      "version": "0.1.5",
+      "last_published": "2026-08-19",
+      "description": "DSH (DeepSeek Harness) plugin: launch and drive a running Godot 4.x game through its in-game TCP interaction server — replaces the godot-mcp MCP server with nat"
+    },
+    {
+      "key": "telagod/kooix-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "telagod/kooix-godot-mcp",
+      "npm": "kooix-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.1.17",
+      "last_published": "2025-08-23",
+      "description": "A comprehensive Model Context Protocol server for Godot game engine development assistance with AI-powered debugging, code generation, and project analysis"
+    },
+    {
+      "key": "windseries83/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "windseries83/godot-mcp",
+      "npm": "godot-hands",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-08-23",
+      "description": "Give your AI assistant hands on the Godot editor — 10 MCP tools, a live catalog of 210 addon methods, zero tool-spray"
+    },
+    {
+      "key": "wvfp/gear-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "wvfp/gear-godot-mcp",
+      "npm": "gear-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-04-17",
+      "description": "Gear — MCP server for Godot Engine with 110+ tools, compact/dynamic profiles, GDScript LSP, DAP debugger, screenshots, input injection, and CC0 asset search."
+    },
+    {
+      "key": "yanhuifair/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "yanhuifair/godot-mcp",
+      "npm": "@yanhuifair/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.11.2",
+      "last_published": "2026-08-12",
+      "description": "The most complete MCP server for Godot Engine 4.x — 358 tools. Let Claude, Cursor, Copilot, Windsurf or any MCP client edit .tscn scenes, .tres resources, GDScr"
+    },
+    {
+      "key": "zbrkic/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 291,
+      "repo": "zbrkic/godot-mcp",
+      "npm": "@zbrkic/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.3",
+      "last_published": "2026-08-24",
+      "description": "Godot MCP Server for structured interaction with Godot projects"
     }
   ]
 }
