@@ -154,6 +154,19 @@ jobs:
       # recurrence as a positive control. No network, ~0.1s.
       - name: The landscape sweep's pure readers can still refuse (assetlib selftest)
         run: python3 scripts/assetlib_sweep.py --selftest
+      # 🆕 291 — THE ROSTER'S SHAPE, IN THE MERGE PATH, BECAUSE ITS NEW POPULATION IS
+      # WRITTEN BY A MACHINE AND READ BY A MACHINE. `surfaced` is forty-seven rows nobody
+      # types by hand; if the only thing that ever opened it were the weekly `--check` on
+      # `sdk-drift.yml`'s schedule, it would be a table nothing in the merge path reads —
+      # which is the defect `QUEUE.md`'s own header was written about. `--census` refuses
+      # on four shapes a hand edit produces on the first try: an unknown channel, a
+      # surfaced row missing a leg-supplied field, one project written twice, and a project
+      # carried as analysed AND never-analysed at once. It reads the TREE and never the
+      # network, which is the only question about this file a merge-blocking job can
+      # honestly ask.
+      - name: The roster's two populations still have the shape their readers assume
+        shell: bash
+        run: python3 scripts/assetlib_sweep.py --census 2>&1 | tee -a "$CI_MEASURED_LOG"
       - name: The scanner's own refusals still fire (spec conformance selftest)
         run: python3 scripts/spec_conformance.py --selftest
       - name: No shipped string names a method the spec removed (spec conformance)

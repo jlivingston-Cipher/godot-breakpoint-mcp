@@ -72,7 +72,57 @@ moved, and **unread**, because a forge that will not answer is not a green — a
 refuses on a repository that moved even when the card did not. Every row the card leg
 alone would call *no change* is marked as such in the printout.
 
-## Rule 3 — The Asset Library is swept mechanically, not by memory
+## Rule 3 — Every channel a project can ship in is swept mechanically, not by memory
+
+🔴 **THIS RULE WAS WRITTEN ABOUT ONE CHANNEL AND IT COST EXACTLY WHAT ITS OWN LAST SENTENCE
+WARNED ABOUT.** That sentence is *a gate that reads a roster is a gate over a population
+somebody chose* — and until 291 somebody had chosen godotengine.org's Asset Library, which
+is where Godot **addons** are published. A project that ships as an npm package, registers
+in the official MCP Registry, or sells from its own site was never in the query, so no
+amount of health in the sweep could ever have surfaced it. Three channels read on one
+afternoon surfaced **fifty projects this roster had never held**, including
+`Coding-Solo/godot-mcp` at 5,399 stars — roughly 2.8× the project this document and two
+published analyses both called *the clear popularity leader*. **The population was the
+defect, and the data was fine.**
+
+**The channels are declared in `scripts/assetlib_sweep.py`'s `CHANNELS`**, each with what it
+serves, why it is in the population, and whether a machine can enumerate it at all:
+
+| channel | enumerable | serves |
+|---|---|---|
+| `assetlib` | yes | Godot addons on godotengine.org's Asset Library |
+| `npm` | yes | packages on registry.npmjs.org naming both Godot and MCP |
+| `mcp-registry` | yes | servers in the official MCP Registry that name Godot |
+| `commercial` | **no** | closed-source and hosted products sold from their own sites |
+
+🔴 **`enumerable: false` IS AN ANSWER, NOT AN OMISSION.** A closed-source product with no
+package and no registry entry is reachable only by somebody naming it, so that channel is a
+declared **watch list** and its rows carry `source_verifiable: false` with every capability
+field `null` rather than `false` — a ruling nobody can take is not a ruling of *no*. Writing
+that down is the difference between a leg that is absent by design and a leg that is broken,
+and it stops every later sweep re-litigating which one it is.
+
+🔴 **AND A CHANNEL THAT COULD NOT BE READ IS NEVER *NOTHING NEW*.** Before 291 a failed
+query printed a line to stderr and the loop continued, so a run against a host that refused
+every request produced an empty new-entry list and exited 0 — indistinguishable from a run
+that read everything and found nothing. `channel_state` now answers `read`, `partial` or
+`unread`, and `--check` refuses on the last two **by name**. This is 271 §1 applied to a
+channel instead of to a reading: *a reader's silence is not an answer.*
+
+🔵 **A PROJECT SURFACED BY THREE CHANNELS IS ONE ROW.** The join key is the GitHub
+`owner/name` slug, normalised from every spelling the registries serve and from the bare
+form this roster has stored since 223. A package with no repository link is keyed by
+`<channel>:<name>` instead, and the row says which — because two slugless packages with the
+same bare name on two registries are two projects, not one.
+
+🔵 **AND A REPUBLISHED PACKAGE IS KEPT AND MARKED, NEVER COUNTED AS ITS ORIGIN.**
+`@iflow-mcp/`, `@mseep/` and `@fastmcp-me/` re-publish other people's servers under their
+own scope; thirteen of the sixty-eight relevant npm packages at 291 were copies. Counted as
+projects they double-count the category; dropped outright they lose the three upstreams that
+appear on npm only through a mirror. So they are folded onto the upstream repository when
+they declare one and marked `via: republisher` when they do not.
+
+### The Asset Library leg, as this rule was originally written
 
 `scripts/assetlib_sweep.py` queries the live Asset Library API and reports, on every run:
 
@@ -101,6 +151,40 @@ Run it at every sweep, and independently at least monthly.
 **Why.** The first run of this script found **three Asset Library MCP entries that no prior
 sweep had ever tracked**, one of which ships its own DAP and LSP clients. Seven months of
 attentive manual monitoring missed them.
+
+## Rule 5 — A roster row is a row; an analysis is elected
+
+🔴 **THE ROSTER HAS TWO POPULATIONS AND THEY COST DIFFERENT THINGS.**
+
+- **`entries`** — products **read at source**, each carrying a ruling: `debugger`,
+  `real_dap_client`, `real_lsp_client`, `csharp`, `protocol_revision`, and a note giving the
+  evidence. The cost of a row here is a source-level pass, so a row is **elected** and never
+  automatic.
+- **`surfaced`** — products a **discovery leg has seen**, carried permanently, holding only
+  what the leg itself supplies: channel, repository slug, package, version, publish date and
+  the session that first saw them. **No capability claim, because nobody has read them.**
+  The cost of a row here is one row, so **everything any leg surfaces owes one**, and
+  `assetlib_sweep.py --check` refuses by name when one is missing.
+
+**Why the split, and why it is not a loophole.** Until 291 the sweep had a single severity:
+a never-tracked MCP-shaped entry owed a source-level pass. That was affordable while the
+population was one channel serving roughly ten new entries a year. The first run across
+three channels surfaced fifty. A rule demanding fifty source-level passes in one commit does
+not produce fifty analyses — it produces a gate that is red forever and a roster nobody can
+make green, which is governance wearing churn. And the alternative, fifty `entries` rows
+with the capability fields blank, is worse: **that is a coverage claim nobody made**, which
+is the defect class this repository builds instruments to refuse.
+
+🔴 **PROMOTION, NOT DUPLICATION.** When a project is read at source it moves from `surfaced`
+to `entries` in the same commit that adds the analysis. `roster_shape_problems` refuses a
+key that appears in both, because a roster reporting one project as *analysed* and *never
+analysed* at once would keep passing the discovery check on the strength of the weaker row.
+
+🔵 **`channel` IS OPTIONAL AND ITS ABSENCE IS PRINTED.** Forty-six entries predate the
+channel legs and nobody has recorded where any of them ships. `assetlib_sweep.py --census`
+counts them as `unclassified` rather than defaulting them into the leg that probably found
+them — a visible number that falls as sessions classify rows, rather than a silent
+assumption that this rule's own defect never happened.
 
 ## Rule 4 — Write about our capability, not about anyone's deficiency
 
