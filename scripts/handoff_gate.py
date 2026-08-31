@@ -1619,6 +1619,37 @@ def block_absent_problems(head: "int | None" = None,
     return out
 
 
+def shipped_predecessor(session: int,
+                        absent: "dict[int, str] | None" = None) -> "tuple[int, list[int]]":
+    """The previous session that SHIPPED — `session - 1`, walked back over every session
+    `BLOCK_ABSENT` declares to have left nothing behind. Returns the predecessor and the
+    sessions stepped over, because a reader that silently skipped one would be the hole
+    this roster exists to keep out of the table.
+
+    🆕 290 — 289 §3.4. `population_currency` learned at 289 that a session which shipped
+    nothing owes no block, and `tier_problems` was still asking `from_session ==
+    session - 1` — the same assumption, in the other reader, unasked. With 288 declared
+    absent, block 289 inheriting from 287 IS inheriting from its predecessor: nothing
+    happened in between, and that is the entire content of the declaration. Until this
+    resolution existed every session following a no-ship session paid a full replay it
+    did not owe — 289 paid exactly that one, and said so in the document this comes from.
+
+    🔴 THE WALK IS FLOORED AT `POPULATION_SHAPE_FROM` AND THAT IS NOT DEFENSIVE PADDING.
+    `block_absent_problems` refuses a row below the floor, but this function is called
+    with a caller-supplied roster in the self-test and with the module's in the field, and
+    a resolver that can walk off the bottom of the table answers a session number no
+    reader below it can look up — an unbounded loop in the field and a confusing
+    `TIER0_SHA` in the fixture. It stops where the population stops.
+    """
+    ros = BLOCK_ABSENT if absent is None else absent
+    stepped: "list[int]" = []
+    n = session - 1
+    while n in ros and n > POPULATION_SHAPE_FROM:
+        stepped.append(n)
+        n -= 1
+    return n, stepped
+
+
 def population_currency(head: "int | None" = None,
                         population: "list[tuple[int, str]] | None" = None) -> "list[str]":
     """253's rule, DERIVED and enforced — every block a shipped session left behind is in
@@ -4944,7 +4975,8 @@ TIER_RUN_RE = re.compile(r"^HANDOFF_OPEN\b.*?\bTIER0\b.*?INHERITED FROM (\d+) AT
                          re.M)
 
 
-def tier_problems(text: str, log: str, session: "int | None"
+def tier_problems(text: str, log: str, session: "int | None",
+                  absent: "dict[int, str] | None" = None
                   ) -> "tuple[list[str], list[str]]":
     """The opening tier, declared in the document and read back out of the run.
 
@@ -4985,12 +5017,31 @@ def tier_problems(text: str, log: str, session: "int | None"
             "match; a TIER0 nobody ran is a TIER0 that never checked anything.")
         return (problems, notes)
     from_session, at_sha = int(run.group(1)), run.group(2)
-    if session is not None and from_session != session - 1:
-        problems.append(
-            f"🔴 TIER0_PREDECESSOR — block {session} inherited from {from_session}. The "
-            f"tier inherits the PREVIOUS session's verification, and a block that "
-            f"inherited from further back skipped the sessions between it and its own "
-            f"evidence.")
+    # 🆕 290 — *THE PREVIOUS SESSION* MEANS *THE PREVIOUS SESSION THAT SHIPPED*, AND THE
+    # DIFFERENCE IS A DECLARATION SOMEBODY MADE RATHER THAN A GAP THIS READER GUESSED AT.
+    # 289 §3.4: a session declared in `BLOCK_ABSENT` left no tree and no block, so there
+    # is no verification there to inherit and nothing between it and its predecessor for
+    # a block to have skipped. An undeclared hole is still refused by name — that pair is
+    # the whole safety argument, and it is asserted on one fixture in `--selftest`.
+    skipped: "list[int]" = []
+    if session is not None:
+        want_from, skipped = shipped_predecessor(session, absent)
+        if from_session != want_from:
+            why = ("The tier inherits the PREVIOUS session's verification, and a block "
+                   "that inherited from further back skipped the sessions between it "
+                   "and its own evidence.")
+            if skipped and from_session in skipped:
+                why = (f"Session {from_session} is declared in `BLOCK_ABSENT` — it "
+                       f"shipped nothing, published no status block and left no verified "
+                       f"tree, so there is no verification there to inherit. The "
+                       f"predecessor that shipped is {want_from}.")
+            elif skipped:
+                why += (f" {len(skipped)} session(s) between here and {want_from} are "
+                        f"declared absent ({skipped}), which is why the predecessor is "
+                        f"not {session - 1}.")
+            problems.append(
+                f"🔴 TIER0_PREDECESSOR — block {session} inherited from {from_session}, "
+                f"and the session it must inherit from is {want_from}. {why}")
     # 🔴 AND THE ENDPOINT IS THE INHERITED BLOCK'S OWN MAIN ROW, NOT `previous_main`'s.
     # The first draft reached for `previous_main(session)`, which answers *the SHA main
     # stood at when this session OPENED* — 238's SHA for a block inheriting from 239. It
@@ -5008,8 +5059,10 @@ def tier_problems(text: str, log: str, session: "int | None"
             f"inheriting a counter is that the tree did not move; two answers about "
             f"which tree that was is the justification failing.")
     else:
+        over = (f", over {len(skipped)} session(s) declared absent ({skipped})"
+                if skipped else "")
         notes.append(f"ritual TIER0 — {len(COUNTER_READERS)} tree counters inherited "
-                     f"from {from_session} at {at_sha}, header re-read live")
+                     f"from {from_session} at {at_sha}{over}, header re-read live")
     return (problems, notes)
 
 
@@ -7091,6 +7144,33 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (289, """> ```
+> main                 e270510 — the count a capped client refuses on (#363)  MOVED +1
+> branch 289           session289-the-count-a-capped-client-refuses-on · PR #363
+>                      🟢 PUSHED AND MERGED
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 4 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at 484d8fb, and the post-merge run at e270510
+> 🟢 VERIFIED AFTER THE CHANGE   943/943 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2905
+>               · late not-loaded 0 · late constructed 320/160
+>               · py gates 18/6/12 · SIG 258/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 112 · 53 governed · 1735 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 323 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4963 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 484 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -7129,8 +7209,30 @@ POPULATION_REACH_FLOOR = 227   # the oldest block this table has ever reached
 
 
 def population_reach_problems(pop: "list[tuple[int, str]]",
-                              back: int = POPULATION_REACH_FLOOR) -> "list[str]":
-    """What is wrong with how far back a block population reaches. Pure."""
+                              back: int = POPULATION_REACH_FLOOR,
+                              absent: "dict[int, str] | None" = None) -> "list[str]":
+    """What is wrong with how far back a block population reaches. Pure.
+
+    🆕 290 — AND THE THIRD READER LEARNS THE SAME FACT, FOUND BY THE PR THAT TAUGHT THE
+    SECOND. 288 shipped nothing and 289 wrote `BLOCK_ABSENT` for it; `population_currency`
+    was taught to stop requiring its block, `tier_problems` was taught this session to
+    stop requiring its verification, and THIS claim — the shape of the table itself — was
+    still reading `287→289` as a hole. It surfaced the moment a session actually
+    registered a block on the far side of the declared absence, which is to say in this
+    row's own first commit and not one session earlier: 289 registered 287, and 287 was
+    contiguous.
+
+    🔴 A GAP IS A HOLE ONLY WHERE SOMETHING IS MISSING THAT SHOULD BE THERE. The two
+    readers this claim protects — `moved_interval` and `version_interval` — scan BACKWARD
+    for the last tree that MOVED, and a session that shipped no commit did not move it, so
+    scanning across a declared absence reaches the same endpoint it would have reached had
+    that session never opened. That is 289 §2.5's own argument for the skip, arriving at
+    the reader that describes the table rather than the one that fills it.
+
+    🔴 AND A PARTLY-DECLARED GAP IS STILL A HOLE, NAMED DOWN TO THE SESSIONS THAT ARE NOT
+    DECLARED. A widened inference — *any gap next to any declaration is fine* — would be
+    the hole 289 refused to open, one reader over.
+    """
     out: "list[str]" = []
     sessions = [s for s, _t in pop]
     if len(sessions) < 2:
@@ -7143,7 +7245,15 @@ def population_reach_problems(pop: "list[tuple[int, str]]",
                    f"a window that slides forward keeps every count this file floors and "
                    f"takes the far endpoint off `moved_interval` and `version_interval` "
                    f"without either one going red. Moving the pin is the decision")
-    gaps = [f"{a}→{b}" for a, b in zip(sessions, sessions[1:]) if b - a != 1]
+    ros = BLOCK_ABSENT if absent is None else absent
+    gaps: "list[str]" = []
+    for a, b in zip(sessions, sessions[1:]):
+        undeclared = [n for n in range(a + 1, b) if n not in ros]
+        if not undeclared:
+            continue
+        shown = undeclared if len(undeclared) <= 4 else undeclared[:4] + ["…"]
+        gaps.append(f"{a}→{b}" + (f" (undeclared {shown})"
+                                  if len(undeclared) != b - a - 1 else ""))
     if gaps:
         out.append(f"POPULATION_CONTIGUOUS {gaps} — a hole in the table is a block whose "
                    f"interval readers point at the wrong previous session and answer "
@@ -8819,6 +8929,37 @@ def selftest() -> int:
         print(f"  🔴 POPULATION_CONTIGUOUS_CONTROL a table holding only "
               f"{_gapped[0][0]} and {_gapped[-1][0]} answered {_gp} — it spans the floor "
               f"and measures two intervals, and only the contiguity half can say so")
+    # ── 🆕 290 — A DECLARED ABSENCE IS NOT A HOLE, AND THE PAIR IS ON ONE FIXTURE ──────
+    #
+    # 289 §2.5's argument reaching the third reader. The two sessions below are the live
+    # ones — 287 shipped, 288 declared, 289 shipped — so this asserts the table this file
+    # actually carries rather than a shape invented to agree with the change.
+    claims += 1
+    _absent_pair = [(287, ""), (289, "")]
+    if any("POPULATION_CONTIGUOUS" in p
+           for p in population_reach_problems(_absent_pair, back=287,
+                                              absent={288: "declared"})):
+        failed += 1
+        print("  🔴 POPULATION_CONTIGUOUS_ABSENT 287→289 was called a hole with 288 "
+              "declared absent — the declaration says the tree did not move, and both "
+              "readers this claim protects scan backward for the last tree that DID")
+    claims += 1
+    if not any("POPULATION_CONTIGUOUS" in p
+               for p in population_reach_problems(_absent_pair, back=287, absent={})):
+        failed += 1
+        print("  🔴 POPULATION_CONTIGUOUS_ABSENT the SAME gap was accepted with nothing "
+              "declared, so the roster is decorative and any session could open a hole "
+              "by not registering a block")
+    # 🔴 AND A PARTLY-DECLARED GAP IS STILL A HOLE. A reader that waved through any gap
+    # touching any declaration would be the widened inference 289 refused to write.
+    claims += 1
+    _partial = population_reach_problems([(287, ""), (291, "")], back=287,
+                                         absent={288: "d", 290: "d"})
+    if not any("POPULATION_CONTIGUOUS" in p and "289" in p for p in _partial):
+        failed += 1
+        print(f"  🔴 POPULATION_CONTIGUOUS_PARTIAL a gap with 288 and 290 declared and "
+              f"289 undeclared must still be refused, and must name 289: {_partial}")
+
     # 🔴 GROWTH AT THE FRONT IS NEVER A REFUSAL. A floor a session can trip by doing the
     # thing the ritual orders — adding the previous block before the close gate — is a
     # floor that gets deleted rather than obeyed.
@@ -9198,6 +9339,69 @@ def selftest() -> int:
     if got or not any("TIER1" in n for n in notes):
         failed += 1
         print("  🔴 TIER1_CLEAN — a TIER1 declaration needs no log and must not refuse")
+
+    # ── 🆕 290 — THE PREDECESSOR RESOLVES THROUGH `BLOCK_ABSENT` (289 §3.4) ────────────
+    #
+    # 289 taught `population_currency` that a session which shipped nothing owes no
+    # block, and left the same assumption standing, unasked, in the reader above: *the
+    # previous session* meant `session - 1` whatever the roster said. With 288 declared
+    # absent, block 289 inheriting from 287 IS inheriting from its predecessor — nothing
+    # happened in between — and 289 paid a full replay to a refusal that was reading a
+    # gap where there was a declaration.
+    #
+    # 🔴 THE FIXTURE IS THE SESSION THAT FOUND IT, NOT AN INVENTED ONE. The log line
+    # below is the one `ci289/open-tier.log` actually carried and 96b5d48 is what
+    # `BLOCK_POPULATION` gives for block 287, so the positive arm asserts the real close
+    # this reader refused rather than a shape written to agree with the fix.
+    ABSENT_LOG = ("HANDOFF_OPEN HANDOFF_SESSION287.md · TIER0 · 37 counter atom(s) "
+                  "INHERITED FROM 287 AT 96b5d48 · 4 header atom(s) · 7 re-read\n")
+    # 🔴 AND THE PAIR IS ON ONE FIXTURE, WHICH IS 289 §2.5's OWN ARGUMENT REUSED: a
+    # resolver that skipped every hole and a resolver that refused every hole each
+    # satisfy exactly one of these two, and only the correct one satisfies both.
+    claims += 1
+    got, notes = tier_problems("ritual TIER0", ABSENT_LOG, 289, {288: "declared"})
+    if got:
+        failed += 1
+        print(f"  🔴 TIER0_ABSENT_PAIR a block inheriting ACROSS a declared absence was "
+              f"still refused, so the declaration is not a route and 289's replay was "
+              f"owed after all: {'; '.join(p[:110] for p in got)}")
+    elif not any("declared absent" in n for n in notes):
+        failed += 1
+        print("  🔴 TIER0_ABSENT_SILENT the resolution stepped over a declared absence "
+              "and the note did not say so — a skip nobody can read is a skip nobody can "
+              "disagree with")
+    claims += 1
+    got, _n = tier_problems("ritual TIER0", ABSENT_LOG, 289, {})
+    if not any("TIER0_PREDECESSOR" in p for p in got):
+        failed += 1
+        print("  🔴 TIER0_ABSENT_PAIR the SAME missing session was clean with no "
+              "declaration at all, so the roster is decorative and any session could "
+              "open a hole by inheriting past one")
+
+    # 🔴 INHERITING *FROM* A DECLARED ABSENCE IS THE OTHER DIRECTION AND IT IS NOT THE
+    # SAME MISTAKE. 288 published no block, so a block claiming to have inherited 288's
+    # verification is claiming to have inherited nothing — `block_main` would answer
+    # UNCHECKED and the counters would ride on a tree no instrument ever read.
+    claims += 1
+    got, _n = tier_problems("ritual TIER0",
+                            ABSENT_LOG.replace("FROM 287 AT 96b5d48", "FROM 288 AT 96b5d48"),
+                            289, {288: "declared"})
+    if not any("TIER0_PREDECESSOR" in p for p in got):
+        failed += 1
+        print("  🔴 TIER0_ABSENT_SOURCE a block inherited FROM a session declared to have "
+              "left no tree and nothing refused — the tier's evidence is a block that "
+              "does not exist")
+
+    # and the ordinary two-back hole stays refused whichever roster is passed, because a
+    # resolver keyed on the roster must not go quiet on the case that has no roster at all
+    for ros, why in [({}, "with an empty roster"), (None, "with the module's own roster")]:
+        claims += 1
+        got, _n = tier_problems("ritual TIER0", TIER0_LOG.replace("FROM 238", "FROM 236"),
+                                239, ros)
+        if not any("TIER0_PREDECESSOR" in p for p in got):
+            failed += 1
+            print(f"  🔴 TIER0_PREDECESSOR inheriting from two sessions back passed "
+                  f"{why}, and neither 237 nor 238 is declared absent")
 
     # ── 🆕 269: THE SHIPPED BLOCKS, JUDGED BY THE RULES THEY WERE WRITTEN UNDER ───────
     #
