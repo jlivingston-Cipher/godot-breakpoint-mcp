@@ -8,6 +8,7 @@ import { ok, failPath } from "./lsp-common.js";
 import type { Config } from "../config.js";
 import { resolveInsideProject } from "../paths.js";
 import { NAME_TAKEN_CLAUSE } from "../schemas.js";
+import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
 const confirmField = {
   confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
@@ -102,6 +103,11 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       "got none. Direct callers in test-integration/*.mjs must pass `cfg`.",
     );
   }
+  // 🔴 THE PEER PAIR IS THE SAME SHAPE AS THE PROCESS PAIR ONE PLANE OVER.
+  // `runtime_peer_stop` and `runtime_peers_digest` are unprivileged; the only tool
+  // that can produce a peer for them is `runtime_spawn_peers`, which is
+  // `code-execution`. Resolved once, from the config, so their refusals can say so.
+  const privileged = selectPrivilegedGroups(config.privilegedGroups);
   /** 🔴 MEASURED against a game actually hosting the runtime bridge — rounds A–C
    *  answered `bridge_unavailable` for every runtime row, which is a degrade path,
    *  not a verdict. With the bridge up, `runtime_node_add` instantiated a PackedScene
@@ -826,7 +832,12 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     },
     async ({ id, all }) => {
       if (!all && !id) {
-        return { isError: true as const, content: [{ type: "text" as const, text: "Pass a peer `id`, or all:true." }] };
+        return {
+          isError: true as const,
+          content: [
+            { type: "text" as const, text: "Pass a peer `id`, or all:true." + producerWithheldClause("runtime_peer_stop", privileged) },
+          ],
+        };
       }
       try {
         return ok({ stopped: peers.stop(id, all ?? false) });
@@ -881,7 +892,8 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
               type: "text" as const,
               text:
                 `Convergence needs at least two peers; got ${targets.length}. ` +
-                `Spawn more with runtime_spawn_peers, or use runtime_state_digest for a single target.`,
+                `Spawn more with runtime_spawn_peers, or use runtime_state_digest for a single target.` +
+                producerWithheldClause("runtime_peers_digest", privileged),
             },
           ],
         };

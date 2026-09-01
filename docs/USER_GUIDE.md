@@ -566,7 +566,7 @@ on demand:
 | `godot://runtime/tree` | The running game's live SceneTree (runtime bridge). |
 | `godot://runtime/log` | The running game's log buffer (runtime bridge). |
 | `godot://class/{name}` | `ClassDB` docs for a class (editor bridge; URI template). |
-| `godot://capabilities` | The capability groups, their enabled/disabled state, and the tools each gates (host; **always on** — registered unconditionally, even when the `resources` toolset is filtered out, so a dropped high-trust tool is never a silent gap). |
+| `godot://capabilities` | The capability groups, their enabled/disabled state, the tools each gates, and `orphaned_consumers` — the tools that are still on your surface but cannot be given a valid input, because the only tool that produces what they take is in the withheld set (host; **always on** — registered unconditionally, even when the `resources` toolset is filtered out, so a dropped high-trust tool is never a silent gap). |
 
 Clients can **subscribe** to a resource and be pushed a
 `notifications/resources/updated` when a subscribed resource changes — for example when the
@@ -658,6 +658,17 @@ addon enabled and the host registered (Sections 3–4).
 > `breakpoint-mcp init --trust full`, or set `BREAKPOINT_PRIVILEGED_GROUPS=code-execution` in
 > the server's env, then restart the server. Read `godot://capabilities` for the full list of
 > what is withheld and why.
+
+
+**And four tools you KEEP are worth knowing about — the other half of what that group costs.**
+`godot_output` and `godot_stop` take a process `id` that only `godot_run_managed` returns;
+`runtime_peers_digest` and `runtime_peer_stop` need a peer that only `runtime_spawn_peers` **(higher-trust)** can
+start. Those four are not withheld and never leave your surface, but with their producers withheld
+there is no input any of them can be given that succeeds. Each one now says so when you call it —
+naming the group, the env var and the resource — rather than reading like your mistake, and
+`godot://capabilities` lists them under `orphaned_consumers` so you can see it without calling.
+The twenty-five runtime tools that take an *optional* `peer` are unaffected: omit `peer` and they
+address the running game exactly as before.
 
 That is the full loop: inspect → change (undoable) → write and check code → run → debug →
 drive the live game → test.

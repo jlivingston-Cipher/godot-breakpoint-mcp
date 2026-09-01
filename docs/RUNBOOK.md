@@ -35,11 +35,19 @@ Restart/refresh so Claude sees the `godot_*`, `editor_*`, `scene_*`, `node_*`, `
 ## 4. Per-plane checklist
 Ask Claude to run each; mark pass/fail.
 
+> **Rows marked (higher-trust) need the `code-execution` group.** Thirteen tools are not
+> loaded on a default install — see `BREAKPOINT_PRIVILEGED_GROUPS` in `USER_GUIDE.md` §
+> Environment, and read `godot://capabilities` for the live list. Calling one anyway is
+> answered with a message naming the policy, never with `not found`, so a row that refuses
+> that way on a default install is **a pass, not a failure**. Run this checklist with
+> `BREAKPOINT_PRIVILEGED_GROUPS=code-execution` (or `breakpoint-mcp init --trust full`) to
+> drive every row. Where a default-surface substitute exists it is named in the row.
+
 ### Plane B — CLI (editor not required)
 | # | Tool call | Expected |
 |---|---|---|
 | B1 | `godot_version` | version string like `4.x.stable` |
-| B2 | `godot_run_headless_script` on a trivial script | exit_code 0, stdout captured |
+| B2 | `godot_run_headless_script` **(higher-trust)** on a trivial script | exit_code 0, stdout captured |
 
 ### Plane A — Editor bridge (editor open, plugin enabled)
 | # | Tool call | Expected |
@@ -73,9 +81,9 @@ Ask Claude to run each; mark pass/fail.
 |---|---|---|
 | E1 | `dbg_set_breakpoints` `{path:"res://player.gd", lines:[38]}` (the `counter -= amount` line) | breakpoint buffered/verified |
 | E2 | `dbg_launch` | game starts; session running |
-| E3 | trigger `take_damage` (via `runtime_call_method`, see C-plane) | `stopped` at the breakpoint |
+| E3 | trigger `take_damage` (via `runtime_call_method` **(higher-trust)**, see C-plane) | `stopped` at the breakpoint. Measured on 4.7: the call itself then reports `timeout` while the game is halted, and says why — the addon answers `runtime_*` from `_process`, so the frame owing the reply cannot run until `dbg_continue`. **The timeout is the expected reading**, and the late reply is logged when it lands |
 | E4 | `dbg_stack_trace` → `dbg_scopes` → `dbg_variables` | see `amount`, `counter` locals — but see the note below |
-| E5 | `dbg_evaluate` `{expression:"counter"}` | elicitation → accept → returns value |
+| E5 | `dbg_evaluate` **(higher-trust)** `{expression:"counter"}` | elicitation → accept → returns value. On a default install `dbg_watch` `{add:["counter"]}` reads the same value and is not privileged |
 | E6 | `dbg_continue` | resumes |
 | E7 | `dbg_set_breakpoints` `{…, conditions:["counter < 0"]}` **before** `dbg_launch`, then `dbg_launch` | set → `modifier_detection: "deferred"` + warning; launch → `unsupported_modifiers` naming what was dropped |
 
@@ -84,7 +92,9 @@ Ask Claude to run each; mark pass/fail.
 > `Members` refs the adapter itself issued, while `Globals` answered. Upstream, and not
 > reproducible on demand — the same stop worked minutes earlier. A self-describing refusal
 > here is the expected behaviour, not a regression; `dbg_watch` is the reliable way to read
-> a single value at a stop.
+> a single value at a stop. Re-measured on 4.7 at a real `take_damage` stop: `Locals`
+> answered `amount` and `bridge`, so the refusal is intermittent in both directions and the
+> note stands as written rather than being narrowed to a version.
 >
 > **E7 — an ignored modifier is not a no-op.** Godot advertises conditional / hit-count /
 > logpoint breakpoints as unsupported and ignores them if sent, so an undropped condition
@@ -95,15 +105,15 @@ Ask Claude to run each; mark pass/fail.
 ### Plane C — Runtime bridge (game running)
 | # | Tool call | Expected |
 |---|---|---|
-| C1 | `godot_run_managed` | returns a process id; game window opens |
-| C2 | `godot_output` `{id}` | includes `[example] player ready` |
+| C1 | `godot_run_managed` **(higher-trust)** | returns a process `id`; game window opens. On a default install use `godot_run_project` instead — it opens the same window and reports `bridge_ready`, but it is **detached**: it returns an OS `pid` and no `id`, so C2 and C9 have nothing to address and the game is quit in its own window |
+| C2 | `godot_output` `{id}` **(needs C1's `godot_run_managed`)** | includes `[example] player ready`. On a default install this can only answer `No managed process with id …`, and it says why: the one tool that mints an `id` is withheld. **That refusal is the pass** |
 | C3 | `runtime_get_tree` | live tree with `Main` |
 | C4 | `runtime_get_property` `{path:".", property:"counter"}` | `100` |
-| C5 | `runtime_call_method` `{path:".", method:"take_damage", args:[10]}` | elicitation → accept → returns `90` |
+| C5 | `runtime_call_method` **(higher-trust)** `{path:".", method:"take_damage", args:[10]}` | elicitation → accept → returns `90`. No default-surface substitute: invoking an arbitrary method IS the `code-execution` group |
 | C6 | `runtime_get_monitors` `{keys:["time/fps","audio/output_latency"]}` | numeric values |
 | C7 | `runtime_screenshot` | game frame image |
 | C8 | `runtime_get_log` | includes the `push_log` entries |
-| C9 | `godot_stop` `{id}` | process terminates |
+| C9 | `godot_stop` `{id}` **(needs C1's `godot_run_managed`)** | process terminates. Same as C2 on a default install — a detached `godot_run_project` game is not stoppable by any tool, which the port-conflict refusal and this tool's own refusal both say |
 
 ### Resources
 | # | Read resource | Expected |

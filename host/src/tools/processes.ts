@@ -9,6 +9,7 @@ import { portFree, portConflictMessage } from "../ports.js";
 import { describeExit } from "../exit-cause.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 import { spawnGuarded } from "../spawn-guard.js";
+import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
 interface LogLine {
   seq: number;
@@ -150,6 +151,12 @@ export class ProcessRegistry {
 
 export function registerProcessTools(server: McpServer, cfg: Config): ProcessRegistry {
   const registry = new ProcessRegistry();
+  // 🔴 THE SURFACE THIS PAIR IS REGISTERED ON DECIDES WHETHER IT CAN EVER BE USED.
+  // `godot_output` and `godot_stop` are unprivileged; the only tool that mints the
+  // `id` they take is `godot_run_managed`, which is `code-execution`. Resolved once
+  // here, from the same config `index.ts` resolves, so a refusal below can say which
+  // of the two worlds it is refusing in.
+  const enabled = selectPrivilegedGroups(cfg.privilegedGroups);
 
   server.registerTool(
     "godot_run_managed",
@@ -227,7 +234,14 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
     },
     async ({ id, since_seq, stream }) => {
       const m = registry.get(id);
-      if (!m) return { isError: true, content: [{ type: "text", text: `No managed process with id "${id}"` }] };
+      if (!m) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: `No managed process with id "${id}"` + producerWithheldClause("godot_output", enabled) },
+          ],
+        };
+      }
       const since = since_seq ?? 0;
       const want = stream ?? "both";
       const lines = m.lines.filter((l) => l.seq > since && (want === "both" || l.stream === want));
@@ -249,7 +263,14 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
     },
     async ({ id }) => {
       const m = registry.get(id);
-      if (!m) return { isError: true, content: [{ type: "text", text: `No managed process with id "${id}"` }] };
+      if (!m) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: `No managed process with id "${id}"` + producerWithheldClause("godot_stop", enabled) },
+          ],
+        };
+      }
       try {
         m.child?.kill();
       } catch {

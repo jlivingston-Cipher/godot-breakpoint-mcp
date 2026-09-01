@@ -165,7 +165,7 @@ Open the Godot editor for the project (detached). Prerequisite for every `editor
 ```
 
 ### `godot_run_project` ✅
-Run the project (detached), optionally from a specific scene. **Waits until the game's runtime bridge answers `ping`** and reports `bridge_ready` — the game needs roughly half a second to three seconds to bind it, and no `runtime_*` tool is reachable before it does. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
+Run the project (detached), optionally from a specific scene. **It mints no handle** — the output carries an OS `pid` and the readiness fields, and there is no `id`, because `godot_stop` and `godot_output` address only the registry id `godot_run_managed` returns. A detached game is quit in its own window, which is what this tool's own port-conflict refusal has always said; the tool's description used to claim it *returns the process id* and that sentence is gone. **Waits until the game's runtime bridge answers `ping`** and reports `bridge_ready` — the game needs roughly half a second to three seconds to bind it, and no `runtime_*` tool is reachable before it does. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -4284,7 +4284,7 @@ Run the project as a managed child process with captured stdout/stderr (unlike `
 > The twin's readiness fields mean what they mean on `godot_run_project`. The row `run-project-returns-before-bridge` named only that tool; this one had the same defect with nothing naming it, which is why check 30 finds launchers by the spawn rather than by a list.
 
 ### `godot_output` ✅
-Read captured console output for a managed process.
+Read captured console output for a managed process. **The `id` comes only from `godot_run_managed`, which is `code-execution`-privileged**, so on a secure-default install this tool is on the surface with no way to be given a valid input; its `No managed process with id …` refusal says so and names the group, the env var and `godot://capabilities`. The resource lists the same fact under `orphaned_consumers` so it can be read before the call rather than after it.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["id"],
@@ -4306,7 +4306,7 @@ Read captured console output for a managed process.
 ```
 
 ### `godot_stop` ✔ ✅
-Terminate a managed process.
+Terminate a managed process. Same producer as `godot_output` and the same consequence on a secure default: the only tool that mints the `id` is withheld, the refusal says which group holds it, and `orphaned_consumers` in `godot://capabilities` lists it. It does **not** accept an OS pid, and a `godot_run_project` game is not stoppable by any tool.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["id"], "properties": { "id": { "type": "string" } } }

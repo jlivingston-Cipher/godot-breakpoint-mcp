@@ -157,6 +157,103 @@ export function droppedTools(enabled: ReadonlySet<CapabilityGroup>): string[] {
 }
 
 /**
+ * HANDLE PRODUCERS — the pairs where one tool CONSUMES an opaque handle that
+ * exactly one other tool MINTS.
+ *
+ * 🔴 A CAPABILITY BOUNDARY CAN RUN THROUGH THE MIDDLE OF A PAIR, AND UNTIL 296
+ * NOTHING ASKED WHETHER IT DID. Every reader above asks the same question — is
+ * the right tool dropped? `capabilities.test.ts` asserts the tagging is total
+ * and correct, `droppedToolMessage` asserts a dropped name is never `not found`,
+ * and both were right. Neither asks the OTHER question: of the tools left BEHIND
+ * on the secure-default surface, can any caller still use them?
+ *
+ * Measured on a real default surface (driving the shipped server over stdio):
+ * `godot_stop` and `godot_output` both take an `id` that ONLY `godot_run_managed`
+ * returns, and that tool is `code-execution`. So on a default install those two
+ * unprivileged tools can answer exactly one thing — `No managed process with id
+ * "…"` — for every input a caller can construct, and the sentence gives no hint
+ * that the reason is policy rather than a typo. `runtime_peers_digest` and
+ * `runtime_peer_stop` are the same pair one plane over, behind
+ * `runtime_spawn_peers`.
+ *
+ * 🔵 THE TABLE IS THE POPULATION, NOT THE FOUR ROWS. A row is owed by any tool
+ * whose input names another tool as the source of its value; `capabilities.test.ts`
+ * derives that set from the REGISTERED surface and refuses an undeclared one, so
+ * the next handle-taking tool cannot join the surface without this file hearing
+ * about it. A row whose producer is unprivileged is legal and carries no clause —
+ * such rows are here so the table reads as total rather than as a list of
+ * complaints.
+ */
+export const HANDLE_PRODUCERS: Readonly<Record<string, { readonly field: string; readonly producer: string }>> = {
+  // Cross-boundary — the producer is `code-execution` and the consumer is not.
+  godot_output: { field: "id", producer: "godot_run_managed" },
+  godot_stop: { field: "id", producer: "godot_run_managed" },
+  runtime_peer_stop: { field: "id", producer: "runtime_spawn_peers" },
+  runtime_peers_digest: { field: "peers", producer: "runtime_spawn_peers" },
+  // 🔵 AND THE SIX THAT SPAN NOTHING, WHICH ARE THE HALF THAT MAKES THIS A TABLE.
+  // The two debug planes hand a caller a frame id and then a variables ref, each
+  // minted by the tool before it, and every one of those producers is unprivileged —
+  // so these rows carry no clause on any surface. They are declared because the
+  // question this table answers is *which tools take a handle somebody else mints*,
+  // and a table that held only the four unhappy pairs would be a list of today's
+  // complaints. Tag `dbg_scopes` tomorrow and `orphanedConsumers` says so the same
+  // day, without anyone remembering to look.
+  dbg_scopes: { field: "frame_id", producer: "dbg_stack_trace" },
+  dbg_variables: { field: "variables_ref", producer: "dbg_scopes" },
+  dbg_set_variable: { field: "variables_ref", producer: "dbg_scopes" },
+  cs_dbg_scopes: { field: "frame_id", producer: "cs_dbg_stack_trace" },
+  cs_dbg_variables: { field: "variables_ref", producer: "cs_dbg_scopes" },
+  cs_dbg_set_variable: { field: "variables_ref", producer: "cs_dbg_scopes" },
+};
+
+/**
+ * The consumers whose producer is withheld under `enabled` — the tools that are
+ * ON the surface and cannot be reached from it. Sorted, derived, never restated.
+ */
+export function orphanedConsumers(enabled: ReadonlySet<CapabilityGroup>): string[] {
+  return Object.entries(HANDLE_PRODUCERS)
+    .filter(([consumer, row]) => toolAllowed(consumer, enabled) && !toolAllowed(row.producer, enabled))
+    .map(([consumer]) => consumer)
+    .sort();
+}
+
+/**
+ * The sentence a consumer appends to its own refusal when nothing on this surface
+ * can mint what it consumes. Empty string when the producer IS reachable — there
+ * the caller simply passed a handle that has expired or never existed, which is
+ * the ordinary case and owes no policy explanation.
+ *
+ * 🔴 IT IS APPENDED TO A REFUSAL AND NEVER SUBSTITUTED FOR ONE. The caller's own
+ * mistake stays first in the sentence; this explains why no correct input exists.
+ */
+export function producerWithheldClause(consumer: string, enabled: ReadonlySet<CapabilityGroup>): string {
+  const row = HANDLE_PRODUCERS[consumer];
+  if (!row) return "";
+  return withheldProducerSentence(row.field, row.producer, enabled);
+}
+
+/**
+ * The same sentence addressed by (field, producer) rather than by consumer — for the
+ * call sites that serve a WHOLE family through one message. `PeerRegistry.unknownPeer`
+ * is the only one: twenty-five runtime tools take an optional `peer`, and the registry
+ * that refuses an unknown id does not know which of them is asking.
+ */
+export function withheldProducerSentence(
+  field: string,
+  producer: string,
+  enabled: ReadonlySet<CapabilityGroup>,
+): string {
+  if (toolAllowed(producer, enabled)) return "";
+  const groups = (TOOL_CAPABILITIES[producer] ?? []).join(", ");
+  return (
+    ` — and on this surface no \`${field}\` can exist: \`${producer}\`, the only tool that mints one, ` +
+    `is WITHHELD BY POLICY in the higher-trust group '${groups}'. This is a configuration, not a missing feature. ` +
+    `Enable it with BREAKPOINT_PRIVILEGED_GROUPS=${groups} in this server's env (or \`npx breakpoint-mcp init ` +
+    `--trust full\`) and restart, or read the godot://capabilities resource.`
+  );
+}
+
+/**
  * Wrap `server.registerTool` to DROP any tool whose capability group isn't
  * enabled, so a disabled group's tools never reach `tools/list`. Mirrors
  * `applyOutputSchemas`' wrapping; call once, right AFTER `applyOutputSchemas`
@@ -317,6 +414,18 @@ export function registerCapabilitiesResource(server: McpServer, enabled: Readonl
         default_secure: enabled.size === 0,
         enabled_groups: [...enabled].sort(),
         dropped_tools: droppedTools(enabled),
+        // 🆕 296 — THE SECOND HALF OF WHAT A GROUP COSTS, AND IT WAS UNPRINTED.
+        // `dropped_tools` says what is gone. It does not say that four tools which are
+        // STILL HERE cannot be used, because the only tool that produces what they
+        // consume is in the dropped set. That is a fact about the surface a caller is
+        // reading, so it belongs beside the dropped list rather than only inside the
+        // refusal they get after trying — an agent reads this resource to plan, and
+        // planning around a tool that can only refuse is the mistake worth preventing.
+        orphaned_consumers: orphanedConsumers(enabled).map((consumer) => ({
+          tool: consumer,
+          consumes: HANDLE_PRODUCERS[consumer]?.field ?? "",
+          produced_only_by: HANDLE_PRODUCERS[consumer]?.producer ?? "",
+        })),
         how_to_enable:
           `Set BREAKPOINT_PRIVILEGED_GROUPS in the MCP server env (comma-separated), from: ${groupList}, or 'all'. ` +
           "Or re-run `npx breakpoint-mcp init --trust full` for a guided setup.",
