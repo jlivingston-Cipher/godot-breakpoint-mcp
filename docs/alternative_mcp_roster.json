@@ -346,9 +346,9 @@
       "real_dap_client": true,
       "real_lsp_client": true,
       "csharp": true,
-      "cadence": "dependency-only since 2026-04-30",
+      "cadence": "unknown",
       "status": "active",
-      "note": "SOURCE PASS 284, and this entry is why Rule 2 has a second clause: the Asset Library card has not moved since 2026-04-26 and the head moved 99806df -> 5540357. Reading it: FIVE commits, all 2026-08-13, 3 files, +10/-10 — Dependabot bumps (MessagePack, Roslyn, Microsoft.Extensions.*) and one CI action. No src/, tests/ or addons/ file touched; the tool surface, DAP, LSP and C# paths are byte-identical. 'Nothing that matters changed' is the finding, and it is a MEASURED one. 64 tools by two agreeing derivations ([McpServerTool] attributes across 12 [McpServerToolType] classes; and the declarative catalog in DefaultToolGroups.cs) — agreement is CI-enforced by DefaultToolGroupsTests.cs, not coincidence. Only 17 are advertised out of the box: tools are gated into five opt-in pillars via WICK_GROUPS, defaulting to core. Still the only tracked entry with BOTH a real DAP client and a real LSP client, and both are confirmed at source: GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake; GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and a second CSharpLspClient.cs spawns csharp-ls over stdio. SCOPE CAVEAT WORTH CARRYING: the DAP verbs are launch, configurationDone, stackTrace, evaluate and variables — there is no setBreakpoints and no continue/step, so it is a real DAP client with launch-and-inspect verbs rather than debug-session control. C# is the centre of gravity, not a bolt-on: MSBuildWorkspace, GetSemanticModel, SymbolFinder, with tests. VERSION DIVERGENCE: source has been 1.0.0 since tag v1.0.0 while the card still reads 0.1.0 — one major version and four months behind, which is the sharpest evidence in this roster that an Asset Library version is not a usable freshness signal. Cadence: last substantive source commit 2026-04-30; everything since is Dependabot or CI. Maintained rather than developed.",
+      "note": "SOURCE PASS 284, and this entry is why Rule 2 has a second clause: the Asset Library card has not moved since 2026-04-26 and the head moved 99806df -> 5540357. Reading it: FIVE commits, all 2026-08-13, 3 files, +10/-10 — Dependabot bumps (MessagePack, Roslyn, Microsoft.Extensions.*) and one CI action. No src/, tests/ or addons/ file touched; the tool surface, DAP, LSP and C# paths are byte-identical. 'Nothing that matters changed' is the finding, and it is a MEASURED one. 64 tools by two agreeing derivations ([McpServerTool] attributes across 12 [McpServerToolType] classes; and the declarative catalog in DefaultToolGroups.cs) — agreement is CI-enforced by DefaultToolGroupsTests.cs, not coincidence. Only 17 are advertised out of the box: tools are gated into five opt-in pillars via WICK_GROUPS, defaulting to core. Still the only tracked entry with BOTH a real DAP client and a real LSP client, and both are confirmed at source: GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake; GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and a second CSharpLspClient.cs spawns csharp-ls over stdio. SCOPE CAVEAT WORTH CARRYING: the DAP verbs are launch, configurationDone, stackTrace, evaluate and variables — there is no setBreakpoints and no continue/step, so it is a real DAP client with launch-and-inspect verbs rather than debug-session control. C# is the centre of gravity, not a bolt-on: MSBuildWorkspace, GetSemanticModel, SymbolFinder, with tests. VERSION DIVERGENCE: source has been 1.0.0 since tag v1.0.0 while the card still reads 0.1.0 — one major version and four months behind, which is the sharpest evidence in this roster that an Asset Library version is not a usable freshness signal. Cadence: last substantive source commit 2026-04-30; everything since is Dependabot or CI. Maintained rather than developed. 🆕 294 — `cadence` was the free text 'dependency-only since 2026-04-30' until this session made the column a field a gate reads; it described commit SHAPE rather than release frequency, and nobody has measured a frequency, so it is `unknown` — the STRICT bucket, which buys the shortest staleness window rather than the longest.",
       "capability_evidence": {
         "real_dap_client": "GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake",
         "real_lsp_client": "GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and CSharpLspClient.cs spawns csharp-ls over stdio",
@@ -368,9 +368,9 @@
       "last_analysed_commit": "3037a5b",
       "real_dap_client": false,
       "real_lsp_client": false,
-      "cadence": "release-squashed",
+      "cadence": "unknown",
       "status": "active",
-      "note": "SOURCE PASS 284. Resumed after a 125-day gap: one squashed release commit (3037a5b, 2026-08-24, +5369/-316) took it 0.5.0 -> 0.6.0, so the 'dormant' ruling recorded at 2026-08-10 no longer holds. The new work is transactional editing — a disk-backed snapshot store (snapshot_store.gd, undo_manager.gd) with a _MUTATING_TOOLS registry that auto-snapshots every mutating tool, plus batch_execute with atomic rollback as one undo entry. Deliberately NOT wired to EditorUndoRedoManager, so the editor's own Ctrl+Z does not reach AI edits. 75 tools registered by two independent derivations (allTools in mcp-server/src/tools/index.ts, executed; and the GDScript _tool_map union in tool_executor.gd), 77 advertised on the wire (index.ts:279 prepends get_godot_status and get_guide). Its own READMEs disagree with each other (75, 42 and 32) — counts here are from source. Debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP. GDScript only: create_script hard-rejects non-.gd. Node stdio server hosting a WebSocket on 127.0.0.1:6505 that the editor addon and an in-game autoload both dial into.",
+      "note": "SOURCE PASS 284. Resumed after a 125-day gap: one squashed release commit (3037a5b, 2026-08-24, +5369/-316) took it 0.5.0 -> 0.6.0, so the 'dormant' ruling recorded at 2026-08-10 no longer holds. The new work is transactional editing — a disk-backed snapshot store (snapshot_store.gd, undo_manager.gd) with a _MUTATING_TOOLS registry that auto-snapshots every mutating tool, plus batch_execute with atomic rollback as one undo entry. Deliberately NOT wired to EditorUndoRedoManager, so the editor's own Ctrl+Z does not reach AI edits. 75 tools registered by two independent derivations (allTools in mcp-server/src/tools/index.ts, executed; and the GDScript _tool_map union in tool_executor.gd), 77 advertised on the wire (index.ts:279 prepends get_godot_status and get_guide). Its own READMEs disagree with each other (75, 42 and 32) — counts here are from source. Debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP. GDScript only: create_script hard-rejects non-.gd. Node stdio server hosting a WebSocket on 127.0.0.1:6505 that the editor addon and an in-game autoload both dial into. 🆕 294 — `cadence` was the free text 'release-squashed' until this session made the column a field a gate reads; it described commit SHAPE rather than release frequency, and nobody has measured a frequency, so it is `unknown` — the STRICT bucket, which buys the shortest staleness window rather than the longest.",
       "capability_evidence": {
         "real_dap_client": "debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP",
         "real_lsp_client": "debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP"
@@ -1416,6 +1416,19 @@
       "version": "1.0.1",
       "last_published": "2026-06-04",
       "description": "MCP server for Godot 4 — docs lookup and project file analysis"
+    },
+    {
+      "key": "npm:g-mcp-server",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 294,
+      "repo": null,
+      "npm": "g-mcp-server",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-06-10",
+      "description": "G-MCP: standalone MCP server for Godot 4.x game engine integration"
     },
     {
       "key": "npm:godot-mcp-enhanced",

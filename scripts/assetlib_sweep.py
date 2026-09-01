@@ -63,6 +63,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -781,6 +782,116 @@ def material_change(changed: "list[str]", paths: "list[str]") -> "tuple[bool, st
                    f"{len(paths)} recorded capability path(s)")
 
 
+# ══ 🆕 294 §2.2 — `cadence` BECOMES A FIELD A GATE READS ════════════════════════════════
+#
+# 🔴 FIFTY-TWO ENTRIES HAVE CARRIED THIS COLUMN SINCE THE ROSTER EXISTED AND NOTHING HAS
+# EVER READ IT. `grep -rn cadence scripts/ host/ .github/` returns comments about the
+# ADDON's release cadence and not one reader of this field. It is the oldest declared-and-
+# unread thing in the roster, and 293 §3.4 named it as one of two candidate answers to
+# *what does a green mean on this job* — the other being 294 §2.1, one file over.
+#
+# 🔴 THE DEFECT IT ANSWERS, MEASURED AT 294's PICKUP. `sdk-drift` refused on six rows. Two
+# of them had a source-level pass ZERO and ONE day old: `hybridindie-godot-mcp`, whose card
+# moved to catch up with the very tag 293 had read at source that morning, and
+# `godot-mcp-go`. A refusal that asks a session to re-read what the previous session read
+# this morning is not governance; it is 293 §3.2's treadmill arriving through the card leg
+# instead of through the commit leg.
+#
+# 🔵 AND IT IS THE COMPLEMENT OF 293's ANSWER, NOT A REPLACEMENT FOR IT. The policy says in
+# terms that *a faster `cadence` tier is not the answer, because the subject is wrong
+# rather than the interval* — and that is RIGHT about materiality, which is what
+# `capability_paths` prices: whether a move could have changed the ruling. This prices the
+# question `capability_paths` cannot reach: how often is it worth ASKING. A project that
+# ships weekly does change weekly; what it does not do is become worth re-reading twice in
+# ninety minutes.
+#
+# 🔴 SO THE RULE IS A CAP AND NOT AN EXCUSE: a moved row is owed a source-level pass at
+# most once per its own declared cadence, and it is owed one the moment that window is
+# past. Nothing here makes a row owed LESS often than the project ships, and nothing here
+# clears a row that has been stale longer than its cadence — `selftest()` drives exactly
+# that, because a reader that only ever excused would be a silencer with a lookup table.
+#
+# 🔴 AND THE DEFAULT IS STRICT, WHICH IS 293 §2.2's ARGUMENT IN THIS FILE. An entry whose
+# cadence nobody has measured gets the SHORTEST window, never the longest: a grace period
+# is a claim a session MAKES and never one a silence inherits.
+CADENCE_FLOOR = 7
+CADENCE_DAYS: "dict[str, tuple[int, str]]" = {
+    "daily": (CADENCE_FLOOR,
+              "🔴 SEVEN AND NOT ONE. A project shipping every day is not re-read every day "
+              "by anybody, and a window of one would restore the exact treadmill this "
+              "table exists to bound. The floor is the shortest interval a human roster "
+              "will actually pay, and daily movement buys daily NOTICE, never daily "
+              "analysis."),
+    "weekly": (7, "it ships weekly, so a weekly reading is proportionate to what changes "
+                  "and a second reading inside the same week is re-reading one release"),
+    "biweekly": (14, "it ships fortnightly, so a fortnightly reading sees each release "
+                     "once"),
+    "monthly": (30, "it ships monthly, so a monthly reading sees each release once and a "
+                    "faster one spends a source pass on an unchanged tree"),
+    "quarterly": (91, "it ships quarterly, so a quarterly reading sees each release once; "
+                      "the window is 91 days rather than 90 so a quarter never rounds "
+                      "down into owing a pass a day early"),
+    "annual": (365, "it ships about once a year, and a row this slow is carried for the "
+                    "ruling rather than for the release notes"),
+    "dormant": (180,
+                "it has stopped shipping, so a movement is interesting rather than urgent "
+                "— and the roster keeps dormant rows precisely so a RESUMPTION is noticed, "
+                "which a six-month window still catches"),
+    "archive": (365,
+                "the project ended. Its `status` already holds the ruling and "
+                "`source_state` answers `held` for a ruled-out entry, so this window is "
+                "the belt to that braces and never the only thing carrying the row"),
+    "unknown": (CADENCE_FLOOR,
+                "🔴 THE STRICT BUCKET, AND IT BUYS THE LEAST. A cadence nobody has "
+                "measured gets the SHORTEST window — a closed-source product whose "
+                "releases are not observable, or an entry whose old free-text value "
+                "described commit SHAPE rather than frequency. Silence must never purchase "
+                "a longer grace than a measurement would (293 §2.2)."),
+}
+
+
+def cadence_days(entry: dict) -> "tuple[int, str]":
+    """(window in days, why) for an entry's declared cadence — PURE, table-driven.
+
+    An unrecognised or absent value falls to the strict floor rather than raising, because
+    `--census` is where a bad value is REFUSED and a sweep that crashed on one would take
+    the whole reading down with it.
+    """
+    val = str(entry.get("cadence") or "").strip()
+    if val in CADENCE_DAYS:
+        return CADENCE_DAYS[val]
+    return (CADENCE_FLOOR, f"cadence {val!r} is not in the declared vocabulary, so the "
+                           f"strict floor applies; `--census` refuses it by name")
+
+
+def days_since(iso: str, today: "datetime.date" = None) -> int:
+    """Whole days from an ISO date to `today`, or -1 when there is no readable date.
+
+    🔴 -1 AND NOT 0. A missing `last_analysed` means nobody has ever taken a source-level
+    pass, and 0 would read as *taken today* — the one answer that would excuse the row
+    forever. -1 is past every window, so an unmeasured entry is always owed.
+    """
+    try:
+        d = datetime.date.fromisoformat(str(iso or "")[:10])
+    except ValueError:
+        return -1
+    return ((today or datetime.date.today()) - d).days
+
+
+def within_cadence(entry: dict, today: "datetime.date" = None) -> "tuple[bool, str]":
+    """(is inside its window, detail) — PURE. The whole of 294 §2.2's judgement."""
+    win, why = cadence_days(entry)
+    age = days_since(entry.get("last_analysed"), today)
+    if age < 0:
+        return (False, "no readable `last_analysed`, so no pass has ever been taken and "
+                       "the row is owed one whatever its cadence says")
+    if age < win:
+        return (True, f"last source-level pass {age}d ago, inside the {win}d window for "
+                      f"cadence {str(entry.get('cadence') or '')!r} — {why}")
+    return (False, f"last source-level pass {age}d ago, past the {win}d window for "
+                   f"cadence {str(entry.get('cadence') or '')!r}")
+
+
 def get(url: str) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": "breakpoint-mcp-sweep"})
     with urllib.request.urlopen(req, timeout=30) as r:
@@ -1040,8 +1151,15 @@ def main() -> int:
     src_state = channel_state(src_attempted, src_failed)
     src_problems = source_problems(src_state)
 
+    TODAY = datetime.date.today()
     moved, held, gone, src_moved, src_unread = [], [], [], [], []
     src_immaterial: "list[dict]" = []
+    # 🆕 294 §2.2 — the two cadence-capped populations. Named separately from `held` on
+    # purpose: `held` means NOTHING MOVED, and these moved and are inside their window.
+    # Folding them into `held` would be the census counting an answer as a non-event,
+    # which is the defect 293 §2.4 fixed one column over for `channel: null`.
+    card_within: "list[dict]" = []
+    src_within: "list[dict]" = []
     for aid, entry in sorted(tracked.items()):
         try:
             live = get(f"{API}/asset/{aid}")
@@ -1059,7 +1177,18 @@ def main() -> int:
         }
         same = row["recorded_version"] == row["live_version"] and \
             row["recorded_modify"] == row["live_modify"]
-        (held if same else moved).append(row)
+        # 🆕 294 §2.2 — AND A MOVE INSIDE THE PROJECT'S OWN CADENCE IS RECORDED RATHER THAN
+        # OWED. The row still moved and still prints; what it does not do is make the
+        # roster STALE before the window it declared for itself has passed.
+        inside, cad_why = within_cadence(entry, TODAY)
+        row["cadence"] = entry.get("cadence")
+        row["cadence_why"] = cad_why
+        if same:
+            held.append(row)
+        elif inside:
+            card_within.append(row)
+        else:
+            moved.append(row)
 
         state, detail = source_state(entry, heads.get(aid, ()))
         # 🆕 293 §3.2 — AND ONLY NOW IS THE COMPARE WORTH A CALL. A head that did not move
@@ -1071,7 +1200,12 @@ def main() -> int:
                 repo_changed(str(entry.get("repo") or ""),
                              str(entry.get("last_analysed_commit") or ""),
                              (heads.get(aid) or ("", ""))[0]))
-        if state == "moved":
+        if state == "moved" and inside:
+            # 🔴 THE SAME CAP ON THE SOURCE LEG, AND IT IS THE HALF THAT MATTERED AT 294's
+            # PICKUP. `godot-mcp-go`'s head moved one day after a source pass; the ruling
+            # cannot have gone stale in a day on a project that ships weekly.
+            src_within.append({**row, "repo": entry.get("repo"), "head": detail})
+        elif state == "moved":
             src_moved.append({**row, "repo": entry.get("repo"), "head": detail,
                               "card_held": same})
         elif state == SOURCE_IMMATERIAL:
@@ -1141,7 +1275,9 @@ def main() -> int:
         "tracked": len(tracked),
         "no_change": held,
         "moved": moved,
+        "card_within_cadence": card_within,
         "source_moved": src_moved,
+        "source_within_cadence": src_within,
         "source_immaterial": src_immaterial,
         "source_unread": src_unread,
         "source_channel": {"state": src_state[0], "detail": src_state[1],
@@ -1198,9 +1334,13 @@ def main() -> int:
         print(f"Asset Library sweep — {len(tracked)} tracked entr(ies)")
         print(f"  no change            : {len(held)}")
         print(f"  moved since analysis : {len(moved)}")
+        print(f"  card within cadence  : {len(card_within)}   "
+              f"<- moved, and inside the window the entry declares for itself")
         print(f"  SOURCE moved         : {len(src_moved)}   "
               f"<- Rule 2 clause two; {sum(1 for r in src_moved if r['card_held'])} of "
               f"them the card leg alone reports as no change")
+        print(f"  SOURCE within cadence: {len(src_within)}   "
+              f"<- head moved, and inside the entry's own cadence window")
         print(f"  SOURCE immaterial    : {len(src_immaterial)}   "
               f"<- head moved over nothing the ruling rests on")
         print(f"  source head UNREAD   : {len(src_unread)}")
@@ -1242,6 +1382,16 @@ def main() -> int:
                 f"{r['live_version']} ({r['live_modify']}) "
                 f"· last source-level pass {r['last_analysed']}"
             )
+        # 🆕 294 §2.2 — 🔴 PRINTED, BECAUSE A CAP THAT PRINTS NOTHING IS INDISTINGUISHABLE
+        # FROM A LEG THAT SAW NOTHING. These rows moved; the roster has decided it is not
+        # yet worth re-reading them, and a session that disagrees can see exactly which
+        # rows the decision covered and how close each is to falling out of its window.
+        for r in card_within:
+            print(f"    WITHIN {r['asset_id']:>5}  {r['name']}: "
+                  f"{r['recorded_version']} -> {r['live_version']} · {r['cadence_why']}")
+        for r in src_within:
+            print(f"    SRC/IN {r['asset_id']:>5}  {r['name']}: {r['repo']} "
+                  f"{r['head']} · {r['cadence_why']}")
         for r in result["new_mcp_shaped"]:
             print(
                 f"    NEW/MCP {r['asset_id']:>5}  {r['title']} — {r['author']} "
@@ -1384,6 +1534,31 @@ def roster_shape_problems(roster: dict) -> "list[str]":
                 f"one of {sorted(CHANNELS)}, or `null` if no enumerable channel surfaces "
                 f"it — which is a reading somebody took and not a blank")
 
+        # ── 🆕 294 §2.2 — AND `cadence` IS A READ FIELD NOW, SO IT OWES A VOCABULARY ────
+        #
+        # 🔴 IT CARRIED FREE TEXT FOR AS LONG AS NOBODY READ IT, WHICH IS THE WHOLE
+        # ARGUMENT FOR REFUSING ONE. Two of the fifty-two values were prose describing
+        # commit SHAPE rather than release frequency — `release-squashed`, and
+        # `dependency-only since 2026-04-30` — and a column nothing reads can hold prose
+        # forever without anybody noticing. The moment it prices staleness, an
+        # unrecognised value is a silent fall to the strict floor, which is the safe
+        # direction and still a value nobody chose. 293's `CAPABILITY_UNKNOWN_VALUE` is
+        # this same refusal one column over.
+        cad = e.get("cadence")
+        if "cadence" not in e:
+            problems.append(
+                f"ROSTER_CADENCE_UNDECLARED {e.get('name')!r} declares no cadence, and "
+                f"`assetlib_sweep.py` now prices staleness against it: without one the "
+                f"entry silently takes the {CADENCE_FLOOR}-day floor, which is a window "
+                f"nobody chose. Declare one of {sorted(CADENCE_DAYS)}")
+        elif str(cad or "").strip() not in CADENCE_DAYS:
+            problems.append(
+                f"ROSTER_CADENCE_UNKNOWN_VALUE {e.get('name')!r} declares cadence "
+                f"{cad!r}, which is not one of {sorted(CADENCE_DAYS)}. The value now "
+                f"decides how long a moved row waits before it is owed a source-level "
+                f"pass, so a spelling no table maps is a grace period arrived at by "
+                f"accident")
+
     seen: dict[str, int] = {}
     for s in surfaced:
         key = str(s.get("key") or "")
@@ -1478,6 +1653,23 @@ def census() -> int:
     cap_claimed, cap_unread, cap_uncited = capability_counts(roster)
     print(f"LANDSCAPE_CAPABILITY {cap_claimed} claimed / {cap_unread} unread / "
           f"{cap_uncited} uncited")
+    # 🆕 294 §2.2 — THE ROSTER'S STALENESS SHAPE, READ OFF THE FILE AND WITHOUT A NETWORK.
+    #
+    # 🔴 THE PAIR IS THE POINT, FOR `LANDSCAPE_CAPABILITY`'s REASON ONE LINE UP. `within`
+    # rising while `past` stands still is the roster being read on schedule; `past` rising
+    # is passes falling behind; and `never` — entries with no readable `last_analysed` at
+    # all — is the one number a cadence cap can never shrink, because a row nobody has
+    # ever analysed is owed a pass whatever interval it declares. Any one of the three can
+    # move for the wrong reason and the triple cannot.
+    #
+    # 🔵 AND IT IS PRINTED BY THE OFFLINE LEG DELIBERATELY. `--check` reports staleness
+    # against what the WORLD did; this reports it against what the ROSTER has, which is a
+    # fact about this tree and belongs where a merge can read it.
+    _today = datetime.date.today()
+    cad_within = sum(1 for e in entries if within_cadence(e, _today)[0])
+    cad_never = sum(1 for e in entries if days_since(e.get("last_analysed"), _today) < 0)
+    print(f"LANDSCAPE_CADENCE {cad_within} within / "
+          f"{len(entries) - cad_within - cad_never} past / {cad_never} never analysed")
     return 1 if problems else 0
 
 
@@ -1702,11 +1894,13 @@ def selftest() -> int:
 
     # ── `roster_shape_problems` — the offline reader `--census` runs in the merge path ─
     claim("shape: a clean roster has nothing to say",
-          roster_shape_problems({"entries": [{"name": "x", "channel": "npm", "repo": "a/b"}],
+          roster_shape_problems({"entries": [{"name": "x", "channel": "npm", "repo": "a/b",
+                                                  "cadence": "weekly"}],
                                  "surfaced": [{"key": "c/d", "channels": ["npm"],
                                                "first_seen": 291}]}), [])
     claim("shape: an entry naming a channel no leg queries is refused",
-          len(roster_shape_problems({"entries": [{"name": "x", "channel": "itch"}],
+          len(roster_shape_problems({"entries": [{"name": "x", "channel": "itch",
+                                                  "cadence": "weekly"}],
                                      "surfaced": []})), 1)
     claim("shape: a surfaced row missing a leg-supplied field is refused",
           len(roster_shape_problems({"entries": [],
@@ -1717,7 +1911,8 @@ def selftest() -> int:
               {"key": "c/d", "channels": ["npm"], "first_seen": 291}]})), 1)
     claim("shape: a project read at source level is PROMOTED, not duplicated",
           len(roster_shape_problems({"entries": [{"name": "x", "channel": "npm",
-                                                  "repo": "C/D"}],
+                                                  "repo": "C/D",
+                                                  "cadence": "weekly"}],
                                      "surfaced": [{"key": "c/d", "channels": ["npm"],
                                                    "first_seen": 291}]})), 1)
     claim("shape: every declared channel says whether a machine can enumerate it",
@@ -1904,7 +2099,7 @@ def selftest() -> int:
           ["CAPABILITY_EVIDENCE_ORPHAN"])
     # 🔵 ABSENT IS NOT WITHDRAWN, AND THE COUNTS ARE WHERE THAT DIFFERENCE IS SPENT.
     claim("capability: an entry claiming nothing counts as nothing",
-          capability_counts({"entries": [{"name": "x"}]}), (0, 0, 0))
+          capability_counts({"entries": [{"name": "x", "cadence": "weekly"}]}), (0, 0, 0))
     claim("capability: a withdrawn claim is counted as unread and not as a claim",
           capability_counts({"entries": [{"name": "x", "csharp": CAPABILITY_UNREAD}]}),
           (0, 1, 0))
@@ -1925,16 +2120,60 @@ def selftest() -> int:
     # What belongs here is the reader, driven from fixtures, in both directions.
     # ── 🆕 293 — AND A ROW THAT NAMES NO CHANNEL IS A ROW NO LEG CAN RE-READ ─────────
     claim("channel: a row naming no channel at all is REFUSED",
-          [p.split()[0] for p in roster_shape_problems({"entries": [{"name": "x"}]})],
+          [p.split()[0] for p in roster_shape_problems({"entries": [{"name": "x", "cadence": "weekly"}]})],
           ["ROSTER_CHANNEL_UNDECLARED"])
     claim("channel: `null` is an ANSWER and is accepted",
-          roster_shape_problems({"entries": [{"name": "x", "channel": None}]}), [])
+          roster_shape_problems({"entries": [{"name": "x", "channel": None, "cadence": "weekly"}]}), [])
     claim("channel: a declared channel is accepted",
-          roster_shape_problems({"entries": [{"name": "x", "channel": "npm"}]}), [])
+          roster_shape_problems({"entries": [{"name": "x", "channel": "npm", "cadence": "weekly"}]}), [])
     claim("channel: a channel no leg queries is still REFUSED",
           [p.split()[0] for p in roster_shape_problems(
-              {"entries": [{"name": "x", "channel": "itch"}]})],
+              {"entries": [{"name": "x", "channel": "itch", "cadence": "weekly"}]})],
           ["ROSTER_CHANNEL_UNKNOWN"])
+
+    # ── 🆕 294 §2.2 — CADENCE, AND THE ARM THAT MUST STILL REFUSE ────────────────────
+    #
+    # 🔴 THE SECOND CLAIM IS THE ONE THAT KEEPS THIS HONEST. Almost every claim here shows
+    # the reader EXCUSING a row, and a reader that only ever excused would be indistin-
+    # guishable from `return (True, "")` — the shape 293 §2.1 refused for the source leg
+    # and 288 §7.3 refuses for any gate over a population somebody chose. So: inside the
+    # window is excused, PAST the window is owed, and no `last_analysed` at all is owed
+    # whatever the cadence says.
+    _mar1 = datetime.date(2026, 3, 1)
+    claim("cadence: a weekly project read 3 days ago is inside its window",
+          within_cadence({"cadence": "weekly", "last_analysed": "2026-02-26"}, _mar1)[0],
+          True)
+    claim("cadence: 🔴 the SAME project read 30 days ago is OWED — the cap never excuses "
+          "a row past its own window",
+          within_cadence({"cadence": "weekly", "last_analysed": "2026-01-30"}, _mar1)[0],
+          False)
+    claim("cadence: an entry that has never been analysed is owed whatever it declares",
+          within_cadence({"cadence": "annual"}, _mar1)[0], False)
+    claim("cadence: a quarterly project read 62 days ago is inside its window",
+          within_cadence({"cadence": "quarterly", "last_analysed": "2025-12-29"},
+                         _mar1)[0], True)
+    claim("cadence: 🔴 an UNKNOWN cadence takes the strict FLOOR and not the longest "
+          "window — silence never buys a longer grace than a measurement would",
+          cadence_days({"cadence": "unknown"})[0], CADENCE_FLOOR)
+    claim("cadence: an unrecognised value falls to the floor rather than raising",
+          cadence_days({"cadence": "every other tuesday"})[0], CADENCE_FLOOR)
+    claim("cadence: 🔴 `daily` is capped at the floor and not at one day, or the "
+          "treadmill this table bounds comes straight back",
+          cadence_days({"cadence": "daily"})[0], CADENCE_FLOOR)
+    claim("cadence: a missing date reads -1 and not 0, so it is past every window",
+          days_since("", _mar1), -1)
+    claim("cadence: every declared cadence carries an argument for its window",
+          sorted({k for k, (d, why) in CADENCE_DAYS.items()
+                  if not isinstance(d, int) or d < 1 or len(why) < 20}), [])
+    claim("cadence: a row declaring no cadence at all is REFUSED",
+          [p.split()[0] for p in roster_shape_problems(
+              {"entries": [{"name": "x", "channel": "npm"}]})],
+          ["ROSTER_CADENCE_UNDECLARED"])
+    claim("cadence: free text no table maps is REFUSED by name",
+          [p.split()[0] for p in roster_shape_problems(
+              {"entries": [{"name": "x", "channel": "npm",
+                            "cadence": "release-squashed"}]})],
+          ["ROSTER_CADENCE_UNKNOWN_VALUE"])
 
     claim("capability: every declared field has a vocabulary to spend",
           sorted(CAPABILITY_VALUES) == sorted(CAPABILITY_FIELDS), True)

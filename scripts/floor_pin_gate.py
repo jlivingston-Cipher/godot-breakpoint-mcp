@@ -213,7 +213,14 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # headline-only fixture (7) — so a floor RAISED out of range fails as loudly as one
     # zeroed. 184 §7: pinning the key is not pinning the value.
     ("handoff.CLAIM_FLOOR",     "../scripts/handoff_gate.py",       r"(CLAIM_FLOOR = )15",                                       ["../scripts/handoff_gate.py", "--selftest"]),
-    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )30",                                      ["../scripts/handoff_gate.py", "--selftest"]),
+    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )31",                                      ["../scripts/handoff_gate.py", "--selftest"]),
+    # 🆕 294 §2.2 — 🔴 A GRACE PERIOD IS A FLOOR AND THIS GATE FOUND IT BEFORE ANYBODY
+    # DECLARED IT. `CADENCE_FLOOR` is the shortest staleness window any roster entry can
+    # take, and it is what an `unknown` or unrecognised cadence falls to — so a quiet edit
+    # from 7 to 90 would excuse the entire roster at once and every `--check` after it
+    # would still print green. That is exactly the DROPPED-COUNTER direction this ledger
+    # governs, arriving on a number that is not a count.
+    ("assetlib.CADENCE_FLOOR",  "../scripts/assetlib_sweep.py",     r"(CADENCE_FLOOR = )7",                                      ["../scripts/assetlib_sweep.py", "--selftest"]),
     # 🆕 244 §2 — `population-reach-floor` (239). NOT a floor on a count: it is the OLDEST
     # SESSION `BLOCK_POPULATION` has ever held, and the row exists because every other
     # floor on that table counts it. Lifted, the live table starts before its own pin and
@@ -1307,12 +1314,23 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "when the block's counter line gains or loses a whole class of field — which is a "
         "session ADDING an instrument, and the ledger row saying so in the same commit is "
         "what tells that from a parser that quietly stopped matching.")),
-    ("../scripts/handoff_gate.py", "READER_FLOOR"): (30, (
+    ("../scripts/handoff_gate.py", "READER_FLOOR"): (31, (
         "🆕 234 — the counter readers, at `{FLOOR}`. The lower bound is the roster with "
         "its largest single-instrument family deleted (six rows read floor_pin_gate.py), "
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
-        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one. 🆕 246 §4 raised it by four, for the three counters `instrument_gate.py` has printed on every run since the session before and no row here bound, plus the queue gate's own self-test count — the same class this floor governs, arriving from the instrument's side rather than the block's. 🆕 291 — raised it by one, for `landscape.roster`: the landscape roster's two populations, an instrument arriving from the BLOCK's side rather than the instrument's. The counter did not exist until the commit that added the row, so the bound had to move with it or the roster would sit at its own floor. 🆕 293 — raised by one again and for the same reason one session later, for `landscape.capability`: `assetlib_sweep.py --census` gained a second counter line and the roster gained the row that reads it in the same commit, so the bound moves with it. 🔴 TWO CONSECUTIVE SESSIONS RAISING THIS BY ONE IS THE PATTERN THE ROW EXISTS TO MAKE VISIBLE — an instrument arriving from the block's side is still an instrument arriving, and a floor that tracked the roster automatically would have said nothing either time.")),
+        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one. 🆕 246 §4 raised it by four, for the three counters `instrument_gate.py` has printed on every run since the session before and no row here bound, plus the queue gate's own self-test count — the same class this floor governs, arriving from the instrument's side rather than the block's. 🆕 291 — raised it by one, for `landscape.roster`: the landscape roster's two populations, an instrument arriving from the BLOCK's side rather than the instrument's. The counter did not exist until the commit that added the row, so the bound had to move with it or the roster would sit at its own floor. 🆕 293 — raised by one again and for the same reason one session later, for `landscape.capability`: `assetlib_sweep.py --census` gained a second counter line and the roster gained the row that reads it in the same commit, so the bound moves with it. 🆕 294 — raised by one a THIRD consecutive time, for `landscape.cadence`: `--census` gained a third counter line, `cadence`, in the commit that made the roster's oldest declared-and-unread column price staleness. 🔴 THREE CONSECUTIVE SESSIONS RAISING THIS BY ONE IS THE PATTERN THE ROW EXISTS TO MAKE VISIBLE — an instrument arriving from the block's side is still an instrument arriving, and a floor that tracked the roster automatically would have said nothing any of the three times. 🔵 All three came out of ONE command (`assetlib_sweep.py --census`), which is worth noticing: a floor counting READERS cannot see that a family is growing inside a single instrument, and `BIND_PINS` is the only thing keeping their aliases apart.")),
+    ("../scripts/assetlib_sweep.py", "CADENCE_FLOOR"): (7, (
+        "🆕 294 §2.2 — the shortest staleness window any roster entry can take, at "
+        "`{FLOOR}` days. It is the value an `unknown` cadence and any unrecognised "
+        "spelling fall to, which is the whole of the STRICT-DEFAULT argument: silence "
+        "must buy the LEAST grace, never the most. 🔴 IT IS A FLOOR AND NOT A SETTING. "
+        "Raised to ninety it would excuse every moved row on the roster in one edit and every "
+        "`--check` after it would print a green that had stopped meaning anything — the "
+        "DROPPED-COUNTER direction this ledger governs, arriving on a number that counts "
+        "nothing. Moves when a session decides the roster genuinely cannot be read that "
+        "often, and the ledger row saying so in the same commit is what tells that from a "
+        "gate quietly being turned down.")),
     ("../scripts/handoff_gate.py", "POPULATION_REACH_FLOOR"): (227, (
         "🆕 244 §2 — `population-reach-floor`, and the ONE row in this ledger whose value "
         "is a session number rather than a count. `{FLOOR}` is the oldest block "
