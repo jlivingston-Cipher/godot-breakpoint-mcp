@@ -1180,6 +1180,38 @@ HEADER_EXEMPT: "list[tuple[str, str]]" = [
                    "comparison reads as claims about this one. No counter this half "
                    "reads is ever possessive."),
     (r"\bbranch \d+\b", "the session number — this file's own name, not a measurement"),
+    # 🆕 292 §5 — 🔴 A COMMIT SHA WHOSE SEVEN CHARACTERS HAPPEN TO BE ALL DIGITS. Every
+    # block since 227 prints two or three abbreviated SHAs above `VERIFIED` — the `main`
+    # row's, the pre-squash tip on the branch row's continuation, and the one in `CI GREEN
+    # … at <sha>` — and for sixty-five blocks every one of them contained a letter, so
+    # `COUNTER_RE` never saw them. 292's merge commit is `5155079`. It is a SHA, git
+    # resolves it, and it is also seven decimal digits, so the header half read it as a
+    # counter twice: `UNREADABLE HEADER CLAIM` on `squashed to 5155079`, and `git.moved —
+    # the block says [5155079, 1], the tree says [1]` on the `main` row, where the atom's
+    # ONE number became two.
+    #
+    # 🔴 THIS IS NOT RARE AND WAITING FOR IT AGAIN IS NOT A PLAN. A uniformly distributed
+    # hex prefix is all-digits with probability (10/16)^7 ≈ **3.7%**, so it lands about
+    # once every twenty-seven sessions — and it lands at the CLOSE, on the one document a
+    # session cannot re-measure without moving the tree the block describes. 292 found it
+    # by being the unlucky session and paid a second PR for it.
+    #
+    # 🔵 WIDTH IS THE TEST AND IT IS THE HONEST ONE. Every counter this block has ever
+    # carried is at most four digits — `taut 4963` is the largest in sixty-five blocks —
+    # and git's abbreviated SHA is seven characters or more. There is no overlap to
+    # arbitrate, and the pattern deliberately covers hex-with-letters too, which was never
+    # a counter and is now exempt for a stated reason rather than by accident of spelling.
+    # 🔴 The negative control is the half that matters and it is driven in `--selftest`: a
+    # four-digit counter beside a SHA in the same atom survives this row, or the exemption
+    # would eat the number it exists to protect.
+    (r"\b[0-9a-f]{7,40}\b",
+     "🔴 AN ABBREVIATED COMMIT SHA IS NOT A COUNTER, AND ONLY ITS SPELLING EVER SAID SO. "
+     "A block prints two or three of them above `VERIFIED` and sixty-five blocks running "
+     "contained a letter in every one, which is why nothing needed this row until 292 "
+     "merged at `5155079` — seven characters, all of them digits, read as a count in two "
+     "atoms at once. Git abbreviates to seven or more; the largest counter any block has "
+     "carried is four digits (`taut 4963`); so the width test separates them with nothing "
+     "in between to arbitrate, and it is checked in both directions by `--selftest`."),
 ]
 
 # 🔴 236 §3 — TWO ROWS LEFT THIS TABLE, AND BOTH REASONS WERE FALSE ABOUT THE BLOCK THEY
@@ -8523,6 +8555,41 @@ def selftest() -> int:
     if not (len(bare) < HEADER_FLOOR <= len(h_atoms)):
         failed += 1
         print(f"  🔴 HEADER_FLOOR {HEADER_FLOOR} is not in ({len(bare)}, {len(h_atoms)}]")
+
+    # ── 🆕 292 §5 — AN ALL-DIGIT SHA IS A SHA, AND A COUNTER BESIDE ONE IS STILL A COUNTER
+    #
+    # 🔴 THE POSITIVE CASE IS 292's OWN CLOSE, VERBATIM. `5155079` is the commit this
+    # session merged at: seven characters, every one a digit, and git resolves it. Before
+    # the `HEADER_EXEMPT` row above, this atom carried TWO numbers and `git.moved` refused
+    # with *the block says [5155079, 1], the tree says [1]* — the SHA counted as a claim.
+    # A hex SHA with a letter in it (`a50d968`, 291's) must reach the same answer, because
+    # the two spell one kind of thing and only luck ever told them apart.
+    claims += 1
+    _digit_sha, _ = header_atoms(["main   5155079 — the price of being unread (#367)  MOVED +1"])
+    _hex_sha, _ = header_atoms(["main   a50d968 — the channels a project can ship in (#365)  MOVED +1"])
+    if not (len(_digit_sha) == len(_hex_sha) == 1
+            and re.findall(r"\d+", _digit_sha[0][1]) == re.findall(r"\d+", _hex_sha[0][1])
+            == ["1"]):
+        failed += 1
+        print(f"  🔴 an all-digit commit SHA is read as a counter — the `main` row "
+              f"{_digit_sha!r} does not reduce to the same single claim as {_hex_sha!r}. "
+              f"A block whose merge commit happens to be all digits (one session in "
+              f"twenty-seven) cannot bind, and it finds that out at the close")
+
+    # 🔴 AND THE NEGATIVE CONTROL, WHICH IS THE HALF THAT CAN BE WRONG. An exemption wide
+    # enough to eat a SHA must not eat the counter standing next to it: the `CI GREEN` row
+    # carries a SHA AND a count in one atom, and the four-digit counters (`taut 4963`) are
+    # the ones a width test could plausibly reach. Both survive, or this row protects the
+    # block by deleting what the block says.
+    claims += 1
+    _beside, _ = header_atoms(["main   26 of 26 required checks at 467fcb4",
+                               "taut   4963 claim sites at 5155079"])
+    _nums = [n for _r, c in _beside for n in re.findall(r"\d+", c)]
+    if _nums != ["26", "26", "4963"]:
+        failed += 1
+        print(f"  🔴 the SHA exemption ate a counter beside a SHA: kept {_nums}, want "
+              f"['26', '26', '4963']. A row that removes the claim it was written to "
+              f"protect is worse than the refusal it replaces")
 
     # the parser, end to end, on a block shaped like the real ones
     claims += 1
