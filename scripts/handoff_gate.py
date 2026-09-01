@@ -133,7 +133,7 @@ CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 # 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
 # 🆕 240 — 75 -> 76, the same move again: 239's block is the thirteenth.
 ALIAS_SPELLING_FLOOR = 76
-READER_FLOOR = 30        # governed by floor_pin_gate's SIZE_LEDGER
+READER_FLOOR = 31        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
 #
@@ -381,6 +381,21 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      "capability rulings the roster asserts and can show the reading for, rulings it has "
      "withdrawn for want of one, and claims whose evidence names nothing checkable. "
      "`capability 43 claimed / 35 unread / 10 uncited`."),
+
+    # 🆕 294 §2.2 — 🔴 THE COLUMN THAT WAS DECLARED ON EVERY ROW AND READ BY NOTHING.
+    # `cadence` has been on all fifty-two entries since the roster existed; 294 made it
+    # price staleness, so the roster's own staleness shape is now derivable offline and
+    # owes a counter. THE TRIPLE IS THE CLAIM: `within` and `past` move against each other
+    # as passes are paid or fall behind, and `never` is the population no interval can
+    # shrink — a row nobody has analysed is owed a pass whatever cadence it declares, so a
+    # `never` count that only ever grows is the roster quietly widening.
+    ("landscape.cadence", r"\bcadence\b", 3,
+     ("python3", "../scripts/assetlib_sweep.py", "--census"), HOST,
+     r"^LANDSCAPE_CADENCE (\d+) within / (\d+) past / (\d+) never analysed",
+     CHEAP, SINCE(294),
+     "roster entries inside the staleness window their own `cadence` declares, entries "
+     "past it and owed a source-level pass, and entries with no readable `last_analysed` "
+     "at all. `cadence 33 within / 5 past / 14 never analysed`."),
 
     # ── the .mjs instruments ──────────────────────────────────────────────────────────
     ("taut.sites", r"\btaut\b", 1, ("node", "scripts/tautology_gate.mjs"), HOST,
@@ -852,6 +867,7 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "term.swept":                  INDEX,
     "landscape.roster":            TRACKED,
     "landscape.capability":        TRACKED,
+    "landscape.cadence":           TRACKED,
     "taut.sites":                  TRACKED,
     "taut.duration":               TRACKED,
     "taut.orphan":                 TRACKED,
@@ -2417,6 +2433,70 @@ def wf_sha(r: dict) -> str:
     return str(r.get("headSha") or r.get("head_sha") or "")
 
 
+# ══ 🆕 294 §2.1 — `a-world-facing-job-changed-subject-by-landing-on-HEAD` ═════════════
+#
+# 🔴 279 ALREADY DECIDED THIS AND THE VERDICT READER CANNOT SEE THE DECISION. Forty lines
+# up, `elsewhere_red_of`'s own argument says a red in `sdk-drift` "is a fact about a
+# workflow's own subject and not about the health of the tree this session is picking up",
+# and reports it as a NOTE for exactly that reason. Then the same job, with the same
+# subject, becomes a REFUSAL the moment its run happens to land on `main`'s newest commit
+# — because 279 classified by WHERE THE RUN LANDED and not by WHAT THE JOB IS ABOUT.
+#
+# 🔴 AND THE ACCIDENT STOPPED BEING ONE. 279's premise was `schedule:`: a cron run sits at
+# whatever sha `main` held that morning, so it is *usually* outside the newest-sha
+# population. Since 291 the roster work has been dispatched BY SESSIONS, deliberately, at
+# the commit they just merged — 293 §3.4 dispatched it at `d900d84` to see its own code
+# against the live world, which is the right thing to do and is why it landed on HEAD.
+# So the better the practice got, the more reliably the job changed subject.
+#
+# 🔴 MEASURED AT 294's OWN PICKUP, WHICH IS HOW THIS WAS FOUND. `--open` refused TIER0
+# with `MAIN_RED_AT_HEAD ... (sdk-drift)` at `d900d84`, and the run it refused on
+# (33473844819) is green in every reading about this tree — `SOURCE leg : read — 23
+# quer(ies), all answered`, `unreachable : 0`, all four channels read, `SOURCE immaterial
+# : 0` — and exits 1 on six movements in other people's repositories. The tree verdict
+# `ci` and `integration` both passed at that commit. So the cheap tier was denied over
+# three cards and two heads that moved on somebody else's release schedule.
+#
+# 🔵 AND THE COST IS NOT ONE SESSION'S. `sdk-drift` has been red on four consecutive
+# dispatches across four commits and four sessions; of fifteen runs it has ever made, the
+# last green was 2026-08-26. A job that is structurally red forever, wired to the commit
+# verdict, is a permanent tax of one full replay on every pickup — for a reading that by
+# 279's own words is not about the tree.
+#
+# 🔴 WHAT THIS IS NOT: A SILENCER. The job stays merge-blocking on its own workflow, stays
+# red, and its rows stay owed; `--check` still refuses `SOURCE_UNREAD`, `CAPABILITY_*` and
+# every other defect-in-the-tree it has ever refused. What changes is one sentence: a
+# world-facing workflow is never evidence about the tree, at ANY sha. It is reported by
+# name in both positions — 279's `WORKFLOW_RED_ELSEWHERE` when it landed elsewhere, and
+# `WORKFLOW_RED_WORLD_FACING` when it landed here — and refused in neither.
+#
+# 🔵 THE SHARPER VERSION IS ONE LAYER DOWN AND IS NOT BUILT HERE. `assetlib_sweep.py`
+# ALREADY knows which of its problems are defects in this tree and which are movements in
+# the world — `severity_problems`' own comment draws that line in those words — and it
+# collapses both into one exit code, which collapses into one colour, which is what this
+# table then has to classify wholesale. Splitting the EXIT would let the job be green on a
+# current tree and still print its inbox. That is a bigger change to what CI means and it
+# wants its own session; 294 §3.1 carries the argument.
+WORLD_FACING_WORKFLOWS: "list[tuple[str, str]]" = [
+    ("sdk-drift",
+     "🔴 ITS SUBJECT IS FIFTY THIRD-PARTY PROJECTS AND NOT ONE LINE OF THIS TREE. The job "
+     "runs `assetlib_sweep.py --check`, which asks whether the Asset Library, npm, the "
+     "MCP Registry and twenty-three repository heads still match what the roster records. "
+     "Every refusal it can raise about OTHER people's work — a card that moved, a head "
+     "that moved, a channel surfacing a project with no row — is owed work for a later "
+     "session and says nothing whatever about whether this commit builds, tests or ships. "
+     "The roster tracks a field where several projects ship daily, so the honest steady "
+     "state of this job is red: 292 handed over one refusal, 293 cleared it, and six "
+     "arrived within six hours. Reading that colour as a verdict on the tree makes every "
+     "pickup pay a full replay for somebody else's release schedule."),
+]
+
+
+def world_facing(name: str) -> bool:
+    """Is this workflow's subject the world rather than this tree? PURE, table-driven."""
+    return any(w == name for w, _why in WORLD_FACING_WORKFLOWS)
+
+
 # 🆕 279 — 🔴 AND THE POPULATION AT ONE SHA IS AN ACCIDENT OF THE SCHEDULE.
 #
 # 277 wrote *the atom is the commit and not the run*, and it is — for the merge path,
@@ -2438,28 +2518,36 @@ def wf_sha(r: dict) -> str:
 # by name. That half is a NOTE and never a refusal: it is a fact about a workflow's own
 # subject and not about the health of the tree this session is picking up (271 §1's rule
 # for every other world reading in this file).
-def main_at_head_of(rows: "list[dict]") -> "tuple[str, str, list[str], str]":
-    """(sha, conclusion, workflows that did not pass, problem) — PURE over the forge's
-    answer, so both directions are drivable from a fixture and neither needs a network.
+def main_at_head_of(rows: "list[dict]") -> "tuple[str, str, list[str], str, list[str]]":
+    """(sha, conclusion, TREE workflows that did not pass, problem, WORLD-FACING ones that
+    did not pass) — PURE over the forge's answer, so every direction is drivable from a
+    fixture and none of them needs a network.
 
     🔴 A RUN STILL GOING IS NOT A GREEN AND IT IS NOT A RED EITHER. It is the third answer
     this reader has to be able to give, because a pickup minutes after a merge is exactly
     when it happens, and collapsing it into either of the other two is the reader lying
     about which way it does not know.
+
+    🆕 294 — 🔴 AND THE VERDICT IS OVER THE TREE-FACING WORKFLOWS ONLY. The fifth element
+    is not a softer fourth: a world-facing red is REPORTED in full, by name, on the same
+    reading — what it is not is evidence about the commit being inherited. See
+    `WORLD_FACING_WORKFLOWS` above for why that population is declared rather than guessed.
     """
     if not rows:
         return ("", "", [], "the forge lists no workflow run for `main` at all — either "
-                            "this repository has never run one, or the query was refused")
+                            "this repository has never run one, or the query was refused",
+                [])
     sha = wf_sha(rows[0])
     if not sha:
         return ("", "", [], "the newest run listed for `main` carries no head sha, so "
-                            "there is no commit to attribute a verdict to")
+                            "there is no commit to attribute a verdict to", [])
     at = [r for r in rows if wf_sha(r) == sha]
     if any(str(r.get("status") or "") != "completed" for r in at):
-        return (sha, RUN_PENDING, [], "")
-    bad = sorted({wf_name(r) for r in at
-                  if str(r.get("conclusion") or "") != RUN_GREEN})
-    return (sha, RUN_GREEN if not bad else "failure", bad, "")
+        return (sha, RUN_PENDING, [], "", [])
+    failed = {wf_name(r) for r in at if str(r.get("conclusion") or "") != RUN_GREEN}
+    bad = sorted(n for n in failed if not world_facing(n))
+    world = sorted(n for n in failed if world_facing(n))
+    return (sha, RUN_GREEN if not bad else "failure", bad, "", world)
 
 
 def elsewhere_red_of(rows: "list[dict]") -> "list[tuple[str, str]]":
@@ -2523,11 +2611,11 @@ def main_run_rows_rest(why_cli: str, root: Path = ROOT) -> "tuple[list, str]":
     return (list(out.get("workflow_runs") or []), "")
 
 
-def main_at_head(root: Path = ROOT) -> "tuple[str, str, list[str], str]":
+def main_at_head(root: Path = ROOT) -> "tuple[str, str, list[str], str, list[str]]":
     """The same reading, dialled — NETWORK. `gh_run_verdict`'s shape, one branch wider."""
     rows, prob = main_run_rows(root)
     if prob:
-        return ("", "", [], prob)
+        return ("", "", [], prob, [])
     return main_at_head_of(rows)
 
 
@@ -2545,6 +2633,16 @@ MAIN_AT_HEAD_RE = re.compile(r"^MAIN_AT_HEAD ([0-9a-f]{7,40}) (\w+)(?: — ([^\n
 # 🆕 279 — the second line, and the population `MAIN_AT_HEAD` cannot see by construction.
 WORKFLOW_RED_ELSEWHERE_RE = re.compile(r"^WORKFLOW_RED_ELSEWHERE (\S+) ([0-9a-f]{7,40})",
                                        re.M)
+
+# 🆕 294 — 🔴 THE THIRD LINE, AND IT EXISTS SO THE SPLIT SURVIVES THE MEASURED-LOG ROUTE.
+# `MAIN_AT_HEAD <sha> success` is now printed at a commit where `sdk-drift` failed, and a
+# reader that stopped there would have turned a classification into a DELETION — the
+# emitter would have quietly dropped the one fact 279 built its note to carry. So the
+# world-facing reds are emitted on their own line, in `WORKFLOW_RED_ELSEWHERE`'s shape and
+# for its reason, and `main_head_problems` reports them from the log exactly as it reports
+# them from the network. 🔵 A reading that is not a refusal still has to be SAID.
+WORKFLOW_RED_WORLD_FACING_RE = re.compile(
+    r"^WORKFLOW_RED_WORLD_FACING (\S+) ([0-9a-f]{7,40})", re.M)
 
 
 def main_head_problems(log: str, run_network: bool, head: str = "",
@@ -2564,8 +2662,22 @@ def main_head_problems(log: str, run_network: bool, head: str = "",
     about the network. What is refused is a verdict that WAS read and is not `success`.
     """
     elsewhere = [(w, s) for w, s in WORKFLOW_RED_ELSEWHERE_RE.findall(log or "")]
+    # 🆕 294 — read off the log; the network route appends to this same list below, so the
+    # note is printed once from whichever route actually answered.
+    at_head_world = [(w, s) for w, s in WORKFLOW_RED_WORLD_FACING_RE.findall(log or "")]
 
     def _with_elsewhere(problems: "list[str]", notes: "list[str]") -> "tuple[list, list]":
+        # 🆕 294 — 🔴 SAID IN FULL, AND NEVER A REASON TO REFUSE. This is the same
+        # sentence `WORKFLOW_RED_ELSEWHERE` says one block down, for a workflow that
+        # landed HERE instead of at an older sha. The tier is about the tree; this job's
+        # subject is fifty other people's repositories; and 279 already wrote that
+        # distinction down and then keyed it on the wrong thing.
+        for w, s in at_head_world:
+            notes.append(f"🔴 WORKFLOW_RED_WORLD_FACING `{w}` did not pass at {s[:7]}, "
+                         f"which IS `main`'s newest commit — and it is still not evidence "
+                         f"about this tree: its subject is the world (see "
+                         f"`WORLD_FACING_WORKFLOWS`). It is owed work, not a reason to "
+                         f"refuse the tier")
         # 🆕 279 — LOUD, NAMED, AND NEVER A REFUSAL. A workflow triggered by `schedule:`
         # sits at whatever sha `main` held that morning, so it leaves the commit
         # population the moment anything merges — which is how a red `sdk-drift` survived
@@ -2613,10 +2725,30 @@ def main_head_problems(log: str, run_network: bool, head: str = "",
     if m:
         sha, concl = m.group(1), m.group(2)
         bad = [b.strip() for b in (m.group(3) or "").split(",") if b.strip()]
+        # 🆕 294 — 🔴 AND A WORLD-FACING NAME ON THAT LINE IS STILL NOT A TREE VERDICT.
+        # An `open.pickup.txt` or a `ci<N>/` written before this session's emitter existed
+        # carries `MAIN_AT_HEAD <sha> failure — sdk-drift`, and reading it verbatim would
+        # re-refuse on exactly the reading this change exists to reclassify. The line is
+        # re-split by the same table, so the two routes cannot disagree — 279's own
+        # `MEASURED_LEG_DISAGREEMENT` shape, which is what `main_run_rows` dials once for.
+        # 🔴 AND THE DOWNGRADE NEEDS A NAMED CAUSE, WHICH THE SELF-TEST CAUGHT THIS
+        # SESSION. The first draft read "no tree-facing job is left in `bad`" as "no
+        # tree-facing job failed" — and `MAIN_AT_HEAD <sha> failure` with NO names, which
+        # is what 277's own fixtures carry and what the emitter prints where the forge
+        # answered without workflow names, has an empty `bad` for the opposite reason: the
+        # cause is UNKNOWN. Reclassifying that is not classification, it is a red being
+        # deleted for having said too little. A verdict is downgraded only when every
+        # named cause is world-facing, and never when there are no names at all.
+        _named = list(bad)
+        at_head_world += [(w, sha) for w in _named if world_facing(w)]
+        bad = [w for w in _named if not world_facing(w)]
+        if concl not in (RUN_GREEN, RUN_PENDING) and _named and not bad:
+            concl = RUN_GREEN
     elif run_network:
-        sha, concl, bad, prob = read()
+        sha, concl, bad, prob, _world = read()
         if prob:
             return _with_elsewhere([], [f"main at HEAD: UNREAD — {prob}"])
+        at_head_world += [(w, sha) for w in _world]
     else:
         return _with_elsewhere([], [
             "main at HEAD: UNREAD — no `MAIN_AT_HEAD` line in the measured log "
@@ -2634,7 +2766,11 @@ def main_head_problems(log: str, run_network: bool, head: str = "",
              + (f" ({', '.join(bad)})" if bad else "")
              + ". TIER0 inherits a counter line measured against this commit and the "
                "forge says this commit did not pass. Read the run before inheriting "
-               "a green that is not there, or open at TIER1 and measure the tree."],
+               "a green that is not there, or open at TIER1 and measure the tree. "
+               "🆕 294 — the workflows named here are TREE-facing ones only; a "
+               "world-facing job is reported above and never refused, and "
+               "`WORLD_FACING_WORKFLOWS` carries the argument for each name in that "
+               "population."],
             [])
     drift = head and not (sha.startswith(head[:7]) or head.startswith(sha[:7]))
     return _with_elsewhere([], [f"main at HEAD: {sha[:7]} {concl}"
@@ -2674,7 +2810,7 @@ def gh_emit(root: Path = ROOT) -> int:
     if prob:
         print(f"MAIN_AT_HEAD UNREAD — {prob}")
     else:
-        sha, concl, bad, prob = main_at_head_of(rows)
+        sha, concl, bad, prob, world = main_at_head_of(rows)
         print(f"MAIN_AT_HEAD UNREAD — {prob}" if prob else
               f"MAIN_AT_HEAD {sha[:7]} {concl}" + (f" — {', '.join(bad)}" if bad else ""))
         # 🆕 279 — the second line, off the same answer. A workflow whose newest run did
@@ -2683,6 +2819,12 @@ def gh_emit(root: Path = ROOT) -> int:
         # but the window between its run and the next merge.
         for name, wsha in elsewhere_red_of(rows):
             print(f"WORKFLOW_RED_ELSEWHERE {name} {wsha}")
+        # 🆕 294 — the third line. Same subject as the second and the opposite position:
+        # this one DID land on `main`'s newest commit, which used to make it a refusal.
+        # It is emitted rather than folded into the verdict because a classification that
+        # printed nothing would be indistinguishable from a job nobody ran.
+        for name in world:
+            print(f"WORKFLOW_RED_WORLD_FACING {name} {sha[:7]}")
     return 0
 
 
@@ -5453,16 +5595,25 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 293 — ONE ROW, ON THE SCHEDULE 291 WROTE FOR ITS OWN PREDECESSOR ONE SESSION AGO.
-    # `assetlib_sweep.py --census` prints `LANDSCAPE_CAPABILITY` for the first time in the
-    # commit that adds this reader, so every one of the sixty-six blocks in
-    # `BLOCK_POPULATION` predates the counter and `ALIAS_UNUSED` would refuse the row on
-    # arrival. 🔴 294 ADDS 293's BLOCK, THE BLOCK CARRIES `capability 43 claimed / 35
-    # unread / 10 uncited`, THE KEY BECOMES REACHED AND `pending_problems` TURNS THIS ROW
-    # INTO `ALIAS_PENDING_STALE` ON THAT SAME RUN — delete it because the gate says so,
-    # not because you remembered.
-    "landscape.capability":
-        "293 ships the reader; 294 adds 293's block and this row goes STALE on that run",
+    # 🆕 294 — ONE ROW, ON THE SCHEDULE THE ROW ABOVE IT JUST CAME OFF, AND FOR THE SAME
+    # MECHANICAL REASON. `assetlib_sweep.py --census` prints `LANDSCAPE_CADENCE` for the
+    # first time in the commit that adds this reader, so every block in `BLOCK_POPULATION`
+    # predates the counter and `ALIAS_UNUSED` would refuse the row on arrival. 🔴 295 ADDS
+    # 294's BLOCK, THE BLOCK CARRIES `cadence 33 within / 5 past / 14 never analysed`, THE
+    # KEY BECOMES REACHED AND `pending_problems` TURNS THIS ROW INTO `ALIAS_PENDING_STALE`
+    # ON THAT SAME RUN — delete it because the gate says so, not because you remembered.
+    "landscape.cadence":
+        "294 ships the reader; 295 adds 294's block and this row goes STALE on that run",
+    # 🆕 294 — EMPTY AGAIN, AND `landscape.capability` EXPIRED EXACTLY ON THE SCHEDULE ITS
+    # OWN ROW WROTE. 293 filed it saying *294 adds 293's block, the block carries
+    # `capability 43 claimed / 35 unread / 10 uncited`, the key becomes reached and
+    # `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that same run —
+    # delete it because the gate says so, not because you remembered*. That is precisely
+    # what happened: this session's first PR carries 293's block, and the refusal fired on
+    # the first `--selftest` run after the block landed, before anybody went looking for
+    # the row. 🔴 SIXTH TABLE IN A ROW TO EXPIRE ON TIME (276, 287, 289, 291's predecessor
+    # set, 292's `landscape.roster`, and this one), which remains the only end state 246
+    # designed the table to have.
     # 🆕 292 — EMPTY AGAIN, AND `landscape.roster` LEFT ON THE SCHEDULE ITS OWN ROW WROTE.
     # 291 filed it with the note *292 adds 291's block to `BLOCK_POPULATION` and
     # `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that same run — delete
@@ -5539,6 +5690,11 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
      "whose alias is the word `landscape`. This one's alias is `capability`, which the "
      "roster counter's own atom does not spell — the same collision `taut.duration` is "
      "pinned against two rows down, arriving on two readers that share one command"),
+    ("cadence 33 within / 5 past / 14 never analysed", "landscape.cadence",
+     "🔴 THE THIRD COUNTER OUT OF `--census`, AND THE THIRD ALIAS THAT HAS TO MISS THE "
+     "OTHER TWO. Its alias is the word `cadence`, which neither `landscape 4 channel(s) "
+     "…` nor `capability 43 claimed …` spells — three readers now share one command and "
+     "the whole of what keeps them apart is that no one atom carries two of the aliases"),
     ("duration 4 sites / 2 lower / 2 guarded", "taut.duration",
      "🔴 CARRIES THREE NUMBERS AND THE WORD `sites`, and must NOT reach `taut.sites`, "
      "whose alias is the word `taut` — the same collision `wire_diff_key` is pinned "
@@ -7390,6 +7546,37 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (293, """> ```
+> main                 d900d84 — a claim owes its reading (#369)  MOVED +1
+> branch 293           session293-a-claim-owes-its-reading · PR #369
+>                      🟢 PUSHED AND MERGED at `1ce8f1c`, squashed to `d900d84`
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 9 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at 1ce8f1c, and the post-merge run at d900d84
+> 🔴 WORKFLOW_RED_ELSEWHERE  sdk-drift at d900d84 — dispatched by this session AFTER the
+>    merge, and red on world movement that arrived today, see §3.4
+> 🟢 VERIFIED AFTER THE CHANGE   943/943 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2957
+>               · late not-loaded 0 · late constructed 321/160
+>               · py gates 18/6/12 · SIG 259/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 112 · 53 governed · 2097 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 323 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4963 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 511 claims
+>               · landscape 4 channel(s) / 52 analysed / 47 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -8020,6 +8207,46 @@ def selftest() -> int:
             failed += 1
             print(f"  🔴 HEADER_EXEMPT_GREEDY {atom!r} was erased by the exempt table — "
                   f"a row wide enough to eat a counter deletes the claim silently")
+
+    # ══ 🆕 294 §2.1 — THE DECLARED WORLD-FACING POPULATION, AND ITS TWO WAYS TO ROT ═════
+    #
+    # 🔴 THIS TABLE EXEMPTS A WORKFLOW FROM THE ONE READING THAT ASKS WHETHER `main` IS
+    # HEALTHY, so it is exactly the kind of table 288 §7.3 is about: a gate over a
+    # population somebody CHOSE. Both refusals below are about the choosing and not about
+    # the workflow — an unargued row and a row naming nothing are the two ways a table
+    # like this stops being a decision and becomes a habit.
+    for name, why in WORLD_FACING_WORKFLOWS:
+        claims += 1
+        if len(why.strip()) < 120:
+            failed += 1
+            print(f"  🔴 WORLD_FACING_UNARGUED {name} — declaring a workflow world-facing "
+                  f"removes it from the `main`-is-green verdict, which is the one control "
+                  f"that reads whether the tree being inherited passed. A row that cannot "
+                  f"say WHY its subject is the world is a silencer wearing a table "
+                  f"(292's `severity_why`, one file over)")
+
+    # 🔴 AND A NAME THAT MATCHES NO WORKFLOW EXEMPTS NOTHING AND SAYS IT DOES. A rename in
+    # `.github/workflows/` would leave this table pointing at a job that no longer exists
+    # while the renamed one silently went back to being a tree verdict — the failure would
+    # be a refusal nobody could explain, at a pickup, which is the worst place this file
+    # has. Read from the workflow files' own `name:`, because that is the string the forge
+    # answers with in `workflowName`.
+    _wf_names: "set[str]" = set()
+    for _p in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        for _ln in _p.read_text(encoding="utf-8", errors="replace").split("\n"):
+            _m = re.match(r"^name:\s*(\S.*?)\s*$", _ln)
+            if _m:
+                _wf_names.add(_m.group(1).strip("'\""))
+                break
+    for name, _why in WORLD_FACING_WORKFLOWS:
+        claims += 1
+        if _wf_names and name not in _wf_names:
+            failed += 1
+            print(f"  🔴 WORLD_FACING_UNKNOWN {name!r} is declared world-facing and no "
+                  f"workflow in .github/workflows/ carries that `name:` — the table "
+                  f"exempts nothing, and whatever the job was renamed to is back in the "
+                  f"tree verdict with nobody having decided that. Known: "
+                  f"{', '.join(sorted(_wf_names))}")
 
     # PROVENANCE, both directions against the header roster
     claims += 1
@@ -9403,12 +9630,12 @@ def selftest() -> int:
     # 275's reason: `assetlib_sweep.py --census` prints `LANDSCAPE_CENSUS` for the first
     # time in the commit that adds the row, so every block in the population predates the
     # counter and a flat `REQUIRED` would refuse all sixty-three of them.
-    if len(since_rows) != 16:
+    if len(since_rows) != 17:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 16 — "
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 17 — "
               f"237 §3 measured six, 246 added four, 269 added one, 275 added one, 287 "
-              f"added two, 291 added one and 293 added one; the table is the only record "
-              f"of which")
+              f"added two, 291 added one, 293 added one and 294 added one; the table is "
+              f"the only record of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))
@@ -10376,6 +10603,68 @@ def selftest() -> int:
               f"the WORST run at the newest sha, a run still going is neither answer, and "
               f"a failure at an OLDER commit is not this commit's problem")
 
+    # ══ 🆕 294 §2.1 — THE SPLIT, DRIVEN IN THE THREE DIRECTIONS THAT CAN BE WRONG ═══════
+    #
+    # 🔴 THE NEGATIVE CONTROL IS THE WHOLE POINT AND IT IS THE SECOND ONE. A change that
+    # stops a red from refusing is one edit away from a change that stops EVERY red from
+    # refusing, and the difference is not visible in the green case — 293 §2.1's argument
+    # about a refusal wide enough to catch a rate limit, pointed the other way. So: a
+    # world-facing red alone is green and REPORTED; a tree red still refuses; and the two
+    # together refuse while naming ONLY the tree job as the cause.
+    claims += 1
+    _wf_only = main_at_head_of([{"headSha": "abc1234", "status": "completed",
+                                 "conclusion": "success", "workflowName": "ci"},
+                                {"headSha": "abc1234", "status": "completed",
+                                 "conclusion": "failure", "workflowName": "sdk-drift"}])
+    _wf_both = main_at_head_of([{"headSha": "abc1234", "status": "completed",
+                                 "conclusion": "failure", "workflowName": "ci"},
+                                {"headSha": "abc1234", "status": "completed",
+                                 "conclusion": "failure", "workflowName": "sdk-drift"}])
+    if (_wf_only[1] != RUN_GREEN or _wf_only[2] != [] or _wf_only[4] != ["sdk-drift"]
+            or _wf_both[1] != "failure" or _wf_both[2] != ["ci"]
+            or _wf_both[4] != ["sdk-drift"] or _ok[4] != [] or _red[4] != []):
+        failed += 1
+        print(f"  🔴 WORLD_FACING_VERDICT world-only={_wf_only[1:3]}/{_wf_only[4]} "
+              f"both-red={_wf_both[1:3]}/{_wf_both[4]} — a world-facing red must leave "
+              f"the verdict GREEN and still be named in the fifth element; a tree red "
+              f"must still refuse; and with both red the refusal must name the TREE job "
+              f"alone, or the reader is telling a session to go fix somebody else's "
+              f"repository")
+
+    # 🔴 AND THE MEASURED-LOG ROUTE MUST AGREE WITH THE NETWORK ROUTE, because a `ci<N>/`
+    # written before this session exists says `MAIN_AT_HEAD <sha> failure — sdk-drift` and
+    # re-refusing on it would reclassify nothing where it matters most: at a close, months
+    # later, reading an archive. Both spellings are driven, and the tree red is driven
+    # through the same door to prove the log route did not simply stop refusing.
+    claims += 1
+    _lg_world = main_head_problems("MAIN_AT_HEAD 2032d04 failure — sdk-drift\n", False)
+    _lg_tree = main_head_problems("MAIN_AT_HEAD 2032d04 failure — ci\n", False)
+    _lg_both = main_head_problems("MAIN_AT_HEAD 2032d04 failure — ci, sdk-drift\n", False)
+    if (_lg_world[0]
+            or not any("WORLD_FACING" in n for n in _lg_world[1])
+            or not any("MAIN_RED_AT_HEAD" in p for p in _lg_tree[0])
+            or not any("MAIN_RED_AT_HEAD" in p and "sdk-drift" not in p
+                       for p in _lg_both[0])):
+        failed += 1
+        print(f"  🔴 WORLD_FACING_LOG_ROUTE world={_lg_world} tree-refused="
+              f"{bool(_lg_tree[0])} — an archived `MAIN_AT_HEAD ... failure — sdk-drift` "
+              f"line must be re-split by the same table the network route uses, or the "
+              f"two routes disagree about which world they describe (279's "
+              f"`MEASURED_LEG_DISAGREEMENT`, which is why `main_run_rows` dials once)")
+
+    # 🔴 AND THE EMITTED LINE MUST SURVIVE ITS OWN READER. `--gh-open` prints
+    # `WORKFLOW_RED_WORLD_FACING <name> <sha>`; if that spelling and
+    # `WORKFLOW_RED_WORLD_FACING_RE` ever drift apart the note is emitted into a log
+    # nothing reads, which is the `GH_EMIT_JOIN` defect one table over.
+    claims += 1
+    _emit_ln = "WORKFLOW_RED_WORLD_FACING sdk-drift d900d84\n"
+    _emit_read = main_head_problems("MAIN_AT_HEAD d900d84 success\n" + _emit_ln, False)
+    if _emit_read[0] or not any("WORLD_FACING" in n and "sdk-drift" in n
+                                for n in _emit_read[1]):
+        failed += 1
+        print(f"  🔴 WORLD_FACING_EMIT_JOIN the line `--gh-open` prints is not the line "
+              f"`main_head_problems` reads: {_emit_read}")
+
     # 🔴 AND THE REFUSAL IS ON THE VERDICT, NEVER ON THE READING. Four directions, because
     # three of them must NOT refuse: this gate's own premise is that a machine which
     # cannot reach the forge can still open a session (271 §1).
@@ -10520,11 +10809,20 @@ def selftest() -> int:
 
     # 🔴 AND THE NAMES SURVIVE THE MEASURED-LOG ROUTE NOW. The refusal that fired on 279's
     # own pickup could not say `sdk-drift` because the pattern had two groups.
+    #
+    # 🆕 294 — 🔴 THE CLAIM IS UNCHANGED AND THE FIXTURE MOVED, WHICH IS WORTH SAYING OUT
+    # LOUD. 279's subject is *a refusal that cannot say what failed*, and that is still
+    # asserted here — on `integration`, a TREE-facing job. It used to be asserted on
+    # `sdk-drift`, which 294 reclassified, so leaving the fixture alone would have turned
+    # a control about NAMING into a control about the classification, and it would have
+    # failed for being right. 🔵 The world-facing arm of the same line is not lost: it is
+    # driven three controls up, in `WORLD_FACING_LOG_ROUTE`, which asserts that spelling
+    # produces a NOTE carrying the name rather than a refusal carrying it.
     claims += 1
-    _named = main_head_problems("MAIN_AT_HEAD e65ed07 failure — sdk-drift\n", False)
+    _named = main_head_problems("MAIN_AT_HEAD e65ed07 failure — integration\n", False)
     _note = main_head_problems("MAIN_AT_HEAD e65ed07 success\n"
                                "WORKFLOW_RED_ELSEWHERE sdk-drift 0be54af\n", False)
-    if (not any("sdk-drift" in p for p in _named[0])
+    if (not any("integration" in p for p in _named[0])
             or _note[0]
             or not any("WORKFLOW_RED_ELSEWHERE" in n and "sdk-drift" in n
                        for n in _note[1])):

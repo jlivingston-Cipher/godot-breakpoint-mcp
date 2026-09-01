@@ -103,6 +103,52 @@ one of twelve changed files was under the paths — and reading that one file sh
 surface unchanged. That is the reader working. It does not decide whether a pass is owed;
 it turns *the head moved, pay a pass* into *read one file*.
 
+### 🆕 294 — How often it is worth ASKING, which is not the same question
+
+🔴 **293's ANSWER WAS RIGHT AND IT ONLY COVERED HALF THE GROUND.** `capability_paths`
+prices whether a move *could have changed the ruling*; the paragraph above says in terms
+that a faster `cadence` tier is not the answer to that, and it is not. But there is a
+second question underneath it — **how often is it worth asking at all** — and until 294
+nothing priced that either, which is why the sweep could demand a source-level pass on a
+project somebody had read at source that same morning.
+
+🔴 **MEASURED AT 294's PICKUP.** `sdk-drift` refused on six rows. Two of them had a
+source-level pass **zero and one day old**: `hybridindie/godot-mcp`, whose Asset Library
+card had moved only to catch up with the very tag 293 read at source that morning, and
+`godot-mcp-go`. A refusal asking a session to re-read what the previous session read
+hours earlier is 293's treadmill arriving through the card leg instead of the commit leg.
+
+So the `cadence` column — declared on all fifty-two entries since the roster existed, and
+read by **nothing** until now — became the field that prices it. A moved row is owed a
+source-level pass **at most once per its own declared cadence**, and it is owed one the
+moment that window has passed:
+
+```json
+"cadence": "weekly",
+"last_analysed": "2026-08-31"
+```
+
+The rule is a **cap and never an excuse**. Nothing in it makes a row owed less often than
+the project ships; nothing in it clears a row that has been stale longer than its cadence;
+and an entry with no readable `last_analysed` is owed a pass whatever it declares, because
+a pass that never happened cannot be inside a window. `--check` prints the capped rows by
+name — `WITHIN` and `SRC/IN` — because a cap nobody can see is indistinguishable from a leg
+that saw nothing.
+
+🔴 **AND THE DEFAULT IS STRICT, WHICH IS THE SAME ARGUMENT 293 MADE ABOUT `unread`.** A
+cadence nobody has measured takes `CADENCE_FLOOR` — the SHORTEST window, not the longest —
+because a grace period is a claim a session MAKES and never one a silence inherits. The
+floor is governed by `floor_pin_gate`'s `SIZE_LEDGER` for the reason every floor there is:
+raised quietly from 7 to 90 it would excuse the whole roster in one edit and every run
+after it would still print green.
+
+🔵 **A COLUMN NOTHING READS WILL HOLD PROSE FOREVER.** Two of the fifty-two values turned
+out to describe commit SHAPE rather than release frequency — `release-squashed`, and
+`dependency-only since 2026-04-30` — and nobody had ever noticed, because nobody had ever
+read the column. Both moved to `unknown`, the strict bucket, with the reason recorded in
+their notes; `ROSTER_CADENCE_UNKNOWN_VALUE` and `ROSTER_CADENCE_UNDECLARED` are
+merge-blocking in `--census` so the vocabulary cannot drift back.
+
 ### 🆕 293 — And the source leg itself is a channel, whose silence is not an answer
 
 🔴 **A RUN THAT READ ZERO REPOSITORY HEADS USED TO EXIT 0.** `repo_head()` dials

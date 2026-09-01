@@ -1286,7 +1286,14 @@ INSTRUMENTS = [
             "{SIG:counter_atoms}": "return ([], \"\",)",
             "{SIG:block_keys}": "return set()",
             # ── the join — an atom to the reader that answers it, and the measured log's own half ──
-            "{SIG:main_at_head_of}": "return (\"\", \"\", [], \"\",)",
+            # 🆕 294 §2.1 — 🔴 THE EMPTY IS PART OF THE SIGNATURE, AND THE ARITY MOVED.
+            # `main_at_head_of` gained a fifth element (the world-facing reds) and this
+            # row still returned four, so the blind made `main_head_problems`' unpack
+            # raise instead of letting the gate reach a verdict — `CRASH_CEILING 1 > 0`,
+            # which proves that Python throws on a short tuple rather than that the
+            # gate's floor bites. 🔵 Nothing but this gate could have caught it: the
+            # blind is the only caller that ever sees the declared empty.
+            "{SIG:main_at_head_of}": "return (\"\", \"\", [], \"\", [],)",
             # 🆕 279 — THE POPULATION `main_at_head_of` CANNOT SEE, AND THE TWO ACCESSORS
             # BOTH READINGS SHARE. `elsewhere_red_of` reports the newest run of every
             # workflow that did NOT land on `main`'s newest sha and did not pass — a
@@ -1295,6 +1302,11 @@ INSTRUMENTS = [
             # sessions unread. Its empty is the list, and the empty list is exactly the
             # answer it gave for a week.
             "{SIG:elsewhere_red_of}": "return []",
+            # 🆕 294 §2.1 — the table-driven half of the world-facing split. Its empty is
+            # `False`, which is the answer that makes the whole classification vanish:
+            # every workflow becomes tree-facing again and `WORLD_FACING_VERDICT`'s
+            # world-only arm reddens, which is the right direction for a blind to prove.
+            "{SIG:world_facing}": "return False",
             "{SIG:wf_name}": "return \"\"",
             "{SIG:wf_sha}": "return \"\"",
             "{SIG:main_head_problems}": "return ([], [],)",
