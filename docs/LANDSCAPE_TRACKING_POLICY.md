@@ -72,6 +72,52 @@ moved, and **unread**, because a forge that will not answer is not a green — a
 refuses on a repository that moved even when the card did not. Every row the card leg
 alone would call *no change* is marked as such in the printout.
 
+### 🆕 293 — A move is owed work where the ruling could have changed, and not otherwise
+
+🔴 **AND THE CLAUSE AS WRITTEN PRODUCED A RED NOBODY COULD CLEAR.**
+`hybridindie/godot-mcp` was added at 292 with the pass taken at `037b00f`, and the head
+moved **twice in ninety minutes** — so the claim expired before the pull request recording
+it could merge. Pricing staleness against a COMMIT asks a project that ships several times
+a day for a source pass per day, and chasing that produces a new SHA and no new knowledge:
+the same *governance wearing churn* Rule 5 refuses one column over, arriving through the
+clock instead of through the population.
+
+A faster `cadence` tier is not the answer, because the subject is wrong rather than the
+interval. **A ruling is about what a project DOES.** So a pass may record, beside the
+commit, the paths its ruling rests on:
+
+```json
+"last_analysed_commit": "2400578",
+"capability_paths": ["godot/addons/godot_mcp/mcp_debugger.gd", "mcp_server/tools/"]
+```
+
+`source_state` gains a fourth answer. A head that moved over **none** of those paths is
+`moved-immaterial`: recorded, printed, and owed nothing. Both defaults are strict — an
+entry that declares no `capability_paths` is priced exactly as it was before the reader
+existed, and a compare the forge would not serve is *unknown*, which is not immaterial.
+
+🔵 **DECLARING THE PATHS IS A CLAIM AND NOT A PROOF**, and it is judged the way every other
+claim here is: it must cover what the row asserts, tool counts in the note included. The
+first move this reader judged, on the entry it was written for, came back **material** —
+one of twelve changed files was under the paths — and reading that one file showed the
+surface unchanged. That is the reader working. It does not decide whether a pass is owed;
+it turns *the head moved, pay a pass* into *read one file*.
+
+### 🆕 293 — And the source leg itself is a channel, whose silence is not an answer
+
+🔴 **A RUN THAT READ ZERO REPOSITORY HEADS USED TO EXIT 0.** `repo_head()` dials
+`api.github.com` unauthenticated, so the leg spends a sixty-per-hour budget and two runs in
+an hour exhaust it; 292 §3.1 measured twenty consecutive `HTTP Error 403: rate limit
+exceeded` on one verification run. `source_unread` is a NOTE by design (271 §1) — a sweep
+on a machine the forge will not answer must still be able to run — but the run still
+printed `SOURCE moved: 0`, omitted source drift from `ROSTER STALE` and exited 0,
+byte-indistinguishable from a run that read every head and found nothing.
+
+The leg now reports its state through the same `channel_state` reader the discovery legs
+use, and `--check` refuses `SOURCE_UNREAD` and `SOURCE_PARTIAL` by name. 🔵 **A token is
+deliberately not the fix**: it makes the failure rarer without making it visible, and the
+leg would still report a green on the run where it happens.
+
 ## Rule 3 — Every channel a project can ship in is swept mechanically, not by memory
 
 🔴 **THIS RULE WAS WRITTEN ABOUT ONE CHANNEL AND IT COST EXACTLY WHAT ITS OWN LAST SENTENCE
@@ -238,6 +284,50 @@ Every sweep and every piece of public material follows this:
 **Why.** A recommendation is a claim with a delay fuse. The 2026-08-05 sweep recommended
 the public line *"the only Godot MCP server with a debugger at all"*; it was false within
 48 hours. It was never shipped, but only because nobody had copied it out yet.
+
+---
+
+## Rule 6 — A capability claim owes its reading, and a `false` owes it more
+
+🔴 **THIS ROSTER GRADED ITSELF ON ONE SIDE OF THE PAPER FOR A YEAR.** 292 read three
+projects at source and all three carried `csharp: false`. All three were wrong, and every
+one of them was wrong **before** the pass that wrote the value: `godot-mcp-enhanced` shipped
+`runDotnetBuild()` eighteen days earlier, `fennara-godot-mcp`'s `run_dotnet_build_if_needed`
+predated the analysed commit, and `godot-mcp-go`'s `run_build()` dates to its 0.4.0.
+
+Rule 2 already said *counts are never taken from a README*, and 288 wrote the general
+form — **a capability claim is unsourced until somebody reads its source**. It was being
+applied to one side of the column. A `true` feels like a claim, so every `true` here
+carried file-and-symbol evidence in its note; a `false` is the claim **we looked and it is
+not there**, which needs the whole tree rather than one file and is therefore *harder* to
+earn. 🔴 **And it biases in the one direction that flatters us**: an unsourced `false` on
+an alternative reads as a gap they have and we do not, which is the opposite of Rule 4.
+
+So the four capability fields — `real_dap_client`, `real_lsp_client`, `csharp`,
+`debugger` — are governed:
+
+| State | Means | Owes |
+|---|---|---|
+| a value | *we read the source and this is what it does* | a `capability_evidence` entry naming what was read |
+| `"unread"` | *a value was asserted here and nobody can show the reading behind it, so the assertion is withdrawn* | a source pass, whenever a session elects to spend one |
+| absent | the roster has never claimed anything about this field | nothing |
+| `null` | **no reading is possible** — a closed-source product with no readable tree | nothing, ever |
+
+`assetlib_sweep.py --census` refuses a claim with no evidence, evidence with no claim, and
+a value outside the field's declared vocabulary. It runs in the merge path, because an
+unsourced claim is a defect in the tree rather than a fact about a third-party host.
+
+**The census prints three numbers.** `claimed` is what the roster asserts and can show the
+reading for; **`unread` is the debt, and it is the one that falls** — 35 at 293, one source
+pass at a time; `uncited` counts claims whose evidence names no file, symbol, port or
+stated search, which is a weaker reading and a real one, so it is a number rather than a
+refusal.
+
+🔵 **WITHDRAWING A CLAIM IS NOT LOSING IT.** The note keeps whatever a prior session wrote;
+what stops is the *field* asserting something no one can check. And the rule is symmetric
+on purpose: 293 withdrew unevidenced `true`s alongside unevidenced `false`s, because a
+control that only doubted negatives would be the same one-sided reading with the sign
+flipped.
 
 ---
 

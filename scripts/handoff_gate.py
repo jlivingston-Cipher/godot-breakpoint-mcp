@@ -133,7 +133,7 @@ CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 # 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
 # 🆕 240 — 75 -> 76, the same move again: 239's block is the thirteenth.
 ALIAS_SPELLING_FLOOR = 76
-READER_FLOOR = 29        # governed by floor_pin_gate's SIZE_LEDGER
+READER_FLOOR = 30        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
 #
@@ -362,6 +362,25 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      CHEAP, SINCE(291),
      "channels declared, products read at source, products a discovery leg has seen. "
      "`landscape 4 channel(s) / 51 analysed / 47 surfaced`."),
+
+    # 🆕 293 — THE ROSTER'S OTHER POPULATION, AND THE ONLY ONE WRITTEN TO FALL. 292 §2.3
+    # read three projects at source and all three carried a `csharp: false` that was wrong
+    # BEFORE the pass that wrote it, because 288 §7.4 was being applied to `true` and not
+    # to `false`. Seventy-eight claims were audited at 293 and thirty-five could show no
+    # reading, so they were WITHDRAWN to `unread` rather than left asserting.
+    # 🔴 THREE NUMBERS AND NOT ONE, FOR `landscape.roster`'s REASON ONE ROW UP: `claimed`
+    # rising while `unread` stands still is passes being spent, and `unread` falling while
+    # `claimed` stands still is claims being deleted rather than read. Either number alone
+    # can move for the wrong reason and the pair cannot. `uncited` is the third because a
+    # claim resting on prose is a weaker reading than one resting on a file, and a number
+    # is the honest way to say so — a refusal there would delete real readings to tidy it.
+    ("landscape.capability", r"\bcapability\b", 3,
+     ("python3", "../scripts/assetlib_sweep.py", "--census"), HOST,
+     r"^LANDSCAPE_CAPABILITY (\d+) claimed / (\d+) unread / (\d+) uncited",
+     CHEAP, SINCE(293),
+     "capability rulings the roster asserts and can show the reading for, rulings it has "
+     "withdrawn for want of one, and claims whose evidence names nothing checkable. "
+     "`capability 43 claimed / 35 unread / 10 uncited`."),
 
     # ── the .mjs instruments ──────────────────────────────────────────────────────────
     ("taut.sites", r"\btaut\b", 1, ("node", "scripts/tautology_gate.mjs"), HOST,
@@ -832,6 +851,7 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "floor_pin.exempt":            INDEX,
     "term.swept":                  INDEX,
     "landscape.roster":            TRACKED,
+    "landscape.capability":        TRACKED,
     "taut.sites":                  TRACKED,
     "taut.duration":               TRACKED,
     "taut.orphan":                 TRACKED,
@@ -5433,6 +5453,16 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
+    # 🆕 293 — ONE ROW, ON THE SCHEDULE 291 WROTE FOR ITS OWN PREDECESSOR ONE SESSION AGO.
+    # `assetlib_sweep.py --census` prints `LANDSCAPE_CAPABILITY` for the first time in the
+    # commit that adds this reader, so every one of the sixty-six blocks in
+    # `BLOCK_POPULATION` predates the counter and `ALIAS_UNUSED` would refuse the row on
+    # arrival. 🔴 294 ADDS 293's BLOCK, THE BLOCK CARRIES `capability 43 claimed / 35
+    # unread / 10 uncited`, THE KEY BECOMES REACHED AND `pending_problems` TURNS THIS ROW
+    # INTO `ALIAS_PENDING_STALE` ON THAT SAME RUN — delete it because the gate says so,
+    # not because you remembered.
+    "landscape.capability":
+        "293 ships the reader; 294 adds 293's block and this row goes STALE on that run",
     # 🆕 292 — EMPTY AGAIN, AND `landscape.roster` LEFT ON THE SCHEDULE ITS OWN ROW WROTE.
     # 291 filed it with the note *292 adds 291's block to `BLOCK_POPULATION` and
     # `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that same run — delete
@@ -5504,6 +5534,11 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
     ("landscape 4 channel(s) / 51 analysed / 47 surfaced", "landscape.roster",
      "three numbers on one atom, and the alias is the word `landscape` — which appears "
      "in no other counter and in no prose numeral this block spells"),
+    ("capability 43 claimed / 35 unread / 10 uncited", "landscape.capability",
+     "🔴 THE SECOND COUNTER OUT OF `--census` AND IT MUST NOT REACH `landscape.roster`, "
+     "whose alias is the word `landscape`. This one's alias is `capability`, which the "
+     "roster counter's own atom does not spell — the same collision `taut.duration` is "
+     "pinned against two rows down, arriving on two readers that share one command"),
     ("duration 4 sites / 2 lower / 2 guarded", "taut.duration",
      "🔴 CARRIES THREE NUMBERS AND THE WORD `sites`, and must NOT reach `taut.sites`, "
      "whose alias is the word `taut` — the same collision `wire_diff_key` is pinned "
@@ -7321,6 +7356,36 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · mutlock 5 guarded / 23 cases · tree_quiet 13
 >               · queue 83/83 claims · handoff 500 claims
 >               · landscape 4 channel(s) / 51 analysed / 47 surfaced
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (292, """> ```
+> main                 7663a21 — a commit SHA that is all digits is not a counter (#368)  MOVED +2
+> branch 292           session292b-a-sha-that-is-all-digits · PR #368
+>                      🟢 PUSHED AND MERGED at `5badc9b`, squashed to `7663a21`
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 8 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 TWO PRs THIS SESSION — #367 squashed to `5155079`, then #368; §2.7 is why, and
+>    `MOVED +2` is measured from 291's `a50d968` as it always is
+> 🟢 CI GREEN — 26 of 26 required checks at 5badc9b, and the post-merge run at 7663a21
+> 🟢 VERIFIED AFTER THE CHANGE   943/943 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2950
+>               · late not-loaded 0 · late constructed 321/160
+>               · py gates 18/6/12 · SIG 259/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 112 · 53 governed · 2021 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 323 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4963 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 504 claims
+>               · landscape 4 channel(s) / 52 analysed / 47 surfaced
 >               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
 >                 addon / 0 problems
 > ```
@@ -9338,11 +9403,12 @@ def selftest() -> int:
     # 275's reason: `assetlib_sweep.py --census` prints `LANDSCAPE_CENSUS` for the first
     # time in the commit that adds the row, so every block in the population predates the
     # counter and a flat `REQUIRED` would refuse all sixty-three of them.
-    if len(since_rows) != 15:
+    if len(since_rows) != 16:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 15 — "
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 16 — "
               f"237 §3 measured six, 246 added four, 269 added one, 275 added one, 287 "
-              f"added two and 291 added one; the table is the only record of which")
+              f"added two, 291 added one and 293 added one; the table is the only record "
+              f"of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))
