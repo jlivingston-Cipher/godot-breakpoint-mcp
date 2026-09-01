@@ -268,7 +268,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # evidence for the tier typed beside them; it was set to the number that were live
     # when the column landed, so it can only fall. Raising it is a session buying itself
     # room to keep typing an unchecked column, which is the defect the join closes.
-    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )13",                                ["../scripts/queue_gate.py", "--selftest"]),
+    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )1",                                 ["../scripts/queue_gate.py", "--selftest"]),
     # 🆕 280 — THE FOURTH QUEUE ROW, AND IT IS A FLOOR UNDER A DERIVED BAR RATHER THAN
     # A CEILING OVER ANYTHING. `QUEUE_SCHEDULE_SET` takes its bar from the `closed`
     # column — the most `user` rows any one session has FINISHED — and a derived
@@ -1398,8 +1398,8 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
         "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
         "whole subject is work nobody is doing.")),
-    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (13, (
-        "🆕 `271`, lowered at `272` and again at `274` by the rows that closed with their paths declared — "
+    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (1, (
+        "🆕 `271`, lowered at `272`, `274` and `295` by the rows that closed with their paths declared — "
         "the live rows still allowed to type a `reach` with no `paths` under it, "
         "at `{FLOOR}`. Every row in the table carried an unchecked tier until this "
         "session; retro-fitting evidence to the back catalogue would be guesses typed by "
@@ -1409,7 +1409,15 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "nothing can ever be added to the population this counts. A "
         "session that raised it would be buying itself room to keep typing the one "
         "column in this table nothing could check — which is what `reach-column-joins-"
-        "nothing` spent three sessions being.")),
+        "nothing` spent three sessions being. \U0001f534 `295` TOOK IT TO THE LIVE VALUE AND "
+        "HAD TO PAY FOR THE FIXTURE FIRST: at `289` the real table held one undeclared "
+        "live row and this number still said thirteen, so a ceiling written to fall with "
+        "its population had stopped following it. It could not be lowered on its own, "
+        "because `queue_gate.py`'s own clean fixture carried TWO live rows with no "
+        "`paths` and about forty claims build on that table — `289` measured that price "
+        "and reverted rather than guess it. `alpha` and `beta` declare paths now, "
+        "substituted per tier so the evidence agrees with the typed cell in both the "
+        "`internal` and the `user` variant, and only then did the digit move.")),
     ("../scripts/queue_gate.py", "SCHEDULE_SET_FLOOR"): (2, (
         "🆕 280 — the smallest set of `user` rows a session may be handed, at `{FLOOR}`, "
         "under a bar that is otherwise DERIVED from the `closed` column: the most any "

@@ -3111,7 +3111,7 @@ Read-only "where / what / how" tools. Four are **host-side** (Plane B — they r
 
 ## Group L — Version control (git) (Plane B / host)
 
-Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, no shell). Host-side (Plane B): they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane. `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; never a hang. Paths accept `res://…` (project-relative) or repo-relative; large patch/file output is head-truncated with a `truncated` flag. Two tiers: **six read-only** tools (`vcs_status`/`log`/`diff`/`show`/`branch_list`/`blame`) that never touch the index or working tree, and **six Tier-A mutating** tools (`vcs_add`/`commit`/`restore`/`stash`/`branch_create`/`switch`) — safe local only, **no network** (push/pull/fetch stay Mac-side). Mutation posture: only ops that lose work or rewrite history are **elicitation-gated** — `vcs_restore`, `vcs_stash op=push` and `vcs_stash op=drop` reuse the `gate()` in `host/src/confirm.ts` (confirm:true bypasses, and a non-eliciting client is blocked, never run silently); the reversible ops (`add`/`commit`/`branch_create`/`switch`) and `vcs_stash op=pop`/`list` are ungated. `op=push` was ungated until it was measured reverting a whole working tree unattended: recoverable with `pop` is not the same as not done. Markers `AUTH_L_*` in the authoring-plane probe.
+Git wrappers over the `git` binary, rooted at the configured project path (`git -C <projectPath>`, explicit argv, no shell). Host-side (Plane B): they need neither the editor nor a language server, so they answer whenever the project is a git work tree — the cloud-verifiable-end-to-end lane. `git` absent → a clear "not installed" result; path not a work tree → a clear "not a git repository" result; never a hang. Paths accept `res://…` or the same path without the scheme — **project-relative, always, in and out**; large patch/file output is head-truncated with a `truncated` flag. 🔴 **THIS SENTENCE USED TO SAY "or repo-relative", AND THAT WAS THE ONE SPELLING THAT DOES NOT WORK.** `git` is spawned with `-C <projectPath>`, so a pathspec resolves against the project: with the project at `<repo>/example`, `example/player.gd` reached git as `example/example/player.gd`. `vcs_blame`/`vcs_add`/`vcs_restore` refused that loudly; `vcs_log` and `vcs_diff` answered an **empty list**, which reads as *this file has no history* about a file that has one — measured on this repository's own `example/`. Both now refuse and name the root they resolved against, and `vcs_diff`/`vcs_show`/`vcs_restore` print project-relative paths so no reader in the family disagrees with another about the name of a file. Two tiers: **six read-only** tools (`vcs_status`/`log`/`diff`/`show`/`branch_list`/`blame`) that never touch the index or working tree, and **six Tier-A mutating** tools (`vcs_add`/`commit`/`restore`/`stash`/`branch_create`/`switch`) — safe local only, **no network** (push/pull/fetch stay Mac-side). Mutation posture: only ops that lose work or rewrite history are **elicitation-gated** — `vcs_restore`, `vcs_stash op=push` and `vcs_stash op=drop` reuse the `gate()` in `host/src/confirm.ts` (confirm:true bypasses, and a non-eliciting client is blocked, never run silently); the reversible ops (`add`/`commit`/`branch_create`/`switch`) and `vcs_stash op=pop`/`list` are ungated. `op=push` was ungated until it was measured reverting a whole working tree unattended: recoverable with `pop` is not the same as not done. Markers `AUTH_L_*` in the authoring-plane probe.
 
 ### `vcs_status` ✅ (Plane B / host)
 - **Input**
@@ -3120,7 +3120,7 @@ Git wrappers over the `git` binary, rooted at the configured project path (`git 
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["branch", "oid", "upstream", "ahead", "behind", "staged", "unstaged", "untracked", "unmerged", "clean"],
+{ "type": "object", "required": ["branch", "oid", "upstream", "ahead", "behind", "staged", "unstaged", "untracked", "unmerged", "clean", "outside_project"],
   "properties": {
     "branch": { "type": ["string", "null"] },
     "oid": { "type": ["string", "null"] },
@@ -3131,9 +3131,11 @@ Git wrappers over the `git` binary, rooted at the configured project path (`git 
     "unstaged": { "type": "array", "items": { "type": "object", "required": ["path", "status"], "properties": { "path": { "type": "string" }, "status": { "type": "string" } } } },
     "untracked": { "type": "array", "items": { "type": "string" } },
     "unmerged": { "type": "array", "items": { "type": "string" } },
-    "clean": { "type": "boolean" }
+    "clean": { "type": "boolean" },
+    "outside_project": { "type": "array", "items": { "type": "string" } }
   } }
 ```
+The four file lists are **project-relative** — the `res://` spelling with the scheme dropped — which is what every `path`/`paths` argument in this family means, so status output feeds straight back in. `outside_project` carries changes elsewhere in the repository when the project is a subdirectory of it, **repo-root-relative and in its own field**: they used to arrive in the lists above spelled `../docs/notes.md`, a spelling no input here accepts, beside members that were project-relative. They are named rather than hidden because `vcs_add` with no paths still stages them and `vcs_commit` still commits them. `clean` describes the project's own four lists.
 
 ### `vcs_log` ✅ (Plane B / host)
 - **Input**

@@ -6,7 +6,42 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet._
+Found by driving the `vcs_*` family the way a user drives it — against a Godot project that
+lives **inside** a git repository rather than at its root, which is the layout this
+repository's own `example/` has and the layout no test had ever built.
+
+### Fixed — one project, one spelling for its files
+
+- **`vcs_status` and `vcs_diff` gave different names to the same file at the same moment.**
+  `git status --porcelain=v2` prints paths relative to the working directory; `git diff` and
+  `git show` print them relative to the repository root. Those are the same string only when
+  the Godot project IS the repository root. With the project one level down, status said
+  `player.gd` while diff said `example/player.gd` — and every path argument in the family
+  resolves against the project, so `vcs_diff`'s own output could not be passed to any of
+  them. `vcs_diff`, `vcs_show` and `vcs_restore` now report project-relative paths, matching
+  `vcs_status` and matching what `res://` means.
+- **`vcs_log` and `vcs_diff` answered "no history" for files that have one.** Given the
+  repo-root spelling — the spelling every one of these tools' descriptions promised as
+  "repo-relative" — they returned an empty list and exit 0, which is indistinguishable from
+  a real measurement. Both now refuse, naming the path they resolved and the project root
+  they resolved it against. A path that genuinely exists and genuinely has no commits still
+  answers with an honest empty.
+- **`vcs_restore` reported a discard it had actually performed as though nothing happened.**
+  It returned `requested: ["scripts/player.gd"]` beside `restored: ["game/scripts/player.gd"]`
+  — one file, two spellings, in one response — so a caller checking whether the path it
+  named had been restored read its own destroyed work as a no-op. Both lists now use the
+  same spelling.
+- **Changes elsewhere in the repository are no longer listed as the project's own.**
+  `vcs_status` used to mix them into `staged`/`unstaged` spelled `../docs/notes.md`, which no
+  input in this family accepts. They now appear in `outside_project`, repo-root-relative, and
+  are reported rather than hidden: `vcs_add` with no paths still stages them and `vcs_commit`
+  still commits them.
+
+### Changed
+
+- Every `vcs_*` path argument is documented as **project-relative** (or `res://`), which is
+  what it has always been. The previous wording, "res:// or repo-relative", named the one
+  spelling that does not work.
 
 ## [1.83.0] — 2026-08-25
 

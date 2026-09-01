@@ -5595,15 +5595,16 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 294 — ONE ROW, ON THE SCHEDULE THE ROW ABOVE IT JUST CAME OFF, AND FOR THE SAME
-    # MECHANICAL REASON. `assetlib_sweep.py --census` prints `LANDSCAPE_CADENCE` for the
-    # first time in the commit that adds this reader, so every block in `BLOCK_POPULATION`
-    # predates the counter and `ALIAS_UNUSED` would refuse the row on arrival. 🔴 295 ADDS
-    # 294's BLOCK, THE BLOCK CARRIES `cadence 33 within / 5 past / 14 never analysed`, THE
-    # KEY BECOMES REACHED AND `pending_problems` TURNS THIS ROW INTO `ALIAS_PENDING_STALE`
-    # ON THAT SAME RUN — delete it because the gate says so, not because you remembered.
-    "landscape.cadence":
-        "294 ships the reader; 295 adds 294's block and this row goes STALE on that run",
+    # 🆕 295 — EMPTY AGAIN, AND `landscape.cadence` EXPIRED ON THE SCHEDULE ITS OWN ROW
+    # WROTE, TO THE RUN. 294 filed it saying *295 adds 294's block, the block carries
+    # `cadence 33 within / 5 past / 14 never analysed`, the key becomes reached and
+    # `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that same run —
+    # delete it because the gate says so, not because you remembered*. That is exactly
+    # what happened: this session's first PR carries 294's block, and the refusal fired
+    # on the first `--selftest` run after the block landed, naming the row before anybody
+    # went looking for it. 🔴 SEVENTH TABLE IN A ROW TO EXPIRE ON TIME (276, 287, 289,
+    # 291's predecessor set, 292's `landscape.roster`, 294's `landscape.capability`, and
+    # this one), which remains the only end state 246 designed the table to have.
     # 🆕 294 — EMPTY AGAIN, AND `landscape.capability` EXPIRED EXACTLY ON THE SCHEDULE ITS
     # OWN ROW WROTE. 293 filed it saying *294 adds 293's block, the block carries
     # `capability 43 claimed / 35 unread / 10 uncited`, the key becomes reached and
@@ -7573,6 +7574,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · queue 83/83 claims · handoff 511 claims
 >               · landscape 4 channel(s) / 52 analysed / 47 surfaced
 >               · capability 43 claimed / 35 unread / 10 uncited
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (294, """> ```
+> main                 f01592f — a world-facing job is not a verdict about this tree (#370)  MOVED +1
+> branch 294           session294-a-world-facing-job-is-not-a-verdict · PR #370
+>                      🟢 PUSHED AND MERGED at `aca566c`, squashed to `f01592f`
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 10 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at aca566c, and the post-merge run at f01592f
+> 🟢 `sdk-drift` GREEN at f01592f — dispatched by this session AFTER the merge, §2.3
+> 🔴 registry_lag REFUSES — untagged 10 against a ceiling of 8, crossed at 293, see §3.4
+> 🟢 VERIFIED AFTER THE CHANGE   943/943 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2978
+>               · late not-loaded 0 · late constructed 322/160
+>               · py gates 18/6/12 · SIG 260/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 54 governed · 2154 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 323 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4963 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 523 claims
+>               · landscape 4 channel(s) / 52 analysed / 48 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 33 within / 5 past / 14 never analysed
 >               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
 >                 addon / 0 problems
 > ```
