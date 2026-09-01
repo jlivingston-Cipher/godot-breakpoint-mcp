@@ -2,6 +2,7 @@ import type { Config } from "./config.js";
 import { BridgeClient, BridgeError } from "./bridge.js";
 import { ProcessRegistry } from "./tools/processes.js";
 import { ensureProjectSecret, readProjectSecret } from "./secret.js";
+import { selectPrivilegedGroups, withheldProducerSentence } from "./capabilities.js";
 import { log } from "./logger.js";
 import { portFree } from "./ports.js";
 import { waitForBridge } from "./readiness.js";
@@ -126,7 +127,15 @@ export class PeerRegistry {
       `No peer with id "${id}". Live peers: ${ids.length ? ids.join(", ") : "(none)"}.`,
       ids.length
         ? `Address one of the live peer ids above, or omit \`peer\` to address the default running game.`
-        : `Spawn peers with runtime_spawn_peers, or omit \`peer\` to address the default running game.`,
+        : // 🆕 296 — AND ON THE SECURE DEFAULT, "spawn peers" NAMES A TOOL THIS CALLER
+          // DOES NOT HAVE. Twenty-five runtime tools take an optional `peer` whose only
+          // producer is `runtime_spawn_peers`, which is `code-execution` and dropped by
+          // default. Omitting `peer` still works — that is why these tools are not
+          // orphaned — but a caller who passed one was told to spawn peers with a name
+          // absent from their own tools/list, which reads as a broken suggestion rather
+          // than as the configuration it is. One call site, the whole `peer` family.
+          `Spawn peers with runtime_spawn_peers, or omit \`peer\` to address the default running game.` +
+          withheldProducerSentence("peer", "runtime_spawn_peers", selectPrivilegedGroups(this.cfg.privilegedGroups)),
     );
   }
 

@@ -6,6 +6,50 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Found by driving the runtime and debugger planes against a live Godot 4.7 game the way a
+user drives them — over stdio, on the **secure-default surface** a fresh install actually
+serves, rather than on the full one every test builds.
+
+### Fixed — the tools left behind by a capability group
+
+- **Four tools you keep could only ever refuse, and the refusal blamed you.** `godot_output`
+  and `godot_stop` take a process `id` that only `godot_run_managed` returns;
+  `runtime_peers_digest` and `runtime_peer_stop` need a peer that only `runtime_spawn_peers`
+  can start. All four consumers are unprivileged, both producers are `code-execution`, and
+  that group is off by default — so on a fresh install those four answered `No managed
+  process with id "…"` / `Convergence needs at least two peers` for every input a caller
+  could construct, with nothing to say the cause was policy. Each refusal now names the
+  producer, its group, the env var that enables it and `godot://capabilities`, appended
+  **after** the original sentence so a genuinely stale handle still reads as one.
+- **The same sentence for the twenty-five tools that take an optional `peer`.** Passing a
+  peer id on a default surface was answered with *"Spawn peers with runtime_spawn_peers"* —
+  a tool absent from that caller's own `tools/list`. Fixed at one call site in the peer
+  registry, so the whole family is covered; omitting `peer` is unaffected and still
+  addresses the running game.
+- **`godot_run_project` claimed to return a process id and did not.** It returns an OS `pid`
+  and its readiness fields; `godot_stop` accepts only the registry id `godot_run_managed`
+  mints. The same tool's port-conflict refusal has always said the true thing — *a detached
+  `godot_run_project` game is not stoppable by any tool* — so one tool shipped two
+  user-facing sentences that contradicted each other. The false one is gone.
+- **`docs/RUNBOOK.md` told you to run tools a default install does not have.** Its Plane C
+  and DAP checklists named `godot_run_managed`, `runtime_call_method`, `dbg_evaluate` and
+  `godot_run_headless_script` unmarked, while `USER_GUIDE.md` marked every one. Marked, with
+  the default-surface substitute named where one exists and the policy refusal called out as
+  a pass rather than a failure.
+
+### Added
+
+- **`orphaned_consumers` in `godot://capabilities`.** The always-on resource said which tools
+  a disabled group removes; it now also says which tools it strands, with the field each one
+  cannot be given and the tool that would have minted it — readable while planning rather
+  than after a failed call.
+- **`HANDLE_PRODUCERS`, a declared population.** Ten pairs where one tool consumes a handle
+  another mints, six of which span no privilege boundary and are declared anyway so the table
+  reads as total. A tool that joins the surface with a required handle field and no row fails
+  the suite, so a future group cannot silently strand a tool the way this one did.
+
+---
+
 Found by driving the `vcs_*` family the way a user drives it — against a Godot project that
 lives **inside** a git repository rather than at its root, which is the layout this
 repository's own `example/` has and the layout no test had ever built.

@@ -124,8 +124,18 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
     "godot_run_project",
     {
       title: "Run project",
+      // 🔴 "Returns the process id." STOOD HERE AND IT WAS FALSE (296). This tool returns an
+      // OS `pid` and its readiness fields; it mints no handle. `godot_stop` and `godot_output`
+      // take only the registry `id` that `godot_run_managed` returns, so a caller who believed
+      // this sentence got `No managed process with id "…"` for every value it could pass. The
+      // SAME tool's port-conflict remedy has said the true thing all along — "a detached
+      // godot_run_project game is not stoppable by any tool" — so one tool shipped two
+      // user-facing sentences that contradicted each other, and the false one is the one a
+      // caller reads first. DELETED rather than rewritten: the fact is already carried by that
+      // remedy, by TOOL_CATALOG's output block (which never claimed an `id`), and now by
+      // `godot_stop`'s own refusal — and the surface is a budget with ten bytes in it.
       description:
-        "Run the project (detached). Optionally start from a specific scene path (res://...). Returns the process id. " +
+        "Run the project (detached). Optionally start from a specific scene path (res://...). " +
         "WAITS until the game's runtime bridge answers ping and reports bridge_ready — the game takes roughly half a " +
         "second to three seconds to bind it, and no runtime_* tool is reachable before it does. " +
         "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, and every " +
