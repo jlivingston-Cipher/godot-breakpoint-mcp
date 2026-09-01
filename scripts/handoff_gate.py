@@ -589,7 +589,25 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      "a pattern and then REFUSING ambiguity rather than resolving it. SINCE 232 — the "
      "block that spelled it the OTHER way is the one that introduced it, and the "
      "boundary is about the field\'s presence, which is all the DROPPED direction "
-     "claims; the spelling is what the alias and `n` are for."),
+     "claims; the spelling is what the alias and `n` are for. "
+     "🆕 292 — 🔴 READ THIS COUNTER OUT OF `ci<N>/ci-measured-host-tests-*/`, NEVER OUT "
+     "OF THE LOCAL REPLAY. 291 §3.1 took seven readings of ONE commit: a Cowork container "
+     "answered 2937 four times over two clones and two `npm ci` installs, and GitHub "
+     "Actions answered 2928 three times over three runners and three Node majors, one of "
+     "them a re-run an hour later — twenty-three per-instrument lines byte-identical "
+     "within each side and zero variance on either. So the counter is a deterministic "
+     "function of (tree, MACHINE CLASS) and of nothing else this apparatus varies: not a "
+     "re-run, not a clone, not an install, not a Node major, not an hour. Six sessions "
+     "each paid one correction discovering that at the close, because the close compares "
+     "against the CI artifacts and a block carrying the machine\'s own number is a block "
+     "that will be refused. The rule has no preference in it — the counter\'s SOURCE is "
+     "the artifact directory, because that is what the gate reads. 🔵 `leg_disagreements` "
+     "cannot see this and is not broken: the three CI legs agree with each other exactly, "
+     "so the only disagreement is CI-versus-elsewhere and no comparison between artifacts "
+     "reaches it. 🔵 WHICH difference between the two machine classes moves the count by "
+     "nine — CPU count, and therefore `node:test` concurrency, is the first suspect, "
+     "since the number counts FAILURE LINES and a differently-interleaved run can "
+     "truncate or repeat them — is a smaller question and was never what the row asked."),
     ("instrument.not_loaded", r"not-?loaded", 1, ("python3", "scripts/instrument_gate.py"), ROOT,
      r"^INSTRUMENT_GATE_LATE_NOT_LOADED (\d+)/\d+", MUTATING, SINCE(233),
      "`late not-loaded 0` — 233 is the first block to carry it and every block since "
@@ -3316,6 +3334,22 @@ REPLAY_CI_FLAG_EXEMPT: "dict[str, str]" = {
         "COST OF THIS ROW: a reader whose only trigger is a weekly cron is unread for up "
         "to a week BY CONSTRUCTION, which is what 279's pickup found it had been. The "
         "offline half is in the replay and merge-blocking in `ci.yml`.",
+    "python3 assetlib_sweep.py --emit":
+        "🆕 292 — 291 §5.7's OPTION (a), TAKEN. The emitter dials godotengine.org, "
+        "registry.npmjs.org and registry.modelcontextprotocol.io, and the Cowork container "
+        "the replay runs in gets HTTP 403 from its egress proxy for all three. So a replay "
+        "line for this command can only ever record `DISCOVERY_CHANNEL <name> unread` three "
+        "times over — a statement about the MACHINE and not about the landscape (235 §6.3) "
+        "— and a week later nothing distinguishes it from three channels that genuinely "
+        "went quiet. 🔴 THE ALTERNATIVE WAS SHIPPED FIRST AND IT IS THE WEAKER ONE: 291 put "
+        "the command in its own §7 fence, on the argument that `--emit` always exits 0 and "
+        "exercises every line of the emitter except the socket, and it did so only because "
+        "the desktop app disconnected mid-close and a merged repair would have moved `main` "
+        "off the commit its block was measured at. That is a reason about a session, not "
+        "about the command. `--selftest` and `--census` are both in the replay AND "
+        "merge-blocking in `ci.yml`, and `sdk-drift.yml` runs `--emit` BEFORE `--check` so "
+        "the readings survive the refusal — which is where a world-facing reading belongs "
+        "and where this one already is.",
     "python3 registry_lag.py --upstream":
         "🆕 279 — `sdk-drift.yml` only, same trigger and the same argument. It asks whether "
         "the registry serves a MAJOR newer than the one `host/package.json` pins, which is "
@@ -5367,17 +5401,16 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 291 — ONE ROW, AND IT IS 246's GAP ARRIVING EXACTLY AS DESCRIBED. `landscape.roster`
-    # reads a line `assetlib_sweep.py --census` prints for the FIRST TIME in the commit that
-    # adds this row, so no block in `BLOCK_POPULATION` can reach it and `ALIAS_UNUSED` would
-    # refuse the reader that has to exist before the counter can be carried. 🔴 THE EXPIRY IS
-    # WRITTEN HERE AND EXECUTED BY THE GATE: 291's block prints `landscape 4 channel(s) / 51
-    # analysed / 47 surfaced`, 253's rule copies that block into `BLOCK_POPULATION` in 292's
-    # FIRST PR, and `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that same
-    # run. Delete it because the gate says so, not because you remembered.
-    "landscape.roster": "291's block is the first to carry `landscape 4 channel(s) / 51 "
-                        "analysed / 47 surfaced`; adding that block at 292 makes this row "
-                        "STALE on the same run",
+    # 🆕 292 — EMPTY AGAIN, AND `landscape.roster` LEFT ON THE SCHEDULE ITS OWN ROW WROTE.
+    # 291 filed it with the note *292 adds 291's block to `BLOCK_POPULATION` and
+    # `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that same run — delete
+    # it because the gate says so, not because you remembered*. That is what happened: this
+    # session's first PR carries 291's block, the block prints `landscape 4 channel(s) / 51
+    # analysed / 47 surfaced`, the key became reached, and the row was refused by name before
+    # anybody looked for it. 🔴 FIFTH TABLE IN A ROW TO EXPIRE ON TIME (276, 287, 289, 291's
+    # predecessor set, and this one), which remains the only end state 246 designed the table
+    # to have — a one-session exemption that can outlive the block answering it is a second
+    # exemption list nobody reads.
     # 🆕 289 — EMPTY AGAIN, AND BOTH ROWS LEFT THE WAY THE TABLE IS DESIGNED FOR: 287's
     # block joined `BLOCK_POPULATION` in this session's first PR, `taut.orphan` and
     # `difference_field.population` became reached on that same run, and
@@ -7228,6 +7261,34 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
 >               · mutlock 5 guarded / 23 cases · tree_quiet 13
 >               · queue 83/83 claims · handoff 493 claims
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (291, """> ```
+> main                 a50d968 — the channels a project can ship in (#365)  MOVED +1
+> branch 291           session291-the-channels-a-project-can-ship-in · PR #365
+>                      🟢 PUSHED AND MERGED at `09f46b3`, squashed to `a50d968`
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 6 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at 09f46b3, and the post-merge run at a50d968
+> 🟢 VERIFIED AFTER THE CHANGE   943/943 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 2928
+>               · late not-loaded 0 · late constructed 321/160
+>               · py gates 18/6/12 · SIG 259/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 112 · 53 governed · 1977 keys · 98 shortfalls
+>               · unswept 0 · exempt 40 · term 323 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 4963 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 500 claims
+>               · landscape 4 channel(s) / 51 analysed / 47 surfaced
 >               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
 >                 addon / 0 problems
 > ```

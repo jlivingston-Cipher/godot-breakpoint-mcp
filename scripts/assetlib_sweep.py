@@ -114,12 +114,47 @@ GODOT_VERSIONS = ["4.5", "4.4", "4.3", "4.2"]
 NPM_SEARCH = "https://registry.npmjs.org/-/v1/search"
 MCP_REGISTRY = "https://registry.modelcontextprotocol.io/v0/servers"
 
+# ── 🆕 292 §1 — WHAT A NEVER-TRACKED PROJECT COSTS IS A PROPERTY OF ITS CHANNEL ───────
+#
+# 🔴 291 SHIPPED TWO ANSWERS TO ONE QUESTION AND WROTE NEITHER OF THEM DOWN. *A project
+# exists and we have not read it* was priced a source-level pass when the Asset Library
+# leg found it (`new_mcp`, below) and one roster row when npm or the MCP Registry found it
+# (`surfaced_problems`). 291 §3.3 filed that against itself: **the asymmetry is defensible
+# and that is not the same as declared.** A reader opening this file found two rules for
+# one question and no line saying they were meant to differ, which is a shape in which a
+# decision and an oversight are indistinguishable.
+#
+# 🔵 THE ARGUMENT FOR THE ASYMMETRY IS VOLUME, AND IT IS A REAL ARGUMENT. The Asset
+# Library serves roughly ten new MCP-shaped entries a year; npm and the MCP Registry
+# surfaced FIFTY untracked projects between them on the first afternoon anybody queried
+# them. A rule demanding fifty source-level passes in one commit does not produce fifty
+# analyses — it produces a gate that is red forever and a roster nobody can make green.
+# So the price differs because the arrival rate differs by an order of magnitude.
+#
+# 🔴 SO IT IS A FIELD NOW, NOT A BRANCH. Both refusal sites read `severity` off the
+# channel that surfaced the project; neither one spells its own price any more. That is
+# the whole of the fix and it is deliberately not a behaviour change: `assetlib` declares
+# `analysis` and the other three declare `row`, which is exactly what 291 shipped. What
+# changes is that the difference is now a value a gate reads, carrying the argument for
+# itself, so a later session re-pricing a channel edits one line here instead of finding
+# the `if` a project fell down. 🔵 `severity_problems` refuses a channel that declares
+# neither, so the next channel added cannot inherit the cheap price by saying nothing —
+# which is how this asymmetry got in undeclared the first time.
+SEVERITY_ROW = "row"
+SEVERITY_ANALYSIS = "analysis"
+SEVERITIES = (SEVERITY_ROW, SEVERITY_ANALYSIS)
+
 CHANNELS: "dict[str, dict]" = {
     "assetlib": {
         "enumerable": True,
         "serves": "Godot addons published to godotengine.org's Asset Library",
         "why": "where Godot addons are published — the original and, until 291, the only "
                "channel this roster's population was drawn from",
+        "severity": SEVERITY_ANALYSIS,
+        "severity_why": "roughly ten new MCP-shaped entries a year, and every one of them "
+                        "is an addon a Godot user can install into the editor Breakpoint "
+                        "competes in — a rate one session can read at source, and a "
+                        "population where being unread is the expensive kind of unread",
     },
     "npm": {
         "enumerable": True,
@@ -128,6 +163,11 @@ CHANNELS: "dict[str, dict]" = {
         "why": "the channel the category's most-starred project ships in, and the one the "
                "Asset Library can never see: an npm-only server publishes no addon, so it "
                "was never in the query",
+        "severity": SEVERITY_ROW,
+        "severity_why": "forty-eight untracked slugs on the first query, against a roster "
+                        "of twenty-six — an intake this leg can name but no session can "
+                        "read at source in one commit, so the row is owed and the analysis "
+                        "is elected",
     },
     "mcp-registry": {
         "enumerable": True,
@@ -136,6 +176,10 @@ CHANNELS: "dict[str, dict]" = {
         "why": "a publication act rather than a popularity proxy — a project here has "
                "declared itself an MCP server to the protocol's own index, and the index "
                "is queryable, which is the whole of what a discovery leg needs",
+        "severity": SEVERITY_ROW,
+        "severity_why": "nine untracked of twelve on the first query, and the index grows "
+                        "with every publication act rather than with every release worth "
+                        "reading — the same intake argument npm makes",
     },
     "commercial": {
         "enumerable": False,
@@ -147,6 +191,12 @@ CHANNELS: "dict[str, dict]" = {
                "a leg that is broken — 271 §1's rule, applied to a channel instead of to "
                "a reading.",
         "watch": ["3ddelano/gdai-mcp-plugin-godot", "summer-engine"],
+        "severity": SEVERITY_ROW,
+        "severity_why": "🔵 DECLARED AND UNREACHABLE, WHICH IS NOT THE SAME AS CHEAP. No "
+                        "query surfaces a project here, so nothing is ever refused on this "
+                        "channel and the value is never read — it is written because "
+                        "`severity_problems` refuses a channel that declares none, and a "
+                        "channel exempted from declaring is the hole this row closes",
     },
 }
 
@@ -199,6 +249,66 @@ def repo_slug(url: str) -> str:
         m = re.search(r"github\.com[/:]([^/]+/[^/.]+)", url)
         return m.group(1).lower() if m else ""
     return url.lower() if re.fullmatch(r"[^/\s]+/[^/\s]+", url) else ""
+
+
+def severity_of(channel: str, channels: "dict[str, dict]" = None) -> str:
+    """What a never-tracked project on this channel OWES — PURE, and the single place that
+    answers it.
+
+    🔴 THE DEFAULT IS THE EXPENSIVE ONE, AND THAT IS THE WHOLE OF THE DESIGN. An unknown
+    channel, or one whose row forgot the field, answers `analysis` — because the failure
+    this file has actually suffered is a population priced cheaply by accident, not one
+    priced dearly by accident. A gate that guesses low on a channel nobody declared is a
+    gate that reports a measured green about a price nobody chose, which is 291 §2.3's
+    defect one field over. `severity_problems` refuses the undeclared row separately, so
+    the default never has to stand in for the declaration.
+    """
+    row = (channels if channels is not None else CHANNELS).get(channel) or {}
+    sev = row.get("severity")
+    return sev if sev in SEVERITIES else SEVERITY_ANALYSIS
+
+
+def severity_problems(channels: "dict[str, dict]" = None) -> "list[str]":
+    """Every declared channel prices its own unread projects — PURE.
+
+    🔴 THIS IS THE CONTROL THAT KEEPS THE FIELD FROM BECOMING DECORATION. 291's asymmetry
+    arrived because a second and a third channel were added and neither one was asked what
+    an unread project on it costs; the answer came from whichever branch of an `if` the
+    project happened to fall down. A channel that declares no severity is refused BY NAME
+    here, so the next channel cannot enter the union the same way.
+    """
+    out = []
+    for name, row in sorted((channels if channels is not None else CHANNELS).items()):
+        sev = row.get("severity")
+        if sev is None:
+            out.append(
+                f"CHANNEL_SEVERITY_UNDECLARED {name} — the channel says what it serves and "
+                f"whether a machine can enumerate it, and not what a never-tracked project "
+                f"on it OWES. That is the question 291 answered two ways and wrote down "
+                f"neither; declare `severity` as one of {list(SEVERITIES)} with the "
+                f"argument beside it")
+        elif sev not in SEVERITIES:
+            out.append(
+                f"CHANNEL_SEVERITY_UNKNOWN {name} declares severity {sev!r}, which is not "
+                f"one of {list(SEVERITIES)}. A price no refusal site can spend is a price "
+                f"nobody set")
+        elif not row.get("severity_why"):
+            out.append(
+                f"CHANNEL_SEVERITY_UNARGUED {name} declares {sev!r} and gives no reason. "
+                f"Grading a severity by a channel's arrival rate is a DECISION, and a "
+                f"decision with no argument beside it is indistinguishable from the "
+                f"oversight this row was written to end (291 §5.4)")
+    return out
+
+
+def owes(severity: str) -> str:
+    """The English for one severity, written once — PURE.
+
+    Both refusal sites print what is owed, and before 292 each spelled its own sentence.
+    Two spellings of one price is how a reader concludes the two are different prices.
+    """
+    return ("a ROW and not an analysis" if severity == SEVERITY_ROW
+            else "a SOURCE-LEVEL PASS and not just a row")
 
 
 def channel_state(attempted: int, failed: int, enumerable: bool = True
@@ -312,6 +422,24 @@ def fold(rows: "list[dict]") -> "dict[str, dict]":
     not. 🔴 THE FALLBACK KEY CARRIES THE CHANNEL ON PURPOSE: two packages with no
     repository link and the same bare name on two different registries are two projects,
     and a key that dropped the channel would silently merge them.
+
+    🆕 292 §2 — 🔴 A MIRROR MAY JOIN A PROJECT AND MAY NOT DATE IT, AND 291 LET IT DO BOTH.
+    The currency fold below took the NEWEST `published` across every row folded onto a key.
+    A republishing scope copies somebody else's server days or weeks after they ship it, so
+    a mirror's timestamp is ALWAYS the newest one — and the newest one won. Measured on the
+    first live run of this code: `@ryanmazzolini/minimal-godot-mcp` published 0.1.6 on
+    2026-02-13, `@iflow-mcp/ryanmazzolini-minimal-godot-mcp` mirrored that same 0.1.6 on
+    2026-02-26, the fold handed the upstream the mirror's date, and `npm_currency` then read
+    the project's own real date back off npm and reported *published a new version* about a
+    version that had not moved in six months.
+
+    🔴 THAT IS `NPM_REPUBLISHERS`' OWN ARGUMENT WITH ONE WORD LEFT OUT. 291 kept mirrors so
+    the three upstreams reachable only through one are not lost, and refused to count them
+    as projects because *a copy is not a project*. A copy is not a RELEASE either. The join
+    is what a mirror supplies; the currency is not, so a first-party row wins the version
+    and the date outright and a mirror supplies them only when NOTHING first-party did —
+    the case where the mirror is the only evidence the project exists at all, which the row
+    then says with `via: republisher` exactly as before.
     """
     out: "dict[str, dict]" = {}
     for r in rows:
@@ -325,8 +453,15 @@ def fold(rows: "list[dict]") -> "dict[str, dict]":
         for f in ("npm", "registry_name", "description"):
             if r.get(f) and not cur.get(f):
                 cur[f] = r[f]
-        if (r.get("published") or "") > (cur.get("published") or ""):
+        # 🔴 FIRST-PARTY BEATS MIRROR OUTRIGHT; NEWEST ONLY DECIDES BETWEEN EQUALS.
+        mine, theirs = bool(cur.get("via")), bool(r.get("via"))
+        if theirs and not mine:
+            continue
+        if (mine and not theirs) or (r.get("published") or "") > (cur.get("published") or ""):
             cur["published"], cur["version"] = r["published"], r["version"]
+            if mine and not theirs:
+                cur["via"] = r.get("via")
+                cur["npm"] = r.get("npm") or cur.get("npm")
     return out
 
 
@@ -353,18 +488,31 @@ def surfaced_problems(found: "dict[str, dict]", roster: dict) -> "list[str]":
     written for fifty projects in one commit and an `entries` row cannot. And the roster's own
     first line — *every product that has appeared in any prior sweep, carried forward
     permanently* — is satisfied by the cheap population, which is what it always described.
+
+    🆕 292 §1 — AND WHAT IT COSTS IS READ OFF THE CHANNEL RATHER THAN BAKED IN HERE. 291
+    hard-coded `a ROW and not an analysis` into this sentence while the Asset Library leg
+    hard-coded a source-level pass into its own, which made one question look like two. The
+    price is `severity_of` now, taken from whichever channels surfaced the project, and a
+    project surfaced by several takes the DEAREST of them — a cheap channel seeing a project
+    an expensive one also sees does not discount it.
     """
     known = {repo_slug(str(e.get("repo") or "")) for e in roster.get("entries", [])}
     known |= {str(e.get("repo") or "").lower() for e in roster.get("entries", [])}
     known |= {str(s.get("key") or "") for s in roster.get("surfaced", [])}
     known.discard("")
-    return [
-        f"SURFACED_UNRECORDED {key} — surfaced by {'+'.join(row['channels'])} and in "
-        f"neither `entries` nor `surfaced`. It owes a ROW and not an analysis: the roster "
-        f"carries every product any sweep has seen, and a channel that surfaces a project "
-        f"the roster cannot name is a discovery leg reporting to nobody"
-        for key, row in sorted(found.items()) if key not in known
-    ]
+    out = []
+    for key, row in sorted(found.items()):
+        if key in known:
+            continue
+        chans = row["channels"]
+        sev = (SEVERITY_ANALYSIS if any(severity_of(c) == SEVERITY_ANALYSIS for c in chans)
+               else SEVERITY_ROW)
+        out.append(
+            f"SURFACED_UNRECORDED {key} — surfaced by {'+'.join(chans)} and in neither "
+            f"`entries` nor `surfaced`. It owes {owes(sev)}: the roster carries every "
+            f"product any sweep has seen, and a channel that surfaces a project the roster "
+            f"cannot name is a discovery leg reporting to nobody")
+    return out
 
 
 def npm_currency(entries: "list[dict]", live: "dict[str, dict]"
@@ -877,8 +1025,13 @@ def main() -> int:
     if src_moved:
         stale.append(f"{len(src_moved)} tracked repositor(ies) moved since their last "
                      f"source-level pass (Rule 2 clause two)")
+    # 🆕 292 §1 — AND THIS LINE NO LONGER SPELLS ITS OWN PRICE. The Asset Library's
+    # severity is declared in `CHANNELS` with the volume argument attached, so the sentence
+    # a reader sees here and the sentence `surfaced_problems` prints come from one place
+    # and differ only where the channels differ.
     if new_mcp:
-        stale.append(f"{len(new_mcp)} never-tracked MCP-shaped entr(ies) found")
+        stale.append(f"{len(new_mcp)} never-tracked MCP-shaped entr(ies) found "
+                     f"(assetlib owes {owes(severity_of('assetlib'))})")
     if new_ai:
         stale.append(f"{len(new_ai)} never-recorded in-editor AI addon(s) found")
     # 🆕 291 — AND THE TWO NEW REFUSALS. `chan_problems` is the one that changes what a
@@ -997,13 +1150,23 @@ def census() -> int:
     for e in entries:
         key = str(e.get("channel") or "unclassified")
         by_channel[key] = by_channel.get(key, 0) + 1
-    problems = roster_shape_problems(roster)
+    # 🆕 292 §1 — THE SEVERITY CONTROL RUNS HERE AND NOWHERE CHEAPER. An undeclared price
+    # is a defect in the TREE, not a fact about a third-party host, so it belongs in the
+    # one leg of this file a merge-blocking job can honestly run — the same argument that
+    # put `roster_shape_problems` here. A control living only in the weekly `--check` is a
+    # control a branch can go red past.
+    problems = roster_shape_problems(roster) + severity_problems()
     for m in problems:
         print(f"  🔴 {m}", file=sys.stderr)
     print(f"LANDSCAPE_CENSUS {len(CHANNELS)} channel(s) / {enumerable} enumerable · "
           f"{len(entries)} analysed / {len(surfaced)} surfaced · {watched} watched · "
           f"{len(problems)} problem(s)")
     print("  " + " · ".join(f"{k} {v}" for k, v in sorted(by_channel.items())))
+    # 🔴 AND THE PRICES ARE PRINTED, BECAUSE A DECLARATION NOBODY CAN SEE IS THE SHAPE
+    # THIS SESSION IS HERE TO END. One line, channel and price, in the order the table
+    # declares them — so `git diff` on a re-priced channel shows up in the census output
+    # a reader already reads rather than only in the source.
+    print("  severity · " + " · ".join(f"{n} {severity_of(n)}" for n in sorted(CHANNELS)))
     return 1 if problems else 0
 
 
@@ -1249,6 +1412,89 @@ def selftest() -> int:
           sorted({type(c["enumerable"]) for c in CHANNELS.values()}), [bool])
     claim("shape: the non-enumerable channel carries the watch list it is made of",
           bool(CHANNELS["commercial"]["watch"]), True)
+
+    # ── 🆕 292 §1 — the per-channel severity: the field, its default, and its controls ─
+    #
+    # 🔴 THE LIVE TABLE IS ASSERTED BY VALUE, NOT BY SHAPE. 291's behaviour is that the
+    # Asset Library demands a pass and the two registries demand a row; if a later session
+    # re-prices a channel it must edit a claim here, so the change is visible in a diff
+    # rather than only in a refusal somebody happens to run with a network.
+    claim("severity: the Asset Library still demands a source-level pass",
+          severity_of("assetlib"), SEVERITY_ANALYSIS)
+    claim("severity: the two registries still demand a row",
+          [severity_of("npm"), severity_of("mcp-registry")],
+          [SEVERITY_ROW, SEVERITY_ROW])
+    claim("severity: every declared channel prices itself",
+          severity_problems(), [])
+    claim("severity: every declared channel argues its price",
+          sorted({bool(c.get("severity_why")) for c in CHANNELS.values()}), [True])
+    # 🔴 AND THE THREE NEGATIVE CONTROLS, WHICH ARE THE HALF THAT CAN FAIL. A field with
+    # no refusal behind it is decoration, and decoration is what 291 §3.3 was filed about.
+    claim("severity: a channel that declares no price is REFUSED",
+          [p.split()[0] for p in severity_problems({"x": {"enumerable": True}})],
+          ["CHANNEL_SEVERITY_UNDECLARED"])
+    claim("severity: a price no refusal site can spend is REFUSED",
+          [p.split()[0] for p in severity_problems(
+              {"x": {"enumerable": True, "severity": "later", "severity_why": "w"}})],
+          ["CHANNEL_SEVERITY_UNKNOWN"])
+    claim("severity: a price with no argument beside it is REFUSED",
+          [p.split()[0] for p in severity_problems(
+              {"x": {"enumerable": True, "severity": SEVERITY_ROW}})],
+          ["CHANNEL_SEVERITY_UNARGUED"])
+    # 🔴 THE DEFAULT GUESSES DEAR. An unknown channel is the case where nobody chose, and
+    # the cheap guess is the one that reports a green about a price nobody set.
+    claim("severity: an unknown channel defaults to the EXPENSIVE price",
+          severity_of("itch"), SEVERITY_ANALYSIS)
+    claim("severity: the two prices read differently to a human",
+          owes(SEVERITY_ROW) != owes(SEVERITY_ANALYSIS), True)
+    # 🔴 AND THE JOIN: one project seen by a cheap channel AND an expensive one owes the
+    # expensive thing. A discount for being seen twice is the defect written backwards.
+    _rost = {"entries": [], "surfaced": []}
+    claim("surfaced: a project only npm saw owes a row",
+          "owes a ROW" in surfaced_problems(
+              {"a/b": {"channels": ["npm"]}}, _rost)[0], True)
+    claim("surfaced: a project the Asset Library also saw owes the pass",
+          "owes a SOURCE-LEVEL PASS" in surfaced_problems(
+              {"a/b": {"channels": ["npm", "assetlib"]}}, _rost)[0], True)
+    claim("surfaced: a project already carried owes nothing either way",
+          surfaced_problems({"a/b": {"channels": ["npm", "assetlib"]}},
+                            {"entries": [{"repo": "a/b"}], "surfaced": []}), [])
+
+    # ── 🆕 292 §2 — the fold's currency: a mirror joins a project, it does not date it ─
+    #
+    # 🔴 THE FIXTURE IS THE MEASUREMENT. `@ryanmazzolini/minimal-godot-mcp` shipped 0.1.6
+    # on 2026-02-13 and `@iflow-mcp/…` mirrored that same 0.1.6 on 2026-02-26; 291's fold
+    # took the newest date across the pair, so the roster recorded the MIRROR's date as the
+    # project's and `npm_currency` reported a version that never moved as moved. Both
+    # orderings are driven, because a fold that only checked the row it saw second would
+    # pass one of them by luck.
+    _up = {"slug": "r/m", "npm": "@ryanmazzolini/minimal-godot-mcp", "registry_name": None,
+           "version": "0.1.6", "published": "2026-02-13", "description": "d", "via": None,
+           "channel": "npm"}
+    _mir = {**_up, "npm": "@iflow-mcp/ryanmazzolini-minimal-godot-mcp",
+            "published": "2026-02-26", "via": "republisher"}
+    claim("fold: a mirror published later does not re-date its upstream",
+          fold([_up, _mir])["r/m"]["published"], "2026-02-13")
+    claim("fold: and not in the other order either",
+          fold([_mir, _up])["r/m"]["published"], "2026-02-13")
+    claim("fold: the first-party package name is the one that survives",
+          fold([_mir, _up])["r/m"]["npm"], "@ryanmazzolini/minimal-godot-mcp")
+    claim("fold: a first-party row is not marked as reached through a mirror",
+          fold([_mir, _up])["r/m"]["via"], None)
+    # 🔴 AND THE CASE THE MIRROR EXISTS FOR: when nothing first-party surfaced, the mirror
+    # IS the evidence, it still supplies the row, and the row still says how it was reached.
+    claim("fold: a mirror alone still surfaces the project",
+          (fold([_mir])["r/m"]["published"], fold([_mir])["r/m"]["via"]),
+          ("2026-02-26", "republisher"))
+    # 🔵 The newest-wins rule is unchanged BETWEEN EQUALS — two first-party rows on two
+    # channels are two real publications and the later one is the project's currency.
+    _reg = {**_up, "npm": None, "registry_name": "io.github.r/m", "version": "0.2.0",
+            "published": "2026-03-01", "channel": "mcp-registry"}
+    claim("fold: between two first-party rows the newest still wins",
+          (fold([_up, _reg])["r/m"]["version"], fold([_up, _reg])["r/m"]["published"]),
+          ("0.2.0", "2026-03-01"))
+    claim("fold: and it is still ONE project on two channels",
+          sorted(fold([_up, _reg])["r/m"]["channels"]), ["mcp-registry", "npm"])
 
     print(f"ASSETLIB_SELFTEST {claims - bad}/{claims} claims, {bad} failed")
     return 1 if bad else 0
