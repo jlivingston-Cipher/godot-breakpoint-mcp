@@ -225,6 +225,59 @@ CHANNEL_READ = "read"
 CHANNEL_PARTIAL = "partial"
 CHANNEL_UNREAD = "unread"
 
+# ── 🆕 293 — A `false` IS A CLAIM, AND FOR EIGHTY OF THEM NOBODY HAD MADE IT ───────────
+#
+# 🔴 292 §2.3 READ THREE PROJECTS AT SOURCE AND ALL THREE CARRIED `csharp: false`. All
+# three were wrong, and every one of them was wrong BEFORE the pass that wrote the value:
+# `godot-mcp-enhanced` shipped `runDotnetBuild()` eighteen days earlier, `fennara`'s
+# `run_dotnet_build_if_needed` predated the analysed commit, and `godot-mcp-go`'s
+# `run_build()` dates to 0.4.0. Nobody had looked. The value was a default that had been
+# copied forward until somebody finally read the tree.
+#
+# 🔴 288 §7.4 — *a capability claim is unsourced until somebody reads its source* — WAS
+# BEING APPLIED TO ONE SIDE OF THE COLUMN. A `true` feels like a claim, so every `true`
+# on this roster carried file-and-symbol evidence in its note. A `false` is the claim **we
+# looked and it is not there**, which needs the whole tree rather than one file and is
+# therefore strictly HARDER to earn — and it biases in the one direction that flatters us,
+# because an unsourced `false` on an alternative reads as a gap they have and we do not.
+#
+# 🔵 SO THE THIRD STATE IS THE FIX AND NOT A SOURCE PASS ON FIFTY PROJECTS. `unread` means
+# *this row once asserted a value and nobody can show the reading behind it, so the
+# assertion is withdrawn* — which is a different sentence from an ABSENT field, where the
+# roster never claimed anything at all. `census()` prints how many are outstanding, one
+# number, and it falls as sessions read them.
+CAPABILITY_UNREAD = "unread"
+CAPABILITY_FIELDS = ("real_dap_client", "real_lsp_client", "csharp", "debugger")
+
+# The vocabulary each field may spend, `unread` and `null` aside. 🔴 `null` IS NOT THE SAME
+# ANSWER and is deliberately still legal: the two `source_verifiable: false` rows carry
+# nulls because no reading is POSSIBLE there — a closed-source product sold from its own
+# site — and `unread` would say a session merely has not got to it yet.
+CAPABILITY_VALUES: "dict[str, tuple]" = {
+    "real_dap_client": (True, False),
+    "real_lsp_client": (True, False),
+    "csharp": (True, False, "spike-only"),
+    "debugger": ("none", "godot-internal-editor-debugger", "real-dap-client",
+                 "dap-client-output-only", "screen-scrapes-stack-trace-panel"),
+}
+
+# 🔵 A CITATION IS SOMETHING A LATER READER CAN GO AND LOOK AT WITHOUT REDOING THE
+# ANALYSIS — a path, a call, a scoped API name, a port, an identifier to grep for, or a
+# stated exhaustive search. Evidence carrying none of those is still evidence (somebody
+# looked and wrote down what they concluded) and it is WEAKER evidence, so it is counted
+# separately and never refused: a control that reddened on prose would delete real
+# readings to make a number look tidy, which is the failure 291 §3.1 called governance
+# wearing churn.
+CAPABILITY_CITATION = re.compile(
+    r"[\w./-]+\.(?:gd|cs|ts|tsx|js|mjs|py|go|rs|cpp|h|hpp|json|yml|yaml|md|toml)\b"
+    r"|\b\w+\("
+    r"|\b\w+(?:\.|::)\w+"
+    r"|\bports?\s+\d{2,5}\b|:\d{2,5}\b"
+    r"|\b[a-z]+_[a-z_]+\b"
+    r"|\b\w*[a-z][A-Z]\w*\b"
+    r"|\bzero (?:repo-wide )?hits\b|\banywhere in the tree\b|\brepo-wide\b"
+)
+
 
 def repo_slug(url: str) -> str:
     """`owner/name`, lowercased, from any GitHub URL shape — PURE. The join key that lets
@@ -574,6 +627,160 @@ def channel_problems(states: "dict[str, tuple[str, str]]") -> "list[str]":
     return out
 
 
+def capability_claims(entry: dict) -> "list[tuple[str, object]]":
+    """The capability fields this ONE entry actually spends, as (field, value) — PURE.
+
+    🔴 ABSENT IS NOT `unread` AND THE DIFFERENCE IS THE WHOLE POINT. A row with no
+    `csharp` key makes no claim about C#; a row carrying `unread` says a session looked at
+    the claim, could not find the reading behind it, and withdrew it. Counting absences
+    would bury thirty-five withdrawn claims under a hundred and sixty rows nobody has ever
+    opened, and the number would stop being something a session can act on.
+    """
+    return [(f, entry[f]) for f in CAPABILITY_FIELDS if f in entry]
+
+
+def capability_problems(roster: dict) -> "list[str]":
+    """Every capability claim owes the reading behind it — PURE, and refused in `census()`.
+
+    Three refusals, and the first of them is 292 §2.3's finding turned into a control:
+    a definite value with no `capability_evidence` entry is a claim nobody can check.
+    """
+    problems: list[str] = []
+    for e in roster.get("entries", []):
+        name = e.get("name")
+        ev = e.get("capability_evidence") or {}
+        if not isinstance(ev, dict):
+            problems.append(f"CAPABILITY_EVIDENCE_SHAPE {name!r} — `capability_evidence` "
+                            f"must be an object keyed by capability field")
+            continue
+        for field, value in capability_claims(e):
+            if value is None or value == CAPABILITY_UNREAD:
+                continue
+            if value not in CAPABILITY_VALUES[field]:
+                problems.append(
+                    f"CAPABILITY_UNKNOWN_VALUE {name!r}.{field} = {value!r}, which is not "
+                    f"one of {list(CAPABILITY_VALUES[field])} and not {CAPABILITY_UNREAD!r}. "
+                    f"A value no reader can spell is a value no sweep can compare")
+            elif not str(ev.get(field) or "").strip():
+                problems.append(
+                    f"CAPABILITY_UNSOURCED {name!r}.{field} = {value!r} with no "
+                    f"`capability_evidence.{field}`. 288 §7.4: a capability claim is "
+                    f"unsourced until somebody reads its source — AND THAT INCLUDES A "
+                    f"`false`, which is the claim *we looked and it is not there* and is "
+                    f"the harder one to earn. Write the reading or write "
+                    f"{CAPABILITY_UNREAD!r}")
+        claimed = {f for f, _ in capability_claims(e)}
+        for field in sorted(ev):
+            if field not in CAPABILITY_FIELDS:
+                problems.append(f"CAPABILITY_EVIDENCE_ORPHAN {name!r} carries evidence for "
+                                f"{field!r}, which is not a capability field")
+            elif field not in claimed or e.get(field) in (None, CAPABILITY_UNREAD):
+                problems.append(
+                    f"CAPABILITY_EVIDENCE_ORPHAN {name!r}.{field} has evidence and no "
+                    f"claim. Evidence for a withdrawn claim is the shape this control "
+                    f"exists to stop: a reading nobody can see in the value")
+    return problems
+
+
+def capability_counts(roster: dict) -> "tuple[int, int, int]":
+    """(claimed, unread, uncited) across the whole roster — PURE.
+
+    🔵 `uncited` IS PRINTED AND NEVER REFUSED. It counts claims whose evidence names no
+    file, symbol, port or stated search — somebody looked and recorded a conclusion rather
+    than a place to go and check it. It is a weaker reading and it is a real one, so it is
+    a number that falls rather than a gate that reddens.
+    """
+    claimed = unread = uncited = 0
+    for e in roster.get("entries", []):
+        ev = e.get("capability_evidence") or {}
+        for field, value in capability_claims(e):
+            if value == CAPABILITY_UNREAD:
+                unread += 1
+            elif value is not None:
+                claimed += 1
+                if not CAPABILITY_CITATION.search(str(ev.get(field) or "")):
+                    uncited += 1
+    return (claimed, unread, uncited)
+
+
+# ── 🆕 293 §3.1 — THE SOURCE LEG IS A CHANNEL AND ITS SILENCE WAS AN ANSWER ────────────
+#
+# 🔴 292 §3.1 MEASURED IT ON THIS SESSION'S OWN VERIFICATION RUN: twenty consecutive
+# `HTTP Error 403: rate limit exceeded`, one per tracked repository, and `--check` exited
+# **0**. `repo_head()` dials `api.github.com` with no token, so the whole leg runs on the
+# unauthenticated sixty-per-hour budget of whatever IP it is on and two runs in an hour
+# spend it. `source_unread` is a NOTE by design (271 §1) — but a run that read ZERO heads
+# prints `SOURCE moved: 0`, omits source drift from `ROSTER STALE` entirely and exits 0,
+# byte-indistinguishable from a run that read every head and found nothing.
+#
+# 🔴 THAT IS 291 §2.3's DEFECT ONE LEG OVER, IN THE LEG 291 DID NOT TOUCH, and the reader
+# it needs was already written and already pure. `channel_state` answers read / partial /
+# unread from two integers the SRC leg computes and threw away.
+#
+# 🔵 A TOKEN IS NOT THE FIX AND IS DELIBERATELY NOT TAKEN. It raises the budget, which
+# makes the failure rarer without making it visible — and the leg would still report a
+# green on the run where it happens. What was wrong here is that silence was spendable as
+# an answer, not that silence was frequent.
+def source_problems(state: "tuple[str, str]") -> "list[str]":
+    """The SRC leg's state as a refusal — PURE, the twin of `channel_problems`.
+
+    Named `SOURCE_UNREAD` and `SOURCE_PARTIAL` for the same reason `DISCOVERY_UNREAD` and
+    `DISCOVERY_PARTIAL` are named: a reader grepping a red run should find the leg in the
+    first token rather than in the English after it.
+    """
+    kind, detail = state
+    if kind == CHANNEL_UNREAD:
+        return [f"SOURCE_UNREAD — {detail}. This run has NO opinion about whether any "
+                f"tracked repository has moved since its last source-level pass, and "
+                f"`SOURCE moved: 0` from a leg that read nothing is the measured green "
+                f"291 was written to stop"]
+    if kind == CHANNEL_PARTIAL:
+        return [f"SOURCE_PARTIAL — {detail}. Rule 2's second clause was answered for some "
+                f"of the roster and not for all of it, so the moved list below is a lower "
+                f"bound and not a population"]
+    return []
+
+
+# ── 🆕 293 §3.2 — A MOVE IS OWED WORK ONLY WHERE THE RULING COULD HAVE CHANGED ─────────
+#
+# 🔴 292 §3.2's MEASUREMENT: `hybridindie/godot-mcp` moved twice in ninety minutes, so the
+# source pass recording `037b00f` was stale before the pull request carrying it could
+# merge. Rule 2's second clause prices being out of date against a COMMIT, and for a
+# project committing several times a day that claim expires faster than a session can
+# spend it — a red nobody can clear, which is the treadmill Rule 5 refused one column over
+# arriving through the clock instead of through the population.
+#
+# 🔵 AND THE CADENCE COLUMN CANNOT ABSORB IT, because `weekly` is already the fastest tier
+# and the honest question is not a faster clock. A ruling is about what a project DOES:
+# `2400578` changed neither the tool count nor the debugger. So a pass records the paths
+# its ruling RESTS ON, and a move that touches none of them is `moved-immaterial` — the
+# head is recorded as having moved, the roster says so, and nothing is owed.
+#
+# 🔴 THE DEFAULT IS THE STRICT ONE. An entry that declares no `capability_paths` is priced
+# exactly as it was before this reader existed: any move is `moved`. Immateriality is a
+# claim a session makes by naming the paths, and a claim nobody made cannot be inherited
+# by silence — which is 292 §2.1's argument one file over.
+def material_change(changed: "list[str]", paths: "list[str]") -> "tuple[bool, str]":
+    """(is material, why) for a set of changed paths against an entry's capability paths.
+
+    A `capability_paths` entry matches by PREFIX, so a directory covers its tree and a file
+    covers itself. Matching is on the repository-relative path exactly as the forge spells
+    it.
+    """
+    if not paths:
+        return (True, "no `capability_paths` recorded, so every move is material")
+    if not changed:
+        return (True, "the changed-file list could not be read, so materiality is unknown "
+                      "and unknown is not immaterial")
+    hits = sorted({p for p in changed
+                   for pre in paths if p == pre or p.startswith(pre.rstrip("/") + "/")})
+    if hits:
+        return (True, f"{len(hits)} changed path(s) under the capability paths: "
+                      + ", ".join(hits[:4]) + ("…" if len(hits) > 4 else ""))
+    return (False, f"{len(changed)} changed path(s), none of them under the "
+                   f"{len(paths)} recorded capability path(s)")
+
+
 def get(url: str) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": "breakpoint-mcp-sweep"})
     with urllib.request.urlopen(req, timeout=30) as r:
@@ -704,6 +911,7 @@ def our_pending_edits() -> list[dict]:
 # not answer is reported UNREAD and never as `held`, because a reader's silence is not an
 # answer (271 §1).
 REPO_UNREAD = "unread"
+SOURCE_IMMATERIAL = "moved-immaterial"
 GH_API = "https://api.github.com"
 
 
@@ -727,9 +935,36 @@ def repo_heads(tracked: "dict[int, dict]") -> "dict[int, tuple[str, str]]":
             for aid, e in sorted(tracked.items()) if e.get("repo")}
 
 
-def source_state(entry: dict, head: "tuple[str, str]") -> "tuple[str, str]":
-    """(state, detail) for Rule 2's SECOND clause — PURE, so both directions are drivable
-    from a fixture and neither needs a network.
+def repo_changed(slug: str, base: str, head: str) -> "list[str]":
+    """The repository-relative paths that changed between two commits — NETWORK, never
+    raises, and `[]` on any failure so materiality falls back to *unknown is not
+    immaterial*.
+
+    🔵 ONE CALL, AND ONLY FOR AN ENTRY WHOSE HEAD ACTUALLY MOVED. The compare endpoint
+    returns the whole changed-file list in a single response, so the cost of asking whether
+    a move is material is one request per moved repository rather than a clone — and the
+    roster usually carries none to a handful of moved entries per sweep.
+    """
+    if not (slug and base and head):
+        return []
+    try:
+        res = get(f"{GH_API}/repos/{slug}/compare/{base}...{head}")
+    except Exception:                             # noqa: BLE001 — see `repo_head` above
+        return []
+    files = res.get("files") if isinstance(res, dict) else None
+    return [str(f.get("filename") or "") for f in (files or []) if f.get("filename")]
+
+
+def source_state(entry: dict, head: "tuple[str, str]",
+                 changed: "list[str]" = None) -> "tuple[str, str]":
+    """(state, detail) for Rule 2's SECOND clause — PURE, so every direction is drivable
+    from a fixture and none of them needs a network.
+
+    🆕 293 — FOUR ANSWERS NOW. `moved-immaterial` is 292 §3.2's finding: a head that moved
+    over paths the ruling does not rest on has not made the ruling stale, and refusing on
+    it produces a new SHA and no new knowledge. `changed` is the compare list when one
+    could be read and empty when it could not, and an entry that declares no
+    `capability_paths` can never reach the new answer.
 
     Three answers and not two: `held`, `moved`, and `unread`. A pass that recorded no
     commit at all is `unread` with that as its reason — an entry nobody has ever analysed
@@ -767,6 +1002,10 @@ def source_state(entry: dict, head: "tuple[str, str]") -> "tuple[str, str]":
                              "to compare the repository head against")
     if sha.startswith(was[:7]) or was.startswith(sha[:7]):
         return ("held", sha)
+    material, why = material_change(list(changed or []),
+                                    list(entry.get("capability_paths") or []))
+    if not material:
+        return (SOURCE_IMMATERIAL, f"{was} -> {sha}; {why}")
     return ("moved", f"{was} -> {sha}")
 
 
@@ -792,8 +1031,17 @@ def main() -> int:
     tracked = {e["asset_id"]: e for e in roster["entries"] if e.get("asset_id")}
 
     heads = repo_heads(tracked)
+    # 🆕 293 §3.1 — THE TWO INTEGERS THE LEG ALREADY COMPUTED AND THREW AWAY. One call was
+    # attempted per entry naming a repository; one failed for every entry whose `(sha,
+    # problem)` carries a problem. That is the whole of `channel_state`'s input and it is
+    # the difference between a green that was measured and a green that was silence.
+    src_attempted = len(heads)
+    src_failed = sum(1 for sha, prob in heads.values() if prob)
+    src_state = channel_state(src_attempted, src_failed)
+    src_problems = source_problems(src_state)
 
     moved, held, gone, src_moved, src_unread = [], [], [], [], []
+    src_immaterial: "list[dict]" = []
     for aid, entry in sorted(tracked.items()):
         try:
             live = get(f"{API}/asset/{aid}")
@@ -814,9 +1062,20 @@ def main() -> int:
         (held if same else moved).append(row)
 
         state, detail = source_state(entry, heads.get(aid, ()))
+        # 🆕 293 §3.2 — AND ONLY NOW IS THE COMPARE WORTH A CALL. A head that did not move
+        # needs no changed-file list, and an entry that named no capability paths cannot
+        # reach the immaterial answer however the list comes back.
+        if state == "moved" and entry.get("capability_paths"):
+            state, detail = source_state(
+                entry, heads.get(aid, ()),
+                repo_changed(str(entry.get("repo") or ""),
+                             str(entry.get("last_analysed_commit") or ""),
+                             (heads.get(aid) or ("", ""))[0]))
         if state == "moved":
             src_moved.append({**row, "repo": entry.get("repo"), "head": detail,
                               "card_held": same})
+        elif state == SOURCE_IMMATERIAL:
+            src_immaterial.append({**row, "repo": entry.get("repo"), "head": detail})
         elif state == REPO_UNREAD and entry.get("repo"):
             src_unread.append({**row, "repo": entry.get("repo"), "why": detail})
 
@@ -863,6 +1122,11 @@ def main() -> int:
         print(f"DISCOVERY_SURFACED {len(found)} project(s) folded from "
               f"{len(npm_rows) + len(reg_relevant_rows)} row(s)")
         print(f"DISCOVERY_UNRECORDED {len(unrecorded)}")
+        # 🆕 293 §3.1 / §3.2 — the SRC leg is a reading about the world in exactly the
+        # sense the four above are, so it owes an emitter (287 §7.3).
+        print(f"SOURCE_CHANNEL {src_state[0]} attempted {src_attempted} "
+              f"failed {src_failed}")
+        print(f"SOURCE_IMMATERIAL {len(src_immaterial)}")
         print(f"DISCOVERY_NPM_CURRENCY moved {len(npm_moved)} held {len(npm_held)} "
               f"unread {len(npm_unread)}")
         return 0
@@ -878,7 +1142,11 @@ def main() -> int:
         "no_change": held,
         "moved": moved,
         "source_moved": src_moved,
+        "source_immaterial": src_immaterial,
         "source_unread": src_unread,
+        "source_channel": {"state": src_state[0], "detail": src_state[1],
+                           "attempted": src_attempted, "failed": src_failed},
+        "source_problems": src_problems,
         "unreachable": gone,
         "new_mcp_shaped": [
             {
@@ -933,7 +1201,10 @@ def main() -> int:
         print(f"  SOURCE moved         : {len(src_moved)}   "
               f"<- Rule 2 clause two; {sum(1 for r in src_moved if r['card_held'])} of "
               f"them the card leg alone reports as no change")
+        print(f"  SOURCE immaterial    : {len(src_immaterial)}   "
+              f"<- head moved over nothing the ruling rests on")
         print(f"  source head UNREAD   : {len(src_unread)}")
+        print(f"  SOURCE leg           : {src_state[0]} — {src_state[1]}")
         print(f"  unreachable          : {len(gone)}")
         print(f"  NEW, MCP-shaped      : {len(new_mcp)}   <- owe a source-level pass")
         print(f"  NEW, in-editor AI    : {len(new_ai)}   <- record on the roster")
@@ -984,6 +1255,8 @@ def main() -> int:
         for r in src_moved:
             print(f"    SRC     {r['asset_id']:>5}  {r['name']}: {r['repo']} {r['head']}"
                   + ("  🔴 the card leg calls this no change" if r["card_held"] else ""))
+        for r in src_immaterial:
+            print(f"    SRC =   {r['asset_id']:>5}  {r['name']}: {r['repo']} {r['head']}")
         for r in src_unread:
             print(f"    SRC ?   {r['asset_id']:>5}  {r['name']}: {r['why']}")
         for r in gone:
@@ -1040,13 +1313,19 @@ def main() -> int:
     # analysis, and refused when it is missing.
     if chan_problems:
         stale.append(f"{len(chan_problems)} discovery channel(s) not fully read")
+    # 🆕 293 §3.1 — AND THE SOURCE LEG JOINS THEM, BY NAME. Before this line a run that
+    # read zero repository heads printed `SOURCE moved: 0` and exited 0; the reading it
+    # had was silence and silence was spendable as `nothing has moved`.
+    if src_problems:
+        stale.append(f"the source leg was {src_state[0]}, so Rule 2's second clause was "
+                     f"not answered for the whole roster")
     if unrecorded:
         stale.append(f"{len(unrecorded)} surfaced project(s) with no roster row")
     if npm_moved:
         stale.append(f"{len(npm_moved)} npm-channel entr(ies) published a new version "
                      f"since their last source-level pass")
     if args.check and stale:
-        for m in chan_problems + unrecorded:
+        for m in src_problems + chan_problems + unrecorded:
             print(f"  🔴 {m}", file=sys.stderr)
         print("\nROSTER STALE: " + ", ".join(stale)
               + ".\n  The moved entries owe a source-level pass; the in-editor AI addons "
@@ -1093,6 +1372,17 @@ def roster_shape_problems(roster: dict) -> "list[str]":
                 f"is not one of {sorted(CHANNELS)}. A channel is where a project SHIPS and "
                 f"the roster's population is the union of what the channels enumerate — a "
                 f"row naming a channel no leg queries is a row no leg can ever re-read")
+        # 🆕 293 — AND A ROW THAT NAMES NO CHANNEL AT ALL IS NOW REFUSED, because the
+        # population it left behind has been read. `null` is a MEASUREMENT — no
+        # enumerable channel surfaces this project, so no leg here will ever re-read it —
+        # and an ABSENT key is nobody having looked. 291 shipped the field optional
+        # because forty-six rows predated it; 293 filled all forty-six, so the cheap
+        # answer is gone and the number cannot climb back by omission.
+        elif "channel" not in e:
+            problems.append(
+                f"ROSTER_CHANNEL_UNDECLARED {e.get('name')!r} names no channel. Declare "
+                f"one of {sorted(CHANNELS)}, or `null` if no enumerable channel surfaces "
+                f"it — which is a reading somebody took and not a blank")
 
     seen: dict[str, int] = {}
     for s in surfaced:
@@ -1141,21 +1431,34 @@ def census() -> int:
     surfaced = roster.get("surfaced", [])
     enumerable = sum(1 for c in CHANNELS.values() if c["enumerable"])
     watched = sum(len(c.get("watch") or []) for c in CHANNELS.values())
-    # 🔴 `unclassified` IS PRINTED, NOT DEFAULTED AWAY. Forty-five entries predate the
-    # channel legs and nobody has recorded where any of them SHIPS — and quietly counting
-    # them as `assetlib` because that is the leg that found most of them would be this
-    # file's own defect written into its own census. The number is visible, it is a real
-    # intake, and it falls as sessions classify rows.
+    # 🔴 `unclassified` WAS PRINTED, NOT DEFAULTED AWAY, AND AT 293 IT IS ZERO. Forty-six
+    # entries predated the channel legs and nobody had recorded where any of them SHIPS;
+    # quietly counting them as `assetlib` because that is the leg that found most of them
+    # would have written this file's own defect into the census that exists to report it.
+    # So the number was made visible instead, and it has now been read down to nothing —
+    # forty-one by construction from an `asset_id`, one measured onto npm, three measured
+    # onto no enumerable channel at all.
+    #
+    # 🔵 AND `no-channel` IS ITS OWN BUCKET, because it is an ANSWER. Four rows declare
+    # `null`: nothing enumerable surfaces them, so no leg here will re-read them and they
+    # are carried because a human named them. Counting a measured `null` beside a blank
+    # was the census reporting a reading as a gap.
     by_channel: dict[str, int] = {}
     for e in entries:
-        key = str(e.get("channel") or "unclassified")
+        key = ("unclassified" if "channel" not in e
+               else str(e["channel"] or "no-channel"))
         by_channel[key] = by_channel.get(key, 0) + 1
     # 🆕 292 §1 — THE SEVERITY CONTROL RUNS HERE AND NOWHERE CHEAPER. An undeclared price
     # is a defect in the TREE, not a fact about a third-party host, so it belongs in the
     # one leg of this file a merge-blocking job can honestly run — the same argument that
     # put `roster_shape_problems` here. A control living only in the weekly `--check` is a
     # control a branch can go red past.
-    problems = roster_shape_problems(roster) + severity_problems()
+    # 🆕 293 — AND THE CAPABILITY CONTROL RUNS HERE FOR `severity_problems`' REASON. An
+    # unsourced claim is a defect in the TREE — a value in a tracked JSON file with no
+    # reading behind it — so it belongs in the one leg of this file a merge-blocking job
+    # can honestly run, rather than in a weekly `--check` a branch can go red past.
+    problems = (roster_shape_problems(roster) + severity_problems()
+                + capability_problems(roster))
     for m in problems:
         print(f"  🔴 {m}", file=sys.stderr)
     print(f"LANDSCAPE_CENSUS {len(CHANNELS)} channel(s) / {enumerable} enumerable · "
@@ -1167,6 +1470,14 @@ def census() -> int:
     # declares them — so `git diff` on a re-priced channel shows up in the census output
     # a reader already reads rather than only in the source.
     print("  severity · " + " · ".join(f"{n} {severity_of(n)}" for n in sorted(CHANNELS)))
+    # 🆕 293 — THE THREE NUMBERS 292 §2.3 LEFT THIS ROSTER OWING. `claimed` is how many
+    # capability rulings the roster asserts and can show the reading for; `unread` is how
+    # many it once asserted and has withdrawn, which is the number that falls as sessions
+    # read them; `uncited` is how many of the claims rest on a conclusion somebody wrote
+    # down rather than on a file, symbol or port a later reader can go and check.
+    cap_claimed, cap_unread, cap_uncited = capability_counts(roster)
+    print(f"LANDSCAPE_CAPABILITY {cap_claimed} claimed / {cap_unread} unread / "
+          f"{cap_uncited} uncited")
     return 1 if problems else 0
 
 
@@ -1405,7 +1716,8 @@ def selftest() -> int:
               {"key": "c/d", "channels": ["npm"], "first_seen": 291},
               {"key": "c/d", "channels": ["npm"], "first_seen": 291}]})), 1)
     claim("shape: a project read at source level is PROMOTED, not duplicated",
-          len(roster_shape_problems({"entries": [{"name": "x", "repo": "C/D"}],
+          len(roster_shape_problems({"entries": [{"name": "x", "channel": "npm",
+                                                  "repo": "C/D"}],
                                      "surfaced": [{"key": "c/d", "channels": ["npm"],
                                                    "first_seen": 291}]})), 1)
     claim("shape: every declared channel says whether a machine can enumerate it",
@@ -1495,6 +1807,139 @@ def selftest() -> int:
           ("0.2.0", "2026-03-01"))
     claim("fold: and it is still ONE project on two channels",
           sorted(fold([_up, _reg])["r/m"]["channels"]), ["mcp-registry", "npm"])
+
+    # ── 🆕 293 §3.1 — THE SOURCE LEG'S SILENCE IS NOT AN ANSWER ──────────────────────
+    #
+    # 🔴 THE FIXTURE IS 292 §3.1's MEASUREMENT. Twenty tracked repositories, twenty
+    # `HTTP Error 403: rate limit exceeded`, and `--check` exited 0 having read not one
+    # head. `channel_state` has answered that shape since 291; nothing was asking it.
+    claim("source: a leg that answered for every entry is read",
+          source_problems(channel_state(20, 0)), [])
+    claim("source: a leg the forge refused entirely is REFUSED",
+          [p.split()[0] for p in source_problems(channel_state(20, 20))],
+          ["SOURCE_UNREAD"])
+    claim("source: a leg that answered for some of the roster is REFUSED",
+          [p.split()[0] for p in source_problems(channel_state(20, 3))],
+          ["SOURCE_PARTIAL"])
+    claim("source: and a leg with nothing to ask is unread, not read",
+          source_problems(channel_state(0, 0))[0].split()[0], "SOURCE_UNREAD")
+    # 🔴 THE NEGATIVE CONTROL IS THE HALF THAT COULD HAVE BEEN WRONG: a refusal wide
+    # enough to catch a rate limit must not fire on a healthy sweep, or the roster is red
+    # every week for being alive.
+    claim("source: a healthy leg names no problem at all",
+          channel_state(20, 0)[0], CHANNEL_READ)
+
+    # ── 🆕 293 §3.2 — A MOVE OVER NOTHING THE RULING RESTS ON IS NOT OWED WORK ────────
+    #
+    # 🔴 THE FIXTURE IS THE ENTRY THAT CANNOT BE MADE GREEN. `hybridindie/godot-mcp` moved
+    # 037b00f -> 2400578 while the pull request recording 037b00f was still open, and
+    # 292 §3.2 measured the head moving TWICE in ninety minutes. The paths its ruling
+    # rests on are the debugger plugin, the toolset table and the tool registrations.
+    _hy = {"last_analysed_commit": "037b00f",
+           "capability_paths": ["godot/addons/godot_mcp/mcp_debugger.gd",
+                                "mcp_server/toolsets.py", "mcp_server/tools/"]}
+    claim("material: a move touching only the README is immaterial",
+          source_state(_hy, ("2400578", ""), ["README.md", "docs/roadmap.md"])[0],
+          SOURCE_IMMATERIAL)
+    claim("material: a move touching the debugger plugin is owed work",
+          source_state(_hy, ("2400578", ""),
+                       ["godot/addons/godot_mcp/mcp_debugger.gd"])[0], "moved")
+    claim("material: a prefix covers its tree",
+          source_state(_hy, ("2400578", ""), ["mcp_server/tools/import_asset.py"])[0],
+          "moved")
+    claim("material: and a prefix does not cover a sibling that merely starts the same",
+          source_state(_hy, ("2400578", ""), ["mcp_server/toolsets_test.py"])[0],
+          SOURCE_IMMATERIAL)
+    # 🔴 THE TWO DEFAULTS, AND BOTH OF THEM ARE STRICT. An entry that named no paths is
+    # priced exactly as it was before this reader existed, and a compare nobody could read
+    # is UNKNOWN — which is not immaterial.
+    claim("material: an entry that declared no capability paths still moves",
+          source_state({"last_analysed_commit": "037b00f"},
+                       ("2400578", ""), ["README.md"])[0], "moved")
+    claim("material: an unreadable compare is not an immaterial one",
+          source_state(_hy, ("2400578", ""), [])[0], "moved")
+    claim("material: no compare was attempted, so the answer is unchanged",
+          source_state(_hy, ("2400578", ""))[0], "moved")
+    claim("material: an immaterial move still records BOTH commits",
+          "037b00f -> 2400578" in
+          source_state(_hy, ("2400578", ""), ["README.md"])[1], True)
+    claim("material: a held head never reaches the reader at all",
+          source_state(_hy, ("037b00f", ""), ["README.md"])[0], "held")
+
+    # ── 🆕 293 — A `false` IS A CLAIM, AND A CLAIM OWES ITS READING ───────────────────
+    #
+    # 🔴 THE FIXTURE IS 292 §2.3's FINDING. `csharp: false` with nothing behind it is the
+    # exact row the sweep carried for `godot-mcp-enhanced`, `fennara-godot-mcp` and
+    # `godot-mcp-go`, and all three were wrong before the pass that wrote them.
+    _bare = {"entries": [{"name": "x", "csharp": False}]}
+    claim("capability: a `false` with no reading behind it is REFUSED",
+          [p.split()[0] for p in capability_problems(_bare)], ["CAPABILITY_UNSOURCED"])
+    # 🔴 AND SYMMETRICALLY, WHICH IS THE HALF 288 §7.4 WAS ALREADY SUPPOSED TO COVER.
+    claim("capability: and so is a `true`, for the same reason",
+          [p.split()[0] for p in
+           capability_problems({"entries": [{"name": "x", "csharp": True}]})],
+          ["CAPABILITY_UNSOURCED"])
+    claim("capability: a claim with its reading beside it is accepted",
+          capability_problems({"entries": [{
+              "name": "x", "csharp": False,
+              "capability_evidence": {"csharp": "zero repo-wide hits for dotnet"}}]}), [])
+    claim("capability: a withdrawn claim owes nothing",
+          capability_problems({"entries": [{"name": "x",
+                                            "csharp": CAPABILITY_UNREAD}]}), [])
+    claim("capability: a null owes nothing either — no reading is possible there",
+          capability_problems({"entries": [{"name": "x", "csharp": None}]}), [])
+    claim("capability: a value no reader can spell is REFUSED",
+          [p.split()[0] for p in capability_problems(
+              {"entries": [{"name": "x", "debugger": "sort-of",
+                            "capability_evidence": {"debugger": "a.gd"}}]})],
+          ["CAPABILITY_UNKNOWN_VALUE"])
+    claim("capability: evidence with no claim to support is REFUSED",
+          [p.split()[0] for p in capability_problems(
+              {"entries": [{"name": "x", "csharp": CAPABILITY_UNREAD,
+                            "capability_evidence": {"csharp": "a.gd"}}]})],
+          ["CAPABILITY_EVIDENCE_ORPHAN"])
+    claim("capability: evidence for a field that is not a capability is REFUSED",
+          [p.split()[0] for p in capability_problems(
+              {"entries": [{"name": "x", "capability_evidence": {"stars": "a.gd"}}]})],
+          ["CAPABILITY_EVIDENCE_ORPHAN"])
+    # 🔵 ABSENT IS NOT WITHDRAWN, AND THE COUNTS ARE WHERE THAT DIFFERENCE IS SPENT.
+    claim("capability: an entry claiming nothing counts as nothing",
+          capability_counts({"entries": [{"name": "x"}]}), (0, 0, 0))
+    claim("capability: a withdrawn claim is counted as unread and not as a claim",
+          capability_counts({"entries": [{"name": "x", "csharp": CAPABILITY_UNREAD}]}),
+          (0, 1, 0))
+    claim("capability: a cited claim is claimed and not uncited",
+          capability_counts({"entries": [{
+              "name": "x", "csharp": True,
+              "capability_evidence": {"csharp": "src/tools/script.ts:158"}}]}),
+          (1, 0, 0))
+    claim("capability: a claim resting on prose alone is counted uncited",
+          capability_counts({"entries": [{
+              "name": "x", "csharp": True,
+              "capability_evidence": {"csharp": "C# is the centre of gravity"}}]}),
+          (1, 0, 1))
+    # 🔴 AND THE SHIPPED ROSTER IS JUDGED BY `census()` AND NOT HERE. A self-test that
+    # opens the roster is a statement about the tree rather than about the reader (235
+    # §6.3), and `census()` is already the merge-blocking leg that reads the file — so the
+    # live population is refused there, where a roster edit is what is being judged.
+    # What belongs here is the reader, driven from fixtures, in both directions.
+    # ── 🆕 293 — AND A ROW THAT NAMES NO CHANNEL IS A ROW NO LEG CAN RE-READ ─────────
+    claim("channel: a row naming no channel at all is REFUSED",
+          [p.split()[0] for p in roster_shape_problems({"entries": [{"name": "x"}]})],
+          ["ROSTER_CHANNEL_UNDECLARED"])
+    claim("channel: `null` is an ANSWER and is accepted",
+          roster_shape_problems({"entries": [{"name": "x", "channel": None}]}), [])
+    claim("channel: a declared channel is accepted",
+          roster_shape_problems({"entries": [{"name": "x", "channel": "npm"}]}), [])
+    claim("channel: a channel no leg queries is still REFUSED",
+          [p.split()[0] for p in roster_shape_problems(
+              {"entries": [{"name": "x", "channel": "itch"}]})],
+          ["ROSTER_CHANNEL_UNKNOWN"])
+
+    claim("capability: every declared field has a vocabulary to spend",
+          sorted(CAPABILITY_VALUES) == sorted(CAPABILITY_FIELDS), True)
+    claim("capability: `unread` is not smuggled into a field's own vocabulary",
+          [f for f, v in CAPABILITY_VALUES.items() if CAPABILITY_UNREAD in v], [])
 
     print(f"ASSETLIB_SELFTEST {claims - bad}/{claims} claims, {bad} failed")
     return 1 if bad else 0
