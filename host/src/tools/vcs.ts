@@ -112,9 +112,76 @@ function clip(s: string, max = 12000): { text: string; truncated: boolean } {
   return { text: s.slice(0, max) + "\n…(truncated)…", truncated: true };
 }
 
-/** Accept a res:// path (project-relative) or a plain repo-relative/absolute path. */
+/**
+ * Accept a `res://` path or a plain PROJECT-relative path, and answer the pathspec
+ * git should be given. `git` is always spawned with `-C cfg.projectPath`, so a
+ * pathspec is resolved relative to the PROJECT — never to the repository root.
+ *
+ * \U0001f534 295 — AND THAT IS THE ONLY SPELLING THIS FAMILY ACCEPTS, WHICH EVERY ONE OF
+ * THESE DESCRIPTIONS USED TO DENY. They promised "res:// or repo-relative", and
+ * repo-relative is precisely the spelling that does not work: with the project at
+ * `<repo>/example`, `example/player.gd` reaches git as `example/example/player.gd`.
+ * Three tools refused that loudly; `vcs_log` and `vcs_diff` answered an EMPTY LIST,
+ * which reads as *this file has no history* about a file that has one. The promise is
+ * corrected here and the empty answer is refused below (`filterMatchedNothing`).
+ */
 function toRepoPath(p: string): string {
   return p.startsWith("res://") ? p.slice("res://".length) : p;
+}
+
+/**
+ * The project's own directory as git spells it from the repository root — `""` when
+ * the project IS the repository root, `"example/"` when it is a subdirectory of it.
+ *
+ * \U0001f534 295 — THE TWO VOCABULARIES THIS FAMILY MIXED ARE IDENTICAL EXACTLY WHEN THIS
+ * IS EMPTY, AND THAT IS THE ONLY LAYOUT ANYTHING EVER DROVE. `git status --porcelain=v2`
+ * prints paths relative to the CWD (the project); `git diff --name-only` and `git show`
+ * print them relative to the REPOSITORY ROOT. Every fixture in `vcs.test.ts` and
+ * `vcs.integration.mjs` builds the repo AT the project path, where the prefix is `""`
+ * and the two spellings coincide — so a family that disagreed with itself about the name
+ * of a file tested green for as long as it has existed. This repository's own `example/`
+ * is a project inside a repository, which is where it was finally measured.
+ */
+async function projectPrefix(cfg: Config): Promise<string> {
+  const r = await git(cfg, ["rev-parse", "--show-prefix"]);
+  return r.ok ? r.stdout.trim() : "";
+}
+
+/**
+ * Does a path filter name something this repository has ever heard of — in the working
+ * tree, the index, or history?
+ *
+ * \U0001f534 295 — AN EMPTY ANSWER TO A FILTER THAT MATCHED NOTHING IS AN UNREAD WEARING A
+ * FINDING'S CLOTHES. `vcs_log --path <typo>` and `vcs_diff --path <typo>` both exit 0
+ * with an empty result, and a caller cannot tell *this file has no commits* from *no
+ * file by that name exists*. The first is a measurement; the second is a question that
+ * was never asked. This is the same distinction 155 §2 drew for `vcs_restore` — measure
+ * what happened rather than echo what was requested — one tool family over.
+ */
+async function filterMatchedNothing(cfg: Config, spec: string): Promise<boolean> {
+  const tracked = await git(cfg, ["ls-files", "--error-unmatch", "--", spec]);
+  if (tracked.ok && tracked.stdout.trim()) return false;
+  const known = await git(cfg, ["log", "--max-count=1", "--pretty=format:%H", "--", spec]);
+  if (known.ok && known.stdout.trim()) return false;
+  const onDisk = await git(cfg, ["ls-files", "--others", "--", spec]);
+  return !(onDisk.ok && onDisk.stdout.trim());
+}
+
+/** The refusal a filter that named nothing earns, naming what it resolved to. */
+function unmatchedFilter(cfg: Config, given: string, spec: string) {
+  return {
+    isError: true as const,
+    content: [{
+      type: "text" as const,
+      text:
+        `No path in this repository matches '${spec}'` +
+        (given === spec ? "" : ` (from '${given}')`) +
+        `. Paths are PROJECT-relative — resolved against ${cfg.projectPath}, not against the ` +
+        `repository root — so a path that reads correctly at the root of the repository will not ` +
+        `match here. Use the res:// spelling, or the path as vcs_status prints it. Refusing rather ` +
+        `than answering an empty list: an empty answer here is indistinguishable from 'no history'.`,
+    }],
+  };
 }
 
 // ---- git status --porcelain=v2 --branch parsing ----------------------------
@@ -132,12 +199,41 @@ interface ParsedStatus {
   untracked: string[];
   unmerged: string[];
   clean: boolean;
+  /**
+   * Paths git reports as changed that lie OUTSIDE the Godot project, repo-root-relative.
+   *
+   * \U0001f534 295 — THEY USED TO ARRIVE IN THE LISTS ABOVE, SPELLED `../docs/README.md`, AND A
+   * `res://` SURFACE CANNOT SAY THAT. `git -C <project> status` reports the whole work
+   * tree, so a project inside a repository saw its neighbours' edits listed as its own —
+   * in a spelling no other tool in this family accepts, beside members that are
+   * project-relative. They are REPORTED here rather than dropped: `vcs_add` with no
+   * paths still stages them and `vcs_commit` still commits them, so a status that hid
+   * them would be the more dangerous reading, not the safer one.
+   */
+  outside_project: string[];
 }
 
-function parseStatusV2(stdout: string): ParsedStatus {
+/**
+ * A CWD-relative path git printed (`../docs/README.md`) re-spelled relative to the
+ * repository root, given the project's own prefix within it (`example/`). Pure, so the
+ * subdirectory layout can be driven without a repository.
+ */
+export function toRepoRootRel(prefix: string, cwdRel: string): string {
+  const segs = (prefix + cwdRel).split("/");
+  const out: string[] = [];
+  for (const seg of segs) {
+    if (seg === "." || seg === "") continue;
+    if (seg === ".." && out.length && out[out.length - 1] !== "..") out.pop();
+    else out.push(seg);
+  }
+  return out.join("/");
+}
+
+export function parseStatusV2(stdout: string): ParsedStatus {
   const s: ParsedStatus = {
     branch: null, oid: null, upstream: null, ahead: 0, behind: 0,
     staged: [], unstaged: [], untracked: [], unmerged: [], clean: true,
+    outside_project: [],
   };
   for (const line of stdout.split("\n")) {
     if (!line) continue;
@@ -163,6 +259,30 @@ function parseStatusV2(stdout: string): ParsedStatus {
       s.untracked.push(line.slice(2));
     }
   }
+  // \U0001f534 A PATH THAT LEAVES THE PROJECT IS NOT ONE OF THE PROJECT'S. `--porcelain=v2`
+  // prints relative to the CWD, so a change above the project arrives as `../…` — the one
+  // spelling this family's inputs cannot consume. Move them, repo-root-relative, into
+  // their own field, and never leave a `../` member in a list of project paths.
+  const escapes = (p: string): boolean => p === ".." || p.startsWith("../");
+  for (const key of ["staged", "unstaged"] as const) {
+    const keep: Array<{ path: string; status: string }> = [];
+    for (const e of s[key]) {
+      if (escapes(e.path)) s.outside_project.push(e.path);
+      else keep.push(e);
+    }
+    s[key] = keep;
+  }
+  for (const key of ["untracked", "unmerged"] as const) {
+    const keep: string[] = [];
+    for (const e of s[key]) {
+      if (escapes(e)) s.outside_project.push(e);
+      else keep.push(e);
+    }
+    s[key] = keep;
+  }
+  s.outside_project = [...new Set(s.outside_project)].sort();
+  // The handler re-spells these repo-root-relative with `toRepoRootRel` once it knows
+  // the prefix; the parser stays pure so its population can be driven from fixtures.
   s.clean = s.staged.length === 0 && s.unstaged.length === 0 && s.untracked.length === 0 && s.unmerged.length === 0;
   return s;
 }
@@ -174,15 +294,20 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
     {
       title: "Git status",
       description:
-        "Working-tree status of the project's git repository: current branch, upstream ahead/behind, " +
-        "and the staged / unstaged / untracked / unmerged file lists. Read-only. Reports clean=true when " +
-        "nothing is pending. Errors clearly if the project path is not a git work tree.",
+        "Working-tree status of the project's git repository, every path project-relative. Changes " +
+        "elsewhere in the repository are listed separately in `outside_project`. Read-only; errors " +
+        "clearly if the project path is not a git work tree.",
       inputSchema: {},
     },
     async () => {
       const r = await git(cfg, ["status", "--porcelain=v2", "--branch"]);
       if (!r.ok) return gitFail(r);
-      return ok(parseStatusV2(r.stdout));
+      const parsed = parseStatusV2(r.stdout);
+      if (parsed.outside_project.length) {
+        const prefix = await projectPrefix(cfg);
+        parsed.outside_project = parsed.outside_project.map((p) => toRepoRootRel(prefix, p));
+      }
+      return ok(parsed);
     },
   );
 
@@ -193,18 +318,26 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       title: "Git log",
       description:
         "Recent commits, newest first: full and short hash, author, ISO author date, and subject. " +
-        "Optionally limit to commits touching a path (accepts res:// or repo-relative). Read-only.",
+        "Recent commits, newest first. Optionally limit to commits touching a path (res:// or " +
+        "project-relative); a path matching nothing is refused, not answered empty. Read-only.",
       inputSchema: {
         max_count: z.number().int().positive().max(1000).optional().describe("Max commits to return (default 20)"),
-        path: z.string().optional().describe("Only commits touching this path (res:// or repo-relative)"),
+        path: z.string().optional().describe("Only commits touching this path (res:// or project-relative)"),
       },
     },
     async ({ max_count, path }) => {
       const fmt = ["%H", "%h", "%an", "%aI", "%s"].join(UNIT);
       const args = ["log", `--max-count=${max_count ?? 20}`, `--pretty=format:${fmt}`];
-      if (path) args.push("--", toRepoPath(path));
+      const spec = path === undefined ? undefined : toRepoPath(path);
+      if (spec !== undefined) args.push("--", spec);
       const r = await git(cfg, args);
       if (!r.ok) return gitFail(r);
+      // \U0001f534 295 — AN EMPTY LOG UNDER A FILTER IS TWO DIFFERENT ANSWERS AND ONLY ONE OF
+      // THEM IS A MEASUREMENT. Ask whether the repository has ever heard of the path
+      // before reporting that it has no commits.
+      if (spec !== undefined && !r.stdout.trim() && await filterMatchedNothing(cfg, spec)) {
+        return unmatchedFilter(cfg, path as string, spec);
+      }
       const commits = r.stdout
         .split("\n")
         .filter(Boolean)
@@ -222,20 +355,29 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
     {
       title: "Git diff",
       description:
-        "Unified diff of the working tree (default) or the staged index (staged=true), optionally scoped to a " +
-        "single path (res:// or repo-relative). Returns the patch text (tail-truncated for large diffs) plus the " +
-        "list of changed files parsed from it. Read-only.",
+        "Unified diff of the working tree (default) or the staged index (staged=true), optionally scoped to " +
+        "a single path (res:// or project-relative). Returns the patch (tail-truncated) plus the changed-file " +
+        "list, both project-relative. A path matching nothing is refused, not answered empty. Read-only.",
       inputSchema: {
         staged: z.boolean().optional().describe("Diff the staged index vs HEAD instead of the working tree (default false)"),
-        path: z.string().optional().describe("Restrict the diff to this path (res:// or repo-relative)"),
+        path: z.string().optional().describe("Restrict the diff to this path (res:// or project-relative)"),
       },
     },
     async ({ staged, path }) => {
-      const args = ["diff", "--no-color"];
+      // \U0001f534 295 — `--relative` IS WHAT MAKES THIS TOOL AND `vcs_status` NAME THE SAME FILE
+      // THE SAME WAY. Without it git prints repo-root-relative paths while status prints
+      // project-relative ones, so the two disagreed about one file at one moment, and
+      // `files` could not be fed back into any path argument in this family. At the
+      // repository root the flag is a no-op — which is exactly why nothing caught this.
+      const args = ["diff", "--no-color", "--relative"];
       if (staged) args.push("--cached");
-      if (path) args.push("--", toRepoPath(path));
+      const spec = path === undefined ? undefined : toRepoPath(path);
+      if (spec !== undefined) args.push("--", spec);
       const r = await git(cfg, args);
       if (!r.ok) return gitFail(r);
+      if (spec !== undefined && !r.stdout.trim() && await filterMatchedNothing(cfg, spec)) {
+        return unmatchedFilter(cfg, path as string, spec);
+      }
       const files = [...r.stdout.matchAll(/^diff --git a\/(.+?) b\//gm)].map((m) => m[1]);
       const { text, truncated } = clip(r.stdout);
       return ok({ staged: Boolean(staged), path: path ?? null, files, patch: text, truncated });
@@ -267,7 +409,11 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       const meta = await git(cfg, ["show", "-s", `--pretty=format:${["%H", "%h", "%an", "%aI", "%s", "%b"].join(UNIT)}`, rev]);
       if (!meta.ok) return gitFail(meta);
       const [hash, short, author, date, subject, body] = meta.stdout.split(UNIT);
-      const patchRes = await git(cfg, ["show", "--no-color", "--format=", rev]);
+      // \U0001f534 295 — `--relative`, FOR `vcs_diff`'s REASON. A commit's patch printed
+      // repo-root-relative beside a `files` list printed project-relative is the same
+      // two-vocabulary split one tool over; it also scopes the patch to the project,
+      // which is the subject this tool's caller asked about.
+      const patchRes = await git(cfg, ["show", "--no-color", "--relative", "--format=", rev]);
       if (!patchRes.ok) return gitFail(patchRes);
       const { text, truncated } = clip(patchRes.stdout);
       return ok({
@@ -338,7 +484,7 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
         "line text. Optionally restrict to a [start,end] line range (1-based, inclusive); either bound may be " +
         "given alone (start alone runs to end-of-file). Read-only.",
       inputSchema: {
-        path: z.string().describe("File to blame (res:// or repo-relative)"),
+        path: z.string().describe("File to blame (res:// or project-relative)"),
         start: z.number().int().positive().optional().describe("First line (1-based, inclusive). May be given without `end`."),
         end: z.number().int().positive().optional().describe("Last line (1-based, inclusive). May be given without `start`."),
       },
@@ -370,11 +516,11 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
     {
       title: "Git add (stage)",
       description:
-        "Stage changes for the next commit. With `paths`, stages exactly those (res:// or repo-relative); " +
+        "Stage changes for the next commit. With `paths`, stages exactly those (res:// or project-relative); " +
         "omit `paths` to stage everything (git add -A). Returns the resulting staged file list. Reversible " +
         "with vcs_restore-staged / `git restore --staged`, so not gated.",
       inputSchema: {
-        paths: z.array(z.string()).optional().describe("Paths to stage (res:// or repo-relative). Omit to stage all."),
+        paths: z.array(z.string()).optional().describe("Paths to stage (res:// or project-relative). Omit to stage all."),
       },
     },
     async ({ paths }) => {
@@ -433,7 +579,7 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
         "nothing to discard is absent from it rather than reported as discarded work. `requested` carries " +
         "what you asked for, and `stranded` names any path still dirty afterwards (a partial, not an error).",
       inputSchema: {
-        paths: z.array(z.string()).min(1).describe("Paths to discard changes for (res:// or repo-relative)"),
+        paths: z.array(z.string()).min(1).describe("Paths to discard changes for (res:// or project-relative)"),
         confirm: z.boolean().optional().describe("Skip the confirmation prompt"),
       },
     },
@@ -450,14 +596,20 @@ export function registerVcsTools(server: McpServer, cfg: Config): void {
       //
       // What `git restore -- <paths>` discards is exactly the working-tree-vs-index
       // diff, so that diff, read BEFORE and AFTER, is the measurement — not the request.
-      const before = await git(cfg, ["diff", "--name-only", "--", ...rels]);
+      // \U0001f534 295 — AND THE MEASUREMENT HAS TO SPEAK `requested`'s LANGUAGE. Without
+      // `--relative` these two reads answer repo-root-relative while `rels` is
+      // project-relative, so a destructive tool returned `requested: ["scripts/player.gd"]`
+      // beside `restored: ["game/scripts/player.gd"]` — one file, two spellings, in one
+      // object — and a caller checking whether the path it asked about was restored read
+      // its own work being discarded as nothing having happened.
+      const before = await git(cfg, ["diff", "--name-only", "--relative", "--", ...rels]);
       if (!before.ok) return gitFail(before);
       const wasDirty = nameOnly(before.stdout);
 
       const r = await git(cfg, ["restore", "--", ...rels]);
       if (!r.ok) return gitFail(r);
 
-      const after = await git(cfg, ["diff", "--name-only", "--", ...rels]);
+      const after = await git(cfg, ["diff", "--name-only", "--relative", "--", ...rels]);
       if (!after.ok) return gitFail(after);
       // Three outcomes, and one list cannot carry them (#188's two booleans, as lists):
       // a path that was dirty and is now clean was RESTORED; a path git still reports as

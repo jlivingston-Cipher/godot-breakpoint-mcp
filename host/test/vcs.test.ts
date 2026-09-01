@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { registerVcsTools, restoreOutcome } from "../src/tools/vcs.js";
+import { registerVcsTools, restoreOutcome, toRepoRootRel } from "../src/tools/vcs.js";
 import type { Config } from "../src/config.js";
 import { structured } from "./helpers/structured.js";
 
@@ -531,4 +531,181 @@ test("vcs_branch_list flags remote-tracking branches (the prefix test could neve
     assert.ok(local.branches.length >= 1, `remotes=false still lists the local branch, got ${JSON.stringify(local.branches)}`);
     assert.ok(local.branches.every((x) => !x.remote), "remotes=false must not leak tracking branches");
   } finally { cleanup(dir); cleanup(bare); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🆕 295 — THE PROJECT IS A SUBDIRECTORY OF ITS REPOSITORY
+//
+// 🔴 EVERY FIXTURE ABOVE BUILDS THE REPOSITORY **AT** THE PROJECT PATH, AND THAT IS
+// WHY THIS FAMILY COULD DISAGREE WITH ITSELF ABOUT THE NAME OF A FILE FOR AS LONG AS
+// IT HAS EXISTED. `git status --porcelain=v2` prints paths relative to the CWD; `git
+// diff --name-only` and `git show` print them relative to the REPOSITORY ROOT. Those
+// two spellings are the same string exactly when the project IS the repository root —
+// the only layout `mkrepo()` has ever produced — so `vcs_status` saying `player.gd`
+// while `vcs_diff` said `example/player.gd`, for one file at one moment, was invisible
+// to 500 lines of passing tests.
+//
+// 🔴 AND THE TREE THIS PRODUCT SHIPS IS THE LAYOUT THAT BREAKS. `example/` is a Godot
+// project inside this repository: measured on it, `vcs_log --path example/player.gd` —
+// the "repo-relative" spelling every one of these tools' descriptions promised —
+// answered `commits: [], count: 0` for a file with real history, with no error.
+//
+// 🔵 THE POPULATION IS THE POINT. These tests do not assert the fix; they assert that
+// the two vocabularies are DIFFERENT here, so any future edit that lets them re-merge
+// has somewhere to fail. Each one names the symptom it drives.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A repository whose Godot project lives in `game/`, with a tracked file OUTSIDE the
+ * project so the escape has a member. Returns both paths: the tests need the project
+ * (what the host is configured with) and the root (what git's own output is relative
+ * to) to be able to tell the two spellings apart at all.
+ */
+function mkrepo_subdir(): { root: string; project: string } {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "gcb-vcs-subdir-"));
+  g(root, "-c", "init.defaultBranch=main", "init", "-q");
+  g(root, "config", "user.email", "test@example.com");
+  g(root, "config", "user.name", "Test User");
+  g(root, "config", "commit.gpgsign", "false");
+
+  const project = path.join(root, "game");
+  fs.mkdirSync(path.join(project, "scripts"), { recursive: true });
+  fs.writeFileSync(path.join(project, "project.godot"), "config_version=5\n");
+  fs.writeFileSync(path.join(project, "scripts", "player.gd"), "extends Node2D\nfunc a():\n\tpass\n");
+  fs.mkdirSync(path.join(root, "docs"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs", "notes.md"), "# repo doc\n");
+  g(root, "add", "-A");
+  g(root, "commit", "-q", "-m", "initial commit");
+
+  // one edit INSIDE the project and one OUTSIDE it, so every reader has both to name
+  fs.appendFileSync(path.join(project, "scripts", "player.gd"), "func precious():\n\tpass\n");
+  fs.appendFileSync(path.join(root, "docs", "notes.md"), "edited outside the project\n");
+  return { root, project };
+}
+
+test("295 — vcs_status and vcs_diff name the SAME file the SAME way when the project is a subdirectory", async () => {
+  const { root, project } = mkrepo_subdir();
+  try {
+    const h = setup(project);
+    const st = structured<{ unstaged: Array<{ path: string }> }>(await h.vcs_status({}));
+    const df = structured<{ files: string[]; patch: string }>(await h.vcs_diff({}));
+
+    // The control that makes this test able to fail: the two spellings must actually
+    // differ in this fixture, or the assertion below is satisfied by the flat layout.
+    assert.notEqual(project, root, "fixture must place the project below the repository root");
+
+    assert.deepEqual(
+      st.unstaged.map((e) => e.path), ["scripts/player.gd"],
+      "status names the project's file project-relative",
+    );
+    assert.deepEqual(df.files, ["scripts/player.gd"], "and diff names it identically — not game/scripts/player.gd");
+    assert.ok(
+      df.patch.includes("a/scripts/player.gd"),
+      `the patch header carries the same spelling as \`files\`, got: ${df.patch.slice(0, 200)}`,
+    );
+    assert.ok(!df.patch.includes("game/scripts/player.gd"), "no repo-root spelling survives anywhere in the patch");
+  } finally { cleanup(root); }
+});
+
+test("295 — a change OUTSIDE the project is reported in its own field, never mixed into the project's lists", async () => {
+  const { root, project } = mkrepo_subdir();
+  try {
+    const h = setup(project);
+    const sc = structured<{
+      staged: Array<{ path: string }>; unstaged: Array<{ path: string }>;
+      untracked: string[]; unmerged: string[]; outside_project: string[]; clean: boolean;
+    }>(await h.vcs_status({}));
+
+    assert.deepEqual(sc.outside_project, ["docs/notes.md"], "repo-root-relative, in its own field");
+    const projectPaths = [
+      ...sc.staged.map((e) => e.path), ...sc.unstaged.map((e) => e.path), ...sc.untracked, ...sc.unmerged,
+    ];
+    assert.ok(projectPaths.length > 0, "the project's own lists are not empty — or the next claim is vacuous");
+    assert.ok(
+      projectPaths.every((p) => !p.startsWith("../")),
+      `no project list may carry a path that leaves the project, got ${JSON.stringify(projectPaths)}`,
+    );
+    assert.equal(sc.clean, false, "the project itself is dirty here");
+  } finally { cleanup(root); }
+});
+
+test("295 — a flat layout still reports nothing outside the project (the field is not noise)", async () => {
+  const dir = mkrepo();
+  try {
+    const sc = structured<{ outside_project: string[] }>(await setup(dir).vcs_status({}));
+    assert.deepEqual(sc.outside_project, [], "project == repository root: there is no outside");
+  } finally { cleanup(dir); }
+});
+
+test("295 — vcs_restore's `requested` and `restored` are the same alphabet on a destructive call", async () => {
+  const { root, project } = mkrepo_subdir();
+  try {
+    const h = setup(project, ACCEPT);
+    const sc = structured<{ restored: string[]; requested: string[]; stranded: string[]; count: number }>(
+      await h.vcs_restore({ paths: ["scripts/player.gd"] }),
+    );
+    // 🔴 THE WHOLE POINT: work WAS discarded. Before 295 this answered
+    // requested: ["scripts/player.gd"] beside restored: ["game/scripts/player.gd"] —
+    // one file, two spellings, in one object — so a caller asking *was the path I named
+    // restored?* read its own discarded work as nothing having happened.
+    assert.equal(sc.count, 1);
+    assert.deepEqual(sc.restored, ["scripts/player.gd"]);
+    assert.deepEqual(sc.requested, ["scripts/player.gd"]);
+    assert.ok(
+      sc.requested.every((p) => sc.restored.includes(p)),
+      "every requested path that was dirty appears in `restored` under the SAME name",
+    );
+    assert.deepEqual(sc.stranded, []);
+    assert.ok(
+      !fs.readFileSync(path.join(project, "scripts", "player.gd"), "utf8").includes("precious"),
+      "and the discard actually happened — a green report over an unchanged file is the other failure",
+    );
+  } finally { cleanup(root); }
+});
+
+test("295 — a path filter that names nothing is REFUSED, not answered with an empty list", async () => {
+  const { root, project } = mkrepo_subdir();
+  try {
+    const h = setup(project);
+    for (const [tool, args] of [
+      ["vcs_log", { path: "game/scripts/player.gd" }],
+      ["vcs_diff", { path: "game/scripts/player.gd" }],
+    ] as const) {
+      const r = await h[tool](args as Record<string, unknown>);
+      assert.equal(r.isError, true, `${tool} must refuse the repo-root spelling`);
+      const text = (r.content ?? []).map((c) => c.text).join("\n");
+      assert.match(text, /PROJECT-relative/, `${tool} says which vocabulary it speaks`);
+      assert.ok(text.includes(project), `${tool} names the root it resolved against`);
+    }
+  } finally { cleanup(root); }
+});
+
+test("295 — and a REAL empty answer is still an answer: the refusal is not a blanket", async () => {
+  const { root, project } = mkrepo_subdir();
+  try {
+    const h = setup(project);
+    // `project.godot` exists and is tracked, and has exactly one commit — so a log
+    // filtered to it is non-empty, and a WORKING-TREE diff filtered to it is empty
+    // because nobody edited it. That empty is a measurement and must survive.
+    const log = structured<{ count: number }>(await h.vcs_log({ path: "project.godot" }));
+    assert.equal(log.count, 1, "an existing tracked file still reports its history");
+
+    const df = await h.vcs_diff({ path: "project.godot" });
+    assert.ok(!df.isError, `an unedited but REAL path must answer, not refuse: ${JSON.stringify(df.content)}`);
+    assert.deepEqual(structured<{ files: string[] }>(df).files, [], "…and its answer is an honest empty");
+
+    // An untracked-but-present file is also real, and also not a typo.
+    fs.writeFileSync(path.join(project, "scratch.gd"), "extends Node\n");
+    const un = await h.vcs_log({ path: "scratch.gd" });
+    assert.ok(!un.isError, "a file that exists on disk with no commits yet is not an unmatched filter");
+    assert.equal(structured<{ count: number }>(un).count, 0);
+  } finally { cleanup(root); }
+});
+
+test("295 — toRepoRootRel re-spells a CWD-relative escape against the repository root", () => {
+  assert.equal(toRepoRootRel("game/", "../docs/notes.md"), "docs/notes.md");
+  assert.equal(toRepoRootRel("game/", "scripts/player.gd"), "game/scripts/player.gd");
+  assert.equal(toRepoRootRel("", "player.gd"), "player.gd", "flat layout is the identity");
+  assert.equal(toRepoRootRel("a/b/", "../../c/d.txt"), "c/d.txt");
+  assert.equal(toRepoRootRel("game/", "./scripts/x.gd"), "game/scripts/x.gd");
 });

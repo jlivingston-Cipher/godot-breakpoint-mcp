@@ -184,7 +184,7 @@ REACH_PATHS_SINCE = 271
 # thirty-two sessions; closing it at 274 makes it `due` under `REACH_PATHS_SINCE`, which
 # is what forced the declaration rather than allowing the `—` it had carried all along.
 # The back catalogue drains one row at a time and only ever by somebody finishing one.
-UNDECLARED_CEILING = 13  # governed by floor_pin_gate's SIZE_LEDGER
+UNDECLARED_CEILING = 1  # governed by floor_pin_gate's SIZE_LEDGER
 
 
 class Row:
@@ -1159,10 +1159,28 @@ def _table(rows: "list[str]", head: int = HEAD, fmt: int = 1) -> str:
             + "\n".join([_pad_paths(r) for r in rows] + pad) + "\n")
 
 
-GOOD = ["| alpha | OPEN | internal | 238 | — | — | a fresh one | — |",
-        "| beta | SCHEDULED | internal | 220 | — | 242 | an old one with a date | — |",
-        "| gamma | KILLED | internal | 205 | 240 | — | an old one with a reason | not worth it |",
-        "| delta | DONE | internal | 214 | 240 | — | an old one, closed | — |"]
+# 🔴 🆕 295 — THE TWO LIVE ROWS CARRY `paths`, AND THAT IS WHAT LET `UNDECLARED_CEILING`
+# START FALLING AGAIN (`undeclared-ceiling-stopped-tracking`, 289). `alpha` and `beta` are
+# the only OPEN/SCHEDULED rows in this fixture, so before this they were TWO of the live
+# undeclared rows every claim built on the clean table counted — and the ceiling could not
+# be taken below two without reddening `QUEUE_CLEAN` itself, whatever the real table held.
+# 289 measured that price and reverted rather than guess it; this is the fixture surgery
+# it named, paid before the digit moved.
+#
+# 🔴 AND THE PATHS ARE SUBSTITUTED PER TIER RATHER THAN SHARED. `QUEUE_REACH_JOIN` derives
+# the tier FROM the paths, so one path list cannot serve both variants: `scripts/` derives
+# `internal` and would refuse `GOOD_USER`'s rewritten `user` cell, and `host/src/` derives
+# `user` and would refuse `GOOD`'s. A fixture whose evidence disagreed with its own typed
+# cell would make forty downstream claims pass for the wrong reason.
+_PATHS_INTERNAL = "scripts/queue_gate.py"
+_PATHS_USER = "host/src/tools/vcs.ts"
+
+_GOOD_ROWS = ["| alpha | OPEN | internal | {P} | 238 | — | — | a fresh one | — |",
+              "| beta | SCHEDULED | internal | {P} | 220 | — | 242 | an old one with a date | — |",
+              "| gamma | KILLED | internal | — | 205 | 240 | — | an old one with a reason | not worth it |",
+              "| delta | DONE | internal | — | 214 | 240 | — | an old one, closed | — |"]
+
+GOOD = [r.replace("{P}", _PATHS_INTERNAL) for r in _GOOD_ROWS]
 
 # 🔴 THE SAME FOUR ROWS, TIER 1. `AGE_CEILING`, `SCHEDULE_HONOURED` and the render's
 # ceiling remainder are claims about the USER tier since 248, so a fixture made entirely
@@ -1170,7 +1188,8 @@ GOOD = ["| alpha | OPEN | internal | 238 | — | — | a fresh one | — |",
 # cannot fire is the thing this whole file exists to refuse. Every row moves together,
 # because a base that mixed the tiers would make `QUEUE_TIER_ORDER` fire on the live user
 # row instead and test the wrong claim.
-GOOD_USER = [r.replace("| internal |", "| user |") for r in GOOD]
+GOOD_USER = [r.replace("| internal |", "| user |").replace("{P}", _PATHS_USER)
+             for r in _GOOD_ROWS]
 
 
 def selftest() -> int:
@@ -1541,13 +1560,24 @@ def selftest() -> int:
     # `_table` each raised `CRASH_CEILING` on this claim's first draft. A blind that
     # CRASHES the gate proves that Python throws on an empty; it does not prove the gate's
     # own floor bites, and `instrument_gate.py` refuses the difference (197 §3).
-    _padded = str(_pad_paths(GOOD[0]) or "")
-    _parsed_rows = parse(_table(GOOD))[2]
+    # 🔴 🆕 295 — THE EIGHT-CELL ROW IS THIS CLAIM'S OWN NOW, AND IT HAD TO BECOME ONE.
+    # It used to read `GOOD[0]`, which stopped being eight cells the moment the clean
+    # fixture's live rows declared `paths` — so a claim about the PADDING HELPER was
+    # silently a claim about the shape of a fixture it does not own, and it refused on a
+    # change that had nothing to do with padding. `GOOD[2]` (`gamma`, nine cells with an
+    # explicit `—`) is still driven below, so both arms of the helper are covered: the
+    # row it must widen, and the row it must leave alone.
+    _eight = "| pad | OPEN | internal | 238 | — | — | an eight-cell fixture | — |"
+    _padded = str(_pad_paths(_eight) or "")
+    _left_alone = str(_pad_paths(GOOD[2]) or "")
+    _parsed_rows = parse(_table([_eight]))[2]
     claim("TABLE_PADS_PATHS",
           len(COLUMNS) == 9 and _padded.count("|") == 10
+          and _left_alone.count("|") == 10 and _left_alone == GOOD[2]
           and bool(_parsed_rows) and _parsed_rows[0].paths == NONE,
           f"`_pad_paths` did not put an undeclared ninth cell into an eight-cell fixture, "
-          f"or the padded table did not parse: {_padded!r}, {len(_parsed_rows)} row(s)")
+          f"or did not leave a nine-cell one alone, or the padded table did not parse: "
+          f"{_padded!r}, {_left_alone!r}, {len(_parsed_rows)} row(s)")
 
     # ── QUEUE_TIER_ORDER — the ordering (248) ─────────────────────────────────────────
     red("TIER_ORDER",
