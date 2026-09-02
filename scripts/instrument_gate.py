@@ -1450,6 +1450,12 @@ INSTRUMENTS = [
             "{SIG:assert_map}": "return (\"\", \"\", {})",
             "{SIG:addon_state}": "return (\"\", \"\", {})",
             "{SIG:_oldest}": "return None",
+            # 🆕 300 — THE PARSE BEHIND THE THREE VERSION READERS, AND ITS EMPTY IS THE
+            # DEFECT IT WAS WRITTEN AGAINST. `_version_in` answering `None` for a
+            # package.json it could have read is exactly the state that hid #338 for three
+            # releases: `tag_tree_version` returns None, check 2 prints 🟡 UNMEASURABLE,
+            # and the run stays green. Blinded here it takes six `--selftest` rows with it.
+            "{SIG:_version_in}": "return None",
             # ── the tag the NEXT cut reads, and the fixture the whole table is built on ──
             "{SIG:tag_message}": "return \"\"",
             "{SIG:tag_command}": "return (\"\", \"\")",
@@ -1930,9 +1936,9 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
                   "is_version_bump_hunk", "split_window", "population", "assert_map",
                   "shipped_corpus", "released_block", "changed_window", "raw_window",
                   "wire_read", "engines_window", "tag_tree_version", "tag_release_commit",
-                  "tag_shadow", "addon_state", "_oldest", "addon_moved_since",
-                  "release_commit", "tag_message", "tag_command", "tarball_entries",
-                  "_pack", "detail_or_refusal", "selftest", "main")},
+                  "tag_shadow", "addon_state", "_oldest", "_version_in",
+                  "addon_moved_since", "release_commit", "tag_message", "tag_command",
+                  "tarball_entries", "_pack", "detail_or_refusal", "selftest", "main")},
 }
 
 
@@ -2278,6 +2284,13 @@ LATE_DECLARED_GREEN = {
     # never reads — nothing downstream of them is exercised, so nothing can redden.
     # Measured, not assumed: it is a target on the A:gate primary axis above, where the
     # blind is global and it reddens with five reported failures.
+    # 🆕 300 — AND `_version_in` GETS NO ROW HERE, WHICH IS A MEASUREMENT AND NOT AN
+    # OVERSIGHT. The first draft declared it green on B:live by reasoning that
+    # `--assert-addon` never calls it. The sweep says otherwise about the MECHANISM: the
+    # late axis files it under `calls <= 1` — NOT CONSTRUCTIBLE, and `continue`d before
+    # `LATE_DECLARED_GREEN` is ever consulted — so a row here would be a claim the harness
+    # cannot test, sitting in the table that exists to hold claims it can. It reddens on
+    # A:gate, where the blind is global, and that is where its coverage lives.
     ("release_names.py", "{SIG:_pack}", "B:live"):
         "a fixture builder run at IMPORT time, six times, into module-level tables that "
         "`--assert-addon` never reads. The late blind takes effect from call two, so every "
