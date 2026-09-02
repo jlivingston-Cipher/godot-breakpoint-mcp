@@ -813,7 +813,7 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
     {
       title: "GDScript call hierarchy",
       description:
-        "Find the callers (direction=incoming, the default) or callees (direction=outgoing) of the function at a position. " +
+        "Find the callers or callees of the function at a position. " +
         "Resolves the symbol with textDocument/prepareCallHierarchy, then callHierarchy/incomingCalls or outgoingCalls, and " +
         "returns each related function with the call-site ranges. Read-only. " +
         "Godot's GDScript language server does not advertise callHierarchyProvider through 4.7; feature-detected.",

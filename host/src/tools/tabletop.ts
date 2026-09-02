@@ -1961,7 +1961,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       title: "Lay out a hand of cards",
       description:
         "Instance N cards under a container and arrange them as a row, fan, stack, or grid. Undoable node authoring. Each card carries its own " +
-        "data (bound via the template's set_data) and face state; spacing / overlap / fan_angle / columns / align / origin tune the arrangement.",
+        "data (bound via the template's set_data) and face state.",
       inputSchema: {
         template_path: z.string().describe("Card template scene, e.g. res://ui/cards/Card.tscn"),
         parent: z.string().describe("Container node path the cards are instanced under; \".\" for the root"),
@@ -2210,7 +2210,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       title: "Place a node on a tile coordinate",
       description:
         "Snap an existing node (a card or piece instance) onto a TileMapLayer cell by integer [x, y] tile coordinate. Undoable node authoring. " +
-        "The cell's local position is computed from `tile_size` — centre `(coord + 0.5) × tile_size` (default) or corner `coord × tile_size` — matching Godot's TileMapLayer.map_to_local, plus an optional `align` offset. With `reparent` (default true) the node is moved under the layer so the coordinate is layer-local. Decomposes onto node.reparent + node.set_property. Returns the node's new path and local position.",
+        "The cell's local position is computed from `tile_size` — centre `(coord + 0.5) × tile_size` (default) or corner `coord × tile_size` — matching Godot's TileMapLayer.map_to_local, plus an optional `align` offset. Decomposes onto node.reparent + node.set_property. Returns the node's new path and local position.",
       inputSchema: {
         layer: z.string().describe("TileMapLayer node path in the open scene"),
         node: z.string().describe("Node path of the node to place (a card / piece already in the scene)"),

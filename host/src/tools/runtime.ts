@@ -341,8 +341,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       title: "Runtime assert perf",
       description:
         "Assert that live Performance monitors meet a caller-supplied baseline within tolerance (read-only). " +
-        "Capture the baseline earlier with runtime_get_monitors and pass it back inline. Pass direction is inferred " +
-        "(time/fps is higher-better; every other monitor is lower-better) unless overridden per key.",
+        "Capture the baseline earlier with runtime_get_monitors and pass it back inline.",
       inputSchema: {
         // 🔴 226 §2 — `1e999` MUST NOT REACH `float(baseline[key])` IN runtime_bridge.gd,
         // where it arrives as `inf` and comes back as `1e99999`: the one non-finite path in
