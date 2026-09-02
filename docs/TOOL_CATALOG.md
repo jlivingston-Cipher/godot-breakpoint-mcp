@@ -3738,6 +3738,8 @@ Composite authoring **on top of** the existing primitives. Each `card_*` / `boar
 Build a reusable card `PackedScene` from a slot spec, with a generated script-backed `set_data()` / `set_face()`. Named slots (`label` / `rich_text` / `texture` / `panel` / `badge`) become the card's regions; optional inline theme and a two-sided card back.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
+
+🔴 **The created scene becomes the editor's EDITED scene, and `edited_scene` names it.** The decomposition above starts at `scene.new`, whose addon implementation calls `EditorInterface.open_scene_from_path` — so when this call returns, the scene you were composing is no longer the one `card_instance`, `piece_instance`, `board_place`, `board_tile_place` and the `interact_*` tools will act on. Measured against a live Godot 4.7 on the default tool surface: compose a table, create a card template, then call `card_instance` with `parent: "."` exactly as its own description invites — the card is created, its slots bind, `isError` is false, and it is in the CARD TEMPLATE. The table is untouched and nothing in the sequence says so. **`scene_open` the scene you are composing before the in-scene tools**; `edited_scene` is read from the editor after the write rather than echoed from `path`, so it also tells you when a failed reopen left the editor somewhere else again.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "size", "slots"],
@@ -3777,7 +3779,7 @@ Build a reusable card `PackedScene` from a slot spec, with a generated script-ba
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["scene_path", "slots", "saved"],
+{ "type": "object", "required": ["scene_path", "slots", "saved", "edited_scene"],
   "properties": {
     "scene_path": { "type": "string" },
     "script_path": { "type": "string" },
@@ -3785,6 +3787,7 @@ Build a reusable card `PackedScene` from a slot spec, with a generated script-ba
     "has_back": { "type": "boolean" },
     "node_count": { "type": "integer" },
     "saved": { "type": "boolean" },
+    "edited_scene": { "type": ["string", "null"] },
     "slots": { "type": "array", "items": {
       "type": "object", "required": ["name", "node_path", "kind"],
       "properties": { "name": { "type": "string" }, "node_path": { "type": "string" }, "kind": { "type": "string" } } } }
@@ -3931,6 +3934,8 @@ Flip an instanced card (or any node exposing `set_face(bool)` — the generated 
 Build a board scene whose children are addressable **cells** — each a `cell_<id>` node in the `board_cells` group — from one of three general-purpose layouts: a `ring` of ids, a `grid` of `rows`×`cols` (ids `"<row>_<col>"`), or an explicit `cells` list of `{id, x, y}`. Cells are `Marker2D` (or `Control`) anchors positioned by pure ring/grid math; an optional `background` (solid `color` or a `res://` `art` texture) is drawn behind them. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `node.add_to_group` → `scene.save`. **Destructive** (writes a scene) — elicitation-gated. Returns the `cell_id → node_path + position` map. For `tile`-backed cells (a `TileMapLayer` grid addressed by `[x, y]` coordinates) see `board_tile_create` / `board_tile_place`.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
+
+🔴 **The created scene becomes the editor's EDITED scene, and `edited_scene` names it.** The decomposition above starts at `scene.new`, whose addon implementation calls `EditorInterface.open_scene_from_path` — so when this call returns, the scene you were composing is no longer the one `card_instance`, `piece_instance`, `board_place`, `board_tile_place` and the `interact_*` tools will act on. Measured against a live Godot 4.7 on the default tool surface: compose a table, create a card template, then call `card_instance` with `parent: "."` exactly as its own description invites — the card is created, its slots bind, `isError` is false, and it is in the CARD TEMPLATE. The table is untouched and nothing in the sequence says so. **`scene_open` the scene you are composing before the in-scene tools**; `edited_scene` is read from the editor after the write rather than echoed from `path`, so it also tells you when a failed reopen left the editor somewhere else again.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "layout"],
@@ -3967,7 +3972,7 @@ Build a board scene whose children are addressable **cells** — each a `cell_<i
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["scene_path", "cells", "saved"],
+{ "type": "object", "required": ["scene_path", "cells", "saved", "edited_scene"],
   "properties": {
     "scene_path": { "type": "string" },
     "root_type": { "type": "string" },
@@ -3976,6 +3981,7 @@ Build a board scene whose children are addressable **cells** — each a `cell_<i
     "cell_count": { "type": "integer" },
     "node_count": { "type": "integer" },
     "saved": { "type": "boolean" },
+    "edited_scene": { "type": ["string", "null"] },
     "cells": { "type": "array", "items": {
       "type": "object", "required": ["id", "node_path", "x", "y"],
       "properties": { "id": { "type": "string" }, "node_path": { "type": "string" }, "x": { "type": "number" }, "y": { "type": "number" } } } }
@@ -4010,6 +4016,8 @@ Reparent an existing node (a card or piece instance) onto a board cell by id and
 Build a **tile-backed** board scene: a `TileMapLayer` grid whose cells are addressable by integer `[x, y]` tile coordinates (`cols` wide × `rows` tall) — the other Group D idiom to `board_create`'s per-cell `Marker2D` anchors. The layer binds a `TileSet`: a supplied `tileset` `.tres`, or a fresh empty one created at `<scene>_tiles.tres`, so the layer has a real `tile_size` (the coordinate frame `board_tile_place` snaps to). `paint` optionally fills the whole grid with one tile from the bound tileset in a single action; omitted, the cells stay empty and the layer is a coordinate frame only. Adds **no** addon method — decomposes onto `scene.new` → `tileset.create` → `tilemaplayer.create` → `tilemap.set_cells_rect` → `scene.save`. **Destructive** (writes a scene, and a `TileSet` `.tres` unless `tileset` is supplied) — elicitation-gated. General-purpose — cells carry only coordinates. Returns the layer path + grid dimensions + tile size.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
+
+🔴 **The created scene becomes the editor's EDITED scene, and `edited_scene` names it.** The decomposition above starts at `scene.new`, whose addon implementation calls `EditorInterface.open_scene_from_path` — so when this call returns, the scene you were composing is no longer the one `card_instance`, `piece_instance`, `board_place`, `board_tile_place` and the `interact_*` tools will act on. Measured against a live Godot 4.7 on the default tool surface: compose a table, create a card template, then call `card_instance` with `parent: "."` exactly as its own description invites — the card is created, its slots bind, `isError` is false, and it is in the CARD TEMPLATE. The table is untouched and nothing in the sequence says so. **`scene_open` the scene you are composing before the in-scene tools**; `edited_scene` is read from the editor after the write rather than echoed from `path`, so it also tells you when a failed reopen left the editor somewhere else again.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "rows", "cols"],
@@ -4029,7 +4037,7 @@ Build a **tile-backed** board scene: a `TileMapLayer` grid whose cells are addre
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["scene_path", "layer_path", "rows", "cols", "tile_size", "saved"],
+{ "type": "object", "required": ["scene_path", "layer_path", "rows", "cols", "tile_size", "saved", "edited_scene"],
   "properties": {
     "scene_path": { "type": "string" },
     "layer_path": { "type": "string" },
@@ -4042,7 +4050,8 @@ Build a **tile-backed** board scene: a `TileMapLayer` grid whose cells are addre
     "cell_count": { "type": "integer" },
     "painted": { "type": "boolean" },
     "node_count": { "type": "integer" },
-    "saved": { "type": "boolean" }
+    "saved": { "type": "boolean" },
+    "edited_scene": { "type": ["string", "null"] }
   } }
 ```
 
@@ -4081,6 +4090,8 @@ Snap an existing node (a card or piece instance) onto a `TileMapLayer` cell by i
 Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite2D` under a `Node2D` root, `TextureRect` under a `Control` root), an optional `Label`, an optional hit area (`Area2D` + `CollisionShape2D` with a `rectangle`/`circle` shape sized from `size`), and an optional two-sided `Back`, plus a generated script-backed `set_data()` / `set_face()`. `set_data` binds the neutral keys `art` (texture) / `color` (Art tint) / `label` (text); `set_face` flips Art+Label vs Back. Adds **no** addon method — decomposes onto `scene.new` → `node.add` → `node.set_property` → `resource.create` → `scene.save`. **Destructive** (writes a scene + script) — elicitation-gated. Returns the scene path + created-node map.
 
 `path` must resolve INSIDE the Godot project root. `res://../…` satisfies a `res://` prefix test but escapes the root, and is refused with `path_outside_project` — measured in session 161, four creators wrote seven files outside a real project this way. `overwrite` is now honoured: with it omitted or false an existing `path` is refused (`exists`) instead of written. Until 1.39.0 the flag was declared and never read, so a second call APPENDED to the existing scene and still answered `saved: true` with the node_count it intended rather than the one on disk.
+
+🔴 **The created scene becomes the editor's EDITED scene, and `edited_scene` names it.** The decomposition above starts at `scene.new`, whose addon implementation calls `EditorInterface.open_scene_from_path` — so when this call returns, the scene you were composing is no longer the one `card_instance`, `piece_instance`, `board_place`, `board_tile_place` and the `interact_*` tools will act on. Measured against a live Godot 4.7 on the default tool surface: compose a table, create a card template, then call `card_instance` with `parent: "."` exactly as its own description invites — the card is created, its slots bind, `isError` is false, and it is in the CARD TEMPLATE. The table is untouched and nothing in the sequence says so. **`scene_open` the scene you are composing before the in-scene tools**; `edited_scene` is read from the editor after the write rather than echoed from `path`, so it also tells you when a failed reopen left the editor somewhere else again.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["path", "size"],
@@ -4104,7 +4115,7 @@ Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["scene_path", "nodes", "saved"],
+{ "type": "object", "required": ["scene_path", "nodes", "saved", "edited_scene"],
   "properties": {
     "scene_path": { "type": "string" },
     "script_path": { "type": "string" },
@@ -4114,6 +4125,7 @@ Build a reusable piece (token) `PackedScene` from a spec: an `Art` node (`Sprite
     "has_back": { "type": "boolean" },
     "node_count": { "type": "integer" },
     "saved": { "type": "boolean" },
+    "edited_scene": { "type": ["string", "null"] },
     "nodes": { "type": "array", "items": {
       "type": "object", "required": ["name", "node_path", "type"],
       "properties": { "name": { "type": "string" }, "node_path": { "type": "string" }, "type": { "type": "string" } } } }
