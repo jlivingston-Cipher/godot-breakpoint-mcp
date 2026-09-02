@@ -327,8 +327,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     {
       title: "Launch debug session",
       description:
-        "Start the game under the debugger. scene may be 'main', 'current', a scene inside the project " +
-        "(res://, or an absolute path inside the root), or a uid:// reference. " +
+        "Start the game under the debugger. " +
         "Refuses a scene outside the project root, one that does not exist, and an empty scene: measured on 4.7, " +
         "the adapter ACCEPTS all of those and nothing runs — an out-of-project scene leaves a live sceneless game " +
         "and a session that reports 'running' forever. A uid:// the project does not know is the one case still " +
@@ -917,7 +916,7 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       description:
         "Set (replace) data breakpoints — 'watchpoints' that halt when a variable's value changes (DAP dataBreakpointInfo + setDataBreakpoints). " +
         "Pass `watch` as a list of { name, variables_ref?, access_type? }: each name is resolved to a dataId via dataBreakpointInfo, then every " +
-        "resolvable id is armed in one setDataBreakpoints call. Call with no `watch` (or []) to clear all data breakpoints. The result reports the " +
+        "resolvable id is armed in one setDataBreakpoints call. The result reports the " +
         "armed `breakpoints` (each with its resolved data_id and verified flag) and any `unresolved` variables the adapter cannot watch. " +
         "Requires a running session; NOT gated (it only configures the debugger). Feature-detected: on an adapter that does not advertise " +
         "`supportsDataBreakpoints` it returns a clear \"unsupported\" message without sending any request. Measured: no Godot build this " +

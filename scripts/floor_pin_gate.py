@@ -579,6 +579,111 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     ("wig.CLAIM_FLOOR",           f"{S}/wire_invisible_gate.selftest.mjs", r"(const CLAIM_FLOOR = )22;",                          [f"{S}/wire_invisible_gate.selftest.mjs"]),
 ]
 
+# ══════════════════════════════════════════════════════════════════════════════════
+# 🆕 297 — THE REASON THIS TABLE COULD NOT HOLD
+# ══════════════════════════════════════════════════════════════════════════════════
+#
+# 🔴 209 WROTE THE DIVISION OF LABOUR DOWN AND DID NOT NOTICE THE TWO TABLES GOVERN TO
+# DIFFERENT STANDARDS. Its comment above `SIZE_LEDGER` says the split is by language —
+# `SIZE_LEDGER` governs the constants in the python instruments, `TARGETS` governs the
+# ones in the javascript instruments — and that much is true. What it does not say is
+# that a `SIZE_LEDGER` row is `(value, reason)` and `ledger_problems()` refuses in three
+# directions when the value moves without its sentence, while a `TARGETS` row is
+# `(label, file, regex, runner)` and carries no reason at all. Same job, two tables, one
+# of them mute.
+#
+# 🔴 MEASURED: of the rows in `TARGETS`, the great majority name a constant that no
+# sentence anywhere in this tree is required to explain. Among them is the tool-surface
+# budget every client downloads once per session. A session that wanted to raise it could
+# edit two digits — the constant, and this file's own anchor regex — and ship, and no
+# gate in the repository would ask why. The prose convention that says otherwise lives in
+# a comment block above the constant, which is 296 §2.4's defect exactly: a rule stated
+# where nothing reads it is a rule that holds until the first session in a hurry.
+#
+# 🔴 AND THE QUEUE ROW IS WHAT FOUND IT. `token-surface-ceiling-has-no-room-for-a-
+# correction` offered two ways out — cut prose, or move the cap WITH A WRITTEN REASON —
+# and the second was never available, because there was nowhere for the reason to go.
+# A row that offers an option the apparatus cannot express is a row that closes green on
+# the wrong evidence.
+#
+# 🔵 WHY A SEPARATE TABLE RATHER THAN A FIFTH TUPLE ELEMENT. `TARGETS` rows are read by
+# four call sites with four different unpackings (`label, rel, rx, runner`, `lbl, f, *_`
+# twice, and `t[3]`), and 294 §5's rule is that changing a reader's SHAPE costs an edit
+# to every row it already has plus the `{SIG:}` entry that declares the shape. Keying by
+# the row's own primary key leaves all four readers untouched and makes the join itself
+# the thing under test — a reason for a label that no longer exists is caught, which a
+# fifth element could never be.
+#
+# 🔵 AND THE COVERAGE RATCHETS RATHER THAN ARRIVING WHOLE. `TARGET_UNREASONED_CEILING`
+# is the count of rows still carrying no sentence; it is a ceiling, so it may only come
+# down, and every session that lowers it owes the `SIZE_LEDGER` row saying what it
+# bought. That is 295's shape for `UNDECLARED_CEILING`, applied to the table that needed
+# it more.
+TARGET_REASONS: dict[tuple[str, str], str] = {
+    (f"{S}/token-cost.mjs", "BYTES_CEILING"): (
+        "The whole tool catalogue, serialized, in bytes — `{FLOOR}` — and the only number "
+        "in this tree that every client pays once per session before it has asked for "
+        "anything. It is a CEILING and it comes down: 206 §4 set it, 208's sweep lowered it, and no "
+        "session has raised it. 🔴 IT MOVES ONLY WHEN A KEY IS ADDED TO OR DROPPED FROM "
+        "THE SURFACE, never to make room for prose — a raise that buys a description is "
+        "the surface growing and calling it a budget. The paydown available inside the "
+        "descriptions is finite and largely spent, which is the queue row this reason "
+        "exists because of."),
+    (f"{S}/token-cost.mjs", "tc.TOOL_FLOOR"): (
+        "The collapse guard under `BYTES_CEILING`, and the reason that ceiling means "
+        "anything. A reader that enumerated no tools would report a wonderfully small "
+        "surface and pass every budget in the file; `{FLOOR}` is the count below which "
+        "the measurement is refused instead of believed. It moves only if the shipped "
+        "tool count genuinely falls below it, which has never happened."),
+    (f"{S}/token-cost.mjs", "SCHEMA_PER_TOOL_CEILING"): (
+        "Mean input-schema bytes per tool — `{FLOOR}` — which is the component of the "
+        "surface a comparison against another server may honestly quote, because it is "
+        "the only one both sides ship. 207 §7.1 reproduced the alternative's published "
+        "figure and 208's pricing moved this ceiling down when the input schema turned out to be "
+        "carrying a dialect declaration nobody authored. 🔴 IT IS A ROUNDED MEAN, so it "
+        "reports itself as tighter than it is and can also absorb a real growth "
+        "invisibly — read the raw total beside it before believing either direction."),
+    (f"{S}/token-cost.mjs", "tc.RESULT_BYTES_CEILING"): (
+        "The OTHER axis: what a single tool RESULT may cost, not what the catalogue "
+        "costs. 257 §2 added it because `token-cost.mjs` governed the catalogue and could "
+        "say nothing about the bytes a call returns, so a tool could stay within every "
+        "budget in this file and still hand a client a reply it could not afford. Moves "
+        "when a result shape is deliberately widened, and the widening is the thing the "
+        "sentence has to name."),
+    (f"{S}/token-cost.selftest.mjs", "tc.CLAIM_FLOOR"): (
+        "How many claims the token-cost self-test must make — `{FLOOR}`. It is the pin on "
+        "the pin: the self-test is the runner every token-cost row in this table names, so "
+        "a self-test that quietly stopped asserting would take the whole family's evidence "
+        "with it and every row would still print `ok`. Moves only when a claim is added or "
+        "deliberately retired."),
+    ("../scripts/registry_lag.py", "UNTAGGED_CEILING"): (
+        "How many commits may sit on HEAD that the newest published tag does not name — "
+        "`{FLOOR}`. It is a staleness budget for the RELEASE, not for the tree, and it has "
+        "been refusing since the session that crossed it. 🔴 RAISING IT TO CLEAR A REFUSAL "
+        "IS THE ONE MOVE THIS ROW FORBIDS: the refusal is the instrument working, and the "
+        "answer is to cut the release. It moves down when the cadence tightens, and up "
+        "only with a deliberate decision about how far behind the published artifact may "
+        "fall."),
+    ("../scripts/registry_lag.py", "LAG_CEILING"): (
+        "How far the published registry version may trail the version in the tree — "
+        "`{FLOOR}` — measured in releases rather than commits, which is what makes it a "
+        "different question from the row above. A small number on purpose: the registry is "
+        "what a user installs, so trailing it is trailing every user."),
+}
+
+# 🔴 THE COUNT OF ROWS STILL CARRYING NO SENTENCE. A ceiling, so it may only come down,
+# and 295's `UNDECLARED_CEILING` is the pattern: declare the mechanism, declare how much
+# of the population it does not yet reach, and let the number be the debt. Lowering it is
+# what a later session buys by writing reasons; it may never rise, because a row that had
+# a reason and lost it is a deletion somebody must argue for.
+TARGET_UNREASONED_CEILING = 106   # governed by SIZE_LEDGER, the ratcheting debt
+# 🔴 AND THE COLLAPSE GUARD UNDER IT, which is 201 §9.43 paid again. The ceiling above
+# is satisfied by a join that reads NOTHING: if the key shapes drifted apart, every row
+# would be unreasoned, the count would be the table's length, and — the day the ceiling
+# was raised to match — it would pass. This floor is the count of reasons that must
+# actually BIND to a live row, so an empty join fails loud instead of quiet.
+TARGET_REASON_FLOOR = 7   # governed by SIZE_LEDGER, reasons that must bind to a live row
+
 # ── the DISCOVERY half ────────────────────────────────────────────────────────────
 # Files walked for floor-shaped constants. Anything found here and absent from TARGETS
 # is a gate failure, so the table above cannot silently fall behind the tree.
@@ -1017,6 +1122,22 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
         "lines into main(). 🔴 199 — this row and the next one were ONE row under the old "
         "bare-name key, and that is 197 §8.4's defect caught live — the prose happened to "
         "name both files, so the table was honest by accident and unstructured on purpose.",
+    ("../scripts/floor_pin_gate.py", "TARGET_UNREASONED_CEILING"):
+        "🆕 297 — THIS file's ceiling over how many of its own TARGETS rows still carry no "
+        "reason. Same nesting reason as TARGET_FLOOR above: its runner would be "
+        "floor_pin_gate.py itself. 🔴 AND ITS VALUE IS PINNED BY THE `SIZE_LEDGER` ROW "
+        "RATHER THAN BY A MUTATION, which is COMMENT_FLOOR's argument read from the other "
+        "side — a ceiling mutated toward zero would redden here for the right reason, but "
+        "the sweep cannot run this file as its own runner, so the drift check is what "
+        "holds the digit and `_self_check()` is what proves the branch bites.",
+    ("../scripts/floor_pin_gate.py", "TARGET_REASON_FLOOR"):
+        "🆕 297 — THIS file's floor under the reasons that actually BIND to a live TARGETS "
+        "row, and the one direction the ceiling above is structurally unable to see: a "
+        "join that binds nothing makes every row unreasoned, so the ceiling and the debt "
+        "move together and neither says the reader broke. Same nesting reason as the row "
+        "above. Pinned in-file by `_self_check()`, which feeds `target_reason_problems()` "
+        "a join that binds NOTHING under a generous ceiling and requires it to flag, and a "
+        "fully reasoned fixture it must leave alone.",
     ("../scripts/scope_gate.py", "TARGET_FLOOR"):
         "scope_gate.py's floor over ITS target list, the same shape and a different file. "
         "Not swept here for the nesting reason INSTRUMENT_FLOOR carries: its runner is "
@@ -1159,6 +1280,91 @@ def reason_problems(table: dict[tuple[str, str], str],
                 f"run; spell anything else in words, which is what seventeen of these rows "
                 f"already do.")
     return problems
+
+
+def target_reason_value(rel: str, label: str) -> int | None:
+    """The digits THIS ROW'S OWN ANCHOR pins, read from the tree on every run.
+
+    🔴 THE SAME BYTES THE MUTATION MOVES, WHICH IS WHY IT IS NOT `reason_value()`.
+    That reader re-finds a constant by NAME, and nine rows in `TARGETS` have no name to
+    find — they pin a key inside an object literal (`nested: 6,`). Resolving `{FLOOR}`
+    through the row's regex instead means the sentence and the pin can never come to
+    disagree about which number is being explained: if the anchor stops matching,
+    `FLOOR_PIN_ANCHOR` reddens and this returns None, so the reason prints a marker
+    rather than a stale digit."""
+    for _lbl, _rel, rx, _runner in TARGETS:
+        if (_lbl, _rel) != (label, rel):
+            continue
+        p = HOST / _rel
+        if not p.exists():
+            return None
+        text = p.read_text()
+        m = re.search(rx, text)
+        if not m:
+            return None
+        start = end = m.end(1)
+        while end < len(text) and text[end].isdigit():
+            end += 1
+        digits = text[start:end]
+        return int(digits) if digits else None
+    return None
+
+
+def _target_reason_resolve(f: str, n: str) -> int | None:
+    """`reason_problems()` keys its table `(file, name)`; this table keys `(file, label)`.
+
+    One adapter, so the digit discipline that governs `SIZE_LEDGER` reasons governs these
+    unchanged rather than being re-implemented beside it — 209's complaint was two tables
+    holding one job to two standards, and a second copy of the reason checker would be
+    the same mistake one level down."""
+    return target_reason_value(f, n)
+
+
+def target_reason_problems(reasons: dict[tuple[str, str], str],
+                           targets: list,
+                           ceiling: int,
+                           floor: int) -> list[str]:
+    """🆕 297 — EVERY PINNED CONSTANT, ASKED WHETHER ANY SENTENCE EXPLAINS IT.
+
+    Lifted so `_self_check()` can feed it inputs it MUST flag and inputs it must not,
+    which is the shape `ledger_problems()` and `comment_problems()` already have and the
+    reason this file trusts either of them."""
+    problems: list[str] = []
+    live = {(rel, lbl) for lbl, rel, *_ in targets}
+    bound = {k for k in reasons if k in live}
+
+    for key in sorted(reasons):
+        if key not in live:
+            problems.append(
+                f"🔴 FLOOR_PIN_TARGET_REASON_STALE {key[0]}:{key[1]} has a reason and no "
+                f"row in TARGETS. Either the pin was deleted (delete the reason in the "
+                f"same commit) or the JOIN stopped binding — the dangerous half, because "
+                f"every OTHER reason went unread in the same edit and the count below "
+                f"would call it progress.")
+
+    unreasoned = sorted(f"{rel}:{lbl}" for lbl, rel, *_ in targets
+                        if (rel, lbl) not in reasons)
+    if len(unreasoned) > ceiling:
+        problems.append(
+            f"🔴 FLOOR_PIN_TARGET_UNREASONED {len(unreasoned)} > {ceiling} — a pinned "
+            f"constant arrived with no sentence saying why it is the size it is. This "
+            f"ceiling only comes DOWN: write the reason, do not raise it. A size nobody "
+            f"has to explain is one that can move by accident, which is 201's D1, and "
+            f"209 left this whole table outside that rule by governing it with a table "
+            f"that has no room for the answer.\n"
+            + "".join(f"     {u}\n" for u in unreasoned[:ceiling + 6]))
+
+    if len(bound) < floor:
+        problems.append(
+            f"🔴 FLOOR_PIN_TARGET_REASON_COLLAPSE {len(bound)} < {floor} — the reasons "
+            f"that BIND to a live row fell below the floor. This is 201 §9.43 in the one "
+            f"place the ceiling above cannot reach: a join that binds NOTHING makes every "
+            f"row unreasoned, and a ceiling raised to match would pass over a table that "
+            f"had quietly stopped being read at all. Either reasons were deliberately "
+            f"deleted (lower this floor on purpose and say why in SIZE_LEDGER) or the key "
+            f"shapes drifted apart, which is the half nothing else would say.")
+
+    return problems + reason_problems(reasons, "target", _target_reason_resolve)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════
@@ -1531,6 +1737,23 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "A CEILING, at `{FLOOR}`, and it is supposed to fall — 199 — said so and it did. "
         "Its branch is unreachable from the live tree and is proved by fixture instead, "
         "which is 200's U1 closed rather than declared.")),
+    ("../scripts/floor_pin_gate.py", "TARGET_UNREASONED_CEILING"): (106, (
+        "🆕 297 — HOW MANY PINNED CONSTANTS STILL HAVE NO SENTENCE EXPLAINING THEM, at "
+        "`{FLOOR}`, and it is a DEBT rather than a budget. 209 §2 wrote down that "
+        "`SIZE_LEDGER` governs the python instruments and `TARGETS` the javascript ones, "
+        "and did not notice that only one of the two tables has room for a reason — so "
+        "every constant in the second, the tool-surface budget included, could move on a "
+        "regex edit with nothing to say why. 🔴 IT COMES DOWN AND NEVER UP: a session that "
+        "writes reasons lowers it and says here what it bought, and a row that HAD a "
+        "reason and lost it is a deletion somebody has to argue for rather than a ceiling "
+        "somebody may raise.")),
+    ("../scripts/floor_pin_gate.py", "TARGET_REASON_FLOOR"): (7, (
+        "🆕 297 — reasons that must BIND to a live row, at `{FLOOR}`, and it is the "
+        "collapse guard the ceiling above cannot be. 201 §9.43's rule one table over: if "
+        "the two key shapes drift apart the join binds nothing, every row reads as "
+        "unreasoned, and the ceiling — raised once to match — would pass over a table "
+        "nothing was reading. Moves up as the debt above moves down, and down only if "
+        "reasons are deliberately deleted.")),
     ("../scripts/floor_pin_gate.py", "COMMENT_FLOOR"): (17, (
         "🔴 THE ROW `M2` EARNED. Declaration comments the rule reads, at `{FLOOR}`. It "
         "exists because breaking the reader emptied the population and the check went "
@@ -2504,6 +2727,38 @@ def _self_check() -> list[str]:
                    "constant no longer exists — 197's other direction, unread here")
 
     # ── 🆕 202 §6 — THE COMMENT FLOOR, WHICH `M2` PROVED THIS CHECK NEEDED ──────
+    # 🆕 297 — THE FOUR DIRECTIONS OF `target_reason_problems`, EACH ON A FIXTURE
+    # THE LIVE TABLE CANNOT PRODUCE. The population this predicate reads is `TARGETS`
+    # itself, so every one of these would otherwise be provable only by breaking the real
+    # tree — which is 201 §10.3's rule and the reason `ledger_problems` was lifted first.
+    _T_OK = [("A_FLOOR", "f.py", r"(A_FLOOR = )3", ["r"]),
+             ("B_FLOOR", "f.py", r"(B_FLOOR = )4", ["r"])]
+    _R_OK = {("f.py", "A_FLOOR"): "spelled in words", ("f.py", "B_FLOOR"): "also words"}
+    if target_reason_problems(_R_OK, _T_OK, 0, 2):
+        bad.append("_self_check: target_reason_problems flagged a table where every row "
+                   "carries a reason and none is stale — the negative control, and a "
+                   "predicate that cannot stay quiet is one nobody can act on")
+    if not target_reason_problems({}, _T_OK, 0, 0):
+        bad.append("_self_check: target_reason_problems did NOT flag rows carrying no "
+                   "reason against a ceiling of zero — the whole point of the table")
+    if not target_reason_problems(
+            {**_R_OK, ("gone.py", "C_FLOOR"): "words"}, _T_OK, 0, 2):
+        bad.append("_self_check: target_reason_problems did NOT flag a reason whose row "
+                   "is no longer in TARGETS — the JOIN direction, which is the half a "
+                   "fifth tuple element could never have")
+    if not target_reason_problems({}, _T_OK, 99, 1):
+        bad.append("_self_check: target_reason_problems did NOT flag a join that binds "
+                   "NOTHING while the ceiling is generous — 201 §9.43, and the one "
+                   "failure the ceiling above is structurally unable to see")
+    # 🔴 AND THE DIGIT RULE REACHES THESE ROWS, which is the whole reason the reason
+    # checker was reused rather than copied. A bare numeral in a target reason is the
+    # same defect it is in a ledger reason and must be caught by the same line.
+    if not target_reason_problems({("f.py", "A_FLOOR"): "it is 42 for a reason"},
+                                  _T_OK, 99, 0):
+        bad.append("_self_check: target_reason_problems let a BARE DIGIT through — "
+                   "`reason_problems` is not reaching this table, so the two tables 209 "
+                   "split are back to being held to two standards")
+
     if not comment_problems({}):
         bad.append("_self_check: comment_problems stayed quiet on an EMPTY comment set — "
                    "that is exactly how M2 passed, and 201 §9.43 is the rule it breaks")
@@ -2744,6 +2999,9 @@ def collect_problems() -> dict[str, list[str]]:
         "ledger": (ledger_problems(SIZE_LEDGER, governed_sizes())
                    + reason_problems({k: v[1] for k, v in SIZE_LEDGER.items()}, "ledger")),
         "comment": comment_problems(declaration_comments()),
+        "target": target_reason_problems(TARGET_REASONS, TARGETS,
+                                         TARGET_UNREASONED_CEILING,
+                                         TARGET_REASON_FLOOR),
         "repeat": repeat_key_problems(literal_keys(), literal_key_count(),
                                       LITERAL_KEY_FLOOR),
         "shortfall": (shortfall_problems(shortfall_refusals(), 0)
@@ -2774,6 +3032,7 @@ def _call_wiring_problems() -> list[str]:
         ("ledger", "ledger_problems", lambda *a, **k: [CALL_SENTINEL]),
         ("repeat", "repeat_key_problems", lambda *a, **k: [CALL_SENTINEL]),
         ("shortfall", "shortfall_problems", lambda *a, **k: [CALL_SENTINEL]),
+        ("target", "target_reason_problems", lambda *a, **k: [CALL_SENTINEL]),
     ]
     for key, fname, stub in CASES:
         real = g[fname]
@@ -2917,6 +3176,10 @@ def main() -> int:
     for problem in probs["comment"]:
         print(problem)
         failed = True
+    # ── 🆕 297 — AND WHETHER ANY PINNED CONSTANT MOVES WITH NOTHING TO SAY WHY ────
+    for problem in probs["target"]:
+        print(problem)
+        failed = True
     # ── 🆕 229 §6b — AND WHETHER ANY GOVERNED TABLE HAS A ROW NOTHING CAN REACH ────
     for problem in probs["repeat"]:
         print(problem)
@@ -2932,6 +3195,11 @@ def main() -> int:
           f"· {len(probs['ledger'])} ungoverned, drifted, stale or quoting a bare number")
     print(f"FLOOR_PIN_COMMENT {len(_comments)} declaration comment(s) read · "
           f"{len(probs['comment'])} quoting a number the tree does not govern")
+    _bound = sum(1 for lbl, rel, *_ in TARGETS if (rel, lbl) in TARGET_REASONS)
+    print(f"FLOOR_PIN_TARGET_REASON {_bound} of {len(TARGETS)} pinned constant(s) carry a "
+          f"reason / floor {TARGET_REASON_FLOOR} · {len(TARGETS) - _bound} unreasoned / "
+          f"ceiling {TARGET_UNREASONED_CEILING} · {len(probs['target'])} stale, over the "
+          f"ceiling, or quoting a bare number")
     _short = shortfall_refusals()
     _py = sum(1 for r in _short if r[0].endswith(".py"))
     print(f"FLOOR_PIN_SHORTFALL {len(_short)} shortfall refusal(s) read · {_py} python / "
