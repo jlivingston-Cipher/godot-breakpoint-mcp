@@ -5622,18 +5622,17 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 298 — ONE ROW, AND IT IS 294's SHAPE WITH ONE EXTRA SESSION IN IT.
-    # `floor_pin_gate.py` has printed `FLOOR_PIN_TARGET_REASON` since 297 §2.2, and yet
-    # every block in `BLOCK_POPULATION` predates the ATOM — because 297's block was the
-    # one that could have carried it and its close rehearsal answered `UNREADABLE CLAIM`
-    # instead, so the line was pulled rather than shipped unread (297 §6). `ALIAS_UNUSED`
-    # would therefore refuse this row on arrival, which is exactly the state 246 built this
-    # table for. 🔴 299 ADDS 298's BLOCK, THE BLOCK CARRIES `target reasons 7 bound / 106
-    # unreasoned / ceiling 106`, THE KEY BECOMES REACHED AND `pending_problems` TURNS THIS
-    # ROW INTO `ALIAS_PENDING_STALE` ON THAT SAME RUN — delete it because the gate says so,
-    # not because you remembered.
-    "floor_pin.target_reason":
-        "298 ships the reader; 299 adds 298's block and this row goes STALE on that run",
+    # 🆕 299 — EMPTY AGAIN, AND `floor_pin.target_reason` EXPIRED ON THE SCHEDULE ITS OWN
+    # ROW WROTE, TO THE RUN. 298 filed it saying *298 ships the reader; 299 adds 298's
+    # block and this row goes STALE on that run*, and named the mechanism in its own
+    # comment: the block carries `target reasons 7 bound / 106 unreasoned / ceiling 106`,
+    # the key becomes reached, and `pending_problems` refuses the row BY NAME on the first
+    # `--selftest` after the block lands. That is exactly what happened — this session's
+    # first PR carries 298's block, and `ALIAS_PENDING_STALE` named the row before anybody
+    # went looking for it. 🔴 EIGHTH TABLE IN A ROW TO EXPIRE ON TIME — 276, 287, 289,
+    # 291's predecessor set, 292's `landscape.roster`, 294's `landscape.capability`,
+    # 295's `landscape.cadence`, and this one — which remains the only end state 246
+    # designed the table to have.
     # 🆕 295 — EMPTY AGAIN, AND `landscape.cadence` EXPIRED ON THE SCHEDULE ITS OWN ROW
     # WROTE, TO THE RUN. 294 filed it saying *295 adds 294's block, the block carries
     # `cadence 33 within / 5 past / 14 never analysed`, the key becomes reached and
@@ -7746,6 +7745,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
 >               · mutlock 5 guarded / 23 cases · tree_quiet 13
 >               · queue 83/83 claims · handoff 526 claims
+>               · landscape 4 channel(s) / 52 analysed / 48 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 30 within / 8 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (298, """> ```
+> main                 a109d0e — the tool that moves you and does not say so (#374)  MOVED +1
+> branch 298           session298-the-tool-that-moves-you · PR #374
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 14 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at the merge, and the post-merge run at a109d0e
+> 🟡 `sdk-drift` RED at a109d0e — WORLD-FACING, reported not refused (294 §2.1), §3.5
+> 🔴 registry_lag REFUSES — untagged 14 against a ceiling of 8, crossed at 293, see §3.3
+> 🟢 VERIFIED AFTER THE CHANGE   981/981 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3009
+>               · late not-loaded 0 · late constructed 322/160
+>               · py gates 18/6/12 · SIG 260/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2166 keys · 99 shortfalls
+>               · target reasons 7 bound / 106 unreasoned / ceiling 106
+>               · unswept 0 · exempt 42 · term 325 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5055 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 533 claims
 >               · landscape 4 channel(s) / 52 analysed / 48 surfaced
 >               · capability 43 claimed / 35 unread / 10 uncited
 >               · cadence 30 within / 8 past / 14 never analysed

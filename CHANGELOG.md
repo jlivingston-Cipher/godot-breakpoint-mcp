@@ -4,7 +4,45 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.84.0] — 2026-09-02
+
+_Addon **1.15.0**, unmoved — no source under `addons/` was touched in this cut._
+
+Found by driving the **tabletop plane** the way a user drives it — over stdio, on the
+**secure-default surface** a fresh install serves, with no privileged group opted in. The
+probe that covers this family had pinned that opt-in in its own environment since it was
+written, so the largest tool family in the project had never once been exercised the way it
+actually ships.
+
+### Changed — the four scene-building tools put you back where you were
+
+- **`card_template_create`, `piece_template_create`, `board_create` and `board_tile_create`
+  moved the editor onto the file they had just written, and nothing said so.** Each writes a
+  new scene, and writing a scene opens it — so when the call returned, the scene you were
+  composing was no longer the one the rest of the family acts on. The other ten tools in the
+  family address "the open scene". Measured against a live Godot 4.7: compose a table, create
+  a card template, then call `card_instance` with `parent: "."` exactly as its own
+  description invites — the card was created, its slots bound, `isError` was false, and the
+  card was in the CARD TEMPLATE. The table was untouched and every call in the sequence
+  answered success. **All four now reopen the scene that was being edited when the call
+  arrived, once the write is saved**, so the sequence above lands where you meant it.
+- The restore is **best effort and never a failure path**. The file is written and saved by
+  the time it runs, so refusing there would report a create that succeeded as an error — and
+  the caller's correct response to an error, retrying, would write the file a second time. An
+  editor that held no scene to begin with, or one whose previous scene has since been deleted,
+  is left where the write put it and says so through `edited_scene`.
+- **You no longer need a `scene_open` between a creator and the in-scene tools.** If you have
+  one in a script it remains harmless — it reopens a scene the tool has already reopened.
+
+### Added — `edited_scene`, on the same four tools
+
+- **Every one of the four now answers with the scene the editor is actually editing when the
+  call returns** — read from the editor rather than echoed from the `path` that was asked for,
+  so a restore that could not happen is visible as a path that is not yours rather than lost.
+  It is nullable, because an editor with nothing open is an honest answer, and required, so a
+  regression is a refusal at the wire rather than a silence.
+
+---
 
 Found by driving the runtime and debugger planes against a live Godot 4.7 game the way a
 user drives them — over stdio, on the **secure-default surface** a fresh install actually

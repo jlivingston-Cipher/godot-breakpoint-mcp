@@ -139,7 +139,15 @@ async function main() {
 
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
-    env: { ...process.env, GODOT_BIN, GODOT_PROJECT, BREAKPOINT_PRIVILEGED_GROUPS: "all" },
+    // 🆕 299 — `BREAKPOINT_PRIVILEGED_GROUPS: "all"` DELETED, WHICH IS 298 §2.1's OWN
+    // FINDING PAID. 296 §5.2's rule is that a user pass only counts on the DEFAULT
+    // surface, and this probe pinned the opt-in in its own env block — so the largest
+    // family in the tree had never once been driven the way a fresh install runs it.
+    // The authoring probe beside it has a REASON for the pin: it exercises `asset_gen_*`
+    // and `node_call_method`, which the secure default drops. This one does not. None of
+    // the fourteen tabletop tools is capability-tagged at all, so the pin bought nothing
+    // and cost the blindness that hid the finding 298 shipped.
+    env: { ...process.env, GODOT_BIN, GODOT_PROJECT },
     stderr: "inherit",
   });
   const client = new Client({ name: "gcb-tabletop", version: "1.0.0" }, { capabilities: { elicitation: {} } });
@@ -236,6 +244,16 @@ async function main() {
   // answers success. `edited_scene` is the fix; the four claims below are what
   // turn this comment into something a red gate can say. 297 §5.1's rule, paid
   // one file over: a fact written only in a comment is a fact nothing enforces.
+  //
+  // 🆕 299 — AND THE SENTENCE ABOVE IS NOW HISTORY RATHER THAN INSTRUCTION.
+  // 298 reported the movement and filed the rest as a `user` decision; steered at
+  // 299, the four creators RESTORE the scene the caller arrived on, so the ordering
+  // this comment prescribes — disk writers first, in-scene work after one
+  // `scene_open` — is no longer load-bearing. The paragraph stays because it is why
+  // the family is shaped this way and because the mechanism it names is unchanged:
+  // `scene.new` still calls `open_scene_from_path`, and the restore is a step after
+  // it, not a removal of it. `TT_LIVE_RESTORED_WITHOUT_HELP` is the claim that would
+  // make this paragraph instruction again if it ever went red.
   await family("TT_LIVE", async () => {
     const T = "res://_tt_card.tscn", P = "res://_tt_piece.tscn";
     const B = "res://_tt_board.tscn", TB = "res://_tt_tileboard.tscn";
@@ -258,21 +276,29 @@ async function main() {
     // scene it left the editor in, and `scene_list_open` must agree. The pair is the
     // point — a field echoing `path` would satisfy the first arm on a tool that had
     // stopped moving the editor at all, and the second arm is what refuses that.
+    // 🆕 299 — AND THE THIRD ARM TURNED OVER WITH THE BEHAVIOUR. The pair above is
+    // unchanged and still does its job; what changed is which movement is news. 298
+    // failed a creator that did not move the editor; 299 fails one that does not put
+    // the caller back. Same two readings, opposite verdict, because the shipped
+    // contract inverted between the sessions and a claim that did not invert with it
+    // would be green on precisely the defect this session was steered to remove.
     // 🔴 THE ARGUMENTS ARE THE FOUR ABOVE, VERBATIM, PLUS `overwrite`. The first
     // draft of this loop re-created the card template with ONE slot and broke three
     // downstream claims that read the fixture off disk — a probe that damages the
     // population it shares is a probe measuring its own footprint (295 §5.4, one
     // file over). Same paths, same specs: the fixtures are rewritten identical.
+    // `sc` is typed `unknown` on this probe's call helper, so every read of it goes
+    // through one narrowing accessor rather than three inline casts — `lint_ceiling.py`
+    // counts TS2339 as a CLASS and refused three new ones on this file's first run.
+    // 🆕 299 — HOISTED OUT OF THE LOOP, because the claims below the loop read `current`
+    // too and a second copy of a narrowing accessor is a second thing to get wrong.
+    const field = (r, k) => /** @type {Record<string, unknown>} */ (r?.sc ?? {})[k] ?? null;
     for (const [tool, args] of [
       ["card_template_create", { path: T, size: { width: 120, height: 180 }, slots: [{ name: "title", kind: "label" }, { name: "cost", kind: "badge" }], overwrite: true }],
       ["piece_template_create", { path: P, size: { width: 48, height: 48 }, color: "#3366cc", hit_area: { shape: "rectangle" }, overwrite: true }],
       ["board_create", { path: B, layout: { mode: "grid", rows: 3, cols: 3 }, overwrite: true }],
       ["board_tile_create", { path: TB, rows: 2, cols: 2, tile_size: [32, 32], overwrite: true }],
     ]) {
-      // `sc` is typed `unknown` on this probe's call helper, so every read of it goes
-      // through one narrowing accessor rather than three inline casts — `lint_ceiling.py`
-      // counts TS2339 as a CLASS and refused three new ones on this file's first run.
-      const field = (r, k) => /** @type {Record<string, unknown>} */ (r?.sc ?? {})[k] ?? null;
       await call("scene_open", { path: MAIN });
       const before = field(await call("scene_list_open"), "current");
       const r = await call(tool, args);
@@ -282,21 +308,70 @@ async function main() {
         fail(`TT_LIVE_EDITED_SCENE_${tool}`, `the creator refused: ${(r.text ?? r.threw ?? "").slice(0, 160)}`);
       } else if (named === null) {
         fail(`TT_LIVE_EDITED_SCENE_${tool}`,
-          `answered success and did not name the edited scene. It moved the editor from ${before} to ${after}; ` +
-          `the caller's next in-scene call lands there and nothing in this answer says so`);
+          `answered success and did not name the edited scene. The caller arrived on ${before} ` +
+          `and the editor is on ${after}; nothing in this answer says which`);
       } else if (named !== after) {
         fail(`TT_LIVE_EDITED_SCENE_${tool}`,
           `reported edited_scene=${named} and the editor is editing ${after} — an ECHO of \`path\`, not a reading`);
-      } else if (before === after) {
+      } else if (after !== before) {
+        // 🆕 299 — THIS ARM IS 298's, INVERTED, AND THE INVERSION IS THE SHIPPED CHANGE.
+        // 298 failed when the editor did NOT move, because a creator that had stopped
+        // moving it would have made the family's scene_open dance obsolete without
+        // anyone noticing. 299 made exactly that true on purpose, so the direction that
+        // is now news is the opposite one: a creator that leaves the caller elsewhere.
         fail(`TT_LIVE_EDITED_SCENE_${tool}`,
-          `did not move the edited scene at all (${before}) — either the decomposition changed, ` +
-          `in which case this whole family's scene_open dance is obsolete, or scene_list_open stopped answering`);
+          `left the editor on ${after} — the caller arrived on ${before} and 299's contract is that ` +
+          `they leave on it. This is the trap 298 measured: the next in-scene call lands in ${after}`);
       } else {
-        pass(`TT_LIVE_EDITED_SCENE_${tool}`, `moved the editor ${before} → ${after} and said so`);
+        pass(`TT_LIVE_EDITED_SCENE_${tool}`, `restored the caller to ${before} and said so`);
       }
     }
-    // and hand the family back the scene it expects to be on.
-    await call("scene_open", { path: MAIN });
+
+    // 🆕 299 — THE CHOREOGRAPHY IS DELETED, AND ITS ABSENCE IS THE CLAIM.
+    // 298 §5.1: `await call("scene_open", { path: MAIN })` stood here so the rest of the
+    // family would pass, and it asserted nothing — a step a test must PERFORM is a fact
+    // about the product, and if nothing asserts it the test is the only place it is true.
+    // The four creators put the caller back now, so the line is unnecessary. Deleting it
+    // and asserting the editor is ALREADY where the family needs it is what turns the
+    // workaround into evidence: if a creator stops restoring, this claim says so by name
+    // and every claim below it fails behind it.
+    {
+      const cur = field(await call("scene_list_open"), "current");
+      if (cur === MAIN) pass("TT_LIVE_RESTORED_WITHOUT_HELP", `on ${MAIN} with no scene_open between`);
+      else fail("TT_LIVE_RESTORED_WITHOUT_HELP",
+        `four creators ran and left the editor on ${cur}, not ${MAIN}. 298's scene_open dance was ` +
+        `deleted here because 299 made it unnecessary, and it is necessary again`);
+    }
+
+    // 🆕 299 — AND 298's TRAP, RUN EXACTLY AS ITS OWN DESCRIPTIONS INVITE.
+    // The sequence that measured red at 298: compose a table, create a card template,
+    // then `card_instance` with `parent: "."` — with NOTHING in between, because a user
+    // following the tool descriptions has nothing to put there. At 298 the card landed
+    // in the CARD TEMPLATE, `bound` listed the slot, `isError` was false and every call
+    // answered success. Two oracles, because either alone can be satisfied by accident:
+    // the editor must be on the table, AND the node must be reachable in the scene the
+    // editor is on.
+    const TRAP = "res://_tt_trap.tscn";
+    expectOk("TT_LIVE_TRAP_TEMPLATE", await call("card_template_create", {
+      path: TRAP, size: { width: 100, height: 140 }, slots: [{ name: "title", kind: "label" }],
+    }));
+    const trap = await call("card_instance", {
+      template_path: TRAP, parent: ".", name: "TTTrapCard", data: { title: "Trap" },
+    });
+    const trapWhere = field(await call("scene_list_open"), "current");
+    const trapNode = await call("node_get_property", { path: "TTTrapCard", property: "name" });
+    if (trap.isError || trap.threw) {
+      fail("TT_LIVE_TRAP_CLOSED", `card_instance refused: ${(trap.text ?? trap.threw ?? "").slice(0, 160)}`);
+    } else if (trapWhere !== MAIN) {
+      fail("TT_LIVE_TRAP_CLOSED",
+        `card_instance answered success with the editor on ${trapWhere} — the card is in the TEMPLATE, ` +
+        `which is 298's trap unchanged`);
+    } else if (trapNode.isError || trapNode.threw) {
+      fail("TT_LIVE_TRAP_CLOSED",
+        `the editor is on ${MAIN} but TTTrapCard is not in it: ${(trapNode.text ?? trapNode.threw ?? "").slice(0, 160)}`);
+    } else {
+      pass("TT_LIVE_TRAP_CLOSED", `the card landed in ${MAIN}, not in ${TRAP}, with no scene_open between`);
+    }
 
     // A template is only a template if it survives the round trip to disk: the
     // measurement's first false alarm was an instance that worked ONLY because
