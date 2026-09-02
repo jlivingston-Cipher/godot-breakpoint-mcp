@@ -170,9 +170,11 @@ test("every cut names a field the tool actually declares", () => {
  *   CUTS_TO_CATALOG  two "decomposes onto scene.new → …" sentences naming host-internal
  *                    bridge methods a caller cannot invoke. 🔴 THESE ARE NOT BUDGET
  *                    CUTS. 298's finding is that this repository stated the MECHANISM in
- *                    three places and its CONSEQUENCE in none — the four composites move
- *                    the editor's edited scene and said so nowhere. The description now
- *                    carries the consequence; the mechanism keeps its home in
+ *                    three places and its CONSEQUENCE in none — the four composites moved
+ *                    the editor's edited scene and said so nowhere. 🆕 299 removed the
+ *                    consequence by removing the movement: the four put the caller back,
+ *                    and the description says THAT instead. The mechanism is unchanged
+ *                    and so is this pair's argument — it keeps its home in
  *                    `TOOL_CATALOG.md`, which is where it was already written in fuller
  *                    form. Deleting it from BOTH would be the deletion this file exists
  *                    to catch, so the surviving arm reads the catalog on disk.
@@ -193,10 +195,30 @@ const CUTS_TO_CATALOG: Array<[string, RegExp, RegExp]> = [
    /decomposes onto `scene\.new` → `node\.add` → `node\.set_property` → `resource\.create`/],
 ];
 
-/** The four composites that move the editor's edited scene, and must SAY they do. */
-const MOVES_EDITED_SCENE = [
+/**
+ * The four composites that decompose onto `scene.new`, and must SAY what they leave
+ * the editor on.
+ *
+ * 🆕 299 — RENAMED WITH THE BEHAVIOUR. At 298 these tools moved the caller and the
+ * population was named for that; steered at 299, they put the caller back. A roster
+ * still called `MOVES_EDITED_SCENE` would be the same defect 298 found — a name that
+ * knows something the surface no longer does — in the file built to catch it.
+ */
+const RESTORES_EDITED_SCENE = [
   "card_template_create", "piece_template_create", "board_create", "board_tile_create",
 ];
+
+/**
+ * 🆕 299 — AND THE OLD SENTENCE IS NOW WRONG ADVICE, WHICH IS WORSE THAN NO ADVICE.
+ * 298's descriptions told a caller *reopen yours first*. A caller who follows that
+ * after this change reopens a scene the tool has already reopened for them — harmless
+ * — but a caller who reads *the created scene becomes the EDITED scene* and SKIPS the
+ * in-scene work they wanted is harmed by a surface that describes a movement it no
+ * longer makes. 298's whole finding was a repository whose documents disagreed with
+ * its behaviour; leaving these two phrases behind would reproduce it pointing the
+ * other way, so both are refused by name.
+ */
+const STALE_MOVE_WARNINGS = /becomes the EDITED scene|reopen yours first/;
 
 function outputProps(name: string): Record<string, unknown> {
   const cfg = S.get(name) as { outputSchema?: Record<string, unknown> } | undefined;
@@ -229,8 +251,8 @@ for (const [tool, deleted, survives] of CUTS_TO_CATALOG) {
     assert.doesNotMatch(
       cfg.description ?? "", deleted,
       `${tool}'s description names the host-internal bridge methods it decomposes onto. ` +
-      `A caller cannot invoke them; the consequence of that decomposition — that the ` +
-      `created scene becomes the edited one — is what belongs here, and does.`);
+      `A caller cannot invoke them; the consequence of that decomposition — where the ` +
+      `call leaves the editor — is what belongs here, and does.`);
     assert.match(
       CATALOG, survives,
       `TOOL_CATALOG.md no longer states ${tool}'s decomposition, and the description no ` +
@@ -238,8 +260,8 @@ for (const [tool, deleted, survives] of CUTS_TO_CATALOG) {
   });
 }
 
-test("298: every composite that moves the edited scene says so, in both halves", () => {
-  for (const tool of MOVES_EDITED_SCENE) {
+test("299: every composite that restores the edited scene says so, in both halves", () => {
+  for (const tool of RESTORES_EDITED_SCENE) {
     const cfg = S.get(tool);
     assert.ok(cfg, `${tool} is not on the surface`);
     assert.ok(
@@ -248,12 +270,19 @@ test("298: every composite that moves the edited scene says so, in both halves",
       `moves the editor — and its answer does not name where it left the caller. ` +
       `Measured at 298 on a live Godot 4.7: compose a table, create a card template, ` +
       `then \`card_instance\` with \`parent: "."\` — the card lands in the TEMPLATE and ` +
-      `every call answers success.`);
+      `every call answers success. 299 restores the caller instead, and this field is ` +
+      `how a caller learns the restore actually happened.`);
     assert.match(
-      cfg.description ?? "", /becomes the EDITED scene/,
-      `${tool}'s description does not tell a caller that the created scene becomes the ` +
-      `edited one. The field alone is read AFTER the call; the description is what a ` +
-      `caller reads BEFORE choosing (278's rule).`);
+      cfg.description ?? "", /Puts the editor back on the scene you had open/,
+      `${tool}'s description does not tell a caller that it restores the scene they had ` +
+      `open. The field alone is read AFTER the call; the description is what a caller ` +
+      `reads BEFORE choosing (278's rule), and a caller who does not know the tool puts ` +
+      `them back will keep paying for the \`scene_open\` this change made unnecessary.`);
+    assert.doesNotMatch(
+      cfg.description ?? "", STALE_MOVE_WARNINGS,
+      `${tool}'s description still carries 298's move warning. The tool no longer leaves ` +
+      `the caller on the created scene, so that sentence now describes behaviour this ` +
+      `surface does not have — which is 298's own finding with the sign flipped.`);
   }
 });
 
@@ -264,8 +293,9 @@ test("298 positive control — the edited-scene claim fails for a tool outside t
   assert.ok(S.get("card_instance"), "card_instance is not on the surface");
   assert.equal(
     "edited_scene" in outputProps("card_instance"), false,
-    "card_instance declares `edited_scene`. The field means *this call moved the " +
-    "editor*; on a tool that does not move it the field is a claim nothing can honour, " +
+    "card_instance declares `edited_scene`. The field means *this call could have moved " +
+    "the editor and here is where it actually left you*; on a tool that never touches " +
+    "the edited scene the field is a claim nothing can honour, " +
     "and the population 298 declared has stopped meaning anything.");
   assert.ok(
     Object.keys(outputProps("card_instance")).length > 0,

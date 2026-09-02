@@ -863,7 +863,7 @@ INSTRUMENTS = [
         # so the row moves out of the exemption table and into this one.
         "name": "p0_complexity.mjs",
         "src": HOST / "scripts" / "p0_complexity.mjs",
-        "gate": ["node", "scripts/p0_complexity.selftest.mjs"],
+        "gate": ["node", "--test-reporter=spec", "scripts/p0_complexity.selftest.mjs"],
         "cwd": HOST,
         "floor": 3,
         "why": "the P0 complexity reporter — the ranking P3 will be argued from",
@@ -891,7 +891,7 @@ INSTRUMENTS = [
         # the singletons rather than on the verdict the table prints.
         "name": "p0_testdup.mjs",
         "src": HOST / "scripts" / "p0_testdup.mjs",
-        "gate": ["node", "scripts/p0_testdup.selftest.mjs"],
+        "gate": ["node", "--test-reporter=spec", "scripts/p0_testdup.selftest.mjs"],
         "cwd": HOST,
         "floor": 3,
         "why": "the P0 test-duplication clusterer — the candidate list P5 will be argued from",
@@ -4242,13 +4242,25 @@ VERDICT_MARKER: dict[str, str] = {
     # own summary line for the same reason `path-cohort` uses it: `ℹ fail <n>` exists only
     # when the run REACHED the end, and it is printed on the red path as well as the green
     # one — which is the property 209's row settled and 232's re-derived.
-    # 🔴 AND THE SPELLING IS `# fail `, NOT THE `ℹ fail ` ONE ROW UP, WHICH THE FIRST DRAFT
+    # 🔴 AND THE SPELLING WAS `# fail `, NOT THE `ℹ fail ` ONE ROW UP, WHICH THE FIRST DRAFT
     # COPIED FROM IT. `ℹ` is `node --test`'s reporter; a self-test invoked as `node
-    # file.mjs` prints `# fail <n>`. Both rows are node:test and the two invocations
-    # disagree about the glyph — a marker chosen by reading a neighbour rather than by
+    # file.mjs` printed `# fail <n>`. Both rows are node:test and the two invocations
+    # disagreed about the glyph — a marker chosen by reading a neighbour rather than by
     # running the command is 197 §35, and this gate refused it on the first sweep.
-    "p0_complexity.mjs": "# fail ",
-    "p0_testdup.mjs": "# fail ",
+    #
+    # 🆕 299 — 🔴 AND THE GLYPH MOVED UNDER US, WHICH IS 197 §5's DEFECT ARRIVING FROM THE
+    # RUNTIME INSTEAD OF THE TERMINAL. `node file.mjs` prints `ℹ fail <n>` on node 26 where
+    # it printed `# fail <n>` before, so BOTH markers stopped matching and the sweep filed
+    # both instruments as *the unmutated gate never reached its own verdict* — BLAST 0
+    # against floors of twenty-eight and eighteen, and no judgement possible on either.
+    # 🔵 THE FIX IS THE ONE 197 §5 ALREADY WROTE DOWN, applied to the two rows that never
+    # got it: `--test-reporter=spec` is now pinned on both gate commands, so the dialect is
+    # a property of the COMMAND rather than of the terminal OR the installed node, and the
+    # marker below is the reporter's own line rather than whatever this runtime defaults to.
+    # 🔴 A MARKER THAT TRACKS A DEFAULT IS A MARKER WITH A SHELF LIFE — pin the producer,
+    # then read it, in that order.
+    "p0_complexity.mjs": "ℹ fail ",
+    "p0_testdup.mjs": "ℹ fail ",
     # 🆕 209 — check 8's classifier. 🔴 THE PREFIX, NOT `WIRE_DIFF_SELFTEST ok`: the
     # marker's job is to say the run REACHED its own verdict, which a failing run does
     # too. Pinning the passing spelling would have classified every genuine catch as a

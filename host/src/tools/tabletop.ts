@@ -1822,10 +1822,66 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
    * 🔵 AND IT IS SPREAD, NOT RESTATED, FOR `wroteDestination`'s REASON (284): a
    * fifth composite that decomposes onto `scene.new` cannot be added with the
    * reporting half missing. `contract_check` check 36 holds that population.
+   *
+   * 🆕 299 — AND THE ANSWER TO 298's FINDING IS NOW THE ONE 298 DECLINED TO
+   * TAKE IN-SESSION. 298 filed `tabletop-creators-leave-the-caller-elsewhere`
+   * as a `user` row rather than deciding it: whether the four should RESTORE
+   * the caller's scene is a change to what a shipped tool does to the editor,
+   * and this project steers those before it builds them. Steered at 299 —
+   * restore — with the argument that decided it recorded here, because the
+   * next person to read this block will want to know why the behaviour flipped
+   * one session after it was documented: **298's description never reached a
+   * user.** The merge sat untagged behind a release backlog, so both the
+   * warning label and its removal ship in the same cut and no caller ever saw
+   * the surface promise a move it no longer makes.
    */
-  async function editedSceneField(): Promise<Record<string, unknown>> {
+
+  /** Which scene the editor is editing right now, or `null` for none open. */
+  async function currentEditedScene(): Promise<string | null> {
     const open = await emit("scene.list_open", {}) as { current?: unknown };
-    return { edited_scene: typeof open?.current === "string" ? open.current : null };
+    return typeof open?.current === "string" ? open.current : null;
+  }
+
+  /**
+   * Put the caller back on the scene they were editing when the call arrived.
+   *
+   * 🔴 BEST EFFORT, AND DELIBERATELY NOT A FAILURE PATH. The file is written
+   * and saved by the time this runs. Throwing here would report a create that
+   * SUCCEEDED as an error, and the caller's correct response to an error —
+   * retry — would write it a second time. So a reopen that cannot happen
+   * leaves the editor where the decomposition left it, and the caller learns
+   * that from `edited_scene`, which is READ afterwards and therefore cannot
+   * agree with a restore that did not occur. The honest report replaces the
+   * exception; it does not merely soften it.
+   *
+   * 🔵 THREE NO-OPS, EACH FOR ITS OWN REASON. `null` means the editor held no
+   * scene, so there is nothing to go back TO and the created scene stays open
+   * — inventing a close would be a second unasked-for movement. Already
+   * current means the decomposition did not move us, or `clearStaleTab`
+   * already put us back. And a `before` whose file is gone cannot be reopened:
+   * `scene.open` would answer *Scene not found* and turn a successful create
+   * into a refusal, which is the failure path this function exists to avoid.
+   */
+  async function restoreEditedScene(before: string | null): Promise<void> {
+    if (before === null) return;
+    if (await currentEditedScene() === before) return;
+    if (!fs.existsSync(resolveInsideProject(before, config.projectPath, "path"))) return;
+    try {
+      await emit("scene.open", { path: before });
+    } catch {
+      // Swallowed on purpose — see the comment above. `edited_scene` reports
+      // where the editor actually is, so a failed restore is visible, not lost.
+    }
+  }
+
+  /**
+   * Restore, then REPORT — in that order, and the order is the claim. Reading
+   * first and restoring after would answer with a path the editor had already
+   * left, which is 155 §2's echo wearing a measurement's clothes one more time.
+   */
+  async function editedSceneField(before: string | null): Promise<Record<string, unknown>> {
+    await restoreEditedScene(before);
+    return { edited_scene: await currentEditedScene() };
   }
 
   /**
@@ -1900,7 +1956,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       description:
         "Build a reusable card scene (a PackedScene) from a slot spec, with a generated script-backed set_data() / set_face(). " +
         "Named slots (label / rich_text / texture / panel / badge) become the card's regions; card_instance and card_deck_from_table " +
-        "bind data to them by slot name. Optional inline theme and a two-sided card back. DESTRUCTIVE (writes a scene + script) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
+        "bind data to them by slot name. Optional inline theme and a two-sided card back. DESTRUCTIVE (writes a scene + script) — gated by confirmation. Puts the editor back on the scene you had open; `edited_scene` names where it landed.",
       inputSchema: {
         path: z.string().describe("Where to save the template scene, e.g. res://ui/cards/Card.tscn"),
         size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).describe("Card dimensions in px"),
@@ -1949,8 +2005,13 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const blocked = await gate(server, a.confirm, `Create card template scene + script at ${a.path}`);
       if (blocked) return blocked;
       try {
+        // 🆕 299 — READ BEFORE THE FIRST THING THAT CAN MOVE THE EDITOR, which is
+        // `clearStaleTab` and not `scene.new`: on an overwrite the stale-tab close
+        // has already changed `current` by the time the decomposition runs, so a
+        // capture taken any later restores the caller to the wrong scene.
+        const before = await currentEditedScene();
         await clearStaleTab(a.path);
-        return ok({ ...(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
+        return ok({ ...(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField(before)) });
       } catch (err) {
         return fail(err);
       }
@@ -2130,7 +2191,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       description:
         "Build a board scene whose children are addressable cells (each a cell_<id> node in the board_cells group) from a ring, grid, or explicit-cells layout. " +
         "Cells are Marker2D (or Control) anchors positioned by pure layout math; an optional background (color or res:// art) sits behind them. " +
-        "General-purpose — cells carry only caller-supplied ids. DESTRUCTIVE (writes a scene) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
+        "General-purpose — cells carry only caller-supplied ids. DESTRUCTIVE (writes a scene) — gated by confirmation. Puts the editor back on the scene you had open; `edited_scene` names where it landed.",
       inputSchema: {
         path: z.string().describe("Where to save the board scene, e.g. res://ui/board/Board.tscn"),
         layout: boardLayout.describe("ring{cells[]} | grid{rows,cols} | cells{cells[{id,x,y}]}"),
@@ -2158,8 +2219,13 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const blocked = await gate(server, a.confirm, `Create board scene at ${a.path}`);
       if (blocked) return blocked;
       try {
+        // 🆕 299 — READ BEFORE THE FIRST THING THAT CAN MOVE THE EDITOR, which is
+        // `clearStaleTab` and not `scene.new`: on an overwrite the stale-tab close
+        // has already changed `current` by the time the decomposition runs, so a
+        // capture taken any later restores the caller to the wrong scene.
+        const before = await currentEditedScene();
         await clearStaleTab(a.path);
-        return ok({ ...(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
+        return ok({ ...(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField(before)) });
       } catch (err) {
         return fail(err);
       }
@@ -2199,7 +2265,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       description:
         "Build a tile-backed board scene: a TileMapLayer grid whose cells are addressable by integer [x, y] tile coordinates (cols wide × rows tall). " +
         "The layer binds a TileSet — a supplied `tileset` .tres, or a fresh empty one created at <scene>_tiles.tres — so it has a real tile_size (the coordinate frame placement uses); `paint` optionally fills the whole grid with one tile from the bound tileset. " +
-        "General-purpose — cells carry only coordinates. DESTRUCTIVE (writes a scene, and a TileSet .tres unless `tileset` is supplied) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
+        "General-purpose — cells carry only coordinates. DESTRUCTIVE (writes a scene, and a TileSet .tres unless `tileset` is supplied) — gated by confirmation. Puts the editor back on the scene you had open; `edited_scene` names where it landed.",
       inputSchema: {
         path: z.string().describe("Where to save the board scene, e.g. res://ui/board/TileBoard.tscn"),
         rows: z.number().int().positive().describe("Grid row count (cell y ranges 0..rows-1)"),
@@ -2229,8 +2295,13 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const blocked = await gate(server, a.confirm, `Create tile-backed board scene at ${a.path}`);
       if (blocked) return blocked;
       try {
+        // 🆕 299 — READ BEFORE THE FIRST THING THAT CAN MOVE THE EDITOR, which is
+        // `clearStaleTab` and not `scene.new`: on an overwrite the stale-tab close
+        // has already changed `current` by the time the decomposition runs, so a
+        // capture taken any later restores the caller to the wrong scene.
+        const before = await currentEditedScene();
         await clearStaleTab(a.path);
-        return ok({ ...(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
+        return ok({ ...(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField(before)) });
       } catch (err) {
         return fail(err);
       }
@@ -2272,7 +2343,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       title: "Create piece template",
       description:
         "Build a reusable piece (token) scene from a spec: an Art node (Sprite2D under a Node2D root, TextureRect under a Control root), an optional Label, an optional hit area (Area2D + CollisionShape2D), and an optional two-sided Back, plus a generated script-backed set_data() / set_face(). set_data binds art / color / label; set_face flips face/back visibility. " +
-        "DESTRUCTIVE (writes a scene + script) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
+        "DESTRUCTIVE (writes a scene + script) — gated by confirmation. Puts the editor back on the scene you had open; `edited_scene` names where it landed.",
       inputSchema: {
         path: z.string().describe("Where to save the template scene, e.g. res://ui/pieces/Piece.tscn"),
         size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).describe("Token size in px (drives the hit-area extents and, for a Control root, the Art size)"),
@@ -2311,8 +2382,13 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       const blocked = await gate(server, a.confirm, `Create piece template scene + script at ${a.path}`);
       if (blocked) return blocked;
       try {
+        // 🆕 299 — READ BEFORE THE FIRST THING THAT CAN MOVE THE EDITOR, which is
+        // `clearStaleTab` and not `scene.new`: on an overwrite the stale-tab close
+        // has already changed `current` by the time the decomposition runs, so a
+        // capture taken any later restores the caller to the wrong scene.
+        const before = await currentEditedScene();
         await clearStaleTab(a.path);
-        return ok({ ...(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
+        return ok({ ...(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField(before)) });
       } catch (err) {
         return fail(err);
       }

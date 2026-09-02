@@ -173,8 +173,18 @@ export const OVERWRITE_DOC = "Replace if it exists";
  * 🔵 SPREAD, NOT RESTATED, FOR `wroteDestination`'s REASON one block down: a
  * composite that gains a `scene.new` cannot be added with the reporting half
  * missing. That is exactly how these four came to exist.
+ *
+ * 🆕 299 — AND THE FOUR NOW PUT THE CALLER BACK, SO THE ENVELOPE WAS RENAMED
+ * WITH THEM. 298 shipped this field as a WARNING LABEL: the tools moved you and
+ * at least said where to. Steered at 299, they restore the scene that was
+ * being edited when the call arrived, and the field stops being a warning and
+ * becomes the PROOF — read from the editor after the restore, so a reopen that
+ * failed is visible as a path that is not the caller's. `movedEditedScene` was
+ * the honest name for a tool that moved you and the wrong name for one that
+ * does not; a field whose envelope still claimed the move would be the same
+ * defect 298 found, inverted.
  */
-const movedEditedScene = {
+const reportsEditedScene = {
   edited_scene: z.string().nullable(),
 };
 
@@ -1060,7 +1070,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   })(),
 
   // ---- Group N: card/board/piece authoring composites (tools/tabletop.ts) ----
-  card_template_create: { ...wroteDestination, ...movedEditedScene,
+  card_template_create: { ...wroteDestination, ...reportsEditedScene,
     scene_path: z.string(),
     script_path: z.string(),
     root_type: z.string(),
@@ -1100,7 +1110,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     player_path: z.string().nullable(),
     anim: z.string().nullable(),
   },
-  board_create: { ...wroteDestination, ...movedEditedScene,
+  board_create: { ...wroteDestination, ...reportsEditedScene,
     scene_path: z.string(),
     root_type: z.string(),
     cell_kind: z.string(),
@@ -1117,7 +1127,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     node_path: z.string(),
     align: z.object({ x: z.number(), y: z.number() }),
   },
-  board_tile_create: { ...wroteDestination, ...movedEditedScene,
+  board_tile_create: { ...wroteDestination, ...reportsEditedScene,
     scene_path: z.string(),
     layer_path: z.string(),
     layer_name: z.string(),
@@ -1142,7 +1152,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     align: z.object({ x: z.number(), y: z.number() }),
     reparented: z.boolean(),
   },
-  piece_template_create: { ...wroteDestination, ...movedEditedScene,
+  piece_template_create: { ...wroteDestination, ...reportsEditedScene,
     scene_path: z.string(),
     script_path: z.string(),
     root_type: z.string(),
