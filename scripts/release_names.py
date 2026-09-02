@@ -325,6 +325,20 @@ C4_WINDOW_INCLUDES_STAMP = "C4_WINDOW_INCLUDES_STAMP"
 ADDON_DIR = "addons/breakpoint_mcp"
 ADDON_CFG = f"{ADDON_DIR}/plugin.cfg"
 
+# 🆕 300 — WHERE THE HOST VERSION ACTUALLY LIVES, AND IT MOVED THREE CUTS AGO.
+# `host/src/index.ts` carried a literal `version: "…"` until 2032d04 (#338, `v1.82.1~7`)
+# replaced it with a call to `packageVersion()`, which reads this file at runtime. Three
+# readers went on searching the TypeScript for a literal that no longer exists: two of
+# them refuse loudly (`--tag-cmd` could not name a release commit for 1.82.1, 1.83.0 or
+# 1.84.0) and the third, `tag_tree_version`, returned `None` INSIDE A CHECK THAT PASSED —
+# check 2's misplacement guard, switched off for three releases while check 2 stayed
+# green. That is 217 §20's shape in the file that quotes it: a question nobody can answer
+# and a question answered "fine" are the same colour in a green run.
+# 🔴 THE VERSION FIELD IN THIS FILE IS THE ONE npm PUBLISHES UNDER, so a reader pointed
+# here cannot go stale behind a refactor the way the literal did — anything that moves it
+# moves what the registry receives, and `publish_guard.mjs` already refuses on that.
+HOST_VERSION_FILE = "host/package.json"
+
 # 🆕 217 — `--assert-map`'s codes, promoted from the ritual's check 3.
 MAP_OK = "MAP_OK"
 MAP_UNMAPPED = "MAP_UNMAPPED"
@@ -705,7 +719,7 @@ def population(diff_text: str, old: str, new: str, bump: str,
                shadow: int | None = None) -> tuple[str, str, dict]:
     """Check 2, as a PURE function of (window, versions, bump). Never raises.
 
-    `tag_tree_version` is the version literal found in `host/src/index.ts` AT THE TAG
+    `tag_tree_version` is the shipped version found in `host/package.json` AT THE TAG
     the window starts from. It must be `old`: the tag is supposed to sit at or after
     the cut that wrote it. A tag placed EARLIER than its release commit drags that
     write into this window, which is the shape 216 §3 believed was universal.
@@ -977,18 +991,17 @@ def engines_window(previous: str, root: Path = ROOT,
 
 
 def tag_tree_version(previous: str, root: Path = ROOT) -> str | None:
-    """The version literal in `host/src/index.ts` AS OF tag v{previous}. None if unreadable.
+    """The shipped version AS OF tag v{previous}, from `host/package.json`. None if unreadable.
 
     🔴 READ FROM THE TAG'S OWN TREE, NOT FROM THE TAG NAME. The point is to catch a tag
     that does not sit on the cut it is named after, so believing the name would answer
     the question with the question.
     """
-    r = subprocess.run(["git", "show", f"v{previous}:host/src/index.ts"],
+    r = subprocess.run(["git", "show", f"v{previous}:{HOST_VERSION_FILE}"],
                        cwd=str(root), capture_output=True, text=True)
     if r.returncode != 0:
         return None
-    m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"', r.stdout)
-    return m.group(1) if m else None
+    return _version_in(r.stdout)
 
 
 def tag_release_commit(previous: str, root: Path = ROOT) -> str | None:
@@ -1079,13 +1092,29 @@ def _oldest(shas: list[str]) -> str | None:
     return shas[-1] if shas else None
 
 
+def _version_in(package_json: str) -> str | None:
+    """The `version` field of a `host/package.json` blob. None if it cannot be read.
+
+    🔴 `json.loads` AND NOT A REGEX, WHICH IS THE WHOLE LESSON OF THE READER THIS
+    REPLACES. The old one matched `name: "breakpoint-mcp", version: "…"` in TypeScript —
+    two fields' worth of source formatting baked into a pattern, so a refactor that moved
+    either of them broke it silently. A version field is structured data here; parse it as
+    data. `_D_BUMP_PLUS` in the self-test is the same finding one reader over.
+    """
+    try:
+        v = json.loads(package_json).get("version")
+    except (ValueError, AttributeError):
+        return None
+    return v if isinstance(v, str) and v else None
+
+
 def _first_commit_introducing(needle: str, path: str, root: Path = ROOT) -> str | None:
     """The OLDEST commit whose diff changes the number of occurrences of `needle` in `path`.
 
     🔴 ONE IDIOM, TWO CALLERS, AND THE SECOND ONE IS WHY IT IS A FUNCTION. `-S` matches the
     commit that introduces a literal AND the one that removes it, so the oldest match is the
     introduction — a subtlety worth getting right once rather than twice. `release_commit`
-    asks it of the host version in `host/src/index.ts`; `addon_stamp_commit` asks it of the
+    asks it of the host version in `host/package.json`; `addon_stamp_commit` asks it of the
     addon version in `plugin.cfg`. Two literals over one rule is one of them wrong (203 §2).
     """
     r = subprocess.run(["git", "log", "--format=%H", "-S", needle, "--", path],
@@ -1154,8 +1183,14 @@ def release_commit(version: str, root: Path = ROOT) -> str | None:
     217 §5 refused to close this direction because naming the commit meant a `grep` over
     subjects; naming it from the tree does not. The `-S` subtlety lives in
     `_first_commit_introducing`, which check 4 asks the same question of one file over.
+
+    🆕 300 — AND THE LITERAL IT LOOKS FOR IS `host/package.json`'s, NOT `index.ts`'s. See
+    `HOST_VERSION_FILE`. The needle keeps its quoted JSON key (`"version": "…"`) because
+    the unquoted spelling matches nothing in this file, and a needle that matches nothing
+    returns `None` — which this reader's caller reports as `TAG_COMMIT_UNFINDABLE`, a
+    refusal indistinguishable from a version that was genuinely never committed.
     """
-    return _first_commit_introducing(f'version: "{version}"', "host/src/index.ts", root)
+    return _first_commit_introducing(f'"version": "{version}"', HOST_VERSION_FILE, root)
 
 
 def tag_message(version: str, sha: str) -> str:
@@ -1175,7 +1210,7 @@ def tag_command(version: str, sha: str | None, tree_version: str | None) -> tupl
     """The annotated tag that declares its own release commit — PURE.
 
     🔴 GUARDED ON THE TREE, NOT ON THE NAME, and for the same reason `tag_tree_version`
-    is: tagging v1.73.3 at a commit whose `host/src/index.ts` ships 1.73.2 is exactly the
+    is: tagging v1.73.3 at a commit whose `host/package.json` ships 1.73.2 is exactly the
     misplacement `C2_TAG_MISPLACED` catches ONE CUT LATER, when the window it broke is
     already unreadable. Catching it at the moment of tagging costs one comparison.
 
@@ -1548,6 +1583,45 @@ OLDEST_SELFTEST = [
      ["removal", "reintro", "intro"], "intro"),
 ]
 
+# 🆕 300 — `_version_in`'s TABLE, AND EVERY ROW BUT THE FIRST IS A `None`.
+#
+# 🔴 THE READER THIS REPLACES HAD NO ROWS AT ALL, WHICH IS WHY NOBODY SAW IT DIE. It
+# regex-matched two TypeScript fields, #338 moved one of them, and the reader went on
+# answering `None` for three releases inside a check that reported green. A reader whose
+# empty is indistinguishable from its answer needs its empty DRIVEN, not documented.
+#
+# 🔴 THE LAST TWO ROWS ARE THE `except` CLAUSE, ONE ARM EACH. Malformed bytes raise
+# `ValueError`; a JSON document that is not an object (`git show` on a path that is a
+# directory, a truncated fetch that yields `null`) raises `AttributeError` on `.get`.
+# Catching only the first is the crash this file has already paid for twice — a reader
+# that cannot show its own refusal (273), and 278's four members whose blind died before
+# the verdict line.
+VERSION_IN_SELFTEST = [
+    ("the shape every cut writes — the field npm publishes under",
+     '{"name": "breakpoint-mcp", "version": "1.84.0"}', "1.84.0"),
+    ("a package.json with no version field is None, not a guess",
+     '{"name": "breakpoint-mcp"}', None),
+    ("🔴 a NUMBER is not a version — `2` and `\"2\"` are different answers",
+     '{"version": 2}', None),
+    ("🔴 an EMPTY string is the empty, not a version",
+     '{"version": ""}', None),
+    ("🔴 malformed bytes — the ValueError arm",
+     '{"version": "1.84.0"', None),
+    ("🔴 valid JSON that is not an object — the AttributeError arm",
+     'null', None),
+    # 🔴 AND A POSITIVE LAST, WHICH IS NOT SYMMETRY — IT IS THE LATE AXIS'S OWN REFUSAL,
+    # PAID. The first draft of this table was one positive followed by five empties, and
+    # `INSTRUMENT_GATE_LATE` refused it by name: a late blind lets a member answer ONCE
+    # and return its empty for every call after, so with the only positive running FIRST
+    # every remaining row was satisfied by a reader that finds nothing anywhere. Six rows
+    # green, blind undetected. The table's LAST call must therefore expect a real answer.
+    # 🔴 A DIFFERENT VERSION FROM THE FIRST ROW ON PURPOSE: a repeat of `1.84.0` would
+    # also pass on a reader that had memoised its first answer instead of parsing.
+    ("🔴 A POSITIVE LAST — a late blind answers once, so the last call is the one that "
+     "has to expect something",
+     '{"name": "breakpoint-mcp", "version": "1.15.0"}', "1.15.0"),
+]
+
 
 def detail_or_refusal(d: dict, keys: "tuple[str, ...]", reader: str) -> str:
     """`""` when the detail bag carries every key its row reads, else a NAMED refusal.
@@ -1785,6 +1859,14 @@ def selftest() -> int:
         if not agree:
             bad += 1
 
+    for name, blob, want in VERSION_IN_SELFTEST:
+        got = _version_in(blob)
+        agree = got == want
+        print(f"  {'🟢' if agree else '🔴'} {'_version_in':<22} -> {got!r:<10} {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want!r} · got {got!r}")
+
     # ── 🆕 278 — THE SHORT-BAG BRANCH, WATCHED IN BOTH DIRECTIONS ──────────────────
     #
     # 🔴 EVERY ROW ABOVE CALLS A REAL READER, WHICH ON A HEALTHY TREE ALWAYS ANSWERS WITH
@@ -1810,7 +1892,7 @@ def selftest() -> int:
 
     rows = (len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
             + len(ADDON_SELFTEST) + len(OLDEST_SELFTEST) + len(MAJOR_SELFTEST)
-            + len(C8_SELFTEST))
+            + len(C8_SELFTEST) + len(VERSION_IN_SELFTEST))
     passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK, C4_OK, C8_OK}
     seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
             | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST}
@@ -1954,11 +2036,9 @@ def main() -> int:
         # tag will name. The working tree is a different question and can differ from it.
         tree = None
         if sha is not None:
-            r = subprocess.run(["git", "show", f"{sha}:host/src/index.ts"],
+            r = subprocess.run(["git", "show", f"{sha}:{HOST_VERSION_FILE}"],
                                cwd=str(ROOT), capture_output=True, text=True)
-            m = re.search(r'name:\s*"breakpoint-mcp",\s*version:\s*"([^"]+)"', r.stdout) \
-                if r.returncode == 0 else None
-            tree = m.group(1) if m else None
+            tree = _version_in(r.stdout) if r.returncode == 0 else None
         code, text = tag_command(a.tag_cmd, sha, tree)
         if code != TAG_OK:
             print(f"\n🔴 RELEASE_NAMES REFUSED [{code}]: {text}", file=sys.stderr)
