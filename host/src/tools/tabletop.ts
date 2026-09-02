@@ -1795,6 +1795,40 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
   }
 
   /**
+   * Which scene the editor is editing AFTER this call — 298.
+   *
+   * 🔴 FOUR TOOLS MOVED THE EDITOR AND NONE OF THEM SAID SO, AND THE FACT WAS
+   * ALREADY WRITTEN DOWN TWICE IN THIS REPOSITORY. `guardWriteTarget`'s own
+   * comment forty lines up says the addon's `scene.new` "calls
+   * `EditorInterface.open_scene_from_path(path)`"; `tabletop-plane.integration.mjs`
+   * opens its live family with *every `*_create` decomposes onto scene.new → …
+   * → scene.save, which SWITCHES the edited scene, so the four disk writers run
+   * first and the in-scene work follows one scene_open*. Both are correct. Both
+   * are in files a CALLER never opens, and the tool surface said nothing — no
+   * description, no field, nothing in `TOOL_CATALOG.md`.
+   *
+   * 🔴 MEASURED AT 298 ON A LIVE GODOT 4.7, ON THE DEFAULT SURFACE. Compose a
+   * table, call `card_template_create`, then `card_instance` with `parent: "."`
+   * exactly as its own description invites: the card is created, `bound` lists
+   * the slot, `isError` is false — and the card is in the CARD TEMPLATE. The
+   * user's table is untouched. Every call in that sequence answers success.
+   *
+   * 🔵 IT IS READ, NOT ASSUMED. `spec.path` is what the compose ASKED for; this
+   * is what the editor ANSWERS, which is the difference between an echo and a
+   * measurement (155 §2) — and the two can differ, because `clearStaleTab` may
+   * have moved the editor before the write and a failed open would leave it
+   * somewhere else again.
+   *
+   * 🔵 AND IT IS SPREAD, NOT RESTATED, FOR `wroteDestination`'s REASON (284): a
+   * fifth composite that decomposes onto `scene.new` cannot be added with the
+   * reporting half missing. `contract_check` check 36 holds that population.
+   */
+  async function editedSceneField(): Promise<Record<string, unknown>> {
+    const open = await emit("scene.list_open", {}) as { current?: unknown };
+    return { edited_scene: typeof open?.current === "string" ? open.current : null };
+  }
+
+  /**
    * The second half, run only AFTER the confirmation gate has been cleared —
    * closing a scene tab is a visible side effect and must not happen on a call
    * the caller then declines.
@@ -1866,7 +1900,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       description:
         "Build a reusable card scene (a PackedScene) from a slot spec, with a generated script-backed set_data() / set_face(). " +
         "Named slots (label / rich_text / texture / panel / badge) become the card's regions; card_instance and card_deck_from_table " +
-        "bind data to them by slot name. Optional inline theme and a two-sided card back. DESTRUCTIVE (writes a scene + script) — gated by confirmation.",
+        "bind data to them by slot name. Optional inline theme and a two-sided card back. DESTRUCTIVE (writes a scene + script) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
       inputSchema: {
         path: z.string().describe("Where to save the template scene, e.g. res://ui/cards/Card.tscn"),
         size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).describe("Card dimensions in px"),
@@ -1916,7 +1950,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok({ ...(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
+        return ok({ ...(await emitCardTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
       } catch (err) {
         return fail(err);
       }
@@ -2096,7 +2130,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       description:
         "Build a board scene whose children are addressable cells (each a cell_<id> node in the board_cells group) from a ring, grid, or explicit-cells layout. " +
         "Cells are Marker2D (or Control) anchors positioned by pure layout math; an optional background (color or res:// art) sits behind them. " +
-        "General-purpose — cells carry only caller-supplied ids. DESTRUCTIVE (writes a scene) — gated by confirmation. Returns the cell_id → node_path + position map.",
+        "General-purpose — cells carry only caller-supplied ids. DESTRUCTIVE (writes a scene) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
       inputSchema: {
         path: z.string().describe("Where to save the board scene, e.g. res://ui/board/Board.tscn"),
         layout: boardLayout.describe("ring{cells[]} | grid{rows,cols} | cells{cells[{id,x,y}]}"),
@@ -2125,7 +2159,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok({ ...(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
+        return ok({ ...(await emitBoardCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
       } catch (err) {
         return fail(err);
       }
@@ -2165,7 +2199,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       description:
         "Build a tile-backed board scene: a TileMapLayer grid whose cells are addressable by integer [x, y] tile coordinates (cols wide × rows tall). " +
         "The layer binds a TileSet — a supplied `tileset` .tres, or a fresh empty one created at <scene>_tiles.tres — so it has a real tile_size (the coordinate frame placement uses); `paint` optionally fills the whole grid with one tile from the bound tileset. " +
-        "General-purpose — cells carry only coordinates. Adds no addon method — decomposes onto scene.new → tileset.create → tilemaplayer.create → tilemap.set_cells_rect → scene.save. DESTRUCTIVE (writes a scene, and a TileSet .tres unless `tileset` is supplied) — gated by confirmation. Returns the layer path + grid dimensions + tile size.",
+        "General-purpose — cells carry only coordinates. DESTRUCTIVE (writes a scene, and a TileSet .tres unless `tileset` is supplied) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
       inputSchema: {
         path: z.string().describe("Where to save the board scene, e.g. res://ui/board/TileBoard.tscn"),
         rows: z.number().int().positive().describe("Grid row count (cell y ranges 0..rows-1)"),
@@ -2196,7 +2230,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok({ ...(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
+        return ok({ ...(await emitBoardTileCreate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
       } catch (err) {
         return fail(err);
       }
@@ -2238,7 +2272,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       title: "Create piece template",
       description:
         "Build a reusable piece (token) scene from a spec: an Art node (Sprite2D under a Node2D root, TextureRect under a Control root), an optional Label, an optional hit area (Area2D + CollisionShape2D), and an optional two-sided Back, plus a generated script-backed set_data() / set_face(). set_data binds art / color / label; set_face flips face/back visibility. " +
-        "Decomposes onto scene.new → node.add → node.set_property → resource.create → scene.save. DESTRUCTIVE (writes a scene + script) — gated by confirmation. Returns the scene path + the created-node map.",
+        "DESTRUCTIVE (writes a scene + script) — gated by confirmation. The created scene becomes the EDITED scene (`edited_scene`) — reopen yours first.",
       inputSchema: {
         path: z.string().describe("Where to save the template scene, e.g. res://ui/pieces/Piece.tscn"),
         size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).describe("Token size in px (drives the hit-area extents and, for a Control root, the Art size)"),
@@ -2278,7 +2312,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
       if (blocked) return blocked;
       try {
         await clearStaleTab(a.path);
-        return ok({ ...(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed) });
+        return ok({ ...(await emitPieceTemplate(emit, a) as unknown as Record<string, unknown>), ...replacedField(existed), ...(await editedSceneField()) });
       } catch (err) {
         return fail(err);
       }

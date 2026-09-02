@@ -225,6 +225,17 @@ async function main() {
   // job on legal input. ORDER MATTERS — every *_create decomposes onto
   // scene.new → … → scene.save, which SWITCHES the edited scene, so the four
   // disk writers run first and the in-scene work follows one scene_open.
+  //
+  // 🆕 298 — 🔴 AND THAT SENTENCE WAS THE ONLY PLACE IN THIS REPOSITORY A CALLER
+  // COULD HAVE LEARNED IT, WHICH IS TO SAY NOWHERE. It was correct, it was
+  // precise, and it was a COMMENT in the file whose author already knew — no
+  // description said it, no field carried it, `TOOL_CATALOG.md` did not mention
+  // it. Measured at 298 on the DEFAULT surface: compose a table, create a card
+  // template, then `card_instance` with `parent: "."` exactly as its own
+  // description invites, and the card lands in the CARD TEMPLATE while every call
+  // answers success. `edited_scene` is the fix; the four claims below are what
+  // turn this comment into something a red gate can say. 297 §5.1's rule, paid
+  // one file over: a fact written only in a comment is a fact nothing enforces.
   await family("TT_LIVE", async () => {
     const T = "res://_tt_card.tscn", P = "res://_tt_piece.tscn";
     const B = "res://_tt_board.tscn", TB = "res://_tt_tileboard.tscn";
@@ -241,6 +252,51 @@ async function main() {
     expectOk("TT_LIVE_TILE_CREATE", await call("board_tile_create", {
       path: TB, rows: 2, cols: 2, tile_size: [32, 32],
     }), `nodes_on_disk=${sceneNodeCount(TB)}`);
+
+    // 🆕 298 — THE COMMENT ABOVE, AS FOUR CLAIMS. Each creator is called once more
+    // from a KNOWN edited scene, and both halves are read: the answer must name the
+    // scene it left the editor in, and `scene_list_open` must agree. The pair is the
+    // point — a field echoing `path` would satisfy the first arm on a tool that had
+    // stopped moving the editor at all, and the second arm is what refuses that.
+    // 🔴 THE ARGUMENTS ARE THE FOUR ABOVE, VERBATIM, PLUS `overwrite`. The first
+    // draft of this loop re-created the card template with ONE slot and broke three
+    // downstream claims that read the fixture off disk — a probe that damages the
+    // population it shares is a probe measuring its own footprint (295 §5.4, one
+    // file over). Same paths, same specs: the fixtures are rewritten identical.
+    for (const [tool, args] of [
+      ["card_template_create", { path: T, size: { width: 120, height: 180 }, slots: [{ name: "title", kind: "label" }, { name: "cost", kind: "badge" }], overwrite: true }],
+      ["piece_template_create", { path: P, size: { width: 48, height: 48 }, color: "#3366cc", hit_area: { shape: "rectangle" }, overwrite: true }],
+      ["board_create", { path: B, layout: { mode: "grid", rows: 3, cols: 3 }, overwrite: true }],
+      ["board_tile_create", { path: TB, rows: 2, cols: 2, tile_size: [32, 32], overwrite: true }],
+    ]) {
+      // `sc` is typed `unknown` on this probe's call helper, so every read of it goes
+      // through one narrowing accessor rather than three inline casts — `lint_ceiling.py`
+      // counts TS2339 as a CLASS and refused three new ones on this file's first run.
+      const field = (r, k) => /** @type {Record<string, unknown>} */ (r?.sc ?? {})[k] ?? null;
+      await call("scene_open", { path: MAIN });
+      const before = field(await call("scene_list_open"), "current");
+      const r = await call(tool, args);
+      const after = field(await call("scene_list_open"), "current");
+      const named = field(r, "edited_scene");
+      if (r.isError || r.threw) {
+        fail(`TT_LIVE_EDITED_SCENE_${tool}`, `the creator refused: ${(r.text ?? r.threw ?? "").slice(0, 160)}`);
+      } else if (named === null) {
+        fail(`TT_LIVE_EDITED_SCENE_${tool}`,
+          `answered success and did not name the edited scene. It moved the editor from ${before} to ${after}; ` +
+          `the caller's next in-scene call lands there and nothing in this answer says so`);
+      } else if (named !== after) {
+        fail(`TT_LIVE_EDITED_SCENE_${tool}`,
+          `reported edited_scene=${named} and the editor is editing ${after} — an ECHO of \`path\`, not a reading`);
+      } else if (before === after) {
+        fail(`TT_LIVE_EDITED_SCENE_${tool}`,
+          `did not move the edited scene at all (${before}) — either the decomposition changed, ` +
+          `in which case this whole family's scene_open dance is obsolete, or scene_list_open stopped answering`);
+      } else {
+        pass(`TT_LIVE_EDITED_SCENE_${tool}`, `moved the editor ${before} → ${after} and said so`);
+      }
+    }
+    // and hand the family back the scene it expects to be on.
+    await call("scene_open", { path: MAIN });
 
     // A template is only a template if it survives the round trip to disk: the
     // measurement's first false alarm was an instance that worked ONLY because

@@ -133,7 +133,7 @@ CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 # 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
 # 🆕 240 — 75 -> 76, the same move again: 239's block is the thirteenth.
 ALIAS_SPELLING_FLOOR = 76
-READER_FLOOR = 31        # governed by floor_pin_gate's SIZE_LEDGER
+READER_FLOOR = 32        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
 #
@@ -335,6 +335,32 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
     ("floor_pin.exempt", r"\bexempt\b", 1, ("python3", "scripts/floor_pin_gate.py"), ROOT,
      r"^FLOOR_PIN_DISCOVERED unswept=\d+ exempt=(\d+)", LOCKED, REQUIRED,
      "the DISCOVER half's exemption table. `exempt 36`."),
+
+    # 🆕 298 — 297 §2.2's COUNTER, AND 297 §6 IS WHY IT ARRIVES A SESSION LATE.
+    # `floor_pin_gate.py` prints `FLOOR_PIN_TARGET_REASON` for the first time in the commit
+    # that shipped `TARGET_REASONS`, and 297's block does NOT carry the line: the close
+    # rehearsal answered `UNREADABLE CLAIM` twice, so the counter was taken OUT rather than
+    # smuggled in past a roster that could not read it. 286 §7.5 says a counter in a status
+    # block owes a `COUNTER_READERS` row in the SAME PR; the honest form of that rule when
+    # the row was missed is that the two go in TOGETHER, one session later, which is this.
+    #
+    # 🔴 THREE NUMBERS, AND THE PAIR THAT CARRIES THE CLAIM IS `bound` AGAINST `unreasoned`.
+    # `bound` counts reasons that actually JOIN to a live row, which is the one direction
+    # `TARGET_UNREASONED_CEILING` is structurally unable to see — 297 §2.2's
+    # `REASON_COLLAPSE`, where the two key shapes drift apart, the join binds nothing, every
+    # row reads as unreasoned and the ceiling agrees. `unreasoned` is the debt that ceiling
+    # governs. Their sum is `len(TARGETS)`, which `floor_pin.targets` already carries as
+    # `floor_pin 113` — so a pin table that SHRANK would drop `unreasoned` with no reason
+    # ever written, and the two atoms in the same block would stop adding up.
+    # 🔵 THE CEILING IS THE THIRD BECAUSE A DEBT WITH NO BOUND IN THE BLOCK IS A DEBT WHOSE
+    # ONLY RECORD IS A FILE NOBODY READS — which is the whole of what 297 §2.1 found.
+    ("floor_pin.target_reason", r"\btarget reasons?\b", 3,
+     ("python3", "scripts/floor_pin_gate.py"), ROOT,
+     r"^FLOOR_PIN_TARGET_REASON (\d+) of \d+ pinned constant\(s\) carry a reason / "
+     r"floor \d+ · (\d+) unreasoned / ceiling (\d+)", LOCKED, SINCE(298),
+     "pinned constants whose reason BINDS to a live row, constants carrying no reason at "
+     "all, and the ceiling that debt is governed against. `target reasons 7 bound / 106 "
+     "unreasoned / ceiling 106`."),
 
     # ── terminology_gate.py ───────────────────────────────────────────────────────────
     ("term.swept", r"\bterm\b", 2, ("python3", "scripts/terminology_gate.py"), ROOT,
@@ -864,6 +890,7 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "floor_pin.shortfall":         INDEX,
     "floor_pin.unswept":           INDEX,
     "floor_pin.exempt":            INDEX,
+    "floor_pin.target_reason":     INDEX,
     "term.swept":                  INDEX,
     "landscape.roster":            TRACKED,
     "landscape.capability":        TRACKED,
@@ -5595,6 +5622,18 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
+    # 🆕 298 — ONE ROW, AND IT IS 294's SHAPE WITH ONE EXTRA SESSION IN IT.
+    # `floor_pin_gate.py` has printed `FLOOR_PIN_TARGET_REASON` since 297 §2.2, and yet
+    # every block in `BLOCK_POPULATION` predates the ATOM — because 297's block was the
+    # one that could have carried it and its close rehearsal answered `UNREADABLE CLAIM`
+    # instead, so the line was pulled rather than shipped unread (297 §6). `ALIAS_UNUSED`
+    # would therefore refuse this row on arrival, which is exactly the state 246 built this
+    # table for. 🔴 299 ADDS 298's BLOCK, THE BLOCK CARRIES `target reasons 7 bound / 106
+    # unreasoned / ceiling 106`, THE KEY BECOMES REACHED AND `pending_problems` TURNS THIS
+    # ROW INTO `ALIAS_PENDING_STALE` ON THAT SAME RUN — delete it because the gate says so,
+    # not because you remembered.
+    "floor_pin.target_reason":
+        "298 ships the reader; 299 adds 298's block and this row goes STALE on that run",
     # 🆕 295 — EMPTY AGAIN, AND `landscape.cadence` EXPIRED ON THE SCHEDULE ITS OWN ROW
     # WROTE, TO THE RUN. 294 filed it saying *295 adds 294's block, the block carries
     # `cadence 33 within / 5 past / 14 never analysed`, the key becomes reached and
@@ -5682,6 +5721,14 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
     ("contract 23/23", "contract.checks", "a ratio with a label"),
     ("unswept 0", "floor_pin.unswept", ""),
     ("exempt 36", "floor_pin.exempt", ""),
+    ("target reasons 7 bound / 106 unreasoned / ceiling 106", "floor_pin.target_reason",
+     "🔴 THE SEVENTH ROW READING `floor_pin_gate.py`, AND THE ONE ITS OWN FAMILY COULD "
+     "SWALLOW. Six aliases already point at that one instrument — `floor_pin`, `governed`, "
+     "`keys`, `shortfalls`, `unswept`, `exempt` — and this atom spells none of them; its "
+     "alias is `target reasons`, which no counter in any block has ever carried. 🔴 AND IT "
+     "IS PINNED BEFORE ANY BLOCK CARRIES IT ON PURPOSE, which is 287's reason for `taut."
+     "orphan`: 297 pulled the line from its block rather than ship it unread, so the first "
+     "thing this tree records about the counter is which single reader it binds to"),
     ("term 275 file(s) / 21 suffixes", "term.swept", ""),
     ("landscape 4 channel(s) / 51 analysed / 47 surfaced", "landscape.roster",
      "three numbers on one atom, and the alias is the word `landscape` — which appears "
@@ -7670,6 +7717,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · landscape 4 channel(s) / 52 analysed / 48 surfaced
 >               · capability 43 claimed / 35 unread / 10 uncited
 >               · cadence 33 within / 5 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+
+    (297, """> ```
+> main                 7e0622f — a pin table that could not say why, and the room that bought (#373)  MOVED +1
+> branch 297           session297-a-pin-table-that-cannot-say-why · PR #373
+> host / addon         1.83.0 / 1.15.0  🟢 UNMOVED — no source touched under addons/
+> npm                  🟢 registry 1.83.0 · untagged 13 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at the merge, and the post-merge run at 7e0622f
+> 🟡 `sdk-drift` RED at 7e0622f — WORLD-FACING, reported not refused (294 §2.1), §2.5
+> 🔴 registry_lag REFUSES — untagged 13 against a ceiling of 8, crossed at 293, see §3.2
+> 🟢 VERIFIED AFTER THE CHANGE   974/974 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3002
+>               · late not-loaded 0 · late constructed 322/160
+>               · py gates 18/6/12 · SIG 260/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2164 keys · 99 shortfalls
+>               · unswept 0 · exempt 42 · term 325 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3852 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5043 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 44/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 526 claims
+>               · landscape 4 channel(s) / 52 analysed / 48 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 30 within / 8 past / 14 never analysed
 >               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
 >                 addon / 0 problems
 > ```
@@ -9727,12 +9806,18 @@ def selftest() -> int:
     # 275's reason: `assetlib_sweep.py --census` prints `LANDSCAPE_CENSUS` for the first
     # time in the commit that adds the row, so every block in the population predates the
     # counter and a flat `REQUIRED` would refuse all sixty-three of them.
-    if len(since_rows) != 17:
+    # 🆕 298 — SEVENTEEN BECAME EIGHTEEN, and `floor_pin.target_reason` is 287's version
+    # of the reason rather than 275's: the line it reads has been printed since 297 §2.2,
+    # and no block has ever bound it, because 297's close rehearsal caught the counter with
+    # no row and pulled it from the block instead of shipping it unread. So the counter is
+    # not new, the ROW is — 298 is the first block that can carry it and the pin moves in
+    # the commit that adds the row.
+    if len(since_rows) != 18:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 17 — "
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 18 — "
               f"237 §3 measured six, 246 added four, 269 added one, 275 added one, 287 "
-              f"added two, 291 added one, 293 added one and 294 added one; the table is "
-              f"the only record of which")
+              f"added two, 291 added one, 293 added one, 294 added one and 298 added one; "
+              f"the table is the only record of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))
