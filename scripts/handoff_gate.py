@@ -1210,6 +1210,10 @@ PROVENANCE: "dict[str, str]" = {
                             # separate word, and one row cannot bind two aliases.
     "version.unmoved": TREE,  # 🆕 243 §3 — package.json and plugin.cfg against the
                             # previous block's pair. Two files on disk, no network.
+    "version.moved": TREE,  # 🆕 303 — the SAME two files and the same endpoints, and
+                            # the reason it is a separate key is the reason `git.moved`
+                            # and `git.unmoved` are: the block prints a different word
+                            # and one row cannot bind two aliases.
     "gh.issues": REMOTE,    # GitHub's tracker — no local question has this answer
     "gh.prs": REMOTE,
 }
@@ -1407,7 +1411,12 @@ def header_atoms(block: "list[str]") -> "tuple[list[tuple[str, str]], set[str]]"
     # carries its own subject — `lag 0`, `tags 121` — and a word does not, so the row is
     # the only thing that can tell the two apart. Binding both to one reader would have
     # compared an addon version against a commit interval and called it agreement.
-    word_claims = [r[1] for r in HEADER_READERS if r[2] == 0]
+    # 🆕 303 — `<= 0`, NOT `== 0`. A word claim is one whose number is spelled rather
+    # than written, and 303 added a second spelling: `-1` is a word that asserts NOT
+    # ZERO where `0` asserts the literal zero. Both are digitless and both must reach
+    # the branch below; deriving the set from the roster rather than listing it here is
+    # 243's own rule, and this is the first time the derivation had to widen.
+    word_claims = [r[1] for r in HEADER_READERS if r[2] <= 0]
     for line in rows:
         pieces = [p.strip(" *`,") for p in re.split(r"·|\s{3,}", line)]
         # the row's LABEL is its first field — `main`, `host / addon`, `npm`. It is what
@@ -1424,7 +1433,18 @@ def header_atoms(block: "list[str]") -> "tuple[list[tuple[str, str]], set[str]]"
                 if any(re.search(p, context, re.I) for p in word_claims):
                     atoms.append((atom, context))
                 continue
-            kept = atom
+            # 🆕 303 — AND THE NUMERAL PATH CARRIES THE LABEL TOO, WHICH IS WHAT LETS
+            # A NUMERAL ALIAS BE ANCHORED TO ITS ROW. The word path above has built its
+            # text as label-plus-atom since 243 and the numeral path did not, so
+            # `git.moved` COULD NOT be anchored the way `git.unmoved` was — an anchored
+            # alias would have matched nothing on the `main` row. 302 priced this as a
+            # blocker on the grounds that the `branch N` label carries a numeral which
+            # would enter every branch-row claim; the exemption for exactly that has
+            # been in `HEADER_EXEMPT` since 235, and it runs below. Measured over all 75
+            # registered blocks before the change was made: identical results with and
+            # without the prefix — 0 atoms lost, 0 newly ambiguous, the same 230 atoms
+            # binding one alias and the same 38 binding the known `gh` pair.
+            kept = " ".join(f"{label} {atom}".split())
             for pat, _why in HEADER_EXEMPT:
                 if re.search(pat, kept):
                     fired.add(pat)
@@ -2890,12 +2910,23 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
      "`26/26 green` on the branch line is the same derivation `ci.checks` already does "
      "for the VERIFIED line's `26 CI jobs`, restated as a ratio — so it is checked "
      "against the same reader, and both halves must equal it."),
-    ("git.moved", r"\bMOVED\b", 1, "",
+    # 🆕 303 — ANCHORED TO ITS ROW, WHICH 243 DID FOR ITS SIBLING AND COULD NOT DO
+    # HERE. `git.unmoved` was anchored the moment it was written, because the block
+    # prints `unmoved` on two different rows meaning two different things; the bare
+    # `MOVED` beside it was left unanchored and was safe for sixty sessions for one
+    # reason only, which is that the `host / addon` row has never been an atom. 302
+    # measured the collision and called it a blocker; 303 measured its PRICE and there
+    # is none — over all 75 registered blocks, anchoring this alias and prefixing the
+    # row label onto the numeral path leaves every existing claim binding exactly what
+    # it bound before: 0 atoms lost, 0 newly ambiguous.
+    ("git.moved", r"^(?:main|branch)\b.*\bMOVED\b", 1, "",
      "🆕 239 §2 — `MOVED +1` — commits between the SHA main stood at when the session "
      "OPENED and the one it stands at now. The first endpoint is the PREVIOUS block's "
      "main row, read out of `BLOCK_POPULATION`; 236 read it off this block's own "
      "continuation line, which is the main SHA's parent in all twelve real blocks and "
-     "made the answer 1 by construction. Still TREE, still offline."),
+     "made the answer 1 by construction. Still TREE, still offline. 🆕 303 — and the "
+     "alias is anchored to the row, so the word on the `host / addon` line belongs to "
+     "`version.moved` and to nothing else."),
     # 🆕 243 §3 — `header-unmoved-unread` (OPEN 239), and the row is one word long.
     # `UNMOVED` is the SAME counter as `MOVED +n` with the number spelled as a word, and
     # `header_atoms` requires a numeral, so it was never an atom, never bound, never
@@ -2917,6 +2948,40 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
      "Read from `host/package.json` and `addons/breakpoint_mcp/plugin.cfg` against the "
      "previous block's own two numbers, and it asserts zero of the two moved. TREE, "
      "offline, and the second half of `header-unmoved-unread`."),
+    # ── 🆕 303 — `host-row-moved-claim-is-unread` (301), AND THE WORD IS A SIGN ───────
+    #
+    # 🔴 THE ROW WAS HALF-READ AND THE HALF THAT WAS DARK IS THE HALF THAT REPORTS A
+    # CHANGE. `version.unmoved` binds only when the row says the two published version
+    # strings did NOT move; a row that says they DID produced no atom at all — not an
+    # unread atom, no atom — through every one of the 24 blocks that wrote it. 300's
+    # block says `🔴 HOST MOVED against the newest BLOCK`, which was false when it was
+    # published, and nothing in this file had an opinion. 303 drove it rather than
+    # arguing it: 302's own registered block, edited from `🟢 UNMOVED` to `🔴 MOVED`,
+    # passes `--selftest` 538/538 with no word said.
+    #
+    # 🔴 AND THE WORD HERE IS A SIGN, NOT A DIGIT — WHICH IS WHERE IT PARTS WITH 243.
+    # `unmoved` asserts the literal zero `version_interval` returns, so 243 could write
+    # `n = 0` and let the comparison stand. `MOVED` asserts only NOT ZERO: the row says
+    # a version string changed and does not say how many, and both 1 and 2 are true
+    # readings of it. `n = -1` is that shape — a word claim with no number to compare,
+    # refused when and only when the tree says nothing moved. Writing `n = 0` here would
+    # have made this row refuse every honest block that cut a release, and writing
+    # `n = 1` would have made it lie about a session that moved both.
+    #
+    # 🔵 AND IT CAN ONLY EVER BE A CLAIM ABOUT THE BLOCK BEING WRITTEN, which is a
+    # smaller claim than the queue row supposed and the only true one.
+    # `version_interval` takes its FAR endpoint from `tree_versions(root)` — the tree
+    # NOW — so at the close, against this session's own block, the endpoint is right;
+    # over the population it is not, and 57 of the 75 registered blocks measure 2 today
+    # against a tree that has moved on. There is no `VERSION_POPULATION` for the same
+    # reason `UNMOVED_POPULATION` cannot have one, and that is why 300's false sentence
+    # stands as published rather than being retrospectively refusable.
+    ("version.moved", r"^host\s*/\s*addon\b.*\bMOVED\b", -1, "",
+     "🆕 303 — `MOVED` on the `host / addon` row asserts that at least one of the two "
+     "published version strings changed since the previous block. Same reader, same two "
+     "files and same endpoints as `version.unmoved`, and the opposite sign: that row "
+     "claims the interval is zero and this one claims it is not. TREE, offline, and the "
+     "half of `header-unmoved-unread` 243 left dark."),
     ("gh.issues", r"\bopen issues\b", 1, r"^GH_OPEN_ISSUES (\d+)$",
      "🆕 `0 open issues` — NETWORK, `gh issue list --state open`. A counter whose "
      "correct value is almost always zero is the one an absent tool imitates perfectly, "
@@ -2960,6 +3025,17 @@ POPULATION_SHAPE_FROM = 233
 # gets closed; a counter a published block never printed is a fact about a document
 # nobody may edit, and gets written down.
 #
+# 🆕 303 — AND THE HEADER ROW LEFT THE TABLE THE SAME WAY, WHICH IS THE FIRST TIME THAT
+# SENTENCE HAS BEEN USED TWICE. `block 268 carries 1 header atom(s) against a floor of
+# 2` was true when 269 wrote it and is false now, and the block has not been touched:
+# 268's `host / addon` row says `🟢 HOST MOVED, this session's own cut`, and until 303
+# a row that said MOVED produced no atom at all. The atom was always in the document.
+# What was missing was `version.moved`, and the shortfall was a fact about this file
+# rather than about 268. 🔵 So the debt shrank by the only mechanism the paragraph above
+# allows, and the shrinking is the evidence that the new reader reaches real blocks and
+# not just the one it was written against — 21 of the 24 blocks whose `host / addon` row
+# reports a move bind it, and 268 is one of them.
+#
 # 🔴 IT IS SELF-CLEARING, WHICH IS THE ONLY THING THAT KEEPS A ROSTER LIKE THIS HONEST. A
 # row naming a claim the block now passes is itself a REFUSAL, so this table cannot rot
 # into a general permission — it can only shrink, and it can only shrink by the block
@@ -2970,7 +3046,12 @@ POPULATION_SHAPE_DEBT: "dict[int, tuple[str, ...]]" = {
         "block 268 dropped `ci.checks`",
         "block 268 dropped `instrument.not_loaded`",
         "block 268 dropped `instrument.late_constructed`",
-        "block 268 carries 1 header atom(s) against a floor of 2",
+        # 🆕 303 — `block 268 carries 1 header atom(s) against a floor of 2` WAS HERE and
+        # is not a debt any more. It cleared because the tree gained `version.moved`, so
+        # 268's own `host / addon` row became the second atom it always was; the block
+        # is byte-for-byte what it shipped as. The line is left as a comment rather than
+        # deleted because a debt that vanished silently is indistinguishable from a
+        # reader that stopped looking, which is precisely what the refusal above says.
     ),
 }
 
@@ -3116,7 +3197,16 @@ def check_header(block: "list[str]", log: str, run_network: bool,
         # nothing, so `need` is what the length check compares against; writing `n = 1`
         # and a fake numeral would have made the roster lie about the block's own text.
         need = n
-        if n == 0:
+        # 🆕 303 — A SIGN CARRIES NO NUMBER TO COMPARE. `n = -1` is a word claim that
+        # asserts NOT ZERO, so there is nothing on the block's side of the comparison at
+        # all: the refusal below is `got == (0,)` and not an inequality between tuples.
+        # Spelling it as an empty claim rather than inventing a numeral is 243's own
+        # rule one sign over — "writing `n = 1` and a fake numeral would have made the
+        # roster lie about the block's own text."
+        asserts_not_zero = n < 0
+        if asserts_not_zero:
+            claimed, need = (), 0
+        elif n == 0:
             claimed, need = (0,), 1
         got: "tuple[int, ...] | None" = None
         if key == "ci.green":
@@ -3128,10 +3218,15 @@ def check_header(block: "list[str]", log: str, run_network: bool,
                 unread(key, raw, claimed, prob)
                 continue
             got = (n_moved,)
-        elif key == "version.unmoved":
+        elif key in ("version.unmoved", "version.moved"):
+            # 🆕 303 — ONE READER, TWO SIGNS. `version_interval` answers how many of the
+            # two published version strings moved since the previous block; `unmoved`
+            # claims that count is zero and `MOVED` claims it is not. Routing both
+            # through the same call is what stops the two rows drifting into two
+            # opinions about the same two files (229 §5.2).
             n_ver, prob = version_interval(session)
             if prob:
-                unread("version.unmoved", raw, claimed, prob)
+                unread(key, raw, claimed, prob)
                 continue
             got = (n_ver,)
         elif key in ("gh.issues", "gh.prs"):
@@ -3227,7 +3322,14 @@ def check_header(block: "list[str]", log: str, run_network: bool,
             unread(key, raw, claimed, why_unread)
             continue
         compared += 1
-        if len(claimed) != need or claimed != got:
+        if asserts_not_zero:
+            # 🆕 303 — the only reading that refuses a sign is the one it excludes.
+            if got == (0,):
+                problems.append(
+                    f"🔴 {key} — the block says this row MOVED and the tree says "
+                    f"nothing moved\n"
+                    f"     atom: {raw!r}\n     {why}")
+        elif len(claimed) != need or claimed != got:
             problems.append(
                 f"🔴 {key} — the block says {list(claimed)}, the tree says {list(got)}\n"
                 f"     atom: {raw!r}\n     {why}")
@@ -9641,6 +9743,123 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 VERSION_UNMOVED_BOUND `check_header` did not route the `host / "
               f"addon` word claim to its reader — notes {_n}")
+
+    # ── 🆕 303 §2 — `host-row-moved-claim-is-unread` (301): THE OTHER SIGN ────────────
+    #
+    # 🔴 THE ROW WAS OPENED BECAUSE ONE HALF OF THIS LINE COULD NOT BE WRONG OUT LOUD.
+    # `version.unmoved` above refuses a block that says the versions held still when they
+    # did not. A block that says they MOVED asserted nothing at all — no atom, no reader,
+    # no comparison — through all 24 blocks that wrote it, including 300's, whose sentence
+    # was false when it was published. The claims below are that half, and they are in the
+    # order 243 §3.2 fixed: the ACCEPTANCE first, because a reader that refuses everything
+    # passes every claim written about its refusals.
+
+    # 🔴 ONE — THE ALIASES ARE DISJOINT, WHICH THEY HAVE NOT BEEN AT ANY POINT SINCE 243.
+    # `git.moved` was a bare word-boundaried `MOVED` with no row anchor, and its sibling
+    # `git.unmoved` was anchored the day it was written for exactly the reason that would
+    # have bitten here. Nothing broke for sixty sessions because the `host / addon` row
+    # was never an atom; the moment it became one the two would have collided and
+    # `HEADER_AMBIGUOUS` would have refused it. This claim is the collision, asserted
+    # closed in both directions rather than assumed.
+    claims += 1
+    _gm = next(r[1] for r in HEADER_READERS if r[0] == "git.moved")
+    _vm = next(r[1] for r in HEADER_READERS if r[0] == "version.moved")
+    _host_ctx = "host / addon 1.84.0 / 1.15.0 🔴 HOST MOVED — the owed MINOR, cut here"
+    _main_ctx = "main   — session303 a fixture   MOVED +2"
+    if (re.search(_gm, _host_ctx, re.I) or not re.search(_gm, _main_ctx, re.I)
+            or not re.search(_vm, _host_ctx, re.I) or re.search(_vm, _main_ctx, re.I)):
+        failed += 1
+        print(f"  🔴 MOVED_ALIASES_DISJOINT the two `MOVED` aliases do not partition the "
+              f"two rows: git.moved={_gm!r} version.moved={_vm!r} against "
+              f"{_host_ctx!r} and {_main_ctx!r}")
+
+    # 🔴 TWO — AND THE ANCHOR IS ONLY REACHABLE BECAUSE THE NUMERAL PATH NOW CARRIES THE
+    # LABEL. `header_atoms` built the word path's text as label-plus-atom from 243 and the
+    # numeral path's as the atom alone, so a row-anchored NUMERAL alias would have matched
+    # nothing on the `main` row and `git.moved` could not be anchored at all. This is that
+    # asymmetry, asserted rather than described.
+    claims += 1
+    _lbl_atoms, _lbl_fired = header_atoms(
+        ["main                 deadbee — a fixture (#0)          MOVED +2"])
+    if not _lbl_atoms or not _lbl_atoms[0][1].startswith("main"):
+        failed += 1
+        print(f"  🔴 HEADER_LABEL_ON_NUMERAL a numeral atom's cleaned text does not open "
+              f"with its row label, so a row-anchored numeral alias can bind nothing — "
+              f"{_lbl_atoms}")
+
+    # 🔴 THREE — AND THE PRICE 302 PREDICTED FOR THAT, ASSERTED ABSENT. 302 §2.3 priced
+    # the label prefix as a blocker because the `branch N` label carries a numeral which
+    # would enter the claimed tuple of every branch-row atom. The exemption covering it
+    # has been in `HEADER_EXEMPT` since 235 and runs on the prefixed text, so the session
+    # number does not become a claim. Measured over all 75 registered blocks before the
+    # change was made — 0 atoms lost, 0 newly ambiguous — and pinned here so a future
+    # edit to that exemption cannot quietly turn this file's own name into a counter.
+    claims += 1
+    _br_atoms, _br_fired = header_atoms(
+        ["branch 303           session303-a-fixture · PR #999"])
+    if _br_atoms:
+        failed += 1
+        print(f"  🔴 HEADER_LABEL_BRANCH_EXEMPT the branch row's own session number "
+              f"became a claim once the label reached the numeral path — {_br_atoms}")
+
+    # 🟢 FOUR — THE ACCEPTANCE, OVER THE REAL BLOCKS THAT SAY IT. Every registered block
+    # whose `host / addon` row reports a move, against a tree that really has moved on
+    # from that block's predecessor, must be accepted. This is `UNMOVED_ACCEPTS`'s shape
+    # one sign over, and it is what stops a reader wired to refuse from satisfying the
+    # refusal claim below it.
+    _moved_blocks = [s for s, t in BLOCK_POPULATION
+                     if any(re.match(r"host\s*/\s*addon\b", ln)
+                            and re.search(r"\bMOVED\b", ln)
+                            and not re.search(r"\bUNMOVED\b", ln, re.I)
+                            for ln in status_block(t)[0])]
+    claims += 1
+    if len(_moved_blocks) < 20:
+        failed += 1
+        print(f"  🔴 MOVED_POPULATION_REACH only {len(_moved_blocks)} registered block(s) "
+              f"report a version move, floor 20 — a claim proved over a population of "
+              f"one or two is a claim about a fixture")
+    for _ms in _moved_blocks:
+        _mn, _mw = version_interval(_ms)
+        if _mw or _mn == 0:
+            continue      # the tree cannot judge it, or it is the refusal case below
+        claims += 1
+        _mp, _mn2, _ma, _mc = check_header(
+            status_block(next(t for s, t in BLOCK_POPULATION if s == _ms))[0],
+            "", False, _ms)
+        if any("🔴 version.moved" in x for x in _mp):
+            failed += 1
+            print(f"  🔴 MOVED_ACCEPTS {_ms}'s block says its versions moved, the tree "
+                  f"agrees at {_mn}, and the reader refused it anyway: {_mp}")
+
+    # 🔴 FIVE — THE REFUSAL, WHICH IS THE WHOLE ROW. A block that says the published
+    # version moved, on a tree where nothing moved, is refused BY NAME. Session
+    # `newest + 1` is the one place the population can supply a true zero: its predecessor
+    # is the newest registered block, which carries the pair this tree holds.
+    claims += 1
+    _false_moved = ["main                 deadbee — a fixture (#0)          MOVED +1",
+                    f"host / addon         {_vers[0]} / {_vers[1]}   🔴 HOST MOVED — a "
+                    f"fixture"]
+    _fp, _fn, _fa, _fc = check_header(_false_moved, "", False,
+                                      BLOCK_POPULATION[-1][0] + 1)
+    if not any("🔴 version.moved — the block says this row MOVED and the tree says "
+               "nothing moved" in x for x in _fp):
+        failed += 1
+        print(f"  🔴 MOVED_REFUSES a block claiming a version move on a tree where "
+              f"neither version moved was not refused — problems {_fp}")
+
+    # 🔴 SIX — AND THE BINDING, WHICH IS A DIFFERENT FAILURE FROM THE READER BEING WRONG.
+    # `VERSION_UNMOVED_BOUND` above makes this argument for the other sign: if
+    # `check_header`'s branch goes dead, `got` stays None and the note reads "no
+    # --measured log carries it", the fallback for a counter with no reader at all.
+    # Asserting the POPULATION's own reason comes back is what tells the two apart.
+    claims += 1
+    _mearly = ["main                 deadbee — a fixture (#0)          MOVED +1",
+               "host / addon         1.0.0 / 1.0.0   🔴 HOST MOVED — a fixture"]
+    _ep, _en, _ea, _ec = check_header(_mearly, "", False, BLOCK_POPULATION[0][0] - 1)
+    if not any("version.moved: UNREAD — no block before" in x for x in _en):
+        failed += 1
+        print(f"  🔴 VERSION_MOVED_BOUND `check_header` did not route the `host / addon` "
+              f"MOVED claim to `version_interval` — notes {_en}")
 
     # ── 🆕 244 §3 — `version-row-second-claim`: THE TWO STRINGS, BOTH DIRECTIONS ───────
     #
