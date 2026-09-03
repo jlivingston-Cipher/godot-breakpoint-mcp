@@ -388,6 +388,80 @@ C8_TOOLCHAIN_UNREAD = "C8_TOOLCHAIN_UNREAD"
 WIRE_RANK = {"PATCH": 0, "MINOR": 1, "MAJOR": 2}
 
 
+# ── 🆕 304 — `release-names-ritual-axis` (OPEN 278) — THE FOURTH ARGUMENT WAS NEVER
+# MISSING, AND THE CITATION THAT SAID SO DOES NOT SAY IT ──────────────────────────
+#
+# 🔴 300 §3.1 PRICED THIS ROW AT ONE UNTRACKED FACT AND FOUR SESSIONS CARRIED THE PRICE.
+# Three of the ritual's four arguments are derivable — `--version` from `package.json`,
+# `--previous` from the tag list, `--date` from the changelog header — and the fourth was
+# recorded as *the human claim check 8 tests, so deriving it would compare the tree to
+# itself (235 §6.3)*, and as *currently declared in NO tracked file*.
+#
+# 🔴 THE SECOND HALF IS WRONG, AND IT IS WRONG ABOUT SOMETHING IN PLAIN SIGHT. The bump
+# IS declared in a tracked file: it is the version number in `host/package.json`. A human
+# chose `1.84.0` over `1.83.1`, and THAT CHOICE IS THE MINOR CLAIM — the word and the
+# number are one claim spelled twice, and semver is the function between them. The word
+# was never the declaration; it was a transcription of the number, typed a second time at
+# the cut, by hand, into a command nothing checked out.
+#
+# 🔴 AND THE FIRST HALF IS NOT CIRCULAR EITHER. `bump_of` reads two human-typed strings
+# and touches no diff, no tarball and no classifier. Check 8 then compares its answer
+# against `wire_diff.mjs`, which has never seen either string. Deriving the bump FROM THE
+# WIRE would be the tree agreeing with itself; deriving it from the version pair is the
+# human's own claim, read out of the file the human wrote it in.
+#
+# 🔴 235 §6.3 DOES NOT SAY WHAT IT WAS CITED FOR. It says *a self-test claim must be about
+# the READER, not the machine — if it can go red by moving to another computer, it is a
+# measurement, not a claim.* That is a rule about self-tests and machines and it has no
+# opinion about deriving a bump from a version pair. 303 §5.1's lesson was that a PRICE
+# inherited in a handoff is a hypothesis; a CITATION inherited in one is the same thing,
+# and this one had been re-quoted through four sessions without being opened.
+BUMP_OK = "BUMP_OK"
+BUMP_MALFORMED = "BUMP_MALFORMED"
+BUMP_NOT_FORWARD = "BUMP_NOT_FORWARD"
+
+_SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+def bump_of(previous: "str | None", version: "str | None") -> tuple[str, str, dict]:
+    """The bump this cut claims, read off the two version strings. PURE.
+
+    🔴 IT REFUSES RATHER THAN GUESSING, in both directions the caller can get wrong: a
+    string that is not a three-segment version, and a pair that does not go forward. A
+    reader that answered PATCH for `1.84.0 -> 1.84.0` would hand check 8 a claim nobody
+    made, and check 8 would then compare the wire against it and report a verdict about
+    a release that does not exist.
+
+    🔴 SKIPPED SEGMENTS ARE LEGAL AND DELIBERATELY SO. `1.83.0 -> 1.85.0` is a MINOR by
+    every reading semver has; refusing it would be this file inventing a release policy
+    it was not asked for. What the rank asks is WHICH segment moved first, not by how
+    much — the same question `WIRE_RANK` answers about the wire.
+    """
+    d: dict = {"previous": previous, "version": version,
+               "from": None, "to": None, "bump": None}
+    mp = _SEMVER_RE.match(previous or "")
+    mv = _SEMVER_RE.match(version or "")
+    if mp is None or mv is None:
+        return BUMP_MALFORMED, (
+            f"🔴 a bump is a statement about two versions and one of these is not a "
+            f"version: previous={previous!r}, version={version!r}. Three integer "
+            f"segments, no prefix and no suffix — the `v` belongs to the tag, not to "
+            f"the number."), d
+    p = tuple(int(x) for x in mp.groups())
+    v = tuple(int(x) for x in mv.groups())
+    d["from"], d["to"] = p, v
+    if v <= p:
+        return BUMP_NOT_FORWARD, (
+            f"🔴 {version} does not come after {previous}, so there is no bump to read. "
+            f"Either the previous tag is not the previous release, or the version in "
+            f"{HOST_VERSION_FILE} went backwards — and a reader that answered anyway "
+            f"would give check 8 a claim to test that nobody made."), d
+    d["bump"] = ("MAJOR" if v[0] != p[0] else "MINOR" if v[1] != p[1] else "PATCH")
+    return BUMP_OK, (
+        f"{previous} -> {version} is a {d['bump']} — the segment that moved first is "
+        f"the claim, and a human made it by typing this number"), d
+
+
 def wire_floor(wire: str | None, bump: str,
                toolchain: "str | None" = "PATCH") -> tuple[str, str, dict]:
     """Check 8, PURE: may this bump be claimed over what the wire actually did?
@@ -465,6 +539,28 @@ def wire_floor(wire: str | None, bump: str,
            f" — ABOVE the wire, which is legal and worth reading: a {bump} whose "
            f"schemas did not move is behaviour the classifier cannot see, so the "
            f"claim rests on the notes and check 2 rather than on this")), d
+
+
+def c8_enforced(code: str, at_cut: bool) -> bool:
+    """Does check 8's verdict FAIL the run, or only get REPORTED? PURE.
+
+    🔴 THE ONLY CODE THAT IS EVER DOWNGRADED IS `C8_BENEATH`, AND ONLY OFF THE CUT.
+    `C8_BENEATH` says a cut claims less than its wire did — a statement about a RELEASE.
+    Read on a later commit it is a statement about work released after that cut, which is
+    a claim nobody has made yet, so enforcing it would refuse a merge over the size of a
+    release that does not exist and would name the wrong one while doing it.
+
+    🔴 EVERY OTHER REFUSAL IS ABOUT THE RUNNER AND IS RED EVERYWHERE. `C8_UNREACHABLE`
+    means the classifier did not run; `C8_NOT_A_VERDICT` and `C8_TOOLCHAIN_UNREAD` mean it
+    ran and could not be read. Downgrading those would leave check 8 broken in CI with
+    nothing saying so, on every push, forever — which is 217 §20's own shape and the
+    reason 227 refused a `--no-wire` flag in the first place. The first draft of this
+    function downgraded all of them.
+    """
+    if code == C8_OK:
+        return False
+    return True if at_cut else code != C8_BENEATH
+
 
 
 def major_evidence(wire: str | None,
@@ -1193,6 +1289,95 @@ def release_commit(version: str, root: Path = ROOT) -> str | None:
     return _first_commit_introducing(f'"version": "{version}"', HOST_VERSION_FILE, root)
 
 
+# 🆕 304 — THE RITUAL'S FOUR ARGUMENTS, DERIVED FROM THE TREE. Every one of them is
+# already written down by a human somewhere git tracks; none of them is measured.
+RITUAL_OK = "RITUAL_OK"
+RITUAL_NO_VERSION = "RITUAL_NO_VERSION"
+RITUAL_NO_PREVIOUS = "RITUAL_NO_PREVIOUS"
+RITUAL_NO_BLOCK_DATE = "RITUAL_NO_BLOCK_DATE"
+RITUAL_NO_RELEASE_COMMIT = "RITUAL_NO_RELEASE_COMMIT"
+
+
+def previous_tag(version: str, tags: "list[str]") -> "str | None":
+    """The newest released version strictly below this one. PURE.
+
+    🔴 THE TAG LIST IS AN ARGUMENT AND NOT A READ, for the reason every pure reader in
+    this file takes its world as a parameter: a shallow CI checkout has no tags, and a
+    reader that fetched its own would answer differently on two machines — which is
+    235 §6.3's actual rule, applied where it belongs.
+    """
+    seen = []
+    for t in tags:
+        m = _SEMVER_RE.match(t[1:] if t.startswith("v") else t)
+        if m is not None:
+            seen.append(tuple(int(x) for x in m.groups()))
+    here = _SEMVER_RE.match(version)
+    if here is None:
+        return None
+    mine = tuple(int(x) for x in here.groups())
+    below = sorted(t for t in seen if t < mine)
+    return ".".join(str(x) for x in below[-1]) if below else None
+
+
+def ritual_arguments(version: "str | None", tags: "list[str]", changelog: str,
+                     release_sha: "str | None",
+                     head_sha: "str | None") -> tuple[str, str, dict]:
+    """The four arguments the ritual asks a human for, read out of the tree. PURE.
+
+    🔴 IT REFUSES ON EVERY MISSING READING RATHER THAN SKIPPING ONE. A mode that
+    quietly answered a smaller question on the trees where a reading is absent is
+    `--no-wire` in a different costume (227's note on check 8): available, correct, and
+    consulted about nothing. Between cuts every one of these readings EXISTS — that is
+    the finding this mode is built on — so an absence is a fact worth a red.
+
+    🔴 AND `at_cut` IS PART OF THE ANSWER, NOT AN AFTERTHOUGHT. The ritual asks whether
+    a CUT is correctly sized. On the release commit that question is live and check 8
+    refuses exactly as it always has. On any later commit the wire has moved on past
+    the cut and check 8's reading is a statement about the NEXT release — true, useful,
+    and about a claim nobody has made yet, so it is REPORTED rather than enforced.
+    """
+    d: dict = {"version": version, "previous": None, "date": None, "bump": None,
+               "head_ref": None, "at_cut": None}
+    if not version or _SEMVER_RE.match(version) is None:
+        return RITUAL_NO_VERSION, (
+            f"🔴 {HOST_VERSION_FILE} has no readable three-segment `version` — read "
+            f"{version!r}. That file is what npm publishes under, so this is not a "
+            f"missing argument, it is a broken package."), d
+    prev = previous_tag(version, tags)
+    if prev is None:
+        return RITUAL_NO_PREVIOUS, (
+            f"🔴 no tag names a release below {version}, over {len(tags)} tag(s) read. "
+            f"On a shallow CI checkout that means the tags were never fetched, which is "
+            f"a fact about the runner; on a full one it means this version is the "
+            f"first, and the ritual has no window to read."), d
+    d["previous"] = prev
+    m = re.search(r"^## \[" + re.escape(version) + r"\] \u2014 (\d{4}-\d{2}-\d{2})",
+                  changelog, re.M)
+    if m is None:
+        return RITUAL_NO_BLOCK_DATE, (
+            f"🔴 CHANGELOG.md carries no `## [{version}] \u2014 <date>` header, so there "
+            f"is no released block for the version this tree ships. The notes have not "
+            f"landed, or the header's shape moved — and `released_block` reads the same "
+            f"two strings, so it would refuse next."), d
+    d["date"] = m.group(1)
+    code, why, _bd = bump_of(prev, version)
+    if code != BUMP_OK:
+        return code, why, d
+    d["bump"] = _bd["bump"]
+    if not release_sha:
+        return RITUAL_NO_RELEASE_COMMIT, (
+            f"🔴 nothing names the commit where the shipped tree became {version}, so "
+            f"the window has no far endpoint that is about the CUT. Ending it at HEAD "
+            f"instead would measure the release against work released after it."), d
+    d["head_ref"] = release_sha
+    d["at_cut"] = (head_sha == release_sha) if head_sha else False
+    return RITUAL_OK, (
+        f"v{prev} -> {version} on {d['date']}, a {d['bump']}, window ending at "
+        f"{release_sha[:12]}"
+        + (" \u2014 which is HEAD, so this IS the cut" if d["at_cut"]
+           else " \u2014 HEAD is past the cut")), d
+
+
 def tag_message(version: str, sha: str) -> str:
     """The BODY git will store on the tag — the thing `tag_release_commit` reads back.
 
@@ -1381,6 +1566,85 @@ MAJOR_SELFTEST = [
 # (name, wire, bump, toolchain, expected code). 🆕 276 — the fourth column is the
 # toolchain reading; `"PATCH"` is *asked and told nothing*, which is what every row
 # written before 276 meant by saying nothing at all.
+# 🆕 304 — `bump_of`'s TABLE. Every row is a pair of strings a human could type.
+# 🆕 304 — WHICH CHECK-8 VERDICTS FAIL A RUN, AND WHERE. Both directions on every code,
+# because "downgraded off the cut" is satisfied by a function that downgrades nothing
+# and by one that downgrades everything, and the second is the one that hides a broken
+# classifier.
+C8_ENFORCED_SELFTEST = [
+    ("green is nothing to enforce, on the cut", C8_OK, True, False),
+    ("green is nothing to enforce, off it", C8_OK, False, False),
+    ("\U0001f534 BENEATH ON THE CUT IS THE REFUSAL THIS CHECK EXISTS FOR",
+     C8_BENEATH, True, True),
+    ("BENEATH off the cut is a floor on the NEXT release, and is reported",
+     C8_BENEATH, False, False),
+    ("\U0001f534 UNREACHABLE IS ABOUT THE RUNNER AND IS RED OFF THE CUT TOO",
+     C8_UNREACHABLE, False, True),
+    ("\U0001f534 unreachable on the cut", C8_UNREACHABLE, True, True),
+    ("\U0001f534 an unparseable verdict is red off the cut too",
+     C8_NOT_A_VERDICT, False, True),
+    ("\U0001f534 a half-read classifier is red off the cut too",
+     C8_TOOLCHAIN_UNREAD, False, True),
+]
+
+
+BUMP_SELFTEST = [
+    ("the ordinary MINOR \u2014 1.84.0 over 1.83.0, the cut this row was opened behind",
+     "1.83.0", "1.84.0", BUMP_OK, "MINOR"),
+    ("a PATCH", "1.74.0", "1.74.1", BUMP_OK, "PATCH"),
+    ("a MAJOR", "1.84.0", "2.0.0", BUMP_OK, "MAJOR"),
+    ("a MAJOR that also moves the lower segments is still a MAJOR",
+     "1.84.0", "2.1.3", BUMP_OK, "MAJOR"),
+    ("a SKIPPED minor is a MINOR \u2014 the rank asks which segment moved, not by how much",
+     "1.83.0", "1.85.0", BUMP_OK, "MINOR"),
+    ("a MINOR resets the patch segment and stays a MINOR", "1.83.7", "1.84.0",
+     BUMP_OK, "MINOR"),
+    ("\U0001f534 THE SAME VERSION TWICE IS NOT A BUMP", "1.84.0", "1.84.0",
+     BUMP_NOT_FORWARD, None),
+    ("\U0001f534 BACKWARDS IS NOT A BUMP", "1.84.0", "1.83.9", BUMP_NOT_FORWARD, None),
+    ("\U0001f534 a tag name is not a version \u2014 the `v` belongs to the tag",
+     "v1.83.0", "1.84.0", BUMP_MALFORMED, None),
+    ("\U0001f534 two segments is not a version", "1.83", "1.84", BUMP_MALFORMED, None),
+    ("\U0001f534 a prerelease suffix is not a segment this reader invents a rank for",
+     "1.83.0", "1.84.0-rc1", BUMP_MALFORMED, None),
+    ("\U0001f534 nothing at all", None, None, BUMP_MALFORMED, None),
+]
+
+_CL_LIVE = ("## [1.84.0] \u2014 2026-09-02\n\nthe notes\n\n"
+            "## [1.83.0] \u2014 2026-08-25\n\nolder notes\n")
+# 🔴 THE VERSION THIS TREE SHIPS IS ITSELF TAGGED, AND THAT IS THE ORDINARY CASE.
+# The tag is written immediately after the cut (`--tag-cmd`), so for almost the whole
+# of a release cycle `previous_tag` is asked about a version that is IN the list it is
+# reading. A fixture without that row drove the reader only over trees where its
+# hardest question could not arise, and the 304 mutation sweep proved it: loosening
+# `<` to `<=` changed no answer in the table and would have made every CI run derive
+# `1.84.0 -> 1.84.0` on the live tree.
+_TAGS_LIVE = ["v1.82.0", "v1.82.1", "v1.83.0", "v1.84.0", "not-a-tag"]
+_SHA_CUT = "69537404a85e7e1729862b5b2b49ccae796b38db"
+_SHA_LATER = "0e30e4b500000000000000000000000000000000"
+
+# 🆕 304 — `ritual_arguments`' TABLE. Each row is a TREE the derivation could meet,
+# and every refusal is a tree CI really checks out: a shallow clone with no tags, a
+# release whose notes have not landed, a version nothing declares a commit for.
+RITUAL_SELFTEST = [
+    ("between cuts \u2014 the ordinary tree this mode was built for",
+     "1.84.0", _TAGS_LIVE, _CL_LIVE, _SHA_CUT, _SHA_LATER, RITUAL_OK),
+    ("ON the release commit \u2014 the one tree where check 8 is about a live claim",
+     "1.84.0", _TAGS_LIVE, _CL_LIVE, _SHA_CUT, _SHA_CUT, RITUAL_OK),
+    ("\U0001f534 A SHALLOW CHECKOUT HAS NO TAGS, AND THAT IS ABOUT THE RUNNER",
+     "1.84.0", [], _CL_LIVE, _SHA_CUT, _SHA_LATER, RITUAL_NO_PREVIOUS),
+    ("\U0001f534 the notes have not landed for the version this tree ships",
+     "1.85.0", _TAGS_LIVE, _CL_LIVE, _SHA_CUT, _SHA_LATER,
+     RITUAL_NO_BLOCK_DATE),
+    ("\U0001f534 nothing names the commit where the tree became this version",
+     "1.84.0", _TAGS_LIVE, _CL_LIVE, None, _SHA_LATER, RITUAL_NO_RELEASE_COMMIT),
+    ("\U0001f534 package.json has no readable version",
+     None, _TAGS_LIVE, _CL_LIVE, _SHA_CUT, _SHA_LATER, RITUAL_NO_VERSION),
+    ("a version far ahead of every tag is still an ordinary MINOR to derive",
+     "1.84.0", ["v1.70.0"], _CL_LIVE, _SHA_CUT, _SHA_LATER, RITUAL_OK),
+]
+
+
 C8_SELFTEST = [
     ("PATCH claimed, wire held still — the ordinary green", "PATCH", "PATCH", "PATCH", C8_OK),
     ("MINOR claimed, wire added surface", "MINOR", "MINOR", "PATCH", C8_OK),
@@ -1867,6 +2131,81 @@ def selftest() -> int:
             bad += 1
             print(f"        want {want!r} · got {got!r}")
 
+    _G, _R = "🟢", "🔴"
+    print("\n  which check-8 verdicts FAIL a run, and where (\U0001f195 304)")
+    for name, code, at_cut, want in C8_ENFORCED_SELFTEST:
+        got = c8_enforced(code, at_cut)
+        agree = got == want
+        mark = "\U0001f7e2" if agree else "\U0001f534"
+        print(f"  {mark} {code:<22} at_cut={str(at_cut):<5} "
+              f"enforced={str(got):<5}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want enforced={want} got {got}")
+
+    print("\n  the BUMP, read off the two version strings (🆕 304)")
+    for name, prev, ver, want_code, want_bump in BUMP_SELFTEST:
+        code, why, d = bump_of(prev, ver)
+        short = detail_or_refusal(d, ("bump", "from", "to"), "bump_of")
+        if short:
+            bad += 1
+            print(f"  {_R} {code:<22} {short}  {name}")
+            continue
+        agree = code == want_code and d["bump"] == want_bump
+        mark = _G if agree else _R
+        print(f"  {mark} {code:<22} {str(prev):<10} -> {str(ver):<12} "
+              f"{str(d['bump']):<6}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code}/{want_bump} got {code}/{d['bump']} - {why}")
+
+    print("\n  the RITUAL's four arguments, derived from a tree (🆕 304)")
+    for name, ver, tags, cl, rsha, hsha, want_code in RITUAL_SELFTEST:
+        code, why, d = ritual_arguments(ver, tags, cl, rsha, hsha)
+        short = detail_or_refusal(d, ("version", "previous", "date", "bump", "at_cut"),
+                                  "ritual_arguments")
+        if short:
+            bad += 1
+            print(f"  {_R} {code:<26} {short}  {name}")
+            continue
+        agree = code == want_code
+        mark = _G if agree else _R
+        print(f"  {mark} {code:<26} bump={str(d['bump']):<6} "
+              f"at_cut={str(d['at_cut']):<5}  {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_code} got {code} - {why}")
+
+    # 🔴 THE PROPAGATION BRANCH IN `ritual_arguments` IS UNREACHABLE, AND THAT IS
+    # A PROPERTY OF `previous_tag` RATHER THAN AN ACCIDENT. It only ever returns a version
+    # STRICTLY BELOW the one it was asked about, so `bump_of` can never see a pair that
+    # does not go forward and its two refusals cannot fire from this door. A guard whose
+    # reason lives in another function is a guard the next reader deletes, so the reason
+    # is asserted here rather than written in a comment: if `previous_tag` ever answers at
+    # or above its argument, this goes red and the guard becomes live.
+    _own = previous_tag("1.84.0", _TAGS_LIVE)
+    _own_ok = _own == "1.83.0"
+    _mark = _G if _own_ok else _R
+    print(f"  {_mark} a version's OWN tag is not its previous release - "
+          f"previous_tag('1.84.0', [.. v1.84.0 ..]) answers {_own!r}, and the reason it "
+          f"cannot answer '1.84.0' is the comparison being STRICT")
+    if not _own_ok:
+        bad += 1
+    _forward = True
+    for _r in RITUAL_SELFTEST:
+        _here = _SEMVER_RE.match(_r[1] or "")
+        _back = previous_tag(_r[1], _r[2]) if _here else None
+        if _back is not None:
+            _bm = _SEMVER_RE.match(_back)
+            if tuple(int(x) for x in _bm.groups()) >= tuple(int(x) for x in _here.groups()):
+                _forward = False
+    _mark = _G if _forward else _R
+    print(f"  {_mark} previous_tag never answers at or above the version it was asked "
+          f"about, over {len(RITUAL_SELFTEST)} tree(s) - which is WHY the bump refusals "
+          f"cannot fire through this door")
+    if not _forward:
+        bad += 1
+
     # ── 🆕 278 — THE SHORT-BAG BRANCH, WATCHED IN BOTH DIRECTIONS ──────────────────
     #
     # 🔴 EVERY ROW ABOVE CALLS A REAL READER, WHICH ON A HEALTHY TREE ALWAYS ANSWERS WITH
@@ -1892,19 +2231,25 @@ def selftest() -> int:
 
     rows = (len(SELFTEST) + len(C2_SELFTEST) + len(MAP_SELFTEST) + len(TAG_SELFTEST)
             + len(ADDON_SELFTEST) + len(OLDEST_SELFTEST) + len(MAJOR_SELFTEST)
-            + len(C8_SELFTEST) + len(VERSION_IN_SELFTEST))
-    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK, C4_OK, C8_OK}
+            + len(C8_SELFTEST) + len(VERSION_IN_SELFTEST)
+            + len(BUMP_SELFTEST) + len(RITUAL_SELFTEST)
+            + len(C8_ENFORCED_SELFTEST))
+    passing = {OK, C2_OK, C2_SILENT, MAP_OK, TAG_OK, C4_OK, C8_OK,
+               BUMP_OK, RITUAL_OK}
     seen = ({r[6] for r in SELFTEST} | {r[6] for r in C2_SELFTEST}
             | {r[3] for r in MAP_SELFTEST} | {r[3] for r in TAG_SELFTEST}
             | {r[4] for r in ADDON_SELFTEST} | {r[5] for r in MAJOR_SELFTEST}
-            | {r[4] for r in C8_SELFTEST})
+            | {r[4] for r in C8_SELFTEST}
+            | {r[3] for r in BUMP_SELFTEST} | {r[6] for r in RITUAL_SELFTEST})
     refusals = (sum(1 for r in SELFTEST if r[6] not in passing)
                 + sum(1 for r in C2_SELFTEST if r[6] not in passing)
                 + sum(1 for r in MAP_SELFTEST if r[3] not in passing)
                 + sum(1 for r in TAG_SELFTEST if r[3] not in passing)
                 + sum(1 for r in ADDON_SELFTEST if r[4] not in passing)
                 + sum(1 for r in MAJOR_SELFTEST if r[5] not in passing)
-                + sum(1 for r in C8_SELFTEST if r[4] not in passing))
+                + sum(1 for r in C8_SELFTEST if r[4] not in passing)
+                + sum(1 for r in BUMP_SELFTEST if r[3] not in passing)
+                + sum(1 for r in RITUAL_SELFTEST if r[6] not in passing))
     print(f"\n  {rows} rows · {refusals} REFUSE · {len(seen)} distinct code(s) · "
           f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
     # 🔴 EVERY REFUSAL CODE MUST HAVE A ROW. A code with no row is a branch nobody
@@ -1962,6 +2307,18 @@ def main() -> int:
     ap.add_argument("--assert-addon", action="store_true",
                     help="check 4 — has the addon moved since its own version was "
                          "stamped? reads git, no network")
+    # 🆕 304 — `release-names-ritual-axis` (OPEN 278). THE RITUAL PATH, WITH NOBODY
+    # TYPING ANYTHING. Ten of the eleven readers this row names are reached only by
+    # `main()`'s no-flag path, and that path refuses before it reaches them unless a
+    # human supplies four arguments. All four are already written down in tracked
+    # files by a human: the version in `host/package.json`, the previous release in
+    # the tag list, the date in the changelog header, and the BUMP in the version
+    # number itself. This mode reads them and runs the same live half — the SAME code,
+    # not a second one, which is 203 §2's rule and the reason this is an assignment
+    # to `a` rather than a parallel implementation.
+    ap.add_argument("--assert-ritual", action="store_true",
+                    help="the live half with every argument DERIVED from the tree "
+                         "(304) — the ritual's readers, reached without a cut")
     # 🆕 219 — THE WRITER HALF OF THE LATE-TAG FIX, AND IT RUNS AFTER THE RELEASE COMMIT
     # RATHER THAN AT THE CUT. At ritual time the commit being tagged does not exist yet,
     # so the declaration cannot be made then; this is run once the release commit is on
@@ -1986,6 +2343,7 @@ def main() -> int:
                     help="AUDIT ONLY — end the diff window at this ref instead of "
                          "HEAD, to replay a historical cut (see the code comment)")
     a = ap.parse_args()
+    at_cut = True
 
     if a.selftest:
         print("RELEASE_NAMES selftest — the refusals of checks 1, 2 and the map, "
@@ -2053,6 +2411,34 @@ def main() -> int:
         print(f"\n{text}")
         return 0
 
+    if a.assert_ritual:
+        _ver = _version_in((ROOT / HOST_VERSION_FILE).read_text(encoding="utf-8"))
+        _tags = subprocess.run(["git", "tag", "--list", "v*"], cwd=str(ROOT),
+                               capture_output=True, text=True)
+        _head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(ROOT),
+                               capture_output=True, text=True)
+        _code, _why, _d = ritual_arguments(
+            _ver,
+            _tags.stdout.split() if _tags.returncode == 0 else [],
+            (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+            release_commit(_ver) if _ver else None,
+            _head.stdout.strip() if _head.returncode == 0 else None)
+        _short = detail_or_refusal(_d, ("version", "previous", "date", "bump"),
+                                   "ritual_arguments")
+        if _code != RITUAL_OK:
+            print("RELEASE_NAMES --assert-ritual  ·  the tree could not say what it "
+                  "released")
+            print(f"\n🔴 RELEASE_NAMES REFUSED [{_code}]: {_short or _why}",
+                  file=sys.stderr)
+            return 1
+        if _short:
+            print(f"\n🔴 RELEASE_NAMES REFUSED [{_code}]: {_short}", file=sys.stderr)
+            return 1
+        print(f"RELEASE_NAMES --assert-ritual  ·  {_why}")
+        a.version, a.previous = _d["version"], _d["previous"]
+        a.date, a.bump, a.head_ref = _d["date"], _d["bump"], _d["head_ref"]
+        at_cut = bool(_d["at_cut"])
+
     if not all([a.version, a.previous, a.date, a.bump]):
         print("🔴 RELEASE_NAMES REFUSED — the live half needs --version, --previous, "
               "--date and --bump. It reads a RELEASED block, so it is a release-time "
@@ -2112,6 +2498,21 @@ def main() -> int:
         # every green cut would bury the four lines that matter under two hundred.
         print(f"\n{wire_log}", file=sys.stderr)
         print(f"\n🔴 RELEASE_NAMES REFUSED [{c8_code}]: {c8_why}", file=sys.stderr)
+    # 🆕 304 — AND THE ONE PLACE THIS CHECK'S VERDICT IS REPORTED RATHER THAN
+    # ENFORCED, WITH THE REASON WRITTEN DOWN. 227 refused a `--no-wire` flag and was
+    # right to: a skip returns check 8 to being available, correct and consulted about
+    # nothing. This is not that. Check 8 asks whether a CUT is sized correctly, and its
+    # wire reading always ends at the WORKING TREE — so on the release commit it is
+    # about the cut and REFUSES exactly as it always has, while on any later commit it
+    # is about work released after the cut, which is a claim NOBODY HAS MADE YET.
+    # Enforcing it there would refuse a merge for the size of a release that does not
+    # exist, and would name the last one while doing it. So it is printed, in words
+    # that say which question it answered.
+    if not at_cut and not c8_enforced(c8_code, at_cut):
+        print(f"               \U0001f7e1 A FLOOR ON THE NEXT CUT, NOT A VERDICT ON THE "
+              f"LAST. HEAD is past the release commit, so this reading spans work "
+              f"released after {a.version} — the next cut cannot be smaller than "
+              f"{(c8.get('wire') or '?')}, and this one is not being re-sized.")
 
     # 🔴 CHECK 2 RUNS OVER THE SAME WINDOW AND IS REPORTED WHETHER OR NOT CHECK 1
     # REFUSED, because the two answer different questions and the interesting case is
@@ -2157,7 +2558,7 @@ def main() -> int:
         return 1
     if c4_code != C4_OK:
         return 1
-    if c8_code != C8_OK:
+    if c8_enforced(c8_code, at_cut):
         return 1
     print(f"               🟢 {why}")
     return 0

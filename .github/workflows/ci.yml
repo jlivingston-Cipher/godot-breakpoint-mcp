@@ -431,6 +431,33 @@ jobs:
       # (FIFTY-FIFTH session running).
       - name: Every shipped root maps to a declared source, both ways (release names)
         run: python3 ../scripts/release_names.py --assert-map
+      # 🆕 304 — `release-names-ritual-axis` (OPEN 278, twenty-six sessions). TEN READERS
+      # THAT ONLY A HUMAN COULD REACH. `shipped_corpus`, the four window readers, the
+      # three tag readers, `addon_moved_since` and `release_commit` are called only by
+      # the no-flag path — the cut itself — and that path refuses before it reaches them
+      # unless somebody supplies four arguments by hand. 280 priced what that costs: a
+      # MAJOR shipped under a MINOR name at 1.82.0 because check 8, which refuses exactly
+      # that, was reachable only by whoever remembered to type it. 279 remembered; 270 did
+      # not.
+      # 🔴 ALL FOUR ARGUMENTS ARE ALREADY IN TRACKED FILES, and the fourth was the one
+      # 300 §3.1 called underivable: the BUMP is the version number in `package.json`.
+      # `--assert-ritual` reads all four and runs the SAME live half, so this is the
+      # ritual's own path rather than a second implementation of it.
+      # 🔴 AND IT NEEDS HISTORY AND TAGS, which `actions/checkout` does not fetch here.
+      # One leg pays for that rather than three: the readers are a fact about the tree
+      # and node's version has no opinion about any of them.
+      - name: Fetch the history and tags the release readers need
+        if: matrix.node == '20'
+        run: git fetch --unshallow --tags --quiet || git fetch --tags --quiet
+      # 🔴 CHECK 8's SIZING VERDICT IS REPORTED HERE AND ENFORCED AT THE CUT, and
+      # `c8_enforced` is the pure rule that says so with a table behind it. Off the
+      # release commit the wire spans work released AFTER the cut, so refusing would
+      # block a merge over the size of a release nobody has claimed yet. Every OTHER
+      # check-8 refusal is about the runner and stays red here — a classifier that did
+      # not run is not a classifier that agreed.
+      - name: The release ritual's own readers, run on the tree (release names)
+        if: matrix.node == '20'
+        run: python3 ../scripts/release_names.py --assert-ritual
       # 🆕 268 — `publish-tarball-outruns-its-tag`'s guard, eight sessions after the row
       # was opened. Only the SELFTEST runs here, and that is deliberate: the live half
       # asks whether HEAD is the commit its own tag names, which is false by construction
