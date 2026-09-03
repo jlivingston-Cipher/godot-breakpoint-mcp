@@ -1464,6 +1464,14 @@ INSTRUMENTS = [
             # that can return "the bag is complete" for a bag that is not is the defect it
             # was written against, wearing the fix's name.
             "{SIG:detail_or_refusal}": "return \"\"",
+            # 🆕 304 — `release-names-ritual-axis` (278) CLOSED, and its four new readers
+            # are targets like any other. Each is driven by a table in `--selftest`, so
+            # each reddens this gate under its own empty — measured before they were
+            # written down, by the same seven-mutation sweep that shipped them.
+            "{SIG:bump_of}": "return (\"\", \"\", {})",
+            "{SIG:previous_tag}": "return None",
+            "{SIG:ritual_arguments}": "return (\"\", \"\", {})",
+            "{SIG:c8_enforced}": "return False",
         },
     },
     # ══ 🆕 278 §4 — THE SAME FILE, A SECOND COMMAND, AND THE REASON IS STRUCTURAL ═══════
@@ -1486,8 +1494,9 @@ INSTRUMENTS = [
     # SECOND entry over a second artefact with its own name, targets and floors. This is
     # that, over a second COMMAND rather than a second file. Entry one is
     # gate `--selftest` / live `--assert-addon`; this one is gate `--assert-addon` / live
-    # `--assert-map`, so between them all three commands ci.yml runs against this file are
-    # an axis rather than a claim about one.
+    # `--assert-map`, so between them three of the FOUR commands ci.yml runs against this
+    # file are an axis rather than a claim about one. 🆕 304 — the fourth is
+    # `--assert-ritual`, and the price of making it the third axis is in `NOT_A_TARGET` above.
     {
         "name": "release_names.py (--assert-addon)",
         "src": ROOT / "scripts" / "release_names.py",
@@ -1877,16 +1886,35 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
     # and exits 0. It is not adopted here because it pins two tag literals and a bump that
     # are facts about one historical window; a third axis built on those is a claim about
     # the machine in a different costume. Opened as `release-names-ritual-axis`.
+    # 🆕 304 — `release-names-ritual-axis` (278) IS CLOSED, AND THIS ROW'S OLD REASON IS
+    # THE FIRST CASUALTY. It said these members are *reached only by the RELEASE RITUAL …
+    # which is every tree CI ever checks out*. Since `--assert-ritual` they are RUN on
+    # every push, from `build`. What is STILL true is narrower and is what the two rows
+    # below now say: this file's axes are `--selftest` and `--assert-addon`, and neither
+    # of them calls these members. 🔴 A REASON THAT OUTLIVED ITS FACT IS 174 §5's
+    # exemption-that-outlived-what-it-exempts, in the table written to catch it.
+    #
+    # 🔵 AND THE THIRD ENTRY IS NOW PRICED RATHER THAN DEFERRED. 304 blinded all eleven in
+    # memory and ran `--assert-ritual` against each: FOUR die, SEVEN do not. So a third
+    # entry over that command would convert four of these rows into targets and leave
+    # seven exactly as they are, at the cost of a third blind pass over all 38 members.
+    # Measured, written down, and not taken this session.
     **{("release_names.py", _n): (
-        "reached only by the RELEASE RITUAL — `main()`'s no-flag path — and that path "
-        "refuses before it reaches this member on any tree without a released block for "
-        "the version being cut, which is every tree CI ever checks out. Measured on both "
-        "of the commands CI DOES run: green under the blind against `--assert-map` AND "
-        "against `--assert-addon`. `release-names-ritual-axis` is where the third axis "
-        "is priced.")
-       for _n in ("shipped_corpus", "released_block", "changed_window", "raw_window",
-                  "wire_read", "engines_window", "tag_tree_version", "tag_release_commit",
-                  "tag_shadow", "addon_moved_since", "release_commit")},
+        "caught, but by a live command this instrument's axes do not run. Blinded to its "
+        "empty it takes `--assert-ritual` red — the command ci.yml has run from `build` "
+        "since 304 — while `--selftest` and `--assert-addon`, which ARE this file's two "
+        "axes, stay green. Falsify by adding a third entry over `--assert-ritual`: this "
+        "row would then be a target rather than an exclusion.")
+       for _n in ("released_block", "raw_window", "wire_read", "release_commit")},
+    **{("release_names.py", _n): (
+        "green under the blind against every command in this tree, measured rather than "
+        "assumed: `--selftest` and `--assert-addon` (this file's two axes), `--assert-map`, "
+        "and `--assert-ritual` (304). Each answers with an honest empty that no caller can "
+        "tell from a real one — `tag_shadow` returning None prints 🟡 UNMEASURABLE and the "
+        "run stays green, which is 217 §20's shape and the reason these are written down "
+        "rather than counted covered.")
+       for _n in ("shipped_corpus", "changed_window", "engines_window", "tag_tree_version",
+                  "tag_release_commit", "tag_shadow", "addon_moved_since")},
     # ── II — the one caught by the OTHER live command (1) ──
     #
     # 🔴 AN EXCLUSION WITH A MEASUREMENT IN IT CAN BE FALSIFIED (277 §4), so this row names
@@ -1938,7 +1966,10 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
                   "wire_read", "engines_window", "tag_tree_version", "tag_release_commit",
                   "tag_shadow", "addon_state", "_oldest", "_version_in",
                   "addon_moved_since", "release_commit", "tag_message", "tag_command",
-                  "tarball_entries", "_pack", "detail_or_refusal", "selftest", "main")},
+                  "tarball_entries", "_pack", "detail_or_refusal", "selftest", "main",
+                  # 🆕 304 — the four `--assert-ritual` readers. Targeted under
+                  # `release_names.py`, and `--assert-addon` calls none of them.
+                  "bump_of", "previous_tag", "ritual_arguments", "c8_enforced")},
 }
 
 
