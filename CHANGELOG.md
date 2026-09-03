@@ -4,6 +4,50 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.84.1] — 2026-09-03
+
+_Addon **1.15.0**, unmoved — no source under `addons/` was touched in this cut._
+
+**A PATCH THAT SHIPS YOU NOTHING, AND THE FIRST LINE SAYS SO.** Nine commits landed
+between 1.84.0 and this cut and **not one of them touched a file a user of this package
+can observe.** The published tarball's product code is identical to 1.84.0's — same tools,
+same schemas, same capability groups, same refusals. If you are reading these notes to
+decide whether to upgrade, the answer is that there is nothing here for you, and 1.84.0
+remains a correct thing to be running.
+
+The cut exists because this project bounds how long work may sit untagged. That bound is
+eight commits, the ninth landed, and the gate that reads `UNTAGGED_CEILING` refused with an
+exit code. **This release is that bound being honoured rather than raised** — which is a
+better reason for a version number than progress that did not happen. The alternative was
+to move the ceiling the first time it bit, and a limit relaxed on first contact is not a
+limit.
+
+### Changed — nothing a caller can reach
+
+- **No file under `host/src` moved in this window.** The release ritual's own size
+  classifier read the diff and answered PATCH, and the claim on this block agrees with it
+  rather than being typed beside it.
+
+### Internal — the measuring apparatus, written up because it happened
+
+- **The release ritual can now be exercised without cutting a release.** Ten of its readers
+  were reachable only by a human typing the release command, so nothing drove them between
+  cuts — which is how a MAJOR once shipped under a MINOR name at 1.82.0. Every argument the
+  ritual takes is now derived from the tree on every push. One sizing verdict is reported
+  rather than enforced away from the release commit, where its window spans work released
+  after the cut; every runner-level refusal, `C8_UNREACHABLE` among them, stays red
+  everywhere, because a classifier that did not run is not a classifier that agreed.
+- **`BLOCK_POPULATION` and `POPULATION_CURRENCY`.** Each session's published numbers are
+  copied into a table the next session's gates check them against, and the head of the work
+  queue is what demands it — so a session that skips its own numbers is refused rather than
+  quietly trusted.
+- **`MOVED_POPULATION` and `VERSION_PAIR_ACCEPTS`.** A recorded block that claims the wrong
+  commit distance, or prints a version pair this tree does not hold, is now refused instead
+  of believed. The remaining blind spot is one marker wide and is written down.
+- **`INSTRUMENT_GATE_COVERAGE` and `NOT_A_TARGET`.** A new reader added to a swept gate must
+  be declared either measured or deliberately unmeasured. Silence is a refusal, and the
+  exclusions now carry the reason they were granted.
+
 ## [1.84.0] — 2026-09-02
 
 _Addon **1.15.0**, unmoved — no source under `addons/` was touched in this cut._
