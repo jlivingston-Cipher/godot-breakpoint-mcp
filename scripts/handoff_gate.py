@@ -9900,17 +9900,59 @@ def selftest() -> int:
     # version moved, on a tree where nothing moved, is refused BY NAME. Session
     # `newest + 1` is the one place the population can supply a true zero: its predecessor
     # is the newest registered block, which carries the pair this tree holds.
+    #
+    # 🆕 305 — AND THAT LAST SENTENCE IS FALSE ON EXACTLY ONE TREE: THE RELEASE CUT.
+    # 248 met this same case one claim below, for `VERSION_PAIR_ACCEPTS`, and wrote the
+    # note that is still sitting there — *it could not survive the first release cut after
+    # it was written*. 303 wrote THIS claim afterwards and did not read that note, so the
+    # first cut since 303 shipped (1.84.1) turned this control red in CI while the reader
+    # under it was behaving perfectly: on a cut tree the newest registered block's pair is
+    # BEHIND the tree, `version_interval(newest + 1)` is a true 1, and a block claiming
+    # MOVED is claiming something TRUE.
+    #
+    # 🔴 SO IT IS A RULE WITH TWO ARMS AND NOT A SKIP. Skipping would leave this row
+    # untested on the one tree a release is ever cut from — `--no-wire`'s shape (227) in a
+    # self-test costume, and the same mistake as a control that only ever saw the easy
+    # case (304 §5.5). Each arm drives the SAME live `check_header` path and asserts the
+    # refusal THIS tree makes false: MOVED where nothing moved, `unmoved` where something
+    # did. Whichever tree this runs on, one tooth bites, and the arm that ran says so.
+    _n_now, _w_now = version_interval(BLOCK_POPULATION[-1][0] + 1)
     claims += 1
-    _false_moved = ["main                 deadbee — a fixture (#0)          MOVED +1",
-                    f"host / addon         {_vers[0]} / {_vers[1]}   🔴 HOST MOVED — a "
-                    f"fixture"]
-    _fp, _fn, _fa, _fc = check_header(_false_moved, "", False,
-                                      BLOCK_POPULATION[-1][0] + 1)
-    if not any("🔴 version.moved — the block says this row MOVED and the tree says "
-               "nothing moved" in x for x in _fp):
+    if _w_now:
         failed += 1
-        print(f"  🔴 MOVED_REFUSES a block claiming a version move on a tree where "
-              f"neither version moved was not refused — problems {_fp}")
+        print(f"  🔴 MOVED_REFUSES neither arm has a premise — the population cannot say "
+              f"whether this tree has moved past {BLOCK_POPULATION[-1][0]}'s block: "
+              f"{_w_now}")
+    elif _n_now == 0:
+        _false_moved = ["main                 deadbee — a fixture (#0)          MOVED +1",
+                        f"host / addon         {_vers[0]} / {_vers[1]}   🔴 HOST MOVED — a "
+                        f"fixture"]
+        _fp, _fn, _fa, _fc = check_header(_false_moved, "", False,
+                                          BLOCK_POPULATION[-1][0] + 1)
+        if not any("🔴 version.moved — the block says this row MOVED and the tree says "
+                   "nothing moved" in x for x in _fp):
+            failed += 1
+            print(f"  🔴 MOVED_REFUSES a block claiming a version move on a tree where "
+                  f"neither version moved was not refused — problems {_fp}")
+    else:
+        _false_unmoved = ["main                 deadbee — a fixture (#0)          MOVED +1",
+                          f"host / addon         {_vers[0]} / {_vers[1]}   🟢 unmoved — a "
+                          f"fixture"]
+        _fp, _fn, _fa, _fc = check_header(_false_unmoved, "", False,
+                                          BLOCK_POPULATION[-1][0] + 1)
+        if not any("🔴 version.unmoved — the block says [0], the tree says" in x
+                   for x in _fp):
+            failed += 1
+            print(f"  🔴 UNMOVED_REFUSES a RELEASE CUT has landed in this working tree — "
+                  f"{BLOCK_POPULATION[-1][0]}'s pair is behind it by {_n_now}, so the "
+                  f"false claim on session {BLOCK_POPULATION[-1][0] + 1} is `unmoved` "
+                  f"rather than MOVED — and it was NOT refused. problems {_fp}")
+        else:
+            print(f"  🟡 MOVED_REFUSES a RELEASE CUT has landed in this working tree — "
+                  f"{BLOCK_POPULATION[-1][0]}'s block is behind it by {_n_now}, so a "
+                  f"MOVED claim on session {BLOCK_POPULATION[-1][0] + 1} is TRUE and this "
+                  f"control drives its MIRROR: `unmoved` was refused by name, which is "
+                  f"the same reader and the same routing")
 
     # 🔴 SIX — AND THE BINDING, WHICH IS A DIFFERENT FAILURE FROM THE READER BEING WRONG.
     # `VERSION_UNMOVED_BOUND` above makes this argument for the other sign: if
