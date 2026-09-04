@@ -8523,6 +8523,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (307, """> ```
+> main                 2370015 — session307 the readers that asked the text a question about the code (#390)  MOVED +2
+> branch 307           session307-the-block-and-the-field-nobody-reads · PR #389 ·
+>                      session307-the-readers-that-asked-the-text · PR #390
+> host / addon         1.84.1 / 1.15.0  🟢 UNMOVED — no source touched under host/src or addons/
+> npm                  🟢 registry 1.84.1 · untagged 4 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at each merge, and the post-merge run at 2370015
+> 🟢 registry_lag PASSES — untagged 4, distance 0, both bounds green
+> 🟢 VERIFIED AFTER THE CHANGE   981/981 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3154
+>               · late not-loaded 0 · late constructed 334/160
+>               · py gates 18/6/12 · SIG 273/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2240 keys · 100 shortfalls
+>               · target reasons 113 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 42 · term 324 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5062 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 26/44 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 587 claims
+>               · landscape 4 channel(s) / 52 analysed / 49 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 27 within / 11 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
