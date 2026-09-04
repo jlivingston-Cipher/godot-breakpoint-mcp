@@ -2074,7 +2074,9 @@ def untagged_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
     by = {s: t for s, t in pop}
     order = [s for s, _ in pop]
     out = []
-    for s in untagged_partition(pop)["compared"]:
+    # `.get` and not `[...]`: a reader that raises where it could report is a reader
+    # the gate above it cannot judge (307 §2.4 — `CRASH_CEILING`).
+    for s in untagged_partition(pop).get("compared", ()):
         prev = order[order.index(s) - 1]
         got, was, k = untagged_of(by[s]), untagged_of(by[prev]), moved_of(by[s])
         if got != was + k:

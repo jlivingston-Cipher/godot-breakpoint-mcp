@@ -1273,7 +1273,19 @@ INSTRUMENTS = [
             # claim is the one that must catch it.
             "{SIG:untagged_of}": "return None",
             "{SIG:moved_of}": "return None",
-            "{SIG:untagged_partition}": "return {}",
+            # 🔴 THE BLIND MUST HAND BACK THE SHAPE, EMPTY — NOT NOTHING. A bare
+            # `{}` made every consumer raise `KeyError` instead of reporting, and
+            # `CRASH_CEILING 1 > 0` refused all three host-tests legs: a blind that
+            # CRASHES its gate proves nothing about the claim, because the gate
+            # never got to judge. `population_partition` had already solved this
+            # one row up — three empty parts, so `POPULATION_ACCOUNTED` sees 0 of 79
+            # and REFUSES. Same answer here: every bucket present and empty, so
+            # `UNTAGGED_ACCOUNTED` sees 0 of 79 and `UNTAGGED_POPULATION_REACH`
+            # sees 0 against its floor.
+            "{SIG:untagged_partition}": ("return {k: [] for k in (\"compared\", "
+                                        "\"prints none\", \"predecessor prints none\", "
+                                        "\"no moved\", \"first\", \"gap\", \"cut\", "
+                                        "\"after a cut\")}"),
             "{SIG:untagged_problems}": "return []",
             "{SIG:absence_shape_problem}": "return \"\"",
             # 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads`. Blinded to two
