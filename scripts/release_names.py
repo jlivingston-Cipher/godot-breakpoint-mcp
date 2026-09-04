@@ -189,14 +189,16 @@ SHIPPED_SOURCE = {
     "package.json": ("host/package.json", None),
 }
 
-# 🔴 THE TWO PRODUCER FILES THE RITUAL ITSELF EDITS ON EVERY CUT. Six version fields
-# across six files are written; only these two are inside `SHIPPED_SOURCE`, so only
-# these two can ever appear in check 2's window. 🔴 THIS IS A TUPLE OF PATHS AND NOT A
-# COUNT, ON PURPOSE — 216 §4 spent a `floor_pin_gate` run on two refusal codes that
-# were floor-shaped only because they had been named after the floor they report. A
-# name that says what a thing IS costs nothing; a name that says what it RESEMBLES
-# costs a gate run.
-RITUAL_VERSION_FILES = ("host/package.json", "host/src/index.ts")
+# 🆕 306 — `RITUAL_VERSION_FILES` WAS HERE AND IS DELETED. 300 §3.2 found it dead with
+# a comment that was also false — it named `host/src/index.ts` as one of two producer
+# files inside `SHIPPED_SOURCE` when the version has not been written there for many
+# cuts — and every session since has carried it forward as *named for deliberate
+# removal*, 305 passing through this file three times without taking it. `git grep`
+# returns one hit for the name in the whole tree, which is its own definition. 🔵 The
+# line is left as a comment rather than deleted silently for the reason 303 left one in
+# `POPULATION_SHAPE_DEBT`: a thing that vanishes without a word is indistinguishable
+# from a reader that stopped looking. Check 2's window is derived from `SHIPPED_SOURCE`
+# and `ritual_written` and never read this tuple.
 
 # 🔴 THE FLOOR, AND IT IS ON THE POPULATION READ, NOT ON THE ANSWER. A block naming
 # two identifiers is not evidence either way; five is the number the PATCH arm has

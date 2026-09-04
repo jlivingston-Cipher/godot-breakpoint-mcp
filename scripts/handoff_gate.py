@@ -1882,6 +1882,238 @@ def population_currency(head: "int | None" = None,
                     "282 and 283 each paid a second PR and a full re-replay to discover.")]
 
 
+# ── 🆕 306 §2 — `version-population-said-impossible` — THE SIGN AND THE PAIR ARE ONE ──
+#
+# 🔴 303 WROTE THE PRICE AND THREE SESSIONS PAID IT UNOPENED: *"There is no
+# `VERSION_POPULATION` for the same reason `UNMOVED_POPULATION` cannot have one … and
+# that is why 300's false sentence stands as published rather than being retrospectively
+# refusable."* The reason given is true of `version_interval`, which takes its far
+# endpoint from `tree_versions(root)` — the tree NOW — so over the population it measures
+# the distance to today instead of the interval the block claimed.
+#
+# 🔴 THAT IS A FACT ABOUT ONE READER, NOT ABOUT THE QUESTION. Every registered block
+# PRINTS its own pair on the `host / addon` row and its predecessor prints the
+# predecessor's, so the interval between two registered blocks is two human-typed strings
+# in this table: no tree, no git, no `tree_versions`. It is 304's `bump_of` one file over
+# — the word and the numbers are one claim spelled twice — and it needs no semver, only
+# inequality. 🔵 BECAUSE IT TOUCHES NO OBJECT STORE IT ALSO SURVIVES CI's `--depth 1`
+# CHECKOUT, where every SHA-derived claim in this file goes ABSENT.
+#
+# 🔴 AND THE ROW IS PROSE WITH FIVE SENSES, WHICH IS WHY NINE SESSIONS OF GATES LEFT IT
+# ALONE. Measured over all 78 registered blocks BEFORE a line of this was written:
+# UNMOVED 53 · HOST 13 · CODE 5 · BARE-MOVED 3 · NO-SENSE 3 · ADDON 1. `host code MOVED
+# — no cut, no version bump` (250–252, 254–255) is a claim about SOURCE and is
+# deliberately not derivable from the pair; `ADDON MOVED` (284) is about the second
+# number and not the first. A reader that compared a bare `\bMOVED\b` against the pair
+# would refuse five honest blocks, which is how a claim like this gets abandoned instead
+# of narrowed. So the sense is PARTITIONED — 244's shape one reader over — and each part
+# is compared against the half of the pair it is actually about.
+#
+# 🟢 THE MEASUREMENT IS WHAT MADE IT SHIPPABLE: 77 of the 78 agree, and the one that does
+# not is block 300 — the block 303's own paragraph names as false-as-published. It goes
+# in `POPULATION_SHAPE_DEBT`, which refuses in both directions, so the record of what was
+# published cannot be quietly driven to zero.
+HOST_ROW_RE = re.compile(r"^host\s*/\s*addon\s+([0-9][0-9.]*)\s*/\s*([0-9][0-9.]*)")
+
+
+def host_row_claim(block: "list[str]") -> "tuple[str, tuple[str, str] | None, str]":
+    """(sense, (host, addon), problem) for a block's `host / addon` row — TABLE.
+
+    Pure, and pure on purpose: it reads the block's own text and nothing else, so it
+    answers on a shallow checkout, in a fresh clone, and about a block whose tree is a
+    hundred commits in the past. `UNMOVED` wins over `MOVED` because five rows spell
+    both (`🟢 UNMOVED — no source touched`), and `CODE` wins over `HOST` because
+    `host code MOVED` is a sentence about source that borrows the same two words.
+    """
+    row = ""
+    for ln in block:
+        s = ln.lstrip("> ").rstrip()
+        if re.match(r"host\s*/\s*addon\b", s):
+            row = s
+            break
+    if not row:
+        return ("", None, "no `host / addon` row")
+    m = HOST_ROW_RE.match(row)
+    pair = (m.group(1), m.group(2)) if m else None
+    if re.search(r"\bUNMOVED\b", row, re.I):
+        sense = "UNMOVED"
+    elif not re.search(r"\bMOVED\b", row):
+        sense = "NO-SENSE"
+    elif re.search(r"\bCODE MOVED\b", row, re.I):
+        sense = "CODE"
+    elif re.search(r"\bADDON MOVED\b", row, re.I):
+        sense = "ADDON"
+    elif re.search(r"\bHOST MOVED\b", row):
+        sense = "HOST"
+    else:
+        sense = "BARE-MOVED"
+    return (sense, pair, "" if pair else "no version pair on the `host / addon` row")
+
+
+# 🔴 WHICH HALF OF THE PAIR EACH SENSE IS ABOUT. `CODE` and `NO-SENSE` map to None and
+# that is the whole of their treatment: a claim the table cannot check is not a claim
+# this reader gets to invent an answer for. 227's exemption shape, written as a table
+# rather than as five `continue`s nobody can count.
+SENSE_ASKS = {
+    "HOST":       lambda host_moved, addon_moved: host_moved,
+    "ADDON":      lambda host_moved, addon_moved: addon_moved,
+    "UNMOVED":    lambda host_moved, addon_moved: not host_moved and not addon_moved,
+    "BARE-MOVED": lambda host_moved, addon_moved: host_moved or addon_moved,
+}
+
+
+# ── 🆕 306 §2.2 — 244's PARTITION, LIFTED OUT SO IT CAN BE DRIVEN ────────────────────
+#
+# 244 §1 found that a block whose endpoints were not in the object store was dropped with
+# a bare `continue` — no reason, no row, no counter — and replaced it with a three-part
+# partition plus `POPULATION_ACCOUNTED`. 🔴 306 FOUND THE LAYER UNDER THAT. The reasons
+# are collected and then PRINTED only when nothing at all is readable
+# (`if pop_absent and not pop_moved`), which is the one case that needs no explanation: a
+# `--depth 1` checkout makes every block absent and says so. A block absent among
+# readable ones prints NOTHING, and every interval claim below simply stops asking about
+# it — measured, not argued: garbling the newest registered block's `main` SHA moves it
+# from `read` to `absent` and `--selftest` stays 569/569, exit 0 (306 §2.1 row G).
+#
+# 🔵 AND ABSENCE HAS A SHAPE, WHICH IS WHAT MAKES THE MIXED CASE REFUSABLE RATHER THAN
+# JUST SUSPICIOUS. `--depth N` keeps the N most RECENT commits, so a shallow checkout
+# loses blocks from the OLD end and absence is a PREFIX of the table. An absent block
+# with a readable one older than it cannot be explained by the depth of the checkout, and
+# is a SHA that is wrong. That is the claim `POPULATION_ABSENT_SHAPE` makes, and it is
+# why this had to become a function: a partition computed inline in `--selftest` is a
+# partition no mutation can drive.
+def population_partition(population: "list[tuple[int, str]] | None" = None,
+                         root: Path = ROOT
+                         ) -> "tuple[dict[int, int], list[str], list[str]]":
+    """(read, unread-with-reason, absent-with-reason) over `BLOCK_POPULATION` — TREE.
+
+    The three parts must add up to the table; that is `POPULATION_ACCOUNTED`'s claim and
+    it is the one a `continue` cannot make.
+    """
+    pop = BLOCK_POPULATION if population is None else population
+    moved: "dict[int, int]" = {}
+    unread: "list[str]" = []
+    absent: "list[str]" = []
+    for sess, text in pop:
+        pop_block = status_block(text)[0]
+        ends_p = main_shas(pop_block)[:2]
+        if not ends_p:
+            absent.append(f"{sess}: no SHA on the main row")
+            continue
+        gone = [s for s in ends_p
+                if subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=root,
+                                  capture_output=True).returncode != 0]
+        if gone:
+            absent.append(f"{sess}: {' '.join(gone)} not in this object store")
+            continue
+        n_p, why_p = moved_interval(pop_block, sess, root)
+        if why_p:
+            unread.append(f"{sess}: {why_p[:60]}")
+        else:
+            moved[sess] = n_p
+    return (moved, unread, absent)
+
+
+def absence_shape_problem(moved: "dict[int, int]", unread: "list[str]",
+                          absent: "list[str]") -> str:
+    """The problem with an absence that is not a PREFIX of the table, or "" — PURE.
+
+    🔴 THE LIVE CLAIM AND ITS DRIVE CALL THIS SAME FUNCTION. A driven refusal that
+    re-implements the comparison it is driving asserts about its own copy (203 §2), which
+    is the mistake `--assert-ritual` was built to avoid one gate over.
+    """
+    def sessions(rows: "list[str]") -> "list[int]":
+        out: "list[int]" = []
+        for r in rows:
+            head = r.split(":")[0].strip()
+            if head.isdigit():
+                out.append(int(head))
+        return out
+    gone = sorted(sessions(absent))
+    seen = sorted(list(moved) + sessions(unread))
+    if not gone or not seen or max(gone) <= min(seen):
+        return ""
+    return (f"block(s) {[s for s in gone if s > min(seen)]} are absent from this object "
+            f"store while older block(s) are readable (oldest readable {min(seen)}) — "
+            f"`--depth N` keeps the N most RECENT commits, so a shallow checkout loses "
+            f"blocks from the OLD end and absence is a PREFIX of the table. This is a "
+            f"`main` SHA in `BLOCK_POPULATION` that names no commit, not a shallow "
+            f"clone. 244 gave every drop a reason and then printed the reasons only when "
+            f"EVERY block was dropped, which is the one case that explains itself: "
+            f"{absent}")
+
+
+# ── 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads` (OPEN 296, TEN SESSIONS) ─
+#
+# 🔴 THE ROW SAYS §6 IS TYPED BY HAND AND COMPARED TO NOTHING, AND 306 MEASURED WHAT THAT
+# COSTS BEFORE WRITING A LINE. Against today's `QUEUE.md`, which holds ten OPEN rows:
+#
+#     300  10/10 named in §6      303  10/10 named in §6
+#     301  10/10 named in §6      304  10/10 named in §6
+#     302  10/10 named in §6      305   1/10 named in §6 — 3/10 in the whole document
+#
+# 🔴 305 IS THE SESSION THE HAND-MAINTAINED LIST BROKE, AND ITS OWN §6 SAYS SO ABOUT
+# ITSELF WITHOUT KNOWING IT: *"DO NOT TRUST THIS SECTION OVER THAT COMMAND — 305 is the
+# NINTH session to hand-maintain the list it names."* It rewrote the section as prose and
+# seven OPEN rows stopped appearing in the document at all. Nothing said a word, which is
+# the row, and 304's hand-comparison one session earlier — *10 OPEN rows, 10 named, no
+# disagreement either way* — is why a hand-check is not a reader: it was true when it was
+# taken and it does not run again.
+#
+# 🔴 AND THE COMPARISON IS ONLY SOUND AGAINST THE LIVE PAIR, which is what makes this a
+# CLOSE-path claim rather than a `--selftest` one over the shipped handoffs. The queue
+# carries TODAY's states; 300's §6 named `release-names-ritual-axis` as owed while it was
+# OPEN and it closed at 304, so judging an old document by a new queue refuses honest
+# work. The document being written and the queue as it stands are the one pair that can
+# be compared, and `HANDOFF*.md` is gitignored, so this runs where the ritual runs.
+#
+# 🔵 TWO DIRECTIONS, AND THEY ARE NOT THE SAME CLAIM. Omission is measured (305) and is
+# about the WHOLE document, because §4's ranked list is a legitimate place to name a row.
+# Staleness — a row the queue calls DONE, sitting in §6's OWED list — is about that
+# subsection only, since a closed row is cited all over an honest handoff as history.
+SECTION_SIX_RE = re.compile(r"\n##\s*§6\b[^\n]*\n(.*?)(?=\n##\s*§|\Z)", re.S)
+OWED_RE = re.compile(r"\n###[^\n]*\bOwed\b[^\n]*\n(.*?)(?=\n###|\Z)", re.S)
+
+
+def section_six_problems(text: str, rows: "list | None" = None
+                         ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — the hand-typed to-do against `QUEUE.md`, both directions."""
+    if rows is None:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from queue_gate import parse as _qparse       # noqa: E402
+            rows = _qparse((ROOT / "QUEUE.md").read_text(encoding="utf-8"))[2]
+        except Exception as exc:                          # pragma: no cover - env only
+            return ([], [f"🟡 SECTION_SIX_UNREAD `QUEUE.md` did not parse ({exc}), so §6 "
+                         f"has nothing to be compared against and this run has no "
+                         f"opinion about the list the next session inherits"])
+    m = SECTION_SIX_RE.search(text)
+    if not m:
+        return (["🔴 SECTION_SIX_ABSENT this document carries no `## §6` section, so the "
+                 "list the next session inherits as its to-do is not in it at all"], [])
+    owed_m = OWED_RE.search(m.group(1))
+    owed = owed_m.group(1) if owed_m else ""
+    live = [r for r in rows if r.state == "OPEN"]
+    missing = [r.id for r in live if r.id not in text]
+    stale = sorted({r.id for r in rows if r.state in ("DONE", "KILLED")} & {
+        r.id for r in rows if r.id in owed})
+    problems: "list[str]" = []
+    if missing:
+        problems.append(
+            f"🔴 SECTION_SIX_OMITS {len(missing)} OPEN queue row(s) are named nowhere in "
+            f"this document: {missing}. The next session inherits §6 as its to-do list, "
+            f"so a row missing here is work that is tracked and not handed over — "
+            f"`python3 scripts/queue_gate.py --render` is the list, and this section is "
+            f"supposed to agree with it")
+    if stale:
+        problems.append(
+            f"🔴 SECTION_SIX_STALE §6's OWED list names {stale}, which `QUEUE.md` records "
+            f"as closed. Owed work that is already done is the other half of the same "
+            f"defect: a hand-typed list drifts in both directions and only one of them "
+            f"is visible to the person reading it")
+    return (problems, [f"🟢 SECTION_SIX {len(live) - len(missing)} of {len(live)} OPEN "
+                       f"row(s) named, 0 closed row(s) in OWED"] if not problems else [])
+
+
 def population_block_shape() -> "list[str]":
     """Every block in `BLOCK_POPULATION`, judged by the rules a LIVE block is judged by.
 
@@ -1936,6 +2168,18 @@ def population_block_shape() -> "list[str]":
     debt.
     """
     problems: "list[str]" = []
+    # 🆕 306 §2 — the predecessor's PAIR, walked over the WHOLE table rather than the
+    # judged part, so block 233 has the endpoint block 232 printed. Nothing here dials
+    # git: the far endpoint of a registered block's version claim is the block above it.
+    before_pair: "dict[int, tuple[str, str] | None]" = {}
+    _carry: "tuple[str, str] | None" = None
+    for _s, _t in BLOCK_POPULATION:
+        before_pair[_s] = _carry
+        _b, _w = status_block(_t)
+        if not _w:
+            _p = host_row_claim(_b)[1]
+            if _p:
+                _carry = _p
     for session, text in BLOCK_POPULATION:
         if session < POPULATION_SHAPE_FROM:
             continue
@@ -1969,6 +2213,19 @@ def population_block_shape() -> "list[str]":
                 f"block {session} carries {len(h_atoms)} header atom(s) against a floor "
                 f"of {HEADER_FLOOR} — a parse that found fewer has stopped reading the "
                 f"header rather than found a block without one")
+        # 🆕 306 §2 — THE SIGN AGAINST THE PAIR, FROM THE TABLE ALONE. The row's word and
+        # the row's two numbers are the same claim spelled twice, and until now only the
+        # numbers were compared to anything.
+        sense, pair, _row_why = host_row_claim(block)
+        prior = before_pair.get(session)
+        asks = SENSE_ASKS.get(sense)
+        if asks is not None and pair and prior:
+            if not asks(pair[0] != prior[0], pair[1] != prior[1]):
+                problems.append(
+                    f"block {session} says {sense} on its `host / addon` row and its own "
+                    f"pair says otherwise — {prior[0]}/{prior[1]} -> {pair[0]}/{pair[1]}. "
+                    f"The word and the numbers are one claim spelled twice, and this "
+                    f"block spelled them differently")
     # 🔴 THE DEBT IS SUBTRACTED HERE AND CHECKED IN BOTH DIRECTIONS. A declared failure
     # that no longer happens is refused just as loudly as an undeclared one: the first
     # would mean a block in this tree had been edited to make a gate green, which is the
@@ -3052,6 +3309,18 @@ POPULATION_SHAPE_DEBT: "dict[int, tuple[str, ...]]" = {
         # is byte-for-byte what it shipped as. The line is left as a comment rather than
         # deleted because a debt that vanished silently is indistinguishable from a
         # reader that stopped looking, which is precisely what the refusal above says.
+    ),
+    # 🆕 306 §2 — THE BLOCK 303's OWN PARAGRAPH NAMED AND COULD NOT REFUSE. 300's row
+    # says `🔴 HOST MOVED against the newest BLOCK — see below`, and 300's pair is
+    # `1.84.0 / 1.15.0` against 299's `1.84.0 / 1.15.0`: the published host version did
+    # not move, and the sentence beneath the row explains that what moved was the tree
+    # against a block, which is a different fact wearing the same three words. 303 wrote
+    # *"300's false sentence stands as published rather than being retrospectively
+    # refusable"* — it is refusable now, and this row is the record that it was published
+    # anyway. 🔴 IT IS THE ONLY DISAGREEMENT IN 78 BLOCKS, measured before the reader was
+    # written, which is what licensed shipping the reader instead of a ceiling.
+    300: (
+        "block 300 says HOST on its `host / addon` row",
     ),
 }
 
@@ -5482,6 +5751,12 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     rf_problems, rf_notes = replay_ci_flag_problems(text, ci_commands())
     problems.extend(rf_problems)
     r_notes.extend(rf_notes)
+    # 🆕 306 §3 — and §6's hand-typed to-do against the tracked queue, both directions.
+    # It runs HERE, on the close path, because the document is gitignored and because the
+    # comparison is only sound against the queue as it stands right now.
+    s6_problems, s6_notes = section_six_problems(text)
+    problems.extend(s6_problems)
+    r_notes.extend(s6_notes)
     # 🆕 243 — and the third direction: what the union of both rosters never reaches.
     un_problems, un_notes = unreached_problems(text, _ci)
     problems.extend(un_problems)
@@ -9603,26 +9878,8 @@ def selftest() -> int:
     # claims stand on it — two of them passing vacuously over the empty set for nine
     # sessions. The population is now PARTITIONED, and `POPULATION_ACCOUNTED` below
     # refuses a block that belongs to none of the three parts.
-    pop_moved: "dict[int, int]" = {}
-    pop_unread: "list[str]" = []
-    pop_absent: "list[str]" = []
-    for sess, text in BLOCK_POPULATION:
-        pop_block = status_block(text)[0]
-        ends_p = main_shas(pop_block)[:2]
-        if not ends_p:
-            pop_absent.append(f"{sess}: no SHA on the main row")
-            continue
-        gone = [s for s in ends_p
-                if subprocess.run(("git", "cat-file", "-e", f"{s}^{{commit}}"), cwd=ROOT,
-                                  capture_output=True).returncode != 0]
-        if gone:
-            pop_absent.append(f"{sess}: {' '.join(gone)} not in this object store")
-            continue
-        n_p, why_p = moved_interval(pop_block, sess)
-        if why_p:
-            pop_unread.append(f"{sess}: {why_p[:60]}")
-        else:
-            pop_moved[sess] = n_p
+    # 🆕 306 §2.2 — the walk is `population_partition` now, so a mutation can reach it.
+    pop_moved, pop_unread, pop_absent = population_partition()
 
     # 🔴 EVERY BLOCK IS READ, UNREAD WITH A REASON, OR ABSENT WITH A REASON. The three
     # parts must add up to the table, which is the claim a `continue` cannot make. It is
@@ -9640,6 +9897,45 @@ def selftest() -> int:
         print(f"  🟡 POPULATION_ABSENT no block's endpoints are in this object store "
               f"({len(pop_absent)} of {len(BLOCK_POPULATION)}) — a shallow checkout. The "
               f"interval claims below take their REFUSAL path here and say so")
+
+    # 🆕 306 §2.2 — AND ABSENCE HAS A SHAPE. The 🟡 above speaks only when it has nothing
+    # to say about anything; a block absent among readable ones prints nothing at all and
+    # every claim below silently stops asking about it. `--depth N` keeps the N most
+    # RECENT commits, so a shallow checkout loses blocks from the OLD end and absence is a
+    # PREFIX of the table. An absent block with a readable one OLDER than it is not a
+    # shallow checkout — it is a SHA in this file that does not name a commit.
+    claims += 1
+    _shape_why = absence_shape_problem(pop_moved, pop_unread, pop_absent)
+    if _shape_why:
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_SHAPE {_shape_why}")
+
+    # 🔴 AND THE REFUSAL IS DRIVEN, THROUGH THE SAME LIVE READER — a claim that has only
+    # ever seen an empty `pop_absent` has not been driven at all (304 §5.5), and a driven
+    # claim that re-implements the comparison is asserting about its own copy (203 §2).
+    # The newest registered block's `main` SHA is replaced with one no object store holds,
+    # which is exactly what a typo looks like, and `absence_shape_problem` — the same
+    # function the claim above calls — must name it.
+    claims += 1
+    _garble_s, _garble_t = BLOCK_POPULATION[-1]
+    _garble = [(s, (re.sub(r"^(> main\s+)[0-9a-f]{7,40}", r"\g<1>0000000", t, count=1,
+                           flags=re.M) if s == _garble_s else t))
+               for s, t in BLOCK_POPULATION]
+    if not (pop_moved or pop_unread):
+        print("  🟡 POPULATION_ABSENT_SHAPE_DRIVEN no block is readable on this "
+              "checkout — a `--depth 1` clone, where a mixed partition cannot be "
+              "constructed and the claim above is about a case that cannot arise here")
+    elif _garble[-1][1] == _garble_t:
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_SHAPE_DRIVEN block {_garble_s}'s `main` row could "
+              f"not be edited, so the refusal above was never driven")
+    elif not absence_shape_problem(*population_partition(_garble)):
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_SHAPE_DRIVEN block {_garble_s}'s `main` SHA was "
+              f"replaced with one no object store holds and `absence_shape_problem` said "
+              f"nothing — either the partition no longer reports absence, or the shape "
+              f"rule no longer reads a mixed one. On a full clone `0000000` names no "
+              f"commit, so there is no third answer")
 
     claims += 1
     if pop_moved and len(set(pop_moved.values())) < 2:
@@ -9668,6 +9964,84 @@ def selftest() -> int:
         print(f"  🔴 MOVED_POPULATION {disagreed} — 238 NEXT 2 asked whether 232's "
               f"`MOVED +2` was wrong or the reader was. Measured over every block the "
               f"table holds, and any row here is one or the other")
+
+    # ── 🆕 306 §2 — `version-population-said-impossible`: THE SIGN, MEASURED ──────────
+    #
+    # 🔴 303 SAID THIS COULD NOT EXIST and gave a reason that is true of `version_interval`
+    # and of nothing else. These four claims are the whole of the answer, and not one of
+    # them dials git: the far endpoint of a registered block's version claim is the block
+    # printed above it in this same table.
+    _sense_parts: "dict[str, list[int]]" = {}
+    for _vs, _vt in BLOCK_POPULATION:
+        _vb, _vw = status_block(_vt)
+        _vk = "UNPARSED" if _vw else (host_row_claim(_vb)[0] or "UNPARSED")
+        _sense_parts.setdefault(_vk, []).append(_vs)
+    claims += 1
+    if sum(len(v) for v in _sense_parts.values()) != len(BLOCK_POPULATION):
+        failed += 1
+        print(f"  🔴 VERSION_SENSE_ACCOUNTED {sum(len(v) for v in _sense_parts.values())} "
+              f"of {len(BLOCK_POPULATION)} block(s) land in a named sense — "
+              f"{ {k: len(v) for k, v in _sense_parts.items()} }. 244's partition, one "
+              f"row over: a block this walk drops is a block the claim below is silently "
+              f"not making")
+    _comparable = sum(len(_sense_parts.get(k, ())) for k in SENSE_ASKS)
+    claims += 1
+    if _comparable < 60:
+        failed += 1
+        print(f"  🔴 VERSION_POPULATION_REACH only {_comparable} registered block(s) "
+              f"carry a sense the pair can answer, floor 60 — `CODE` and `NO-SENSE` are "
+              f"declared uncomparable, so a session that widened either would shrink "
+              f"this claim's population without failing it. Measured at 306: "
+              f"{ {k: len(v) for k, v in sorted(_sense_parts.items())} }")
+
+    # 🟢 THE LIVE CLAIM — `population_block_shape` IS THE READER, and its debt roster is
+    # the one already here. Nothing new to declare an exemption in.
+    claims += 1
+    _vp = [p for p in population_block_shape() if "on its `host / addon` row" in p]
+    if _vp:
+        failed += 1
+        print(f"  🔴 VERSION_POPULATION {_vp} — a registered block's word and its own two "
+              f"numbers disagree, and neither `POPULATION_SHAPE_DEBT` nor the sense "
+              f"partition accounts for it")
+
+    # 🔴 AND THE REFUSAL, DRIVEN ON THE LIVE TABLE RATHER THAN A FIXTURE. The newest block
+    # carrying a comparable sense has that ONE WORD flipped against its own unchanged
+    # pair, and `population_block_shape` must name it. Two-armed by construction (305
+    # §2.3): whichever word this tree's newest block carries, the flip is the falsehood
+    # available, and the arm that ran says which.
+    claims += 1
+    _cand = next(((s, t) for s, t in reversed(BLOCK_POPULATION)
+                  if s >= POPULATION_SHAPE_FROM
+                  and host_row_claim(status_block(t)[0])[0] in SENSE_ASKS), None)
+    if _cand is None:
+        failed += 1
+        print("  🔴 VERSION_POPULATION_REFUSES no judged block carries a comparable "
+              "sense, so the claim above is passing over an empty set")
+    else:
+        _cs, _ct = _cand
+        _cw = host_row_claim(status_block(_ct)[0])[0]
+        _cl = _ct.splitlines(keepends=True)
+        for _ci, _cln in enumerate(_cl):
+            if re.match(r"host\s*/\s*addon\b", _cln.lstrip("> ")):
+                _cl[_ci] = (re.sub(r"\bUNMOVED\b", "HOST MOVED", _cln, count=1, flags=re.I)
+                            if _cw == "UNMOVED"
+                            else re.sub(r"\b(?:HOST |ADDON )?MOVED\b", "UNMOVED", _cln,
+                                        count=1))
+                break
+        _saved_pop = BLOCK_POPULATION
+        try:
+            globals()["BLOCK_POPULATION"] = [(s, "".join(_cl) if s == _cs else t)
+                                             for s, t in _saved_pop]
+            _fired = [p for p in population_block_shape()
+                      if p.startswith(f"block {_cs} says ")]
+        finally:
+            globals()["BLOCK_POPULATION"] = _saved_pop
+        if not _fired:
+            failed += 1
+            print(f"  🔴 VERSION_POPULATION_REFUSES block {_cs}'s `host / addon` row was "
+                  f"flipped from {_cw} against its own unchanged pair and "
+                  f"`population_block_shape` said nothing — the arm that ran was the "
+                  f"{'UNMOVED' if _cw == 'UNMOVED' else 'MOVED'} one")
 
     # ── 🆕 243 §3: `header-unmoved-unread` (OPEN 239) — THE WORD, MEASURED ────────────
     #
@@ -10631,6 +11005,43 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 POPULATION_SHAPE_CONTROL a block claiming one unbound atom and "
               f"nothing else was not refused on all three arms: {_got[:3]}")
+
+    # ── 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads`, ON FIXTURES ─────────
+    #
+    # The LIVE claim runs on the close path, against the document being written and the
+    # queue as it stands. These four prove the PREDICATE, which is what `--selftest` is
+    # for and the only half of this row CI can ever see.
+    class _R:                                  # the two fields the reader reads
+        def __init__(self, i, s): self.id, self.state = i, s
+    _rows = [_R("alpha-row", "OPEN"), _R("beta-row", "OPEN"), _R("gamma-row", "DONE")]
+    _doc_ok = ("\n## §6 — OPEN\n\n### 🔴 Owed\n\n1. `alpha-row` is owed.\n\n"
+               "### 🟡 Where to look next\n\n- `beta-row`\n\n## §7 — THE REPLAY\n")
+    claims += 1
+    _p6, _n6 = section_six_problems(_doc_ok, _rows)
+    if _p6 or not _n6:
+        failed += 1
+        print(f"  🔴 SECTION_SIX_ACCEPTS a §6 naming every OPEN row and no closed one "
+              f"was refused: {_p6}")
+    claims += 1
+    _p6, _ = section_six_problems(_doc_ok.replace("- `beta-row`\n", "- prose\n"), _rows)
+    if not any("SECTION_SIX_OMITS" in p and "beta-row" in p for p in _p6):
+        failed += 1
+        print(f"  🔴 SECTION_SIX_OMITS an OPEN row named nowhere in the document was not "
+              f"refused by name — 305's failure exactly, 1 of 10 named: {_p6}")
+    claims += 1
+    _p6, _ = section_six_problems(
+        _doc_ok.replace("`alpha-row` is owed.", "`alpha-row` and `gamma-row` are owed."),
+        _rows)
+    if not any("SECTION_SIX_STALE" in p and "gamma-row" in p for p in _p6):
+        failed += 1
+        print(f"  🔴 SECTION_SIX_STALE a row `QUEUE.md` records as DONE, sitting in §6's "
+              f"OWED list, was not refused: {_p6}")
+    claims += 1
+    _p6, _ = section_six_problems("# a handoff with no sections at all\n", _rows)
+    if not any("SECTION_SIX_ABSENT" in p for p in _p6):
+        failed += 1
+        print(f"  🔴 SECTION_SIX_ABSENT a document with no §6 was not refused — an "
+              f"omission claim that reads an empty string finds nothing missing: {_p6}")
 
     # ── 🆕 284 — `POPULATION_CURRENCY`, and it runs HERE because here is where CI runs ──
     #
