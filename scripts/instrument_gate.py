@@ -1263,6 +1263,18 @@ INSTRUMENTS = [
             # Blinded to "" it says no absence has a bad shape, which is exactly the
             # state 306 measured: garbling the newest block's SHA left `--selftest` at
             # 569/569 and nothing said a word.
+            # 🆕 307 §3 — `untagged`, THE THIRD HAND-TYPED FIELD, AND ITS MEMBERSHIP
+            # ARM. The two readers blind to None make every block uncomparable at once,
+            # which `UNTAGGED_POPULATION_REACH` and `UNTAGGED_MEMBERSHIP` both refuse —
+            # a population that empties is 304 §5.5's shape again. `untagged_partition`
+            # blinded to an empty dict drops all 79 blocks, which is what
+            # `UNTAGGED_ACCOUNTED` exists to see; `untagged_problems` blinded to an empty
+            # list is the exact silence 305 row C and 307 row I measured, so the live
+            # claim is the one that must catch it.
+            "{SIG:untagged_of}": "return None",
+            "{SIG:moved_of}": "return None",
+            "{SIG:untagged_partition}": "return {}",
+            "{SIG:untagged_problems}": "return []",
             "{SIG:absence_shape_problem}": "return \"\"",
             # 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads`. Blinded to two
             # empty lists it finds no omission and no stale row, which is the state

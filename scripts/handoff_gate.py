@@ -1981,6 +1981,108 @@ SENSE_ASKS = {
 # is a SHA that is wrong. That is the claim `POPULATION_ABSENT_SHAPE` makes, and it is
 # why this had to become a function: a partition computed inline in `--selftest` is a
 # partition no mutation can drive.
+
+# ── 🆕 307 §3 — `untagged` IS THE THIRD FIELD OF THE SAME KIND, AND IT IS ARITHMETIC ──
+#
+# 305 §2.1 row C flipped a LIVE block's `untagged 9` to `untagged 4` and nothing moved.
+# 307 row I did the same to a REGISTERED one — `untagged 2` -> `untagged 7`, 581/581,
+# exit 0 — so the silence survives registration. 306 §6 carried the finding without a row,
+# arguing the general answer was §5.1's practice note rather than three more readers.
+#
+# 🔴 THE PRACTICE NOTE AND A READER ARE NOT ALTERNATIVES HERE, because this field is
+# derivable exactly the way 306 derived the version pair: WITHOUT GIT. `untagged N` counts
+# the commits on main the newest tag does not name; `MOVED +K` counts how far main moved
+# since the previous registered block. With no release cut between two blocks the tag does
+# not move and those commits accumulate, so
+#
+#     untagged(N) == untagged(N-1) + moved(N)
+#
+# is two human-typed strings and an addition — no tree, no `git rev-list`, and therefore
+# alive on CI's `--depth 1` checkout, which is where 306 §5.4 was learned.
+#
+# 🔴 AND THE POPULATION IS SELECTED FROM THE DATA IT CHECKS, WHICH IS 306 §5.1's SUBJECT.
+# A block that stops printing `untagged`, or whose pair makes it look like a cut, leaves
+# the compared set in silence. So this partition NAMES every block and its reason and the
+# claim is about MEMBERSHIP — a floor on the size cannot see a member traded for an excuse.
+#
+# 🔵 THE TWO CUT SENSES ARE WHY THE SKIPS ARE NOT AN EXCUSE. A cut block's own reading is
+# taken before its tag is pushed (299 printed `untagged 15` at the commit v1.84.0 names)
+# or after it (305 printed `untagged 0`, obeying its own new rule) — both honest, and the
+# table cannot tell which. Measured over all 79 blocks at 307: 17 compared, 17 agree, 0
+# disagree, 5 skipped and every skip named.
+UNTAGGED_RE = re.compile(r"\buntagged (\d+)\b")
+# 🔵 NOT ANCHORED AT A LINE START: the field sits mid-row after a `·` separator
+# (`> npm  🟢 registry 1.84.1 · untagged 2 ·`), and the first draft of this reader
+# anchored it, which put all 79 blocks in the `no untagged` bucket and made the
+# comparison pass over an empty set — 244 §3's failure with the sign reversed.
+# The digit is what keeps `untagged-count-unbound` out of the match.
+MOVED_RE = re.compile(r"\bMOVED \+(\d+)")
+
+
+def untagged_of(text: str) -> "int | None":
+    """The `untagged n` a block prints, or None — PURE, and about the block only."""
+    m = UNTAGGED_RE.search(text)
+    return int(m.group(1)) if m else None
+
+
+def moved_of(text: str) -> "int | None":
+    """The `MOVED +k` a block prints, or None — PURE, same reading."""
+    m = MOVED_RE.search(text)
+    return int(m.group(1)) if m else None
+
+
+def untagged_partition(population: "list[tuple[int, str]] | None" = None) -> "dict[str, list[int]]":
+    """Every registered block in exactly one named bucket — 244's shape, one field over.
+
+    `compared` is the only bucket the arithmetic runs over. The rest are reasons, and
+    they are named rather than counted so that a block leaving `compared` shows up as a
+    different partition instead of a smaller number (306 §5.1).
+    """
+    pop = BLOCK_POPULATION if population is None else population
+    out: "dict[str, list[int]]" = {k: [] for k in
+                                   ("compared", "prints none", "predecessor prints none",
+                                    "no moved", "first", "gap", "cut", "after a cut")}
+    pairs = {s: host_row_claim(status_block(t)[0])[1] for s, t in pop}
+    for i, (s, t) in enumerate(pop):
+        if untagged_of(t) is None:
+            out["prints none"].append(s)
+            continue
+        if i == 0:
+            out["first"].append(s)
+            continue
+        prev = pop[i - 1][0]
+        if untagged_of(pop[i - 1][1]) is None:
+            out["predecessor prints none"].append(s)
+        elif s != prev + 1:
+            out["gap"].append(s)
+        elif moved_of(t) is None:
+            out["no moved"].append(s)
+        elif pairs.get(s) is not None and pairs.get(prev) is not None and pairs[s] != pairs[prev]:
+            out["cut"].append(s)
+        elif (i >= 2 and pairs.get(prev) is not None
+              and pairs.get(pop[i - 2][0]) is not None
+              and pairs[prev] != pairs[pop[i - 2][0]]):
+            out["after a cut"].append(s)
+        else:
+            out["compared"].append(s)
+    return out
+
+
+def untagged_problems(population: "list[tuple[int, str]] | None" = None) -> "list[str]":
+    """Each compared block whose own three numbers disagree — PURE, git-free."""
+    pop = BLOCK_POPULATION if population is None else population
+    by = {s: t for s, t in pop}
+    order = [s for s, _ in pop]
+    out = []
+    for s in untagged_partition(pop)["compared"]:
+        prev = order[order.index(s) - 1]
+        got, was, k = untagged_of(by[s]), untagged_of(by[prev]), moved_of(by[s])
+        if got != was + k:
+            out.append(f"block {s} prints `untagged {got}` where {prev}'s `untagged {was}` "
+                       f"plus its own `MOVED +{k}` is {was + k} — no cut stands between "
+                       f"them, so the tag did not move and the commits accumulate")
+    return out
+
 def population_partition(population: "list[tuple[int, str]] | None" = None,
                          root: Path = ROOT
                          ) -> "tuple[dict[int, int], list[str], list[str]]":
@@ -10093,6 +10195,91 @@ def selftest() -> int:
                   f"flipped from {_cw} against its own unchanged pair and "
                   f"`population_block_shape` said nothing — the arm that ran was the "
                   f"{'UNMOVED' if _cw == 'UNMOVED' else 'MOVED'} one")
+
+    # ── 🆕 307 §3 — `untagged`: THE THIRD FIELD, AND THE FIRST MEMBERSHIP CLAIM ──────
+    #
+    # 305 row C and 307 row I both flipped an `untagged` and got exit 0. It is derivable
+    # from two human-typed strings in this same table (see `untagged_problems`), so the
+    # answer is a reader — but 306 §5.1 is that a reader selecting its own population from
+    # the data it checks owes a claim about MEMBERSHIP, and a floor on a count cannot make
+    # one. All four claims below are git-free and hold on a `--depth 1` checkout.
+    _up = untagged_partition()
+    claims += 1
+    if sum(len(v) for v in _up.values()) != len(BLOCK_POPULATION):
+        failed += 1
+        print(f"  🔴 UNTAGGED_ACCOUNTED {sum(len(v) for v in _up.values())} of "
+              f"{len(BLOCK_POPULATION)} block(s) land in a named bucket — "
+              f"{ {k: len(v) for k, v in _up.items() if v} }. A block this walk drops is a "
+              f"block the claim below is silently not making")
+    claims += 1
+    if len(_up["compared"]) < 12:
+        failed += 1
+        print(f"  🔴 UNTAGGED_POPULATION_REACH only {len(_up['compared'])} block(s) are "
+              f"comparable, floor 12 — measured 17 at 307. `cut` and `after a cut` are "
+              f"skipped because a cut block's reading may be taken before its tag is "
+              f"pushed (299 printed `untagged 15`) or after (305 printed `untagged 0`), "
+              f"so a session that widened either sense would shrink this population "
+              f"without failing anything: { {k: len(v) for k, v in _up.items() if v} }")
+    claims += 1
+    _upp = untagged_problems()
+    if _upp:
+        failed += 1
+        print(f"  🔴 UNTAGGED_POPULATION {_upp}")
+
+    # 🔴 THE MEMBERSHIP ARM — 306 §5.1's GENERAL ANSWER, MADE A CLAIM. 306 measured that a
+    # false field DELETES a comparison rather than failing it, and that the guards were the
+    # wrong shape to see it because they were floors on COUNTS. This drives the deletion
+    # itself: take the newest comparable block, remove the field the population is selected
+    # by, and require the partition to SAY SO — the block named in `prints none`, its
+    # successor in `predecessor prints none`, and every block still accounted for. A
+    # partition that answers this cannot lose a member quietly.
+    claims += 1
+    if not _up["compared"]:
+        failed += 1
+        print("  🔴 UNTAGGED_MEMBERSHIP no comparable block, so the drive below would be "
+              "passing over an empty set")
+    else:
+        _un = _up["compared"][-1]
+        _blind = [(_s, (UNTAGGED_RE.sub("untagged-removed", _t) if _s == _un else _t))
+                  for _s, _t in BLOCK_POPULATION]
+        _bp = untagged_partition(_blind)
+        _after = [_s for _s, _ in BLOCK_POPULATION if _s == _un + 1]
+        _want = (_un in _bp["prints none"]
+                 and _un not in _bp["compared"]
+                 and all(_a in _bp["predecessor prints none"] for _a in _after)
+                 and sum(len(v) for v in _bp.values()) == len(BLOCK_POPULATION))
+        if not _want:
+            failed += 1
+            print(f"  🔴 UNTAGGED_MEMBERSHIP removing block {_un}'s `untagged` left the "
+                  f"partition unable to name what changed — { {k: len(v) for k, v in _bp.items() if v} }. "
+                  f"That is the shape 306 §5.1 named: the comparison is deleted rather "
+                  f"than failed, and nothing here is the wrong size")
+
+    # 🔴 AND THE SKIP RULES DRIVEN ON A CONSTRUCTED POPULATION, BECAUSE THE LIVE ONE
+    # CANNOT REDDEN THEM. 307's sweep found `gap` surviving its mutation: the table holds
+    # exactly one gap (289, after 287) and that block's arithmetic AGREES anyway, so
+    # deleting the rule changes no answer. 304 §5.5 — when a mutation finds nothing,
+    # suspect the fixture — and 306 §5.4: the drive must call the function it is driving.
+    # These need no repository, so they hold on CI's shallow checkout too.
+    claims += 1
+    _gp = [(40, "> main a MOVED +1\n> npm untagged 5 ·\n> host / addon 1.0.0 / 2.0.0 🟢 UNMOVED"),
+           (41, "> main b MOVED +1\n> npm untagged 6 ·\n> host / addon 1.0.0 / 2.0.0 🟢 UNMOVED"),
+           (43, "> main c MOVED +1\n> npm untagged 99 ·\n> host / addon 1.0.0 / 2.0.0 🟢 UNMOVED")]
+    _gpart = untagged_partition(_gp)
+    if not (_gpart["gap"] == [43] and _gpart["compared"] == [41] and not untagged_problems(_gp)):
+        failed += 1
+        print(f"  🔴 UNTAGGED_GAP a block whose predecessor in the table is not the "
+              f"session before it is not comparable — `MOVED +k` is measured from the "
+              f"previous REGISTERED block, so across a hole the addition is asking about "
+              f"an interval nobody printed. Got { {k: v for k, v in _gpart.items() if v} } "
+              f"and problems {untagged_problems(_gp)}")
+    claims += 1
+    _bad = [_gp[0], (41, _gp[1][1].replace("untagged 6", "untagged 60"))]
+    if not untagged_problems(_bad):
+        failed += 1
+        print("  🔴 UNTAGGED_GAP_REFUSES the same two blocks WITHOUT a hole, one of them "
+              "carrying a false count, must be caught — otherwise the rule above is "
+              "excusing the population rather than describing it")
 
     # ── 🆕 243 §3: `header-unmoved-unread` (OPEN 239) — THE WORD, MEASURED ────────────
     #

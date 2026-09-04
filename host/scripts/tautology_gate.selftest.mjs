@@ -543,6 +543,42 @@ claim(V('population.open("SEC_A");\nassert.ok(x > 0);', "p.mjs").attributed === 
   "…and a file that never constructs a Population has no section markers to read, whatever "
   + "it happens to call `population` — the receiver is derived from `new Population`, not assumed");
 
+// ── 🆕 2b. 307 §2 — AND BOTH READERS ABOVE WERE ASKING THE TEXT ABOUT THE CODE ────────
+// Until 307 the banner fallback was gated by a regex over the raw source and the section
+// markers were found by a regex over raw lines. Neither can tell a CALL from a QUOTED
+// FIXTURE, and the files that quote test source are exactly the gate self-tests — this one
+// among them, which is why all 175 of its own claims carried `owner === null` and why
+// `positive_control_gate`'s `residue 1` was unattributable for sixteen sessions.
+// 🔴 THE TWO FAILURES ARE NOT THE SAME SIZE. A banner gate fooled by fixture text DELETES
+// an attribution and shows up as an orphan; a section reader fooled by fixture text INVENTS
+// one and shows up as COVERAGE. Measured at 307: 132 of `seal_order_gate.selftest.mjs`'s
+// claims were attributed to markers inside a template literal, counted by a FLOOR.
+const QUOTED_TEST = '// ===== A TITLE =====\nconst F = \'test("a", () => {});\';\nassert.ok(x > 0);';
+claim(V(QUOTED_TEST, "q.mjs").attributed === 1,
+  "🔴 A `test(` INSIDE A STRING IS NOT A TEST BLOCK — the file is script-shaped and keeps "
+  + "its banner fallback. This is the case that had been wrong since the fallback was written");
+claim(V('// ===== A TITLE =====\ntest("a", () => { assert.ok(y > 0); });\nassert.ok(x > 0);', "r.mjs").bannerAttributed === 0,
+  "…and a REAL test() call still disables the fallback, so the fix did not simply open it up: "
+  + "a file with both would get its stray claims swept under whichever banner preceded them");
+claim(V('// ===== A TITLE =====\nconst re = /x/;\nre.test("y");\nassert.ok(x > 0);', "s.mjs").attributed === 1,
+  "🔴 AND `RegExp.prototype.test` IS NOT A TEST BLOCK EITHER. Admitting property access by "
+  + "name judged 47 files as having tests that have none and took the banner population "
+  + "98 -> 51 on 307's first run — the raw regex it replaced required a quote after the paren");
+
+// 🔴 THE CLAIM SITS ABOVE THE QUOTED MARKER ON PURPOSE. Put below it and this fixture
+// cannot fail: a claim after the last seal belongs to nobody either way (§2's own rule),
+// so both the honest reader and a blinded one answer 0. Above it, a marker wrongly read
+// out of the literal DRAINS the claim, and the two answers separate. 307's first draft
+// had it below, and `literalSpans`/`inLiteral` both survived their mutations.
+const FIXTURE_MARKER = POP + 'assert.ok(x > 0);\nconst FIXTURE = `\npopulation.seal("FROM_A_FIXTURE", "ok");\n`;';
+claim(V(FIXTURE_MARKER, "p.mjs").attributed === 0,
+  "🔴 A MARKER INSIDE A TEMPLATE LITERAL OWNS NOTHING. Its line begins inside the literal, "
+  + "so it is text the file quotes rather than a call the file makes — and a floor met by "
+  + "quoted text reports as coverage, which is worse than a reader that is absent");
+claim(V(POP + 'assert.ok(x > 0);\npopulation.seal("REAL", "ok");', "p.mjs").attributed === 1,
+  "…while the same marker as real code still owns the claim above it, so the rule that "
+  + "excludes the quoted one is about WHERE IT SITS and not about what it says");
+
 // 🔴 3. THE EXECUTED MARKER BEATS THE COMMENT, AND THAT ORDERING IS THE WHOLE CLAIM. Where
 // a file carries both — ten of the eleven do — the runtime's answer is the right one and the
 // comment is decoration. This is also what took BANNER_ATTRIBUTED_FLOOR from 300 to 15.
@@ -726,7 +762,7 @@ claim(A(wrap("  assert.equal((x as any).n, 1);"), "k.ts").length
 // literal read 35 and 37 claims actually ran. Keep it a literal for that reason.
 // 🆕 185: WRITTEN AT 125 FROM A COUNT OF THE CASES AND CAUGHT ITSELF AT 124 ON THE FIRST
 // RUN — 170 §5's experience for the fourth time, and the reason the literal stays.
-const EXPECTED = 175;  // 275: 160 -> 175 (the duration idiom — both directions on each arm of `durationClaim`, the two `judgeDuration` branches a healthy tree cannot reach, the floor that may not be zero, and the end-to-end parse) · 242: 157 -> 160 (the fixture name that reached nothing — `A` and `V` forwarding it, read off the row's own `file`, and the pinned agreement that says the name is documentary until `analyze` makes it otherwise) · 194: 141 -> 157 (the SECOND fallback — the executed `population.open`/`seal` marker the runtime already counts by, the two banner idioms the reader could not see, the ordering that puts the executed marker ahead of the comment, and SECTION_ATTRIBUTED_FLOOR) · 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
+const EXPECTED = 180;  // 307: 175 -> 180 (the two raw-text readers asked the file's TEXT a question about its CODE — a quoted `test(` that is not a test block, a real one that still is, `RegExp.prototype.test` which is neither, a section marker inside a template literal that owns nothing, and the same marker as real code that does) · 275: 160 -> 175 (the duration idiom — both directions on each arm of `durationClaim`, the two `judgeDuration` branches a healthy tree cannot reach, the floor that may not be zero, and the end-to-end parse) · 242: 157 -> 160 (the fixture name that reached nothing — `A` and `V` forwarding it, read off the row's own `file`, and the pinned agreement that says the name is documentary until `analyze` makes it otherwise) · 194: 141 -> 157 (the SECOND fallback — the executed `population.open`/`seal` marker the runtime already counts by, the two banner idioms the reader could not see, the ordering that puts the executed marker ahead of the comment, and SECTION_ATTRIBUTED_FLOOR) · 193: 132 -> 141 (BANNER_ATTRIBUTED_FLOOR — the section-banner fallback counted as its own population, and the arm where it dies while every other number stays healthy) · 191: 124 -> 132 (ORPHAN_CEILING — the other side of `sites - attributed`, floored from one side only since 170 and carried by nine handoffs) · 185: 110 -> 124 (§19, the argument that reaches the assertion — 184 §10.2) · 183: 108 -> 110 (FILE_FLOORS, keys and values, §3) · 175: 67 -> 78 (the resolver, roster, HELPERS_NOT_ROSTERED) · 180: 78 -> 90 (§18, the output floor) · 181: 93 -> 94 (the FLOORS values, §11.3) · 182: 94 -> 108 (the CLASSIFIER's own two populations, §11.2's late blind, plus one case per `??` after mutate182's G5)
 if (ran !== EXPECTED) {
   console.log(`🔴 TAUT_SELFTEST_SCOPE ${ran} claims ran, expected ${EXPECTED} — a case stopped running`);
   process.exit(1);
