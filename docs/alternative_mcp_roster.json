@@ -135,18 +135,18 @@
       "category": "alternative-mcp-server",
       "assetlib_version": "1.14.0",
       "assetlib_modify_date": "2026-08-26",
-      "last_analysed": "2026-08-26",
-      "last_analysed_commit": "947ee6b",
+      "last_analysed": "2026-09-04",
+      "last_analysed_commit": "57f3422",
       "real_dap_client": false,
       "real_lsp_client": false,
       "csharp": true,
       "cadence": "weekly",
       "status": "active",
-      "note": "SOURCE PASS 284 — card said no change, head moved fbd9b3d -> 947ee6b, and the source moved substantially: three commits, 23 files, +1863/-93, and the addon is at 1.14.0 while the card still reads 1.12.1. 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — tools/csharp_tools.gd:28 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics. It has been there since v1.5.0 and was already present at the previously recorded commit, so the roster value was wrong BEFORE this window rather than newly changed. The v1.14 theme is context cost: a `help` tool serves long-form argument catalogues on demand and is deliberately excluded from tools/list, and descriptions were trimmed to capability statements. A new capture:// resource store parks screenshots under user:// and returns an MCP resource_link instead of megabytes of base64, degrading link -> both for peers below protocol revision 2025-06-18. 55 tools by two agreeing derivations (registry.register literals; and the generated glama/tools.json), corroborated by ci-smoke.ps1 -ExpectedTools 55; the delta from 54 is exactly `help`. No DAP and no LSP — zero hits for either. Zero-sidecar transport: hand-rolled HTTP/1.1 + SSE on a Godot TCPServer inside the editor process. This repo is the MIT Lite edition — core/effort.gd enumerates 91 tool names across six cumulative tiers and 55 register here. 🔵 **AND THE CARD CAUGHT UP THE SAME DAY.** Hours after this pass the Asset Library listing moved 1.12.1 -> 1.14.0 (2026-08-26), which is the version already read here at `947ee6b`. Recorded rather than re-passed: the source was analysed at 284 and has not moved since, so what changed is the card catching up to it, not the product.",
+      "note": "SOURCE PASS 306 — 947ee6b -> 57f3422 is ONE commit, v1.14.0 -> v1.15.0, 10 files, +333/-15, and the whole window is export hygiene. New core/export_filter.gd is an EditorExportPlugin that skip()s everything under res://addons/beckett/ except one stub, behind project setting beckett/strip_from_exports (default true); its own header (export_filter.gd:8-16) gives the reason — the plugin's autoload was baked into every export preset and Godot's default filter sweeps addons/, so ~480 KB of editor-only GDScript shipped into each game. New runtime/beckett_autoload.gd replaces the old direct autoload target: it names only Node/OS/String at parse time and load()s the real runtime behind OS.has_feature(\"editor\") (:35-38), with duplicate-autoload tie-break for projects upgrading from the godot_mcp rename (:39-49, :70-77). plugin.gd (+64/-2) gained _install_runtime_autoload() re-pointing a pre-existing autoload and persisting via ProjectSettings.save() (:126-146) and _autoload_target() normalising both the legacy *res:// singleton-marker form and Godot 4.4+ *uid:// (:150-160). A new test group _t_export_safety() (tests/unit_tests.gd, +109) asserts the stub names only Node/OS/ResourceLoader-class identifiers, contains no preload(, carries the literal OS.has_feature(\"editor\") gate, and that plugin.gd's RUNTIME_SCRIPT and export_filter.gd's KEEP name the same path, so the two halves cannot drift apart. 🟢 55 TOOLS, UNCHANGED, BY TWO AGREEING DERIVATIONS AT 57f3422: 55 registry.register({ name literals across addons/beckett/tools/*.gd and 55 entries in the generated glama/tools.json, identical sets; tests/ci-smoke.ps1 -ExpectedTools 55 (ci.yml:288) asserts the same and already did at 947ee6b. Zero tool names added or removed — no file under tools/ moved in this window at all. Capabilities re-verified rather than carried: no DAP and no LSP, zero hits for either repo-wide, and zero for breakpoint, step_over and stack_frame (the three 'scopes' hits are plain English). csharp stays TRUE on the same evidence — tools/csharp_tools.gd:29 registers build_csharp and :62 shells out to dotnet build — and that file is untouched here. core/effort.gd is byte-identical between the two commits: 91 tool names across six cumulative tiers (16/25/5/11/26/8), of which the L1-L4 union is 57 and 55 register in this MIT Lite edition; panel.gd:1640-1642 states that Lite trims modules whose tools are still named in _DELTA (list_skills and load_skill live in the Full-only skill_tools) and filters against registry.has() before display, so the 91/55 split predates this window rather than being part of it. The only README prose change is number catch-up — Lite '50 tools' -> '55 tools', Full '80 tools, 37 skill packs' -> '91 tools, 46 skill packs' — and both figures were already true of the tree at 947ee6b, so the document moved and the surface did not. 🔵 AND THE CARD IS THE HALF THAT HAS NOT MOVED THIS TIME: the Asset Library listing still reads 1.14.0 (2026-08-26) against a source at 1.15.0, which is the exact inverse of the 284 pass, where the source was read first and the card caught up hours later. assetlib_version stays at what the card says, because it is a reading of the card and not of the repository.",
       "capability_evidence": {
-        "real_dap_client": "no DAP and no LSP — zero hits for either, repo-wide at 947ee6b",
-        "real_lsp_client": "no DAP and no LSP — zero hits for either, repo-wide at 947ee6b",
-        "csharp": "tools/csharp_tools.gd:28 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics; present since v1.5.0"
+        "real_dap_client": "no DAP and no LSP — zero hits for either, repo-wide at 57f3422; and zero for breakpoint, step_over and stack_frame",
+        "real_lsp_client": "no DAP and no LSP — zero hits for either, repo-wide at 57f3422",
+        "csharp": "tools/csharp_tools.gd:29 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics; present since v1.5.0 and untouched at 57f3422"
       }
     },
     {
@@ -1560,6 +1560,19 @@
       "version": "1.0.0",
       "last_published": "2026-08-23",
       "description": "Give your AI assistant hands on the Godot editor — 10 MCP tools, a live catalog of 210 addon methods, zero tool-spray"
+    },
+    {
+      "key": "wushuangabao/godot-agent-runtime",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 306,
+      "repo": "wushuangabao/godot-agent-runtime",
+      "npm": "godot-agent-runtime",
+      "mcp_registry_name": null,
+      "version": "0.2.0",
+      "last_published": "2026-08-26",
+      "description": "Local-first MCP and CLI runtime for coding agents to automate and verify Godot 4.x projects."
     },
     {
       "key": "wvfp/gear-godot-mcp",

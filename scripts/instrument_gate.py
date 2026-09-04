@@ -1248,6 +1248,26 @@ INSTRUMENTS = [
             "{SIG:main_shas}": "return [\"\"]",
             "{SIG:block_main}": "return (\"\", \"\",)",
             "{SIG:population_block_shape}": "return []",
+            # 🆕 306 §2 — THE TWO READERS THE VERSION-SIGN POPULATION IS MADE OF, AND
+            # THEIR EMPTIES ARE OPPOSITE IN KIND. `host_row_claim`'s empty is a sense
+            # nothing asks about, so every registered block falls out of `SENSE_ASKS`
+            # and `VERSION_SENSE_ACCOUNTED`, `VERSION_POPULATION_REACH` and
+            # `VERSION_POPULATION_REFUSES` all lose their population at once — the
+            # shape 304 §5.5 warns about, made visible by a floor rather than hidden by
+            # one. `population_partition`'s empty is the OPPOSITE: it hands back three
+            # empty parts, so `POPULATION_ACCOUNTED` sees 0 of 79 and refuses, which is
+            # the claim 244 built when a bare `continue` was dropping blocks silently.
+            "{SIG:host_row_claim}": "return (\"\", None, \"\",)",
+            "{SIG:population_partition}": "return ({}, [], [],)",
+            # 🆕 306 §2.2 — AND THE RULE THE LIVE CLAIM AND ITS OWN DRIVE BOTH CALL.
+            # Blinded to "" it says no absence has a bad shape, which is exactly the
+            # state 306 measured: garbling the newest block's SHA left `--selftest` at
+            # 569/569 and nothing said a word.
+            "{SIG:absence_shape_problem}": "return \"\"",
+            # 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads`. Blinded to two
+            # empty lists it finds no omission and no stale row, which is the state
+            # 305's handoff shipped in: 1 of 10 OPEN rows named in §6 and nothing said.
+            "{SIG:section_six_problems}": "return ([], [],)",
             # 🆕 284 — the two readers `POPULATION_CURRENCY` is made of, and the
             # SECOND one is why this pair is worth the note. Blinding the reader that
             # finds the gap is the obvious axis; blinding the one that says WHICH
