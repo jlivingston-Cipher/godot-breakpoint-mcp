@@ -9910,12 +9910,31 @@ def selftest() -> int:
         failed += 1
         print(f"  🔴 POPULATION_ABSENT_SHAPE {_shape_why}")
 
-    # 🔴 AND THE REFUSAL IS DRIVEN, THROUGH THE SAME LIVE READER — a claim that has only
-    # ever seen an empty `pop_absent` has not been driven at all (304 §5.5), and a driven
-    # claim that re-implements the comparison is asserting about its own copy (203 §2).
-    # The newest registered block's `main` SHA is replaced with one no object store holds,
-    # which is exactly what a typo looks like, and `absence_shape_problem` — the same
-    # function the claim above calls — must name it.
+    # 🔴 AND THE REFUSAL IS DRIVEN TWICE, FOR A REASON CI TAUGHT IN TWENTY-TWO MINUTES.
+    # The live drive below builds a mixed partition out of the OBJECT STORE — the honest
+    # instance, and one that cannot be built at all on a `--depth 1` checkout, where every
+    # block is already absent. The first draft skipped it there with a 🟡, and
+    # `instrument_gate` on the runner said exactly the right thing:
+    # *`{SIG:absence_shape_problem}` can return the empty its contract promises and the
+    # gate stays GREEN*. 🔴 A CLAIM WHOSE ONLY DRIVE IS UNAVAILABLE ON THE MACHINE THAT
+    # BLINDS IT IS A CLAIM NOTHING PROVES. So the PREDICATE is driven first, on constructed
+    # inputs needing no repository — and in BOTH directions, because a rule that refused
+    # every absence would satisfy the first arm and then refuse every shallow clone in CI.
+    claims += 1
+    _mixed = absence_shape_problem({301: 2, 302: 2}, [],
+                                   ["305: 0000000 not in this object store"])
+    _prefix = absence_shape_problem({301: 2, 302: 2},
+                                    ["303: unread for a reason"],
+                                    ["227: 0000000 not in this object store"])
+    if not _mixed or "305" not in _mixed:
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_SHAPE_PREDICATE a block absent among readable ones "
+              f"OLDER than it was not refused by name: {_mixed!r}")
+    elif _prefix:
+        failed += 1
+        print(f"  🔴 POPULATION_ABSENT_SHAPE_PREDICATE absence at the OLD end is what a "
+              f"`--depth N` checkout looks like and must be accepted: {_prefix!r}")
+
     claims += 1
     _garble_s, _garble_t = BLOCK_POPULATION[-1]
     _garble = [(s, (re.sub(r"^(> main\s+)[0-9a-f]{7,40}", r"\g<1>0000000", t, count=1,
