@@ -188,7 +188,13 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // reason and no other. 191 pinned 508 and went red at 509; 193 pinned 147 and went red at
 // 148; this is the same mechanism a third time, and a rule whose own arrival it can
 // measure is a rule that works.
-export const ORPHAN_CEILING = 44;       // measured 4923 sites - 4879 attributed, 2026-08-27
+export const ORPHAN_CEILING = 44;       // measured 4923 sites - 4879 attributed, 2026-08-27.
+// 🔴 307 LEFT THIS AT 44 WITH THE LIVE READING AT 26, AND PRICED THE MOVE RATHER THAN
+// MAKING IT. Lowering it to the new reading reddens ELEVEN self-test claims, which is
+// 184 §7 and 248's warning measured exactly — and those pins are absolute ON PURPOSE
+// (`🔴 THE CLAIM FLOOR IS A LITERAL`), so retyping them is a deliberate act about
+// whether the new reading is trusted, not a rider on the commit that changed the
+// readers. `orphan-ceiling-outruns-its-reading` carries it, with the cost measured.
                                         //   🆕 285 — `orphan-ceiling-headroom` (248, 37
                                         //   sessions) CLOSED, AND PINNED AT THE LIVE
                                         //   VALUE RATHER THAN ABOVE IT. 248 set 46 over a
@@ -1009,6 +1015,97 @@ function bannerUnits(text) {
   return out;
 }
 
+// 🔴 307 §2 — THE BANNER GATE ASKED THE FILE'S TEXT A QUESTION ABOUT THE FILE'S CODE.
+// A raw-text regex over the source cannot tell a CALL from a QUOTED FIXTURE, and the files
+// most likely to quote one are the gate self-tests, whose subject matter IS test source.
+// Measured at 307 over all 136 swept files: six disagree with the accurate answer, and
+// this analyzer's OWN self-test is one of them — which is why all 175 of its claims have
+// carried `owner === null` since the fallback was written, and why `residue 1` has been
+// unattributable for sixteen sessions. The failure is silent in the direction that
+// matters: a file wrongly judged to HAVE tests loses the fallback, and its claims leave
+// the attributed population with nothing refusing.
+function hasRealTestCall(src) {
+  let found = false;
+  const walk = (n) => {
+    if (found) return;
+    if (ts.isCallExpression(n)) {
+      const c = n.expression;
+      // 🔴 A BARE CALL ONLY, PLUS THE ONE METHOD IDIOM. `TEST_FNS` holds `test`, and
+      // `RegExp.prototype.test` is the most common method call in this tree — admitting
+      // property access by NAME judged 47 files as having test blocks that have none, and
+      // took the banner population 98 -> 51 on the first run. The raw-text regex this
+      // replaces never had that reach: it required a QUOTE after the paren, which
+      // `re.test(text)` does not have. `X.family(...)` is admitted because it is the
+      // wrapped Population idiom the section reader below also refuses to guess past.
+      const name = ts.isIdentifier(c) ? c.text
+        : (ts.isPropertyAccessExpression(c) && ts.isIdentifier(c.name)
+           && c.name.text === "family" ? "family" : null);
+      if (name && TEST_FNS.has(name)) { found = true; return; }
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(src);
+  return found;
+}
+
+// The character ranges of every string and template-literal body in the file. A marker or
+// a banner whose LINE BEGINS inside one of these is text the file quotes, not a call the
+// file makes — the distinction neither raw-text reader could draw.
+function literalSpans(src) {
+  const spans = [];
+  const walk = (n) => {
+    const k = n.kind;
+    if (ts.isStringLiteralLike(n) || k === ts.SyntaxKind.TemplateHead
+        || k === ts.SyntaxKind.TemplateMiddle || k === ts.SyntaxKind.TemplateTail) {
+      spans.push([n.getStart(src), n.getEnd()]);
+      return;
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(src);
+  return spans;
+}
+
+function inLiteral(spans, pos) {
+  return spans.some(([a, b]) => pos >= a && pos < b);
+}
+
+// 🔴 307 §2 — AND THE SECTION READER WAS FOOLED THE SAME WAY, WITH THE OPPOSITE
+// CONSEQUENCE. A banner gate fooled by fixture text DELETES an attribution; a section
+// reader fooled by fixture text INVENTS one. Measured at 307: all 33 markers returned for
+// `seal_order_gate.selftest.mjs` lay inside a template literal, and all 132 of that file's
+// section-owned claims were attributed to text the file merely quotes — with
+// `TAUT_SECTION_ATTRIBUTED`, a FLOOR, counting every one of them. A floor met by quoted
+// text is worse than an absent reader, because it reports as coverage.
+function realReceiver(src) {
+  let recv = null;
+  const walk = (n) => {
+    if (recv) return;
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer
+        && ts.isNewExpression(n.initializer)
+        && ts.isIdentifier(n.initializer.expression)
+        && n.initializer.expression.text === "Population") { recv = n.name.text; return; }
+    ts.forEachChild(n, walk);
+  };
+  walk(src);
+  return recv;
+}
+
+function callsFamilyOn(src, recv) {
+  let hit = false;
+  const walk = (n) => {
+    if (hit) return;
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)
+        && ts.isIdentifier(n.expression.expression)
+        && n.expression.expression.text === recv
+        && ts.isIdentifier(n.expression.name)
+        && n.expression.name.text === "family") { hit = true; return; }
+    ts.forEachChild(n, walk);
+  };
+  walk(src);
+  return hit;
+}
+
 // 🔴 194 §9.3 — AND BEFORE THE COMMENT, THE SECTION MARKER THE PROBE EXECUTES.
 // 193 taught this reader the DECORATIVE section marker. These files also carry an
 // EXECUTABLE one, and it is not a convention anybody has to keep up: `_population.mjs`
@@ -1033,16 +1130,21 @@ function bannerUnits(text) {
 // rather than guessing if one ever does.
 const POPULATION_RECV_RE = /(?:const|let|var)\s+(\w+)\s*=\s*new\s+Population\b/;
 
-function populationSections(text) {
-  const m = POPULATION_RECV_RE.exec(text);
-  if (!m) return null;
-  const recv = m[1];
-  if (new RegExp(`\\b${recv}\\.family\\s*\\(`).test(text)) return null;
+function populationSections(text, src = null) {
+  const spans = src ? literalSpans(src) : [];
+  const starts = src ? src.getLineStarts() : null;
+  // A marker whose line STARTS inside a literal is quoted text, not a call.
+  const isReal = (i) => !starts || i >= starts.length || !inLiteral(spans, starts[i]);
+  const recv = src ? realReceiver(src) : (POPULATION_RECV_RE.exec(text) || [])[1];
+  if (!recv) return null;
+  const wrapped = src ? callsFamilyOn(src, recv)
+    : new RegExp(`\\b${recv}\\.family\\s*\\(`).test(text);
+  if (wrapped) return null;
   const re = new RegExp(`^\\s*${recv}\\.(open|seal)\\s*\\(\\s*["'\`]([^"'\`]+)`);
   const out = [];
   text.split("\n").forEach((ln, i) => {
     const e = re.exec(ln);
-    if (e) out.push({ mode: e[1], name: e[2], line: i + 1 });
+    if (e && isReal(i)) out.push({ mode: e[1], name: e[2], line: i + 1 });
   });
   return out.length ? out : null;
 }
@@ -1116,13 +1218,13 @@ export function analyze(fileName, text) {
   // turns the legitimate 77 (see `enclosingTest`) into fake attribution and hides the very
   // class this fallback exists to expose. The fallback is for script-shaped files, and
   // "script-shaped" is asked of the file rather than assumed from its name.
-  const banners = /\b(?:test|it|family)\s*\(\s*["'`]/.test(text) ? null : bannerUnits(text);
+  const banners = hasRealTestCall(src) ? null : bannerUnits(text);
   // 🔴 NOT GATED THE SAME WAY, AND THE DIFFERENCE IS THE WHOLE ARGUMENT. The banner gate
   // exists because a COMMENT that happens to precede a stray claim proves nothing about
   // where that claim belongs. `population.open`/`seal` are not adjacency — they are the
   // calls that decide attribution at runtime, so reading them cannot invent a fact. What
   // it CAN do is disagree with `family()`, and `populationSections` refuses that case.
-  const sections = populationSections(text);
+  const sections = populationSections(text, src);
   // 175: a CHECK_FNS name is only a claim idiom when it resolves to something that can
   // actually fail. See `collectFailers` — the name is the candidate, this is the test.
   const failers = collectFailers(src);
