@@ -402,7 +402,12 @@ BLAST: dict[str, int] = {
     # `bad_params` row — which it had never needed until `_set_property` gained a
     # parameter it can refuse. Each remedy names a tool, so emptying the tables collapses
     # the tool-reference join beside the row join.
-    "remedy_tables": 70,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 311: 70 -> 72. ONE new error code, TWO rows — `window_not_drawing` is raised on
+    # both engine planes, so it enters `EDITOR_REMEDIES` and `RUNTIME_REMEDIES` alike and
+    # emptying the tables leaves two more codes with no next action. That is the tables
+    # growing rather than a check reading them differently, which is the benign half of
+    # what this number distinguishes.
+    "remedy_tables": 72,                      # 🆕 259: 64 -> 65, the CLI span join
     # 🆕 284 — 71 -> 70. The addon tables are no longer the ONLY source of a CLI span, so
     # blinding them leaves check 28's join able to answer and one refusal stops firing.
     # 🔵 AND THE OBSERVED COLLAPSE STILL INCLUDES `xlang.remedy_tool_refs` WHILE THE
@@ -612,7 +617,13 @@ BLAST: dict[str, int] = {
     # with this roster — so emptying the registry silences all four and collapses the two
     # new catalog populations with them. The radius moved because a NEW check started
     # reading this reader, 255's shape exactly, declared in the commit that moved it.
-    "registered_tools": 90,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
+    # 🆕 311: 90 -> 92, and for the SAME two rows one join over. Both new
+    # `window_not_drawing` remedies name a tool in backticks — `main_screen_set` on the
+    # editor plane, `runtime_step_frames` on the runtime one, each saying which tool
+    # CANNOT help — so check 28's tool-reference arm has two more remedies to resolve
+    # against this registry, and blinding the registry fails on both. No check was added
+    # here; the population a standing check reads got two members bigger.
+    "registered_tools": 92,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
