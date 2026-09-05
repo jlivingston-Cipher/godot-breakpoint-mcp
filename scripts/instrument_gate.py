@@ -1287,6 +1287,21 @@ INSTRUMENTS = [
                                         "\"no moved\", \"first\", \"gap\", \"cut\", "
                                         "\"after a cut\")}"),
             "{SIG:untagged_problems}": "return []",
+            # 🆕 308 §2 — `registry`, THE FOURTH HAND-TYPED FIELD, AND 307 §6 SAID
+            # THERE WERE THREE. Same four shapes one field over, and the same rule
+            # about the empty: `registry_partition` hands back all five buckets
+            # present and empty so `REGISTRY_ACCOUNTED` sees 0 of 80 and REFUSES,
+            # rather than a bare `{}` its consumers would raise on (307 §5.2).
+            # `registry_host_of` blinded to None removes clause two — the arm that
+            # asks whether a block claims npm serves a version its own tree never
+            # held — and `REGISTRY_OVERTAKES` is the constructed drive that sees it,
+            # because a healthy table cannot.
+            "{SIG:registry_of}": "return None",
+            "{SIG:registry_host_of}": "return None",
+            "{SIG:registry_partition}": ("return {k: [] for k in (\"compared\", "
+                                        "\"prints none\", \"predecessor prints none\", "
+                                        "\"gap\", \"first\")}"),
+            "{SIG:registry_problems}": "return []",
             "{SIG:absence_shape_problem}": "return \"\"",
             # 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads`. Blinded to two
             # empty lists it finds no omission and no stale row, which is the state

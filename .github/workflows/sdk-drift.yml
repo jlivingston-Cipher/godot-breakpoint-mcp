@@ -84,5 +84,33 @@ jobs:
       # directory a later session can spend rather than a report it has to re-take.
       - name: Emit the world-facing landscape readings
         run: python3 scripts/assetlib_sweep.py --emit
+      # 🆕 308 — THE ONE RED LIGHT BECOMES THREE ANSWERS, AND ACTIONS NEEDS TELLING.
+      # `--check` now returns 2 when a leg of the sweep did not finish, 1 when a project
+      # has appeared with no roster row, and 0 when the only news is that projects the
+      # roster already names have moved. Actions fails a step on ANY nonzero, so splitting
+      # the Python return values alone would change nothing a person looking at the run
+      # can see — the `case` below is the half that makes the colour mean something, and
+      # the titles are what a notification carries without anybody opening the log.
       - name: The roster still covers every project every channel surfaces
-        run: python3 scripts/assetlib_sweep.py --check
+        run: |
+          set +e
+          python3 scripts/assetlib_sweep.py --check
+          code=$?
+          set -e
+          case "$code" in
+            0)
+              echo "::notice title=Roster green::Nothing is owed. Any movement printed above is a tracked project that the roster already names."
+              ;;
+            1)
+              echo "::error title=The roster owes a row::A project has appeared in a sweep with no roster row. One row each closes them, and a row that exists does not come back."
+              exit 1
+              ;;
+            2)
+              echo "::error title=The sweep could not read the world::A discovery or source leg did not finish, so nothing this run read can be spent as 'nothing has moved'. This is a defect in the sweep, not news about the world."
+              exit 1
+              ;;
+            *)
+              echo "::error title=The sweep exited a code nobody declared::assetlib_sweep.py --check exited $code, which is not 0, 1 or 2."
+              exit 1
+              ;;
+          esac
