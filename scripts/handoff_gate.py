@@ -2185,6 +2185,138 @@ def registry_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
     return out
 
 
+# ── 🆕 310 — THE FIFTH FIELD, ON THE FIRST TABLE THAT COULD FALSIFY IT ─────────────
+#
+# 309 §6 wrote *`unshipped` has never been carried by a registered block; 310's
+# perturbation table is the first that can falsify it* — and it could not. Rows O, P, R
+# and S of 310's table each edited 309's `unshipped` and got 597/597, exit 0. Row P is
+# the sharpest: `unshipped 13` beside `untagged 12` — MORE shipped-source commits than
+# commits — accepted with nothing to say. The field has a reader at the CLOSE (CLONE,
+# against the measured log) and had no claim in the population, which is the shape 306
+# found for the sign, 307 for `untagged` and 308 for `registry`, arriving for the fifth
+# time and for the first time on the session AFTER the field was written rather than
+# sessions later.
+#
+# 🔵 THE RULE WAS MEASURED BEFORE IT WAS WRITTEN (306 §5.3), AND IT IS TWO INEQUALITIES
+# AND A PARTITION, NOT AN EQUATION. `unshipped(N)` counts the commits past the newest tag
+# that touch a tree the registry serves; `untagged(N)` counts all of them. So within one
+# block `unshipped <= untagged` — the partition 309 §2.2 asserts for the live pair in
+# `registry_lag.py`, asserted here for the typed pair. And between two blocks with no cut
+# between them (307's `untagged(N) == untagged(N-1) + MOVED(N)` holding is what "no cut"
+# means here, so the population is SELECTED by `untagged_partition` rather than by a second
+# copy of its rules) the shipped count can only grow, and only by as much as main moved:
+#
+#     0 <= unshipped(N) - unshipped(N-1) <= MOVED(N)
+#
+# An equation is not available without git: which of the MOVED commits touched
+# `SHIPPED_SOURCE` is a fact about the tree, and this reader must hold on CI's `--depth 1`
+# checkout like its three siblings. The bound is what two human-typed strings can say.
+#
+# 🔵 AND A THIRD CLAUSE THE OTHER FIELDS NEVER HAD: A BLOCK RESTATES THESE COUNTS.
+# 308's block prints `untagged 8 ·` on its npm row and `untagged 8 against a ceiling of
+# 8` on its registry_lag row; 309's prints `unshipped 0` twice the same way. Measured at
+# 310 over all 82 registered blocks: eleven carry more than one `untagged` mention and
+# every one agrees. Row R edited only the restatement and was green, because
+# `untagged_of` and `unshipped_of` read the FIRST mention. So every mention of either
+# field within one block must agree — a restatement that disagrees with the row it
+# restates is a block that says two things, and a reader that reads one of them is
+# choosing which.
+#
+# 🔴 THE COMPARED POPULATION IS EMPTY AT 310 AND SAYS SO. 309's block is the only one
+# that prints the field, so clause two runs over nothing until 310's own block registers
+# at 311; `UNSHIPPED_PRINTED_REACH` floors the printing set at its live reading of one,
+# the cross-block arms are driven on constructed populations below, and 311 owes the
+# `compared` floor its first honest value (198 §36).
+UNSHIPPED_RE = re.compile(r"\bunshipped (\d+)\b")
+RESTATED_FIELDS: "tuple[tuple[str, re.Pattern], ...]" = (("untagged", UNTAGGED_RE),
+                                                          ("unshipped", UNSHIPPED_RE))
+
+
+def unshipped_of(text: str) -> "int | None":
+    """The `unshipped n` a block prints, or None — PURE, and about the block only."""
+    m = UNSHIPPED_RE.search(text)
+    return int(m.group(1)) if m else None
+
+
+def restated_problems(population: "list[tuple[int, str]] | None" = None) -> "list[str]":
+    """Each block whose several mentions of one count disagree — PURE, git-free.
+    Clause three: a block may restate `untagged` or `unshipped` on its registry_lag row,
+    and every restatement must equal the row it restates."""
+    pop = BLOCK_POPULATION if population is None else population
+    out = []
+    for s, t in pop:
+        for name, rx in RESTATED_FIELDS:
+            seen = sorted({int(x) for x in rx.findall(t)})
+            if len(seen) > 1:
+                out.append(f"block {s} prints `{name}` as {seen} in different rows — a "
+                           f"restatement that disagrees with the row it restates, and the "
+                           f"reader takes the first one")
+    return out
+
+
+def unshipped_partition(population: "list[tuple[int, str]] | None" = None) -> "dict[str, list[int]]":
+    """Every registered block in exactly one named bucket — 244's shape, a fifth field
+    over. `compared` is the only bucket clause two runs over; `printed` is what clause
+    one runs over and is NOT a bucket, because a block prints the field or does not and
+    the buckets below already say which. The rest are reasons, NAMED rather than counted
+    so a block leaving `compared` shows up as a different partition instead of a smaller
+    number (306 §5.1). `cut` means the pair is not one `untagged_partition` compares —
+    the interval between them holds a cut, a hole, or a block that prints no `MOVED` —
+    so the bound has no no-cut premise to stand on."""
+    pop = BLOCK_POPULATION if population is None else population
+    out: "dict[str, list[int]]" = {k: [] for k in
+                                   ("compared", "prints none", "predecessor prints none",
+                                    "first", "gap", "no untagged", "cut")}
+    no_cut = set(untagged_partition(pop).get("compared", ()))
+    for i, (s, t) in enumerate(pop):
+        if unshipped_of(t) is None:
+            out["prints none"].append(s)
+        elif i == 0:
+            out["first"].append(s)
+        elif unshipped_of(pop[i - 1][1]) is None:
+            out["predecessor prints none"].append(s)
+        elif s != pop[i - 1][0] + 1:
+            out["gap"].append(s)
+        elif untagged_of(t) is None or untagged_of(pop[i - 1][1]) is None or moved_of(t) is None:
+            out["no untagged"].append(s)
+        elif s not in no_cut:
+            out["cut"].append(s)
+        else:
+            out["compared"].append(s)
+    return out
+
+
+def unshipped_problems(population: "list[tuple[int, str]] | None" = None) -> "list[str]":
+    """Clause one on every block that prints both counts, clause two on the compared
+    pairs — PURE, git-free. Clause three is `restated_problems`, its own claim. `.get` and not `[...]`: a
+    reader that raises where it could report is a reader the gate above it cannot judge
+    (307 §2.4, `CRASH_CEILING`)."""
+    pop = BLOCK_POPULATION if population is None else population
+    by = {s: t for s, t in pop}
+    order = [s for s, _ in pop]
+    out = []
+    for s, t in pop:
+        u, n = unshipped_of(t), untagged_of(t)
+        if u is not None and n is not None and u > n:
+            out.append(f"block {s} prints `unshipped {u}` beside `untagged {n}` — more "
+                       f"commits touching a shipped tree than commits past the tag, which "
+                       f"is a partition saying its part exceeds its whole")
+    for s in unshipped_partition(pop).get("compared", ()):
+        prev = order[order.index(s) - 1]
+        got, was, k = unshipped_of(by[s]), unshipped_of(by[prev]), moved_of(by[s])
+        if got is None or was is None or k is None:
+            continue
+        if got < was:
+            out.append(f"block {s} prints `unshipped {got}` where {prev} printed "
+                       f"`unshipped {was}` with no cut between them — the tag did not "
+                       f"move, so the shipped count cannot fall")
+        elif got - was > k:
+            out.append(f"block {s} prints `unshipped {got}` where {prev} printed "
+                       f"`unshipped {was}` and its own `MOVED +{k}` admits at most "
+                       f"{was + k} — more shipped-source commits than commits")
+    return out
+
+
 def population_partition(population: "list[tuple[int, str]] | None" = None,
                          root: Path = ROOT
                          ) -> "tuple[dict[int, int], list[str], list[str]]":
@@ -10586,6 +10718,117 @@ def selftest() -> int:
         print("  🔴 REGISTRY_OVERTAKES a block claiming npm serves a version its own "
               "host row says the tree does not hold must be caught — the arm the lag "
               "case above is otherwise free to excuse")
+
+
+    # ── 🆕 310 — AND THE FIFTH FIELD, ON THE FIRST TABLE THAT COULD FALSIFY IT ─────────
+    #
+    # 🔴 310's PERTURBATION ROWS O, P, R AND S EACH EDITED 309's `unshipped` AND GOT EXIT
+    # 0 — P by claiming more shipped commits than commits. The claims below are the shape
+    # 306 gave the sign, 307 `untagged` and 308 `registry`: a partition that names every
+    # block, a floor on what it reaches, the rule itself, the MEMBERSHIP arm, and every
+    # arm the live table cannot redden driven on a constructed population.
+    _sp = unshipped_partition()
+    claims += 1
+    if sum(len(v) for v in _sp.values()) != len(BLOCK_POPULATION):
+        failed += 1
+        print(f"  🔴 UNSHIPPED_ACCOUNTED {sum(len(v) for v in _sp.values())} of "
+              f"{len(BLOCK_POPULATION)} block(s) land in a named bucket — "
+              f"{ {k: len(v) for k, v in _sp.items() if v} }. A block this walk drops is a "
+              f"block the claim below is silently not making")
+    claims += 1
+    _sprinted = [s for s, t in BLOCK_POPULATION if unshipped_of(t) is not None]
+    if len(_sprinted) < 1:
+        failed += 1
+        print(f"  🔴 UNSHIPPED_PRINTED_REACH no registered block prints `unshipped` — "
+              f"either the field left the convention or the reader stopped matching, and "
+              f"a reader nothing reaches refuses nothing. Floor 1, measured 1 at 310; "
+              f"`compared` is {len(_sp['compared'])} and owes 311 its first floor: "
+              f"{ {k: len(v) for k, v in _sp.items() if v} }")
+    claims += 1
+    _spp = unshipped_problems()
+    if _spp:
+        failed += 1
+        print(f"  🔴 UNSHIPPED_POPULATION {_spp}")
+    claims += 1
+    if not _sprinted:
+        failed += 1
+        print("  🔴 UNSHIPPED_MEMBERSHIP no block prints the field, so the drive below "
+              "would be passing over an empty set")
+    else:
+        _sn = _sprinted[-1]
+        _sblind = [(_s, (UNSHIPPED_RE.sub("unshipped-removed", _t) if _s == _sn else _t))
+                   for _s, _t in BLOCK_POPULATION]
+        _sbp = unshipped_partition(_sblind)
+        _safter = [_s for _s, _ in BLOCK_POPULATION if _s == _sn + 1]
+        if not (_sn in _sbp["prints none"] and _sn not in _sbp["compared"]
+                and all(_a in _sbp["predecessor prints none"] for _a in _safter)
+                and sum(len(v) for v in _sbp.values()) == len(BLOCK_POPULATION)):
+            failed += 1
+            print(f"  🔴 UNSHIPPED_MEMBERSHIP removing block {_sn}'s `unshipped` left the "
+                  f"partition unable to name what changed — "
+                  f"{ {k: len(v) for k, v in _sbp.items() if v} }. That is 306 §5.1's "
+                  f"shape: the comparison is deleted rather than failed")
+
+    # 🔴 EVERY ARM DRIVEN ON A CONSTRUCTED POPULATION, BECAUSE THE LIVE ONE HAS ONE BLOCK
+    # AND CANNOT REDDEN ANY OF THEM (307 §5.3). FENCED, because `untagged_partition`
+    # reads the host row through `status_block` and an unfenced fixture hands it None,
+    # under which the cut arm below would land in `compared` for the wrong reason (308's
+    # `REGISTRY_OVERTAKES` lesson). No repository, so these hold on CI's shallow checkout.
+    _sfix = ("> ```\n> main                 %s MOVED +%d\n"
+             "> npm                  🟢 registry 1.0.0 · untagged %d · unshipped %d ·\n"
+             "> host / addon         %s / 2.0.0  %s\n> ```\n")
+    _sok = [(40, _sfix % ("a", 1, 5, 2, "1.0.0", "🟢 UNMOVED")),
+            (41, _sfix % ("b", 3, 8, 4, "1.0.0", "🟢 UNMOVED")),
+            (42, _sfix % ("c", 2, 10, 4, "1.0.0", "🟢 UNMOVED"))]
+    claims += 1
+    if unshipped_problems(_sok) or unshipped_partition(_sok)["compared"] != [41, 42]:
+        failed += 1
+        print(f"  🔴 UNSHIPPED_WITHIN_IS_LEGAL two no-cut pairs whose shipped count grows "
+              f"by no more than main moved, then holds, must stay green — otherwise the "
+              f"rule is describing a convention nobody follows. Got "
+              f"{unshipped_problems(_sok)} and { {k: v for k, v in unshipped_partition(_sok).items() if v} }")
+    claims += 1
+    _sover = _sok[:2] + [(42, _sok[2][1].replace("unshipped 4", "unshipped 11"))]
+    if not any("exceeds its whole" in _m for _m in unshipped_problems(_sover)):
+        failed += 1
+        print("  🔴 UNSHIPPED_PARTITION_REFUSES a block printing more shipped-source "
+              "commits than commits past the tag must be caught — that is 310 row P "
+              "exactly, and it was exit 0 before this reader")
+    claims += 1
+    _sback = _sok[:2] + [(42, _sok[2][1].replace("unshipped 4", "unshipped 1"))]
+    if not any("cannot fall" in _m for _m in unshipped_problems(_sback)):
+        failed += 1
+        print("  🔴 UNSHIPPED_BACKWARDS a block whose shipped count FELL with no cut "
+              "between it and its predecessor must be caught — the tag did not move")
+    claims += 1
+    _srun = _sok[:2] + [(42, _sok[2][1].replace("unshipped 4", "unshipped 7"))]
+    if not any("more shipped-source commits than commits" in _m for _m in unshipped_problems(_srun)):
+        failed += 1
+        print("  🔴 UNSHIPPED_OUTRUNS_MOVED a block whose shipped count grew by more than "
+              "its own `MOVED +k` must be caught — three of the two commits cannot ship")
+    claims += 1
+    _scut = _sok[:2] + [(42, _sok[2][1].replace("untagged 10", "untagged 0")
+                              .replace("unshipped 4", "unshipped 0")
+                              .replace("1.0.0 / 2.0.0  🟢 UNMOVED", "1.1.0 / 2.0.0  🔴 HOST MOVED"))]
+    _scp = unshipped_partition(_scut)
+    if _scp["cut"] != [42] or 42 in _scp["compared"] or any("42" in _m for _m in unshipped_problems(_scut)):
+        failed += 1
+        print(f"  🔴 UNSHIPPED_CUT_SKIPPED a block across a cut resets both counts and "
+              f"must land in `cut`, uncompared and unrefused — a bound that fires on a "
+              f"release is a bound that refuses every release. Got "
+              f"{ {k: v for k, v in _scp.items() if v} } / {unshipped_problems(_scut)}")
+    claims += 1
+    _sbody, _sfence = _sok[2][1].rsplit("> ```\n", 1)
+    _srestate = _sok[:2] + [(42, _sbody + "> 🟢 registry_lag PASSES — unshipped 9 against a ceiling of 6\n> ```\n" + _sfence)]
+    if not any("restatement that disagrees" in _m for _m in restated_problems(_srestate)):
+        failed += 1
+        print("  🔴 UNSHIPPED_RESTATED a block whose registry_lag row restates the count "
+              "differently from its npm row must be caught — 310 row R edited exactly that "
+              "and was exit 0, because the reader takes the first mention")
+    claims += 1
+    if restated_problems():
+        failed += 1
+        print(f"  🔴 RESTATED_POPULATION {restated_problems()}")
 
     # ── 🆕 243 §3: `header-unmoved-unread` (OPEN 239) — THE WORD, MEASURED ────────────
     #

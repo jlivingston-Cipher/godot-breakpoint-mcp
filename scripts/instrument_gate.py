@@ -1302,6 +1302,21 @@ INSTRUMENTS = [
                                         "\"prints none\", \"predecessor prints none\", "
                                         "\"gap\", \"first\")}"),
             "{SIG:registry_problems}": "return []",
+            # 🆕 310 — `unshipped`, THE FIFTH HAND-TYPED FIELD, ON THE FIRST TABLE THAT
+            # COULD FALSIFY IT. Same shapes a fifth field over, and the same rule about
+            # the empty: `unshipped_partition` hands back all seven buckets present and
+            # empty so `UNSHIPPED_ACCOUNTED` sees 0 of 82 and REFUSES rather than a bare
+            # `{}` its consumers would raise on (307 §5.2). `unshipped_of` blinded to
+            # None empties the printed set, which `UNSHIPPED_PRINTED_REACH` floors at
+            # its live reading of one. `restated_problems` blinded to an empty list is
+            # 310 row R's silence, and `UNSHIPPED_RESTATED` is the constructed drive
+            # that sees it.
+            "{SIG:unshipped_of}": "return None",
+            "{SIG:restated_problems}": "return []",
+            "{SIG:unshipped_partition}": ("return {k: [] for k in (\"compared\", "
+                                         "\"prints none\", \"predecessor prints none\", "
+                                         "\"first\", \"gap\", \"no untagged\", \"cut\")}"),
+            "{SIG:unshipped_problems}": "return []",
             "{SIG:absence_shape_problem}": "return \"\"",
             # 🆕 306 §3 — `handoff-section-six-is-prose-nothing-reads`. Blinded to two
             # empty lists it finds no omission and no stale row, which is the state
