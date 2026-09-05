@@ -181,12 +181,19 @@ export function registerIntrospectionTools(server: McpServer, call: EditorCall, 
     "screenshot_editor",
     {
       title: "Screenshot editor viewport",
+      // 🔴 311 — THE NEW REFUSAL IS NAMED IN ONE CLAUSE AND PAID FOR OUT OF THIS
+      // DESCRIPTION'S OWN PROSE, NOT OUT OF THE BUDGET. `BYTES_CEILING` sits exactly on
+      // the shipped surface and its reason forbids a raise that buys a description, so
+      // the clause below is funded by compressing 261's two-case explanation of a hidden
+      // tab — which said at length what its own last eleven words say. Measured after:
+      // the surface is SMALLER than it was. This is the tool whose whole job is letting
+      // the assistant see, so it is the one description that earns the words.
       description:
-        "Capture the 2D or 3D editor viewport as a PNG and return it as image content so the assistant can see the scene. " +
+        "Capture the 2D or 3D editor viewport as a PNG as image content so the assistant can see the scene. " +
         "The requested viewport's tab must be the ACTIVE main-screen tab, and this tool refuses with " +
-        "viewport_not_active when it is not: a hidden tab's viewport either collapses to a few pixels (before its " +
-        "first visit) or keeps rendering the frame it had when it was hidden (after), and the second case is a " +
-        "full-size stale image that looks exactly like a good capture. " +
+        "viewport_not_active when it is not: a hidden tab's viewport is either a few pixels or a full-size " +
+        "stale frame that looks exactly like a good capture. It also refuses with window_not_drawing when the " +
+        "editor window is off screen or headless: Godot draws nothing then. " +
         'A fresh editor is on the 3D tab and opening a scene does NOT switch it, so to capture 2d call ' +
         'main_screen_set {"name":"2D"} first AND pass {"viewport":"2d"} — the default is 3d, so switching the tab ' +
         "alone captures the tab you just left. main_screen_get reports which tab is active.",

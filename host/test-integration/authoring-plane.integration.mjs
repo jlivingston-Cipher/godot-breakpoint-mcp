@@ -1661,10 +1661,17 @@ async function main() {
     // CSGBox3D at the origin, three captures, one SHA). A retry loop waits for a frame
     // that is not coming. The launch-activated editor draws the same fresh viewport at
     // 1392 distinct colours, and CI under Xvfb has no occlusion, which is why this family
-    // is green there. Whether `screenshot_editor` should REFUSE when
-    // `DisplayServer.window_can_draw()` is false, or answer with the picture and say so,
-    // is a change to shipped behaviour — `screenshot-editor-answers-success-while-nothing-
-    // is-drawing`, scheduled for 311, steered rather than decided here.
+    // is green there.
+    // 🆕 311 — AND IT REFUSES NOW, so this loop's flat-frame case has a name. The row
+    // `screenshot-editor-answers-success-while-nothing-is-drawing` closed by giving all
+    // three capture sites in the addon the precondition the engine's own draw loop
+    // reads: `DisplayServer.window_can_draw()` false means no frame is coming, and the
+    // tool says so with `window_not_drawing` and a remedy rather than handing back the
+    // last frame it drew. The retry below is now only about the ONE-FRAME race it was
+    // written for (a tab that became visible a moment ago), which is the case a retry
+    // can actually settle — and the arm underneath it tells the two apart instead of
+    // inferring one from a count of attempts (309 §5.3: if the environment can be
+    // asked, ask it — and here the only thing that can ask is the product).
     let raw;
     let shotSettleAttempts = 0;
     for (let attempt = 0; attempt < 12; attempt++) {
@@ -1686,6 +1693,17 @@ async function main() {
     // window the engine is not presenting to, and only the tool can ask that.
     if (shotSettleAttempts) {
       console.log(`AUTH_SHOT_SETTLE retried ${shotSettleAttempts}x over ~${(shotSettleAttempts * 0.25).toFixed(2)}s and the frame did not change`);
+    }
+    // 🆕 311 — THE PRECONDITION THE FAMILY OWED, ANSWERED BY THE PRODUCT RATHER THAN
+    // INFERRED FROM A RETRY COUNT. A run whose editor window is not on screen now says
+    // so in the error, so this family reports *the environment could not draw* instead
+    // of reporting a capture defect it has no evidence for. It is still a FAIL — this
+    // job exists to capture a real frame and did not — but it names a cause somebody
+    // can act on, which is the whole of what 310 measured.
+    if (raw.isError && /window_not_drawing/.test(raw.content?.[0]?.text || "")) {
+      fail("AUTH_SHOT_WINDOW_DRAWING",
+        `the editor window was not drawing, so no frame was coming and the tool said so: ${(raw.content?.[0]?.text || "").slice(0, 200)}`);
+      return;
     }
     if (raw.isError) { fail("AUTH_SHOT_CAPTURE", (raw.content?.[0]?.text || "").slice(0, 200)); return; }
     const img = (raw.content || []).find((c) => c.type === "image");

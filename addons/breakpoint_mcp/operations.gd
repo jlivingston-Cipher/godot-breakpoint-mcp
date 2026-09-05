@@ -8,7 +8,7 @@ extends RefCounted
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
-const ADDON_VERSION := "1.15.0"
+const ADDON_VERSION := "1.16.0"
 
 var _plugin: EditorPlugin
 
@@ -1143,8 +1143,50 @@ func _docs_search(params: Dictionary) -> Dictionary:
 	})
 
 
+## 🔴 311 — THE ENGINE PRESENTS NOTHING WHILE NO WINDOW IS VISIBLE, AND EVERY CAPTURE
+## SITE IN THIS ADDON USED TO ANSWER SUCCESS ANYWAY.
+##
+## Measured at 310 on a live Godot 4.7 (queue row
+## `editor-3d-capture-is-blank-on-a-developer-machine`, and the engine's own source):
+## `Main::iteration` calls `RenderingServer::draw` only while
+## `DisplayServer::can_any_window_draw()`, and the macOS DisplayServer answers that from
+## a per-window `is_visible` set from `NSWindowOcclusionStateVisible`. A window that is
+## off the active Space, hidden, minimised or completely covered stops the WHOLE engine
+## drawing — SubViewports included, because they are drawn in the same call.
+##
+## The two shapes that produces were both measured, and the SECOND is the dangerous one:
+## a viewport first shown in that state captures as transparent black at full size
+## (an unwritten render target, byte-identical across eight retries); a viewport drawn
+## earlier captures as its LAST frame, full colour, correctly sized, decoding cleanly,
+## and unchanged by a scene edit that must have altered it. Both were reported as
+## success. An assistant that edits a scene and screenshots it to check its work sees
+## the old scene and concludes the edit failed.
+##
+## 🔵 ONE CALL IS ENOUGH, AND A SECOND SAMPLE WOULD ADD NOTHING. `window_can_draw()` IS
+## the predicate the draw loop reads rather than a proxy for it, so confirming across a
+## frame with `Engine.get_frames_drawn()` would re-ask the same question of the same
+## flag. It is also the only shape available here: `_dispatch` is synchronous, and an
+## `await` would make every caller of every handler a coroutine.
+##
+## 🔵 AND IT IS DIFFERENT FROM THE TWO GUARDS THAT ALREADY EXIST. `viewport_not_active`
+## and `viewport_not_rendered` both ask whether the viewport is on screen INSIDE the
+## editor; neither can ask whether the editor itself is. This is that question, one
+## level up.
+func _window_drawing_refusal(subject: String, remedy_subject: String) -> Dictionary:
+	return _err("window_not_drawing",
+		("%s is not drawing, so there is no current frame to capture. Godot presents a "
+		+ "frame only while a window is visible: this one is minimised, on another "
+		+ "desktop or Space, completely covered by another window, or running headless. "
+		+ "Capturing now would return the last frame drawn before it was hidden — full "
+		+ "size, full colour, and with nothing in the image to mark it stale — or a "
+		+ "blank frame if this viewport had never been drawn to. Bring %s back on "
+		+ "screen and call again.") % [subject, remedy_subject])
+
+
 func _screenshot(params: Dictionary) -> Dictionary:
 	var which := String(params.get("viewport", "3d"))
+	if not DisplayServer.window_can_draw():
+		return _window_drawing_refusal("The editor window", "the editor window")
 	var vp: SubViewport = null
 	if which == "2d":
 		vp = EditorInterface.get_editor_viewport_2d()
