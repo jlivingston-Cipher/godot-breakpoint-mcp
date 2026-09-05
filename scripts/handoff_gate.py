@@ -2222,11 +2222,14 @@ def registry_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
 # restates is a block that says two things, and a reader that reads one of them is
 # choosing which.
 #
-# 🔴 THE COMPARED POPULATION IS EMPTY AT 310 AND SAYS SO. 309's block is the only one
-# that prints the field, so clause two runs over nothing until 310's own block registers
-# at 311; `UNSHIPPED_PRINTED_REACH` floors the printing set at its live reading of one,
-# the cross-block arms are driven on constructed populations below, and 311 owes the
-# `compared` floor its first honest value (198 §36).
+# 🟢 AND AT 311 THE COMPARED POPULATION IS ONE PAIR RATHER THAN NONE. 310's block
+# registered here, so clause two runs over the live pair 309 -> 310 instead of over
+# nothing: `UNSHIPPED_PRINTED_REACH` floors the printing set at its live reading of two
+# and `UNSHIPPED_COMPARED_REACH` floors the compared set at its first honest value of
+# one — 198 §36, a floor left where it was after the population grows is headroom nobody
+# voted for. The constructed drives below stay where they are: one live pair can redden
+# `cannot fall` and `outruns MOVED` and nothing else, which is what 311's own
+# perturbation rows S and T drive.
 UNSHIPPED_RE = re.compile(r"\bunshipped (\d+)\b")
 RESTATED_FIELDS: "tuple[tuple[str, re.Pattern], ...]" = (("untagged", UNTAGGED_RE),
                                                           ("unshipped", UNSHIPPED_RE))
@@ -8877,6 +8880,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (310, """> ```
+> main                 36b95ab — session310 the fifth field on the first table that could falsify it, and the window that was not there (#400)  MOVED +2
+> branch 310           session310-the-block-and-the-close-the-row-was-parked-on · PR #399 ·
+>                      session310-the-fifth-field-on-the-first-table-that-could-falsify-it · PR #400
+> host / addon         1.84.1 / 1.15.0  🟢 UNMOVED — no source touched under host/src or addons/
+> npm                  🟢 registry 1.84.1 · untagged 14 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at each merge, and the post-merge run at 36b95ab
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   981/981 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3217
+>               · late not-loaded 0 · late constructed 342/160
+>               · py gates 18/6/12 · SIG 281/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2268 keys · 100 shortfalls
+>               · target reasons 113 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 324 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5066 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 26/26 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 608 claims
+>               · landscape 4 channel(s) / 52 analysed / 49 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 27 within / 11 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -10737,12 +10772,21 @@ def selftest() -> int:
               f"block the claim below is silently not making")
     claims += 1
     _sprinted = [s for s, t in BLOCK_POPULATION if unshipped_of(t) is not None]
-    if len(_sprinted) < 1:
+    if len(_sprinted) < 2:
         failed += 1
-        print(f"  🔴 UNSHIPPED_PRINTED_REACH no registered block prints `unshipped` — "
-              f"either the field left the convention or the reader stopped matching, and "
-              f"a reader nothing reaches refuses nothing. Floor 1, measured 1 at 310; "
-              f"`compared` is {len(_sp['compared'])} and owes 311 its first floor: "
+        print(f"  🔴 UNSHIPPED_PRINTED_REACH only {len(_sprinted)} registered block(s) "
+              f"print `unshipped`, floor 2 — measured 2 at 311, where 310's block joined "
+              f"309's. Either the field left the convention or the reader stopped "
+              f"matching, and a reader nothing reaches refuses nothing: "
+              f"{ {k: len(v) for k, v in _sp.items() if v} }")
+    claims += 1
+    if len(_sp["compared"]) < 1:
+        failed += 1
+        print(f"  🔴 UNSHIPPED_COMPARED_REACH no pair of registered blocks is comparable, "
+              f"floor 1 — measured 1 at 311, the first pair this field has ever had. "
+              f"Clause two is the only arm that reads two blocks, so a table reaching no "
+              f"pair asserts nothing over the live population while the constructed "
+              f"drives below stay green: "
               f"{ {k: len(v) for k, v in _sp.items() if v} }")
     claims += 1
     _spp = unshipped_problems()
