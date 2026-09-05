@@ -374,7 +374,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # governs is 1.08x where 207 measured 1.20x.
     ("SCHEMA_PER_TOOL_CEILING", f"{S}/token-cost.mjs",              r"(export const SCHEMA_PER_TOOL_CEILING = )490;",            [f"{S}/token-cost.selftest.mjs"]),
     ("LAG_CEILING",              "../scripts/registry_lag.py",             r"(LAG_CEILING = )3",                                        ["../scripts/registry_lag.py", "--selftest"]),
-    ("UNTAGGED_CEILING",         "../scripts/registry_lag.py",             r"(UNTAGGED_CEILING = )8",                                   ["../scripts/registry_lag.py", "--selftest"]),
+    ("UNSHIPPED_CEILING",        "../scripts/registry_lag.py",             r"(UNSHIPPED_CEILING = )6",                                  ["../scripts/registry_lag.py", "--selftest"]),
     # 🆕 213 §2 — THE REGISTRY-BYTES READER'S FLOOR. Its verdict is a COUNT OF
     # DIFFERENCES and zero is the healthy reading, so 181 §5's problem applies to the
     # POPULATION rather than to the answer: two EMPTY trees are byte-identical by
@@ -656,14 +656,17 @@ TARGET_REASONS: dict[tuple[str, str], str] = {
         "a self-test that quietly stopped asserting would take the whole family's evidence "
         "with it and every row would still print `ok`. Moves only when a claim is added or "
         "deliberately retired."),
-    ("../scripts/registry_lag.py", "UNTAGGED_CEILING"): (
-        "How many commits may sit on HEAD that the newest published tag does not name — "
-        "`{FLOOR}`. It is a staleness budget for the RELEASE, not for the tree, and it has "
-        "been refusing since the session that crossed it. 🔴 RAISING IT TO CLEAR A REFUSAL "
-        "IS THE ONE MOVE THIS ROW FORBIDS: the refusal is the instrument working, and the "
-        "answer is to cut the release. It moves down when the cadence tightens, and up "
-        "only with a deliberate decision about how far behind the published artifact may "
-        "fall."),
+    ("../scripts/registry_lag.py", "UNSHIPPED_CEILING"): (
+        "How many commits may sit on HEAD that the newest published tag does not name AND "
+        "that touch a tree the registry actually serves — `{FLOOR}`. It is a staleness "
+        "budget for the RELEASE, not for the tree. 🔴 RAISING IT TO CLEAR A REFUSAL IS THE "
+        "ONE MOVE THIS ROW FORBIDS: the refusal is the instrument working, and the answer "
+        "is to cut the release. It moves down when the cadence tightens, and up only with "
+        "a deliberate decision about how far behind the published artifact may fall. 🆕 "
+        "309 — IT GOVERNS THE PARTITION AND NOT THE WHOLE COUNT, because the count it "
+        "replaced could not tell a merge that moves shipped code from one that moves only "
+        "the apparatus, and had come to be breached by ordinary sessions that shipped "
+        "nothing to anybody."),
     ("../scripts/registry_lag.py", "LAG_CEILING"): (
         "How far the published registry version may trail the version in the tree — "
         "`{FLOOR}` — measured in releases rather than commits, which is what makes it a "
@@ -3209,16 +3212,19 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "incident it exists to catch: publishing stopped and the very next cut was "
         "already one behind, so a ceiling this low refuses within the first week while "
         "still admitting a same-session patch burst.")),
-    ("../scripts/registry_lag.py", "UNTAGGED_CEILING"): (8, (
+    ("../scripts/registry_lag.py", "UNSHIPPED_CEILING"): (6, (
         "A CEILING and a budget, at `{FLOOR}` — how many commits past the newest tag "
-        "this repository will tolerate before a release cut refuses. It bounds the "
-        "distance `LAG_CEILING` cannot see, and the two are deliberately different "
-        "numbers: they go stale in opposite directions, so one ceiling over their sum "
-        "would let either be hidden by the other going green. Sized against MEASURED "
-        "history rather than picked — every interval between consecutive tags across "
-        "the last twenty-five releases is seven or under except one, which is the "
-        "window a much earlier session measured as twenty-five commits carrying "
-        "exactly one change a user could observe.")),
+        "that touch shipped source this repository will tolerate before a release cut "
+        "refuses. It bounds the distance `LAG_CEILING` cannot see, and the two are "
+        "deliberately different numbers: they go stale in opposite directions, so one "
+        "ceiling over their sum would let either be hidden by the other going green. "
+        "Sized against MEASURED history rather than picked — across the last "
+        "twenty-five releases the shipped-source interval has a median of one and a "
+        "largest of exactly this value, a real minor version, so the ceiling admits the "
+        "largest healthy interval with no slack beneath it. 🆕 309 — THE POPULATION IS "
+        "DERIVED, not typed: the paths come from the map `release_names` already "
+        "asserts in both directions, so what counts as reaching a user has one "
+        "definition in this tree.")),
     ("../scripts/release_names.py", "NAME_FLOOR"): (5, (
         "The vocabulary a released CHANGELOG block must name before check one will "
         "make a claim about it, at `{FLOOR}`. 🔴 215 §3 — THIS IS THE FLOOR THAT "
