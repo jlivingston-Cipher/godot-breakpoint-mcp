@@ -126,6 +126,11 @@ import os from "node:os";
 import { decodePng, sampleDistinctColours } from "./_png.mjs";
 import { snapshotDir, restoreDir, diffDir, describeDiff } from "./_workspace.mjs";
 import { comparePathLedger, LEDGER_CLASSES, LEDGER_CANARIES } from "./_path_ledger.mjs";
+// 🆕 309 — THE PRIVILEGED ROSTER, READ FROM THE SHIPPED BUILD. `TOOL_CAPABILITIES` is
+// the single source of truth `capabilities.test.ts` already asserts total-and-correct,
+// so the split below cannot drift from what the server actually withholds: tag a tool
+// tomorrow and it moves to the privileged client the same day, with no edit here.
+import { TOOL_CAPABILITIES } from "../dist/capabilities.js";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url)); // host/test-integration
 const HOST_DIR = path.resolve(THIS_DIR, "..");                 // host/ (the package root)
@@ -208,24 +213,70 @@ async function main() {
     ? pass("AUTH_CLEAN_SCOPE", `the snapshot enumerated ${workspace.files.size} file(s) / ${workspace.dirs.size} dir(s) — at or above the floor, so AUTH_CLEAN has something to be clean ABOUT`)
     : fail("AUTH_CLEAN_SCOPE", `THE SNAPSHOT ENUMERATED ALMOST NOTHING: ${workspace.files.size} file(s) (floor ${AUTH_SNAPSHOT_FILE_FLOOR}) / ${workspace.dirs.size} dir(s) (floor ${AUTH_SNAPSHOT_DIR_FLOOR}) — restore will remove nothing, diff will report clean, and AUTH_CLEAN below would PASS over a tree full of artefacts`);
 
+  // 🆕 309 — TWO SURFACES, BECAUSE ONE OF THEM IS THE ONE PEOPLE ACTUALLY HAVE.
+  //
+  // 🔴 THIS PROBE PINNED `BREAKPOINT_PRIVILEGED_GROUPS: "all"` FROM 1.18.0 UNTIL NOW,
+  // so about 130 editor tools had only ever been driven on a surface no ordinary
+  // install has. 299 deleted the same pin from the tabletop probe after 298 found it
+  // bought nothing there. It is NOT nothing here — measured at 309, this probe drives
+  // 153 distinct tools and 5 of them are genuinely privileged — which is why the row
+  // asked for a SPLIT rather than a deletion.
+  //
+  // 🔵 THE SPLIT IS BY ROSTER, NOT BY FAMILY. Each call is routed on whether the tool
+  // it names is in `TOOL_CAPABILITIES`, so the DEFAULT client drives everything an
+  // ordinary user can reach and the PRIVILEGED client drives only what genuinely needs
+  // the opt-in. The path-guard families are the reason this matters: their populations
+  // MIX the two, and on the default surface alone they could only report
+  // "only 19/24 refused" — a coverage claim about path traversal that had never been
+  // made on the surface it protects.
+  const surfaceEnv = (groups) => ({
+    ...process.env, GODOT_BIN, GODOT_PROJECT, BREAKPOINT_PRIVILEGED_GROUPS: groups,
+  });
+  // 🔴 `?? ""` AND NOT `|| ""` — an explicitly empty value is the secure default and
+  // must reach the server as one, not fall through to a pin.
+  const DEFAULT_GROUPS = process.env.BREAKPOINT_PRIVILEGED_GROUPS ?? "";
   const transport = new StdioClientTransport({
     command: "node", args: [DIST], cwd: HOST_DIR,
-    // This probe exercises the full tool surface, including the asset_gen_* and
-    // node_call_method (code-execution) and backend_* (network) families that the
-    // secure-default DROPS at registration since 1.18.0. Opt into all privileged
-    // groups so those tools register and the AUTH_ASSETGEN / AUTH_MP / AUTH_BACKEND
-    // families run their assertions instead of throwing "unknown tool".
-    env: { ...process.env, GODOT_BIN, GODOT_PROJECT, BREAKPOINT_PRIVILEGED_GROUPS: "all" }, stderr: "inherit",
+    env: surfaceEnv(DEFAULT_GROUPS), stderr: "inherit",
   });
   const client = new Client({ name: "gcb-authoring", version: "1.0.0" }, { capabilities: { elicitation: {} } });
   // Auto-approve any confirmation prompt (belt-and-suspenders with GATED/confirm:true).
   client.setRequestHandler(ElicitRequestSchema, async () => ({ action: "accept", content: { proceed: true } }));
   await client.connect(transport);
 
+  const PRIVILEGED_TOOLS = new Set(Object.keys(TOOL_CAPABILITIES));
+  const drivenOn = { default: new Set(), privileged: new Set() };
+  let privClient = null;
+  /** The privileged surface, connected on FIRST USE so a run that needs none pays
+   *  for none — and so a failure to open it is attributed to the call that wanted it. */
+  async function privilegedClient() {
+    if (privClient) return privClient;
+    const t = new StdioClientTransport({
+      command: "node", args: [DIST], cwd: HOST_DIR,
+      env: surfaceEnv("all"), stderr: "inherit",
+    });
+    const c = new Client({ name: "gcb-authoring-privileged", version: "1.0.0" },
+                         { capabilities: { elicitation: {} } });
+    c.setRequestHandler(ElicitRequestSchema, async () => ({ action: "accept", content: { proceed: true } }));
+    await c.connect(t);
+    privClient = c;
+    return c;
+  }
+  /** Route ONE call by the roster. Records what each surface was asked for, so the
+   *  partition below is asserted against what actually happened rather than intent. */
+  async function clientFor(name) {
+    if (PRIVILEGED_TOOLS.has(name)) {
+      drivenOn.privileged.add(name);
+      return privilegedClient();
+    }
+    drivenOn.default.add(name);
+    return client;
+  }
+
   // ---- low-level call: returns structuredContent, throws on bridge/schema error ----
   async function call(name, args = {}) {
     const a = GATED.has(name) ? { confirm: true, ...args } : args;
-    const r = await client.callTool({ name, arguments: a }, undefined, { timeout: 60000 });
+    const r = await (await clientFor(name)).callTool({ name, arguments: a }, undefined, { timeout: 60000 });
     if (r.isError) throw new Error(`${name}: ${(r.content?.[0]?.text || "").slice(0, 200)}`);
     if (!r.structuredContent) throw new Error(`${name}: no structuredContent`);
     return r.structuredContent;
@@ -1566,8 +1617,60 @@ async function main() {
     // it despite the root being a Node2D. The 3D viewport is therefore the one that
     // is actually rendered here. Capturing 2d instead would assert against a
     // collapsed 2x2 viewport and tell us nothing about the capture path.
-    const raw = await client.callTool(
-      { name: "screenshot_editor", arguments: { viewport: "3d" } }, undefined, { timeout: 60000 });
+    // 🆕 309 — AND THE PRECONDITION ABOVE IS NOW AN ACT RATHER THAN A COMMENT.
+    // 🔴 THE PARAGRAPH ABOVE DECLARES A DEPENDENCY NOTHING ENFORCED: *a fresh editor
+    // with no saved layout boots on the 3D tab*. True of a CI runner and false of every
+    // developer machine that has ever opened this project — Godot remembers the layout
+    // per project, so on a real checkout this family failed with `viewport_not_active`
+    // and the passing runs in CI were passing for a reason nobody had established.
+    // Measured at 309 on a live 4.7: the editor came up on "Script" and the whole
+    // family fell over, on BOTH surfaces, which is how it was told apart from the
+    // default-surface question this session was actually asking.
+    // 🔵 THE FIX IS THE FAMILY'S OWN IDIOM, one screen down: *the tab is knowable; read
+    // it*. Read it, put it where the assertion needs it, and put it back at the end —
+    // the same contract AUTH_MAINSCREEN_RESTORED keeps for the tab it moves.
+    const shotEntryScreen = /** @type {any} */ (await call("main_screen_get"));
+    const shotEntryTab = String(shotEntryScreen.active || "");
+    if (shotEntryTab && shotEntryTab.toUpperCase() !== "3D") {
+      const to3d = /** @type {any} */ (await call("main_screen_set", { name: "3d" }));
+      String(to3d.active || "").toUpperCase() === "3D"
+        ? pass("AUTH_SHOT_PRECONDITION", `editor was on "${shotEntryTab}" and this family needs 3D on screen — switched, and it will be put back`)
+        : fail("AUTH_SHOT_PRECONDITION", `could not put the editor on the 3D tab to capture it: ${JSON.stringify(to3d).slice(0, 160)}`);
+    } else {
+      pass("AUTH_SHOT_PRECONDITION", `editor was already on "${shotEntryTab || "(unreported)"}" — nothing to switch`);
+    }
+
+    // 🔴 AND THE SWITCH NEEDS A FRAME BEFORE THE CAPTURE MEANS ANYTHING — WHICH IS A
+    // WORKAROUND FOR AN OPEN ROW, NOT A FIX. Measured at 309: capturing immediately
+    // after `main_screen_set` returns a VALID, correctly-sized PNG of a viewport the
+    // rasterizer has not drawn to — flat colour, reported as success. The tool's guards
+    // (`viewport_not_active`, `viewport_not_rendered`) ask whether the viewport is on
+    // screen, and a tab that became visible a moment ago passes that question while
+    // still having nothing in it. `screenshot-reports-success-for-an-undrawn-viewport`
+    // is the row; whether the tool should WAIT or REFUSE is a change to shipped
+    // behaviour and is steered, not decided here. Until then this probe retries, so
+    // AUTH_SHOT_DRAWN asserts the capture path rather than the race.
+    let raw;
+    let shotSettleAttempts = 0;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      raw = await client.callTool(
+        { name: "screenshot_editor", arguments: { viewport: "3d" } }, undefined, { timeout: 60000 });
+      if (raw.isError) break;
+      const probeImg = (raw.content || []).find((c) => c.type === "image");
+      if (!probeImg) break;
+      const px = decodePng(Buffer.from(probeImg.data || "", "base64"));
+      if (!px || sampleDistinctColours(px).size > 1) break;
+      shotSettleAttempts = attempt + 1;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    // 🔵 THE ATTEMPT COUNT IS THE EVIDENCE THAT SEPARATES A RACE FROM A BLANK. A frame
+    // that arrives flat and STAYS flat across every retry is not a viewport that had
+    // not drawn yet; it is one that is not being drawn to at all. Logged rather than
+    // asserted, because which of those two it is on a given machine is the open row's
+    // question and not this family's.
+    if (shotSettleAttempts) {
+      console.log(`AUTH_SHOT_SETTLE retried ${shotSettleAttempts}x over ~${(shotSettleAttempts * 0.25).toFixed(2)}s and the frame did not change`);
+    }
     if (raw.isError) { fail("AUTH_SHOT_CAPTURE", (raw.content?.[0]?.text || "").slice(0, 200)); return; }
     const img = (raw.content || []).find((c) => c.type === "image");
     const note = (raw.content || []).find((c) => c.type === "text")?.text || "";
@@ -1677,6 +1780,15 @@ async function main() {
         : fail("AUTH_SHOT_INACTIVE_REFUSED", `returned ok with a ${w2}x${h2} placeholder — the guard did not bite`);
     } else {
       fail("AUTH_SHOT_INACTIVE_REFUSED", `neither a real frame nor viewport_not_rendered: ${txt2d}`);
+    }
+
+    // 🆕 309 — PUT THE TAB BACK. Process state this family moved is process state this
+    // family owes, which is #146's rule about the edited scene applied one object over.
+    if (shotEntryTab && shotEntryTab.toUpperCase() !== "3D") {
+      const back = /** @type {any} */ (await call("main_screen_set", { name: shotEntryTab }));
+      String(back.active || "") === shotEntryTab
+        ? pass("AUTH_SHOT_TAB_RESTORED", `back to ${shotEntryTab}`)
+        : fail("AUTH_SHOT_TAB_RESTORED", `wanted ${shotEntryTab}, got ${back.active}`);
     }
   });
 
@@ -1792,7 +1904,7 @@ async function main() {
     ];
     let refused = 0;
     for (const [tool, param, args] of WRITERS) {
-      const r = await client.callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
+      const r = await (await clientFor(tool)).callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
       const txt = (r.content?.[0]?.text || "").replace(/\s+/g, " ");
       const good = r.isError === true
         && /path_outside_project/.test(txt)
@@ -1808,7 +1920,7 @@ async function main() {
 
     // 🔴 A path refusal is NOT a bridge error. `Bridge error` means "the editor could
     // not be reached" and sends the caller to restart Godot over their own typo.
-    const one = await client.callTool({ name: "theme_create", arguments: { to_path: escapeOf(".tres"), confirm: true } }, undefined, { timeout: 60000 });
+    const one = await (await clientFor("theme_create")).callTool({ name: "theme_create", arguments: { to_path: escapeOf(".tres"), confirm: true } }, undefined, { timeout: 60000 });
     /^Path error \[path_outside_project\]/.test((one.content?.[0]?.text || ""))
       ? pass("AUTH_WRITE_PATH_ENVELOPE", "a path refusal carries its own envelope, not the bridge's")
       : fail("AUTH_WRITE_PATH_ENVELOPE", (one.content?.[0]?.text || "").slice(0, 140));
@@ -1886,7 +1998,7 @@ async function main() {
     ];
     let refused = 0;
     for (const [tool, param, args] of READERS) {
-      const r = await client.callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
+      const r = await (await clientFor(tool)).callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
       const txt = (r.content?.[0]?.text || "").replace(/\s+/g, " ");
       const good = r.isError === true
         && /path_outside_project/.test(txt)
@@ -1909,7 +2021,7 @@ async function main() {
     const three = [`res://../${EVIL}/x.tres`, `../${EVIL}/x.tres`, path.join(path.dirname(root), "elsewhere", "x.tres")];
     let spelled = 0;
     for (const p of three) {
-      const r = await client.callTool({ name: "control_set_theme", arguments: { path: ".", theme_path: p } }, undefined, { timeout: 60000 });
+      const r = await (await clientFor("control_set_theme")).callTool({ name: "control_set_theme", arguments: { path: ".", theme_path: p } }, undefined, { timeout: 60000 });
       if (r.isError === true && /path_outside_project/.test(r.content?.[0]?.text || "")) spelled++;
     }
     spelled === 3
@@ -1919,7 +2031,7 @@ async function main() {
     // 🔴 THE EXECUTION ROW, ASSERTED SEPARATELY BECAUSE IT IS THE WORST ONE. Before
     // this change `-s res://../<evil>/x.gd` RAN. The refusal must not be dressed as a
     // task failure — a caller who sees `exit_code` looks for a bug in their script.
-    const ex = await client.callTool({ name: "godot_run_headless_script", arguments: { script_path: esc(".gd") } }, undefined, { timeout: 60000 });
+    const ex = await (await clientFor("godot_run_headless_script")).callTool({ name: "godot_run_headless_script", arguments: { script_path: esc(".gd") } }, undefined, { timeout: 60000 });
     const exTxt = (ex.content?.[0]?.text || "").replace(/\s+/g, " ");
     (ex.isError === true && /^Path error \[path_outside_project\]/.test(exTxt) && !/exit_code/.test(exTxt))
       ? pass("AUTH_READ_PATH_NO_EXEC", "an outside script is refused by PATH, never run and never reported as an exit code")
@@ -2010,7 +2122,7 @@ async function main() {
     ];
     let refused = 0;
     for (const [tool, param, args] of ROWS) {
-      const r = await client.callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
+      const r = await (await clientFor(tool)).callTool({ name: tool, arguments: { ...args, confirm: true } }, undefined, { timeout: 60000 });
       const txt = (r.content?.[0]?.text || "").replace(/\s+/g, " ");
       const good = r.isError === true
         && /path_outside_project/.test(txt)
@@ -2030,8 +2142,8 @@ async function main() {
     // refusal must NAME the one that failed so a caller can tell them apart.
     let both = 0;
     for (const [tool, operand, name] of [["theme_set_font", "font_path", "font"], ["theme_set_stylebox", "stylebox_path", "panel"]]) {
-      const a = await client.callTool({ name: tool, arguments: { path: esc(".tres"), name, theme_type: "Button", [operand]: "res://auth_ok.tres", confirm: true } }, undefined, { timeout: 60000 });
-      const b = await client.callTool({ name: tool, arguments: { path: "res://auth_t.tres", name, theme_type: "Button", [operand]: esc(".tres"), confirm: true } }, undefined, { timeout: 60000 });
+      const a = await (await clientFor(tool)).callTool({ name: tool, arguments: { path: esc(".tres"), name, theme_type: "Button", [operand]: "res://auth_ok.tres", confirm: true } }, undefined, { timeout: 60000 });
+      const b = await (await clientFor(tool)).callTool({ name: tool, arguments: { path: "res://auth_t.tres", name, theme_type: "Button", [operand]: esc(".tres"), confirm: true } }, undefined, { timeout: 60000 });
       const at = (a.content?.[0]?.text || ""), bt = (b.content?.[0]?.text || "");
       if (a.isError && /Refusing path\b/.test(at) && b.isError && new RegExp(`Refusing ${operand}\\b`).test(bt)) both++;
     }
@@ -2108,10 +2220,20 @@ async function main() {
     const LEDGER = path.join(HOST_DIR, "path-cohort-ledger.tsv");
     const { enumeratePathCohort, summarisePathCohort } = await import("../dist/path-cohort.js");
 
+    // 🆕 309 — ENUMERATED OVER THE FULL SURFACE, NOT THE ONE THIS PROBE DRIVES ON.
+    // 🔴 THE LEDGER'S POPULATION IS *EVERY PATH-LIKE PARAMETER THIS SERVER CAN EXPOSE*,
+    // which is a fact about the build and not about one session's trust settings. Read
+    // from the DEFAULT client it comes back short by exactly the privileged tools'
+    // parameters, and `AUTH_PATH_LEDGER_NO_STALE` then reports ten live entries as
+    // stale — measured at 309, and the reason this line takes the superset.
+    // 🔵 The split is between ENUMERATING and DRIVING: what a parameter IS gets asked
+    // of the whole build, whether its guard REFUSES gets asked on the surface the tool
+    // actually lives on.
+    const surfaceForLedger = await privilegedClient();
     const tools = [];
     let cursor;
     do {
-      const page = await client.listTools(cursor ? { cursor } : {});
+      const page = await surfaceForLedger.listTools(cursor ? { cursor } : {});
       tools.push(...page.tools);
       cursor = page.nextCursor;
     } while (cursor);
@@ -2229,6 +2351,29 @@ async function main() {
   const emptyFamilies = families.filter((f) => f.made === 0);
   const partialFamilies = families.filter((f) => f.threw && f.made > 0);
   console.log(`AUTH_POPULATION families=${families.length}/${AUTH_FAMILY_FLOOR} claims=${results.pass.length + results.fail.length}/${AUTH_CLAIM_FLOOR} empty=${emptyFamilies.length} partial=${partialFamilies.length}`);
+
+  // ── 🆕 309 — THE SURFACE PARTITION, ASSERTED AGAINST WHAT WAS ACTUALLY DRIVEN ──────
+  //
+  // 🔴 THE POINT OF THE SPLIT IS THAT IT CANNOT QUIETLY COLLAPSE BACK. A future edit
+  // that routed everything to the privileged client would restore exactly the blindness
+  // this probe carried from 1.18.0 to 309, and every assertion would still pass. So the
+  // two sets are read back from the router and checked against the roster in BOTH
+  // directions: nothing unprivileged may be driven on the privileged surface, and
+  // nothing privileged may be driven on the default one.
+  const wrongOnPrivileged = [...drivenOn.privileged].filter((t) => !PRIVILEGED_TOOLS.has(t)).sort();
+  const wrongOnDefault = [...drivenOn.default].filter((t) => PRIVILEGED_TOOLS.has(t)).sort();
+  (wrongOnPrivileged.length === 0 && wrongOnDefault.length === 0)
+    ? pass("AUTH_SURFACE_PARTITION", `${drivenOn.default.size} tool(s) driven on the DEFAULT surface and ${drivenOn.privileged.size} on the privileged one, and the roster agrees with both — every tool ran on the surface a user would find it on`)
+    : fail("AUTH_SURFACE_PARTITION", `routing disagrees with TOOL_CAPABILITIES — unprivileged on the privileged surface: ${wrongOnPrivileged.join(", ") || "(none)"} · privileged on the default surface: ${wrongOnDefault.join(", ") || "(none)"}`);
+
+  // 🔴 AND A FLOOR UNDER THE DEFAULT SURFACE, because the partition above is satisfied
+  // vacuously by a run that drives nothing there. Measured at 309: this probe drove 148
+  // unprivileged tools, so a floor well under that catches a collapse without tracking
+  // the number it floors (240's rule about a floor that follows its own reading).
+  const AUTH_DEFAULT_SURFACE_FLOOR = 100;
+  (drivenOn.default.size >= AUTH_DEFAULT_SURFACE_FLOOR)
+    ? pass("AUTH_DEFAULT_SURFACE_COVERAGE", `${drivenOn.default.size} distinct tool(s) driven on the surface an ordinary install has, at or above the floor of ${AUTH_DEFAULT_SURFACE_FLOOR}`)
+    : fail("AUTH_DEFAULT_SURFACE_COVERAGE", `ONLY ${drivenOn.default.size} tool(s) reached the default surface (floor ${AUTH_DEFAULT_SURFACE_FLOOR}) — the split has collapsed and AUTH_SURFACE_PARTITION would pass over a probe that proves nothing about a real install`);
 
   // 1. every family that ran must have SAID something. A family whose body threw on its
   //    first call contributes one `_THREW` and nothing else — one failure standing in
