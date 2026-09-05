@@ -1640,16 +1640,31 @@ async function main() {
       pass("AUTH_SHOT_PRECONDITION", `editor was already on "${shotEntryTab || "(unreported)"}" — nothing to switch`);
     }
 
-    // 🔴 AND THE SWITCH NEEDS A FRAME BEFORE THE CAPTURE MEANS ANYTHING — WHICH IS A
-    // WORKAROUND FOR AN OPEN ROW, NOT A FIX. Measured at 309: capturing immediately
-    // after `main_screen_set` returns a VALID, correctly-sized PNG of a viewport the
-    // rasterizer has not drawn to — flat colour, reported as success. The tool's guards
-    // (`viewport_not_active`, `viewport_not_rendered`) ask whether the viewport is on
-    // screen, and a tab that became visible a moment ago passes that question while
-    // still having nothing in it. `screenshot-reports-success-for-an-undrawn-viewport`
-    // is the row; whether the tool should WAIT or REFUSE is a change to shipped
-    // behaviour and is steered, not decided here. Until then this probe retries, so
-    // AUTH_SHOT_DRAWN asserts the capture path rather than the race.
+    // 🔴 AND THE SWITCH NEEDS A FRAME BEFORE THE CAPTURE MEANS ANYTHING. Measured at
+    // 309: capturing immediately after `main_screen_set` returns a VALID, correctly-sized
+    // PNG of a viewport the rasterizer has not drawn to — flat colour, reported as
+    // success. The tool's guards (`viewport_not_active`, `viewport_not_rendered`) ask
+    // whether the viewport is on screen, and a tab that became visible a moment ago
+    // passes that question while still having nothing in it. So this probe retries, and
+    // AUTH_SHOT_DRAWN asserts the capture path rather than the one-frame race.
+    // 🆕 310 — AND THE RETRY CANNOT HELP WITH THE CASE 309 ACTUALLY HIT, WHICH WAS
+    // MEASURED RATHER THAN NAMED. 309's draft of this comment cited a row
+    // (`screenshot-reports-success-for-an-undrawn-viewport`) that was never opened; the
+    // row that WAS opened is `editor-3d-capture-is-blank-on-a-developer-machine`, closed
+    // at 310 by a measurement. On macOS the engine presents NO frames while the editor
+    // window is not visible — off the active Space, hidden, minimised or fully covered:
+    // `Main::iteration` draws only when `DisplayServer.can_any_window_draw()`, and the
+    // macOS DisplayServer answers that from `NSWindowOcclusionStateVisible`. A viewport
+    // first shown in that state captures as transparent black at full size, byte-identical
+    // across every retry (E1: eight captures, one SHA); a viewport drawn earlier captures
+    // as its LAST frame, unchanged by a scene edit that must have altered it (E2: a
+    // CSGBox3D at the origin, three captures, one SHA). A retry loop waits for a frame
+    // that is not coming. The launch-activated editor draws the same fresh viewport at
+    // 1392 distinct colours, and CI under Xvfb has no occlusion, which is why this family
+    // is green there. Whether `screenshot_editor` should REFUSE when
+    // `DisplayServer.window_can_draw()` is false, or answer with the picture and say so,
+    // is a change to shipped behaviour — `screenshot-editor-answers-success-while-nothing-
+    // is-drawing`, scheduled for 311, steered rather than decided here.
     let raw;
     let shotSettleAttempts = 0;
     for (let attempt = 0; attempt < 12; attempt++) {
@@ -1666,8 +1681,9 @@ async function main() {
     // 🔵 THE ATTEMPT COUNT IS THE EVIDENCE THAT SEPARATES A RACE FROM A BLANK. A frame
     // that arrives flat and STAYS flat across every retry is not a viewport that had
     // not drawn yet; it is one that is not being drawn to at all. Logged rather than
-    // asserted, because which of those two it is on a given machine is the open row's
-    // question and not this family's.
+    // asserted, because which of those two it is on a given machine was the row's
+    // question and not this family's — answered at 310: a blank that stays blank is a
+    // window the engine is not presenting to, and only the tool can ask that.
     if (shotSettleAttempts) {
       console.log(`AUTH_SHOT_SETTLE retried ${shotSettleAttempts}x over ~${(shotSettleAttempts * 0.25).toFixed(2)}s and the frame did not change`);
     }
