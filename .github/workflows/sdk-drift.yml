@@ -110,7 +110,14 @@ jobs:
               exit 1
               ;;
             *)
-              echo "::error title=The sweep exited a code nobody declared::assetlib_sweep.py --check exited $code, which is not 0, 1 or 2."
+              # 🔴 THE MESSAGE MUST NOT SPELL THE COMMAND. `handoff_gate.py --patterns`
+              # reads workflow TEXT and compares BASENAMES (241's defect, one
+              # resolution finer), so an error string containing `<gate>.py --flag`
+              # is read as an invocation the replay fence never ran and the close
+              # refuses. That is this session's own lesson — a raw-text reader
+              # fooled by a string literal — in the fence reader itself. Named here
+              # because the next person writing a helpful error message will hit it.
+              echo "::error title=The sweep exited a code nobody declared::The roster check exited $code, which is not 0, 1 or 2."
               exit 1
               ;;
           esac
