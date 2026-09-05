@@ -1202,6 +1202,14 @@ PROVENANCE: "dict[str, str]" = {
                             # denominator is origin's tag list and NOT `git tag`,
                             # which is 234 §4.8's class one counter over. See
                             # `npm_untagged` for why a clone cannot answer it.
+    # 🆕 309 — CLONE, and the difference from its sibling one row up is the whole
+    # reason the column exists. `npm.untagged` is REMOTE because its denominator is
+    # ORIGIN's tag list; `npm.unshipped` is read from the MEASURED LOG, which a replay
+    # in THIS checkout produced against THIS checkout's tags and THIS checkout's
+    # shipped paths. Answering TREE would overstate it — the tag list is a fact about
+    # the disk (234 §4.8) — and answering REMOTE would claim a dial this reader never
+    # makes.
+    "npm.unshipped": CLONE,
     "ci.green": TREE,       # derived from .github/workflows, like `ci.checks`
     "git.moved": TREE,      # `rev-list prev..this` — the PREVIOUS block's main, and this
                             # one's. Two SHAs off one row was 239 §2's tautology.
@@ -3359,6 +3367,21 @@ HEADER_READERS: "list[tuple[str, str, int, str, str]]" = [
      "disk holds is 234 §4.8's class, and a distance counted from a tag this checkout "
      "does not hold is not a small number but no measurement. Read from the measured "
      "log first and derived from origin second, exactly as `npm.lag` is."),
+    # 🆕 309 — THE PARTITION'S OTHER HALF, AND IT GETS A READER ON THE DAY IT IS FIRST
+    # PRINTED. 306, 307 and 308 each found a hand-typed field nothing compared — the
+    # sign, `untagged`, `registry` — and each cost a session to notice. This one was
+    # refused by `UNREADABLE HEADER CLAIM` within minutes of being written, which is
+    # the same finding arriving as a REFUSAL instead of as an archaeology. 🔵 Read from
+    # the measured log only: unlike its two siblings the denominator is THIS tree's
+    # shipped paths at THIS commit, which is exactly what a replay measures and what no
+    # network call could answer better.
+    ("npm.unshipped", r"\bunshipped\b", 1, r"^\s*unshipped (\d+) ",
+     "🆕 309 — `registry_lag.py`'s `unshipped n`: of the commits the newest tag does not "
+     "name, those touching a tree the registry actually serves. It is the number the "
+     "ceiling judges, and `untagged` beside it is now news — the split 308 §2.3 drew for "
+     "the sweep's exit code, drawn again for the release alarm. The alias cannot collide "
+     "with `npm.untagged`: `\\buntagged\\b` does not match inside `unshipped` and neither "
+     "matches the other, which `HEADER_AMBIGUOUS` asserts on every atom of every block."),
     ("ci.green", r"\d+/\d+ green", 2, "",
      "`26/26 green` on the branch line is the same derivation `ci.checks` already does "
      "for the VERIFIED line's `26 CI jobs`, restated as a ratio — so it is checked "
@@ -6269,7 +6292,13 @@ ALIAS_PENDING: "dict[str, str]" = {
 # one where `untagged 2` becomes reachable. It is deleted rather than left to be found by
 # `pending_problems`, because a table whose whole contract is one session is a table that
 # proves nothing if anybody has to be reminded.
-HEADER_ALIAS_PENDING: "dict[str, str]" = {}
+HEADER_ALIAS_PENDING: "dict[str, str]" = {
+    # 🆕 309 — `npm.unshipped` is printed for the FIRST time by 309's own block, so no
+    # block in `BLOCK_POPULATION` carries the alias and `HEADER_ALIAS_UNUSED` would
+    # refuse a reader that is working exactly as intended. 280 built this table for
+    # precisely this case. Expires at 310, when 309's block enters the population.
+    "npm.unshipped": "first printed by 309's block; expires when that block registers at 310",
+}
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
     ("807 keys", "floor_pin.literal", "🔴 THE ROW THIS FILE EXISTS FOR"),
