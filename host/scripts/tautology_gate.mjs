@@ -188,13 +188,17 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // reason and no other. 191 pinned 508 and went red at 509; 193 pinned 147 and went red at
 // 148; this is the same mechanism a third time, and a rule whose own arrival it can
 // measure is a rule that works.
-export const ORPHAN_CEILING = 44;       // measured 4923 sites - 4879 attributed, 2026-08-27.
-// 🔴 307 LEFT THIS AT 44 WITH THE LIVE READING AT 26, AND PRICED THE MOVE RATHER THAN
-// MAKING IT. Lowering it to the new reading reddens ELEVEN self-test claims, which is
-// 184 §7 and 248's warning measured exactly — and those pins are absolute ON PURPOSE
-// (`🔴 THE CLAIM FLOOR IS A LITERAL`), so retyping them is a deliberate act about
-// whether the new reading is trusted, not a rider on the commit that changed the
-// readers. `orphan-ceiling-outruns-its-reading` carries it, with the cost measured.
+export const ORPHAN_CEILING = 26;       // measured 5062 sites - 5036 attributed, 2026-09-05.
+// 🟢 308 MADE THE MOVE 307 PRICED, AND PAID THE ELEVEN PINS IT COSTS. 307 taught both
+// attribution readers to ask the AST instead of a regex over the source, the reading fell
+// from forty-four to twenty-six, and the ceiling was deliberately left where it was so
+// that lowering it would be its own act rather than a rider on the commit that changed
+// the readers. 🔴 THE ELEVEN PINS WERE RETYPED, NOT DERIVED: every fixture keeps its
+// POSITION against the ceiling — on it, one over it, the same distance under it — and a
+// pin that computed its expectation from this constant could not catch a wrong value,
+// which is the whole reason `🔴 THE CLAIM FLOOR IS A LITERAL` is written above them.
+// 🔵 The eighteen of headroom this had been carrying was allowance for a defect that no
+// longer exists, and an allowance nobody can spend is the only kind worth deleting.
                                         //   🆕 285 — `orphan-ceiling-headroom` (248, 37
                                         //   sessions) CLOSED, AND PINNED AT THE LIVE
                                         //   VALUE RATHER THAN ABOVE IT. 248 set 46 over a

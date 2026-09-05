@@ -2085,6 +2085,98 @@ def untagged_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
                        f"them, so the tag did not move and the commits accumulate")
     return out
 
+# ── 🆕 308 — THE FOURTH HAND-TYPED FIELD, AND 307 §6 SAID THERE WERE THREE ────────────
+#
+# 307 closed `untagged` and wrote *sign, SHA and `untagged` were the three hand-typed
+# fields a registered block carries that nothing compared*. That is a COMPLETENESS claim
+# and nobody measured it. 308's perturbation row K flipped block 307's `registry 1.84.1`
+# to `1.83.0` — a version npm has never served — and got `588/588`, exit 0. This is 307
+# §5.4 firing on 307's own prose at the first opportunity a session had.
+#
+# 🔵 THE POPULATION WAS MEASURED BEFORE THE RULE WAS WRITTEN (306 §5.3), AND THE FIRST
+# RULE DIED THERE. *The registry either stays put or catches up to this block's host
+# version* reads as obvious and is FALSE on this table: blocks 266–270 each print a
+# registry one release behind their own tree, because a cut that is MERGED is not a cut
+# that is PUBLISHED, and those five sessions are the publish backlog 248 recorded. The
+# rule that survives the measurement is two inequalities rather than an equation:
+#
+#     registry(N) >= registry(N-1)     the published version does not go backwards
+#     registry(N) <= host(N)           and cannot overtake the tree it was cut from
+#
+# Measured over all 80 blocks: 55 comparable, ZERO backwards, ZERO overtaking, 25 skipped
+# and every skip named. No git and no network — two human-typed strings in the same table
+# — so it survives CI's `--depth 1` checkout the way 306's and 307's readers do.
+REGISTRY_RE = re.compile(r"\bregistry (\d+\.\d+\.\d+)")
+
+
+def registry_of(text: str) -> "str | None":
+    """The `registry X.Y.Z` a block prints, or None — PURE, and about the block only."""
+    m = REGISTRY_RE.search(text)
+    return m.group(1) if m else None
+
+
+def registry_host_of(text: str) -> "str | None":
+    """The host version the same block claims, or None — the second half of clause two,
+    read through `host_row_claim` so this reader and `VERSION_POPULATION` cannot disagree
+    about what a block says its tree holds (203 §2)."""
+    pair = host_row_claim(status_block(text)[0])[1]
+    if isinstance(pair, tuple):
+        pair = pair[0] if pair else None
+    return pair or None
+
+
+def registry_partition(population: "list[tuple[int, str]] | None" = None) -> "dict[str, list[int]]":
+    """Every registered block in exactly one named bucket — 244's shape, a fourth field
+    over. `compared` is the only bucket the two inequalities run over; the rest are
+    reasons, NAMED rather than counted so a block leaving `compared` shows up as a
+    different partition instead of a smaller number (306 §5.1)."""
+    pop = BLOCK_POPULATION if population is None else population
+    out: "dict[str, list[int]]" = {k: [] for k in
+                                   ("compared", "prints none", "predecessor prints none",
+                                    "gap", "first")}
+    for i, (s, t) in enumerate(pop):
+        if registry_of(t) is None:
+            out["prints none"].append(s)
+        elif i == 0:
+            out["first"].append(s)
+        elif registry_of(pop[i - 1][1]) is None:
+            out["predecessor prints none"].append(s)
+        elif s != pop[i - 1][0] + 1:
+            out["gap"].append(s)
+        else:
+            out["compared"].append(s)
+    return out
+
+
+def registry_problems(population: "list[tuple[int, str]] | None" = None) -> "list[str]":
+    """Each compared block whose published version contradicts its neighbour or its own
+    tree — PURE, git-free. `.get` and not `[...]`: a reader that raises where it could
+    report is a reader the gate above it cannot judge (307 §2.4, `CRASH_CEILING`)."""
+    pop = BLOCK_POPULATION if population is None else population
+    by = {s: t for s, t in pop}
+    order = [s for s, _ in pop]
+    def ver(v):
+        try:
+            return tuple(int(x) for x in v.split("."))
+        except (AttributeError, ValueError):
+            return None
+    out = []
+    for s in registry_partition(pop).get("compared", ()):
+        prev = order[order.index(s) - 1]
+        got, was = registry_of(by[s]), registry_of(by[prev])
+        g, w = ver(got), ver(was)
+        if g is not None and w is not None and g < w:
+            out.append(f"block {s} prints `registry {got}` where {prev} printed "
+                       f"`registry {was}` — the published version does not go backwards, "
+                       f"so one of the two names a release npm never served")
+        host = registry_host_of(by[s])
+        h = ver(host)
+        if g is not None and h is not None and g > h:
+            out.append(f"block {s} prints `registry {got}` over a tree its own host row "
+                       f"puts at `{host}` — a published version this tree never held")
+    return out
+
+
 def population_partition(population: "list[tuple[int, str]] | None" = None,
                          root: Path = ROOT
                          ) -> "tuple[dict[int, int], list[str], list[str]]":
@@ -10314,6 +10406,88 @@ def selftest() -> int:
         print("  🔴 UNTAGGED_GAP_REFUSES the same two blocks WITHOUT a hole, one of them "
               "carrying a false count, must be caught — otherwise the rule above is "
               "excusing the population rather than describing it")
+
+    # ── 🆕 308 — AND THE FOURTH FIELD, WHICH 307 §6 SAID DID NOT EXIST ───────────────
+    #
+    # 🔴 308's PERTURBATION ROW K FLIPPED A REGISTERED BLOCK'S `registry` BY A WHOLE
+    # RELEASE AND GOT EXIT 0. The four claims below are the same shape 306 gave the sign
+    # and 307 gave `untagged`: a partition that names every block, a floor on what it
+    # reaches, the rule itself, and the MEMBERSHIP arm 306 §5.1 says this shape owes.
+    _rp = registry_partition()
+    claims += 1
+    if sum(len(v) for v in _rp.values()) != len(BLOCK_POPULATION):
+        failed += 1
+        print(f"  🔴 REGISTRY_ACCOUNTED {sum(len(v) for v in _rp.values())} of "
+              f"{len(BLOCK_POPULATION)} block(s) land in a named bucket — "
+              f"{ {k: len(v) for k, v in _rp.items() if v} }. A block this walk drops is a "
+              f"block the claim below is silently not making")
+    claims += 1
+    if len(_rp["compared"]) < 40:
+        failed += 1
+        print(f"  🔴 REGISTRY_POPULATION_REACH only {len(_rp['compared'])} block(s) are "
+              f"comparable, floor 40 — measured 55 at 308. The skips are blocks that do "
+              f"not print the field at all (the convention starts at 250) and the one "
+              f"hole in the table, so a session that stopped printing `registry` would "
+              f"shrink this population without failing anything: "
+              f"{ {k: len(v) for k, v in _rp.items() if v} }")
+    claims += 1
+    _rpp = registry_problems()
+    if _rpp:
+        failed += 1
+        print(f"  🔴 REGISTRY_POPULATION {_rpp}")
+    claims += 1
+    if not _rp["compared"]:
+        failed += 1
+        print("  🔴 REGISTRY_MEMBERSHIP no comparable block, so the drive below would be "
+              "passing over an empty set")
+    else:
+        _rn = _rp["compared"][-1]
+        _rblind = [(_s, (REGISTRY_RE.sub("registry-removed", _t) if _s == _rn else _t))
+                   for _s, _t in BLOCK_POPULATION]
+        _rbp = registry_partition(_rblind)
+        _rafter = [_s for _s, _ in BLOCK_POPULATION if _s == _rn + 1]
+        if not (_rn in _rbp["prints none"] and _rn not in _rbp["compared"]
+                and all(_a in _rbp["predecessor prints none"] for _a in _rafter)
+                and sum(len(v) for v in _rbp.values()) == len(BLOCK_POPULATION)):
+            failed += 1
+            print(f"  🔴 REGISTRY_MEMBERSHIP removing block {_rn}'s `registry` left the "
+                  f"partition unable to name what changed — "
+                  f"{ {k: len(v) for k, v in _rbp.items() if v} }. That is 306 §5.1's "
+                  f"shape: the comparison is deleted rather than failed")
+
+    # 🔴 AND BOTH ARMS DRIVEN ON A CONSTRUCTED POPULATION, BECAUSE A HEALTHY TABLE CANNOT
+    # REDDEN EITHER (307 §5.3 — a fixture that cannot distinguish the two answers is not a
+    # test). These need no repository, so they hold on CI's shallow checkout.
+    # 🔴 FENCED, BECAUSE `registry_host_of` READS THROUGH `status_block` AND AN UNFENCED
+    # FIXTURE HANDS IT None — under which clause two never runs and the lag case below
+    # would pass for the wrong reason. The first draft of these three was unfenced and
+    # `REGISTRY_OVERTAKES` is what caught it, which is the arm earning its place.
+    _rfix = ("> ```\n> npm                  🟢 registry %s ·\n"
+             "> host / addon         %s / 2.0.0  %s\n> ```\n")
+    _rok = [(40, _rfix % ("1.0.0", "1.0.0", "🟢 UNMOVED")),
+            (41, _rfix % ("1.0.0", "1.1.0", "🔴 HOST MOVED")),
+            (42, _rfix % ("1.1.0", "1.1.0", "🟢 UNMOVED"))]
+    claims += 1
+    if registry_problems(_rok) or registry_partition(_rok)["compared"] != [41, 42]:
+        failed += 1
+        print(f"  🔴 REGISTRY_LAG_IS_LEGAL a merged cut that has not been published yet "
+              f"prints a registry BEHIND its own tree, which is what blocks 266–270 did "
+              f"for five consecutive sessions — that must stay green or the rule is "
+              f"describing a convention nobody follows. Got {registry_problems(_rok)}")
+    claims += 1
+    _rback = _rok[:2] + [(42, _rok[2][1].replace("registry 1.1.0", "registry 0.9.0"))]
+    if not any("does not go backwards" in _m for _m in registry_problems(_rback)):
+        failed += 1
+        print("  🔴 REGISTRY_BACKWARDS a block printing a registry OLDER than its "
+              "predecessor's must be caught — that is 308 row K exactly, and it was "
+              "exit 0 before this reader")
+    claims += 1
+    _rover = _rok[:2] + [(42, _rok[2][1].replace("registry 1.1.0", "registry 9.9.9"))]
+    if not any("never held" in _m for _m in registry_problems(_rover)):
+        failed += 1
+        print("  🔴 REGISTRY_OVERTAKES a block claiming npm serves a version its own "
+              "host row says the tree does not hold must be caught — the arm the lag "
+              "case above is otherwise free to excuse")
 
     # ── 🆕 243 §3: `header-unmoved-unread` (OPEN 239) — THE WORD, MEASURED ────────────
     #

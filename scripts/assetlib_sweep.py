@@ -54,7 +54,7 @@ exclusion is something a reader can argue with rather than something nobody sees
 Usage:
     python3 scripts/assetlib_sweep.py                 # human-readable report
     python3 scripts/assetlib_sweep.py --json          # machine-readable
-    python3 scripts/assetlib_sweep.py --check         # exit 1 if roster is stale
+    python3 scripts/assetlib_sweep.py --check         # 0 news only · 1 a row is owed · 2 a leg did not finish
     python3 scripts/assetlib_sweep.py --emit          # the world-facing readings, one per line
     python3 scripts/assetlib_sweep.py --census        # OFFLINE; the roster's shape, no network
     python3 scripts/assetlib_sweep.py --selftest      # offline; drives the pure readers
@@ -63,6 +63,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import datetime
 import json
 import os
@@ -1120,10 +1121,111 @@ def source_state(entry: dict, head: "tuple[str, str]",
     return ("moved", f"{was} -> {sha}")
 
 
+
+# ── 🆕 308 — TWO KINDS OF NEWS, TWO EXIT CODES, AND THE THIRD ONE IS GREEN ────────────
+#
+# `sweep-exit-collapses-tree-defects-and-world-movement` (294, FOURTEEN sessions). The row
+# said the weekly job reports two different kinds of news through one traffic light and
+# that the light is therefore never answered. 🔴 MEASURED AT 308 BEFORE ANYTHING WAS
+# WRITTEN, AND THE ROW UNDERSTATED IT: every `schedule:` run in this workflow's history is
+# red — three of three — and NOT ONE of them was this apparatus failing. They were
+# `moved`, `src_moved` and `new_mcp`: entirely world movement. The dispatched runs, the
+# ones a session fires deliberately after fixing something, are where the greens are.
+#
+# 🔴 307 §3.2 SAID THE TWO-BUCKET FRAMING DOES NOT CUT THE PROBLEM SET, and it is right:
+# six of the eight conditions are simultaneously news about the world AND a to-do, because
+# `owes()` makes every world movement owe an action. So the line is not drawn at *world
+# versus tree*. It is drawn at **is there something a person must do that will not undo
+# itself next week**:
+#
+#   `CHECK_UNREAD`   a leg did not finish, so this run's readings cannot be spent as
+#                    *nothing has moved*. Our defect. It blocks.
+#   `CHECK_OWED_ROW` a project has appeared in a sweep and has NO ROSTER ROW. One row each
+#                    closes it, the roster's own `_comment` already promises it, and a row
+#                    that exists does not come back. It blocks.
+#   `CHECK_NEWS`     a project the roster ALREADY NAMES has shipped something. It owes a
+#                    source-level pass at the next sweep, the cadence columns price it,
+#                    and it will happen again next week whatever anybody does today. It
+#                    is printed and it is GREEN.
+#
+# Checked against the three historical scheduled failures: two of them carried `moved`
+# alone and become green-with-news; the third carried `new_mcp` and stays red, for a
+# reason one roster row closes. That is the row's ask, and it is measurable.
+#
+# 🔵 THE POLARITY IS THE SIBLING'S, NOT ITS INVERSE. `spec_conformance.py --refresh` runs
+# as the step above this one in the same job and already returns `2` for *could not read
+# upstream* and `1` for *upstream moved*; 307 §3.2 read the queue row as asking for the
+# opposite. It was not: the row asks for a THIRD state the sibling has no need of, and 2
+# and 1 keep the meanings they already had.
+CHECK_OK, CHECK_OWED, CHECK_UNREAD = 0, 1, 2
+
+CHECK_APPARATUS = ("chan_problems", "src_problems")
+CHECK_OWED_ROW = ("new_mcp", "new_ai", "unrecorded")
+CHECK_NEWS = ("moved", "src_moved", "npm_moved")
+
+CHECK_REMEDY = {
+    CHECK_OWED: "Every entry above has appeared in a sweep and has no roster row. One "
+                "row each closes them, and a row that exists does not come back.",
+    CHECK_UNREAD: "A leg of this sweep did not finish, so nothing it read can be spent "
+                  "as `nothing has moved`. That is a defect in this apparatus, not news "
+                  "about the world.",
+}
+
+
+def check_verdict(found: "dict[str, int]") -> "tuple[int, list[str], list[str]]":
+    """PURE over its input — `(exit code, what BLOCKS, what is only NEWS)`.
+
+    🔴 AN UNCLASSIFIED CONDITION IS AN APPARATUS FAILURE, NOT A GREEN. 306 §5.1's rule is
+    that a reader selecting its own population out of the data it is checking owes a claim
+    about MEMBERSHIP, and the way this shape fails is a ninth condition being added to
+    `main` and quietly landing in nobody's bucket. It lands in `CHECK_UNREAD` instead, and
+    `check_conditions_declared` refuses the tree that made it possible.
+    """
+    known = set(CHECK_APPARATUS) | set(CHECK_OWED_ROW) | set(CHECK_NEWS)
+    unclassified = sorted(set(found) - known)
+    apparatus = [k for k in CHECK_APPARATUS if found.get(k)]
+    owed = [k for k in CHECK_OWED_ROW if found.get(k)]
+    news = [k for k in CHECK_NEWS if found.get(k)]
+    if unclassified:
+        return (CHECK_UNREAD,
+                ["condition(s) this file computes and does not classify: "
+                 + ", ".join(unclassified)] + apparatus + owed, news)
+    if apparatus:
+        return (CHECK_UNREAD, apparatus + owed, news)
+    if owed:
+        return (CHECK_OWED, owed, news)
+    return (CHECK_OK, [], news)
+
+
+def check_conditions_declared(source: str) -> "tuple[list[str], list[str]]":
+    """`(the keys main HANDS check_verdict, the keys the classification DECLARES)` — and
+    the first half is read from this file's AST rather than from a regex over its text.
+
+    🔴 307 §5.1 IS WHY, AND IT WAS LEARNED ONE FILE OVER: a raw-text reader cannot ask a
+    question about code, and the files it gets wrong are the ones that quote code in
+    strings — which this module's own docstrings and self-test fixtures do on nearly every
+    page. A floor met by quoted text is worse than an absent reader.
+    """
+    keys: "list[str]" = []
+    main_fn = next((n for n in ast.walk(ast.parse(source))
+                    if isinstance(n, ast.FunctionDef) and n.name == "main"), None)
+    if main_fn is not None:
+        for n in ast.walk(main_fn):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == "check_verdict" and n.args
+                    and isinstance(n.args[0], ast.Dict)):
+                keys = [k.value for k in n.args[0].keys
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str)]
+    return (sorted(keys),
+            sorted(set(CHECK_APPARATUS) | set(CHECK_OWED_ROW) | set(CHECK_NEWS)))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--check", action="store_true", help="exit 1 when the roster is stale")
+    ap.add_argument("--check", action="store_true",
+                    help="0 when only tracked projects moved, 1 when a surfaced "
+                         "project owes a roster row, 2 when a leg did not finish")
     ap.add_argument("--selftest", action="store_true",
                     help="drive every classification off fixtures — offline, no network")
     ap.add_argument("--emit", action="store_true",
@@ -1442,46 +1544,53 @@ def main() -> int:
     # `our_pending_edits` reports rather than dies: a sweep on a machine the forge will
     # not answer must still be able to run, or the check becomes a statement about
     # connectivity.
-    stale = []
-    if moved:
-        stale.append(f"{len(moved)} tracked entr(ies) moved")
-    if src_moved:
-        stale.append(f"{len(src_moved)} tracked repositor(ies) moved since their last "
-                     f"source-level pass (Rule 2 clause two)")
-    # 🆕 292 §1 — AND THIS LINE NO LONGER SPELLS ITS OWN PRICE. The Asset Library's
-    # severity is declared in `CHANNELS` with the volume argument attached, so the sentence
-    # a reader sees here and the sentence `surfaced_problems` prints come from one place
-    # and differ only where the channels differ.
-    if new_mcp:
-        stale.append(f"{len(new_mcp)} never-tracked MCP-shaped entr(ies) found "
-                     f"(assetlib owes {owes(severity_of('assetlib'))})")
-    if new_ai:
-        stale.append(f"{len(new_ai)} never-recorded in-editor AI addon(s) found")
-    # 🆕 291 — AND THE TWO NEW REFUSALS. `chan_problems` is the one that changes what a
-    # green MEANS: before it, a run where every query failed produced an empty new-entry
-    # list and exited 0. `unrecorded` is the population decision cashed — a row, not an
-    # analysis, and refused when it is missing.
-    if chan_problems:
-        stale.append(f"{len(chan_problems)} discovery channel(s) not fully read")
-    # 🆕 293 §3.1 — AND THE SOURCE LEG JOINS THEM, BY NAME. Before this line a run that
-    # read zero repository heads printed `SOURCE moved: 0` and exited 0; the reading it
-    # had was silence and silence was spendable as `nothing has moved`.
-    if src_problems:
-        stale.append(f"the source leg was {src_state[0]}, so Rule 2's second clause was "
-                     f"not answered for the whole roster")
-    if unrecorded:
-        stale.append(f"{len(unrecorded)} surfaced project(s) with no roster row")
-    if npm_moved:
-        stale.append(f"{len(npm_moved)} npm-channel entr(ies) published a new version "
-                     f"since their last source-level pass")
-    if args.check and stale:
-        for m in src_problems + chan_problems + unrecorded:
-            print(f"  🔴 {m}", file=sys.stderr)
-        print("\nROSTER STALE: " + ", ".join(stale)
-              + ".\n  The moved entries owe a source-level pass; the in-editor AI addons "
-                "owe a roster row and nothing more.",
-              file=sys.stderr)
-        return 1
+    said = {
+        "moved": f"{len(moved)} tracked entr(ies) moved",
+        "src_moved": (f"{len(src_moved)} tracked repositor(ies) moved since their last "
+                      f"source-level pass (Rule 2 clause two)"),
+        # 🆕 292 §1 — AND THIS LINE NO LONGER SPELLS ITS OWN PRICE. The Asset Library's
+        # severity is declared in `CHANNELS` with the volume argument attached, so the
+        # sentence a reader sees here and the sentence `surfaced_problems` prints come
+        # from one place and differ only where the channels differ.
+        "new_mcp": (f"{len(new_mcp)} never-tracked MCP-shaped entr(ies) found "
+                    f"(assetlib owes {owes(severity_of('assetlib'))})"),
+        "new_ai": f"{len(new_ai)} never-recorded in-editor AI addon(s) found",
+        # 🆕 291 — `chan_problems` is the one that changes what a green MEANS: before it,
+        # a run where every query failed produced an empty new-entry list and exited 0.
+        "chan_problems": f"{len(chan_problems)} discovery channel(s) not fully read",
+        # 🆕 293 §3.1 — AND THE SOURCE LEG, BY NAME. Before this line a run that read zero
+        # repository heads printed `SOURCE moved: 0` and exited 0; the reading it had was
+        # silence and silence was spendable as `nothing has moved`.
+        "src_problems": (f"the source leg was {src_state[0]}, so Rule 2's second clause "
+                         f"was not answered for the whole roster"),
+        # 🆕 291 — the population decision cashed: a row, not an analysis.
+        "unrecorded": f"{len(unrecorded)} surfaced project(s) with no roster row",
+        "npm_moved": (f"{len(npm_moved)} npm-channel entr(ies) published a new version "
+                      f"since their last source-level pass"),
+    }
+    # 🆕 308 — AND HERE THE ONE RED LIGHT BECOMES THREE ANSWERS. The keys below are the
+    # population `check_conditions_declared` reads out of this call's AST and requires the
+    # classification to cover; adding a ninth condition here without classifying it is a
+    # refusal at `--selftest`, not a silent green at the next schedule.
+    verdict, blocking, news = check_verdict({
+        "moved": len(moved), "src_moved": len(src_moved), "new_mcp": len(new_mcp),
+        "new_ai": len(new_ai), "chan_problems": len(chan_problems),
+        "src_problems": len(src_problems), "unrecorded": len(unrecorded),
+        "npm_moved": len(npm_moved),
+    })
+    if args.check:
+        if news:
+            print("\nROSTER NEWS: " + ", ".join(said[k] for k in news)
+                  + ".\n  The roster already names every one of them. They owe a "
+                    "source-level pass at the next sweep, the cadence columns price it, "
+                    "and none of it is a defect in this tree.")
+        if blocking:
+            for m in src_problems + chan_problems + unrecorded:
+                print(f"  🔴 {m}", file=sys.stderr)
+            print("\nROSTER STALE: "
+                  + ", ".join(said.get(k, k) for k in blocking)
+                  + ".\n  " + CHECK_REMEDY[verdict], file=sys.stderr)
+        return verdict
     return 0
 
 
@@ -1682,6 +1791,86 @@ def selftest() -> int:
         if got != want:
             bad += 1
             print(f"  🔴 {label}: got {got!r}, want {want!r}")
+
+    # ── 🆕 308 — `--check`'s EXIT CODE, WHICH NOTHING DROVE UNTIL NOW ────────────────
+    #
+    # 🔴 307 §3.2 MEASURED THE SELF-TEST PRICE OF THIS SPLIT AT ZERO AND WAS RIGHT, AND
+    # THAT WAS THE PROBLEM: `args.check` and `stale` appeared nowhere in this function, so
+    # the assembly that decides whether the weekly job goes red had no drive at all. A
+    # split shipped over that is a split nothing proves.
+    def V(**kw):
+        found = {k: 0 for k in CHECK_APPARATUS + CHECK_OWED_ROW + CHECK_NEWS}
+        found.update(kw)
+        return check_verdict(found)
+
+    claim("check: a clean sweep is green and has nothing to say", V(), (CHECK_OK, [], []))
+    # 🔴 THE THREE THAT USED TO BE RED AND ARE THE WHOLE POINT OF THE ROW.
+    claim("check: a tracked entry moving is NEWS, and the job is green",
+          V(moved=3), (CHECK_OK, [], ["moved"]))
+    claim("check: a source pass falling due is news, not a defect in this tree",
+          V(src_moved=1), (CHECK_OK, [], ["src_moved"]))
+    claim("check: an npm-channel entry publishing is news",
+          V(npm_moved=2), (CHECK_OK, [], ["npm_moved"]))
+    # 🔴 AND THE THREE THAT STILL BLOCK, BECAUSE ONE ROSTER ROW CLOSES EACH OF THEM AND A
+    # ROW THAT EXISTS DOES NOT COME BACK.
+    claim("check: a surfaced project with no roster row blocks",
+          V(unrecorded=1), (CHECK_OWED, ["unrecorded"], []))
+    claim("check: a never-tracked MCP-shaped entry blocks",
+          V(new_mcp=1), (CHECK_OWED, ["new_mcp"], []))
+    claim("check: an unrecorded in-editor AI addon blocks",
+          V(new_ai=1), (CHECK_OWED, ["new_ai"], []))
+    # 🔴 AND THE TWO THAT ARE OUR OWN DEFECT, WHICH OUTRANK BOTH.
+    claim("check: a discovery channel that did not finish is OUR defect",
+          V(chan_problems=1), (CHECK_UNREAD, ["chan_problems"], []))
+    claim("check: an unread source leg is our defect too",
+          V(src_problems=1), (CHECK_UNREAD, ["src_problems"], []))
+    # 🔴 THE PRECEDENCE CLAIM: A HARNESS FAILURE OUTRANKS AN OWED ROW AND DOES NOT SWALLOW
+    # IT. If the unread leg were allowed to hide the owed row, the next green run would
+    # look like the row had been paid.
+    claim("check: an owed row survives being outranked by a harness failure",
+          V(chan_problems=1, unrecorded=2),
+          (CHECK_UNREAD, ["chan_problems", "unrecorded"], []))
+    claim("check: the news is still reported through a refusal",
+          V(src_problems=1, moved=1), (CHECK_UNREAD, ["src_problems"], ["moved"]))
+    # 🔴 THE THREE SCHEDULED FAILURES IN THIS WORKFLOW'S HISTORY, REPLAYED AS FIXTURES.
+    # Two of them carried tracked movement alone; the third carried a never-tracked entry.
+    claim("check: the 2026-08-17 and 2026-08-24 scheduled reds become green news",
+          V(moved=3), (CHECK_OK, [], ["moved"]))
+    claim("check: the 2026-08-31 scheduled red stays red, and names the row a human writes",
+          V(moved=1, src_moved=3, new_mcp=1),
+          (CHECK_OWED, ["new_mcp"], ["moved", "src_moved"]))
+    # 🔴 306 §5.1's MEMBERSHIP CLAIM, WHICH THIS SHAPE OWES: a reader that selects its own
+    # population out of the data it is checking cannot report being fooled, so the
+    # partition must be TOTAL and an unclassified condition must be the loudest answer
+    # rather than the quietest.
+    claim("check: a condition nobody classified is an apparatus failure, never a green",
+          check_verdict({"moved": 0, "a_ninth_leg": 1})[0], CHECK_UNREAD)
+    # 🔴 `any(...)` AND NOT `[1][0]`: the first draft indexed the refusal list, so the
+    # mutation that DELETES the guard made this claim raise IndexError instead of
+    # reporting False — 307 §2.4's shape in a self-test rather than in a blind. A claim
+    # that crashes where it could report is a claim the tally never gets to count.
+    claim("…and the refusal names it, so the fix is readable from the log",
+          any("a_ninth_leg" in m for m in check_verdict({"a_ninth_leg": 1})[1]), True)
+    # 🔴 AND THE MEMBERSHIP IS READ OFF THE LIVE CALL, NOT OFF A COPY OF ITS KEYS.
+    _live, _declared = check_conditions_declared(open(__file__, encoding="utf-8").read())
+    claim("membership: every condition `--check` computes is classified by name",
+          _live, _declared)
+    claim("…and the declaration is the three buckets and nothing else",
+          _declared, sorted(set(CHECK_APPARATUS) | set(CHECK_OWED_ROW) | set(CHECK_NEWS)))
+    claim("…and a ninth condition added to the call is CAUGHT rather than defaulted",
+          check_conditions_declared(
+              "def main() -> int:\n"
+              "    check_verdict({'moved': 1, 'a_ninth_leg': 1})\n")[0],
+          ["a_ninth_leg", "moved"])
+    # 🔴 AND THE READER ASKS THE AST, WHICH IS 307 §5.1 DRIVEN RATHER THAN CITED. This
+    # module quotes code in its docstrings on nearly every page; a raw-text reader would
+    # count the quoted call and invent a condition the file does not compute.
+    claim("…and a call QUOTED in a docstring owns nothing, which is why this reads the AST",
+          check_conditions_declared(
+              'def main() -> int:\n'
+              '    doc = """check_verdict({\'a_ghost_leg\': 1})"""\n'
+              '    check_verdict({"moved": 1})\n')[0],
+          ["moved"])
 
     # ── `source_state` — Rule 2's second clause, all three answers ───────────────────
     claim("held: recorded commit is the head",

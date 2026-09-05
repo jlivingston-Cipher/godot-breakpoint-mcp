@@ -164,6 +164,34 @@ use, and `--check` refuses `SOURCE_UNREAD` and `SOURCE_PARTIAL` by name. 🔵 **
 deliberately not the fix**: it makes the failure rarer without making it visible, and the
 leg would still report a green on the run where it happens.
 
+### 🆕 308 — And the alarm now says which of the two things it is
+
+🔴 **EVERY `schedule:` RUN IN THIS WORKFLOW'S HISTORY WAS RED, AND NOT ONE OF THEM WAS THIS
+APPARATUS FAILING.** Measured at `308` across the whole run list: the scheduled runs — the
+ones nobody is watching, which is the only audience a weekly job has — are red three times
+out of three, and every one of them was tracked projects moving. The greens are all
+`workflow_dispatch`: a session firing the job deliberately after fixing something. An alarm
+that is always on for its unattended audience is not an alarm.
+
+`--check` therefore answers with three codes rather than one, and the line is drawn at
+**whether a person must do something that will not undo itself next week**:
+
+| exit | meaning | the job |
+|---|---|---|
+| `0` | projects the roster ALREADY NAMES have moved | 🟢 green, and the news is printed |
+| `1` | a project has appeared in a sweep with NO ROSTER ROW | 🔴 red — one row each closes it |
+| `2` | a discovery or source leg did not finish | 🔴 red — our defect, and nothing this run read can be spent |
+
+🔵 **THE POLARITY IS THE SIBLING'S.** `spec_conformance.py --refresh` runs as the step
+above this one in the same job and already answers `2` for *could not read upstream* and
+`1` for *upstream moved*; this file keeps both meanings and adds the third state that
+sibling has no need of.
+
+🔴 **AND AN UNCLASSIFIED CONDITION IS A `2`, NEVER A `0`.** The classification is a total
+partition over the conditions `--check` computes, read off the live call's AST rather than
+kept as a second copy of its keys, so a condition added later without a bucket is a
+refusal at `--selftest` instead of a silent green at the next schedule.
+
 ## Rule 3 — Every channel a project can ship in is swept mechanically, not by memory
 
 🔴 **THIS RULE WAS WRITTEN ABOUT ONE CHANNEL AND IT COST EXACTLY WHAT ITS OWN LAST SENTENCE
