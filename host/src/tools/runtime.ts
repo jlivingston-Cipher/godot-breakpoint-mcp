@@ -249,6 +249,16 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     "runtime_screenshot",
     {
       title: "Runtime screenshot",
+      // 🔴 311 — THE NEW `window_not_drawing` REFUSAL IS DELIBERATELY NOT NAMED HERE, AND
+      // THE REASON IS A BUDGET WITH A RULE ON IT. `BYTES_CEILING` sits exactly on the
+      // shipped surface and its `TARGET_REASONS` sentence forbids raising it for prose:
+      // *a raise that buys a description is the surface growing and calling it a budget*.
+      // So the catalogue keeps what a CALLER CAN ACT ON BEFORE CALLING — and nothing a
+      // caller does arranges a window it cannot see. The refusal explains itself in full
+      // when it fires (message + `error_remedies.gd` next action), and docs/USER_GUIDE.md
+      // §10 carries the standing explanation. `screenshot_editor` names it in four words
+      // and pays for them by trimming its own prose, because that tool's description is
+      // where a reader looking for capture preconditions already goes.
       description: "Capture the current game frame as a PNG and return it as image content so the assistant can see the running game.",
       inputSchema: { ...peerField },
     },

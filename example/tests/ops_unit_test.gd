@@ -107,6 +107,7 @@ func _initialize() -> void:
 	_test_import_settings_reporting(ops)  # import-settings REPORTING pair, 166 D3/D4 (hermetic)
 	_test_scene_dependency_shape(ops)  # scene_get_dependencies split, 169 §5 (hermetic)
 	_test_screenshot_no_viewport()     # runtime screenshot guard, detached (hermetic)
+	_test_screenshot_window_guard()    # 311: the editor plane's window-drawing guard (hermetic)
 	# Summary + quit are emitted from _process, after the live-tree phase runs.
 
 
@@ -162,9 +163,19 @@ func _process(_delta: float) -> bool:
 ## mutation survived without it (169 §7).
 ##
 ## 🔴 SET TWO BELOW THE MEASUREMENT, NOT AT IT. `skip` moves a claim out of pass/fail on
-## a rasterizer that cannot capture, so a floor pinned exactly at 232 would false-fail on
-## a legitimate environment — and a floor that cries wolf is a floor somebody deletes.
-const OPS_UNIT_CLAIM_FLOOR := 230
+## a rasterizer that cannot capture, so a floor pinned exactly at the measurement would
+## false-fail on a legitimate environment — and a floor that cries wolf is a floor
+## somebody deletes.
+##
+## 🆕 311 — AND THE MEASUREMENT NOW DIFFERS BY ENVIRONMENT, SO THE FLOOR TAKES THE
+## SMALLER ONE. The window-drawing guard splits this suite along the predicate it
+## asserts: measured **243** under `--headless` (the refusal arms run — four on the
+## editor plane, two on the runtime plane — and the capture is skipped) and **240**
+## under Xvfb with a live rasterizer (those six do not run, the three capture
+## assertions do). Both are complete runs. A floor is a claim about the SMALLER one,
+## so it is two below 240 rather than two below 243 — pinning it to the headless
+## reading would turn `render-plane` red for doing exactly what it exists to do.
+const OPS_UNIT_CLAIM_FLOOR := 238
 
 
 func _check(label: String, cond: bool) -> void:
@@ -968,6 +979,36 @@ func _test_screenshot_no_viewport() -> void:
 	rb.free()
 
 
+# --- 311: the window-drawing guard, on the EDITOR plane, hermetic ------------
+func _test_screenshot_window_guard() -> void:
+	# 🔴 THE GUARD 310 MEASURED THE NEED FOR, ASSERTED IN BOTH DIRECTIONS BY TWO JOBS
+	# THAT ALREADY EXIST, AGAINST THE ENGINE RATHER THAN A MOCK.
+	#   gdscript-unit  --headless  -> the headless DisplayServer answers
+	#                  window_can_draw() FALSE, so the REFUSAL arm runs here, live.
+	#   render-plane   Xvfb+llvmpipe -> the X11 DisplayServer answers TRUE unless the
+	#                  window is minimised, so the guard must NOT fire, and the runtime
+	#                  plane's capture assertions in _test_live_screenshot run instead.
+	# Neither job needed a new step, and neither arm is simulated.
+	#
+	# 🔵 THE EDITOR PLANE IS SAFE TO CALL HERE ONLY ON THE REFUSING SIDE, and that is
+	# the guard's own doing: it returns BEFORE `EditorInterface` is touched, which is
+	# exactly where a precondition about the whole engine belongs. With a drawing
+	# window there is no editor in this process to capture, so the positive direction
+	# is left to the authoring-plane probe, which drives a real editor under Xvfb.
+	var can_draw := DisplayServer.window_can_draw()
+	print("OPS_UNIT_WINDOW can_draw=%s display=%s" % [str(can_draw), DisplayServer.get_name()])
+	if can_draw:
+		_skip_check("ops.shot.window_guard", "window is drawing — the refusal cannot be reached, and the editor plane needs a real editor")
+		return
+	var ops = Ops.new()
+	var shot: Dictionary = ops._screenshot({"viewport": "3d"})
+	_eq("ops.shot.window.ok", shot["ok"], false)
+	_eq("ops.shot.window.code", shot["error"]["code"], "window_not_drawing")
+	# The message must name the state, and the remedy must name the act. 254's split.
+	_check("ops.shot.window.message", String(shot["error"]["message"]).contains("not drawing"))
+	_check("ops.shot.window.remedy", String(shot["error"].get("remedy", "")).begins_with("Make the editor window visible"))
+
+
 # --- LIVE tree: _resolve absolute (/...) branch — rb + operations -----------
 func _test_live_resolve_absolute() -> void:
 	# Build a real scene under the now-active root: /root/Scene/Kid.
@@ -1038,7 +1079,20 @@ func _test_live_screenshot() -> void:
 		# --headless: nothing was drawn, so no frame is the CORRECT outcome. Assert
 		# it degraded cleanly — that is real coverage of a real guard — but do NOT
 		# bank it as capture coverage. Hence the skip alongside the pass.
-		_check("rb.shot.degrades", shot["error"]["code"] in ["no_image", "no_texture"])
+		# 🆕 311 — AND THE CODE IT DEGRADES TO IS BETTER NOW, WHICH IS THE POINT OF THE
+		# CHANGE RATHER THAN A SIDE EFFECT. The headless DisplayServer answers
+		# `window_can_draw()` FALSE, so the runtime plane's own window guard is what
+		# answers here, and it names a state a caller can act on. The old codes said
+		# *could not read frame* and their remedies said *advance a frame and call
+		# again* — advice that could never work, because no number of frames produces a
+		# picture from a rasterizer that draws nothing. `no_image` / `no_texture` stay
+		# legal below for a DisplayServer that reports it CAN draw and still yields no
+		# texture, which is the different failure they were written for.
+		_check("rb.shot.degrades", shot["error"]["code"] in ["window_not_drawing", "no_image", "no_texture"])
+		if not DisplayServer.window_can_draw():
+			_eq("rb.shot.degrades.names_the_window", shot["error"]["code"], "window_not_drawing")
+		else:
+			_skip_check("rb.shot.degrades.names_the_window", "the display server reports it CAN draw, so the window guard is not the arm this run is testing")
 		_skip_check("rb.shot.capture", "dummy rasterizer — drop --headless to exercise it")
 	else:
 		# A live rasterizer that cannot produce a frame is a defect in the capture

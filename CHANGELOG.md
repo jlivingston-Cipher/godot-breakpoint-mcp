@@ -4,6 +4,55 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.85.0] — 2026-09-05
+
+_Addon **1.16.0** — `addons/` moved, so the addon is re-stamped in the same cut._
+
+**A CAPTURE OF A WINDOW NOBODY IS DRAWING IS NOW REFUSED INSTEAD OF ANSWERED.** Godot
+presents a frame only while one of its windows is visible. An editor — or a running game —
+that is minimised, sitting on another desktop or Space, completely covered by another
+window, or launched `--headless` stops rendering **everything**, both editor viewports
+included, and every capture path in this addon used to hand back whatever was in the
+render target and report success.
+
+Measured on a live Godot 4.7 against a real editor, that produced two shapes, and the
+second is the one that costs you something:
+
+* a viewport shown for the first time while the window was hidden captured as a valid,
+  correctly-sized PNG that was **transparent black** — an unwritten render target —
+  byte-identical across eight retries;
+* a viewport that had been drawn earlier captured as its **last frame**: full colour,
+  correct dimensions, decoding cleanly, and **unchanged by a scene edit that must have
+  altered it**. An assistant that edits a scene and screenshots it to check its work sees
+  the old scene and concludes the edit failed.
+
+### Changed
+
+* `screenshot_editor`, `runtime_screenshot` and `runtime_screenshot_diff` now refuse with
+  a new `window_not_drawing` code when `DisplayServer.window_can_draw()` is false — the
+  same predicate the engine's own draw loop reads, asked before any texture is touched.
+  The message names the state and the remedy names the act (bring the window back on
+  screen; a headless process never draws and cannot be captured), on both engine planes.
+* `runtime_screenshot_diff` is the site with the most at stake and it is guarded too: a
+  frame the engine is not redrawing does not disagree with anything, so the comparison
+  previously reported **no change** however much the game had actually changed.
+* Under `--headless`, the runtime capture used to degrade to `no_image` / `no_texture`,
+  whose next action was *advance a frame and call again* — advice that can never work,
+  because no number of frames produces a picture from a rasterizer that draws nothing.
+  Those codes remain for a display server that reports it CAN draw and still yields no
+  texture, which is the different failure they were written for.
+* `screenshot_editor`'s description names the new refusal. It was paid for by compressing
+  its own existing prose rather than by raising the tool-surface budget: the published
+  catalogue is **329 bytes smaller** than it was at 1.84.1.
+
+### Why this is a minor and not a patch
+
+A call that used to succeed can now fail. Nothing that was returning a real frame changes
+behaviour — if your editor or game window is on screen, every capture behaves exactly as
+it did — but a caller that was relying on a successful-looking answer in the hidden case
+will now see an error, and that is a change to the shipped contract rather than a repair
+behind it.
+
 ## [1.84.1] — 2026-09-03
 
 _Addon **1.15.0**, unmoved — no source under `addons/` was touched in this cut._
