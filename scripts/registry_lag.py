@@ -97,9 +97,45 @@ TAG_FLOOR = 100
 # session measured as twenty-five commits carrying exactly one change a user could
 # observe. This ceiling admits the largest healthy interval and refuses that one, which
 # is `LAG_CEILING`'s own shape one axis over.
-UNTAGGED_CEILING = 8
+# 🆕 309 — AND THE CEILING MOVED OFF THAT NUMBER ONTO A DIFFERENT ONE, BECAUSE THE
+# NUMBER ABOVE COULD NOT TELL PLUMBING FROM PRODUCT. Every commit past the newest tag
+# counted the same, so eight commits of gate wiring and eight commits of unreleased
+# user-facing work read identically — and the alarm was therefore about to refuse a
+# session whose shipped trees had not moved by a single byte. That is 308 §2.3's finding
+# one file over: an alarm that cannot distinguish cannot be answered, and 308 §5.1's, which
+# is that a number unable to be wrong in the way that matters is not a measurement.
+#
+# 🔴 AND THE OLD CEILING HAD STOPPED DESCRIBING THIS REPOSITORY, WHICH IS THE SHARPER
+# HALF. It was measured across twenty-five release intervals whose median TOTAL was two.
+# The last four intervals are eleven, fourteen, fourteen and fifteen — every one of them
+# above the ceiling that governed them, green only because a cut resets the count. The
+# apparatus now moves several times for every time the product does, so a budget counted
+# in commits was measuring the wrong population before it was measuring it wrongly.
+#
+# 🟢 THE REPLACEMENT IS MEASURED OVER THE SAME TWENTY-FIVE INTERVALS, counting only the
+# commits that touch a tree the registry actually serves. Their median is one, their
+# largest is `6` — `v1.83.0 -> v1.84.0`, a real MINOR — and this ceiling admits that
+# largest healthy interval exactly, with no slack under it for a regression to hide in.
+# 🔵 The population it counts over is NOT typed here: it is derived from
+# `release_names.SHIPPED_SOURCE`, the map `--assert-map` already asserts in both
+# directions, so the question *what does a user receive* has one answer in this tree
+# rather than two that can drift.
+UNSHIPPED_CEILING = 6
 
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+
+
+def shipped_paths() -> list[str]:
+    """The tracked paths that produce what the registry serves, from ONE roster.
+
+    🔴 DERIVED, NEVER TYPED. `release_names.SHIPPED_SOURCE` maps each root of the packed
+    tarball to the tracked source that produces it, and `--assert-map` already asserts
+    that map in both directions on every run. A second list here would be a second answer
+    to *what does a user receive*, and two rosters that must agree are one roster and a
+    latent disagreement — 246's finding, and the reason `discover` halves exist.
+    """
+    import release_names
+    return sorted({src for src, _glob in release_names.SHIPPED_SOURCE.values()})
 
 
 def parse_tags(names: list[str]) -> list[tuple[int, int, int]]:
@@ -179,6 +215,51 @@ def untagged(commits: int, tag_names: list[str],
                      if commits else f"HEAD is {newest}")
 
 
+def unshipped(shipped: int, total: int, tag_names: list[str],
+              tag_floor: int | None = None) -> tuple[int, str]:
+    """(commits past the newest tag that touch shipped source, explanation).
+
+    🔴 THIS IS THE ONE THE CEILING JUDGES, AND `untagged()` ABOVE IS NOW NEWS. The two
+    are the same walk partitioned: every commit `untagged()` counts either touches a tree
+    the registry serves or does not, and only the first kind is work waiting to reach a
+    person. 308 §2.3 drew this line for the weekly sweep — *is there something someone
+    must do that will not undo itself next week* — and a merge that moved no shipped byte
+    fails that test however many of them there are.
+
+    🔴 THE PARTITION IS ASSERTED, NOT ASSUMED. A commit touching shipped source is one of
+    the commits past the tag, so `shipped` can never exceed `total`; a pair that says
+    otherwise is a reader disagreeing with itself and is refused rather than reported.
+    306 §5.1's membership arm, in the shape this population can carry it.
+
+    🔵 AND `untagged()` KEEPS ITS NUMBER UNCHANGED. It is a header atom with a
+    cross-block identity on it — `untagged(N) == untagged(N-1) + MOVED(N)`, 307's — and
+    re-pointing the number under a claim that compares it across eighty registered blocks
+    would have broken a population to fix a ceiling.
+    """
+    floor = TAG_FLOOR if tag_floor is None else tag_floor
+    tags = parse_tags(tag_names)
+    if len(tags) < floor:
+        return -1, (f"the tag population collapsed to {len(tags)} (floor {floor}). "
+                    f"A commit distance measured from a tag that is not there is not a "
+                    f"small number, it is no measurement")
+    if shipped < 0 or total < 0:
+        return -1, (f"the commit counts came back {shipped} of {total}, which git does "
+                    f"not produce — treat them as unread rather than as zero")
+    if shipped > total:
+        return -1, (f"{shipped} commit(s) touch shipped source out of {total} past the "
+                    f"newest tag, which is not a partition — a commit that touches "
+                    f"shipped source IS one of the commits past the tag, so this reader "
+                    f"disagrees with itself and neither number can be spent")
+    newest = "v%d.%d.%d" % tags[-1]
+    if not total:
+        return 0, f"HEAD is {newest}, so nothing is waiting to ship"
+    if not shipped:
+        return 0, (f"none of the {total} commit(s) past {newest} touch a tree the "
+                   f"registry serves — the work is real and no user is waiting for it")
+    return shipped, (f"{shipped} of {total} commit(s) past {newest} touch shipped "
+                     f"source — that is what a cut would deliver")
+
+
 def head_past_newest_tag() -> tuple[int, str]:
     """(commits from the newest vX.Y.Z tag to HEAD, problem) — reads the repository."""
     tags = parse_tags(git_tags())
@@ -189,6 +270,25 @@ def head_past_newest_tag() -> tuple[int, str]:
                        cwd=str(ROOT), capture_output=True, text=True)
     if r.returncode != 0:
         return -1, f"`git rev-list {newest}..HEAD` exited {r.returncode}"
+    return int(r.stdout.strip() or -1), ""
+
+
+def shipped_past_newest_tag() -> tuple[int, str]:
+    """(commits from the newest tag to HEAD that touch shipped source, problem).
+
+    🔴 THE IMPURE HALF, AND IT IS THE ONLY PLACE THE REPOSITORY IS READ for this number —
+    `lag()`'s docstring records what happened the one time a reading and its decision
+    shared a function. The path list is `shipped_paths()`, so a change to what this
+    project ships moves this reading without anybody editing this file.
+    """
+    tags = parse_tags(git_tags())
+    if not tags:
+        return -1, "no vX.Y.Z tag in this clone — run `git fetch --tags`"
+    newest = "v%d.%d.%d" % tags[-1]
+    r = subprocess.run(["git", "rev-list", "--count", f"{newest}..HEAD", "--"]
+                       + shipped_paths(), cwd=str(ROOT), capture_output=True, text=True)
+    if r.returncode != 0:
+        return -1, f"`git rev-list {newest}..HEAD -- <shipped>` exited {r.returncode}"
     return int(r.stdout.strip() or -1), ""
 
 
@@ -702,20 +802,50 @@ UNTAGGED_SELFTEST = [
      0, ["v1.79.0", "v1.80.0"], False, 0, True, "HEAD is v1.80.0"),
     ("a session mid-flight, two merges past its tag",
      2, ["v1.79.0", "v1.80.0"], False, 2, True, "does not name"),
-    ("at the ceiling — the largest healthy interval this repository has cut",
-     UNTAGGED_CEILING, ["v1.74.1", "v1.75.0"], False, UNTAGGED_CEILING, True,
-     "does not name"),
-    ("🔴 one past the ceiling — THE CEILING'S REFUSAL",
-     UNTAGGED_CEILING + 1, ["v1.74.1", "v1.75.0"], False, UNTAGGED_CEILING + 1, False,
-     "does not name"),
-    ("🔴 THE 248 WINDOW — twenty-five commits carrying one user-observable change",
-     26, ["v1.74.0", "v1.74.1"], False, 26, False, "does not name"),
+    ("a long interval — READ, not judged, since 309 took the ceiling off this number",
+     9, ["v1.74.1", "v1.75.0"], False, 9, True, "does not name"),
+    ("🆕 309 — the interval that used to refuse here and is now the sibling's business",
+     15, ["v1.83.0", "v1.84.0"], False, 15, True, "does not name"),
+    ("🆕 309 — THE 248 WINDOW, still read and no longer refused by this table",
+     26, ["v1.74.0", "v1.74.1"], False, 26, True, "does not name"),
     ("🔴 a tag list UNDER the floor — THE FLOOR'S REFUSAL",
      3, ["v1.80.0"], True, -1, False, "tag population collapsed"),
     ("🔴 an empty tag list cannot anchor a commit distance",
      3, [], True, -1, False, "tag population collapsed"),
     ("🔴 a count git could not produce is UNREAD, never zero",
      -1, ["v1.79.0", "v1.80.0"], False, -1, False, "unread rather than as zero"),
+]
+
+
+# 🆕 309 — (name, shipped, total, tags, live_floor, want_shipped, want_pass, reason)
+#
+# 🔴 THE FIRST ROW IS THE LIVE READING THAT MADE THIS CHANGE, kept as a fixture so the
+# case that motivated the split is the case that keeps it honest (308 §5.3). The third
+# and fourth rows sit exactly on the ceiling and one over it, so the constant has a
+# refusing neighbour rather than slack under it.
+UNSHIPPED_SELFTEST = [
+    ("🟡 309's OWN READING — commits past the tag, not one shipped byte among them",
+     0, 8, ["v1.84.0", "v1.84.1"], False, 0, True, "none of the"),
+    ("HEAD is the newest tag — nothing is waiting for anybody",
+     0, 0, ["v1.79.0", "v1.80.0"], False, 0, True, "nothing is waiting to ship"),
+    ("at the ceiling — the largest shipped interval this repository has cut",
+     UNSHIPPED_CEILING, 15, ["v1.83.0", "v1.84.0"], False, UNSHIPPED_CEILING, True,
+     "touch shipped source"),
+    ("🔴 one past the ceiling — THE CEILING'S REFUSAL",
+     UNSHIPPED_CEILING + 1, 15, ["v1.83.0", "v1.84.0"], False, UNSHIPPED_CEILING + 1,
+     False, "touch shipped source"),
+    ("🆕 THE 248 WINDOW RE-READ — twenty-six commits, and the old ceiling refused it",
+     2, 26, ["v1.74.0", "v1.74.1"], False, 2, True, "touch shipped source"),
+    ("🔴 every commit past the tag is shipped work, and there are many",
+     12, 12, ["v1.79.0", "v1.80.0"], False, 12, False, "touch shipped source"),
+    ("🔴 MORE SHIPPED THAN TOTAL — the partition refuses rather than reports",
+     5, 3, ["v1.79.0", "v1.80.0"], False, -1, False, "not a partition"),
+    ("🔴 a tag list UNDER the floor — THE FLOOR'S REFUSAL",
+     1, 3, ["v1.80.0"], True, -1, False, "tag population collapsed"),
+    ("🔴 an empty tag list cannot anchor a commit distance",
+     1, 3, [], True, -1, False, "tag population collapsed"),
+    ("🔴 a count git could not produce is UNREAD, never zero",
+     -1, 3, ["v1.79.0", "v1.80.0"], False, -1, False, "unread rather than as zero"),
 ]
 
 
@@ -753,7 +883,10 @@ def selftest() -> int:
     print("\n  UNTAGGED — the commits no tag names, which `lag()` cannot see")
     for name, commits, tags, live_floor, want_d, want_ok, want_msg in UNTAGGED_SELFTEST:
         d, why = untagged(commits, tags, tag_floor=None if live_floor else 0)
-        ok = 0 <= d <= UNTAGGED_CEILING
+        # 🆕 309 — READABLE, NOT WITHIN A CEILING. This number is news now; the verdict
+        # moved to `unshipped()` below, and the only way this reader can fail is by not
+        # having a measurement to report.
+        ok = d >= 0
         verdict = "PASS" if ok else "REFUSE"
         agree = (d == want_d) and (ok == want_ok) and (want_msg.lower() in why.lower())
         print(f"  {'🟢' if agree else '🔴'} {verdict:<6} past={d:<3} want={want_d:<3} "
@@ -766,16 +899,54 @@ def selftest() -> int:
     print(f"\n  {len(UNTAGGED_SELFTEST)} rows · {u_refusals} REFUSE · {u_floor_rows} run "
           f"under the live TAG_FLOOR · "
           f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
-    if u_refusals < 4 or u_floor_rows < 2:
+    if u_refusals < 3 or u_floor_rows < 2:
         print(f"  🔴 the untagged table has stopped proving what it exists to prove "
-              f"({u_refusals} refusing rows, {u_floor_rows} floor rows)")
+              f"({u_refusals} refusing rows, {u_floor_rows} floor rows) — this reader "
+              f"refuses only when it has no measurement, and those rows are the whole "
+              f"of what it still asserts alone")
         return 1
+
+    # 🆕 309 — THE PARTITION, AND THE CEILING THAT MOVED ONTO IT.
+    print("\n  UNSHIPPED — the commits past the tag that touch a tree the registry serves")
+    for name, shp, tot, tags, live_floor, want_d, want_ok, want_msg in UNSHIPPED_SELFTEST:
+        d, why = unshipped(shp, tot, tags, tag_floor=None if live_floor else 0)
+        ok = 0 <= d <= UNSHIPPED_CEILING
+        verdict = "PASS" if ok else "REFUSE"
+        agree = (d == want_d) and (ok == want_ok) and (want_msg.lower() in why.lower())
+        print(f"  {'🟢' if agree else '🔴'} {verdict:<6} shipped={d:<3} want={want_d:<3} "
+              f"of {tot:<3} floor={'live' if live_floor else 'off ':<4} {name}")
+        if not agree:
+            bad += 1
+            print(f"        want {want_msg!r} · got {why!r}")
+    s_refusals = sum(1 for r in UNSHIPPED_SELFTEST if not r[6])
+    s_floor_rows = sum(1 for r in UNSHIPPED_SELFTEST if r[4])
+    print(f"\n  {len(UNSHIPPED_SELFTEST)} rows · {s_refusals} REFUSE · {s_floor_rows} run "
+          f"under the live TAG_FLOOR · "
+          f"{'🟢 all agree' if not bad else f'🔴 {bad} DISAGREE'}")
+    if s_refusals < 4 or s_floor_rows < 2:
+        print(f"  🔴 the unshipped table has stopped proving what it exists to prove "
+              f"({s_refusals} refusing rows, {s_floor_rows} floor rows) — a constant "
+              f"with no refusing row is a constant nobody re-derives")
+        return 1
+    # 🔴 AND THE POPULATION IS DERIVED, WHICH IS A CLAIM AND NOT A COMMENT. A roster that
+    # silently empties makes `shipped_past_newest_tag()` count over no paths, which git
+    # answers with the WHOLE interval — the reading would jump rather than fall, but it
+    # would be a number about a population nobody declared.
+    _paths = shipped_paths()
+    if len(_paths) < 2 or not any(p.startswith("host/") for p in _paths) \
+            or not any(p.startswith("addons/") for p in _paths):
+        print(f"  🔴 the shipped population collapsed to {_paths} — it is derived from "
+              f"`release_names.SHIPPED_SOURCE` and must name both trees a release "
+              f"delivers")
+        return 1
+    print(f"  🟢 shipped population derived from `SHIPPED_SOURCE`: "
+          f"{len(_paths)} tracked path(s) — {', '.join(_paths)}")
     # 🔴 AND THE TWO CEILINGS MUST NOT BE ONE NUMBER, which is not pedantry. This row
     # exists because ONE reader was being read as the answer to two questions; two
     # constants that happened to be equal would invite exactly that collapse back the
     # next time somebody derived one from the other.
-    if LAG_CEILING == UNTAGGED_CEILING:
-        print(f"  🔴 LAG_CEILING and UNTAGGED_CEILING are both {LAG_CEILING} — they "
+    if LAG_CEILING == UNSHIPPED_CEILING:
+        print(f"  🔴 LAG_CEILING and UNSHIPPED_CEILING are both {LAG_CEILING} — they "
               f"bound populations that go stale in opposite directions, and one number "
               f"for both is how 260 happened")
         return 1
@@ -991,21 +1162,31 @@ def main() -> int:
         print(f"\n🔴 REGISTRY_LAG REFUSED — {problem}", file=sys.stderr)
         return 1
     u, u_why = untagged(n, git_tags())
-    print(f"              untagged {u} · ceiling {UNTAGGED_CEILING} — {u_why}")
+    print(f"              untagged {u} — {u_why}")
     if u < 0:
         print(f"\n🔴 REGISTRY_LAG REFUSED: {u_why}", file=sys.stderr)
         return 1
-    if u > UNTAGGED_CEILING:
-        print(f"\n🔴 REGISTRY_LAG REFUSED — {u} commit(s) past the newest tag, ceiling "
-              f"is {UNTAGGED_CEILING}.\n"
+    # 🆕 309 — AND THE HALF OF IT A PERSON WOULD HAVE TO ACT ON.
+    sh, sh_problem = shipped_past_newest_tag()
+    if sh_problem:
+        print(f"\n🔴 REGISTRY_LAG REFUSED — {sh_problem}", file=sys.stderr)
+        return 1
+    v, v_why = unshipped(sh, u, git_tags())
+    print(f"              unshipped {v} · ceiling {UNSHIPPED_CEILING} — {v_why}")
+    if v < 0:
+        print(f"\n🔴 REGISTRY_LAG REFUSED: {v_why}", file=sys.stderr)
+        return 1
+    if v > UNSHIPPED_CEILING:
+        print(f"\n🔴 REGISTRY_LAG REFUSED — {v} commit(s) past the newest tag touch a "
+              f"tree the registry serves, ceiling is {UNSHIPPED_CEILING}.\n"
               f"  `lag` above cannot see these: it counts TAGS the registry has not "
               f"got, so work that was never tagged is invisible to it\n"
               f"  in both directions — 🟢 before a publish that shipped it and 🟢 after "
               f"(260). Cut and tag a release, or raise\n"
-              f"  UNTAGGED_CEILING ON PURPOSE. Do not read the green above as an answer "
+              f"  UNSHIPPED_CEILING ON PURPOSE. Do not read the green above as an answer "
               f"to this question.", file=sys.stderr)
         return 1
-    print("              🟢 within untagged ceiling")
+    print("              🟢 within unshipped ceiling")
     return 1 if up_bad else 0
 
 
