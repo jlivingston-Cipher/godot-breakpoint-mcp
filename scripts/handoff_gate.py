@@ -10817,6 +10817,17 @@ def selftest() -> int:
               f"must land in `cut`, uncompared and unrefused — a bound that fires on a "
               f"release is a bound that refuses every release. Got "
               f"{ {k: v for k, v in _scp.items() if v} } / {unshipped_problems(_scut)}")
+    # 🔴 THE LIVE CLAIM RUNS BEFORE THE CONSTRUCTED DRIVE, ON PURPOSE — CI refused #400
+    # on all three host-tests legs because `restated_problems` was called with the
+    # refusing fixture FIRST and the live table second: the late blind (answer once, then
+    # return the empty) let the fixture through and the live population is empty anyway.
+    # Live first, fixture last, is the order `untagged_problems` has kept since 307 for
+    # the same reason (307 §5.2, one axis over).
+    claims += 1
+    _rpp_live = restated_problems()
+    if _rpp_live:
+        failed += 1
+        print(f"  🔴 RESTATED_POPULATION {_rpp_live}")
     claims += 1
     _sbody, _sfence = _sok[2][1].rsplit("> ```\n", 1)
     _srestate = _sok[:2] + [(42, _sbody + "> 🟢 registry_lag PASSES — unshipped 9 against a ceiling of 6\n> ```\n" + _sfence)]
@@ -10825,11 +10836,6 @@ def selftest() -> int:
         print("  🔴 UNSHIPPED_RESTATED a block whose registry_lag row restates the count "
               "differently from its npm row must be caught — 310 row R edited exactly that "
               "and was exit 0, because the reader takes the first mention")
-    claims += 1
-    if restated_problems():
-        failed += 1
-        print(f"  🔴 RESTATED_POPULATION {restated_problems()}")
-
     # ── 🆕 243 §3: `header-unmoved-unread` (OPEN 239) — THE WORD, MEASURED ────────────
     #
     # 🔴 THE WHOLE ROW IS THAT `UNMOVED` WAS NEVER A CLAIM. `MOVED +1` carries a numeral,
