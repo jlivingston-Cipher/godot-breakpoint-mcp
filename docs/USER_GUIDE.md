@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.84.1 · addon 1.15.0
+- **Version:** host 1.85.0 · addon 1.16.0
 - **License:** MIT
 - **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -984,6 +984,15 @@ underlying steps.
    placeholder before its first visit and freezes at its last drawn frame after it, so a capture
    of the tab that is not on screen is either refused or stale, so the tool refuses that case
    outright with `viewport_not_active` rather than handing back a frame of the past.
+   **And keep the editor window itself on screen while you do this.** Godot draws a frame only
+   while one of its windows is visible, so an editor that is minimised, sitting on another
+   desktop or Space, or completely covered by another window stops rendering *everything* —
+   both viewports included. A capture taken then would be the last frame drawn before the
+   window was hidden: full size, full colour, and indistinguishable from a good one. Since
+   addon 1.16.0 the tool refuses instead, with `window_not_drawing` and a next action; bring
+   the window back on screen and call again. The same applies to `runtime_screenshot` and
+   `runtime_screenshot_diff` and the game's own window — and a diff is the one that hurts
+   most, because a frame nobody is redrawing agrees with any reference you compare it to.
 6. `scene_save`. Anything you dislike reverts with **Ctrl-Z** or `editor_undo`.
 
 ### B. Debugging a bug

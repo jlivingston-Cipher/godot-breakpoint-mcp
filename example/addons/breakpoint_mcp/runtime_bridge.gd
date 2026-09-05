@@ -20,7 +20,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.15.0"
+const ADDON_VERSION := "1.16.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -734,10 +734,39 @@ func _get_monitors(params: Dictionary) -> Dictionary:
 	return _ok({"monitors": out})
 
 
+## 🔴 311 — THE SAME QUESTION `operations.gd` ASKS ON THE EDITOR PLANE, ASKED HERE.
+##
+## Measured at 310: Godot presents a frame only while `can_any_window_draw()`, and on
+## macOS that follows the window's occlusion state. The finding was made against the
+## EDITOR window, but nothing about it is editor-specific — a running game whose window
+## is minimised, off the active Space or fully covered stops being drawn to in exactly
+## the same way, and both capture sites below then hand back the last frame it drew, at
+## full size and in full colour, reported as success. `_screenshot_diff` is the worse of
+## the two: a stale frame compared against its own reference answers *no change*, which
+## is the most confident wrong answer this addon can give.
+##
+## 🔵 DUPLICATED FROM THE EDITOR PLANE ON PURPOSE, NOT SHARED. The two planes keep
+## separate vocabularies for the reason `error_remedies.gd` sets out at length: the code
+## is the same word, the SUBJECT is a different window and the next action is a
+## different sentence. A shared helper would have to be vague about which window it
+## means, which is the one thing the message has to be exact about.
+func _window_drawing_refusal() -> Dictionary:
+	return _err("window_not_drawing",
+		"The game window is not drawing, so there is no current frame to capture. Godot "
+		+ "presents a frame only while a window is visible: this one is minimised, on "
+		+ "another desktop or Space, completely covered by another window, or running "
+		+ "headless. Capturing now would return the last frame drawn before it was "
+		+ "hidden — full size, full colour, and with nothing in the image to mark it "
+		+ "stale — or a blank frame if nothing had been drawn yet. Bring the game window "
+		+ "back on screen and call again.")
+
+
 func _screenshot() -> Dictionary:
 	var vp := get_viewport()
 	if vp == null:
 		return _err("no_viewport", "No viewport")
+	if not DisplayServer.window_can_draw():
+		return _window_drawing_refusal()
 	var tex := vp.get_texture()
 	if tex == null:
 		return _err("no_texture", "No viewport texture")
@@ -957,6 +986,10 @@ func _screenshot_diff(params: Dictionary) -> Dictionary:
 	var vp := get_viewport()
 	if vp == null:
 		return _err("no_viewport", "No viewport")
+	# 🔴 311 — AND HERE MOST OF ALL. A comparison against a frame the engine is not
+	# drawing does not fail; it AGREES with whatever it was last compared to.
+	if not DisplayServer.window_can_draw():
+		return _window_drawing_refusal()
 	var tex := vp.get_texture()
 	if tex == null:
 		return _err("no_texture", "No viewport texture")

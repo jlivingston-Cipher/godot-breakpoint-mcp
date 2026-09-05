@@ -226,10 +226,16 @@ console.log("RENDER_LIVE_SCENE ok render_probe.tscn is live");
 // THE assertion this whole job exists for. Under `--headless` the dummy driver
 // has no viewport texture and this errors with no_texture / no_image — which is
 // a graceful degradation everywhere else in the repo and a HARD FAILURE here.
+// 🆕 311 — AND `window_not_drawing` IS THE SAME FAILURE WITH A BETTER NAME. The
+// addon now asks `DisplayServer.window_can_draw()` before reading a texture, and
+// under --headless that is false, so a mis-booted run reaches this branch with
+// the new code rather than the two old ones. Listing all three keeps the
+// diagnostic honest about what actually happened instead of falling through to
+// the generic message and reporting a mis-boot as an unexplained failure.
 const shotRes = await raw("runtime_screenshot", {});
 if (shotRes.isError) {
   const text = shotRes.content?.[0]?.text ?? "(no text)";
-  if (/no_image|no_texture/.test(text)) {
+  if (/window_not_drawing|no_image|no_texture/.test(text)) {
     die(`the capture path did not execute (${text}) — this job proved nothing. Booted with --headless?`);
   }
   die(`runtime_screenshot failed: ${text}`);
