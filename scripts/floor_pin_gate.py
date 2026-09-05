@@ -2251,6 +2251,11 @@ DISCOVER_EXEMPT: dict[tuple[str, str], str] = {
     (f"{T}/authoring-plane.integration.mjs", "AUTH_SNAPSHOT_DIR_FLOOR"): "same file, same reason",
     (f"{T}/authoring-plane.integration.mjs", "AUTH_FAMILY_FLOOR"): "same file, same reason",
     (f"{T}/authoring-plane.integration.mjs", "AUTH_CLAIM_FLOOR"): "same file, same reason",
+    # 🆕 309 — the floor under the DEFAULT-surface half of the split. Same file, same
+    # reason, and the reason is load-bearing here rather than incidental: the number it
+    # floors is how many distinct tools were driven on the surface an ordinary install
+    # has, which is only knowable by driving them against a live editor.
+    (f"{T}/authoring-plane.integration.mjs", "AUTH_DEFAULT_SURFACE_FLOOR"): "same file, same reason",
     (f"{T}/gdscript-dap-plane.integration.mjs", "GD_DAP_CLAIM_FLOOR"): "gdscript-dap-plane.integration.mjs — needs a real Godot binary and a live DAP session",
     # 🔴 182 — THE THREE A GATE HOLDS OVER ITS OWN ROSTER. Mutating one here would mean
     # running that gate as a step of this one: `instrument_gate.py` is 34s and mutates the
