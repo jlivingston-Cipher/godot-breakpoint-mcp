@@ -199,6 +199,14 @@ export const ORPHAN_CEILING = 26;       // measured 5062 sites - 5036 attributed
 // which is the whole reason `🔴 THE CLAIM FLOOR IS A LITERAL` is written above them.
 // 🔵 The eighteen of headroom this had been carrying was allowance for a defect that no
 // longer exists, and an allowance nobody can spend is the only kind worth deleting.
+// 🟢 DRIVEN THREE WAYS BEFORE THE ROW WAS CLOSED, and the numbers are the reason it is
+// worth writing here rather than only in a handoff: set this to 27 and the retyped pins
+// redden four claims, set it to 25 and they redden six, set it back to the old 44 and
+// they redden four again. They discriminate in BOTH directions now. The asymmetry is
+// honest — raising it loosens the two boundary cases, lowering it tightens those plus
+// every case that sits under the ceiling — and a pin that survived all three of those
+// would be a pin asserting nothing, which is what the parameter case below was until
+// this session gave it a fixture the shipped ceiling refuses.
                                         //   🆕 285 — `orphan-ceiling-headroom` (248, 37
                                         //   sessions) CLOSED, AND PINNED AT THE LIVE
                                         //   VALUE RATHER THAN ABOVE IT. 248 set 46 over a
