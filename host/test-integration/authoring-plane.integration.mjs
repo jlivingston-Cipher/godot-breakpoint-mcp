@@ -2367,9 +2367,15 @@ async function main() {
     : fail("AUTH_SURFACE_PARTITION", `routing disagrees with TOOL_CAPABILITIES — unprivileged on the privileged surface: ${wrongOnPrivileged.join(", ") || "(none)"} · privileged on the default surface: ${wrongOnDefault.join(", ") || "(none)"}`);
 
   // 🔴 AND A FLOOR UNDER THE DEFAULT SURFACE, because the partition above is satisfied
-  // vacuously by a run that drives nothing there. Measured at 309: this probe drove 148
-  // unprivileged tools, so a floor well under that catches a collapse without tracking
-  // the number it floors (240's rule about a floor that follows its own reading).
+  // vacuously by a run that drives nothing there. Measured at 309 on a live Godot 4.7,
+  // AFTER the split: 161 distinct tools driven on the default surface and 10 on the
+  // privileged one (224/225, the one failure being AUTH_SHOT_DRAWN, which is the
+  // machine and not the surface). 🆕 310 — the first draft of this comment cited 148,
+  // which was the PRE-split sweep's count of unprivileged tools: the split itself moved
+  // the number, because the families that threw part way on the mixed surface complete
+  // on their own. A floor's declaration cites the reading it governs, not the reading
+  // that argued for it. 100 sits well under 161 so it catches a collapse without
+  // tracking the number it floors (240's rule about a floor that follows its own reading).
   const AUTH_DEFAULT_SURFACE_FLOOR = 100;
   (drivenOn.default.size >= AUTH_DEFAULT_SURFACE_FLOOR)
     ? pass("AUTH_DEFAULT_SURFACE_COVERAGE", `${drivenOn.default.size} distinct tool(s) driven on the surface an ordinary install has, at or above the floor of ${AUTH_DEFAULT_SURFACE_FLOOR}`)

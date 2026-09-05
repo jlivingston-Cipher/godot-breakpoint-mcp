@@ -6293,11 +6293,12 @@ ALIAS_PENDING: "dict[str, str]" = {
 # `pending_problems`, because a table whose whole contract is one session is a table that
 # proves nothing if anybody has to be reminded.
 HEADER_ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 309 — `npm.unshipped` is printed for the FIRST time by 309's own block, so no
-    # block in `BLOCK_POPULATION` carries the alias and `HEADER_ALIAS_UNUSED` would
-    # refuse a reader that is working exactly as intended. 280 built this table for
-    # precisely this case. Expires at 310, when 309's block enters the population.
-    "npm.unshipped": "first printed by 309's block; expires when that block registers at 310",
+    # 🆕 310 — EMPTY, ON SCHEDULE, IN THE COMMIT THAT MADE IT STALE — 281's rule, kept
+    # for the second time. 309 carried `npm.unshipped` here for exactly one session with
+    # the expiry written into the row, and the PR that adds 309's block to
+    # `BLOCK_POPULATION` is the one where `unshipped 0` becomes reachable. Deleted rather
+    # than left for `pending_problems`, because a table whose whole contract is one
+    # session proves nothing if anybody has to be reminded.
 }
 
 BIND_PINS: "list[tuple[str, str, str]]" = [
@@ -8703,6 +8704,40 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · orphan 26/26 · difference_field 28 population / 5 unreachable / 5 declared
 >               · mutlock 5 guarded / 23 cases · tree_quiet 13
 >               · queue 83/83 claims · handoff 595 claims
+>               · landscape 4 channel(s) / 52 analysed / 49 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 27 within / 11 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 56
+>                 addon / 0 problems
+> ```
+"""),
+    (309, """> ```
+> main                 2477272 — session309 the reader the new field owed, on the day the field was written (#398)  MOVED +4
+> branch 309           session309-the-block-and-the-row-the-fence-owed · PR #395 ·
+>                      session309-the-alarm-that-could-not-tell-plumbing-from-product · PR #396 ·
+>                      session309-the-surface-nobody-was-testing · PR #397 ·
+>                      session309-the-reader-the-new-field-owed · PR #398
+> host / addon         1.84.1 / 1.15.0  🟢 UNMOVED — no source touched under host/src or addons/
+> npm                  🟢 registry 1.84.1 · untagged 12 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.15.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at each merge, and the post-merge run at 2477272
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   981/981 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3180
+>               · late not-loaded 0 · late constructed 338/160
+>               · py gates 18/6/12 · SIG 277/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2265 keys · 100 shortfalls
+>               · target reasons 113 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 324 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5066 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 26/26 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 596 claims
 >               · landscape 4 channel(s) / 52 analysed / 49 surfaced
 >               · capability 43 claimed / 35 unread / 10 uncited
 >               · cadence 27 within / 11 past / 14 never analysed
