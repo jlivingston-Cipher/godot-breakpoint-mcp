@@ -110,14 +110,16 @@ jobs:
               exit 1
               ;;
             *)
-              # 🔴 THE MESSAGE MUST NOT SPELL THE COMMAND. `handoff_gate.py --patterns`
-              # reads workflow TEXT and compares BASENAMES (241's defect, one
-              # resolution finer), so an error string containing `<gate>.py --flag`
-              # is read as an invocation the replay fence never ran and the close
-              # refuses. That is this session's own lesson — a raw-text reader
-              # fooled by a string literal — in the fence reader itself. Named here
-              # because the next person writing a helpful error message will hit it.
-              echo "::error title=The sweep exited a code nobody declared::The roster check exited $code, which is not 0, 1 or 2."
+              # 🆕 313 — AND THE MESSAGE MAY SPELL THE COMMAND AGAIN. 308 wrote this
+              # step's messages around a reader defect: `handoff_gate.py --patterns`
+              # scanned workflow TEXT, so an error string containing `<gate>.py --flag`
+              # read as an invocation the replay fence never ran, and the close refused
+              # over a sentence written for the person whose CI had just gone red. The
+              # readers ask `shlex` now (313, `shell_scripts`) — a script counts when its
+              # name is a whole shell WORD, not when it sits inside a quoted argument —
+              # so this message can name what to run, and IT IS THE PROOF THE FIX WORKS:
+              # revert the reader and this line refuses on the next close.
+              echo "::error title=The sweep exited a code nobody declared::The roster check exited $code, which is not 0, 1 or 2. Reproduce it locally with: python3 scripts/assetlib_sweep.py --check"
               exit 1
               ;;
           esac

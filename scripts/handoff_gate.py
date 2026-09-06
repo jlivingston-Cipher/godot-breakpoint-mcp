@@ -108,6 +108,7 @@ import io
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -3772,8 +3773,81 @@ def split_compound(cleaned: str, rows: "list[tuple]"
     return ([(r, p) for (r, _m), p in zip(hits, pieces)], "")
 
 
+# ── 🆕 313 — `pickup-cannot-tell-a-moved-world-from-a-stale-claim` (OPEN 312) ─────────
+#
+# 🔴 EVERY WORLD-FACING READER HERE WAS BUILT FOR ONE FAILURE AND MET ITS OPPOSITE.
+# 270's case is a claim carried forward that nobody re-read — three handoffs saying the
+# Asset Library still had 1.11.0 in review while it had been live for two days — and the
+# refusal that answers it is deliberately blunt: the block says X, the world says Y, and
+# a session may not edit the block to agree. At 312's pickup THREE of the eight world
+# atoms refused at once, and every one of them refused because he had DONE the work 311
+# said was owed: `v1.85.0` tagged and published, addon 1.16.0 submitted and accepted. The
+# block was true when it was written. The world advanced afterwards.
+#
+# 🔴 AND THE ONLY EDIT THAT WOULD HAVE TURNED IT GREEN IS THE ONE EDIT THAT MUST NEVER
+# HAPPEN. A red opening is exactly when a session is most tempted to tidy, and the only
+# tidying available is rewriting a registered block — so this is a defect with a real
+# failure mode rather than a nuisance, and the cost of leaving it is that shipping a
+# release the day it merges punishes the next session two hours later.
+#
+# 🔵 THE TELL IS DIRECTION, AND IT IS PROVABLE FROM FACTS ALREADY IN HAND.
+#
+#   `npm.untagged` / `npm.unshipped` — both count commits the newest tag does not name.
+#   For a FIXED tag that count only ever GROWS: commits do not un-happen. So a reading
+#   that FELL is not a stale claim at all — it is arithmetic that a tag was made between
+#   the block and this pickup, which is the owed release being cut. A reading that ROSE
+#   is the ordinary case and stays a refusal, because more work has piled up past the
+#   tag and the block understated it — 270's class exactly.
+#
+#   `assetlib.live` — the block claims a version the library serves. This tree holds an
+#   addon version of its own, in `plugin.cfg`, and the submission the block called owed
+#   is the one that makes them EQUAL. So a reading that now equals this tree's addon
+#   version, where the claim did not, is the library catching up to the tree. Anything
+#   else — including a library ahead of this tree — stays a refusal.
+#
+# 🔴 THE HALF 270 PAID FOR IS NOT SOFTENED AND THAT IS THE WHOLE DESIGN. Only three atoms
+# are asked, only the ADVANCE direction is excused, and the excuse is a NOTE rather than
+# a silence, so the session still reads that the world moved and what moved it. Nothing
+# here answers *the block was wrong*; it answers *the block was right and is now behind*,
+# which is a different sentence and the one no reader could say.
+#
+# 🔴 AND IT IS ASKED ONLY AT THE PICKUP, WHICH IS WHERE THE ROW'S NAME POINTS. At a CLOSE
+# the block being compared is the one this session is writing MINUTES after the reading,
+# so a disagreement in either direction is the session getting its own numbers wrong and
+# must refuse. `check_header` takes the switch as an argument rather than inferring it,
+# because a reader that guessed which mode it was in would be one refactor from excusing
+# a close.
+def world_advance(key: str, claimed, got, tree_addon: str = "") -> "tuple[bool, str]":
+    """(is this disagreement the WORLD moving TOWARDS this tree, why) — 🆕 313. PURE.
+
+    False for every key not named here, and False in the direction that moves AWAY: an
+    atom this reader cannot prove advanced is an atom that still refuses.
+    """
+    if key in ("npm.untagged", "npm.unshipped"):
+        if (len(claimed) == 1 and len(got) == 1
+                and isinstance(claimed[0], int) and isinstance(got[0], int)
+                and got[0] < claimed[0]):
+            return (True, f"{key}: the block says {claimed[0]} and the tree says "
+                          f"{got[0]}. This count only grows while the tag stands still, "
+                          f"so a FALL is a tag having been made since the block was "
+                          f"written — the release it called owed was cut. The world "
+                          f"moved TOWARDS this tree, which is not the claim being stale "
+                          f"(270), so this is a note and not a refusal")
+        return (False, "")
+    if key == "assetlib.live":
+        if tree_addon and got == tree_addon and claimed != tree_addon:
+            return (True, f"assetlib.live: the block says the library serves "
+                          f"{claimed} and it serves {got}, which is the addon version "
+                          f"THIS TREE holds. The submission the block called owed is the "
+                          f"one that makes those equal, so the library has caught up to "
+                          f"the tree rather than the claim having gone stale (270). A "
+                          f"note, and only in this direction")
+        return (False, "")
+    return (False, "")
+
+
 def check_header(block: "list[str]", log: str, run_network: bool,
-                 session: "int | None" = None
+                 session: "int | None" = None, at_open: bool = False
                  ) -> "tuple[list[str], list[str], int, int]":
     """(problems, notes, atoms read, counters compared) for the lines above VERIFIED.
 
@@ -3988,9 +4062,16 @@ def check_header(block: "list[str]", log: str, run_network: bool,
                     f"nothing moved\n"
                     f"     atom: {raw!r}\n     {why}")
         elif len(claimed) != need or claimed != got:
-            problems.append(
-                f"🔴 {key} — the block says {list(claimed)}, the tree says {list(got)}\n"
-                f"     atom: {raw!r}\n     {why}")
+            # 🆕 313 — the DIRECTION test, at the pickup only. See `world_advance`.
+            adv, why_adv = (world_advance(key, claimed, got) if at_open
+                            else (False, ""))
+            if adv:
+                notes.append(why_adv)
+            else:
+                problems.append(
+                    f"🔴 {key} — the block says {list(claimed)}, the tree says "
+                    f"{list(got)}\n"
+                    f"     atom: {raw!r}\n     {why}")
 
     # both directions on the exemption table — a row that matched nothing is a reason
     # nobody re-derived, which is 233 §18's class and the one this file keeps committing
@@ -4081,14 +4162,24 @@ def check_header(block: "list[str]", log: str, run_network: bool,
         else:
             compared += 1
             if got_al != claimed_al:
-                problems.append(
-                    f"🔴 assetlib.live — the block says the Asset Library serves addon "
-                    f"{claimed_al}, it serves {got_al}\n"
-                    f"     atom: 'addon {claimed_al} live'\n"
-                    f"     A world-facing claim nobody re-reads is the class 270 paid for: "
-                    f"three handoffs carried an inherited\n"
-                    f"     'still in review' while the entry had been accepted. Re-read "
-                    f"`{ASSETLIB_API}/{ASSETLIB_ASSET_ID}`.")
+                # 🆕 313 — the DIRECTION test, at the pickup only. The tree's own addon
+                # version is the fact that makes the advance provable, and it is read
+                # from the same two files `version.pair` above compares.
+                adv_al, why_al_adv = (
+                    world_advance("assetlib.live", claimed_al, got_al,
+                                  tree_addon=tree_versions()[0][1]) if at_open
+                    else (False, ""))
+                if adv_al:
+                    notes.append(why_al_adv)
+                else:
+                    problems.append(
+                        f"🔴 assetlib.live — the block says the Asset Library serves addon "
+                        f"{claimed_al}, it serves {got_al}\n"
+                        f"     atom: 'addon {claimed_al} live'\n"
+                        f"     A world-facing claim nobody re-reads is the class 270 paid for: "
+                        f"three handoffs carried an inherited\n"
+                        f"     'still in review' while the entry had been accepted. Re-read "
+                        f"`{ASSETLIB_API}/{ASSETLIB_ASSET_ID}`.")
 
     if len(atoms) < HEADER_FLOOR:
         problems.append(f"🔴 HEADER_FLOOR — {len(atoms)} header atom(s), floor "
@@ -4116,6 +4207,42 @@ def check_header(block: "list[str]", log: str, run_network: bool,
 # roster can only get from a log has to reach that log, and the file the gate is told to
 # read has to be the file the ritual wrote.
 REPLAY_MEASURED_RE = re.compile(r"handoff_gate\.py[^\n]*?--measured\s+(\S+)")
+
+# ── 🆕 313 — `replay-fence-unread-since-a-line-continuation` (OPEN 313) ───────────────
+#
+# 🔴 THE FENCE WAS UNREAD FOR FOUR SESSIONS AND EVERY ONE OF THEM WAS TOLD IT WAS FINE.
+# `replay_fence()` finds the replay by looking for the invocation above INSIDE a fenced
+# block, and `[^\n]*?` means ON ONE LINE. 309 dropped the bare close invocation from its
+# §7 and left only the PICKUP one, which is written as a `#` comment AND split across a
+# backslash continuation — so the regex matched nowhere, `replay_fence()` answered
+# `("", False)`, and the replay/CI comparison did not run at 309, 310, 311 or 312.
+# Measured over the shared folder at 312: 300–308 `fence=True`, 309–312 `fence=False`.
+#
+# 🔵 A CONTINUATION IS ONE COMMAND AND A COMMENT IS STILL AN INVOCATION *TO FIND*. The
+# folding below is deliberately narrow: `[^\n]` cannot cross a newline on its own, so
+# the ONLY way this reader leaves a line is a genuine trailing backslash — a shell
+# continuation, which is one command written on two lines and nothing else. The `#?`
+# that follows it is there because a continued line inside a comment carries the marker
+# again, and a reader that stopped at the second `#` would find half an invocation.
+#
+# 🔴 AND FINDING IS NOT GRADING, WHICH IS THE DISTINCTION THAT KEEPS 287's DOCTRINE.
+# *Prose about a command is not the command* still holds: a commented invocation is
+# enough to say WHICH fenced block is the replay, and it is NOT allowed to supply the
+# log that block is graded against. So this reader reports both facts and the caller
+# picks — `replay_problems` takes the last UNCOMMENTED invocation and falls back to a
+# commented one only when the fence has nothing else, which is the state a document
+# with a pickup line and no close line is in.
+REPLAY_CONTINUATION_RE = re.compile(r"\\\n[ \t]*#?[ \t]*")
+
+
+def measured_invocations(text: str) -> "list[tuple[str, bool]]":
+    """(log, whether it sits behind a `#`) for every `handoff_gate.py … --measured <log>`
+    this text names, shell line continuations folded first — 🆕 313. PURE."""
+    out: "list[tuple[str, bool]]" = []
+    for ln in REPLAY_CONTINUATION_RE.sub(" ", text).split("\n"):
+        for m in REPLAY_MEASURED_RE.finditer(ln):
+            out.append((m.group(1), "#" in ln[:m.start()]))
+    return out
 
 # ── 🔴 237 §2 — AND ROUTING IS NOT ORDER ──────────────────────────────────────────────
 #
@@ -4245,12 +4372,12 @@ def ci_scripts(root: Path = ROOT) -> "dict[str, set]":
                 i += 1
                 while i < len(lines) and (not lines[i].strip()
                                           or len(lines[i]) - len(lines[i].lstrip()) > indent):
-                    for s in CI_SCRIPT_RE.findall(lines[i]):
+                    for s in shell_scripts(lines[i]):
                         out.setdefault(s, set()).add(f.name)
                     i += 1
                 continue
             if (m := CI_RUN_ONE.match(ln)) is not None:
-                for s in CI_SCRIPT_RE.findall(m.group(1)):
+                for s in shell_scripts(m.group(1)):
                     out.setdefault(s, set()).add(f.name)
             i += 1
     return out
@@ -4268,6 +4395,49 @@ CI_RUN_ONE = re.compile(r"^\s*(?:-\s*)?run:\s*(.*\S)\s*$")
 # like any other, and this one was WIDER than the thing it stands for.
 CI_SCRIPT_RE = re.compile(r"([A-Za-z0-9_.-]+\.(?:py|mjs|sh))(?![A-Za-z0-9_])")
 CI_SCRIPT_FLOOR = 55   # governed by floor_pin_gate's SIZE_LEDGER
+
+
+# ── 🆕 313 — `replay-fence-reads-text-not-commands` (OPEN 309) ────────────────────────
+#
+# 🔴 THE THIRD MEMBER OF 308 §2.2's FAMILY, AND THE ONLY ONE STILL ASKING THE TEXT.
+# `analyze` and `populationSections` each stopped being fooled by content inside a string
+# literal by asking the PARSER instead of the characters; this reader kept scanning raw
+# workflow text for a name beside a flag, so any string CARRYING a command read as a
+# command being run. 308 paid for it in a live close: `REPLAY_FLAG_MISSING` refused over
+# an `echo "::error …"` annotation in `sdk-drift.yml` — a sentence written for the person
+# whose CI just went red — and the only cure available was to write a worse message.
+#
+# 🔵 THE PARSER FOR A SHELL LINE IS `shlex`, AND THE RULE IT MAKES AVAILABLE IS EXACT:
+# a script is INVOKED when its name is a whole shell WORD, and merely MENTIONED when it
+# sits inside one. `python3 scripts/assetlib_sweep.py --check` tokenises to three words
+# and the middle one IS the script; `echo "…run `assetlib_sweep.py --check` yourself"`
+# tokenises to two, and the second is a single argument that happens to contain the name.
+# No list of quoting commands, no exemption row, and nothing to keep in step: `echo`,
+# `printf`, a heredoc body and a YAML `name:` all fall out of it for the same reason.
+#
+# 🔴 AND THE FALLBACK IS THE OLD READER'S GRANULARITY, NOT THE OLD READER. An unbalanced
+# quote makes `shlex` raise, and 131 of the 3,715 segments across the workflow files and
+# a handoff do exactly that — almost all of them YAML `name:` lines carrying an
+# apostrophe, none of them inside a `run:`. Falling back to `seg.split()` keeps the
+# WHOLE-WORD rule and loses only the quote handling, which is strictly closer to the
+# truth than the substring scan it replaces. Measured across the live tree before the
+# change: 68 basenames before, 68 after, none lost and none gained.
+def shell_scripts(seg: str) -> "list[str]":
+    """Every script this shell segment INVOKES — 🆕 313. PURE.
+
+    The names that survive the parser as whole WORDS, rather than every name the
+    characters contain. A `#` comment is dropped by `shlex` itself, which is why this
+    replaces `seg.split("#")[0]` at every call site rather than sitting beside it.
+    """
+    try:
+        tokens = shlex.split(seg, comments=True)
+    except ValueError:
+        tokens = seg.split()
+    out: "list[str]" = []
+    for t in tokens:
+        if (m := CI_SCRIPT_RE.fullmatch(t.rsplit("/", 1)[-1])) is not None:
+            out.append(m.group(1))
+    return out
 
 
 # ── 🆕 274 — `replay-ci-flag-granularity` (OPEN 242): THE SAME TWO ROSTERS, WITH FLAGS ─
@@ -4690,9 +4860,10 @@ def ci_commands_text(files: "dict[str, str]") -> "dict[str, set]":
 
     def take(line: str, name: str) -> None:
         for seg in CHAINED_RE.split(line):
-            seg = seg.split("#")[0]
-            if CI_SCRIPT_RE.search(seg):
-                out.setdefault(command_norm(seg), set()).add(name)
+            # 🆕 313 — the parser, not the characters. `shell_scripts` drops the `#`
+            # comment itself, so the split that used to stand here is gone with it.
+            if shell_scripts(seg):
+                out.setdefault(command_norm(seg.split("#")[0]), set()).add(name)
 
     for name, body in sorted(files.items()):
         lines = body.split("\n")
@@ -4757,7 +4928,7 @@ def replay_fence(text: str) -> "tuple[str, bool]":
     shipped. What replaces it has to REFUSE and name what belongs in the block, or the
     next session satisfies the reader with a fence containing one line.
     """
-    blocks = [b for b in fenced(text) if REPLAY_MEASURED_RE.search(b)]
+    blocks = [b for b in fenced(text) if measured_invocations(b)]
     return (blocks[-1], True) if blocks else ("", False)
 
 
@@ -4773,7 +4944,7 @@ def replay_commands(text: str) -> "set":
         if REPLAY_MEASURED_RE.search(ln):
             continue
         for seg in CHAINED_RE.split(ln):
-            if CI_SCRIPT_RE.search(seg.split("#")[0]):
+            if shell_scripts(seg):
                 out.add(command_norm(seg))
     return out
 
@@ -4843,7 +5014,7 @@ def replay_scripts(text: str) -> "set":
         return set()
     out = set()
     for ln in body.split("\n"):
-        for s in CI_SCRIPT_RE.findall(ln.split("#")[0]):
+        for s in shell_scripts(ln):
             out.add(s)
     return out
 
@@ -5165,7 +5336,7 @@ def replay_problems(text: str, ci_measured: bool = False
     # the file.
     body, has_fence = replay_fence(text)
     if not has_fence:
-        if REPLAY_MEASURED_RE.search(text):
+        if measured_invocations(text):
             problems.append(
                 "🔴 REPLAY_FENCE_MISSING this document names a `handoff_gate.py "
                 "--measured` invocation and every one of them is PROSE — no fenced block "
@@ -5176,17 +5347,69 @@ def replay_problems(text: str, ci_measured: bool = False
                 "the same facts addressed to a person — and a reader cannot run a "
                 "paragraph (286 §7.1). A fence containing one line satisfies nothing "
                 "either: what is owed is the replay, not a block that parses.")
+        # 🆕 313 — AND THE TWO SILENCES BELOW WERE NOTES UNTIL THIS SESSION, WHICH IS
+        # WHY THE DEFECT ABOVE COULD LAST FOUR SESSIONS. `REPLAY_FENCE_MISSING` fires
+        # only when the invocation is named SOMEWHERE and never inside a fence; a
+        # document where the finder matches NOWHERE fell through to a note, printed
+        # among forty others at every close, and 309, 310, 311 and 312 each read it and
+        # passed. 🔴 THE LOUDER ABSENCE WAS THE LESSER FAULT: a document that at least
+        # names the invocation was refused, and one that names it nowhere was not.
+        # 🔵 THE ARGUMENT FOR REFUSING IS THE BLOCK ITSELF. Every handoff this gate
+        # grades claims MUTATING counters, and a MUTATING counter can only come from a
+        # `--measured` log — so the replay EXISTS whether or not the document printed
+        # it, and a document that did not print it is not a session without a procedure
+        # but a session whose procedure nobody can repeat. That is exactly what
+        # `REPLAY_FENCE_MISSING`'s own last sentence says, one state over.
         elif "handoff_gate.py" in text:
-            notes.append("replay: the document runs `handoff_gate.py` with no "
-                         "`--measured`, so every MUTATING counter it claims is UNREAD")
+            problems.append(
+                "🔴 REPLAY_FENCE_UNMEASURED this document runs `handoff_gate.py` and "
+                "names no `--measured` log anywhere — not in a fence, not in prose, not "
+                "in a comment — so every MUTATING counter its block claims came from a "
+                "log the document does not print, and the replay/CI comparison has "
+                "nothing to compare. Print the replay as it was run, with the closing "
+                "`handoff_gate.py <handoff> --measured <dir>` on a line of its own "
+                "inside the fence. A CONTINUED or COMMENTED invocation counts here "
+                "since 313 and did not before, which is how this went unread from 309 "
+                "to 312 — so if this fires the invocation is absent, not merely "
+                "awkwardly written.")
         else:
-            notes.append("replay: this document prints no `handoff_gate.py` invocation — "
-                         "a handoff nobody runs the gate against is unchecked, and the "
-                         "next session cannot tell which it is")
+            problems.append(
+                "🔴 REPLAY_FENCE_UNNAMED this document prints no `handoff_gate.py` "
+                "invocation at all — a handoff nobody runs the gate against is "
+                "unchecked, and the next session cannot tell which it is. Until 313 "
+                "this was a note, which made the total absence of a replay quieter than "
+                "a replay written in prose.")
         return (problems, notes)
     text = body
-    hits = REPLAY_MEASURED_RE.findall(text)
-    log = hits[-1].strip("`'\"")
+    # 🆕 313 — THE LOG COMES FROM AN INVOCATION THAT RUNS, NOT FROM ONE THAT IS QUOTED.
+    # `measured_invocations` finds commented lines so the FENCE can be located; the log
+    # this fence is graded against is the last one a shell would actually execute. A
+    # fence carrying only a commented invocation falls back to it rather than crashing,
+    # because `replay_fence` has already promised there is one.
+    hits = measured_invocations(text)
+    real = [h for h, commented in hits if not commented]
+    if not real:
+        # 🆕 313 — AND THIS IS THE STATE 309, 310 AND 311 WERE ACTUALLY IN, WHICH ONLY
+        # BECAME VISIBLE ONCE THE FINDER COULD SEE THEIR FENCES AT ALL. Their §7 carries
+        # the whole replay and the PICKUP invocation as a comment, and no closing one —
+        # so there is a replay, and nothing says which log it was graded against.
+        # 🔴 ONE REFUSAL, NOT FORTY. Measured while writing this: grading those three
+        # documents against the commented PICKUP log yields 40 routing problems apiece,
+        # every one of them an artefact of comparing the fence to a file it never wrote
+        # to. That is 287's own arithmetic — one omission, a hundred findings, and the
+        # real one buried underneath — so the reader names the omission and stops.
+        problems.append(
+            f"🔴 REPLAY_FENCE_UNRUN this fence names {len(hits)} `--measured` "
+            f"invocation(s) and every one of them is COMMENTED OUT, so it does not say "
+            f"which log it was graded against and no routing question below can be "
+            f"asked. A commented invocation is enough to FIND the replay and is not "
+            f"allowed to grade it (287: prose about a command is not the command). "
+            f"Print the closing `handoff_gate.py <handoff> --measured <dir>` as a line "
+            f"the shell would run. 🔴 309, 310 and 311 were each in this state and each "
+            f"closed 🟢, because the finder could not see their fences at all and the "
+            f"whole comparison fell through to a note.")
+        return (problems, notes)
+    log = real[-1].strip("`'\"")
     base = log.rsplit("/", 1)[-1]
     lines = [ln for ln in text.split("\n") if base in ln]
 
@@ -9906,6 +10129,46 @@ def selftest() -> int:
         print("  🔴 REPLAY_CI a command that runs only where the handoff is written was "
               "not reported — the other direction, and a check nobody else ever runs")
 
+    # ── 🆕 313 — `replay-fence-reads-text-not-commands` (OPEN 309) ────────────────────
+    #
+    # 🔴 THE FIXTURE IS THE STRING THAT REFUSED A LIVE CLOSE AT 308, and the two halves
+    # are the same characters read as a command and as an argument. A reader that took
+    # the substring cannot tell them apart; one that asks the parser cannot confuse them.
+    claims += 1
+    _sh = [shell_scripts("python3 scripts/assetlib_sweep.py --check"),
+           shell_scripts('echo "::error title=X::Reproduce it with: '
+                         'python3 scripts/assetlib_sweep.py --check"'),
+           shell_scripts("  # python3 scripts/assetlib_sweep.py --check"),
+           shell_scripts("node scripts/token-cost.mjs --summary | tee -a run.log"),
+           shell_scripts("printf 'it''s' && python3 scripts/queue_gate.py")]
+    if _sh != [["assetlib_sweep.py"], [], [], ["token-cost.mjs"], ["queue_gate.py"]]:
+        failed += 1
+        print(f"  🔴 SHELL_SCRIPTS {_sh} — a script is INVOKED when its name survives "
+              f"the parser as a whole WORD and merely MENTIONED when it sits inside "
+              f"one. The second row is the `echo` that refused 308's close; the last is "
+              f"the unbalanced-quote fallback, which keeps the whole-word rule and loses "
+              f"only the quoting")
+
+    # 🔴 AND THE REGRESSION TEST IS SHIPPED IN THE TREE RATHER THAN CONSTRUCTED HERE.
+    # 308 could only keep this reader quiet by writing a worse message, so the proof that
+    # it is fixed is a workflow message that names the command a person should run. If a
+    # future session reverts `shell_scripts`, THIS claim goes red before the close does.
+    claims += 1
+    _wf_dir = ROOT / ".github" / "workflows"
+    _wf_text = "\n".join(f.read_text(encoding="utf-8")
+                         for f in sorted(_wf_dir.glob("*.y*ml"))) if _wf_dir.is_dir() else ""
+    _echoed = [ln for ln in _wf_text.split("\n")
+               if ln.strip().startswith("echo ") and CI_SCRIPT_RE.search(ln)]
+    _echo_keys = [k for k in ci_commands() if k.startswith("echo")]
+    if not _echoed or _echo_keys:
+        failed += 1
+        print(f"  🔴 SHELL_SCRIPTS_LIVE {len(_echoed)} workflow `echo` line(s) name a "
+              f"script and {len(_echo_keys)} of them reached the command roster: "
+              f"{_echo_keys[:1]}. The first number is the shipped regression test — a "
+              f"CI message that tells a person what to run — and 308 had to delete it to "
+              f"keep this reader quiet. The second must be zero: an error string is not "
+              f"an invocation")
+
     # ── 🆕 287 — THE FENCE ITSELF, AND THE THREE STATES THE FALLBACK COLLAPSED ────────
     #
     # 🔴 `blocks[-1] if blocks else text` MADE *NO FENCE* AND *A FENCE CONTAINING THE
@@ -9923,15 +10186,67 @@ def selftest() -> int:
     _quiet = replay_problems("this document names no gate and runs nothing")
     _nomeas = replay_problems("```bash\npython3 handoff_gate.py --selftest\n```")
     if (not any("REPLAY_FENCE_MISSING" in p for p in _po[0])
-            or any("REPLAY_FENCE_MISSING" in p for p in _has[0])
-            or _quiet[0] or _nomeas[0]
-            or not any("prints no `handoff_gate.py` invocation" in n for n in _quiet[1])
-            or not any("no `--measured`" in n for n in _nomeas[1])):
+            or any("REPLAY_FENCE" in p for p in _has[0])
+            or not any("REPLAY_FENCE_UNNAMED" in p for p in _quiet[0])
+            or not any("REPLAY_FENCE_UNMEASURED" in p for p in _nomeas[0])):
         failed += 1
-        print(f"  🔴 REPLAY_FENCE prose={_po[0][:1]} fenced={_has[0][:1]} "
-              f"quiet={_quiet} nomeasured={_nomeas} — a `--measured` invocation that "
-              f"appears ONLY in prose is a document with no replay, and the two silent "
-              f"states are notes with different reasons")
+        print(f"  🔴 REPLAY_FENCE prose={_po[0][:1]} "
+              f"fenced={[x for x in _has[0] if 'REPLAY_FENCE' in x][:1]} "
+              f"quiet={_quiet[0][:1]} nomeasured={_nomeas[0][:1]} — a `--measured` "
+              f"invocation that appears ONLY in prose is a document with no replay, and "
+              f"the two absences underneath it are REFUSALS since 313 with different "
+              f"names: a document that runs the gate and names no log, and a document "
+              f"that names no gate at all")
+
+    # ── 🆕 313 — `replay-fence-unread-since-a-line-continuation` (OPEN 313) ───────────
+    #
+    # 🔴 THE FIXTURE IS 309's OWN §7, AND IT IS THE STATE FOUR SESSIONS SHIPPED. The only
+    # `--measured` invocation in the fence is the PICKUP one, written as a comment and
+    # split across a backslash — which is a perfectly ordinary way to print a long
+    # command and was, until this session, the same as printing nothing.
+    _cont = ("```bash\npython3 a.py\n"
+             "# 🔴 TAKE THE READING FIRST:\n"
+             "#   python3 scripts/handoff_gate.py --open ../HANDOFF_SESSION309.md \\\n"
+             "#           --measured ci310/open-at-pickup.txt\n```")
+    claims += 1
+    _cont_p = replay_problems(_cont)[0]
+    if (not replay_fence(_cont)[1]
+            or [x for x in _cont_p if "REPLAY_FENCE" in x] == []
+            or not all("REPLAY_FENCE_UNRUN" in x for x in _cont_p)):
+        failed += 1
+        print(f"  🔴 REPLAY_FENCE_CONTINUATION a fence whose only invocation is written "
+              f"as a comment across a backslash continuation must be FOUND — that is "
+              f"309's §7 exactly, and not finding it made the replay/CI comparison "
+              f"silently not run at 309, 310, 311 and 312 — and must then draw exactly "
+              f"ONE refusal, the one naming the missing closing invocation, rather than "
+              f"forty derived from grading the fence against the pickup log: "
+              f"found={replay_fence(_cont)[1]} problems={[x[:60] for x in _cont_p]}")
+
+    # 🔴 AND FINDING IT MAY NOT MAKE IT THE GRADER. A commented invocation says WHICH
+    # block is the replay and nothing more; the log the block is graded against is the
+    # last one a shell would run. Both invocations below name a different log on purpose,
+    # so a reader that took the last hit rather than the last RUNNING hit reads `ci310/`
+    # for a fence closed against `ci309/`.
+    _both = ("```bash\npython3 a.py | tee -a ci309/run.log\n"
+             "#   python3 scripts/handoff_gate.py --open ../HANDOFF_SESSION309.md \\\n"
+             "#           --measured ci310/open-at-pickup.txt\n"
+             "python3 scripts/handoff_gate.py ../HANDOFF_SESSION309.md --measured ci309/\n```")
+    claims += 1
+    _inv = measured_invocations(_both)
+    if ([(h, c) for h, c in _inv]
+            != [("ci310/open-at-pickup.txt", True), ("ci309/", False)]):
+        failed += 1
+        print(f"  🔴 REPLAY_FENCE_COMMENTED `measured_invocations` read {_inv} — it owes "
+              f"both invocations, in document order, each carrying whether it sits "
+              f"behind a `#`, and the commented one is the CONTINUED one")
+    claims += 1
+    if (any("--measured ci310" in p for p in replay_problems(_both)[0])
+            or any("REPLAY_FENCE_UNRUN" in p for p in replay_problems(_both)[0])):
+        failed += 1
+        print(f"  🔴 REPLAY_FENCE_COMMENTED a commented invocation supplied the log this "
+              f"fence is graded against — finding a fence and grading it are different "
+              f"questions, and 287's rule is that prose about a command is not the "
+              f"command: {replay_problems(_both)[0][:1]}")
 
     # 🔴 AND THE DEPENDENT READERS MUST STAY SILENT, WHICH IS THE HALF THAT MAKES THE
     # REFUSAL READABLE. Each of them compares a roster derived FROM the fence against one
@@ -10206,6 +10521,97 @@ def selftest() -> int:
         print("  🔴 HEADER_UNTAGGED_CLAIMED the block typed a number for `untagged` "
               "and the reader went UNREAD beside it without refusing — 271 §1's "
               "shape, on the counter that says whether a release is owed")
+
+    # ── 🆕 313 — `pickup-cannot-tell-a-moved-world-from-a-stale-claim` (OPEN 312) ─────
+    #
+    # 🔴 THE FIXTURE IS 312's OWN PICKUP, WHICH IS THE ONLY TIME IN TWELVE SESSIONS AN
+    # OPENING WENT RED. 311's block claimed `untagged 16`, `unshipped 1` and a library
+    # serving an addon older than this tree's; he tagged, published and submitted between
+    # the sessions, so all three disagreed at once and every one of them disagreed
+    # because the owed work had been DONE. The block is built from the tree's own addon
+    # version rather than a literal, so the fixture cannot go stale the way the claim it
+    # drives is about a claim going stale.
+    _adv_host, _adv_addon = tree_versions()[0]
+    _adv_blk = ["main                 abc1234 — a session (#1)  MOVED +2",
+                f"host / addon         {_adv_host} / {_adv_addon}  🟢 UNMOVED",
+                "npm                  🟡 registry 1.0.0 · untagged 16 · unshipped 1 ·",
+                "                     0 open issues / 0 open PRs",
+                "assetlib             🟡 addon 0.0.1 live"]
+    _adv_log = (f"GH_OPEN_ISSUES 0\nGH_OPEN_PRS 0\nASSETLIB_VERSION {_adv_addon}\n"
+                f"              untagged 0 — HEAD is the newest tag\n"
+                f"              unshipped 0 · ceiling 6 — nothing is waiting\n")
+    _adv_world = ("npm.untagged", "npm.unshipped", "assetlib.live")
+
+    # 🔴 THE CLOSE STILL REFUSES ALL THREE, AND THIS DIRECTION GOES FIRST. `at_open`
+    # defaults to False, so a caller that forgets it gets the reader 270 built; if this
+    # claim ever needs the argument spelled out, the default has moved.
+    claims += 1
+    _adv_close = check_header(_adv_blk, _adv_log, False, 999)[0]
+    _adv_closed = {x.split()[1] for x in _adv_close if x.startswith("🔴 npm.")}
+    _adv_closed |= {"assetlib.live" for x in _adv_close if "🔴 assetlib.live" in x}
+    if not set(_adv_world) <= _adv_closed:
+        failed += 1
+        print(f"  🔴 WORLD_ADVANCE_AT_CLOSE {sorted(set(_adv_world) - _adv_closed)} did "
+              f"not refuse at a CLOSE — the block being compared there is minutes old "
+              f"and written by the session doing the comparing, so a disagreement in "
+              f"either direction is its own arithmetic. The direction test is a pickup "
+              f"rule and `at_open` must default to False")
+
+    # 🟢 AND AT THE PICKUP ALL THREE BECOME NOTES, WHICH IS THE ROW.
+    claims += 1
+    _adv_open_p, _adv_open_n = check_header(_adv_blk, _adv_log, False, 999,
+                                            at_open=True)[:2]
+    _still = [x for x in _adv_open_p
+              if any(k in x for k in _adv_world)]
+    _noted = {n.split(":", 1)[0] for n in _adv_open_n}
+    if _still or not set(_adv_world) <= _noted:
+        failed += 1
+        print(f"  🔴 WORLD_ADVANCE_AT_OPEN refused {[x.split(chr(10))[0] for x in _still]} "
+              f"and noted {sorted(_noted & set(_adv_world))} — 312's three atoms all "
+              f"disagreed because the owed release had been cut and the library had "
+              f"caught up, and no edit a session may legitimately make turns that green")
+
+    # 🔴 AND THE HALF 270 PAID FOR IS NOT SOFTENED, WHICH IS THE CLAIM THAT MAKES THE
+    # ONE ABOVE SAFE. The same fixture with the world moving AWAY from the tree — more
+    # commits piled up past the tag, a library still behind — refuses at the pickup
+    # exactly as it always has.
+    claims += 1
+    _away_blk = [_adv_blk[0], _adv_blk[1],
+                 "npm                  🟡 registry 1.0.0 · untagged 0 · unshipped 0 ·",
+                 _adv_blk[3],
+                 f"assetlib             🟡 addon {_adv_addon} live"]
+    _away_log = ("GH_OPEN_ISSUES 0\nGH_OPEN_PRS 0\nASSETLIB_VERSION 0.0.1\n"
+                 "              untagged 16 — sixteen commit(s) past the tag\n"
+                 "              unshipped 1 · ceiling 6 — one is waiting\n")
+    _away = check_header(_away_blk, _away_log, False, 999, at_open=True)[0]
+    _away_named = {x.split()[1] for x in _away if x.startswith("🔴 npm.")}
+    _away_named |= {"assetlib.live" for x in _away if "🔴 assetlib.live" in x}
+    if not set(_adv_world) <= _away_named:
+        failed += 1
+        print(f"  🔴 WORLD_ADVANCE_AWAY {sorted(set(_adv_world) - _away_named)} was "
+              f"excused at a pickup while the world moved AWAY from this tree — that is "
+              f"270's own case, a claim carried forward that nobody re-read, and it is "
+              f"the half this row must not soften")
+
+    # 🔴 AND THE READER ITSELF, BOTH DIRECTIONS AND OFF THE ROSTER, because the three
+    # claims above run it through `check_header` and a reader that said True to
+    # everything would satisfy the pickup arm while destroying the close arm silently.
+    claims += 1
+    _wa = [world_advance("npm.untagged", (16,), (0,))[0],
+           world_advance("npm.unshipped", (1,), (0,))[0],
+           world_advance("assetlib.live", "0.0.1", _adv_addon, tree_addon=_adv_addon)[0],
+           world_advance("npm.untagged", (0,), (16,))[0],
+           world_advance("npm.unshipped", (0,), (1,))[0],
+           world_advance("assetlib.live", _adv_addon, "0.0.1", tree_addon=_adv_addon)[0],
+           world_advance("assetlib.live", "0.0.1", "0.0.2", tree_addon=_adv_addon)[0],
+           world_advance("npm.lag", (3,), (0,))[0],
+           world_advance("gh.issues", (1,), (0,))[0]]
+    if _wa != [True, True, True, False, False, False, False, False, False]:
+        failed += 1
+        print(f"  🔴 WORLD_ADVANCE {_wa} — a FALL in either count and a library that "
+              f"now equals THIS tree's addon are the three provable advances; the "
+              f"opposite direction, a library that moved to a third version neither "
+              f"side holds, and every atom not on the roster are not")
 
     # 🔴 AND THE NEGATIVE CONTROL, BECAUSE `untagged` CONTAINS `tags`. `npm.tags`'s
     # alias is `\btags?\b` and it is one word boundary away from swallowing this row;
@@ -13466,8 +13872,12 @@ def open_tier(prev: Path, run_network: bool, root: Path = ROOT, log: str = "") -
                         f"that reader is REQUIRED for session {session}")
 
     # ── the header: re-read, because the world moves and the tree does not ────────────
+    # 🆕 313 — AND `at_open` IS TRUE HERE AND NOWHERE ELSE. This is the one call where
+    # the block being compared was written by a PREVIOUS session, so the world has had
+    # time to move; at the close the block is minutes old and any disagreement is the
+    # session's own arithmetic. `pickup-cannot-tell-a-moved-world-from-a-stale-claim`.
     h_problems, h_notes, h_atoms, h_compared = check_header(block, log, run_network,
-                                                            session)
+                                                            session, at_open=True)
     for n in h_notes:
         print(f"  · {n}")
     problems.extend(h_problems)
