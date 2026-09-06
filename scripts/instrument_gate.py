@@ -1403,6 +1403,12 @@ INSTRUMENTS = [
             "{SIG:population_reach_problems}": "return []",
             "{SIG:declared_tier}": "return None",
             # ── the replay and the workflows — 235 §8.1's list against what CI actually runs ──
+            # 🆕 313 — the parser under all four of them (`replay-fence-reads-text-not
+            # -commands`, 309). Its empty is "this segment invokes nothing", and blinded
+            # every roster below empties at once: `CI_SCRIPT_FLOOR` and
+            # `REPLAY_CI_FLAG_FLOOR` both refuse a collapsed roster, which is the shape
+            # 274 built them for.
+            "{SIG:shell_scripts}": "return []",
             "{SIG:ci_scripts}": "return {}",
             "{SIG:command_norm}": "return \"\"",
             "{SIG:ci_commands_text}": "return {}",
@@ -1422,10 +1428,26 @@ INSTRUMENTS = [
             # problems — so the blind reproduces the defect the function was written to
             # remove rather than merely silencing it.
             "{SIG:replay_fence}": "return (\"\", False)",
+            # 🆕 313 — the finder underneath it, and its empty is "this text names no
+            # invocation". Blinded, `replay_fence` answers `("", False)` for every
+            # document ever written and the whole family below loses its population at
+            # once — which is 309 to 312 exactly, four sessions whose fence was never
+            # found and whose comparison never ran. The self-test drives BOTH halves:
+            # that a continued, commented invocation IS found, and that a commented one
+            # is not allowed to say which log the fence is graded against.
+            "{SIG:measured_invocations}": "return []",
             "{SIG:replay_problems}": "return ([], [],)",
             "{SIG:ci_capture_steps}": "return []",
             "{SIG:ci_capture_norm}": "return \"\"",
             "{SIG:ci_capture_problems}": "return ([], [],)",
+            # 🆕 313 — the DIRECTION test the pickup asks of a world atom that
+            # disagrees, and its empty is "nothing ever advanced". Blinded, every
+            # disagreement is a refusal again — which is 312's opening, three atoms red
+            # because the owed release had been CUT — so the blind restores the exact
+            # state the row was opened over. The opposite blind cannot be written here:
+            # a reader that said True to everything is refused by the CLOSE arm, which
+            # the self-test drives on the same fixture.
+            "{SIG:world_advance}": "return (False, \"\",)",
             # ── the two verdicts — the document gate, and the tier the open gate may grant ──
             "{SIG:gh_emit}": "return 0",
             "{SIG:tier_problems}": "return ([], [],)",
@@ -2424,10 +2446,16 @@ LATE_DECLARED_GREEN = {
         "call two is inside `check()`, where the value is consumed by `replay_ci_problems` "
         "and the floor that guards it (`CI_SCRIPT_FLOOR`) was already satisfied by call "
         "one. Caught globally on the primary axis.",
-    ("handoff_gate.py", "{SIG:ci_commands}", "A:gate"):
-        "same shape as `ci_scripts` — `CI_COMMANDS_LIVE` floors the live walk on call one "
-        "and call two is the consumer inside `check()`. Caught globally on the primary "
-        "axis.",
+    # 🆕 313 — `{SIG:ci_commands}`'s DECLARATION IS GONE, AND THE GATE ASKED FOR IT BACK.
+    # The reason on file said this reader is called exactly twice and the second call is a
+    # consumer that floors nothing, so a late blind could not be seen. 313 gave it a THIRD
+    # caller — `SHELL_SCRIPTS_LIVE`, which asserts that no workflow `echo` reaches the
+    # command roster — and that claim runs after the consumer, so the late blind now
+    # reddens and the declaration went stale in the same commit that made it stale. 🔵 The
+    # gate found it, in CI, on the first run: *`{SIG:ci_commands}` is DECLARED GREEN and
+    # now REDDENS. The reason on file no longer holds — re-read it and delete the
+    # declaration.* Deleted. Its sibling `{SIG:ci_scripts}` keeps its declaration, because
+    # the new claim reads the FLAG roster and not the basename one.
     ("handoff_gate.py", "{SIG:tracked_scripts}", "A:gate"):
         "`SCRIPT_POPULATION_FLOOR` reads call one; call two is the same walk inside "
         "`unreached_problems`, whose own refusal is about REACHABILITY and is satisfied "
