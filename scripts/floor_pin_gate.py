@@ -360,7 +360,11 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # surface down rather than the other way round. `TOOL_FLOOR` is the usual collapse
     # guard — a reader listing zero tools would otherwise report a wonderfully small
     # surface and pass.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )376320;",                  [f"{S}/token-cost.selftest.mjs"]),
+    # 🆕 312's LOWERING IS 208's MOVE FOR THE OPPOSITE REASON — nothing left the wire this
+    # time. 311's new clause was paid for out of another description, so the catalogue
+    # came out SMALLER than its own ceiling, and a budget that stops sitting on the
+    # surface is prose nobody voted for. The ceiling follows the surface back down.
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )375991;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
@@ -623,12 +627,17 @@ TARGET_REASONS: dict[tuple[str, str], str] = {
     (f"{S}/token-cost.mjs", "BYTES_CEILING"): (
         "The whole tool catalogue, serialized, in bytes — `{FLOOR}` — and the only number "
         "in this tree that every client pays once per session before it has asked for "
-        "anything. It is a CEILING and it comes down: 206 §4 set it, 208's sweep lowered it, and no "
-        "session has raised it. 🔴 IT MOVES ONLY WHEN A KEY IS ADDED TO OR DROPPED FROM "
+        "anything. It is a CEILING and it comes down: 206 §4 set it, 208's sweep lowered "
+        "it, 284's `overwrite` work raised it once — the only raise it has ever taken, "
+        "and legal under the rule below because KEYS entered the surface — and 312's "
+        "lowering put it back onto the live reading that 311's own trade left behind. "
+        "🔴 IT MOVES ONLY WHEN A KEY IS ADDED TO OR DROPPED FROM "
         "THE SURFACE, never to make room for prose — a raise that buys a description is "
-        "the surface growing and calling it a budget. The paydown available inside the "
-        "descriptions is finite and largely spent, which is the queue row this reason "
-        "exists because of."),
+        "the surface growing and calling it a budget. 🔴 AND IT SITS ON THE SURFACE ON "
+        "PURPOSE: slack here is prose nobody voted for, so a session that makes the "
+        "catalogue smaller owes this ceiling the same step down. The paydown available "
+        "inside the descriptions is finite and largely spent, which is the queue row "
+        "this reason exists because of."),
     (f"{S}/token-cost.mjs", "tc.TOOL_FLOOR"): (
         "The collapse guard under `BYTES_CEILING`, and the reason that ceiling means "
         "anything. A reader that enumerated no tools would report a wonderfully small "
