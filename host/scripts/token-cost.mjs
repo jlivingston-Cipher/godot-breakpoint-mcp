@@ -196,7 +196,22 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // to four words behind one shared literal, with the explanation in TOOL_CATALOG's
 // Conventions section. Twice in two sessions is not a coincidence; it is the ceiling
 // doing precisely the job it was set for.
-export const BYTES_CEILING = 376320;
+//
+// 🆕 312 — LOWERED 376,320 -> 375,991, WHICH IS THE SURFACE 311 LEFT BEHIND. 311 added
+// `window_not_drawing` to `screenshot_editor`'s description and paid for it by
+// compressing 261's two-case hidden-tab explanation, so the catalogue came out 329 B
+// SMALLER than the ceiling that had been sitting exactly on it since 284. 248's rule
+// stopped 311 from following it down — a FLOOR-shaped ceiling is never moved on a
+// release commit — so the slack outlived the session that created it, and 311 §2.3
+// handed the decision here.
+//
+// 🔴 THE SLACK IS THE FAILURE MODE, NOT THE MARGIN. This ceiling has refused a draft
+// twice (283, 284) and refused 311's first draft too, and each refusal turned a
+// mechanical failure into a decision about which descriptions earn words. It can only
+// do that while it sits ON the surface: 329 B is two or three descriptions' worth of
+// prose that would now enter without anybody voting for it, which is precisely the
+// growth-called-a-budget its own `TARGET_REASONS` sentence forbids.
+export const BYTES_CEILING = 375991;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN
