@@ -2230,6 +2230,19 @@ def registry_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
 # voted for. The constructed drives below stay where they are: one live pair can redden
 # `cannot fall` and `outruns MOVED` and nothing else, which is what 311's own
 # perturbation rows S and T drive.
+#
+# 🆕 312 — AND THE TWO FLOORS PART COMPANY HERE, WHICH IS THE FIELD'S FIRST RELEASE
+# ANSWERING. 311's block registers a session that CUT a version, so the printing set
+# grows to three and takes the floor with it, while the compared set stays at one: the
+# pair 310 -> 311 is routed into `cut` and clause two never sees it. 🔵 THE PREDICTION
+# HELD AND IT IS WORTH SAYING WHY, because the arithmetic looks like the opposite —
+# `untagged` went 14 -> 16 across a `MOVED +2`, which is exactly the no-cut identity 307
+# wrote and `untagged_problems` is satisfied by it. `untagged_partition` does not route
+# on that identity at all: it routes on the block's own host/addon PAIR, so a version
+# that moved is a cut here whether or not the tag has been made yet — and the bound does
+# not get to refuse the one session that cut a release. That is the arm 311 §4 rank 1 asked
+# 312 to drive, and row U drives it: `unshipped 1 -> 0` on a release block is a fall the
+# rule declines to judge rather than a fall it excuses.
 UNSHIPPED_RE = re.compile(r"\bunshipped (\d+)\b")
 RESTATED_FIELDS: "tuple[tuple[str, re.Pattern], ...]" = (("untagged", UNTAGGED_RE),
                                                           ("unshipped", UNSHIPPED_RE))
@@ -8912,6 +8925,42 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (311, """> ```
+> main                 9637e53 — session311 the window that was not drawing, and the two capture sites the row did not name (#403)  MOVED +2
+> branch 311           session311-the-block-and-the-first-pair-the-fifth-field-could-bind · PR #401 ·
+>                      session311-the-window-that-was-not-drawing · PR #403
+> host / addon         1.85.0 / 1.16.0  🔴 BOTH MOVED — a release cut, addons/ and host/src both touched
+> npm                  🟡 registry 1.84.1 · untagged 16 · unshipped 1 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.15.0 live · 1.16.0 submission now owed
+> release              🔴 1.84.1 -> 1.85.0 MINOR · wire PATCH · toolchain PATCH —
+>                      ABOVE the wire, which is legal: the schemas did not move, so the
+>                      claim rests on the release notes and on the moved-producer check
+>                      rather than on the classifier
+> 🟢 CI GREEN — 26 of 26 required checks at each merge, and the post-merge run at 9637e53
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 1 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   981/981 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3228
+>               · late not-loaded 0 · late constructed 342/160
+>               · py gates 18/6/12 · SIG 281/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2268 keys · 100 shortfalls
+>               · target reasons 113 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 324 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5066 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 26/26 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 610 claims
+>               · landscape 4 channel(s) / 52 analysed / 49 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 27 within / 11 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 57
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -10772,21 +10821,22 @@ def selftest() -> int:
               f"block the claim below is silently not making")
     claims += 1
     _sprinted = [s for s, t in BLOCK_POPULATION if unshipped_of(t) is not None]
-    if len(_sprinted) < 2:
+    if len(_sprinted) < 3:
         failed += 1
         print(f"  🔴 UNSHIPPED_PRINTED_REACH only {len(_sprinted)} registered block(s) "
-              f"print `unshipped`, floor 2 — measured 2 at 311, where 310's block joined "
-              f"309's. Either the field left the convention or the reader stopped "
-              f"matching, and a reader nothing reaches refuses nothing: "
+              f"print `unshipped`, floor 3 — measured 3 at 312, where 311's block joined "
+              f"310's and 309's. Either the field left the convention or the reader "
+              f"stopped matching, and a reader nothing reaches refuses nothing: "
               f"{ {k: len(v) for k, v in _sp.items() if v} }")
     claims += 1
     if len(_sp["compared"]) < 1:
         failed += 1
         print(f"  🔴 UNSHIPPED_COMPARED_REACH no pair of registered blocks is comparable, "
-              f"floor 1 — measured 1 at 311, the first pair this field has ever had. "
-              f"Clause two is the only arm that reads two blocks, so a table reaching no "
-              f"pair asserts nothing over the live population while the constructed "
-              f"drives below stay green: "
+              f"floor 1 — measured 1 at 311, the first pair this field has ever had, and "
+              f"1 again at 312, because the block that joined is a RELEASE and "
+              f"`unshipped_partition` routes it into `cut`. Clause two is the only arm "
+              f"that reads two blocks, so a table reaching no pair asserts nothing over "
+              f"the live population while the constructed drives below stay green: "
               f"{ {k: len(v) for k, v in _sp.items() if v} }")
     claims += 1
     _spp = unshipped_problems()
