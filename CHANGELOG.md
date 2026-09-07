@@ -4,6 +4,57 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.85.1] — 2026-09-07
+
+_Addon **1.16.0** — unmoved; nothing under `addons/` changed in this window._
+
+**IF ANY FILE IN YOUR PROJECT HAS A NON-ASCII NAME, THE `vcs_*` TOOLS HAVE BEEN LYING TO
+YOU ABOUT IT.** `git status --porcelain=v2` C-quotes any path holding a byte git considers
+unusual, and by default that is **every non-ASCII byte** — so `escena_ñ.tscn` arrived as
+the literal seven-token string `"escena_\303\261.tscn"`, quotes and octal escapes included,
+in a family of tools whose every other input is a plain project-relative path. Measured
+against a real repository, that produced three separate faults, and the third is the one
+that could cost you work:
+
+* `vcs_status` and `vcs_add` returned a spelling **no other tool in this family accepts**,
+  so a path they gave you could not be handed back to them.
+* `vcs_status`'s `outside_project` came back **empty while a path above the project sat in
+  `staged`**. The escape test reads a leading `../` and the quote is in front of it, so a
+  change to a file outside your Godot project was reported as one of the project's own —
+  the exact fault 1.84.0's `outside_project` field was added to fix, on a spelling axis it
+  did not have.
+* `vcs_restore` — which **discards work** — reported `requested: ["escena_ñ.tscn"]` beside
+  `restored: ["\"escena_\\303\\261.tscn\""]`: one file, two spellings, in one object. A
+  caller asking *was the path I named restored?* read its own discarded edits as nothing
+  having happened.
+
+### Fixed
+
+* Every `vcs_*` reading of a path now returns the name on disk. Two halves, because git
+  needs both: the git invocation carries `core.quotePath=false`, which stops the
+  non-ASCII quoting at the source and also cleans up the **patch text** of `vcs_diff` and
+  `vcs_show` and blame's own filename lines; and a decoder handles the residue git quotes
+  whatever that setting says — a name containing a double quote, a backslash, a tab or a
+  newline.
+* `outside_project` is populated again for quoted paths, so a change outside the Godot
+  project is never listed among the project's own files.
+* `vcs_restore`'s `restored` and `stranded` lists speak the caller's spelling.
+* `gd_rename` now applies a rename whose result arrives as `documentChanges` rather than
+  as a `changes` map. Both are legal encodings of the same LSP reply; this plane read only
+  the second, so a language server answering in the first produced `changed_files: []`,
+  `edit_count: 0` and `applied: true` — **a success report for a rename that did not
+  happen**. The C# plane has handled both since it was written; this is the GDScript plane
+  catching up.
+
+### Internal
+
+* The TypeScript build now refuses unused locals and unused parameters
+  (`noUnusedLocals`, `noUnusedParameters`), which is the first repository-wide hygiene
+  rule this codebase's shipped TypeScript has ever had. Seven dead symbols and imports
+  went with it; none was reachable from any tool.
+* `docs/CODE_REVIEW_P1_P6.md` records the reading pass these fixes came out of — the
+  six-pass code-review charter opened at session 205 and paid at 314.
+
 ## [1.85.0] — 2026-09-05
 
 _Addon **1.16.0** — `addons/` moved, so the addon is re-stamped in the same cut._
