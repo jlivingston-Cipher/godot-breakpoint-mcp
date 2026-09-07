@@ -2278,6 +2278,23 @@ def registry_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
 # are perturbed on this pair and BOTH must REDDEN, because a pair the partition has
 # released is a pair the bound is now judging. If either stays green the partition is
 # wrong, and that finding would be worth more than the drive that found it.
+#
+# 🆕 315 — AND THE ROUTING CLOSED AGAIN BEHIND THE PAIR IT RELEASED, WHICH IS THE FIRST
+# THING THIS FIELD HAS BEEN ASKED TO PREDICT ABOUT ITS OWN SILENCE RATHER THAN ITS OWN
+# SPEECH. 314's block cut 1.85.1, so its host/addon pair differs from 313's, the pair
+# 313 -> 314 routes into `cut`, and `UNSHIPPED_COMPARED_REACH` holds at 2 while
+# `UNSHIPPED_PRINTED_REACH` rises 5 -> 6 — the two floors parting company for the second
+# time, in the same direction and for the same reason as at 312. 🔵 FOUR SESSIONS HAVE
+# NOW ASKED THIS NUMBER TO PREDICT ITSELF AND THE ANSWER WAS DIFFERENT EACH TIME: hold
+# (312, the release), hold (313, the block after it), RISE (314, the first ordinary
+# block since), hold (315, the next release). 🔴 THE PRACTICAL EDGE IS THE FLOOR AND NOT
+# THE PARTITION: a session that raised `COMPARED_REACH` to 3 on 314's rise would have
+# refused 315 for doing the one thing the partition requires of it. A floor belongs at
+# the value the population can FALL to, not the value it last reached — which is 198
+# §36 read in the other direction, and the reading a monotone-growing population never
+# needs. 🔵 The drive below is 313's shape again, not 314's: both arms of clause two are
+# perturbed on this pair and BOTH must stay GREEN, while clause one and clause three
+# redden on the same block to prove the reader is still reading it.
 UNSHIPPED_RE = re.compile(r"\bunshipped (\d+)\b")
 RESTATED_FIELDS: "tuple[tuple[str, re.Pattern], ...]" = (("untagged", UNTAGGED_RE),
                                                           ("unshipped", UNSHIPPED_RE))
@@ -9282,6 +9299,42 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (314, """> ```
+> main                 d970a83 — release 1.85.1 — the paths git could not print, and the rename that reported success (#411)  MOVED +4
+> branch 314           session314-the-block-and-the-pair-that-rejoined · PR #408 ·
+>                      session314-the-review-charter-paid · PR #409 ·
+>                      session314-the-roster-gets-an-order · PR #410 ·
+>                      session314-release-1.85.1 · PR #411
+> host / addon         1.85.1 / 1.16.0  🔴 HOST MOVED — a release cut; addons/ untouched
+> npm                  🟡 registry 1.85.0 · untagged 8 · unshipped 2 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> release              🔴 1.85.0 -> 1.85.1 PATCH · wire PATCH · toolchain PATCH —
+>                      cut and merged, NOT tagged and NOT published
+> 🟢 CI GREEN — 26 of 26 required checks at each merge, and the post-merge run at d970a83
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 2 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   988/988 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3302
+>               · late not-loaded 0 · late constructed 345/160
+>               · py gates 18/6/12 · SIG 284/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2270 keys · 100 shortfalls
+>               · target reasons 113 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 325 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5102 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 26/26 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 84/84 claims · handoff 623 claims
+>               · landscape 4 channel(s) / 55 analysed / 45 surfaced
+>               · capability 55 claimed / 35 unread / 10 uncited
+>               · cadence 28 within / 13 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 57
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -11325,13 +11378,13 @@ def selftest() -> int:
               f"block the claim below is silently not making")
     claims += 1
     _sprinted = [s for s, t in BLOCK_POPULATION if unshipped_of(t) is not None]
-    if len(_sprinted) < 5:
+    if len(_sprinted) < 6:
         failed += 1
         print(f"  🔴 UNSHIPPED_PRINTED_REACH only {len(_sprinted)} registered block(s) "
-              f"print `unshipped`, floor 5 — measured 5 at 314, where 313's block joined "
-              f"312's, 311's, 310's and 309's. Either the field left the convention or the "
-              f"reader stopped matching, and a reader nothing reaches refuses nothing: "
-              f"{ {k: len(v) for k, v in _sp.items() if v} }")
+              f"print `unshipped`, floor 6 — measured 6 at 315, where 314's block joined "
+              f"313's, 312's, 311's, 310's and 309's. Either the field left the convention "
+              f"or the reader stopped matching, and a reader nothing reaches refuses "
+              f"nothing: { {k: len(v) for k, v in _sp.items() if v} }")
     claims += 1
     if len(_sp["compared"]) < 2:
         failed += 1
@@ -11345,6 +11398,12 @@ def selftest() -> int:
               f"and the pair 312 -> 313 rejoined. 🔵 THE RISE IS THE CLAIM 313 §1 STAKED: "
               f"a routing releases a pair as well as holding one, and three sessions of "
               f"quiet were the partition rather than a reader that stopped matching. "
+              f"🆕 AND 2 AGAIN AT 315, WHERE THE FALL BACK INTO SILENCE WAS PREDICTED "
+              f"BEFORE IT WAS MEASURED: 314's block CUT a version, so the pair 313 -> 314 "
+              f"routes into `cut` and clause two never sees it. Four sessions have now "
+              f"asked this number to predict itself — hold, hold, RISE, hold — and the "
+              f"reason differed every time. A floor raised on the rise would have refused "
+              f"the session after it. "
               f"Clause two is the only arm that reads two blocks, so a table reaching too "
               f"few pairs asserts almost nothing over the live population while the "
               f"constructed drives below stay green: "
