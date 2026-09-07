@@ -440,23 +440,23 @@ claim(said(judgeScope(S({ blocks: 1408, attributed: 3317 }), 3342), "orphan=25")
 // must not fire, or the rule is just a red build.
 claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3726).failed === false,
   "🔴 THE DISMISSAL: the shipped tree sits exactly ON the ceiling and passes — 26 of 26");
-claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3727).failed === true,
+claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3728).failed === true,
   "🔴 and ONE more claim site that reaches no unit reddens — the drift that has run for nine sessions");
-claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3727), "TAUT_ORPHAN_RISE"),
+claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3728), "TAUT_ORPHAN_RISE"),
   "…named TAUT_ORPHAN_RISE, not folded into an attribution collapse — a different failure");
-claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3727), "27 > 26"),
+claim(said(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3728), "28 > 27"),
   "…and it prints both numbers, so the reading needed to raise it deliberately is in the log");
 // 🔴 THE ARM THE LIVE TREE CANNOT REACH: a rise caused by attribution FALLING rather than
 // by sites rising. Same subtraction, opposite input, and a ceiling reads them identically
 // — which is the property that makes it worth having, since `ATTRIBUTED_FLOOR` has 700 of
 // slack under it and would stay green through a drop of this size.
-claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).failed === true,
+claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3714).failed === true,
   "🔴 attribution dropping 605 with sites unchanged reddens HERE while ATTRIBUTED_FLOOR (2500) stays green");
-claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("TAUT_ORPHAN_RISE"))
-  && !judgeScope(S({ blocks: 1613, attributed: 2600 }), 3713).lines.some((l) => l.includes("COLLAPSE CLAIMS")),
+claim(judgeScope(S({ blocks: 1613, attributed: 2600 }), 3714).lines.some((l) => l.includes("TAUT_ORPHAN_RISE"))
+  && !judgeScope(S({ blocks: 1613, attributed: 2600 }), 3714).lines.some((l) => l.includes("COLLAPSE CLAIMS")),
   "🔴 and ONLY this rule names it — the case that proves the ceiling is not a restatement of the floor");
-claim(ORPHAN_CEILING === 26, `the shipped orphan ceiling is 26, not ${ORPHAN_CEILING}`);
-claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3727, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 27).failed === false,
+claim(ORPHAN_CEILING === 27, `the shipped orphan ceiling is 27, not ${ORPHAN_CEILING}`);
+claim(judgeScope(S({ blocks: 1739, attributed: 3700 }), 3728, UNIT_FLOOR, ATTRIBUTED_FLOOR, SHAPED_FLOOR, PRECONDITION_FLOOR, 28).failed === false,
   "and the ceiling is a PARAMETER — raising it is what a deliberate rise looks like, and it is reachable from a fixture");
 
 // 🔴 193 — THE BANNER FALLBACK, AND THE ARM THAT PROVES THE CEILING ALONE IS NOT ENOUGH.

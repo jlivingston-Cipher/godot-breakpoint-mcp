@@ -1703,6 +1703,92 @@ def roster_shape_problems(roster: dict) -> "list[str]":
     return problems
 
 
+# ── 🆕 315 §2 — `ranking-and-identity-live-in-a-scratch-buffer` (314), THE IDENTITY HALF ──
+#
+# 🔴 THE ROSTER CARRIED ONE PROJECT TWICE FOR TWENTY-THREE SESSIONS AND EVERY READER HERE
+# SAID NO. `HaD0Yun/godot-mcp` renamed itself to `HaD0Yun/Doyunha-Gopeak`; the entry moved
+# with it and the surfaced row did not, so `SURFACED_PROMOTED` — which compares
+# `repo_slug` against `repo_slug` — compared two different strings and was satisfied. 314
+# found it by hand, off two rows returning identical stars, forks and push time.
+#
+# 🔵 THE GENERAL SHAPE IS 314 §5.5: WHEN A TABLE'S ROWS ARE EXTERNAL THINGS, THE KEY HAS
+# TO BE SOMETHING THE EXTERNAL THING CANNOT CHANGE UNILATERALLY. A slug is the project's
+# to rename; `forge_id` is the forge's, and it survives a rename, a transfer and a
+# redirect. So the identity check is not a better spelling of `SURFACED_PROMOTED` — it
+# asks a question that reader cannot ask at all, and both stay.
+#
+# 🔴 AND THE READER SAYS WHAT IT CANNOT SEE, WHICH IS THE HALF THAT KEEPS IT HONEST.
+# `SURFACED_PROMOTED` compares slugs over all 100 rows; this compares `forge_id` over the
+# 69 that carry one. A session reading `0 collision(s)` off a table where a third of the
+# rows have no identity at all would be reading silence as evidence — 292's rule, that a
+# `false` is the claim *we looked and it is not there*. So the census prints the COVERED
+# fraction beside the count, and the number that matters is the one that can be driven up.
+#
+# 🔵 THE THIRD CLAIM NEEDS NO `forge_id` AT ALL. A rename leaves a trail in the roster
+# itself: `former_repo` is what the entry used to be called, and a surfaced row still
+# standing under that old name is the exact state 314 found. That arm covers rows the
+# identity arm cannot reach, which is why it is here rather than folded into the first.
+def identity_problems(roster: dict) -> "list[str]":
+    """Every pair of roster rows naming one project under two names — PURE, offline, and
+    keyed on what the project cannot rename."""
+    problems: list[str] = []
+    entries = roster.get("entries", [])
+    surfaced = roster.get("surfaced", [])
+
+    def label(row: dict) -> str:
+        return str(row.get("name") or row.get("key") or row.get("repo") or "(unnamed)")
+
+    # ── 1 — the same forge id twice inside one population ────────────────────────────
+    for pop_name, pop in (("entries", entries), ("surfaced", surfaced)):
+        by_id: "dict[object, list[str]]" = {}
+        for row in pop:
+            fid = row.get("forge_id")
+            if fid:
+                by_id.setdefault(fid, []).append(label(row))
+        for fid, names in sorted(by_id.items(), key=lambda kv: str(kv[0])):
+            if len(names) > 1:
+                problems.append(
+                    f"IDENTITY_DUPLICATE forge id {fid} appears {len(names)} times in "
+                    f"`{pop_name}` — {sorted(names)}. One repository is one row; two rows "
+                    f"under one forge id is a project this roster counts twice however "
+                    f"differently they are spelled")
+
+    # ── 2 — the same forge id in BOTH populations ────────────────────────────────────
+    ent_ids = {row["forge_id"]: label(row) for row in entries if row.get("forge_id")}
+    for row in surfaced:
+        fid = row.get("forge_id")
+        if fid and fid in ent_ids:
+            problems.append(
+                f"IDENTITY_COLLISION {label(row)} (surfaced) and {ent_ids[fid]} (entry) "
+                f"are both forge id {fid} — one repository carried as one project read at "
+                f"source level AND one project never analysed. `SURFACED_PROMOTED` "
+                f"compares slugs and a renamed project defeats it; this is the arm that "
+                f"does not care what either row is called")
+
+    # ── 3 — a surfaced row still standing under a name an entry has left ─────────────
+    former = {repo_slug(str(e.get("former_repo") or "")): label(e)
+              for e in entries if e.get("former_repo")}
+    former.pop("", None)
+    for row in surfaced:
+        slug = repo_slug(str(row.get("repo") or ""))
+        if slug and slug in former:
+            problems.append(
+                f"IDENTITY_RENAMED {label(row)} (surfaced) stands under {slug}, which "
+                f"{former[slug]} declares as its `former_repo` — the roster already knows "
+                f"these are one project and is still carrying the old name as unread. "
+                f"This arm needs no `forge_id`, which is why it reaches rows the arm "
+                f"above cannot")
+    return problems
+
+
+def identity_coverage(roster: dict) -> "tuple[int, int]":
+    """(rows carrying a forge id, rows total) across both populations — the fraction
+    `identity_problems`' first two arms can actually see. Printed because a collision
+    count taken over two thirds of a table is not a statement about the table."""
+    rows = list(roster.get("entries", [])) + list(roster.get("surfaced", []))
+    return sum(1 for r in rows if r.get("forge_id")), len(rows)
+
+
 def census() -> int:
     """OFFLINE. The roster's shape and its two populations, printed as one counter line.
 
@@ -1742,7 +1828,7 @@ def census() -> int:
     # reading behind it — so it belongs in the one leg of this file a merge-blocking job
     # can honestly run, rather than in a weekly `--check` a branch can go red past.
     problems = (roster_shape_problems(roster) + severity_problems()
-                + capability_problems(roster))
+                + capability_problems(roster) + identity_problems(roster))
     for m in problems:
         print(f"  🔴 {m}", file=sys.stderr)
     print(f"LANDSCAPE_CENSUS {len(CHANNELS)} channel(s) / {enumerable} enumerable · "
@@ -1779,6 +1865,16 @@ def census() -> int:
     cad_never = sum(1 for e in entries if days_since(e.get("last_analysed"), _today) < 0)
     print(f"LANDSCAPE_CADENCE {cad_within} within / "
           f"{len(entries) - cad_within - cad_never} past / {cad_never} never analysed")
+    # 🆕 315 — AND THE IDENTITY READING, WITH THE FRACTION IT IS TAKEN OVER. `covered` is
+    # the number of rows carrying a `forge_id`; `renamed` is the number of entries that
+    # record having been called something else, which is the population arm three reads.
+    # A zero collision count over a partly-identified table is a weaker claim than the
+    # same zero over a fully-identified one, and only the pair says which one this is.
+    _id_covered, _id_rows = identity_coverage(roster)
+    _id_renamed = sum(1 for e in entries if e.get("former_repo"))
+    print(f"LANDSCAPE_IDENTITY {_id_covered} of {_id_rows} row(s) carry a forge id · "
+          f"{_id_renamed} renamed · "
+          f"{sum(1 for m in problems if m.startswith('IDENTITY_'))} collision(s)")
     return 1 if problems else 0
 
 
@@ -2104,6 +2200,68 @@ def selftest() -> int:
                                                   "cadence": "weekly"}],
                                      "surfaced": [{"key": "c/d", "channels": ["npm"],
                                                    "first_seen": 291}]})), 1)
+    # ── 🆕 315 — `identity_problems`, THE ARM `SURFACED_PROMOTED` CANNOT REACH ───────
+    #
+    # 🔴 THE LIVE ROSTER IS GREEN AND THAT IS EXACTLY WHY THE CONTROLS ARE HERE. 314
+    # merged the one collision this table has ever held, so a reader shipped without a
+    # positive control would be a reader nobody could tell from a reader that returns the
+    # empty list unconditionally — 245's `blind-py-gates`, one file over. Every arm below
+    # is driven in BOTH directions, and the first pair is the 314 finding rebuilt: two
+    # rows, one project, DIFFERENT slugs, so the slug reader is satisfied and this one is
+    # not.
+    _renamed = {"entries": [{"name": "Doyunha-Gopeak", "channel": "npm",
+                             "cadence": "weekly", "repo": "HaD0Yun/Doyunha-Gopeak",
+                             "forge_id": 1132073995}],
+                "surfaced": [{"key": "had0yun/gopeak-godot-mcp", "channels": ["npm"],
+                              "first_seen": 291, "repo": "had0yun/gopeak-godot-mcp",
+                              "forge_id": 1132073995}]}
+    claim("identity: the slug reader is SATISFIED by the 314 collision",
+          [m for m in roster_shape_problems(_renamed) if m.startswith("SURFACED_PROMOTED")],
+          [])
+    claim("identity: and the forge id reader is not",
+          len([m for m in identity_problems(_renamed)
+               if m.startswith("IDENTITY_COLLISION")]), 1)
+    claim("identity: a roster whose two populations share no forge id is silent",
+          identity_problems({"entries": [{"name": "x", "forge_id": 1}],
+                             "surfaced": [{"key": "c/d", "forge_id": 2}]}), [])
+    claim("identity: the same forge id twice in `entries` is refused",
+          len([m for m in identity_problems(
+              {"entries": [{"name": "x", "forge_id": 1}, {"name": "y", "forge_id": 1}],
+               "surfaced": []}) if m.startswith("IDENTITY_DUPLICATE")]), 1)
+    claim("identity: the same forge id twice in `surfaced` is refused too",
+          len([m for m in identity_problems(
+              {"entries": [], "surfaced": [{"key": "a", "forge_id": 1},
+                                           {"key": "b", "forge_id": 1}]})
+              if m.startswith("IDENTITY_DUPLICATE")]), 1)
+    # 🔴 AND A ROW WITH NO IDENTITY IS NOT A COLLISION. Thirty-one live rows carry no
+    # `forge_id`; a reader that folded them together under a shared `None` would refuse
+    # the roster it shipped against, which is the loudest way to be wrong.
+    claim("identity: rows with no forge id are not each other's duplicates",
+          identity_problems({"entries": [{"name": "x"}, {"name": "y"}],
+                             "surfaced": [{"key": "a"}, {"key": "b"}]}), [])
+    # 🔵 ARM THREE — the rename trail, which needs no `forge_id` and so reaches the third
+    # of the table arms one and two are blind to.
+    claim("identity: a surfaced row standing under an entry's `former_repo` is refused",
+          len([m for m in identity_problems(
+              {"entries": [{"name": "x", "repo": "o/new", "former_repo": "o/old"}],
+               "surfaced": [{"key": "o/old", "repo": "o/old"}]})
+              if m.startswith("IDENTITY_RENAMED")]), 1)
+    claim("identity: and it does not fire on the name the entry actually has",
+          [m for m in identity_problems(
+              {"entries": [{"name": "x", "repo": "o/new", "former_repo": "o/old"}],
+               "surfaced": [{"key": "o/other", "repo": "o/other"}]})
+           if m.startswith("IDENTITY_RENAMED")], [])
+    claim("identity: an entry declaring no `former_repo` builds no rename trail",
+          identity_problems({"entries": [{"name": "x", "repo": "o/new"}],
+                             "surfaced": [{"key": "o/new2", "repo": "o/new2"}]}), [])
+    # 🔴 THE COVERAGE PAIR IS ASSERTED, NOT JUST PRINTED — a census line that silently
+    # counted every row as identified would make `0 collision(s)` unfalsifiable.
+    claim("identity: coverage counts the rows that carry an id, not the rows",
+          identity_coverage({"entries": [{"name": "x", "forge_id": 1}, {"name": "y"}],
+                             "surfaced": [{"key": "a", "forge_id": 2}]}), (2, 3))
+    claim("identity: the live roster is identified on two thirds of its rows",
+          identity_coverage(load_roster())[0] < identity_coverage(load_roster())[1], True)
+
     claim("shape: every declared channel says whether a machine can enumerate it",
           sorted({type(c["enumerable"]) for c in CHANNELS.values()}), [bool])
     claim("shape: the non-enumerable channel carries the watch list it is made of",

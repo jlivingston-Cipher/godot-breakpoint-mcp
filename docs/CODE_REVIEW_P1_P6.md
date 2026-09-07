@@ -81,6 +81,25 @@ to a subdirectory, reporting a verdict about a tree* — at a **100% false-posit
 trains its readers to ignore it. The row `dead-code-reader-scoped-to-src` records the shape
 of the cure.
 
+> 🆕 **315 — READER A IS REPLACED, AND THE CURE PRODUCED A DISTINCTION THIS PASS DID NOT
+> DRAW.** `host/scripts/p0_deadexport.mjs` reads its population from `git ls-files` and asks
+> the TypeScript **parser** whether each exported name survives as an identifier anywhere
+> else in the tracked tree. Measured over the whole tree: **0 dead, 60 over-exported, 0
+> mentions**, and each of the six names above is correctly not reported dead.
+>
+> 🔵 **THE THREE TIERS ARE THE POINT.** A name used inside its own module and imported by
+> nothing is not dead code — the `export` keyword is the dead part — and this section's own
+> `PathRefusal` is the example: 314 bound it by making `refuse()` name the type, which made
+> it *over-exported*, not *live-because-imported*. Reporting those two findings as one is
+> how the old reader became unreadable.
+>
+> 🔴 **AND IT IS GATED, WHICH THIS SECTION SAID READER A COULD NOT BE.** `DEAD_CEILING 0`
+> holds a state the tree is already in; `OVEREXPORT_CEILING 60` holds the live value so the
+> sixty cannot grow while they are owed as work. The condition this paragraph set for
+> gating — *that the findings be true* — is the condition that was met. 🔵 It is also the
+> first answer §5.1's gap has had: P1 is now the only pass here whose scope cannot go stale
+> in silence, because a reader re-takes it on every push.
+
 🟢 **AND READER B IS NOW PERMANENT, FOR THE PRICE OF TWO LINES.** `noUnusedLocals` and
 `noUnusedParameters` are on in `tsconfig.json`, so `npm run build` and `npm test` both
 refuse an unused local from here on. 🔴 **Turning them on found four MORE, in the test tree

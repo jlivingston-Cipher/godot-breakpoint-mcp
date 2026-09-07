@@ -188,7 +188,16 @@ export const PRECONDITION_FLOOR = 40;   // measured 61 whose leaves are every on
 // reason and no other. 191 pinned 508 and went red at 509; 193 pinned 147 and went red at
 // 148; this is the same mechanism a third time, and a rule whose own arrival it can
 // measure is a rule that works.
-export const ORPHAN_CEILING = 26;       // measured 5062 sites - 5036 attributed, 2026-09-05.
+export const ORPHAN_CEILING = 27;       // measured 5103 sites - 5076 attributed, 2026-09-07.
+// 🆕 315 — 26 -> 27, RAISED DELIBERATELY AND WITH THE READING, which is the branch this
+// rule offers beside "give the new claim a unit". `p0_deadexport.selftest.mjs` arrived
+// with fifty-four claims and fifty-three of them attributed to a section banner; the
+// one that did not is inside a `for` loop whose label is a template literal, so the
+// finder counts the site and the resolver cannot name the unit it belongs to. 🔵 THE
+// ALTERNATIVE WAS WORSE: unrolling a loop that drives the same claim over six symbols
+// into six hand-written claims, to satisfy a counter, is the shape 314 §5.7 warns
+// about — rewriting code to satisfy a metric rather than reading what the metric
+// pointed at. One orphan, named here, against fifty-three attributed.
 // 🟢 308 MADE THE MOVE 307 PRICED, AND PAID THE ELEVEN PINS IT COSTS. 307 taught both
 // attribution readers to ask the AST instead of a regex over the source, the reading fell
 // from forty-four to twenty-six, and the ceiling was deliberately left where it was so
@@ -324,6 +333,7 @@ export const NO_CLAIMS_EXPECTED = {
   // run that introduced it — the clusterer was reading `assert.equal(…)` as subject
   // `equal`, so the key count this document published was wrong until the fixture said so.
   "p0_complexity.mjs": "the complexity reporter — it PRINTS cyclomatic/cognitive/nesting per function and asserts nothing itself; its 12 claims are in p0_complexity.selftest.mjs (241)",
+  "p0_deadexport.mjs": "the dead-export reader — it PRINTS three tiers (dead, over-exported, mentioned) as CANDIDATES and asserts nothing itself; its 54 claims, including a live pin naming the six symbols its predecessor got wrong, are in p0_deadexport.selftest.mjs (315)",
   "p0_testdup.mjs": "the test-duplication clusterer — it PRINTS (subject | oracle | shape) clusters as CANDIDATES and asserts nothing itself; its 14 claims, including a negative control on the `async` subject defect, are in p0_testdup.selftest.mjs (241)",
   // 🔴 209 — AND THIS ONE'S REASON HAS A CAVEAT THE OTHERS DO NOT, so it is written here
   // rather than borrowed from the line above. `wire_diff.mjs` is not purely a printer: it

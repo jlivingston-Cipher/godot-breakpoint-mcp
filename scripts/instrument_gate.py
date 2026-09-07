@@ -885,6 +885,49 @@ INSTRUMENTS = [
         },
     },
     {
+        # 🆕 315 §3 — `dead-code-reader-scoped-to-src` (314). The THIRD P0 reporter, and
+        # the first one built to REPLACE a reader rather than to add one: `ts-prune` was
+        # measured at 314 with six candidates and a 100% false-positive rate, because its
+        # world is `tsconfig.json`'s `"include": ["src/**/*.ts"]` and every candidate was
+        # referenced from a test, an instrument or a probe outside it.
+        #
+        # 🔴 THE TARGETS BELOW ARE CHOSEN FOR OPPOSITE COLLAPSES, WHICH IS WHY THERE ARE
+        # SIX. Blinding the export reader empties the POPULATION and the floor catches it;
+        # blinding the identifier reader makes every export look unreferenced and the
+        # DEAD CEILING catches it. A reporter whose two halves fail in the same direction
+        # would need only one target and would be a reporter with one real claim.
+        "name": "p0_deadexport.mjs",
+        "src": HOST / "scripts" / "p0_deadexport.mjs",
+        # 🔵 NO `--test-reporter=spec` HERE, AND THAT IS THE MARKER'S REASON. Its two
+        # siblings are `node:test` files whose verdict line is the reporter's `ℹ fail `;
+        # this self-test prints its own census line on BOTH paths, which is 197 §5's
+        # discriminator arrived at directly rather than through a reporter dialect.
+        "gate": ["node", "scripts/p0_deadexport.selftest.mjs"],
+        "cwd": HOST,
+        "floor": 3,
+        "why": "the P0 dead-export reader — the one P1 finding a session can act on without argument",
+        "targets": {
+            "{SIG:exportsOf}": "return new Set();",
+            "{SIG:identifierCounts}": "return new Map();",
+            "{SIG:identifiersOf}": "return new Set();",
+            "{SIG:exportClauseNames}": "return new Map();",
+            "{SIG:deadExports}": "return { dead: [], overExported: [], mentions: [] };",
+            # 🔴 THE TWO REFUSALS, AND THEY ARE TARGETS RATHER THAN `NOT_A_TARGET` ROWS
+            # for p0_testdup.mjs::floorProblems' reason: a refusal that cannot refuse is
+            # the failure this whole family is about, and it is invisible to every floor
+            # on the measures because it prints nothing when it is working.
+            "{SIG:floorProblems}": "return [];",
+            "{SIG:ceilingProblems}": "return [];",
+            # 🔵 THE TWO SMALL ONES ARE TARGETS AND NOT `NOT_A_TARGET` ROWS, because each
+            # takes the population under from a different side: an empty tree is the
+            # subject going to nothing, and an extension that matches nothing is the
+            # POPULATION going to nothing while the subject stands. Two collapses that a
+            # single floor could not tell apart, and both reddened by name.
+            "{SIG:tracked}": "return [];",
+            "{SIG:extOf}": 'return "";',
+        },
+    },
+    {
         # 🆕 244 §4 — the second half of the same row, and a different collapse. This
         # reporter's output is a CLUSTERING, so what fails is not an empty population but
         # a key that stops discriminating; its floors are on the PARTS of the key and on
@@ -1482,6 +1525,14 @@ INSTRUMENTS = [
             "{SIG:reader_source}": "return None",
             "{SIG:reader_corpus}": "return []",
             "{SIG:derive_subjects}": "return {}",
+            # 🆕 315 §4 — the per-INVOCATION derivation (281). Each blind takes the
+            # narrowing out from a different side: no dispatch found, no defs reached,
+            # and no narrowing at all. The last is the interesting one — it returns the
+            # WHOLE FILE, which is the pre-315 behaviour, so its blind reddens exactly
+            # the two rows the narrowing moved and nothing else.
+            "{SIG:dispatch_branches}": "return {}",
+            "{SIG:reachable_defs}": "return set()",
+            "{SIG:invocation_corpus}": 'return ("", False)',
             "{SIG:subject_coverage}": "return []",
             "{SIG:counter_subject_problems}": "return []",
             "{SIG:_stronger}": "return False",
@@ -2261,6 +2312,9 @@ LATE_LIVE = {
     # eleven lines further down ci.yml.
     "p0_complexity.mjs": (["node", "scripts/p0_complexity.mjs", "--floor"], None),
     "p0_testdup.mjs": (["node", "scripts/p0_testdup.mjs", "--floor"], None),
+    # 🆕 315 — the third reporter, same argument: `--floor` is the command that CAN
+    # refuse, and it carries this file's two ceilings as well as its three floors.
+    "p0_deadexport.mjs": (["node", "scripts/p0_deadexport.mjs", "--floor"], None),
     # 🆕 233 — THE THREE ROWS `LATE_LIVE_NA` WAS BUYING WITH A SENTENCE THE TREE
     # CONTRADICTED. 232 §5.6 decided the rule for `positive_control_gate.mjs`: an NA row
     # has to say "there is no second command that exercises this file", so a row is false
@@ -2364,6 +2418,10 @@ LATE_VERDICT_MARKER: dict[str, str] = {
     # that test exactly the way draft 2 of `positive_control_gate.mjs`'s did.
     "node scripts/p0_complexity.mjs --floor": "P0_COMPLEXITY_CENSUS ",
     "node scripts/p0_testdup.mjs --floor": "P0_TESTDUP_CENSUS ",
+    # 🆕 315 — `P0_DEADEXPORT_CENSUS` is `--floor`'s FIRST line, printed before the floor
+    # and the two ceiling branches, so it survives the red path — 233's rule, the census
+    # line and never the `ok` line.
+    "node scripts/p0_deadexport.mjs --floor": "P0_DEADEXPORT_CENSUS",
     # 🆕 245 §1 — the census line again, chosen by the same draft-3 rule and RUN rather
     # than read. `P0_COMMENTS_CENSUS` is printed after both extractors have finished and
     # before any verdict branch, so a blinded reader that dies never reaches it and a
@@ -2418,6 +2476,24 @@ LATE_DECLARED_GREEN = {
     # `LATE_DECLARED_GREEN` is ever consulted — so a row here would be a claim the harness
     # cannot test, sitting in the table that exists to hold claims it can. It reddens on
     # A:gate, where the blind is global, and that is where its coverage lives.
+    # ══ 🆕 315 §3 — ONE ROW, AND IT IS A FACT ABOUT THE SHIPPED SOURCE ═════════════════
+    #
+    # 🔴 `host/src` CONTAINS ZERO `export { … }` CLAUSES — measured, `grep -c '^export {'`
+    # across every subject file returns nothing. `exportClauseNames` exists to subtract the
+    # occurrences that are a declaration of VISIBILITY rather than a use of the thing, and
+    # on this tree there are none to subtract, so it returns an empty Map on every real
+    # call. The late blind's empty is therefore indistinguishable from its true answer, and
+    # `--floor` cannot redden. 🔵 IT IS NOT DEAD AND MUST NOT BE DELETED: without the
+    # subtraction, the first `export { x }` anybody writes reads as a use of `x` and its
+    # name silently leaves the over-export population. The self-test drives it on fixtures
+    # in both directions, and it reddens on `A:gate` where the blind is global.
+    ("p0_deadexport.mjs", "{SIG:exportClauseNames}", "B:live"):
+        "the shipped source holds no `export { … }` clause at all, so this member's true "
+        "answer on this tree is the empty its blind returns — a member the live axis "
+        "cannot distinguish because the TREE, not the reader, has nothing for it to say. "
+        "Caught on A:gate, where the blind is global. 🔴 THE DAY host/src GAINS ITS FIRST "
+        "EXPORT CLAUSE THIS ROW STOPS BEING TRUE, and `DECLARED GREEN and now REDDENS` is "
+        "what will say so.",
     ("release_names.py", "{SIG:_pack}", "B:live"):
         "a fixture builder run at IMPORT time, six times, into module-level tables that "
         "`--assert-addon` never reads. The late blind takes effect from call two, so every "
@@ -2918,6 +2994,7 @@ LATE_BLAST_FLOOR: dict[str, int] = {
     # numbers are these, and they are floored from BELOW with the usual headroom.
     "p0_complexity.mjs": 26,   # 244: measured 31 across its five blinds, 0 crashed
     "p0_testdup.mjs": 16,      # 244: measured 19 across its six blinds, 0 crashed
+    "p0_deadexport.mjs": 36,   # 315: measured 39 on the late axis
     "token-cost.mjs": 20,  # 212: 8 -> 20, measured 23
     # 🆕 231 — MEASURED AT 20 ON THIS AXIS AND FLOORED FROM BELOW, which is 198 §36's rule
     # and the reason the first draft of this row (40, guessed from the sibling above
@@ -2976,6 +3053,7 @@ LATE_LIVE_BLAST_FLOOR: dict[str, int] = {
     "_population.mjs": 32,        # 245: measured 40
     "p0_complexity.mjs": 12,      # 245: measured 15
     "p0_testdup.mjs": 11,         # 245: measured 14
+    "p0_deadexport.mjs": 4,       # 315: measured 5
     "_png.mjs": 7,                # 245: measured 9
     "_workspace.mjs": 5,          # 245: measured 7
     "p0_comments.py": 5,          # 245: measured 7
@@ -4407,6 +4485,11 @@ VERDICT_MARKER: dict[str, str] = {
     # then read it, in that order.
     "p0_complexity.mjs": "ℹ fail ",
     "p0_testdup.mjs": "ℹ fail ",
+    # 🆕 315 — THE COUNT LINE AND NOT THE `ok` LINE, which is `wire_diff.mjs`' rule two
+    # rows down: the marker's job is to say the run REACHED its verdict, and a failing
+    # run reaches it too. `P0_DEADEXPORT_SELFTEST 54/54 claims, 0 failed` and
+    # `… 53/54 claims, 1 failed` share this prefix; only a crash prints neither.
+    "p0_deadexport.mjs": "P0_DEADEXPORT_SELFTEST",
     # 🆕 209 — check 8's classifier. 🔴 THE PREFIX, NOT `WIRE_DIFF_SELFTEST ok`: the
     # marker's job is to say the run REACHED its own verdict, which a failing run does
     # too. Pinning the passing spelling would have classified every genuine catch as a
@@ -4982,6 +5065,13 @@ def blind(text: str, sig: str, empty: str, lang: str = "js") -> str | None:
 # arriving at the numbers it was written about. Raised with ~10% headroom, still from
 # BELOW, still per instrument and never summed (172 §6).
 BLAST_FLOOR: dict[str, int] = {
+    # 🆕 315 §3 — measured 45 across its nine blinds, 0 crashed, floored ~20% below. 🔴 THE
+    # FIRST SWEEP READ ZERO AND IT WAS THE MARKER, NOT THE GATE — its two siblings are
+    # `node:test` files whose verdict line is the spec reporter's `ℹ fail `, and this
+    # self-test prints its own, so every blind was filed a CRASH until `VERDICT_MARKER`
+    # learned the third dialect. Third instrument in a row to read zero on its first sweep
+    # for a reason that was never about its blinds (278's `E_FAIL`, 285's throw, this).
+    "p0_deadexport.mjs": 36,   # 315: measured 45 across its nine blinds, 0 crashed
     # 🆕 285 — measured 12 across its one blind, floored ~20% below. Same story as the
     # late row: zero on the first sweep because the self-test threw instead of reporting.
     "difference_field_gate.mjs": 9,   # 285: measured 12

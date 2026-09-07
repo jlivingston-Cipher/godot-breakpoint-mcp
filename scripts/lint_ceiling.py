@@ -130,7 +130,7 @@ PY_FILE_FLOOR = 18      # governed by floor_pin_gate's SIZE_LEDGER
 
 HOST = ROOT / "host"
 
-MJS_FILE_FLOOR = 68     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER; `270` added a probe.
+MJS_FILE_FLOOR = 70     # 🆕 242 — governed by floor_pin_gate's SIZE_LEDGER; `270` added a probe; `315` added the dead-export reader and its self-test.
                         # 🆕 285: 66 -> 68 — `difference_field_gate.mjs` and its `.selftest.mjs`.
                         # This is an EQUALITY, not a floor, and it is the sharpest reader in this
                         # file: two new tracked `.mjs` files made it disagree with the tree within
