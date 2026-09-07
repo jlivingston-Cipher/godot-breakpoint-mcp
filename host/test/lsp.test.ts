@@ -887,3 +887,40 @@ test("a file that EXISTS and is genuinely empty is still served — the guard is
   lsp.close();
   await srv.close();
 });
+
+test("314 — gd_rename applies a WorkspaceEdit sent as `documentChanges`, not only as `changes`", async () => {
+  // 🔴 314 P4 — THE MIRROR HAD DRIFTED, ON A DESTRUCTIVE TOOL, TOWARDS SILENT SUCCESS.
+  // `cs_rename` has called `normalizeWorkspaceEdit` since it was written and its comment
+  // says the helper takes either encoding; this plane read `edit.changes` alone, so a
+  // server answering in the versioned encoding produced `changed_files: []`,
+  // `edit_count: 0`, `applied: true`, `written: []` — a rename that reported success and
+  // renamed nothing. Measured over the eleven 150-token clone pairs at 314, this was the
+  // ONE difference between the two planes that was not a real difference between them.
+  const projectPath = tmpProject({ "player.gd": "var speed = 10\n" });
+  const { srv } = await startLsp({
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/rename") {
+        const uri = (msg.params as { textDocument: { uri: string } }).textDocument.uri;
+        writeFrame(s, {
+          jsonrpc: "2.0", id: msg.id,
+          result: {
+            documentChanges: [{
+              textDocument: { uri, version: 1 },
+              edits: [{ range: { start: { line: 0, character: 4 }, end: { line: 0, character: 9 } }, newText: "velocity" }],
+            }],
+          },
+        });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath, async () => ({ action: "accept", content: { proceed: true } }));
+  const res = (await rec.handler("gd_rename")({ path: "player.gd", line: 0, character: 4, new_name: "velocity", apply: true, confirm: true })) as ToolResultLike;
+  const sc = structured<{ applied: boolean; written: string[]; edit_count: number; changed_files: string[] }>(res);
+  assert.equal(sc.edit_count, 1, "the edit is counted from documentChanges");
+  assert.equal(sc.changed_files.length, 1);
+  assert.equal(sc.written.length, 1);
+  assert.equal(fs.readFileSync(path.join(projectPath, "player.gd"), "utf8"), "var velocity = 10\n",
+    "and the file on disk carries the rename — a green report over an unchanged file is the failure this drives");
+  lsp.close();
+  await srv.close();
+});

@@ -5,7 +5,7 @@ import type { Config } from "../config.js";
 import { LspClient } from "../lsp.js";
 import { toFileUri, toFsPath, readFileText, resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
-import { type Range, type Location, COMPLETION_KIND, SYMBOL_KIND, ok, fail, markupToString, isMethodNotFound, normalizeLocations, applyTextEdits, capList, COMPLETION_LIMIT } from "./lsp-common.js";
+import { type Range, type Location, COMPLETION_KIND, SYMBOL_KIND, ok, fail, markupToString, isMethodNotFound, normalizeLocations, applyTextEdits, normalizeWorkspaceEdit, capList, COMPLETION_LIMIT } from "./lsp-common.js";
 
 /**
  * The wording this plane's refusals have shipped with, kept verbatim while the guard
@@ -394,10 +394,22 @@ export function registerLspTools(server: McpServer, lsp: LspClient, cfg: Config)
           );
         }
         const uri = await openAndPos(path);
-        const edit = (await lsp.request("textDocument/rename", {
+        const edit = await lsp.request("textDocument/rename", {
           textDocument: { uri }, position: { line, character }, newName: new_name,
-        })) as { changes?: Record<string, Array<{ range: Range; newText: string }>> } | null;
-        const changes = edit?.changes ?? {};
+        });
+        // 🔴 314 P4 — READ BOTH ENCODINGS, WHICH THE SIBLING PLANE ALREADY DID.
+        // A `WorkspaceEdit` carries its edits as the legacy `changes` map OR as
+        // versioned `documentChanges`, and this plane read only the first: a server
+        // answering in the other encoding made `gd_rename` report `changed_files: []`,
+        // `edit_count: 0` and `applied: true` — a destructive tool reporting success for
+        // a rename it did not perform. `cs_rename` has called `normalizeWorkspaceEdit`
+        // since it was written, and its comment beside the call says the helper takes
+        // either encoding, so this is the ELEVEN-CLONE MIRROR having drifted rather than
+        // a case nobody had thought about. Measured at 314: this client advertises no
+        // `workspace.workspaceEdit.documentChanges`, so a conforming server should send
+        // `changes` and no live failure is claimed here — the defect is that the
+        // hardening existed on one plane only, on the plane that is not the primary one.
+        const changes = normalizeWorkspaceEdit(edit);
         const files = Object.keys(changes);
         let editCount = 0;
         for (const f of files) editCount += changes[f].length;

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { registerVcsTools, restoreOutcome, toRepoRootRel } from "../src/tools/vcs.js";
+import { parseStatusV2, registerVcsTools, restoreOutcome, toRepoRootRel, unquotePath } from "../src/tools/vcs.js";
 import type { Config } from "../src/config.js";
 import { structured } from "./helpers/structured.js";
 
@@ -708,4 +708,169 @@ test("295 — toRepoRootRel re-spells a CWD-relative escape against the reposito
   assert.equal(toRepoRootRel("", "player.gd"), "player.gd", "flat layout is the identity");
   assert.equal(toRepoRootRel("a/b/", "../../c/d.txt"), "c/d.txt");
   assert.equal(toRepoRootRel("game/", "./scripts/x.gd"), "game/scripts/x.gd");
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 314 P1 — THE SPELLING AXIS 295 DID NOT HAVE: WHAT GIT DOES TO A PATH IT CANNOT
+// PRINT PLAINLY.
+//
+// 295 fixed one disagreement about the name of a file (cwd-relative vs
+// repo-root-relative) and left a second one open in the same object.
+// `git status --porcelain=v2` C-QUOTES any path holding a byte it considers
+// unusual, which by default includes EVERY non-ASCII byte: `escena_ñ.tscn`
+// arrives as `"escena_\303\261.tscn"`. Measured on the shipped 1.85.0:
+//
+//   · `vcs_status` returned that string, quotes and octal escapes included, in a
+//     family whose every other input is a plain project-relative path;
+//   · `outside_project` came back EMPTY while `"../docs/café.md"` sat in
+//     `staged`, because the escape test reads `../` and the quote is in front of
+//     it — 295's finding, reopened for every project with an accented filename;
+//   · `vcs_restore` — a DESTRUCTIVE tool — returned `requested: ["escena_ñ.tscn"]`
+//     beside `restored: ["\"escena_\\303\\261.tscn\""]`: one file, two spellings,
+//     in one object, which is the sentence 295 wrote about itself.
+//
+// The cure is two halves and each has its own claim below: `core.quotePath=false`
+// on the invocation for the non-ASCII case, and `unquotePath` for the residue git
+// quotes whatever that setting says (a double quote, a backslash, a control
+// character). The fixtures name files a Spanish- or Japanese-speaking user would
+// have without thinking about it.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** A repo whose project sits in `game/`, holding names git cannot print plainly. */
+function mkrepo_unusual(): { root: string; project: string } {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "gcb-vcs-unusual-"));
+  g(root, "-c", "init.defaultBranch=main", "init", "-q");
+  g(root, "config", "user.email", "test@example.com");
+  g(root, "config", "user.name", "Test User");
+  g(root, "config", "commit.gpgsign", "false");
+
+  const project = path.join(root, "game");
+  fs.mkdirSync(project, { recursive: true });
+  fs.writeFileSync(path.join(project, "project.godot"), "config_version=5\n");
+  fs.writeFileSync(path.join(project, "escena_ñ.tscn"), "[gd_scene]\n");
+  fs.writeFileSync(path.join(project, "plain.tscn"), "[gd_scene]\n");
+  fs.mkdirSync(path.join(root, "docs"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs", "café.md"), "# outside\n");
+  g(root, "add", "-A");
+  g(root, "commit", "-q", "-m", "initial commit");
+
+  // one edit inside the project, one outside it — both on names git quotes
+  fs.appendFileSync(path.join(project, "escena_ñ.tscn"), "[node name=\"Root\"]\n");
+  fs.appendFileSync(path.join(root, "docs", "café.md"), "edited\n");
+  return { root, project };
+}
+
+test("314 — vcs_status returns the name on disk for a non-ASCII path, not git's quoted spelling", async () => {
+  const { root, project } = mkrepo_unusual();
+  try {
+    const sc = structured<{ unstaged: Array<{ path: string }>; outside_project: string[] }>(
+      await setup(project).vcs_status({}),
+    );
+    // The control that makes this able to fail: git DOES quote this name by default,
+    // so the fixture is one the old reader mangles rather than one it happens to pass.
+    const raw = execFileSync("git", ["-C", project, "status", "--porcelain=v2"], { encoding: "utf8" });
+    assert.ok(raw.includes('"escena_'), `fixture must be a name git quotes by default, got: ${raw}`);
+
+    assert.deepEqual(sc.unstaged.map((e) => e.path), ["escena_ñ.tscn"],
+      "the path a caller could pass back in, not a quoted, octal-escaped rendering of it");
+  } finally { cleanup(root); }
+});
+
+test("314 — a quoted path that LEAVES the project still lands in outside_project (295, on the axis it missed)", async () => {
+  const { root, project } = mkrepo_unusual();
+  try {
+    const sc = structured<{
+      staged: Array<{ path: string }>; unstaged: Array<{ path: string }>;
+      untracked: string[]; unmerged: string[]; outside_project: string[];
+    }>(await setup(project).vcs_status({}));
+
+    assert.deepEqual(sc.outside_project, ["docs/café.md"], "repo-root-relative, decoded, in its own field");
+    const projectPaths = [
+      ...sc.staged.map((e) => e.path), ...sc.unstaged.map((e) => e.path), ...sc.untracked, ...sc.unmerged,
+    ];
+    assert.ok(projectPaths.length > 0, "the project's own lists are not empty — or the next claim is vacuous");
+    assert.ok(projectPaths.every((p) => !p.startsWith("../") && !p.startsWith('"')),
+      `no project list may carry an escape or a quoted rendering, got ${JSON.stringify(projectPaths)}`);
+  } finally { cleanup(root); }
+});
+
+test("314 — vcs_restore's `requested` and `restored` are the same alphabet for a non-ASCII path", async () => {
+  const { root, project } = mkrepo_unusual();
+  try {
+    const h = setup(project, ACCEPT);
+    const res = structured<{ restored: string[]; requested: string[]; stranded: string[]; count: number }>(
+      await h.vcs_restore({ paths: ["escena_ñ.tscn"] }),
+    );
+    assert.deepEqual(res.requested, ["escena_ñ.tscn"]);
+    assert.deepEqual(res.restored, ["escena_ñ.tscn"],
+      "a destructive tool that discarded the work must say so in the caller's own spelling");
+    assert.equal(res.count, 1);
+    assert.deepEqual(res.stranded, []);
+    assert.ok(!fs.readFileSync(path.join(project, "escena_ñ.tscn"), "utf8").includes("[node"),
+      "and the discard actually happened — a green report over an unchanged file is the other failure");
+  } finally { cleanup(root); }
+});
+
+test("314 — unquotePath decodes exactly the forms git emits, and leaves everything else alone", () => {
+  // Untouched: the overwhelming majority of readings, and the two shapes that only
+  // LOOK quoted. A path git did not quote can never begin with a double quote,
+  // because a name containing one is always quoted.
+  assert.equal(unquotePath("plain.tscn"), "plain.tscn");
+  assert.equal(unquotePath("../docs/notes.md"), "../docs/notes.md");
+  assert.equal(unquotePath(""), "");
+  assert.equal(unquotePath('"'), '"', "one character cannot be a frame");
+  assert.equal(unquotePath('"unterminated'), '"unterminated');
+
+  // Octal escapes are BYTES, so a multi-byte character arrives as several of them.
+  assert.equal(unquotePath('"escena_\\303\\261.tscn"'), "escena_ñ.tscn");
+  assert.equal(unquotePath('"\\343\\202\\267\\343\\203\\274\\343\\203\\263.tscn"'), "シーン.tscn");
+  assert.equal(unquotePath('"../docs/caf\\303\\251.md"'), "../docs/café.md",
+    "and the escape survives decoding, which is what outside_project reads");
+
+  // The residue git quotes whatever `core.quotePath` says.
+  assert.equal(unquotePath('"we\\"ird.tscn"'), 'we"ird.tscn');
+  assert.equal(unquotePath('"back\\\\slash.tscn"'), "back\\slash.tscn");
+  assert.equal(unquotePath('"tab\\there.tscn"'), "tab\there.tscn");
+  assert.equal(unquotePath('"new\\nline.md"'), "new\nline.md");
+
+  // An escape git does not produce is kept as written rather than invented.
+  assert.equal(unquotePath('"od\\d.tscn"'), "od\\d.tscn");
+  assert.equal(unquotePath('"trailing\\"'), "trailing\\");
+});
+
+test("314 — parseStatusV2 decodes every record kind that carries a path", () => {
+  const lines = [
+    "# branch.oid abc123",
+    "# branch.head main",
+    // renamed: the quoted path, then a TAB, then the original — a name holding a TAB
+    // is quoted, so the TAB that separates the two fields is never ambiguous.
+    "2 R. N... 100644 100644 100644 aaa bbb R100 \"ren\\303\\251med.tscn\"\told.tscn",
+    "1 .M N... 100644 100644 100644 aaa bbb \"escena_\\303\\261.tscn\"",
+    "u UU N... 100644 100644 100644 100644 aaa bbb ccc \"conflicto_\\303\\261.tscn\"",
+    "? \"sin t\\303\\255tulo.tscn\"",
+  ].join("\n");
+  const s = parseStatusV2(lines);
+  assert.deepEqual(s.staged.map((e) => e.path), ["renémed.tscn"]);
+  assert.deepEqual(s.unstaged.map((e) => e.path), ["escena_ñ.tscn"]);
+  assert.deepEqual(s.unmerged, ["conflicto_ñ.tscn"]);
+  assert.deepEqual(s.untracked, ["sin título.tscn"]);
+  assert.equal(s.clean, false);
+});
+
+test("314 — and the PATCH TEXT names a non-ASCII file plainly, which no reader decodes", async () => {
+  // 🔴 THE HALF `unquotePath` CANNOT REACH, AND THE REASON `core.quotePath=false` IS ON
+  // THE INVOCATION. Every path this family RETURNS goes through a reader that could
+  // decode it; the patch body of `vcs_diff` and `vcs_show`, and blame's `filename`
+  // header, are free text a caller reads and nothing parses. Driven the other way while
+  // writing: without the setting the header reads `a/escena_\303\261.tscn` and this
+  // claim is the only one in the file that notices.
+  const { root, project } = mkrepo_unusual();
+  try {
+    const df = structured<{ files: string[]; patch: string }>(await setup(project).vcs_diff({}));
+    assert.deepEqual(df.files, ["escena_ñ.tscn"], "the file list is decoded");
+    assert.ok(df.patch.includes("a/escena_ñ.tscn"),
+      `the patch header carries the name on disk, got: ${df.patch.slice(0, 200)}`);
+    assert.ok(!df.patch.includes("\\303"),
+      `no octal escape survives into the text a caller reads, got: ${df.patch.slice(0, 200)}`);
+  } finally { cleanup(root); }
 });

@@ -78,8 +78,8 @@ function planeFor(root: string, runtimePort = 0) {
 
 /** The four escape spellings 162 §5 pinned, plus the two nothing-there cases. */
 const REFUSED: Array<[string, (root: string) => string, RegExp]> = [
-  ["res:// with ..", (r) => "res://../proj_evil/outside.tscn", /outside the Godot project root/],
-  ["bare relative ..", (r) => "../proj_evil/outside.tscn", /outside the Godot project root/],
+  ["res:// with ..", () => "res://../proj_evil/outside.tscn", /outside the Godot project root/],
+  ["bare relative ..", () => "../proj_evil/outside.tscn", /outside the Godot project root/],
   ["absolute prefix-sharing sibling", (r) => `${r}_evil/outside.tscn`, /outside the Godot project root/],
   ["absolute elsewhere", (r) => path.join(path.dirname(r), "elsewhere", "outside.tscn"), /outside the Godot project root/],
   ["missing inside the root", () => "res://NoSuchScene.tscn", /no such file/],

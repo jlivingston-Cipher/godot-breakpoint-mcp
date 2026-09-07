@@ -8,7 +8,6 @@ import {
   peerExitRemedy,
   readinessHint,
   readinessRemedy,
-  type ReadinessCause,
 } from "../src/exit-cause.js";
 import { PeerRegistry } from "../src/peers.js";
 import { BridgeError, remedyClause } from "../src/bridge.js";

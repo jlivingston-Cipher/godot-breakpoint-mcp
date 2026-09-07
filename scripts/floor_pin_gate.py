@@ -268,7 +268,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # evidence for the tier typed beside them; it was set to the number that were live
     # when the column landed, so it can only fall. Raising it is a session buying itself
     # room to keep typing an unchecked column, which is the defect the join closes.
-    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )1",                                 ["../scripts/queue_gate.py", "--selftest"]),
+    ("queue.UNDECLARED_CEILING", "../scripts/queue_gate.py",        r"(UNDECLARED_CEILING = )0",                                 ["../scripts/queue_gate.py", "--selftest"]),
     # 🆕 280 — THE FOURTH QUEUE ROW, AND IT IS A FLOOR UNDER A DERIVED BAR RATHER THAN
     # A CEILING OVER ANYTHING. `QUEUE_SCHEDULE_SET` takes its bar from the `closed`
     # column — the most `user` rows any one session has FINISHED — and a derived
@@ -846,13 +846,18 @@ TARGET_REASONS: dict[tuple[str, str], str] = {
         "counted rather than excused: the ceiling is fixed at the number of such "
         "rows that were live the session the column was added, so it can only ever "
         "fall as those rows close, never rise to admit a new row typed without its "
-        "paths. 🔴 IT HAS ALREADY MOVED TWICE, EACH TIME BY EXACTLY THE WIDTH OF "
+        "paths. 🔴 IT HAS MOVED FOUR TIMES, EACH TIME BY EXACTLY THE WIDTH OF "
         "THE ROWS THAT LEFT THE GRANDFATHERED POPULATION THAT SESSION — once when "
-        "five closed rows each declared the paths their work touched, and again by "
+        "five closed rows each declared the paths their work touched, again by "
         "one when the row that had sat undeclared since before `REACH_PATHS_SINCE` "
-        "finally closed. The back catalogue drains one row at a time and only ever "
-        "by somebody finishing one, which is the only legitimate way this ceiling "
-        "moves at all."),
+        "closed, again when it was taken to the live value, and finally to nothing "
+        "at all. 🟢 THE GRANDFATHERED POPULATION IS EMPTY NOW: the last live row "
+        "carrying no evidence for its own tier was the review charter, and closing "
+        "it made the declaration due. A ceiling of nothing is the end state this "
+        "number was written to reach, and from here every row in the table declares "
+        "what its work touches. The back catalogue drains one row at a time and only "
+        "ever by somebody finishing one, which is the only legitimate way this "
+        "ceiling moves at all."),
     ("../scripts/terminology_gate.py", "term.SUFFIX_FLOOR"): (
         "The minimum number of distinct suffixes the suffix census must find across "
         "the tracked-path walk before `suffix_problems` will trust it — `{FLOOR}` — "
@@ -3007,7 +3012,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "gate makes is satisfied by a table that stopped parsing: no OPEN row is over "
         "the ceiling when no row is read at all. `TERM_FLOOR`'s shape, on the file whose "
         "whole subject is work nobody is doing.")),
-    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (1, (
+    ("../scripts/queue_gate.py", "UNDECLARED_CEILING"): (0, (
         "🆕 `271`, lowered at `272`, `274` and `295` by the rows that closed with their paths declared — "
         "the live rows still allowed to type a `reach` with no `paths` under it, "
         "at `{FLOOR}`. Every row in the table carried an unchecked tier until this "
@@ -3026,7 +3031,14 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`paths` and about forty claims build on that table — `289` measured that price "
         "and reverted rather than guess it. `alpha` and `beta` declare paths now, "
         "substituted per tier so the evidence agrees with the typed cell in both the "
-        "`internal` and the `user` variant, and only then did the digit move.")),
+        "`internal` and the `user` variant, and only then did the digit move. "
+        "🟢 `314` TOOK IT TO NOTHING AND THE POPULATION IS NOW EMPTY: the review "
+        "charter had been the single remaining live row with no `paths`, for the "
+        "reason `289` named — its work touches the shipped server, so declaring "
+        "derives the `user` tier and a live `user` row freezes every `internal` "
+        "close in this table. Closing it is what let the declaration be made "
+        "safely, because a CLOSED `user` row is not a live one. The ceiling follows "
+        "its population down in the commit that emptied it.")),
     ("../scripts/queue_gate.py", "SCHEDULE_SET_FLOOR"): (2, (
         "🆕 280 — the smallest set of `user` rows a session may be handed, at `{FLOOR}`, "
         "under a bar that is otherwise DERIVED from the `closed` column: the most any "
