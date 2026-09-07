@@ -134,7 +134,7 @@ CLAIM_FLOOR = 15         # governed by floor_pin_gate's SIZE_LEDGER
 # 🆕 239 — 71 -> 75, the move the ledger row predicted: a session added a block.
 # 🆕 240 — 75 -> 76, the same move again: 239's block is the thirteenth.
 ALIAS_SPELLING_FLOOR = 76
-READER_FLOOR = 32        # governed by floor_pin_gate's SIZE_LEDGER
+READER_FLOOR = 33        # governed by floor_pin_gate's SIZE_LEDGER
 
 # ── THE EXTRACT BUDGET ────────────────────────────────────────────────────────────────
 #
@@ -423,6 +423,24 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      "roster entries inside the staleness window their own `cadence` declares, entries "
      "past it and owed a source-level pass, and entries with no readable `last_analysed` "
      "at all. `cadence 33 within / 5 past / 14 never analysed`."),
+
+    # 🆕 315 §2 — 🔴 THE FOURTH COUNTER OUT OF `--census`, AND THE ONE THAT REPORTS ITS
+    # OWN BLIND SPOT. `identity_problems` keys on `forge_id` because a slug is the
+    # project's to rename and a forge id is not — but only 69 of the roster's 100 rows
+    # carry one, so a bare `0 collision(s)` would be a claim taken over two thirds of a
+    # table while reading like a claim about the table. THE TRIPLE IS THE CLAIM: the
+    # covered fraction is what the first two arms can see and is the number a session can
+    # drive up; `renamed` is the population arm three reads and needs no id at all; and
+    # the collision count is only worth anything read beside them. A `0` whose coverage
+    # is falling is a roster going quiet, not a roster getting cleaner.
+    ("landscape.identity", r"\bidentity\b", 4,
+     ("python3", "../scripts/assetlib_sweep.py", "--census"), HOST,
+     r"^LANDSCAPE_IDENTITY (\d+) of (\d+) row\(s\) carry a forge id · (\d+) renamed · "
+     r"(\d+) collision",
+     CHEAP, SINCE(315),
+     "roster rows carrying a forge id, rows in total, entries recording a former name, "
+     "and pairs of rows naming one project. "
+     "`identity 69 of 100 · 1 renamed · 0 collisions`."),
 
     # ── the .mjs instruments ──────────────────────────────────────────────────────────
     ("taut.sites", r"\btaut\b", 1, ("node", "scripts/tautology_gate.mjs"), HOST,
@@ -871,7 +889,17 @@ SUBJECT_UNDERIVABLE: "dict[str, str]" = {
         "`\"git\", \"config\"`, `\"git\", \"remote\"`, `core.hooksPath` and `get-url` — "
         "the network and configuration path `--selftest` does not reach. The exemption "
         "is unchanged and its reason is stronger: the file still holds two subjects and "
-        "this row still runs the pure one. TRACKED, by the mode.",
+        "this row still runs the pure one. TRACKED, by the mode. 🆕 315 — AND THE REASON "
+        "IS TAKEN BY A READER NOW RATHER THAN TYPED BY A HAND. `invocation_corpus` "
+        "narrows this row's `--selftest` to 98.5% of the module and the answer stays "
+        "CLONE, which is 282's prediction measured: a self-test's call graph is the whole "
+        "module BY CONSTRUCTION, so the narrowing that fixes the general case cannot "
+        "separate THIS mode from the file it tests. 🔴 AND 282 GENERALISED FROM ONE "
+        "INSTANCE, WHICH 315 MEASURED AND CORRECTED: the same narrowing takes "
+        "`mutation_lock_gate.py --selftest` to 44% of its file and `tree_quiet.py "
+        "--selftest` to 36% of its own, and both dropped a class as a result. `SUBJECT_"
+        "SELFTEST_WIDENS` asserts this row's 98% by value, so the day this self-test "
+        "stops being the whole module the exemption is refused rather than believed.",
 }
 
 # Every reader key's SUBJECT, derived at 281 by `subject_of` over `reader_corpus` and
@@ -896,6 +924,7 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "landscape.roster":            TRACKED,
     "landscape.capability":        TRACKED,
     "landscape.cadence":           TRACKED,
+    "landscape.identity":          TRACKED,
     "taut.sites":                  TRACKED,
     "taut.duration":               TRACKED,
     "taut.orphan":                 TRACKED,
@@ -906,8 +935,8 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "wire_invisible.cases":        TRACKED,
     "lint.files":                  INDEX,
     "ci.checks":                   TRACKED,
-    "mutlock.guarded":             INDEX,
-    "tree_quiet.cases":            CLONE_CFG,
+    "mutlock.guarded":             TRACKED,   # 315 — by the INVOCATION (281)
+    "tree_quiet.cases":            TRACKED,   # 315 — by the INVOCATION (281)
     "release_names.rows":          TRACKED,
     "instrument.discover":         INDEX,
     "instrument.undeclared":       INDEX,
@@ -1036,6 +1065,164 @@ def reader_corpus(script: Path) -> "list[Path]":
     return out
 
 
+# ── 🆕 315 §4 — `subject-derivation-reads-a-file-not-an-invocation` (281) ────────────
+#
+# 🔴 THE ROW IS THIRTY-FOUR SESSIONS OLD AND ITS TITLE IS THE WHOLE DEFECT: `subject_of`
+# answers about a FILE, and a `COUNTER_READERS` row invokes a MODE. `mutation_lock_gate.py
+# --selftest` and `mutation_lock_gate.py` are one file and two different readers; the
+# derivation gave both the file's answer, which is the strongest signal anywhere in it.
+# A row whose mode never touches the index was therefore declared INDEX, and the
+# declaration was right for a reason nobody could re-take: a human had typed it.
+#
+# 🔵 282 PROTOTYPED THIS AND MEASURED IT, AND THE MEASUREMENT IS WHY IT IS BUILT THE WAY
+# IT IS. `main`'s dispatch is read for the flags the ROW's own argv carries, the top-level
+# defs reachable from those branches are closed over, and the corpus becomes those bodies
+# rather than the file. Measured then: `mutlock.guarded` INDEX -> TRACKED and
+# `tree_quiet.cases` CLONE -> TRACKED, both correctly, because neither mode reaches the
+# thing its file's other mode reaches.
+#
+# 🔴 AND IT DOES NOT FIX THE INSTANCE IN THE ROW'S OWN TITLE, WHICH 282 ALSO MEASURED AND
+# WHICH IS WHY THAT EXEMPTION STAYS. `handoff.claims` runs `--selftest`, and a self-test's
+# call graph is the whole module BY CONSTRUCTION — that is what a self-test is for. The
+# narrowing cannot separate `--selftest` from the file it tests, so `handoff.claims`
+# remains in `SUBJECT_UNDERIVABLE`. 🟢 WHAT CHANGES IS THAT THE EXEMPTION'S REASON IS NOW
+# TAKEN BY A READER RATHER THAN TYPED BY A HAND: `invocation_corpus` returns the whole
+# file for that invocation, and `SUBJECT_SELFTEST_WIDENS` below asserts it, so the day
+# that stops being true the exemption is refused rather than believed.
+#
+# 🔵 THE FALLBACK IS THE FILE, ALWAYS. An invocation whose flags the dispatch does not
+# name, a script with no `main`, a `.mjs` — every one of these falls back to
+# `reader_corpus`, which is the answer this table has had since 281. A narrowing that
+# cannot narrow must return the STRONGER answer, never a weaker one: understating a
+# subject is the one direction `SUBJECT_UNDERSTATED` cannot catch, because it is the
+# direction that agrees with the declaration.
+DISPATCH_RE = re.compile(r"""["'](--[a-z][\w-]*)["']""")
+
+
+def dispatch_branches(text: str) -> "dict[str, str]":
+    """{flag: the source of the branch that flag selects} inside `main` — PURE.
+
+    A branch is a line naming a `--flag` plus the block indented under it. This is a
+    TEXT reading of a dispatch and not a parse, and it is bounded on purpose: the
+    question is only *which defs does this flag reach*, and a flag whose branch cannot be
+    found falls back to the whole file one function up.
+    """
+    lines = text.split("\n")
+    start = next((i for i, ln in enumerate(lines)
+                  if re.match(r"^def main\b", ln) or re.match(r"^def _main\b", ln)), None)
+    if start is None:
+        return {}
+    out: "dict[str, str]" = {}
+    i = start + 1
+    while i < len(lines):
+        ln = lines[i]
+        if ln and not ln[0].isspace() and not ln.startswith(")"):
+            break                                   # left `main`
+        flags = DISPATCH_RE.findall(ln)
+        if flags and re.search(r"\b(if|elif)\b", ln):
+            indent = len(ln) - len(ln.lstrip())
+            body = [ln]
+            j = i + 1
+            while j < len(lines):
+                nxt = lines[j]
+                if nxt.strip() and (len(nxt) - len(nxt.lstrip())) <= indent:
+                    break
+                body.append(nxt)
+                j += 1
+            for f in flags:
+                out[f] = out.get(f, "") + "\n" + "\n".join(body)
+            i = j
+            continue
+        i += 1
+    return out
+
+
+def reachable_defs(text: str, seed: str, depth: int = 3) -> "set[str]":
+    """Top-level `def` names reachable from `seed`, closed over `depth` hops — PURE.
+
+    🔵 A DEPTH AND NOT A FIXPOINT, and the reason is `reader_corpus`' reason one file
+    over: a bounded walk that stops visibly beats an unbounded one that quietly includes
+    everything. Three hops reaches every dispatch in this tree; a fourth would start
+    pulling in the module's shared helpers, at which point the corpus is the file again
+    and the narrowing has silently stopped narrowing.
+    """
+    bodies: "dict[str, str]" = {}
+    lines = text.split("\n")
+    cur = None
+    for ln in lines:
+        m = re.match(r"^def ([A-Za-z_]\w*)", ln)
+        if m:
+            cur = m.group(1)
+            bodies[cur] = ""
+        elif cur is not None and ln and not ln[0].isspace() and not ln.startswith(")"):
+            cur = None
+        elif cur is not None:
+            bodies[cur] += "\n" + ln
+    names = set(bodies)
+    seen: "set[str]" = set()
+    frontier = {n for n in names if re.search(r"(?<![\w.])" + re.escape(n) + r"\s*\(", seed)}
+    for _ in range(depth):
+        new = set()
+        for n in sorted(frontier - seen):
+            seen.add(n)
+            body = bodies.get(n, "")
+            for cand in names:
+                if cand not in seen and re.search(
+                        r"(?<![\w.])" + re.escape(cand) + r"\s*\(", body):
+                    new.add(cand)
+        if not new:
+            break
+        frontier |= new
+    return seen
+
+
+def invocation_corpus(script: Path, cmd: "tuple[str, ...] | None") -> "tuple[str, bool]":
+    """(the source this INVOCATION reaches, whether it was narrowed) — the row's subject.
+
+    Falls back to the whole `reader_corpus` text whenever the narrowing cannot be taken,
+    and says which it did, because a caller that cannot tell a narrowed answer from a
+    whole-file one is back where 281 started.
+    """
+    try:
+        whole = "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                           for p in reader_corpus(script))
+    except OSError:
+        return ("", False)
+    if script.suffix != ".py":
+        return (whole, False)
+    flags = [a for a in (cmd or ()) if a.startswith("--")]
+    if not flags:
+        return (whole, False)
+    try:
+        text = script.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return (whole, False)
+    branches = dispatch_branches(text)
+    seeds = [branches[f] for f in flags if f in branches]
+    if not seeds:
+        return (whole, False)
+    seed = "\n".join(seeds)
+    reached = reachable_defs(text, seed)
+    if not reached:
+        return (whole, False)
+    lines = text.split("\n")
+    keep: "list[str]" = [seed]
+    cur = None
+    for ln in lines:
+        m = re.match(r"^def ([A-Za-z_]\w*)", ln)
+        if m:
+            cur = m.group(1)
+        elif cur is not None and ln and not ln[0].isspace() and not ln.startswith(")"):
+            cur = None
+        # 🔵 MODULE-LEVEL LINES ARE ALWAYS IN. A constant holding a command, a compiled
+        # regex, a table of paths — the invocation reaches all of them by importing the
+        # module, and a corpus of function bodies alone would call a reader pure because
+        # its `subprocess.run([...])` argument list is a module-level constant.
+        if cur is None or cur in reached:
+            keep.append(ln)
+    return ("\n".join(keep), True)
+
+
 def subject_coverage(declared: "dict[str, str]") -> "list[str]":
     """Every value in `SUBJECT_SIGNALS` that no row in `declared` carries.
 
@@ -1068,10 +1255,12 @@ def derive_subjects(rows: "list[tuple]", underivable: "dict[str, str]"
         script = reader_source(cmd, cwd)
         if script is None or not script.exists():
             continue
-        try:
-            text = "\n".join(p.read_text(encoding="utf-8", errors="replace")
-                             for p in reader_corpus(script))
-        except OSError:
+        # 🆕 315 — THE INVOCATION, NOT THE FILE (281). Falls back to `reader_corpus`
+        # whenever it cannot narrow, so this can only ever make an answer WEAKER on a
+        # row whose mode genuinely reaches less — never stronger, and never on a row
+        # this cannot read.
+        text, _narrowed = invocation_corpus(script, cmd)
+        if not text:
             continue
         out[key] = subject_of(text, script.suffix)
     return out
@@ -6640,6 +6829,19 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
+    # 🆕 315 — AND IT IS NOT EMPTY, FOR THE FOURTH `--census` COUNTER IN A ROW. The row
+    # below is the ninth one-session exemption this table has held, and it is filed the
+    # way the eight before it were: 315 ships `LANDSCAPE_IDENTITY` and the first block
+    # that can carry the spelling is 315's own, which 316 registers. 🔴 THE INSTRUCTION IS
+    # THE SAME ONE `landscape.cadence` AND `landscape.capability` CARRIED: 316 adds 315's
+    # block to `BLOCK_POPULATION`, the block prints `identity 69 of 100 · 1 renamed · 0
+    # collisions`, the key becomes reached, and `pending_problems` turns this row into
+    # `ALIAS_PENDING_STALE` on that same run — delete it because the gate says so, not
+    # because you remembered.
+    "landscape.identity":
+        "315 §2 ships the identity reader and this is the first session whose block can "
+        "spell the counter. 316 registers that block and this row goes STALE on the run "
+        "that does it.",
     # 🆕 299 — EMPTY AGAIN, AND `floor_pin.target_reason` EXPIRED ON THE SCHEDULE ITS OWN
     # ROW WROTE, TO THE RUN. 298 filed it saying *298 ships the reader; 299 adds 298's
     # block and this row goes STALE on that run*, and named the mechanism in its own
@@ -6767,6 +6969,13 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
      "OTHER TWO. Its alias is the word `cadence`, which neither `landscape 4 channel(s) "
      "…` nor `capability 43 claimed …` spells — three readers now share one command and "
      "the whole of what keeps them apart is that no one atom carries two of the aliases"),
+    ("identity 69 of 100 · 1 renamed · 0 collisions", "landscape.identity",
+     "🔴 THE FOURTH COUNTER OUT OF `--census`, AND THE FOURTH ALIAS THAT HAS TO MISS THE "
+     "OTHER THREE. Its alias is the word `identity`, which none of `landscape 4 "
+     "channel(s) …`, `capability 55 claimed …` or `cadence 28 within …` spells. 🔵 FOUR "
+     "READERS NOW SHARE ONE COMMAND and the whole of what keeps them apart is still that "
+     "no one atom carries two of the aliases — which is a property of the spellings and "
+     "not of the code, and therefore one this pin is the only thing holding"),
     ("duration 4 sites / 2 lower / 2 guarded", "taut.duration",
      "🔴 CARRIES THREE NUMBERS AND THE WORD `sites`, and must NOT reach `taut.sites`, "
      "whose alias is the word `taut` — the same collision `wire_diff_key` is pinned "
@@ -10111,6 +10320,124 @@ def selftest() -> int:
               "every reader in this tree spells one — the answer that returned TRACKED "
               "for thirteen of seventeen scripts")
 
+    # ── 🆕 315 §4 — THE INVOCATION, NOT THE FILE (281) ───────────────────────────────
+    #
+    # 🔴 EVERY ARM IS DRIVEN IN THE DIRECTION THAT WOULD HURT. A narrowing can only be
+    # wrong by UNDERSTATING — dropping the branch that reaches the index and calling a
+    # reader pure — and understating is the one direction `SUBJECT_UNDERSTATED` cannot
+    # catch, because it agrees with the declaration. So the fallbacks are claimed first.
+    claims += 1
+    _disp = ('def main():\n'
+             '    if "--selftest" in sys.argv:\n'
+             '        return selftest()\n'
+             '    if "--check" in sys.argv:\n'
+             '        return check()\n'
+             '    return report()\n')
+    if sorted(dispatch_branches(_disp)) != ["--check", "--selftest"]:
+        failed += 1
+        print(f"  🔴 dispatch_branches did not find both flags of a two-flag `main` — "
+              f"{sorted(dispatch_branches(_disp))}")
+    claims += 1
+    # 🔴 `.get`, NOT `[]`, AND THE BLIND HARNESS IS WHY. The first draft indexed the dict
+    # directly; `instrument_gate.py`'s `{SIG:dispatch_branches}` blind returns `{}`, so the
+    # claim raised a KeyError and the whole self-test was filed as CRASHED rather than as
+    # the catch it should have been. A claim that cannot survive its own subject returning
+    # empty is a claim the blind axis cannot grade — 197 §5, arriving inside a claim
+    # written to demonstrate 197 §5.
+    _sel = dispatch_branches(_disp).get("--selftest", "")
+    if "selftest()" not in _sel or "check()" in _sel:
+        failed += 1
+        print("  🔴 dispatch_branches gave a flag the OTHER flag's branch — a narrowing "
+              "that mixes branches is the whole file with extra steps")
+    claims += 1
+    _mod = ('def a():\n    return b()\n\ndef b():\n    return c()\n\n'
+            'def c():\n    return 1\n\ndef unrelated():\n    return 2\n')
+    if reachable_defs(_mod, "a()") != {"a", "b", "c"}:
+        failed += 1
+        print(f"  🔴 reachable_defs did not close over three hops — "
+              f"{sorted(reachable_defs(_mod, 'a()'))}")
+    claims += 1
+    if "unrelated" in reachable_defs(_mod, "a()"):
+        failed += 1
+        print("  🔴 reachable_defs reached a def nothing calls — a walk that reaches "
+              "everything has not narrowed anything")
+    claims += 1
+    if reachable_defs(_mod, "nothing_here()") != set():
+        failed += 1
+        print("  🔴 reachable_defs invented a reachable def from a seed calling none")
+
+    # 🔴 THE FOUR FALLBACKS, EACH OF WHICH MUST RETURN THE WHOLE FILE AND SAY SO. A
+    # narrowing that cannot narrow must return the STRONGER answer; a `False` that came
+    # back with a narrowed corpus would be understating in silence.
+    claims += 1
+    _mlock = ROOT / "scripts" / "mutation_lock_gate.py"
+    if _mlock.exists():
+        _cases = [(("python3", "scripts/mutation_lock_gate.py"), "no flag at all"),
+                  (("python3", "scripts/mutation_lock_gate.py", "--no-such-flag"),
+                   "a flag the dispatch does not name")]
+        for _cmd, _why in _cases:
+            _txt, _narrowed = invocation_corpus(_mlock, _cmd)
+            if _narrowed:
+                failed += 1
+                print(f"  🔴 invocation_corpus claimed to narrow on {_why} — the fallback "
+                      f"is the file, and a caller cannot tell a narrowed answer from a "
+                      f"whole-file one unless this flag is honest")
+    claims += 1
+    _mjs = HOST / "scripts" / "tautology_gate.mjs"
+    if _mjs.exists() and invocation_corpus(_mjs, ("node", "scripts/tautology_gate.mjs",
+                                                  "--selftest"))[1]:
+        failed += 1
+        print("  🔴 invocation_corpus narrowed a `.mjs` — the dispatch reader is Python's "
+              "and a narrowing taken with the wrong grammar is a guess")
+
+    # 🟢 AND THE TWO LIVE MOVES, ASSERTED BY VALUE. 282 measured both and neither shipped;
+    # 315 re-measured them AGAINST A DIRTY INDEX AND A DIRTY WORKTREE — both counters held
+    # (`mutlock` 23 cases, `tree_quiet` 13) — which is what turns a text reader's opinion
+    # into a provenance change. A fixture cannot make this claim: it is about two real
+    # self-tests that genuinely do not read what their files read.
+    claims += 1
+    for _k, _want in (("mutlock.guarded", TRACKED), ("tree_quiet.cases", TRACKED)):
+        if COUNTER_PROVENANCE.get(_k) != _want:
+            failed += 1
+            print(f"  🔴 SUBJECT_INVOCATION `{_k}` is declared "
+                  f"{COUNTER_PROVENANCE.get(_k)} and 315 measured its INVOCATION as "
+                  f"{_want} — the file's answer is the other mode's")
+    claims += 1
+    _derived = derive_subjects(COUNTER_READERS, SUBJECT_UNDERIVABLE)
+    for _k in ("mutlock.guarded", "tree_quiet.cases"):
+        if _derived.get(_k, (None,))[0] != TRACKED:
+            failed += 1
+            print(f"  🔴 SUBJECT_INVOCATION_LIVE `{_k}` derives "
+                  f"{_derived.get(_k)} over its own invocation — the narrowing that "
+                  f"moved this row has stopped narrowing and the row is now a guess")
+
+    # 🔴 `SUBJECT_SELFTEST_WIDENS` — THE PIN ON THE EXEMPTION'S REASON, AND THE HALF THAT
+    # STOPS 282's GENERALISATION FROM BEING BELIEVED FOREVER. 282 ruled that a self-test's
+    # call graph is the whole module by construction; that is true of THIS file's
+    # self-test, which drives every table in it, and 315 measured it FALSE of the other
+    # two — `mutation_lock_gate.py --selftest` narrows to 44% of its file and
+    # `tree_quiet.py --selftest` to 36%. So the rule is not about self-tests; it is about
+    # THIS self-test, and the claim below says which by measuring it.
+    claims += 1
+    _hg = ROOT / "scripts" / "handoff_gate.py"
+    _hg_txt, _hg_narrowed = invocation_corpus(
+        _hg, ("python3", "scripts/handoff_gate.py", "--selftest"))
+    _whole = "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                       for p in reader_corpus(_hg))
+    if not _hg_narrowed or not _whole or len(_hg_txt) < 0.9 * len(_whole):
+        failed += 1
+        print(f"  🔴 SUBJECT_SELFTEST_WIDENS this file's `--selftest` narrows to "
+              f"{len(_hg_txt)} of {len(_whole)} bytes. `handoff.claims` is exempt from "
+              f"derivation on the measured ground that its self-test reaches the whole "
+              f"module; the day that stops being true the exemption is a sentence "
+              f"nobody re-took and the row wants deriving instead")
+    claims += 1
+    if subject_of(_hg_txt, ".py")[0] != CLONE_CFG:
+        failed += 1
+        print(f"  🔴 SUBJECT_SELFTEST_CLASS this file's narrowed self-test derives "
+              f"{subject_of(_hg_txt, '.py')[0]}, and the exemption's reason says CLONE — "
+              f"289's measurement, which the exemption rests on")
+
     # 🔴 THE CORPUS IS THE SCRIPT PLUS ITS FIRST-PARTY IMPORTS, and `_gate_lock.py` is
     # why: six `floor_pin.*` counters and ten `instrument.*` reach `git status
     # --porcelain` only through it. A live pair, because a fixture cannot prove that the
@@ -12161,12 +12488,16 @@ def selftest() -> int:
     # no row and pulled it from the block instead of shipping it unread. So the counter is
     # not new, the ROW is — 298 is the first block that can carry it and the pin moves in
     # the commit that adds the row.
-    if len(since_rows) != 18:
+    # 🆕 315 — EIGHTEEN BECAME NINETEEN, and `landscape.identity` is 275's version of the
+    # reason rather than 287's: `--census` prints `LANDSCAPE_IDENTITY` for the first time
+    # in the commit that adds the row, so every one of the eighty-seven registered blocks
+    # predates the counter and a flat `REQUIRED` would refuse all of them.
+    if len(since_rows) != 19:
         failed += 1
-        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 18 — "
+        print(f"  🔴 SINCE_ROWS {len(since_rows)} row(s) carry a boundary, pinned 19 — "
               f"237 §3 measured six, 246 added four, 269 added one, 275 added one, 287 "
-              f"added two, 291 added one, 293 added one, 294 added one and 298 added one; "
-              f"the table is the only record of which")
+              f"added two, 291 added one, 293 added one, 294 added one, 298 added one and "
+              f"315 added one; the table is the only record of which")
     for key, nd in since_rows:
         claims += 1
         n = int(SINCE_RE.match(nd).group(1))

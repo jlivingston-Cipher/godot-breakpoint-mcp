@@ -192,7 +192,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
     # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
     # — at or under the live count, refusing one below, quiet one above.
-    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )68",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )70",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
@@ -213,7 +213,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # headline-only fixture (7) — so a floor RAISED out of range fails as loudly as one
     # zeroed. 184 §7: pinning the key is not pinning the value.
     ("handoff.CLAIM_FLOOR",     "../scripts/handoff_gate.py",       r"(CLAIM_FLOOR = )15",                                       ["../scripts/handoff_gate.py", "--selftest"]),
-    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )32",                                      ["../scripts/handoff_gate.py", "--selftest"]),
+    ("handoff.READER_FLOOR",    "../scripts/handoff_gate.py",       r"(READER_FLOOR = )33",                                      ["../scripts/handoff_gate.py", "--selftest"]),
     # 🆕 294 §2.2 — 🔴 A GRACE PERIOD IS A FLOOR AND THIS GATE FOUND IT BEFORE ANYBODY
     # DECLARED IT. `CADENCE_FLOOR` is the shortest staleness window any roster entry can
     # take, and it is what an `unknown` or unrecognised cadence falls to — so a quiet edit
@@ -236,6 +236,9 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # reason the row is about rather than for arithmetic.
     ("p0cx.FLOOR.functions",    f"{S}/p0_complexity.mjs",           r"(\n  functions: )900,",                                    [f"{S}/p0_complexity.selftest.mjs"]),
     ("p0td.FLOOR.tests",        f"{S}/p0_testdup.mjs",              r"(\n  tests: )600,",                                        [f"{S}/p0_testdup.selftest.mjs"]),
+    ("p0de.FLOOR.exports",      f"{S}/p0_deadexport.mjs",           r"(FLOOR = \{ files: 40, exports: )200,",                     [f"{S}/p0_deadexport.selftest.mjs"]),
+    ("p0de.DEAD_CEILING",       f"{S}/p0_deadexport.mjs",           r"(export const DEAD_CEILING = )0;",                          [f"{S}/p0_deadexport.selftest.mjs"]),
+    ("p0de.OVEREXPORT_CEILING", f"{S}/p0_deadexport.mjs",           r"(export const OVEREXPORT_CEILING = )60;",                   [f"{S}/p0_deadexport.selftest.mjs"]),
     ("p0cm.FLOOR.rows",         "../scripts/p0_comments.py",        r"(\n    \"rows\": )9000,",                                    ["../scripts/p0_comments.py", "--selftest"]),
     # 🆕 235 §3 — the HEADER half's parse, pinned the same way and for the same reason:
     # `counter_atoms` starts at `VERIFIED`, so the four labelled rows above it went
@@ -2034,6 +2037,39 @@ TARGET_REASONS: dict[tuple[str, str], str] = {
         "duplicate, which is the fix, and stay quiet on the parser that went silent, "
         "which is the defect. It moves only when the suite's own block count genuinely "
         "changes, and never down to accommodate a parser that has stopped matching."),
+    # ── 🆕 315 §3 — the third P0 reporter, and the first with CEILINGS as well ────
+    (f"{S}/p0_deadexport.mjs", "p0de.FLOOR.exports"): (
+        "How many exported names the dead-export reader must read out of the shipped "
+        "source before its own answer is believed — `{FLOOR}`. It is `p0td.FLOOR.tests`' "
+        "argument one reporter over and the argument is sharper here, because this "
+        "reporter's healthy answer is literally ZERO: a tree with no dead exports and a "
+        "reader that has stopped parsing TypeScript print the same line. 🔴 THE FLOOR IS "
+        "ON THE POPULATION AND THE CEILINGS ARE ON THE FINDING, which is the split the "
+        "row below makes possible — a floor under the population fires when the reader "
+        "goes blind, and a ceiling over the finding fires when the tree gets worse. "
+        "Neither can do the other's job. Moves when the shipped source genuinely gains "
+        "or loses a class of export, never down to accommodate a parser."),
+    (f"{S}/p0_deadexport.mjs", "p0de.DEAD_CEILING"): (
+        "How many exported names may appear nowhere in the tracked tree as code — "
+        "`{FLOOR}`, and it is a real zero rather than an aspiration: the tree measured "
+        "at zero on the session that shipped the reader, so this holds a state already "
+        "reached rather than promising one. 🔴 IT IS THE ONE NUMBER IN THIS FILE WHOSE "
+        "PREDECESSOR WAS RETIRED FOR BEING WRONG. `ts-prune` reported six candidates at "
+        "the session before this one and all six were live, referenced from tests and "
+        "instruments outside the "
+        "one `tsconfig` it reads; a gate over that reader would have refused every push "
+        "for a year and taught everybody to skip it. This one is gated BECAUSE its "
+        "findings are true. Moves only if a session decides a genuinely unreachable "
+        "export should be allowed to stand, which is a decision and wants an argument."),
+    (f"{S}/p0_deadexport.mjs", "p0de.OVEREXPORT_CEILING"): (
+        "How many exported names may be imported by nothing while still being used "
+        "inside their own module — `{FLOOR}`, the live reading on the session that "
+        "measured it. 🔵 THE `export` KEYWORD IS THE DEAD PART, NOT THE CODE, so this is "
+        "a different piece of work from the row above and gets a different number: "
+        "ceilinged at what the tree holds so it cannot grow quietly, and NOT driven to "
+        "zero in the session that built the reader — 313's ruling on a long-carried "
+        "ungoverned count, governance now with open-ended cleanup not bundled in. Moves "
+        "DOWN as the sixty are worked, and up only with a reason."),
     ("../scripts/p0_comments.py", "p0cm.FLOOR.rows"): (
         "How many comment rows the P0 comment inventory must produce before the "
         "inventory is treated as a reading rather than an absence — `{FLOOR}`. It is "
@@ -2928,12 +2964,12 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "when the block's counter line gains or loses a whole class of field — which is a "
         "session ADDING an instrument, and the ledger row saying so in the same commit is "
         "what tells that from a parser that quietly stopped matching.")),
-    ("../scripts/handoff_gate.py", "READER_FLOOR"): (32, (
+    ("../scripts/handoff_gate.py", "READER_FLOOR"): (33, (
         "🆕 234 — the counter readers, at `{FLOOR}`. The lower bound is the roster with "
         "its largest single-instrument family deleted (six rows read floor_pin_gate.py), "
         "because a roster that lost a family would still look populated and the "
         "DROPPED-COUNTER direction would silently stop being enforced. Moves when an "
-        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one. 🆕 246 §4 raised it by four, for the three counters `instrument_gate.py` has printed on every run since the session before and no row here bound, plus the queue gate's own self-test count — the same class this floor governs, arriving from the instrument's side rather than the block's. 🆕 291 — raised it by one, for `landscape.roster`: the landscape roster's two populations, an instrument arriving from the BLOCK's side rather than the instrument's. The counter did not exist until the commit that added the row, so the bound had to move with it or the roster would sit at its own floor. 🆕 293 — raised by one again and for the same reason one session later, for `landscape.capability`: `assetlib_sweep.py --census` gained a second counter line and the roster gained the row that reads it in the same commit, so the bound moves with it. 🆕 294 — raised by one a THIRD consecutive time, for `landscape.cadence`: `--census` gained a third counter line, `cadence`, in the commit that made the roster's oldest declared-and-unread column price staleness. 🔴 THREE CONSECUTIVE SESSIONS RAISING THIS BY ONE IS THE PATTERN THE ROW EXISTS TO MAKE VISIBLE — an instrument arriving from the block's side is still an instrument arriving, and a floor that tracked the roster automatically would have said nothing any of the three times. 🔵 All three came out of ONE command (`assetlib_sweep.py --census`), which is worth noticing: a floor counting READERS cannot see that a family is growing inside a single instrument, and `BIND_PINS` is the only thing keeping their aliases apart. \U0001F195 298 — raised by one a FOURTH consecutive time, for `floor_pin.target_reason`, and this one arrives from the INSTRUMENT's side: `floor_pin_gate.py` gained `FLOOR_PIN_TARGET_REASON` at 297 \u00a72.2 and the roster gained the row that reads it here. \U0001F534 THE BOUND MOVED EVEN THOUGH THE FAMILY THIS ROW JOINED DID NOT, and that is the floor working as written: the lower bound is the roster minus its LARGEST family, which is the rows reading `instrument_gate.py` and not the ones reading `floor_pin_gate.py`, so a row added to any smaller family costs the same move as a row added to none. \U0001F535 The only addition this floor would say nothing about is one to the largest family itself \u2014 worth knowing before trusting a green here.")),
+        "instrument is added to the block or retired from it. 🔴 RAISED ONCE ALREADY, ON THE SESSION THAT SET IT: the roster was complete for the block in front of it and blind to four instruments the six blocks before it had reported, which is the ledger row doing the job 196 §2 named — telling a deliberate move from a quiet one. 🆕 246 §4 raised it by four, for the three counters `instrument_gate.py` has printed on every run since the session before and no row here bound, plus the queue gate's own self-test count — the same class this floor governs, arriving from the instrument's side rather than the block's. 🆕 291 — raised it by one, for `landscape.roster`: the landscape roster's two populations, an instrument arriving from the BLOCK's side rather than the instrument's. The counter did not exist until the commit that added the row, so the bound had to move with it or the roster would sit at its own floor. 🆕 293 — raised by one again and for the same reason one session later, for `landscape.capability`: `assetlib_sweep.py --census` gained a second counter line and the roster gained the row that reads it in the same commit, so the bound moves with it. 🆕 294 — raised by one a THIRD consecutive time, for `landscape.cadence`: `--census` gained a third counter line, `cadence`, in the commit that made the roster's oldest declared-and-unread column price staleness. 🔴 THREE CONSECUTIVE SESSIONS RAISING THIS BY ONE IS THE PATTERN THE ROW EXISTS TO MAKE VISIBLE — an instrument arriving from the block's side is still an instrument arriving, and a floor that tracked the roster automatically would have said nothing any of the three times. 🔵 All three came out of ONE command (`assetlib_sweep.py --census`), which is worth noticing: a floor counting READERS cannot see that a family is growing inside a single instrument, and `BIND_PINS` is the only thing keeping their aliases apart. \U0001F195 298 — raised by one a FOURTH consecutive time, for `floor_pin.target_reason`, and this one arrives from the INSTRUMENT's side: `floor_pin_gate.py` gained `FLOOR_PIN_TARGET_REASON` at 297 \u00a72.2 and the roster gained the row that reads it here. \U0001F534 THE BOUND MOVED EVEN THOUGH THE FAMILY THIS ROW JOINED DID NOT, and that is the floor working as written: the lower bound is the roster minus its LARGEST family, which is the rows reading `instrument_gate.py` and not the ones reading `floor_pin_gate.py`, so a row added to any smaller family costs the same move as a row added to none. \U0001F535 The only addition this floor would say nothing about is one to the largest family itself \u2014 worth knowing before trusting a green here. \U0001F195 315 \u2014 raised by one a FIFTH time, for `landscape.identity`, and it is the FOURTH row out of `assetlib_sweep.py --census`. \U0001F534 THAT COMMAND IS NOW THE LARGEST-BUT-ONE FAMILY ON THE ROSTER AND THE COMMENT ABOVE IS THE REASON TO CARE: a floor counting READERS still cannot see a family growing inside one instrument, and four of these rows would be lost together if that one command stopped printing. The lower bound is the roster minus the rows reading `instrument_gate.py`; the day `--census` overtakes it, this floor starts saying something weaker than it reads. \U0001F535 Recorded here rather than acted on \u2014 the bound is still correct, and a floor rewritten on a trend it has not yet crossed is a floor moved for a reason nobody measured.")),
     ("../scripts/assetlib_sweep.py", "CADENCE_FLOOR"): (7, (
         "🆕 294 §2.2 — the shortest staleness window any roster entry can take, at "
         "`{FLOOR}` days. It is the value an `unknown` cadence and any unrecognised "
@@ -3082,7 +3118,16 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`git ls-files` failing to answer — which yields an empty population, no "
         "findings, and a green run that opened no files. Same argument as "
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
-    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (68, (
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (70, (
+        "🆕 `315` RAISED IT BY TWO, FOR THE SAME PREDICTED REASON ONE FAMILY OVER: the "
+        "dead-export reader and its self-test are two new tracked `.mjs`, and because "
+        "this is an EQUALITY the session that added them had to say so here. 🔵 IT IS THE "
+        "ONE PIN IN THIS FILE THAT THE SESSION WHICH TRIPPED IT SPENT AN HOUR "
+        "MISDIAGNOSING, and the cause is worth writing down: the runner is "
+        "`lint_ceiling.py --selftest`, and running the BARE command instead — which is "
+        "what a hand reaches for — passes, because the equality lives in the self-test "
+        "and not in the report. A control failing on a flag nobody re-read is 279 §9 with "
+        "the argv as the exemption. "
         "🆕 `270` RAISED IT BY ONE, FOR THE REASON THE ROW ITSELF PREDICTED: this "
         "population grows whenever a plane gains a probe, and issue #327's fix added "
         "`set-property-verify.integration.mjs` to prove a live engine's coercions. "

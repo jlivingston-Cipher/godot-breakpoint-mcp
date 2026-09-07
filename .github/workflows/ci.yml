@@ -560,6 +560,14 @@ jobs:
         run: node scripts/p0_complexity.selftest.mjs
       - name: The P0 reporters still measure what they claim (test duplication)
         run: node scripts/p0_testdup.selftest.mjs
+      # 🆕 315 §3 — THE THIRD REPORTER, AND THE FIRST ONE THAT REPLACES A READER RATHER
+      # THAN ADDING ONE. `ts-prune` was measured at 314 reporting six candidates, all six
+      # false, because its world is one `tsconfig`'s `include`. This one reads the tracked
+      # tree and separates DEAD from merely OVER-EXPORTED, which is the distinction that
+      # makes the finding actionable. Its self-test asserts by name that the six ts-prune
+      # got wrong are not reported dead here — the claim, not just the code.
+      - name: The P0 reporters still measure what they claim (dead exports)
+        run: node scripts/p0_deadexport.selftest.mjs
       # 🆕 244 §4 — AND THE OTHER HALF OF `p0-reporters-unblinded` (241): the command that
       # can REFUSE. A reporter that prints exits 0 whatever it measured, which is why
       # 241 could not give either file a `LATE_LIVE` row and put both in
@@ -573,6 +581,13 @@ jobs:
         run: node scripts/p0_complexity.mjs --floor
       - name: The P0 reporters can still refuse (test duplication floor)
         run: node scripts/p0_testdup.mjs --floor
+      # 🔴 AND THIS ONE'S `--floor` CARRIES A CEILING AS WELL AS A FLOOR, which is what
+      # makes it the first P0 reporter that is also a GATE. `DEAD_CEILING` is zero and the
+      # tree is at zero: add an export nothing uses and this step goes red on the push
+      # that adds it. The over-export ceiling is the live 60, held so it cannot grow
+      # quietly while the sixty are still owed as work.
+      - name: The P0 reporters can still refuse (dead export floor and ceilings)
+        run: node scripts/p0_deadexport.mjs --floor
       # 🆕 247 §4 — `p0-default-path-unrun` (245), the other two thirds. Same argument as
       # the `p0_comments.py` step in the contract-check job: every command either reporter
       # has ever been run by carries a flag, and the default branch — the report a human
@@ -581,6 +596,8 @@ jobs:
         run: node scripts/p0_complexity.mjs
       - name: The P0 reporters still print their reports (test duplication default path)
         run: node scripts/p0_testdup.mjs
+      - name: The P0 reporters still print their reports (dead export default path)
+        run: node scripts/p0_deadexport.mjs
       - name: The population instrument, self-checked
         run: node test-integration/_population.selftest.mjs
       # 🔴 AND THE LEDGER COMPARISON, WHICH UNTIL 173 HAD NO GATE ANYWHERE. The four
