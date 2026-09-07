@@ -4,7 +4,7 @@ import type { Config } from "../config.js";
 import { CsDapClient } from "../csdap.js";
 import { DapError, DAP_TIMEOUT_CODE, unorderedHandshakeWarning } from "../dap.js";
 import { remedyClause } from "../bridge.js";
-import { toFsPath, resolveSourceFile, type PlaneWording } from "../paths.js";
+import { resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 import { portFree, portConflictMessage } from "../ports.js";

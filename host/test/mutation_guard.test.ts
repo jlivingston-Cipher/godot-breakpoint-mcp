@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildToolsets } from "../src/toolsets.js";
 import { applyOutputSchemas } from "../src/schemas.js";
 import { applyAnnotations, annotationsFor, ANNOTATED_TOOLS } from "../src/annotations.js";
-import { applyDestructiveGate, applyPauseLatch, declaresConfirm } from "../src/mutation-guard.js";
+import { applyDestructiveGate, applyPauseLatch, declaresConfirm, gateTargets } from "../src/mutation-guard.js";
 import { PauseLatch } from "../src/pause.js";
 import { loadConfig } from "../src/config.js";
 import fs from "node:fs";
@@ -246,10 +246,12 @@ test("EVERY destructive tool on the registered surface accepts `confirm`", () =>
   // `tilemap_clear`'s input properties were `['path']`, with no `confirm` for a
   // caller to pass.
   const { calls } = registerGuarded();
-  const missing = calls
-    .filter((c) => annotationsFor(c.name).destructiveHint && !declaresConfirm(c.config))
-    .map((c) => c.name)
-    .sort();
+  // 🔴 314 P1 — THIS READING IS `gateTargets`, AND IT USED TO BE A SECOND COPY OF IT.
+  // The export exists with a comment saying it is *"exported so a test can take the
+  // reading over the REAL registry rather than over a list somebody typed"*, and no test
+  // ever called it: this one hand-rolled the same filter, so the gating rule shipped in
+  // two places and only one of them was the one the product uses.
+  const missing = gateTargets(calls);
   assert.ok(calls.length > 250, `the walk reached ${calls.length} registration(s)`);
   assert.deepEqual(missing, [], `destructive tool(s) with no \`confirm\` parameter: ${missing.join(", ")}`);
   // POSITIVE CONTROL — `declaresConfirm` is what the emptiness above rests on, so it is

@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import net from "node:net";
 import { LspClient } from "../src/lsp.js";
 import { CsLspClient } from "../src/cslsp.js";
 import { DapClient } from "../src/dap.js";

@@ -49,7 +49,14 @@ export interface PathRefusal extends Error {
 }
 
 function refuse(code: string, message: string): never {
-  throw Object.assign(new Error(message), { refusal: true as const, code });
+  // 🔴 314 P1 — THE TYPE IS NAMED HERE SO THE COMPILER CHECKS THE SHAPE. `PathRefusal`
+  // described this object for the whole life of the file and no expression ever had it,
+  // so a constructor that dropped `code` or spelled `refusal` differently would have
+  // compiled — and three call sites read `e?.refusal` off it. Binding the annotation is
+  // the cheapest form of the fix: nothing changes at runtime and the declaration stops
+  // being prose.
+  const refusal: PathRefusal = Object.assign(new Error(message), { refusal: true as const, code });
+  throw refusal;
 }
 
 /**

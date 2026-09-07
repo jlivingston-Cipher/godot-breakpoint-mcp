@@ -31,10 +31,30 @@ interface GitResult {
   missing: boolean;
 }
 
-/** Run git with an explicit argv rooted at the project path. Never throws. */
+/**
+ * Run git with an explicit argv rooted at the project path. Never throws.
+ *
+ * 🔴 314 P1 — `core.quotePath=false` IS PART OF THE INVOCATION, NOT OF ANY ONE TOOL.
+ * With git's default every porcelain reader in this file receives a path holding a
+ * single non-ASCII byte as `"escena_\303\261.tscn"` — quotes, backslashes and octal
+ * escapes, in a spelling no other tool in this family accepts. It is set HERE rather
+ * than at the three reading sites because quoting is a property of how git was ASKED, a
+ * future call site cannot forget it, and no reader in this file wants the quoted form.
+ * 🔵 It is only HALF the cure: git still C-quotes a path containing a double quote, a
+ * backslash or a control character whatever this setting says, and that residue is
+ * `unquotePath`'s half.
+ *
+ * 🔴 AND `-z` IS NOT THE CURE, WHICH IS THE PART THAT LOOKS WRONG. It removes quoting
+ * outright — but it also makes git print paths relative to the REPOSITORY ROOT and
+ * ignore `status.relativePaths` while doing it, measured on git 2.43. That would take
+ * `outside_project` apart in silence: the `../` spelling 295 detects an escape BY would
+ * stop existing. The framing option that fixes the encoding changes the meaning of the
+ * field, so the encoding is fixed on its own.
+ */
 async function git(cfg: Config, args: string[], timeoutMs = GIT_TIMEOUT_MS): Promise<GitResult> {
   try {
-    const { stdout, stderr } = await execFileAsync("git", ["-C", cfg.projectPath, ...args], {
+    const { stdout, stderr } = await execFileAsync(
+      "git", ["-C", cfg.projectPath, "-c", "core.quotePath=false", ...args], {
       timeout: timeoutMs,
       maxBuffer: MAX_BUFFER,
       windowsHide: true,
@@ -80,7 +100,56 @@ function gitFail(r: GitResult) {
  * point (D5, 155 §2; the same family as #181, #183 and #188).
  */
 function nameOnly(stdout: string): string[] {
-  return stdout.split("\n").map((s) => s.trim()).filter(Boolean);
+  return stdout.split("\n").map((s) => unquotePath(s.trim())).filter(Boolean);
+}
+
+/**
+ * A path exactly as git PRINTED it, decoded back into the name on disk.
+ *
+ * 🔴 314 P1 — MEASURED, NOT ARGUED: git C-quotes a path holding a double quote, a
+ * backslash or a control character no matter what `core.quotePath` says, so
+ * `we"ird.tscn` arrives as `"we\"ird.tscn"` and `tab\there.tscn` as `"tab\there.tscn"`.
+ * A reader that hands those on returns a name no caller of this family can pass back in.
+ *
+ * 🔵 THE TEST IS SAFE BECAUSE OF WHY GIT QUOTES. A path containing a double quote is
+ * always quoted, so an UNQUOTED reading can never begin with one — the leading `"` is
+ * therefore a frame and never a character of the name. That is also why line framing
+ * survives: a path containing a newline is quoted, and the newline inside it is written
+ * `\n` rather than left raw.
+ *
+ * Pure, and a no-op on the overwhelming majority of readings, so it is applied at every
+ * site that reads a path out of git rather than guarded by a caller's guess.
+ */
+export function unquotePath(raw: string): string {
+  if (raw.length < 2 || !raw.startsWith('"') || !raw.endsWith('"')) return raw;
+  const body = raw.slice(1, -1);
+  const enc = new TextEncoder();
+  const bytes: number[] = [];
+  const SIMPLE: Record<string, number> = {
+    a: 0x07, b: 0x08, t: 0x09, n: 0x0a, v: 0x0b, f: 0x0c, r: 0x0d, '"': 0x22, "\\": 0x5c,
+  };
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c !== "\\") {
+      const hi = body.charCodeAt(i);
+      // A non-BMP character is two code units; git never emits one unescaped inside a
+      // quoted path, but splitting one would produce U+FFFD, so it is kept together.
+      const take = hi >= 0xd800 && hi <= 0xdbff && i + 1 < body.length ? body.slice(i, (i += 1) + 1) : c;
+      for (const b of enc.encode(take)) bytes.push(b);
+      continue;
+    }
+    const n = body[i + 1];
+    if (n === undefined) { bytes.push(0x5c); break; }
+    i += 1;
+    if (n in SIMPLE) { bytes.push(SIMPLE[n]); continue; }
+    const oct = /^[0-7]{1,3}/.exec(body.slice(i));
+    if (oct) { bytes.push(parseInt(oct[0], 8) & 0xff); i += oct[0].length - 1; continue; }
+    // An escape git does not produce: keep both characters as written rather than
+    // inventing a decoding for it.
+    bytes.push(0x5c);
+    for (const b of enc.encode(n)) bytes.push(b);
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
 }
 
 /**
@@ -246,17 +315,17 @@ export function parseStatusV2(stdout: string): ParsedStatus {
     } else if (line.startsWith("1 ") || line.startsWith("2 ")) {
       const parts = line.split(" ");
       const xy = parts[1];
-      const rest = line.startsWith("2 ")
+      const rest = unquotePath(line.startsWith("2 ")
         ? parts.slice(9).join(" ").split("\t")[0] // renamed: path before the \t<orig>
-        : parts.slice(8).join(" ");
+        : parts.slice(8).join(" "));
       const x = xy[0], y = xy[1];
       if (x !== ".") s.staged.push({ path: rest, status: x });
       if (y !== ".") s.unstaged.push({ path: rest, status: y });
     } else if (line.startsWith("u ")) {
       const parts = line.split(" ");
-      s.unmerged.push(parts.slice(10).join(" "));
+      s.unmerged.push(unquotePath(parts.slice(10).join(" ")));
     } else if (line.startsWith("? ")) {
-      s.untracked.push(line.slice(2));
+      s.untracked.push(unquotePath(line.slice(2)));
     }
   }
   // \U0001f534 A PATH THAT LEAVES THE PROJECT IS NOT ONE OF THE PROJECT'S. `--porcelain=v2`

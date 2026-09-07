@@ -148,6 +148,8 @@ REACH_PATHS: "tuple[tuple[str, str, str], ...]" = (
     ("host/package-lock.json", "internal", "resolution detail no installer of the "
                                            "published package ever reads"),
     ("host/scripts/",       "internal", "build and gate tooling, not shipped"),
+    ("host/tsconfig",      "internal", "the compiler settings the shipped output is built "
+                                       "WITH — a user reads `dist/`, never this"),
     ("host/test",           "internal", "tests and their fixtures, both trees"),
     ("addons/",             "user",     "the addon a user copies into their project"),
     ("example",             "internal", "fixture projects the gates drive"),
@@ -184,7 +186,7 @@ REACH_PATHS_SINCE = 271
 # thirty-two sessions; closing it at 274 makes it `due` under `REACH_PATHS_SINCE`, which
 # is what forced the declaration rather than allowing the `—` it had carried all along.
 # The back catalogue drains one row at a time and only ever by somebody finishing one.
-UNDECLARED_CEILING = 1  # governed by floor_pin_gate's SIZE_LEDGER
+UNDECLARED_CEILING = 0  # governed by floor_pin_gate's SIZE_LEDGER
 
 
 class Row:
@@ -1541,12 +1543,27 @@ def selftest() -> int:
               f"outlives the tree it describes is the sentence it replaced")
     # 🔴 AND THE BACK CATALOGUE IS COUNTED, NOT EXCUSED. The ceiling is the number of live
     # rows that were already undeclared when the column landed, so it can only fall.
-    _many = [f"| old-{i} | OPEN | internal | 200 | — | — | grandfathered | — |"
-             for i in range(UNDECLARED_CEILING + 1)]
-    p, _n, _r, _o = check(_table(_many, head=400))
+    #
+    # 🆕 314 — THE FIXTURE IS FIXED AT ONE ROW RATHER THAN DERIVED FROM THE CEILING, AND
+    # THAT IS THE WHOLE DIFFERENCE BETWEEN A PIN AND A TAUTOLOGY. Until this session it
+    # built `UNDECLARED_CEILING + 1` rows, so it refused at EVERY value the constant could
+    # take, and `floor_pin_gate` said so the moment the ceiling reached nothing:
+    # `UNDECLARED_CEILING` to a huge number and this file stayed green. A claim whose
+    # fixture is derived from the constant it governs cannot see that constant move. The
+    # ceiling is nothing now and may only fall, so ONE live undeclared row is a refusal
+    # for good — and a session that raises the ceiling to buy itself room reddens this
+    # claim, which is the sentence the `SIZE_LEDGER` row has always made and never had a
+    # reader for.
+    _one = ["| old-0 | OPEN | internal | 200 | — | — | grandfathered | — |"]
+    p, _n, _r, _o = check(_table(_one, head=400))
     claim("REACH_UNDECLARED_CEILING", any("QUEUE_REACH_UNDECLARED" in x for x in p),
-          f"{UNDECLARED_CEILING + 1} live rows with no `paths` passed a ceiling of "
-          f"{UNDECLARED_CEILING}")
+          f"one live row with no `paths` passed a ceiling of {UNDECLARED_CEILING}")
+    # POSITIVE CONTROL — the same row WITH its evidence declared must pass, or the claim
+    # above is equally satisfied by a reader that refuses every table it is handed.
+    _dec = ["| old-0 | OPEN | internal | scripts/ | 200 | — | — | grandfathered | — |"]
+    p, _n, _r, _o = check(_table(_dec, head=400))
+    claim("REACH_UNDECLARED_DECLARED", not any("QUEUE_REACH_UNDECLARED" in x for x in p),
+          "a live row that DECLARES its paths was still counted as undeclared")
     # 🔴 AND A ROW FROM THIS SESSION ON MAY NOT CARRY `—` AT ALL.
     red("REACH_JOIN_DUE",
         [f"| eps | OPEN | internal | {REACH_PATHS_SINCE} | — | — | no evidence | — |"],

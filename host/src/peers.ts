@@ -69,8 +69,6 @@ export const MAX_PEERS = 4;
 /** How far above the default runtime port the allocator will scan. */
 const PORT_SCAN_SPAN = 200;
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 export class PeerRegistry {
   /** Peers get their OWN process registry, so peer ids and `godot_run_managed`
    *  ids never share a namespace and the `runtime` toolset does not depend on
