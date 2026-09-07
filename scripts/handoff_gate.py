@@ -2266,6 +2266,18 @@ def registry_problems(population: "list[tuple[int, str]] | None" = None) -> "lis
 # quiet for a REASON the partition names is a bound; one that goes quiet because the
 # reader stopped matching is a hole, and the only way to tell them apart is to drive the
 # arms that must still fire on the same block.
+#
+# 🆕 314 — AND THE PAIR CAME BACK, WHICH IS THE HALF THREE SESSIONS OF QUIET COULD NOT
+# SAY. 313's block is the first ORDINARY one since the cut: its host/addon pair equals
+# 312's, 312's equals 311's, and nothing one step further back differs any more, so the
+# pair 312 -> 313 lands in `compared` and `UNSHIPPED_COMPARED_REACH` rises 1 -> 2 on its
+# own. 🔵 A ROUTING RELEASES A PAIR AS WELL AS HOLDING ONE, and that is the whole
+# difference between a partition and a reader that stopped matching: 311, 312 and 313
+# each had a written reason for the quiet, and the reason expired exactly where it said
+# it would. 🔴 THE DRIVE IS THE OPPOSITE EXPECTATION TO 313's — both arms of clause two
+# are perturbed on this pair and BOTH must REDDEN, because a pair the partition has
+# released is a pair the bound is now judging. If either stays green the partition is
+# wrong, and that finding would be worth more than the drive that found it.
 UNSHIPPED_RE = re.compile(r"\bunshipped (\d+)\b")
 RESTATED_FIELDS: "tuple[tuple[str, re.Pattern], ...]" = (("untagged", UNTAGGED_RE),
                                                           ("unshipped", UNSHIPPED_RE))
@@ -9238,6 +9250,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (313, """> ```
+> main                 3baafa2 — session313 the fence nobody was reading, the direction a world moved, and the third text reader (#407)  MOVED +2
+> branch 313           session313-the-block-after-a-cut · PR #406 ·
+>                      session313-the-fence-and-the-direction · PR #407
+> host / addon         1.85.0 / 1.16.0  🟢 UNMOVED — no source touched under host/src or addons/
+> npm                  🟢 registry 1.85.0 · untagged 4 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at each merge, and the post-merge run at 3baafa2
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   981/981 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 23 · LATE_LIVE 21/8 · 0 crashes · blast 3296
+>               · late not-loaded 0 · late constructed 345/160
+>               · py gates 18/6/12 · SIG 284/105
+>               · discover 56/15/15/28 · 0 exempt · 0 undeclared
+>               · floor_pin 113 · 56 governed · 2270 keys · 100 shortfalls
+>               · target reasons 113 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 324 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5066 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 26/26 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 83/83 claims · handoff 622 claims
+>               · landscape 4 channel(s) / 52 analysed / 49 surfaced
+>               · capability 43 claimed / 35 unread / 10 uncited
+>               · cadence 27 within / 11 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 57
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -11281,25 +11325,29 @@ def selftest() -> int:
               f"block the claim below is silently not making")
     claims += 1
     _sprinted = [s for s, t in BLOCK_POPULATION if unshipped_of(t) is not None]
-    if len(_sprinted) < 4:
+    if len(_sprinted) < 5:
         failed += 1
         print(f"  🔴 UNSHIPPED_PRINTED_REACH only {len(_sprinted)} registered block(s) "
-              f"print `unshipped`, floor 4 — measured 4 at 313, where 312's block joined "
-              f"311's, 310's and 309's. Either the field left the convention or the "
+              f"print `unshipped`, floor 5 — measured 5 at 314, where 313's block joined "
+              f"312's, 311's, 310's and 309's. Either the field left the convention or the "
               f"reader stopped matching, and a reader nothing reaches refuses nothing: "
               f"{ {k: len(v) for k, v in _sp.items() if v} }")
     claims += 1
-    if len(_sp["compared"]) < 1:
+    if len(_sp["compared"]) < 2:
         failed += 1
-        print(f"  🔴 UNSHIPPED_COMPARED_REACH no pair of registered blocks is comparable, "
-              f"floor 1 — measured 1 at 311, the first pair this field has ever had, and "
-              f"1 again at 312 and at 313 for two DIFFERENT reasons: at 312 the block "
-              f"that joined was the RELEASE itself, and at 313 the block that joined "
-              f"sits AFTER one, which `untagged_partition` buckets as `after a cut` and "
-              f"`unshipped_partition` therefore routes into `cut` as well. 314 is the "
-              f"first session whose pair can rejoin. Clause two is the only arm that "
-              f"reads two blocks, so a table reaching no pair asserts nothing over the "
-              f"live population while the constructed drives below stay green: "
+        print(f"  🔴 UNSHIPPED_COMPARED_REACH fewer than two pairs of registered blocks "
+              f"are comparable, floor 2 — measured 1 at 311, the first pair this field "
+              f"has ever had, then 1 again at 312 and at 313 for two DIFFERENT reasons "
+              f"(at 312 the block that joined was the RELEASE itself; at 313 the block "
+              f"that joined sits AFTER one, which `untagged_partition` buckets as `after "
+              f"a cut` and `unshipped_partition` therefore routes into `cut` as well), "
+              f"and 2 at 314, where 313's block is the first ORDINARY one since the cut "
+              f"and the pair 312 -> 313 rejoined. 🔵 THE RISE IS THE CLAIM 313 §1 STAKED: "
+              f"a routing releases a pair as well as holding one, and three sessions of "
+              f"quiet were the partition rather than a reader that stopped matching. "
+              f"Clause two is the only arm that reads two blocks, so a table reaching too "
+              f"few pairs asserts almost nothing over the live population while the "
+              f"constructed drives below stay green: "
               f"{ {k: len(v) for k, v in _sp.items() if v} }")
     claims += 1
     _spp = unshipped_problems()
