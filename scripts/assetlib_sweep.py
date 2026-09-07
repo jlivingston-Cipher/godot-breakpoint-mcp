@@ -306,6 +306,41 @@ def repo_slug(url: str) -> str:
     return url.lower() if re.fullmatch(r"[^/\s]+/[^/\s]+", url) else ""
 
 
+# ── 🆕 315 §5 — EVERY NAME A PROJECT HAS ANSWERED TO, NOT THE LAST ONE ───────────────
+#
+# 🔴 `former_repo` WAS A STRING AND ONE STRING WAS NOT ENOUGH, WHICH THE WEEKLY SWEEP
+# PROVED RATHER THAN ANYBODY PREDICTING IT. `Doyunha-Gopeak` answers to THREE slugs:
+# `HaD0Yun/godot-mcp` (the rename `former_repo` already held), `HaD0Yun/Doyunha-Gopeak`
+# (what the forge serves today) and `had0yun/gopeak-godot-mcp` (what its npm package
+# still declares as its repository, and therefore what the npm leg keys on). 314 merged
+# the duplicate on `forge_id` and the roster kept only one of the two old names, so the
+# sweep demanded a row for a project it already held, every run, in a job nobody reads
+# until a close reads it.
+#
+# 🔵 A LIST, AND A STRING STILL PARSES. Fifty-four entries carry no `former_repo` at all
+# and one carries a string; widening the field rather than migrating it means the shape
+# change costs nothing at the rows that do not need it, which is 291's `channel` argument
+# one column over.
+def former_slugs(entry: dict) -> "set[str]":
+    """Every slug an entry declares it has previously answered to — PURE, lower-cased.
+
+    Accepts a string or a list, because the field shipped as a string and a project can
+    have been renamed more than once. `ROSTER_FORMER_REPO_SHAPE` refuses anything else.
+    """
+    raw = entry.get("former_repo")
+    if raw is None:
+        return set()
+    names = [raw] if isinstance(raw, str) else list(raw)
+    out = set()
+    for n in names:
+        n = str(n or "")
+        if n:
+            out.add(repo_slug(n))
+            out.add(n.lower())
+    out.discard("")
+    return out
+
+
 def severity_of(channel: str, channels: "dict[str, dict]" = None) -> str:
     """What a never-tracked project on this channel OWES — PURE, and the single place that
     answers it.
@@ -554,6 +589,27 @@ def surfaced_problems(found: "dict[str, dict]", roster: dict) -> "list[str]":
     known = {repo_slug(str(e.get("repo") or "")) for e in roster.get("entries", [])}
     known |= {str(e.get("repo") or "").lower() for e in roster.get("entries", [])}
     known |= {str(s.get("key") or "") for s in roster.get("surfaced", [])}
+    # 🆕 315 §5 — 🔴 AND THE NAME THE PROJECT USED TO HAVE, WHICH IS THE OTHER HALF OF
+    # THE SAME RULE AND THE ROSTER ONLY HAD ONE OF THEM.
+    #
+    # 314 found `had0yun/gopeak-godot-mcp` and the `Doyunha-Gopeak` entry to be one
+    # repository under a redirect and merged them, dropping the surfaced row and recording
+    # the old name in `former_repo`. That was right, and it made this reader red FOREVER:
+    # the npm leg keeps surfacing the project under the slug it is published as, `known` is
+    # built from slugs, and the entry now answers to a different one. The weekly sweep has
+    # demanded a row for a project the roster already holds on every run since.
+    #
+    # 🔵 315 §1 SHIPPED THE RULE THAT REFUSES A DUPLICATE. This is the same rule pointed the
+    # other way — RECOGNISING a rename rather than refusing one — and a roster that can do
+    # one and not the other is a roster that punishes the merge it asked for. `former_repo`
+    # is already the tracked, declared record of the old name; nothing new is measured here.
+    #
+    # 🔴 AND IT IS `former_repo` AND NOT `forge_id`, DELIBERATELY, because `found` is keyed
+    # by SLUG: what a discovery leg hands this function is a name, and no id comes with it.
+    # The identity arm that keys on `forge_id` lives in `identity_problems`, where both
+    # sides are roster rows and both carry one. Two readers, two available keys, one rule.
+    for e in roster.get("entries", []):
+        known |= former_slugs(e)
     known.discard("")
     out = []
     for key, row in sorted(found.items()):
@@ -1653,6 +1709,19 @@ def roster_shape_problems(roster: dict) -> "list[str]":
         # unrecognised value is a silent fall to the strict floor, which is the safe
         # direction and still a value nobody chose. 293's `CAPABILITY_UNKNOWN_VALUE` is
         # this same refusal one column over.
+        # 🆕 315 §5 — the field is a string OR a list of them, and nothing else. A dict or
+        # a number here would make `former_slugs` iterate something meaningless and the
+        # rename half would go quiet without failing, which is the shape this whole
+        # session has been about.
+        fr = e.get("former_repo")
+        if fr is not None and not isinstance(fr, str) and not (
+                isinstance(fr, list) and all(isinstance(x, str) for x in fr)):
+            problems.append(
+                f"ROSTER_FORMER_REPO_SHAPE {e.get('name')!r} declares `former_repo` as "
+                f"{type(fr).__name__}. It is a slug the project used to answer to, or a "
+                f"list of them — a project can be renamed more than once and this roster "
+                f"has one that was")
+
         cad = e.get("cadence")
         if "cadence" not in e:
             problems.append(
@@ -1766,8 +1835,10 @@ def identity_problems(roster: dict) -> "list[str]":
                 f"does not care what either row is called")
 
     # ── 3 — a surfaced row still standing under a name an entry has left ─────────────
-    former = {repo_slug(str(e.get("former_repo") or "")): label(e)
-              for e in entries if e.get("former_repo")}
+    former: "dict[str, str]" = {}
+    for e in entries:
+        for slug in former_slugs(e):
+            former[slug] = label(e)
     former.pop("", None)
     for row in surfaced:
         slug = repo_slug(str(row.get("repo") or ""))
@@ -2254,6 +2325,46 @@ def selftest() -> int:
     claim("identity: an entry declaring no `former_repo` builds no rename trail",
           identity_problems({"entries": [{"name": "x", "repo": "o/new"}],
                              "surfaced": [{"key": "o/new2", "repo": "o/new2"}]}), [])
+    # ── 🆕 315 §5 — THE RENAME THE SWEEP COULD NOT RECOGNISE ────────────────────────
+    #
+    # 🔴 THIS IS A LIVE RED, FOUND AT 315's CLOSE IN THE WEEKLY `sdk-drift` JOB AND
+    # CAUSED BY 314's OWN FIX. Merging the duplicate on `forge_id` was right; keeping one
+    # of the project's two old names was not, and the sweep has demanded a row for a
+    # project the roster already holds on every run since. The claims below are the live
+    # instance by name, so the red cannot come back silently.
+    _renamed_entry = {"name": "R", "repo": "o/new", "channel": "npm", "cadence": "weekly",
+                      "former_repo": ["o/old", "o/older"]}
+    claim("rename: a STRING `former_repo` still parses — the shape it shipped as",
+          sorted(former_slugs({"former_repo": "o/old"})), ["o/old"])
+    claim("rename: a LIST gives every name the project has answered to",
+          sorted(former_slugs(_renamed_entry)), ["o/old", "o/older"])
+    claim("rename: no `former_repo` is an empty set, not a set holding the empty string",
+          former_slugs({"name": "x"}), set())
+    claim("rename: a surfaced project under an entry's SECOND old name is recognised",
+          surfaced_problems({"o/older": {"channels": ["npm"]}},
+                            {"entries": [_renamed_entry], "surfaced": []}), [])
+    claim("rename: …and a project under NO name the roster holds still owes a row",
+          len(surfaced_problems({"o/unrelated": {"channels": ["npm"]}},
+                                {"entries": [_renamed_entry], "surfaced": []})), 1)
+    # 🔵 THE TWO READERS SHARE THE HELPER SO THEY CANNOT DRIFT — one rule, two directions.
+    claim("rename: `identity_problems` reads the same list",
+          len([m for m in identity_problems(
+              {"entries": [_renamed_entry],
+               "surfaced": [{"key": "o/older", "repo": "o/older"}]})
+              if m.startswith("IDENTITY_RENAMED")]), 1)
+    claim("rename: a `former_repo` that is neither a string nor a list of them is refused",
+          len([m for m in roster_shape_problems(
+              {"entries": [{**_renamed_entry, "former_repo": {"a": 1}}], "surfaced": []})
+              if m.startswith("ROSTER_FORMER_REPO_SHAPE")]), 1)
+    claim("rename: and a well-shaped one is not",
+          [m for m in roster_shape_problems({"entries": [_renamed_entry], "surfaced": []})
+           if m.startswith("ROSTER_FORMER_REPO_SHAPE")], [])
+    # 🔴 THE LIVE INSTANCE, BY NAME. The slug below is what the npm leg keys on, taken
+    # from the package's own declared repository, and the roster must answer to it.
+    claim("rename: the live roster recognises `had0yun/gopeak-godot-mcp`",
+          surfaced_problems({"had0yun/gopeak-godot-mcp": {"channels": ["npm"]}},
+                            load_roster()), [])
+
     # 🔴 THE COVERAGE PAIR IS ASSERTED, NOT JUST PRINTED — a census line that silently
     # counted every row as identified would make `0 collision(s)` unfalsifiable.
     claim("identity: coverage counts the rows that carry an id, not the rows",
