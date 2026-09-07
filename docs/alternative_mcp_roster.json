@@ -348,7 +348,10 @@
     {
       "name": "Doyunha-Gopeak",
       "repo": "HaD0Yun/Doyunha-Gopeak",
-      "former_repo": "HaD0Yun/godot-mcp",
+      "former_repo": [
+        "HaD0Yun/godot-mcp",
+        "had0yun/gopeak-godot-mcp"
+      ],
       "asset_id": null,
       "channel": "npm",
       "category": "alternative-mcp-server",
@@ -360,7 +363,7 @@
       "csharp": "unread",
       "cadence": "biweekly",
       "status": "active",
-      "note": "Real DAP and LSP clients on the standard ports. First source-level pass 2026-08-10, after being carried unread since the July field survey. 🔵 `channel` IS NULL AND IT IS A MEASUREMENT: no Asset Library entry, and 293 found it on neither npm nor the MCP Registry. 🔴 314 — THIS ROW AND A `surfaced` ROW WERE THE SAME PROJECT, AND ONLY AN IDENTITY COULD SEE IT. The npm leg surfaced `had0yun/gopeak-godot-mcp` at 291 and carried it for twenty-three sessions as an unread project; `HaD0Yun/Doyunha-Gopeak` and `had0yun/gopeak-godot-mcp` are forge id 1132073995, the same 247-star repository under a redirect, so every slug comparison this roster makes answered no. The ranking pass is what found it: two rows came back with identical stars, forks and push time. 🔵 AND THE DUPLICATE CARRIED A CORRECTION — this row declared `channel: null`, a measurement that no enumerable channel surfaces it, and the leg that surfaced the twin is npm. `channel` is `npm` now and the package is `gopeak`. The surfaced row is folded away and `forge_id` is recorded on both populations so the next collision is answerable without a human noticing two equal star counts.",
+      "note": "Real DAP and LSP clients on the standard ports. First source-level pass 2026-08-10, after being carried unread since the July field survey. 🔵 `channel` IS NULL AND IT IS A MEASUREMENT: no Asset Library entry, and 293 found it on neither npm nor the MCP Registry. 🔴 314 — THIS ROW AND A `surfaced` ROW WERE THE SAME PROJECT, AND ONLY AN IDENTITY COULD SEE IT. The npm leg surfaced `had0yun/gopeak-godot-mcp` at 291 and carried it for twenty-three sessions as an unread project; `HaD0Yun/Doyunha-Gopeak` and `had0yun/gopeak-godot-mcp` are forge id 1132073995, the same 247-star repository under a redirect, so every slug comparison this roster makes answered no. The ranking pass is what found it: two rows came back with identical stars, forks and push time. 🔵 AND THE DUPLICATE CARRIED A CORRECTION — this row declared `channel: null`, a measurement that no enumerable channel surfaces it, and the leg that surfaced the twin is npm. `channel` is `npm` now and the package is `gopeak`. The surfaced row is folded away and `forge_id` is recorded on both populations so the next collision is answerable without a human noticing two equal star counts. 🆕 315 — AND THE ROSTER HELD ONLY ONE OF ITS TWO OLD NAMES, so the weekly sweep demanded a row for this project on every run after 314 merged it. Its npm package still declares `had0yun/gopeak-godot-mcp` as its repository, which is what the npm leg keys on, so a roster that knew only `HaD0Yun/godot-mcp` could not recognise what the leg handed it. `former_repo` is a LIST now and carries both.",
       "capability_evidence": {
         "real_dap_client": "recorded at the 2026-08-10 source-level pass as a real DAP client on the standard port; no file or symbol was written down",
         "real_lsp_client": "recorded at the 2026-08-10 source-level pass as a real LSP client on the standard port; no file or symbol was written down",
