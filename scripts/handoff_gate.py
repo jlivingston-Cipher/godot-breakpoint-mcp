@@ -440,7 +440,7 @@ COUNTER_READERS: "list[tuple[str, str, int, tuple[str, ...] | None, Path, str, s
      CHEAP, SINCE(315),
      "roster rows carrying a forge id, rows in total, entries recording a former name, "
      "and pairs of rows naming one project. "
-     "`identity 69 of 100 · 1 renamed · 0 collisions`."),
+     "`identity 69 of 100 / 1 renamed / 0 collisions`."),
 
     # ── the .mjs instruments ──────────────────────────────────────────────────────────
     ("taut.sites", r"\btaut\b", 1, ("node", "scripts/tautology_gate.mjs"), HOST,
@@ -936,7 +936,19 @@ COUNTER_PROVENANCE: "dict[str, str]" = {
     "lint.files":                  INDEX,
     "ci.checks":                   TRACKED,
     "mutlock.guarded":             TRACKED,   # 315 — by the INVOCATION (281)
-    "tree_quiet.cases":            TRACKED,   # 315 — by the INVOCATION (281)
+    # 🔴 315 MOVED THIS TO TRACKED AND 315's OWN CLOSE PUT IT BACK, WHICH IS THE HONEST
+    # END OF A MEASUREMENT THAT DID NOT COVER ITS OWN AXIS. `invocation_corpus` narrows
+    # `tree_quiet.py --selftest` to 36% of its file and the CLONE idioms — `"git",
+    # "config"`, `core.hooksPath` — fall outside it, so the derivation says TRACKED. The
+    # empirical check behind the move perturbed the INDEX and the WORKING TREE and watched
+    # the count hold at thirteen; it never perturbed a git CONFIG value, which is the only
+    # axis CLONE is about. 🔵 A reader's narrowing is evidence and a measurement on the
+    # wrong axis is not, so the declaration stays where a session actually tested it.
+    # `mutlock.guarded` keeps its move because the index IS what that one was driven
+    # against. 🔴 AND `SUBJECT_UNPOPULATED` IS WHAT SAID SO: this is the only row carrying
+    # CLONE, so moving it left the class answering nothing and the gate refused a
+    # predicate that could no longer be wrong.
+    "tree_quiet.cases":            CLONE_CFG,
     "release_names.rows":          TRACKED,
     "instrument.discover":         INDEX,
     "instrument.undeclared":       INDEX,
@@ -6834,7 +6846,7 @@ ALIAS_PENDING: "dict[str, str]" = {
     # way the eight before it were: 315 ships `LANDSCAPE_IDENTITY` and the first block
     # that can carry the spelling is 315's own, which 316 registers. 🔴 THE INSTRUCTION IS
     # THE SAME ONE `landscape.cadence` AND `landscape.capability` CARRIED: 316 adds 315's
-    # block to `BLOCK_POPULATION`, the block prints `identity 69 of 100 · 1 renamed · 0
+    # block to `BLOCK_POPULATION`, the block prints `identity 69 of 100 / 1 renamed / 0
     # collisions`, the key becomes reached, and `pending_problems` turns this row into
     # `ALIAS_PENDING_STALE` on that same run — delete it because the gate says so, not
     # because you remembered.
@@ -6969,7 +6981,7 @@ BIND_PINS: "list[tuple[str, str, str]]" = [
      "OTHER TWO. Its alias is the word `cadence`, which neither `landscape 4 channel(s) "
      "…` nor `capability 43 claimed …` spells — three readers now share one command and "
      "the whole of what keeps them apart is that no one atom carries two of the aliases"),
-    ("identity 69 of 100 · 1 renamed · 0 collisions", "landscape.identity",
+    ("identity 69 of 100 / 1 renamed / 0 collisions", "landscape.identity",
      "🔴 THE FOURTH COUNTER OUT OF `--census`, AND THE FOURTH ALIAS THAT HAS TO MISS THE "
      "OTHER THREE. Its alias is the word `identity`, which none of `landscape 4 "
      "channel(s) …`, `capability 55 claimed …` or `cadence 28 within …` spells. 🔵 FOUR "
@@ -10396,13 +10408,16 @@ def selftest() -> int:
     # into a provenance change. A fixture cannot make this claim: it is about two real
     # self-tests that genuinely do not read what their files read.
     claims += 1
-    for _k, _want in (("mutlock.guarded", TRACKED), ("tree_quiet.cases", TRACKED)):
+    for _k, _want in (("mutlock.guarded", TRACKED), ("tree_quiet.cases", CLONE_CFG)):
         if COUNTER_PROVENANCE.get(_k) != _want:
             failed += 1
             print(f"  🔴 SUBJECT_INVOCATION `{_k}` is declared "
                   f"{COUNTER_PROVENANCE.get(_k)} and 315 measured its INVOCATION as "
                   f"{_want} — the file's answer is the other mode's")
     claims += 1
+    # 🔵 BOTH STILL DERIVE TRACKED OVER THEIR INVOCATIONS — that is the reader working.
+    # Only ONE of them is DECLARED TRACKED, because only one was driven on its own axis,
+    # and `SUBJECT_UNDERSTATED` is content with a declaration stronger than the derivation.
     _derived = derive_subjects(COUNTER_READERS, SUBJECT_UNDERIVABLE)
     for _k in ("mutlock.guarded", "tree_quiet.cases"):
         if _derived.get(_k, (None,))[0] != TRACKED:
@@ -10410,6 +10425,13 @@ def selftest() -> int:
             print(f"  🔴 SUBJECT_INVOCATION_LIVE `{_k}` derives "
                   f"{_derived.get(_k)} over its own invocation — the narrowing that "
                   f"moved this row has stopped narrowing and the row is now a guess")
+    # 🔴 AND THE CLASS MUST STAY POPULATED, which is what refused 315's first close.
+    claims += 1
+    if CLONE_CFG not in COUNTER_PROVENANCE.values():
+        failed += 1
+        print("  🔴 SUBJECT_INVOCATION_EMPTIED no row is declared CLONE any more — a "
+              "narrowing that empties a class has removed a predicate rather than "
+              "answered it, and `SUBJECT_UNPOPULATED` is the reader that says so")
 
     # 🔴 `SUBJECT_SELFTEST_WIDENS` — THE PIN ON THE EXEMPTION'S REASON, AND THE HALF THAT
     # STOPS 282's GENERALISATION FROM BEING BELIEVED FOREVER. 282 ruled that a self-test's
