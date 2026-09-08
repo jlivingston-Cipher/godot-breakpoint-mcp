@@ -932,6 +932,23 @@ test("314 — gd_rename applies a WorkspaceEdit sent as `documentChanges`, not o
 // reach: the destructive gate first, then the refusals a caller is told to act
 // on, then the arms that decide whether a failure is the engine's fault or the
 // server's.
+//
+// MEASURED OUTCOME, at `ac415b1`: 50.97% -> 98.90%. The denominator ROSE from 206
+// branch paths to 273 while these tests were being written, because they enter
+// `catch` blocks V8 had never executed and so had never counted — a file's branch
+// total is a property of what has been run through it, not of the file.
+//
+// 🔵 THE THREE PATHS THAT REMAIN CANNOT BE REACHED, AND ARE NAMED HERE SO NOBODY
+// SPENDS A SESSION CHASING THEM:
+//   1. `normalizeColors`' `hex2` guards `(v ?? 0)` against a value that was already
+//      defaulted by `?? 0` one line above the call.
+//   2. and 3. the `e.message ?? ""` in `gd_workspace_symbols` and in `gd_code_action`
+//      cannot fire, because everything thrown past them is an `LspError`, which
+//      extends `Error`, and an `Error` always has a message.
+// 270/273 is this file's real ceiling without deleting code, and deleting three
+// defensive `??`s was not this beat's grant. A coverage number with a stated
+// ceiling is a number that can be read; one without is a number that looks like a
+// shortfall forever.
 // ---------------------------------------------------------------------------
 
 test("317 — gd_rename apply=true STOPS at a declined prompt and writes nothing to disk", async () => {
