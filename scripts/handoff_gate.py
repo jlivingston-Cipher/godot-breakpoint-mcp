@@ -6841,19 +6841,17 @@ def pending_problems(pending: dict, reached: set, reader_keys: set) -> list[str]
 # one-session exemption has expired on time, which is the only end state 246 designed
 # this table to have.
 ALIAS_PENDING: "dict[str, str]" = {
-    # 🆕 315 — AND IT IS NOT EMPTY, FOR THE FOURTH `--census` COUNTER IN A ROW. The row
-    # below is the ninth one-session exemption this table has held, and it is filed the
-    # way the eight before it were: 315 ships `LANDSCAPE_IDENTITY` and the first block
-    # that can carry the spelling is 315's own, which 316 registers. 🔴 THE INSTRUCTION IS
-    # THE SAME ONE `landscape.cadence` AND `landscape.capability` CARRIED: 316 adds 315's
-    # block to `BLOCK_POPULATION`, the block prints `identity 69 of 100 / 1 renamed / 0
-    # collisions`, the key becomes reached, and `pending_problems` turns this row into
-    # `ALIAS_PENDING_STALE` on that same run — delete it because the gate says so, not
-    # because you remembered.
-    "landscape.identity":
-        "315 §2 ships the identity reader and this is the first session whose block can "
-        "spell the counter. 316 registers that block and this row goes STALE on the run "
-        "that does it.",
+    # 🆕 316 — EMPTY AGAIN, AND `landscape.identity` EXPIRED ON THE SCHEDULE ITS OWN ROW
+    # WROTE, TO THE RUN. 315 filed it saying *316 adds 315's block to `BLOCK_POPULATION`,
+    # the block prints `identity 69 of 100 / 1 renamed / 0 collisions`, the key becomes
+    # reached, and `pending_problems` turns this row into `ALIAS_PENDING_STALE` on that
+    # same run — delete it because the gate says so, not because you remembered*. That is
+    # exactly what happened: this session registered 315's block as its first act on the
+    # tree, and the refusal fired on the first `--selftest` after it landed, naming the
+    # row before anybody went looking for it. 🔴 NINTH TABLE IN A ROW TO EXPIRE ON TIME —
+    # 276, 287, 289, 291's predecessor set, 292's `landscape.roster`, 294's
+    # `landscape.capability`, 295's `landscape.cadence`, 299's `floor_pin.target_reason`,
+    # and this one — which remains the only end state 246 designed the table to have.
     # 🆕 299 — EMPTY AGAIN, AND `floor_pin.target_reason` EXPIRED ON THE SCHEDULE ITS OWN
     # ROW WROTE, TO THE RUN. 298 filed it saying *298 ships the reader; 299 adds 298's
     # block and this row goes STALE on that run*, and named the mechanism in its own
@@ -9552,6 +9550,41 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · landscape 4 channel(s) / 55 analysed / 45 surfaced
 >               · capability 55 claimed / 35 unread / 10 uncited
 >               · cadence 28 within / 13 past / 14 never analysed
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 57
+>                 addon / 0 problems
+> ```
+"""),
+    (315, """> ```
+> main                 3150a6b — session315 the close's five refusals, and the provenance move measured on the wrong axis (#415)  MOVED +4
+> branch 315           session315-the-block-and-the-routing-that-closed · PR #412 ·
+>                      session315-the-readers-that-replace-a-reader · PR #413 ·
+>                      session315-the-rename-the-sweep-could-not-recognise · PR #414 ·
+>                      session315-the-close-refusals · PR #415
+> host / addon         1.85.1 / 1.16.0  🟢 UNMOVED — no source touched under host/src or addons/
+> npm                  🟢 registry 1.85.1 · untagged 4 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at each of the five merges, post-merge run at 3150a6b
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   988/988 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes · blast 3375
+>               · late not-loaded 0 · late constructed 359/160
+>               · py gates 18/6/12 · SIG 296/105
+>               · discover 58/16/16/30 · 0 exempt · 0 undeclared
+>               · floor_pin 116 · 56 governed · 2391 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 327 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5103 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 27/27 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 84/84 claims · handoff 643 claims
+>               · landscape 4 channel(s) / 55 analysed / 45 surfaced
+>               · capability 55 claimed / 35 unread / 10 uncited
+>               · cadence 28 within / 13 past / 14 never analysed
+>               · identity 69 of 100 / 1 renamed / 0 collisions
 >               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 57
 >                 addon / 0 problems
 > ```
