@@ -924,3 +924,504 @@ test("314 — gd_rename applies a WorkspaceEdit sent as `documentChanges`, not o
   lsp.close();
   await srv.close();
 });
+
+// ---------------------------------------------------------------------------
+// 317 — P6's first payment on `src/tools/lsp.ts`, the worst-covered large file
+// in the tree (50.97% of 206 branch paths at 4c46c76). The branches below were
+// chosen by what a defect in them does to a user, not by what was cheapest to
+// reach: the destructive gate first, then the refusals a caller is told to act
+// on, then the arms that decide whether a failure is the engine's fault or the
+// server's.
+// ---------------------------------------------------------------------------
+
+test("317 — gd_rename apply=true STOPS at a declined prompt and writes nothing to disk", async () => {
+  // The one uncovered branch in this file that can destroy a user's work:
+  // `if (blocked) return blocked` is the only thing standing between a declined
+  // confirmation and a project-wide write. Every other rename test either passes
+  // `confirm: true` or accepts the prompt, so the decline path had never run.
+  const projectPath = tmpProject({ "player.gd": "var speed = 10\n" });
+  let planned = 0;
+  const { srv } = await startLsp({
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/rename") {
+        planned++;
+        const uri = (msg.params as { textDocument: { uri: string } }).textDocument.uri;
+        writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: { changes: { [uri]: [{ range: { start: { line: 0, character: 4 }, end: { line: 0, character: 9 } }, newText: "velocity" }] } } });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath, async () => ({ action: "decline" }));
+  const res = (await rec.handler("gd_rename")({ path: "player.gd", line: 0, character: 4, new_name: "velocity", apply: true })) as ToolResultLike;
+  assert.equal(res.isError, true, "a declined rename must be an error, not a silent no-op");
+  assert.match(res.content![0].text!, /Cancelled — user did not approve/);
+  // The refusal must name the action it stopped, or a caller cannot tell WHICH
+  // destructive call was cancelled when several are in flight.
+  assert.match(res.content![0].text!, /Rename to "velocity"/);
+  // The claim that matters: the file on disk is byte-identical.
+  assert.equal(fs.readFileSync(path.join(projectPath, "player.gd"), "utf8"), "var speed = 10\n");
+  // And the plan WAS requested — the gate sits after planning, so this proves the
+  // test exercised the gate rather than failing earlier for some other reason.
+  assert.equal(planned, 1, "the rename must have been planned, then blocked at the write");
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_implementation, gd_declaration, gd_folding_ranges and gd_document_link refuse WITHOUT dialling a server that never advertised the capability", async () => {
+  // Their four siblings (highlight, type_definition, formatting, color,
+  // call_hierarchy, semantic_tokens, code_action, workspace_symbols) each had
+  // this test; these four shipped the same contract with nothing proving it.
+  const projectPath = tmpProject({ "player.gd": "extends Node\n" });
+  const { srv, received } = await startLsp({ capabilities: {} });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const rows: Array<[string, string, Record<string, unknown>, string]> = [
+    ["gd_implementation", "textDocument/implementation", { path: "player.gd", line: 0, character: 0 }, "implementationProvider"],
+    ["gd_declaration", "textDocument/declaration", { path: "player.gd", line: 0, character: 0 }, "declarationProvider"],
+    ["gd_folding_ranges", "textDocument/foldingRange", { path: "player.gd" }, "foldingRangeProvider"],
+    ["gd_document_link", "textDocument/documentLink", { path: "player.gd" }, "documentLinkProvider"],
+  ];
+  for (const [tool, method, args, capability] of rows) {
+    const res = (await rec.handler(tool)(args)) as ToolResultLike;
+    assert.equal(res.isError, true, `${tool} must refuse when ${capability} is absent`);
+    const text = res.content![0].text!;
+    assert.match(text, /unsupported by the connected Godot build/, `${tool} must say the build is the limit`);
+    // The message must name the tool, the method and the capability, because that
+    // triple is what tells a reader whether to upgrade Godot or change the call.
+    assert.ok(text.includes(tool) && text.includes(method) && text.includes(capability),
+      `${tool}'s refusal must name the tool, the method and the capability`);
+    // It must also point somewhere: a refusal with no alternative is a dead end.
+    assert.match(text, /Use gd_|no host-side alternative|editor-only convenience/, `${tool} must offer an alternative`);
+    assert.ok(!received.some((m) => m.method === method), `${tool} must NOT send ${method} when the capability is absent`);
+  }
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — a REAL language-server failure is never dressed up as an engine limitation, on any feature-detected tool", async () => {
+  // Every one of these tools carries a -32601 belt-and-suspenders: a build that
+  // advertises a capability and then answers "method not found" is treated as an
+  // engine limitation rather than a fault. The arm that had never run is the OTHER
+  // one — a genuine failure — and it is the arm that decides whether the guard is
+  // honest or merely broad. If `isMethodNotFound` ever widened, every server crash
+  // would be reported as "your Godot is too old" and the user would go and upgrade
+  // it for nothing.
+  const projectPath = tmpProject({ "player.gd": "extends Node\nfunc _ready():\n\tpass\n" });
+  const pos = { path: "player.gd", line: 0, character: 0 };
+  const rows: Array<[string, string, Record<string, unknown>, Record<string, unknown>]> = [
+    ["gd_workspace_symbols", "workspace/symbol", { query: "Player" }, { workspaceSymbolProvider: true }],
+    ["gd_signature_help", "textDocument/signatureHelp", pos, {}],
+    ["gd_code_action", "textDocument/codeAction", { path: "player.gd", start_line: 0, start_character: 0 }, { codeActionProvider: true }],
+    ["gd_document_highlight", "textDocument/documentHighlight", pos, { documentHighlightProvider: true }],
+    ["gd_type_definition", "textDocument/typeDefinition", pos, { typeDefinitionProvider: true }],
+    ["gd_implementation", "textDocument/implementation", pos, { implementationProvider: true }],
+    ["gd_declaration", "textDocument/declaration", pos, { declarationProvider: true }],
+    ["gd_folding_ranges", "textDocument/foldingRange", { path: "player.gd" }, { foldingRangeProvider: true }],
+    ["gd_document_link", "textDocument/documentLink", { path: "player.gd" }, { documentLinkProvider: true }],
+    ["gd_formatting", "textDocument/formatting", { path: "player.gd" }, { documentFormattingProvider: true }],
+    ["gd_document_color", "textDocument/documentColor", { path: "player.gd" }, { colorProvider: true }],
+    ["gd_call_hierarchy", "textDocument/prepareCallHierarchy", pos, { callHierarchyProvider: true }],
+    ["gd_semantic_tokens", "textDocument/semanticTokens/full", { path: "player.gd" }, { semanticTokensProvider: true }],
+  ];
+  for (const [tool, method, args, capabilities] of rows) {
+    const { srv } = await startLsp({
+      capabilities,
+      onRequest: (msg, s) => {
+        if (msg.method === method) {
+          writeFrame(s, { jsonrpc: "2.0", id: msg.id, error: { code: -32603, message: "GDScript language server crashed while answering" } });
+        }
+      },
+    });
+    const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+    // try/finally, not a bare sequence: an assertion that throws inside this loop
+    // would otherwise leak an open socket and a listening server, and the test
+    // runner would hang instead of reporting the failure.
+    try {
+      const res = (await rec.handler(tool)(args)) as ToolResultLike;
+      const text = res.content![0].text!;
+      assert.equal(res.isError, true, `${tool} must report a -32603 as an error`);
+      // The whole claim, in one line: the server's own failure reaches the caller.
+      assert.match(text, /LSP error \[-32603\]/, `${tool} must surface the server's code, not swallow it`);
+      assert.match(text, /crashed while answering/, `${tool} must relay the server's own words`);
+      assert.doesNotMatch(text, /unsupported by the connected Godot build/,
+        `${tool} must NOT report a server crash as an engine limitation`);
+    } finally {
+      lsp.close();
+      await srv.close();
+    }
+  }
+});
+
+test("317 — the -32601 guard still fires on a build that answers 'Method not found' with no error code at all", async () => {
+  // The control for the test above, and the other half of the `||`: `code ?? -1`
+  // means a server that omits the code leaves only the message to judge by. Both
+  // operands of the guard now have a case; without this one, widening the regex
+  // to match anything would go unnoticed in one direction and narrowing it in the
+  // other.
+  const projectPath = tmpProject();
+  const { srv } = await startLsp({
+    capabilities: { workspaceSymbolProvider: true },
+    onRequest: (msg, s) => {
+      if (msg.method === "workspace/symbol") writeFrame(s, { jsonrpc: "2.0", id: msg.id, error: { message: "Method not found" } });
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const res = (await rec.handler("gd_workspace_symbols")({ query: "Player" })) as ToolResultLike;
+  assert.equal(res.isError, true);
+  assert.match(res.content![0].text!, /unsupported by the connected Godot build/,
+    "a codeless 'Method not found' is still the engine limitation this guard is for");
+  assert.doesNotMatch(res.content![0].text!, /LSP error/, "and it must not leak the raw protocol error");
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — the -32601 belt-and-suspenders fires on the seven tools that had a catch nothing ever entered", async () => {
+  // The D7 lesson (advertised != implemented) is written into every one of these
+  // tools, and for these seven it had never been executed in either direction.
+  // The test above proves the guard is not too broad; this one proves it is not
+  // too narrow — a build that advertises the capability and then answers "method
+  // not found" must still be told apart from a build that is simply broken.
+  //
+  // What each refusal must NAME differs by design and the rows say so rather than
+  // asserting a lowest common denominator: six route through the generic
+  // `unsupportedLsp`, which prints the tool, the LSP method and the capability;
+  // `gd_code_action` has its own older, hand-written sentence that names the
+  // capability and the code but not the method string. Flattening that difference
+  // into one loose regex is how a message stops being checked at all.
+  const projectPath = tmpProject({ "player.gd": "extends Node\nfunc _ready():\n\tpass\n" });
+  const pos = { path: "player.gd", line: 0, character: 0 };
+  const rows: Array<[string, string, Record<string, unknown>, Record<string, unknown>, string[]]> = [
+    ["gd_code_action", "textDocument/codeAction", { path: "player.gd", start_line: 0, start_character: 0 }, { codeActionProvider: true }, ["gd_code_action", "codeActionProvider", "-32601"]],
+    ["gd_document_highlight", "textDocument/documentHighlight", pos, { documentHighlightProvider: true }, ["gd_document_highlight", "textDocument/documentHighlight", "documentHighlightProvider"]],
+    ["gd_implementation", "textDocument/implementation", pos, { implementationProvider: true }, ["gd_implementation", "textDocument/implementation", "implementationProvider"]],
+    ["gd_declaration", "textDocument/declaration", pos, { declarationProvider: true }, ["gd_declaration", "textDocument/declaration", "declarationProvider"]],
+    ["gd_folding_ranges", "textDocument/foldingRange", { path: "player.gd" }, { foldingRangeProvider: true }, ["gd_folding_ranges", "textDocument/foldingRange", "foldingRangeProvider"]],
+    ["gd_document_link", "textDocument/documentLink", { path: "player.gd" }, { documentLinkProvider: true }, ["gd_document_link", "textDocument/documentLink", "documentLinkProvider"]],
+    ["gd_formatting", "textDocument/formatting", { path: "player.gd" }, { documentFormattingProvider: true }, ["gd_formatting", "textDocument/formatting", "documentFormattingProvider"]],
+  ];
+  for (const [tool, method, args, capabilities, mustName] of rows) {
+    const { srv } = await startLsp({
+      capabilities,
+      onRequest: (msg, s) => {
+        if (msg.method === method) writeFrame(s, { jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Method not found" } });
+      },
+    });
+    const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+    try {
+      const res = (await rec.handler(tool)(args)) as ToolResultLike;
+      const text = res.content![0].text!;
+      assert.equal(res.isError, true, `${tool} must report an advertised-but-unimplemented method as an error`);
+      assert.match(text, /unsupported by the connected Godot build/, `${tool} must name the build as the limit`);
+      for (const needle of mustName) {
+        assert.ok(text.includes(needle), `${tool}'s refusal must name ${needle}`);
+      }
+      // The point of the guard: the caller never sees the raw protocol error.
+      assert.doesNotMatch(text, /LSP error/, `${tool} must not leak the JSON-RPC error it caught`);
+    } finally {
+      lsp.close();
+      await srv.close();
+    }
+  }
+});
+
+
+// --- The degenerate-reply family -------------------------------------------
+// Every normalizer in this file is a pure function of whatever the language
+// server sent, and each one is written defensively: `?? 0`, `?? ""`, `?? {}`,
+// `Array.isArray(x) ? x : []`. Those defaults are the code that runs when a build
+// answers a shape the happy path never produces — and until now not one of them
+// had ever executed, so "degrades instead of crashing" was a claim about the
+// source rather than about the program. Each test below drives one tool with
+// (a) a reply that is not the expected container and (b) items with every
+// optional field missing, and asserts the DEFAULTED VALUE rather than merely
+// that nothing threw.
+
+test("317 — gd_document_highlight defaults a non-array reply and highlight items with no range or unknown kind", async () => {
+  const projectPath = tmpProject({ "player.gd": "extends Node\n" });
+  const { srv } = await startLsp({
+    capabilities: { documentHighlightProvider: true },
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/documentHighlight") {
+        const q = (msg.params as { position: { line: number } }).position.line;
+        // line 0 asks for a reply that is not a list at all; line 1 for items that
+        // carry none of the optional fields, plus a kind outside the LSP enum.
+        writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: q === 0 ? { not: "an array" } : [{}, { kind: 9 }] });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const bad = (await rec.handler("gd_document_highlight")({ path: "player.gd", line: 0, character: 0 })) as ToolResultLike;
+  assert.deepEqual(bad.structuredContent, { highlights: [] }, "a non-array reply is an empty list, not a crash");
+  const bare = (await rec.handler("gd_document_highlight")({ path: "player.gd", line: 1, character: 0 })) as ToolResultLike;
+  assert.deepEqual(bare.structuredContent, { highlights: [
+    { line: 0, character: 0, end_line: 0, end_character: 0, kind: "text" },
+    // An unknown DocumentHighlightKind is surfaced as its own number rather than
+    // silently becoming "text" — a caller can tell "the server said 9" apart from
+    // "the server said nothing".
+    { line: 0, character: 0, end_line: 0, end_character: 0, kind: "9" },
+  ] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_folding_ranges defaults a non-array reply and ranges with no line numbers", async () => {
+  const projectPath = tmpProject({ "player.gd": "func a():\n\tpass\n" });
+  let shape: unknown = null;
+  const { srv } = await startLsp({
+    capabilities: { foldingRangeProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "textDocument/foldingRange") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: shape }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  shape = "not a list";
+  assert.deepEqual(((await rec.handler("gd_folding_ranges")({ path: "player.gd" })) as ToolResultLike).structuredContent, { ranges: [] });
+  shape = [{}];
+  assert.deepEqual(((await rec.handler("gd_folding_ranges")({ path: "player.gd" })) as ToolResultLike).structuredContent,
+    { ranges: [{ start_line: 0, end_line: 0, kind: "" }] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_document_link defaults a non-array reply and links with no range or target", async () => {
+  const projectPath = tmpProject({ "player.gd": "# see res://other.gd\n" });
+  let shape: unknown = null;
+  const { srv } = await startLsp({
+    capabilities: { documentLinkProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "textDocument/documentLink") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: shape }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  shape = { nope: true };
+  assert.deepEqual(((await rec.handler("gd_document_link")({ path: "player.gd" })) as ToolResultLike).structuredContent, { links: [] });
+  shape = [{}];
+  assert.deepEqual(((await rec.handler("gd_document_link")({ path: "player.gd" })) as ToolResultLike).structuredContent,
+    // An empty target is the honest answer for a link the server described without
+    // one — the alternative was `undefined` reaching the caller as a missing key.
+    { links: [{ line: 0, character: 0, end_line: 0, end_character: 0, target: "" }] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_document_color defaults a non-array reply and colors with no range or channels", async () => {
+  const projectPath = tmpProject({ "player.gd": "var c = Color(1,0,0,1)\n" });
+  let shape: unknown = null;
+  const { srv } = await startLsp({
+    capabilities: { colorProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "textDocument/documentColor") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: shape }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  shape = 42;
+  assert.deepEqual(((await rec.handler("gd_document_color")({ path: "player.gd" })) as ToolResultLike).structuredContent, { colors: [] });
+  shape = [{}];
+  const bare = (await rec.handler("gd_document_color")({ path: "player.gd" })) as ToolResultLike;
+  assert.deepEqual(bare.structuredContent, { colors: [{
+    line: 0, character: 0, end_line: 0, end_character: 0,
+    red: 0, green: 0, blue: 0, alpha: 0,
+    // The convenience hex must agree with the components it is derived from; a
+    // swatch that disagrees with its own numbers is worse than no swatch.
+    hex: "#00000000",
+  }] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_call_hierarchy defaults a null prepare, null calls, null entries and call items with nothing in them", async () => {
+  const projectPath = tmpProject({ "player.gd": "func a():\n\tb()\n" });
+  let prepared: unknown = null;
+  const { srv } = await startLsp({
+    capabilities: { callHierarchyProvider: true },
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/prepareCallHierarchy") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: prepared });
+      if (msg.method === "callHierarchy/incomingCalls") {
+        const item = (msg.params as { item: unknown }).item;
+        // The first prepared item is answered with null (a server that resolved the
+        // symbol and then had nothing to say); the second with a list containing a
+        // null entry, an entry with no fromRanges at all, and one whose fromRanges
+        // hold a null and a rangeless object.
+        writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: item === null ? null : [null, { from: {} }, { from: {}, fromRanges: [null, {}] }] });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  assert.deepEqual(((await rec.handler("gd_call_hierarchy")({ path: "player.gd", line: 0, character: 5 })) as ToolResultLike).structuredContent,
+    { direction: "incoming", items: [] }, "a null prepare is no items, not a crash");
+  prepared = [null, { kind: 99 }];
+  const res = (await rec.handler("gd_call_hierarchy")({ path: "player.gd", line: 0, character: 5 })) as ToolResultLike;
+  const sc = structured<{ items: Array<{ name: string; kind: string; uri: string; line: number; character: number; detail: string; calls: unknown[] }> }>(res);
+  assert.equal(sc.items.length, 2);
+  // A null CallHierarchyItem becomes a fully defaulted one rather than throwing on
+  // property access — every field present, every field empty.
+  assert.deepEqual(sc.items[0], { name: "", kind: "", uri: "", line: 0, character: 0, detail: "", calls: [] });
+  // An unknown SymbolKind is surfaced as its number, as everywhere else in this file.
+  assert.equal(sc.items[1].kind, "99");
+  assert.deepEqual(sc.items[1].calls, [
+    { name: "", kind: "", uri: "", line: 0, character: 0, detail: "", ranges: [] },
+    { name: "", kind: "", uri: "", line: 0, character: 0, detail: "", ranges: [] },
+    { name: "", kind: "", uri: "", line: 0, character: 0, detail: "", ranges: [
+      { line: 0, character: 0, end_line: 0, end_character: 0 },
+      { line: 0, character: 0, end_line: 0, end_character: 0 },
+    ] },
+  ]);
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_semantic_tokens decodes against a server that advertises no legend, sends holes, or sends data that is not a list", async () => {
+  const projectPath = tmpProject({ "player.gd": "extends Node\n" });
+  let result: unknown = null;
+  const { srv } = await startLsp({
+    // Truthy provider, NO legend — the decoder must fall back to printing the raw
+    // indices rather than resolving names it was never given.
+    capabilities: { semanticTokensProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "textDocument/semanticTokens/full") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const call = async () => structured<{ token_count: number; tokens: Array<{ line: number; character: number; length: number; type: string; modifiers: string[] }> }>(
+    (await rec.handler("gd_semantic_tokens")({ path: "player.gd" })) as ToolResultLike);
+  result = null;
+  assert.deepEqual(await call(), { token_count: 0, tokens: [] }, "a null reply decodes to no tokens");
+  result = { data: "not a list" };
+  assert.deepEqual(await call(), { token_count: 0, tokens: [] }, "data that is not an array decodes to no tokens");
+  result = { data: [0, 0, 1, 3, 5] };
+  const noLegend = await call();
+  // Type index 3 and modifier bits 0 and 2, with no legend to resolve them: the
+  // numbers come through as strings rather than as undefined or a thrown error.
+  assert.deepEqual(noLegend.tokens, [{ line: 0, character: 0, length: 1, type: "3", modifiers: ["0", "2"] }]);
+  result = { data: [null, null, null, null, null] };
+  assert.deepEqual((await call()).tokens, [{ line: 0, character: 0, length: 0, type: "0", modifiers: [] }],
+    "a tuple of holes decodes to a zeroed token rather than NaN positions");
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_document_symbols defaults symbols with no range of any of the three shapes, and an unknown kind", async () => {
+  const projectPath = tmpProject({ "player.gd": "extends Node\n" });
+  const { srv } = await startLsp({
+    onRequest: (msg, s) => {
+      if (msg.method === "textDocument/documentSymbol") {
+        // The three spellings this normalizer walks in order, and the case where
+        // none of them is present. The third — `location.range` — is the legacy
+        // `SymbolInformation` shape, which a server may still send in place of
+        // `DocumentSymbol`; it was the one spelling nothing had ever exercised.
+        writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: [
+          {},
+          { name: "Odd", kind: 99 },
+          { name: "Legacy", kind: 12, location: { uri: "res://player.gd", range: { start: { line: 7, character: 0 } } } },
+        ] });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const res = (await rec.handler("gd_document_symbols")({ path: "player.gd" })) as ToolResultLike;
+  assert.deepEqual(res.structuredContent, { symbols: [
+    { name: "", kind: "", line: 0 },
+    { name: "Odd", kind: "99", line: 0 },
+    // Read through `location.range`, not defaulted to 0: a legacy-shaped symbol
+    // must land on its real line or an outline points at the top of the file.
+    { name: "Legacy", kind: "function", line: 7 },
+  ] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_workspace_symbols defaults a null reply and symbols with no location or unknown kind", async () => {
+  const projectPath = tmpProject();
+  let result: unknown = null;
+  const { srv } = await startLsp({
+    capabilities: { workspaceSymbolProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "workspace/symbol") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  assert.deepEqual(((await rec.handler("gd_workspace_symbols")({ query: "X" })) as ToolResultLike).structuredContent, { symbols: [] },
+    "a null reply is no symbols — distinct from the 'unsupported' refusal, which is an error");
+  result = [{}, { name: "Odd", kind: 99 }];
+  assert.deepEqual(((await rec.handler("gd_workspace_symbols")({ query: "X" })) as ToolResultLike).structuredContent, { symbols: [
+    { name: "", kind: "", uri: "", line: 0 },
+    { name: "Odd", kind: "99", uri: "", line: 0 },
+  ] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_signature_help defaults a null reply, a signature with no label or parameters, and a plain-string parameter label", async () => {
+  const projectPath = tmpProject({ "player.gd": "func a(x):\n\tpass\n" });
+  let result: unknown = null;
+  const { srv } = await startLsp({
+    onRequest: (msg, s) => { if (msg.method === "textDocument/signatureHelp") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const call = async () => structured<{ signatures: Array<{ label: string; documentation: string; parameters: Array<{ label: string; documentation: string }> }>; active_signature: number; active_parameter: number }>(
+    (await rec.handler("gd_signature_help")({ path: "player.gd", line: 0, character: 0 })) as ToolResultLike);
+  assert.deepEqual(await call(), { signatures: [], active_signature: 0, active_parameter: 0 },
+    "a null reply defaults both active indices to 0 rather than leaving them undefined");
+  // Per LSP a parameter label may be a plain string OR a [start,end] offset pair
+  // into the signature label. The pair form was tested; the string form — the one
+  // most servers actually send — was not.
+  result = { signatures: [{}, { label: "a(x)", parameters: [{ label: "x" }] }] };
+  const two = await call();
+  assert.deepEqual(two.signatures[0], { label: "", documentation: "", parameters: [] });
+  assert.deepEqual(two.signatures[1].parameters, [{ label: "x", documentation: "" }]);
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_code_action defaults a null reply and an action with no title", async () => {
+  const projectPath = tmpProject({ "player.gd": "extends Node\n" });
+  let result: unknown = null;
+  const { srv } = await startLsp({
+    capabilities: { codeActionProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "textDocument/codeAction") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const args = { path: "player.gd", start_line: 0, start_character: 0 };
+  assert.deepEqual(((await rec.handler("gd_code_action")(args)) as ToolResultLike).structuredContent, { actions: [] });
+  result = [{}];
+  assert.deepEqual(((await rec.handler("gd_code_action")(args)) as ToolResultLike).structuredContent,
+    // `has_edit` must be false rather than undefined: a caller deciding whether an
+    // action is applicable reads that field.
+    { actions: [{ title: "", kind: "", has_edit: false, command: null }] });
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_formatting treats a null edit list as 'nothing to change' and returns the file unaltered", async () => {
+  const before = "extends Node\nfunc _ready():\n\tpass\n";
+  const projectPath = tmpProject({ "player.gd": before });
+  const { srv } = await startLsp({
+    capabilities: { documentFormattingProvider: true },
+    onRequest: (msg, s) => { if (msg.method === "textDocument/formatting") writeFrame(s, { jsonrpc: "2.0", id: msg.id, result: null }); },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  const sc = structured<{ edit_count: number; formatted: string }>((await rec.handler("gd_formatting")({ path: "player.gd" })) as ToolResultLike);
+  assert.equal(sc.edit_count, 0);
+  assert.equal(sc.formatted, before, "no edits must return the source verbatim, not an empty string");
+  assert.equal(fs.readFileSync(path.join(projectPath, "player.gd"), "utf8"), before, "and gd_formatting never writes");
+  lsp.close();
+  await srv.close();
+});
+
+test("317 — gd_diagnostics uses its default wait when none is given, and calls a diagnostic with no severity an error", async () => {
+  const projectPath = tmpProject({ "player.gd": "extends Node\nvar x =\n" });
+  const { srv } = await startLsp({
+    onNotify: (msg, s) => {
+      if (msg.method === "textDocument/didOpen") {
+        writeFrame(s, { jsonrpc: "2.0", method: "textDocument/publishDiagnostics", params: {
+          uri: "res://player.gd",
+          diagnostics: [
+            // No severity at all, and a severity outside the LSP 1..4 enum: both
+            // must land on "error", because under-reporting a problem is the worse
+            // direction to fail in.
+            { message: "unsaid", range: { start: { line: 1, character: 6 } } },
+            { severity: 9, message: "out of range", range: { start: { line: 0, character: 0 } } },
+          ],
+        } });
+      }
+    },
+  });
+  const { lsp, rec } = lspToolHarness(srv.port, projectPath);
+  // No wait_ms — the handler's own default applies. The publish arrives on didOpen,
+  // so this resolves immediately rather than actually waiting it out.
+  const sc = structured<{ diagnostics: Array<{ severity: string; message: string }> }>(
+    (await rec.handler("gd_diagnostics")({ path: "player.gd" })) as ToolResultLike);
+  assert.equal(sc.diagnostics.length, 2);
+  assert.deepEqual(sc.diagnostics.map((d) => d.severity), ["error", "error"]);
+  assert.deepEqual(sc.diagnostics.map((d) => d.message), ["unsaid", "out of range"]);
+  lsp.close();
+  await srv.close();
+});

@@ -2,6 +2,10 @@
 host/node_modules/
 host/dist/
 host/dist-test/
+# 317 — `docs/CODE_REVIEW_P1_P6.md` §6's coverage recipe writes here. It was
+# published at 314 and first actually run at 317, which is when the tree it
+# dirties became somebody's problem.
+host/coverage/
 host/addon/
 host/*.log
 npm-debug.log*
