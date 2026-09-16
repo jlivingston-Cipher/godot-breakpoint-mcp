@@ -189,11 +189,12 @@ test("318: the silent-peer remedy with a holder names it, and without one keeps 
   const args = ["127.0.0.1", 9081, "the running game", "BREAKPOINT_RUNTIME_HOST"] as const;
   assert.equal(silentHolderRemedy(...args, { kind: "unavailable", reason: "x" }), undefined);
   const stranger = silentHolderRemedy(...args, found(h({ kind: "other" }, "python3", 77)));
-  assert.match(String(stranger), /has ever spoken the Breakpoint bridge protocol/);
-  assert.match(String(stranger), /held by a program that is not Godot \(pid 77, python3/);
+  assert.match(String(stranger), /^Set BREAKPOINT_RUNTIME_HOST and its port knob/, "check 28: the next action comes first");
+  assert.match(String(stranger), /close what holds 127\.0\.0\.1:9081: a program that is not Godot \(pid 77, python3/);
+  assert.match(String(stranger), /never spoke the Breakpoint bridge protocol, so the running game is not what failed\.$/);
   assert.doesNotMatch(String(stranger), /lsof/, "the command is run, not handed over");
-  assert.match(String(silentHolderRemedy(...args, found(h({ kind: "runtime_spawn_peers", id: "peer-4" })))), /runtime_peer_stop, id "peer-4"/);
-  assert.match(String(silentHolderRemedy(...args, { kind: "none_visible" })), /this account cannot see/);
+  assert.match(String(silentHolderRemedy(...args, found(h({ kind: "runtime_spawn_peers", id: "peer-4" })))), /^Call runtime_peer_stop with id "peer-4" to free 127\.0\.0\.1:9081/);
+  assert.match(String(silentHolderRemedy(...args, { kind: "none_visible" })), /holder belongs to another account, so no tool here can stop it\.$/);
 });
 
 test("318: BridgeClient asks the lookup at the deadline, and only when the silent-peer sentence would be used", async () => {
@@ -211,7 +212,7 @@ test("318: BridgeClient asks the lookup at the deadline, and only when the silen
   });
   await assert.rejects(client.request("runtime.ping", {}, 60), (e: unknown) => {
     assert.ok(e instanceof BridgeError && e.code === "timeout");
-    assert.match(String(e.remedy), /godot_stop, id "godot-9"/);
+    assert.match(String(e.remedy), /^Call godot_stop with id "godot-9"/);
     return true;
   });
   assert.equal(asked, 1);

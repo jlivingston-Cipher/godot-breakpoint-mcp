@@ -648,7 +648,6 @@ export class BridgeClient {
         // holding, the peer IS ours and is merely halted, so "nothing here speaks our
         // protocol" would be a confident wrong answer. Inference fills the gap the
         // positive fact leaves; it never overrules it.
-        const message = `Bridge request '${method}' timed out after ${timeoutMs}ms`;
         const positive = this.holdProbe?.() ?? this.authDenialRemedy();
         const silent = positive === undefined ? this.silentPeerRemedy() : undefined;
         // 🆕 318 — THE INFERENCE, FINISHED. Read the sentence NOW, before any await: the
@@ -656,14 +655,14 @@ export class BridgeClient {
         // which would let a peer that spoke vouch for — or against — a port it no longer holds.
         const lookup = this.holderLookup;
         if (silent === undefined || lookup === null) {
-          reject(new BridgeError(BRIDGE_TIMEOUT_CODE, message, positive ?? silent ?? undefined));
+          reject(new BridgeError(BRIDGE_TIMEOUT_CODE, `Bridge request '${method}' timed out after ${timeoutMs}ms`, positive ?? silent ?? undefined));
           return;
         }
         const { host, port } = this;
         void lookup(host, port).then(
           (holder) => silentHolderRemedy(host, port, this.peerNoun, this.hostKnob, holder),
           () => undefined,
-        ).then((named) => reject(new BridgeError(BRIDGE_TIMEOUT_CODE, message, named ?? silent)));
+        ).then((named) => reject(new BridgeError(BRIDGE_TIMEOUT_CODE, `Bridge request '${method}' timed out after ${timeoutMs}ms`, named ?? silent)));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       socket.write(payload, (err) => {

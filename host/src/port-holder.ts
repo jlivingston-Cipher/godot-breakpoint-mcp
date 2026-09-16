@@ -44,7 +44,7 @@ import path from "node:path";
  */
 
 /** One listening socket, as lsof reports it. */
-export interface Listener {
+interface Listener {
   pid: number;
   /** The program name lsof reports (`-Fc`), never its arguments. */
   command: string;
@@ -52,7 +52,7 @@ export interface Listener {
   address: string;
 }
 
-export type HolderReading =
+type HolderReading =
   | { kind: "found"; listeners: Listener[] }
   | { kind: "none_visible" }
   | { kind: "unavailable"; reason: string };
@@ -67,7 +67,7 @@ export interface ExecOutcome {
 export type ExecFn = (file: string, args: readonly string[], timeoutMs: number) => Promise<ExecOutcome>;
 
 /** Measured at 29 ms on the Mac; the ceiling exists for a machine with a hung network mount. */
-export const LOOKUP_TIMEOUT_MS = 2000;
+const LOOKUP_TIMEOUT_MS = 2000;
 
 /** The one invocation. `+c 0` lifts lsof's nine-character truncation of the program name. */
 export function lsofArgs(port: number): string[] {
@@ -97,7 +97,7 @@ export function isLoopbackHost(host: string): boolean {
  * `ROLI\x20Hardware\x20Driver`. A remedy that names the program should name it as a person
  * sees it in Activity Monitor.
  */
-export function decodeLsofName(s: string): string {
+function decodeLsofName(s: string): string {
   return s.replace(/\\x([0-9a-fA-F]{2})/g, (_m, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
 }
 
@@ -134,7 +134,7 @@ export function parseLsof(stdout: string): Listener[] {
   return out;
 }
 
-export interface ReadOptions {
+interface ReadOptions {
   exec?: ExecFn;
   platform?: NodeJS.Platform;
   timeoutMs?: number;
@@ -199,7 +199,7 @@ export function ownedPeers(): Array<{ id: string; port: number; pid: number }> {
 
 // ── Attribution ─────────────────────────────────────────────────────────────────────────
 
-export type Attribution =
+type Attribution =
   | { kind: "godot_run_managed"; id: string }
   | { kind: "runtime_spawn_peers"; id: string }
   | { kind: "godot_run_project" }
@@ -212,7 +212,7 @@ export type Attribution =
  * `Godot_v4.4-stable_linux.x86_64`, whose 15-byte Linux `comm` is `Godot_v4.4-stab`), or it is
  * exactly the basename `GODOT_BIN` names — the one case a renamed build is still recognised.
  */
-export function looksLikeGodot(command: string, godotBin: string): boolean {
+function looksLikeGodot(command: string, godotBin: string): boolean {
   const bin = path.basename(godotBin).replace(/\.exe$/i, "");
   return /godot/i.test(command) || (bin.length > 0 && command === bin);
 }
@@ -315,6 +315,12 @@ export function holderBrief(holders: readonly Holder[]): string {
  * The silent-peer remedy with the holder named — `bridge.ts`'s sentence, which used to end in
  * a Terminal command, finished by running it. `undefined` when the lookup could not answer,
  * so the caller keeps the sentence it already had.
+ *
+ * 🔴 WRITTEN TO CHECK 28's GRAMMAR, AND THE FIRST DRAFT WAS NOT. It led with the diagnosis —
+ * *nothing on 127.0.0.1:9081 has ever spoken …* — and put the next action last, which is the
+ * order a person narrating the failure would use and the wrong order for a field whose whole
+ * job is the next action: the message beside it already says what failed. Each branch now
+ * opens with the one thing to do, and the diagnosis is the reason clause behind it.
  */
 export function silentHolderRemedy(
   host: string,
@@ -323,25 +329,28 @@ export function silentHolderRemedy(
   hostKnob: string,
   holder: PortHolder,
 ): string | undefined {
-  const head =
-    `Nothing on ${host}:${port} has ever spoken the Breakpoint bridge protocol on this connection, ` +
-    `so this is not ${peerNoun} failing — `;
-  const elsewhere = `point this plane elsewhere with ${hostKnob} and its port knob`;
   if (holder.kind === "unavailable") return undefined;
+  const where = `${host}:${port}`;
   if (holder.kind === "none_visible") {
-    return (
-      head +
-      `the port is held by a process this account cannot see (another user's, or the system's), so no ` +
-      `tool here can stop it. ${cap(elsewhere)}.`
-    );
+    return `Set ${hostKnob} and its port knob to move this plane — ${where} never spoke the Breakpoint bridge protocol, and its holder belongs to another account, so no tool here can stop it.`;
   }
   const hs = holder.holders;
-  const stop = hs.length === 1 ? certainStop(hs[0]) : undefined;
-  if (stop) return head + `the port is held by ${holderPhrase(hs[0])}. ${cap(stop)}, or ${elsewhere}.`;
-  const quit = hs.length === 1 && hs[0].owner.kind === "this_server" ? "" : `Quit ${hs.length === 1 ? "it" : "them"}, or `;
-  return head + `the port is held by ${holdersPhrase(hs)}. ${quit ? quit + elsewhere : cap(elsewhere)}.`;
+  const who = holdersPhrase(hs);
+  const stop = hs.length === 1 ? stopCall(hs[0]) : undefined;
+  if (stop !== undefined) {
+    return `Call ${stop} to free ${where}, or set ${hostKnob} and its port knob — it is held by ${who}, which never spoke the Breakpoint bridge protocol, so ${peerNoun} is not what failed.`;
+  }
+  return `Set ${hostKnob} and its port knob to move this plane, or close what holds ${where}: ${who}. It never spoke the Breakpoint bridge protocol, so ${peerNoun} is not what failed.`;
 }
 
-function cap(s: string): string {
-  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+/** `godot_stop with id "godot-2"` — the call-shaped half of `certainStop`, for a sentence that opens on the verb. */
+function stopCall(h: Holder): string | undefined {
+  switch (h.owner.kind) {
+    case "godot_run_managed":
+      return `godot_stop with id "${h.owner.id}"`;
+    case "runtime_spawn_peers":
+      return `runtime_peer_stop with id "${h.owner.id}"`;
+    default:
+      return undefined;
+  }
 }
