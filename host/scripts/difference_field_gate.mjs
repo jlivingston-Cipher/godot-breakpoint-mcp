@@ -57,7 +57,7 @@
 // default-off `code-execution` capability group and are ABSENT from `tools/list` for an
 // ordinary client. The unit suite cannot see this: `destination_overwrite.test.ts` walks
 // `buildToolsets` through a STUB that never applies the capability wrapper, so it
-// records all 292 registrations and is right to. THE LIVE PLANE IS WHERE THE GAP OPENS,
+// records all 293 registrations and is right to. THE LIVE PLANE IS WHERE THE GAP OPENS,
 // and the live plane is where the second-call gate goes. A gate deriving DRIVEN from a
 // default-configured client would drive 23 of 28 and report a clean green — 284 §1.3's
 // defect exactly, where blinding `queue_head` to (0, "") made the requirement

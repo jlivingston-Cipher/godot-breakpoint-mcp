@@ -61,7 +61,7 @@ const HOST_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // and `wire_diff.mjs` floors with `SURFACE_FLOOR`. Two floors rather than one because the
 // two collapses are different: a surface can register every tool and still walk no
 // declarations if the walker stops descending, which is 211 §4 one file over.
-export const TOOL_FLOOR = 200;   // live 292
+export const TOOL_FLOOR = 200;   // live 293
 export const FACT_FLOOR = 200;   // live 318
 // 🆕 255 — A THIRD FLOOR, AND IT IS ABOUT THE IDENTITY FUNCTION RATHER THAN THE WALK.
 // `siteKey` is what turns a fact into the thing this gate reports and compares; a version

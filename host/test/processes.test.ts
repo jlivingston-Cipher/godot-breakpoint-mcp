@@ -9,6 +9,7 @@ import { ProcessRegistry, registerProcessTools } from "../src/tools/processes.js
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import type { Config } from "../src/config.js";
 import { structured } from "./helpers/structured.js";
+import { whoHolds } from "../src/port-holder.js";
 
 /**
  * Behavior tests for the managed-process plane (tools/processes.ts). This is
@@ -233,7 +234,17 @@ test("godot_run_managed refuses a held runtime port, and names the wrong-process
     // is that proceeding produces answers about a different process.
     assert.match(text, /silently address the process that already holds the port/);
     // Every exit named, so the refusal is actionable rather than merely correct.
-    assert.match(text, /godot_stop/);
+    // 🆕 318 — THE HOLDER IS NO LONGER UNKNOWABLE, SO THE LIST IS NO LONGER THE ANSWER. `squat()`
+    // binds inside THIS process, and the listener table names this very pid; the refusal must
+    // say so, and must not offer a stop tool that cannot stop it. Where the runner has no lsof,
+    // the conditional list that shipped is still the answer, and this arm asserts it.
+    const holder = await whoHolds("127.0.0.1", port, "godot");
+    if (holder.kind === "unavailable") {
+      assert.match(text, /godot_stop/);
+    } else {
+      assert.match(text, new RegExp(`held by this Breakpoint server's own process \\(pid ${process.pid},`));
+      assert.doesNotMatch(text, /godot_stop/, "the holder is known, and godot_stop cannot stop it");
+    }
     assert.match(text, /BREAKPOINT_RUNTIME_PORT/);
     assert.match(text, /allow_port_conflict:true/);
     assert.match(text, /runtime_spawn_peers/);

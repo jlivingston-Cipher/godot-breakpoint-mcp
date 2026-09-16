@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **292 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **293 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -129,6 +129,38 @@ Check this setup end to end — the Godot binary, the editor addon's install and
         "severity": { "type": "string" },
         "detail": { "type": "string" },
         "hint": { "type": "string" }
+      } } }
+  } }
+```
+
+
+### `breakpoint_ports` ✅
+Who is on the ports this server dials — the editor bridge, the runtime bridge, Godot's GDScript LSP and DAP, and every live `runtime_spawn_peers` peer. Each row is `held`, `free` or `unknown`, and a held row names every process listening on it: its `pid`, its program name (never its command line), the addresses it is bound to, and its `owner` — `godot_run_managed`, `runtime_spawn_peers` or `godot_run_project` when this server started it (with the `id` that `godot_stop` / `runtime_peer_stop` take), `this_server`, `godot` for a Godot process this server did not start, or `other`. Read from the operating system's listener table with `lsof`, on this machine's loopback only; a host naming another machine is `unknown`, and a `note` says so. `free` means the table listed no listener **and** the address could be bound — `lsof` prints the same empty answer for "nobody" and for "a process another account owns", and a bind alone misses a listener on `*:<port>` or `[::1]:<port>`, so each reader covers the other's blind spot. Where `lsof` is unavailable (not installed, Windows) the `note` names why and the state rests on the bind alone. The same reading completes the launch refusals of `godot_run_project`, `godot_run_managed`, `dbg_launch` and `cs_dbg_launch`, the bridge's silent-peer timeout, and `breakpoint_doctor`'s bridge rows.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "properties": {} }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["ports"],
+  "properties": {
+    "ports": { "type": "array", "items": { "type": "object",
+      "required": ["name", "host", "port", "state", "holders", "note"],
+      "properties": {
+        "name": { "type": "string" },
+        "host": { "type": "string" },
+        "port": { "type": "number" },
+        "state": { "type": "string" },
+        "holders": { "type": "array", "items": { "type": "object",
+          "required": ["pid", "command", "addresses", "owner", "id"],
+          "properties": {
+            "pid": { "type": "number" },
+            "command": { "type": "string" },
+            "addresses": { "type": "array", "items": { "type": "string" } },
+            "owner": { "type": "string" },
+            "id": { "type": ["string", "null"] }
+          } } },
+        "note": { "type": ["string", "null"] }
       } } }
   } }
 ```
@@ -4372,6 +4404,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | Tool | Plane | Status | Destructive |
 |---|---|---|---|
 | `breakpoint_doctor` | `cli` · B / CLI | ✅ | – |
+| `breakpoint_ports` | `cli` · B / CLI | ✅ | – |
 | `godot_version` | `cli` · B / CLI | ✅ | – |
 | `godot_launch_editor` | `cli` · B / CLI | ✅ | – |
 | `godot_run_project` | `cli` · B / CLI | ✅ | – |
@@ -4669,4 +4702,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
-**292 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**293 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

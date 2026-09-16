@@ -9621,6 +9621,39 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (317, """> ```
+> main                 33c3262 — session317c the block a close note does not carry, and the queue that could not say so (#418)  MOVED +2
+> branch 317           session317-the-decline-nothing-had-ever-taken · PR #417 ·
+>                      session317c-the-block-a-close-note-does-not-carry · PR #418
+> host / addon         1.85.1 / 1.16.0  🟢 UNMOVED — no source touched under host/src or addons/
+> npm                  🟢 registry 1.85.1 · untagged 7 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at each of the two merges, post-merge run at 33c3262
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1005/1005 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes · blast 3392
+>               · late not-loaded 0 · late constructed 359/160
+>               · py gates 18/6/12 · SIG 296/105
+>               · discover 58/16/16/30 · 0 exempt · 0 undeclared
+>               · floor_pin 116 · 56 governed · 2390 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 327 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 292 tools / 3864 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5155 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 27/27 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 84/84 claims · handoff 645 claims
+>               · landscape 4 channel(s) / 55 analysed / 45 surfaced
+>               · capability 55 claimed / 35 unread / 10 uncited
+>               · cadence 27 within / 14 past / 14 never analysed
+>               · identity 69 of 100 / 1 renamed / 0 collisions
+>               · error-code discipline 60 reads / 30 raise sites / 12 host-origin vs 57
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #

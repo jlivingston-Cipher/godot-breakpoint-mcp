@@ -6,6 +6,7 @@ import { findNonFinite, describeNonFinite, tolerate, TOLERANT_METHODS, nonFinite
 import { remedyForWireError } from "./remedies.js";
 import { closeDetail, closeRemedy } from "./close-cause.js";
 import { connectHint, connectRemedy } from "./connect-cause.js";
+import { silentHolderRemedy, type PortHolder } from "./port-holder.js";
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -287,6 +288,22 @@ export class BridgeClient {
   }
 
   private holdProbe: (() => string | undefined) | null = null;
+
+  /**
+   * 🆕 318 — WHO HOLDS THE PORT, ASKED ONLY WHEN THE SILENT-PEER SENTENCE IS ABOUT TO BE USED.
+   *
+   * `silentPeerRemedy` ended by handing the person `lsof -nP -iTCP:<port> -sTCP:LISTEN` to
+   * run. That is a command this host can run itself, and only this host can read the pid it
+   * prints against the children it started. A HOOK for the same reason `setHoldProbe` is one:
+   * the `.mjs` probes construct this class directly, and a client that never sets it gets
+   * exactly the sentence that shipped. Consulted at the deadline and nowhere else — a healthy
+   * call never runs lsof.
+   */
+  setHolderLookup(lookup: (host: string, port: number) => Promise<PortHolder>): void {
+    this.holderLookup = lookup;
+  }
+
+  private holderLookup: ((host: string, port: number) => Promise<PortHolder>) | null = null;
 
   /** Register a listener for addon-pushed resource-change events. */
   onResourceChanged(cb: ResourceChangedListener): void {
@@ -631,7 +648,22 @@ export class BridgeClient {
         // holding, the peer IS ours and is merely halted, so "nothing here speaks our
         // protocol" would be a confident wrong answer. Inference fills the gap the
         // positive fact leaves; it never overrules it.
-        reject(new BridgeError(BRIDGE_TIMEOUT_CODE, `Bridge request '${method}' timed out after ${timeoutMs}ms`, this.holdProbe?.() ?? this.authDenialRemedy() ?? this.silentPeerRemedy() ?? undefined));
+        const message = `Bridge request '${method}' timed out after ${timeoutMs}ms`;
+        const positive = this.holdProbe?.() ?? this.authDenialRemedy();
+        const silent = positive === undefined ? this.silentPeerRemedy() : undefined;
+        // 🆕 318 — THE INFERENCE, FINISHED. Read the sentence NOW, before any await: the
+        // lookup takes milliseconds and a reconnect in that window resets `sawBridgeFrame`,
+        // which would let a peer that spoke vouch for — or against — a port it no longer holds.
+        const lookup = this.holderLookup;
+        if (silent === undefined || lookup === null) {
+          reject(new BridgeError(BRIDGE_TIMEOUT_CODE, message, positive ?? silent ?? undefined));
+          return;
+        }
+        const { host, port } = this;
+        void lookup(host, port).then(
+          (holder) => silentHolderRemedy(host, port, this.peerNoun, this.hostKnob, holder),
+          () => undefined,
+        ).then((named) => reject(new BridgeError(BRIDGE_TIMEOUT_CODE, message, named ?? silent)));
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       socket.write(payload, (err) => {

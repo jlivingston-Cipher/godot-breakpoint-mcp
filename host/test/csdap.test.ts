@@ -13,6 +13,7 @@ import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike, type ElicitFn } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
 import { structured } from "./helpers/structured.js";
+import { whoHolds } from "../src/port-holder.js";
 
 interface DapMsg { seq: number; type: string; command?: string; arguments?: Record<string, unknown>; request_seq?: number; success?: boolean; event?: string; body?: unknown }
 
@@ -630,7 +631,16 @@ test("cs_dbg_launch refuses a held runtime port when launching the configured Go
     assert.equal(res.isError, true);
     const text = res.content?.[0]?.text ?? "";
     assert.match(text, new RegExp(`127\\.0\\.0\\.1:${port} is already bound`));
-    assert.match(text, /cs_dbg_attach/);
+    // 🆕 318 — THE HOLDER IS NO LONGER UNKNOWABLE, SO THE LIST IS NO LONGER THE ANSWER. `squat()`
+    // binds inside THIS process, and the listener table names this very pid; the refusal must
+    // say so, and must not offer a stop tool that cannot stop it. Where the runner has no lsof,
+    // the conditional list that shipped is still the answer, and this arm asserts it.
+    const holder = await whoHolds("127.0.0.1", port, "godot");
+    if (holder.kind === "unavailable") {
+      assert.match(text, /cs_dbg_attach/);
+    } else {
+      assert.match(text, new RegExp(`held by this Breakpoint server's own process \\(pid ${process.pid},`));
+    }
     assert.match(text, /addressed by session rather than by port/);
   } finally {
     dap.close();

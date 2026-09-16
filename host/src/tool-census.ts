@@ -2,7 +2,7 @@
  * The tool census — how many tools this process actually registered.
  *
  * 🔴 WHY A WRAPPER AND NOT A CONSTANT. The surface a client is offered is not
- * `292`: `BREAKPOINT_TOOLSETS` filters whole groups and `applyCapabilities` drops
+ * `293`: `BREAKPOINT_TOOLSETS` filters whole groups and `applyCapabilities` drops
  * individual tools before they reach the SDK, so the only honest count is the one
  * taken at the point of registration. Every number in the documentation is a
  * measurement of a configuration; this is the measurement of THIS one, printed at
@@ -13,7 +13,7 @@
  * OUTERMOST `registerTool` wrapper, so the one installed earliest is the last in
  * the call chain and sees only what every outer wrapper let through —
  * `applyCapabilities` drops a tool by never calling inward. A census installed
- * after it would count 292 attempts on every configuration and be wrong exactly
+ * after it would count 293 attempts on every configuration and be wrong exactly
  * when it matters: on the least-privileged surface, which is the default.
  *
  * 🔵 AND IT COUNTS ITS OWN CALLS RATHER THAN READING THE SDK'S REGISTRY. A private

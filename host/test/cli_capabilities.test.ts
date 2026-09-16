@@ -90,7 +90,7 @@ test("doctor checkCapabilities reports the full surface when the group is on", (
   const cfg = { ...loadConfig(), privilegedGroups: ["all"] };
   const main = checkCapabilities(cfg).find((c) => c.name === "capability-groups");
   assert.ok(main);
-  assert.match(main.detail, /full 292-tool surface/);
+  assert.match(main.detail, /full 293-tool surface/);
   assert.equal(main.hint, undefined);
 });
 

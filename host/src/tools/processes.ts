@@ -6,6 +6,7 @@ import { log } from "../logger.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
+import { noteOwned, whoHolds, type Owner } from "../port-holder.js";
 import { describeExit } from "../exit-cause.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 import { spawnGuarded } from "../spawn-guard.js";
@@ -75,7 +76,7 @@ export class ProcessRegistry {
    * passthrough plus a port allocator, with no protocol, transport or handshake
    * change. See `peers.ts`.
    */
-  async run(cfg: Config, extraArgs: string[], env?: Record<string, string>): Promise<Managed> {
+  async run(cfg: Config, extraArgs: string[], env?: Record<string, string>, owner?: Owner): Promise<Managed> {
     const id = `godot-${++this.counter}`;
     // 🔴 282 — THE THIRD SPAWN OF THE CONFIGURED BINARY, AND IT TOOK THE SERVER
     // DOWN THE SAME WAY THE OTHER TWO DID. A child with no `'error'` listener
@@ -100,6 +101,9 @@ export class ProcessRegistry {
       return m;
     }
     const child = started.child;
+    // 318 — the ledger `port-holder.ts` reads to tell a holder this server started from one it
+    // did not. A peer passes its own owner, so the name a refusal gives is the one its tool takes.
+    noteOwned(child, owner ?? { tool: "godot_run_managed", id });
     const m: Managed = { id, child, lines: [], seq: 0, exited: false, exitCode: null, exitSignal: null, spawnError: null };
     const ingest = (stream: "stdout" | "stderr") => (buf: Buffer | string) => {
       const text = typeof buf === "string" ? buf : buf.toString("utf8");
@@ -204,7 +208,8 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
         if (scene !== undefined) resolveInsideProject(scene, cfg.projectPath, "scene");
       } catch (err) { return failPath(err); }
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
-        return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
+        const holder = await whoHolds(cfg.runtimeHost, cfg.runtimePort, cfg.godotBin);
+        return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "run", holder) }] };
       }
       const m = await registry.run(cfg, scene ? [scene] : []);
       if (m.spawnError) return { isError: true, content: [{ type: "text" as const, text: m.spawnError }] };
