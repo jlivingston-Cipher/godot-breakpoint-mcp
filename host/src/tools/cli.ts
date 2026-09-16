@@ -385,10 +385,9 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
     {
       title: "Who holds the ports",
       description:
-        "List the ports this server dials — editor bridge, runtime bridge, GDScript LSP, GDScript DAP and any live " +
-        "runtime_spawn_peers peer — as held or free, naming each holder's pid and program and whether this server " +
-        "started it (godot_run_managed / runtime_spawn_peers / godot_run_project). Read-only. Use it when a launch " +
-        "is refused over a held port or a bridge will not answer.",
+        "Who holds each port this server dials — editor and runtime bridges, GDScript LSP and DAP, live peers: " +
+        "held or free, each holder's pid and program, and whether this server started it. Read-only. Use it when " +
+        "a launch is refused over a held port or a bridge will not answer.",
       inputSchema: {},
     },
     async () => ok({ ports: await readPorts(cfg) }),

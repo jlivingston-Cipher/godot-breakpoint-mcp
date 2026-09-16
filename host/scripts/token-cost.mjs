@@ -211,7 +211,16 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // do that while it sits ON the surface: 329 B is two or three descriptions' worth of
 // prose that would now enter without anybody voting for it, which is precisely the
 // growth-called-a-budget its own `TARGET_REASONS` sentence forbids.
-export const BYTES_CEILING = 375991;
+//
+// 🆕 318 — RAISED 375,991 -> 377,232, AND WHAT BOUGHT IT IS ONE TOOL THE OWNER VOTED FOR.
+// `breakpoint_ports` was granted by name (2026-09-16: "build items 1-4", item 4 being a
+// read-only tool that names who holds each port). Measured before and after on the same
+// build: +1,345 B as first drafted, and 104 B of that was the description restating its own
+// output fields, which came off before this line moved. The rest is the tool's frozen
+// `outputSchema`, its annotation block and its (empty) input schema — the price every tool
+// on this surface pays, and 312's rule still holds: the ceiling sits ON the surface, with no
+// slack for the next description to spend without a vote.
+export const BYTES_CEILING = 377232;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

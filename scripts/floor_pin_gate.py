@@ -367,7 +367,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # time. 311's new clause was paid for out of another description, so the catalogue
     # came out SMALLER than its own ceiling, and a budget that stops sitting on the
     # surface is prose nobody voted for. The ceiling follows the surface back down.
-    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )375991;",                  [f"{S}/token-cost.selftest.mjs"]),
+    ("BYTES_CEILING",            f"{S}/token-cost.mjs",              r"(export const BYTES_CEILING = )377232;",                  [f"{S}/token-cost.selftest.mjs"]),
     ("tc.TOOL_FLOOR",            f"{S}/token-cost.mjs",              r"(export const TOOL_FLOOR = )250;",                         [f"{S}/token-cost.selftest.mjs"]),
     # 🆕 207 §7.1 — THE COMPONENT A COMPARISON MAY HONESTLY QUOTE. The alternative's
     # published figure was REPRODUCED this session (319 tools, 202,327 B, every one of
