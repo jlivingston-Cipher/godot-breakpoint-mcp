@@ -8,6 +8,7 @@ import { resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 import { portFree, portConflictMessage } from "../ports.js";
+import { whoHolds } from "../port-holder.js";
 
 // How long step/continue wait for the program to settle (hit a breakpoint,
 // finish a step, or terminate) before returning. On timeout the tool reports
@@ -279,9 +280,10 @@ export function registerCsDapTools(server: McpServer, dap: CsDapClient, cfg: Con
         !allow_port_conflict &&
         !(await portFree(cfg.runtimeHost, cfg.runtimePort))
       ) {
+        const holder = await whoHolds(cfg.runtimeHost, cfg.runtimePort, cfg.godotBin);
         return {
           isError: true,
-          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger") }],
+          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger", holder) }],
         };
       }
       try {

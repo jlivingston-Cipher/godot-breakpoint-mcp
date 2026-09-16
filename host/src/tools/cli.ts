@@ -7,7 +7,8 @@ import { log } from "../logger.js";
 import { registerTaskTool } from "../tasks.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
-import { portFree, portConflictMessage } from "../ports.js";
+import { portFree, portConflictMessage, readPorts } from "../ports.js";
+import { noteOwned, whoHolds } from "../port-holder.js";
 import { runDoctorChecks } from "../cli/doctor.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 import { spawnGuarded, godotSpawnFailure, isSpawnFailure } from "../spawn-guard.js";
@@ -177,7 +178,8 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         if (scene !== undefined) resolveInsideProject(scene, cfg.projectPath, "scene");
       } catch (err) { return failPath(err); }
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
-        return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort) }] };
+        const holder = await whoHolds(cfg.runtimeHost, cfg.runtimePort, cfg.godotBin);
+        return { isError: true, content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "run", holder) }] };
       }
       const args = ["--path", cfg.projectPath];
       if (scene) args.push(scene);
@@ -187,6 +189,9 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         stdio: "ignore",
       });
       if (!s.ok) return refuseSpawn(s.message);
+      // 318 — recorded so a later refusal over this port can say the holder is this detached
+      // game, and that no tool can stop it, instead of listing every holder it might be.
+      noteOwned(s.child, { tool: "godot_run_project" });
       s.child.unref();
       const readiness = await waitForRuntimeBridge(cfg, wait_timeout_ms ?? cfg.runtimeTimeoutMs);
       return ok({
@@ -369,5 +374,22 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         checks: report.checks,
       });
     },
+  );
+
+  // 🆕 318 — WHO IS ON THE PORTS THIS SERVER DIALS. The launch refusals and the bridge's
+  // silent-peer sentence now name a port's holder at the moment they fail; this is the same
+  // reading on demand, so an assistant asks instead of guessing, and in a client with no shell
+  // it is the only way to ask at all. Read-only, loopback-only, and it never reads a command line.
+  server.registerTool(
+    "breakpoint_ports",
+    {
+      title: "Who holds the ports",
+      description:
+        "Who holds each port this server dials — editor and runtime bridges, GDScript LSP and DAP, live peers: " +
+        "held or free, each holder's pid and program, and whether this server started it. Read-only. Use it when " +
+        "a launch is refused over a held port or a bridge will not answer.",
+      inputSchema: {},
+    },
+    async () => ok({ ports: await readPorts(cfg) }),
   );
 }

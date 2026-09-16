@@ -7,6 +7,7 @@ import { resolveSourceFile, type PlaneWording } from "../paths.js";
 import { gate } from "../confirm.js";
 import { ok } from "./lsp-common.js";
 import { portFree, portConflictMessage } from "../ports.js";
+import { whoHolds } from "../port-holder.js";
 
 /**
  * How long `stop_on_entry: true` waits for the entry `stopped` event before
@@ -361,9 +362,10 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
       // Before the port check and before the transport — see guardScene.
       try { guardScene(scene); } catch (err) { return fail(err); }
       if (!allow_port_conflict && !(await portFree(cfg.runtimeHost, cfg.runtimePort))) {
+        const holder = await whoHolds(cfg.runtimeHost, cfg.runtimePort, cfg.godotBin);
         return {
           isError: true,
-          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger") }],
+          content: [{ type: "text" as const, text: portConflictMessage(cfg.runtimeHost, cfg.runtimePort, "debugger", holder) }],
         };
       }
       try {

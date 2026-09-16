@@ -233,6 +233,28 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
       }),
     ),
   },
+  // 🆕 318 — `breakpoint_ports`. `holders` is empty, never absent, on a free row: "nobody" is
+  // the answer a caller asked for, and an absent field would make it guess between that and "not asked".
+  breakpoint_ports: {
+    ports: z.array(
+      z.object({
+        name: z.string(),
+        host: z.string(),
+        port: z.number(),
+        state: z.string(),
+        holders: z.array(
+          z.object({
+            pid: z.number(),
+            command: z.string(),
+            addresses: z.array(z.string()),
+            owner: z.string(),
+            id: z.string().nullable(),
+          }),
+        ),
+        note: z.string().nullable(),
+      }),
+    ),
+  },
   godot_version: { version: z.string(), raw: capturedRaw },
   godot_launch_editor: { launched: z.boolean(), pid: z.number().nullable(), project: z.string() },
   // 🔴 `running` ALONE WAS THE DEFECT (249, closed 257). It reported that spawn()

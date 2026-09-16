@@ -10,6 +10,7 @@ import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import { startTcpServer, makeFrameParser, writeFrame, encodeFrame, type TcpServer } from "./helpers/tcp.js";
 import { structured } from "./helpers/structured.js";
+import { whoHolds } from "../src/port-holder.js";
 
 interface DapMsg { seq: number; type: string; command?: string; arguments?: Record<string, unknown>; request_seq?: number; success?: boolean; event?: string; body?: unknown }
 
@@ -1000,20 +1001,30 @@ test("dbg_launch refuses a held runtime port and points at dbg_attach", async ()
     // only if the holder is editor-owned, and false in the commonest case of all,
     // a godot_run_managed child that godot_stop clears. The probe cannot know
     // which it is, so the message must not pick one.
-    assert.match(text, /dbg_attach/);
-    assert.match(text, /godot_stop/);
-    assert.match(text, /quit it in the/);
+    // 🆕 318 — THE HOLDER IS NO LONGER UNKNOWABLE, SO THE LIST IS NO LONGER THE ANSWER. `squat()`
+    // binds inside THIS process, and the listener table names this very pid; the refusal must
+    // say so, and must not offer a stop tool that cannot stop it. Where the runner has no lsof,
+    // the conditional list that shipped is still the answer, and this arm asserts it.
+    const holder = await whoHolds("127.0.0.1", port, "godot");
+    if (holder.kind === "unavailable") {
+      assert.match(text, /dbg_attach/);
+      assert.match(text, /godot_stop/);
+      assert.match(text, /quit it in the/);
+      // dbg_attach must not be offered as if it always works.
+      assert.match(text, /only if it is already under the/);
+      assert.doesNotMatch(
+        text,
+        /no tool here can stop it/,
+        "the probe learns only THAT the port is held, never by what — it must not assert the holder is unstoppable",
+      );
+    } else {
+      assert.match(text, new RegExp(`held by this Breakpoint server's own process \\(pid ${process.pid},`));
+      assert.doesNotMatch(text, /godot_stop|dbg_attach/, "neither tool reaches this server's own socket");
+    }
     assert.match(text, /BREAKPOINT_RUNTIME_PORT/);
     assert.match(text, /allow_port_conflict:true/);
     // And the honest reading of the override: dbg_* is unaffected, runtime_* is not.
     assert.match(text, /addressed by session rather than by port/);
-    // dbg_attach must not be offered as if it always works.
-    assert.match(text, /only if it is already under the/);
-    assert.doesNotMatch(
-      text,
-      /no tool here can stop it/,
-      "the probe learns only THAT the port is held, never by what — it must not assert the holder is unstoppable",
-    );
   } finally {
     dap.close();
     srv.close();

@@ -47,6 +47,7 @@ import {
   type AddonSkew,
 } from "../addon-version.js";
 import { resolveBundledAddon } from "./init.js";
+import { certainStop, holderBrief, holdersPhrase, whoHolds, type PortHolder } from "../port-holder.js";
 
 export type CheckStatus = "ok" | "fail" | "skip";
 
@@ -464,7 +465,7 @@ export function checkCapabilities(config: Config): Check[] {
       severity: "info",
       detail:
         dropped.length === 0
-          ? `${state} — full 292-tool surface`
+          ? `${state} — full 293-tool surface`
           : `${state} (secure default) — ${dropped.length} higher-trust tool(s) dropped from the surface`,
       // The token list is DERIVED — `code-execution,network` was printed here
       // for as long as the `network` group has been deleted, so the remedy
@@ -559,6 +560,43 @@ export function addonRunningCheck(bridge: string, running: string | null, bundle
   };
 }
 
+/**
+ * 🆕 318 — what a holder reading may add to a bridge row, and the one thing it may change.
+ *
+ * `suffix` is the brief (`· held by Godot, pid 511`) and is appended to whatever the row
+ * already said. `stop` is the certain remedy when this server started the holder.
+ * `wrongProcess` is set only when EVERY process on the port is a program that is not Godot
+ * and not this server — the single reading that turns a row that would have passed into a
+ * failure, because every plane these four rows describe lives inside a Godot process. A
+ * renamed Godot binary is still recognised through `GODOT_BIN`'s basename; one renamed AND not
+ * named there would read as `not Godot`, which is why the hint names the program rather than
+ * asserting what it is for.
+ */
+export function holderFacts(
+  holder: PortHolder,
+  portKnob: string,
+): { suffix: string; stop?: string; wrongProcess?: string } {
+  if (holder.kind === "unavailable") return { suffix: "" };
+  if (holder.kind === "none_visible") return { suffix: " · held by a process this account cannot see" };
+  const hs = holder.holders;
+  const suffix = ` · held by ${holderBrief(hs)}`;
+  const stop = hs.length === 1 ? certainStop(hs[0]) : undefined;
+  if (hs.every((h) => h.owner.kind === "other")) {
+    return {
+      suffix,
+      wrongProcess:
+        `${capitalise(holdersPhrase(hs))} ${hs.length === 1 ? "holds" : "hold"} this port, so every call on this plane goes to ` +
+        `${hs.length === 1 ? "it" : "them"}. Quit ${hs.length === 1 ? "it" : "them"}, or set ${portKnob} to the port the ` +
+        `Godot side actually uses.`,
+    };
+  }
+  return stop ? { suffix, stop: `${capitalise(stop)}, then retry.` } : { suffix };
+}
+
+function capitalise(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
+
 export async function runDoctorChecks(config: Config, opts: DoctorOptions): Promise<DoctorReport> {
   const checks: Check[] = [];
 
@@ -586,6 +624,8 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
     port: number;
     hint: string;
     secretEnv?: string[];
+    /** 🆕 318 — the env var that moves this port, for a remedy that names a holder that is not Godot. */
+    portKnob: string;
   }> = [
     {
       name: "editor-bridge",
@@ -594,6 +634,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       port: config.bridgePort,
       hint: 'Open the editor with the "Breakpoint MCP" plugin enabled — and if it was already open when you ran `breakpoint-mcp init`, close and reopen the project (Godot reads the enabled-plugin list only at project load).',
       secretEnv: ["BREAKPOINT_BRIDGE_SECRET"],
+      portKnob: "BREAKPOINT_BRIDGE_PORT",
     },
     {
       name: "runtime-bridge",
@@ -602,6 +643,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       port: config.runtimePort,
       hint: "Launch the project (godot_run_project / dbg_launch) with the plugin enabled — it auto-registers the runtime autoload.",
       secretEnv: ["BREAKPOINT_RUNTIME_SECRET", "BREAKPOINT_BRIDGE_SECRET"],
+      portKnob: "BREAKPOINT_RUNTIME_PORT",
     },
     {
       name: "gdscript-lsp",
@@ -609,6 +651,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       host: config.lspHost,
       port: config.lspPort,
       hint: "Godot's language server runs while the editor is open (Editor → Editor Settings → Network → Language Server).",
+      portKnob: "GODOT_LSP_PORT",
     },
     {
       name: "gdscript-dap",
@@ -616,6 +659,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       host: config.dapHost,
       port: config.dapPort,
       hint: "Godot's debug adapter runs while the editor is open (Editor → Editor Settings → Network → Debug Adapter).",
+      portKnob: "GODOT_DAP_PORT",
     },
   ];
   // Filled by the handshakes below, read once after them: which bridge reported which
@@ -646,8 +690,15 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
       // process on 9080, and a stale secret (the addon regenerates it into
       // res://.godot/, so a copied or long-lived config goes quietly wrong).
       // Both then reported "reachable" here and failed on every real call.
-      if (b.secretEnv) {
-        const live = await handshakeOk(config, b, opts.timeoutMs);
+      // 🆕 318 — THE PORT IS OPEN, SO SOMETHING HOLDS IT; ASK WHAT. The lookup runs only on a
+      // port that accepted a connection, and a lookup that cannot answer leaves every row
+      // below exactly as it shipped. See `holderFacts` for what each answer is allowed to change.
+      const [holder, live] = await Promise.all([
+        whoHolds(b.host, b.port, config.godotBin),
+        b.secretEnv ? handshakeOk(config, b, opts.timeoutMs) : Promise.resolve(null),
+      ]);
+      const facts = holderFacts(holder, b.portKnob);
+      if (live !== null) {
         if (live.addonVersion !== null) liveAddonVersions.set(b.name, live.addonVersion);
         if (!live.ok) {
           return {
@@ -656,10 +707,23 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
             severity,
             liveness,
             tier: b.tier,
-            detail: `${b.host}:${b.port} open, but no Breakpoint bridge answered`,
-            hint: "Something holds that port without speaking the bridge protocol, or the shared secret is stale. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the editor to remint it.",
+            detail: `${b.host}:${b.port} open, but no Breakpoint bridge answered${facts.suffix}`,
+            hint: facts.wrongProcess ?? facts.stop ?? "Something holds that port without speaking the bridge protocol, or the shared secret is stale. Close other Godot instances, or delete res://.godot/breakpoint_mcp.secret and reopen the editor to remint it.",
           };
         }
+      } else if (facts.wrongProcess !== undefined) {
+        // Godot's own LSP and DAP ports get only a connect, so a program that is not Godot on
+        // 6005 used to read `reachable` and every gd_* call then talked to it. Not a liveness
+        // fact: opening the editor does not clear it, because the editor cannot bind a held port.
+        return {
+          name: b.name,
+          status: "fail",
+          severity,
+          liveness: false,
+          tier: b.tier,
+          detail: `${b.host}:${b.port} answers, but the listener is not Godot${facts.suffix}`,
+          hint: facts.wrongProcess,
+        };
       }
       return {
         name: b.name,
@@ -667,7 +731,7 @@ export async function runDoctorChecks(config: Config, opts: DoctorOptions): Prom
         severity,
         liveness,
         tier: b.tier,
-        detail: `${b.host}:${b.port} reachable${b.secretEnv ? " · bridge answered" : ""}`,
+        detail: `${b.host}:${b.port} reachable${b.secretEnv ? " · bridge answered" : ""}${facts.suffix}`,
       };
     }),
   );

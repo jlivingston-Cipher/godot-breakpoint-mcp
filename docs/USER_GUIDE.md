@@ -7,7 +7,7 @@ knowledge of the Model Context Protocol (MCP) is assumed.
 
 - **Version:** host 1.85.1 · addon 1.16.0
 - **License:** MIT
-- **What it exposes:** full 292 tools (secure-default 279 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 293 tools (secure-default 280 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -399,8 +399,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 279 tools**. Opt in
-to load the **full 292**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 280 tools**. Opt in
+to load the **full 293**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -422,11 +422,11 @@ if Breakpoint never appears in a client that caps, check this before anything el
 
 Two presets are published as fitting under both caps, and both are measured by the suite rather
 than typed: `BREAKPOINT_TOOLSETS=d` → **58** (both language servers and both debuggers — the
-whole debugging surface), and `b,c,d` → **92** (that plus the headless CLI and the running-game
+whole debugging surface), and `b,c,d` → **93** (that plus the headless CLI and the running-game
 runtime family). Every start also prints the count actually registered, on stderr:
 
 ```
-[breakpoint-mcp] tool surface: 279 tool(s) registered · groups assetgen,backend,cli,…
+[breakpoint-mcp] tool surface: 280 tool(s) registered · groups assetgen,backend,cli,…
 ```
 
 See [Tool limits](../README.md#tool-limits--if-your-client-refuses-to-load-breakpoint) for the
@@ -677,7 +677,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **292 tools** in total (the secure-default surface is **279** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **293 tools** in total (the secure-default surface is **280** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -1056,7 +1056,7 @@ plane you are using.
 - The client capped the tool list and refused the whole server: Google Antigravity stops at 100 and VS Code blocks agent mode at 128.
   Nothing here ran, so there is no Breakpoint log to check — the message came from the client.
 - Set `BREAKPOINT_TOOLSETS` to a preset that fits: `d` (**58** — both language servers and both
-  debuggers) or `b,c,d` (**92** — that plus the CLI and runtime planes). Both are measured
+  debuggers) or `b,c,d` (**93** — that plus the CLI and runtime planes). Both are measured
   against the smallest cap by the test suite, not typed into a document.
 - Once it loads, the startup line on stderr reports the count that was actually registered, so
   the next configuration can be judged from output instead of guessed.
@@ -1186,7 +1186,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-292 tools (secure-default 279) and 6 resources. The exhaustive per-tool schemas are in
+293 tools (secure-default 280) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

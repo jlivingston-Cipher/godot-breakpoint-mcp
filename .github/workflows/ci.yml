@@ -787,8 +787,8 @@ jobs:
       #
       # 🔴 AND IT READS BOTH WIRES, WHICH IS WHY IT LIVES HERE RATHER THAN IN THE UNIT
       # SUITE. `destination_overwrite.test.ts` walks `buildToolsets` through a stub that
-      # never applies the capability wrapper, so it records all 292 registrations and is
-      # right to. A LIVE client sees 279, and five of the twenty-eight destination writers
+      # never applies the capability wrapper, so it records all 293 registrations and is
+      # right to. A LIVE client sees 280, and five of the twenty-eight destination writers
       # are in the default-off `code-execution` group. A future second-call gate deriving
       # its population from a default client would drive 23 of 28 and call it complete —
       # 284 §1.3's `range(233, 0)` one file over. The gap is declared per tool here.

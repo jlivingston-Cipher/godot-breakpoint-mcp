@@ -255,7 +255,7 @@ export class PeerRegistry {
       };
       if (opts.role) env.BREAKPOINT_PEER_ROLE = opts.role;
 
-      const managed = await this.procs.run(this.cfg, extraArgs, env);
+      const managed = await this.procs.run(this.cfg, extraArgs, env, { tool: "runtime_spawn_peers", id, port });
       // 🔴 282 — A PEER THAT NEVER STARTED IS REPORTED, NOT REGISTERED. Before
       // this, a wrong `GODOT_BIN` took the whole host down on the first peer;
       // `spawnGuarded` now hands back the refusal, and a peer with no process is
