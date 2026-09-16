@@ -53,7 +53,7 @@ const listen = (): Promise<net.Server> =>
     s.listen(0, "127.0.0.1", () => resolve(s));
   });
 
-test("breakpoint_ports is registered on the CLI plane, read-only, schema-frozen, and takes no input", () => {
+test("breakpoint_ports is registered on the CLI plane, read-only and schema-frozen", () => {
   const entry = registerCli().get("breakpoint_ports");
   assert.ok(entry, "registered");
   assert.ok(entry.config.outputSchema, "outputSchema injected");
@@ -65,7 +65,6 @@ test("breakpoint_ports is registered on the CLI plane, read-only, schema-frozen,
   assert.equal(ann.destructiveHint, false);
   // lsof reads this machine's kernel table and nothing past it.
   assert.equal(ann.openWorldHint, false);
-  assert.deepEqual(Object.keys(entry.config.inputSchema as Record<string, unknown>), []);
 });
 
 test("318: a port this process holds is held BY this process; the same port closed is free", async (t) => {

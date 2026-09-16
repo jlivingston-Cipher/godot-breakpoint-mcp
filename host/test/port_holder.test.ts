@@ -103,7 +103,11 @@ test("318: against the real table — a listener this process holds is found by 
     assert.equal(held.kind, "found");
     assert.ok(held.kind === "found" && held.listeners.some((l) => l.pid === process.pid && l.address === `127.0.0.1:${port}`));
     const who = await whoHolds("127.0.0.1", port, "godot");
-    assert.ok(who.kind === "found" && who.holders.every((h) => h.owner.kind === "this_server"));
+    assert.ok(who.kind === "found");
+    // One holder, and it is this process — asserted by count and by member, because an
+    // `.every` over the holders would pass on a lookup that folded them to nothing.
+    assert.equal(who.holders.length, 1);
+    assert.equal(who.holders[0].owner.kind, "this_server");
   } finally {
     await closeServer(srv);
   }
