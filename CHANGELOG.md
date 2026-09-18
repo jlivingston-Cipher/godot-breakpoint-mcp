@@ -4,6 +4,72 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.86.0] — 2026-09-17
+
+_Addon **1.16.0** — unmoved; nothing under `addons/` changed in this window._
+
+**WHEN A PORT THIS SERVER DIALS IS ALREADY TAKEN, IT NOW NAMES WHAT IS HOLDING IT.** Seven
+places in the tree used to stop at *something* is on that port, and they were right to: all
+a failed bind learns is that the bind failed. So the four game launchers listed every remedy
+with the condition under which it applies and asserted nothing about which one was live, and
+the bridge's silent-peer timeout ended its sentence by handing you a command to run —
+`lsof -nP -iTCP:<port> -sTCP:LISTEN`. An assistant in a client with no shell cannot run that
+command, and a person who runs it still cannot tell whether the pid it prints belongs to a
+game **this server** started. Only this process knows that, and now it says so.
+
+`host/src/port-holder.ts` runs the lookup itself — `lsof -nP -iTCP:<port> -sTCP:LISTEN -Fpcn
++c 0`, which returns a pid, a program name and an address and never a command line — and
+reads the pid back against this server's own ledger of the children it started.
+`godot_run_managed`, `runtime_spawn_peers` and `godot_run_project` each record the process
+they spawn and the row is deleted on that child's `exit`, so a recycled pid is never
+mistaken for one of ours. The three families it can meet were driven against real sockets on
+macOS 15.7 (lsof 4.91) and Ubuntu 24.04 before a line of it was written.
+
+### Added
+
+* **`breakpoint_ports`** — the same reading on demand, for every port this server dials:
+  the editor and runtime bridges, the GDScript LSP and DAP, and each live peer. Every row
+  carries `state` (`held` or `free`), each holder's `pid`, `command` and bound `addresses`,
+  the `owner` that started it, and a `note` when the answer is qualified. Read-only,
+  idempotent, loopback-only, and `holders` is an empty array rather than an absent field on
+  a free row. The surface moves **292 → 293 tools, 279 → 280 on the secure default**.
+* `free` is now agreed by **both** readers before it is claimed. A listener bound to
+  `*:<port>` or `[::1]:<port>` leaves `127.0.0.1:<port>` bindable, so the bind alone reports
+  a port free that is not — measured on the Mac against a node listener, and the reason the
+  two answers are now taken together rather than either alone.
+
+### Changed
+
+* `godot_run_project`, `godot_run_managed`, `dbg_launch` and `cs_dbg_launch` refuse a held
+  port by naming the holder, and give the one remedy that applies to it. Only a ledger match
+  names a stop tool — `godot_stop` with the id it was started under, or `runtime_peer_stop`.
+  A Godot this server did not start keeps the full list of conditions, because whether it is
+  running under the debugger is not something a pid can say.
+* The bridge's silent-peer timeout names the holder instead of handing over `lsof`. The
+  lookup is consulted at the deadline and only when that sentence is the one about to be
+  used, so a healthy call never runs it; the hold probe and the authentication denial still
+  outrank it.
+* `doctor` and `breakpoint_doctor` append the holder to every open port row, and turn
+  exactly one reading red that used to read green: a port held **entirely** by a program
+  that is not Godot. The LSP and DAP ports were checked by connecting to them, so a
+  `python3` listening on 6005 read `reachable` while every `gd_*` call was talking to it.
+
+### What the reading declines to claim
+
+No listener this account can see, and a bind that also fails, is reported as exactly that —
+the holder belongs to another user or to the system, and no tool here can stop it. Windows,
+a host that is not this machine's loopback, a missing `lsof` and a lookup that times out are
+all `unavailable`, and `unavailable` changes **no** sentence: the two launch refusals are
+pinned byte-for-byte against what 1.85.1's built `dist/ports.js` returned.
+
+### Why this is a minor and not a patch
+
+One new tool and its result schema; nothing removed, nothing retyped. Every existing
+refusal keeps its code and its conditions and gains a clause only when the holder is known.
+The one behavioural change a caller can see beyond the new tool is `breakpoint_doctor`'s
+port row going red where a non-Godot program holds a port it was previously satisfied to
+reach — a truer answer to the question that row was always asking.
+
 ## [1.85.1] — 2026-09-07
 
 _Addon **1.16.0** — unmoved; nothing under `addons/` changed in this window._
