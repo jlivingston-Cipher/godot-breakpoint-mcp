@@ -43,7 +43,7 @@
     "is a visible intake that falls as sessions classify rows."
   ],
   "policy": "docs/LANDSCAPE_TRACKING_POLICY.md",
-  "last_full_sweep": "2026-08-31",
+  "last_full_sweep": "2026-09-21",
   "entries": [
     {
       "name": "godot-mcp-go",
@@ -1263,6 +1263,51 @@
       "ranked_on": "2026-09-07",
       "first_seen": 291,
       "mcp_registry_name": null
+    },
+    {
+      "name": "benjiarml-godot-mcp",
+      "repo": "bebabinlarsson-blip/Godot-MCP",
+      "asset_id": 5470,
+      "channel": "assetlib",
+      "assetlib_title": "Godot MCP",
+      "category": "alternative-mcp-server",
+      "assetlib_version": "5.0.5",
+      "assetlib_modify_date": "2026-09-18",
+      "last_analysed": "2026-09-21",
+      "last_analysed_commit": "f2cfe59",
+      "source_verifiable": true,
+      "debugger": "godot-internal-editor-debugger",
+      "real_dap_client": false,
+      "real_lsp_client": false,
+      "csharp": false,
+      "cadence": "daily",
+      "status": "active",
+      "note": "🔴 1,820 ADVERTISED OPERATIONS, 179 COMMANDS THE ADDON ACTUALLY REGISTERS, AND THE GAP IS NOT A ROUNDING ERROR. The Asset Library card and README:43 both claim *59 Tool Families & 1,820+ Operations*. The tree at f2cfe59 assembles 1,788 (catalog.py:138 `populate_registry`, every `id` unique, 59 distinct `domain` values — the 59 is exact and the 1,820 is 32 over), and a THIRD number lives in the code: server.py:36, :69 and :77 all say *1,763*. 🔴 1,383 OF THE 1,788 ARE MACHINE-GENERATED — classdb_generator.generate_classdb_operations() 775 plus catalog.py:26 _generate_extended_classdb_operations() 608, whose own docstring reads *Generate extensive ClassDB methods to achieve 1,800+ total canonical operations*. The number is a target the code was written to hit. Only 274 rows are CURATED; 66 runtime, 54 UI automation, 11 reflection. 🔵 WHAT A CLIENT SEES IS 36 MCP TOOLS: 24 `@mcp.tool` across src/godot_ai/tools/ and 12 in src/godot_omni/server/server.py. src/godot_ai/tools/domains.py says why in its own module docstring — Antigravity rejects a server over 100 tools — and ships `--exclude-domains` to stay under; its DOMAINS tuple is 28, not 59. 🔴 AND ALMOST NONE OF THE CATALOG CAN DISPATCH. server.py:96 derives the wire command as `op.handler_info.get(\"handler\") or op.id.replace(\".\", \"_\")`, and handler_info is empty on all 1,788 — nothing in the tree ever sets it. The addon refuses anything not explicitly registered: dispatcher.gd:174 `dispatch_direct` returns UNKNOWN_COMMAND unless `has_command`, and addons/godot_ai/plugin.gd registers 179 command names through `register_lazy`, NONE of them `class_*`. 15 of the 1,788 op ids land on a registered command; counting `aliases` too (which server.py:96 does not consult) the ceiling is 101. The honest engine-facing surface is 179 commands, which is the number to set beside our 293. 🔵 THE REAL CAPABILITY IS THE ESCAPE HATCH AND IT IS A GOOD ONE: omni_handler.gd carries reflection_call / _get / _set / _inspect / _instantiate over ClassDB (ClassDB.instantiate at :248) plus omni_eval, arbitrary in-memory GDScript — 11 reflection operations that genuinely reach the engine, and a generic path that makes a catalog of names unnecessary rather than real. 🔵 AND ITS RUNTIME LEG IS THE CLOSEST THING ON THIS ROSTER TO OUR OWN: suspend, resume, next_frame and a game-side tick counter over an EditorDebuggerPlugin (plugin.gd:333 `add_debugger_plugin`, addons/godot_ai/debugger/mcp_debugger_plugin.gd) — frame-stepping a running game on the engine's own debugger channel, which is deterministic-playtesting territory and the one part of this project worth watching on capability rather than on numbers. 🔴 PROVENANCE IS ODD AND IS RECORDED, NOT RULED ON: the GitHub repository was created 2026-09-17 and already carries a CHANGELOG back to 4.0.0 (2026-09-07) at version 5.0.5 — history older than the repository holding it — 16 stars, 0 forks; the repo description calls it the *Official Plugin for the Godot Engine*, which it is not; the Asset Library author is `Benjiarml`, the GitHub owner `bebabinlarsson-blip`, the pyproject author `bebabin`; and its Python distribution name `godot-ai` collides with this roster's unrelated `hi-godot/godot-ai`. 🔵 `protocol_revision` IS DELIBERATELY ABSENT: the tree names no MCP spec revision anywhere and pins fastmcp==3.4.7 / mcp==1.29.1, so a date here would be a reading of the dependency; its own WS_PROTOCOL_VERSION (transport/websocket.py:23) is a private WebSocket handshake. MIT, Python 3.11–3.14, WebSocket bound to loopback with an origin guard (transport/origin_guard.py:61).",
+      "capability_evidence": {
+        "debugger": "addons/godot_ai/plugin.gd:333 `add_debugger_plugin(_debugger_plugin)` with addons/godot_ai/debugger/mcp_debugger_plugin.gd; src/godot_ai/tools/game.py:13 describes the runtime ops as targeting the game *through Godot's EngineDebugger bridge* and :28 suspends it *through Godot's native debugger path* — the engine's own debugger driven from an editor plugin, read at f2cfe59",
+        "real_dap_client": "zero repo-wide hits for `debug-adapter`, `DAP` or port 6006 under src/, addons/ or script/ at f2cfe59",
+        "real_lsp_client": "zero repo-wide hits for `language-server`, `LSP` or port 6005 under src/, addons/ or script/ at f2cfe59",
+        "csharp": "the only `.cs` occurrences are file-extension filters in the editor log reader — addons/godot_ai/runtime/editor_logger.gd:103 `lower.ends_with(\".cs\")` and src/godot_ai/tools/editor.py:135 — with no dotnet, csproj or mono invocation anywhere in the tree at f2cfe59"
+      },
+      "capability_paths": [
+        "src/godot_omni/operations/catalog.py",
+        "src/godot_omni/operations/classdb_generator.py",
+        "src/godot_omni/server/server.py",
+        "src/godot_ai/tools/domains.py",
+        "src/godot_ai/tools/game.py",
+        "addons/godot_ai/plugin.gd",
+        "addons/godot_ai/dispatcher.gd",
+        "addons/godot_ai/handlers/omni_handler.gd",
+        "addons/godot_ai/debugger/mcp_debugger_plugin.gd",
+        "pyproject.toml"
+      ],
+      "forge_id": 1374381223,
+      "stars": 16,
+      "forks": 0,
+      "forge_pushed_at": "2026-09-21",
+      "ranked_on": "2026-09-21",
+      "first_seen": 320,
+      "mcp_registry_name": null
     }
   ],
   "surfaced": [
@@ -1324,6 +1369,19 @@
       "ranked_on": "2026-09-07"
     },
     {
+      "key": "aureliolo/gdharness",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 320,
+      "repo": "Aureliolo/gdharness",
+      "npm": "gdharness",
+      "mcp_registry_name": null,
+      "version": "1.0.2",
+      "last_published": "2026-09-21",
+      "description": "A harness for driving a Godot 4 project from an agent: editor addons, a runtime bridge into the running game, an MCP server in front of them, and a CLI that installs and diagnoses the Godot side."
+    },
+    {
       "key": "craigsteyn/godot-mcp",
       "channels": [
         "npm"
@@ -1360,6 +1418,19 @@
       "forge_pushed_at": "2026-09-06",
       "downloads_30d": 192,
       "ranked_on": "2026-09-07"
+    },
+    {
+      "key": "cwchanap/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 320,
+      "repo": "cwchanap/godot-mcp",
+      "npm": "@cwchanap/godot-plugin",
+      "mcp_registry_name": null,
+      "version": "0.1.5",
+      "last_published": "2026-09-07",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
     },
     {
       "key": "diegobr4nd/godot-gut-mcp",
@@ -1495,6 +1566,19 @@
       "forge_pushed_at": "2026-04-26",
       "downloads_30d": 325,
       "ranked_on": "2026-09-07"
+    },
+    {
+      "key": "gurolayanlar/godot-mcp-flash",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 320,
+      "repo": "gurolayanlar/godot-mcp-flash",
+      "npm": "godot-mcp-flash",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-09-12",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
     },
     {
       "key": "heichan2000/godot-mcp",
@@ -1721,6 +1805,19 @@
       "ranked_on": "2026-09-07"
     },
     {
+      "key": "npm:@gikit/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 320,
+      "repo": null,
+      "npm": "@gikit/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.1.1",
+      "last_published": "2026-09-21",
+      "description": "Connect AI coding tools to the Godot Editor and running games through MCP."
+    },
+    {
       "key": "npm:@iflow-mcp/ee0pdt-godot-mcp",
       "channels": [
         "npm"
@@ -1799,6 +1896,19 @@
       "ranked_on": "2026-09-07"
     },
     {
+      "key": "npm:@srdarkx/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 320,
+      "repo": null,
+      "npm": "@srdarkx/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.4.0",
+      "last_published": "2026-09-12",
+      "description": "Hardened CLI launcher and companion bridge for Godot MCP"
+    },
+    {
       "key": "npm:ai-godot-mcp",
       "channels": [
         "npm"
@@ -1842,6 +1952,19 @@
       "description": "G-MCP: standalone MCP server for Godot 4.x game engine integration",
       "downloads_30d": 49,
       "ranked_on": "2026-09-07"
+    },
+    {
+      "key": "npm:gameforge-mcp-core",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 320,
+      "repo": null,
+      "npm": "gameforge-mcp-core",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-08-23",
+      "description": "Production-Grade AI Game Development MCP Server for Godot, Unity, and Unreal Engine"
     },
     {
       "key": "npm:godot-mcp-enhanced",
