@@ -14182,6 +14182,86 @@ def selftest() -> int:
             print(f"  🔴 DEPTH_DEFAULT {_label} -> {_d!r}, want {_want!r} — a missing "
                   f"`fetch-depth:` means ONE commit and must not read as 'no checkout'")
 
+    # ── 🆕 321 §2 — THE SCAFFOLD'S FOUR READERS, EACH ON ITS OWN AXIS ────────────
+    #
+    # 🔴 EVERY ONE IS A TARGET IN `instrument_gate.py`, SO EACH OWES A CLAIM THAT GOES
+    # RED WHEN ITS FUNCTION RETURNS THE EMPTY ITS CONTRACT PROMISES. `blanked_header` at
+    # `[]` is a scaffold with no header; `carried_fence` at `("", [], "")` is a document
+    # with no §7, which is the first refusal 320 paid; `_wrap_counter` at `[]` is a block
+    # whose VERIFIED line never opens; `emit_handoff` at `("", [])` is the whole command
+    # doing nothing quietly. None of the four dials and none of them reads this tree.
+    _hdr = ["main                 89c695d — session320 the operations (#422)  MOVED +1",
+            "branch 320           session320-the-operations · PR #422",
+            "                     0 open issues / 0 open PRs"]
+    claims += 1
+    _blank = blanked_header(_hdr)
+    if len(_blank) != 2 or any(c.isdigit() for c in "".join(_blank)) \
+            or "89c695d" in "".join(_blank) or "session320" in "".join(_blank):
+        failed += 1
+        print(f"  \U0001f534 EMIT_HEADER {_blank!r} — a blanked header keeps its LABELS and "
+              f"nothing else. The `main` row carries a SHA, a branch name, a commit "
+              f"subject and a PR number and exactly one of those is a numeral, so a "
+              f"scaffold that blanked only digits would ship three of the predecessor's "
+              f"claims inside this session's block")
+    claims += 1
+    if not _blank or not _blank[0].startswith("main") or EMIT_FILL not in _blank[0]:
+        failed += 1
+        print(f"  \U0001f534 EMIT_HEADER_LABEL {_blank[:1]!r} — the label is the one part of "
+              f"a header row that is a fact about the document's shape, and it survives")
+
+    _fence_doc = ("intro\n\n```bash\n"
+                  "python3 ../scripts/handoff_gate.py ../../HANDOFF_SESSION320.md "
+                  "--measured ../ci320/\n"
+                  "# 649/649 and 26/26 are ratios, not sessions\n"
+                  "```\n")
+    claims += 1
+    _body, _changed, _why = carried_fence(_fence_doc, 320, 321)
+    if _why or "HANDOFF_SESSION321.md" not in _body or "../ci321/" not in _body \
+            or len(_changed) != 1:
+        failed += 1
+        print(f"  \U0001f534 EMIT_FENCE changed={_changed!r} why={_why!r} — the predecessor's "
+              f"§7 steps its session number and the changed lines come back to be read")
+    claims += 1
+    if "649/649" not in _body or "26/26" not in _body:
+        failed += 1
+        print("  \U0001f534 EMIT_FENCE_RATIO a ratio is not a session number — a boundary "
+              "that stepped `649/649` would rewrite a claim while renaming a path")
+
+    claims += 1
+    _wrapped = _wrap_counter([f"alpha {i}" for i in range(12)])
+    if len(_wrapped) < 2 or not _wrapped[0].startswith("\U0001f7e2 VERIFIED") \
+            or not _wrapped[1].startswith(" "):
+        failed += 1
+        print(f"  \U0001f534 EMIT_WRAP {_wrapped[:2]!r} — `_runs` reads a line at column 0 as "
+              f"opening a run and an INDENTED line as continuing it, so the counter line "
+              f"opens at column 0 and every continuation is indented")
+
+    _pop = [(320, "> ```\n> main    89c695d — x (#1)  MOVED +1\n"
+                  "> 🟢 VERIFIED AFTER THE CHANGE   term 330 file(s) / 21 suffixes\n> ```\n")]
+    claims += 1
+    _doc, _notes = emit_handoff(
+        321, prev_text=_fence_doc, prev_session=320,
+        log="TERMINOLOGY ok — 275 file(s) swept, 0 retired term(s), and every one of the "
+            "21 tracked suffix(es) is swept or excused with a reason\n",
+        run_cheap=False, run_locked=False, population=_pop, today="2026-09-21",
+        root=Path("/nonexistent-321"))
+    if not _doc or "ritual TIER1" not in _doc or "## §6" not in _doc \
+            or EMIT_FILL not in _doc or "HANDOFF_SESSION321.md" not in _doc:
+        failed += 1
+        print(f"  \U0001f534 EMIT_HANDOFF the scaffold owes a plain tier declaration, a §6, "
+              f"a carried §7 and a header left to be filled — got {len(_doc)} byte(s)")
+    claims += 1
+    if "**ritual TIER1**" in _doc:
+        failed += 1
+        print("  \U0001f534 EMIT_HANDOFF_TIER bold breaks `TIER_DECLARE_RE`, which is what "
+              "320's close refused twice — the declaration comes out plain")
+    claims += 1
+    if "term 275 file(s) / 21 suffixes" not in _doc:
+        failed += 1
+        print("  \U0001f534 EMIT_HANDOFF_MEASURED the predecessor's `term 330` is replaced "
+              "by the reading in the supplied log, position by position — a scaffold that "
+              "copied the old numbers forward would be the stale claim this file refuses")
+
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed"
           + (f", {unread} unread on this checkout" if unread else ""))
     return 1 if failed else 0
@@ -14762,9 +14842,15 @@ def emit_handoff(session: int, prev_text: str = "", prev_session: int = 0,
         notes.append(f"{key} is REQUIRED at {session} and absent from {shape_session}'s "
                      f"block — emitted from its row's own example, `{example[-1]}`")
 
+    # \U0001f534 `ci.checks` IS NOT ASKED FOR HERE AND THE REASON IS NOT SPEED. `measure`
+    # answers that one key by DIALLING, whatever its cost flags say, because the number of
+    # required checks is a fact about a run rather than about this tree — so a scaffold
+    # that asked for it would open a socket from a command whose whole job is to write a
+    # draft, and its self-test could not be offline. The close reads it from the CI
+    # counters (284 §8.1), which is where it was always going to come from.
+    keys = {k for _a, k in bound if k} - {"ci.checks"}
     measured, unmeasured, mnotes = measure(
-        {k for _a, k in bound if k}, log, run_cheap=run_cheap, run_slow=False,
-        run_locked=run_locked)
+        keys, log, run_cheap=run_cheap, run_slow=False, run_locked=run_locked)
     notes.extend(mnotes)
 
     filled: "list[str]" = []
