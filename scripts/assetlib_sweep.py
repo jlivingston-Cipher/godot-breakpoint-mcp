@@ -69,6 +69,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -799,6 +800,67 @@ def source_problems(state: "tuple[str, str]") -> "list[str]":
     return []
 
 
+def identity_drift(entry: dict, live: dict) -> "tuple[bool, str]":
+    """(the card at this asset id is not the product this row names, why) — PURE.
+
+    🔴 THE LEG COMPARES A VERSION AND A DATE AND HAS NEVER ASKED WHAT IT IS LOOKING AT.
+    321 read asset 5367 for the first time in two sweeps — the row calls it
+    `godot-mcp-go`, `Godot MCP/CLI` 0.10.0 by `regiellis`, and the card at that id is
+    `Swallowtail - Godot Automation` 1.0.1 by `playlogic`. Version 0.10.0 → 1.0.1 against
+    a modify date four days newer is a perfectly ordinary MOVED row, and it is the wrong
+    answer to a question nobody asked: the two numbers being compared describe different
+    products. Every sweep since the id was recorded would have priced a source-level pass
+    on a project the roster is not tracking.
+
+    🔵 IT IS OWED AND NOT UNREAD, WHICH IS THE WHOLE OF THE CLASSIFICATION. The leg
+    finished, the host answered, the reading is good — what is wrong is a field in the
+    roster, and the remedy is a row. An apparatus condition would say this run could not
+    be spent, and it can: everything except this entry was read.
+
+    🔵 AND A TITLE MAY LEGITIMATELY CHANGE, which this reader cannot tell from an id
+    pointing at a stranger, so it says so rather than choosing. Both answers are one
+    roster edit — correct the title or correct the id — and both need a person.
+    """
+    was = " ".join(str(entry.get("assetlib_title") or "").split())
+    now = " ".join(str(live.get("title") or "").split())
+    if not was or not now or was.casefold() == now.casefold():
+        return (False, "")
+    return (True, f"the roster records the card at asset {entry.get('asset_id')} as "
+                  f"{was!r} and the host is serving {now!r}"
+                  + (f" by {live.get('author')!r}" if live.get("author") else "")
+                  + " — either this project renamed its listing or the id names a "
+                    "different product, and until one of the two is written down every "
+                    "version this leg compares is a comparison between strangers")
+
+
+def entry_problems(state: "tuple[str, str]") -> "list[str]":
+    """The CARD leg's state as a refusal — PURE, the third twin of `channel_problems` and
+    `source_problems`, and the last leg in this file to get one.
+
+    🔴 AN ENTRY NOBODY COULD READ IS INDISTINGUISHABLE FROM AN ENTRY THAT HAS NOT MOVED,
+    and that is the whole argument. `held` means *this card answered and says the same
+    thing it said last week*; a card that did not answer says nothing at all, and folding
+    the two into one green report is the shape 291 removed from the discovery channels and
+    293 removed from the source leg. Rule 1's first clause is answered for the roster or
+    it is answered for part of it, and a report that cannot tell you which has overstated
+    how much of the field it covered.
+
+    🔵 AND `partial` IS A THIRD ANSWER HERE FOR `channel_state`'s OWN REASON. Forty-two
+    of forty-three cards answering is real evidence about forty-two projects; it is not
+    evidence about the roster, and the entry it is missing may be the one that moved.
+    """
+    kind, detail = state
+    if kind == CHANNEL_UNREAD:
+        return [f"CARD_UNREAD — {detail}. This run has NO opinion about whether any "
+                f"tracked project has published a new version, and `no change: 0` from a "
+                f"leg that read nothing is a measured green over an unread population"]
+    if kind == CHANNEL_PARTIAL:
+        return [f"CARD_PARTIAL — {detail}. Rule 1's first clause was answered for some of "
+                f"the roster and not for all of it, so the moved list is a lower bound "
+                f"and the unreachable rows below are the field this run did not cover"]
+    return []
+
+
 # ── 🆕 293 §3.2 — A MOVE IS OWED WORK ONLY WHERE THE RULING COULD HAVE CHANGED ─────────
 #
 # 🔴 292 §3.2's MEASUREMENT: `hybridindie/godot-mcp` moved twice in ninety minutes, so the
@@ -949,10 +1011,106 @@ def within_cadence(entry: dict, today: "datetime.date" = None) -> "tuple[bool, s
                    f"cadence {str(entry.get('cadence') or '')!r}")
 
 
-def get(url: str) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "breakpoint-mcp-sweep"})
+# ── 🆕 321 — THE TRANSPORT LEARNS TWO THINGS AND JUDGES NEITHER OF THEM ──────────
+#
+# 174 §8's rule governs this whole section: a judgement inside a function that dials is a
+# judgement nothing offline can reach. So the two facts the transport now carries — WHO
+# this process is to the forge, and WHAT a body with a server's own diagnostic stapled to
+# the end of it means — are decided by `auth_headers` and `decode_json`, which are PURE
+# and driven from fixtures in `selftest()`. `get` opens the socket and decides nothing.
+UA = "breakpoint-mcp-sweep"
+GH_HOST = "api.github.com"
+GH_API_VERSION = "2022-11-28"
+
+# 🔴 THE SWEEP HAS BEEN DIALLING THE FORGE AS A STRANGER AND THE MONDAY RED WAS THE WEATHER.
+# An unauthenticated caller gets sixty requests an hour against its ADDRESS, and a hosted
+# runner's address is shared with every other build on it. `workflow_dispatch` run
+# 35655471843 asked 24 questions and four came back `403 rate limit exceeded` — so the
+# whole landscape report went red saying *a leg did not finish*, which is correct
+# behaviour and the wrong outcome: a red about the weather is how a monitor stops being
+# read. The roster only grows, so the odds only worsen. A token moves the ceiling to
+# 5,000 an hour and attaches it to an IDENTITY rather than to a building.
+GH_TOKEN_ENV = ("BREAKPOINT_SWEEP_GH_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
+
+
+def gh_token(env: "dict[str, str]" = None) -> str:
+    """The first non-empty token named in `GH_TOKEN_ENV` — PURE over the mapping given."""
+    src = os.environ if env is None else env
+    for name in GH_TOKEN_ENV:
+        v = (src.get(name) or "").strip()
+        if v:
+            return v
+    return ""
+
+
+def auth_headers(url: str, token: str) -> "dict[str, str]":
+    """The Authorization header this url may carry — PURE, and `{}` for every url that is
+    not the forge's API over TLS.
+
+    🔴 THE HOST TEST IS ON THE PARSED URL AND NEVER ON A PREFIX, because this function's
+    whole job is to be the place a credential CANNOT leak from. The urls this file builds
+    come from `repo` and `npm` fields in a tracked JSON roster; a row reading
+    `api.github.com.example.net/x` satisfies any `startswith` anybody would write here.
+    `urlsplit` answers the question actually being asked. The scheme test sits beside it
+    because a token on an `http://` url is a token on the wire, and the two other hosts
+    this file dials — godotengine.org and the npm registry — are owed no credential at all.
+    """
+    if not token:
+        return {}
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme != "https" or parts.netloc != GH_HOST:
+        return {}
+    return {"Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": GH_API_VERSION}
+
+
+# 🔴 A BODY THAT IS COMPLETE AND ANNOTATED IS NOT A BODY THAT IS TRUNCATED, AND ONE
+# EXCEPTION HAS BEEN SAYING BOTH. `godotengine.org`'s `asset.php` staples
+# `<b>Notice</b>: Undefined index: link … on line 222` onto the end of asset 5367's
+# response; `json.loads` answers `Extra data: line 1 column 4055`, the sweep files the
+# entry under `unreachable`, and the Monday report says it covered 43 projects when it
+# read 42. The JSON in front of that notice is complete and well formed for every one of
+# its 4,053 bytes, and the entry behind it is a 55-star Go implementation — one of the
+# more serious alternatives on the roster, unread for two sweeps running.
+# 🔵 SO THE SPLIT IS: parse the first complete value, THEN JUDGE THE REMAINDER. A
+# remainder that is the server's own diagnostic is spendable and is REPORTED; a remainder
+# that is anything else raises, because unrecognised trailing bytes are exactly how a
+# truncated or spliced body arrives and a bare `raw_decode` would swallow the difference.
+SERVER_DIAGNOSTIC = re.compile(
+    r"^(?:<br\s*/?>|\s)*<b>\s*(?:Notice|Warning|Deprecated|Fatal error|Parse error)"
+    r"\s*</b>", re.IGNORECASE)
+_TAGS = re.compile(r"<[^>]+>")
+
+
+def decode_json(raw: str) -> "tuple[object, str]":
+    """(value, annotation) — PURE. The first complete JSON value in `raw`, and a one-line
+    rendering of whatever the server appended after it.
+
+    Raises `json.JSONDecodeError` for a body that is not a complete value, and for
+    trailing bytes this reader does not recognise as a server diagnostic.
+    """
+    text = raw.lstrip()
+    value, end = json.JSONDecoder().raw_decode(text)
+    tail = text[end:].strip()
+    if not tail:
+        return (value, "")
+    if not SERVER_DIAGNOSTIC.match(tail):
+        raise json.JSONDecodeError(
+            f"{len(tail)} byte(s) follow a complete JSON value and they are not a "
+            f"server diagnostic this reader recognises", text, end)
+    return (value, " ".join(_TAGS.sub(" ", tail).split())[:160])
+
+
+def get_annotated(url: str) -> "tuple[object, str]":
+    """(value, annotation) — NETWORK. The one place in this file that opens a socket."""
+    req = urllib.request.Request(
+        url, headers={"User-Agent": UA, **auth_headers(url, gh_token())})
     with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode("utf-8"))
+        return decode_json(r.read().decode("utf-8"))
+
+
+def get(url: str) -> dict:
+    return get_annotated(url)[0]
 
 
 def load_roster() -> dict:
@@ -1080,7 +1238,7 @@ def our_pending_edits() -> list[dict]:
 # answer (271 §1).
 REPO_UNREAD = "unread"
 SOURCE_IMMATERIAL = "moved-immaterial"
-GH_API = "https://api.github.com"
+GH_API = f"https://{GH_HOST}"
 
 
 def repo_head(slug: str) -> "tuple[str, str]":
@@ -1101,6 +1259,242 @@ def repo_heads(tracked: "dict[int, dict]") -> "dict[int, tuple[str, str]]":
     """{asset_id: (head sha, problem)} — NETWORK. One call per entry that names a repo."""
     return {aid: repo_head(str(e.get("repo") or ""))
             for aid, e in sorted(tracked.items()) if e.get("repo")}
+
+
+# ══ 🆕 321 — THE RANKING LEG (BP-0007) ════════════════════════════════════
+#
+# 🔴 THE ROSTER HAS CARRIED RANKING COLUMNS SINCE 293 AND NOTHING IN THIS FILE HAS EVER
+# WRITTEN ONE. `stars`, `forks`, `forge_pushed_at`, `forge_id`, `downloads_30d` and
+# `ranked_on` were filled in by a person running `curl` into a scratch buffer, which is why
+# 17 of the 51 `surfaced` rows carry no stars, 10 carry no downloads, and the newest rows
+# carry neither: a column whose only writer is a human sitting is a column that is current
+# exactly as often as somebody feels like it. A comparison table ranked on numbers of
+# unknown age is the same liability as one with unchecked claims (293), one axis over.
+#
+# 🔵 IT IS A MODE AND NOT A GATE, DELIBERATELY. Nothing here refuses and nothing here
+# runs on a schedule. The sweep's weekly job answers *has the field moved*; ranking answers
+# *which of them matters*, which is a question asked when positioning is being written, not
+# every Monday — and a reading that would redden a report for being a week old is the
+# treadmill Rule 5 already refused. `--rank` prints; `--rank --write` records.
+#
+# 🔴 AND IT COULD NOT HAVE RUN UNAUTHENTICATED. 56 entries and 51 surfaced rows are
+# ~90 forge calls against a 60-an-hour anonymous ceiling. The token that BP-0016 hands the
+# transport is the same token that makes this leg possible at all — the two items are one
+# change to `get`, which is why they ship together.
+NPM_DOWNLOADS = "https://api.npmjs.org/downloads/point/last-month/"
+
+
+def forge_facts(slug: str) -> "tuple[dict, str]":
+    """(the four forge readings for an `owner/name` slug, problem) — NETWORK, never raises."""
+    if not slug:
+        return ({}, "no repository recorded for this row")
+    try:
+        res = get(f"{GH_API}/repos/{slug}")
+    except Exception as e:                        # noqa: BLE001 — see `repo_head` above
+        return ({}, f"{slug}: {e}")
+    if not isinstance(res, dict) or res.get("id") is None:
+        return ({}, f"{slug}: the forge returned no repository record")
+    return ({"forge_id": int(res["id"]),
+             "stars": int(res.get("stargazers_count") or 0),
+             "forks": int(res.get("forks_count") or 0),
+             "forge_pushed_at": str(res.get("pushed_at") or "")[:10]}, "")
+
+
+# \U0001f534 ONE CALL PER PACKAGE IS WHAT THE REGISTRY REFUSED, AND IT REFUSED IT AT 41.
+# 321's first live run asked `api.npmjs.org` for 55 packages back to back; forty-one
+# answered and the last fourteen came back `HTTP Error 429: Too Many Requests`. That is
+# the same shape as BP-0016 one host over — a leg whose only failure mode is *how fast it
+# asked* — and it has the better fix available, because the downloads API answers a
+# COMMA-SEPARATED LIST in one request. Unscoped names go in the bulk call, at most
+# `NPM_BULK_MAX` at a time; scoped names cannot (the endpoint rejects the `/` in `@a/b`),
+# so those keep the single-package path and pay a small sleep between them.
+NPM_BULK_MAX = 100
+NPM_SCOPED_PAUSE = 0.35
+
+
+def npm_partition(pkgs: "list[str]") -> "tuple[list[list[str]], list[str]]":
+    """(the bulk chunks, the scoped names the bulk endpoint cannot carry) — PURE.
+
+    Deduplicated and ordered, so two runs of one roster ask the same questions in the
+    same order and a partial answer is comparable with the last one.
+    """
+    seen, bulk, scoped = set(), [], []
+    for p in pkgs:
+        p = (p or "").strip()
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        (scoped if p.startswith("@") else bulk).append(p)
+    chunks = [bulk[i:i + NPM_BULK_MAX] for i in range(0, len(bulk), NPM_BULK_MAX)]
+    return (chunks, scoped)
+
+
+def npm_downloads_bulk(chunk: "list[str]") -> "tuple[dict, str]":
+    """({package: downloads or -1}, problem) for one chunk — NETWORK, never raises.
+
+    A name the registry does not know answers `null`, which is not zero and not an error:
+    it reads -1, the same unread answer `npm_downloads` gives, for `days_since`'s reason.
+    """
+    if not chunk:
+        return ({}, "")
+    try:
+        res = get(NPM_DOWNLOADS + ",".join(chunk))
+    except Exception as e:                        # noqa: BLE001 — see `repo_head` above
+        return ({}, f"{len(chunk)} package(s) in one call: {e}")
+    if not isinstance(res, dict):
+        return ({}, f"{len(chunk)} package(s) in one call: the registry answered "
+                    f"{type(res).__name__} and not a mapping")
+    # \U0001f535 ONE NAME COMES BACK UNWRAPPED. The bulk endpoint keys its answer by
+    # package EXCEPT when the list is a single name, where it answers that package's own
+    # record — so a chunk of one would read every field as a package name.
+    if len(chunk) == 1:
+        n = res.get("downloads")
+        return ({chunk[0]: int(n) if n is not None else -1}, "")
+    out = {}
+    for name in chunk:
+        row = res.get(name)
+        n = row.get("downloads") if isinstance(row, dict) else None
+        out[name] = int(n) if n is not None else -1
+    return (out, "")
+
+
+def npm_downloads(pkg: str) -> "tuple[int, str]":
+    """(downloads in the trailing 30 days, problem) — NETWORK, never raises. `-1` is the
+    unread answer, for `days_since`'s reason one table up: a missing count that reads 0 is
+    a project nobody installs, and those are different facts."""
+    if not pkg:
+        return (-1, "no npm package recorded for this row")
+    try:
+        res = get(NPM_DOWNLOADS + urllib.parse.quote(pkg, safe="@/"))
+    except Exception as e:                        # noqa: BLE001 — see `repo_head` above
+        return (-1, f"{pkg}: {e}")
+    n = res.get("downloads") if isinstance(res, dict) else None
+    if n is None:
+        return (-1, f"{pkg}: the registry returned no download count")
+    return (int(n), "")
+
+
+def rank_targets(roster: dict) -> "list[tuple[str, int, str, str, str]]":
+    """Every row this leg can read: `(bucket, index, label, repo slug, npm name)` — PURE.
+
+    Both populations, because both carry the columns. `entries` are Asset Library add-ons
+    and only a handful are published to npm; `surfaced` rows are npm and registry projects
+    and most of them name a forge. A row naming neither is still LISTED, so the summary
+    counts it as a row this leg cannot reach rather than silently shrinking its own
+    denominator — which is `channel_state`'s argument applied to a population.
+    """
+    out: "list[tuple[str, int, str, str, str]]" = []
+    for i, e in enumerate(roster.get("entries") or []):
+        out.append(("entries", i, str(e.get("name") or e.get("repo") or f"entry {i}"),
+                    str(e.get("repo") or ""), str(e.get("npm") or "")))
+    for i, r in enumerate(roster.get("surfaced") or []):
+        out.append(("surfaced", i, str(r.get("key") or r.get("repo") or f"surfaced {i}"),
+                    str(r.get("repo") or ""), str(r.get("npm") or "")))
+    return out
+
+
+def ranked_row(row: dict, facts: dict, downloads: int, today: str) -> "tuple[dict, bool]":
+    """(the row with every reading that ANSWERED written into it, whether anything moved)
+    — PURE, so every direction is drivable from a fixture and none of it needs a network.
+
+    🔴 A FAILED READING LEAVES THE OLD NUMBER ALONE AND `ranked_on` DOES NOT MOVE. The
+    alternative — writing `stars: 0` when the forge refused — is the `csharp: false`
+    defect 293 audited thirty-five claims over: a value that means *unread* wearing the
+    spelling of a value that means *measured*. And `ranked_on` is the date of the reading
+    it stamps; a row whose reading failed carries the date of the last one that did not.
+    """
+    out = dict(row)
+    moved = False
+    for k, v in facts.items():
+        if out.get(k) != v:
+            moved = True
+        out[k] = v
+    if downloads >= 0:
+        if out.get("downloads_30d") != downloads:
+            moved = True
+        out["downloads_30d"] = downloads
+    if facts or downloads >= 0:
+        out["ranked_on"] = today
+    return (out, moved)
+
+
+def rank_order(rows: "list[dict]") -> "list[dict]":
+    """The rows a person actually wants, most consequential first — PURE. Stars, then
+    downloads, then the name, so the order is total and two runs agree."""
+    return sorted(rows, key=lambda r: (-int(r.get("stars") or 0),
+                                       -int(r.get("downloads_30d") or 0),
+                                       str(r.get("label") or "")))
+
+
+def rank(write: bool) -> int:
+    """NETWORK. Read both rankings for every roster row, print them, and record them when
+    asked. Exits 2 when a dial FAILED — `unread is not green`, the rule the other three
+    legs already answer to — and 0 when the only rows without numbers are rows that name
+    no forge and no package, which is a fact about the roster and not about this run."""
+    roster = load_roster()
+    today = datetime.date.today().isoformat()
+    forge_read = forge_tried = npm_read = npm_tried = failed = 0
+    changed = 0
+    shown: "list[dict]" = []
+    targets = rank_targets(roster)
+
+    # \U0001f535 THE REGISTRY IS ASKED ONCE FOR EVERYTHING IT WILL ANSWER IN ONE BREATH.
+    chunks, scoped = npm_partition([p for _b, _i, _l, _s, p in targets if p])
+    downloads: "dict[str, int]" = {}
+    for chunk in chunks:
+        npm_tried += len(chunk)
+        got, why = npm_downloads_bulk(chunk)
+        if why:
+            failed += len(chunk)
+            print(f"RANK_UNREAD (bulk) npm: {why}")
+            continue
+        npm_read += len(chunk)
+        downloads.update(got)
+    for name in scoped:
+        npm_tried += 1
+        n, why = npm_downloads(name)
+        if why:
+            failed += 1
+            print(f"RANK_UNREAD {name} npm: {why}")
+        else:
+            npm_read += 1
+            downloads[name] = n
+        time.sleep(NPM_SCOPED_PAUSE)
+
+    for bucket, i, label, slug, pkg in targets:
+        facts, fw = ({}, "")
+        if slug:
+            forge_tried += 1
+            facts, fw = forge_facts(slug)
+            if fw:
+                failed += 1
+                print(f"RANK_UNREAD {label} forge: {fw}")
+            else:
+                forge_read += 1
+        dl = downloads.get(pkg, -1) if pkg else -1
+        row, moved = ranked_row(roster[bucket][i], facts, dl, today)
+        roster[bucket][i] = row
+        changed += 1 if moved else 0
+        shown.append({"label": label, "bucket": bucket,
+                      "stars": row.get("stars"), "forks": row.get("forks"),
+                      "downloads_30d": row.get("downloads_30d"),
+                      "forge_pushed_at": row.get("forge_pushed_at"),
+                      "ranked_on": row.get("ranked_on")})
+    for r in rank_order(shown):
+        print(f"RANK {r['label']} stars {r['stars'] if r['stars'] is not None else '?'} "
+              f"forks {r['forks'] if r['forks'] is not None else '?'} "
+              f"pushed {r['forge_pushed_at'] or '?'} "
+              f"downloads {r['downloads_30d'] if r['downloads_30d'] is not None else '?'} "
+              f"as-of {r['ranked_on'] or '?'}")
+    print(f"RANK_SUMMARY rows {len(shown)} · forge {forge_read}/{forge_tried} · "
+          f"npm {npm_read}/{npm_tried} · changed {changed} · failed {failed}")
+    if write:
+        with open(os.path.normpath(ROSTER), "w", encoding="utf-8") as f:
+            f.write(json.dumps(roster, indent=2, ensure_ascii=False) + "\n")
+        print(f"RANK_WRITTEN {os.path.basename(ROSTER)}")
+    else:
+        print("RANK_WRITTEN no — pass `--write` to record these into the roster")
+    return 2 if failed else 0
 
 
 def repo_changed(slug: str, base: str, head: str) -> "list[str]":
@@ -1215,8 +1609,8 @@ def source_state(entry: dict, head: "tuple[str, str]",
 # and 1 keep the meanings they already had.
 CHECK_OK, CHECK_OWED, CHECK_UNREAD = 0, 1, 2
 
-CHECK_APPARATUS = ("chan_problems", "src_problems")
-CHECK_OWED_ROW = ("new_mcp", "new_ai", "unrecorded")
+CHECK_APPARATUS = ("chan_problems", "src_problems", "card_problems")
+CHECK_OWED_ROW = ("new_mcp", "new_ai", "unrecorded", "misidentified")
 CHECK_NEWS = ("moved", "src_moved", "npm_moved")
 
 CHECK_REMEDY = {
@@ -1289,12 +1683,19 @@ def main() -> int:
                          "cannot dial to consume")
     ap.add_argument("--census", action="store_true",
                     help="OFFLINE — the roster's shape, read from the file, no network")
+    ap.add_argument("--rank", action="store_true",
+                    help="NETWORK — read stars, forks and npm downloads for every roster "
+                         "row and print them, most consequential first")
+    ap.add_argument("--write", action="store_true",
+                    help="with --rank, record the readings into the roster file")
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
     if args.census:
         return census()
+    if args.rank:
+        return rank(args.write)
 
     roster = load_roster()
     tracked = {e["asset_id"]: e for e in roster["entries"] if e.get("asset_id")}
@@ -1311,6 +1712,14 @@ def main() -> int:
 
     TODAY = datetime.date.today()
     moved, held, gone, src_moved, src_unread = [], [], [], [], []
+    # 🆕 321 — a card the server answered WITH a diagnostic stapled to it. Counted
+    # separately from `gone` on purpose: the row was read, and the thing worth knowing
+    # is that the host is emitting warnings into its own API, not that we lost an entry.
+    annotated: "list[dict]" = []
+    # 🆕 321 — a row whose card is a DIFFERENT PRODUCT. Not `moved`: the two
+    # versions being compared do not describe the same thing, so the row is taken out
+    # of the move population rather than counted in it.
+    misidentified: "list[dict]" = []
     src_immaterial: "list[dict]" = []
     # 🆕 294 §2.2 — the two cadence-capped populations. Named separately from `held` on
     # purpose: `held` means NOTHING MOVED, and these moved and are inside their window.
@@ -1320,9 +1729,17 @@ def main() -> int:
     src_within: "list[dict]" = []
     for aid, entry in sorted(tracked.items()):
         try:
-            live = get(f"{API}/asset/{aid}")
+            live, annotation = get_annotated(f"{API}/asset/{aid}")
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
             gone.append({**entry, "error": str(e)})
+            continue
+        if annotation:
+            annotated.append({"asset_id": aid, "name": entry["name"],
+                              "annotation": annotation})
+        drifted, drift_why = identity_drift(entry, live)
+        if drifted:
+            misidentified.append({"asset_id": aid, "name": entry["name"],
+                                  "why": drift_why})
             continue
         row = {
             "asset_id": aid,
@@ -1370,6 +1787,19 @@ def main() -> int:
             src_immaterial.append({**row, "repo": entry.get("repo"), "head": detail})
         elif state == REPO_UNREAD and entry.get("repo"):
             src_unread.append({**row, "repo": entry.get("repo"), "why": detail})
+
+    # ── 🆕 321 — THE CARD LEG OWES THE READING THE OTHER THREE ALREADY GIVE ────────
+    #
+    # 🔴 `unreachable` HAS BEEN COUNTED AND NEVER REFUSED, WHICH MAKES AN ENTRY NOBODY CAN
+    # READ LOOK EXACTLY LIKE AN ENTRY THAT HAS NOT CHANGED. Every other leg in this file
+    # answers `channel_state` and every other leg's silence is a refusal — 291 built the
+    # reader for the discovery channels, 293 gave the source leg the same one, and the leg
+    # that reads the tracked cards, which is the oldest in the file, was left printing a
+    # count into a report that stayed green over it. `godot-mcp-go` went unread for two
+    # sweeps running and `--check` exited 0 both times. 271 §1's rule, one leg later: a
+    # reader's silence is not an answer.
+    card_state = channel_state(len(tracked), len(gone))
+    card_problems = entry_problems(card_state)
 
     pending = our_pending_edits()
 
@@ -1419,6 +1849,9 @@ def main() -> int:
         print(f"SOURCE_CHANNEL {src_state[0]} attempted {src_attempted} "
               f"failed {src_failed}")
         print(f"SOURCE_IMMATERIAL {len(src_immaterial)}")
+        print(f"ASSETLIB_CARD {card_state[0]} attempted {len(tracked)} "
+              f"failed {len(gone)}")
+        print(f"ASSETLIB_ANNOTATED {len(annotated)}")
         print(f"DISCOVERY_NPM_CURRENCY moved {len(npm_moved)} held {len(npm_held)} "
               f"unread {len(npm_unread)}")
         return 0
@@ -1442,6 +1875,11 @@ def main() -> int:
                            "attempted": src_attempted, "failed": src_failed},
         "source_problems": src_problems,
         "unreachable": gone,
+        "annotated": annotated,
+        "misidentified": misidentified,
+        "card_channel": {"state": card_state[0], "detail": card_state[1],
+                         "attempted": len(tracked), "failed": len(gone)},
+        "card_problems": card_problems,
         "new_mcp_shaped": [
             {
                 "asset_id": i,
@@ -1504,6 +1942,9 @@ def main() -> int:
         print(f"  source head UNREAD   : {len(src_unread)}")
         print(f"  SOURCE leg           : {src_state[0]} — {src_state[1]}")
         print(f"  unreachable          : {len(gone)}")
+        print(f"  card leg             : {card_state[0]} — {card_state[1]}")
+        print(f"  annotated            : {len(annotated)}")
+        print(f"  misidentified        : {len(misidentified)}")
         print(f"  NEW, MCP-shaped      : {len(new_mcp)}   <- owe a source-level pass")
         print(f"  NEW, in-editor AI    : {len(new_ai)}   <- record on the roster")
         print(
@@ -1567,6 +2008,11 @@ def main() -> int:
             print(f"    SRC =   {r['asset_id']:>5}  {r['name']}: {r['repo']} {r['head']}")
         for r in src_unread:
             print(f"    SRC ?   {r['asset_id']:>5}  {r['name']}: {r['why']}")
+        for r in misidentified:
+            print(f"    MISIDENTIFIED {r['asset_id']}  {r['name']}: {r['why']}")
+        for r in annotated:
+            print(f"    ANNOTATED {r['asset_id']}  {r['name']}: the host answered "
+                  f"with a diagnostic stapled to the body — {r['annotation']}")
         for r in gone:
             print(f"    UNREACHABLE {r['asset_id']}  {r['name']}: {r['error']}")
         for r in pending:
@@ -1620,6 +2066,10 @@ def main() -> int:
         "src_problems": (f"the source leg was {src_state[0]}, so Rule 2's second clause "
                          f"was not answered for the whole roster"),
         # 🆕 291 — the population decision cashed: a row, not an analysis.
+        "card_problems": (f"the card leg was {card_state[0]}, so Rule 1's first clause "
+                          f"was not answered for the whole roster"),
+        "misidentified": (f"{len(misidentified)} roster row(s) name an asset id whose "
+                          f"card is a different product"),
         "unrecorded": f"{len(unrecorded)} surfaced project(s) with no roster row",
         "npm_moved": (f"{len(npm_moved)} npm-channel entr(ies) published a new version "
                       f"since their last source-level pass"),
@@ -1632,7 +2082,8 @@ def main() -> int:
         "moved": len(moved), "src_moved": len(src_moved), "new_mcp": len(new_mcp),
         "new_ai": len(new_ai), "chan_problems": len(chan_problems),
         "src_problems": len(src_problems), "unrecorded": len(unrecorded),
-        "npm_moved": len(npm_moved),
+        "npm_moved": len(npm_moved), "card_problems": len(card_problems),
+        "misidentified": len(misidentified),
     })
     if args.check:
         if news:
@@ -1641,8 +2092,11 @@ def main() -> int:
                     "source-level pass at the next sweep, the cadence columns price it, "
                     "and none of it is a defect in this tree.")
         if blocking:
-            for m in src_problems + chan_problems + unrecorded:
+            for m in src_problems + chan_problems + card_problems + unrecorded:
                 print(f"  🔴 {m}", file=sys.stderr)
+            for r in misidentified:
+                print(f"  🔴 MISIDENTIFIED {r['asset_id']} {r['name']}: "
+                      f"{r['why']}", file=sys.stderr)
             print("\nROSTER STALE: "
                   + ", ".join(said.get(k, k) for k in blocking)
                   + ".\n  " + CHECK_REMEDY[verdict], file=sys.stderr)
@@ -1965,6 +2419,16 @@ def selftest() -> int:
     # THAT WAS THE PROBLEM: `args.check` and `stale` appeared nowhere in this function, so
     # the assembly that decides whether the weekly job goes red had no drive at all. A
     # split shipped over that is a split nothing proves.
+    def _raises(fn) -> bool:
+        """True when `fn` refuses. A claim that an input is REJECTED needs a shape it can
+        compare, and `assertRaises` is not available to a file whose self-test is three
+        closures and a counter."""
+        try:
+            fn()
+        except json.JSONDecodeError:
+            return True
+        return False
+
     def V(**kw):
         found = {k: 0 for k in CHECK_APPARATUS + CHECK_OWED_ROW + CHECK_NEWS}
         found.update(kw)
@@ -2637,6 +3101,134 @@ def selftest() -> int:
           sorted(CAPABILITY_VALUES) == sorted(CAPABILITY_FIELDS), True)
     claim("capability: `unread` is not smuggled into a field's own vocabulary",
           [f for f, v in CAPABILITY_VALUES.items() if CAPABILITY_UNREAD in v], [])
+
+    # ── 🆕 321 — THE TRANSPORT'S TWO NEW JUDGEMENTS, AND THE RANKING LEG ───────────
+    #
+    # Every one of these drives a function that CANNOT dial. `auth_headers` decides where a
+    # credential may go, `decode_json` decides what a body with something stapled to it
+    # means, `entry_provider`-free `entry_problems` turns the card leg's state into a
+    # refusal, and `ranked_row` decides what a failed reading may overwrite. The three
+    # functions that DO dial — `forge_facts`, `npm_downloads`, `get_annotated` — are
+    # transport and hold no judgement at all, which is 174 §8's rule and the reason this
+    # block can exist offline.
+    claim("auth: the token reaches the forge's API over TLS and carries a pinned "
+          "API version",
+          auth_headers(f"{GH_API}/repos/o/n", "T"),
+          {"Authorization": "Bearer T", "X-GitHub-Api-Version": GH_API_VERSION})
+    claim("auth: 🔴 a look-alike host gets NOTHING — the roster's `repo` field is "
+          "attacker-shaped input and `startswith` would have handed it the token",
+          auth_headers("https://api.github.com.example.net/repos/o/n", "T"), {})
+    claim("auth: godotengine.org is owed no credential",
+          auth_headers(f"{API}/asset/1", "T"), {})
+    claim("auth: the npm registry is owed no credential",
+          auth_headers(NPM_DOWNLOADS + "x", "T"), {})
+    claim("auth: 🔴 a token is never put on an http:// url",
+          auth_headers("http://api.github.com/repos/o/n", "T"), {})
+    claim("auth: no token, no header — the unauthenticated path is unchanged",
+          auth_headers(f"{GH_API}/repos/o/n", ""), {})
+    claim("auth: the first name in the roster of env names wins",
+          gh_token({"GITHUB_TOKEN": "a", "GH_TOKEN": "b"}), "a")
+    claim("auth: whitespace is not a token",
+          gh_token({"GITHUB_TOKEN": "   "}), "")
+    claim("auth: nothing set reads empty rather than raising", gh_token({}), "")
+
+    claim("decode: an unannotated body parses and reports no annotation",
+          decode_json('{"a": 1}'), ({"a": 1}, ""))
+    claim("decode: 🔴 the PHP notice godotengine.org staples to asset 5367 is PARSED, "
+          "and the annotation is reported rather than swallowed",
+          decode_json('{"title": "godot-mcp-go"}<br />\n<b>Notice</b>:  Undefined index: '
+                      'link in <b>/var/www/asset.php</b> on line <b>222</b><br />\n'),
+          ({"title": "godot-mcp-go"},
+           "Notice : Undefined index: link in /var/www/asset.php on line 222"))
+    claim("decode: 🔴 a SECOND json document after the first is REFUSED — spliced "
+          "bodies are exactly what a bare `raw_decode` would swallow",
+          _raises(lambda: decode_json('{"a": 1} {"b": 2}')), True)
+    claim("decode: 🔴 a TRUNCATED body is still refused — the point of the split is "
+          "that annotated and truncated stop sharing one exception",
+          _raises(lambda: decode_json('{"a": 1')), True)
+    claim("decode: trailing prose that is not a diagnostic is refused",
+          _raises(lambda: decode_json('{"a": 1}  sorry, database busy')), True)
+
+    claim("card leg: a leg that read every card raises no problem",
+          entry_problems(channel_state(43, 0)), [])
+    claim("card leg: 🔴 one card unread is CARD_PARTIAL — 42 of 43 is evidence about "
+          "42 projects and not about the roster",
+          [x.split()[0] for x in entry_problems(channel_state(43, 1))], ["CARD_PARTIAL"])
+    claim("card leg: every card unread is CARD_UNREAD",
+          [x.split()[0] for x in entry_problems(channel_state(43, 43))], ["CARD_UNREAD"])
+    claim("card leg: 🔴 an unread card leg is an APPARATUS failure and not news — "
+          "`no change: 0` from a leg that read nothing is the measured green 291 removed",
+          check_verdict({"card_problems": 1, "moved": 0})[0], CHECK_UNREAD)
+    claim("card leg: it is classified, so `check_conditions_declared` stays satisfied",
+          "card_problems" in CHECK_APPARATUS, True)
+
+    claim("npm bulk: scoped names are partitioned out — the bulk endpoint rejects the "
+          "`/` in `@scope/name` and a chunk carrying one loses the whole chunk",
+          npm_partition(["a", "@s/b", "c"]), ([["a", "c"]], ["@s/b"]))
+    claim("npm bulk: a name asked for twice is asked once",
+          npm_partition(["a", "a", "b"]), ([["a", "b"]], []))
+    claim("npm bulk: empty and blank names are not asked for at all",
+          npm_partition(["", "   ", "a"]), ([["a"]], []))
+    claim("npm bulk: the chunk size is the registry's, and a longer roster is split "
+          "rather than truncated",
+          [len(c) for c in npm_partition([f"p{i}" for i in range(NPM_BULK_MAX + 5)])[0]],
+          [NPM_BULK_MAX, 5])
+    claim("npm bulk: order survives the partition, so two runs ask the same questions "
+          "in the same order and a partial answer is comparable with the last",
+          npm_partition(["c", "a", "b"])[0], [["c", "a", "b"]])
+
+    claim("identity: \U0001f534 a card serving a DIFFERENT product is caught — the row that "
+          "hid behind `unreachable` for two sweeps",
+          identity_drift({"asset_id": 5367, "assetlib_title": "Godot MCP/CLI"},
+                         {"title": "Swallowtail - Godot Automation",
+                          "author": "playlogic"})[0], True)
+    claim("identity: the same title is not drift",
+          identity_drift({"assetlib_title": "Godot MCP/CLI"},
+                         {"title": "Godot MCP/CLI"})[0], False)
+    claim("identity: case and inner whitespace are not drift — a listing that was "
+          "re-typed is not a listing that changed hands",
+          identity_drift({"assetlib_title": "Godot  MCP/CLI"},
+                         {"title": "godot mcp/cli"})[0], False)
+    claim("identity: a row that never recorded a title claims nothing, so nothing "
+          "disagrees with it",
+          identity_drift({"assetlib_title": ""}, {"title": "Anything"})[0], False)
+    claim("identity: \U0001f534 it is OWED and not UNREAD — the leg finished, the host "
+          "answered, and what is wrong is a field in the roster",
+          check_verdict({"misidentified": 1, "moved": 0})[0], CHECK_OWED)
+    claim("identity: a misidentified row alone does not read as an apparatus failure",
+          check_verdict({"misidentified": 1})[1], ["misidentified"])
+
+    _row = {"stars": 12, "forks": 3, "downloads_30d": 400, "ranked_on": "2026-09-07"}
+    claim("rank: a reading that answered is written and stamped with its own date",
+          ranked_row(_row, {"stars": 20, "forks": 4, "forge_id": 7,
+                            "forge_pushed_at": "2026-09-20"}, 900, "2026-09-21")[0],
+          {"stars": 20, "forks": 4, "forge_id": 7, "forge_pushed_at": "2026-09-20",
+           "downloads_30d": 900, "ranked_on": "2026-09-21"})
+    claim("rank: 🔴 a FAILED forge reading leaves the old numbers AND the old date "
+          "alone — writing `stars: 0` when the forge refused is 293's `csharp: false` "
+          "defect wearing a different column",
+          ranked_row(_row, {}, -1, "2026-09-21")[0], _row)
+    claim("rank: a failed npm reading does not stop the forge reading being recorded",
+          ranked_row(_row, {"stars": 20}, -1, "2026-09-21")[0]["downloads_30d"], 400)
+    claim("rank: a row whose numbers did not change reports no movement",
+          ranked_row(_row, {"stars": 12}, 400, "2026-09-21")[1], False)
+    claim("rank: a row whose numbers changed reports movement",
+          ranked_row(_row, {"stars": 13}, 400, "2026-09-21")[1], True)
+    claim("rank: the order is stars, then downloads, then the name — total, so two "
+          "runs of the same roster agree",
+          [r["label"] for r in rank_order([
+              {"label": "b", "stars": 1, "downloads_30d": 9},
+              {"label": "a", "stars": 1, "downloads_30d": 9},
+              {"label": "c", "stars": 1, "downloads_30d": 50},
+              {"label": "d", "stars": 4, "downloads_30d": 0}])],
+          ["d", "c", "a", "b"])
+    claim("rank: 🔴 BOTH roster populations are targets, and a row naming neither a "
+          "forge nor a package is still LISTED rather than quietly shrinking the "
+          "denominator this leg reports against",
+          rank_targets({"entries": [{"name": "e", "repo": "o/e"}, {"name": "bare"}],
+                        "surfaced": [{"key": "o/s", "repo": "o/s", "npm": "s"}]}),
+          [("entries", 0, "e", "o/e", ""), ("entries", 1, "bare", "", ""),
+           ("surfaced", 0, "o/s", "o/s", "s")])
 
     print(f"ASSETLIB_SELFTEST {claims - bad}/{claims} claims, {bad} failed")
     return 1 if bad else 0

@@ -103,6 +103,7 @@ which is that nobody ran the replay in the order the replay is written.
 from __future__ import annotations
 
 import contextlib
+import datetime
 import inspect
 import io
 import json
@@ -9721,6 +9722,38 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >                 addon / 0 problems
 > ```
 """),
+    (320, """> ```
+> main                 89c695d — session320 the operations that reach no handler, and the six rows the monitor could not name (#422)  MOVED +1
+> branch 320           session320-the-operations-that-reach-no-handler · PR #422
+> host / addon         1.86.0 / 1.16.0  🟢 UNMOVED — no cut; neither host/src nor addons/ changed
+> npm                  🟢 registry 1.86.0 · untagged 2 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at the merge, post-merge run at 89c695d
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1018/1018 · contract 32/32 · scope 75 · control 83 · 26 CI jobs
+>               · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes · blast 3407
+>               · late not-loaded 0 · late constructed 359/160
+>               · py gates 18/6/12 · SIG 296/105
+>               · discover 58/16/16/30 · 0 exempt · 0 undeclared
+>               · floor_pin 116 · 56 governed · 2390 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0
+>               · unswept 0 · exempt 43 · term 330 file(s) / 21 suffixes
+>               · seal 104 · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 293 tools / 3885 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py
+>               · taut 5261 · duration 4 sites / 2 lower / 2 guarded
+>               · orphan 27/27 · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13
+>               · queue 84/84 claims · handoff 649 claims
+>               · landscape 4 channel(s) / 56 analysed / 51 surfaced
+>               · capability 59 claimed / 35 unread / 10 uncited
+>               · cadence 22 within / 20 past / 14 never analysed
+>               · identity 70 of 107 / 1 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57
+>                 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
@@ -14572,6 +14605,276 @@ def declared_tier(text: str) -> "str | None":
     return m.group(1).upper() if m else None
 
 
+# ══ 🆕 321 §2 — `plan-close-leaves-no-block` (BP-0001) — THE STEP NOTHING PERFORMS ══
+#
+# 🔴 FOUR SESSIONS HAVE PAID THIS BILL AND EVERY DIAGNOSIS NAMED THE WRONG HALF OF IT.
+# The seam is written down as *a portfolio-plan close leaves no status block*, and the
+# remedy each time was to hand-build one — 317 reconstructed 316's out of CI records that
+# expire, 318 and 319 wrote a document whose only purpose was to carry one, 320 wrote
+# another and its close refused FIVE atoms on the first pass. Measured, those five say
+# something the sentence does not: **one** was a counter (`blast 3403` against a tree
+# saying 3407) and **three** were the document's SHAPE — no replay fence, no §6, and a
+# `**ritual TIER1**` whose bold broke `TIER_DECLARE_RE`. The block was never the expensive
+# part. The expensive part is that a close note is not a handoff, nothing in this tree
+# turns one into the other, and every session has re-derived the conversion from scratch.
+#
+# 🔵 SO THE EMITTER IS NOT A BLOCK EMITTER. Every ingredient of a conforming document
+# already exists as a reader in this file or one over: `measure()` runs the instruments
+# and returns their numbers, `counter_atoms` + `bind` say which atom claims which
+# instrument, `replay_fence` holds the predecessor's §7, and `queue_gate.py --render` IS
+# §6 — 240 moved the queue into the tree precisely so the handoff could render it rather
+# than retype it. This reader assembles those four and types nothing.
+#
+# 🔴 AND IT LEAVES THE HEADER ROWS BLANK ON PURPOSE, WHICH IS THE ONE HONEST ANSWER.
+# `main 89c695d … MOVED +1`, `host / addon 1.86.0 / 1.16.0`, the npm and assetlib rows:
+# every one is a claim about a merge that has not happened yet and a world no local
+# instrument can read. Carrying the predecessor's values forward would smuggle a stale
+# claim past a gate built to catch exactly that, so each is emitted as `<fill>` — and
+# forgetting to fill one is not a silent pass, because a header stripped of its claims
+# falls under `HEADER_FLOOR` and the close refuses by name. The guard was already here.
+#
+# 🔵 IT IS IN NO WORKFLOW AND IN NO REPLAY FENCE, and that is not an oversight.
+# `REPLAY_FLAG_MISSING` and `CI_FLAG_MISSING` bracket the commands that run in both
+# rosters; a scaffolder runs in neither, once per session, at the hand of the session
+# writing the document. A gate that emitted the document it later grades would be marking
+# its own paper.
+EMIT_FILL = "<fill>"
+_EMIT_NUM = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)*(?![\w.])")
+
+
+_EMIT_LABEL = re.compile(r"^(\S(?:[^\s]|\s(?!\s))*?)\s{2,}")
+
+
+def blanked_header(rows: "list[str]") -> "list[str]":
+    """The predecessor's header rows reduced to their LABELS — PURE.
+
+    \U0001f534 BLANKING ONLY THE NUMERALS WAS THE FIRST SHAPE AND IT LEAKED. `main 89c695d —
+    session320 the operations that reach no handler … (#422)` carries a SHA, a branch
+    name, a commit subject and a pull request number, and exactly one of those four is a
+    numeral. A scaffold that emitted the other three would put the predecessor's merge in
+    this session's block under three claims no reader in this file checks — which is the
+    stale-claim direction the whole gate exists to refuse, arriving through the door the
+    gate holds open for itself.
+    \U0001f535 SO THE LABEL SURVIVES AND NOTHING ELSE DOES. The label is a fact about the
+    document's SHAPE — which rows a block carries — and a continuation line, which has no
+    label, carries nothing that is not a value and is dropped.
+    """
+    out: "list[str]" = []
+    for ln in rows:
+        if not ln.strip():
+            continue
+        m = _EMIT_LABEL.match(ln)
+        if not m:
+            continue
+        label = _EMIT_NUM.sub(EMIT_FILL, m.group(1)).rstrip()
+        out.append(f"{label:<20} {EMIT_FILL}")
+    return out
+
+
+def carried_fence(prev_text: str, prev_session: int, session: int
+                  ) -> "tuple[str, list[str], str]":
+    """(the predecessor's §7 with its session number stepped, the lines that changed,
+    problem).
+
+    🔴 THE SUBSTITUTIONS ARE COUNTED AND SHOWN, WHICH IS THE WHOLE SAFETY OF DOING THIS
+    MECHANICALLY. 320 carried 319's fence *under seven counted substitutions* by hand and
+    got it right; the risk in automating it is a numeral that merely EQUALS the session
+    number — `61/61`, `run 320` — being stepped along with the paths that should be. The
+    boundary excludes a digit or a slash on either side, so a ratio and a fraction are
+    safe, and every changed line is returned for the session to read rather than trust.
+    """
+    body, has = replay_fence(prev_text)
+    if not has:
+        return ("", [], f"session {prev_session}'s document carries no replay fence, so "
+                        f"there is no §7 to carry forward — and a handoff with no fence is "
+                        f"`REPLAY_FENCE_UNMEASURED` at the next close")
+    pat = re.compile(rf"(?<!\d)(?<!\d/){prev_session}(?!\d)(?!/\d)")
+    changed: "list[str]" = []
+    out: "list[str]" = []
+    for ln in body.split("\n"):
+        new = pat.sub(str(session), ln)
+        if new != ln:
+            changed.append(new)
+        out.append(new)
+    return ("\n".join(out), changed, "")
+
+
+def rendered_six(root: Path = ROOT) -> "tuple[str, str]":
+    """(§6's body, problem) — `queue_gate.py --render`, which 240 built to BE this."""
+    try:
+        p = subprocess.run(("python3", "scripts/queue_gate.py", "--render"),
+                           cwd=root, capture_output=True, text=True)
+    except OSError as e:
+        return ("", f"queue_gate.py --render could not run: {e}")
+    if p.returncode != 0 or not p.stdout.strip():
+        return ("", f"queue_gate.py --render exited {p.returncode} and printed "
+                    f"{len(p.stdout.strip())} byte(s) — §6 is a RENDERING of `QUEUE.md` "
+                    f"and cannot be typed in its place")
+    return (p.stdout.rstrip("\n"), "")
+
+
+def emit_handoff(session: int, prev_text: str = "", prev_session: int = 0,
+                 log: str = "", run_cheap: bool = True, run_locked: bool = True,
+                 population: "list[tuple[int, str]] | None" = None,
+                 today: str = "", root: Path = ROOT) -> "tuple[str, list[str]]":
+    """(the document, the notes this reader owes about what it could not fill)."""
+    pop = BLOCK_POPULATION if population is None else population
+    notes: "list[str]" = []
+    earlier = [(n, t) for n, t in pop if n < session]
+    if not earlier:
+        return ("", [f"no block before {session} is in `BLOCK_POPULATION`, so this "
+                     f"reader has no shape to emit and nothing to measure against"])
+    shape_session, shape_text = earlier[-1]
+    if not prev_session:
+        prev_session = shape_session
+    block, why = status_block(shape_text)
+    if why:
+        return ("", [f"session {shape_session}'s block does not parse: {why}"])
+    rows, _prose = header_rows(block)
+    atoms, why2 = counter_atoms(block)
+    if why2:
+        return ("", [f"session {shape_session}'s counter line does not parse: {why2}"])
+
+    bound: "list[tuple[str, str]]" = []
+    # \U0001f534 AN ATOM THAT WAS WRAPPED IN ITS OWN BLOCK CARRIES THE WRAP, and this reader
+    # re-wraps. `error-code discipline 60 reads / … vs 57\n  addon / 0 problems` joined
+    # back into one line keeps the old line's padding in the middle of a sentence.
+    for a in atoms:
+        a = " ".join(a.split())
+        key, problem = bind(a)
+        if problem:
+            notes.append(f"{a!r} binds to no reader and is emitted unchanged: {problem}")
+        bound.append((a, key))
+    # 🔴 A COUNTER THAT BECAME REQUIRED SINCE THE SHAPE'S OWN SESSION IS THE ONE A
+    # SCAFFOLD BUILT FROM A PREDECESSOR CANNOT SEE, and dropping a counter is the defect
+    # this whole file was written for. `needed` already answers it per row.
+    have = {k for _a, k in bound if k}
+    for key, _alias, _n, _cmd, _cwd, _ex, _cost, need, why_row in COUNTER_READERS:
+        if key in have or needed(need, session) != REQUIRED:
+            continue
+        example = [x for x in re.findall(r"`([^`]+)`", why_row) if re.search(r"\d", x)]
+        if not example:
+            notes.append(f"{key} is REQUIRED at {session}, is absent from "
+                         f"{shape_session}'s block, and its row carries no example to "
+                         f"build an atom from — write it by hand")
+            continue
+        bound.append((example[-1], key))
+        notes.append(f"{key} is REQUIRED at {session} and absent from {shape_session}'s "
+                     f"block — emitted from its row's own example, `{example[-1]}`")
+
+    measured, unmeasured, mnotes = measure(
+        {k for _a, k in bound if k}, log, run_cheap=run_cheap, run_slow=False,
+        run_locked=run_locked)
+    notes.extend(mnotes)
+
+    filled: "list[str]" = []
+    # \U0001f534 TWO ATOMS CAN BIND TO ONE READER AND THE BLOCK ALREADY HAS A PAIR. `bind`
+    # refuses an atom matching two readers and says nothing about two atoms matching one:
+    # `0 exempt` (the discover leg's) and `exempt 43` (the floor pin's) both answer
+    # `\bexempt\b`, so both resolve to `floor_pin.exempt`. Substituting one instrument's
+    # reading into both would put a true number in a false field — `bind`'s own argument,
+    # in the direction it does not look. The FIRST takes the reading and the rest are
+    # emitted unchanged, loudly, because which of the two the reader meant is a question
+    # about the aliases and not one this scaffold may answer by position.
+    spent: "set[str]" = set()
+    for atom, key in bound:
+        got = measured.get(key)
+        if key and key in spent:
+            filled.append(atom)
+            notes.append(f"{key}: a SECOND atom binds to it — `{atom}` is emitted "
+                         f"unchanged and this session owes it a reading by hand. Two "
+                         f"atoms on one reader is an alias too wide, not a counter twice")
+            continue
+        if key:
+            spent.add(key)
+        if got is None:
+            filled.append(atom)
+            if key:
+                notes.append(f"{key}: UNMEASURED here — `{atom}` is the predecessor's "
+                             f"number and this session owes it a reading")
+            continue
+        seen = _EMIT_NUM.findall(atom)
+        if len(seen) != len(got):
+            filled.append(atom)
+            notes.append(f"{key}: the instrument returned {len(got)} number(s) and the "
+                         f"atom `{atom}` carries {len(seen)} — emitted unchanged rather "
+                         f"than substituted into the wrong position")
+            continue
+        it = iter(got)
+        filled.append(_EMIT_NUM.sub(lambda _m: str(next(it)), atom))
+
+    six, six_why = rendered_six(root)
+    if six_why:
+        notes.append(six_why)
+        six = ("\U0001f534 §6 IS A RENDERING AND THIS ONE IS MISSING — run "
+               "`python3 scripts/queue_gate.py --render` and paste it here.")
+    fence, changed, fence_why = carried_fence(prev_text or shape_text, prev_session,
+                                              session)
+    if fence_why:
+        notes.append(fence_why)
+    else:
+        notes.append(f"§7 carried from {prev_session} under {len(changed)} counted "
+                     f"substitution(s)")
+
+    head = [f"> {ln}" for ln in blanked_header(rows)]
+    counter = _wrap_counter(filled)
+    doc = [
+        f"# HANDOFF — session {session} — {today or _today()}",
+        "",
+        f"> 🔴 EVERY `{EMIT_FILL}` BELOW IS A CLAIM ABOUT THIS SESSION'S MERGE AND "
+        f"THIS SESSION'S WORLD. Nothing local can read one. A header left unfilled is not "
+        f"a silent pass: the close refuses it by `HEADER_FLOOR`.",
+        ">",
+        "> ```",
+        *head,
+        *[f"> {ln}" for ln in counter],
+        "> ```",
+        "",
+        "ritual TIER1",
+        "",
+        "## §2 — WHAT SHIPPED",
+        "",
+        f"{EMIT_FILL} — the files, and what each one is.",
+        "",
+        "## §3 — WHAT IS OWED",
+        "",
+        f"{EMIT_FILL} — the ledger IDs this session did not close.",
+        "",
+        "## §6 — OPEN",
+        "",
+        "🔴 **THE QUEUE IS `QUEUE.md` — `python3 scripts/queue_gate.py --render`. "
+        "Do not type an age.**",
+        "",
+        six,
+        "",
+        "## §7 — 🔴 THE REPLAY THE NEXT SESSION RUNS",
+        "",
+        "```bash" if fence else "",
+        fence,
+        "```" if fence else "",
+    ]
+    return ("\n".join(x for x in doc if x is not None) + "\n", notes)
+
+
+def _today() -> str:
+    return datetime.date.today().isoformat()
+
+
+def _wrap_counter(atoms: "list[str]", width: int = 92) -> "list[str]":
+    """The counter line and its continuations — PURE. `_runs` reads an INDENTED line as a
+    continuation of the run above it, so the wrap has to indent and the first line has to
+    open at column 0 with the marker."""
+    if not atoms:
+        return ["🟢 VERIFIED AFTER THE CHANGE"]
+    lines = [f"🟢 VERIFIED AFTER THE CHANGE   {atoms[0]}"]
+    for a in atoms[1:]:
+        if len(lines[-1]) + len(a) + 3 <= width:
+            lines[-1] = f"{lines[-1]} · {a}"
+        else:
+            lines.append(f"              · {a}")
+    return lines
+
+
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return selftest()
@@ -14608,6 +14911,33 @@ def main(argv: "list[str]") -> int:
                          log=log)
     if "--patterns" in argv:
         return patterns(log)
+    # 🆕 321 — BP-0001. Scaffolds the document a portfolio-plan close does not write.
+    if "--emit-handoff" in argv:
+        rest = [a for a in argv[argv.index("--emit-handoff") + 1:]
+                if not a.startswith("--")]
+        if not rest or not rest[0].isdigit():
+            print("\U0001f534 --emit-handoff needs THIS session's number, and optionally "
+                  "the previous session's handoff so its \u00a77 can be carried forward")
+            return 2
+        prev_text, prev_session = "", 0
+        if len(rest) > 1 and Path(rest[1]).is_file():
+            prev_text = Path(rest[1]).read_text(encoding="utf-8")
+            pm = re.search(r"session\s*(\d+)", prev_text[:400], re.I)
+            prev_session = int(pm.group(1)) if pm else 0
+        doc, notes = emit_handoff(
+            int(rest[0]), prev_text=prev_text, prev_session=prev_session, log=log,
+            run_cheap="--no-run" not in argv,
+            run_locked="--no-locked" not in argv and "--no-run" not in argv)
+        if not doc:
+            for n in notes:
+                print(f"\U0001f534 {n}")
+            return 2
+        print(doc)
+        for n in notes:
+            print(f"  \u00b7 {n}", file=sys.stderr)
+        print(f"HANDOFF_EMIT session {rest[0]} \u00b7 {doc.count(EMIT_FILL)} field(s) left "
+              f"for this session to fill \u00b7 {len(notes)} note(s)", file=sys.stderr)
+        return 0
     paths = [a for a in argv[1:] if not a.startswith("--")]
     if not paths:
         print(__doc__.strip().split("Run:")[-1])
