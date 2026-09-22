@@ -14250,6 +14250,31 @@ def selftest() -> int:
         failed += 1
         print(f"  \U0001f534 EMIT_HANDOFF the scaffold owes a plain tier declaration, a §6, "
               f"a carried §7 and a header left to be filled — got {len(_doc)} byte(s)")
+    # \U0001f534 AND THE DOCUMENT IS RE-READ, NOT JUST MEASURED FOR LENGTH. `blanked_header`
+    # is called twice on this path — once by the claim above, once inside `emit_handoff` —
+    # and a mutant that answers the FIRST call and returns its empty for every one after
+    # stays green against a claim that only looks at the first. `INSTRUMENT_GATE_LATE`
+    # caught exactly that here: *`{SIG:blanked_header}` (called 2x) can answer ONCE and the
+    # gate stays GREEN*. So the SCAFFOLD'S OWN OUTPUT is parsed back with the readers the
+    # close uses, which is the only place a late collapse has nowhere left to hide.
+    _eblock, _ewhy = status_block(_doc)
+    _erows, _ = header_rows(_eblock)
+    claims += 1
+    if _ewhy or len(_erows) != 1 or any(c.isdigit() for c in "".join(_erows)) \
+            or EMIT_FILL not in "".join(_erows):
+        failed += 1
+        print(f"  \U0001f534 EMIT_HANDOFF_HEADER {_erows!r} ({_ewhy!r}) — the emitted block "
+              f"carries its predecessor's header LABELS and no value of any kind. A "
+              f"scaffold that emitted no header at all would fall under `HEADER_FLOOR` at "
+              f"the close, which is a refusal a session pays for an hour later")
+    claims += 1
+    _ec, _ecwhy = counter_run(_eblock)
+    if _ecwhy or not _ec or not _ec[0].startswith("\U0001f7e2 VERIFIED"):
+        failed += 1
+        print(f"  \U0001f534 EMIT_HANDOFF_COUNTER {_ecwhy!r} — the emitted block's VERIFIED "
+              f"line opens at column 0 and `counter_run` finds exactly one, which is what "
+              f"every claim downstream of the block is parsed out of")
+
     claims += 1
     if "**ritual TIER1**" in _doc:
         failed += 1
