@@ -1372,6 +1372,15 @@ INSTRUMENTS = [
             # empty lists it finds no omission and no stale row, which is the state
             # 305's handoff shipped in: 1 of 10 OPEN rows named in §6 and nothing said.
             "{SIG:section_six_problems}": "return ([], [],)",
+            # 🆕 322 §2 — `unfilled-slot-refused-only-in-the-header` (BP-0001's
+            # residue). Blinded to two empties it finds no unanswered `<fill>` anywhere,
+            # which is the state every close before 322 was in: the header's bare slots
+            # caught by `HEADER_FLOOR` and the prose's caught by nothing. The self-test
+            # drives it in both directions — a bare slot refused by line and heading, a
+            # backticked MENTION of the marker not refused — because a reader that
+            # refused every document carrying the word would refuse the scaffold's own
+            # banner and every handoff that names it.
+            "{SIG:unfilled_problems}": "return ([], [],)",
             # 🆕 284 — the two readers `POPULATION_CURRENCY` is made of, and the
             # SECOND one is why this pair is worth the note. Blinding the reader that
             # finds the gap is the obvious axis; blinding the one that says WHICH
