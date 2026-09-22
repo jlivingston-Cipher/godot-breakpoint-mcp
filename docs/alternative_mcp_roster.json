@@ -85,7 +85,7 @@
       "protocol_revision": "2025-06-18",
       "cadence": "weekly",
       "status": "active",
-      "note": "🟢 322: RE-READ AT SOURCE AT `ecc52c2` (1.0.1) AND EVERY CAPABILITY RULING HOLDS. The listing renamed `Godot MCP/CLI` 0.10.0 -> `Swallowtail - Godot Automation` 1.0.1 and the addon directory renamed with it, project/addons/godot_mcp/ -> project/addons/swallowtail/ (plugin.cfg `name=\"Swallowtail\"`, `author=\"bynine\"`, version 1.0.1); the repository slug did NOT move, so `name` and `repo` stand. 🔵 debugger HOLDS at `godot-internal-editor-debugger`, and the new description's `break and step in the debugger` is that plane ADVERTISED, not a new one: services/debugger_bridge.gd is 98% identical across c91fe78..ecc52c2 and the only change is `session.stopped` moving off a lambda onto `_on_session_stopped.bind(session_id)` to break a reference cycle. It still `extends EditorDebuggerPlugin`, still reaches the panels by walking the editor control tree for `ScriptEditorDebugger` (there is no public API and the file says so), still reads the stack from that panel's `breaked` / `stack_dump` signals, and still STEPS by `button.emit_signal(\"pressed\")` at :247 on a toolbar Button matched by THEME ICON — `ICONS` = DebugContinue / Pause / DebugNext / DebugStep / DebugOut — with breakpoints armed through the script gutter (debug_commands.gd:_toggle_breakpoint -> CodeEdit.set_line_as_breakpoint). That is the editor's own debugger driven through its user interface, not a debug-adapter client, and debug_commands.gd changed by one line across the whole range. 🔵 real_dap_client and real_lsp_client HOLD at false: repo-wide, ZERO case-insensitive hits for `dap`, `debug adapter`, `debugadapter`, `lsp`, `language server` or ports 6005/6006 across every .gd and .go outside website/ and samples/. csharp HOLDS at true (commands/csharp_commands.gd unchanged in kind). 🔵 THE OTHER THREE ADVERTISED CLAIMS ARE REAL, AND ALL THREE ARE IN-GAME RATHER THAN OVER A DEBUG PROTOCOL: `send input` is services/game_input.gd — `Input.parse_input_event` and `viewport.push_input` over synthesised InputEventKey / MouseButton / MouseMotion / Action; `read state back` and `capture frames` are services/game_inspector.gd — `get_viewport().get_texture().get_image()` then `save_png_to_buffer()` to base64 at :640, :676 and :739, with a documented wait because a capture taken in the same frame comes back all black; both are reached over a JSON-RPC WebSocket server hosted INSIDE the running game (services/game_server.gd, 127.0.0.1 only, ports 9200-9215, debug builds only, behind the `swallowtail/runtime/direct_server` setting). `validate scenes and scripts` is scene_commands.gd (+96) and script_commands.gd (+99), both reworked for the 1.0.0 “clean validate”. 🔴 protocol_revision HOLDS at 2025-06-18 AND ITS CAVEAT IS NARROWER THAN 321 RECORDED. cmd/swallowtail/serve.go:56 declares it and :161 echoes the client's value only when it is one of an allow-list of TWO (2025-06-18, 2025-03-26); at c91fe78 the same branch read `p.ProtocolVersion != \"\"` and agreed to whatever a client sent. The 321 note's “echoes the client's value when one is sent” was true then and is too loose now. 🔵 THE ADDON COMMAND SURFACE IS UNCHANGED AT 332 ACROSS THE RENAME AND THE MAJOR. 0.13 through 1.0.1 grew the Go CLI (migrate, automate, dashboard, completion, install) and the docs site; the addon gained no command. 🔵 capability_paths DECLARED HERE, AND THE MEASUREMENT IS THE ARGUMENT: of the NINE commits between c91fe78 and ecc52c2, FOUR touch nothing under project/addons/, cmd/ or internal/ — three are Astro and Dependabot bumps under website/ and one is the Asset Store media set. Under the strict default each of those four is a `moved` row owing a source-level pass on a project whose ruling could not have changed by them. 🔵 AND THE ROSTER DOES NOT GET A `former_title` FIELD (BP-0017 step 4, ruled here rather than carried). `former_repo` exists because `found` is keyed by repository SLUG, so a rename makes a surfaced row collide with the entry it already is; a listing title keys nothing, `identity_drift` compares exactly one recorded title against one live title, and a rename trail would be a field with no reader — 174 §5's shape. The former title is recorded in this note, which is where a person reads it. 🔴 THREE PUBLISHING IDENTITIES, AND ONE OF THEM NAMES A FORGE ORG THAT DOES NOT EXIST YET — READ THIS BEFORE THE NEXT SWEEP IS SURPRISED BY IT. The Asset Library card's author is `playlogic`, plugin.cfg's is `bynine`, the LICENSE copyright is “Regi Ellis”, and go.mod declares the module as `github.com/bynine/godot-mcp-go` — which `api.github.com` answers **404** for, while `regiellis/godot-mcp-go` answers 200 and is what the card's `browse_url` and this row's `repo` point at. A module path naming an org that is not there is a move being prepared, not a move that happened. When it lands, `forge_id` 1309425913 is what survives it and the slug is what will not: `identity_problems` keys `found` by SLUG, so the new name arrives as a stranger and the old one as a row nobody can reach. Record the old slug in `former_repo` at that point; that is what the field is for. MIT.",
+      "note": "🟢 323 (BP-0019): `capability_paths_excluded` declared. The entries listed are the top-level names at the analysed commit `ecc52c2` that carry ZERO executable source and zero dependency manifest, taken by extension census over `git ls-tree -r ecc52c2` rather than by a fresh source pass — which is why the recorded `capability_paths` were left exactly as the reading that took them wrote them, and why anything doubtful was put in NEITHER list. 🔴 THE OMISSIONS ARE THE POINT: `.github/`, `Taskfile.yml` are remain unclassified and therefore MATERIAL, because a workflow gaining a `dotnet build` step or a manifest gaining a protocol library is the likeliest way a capability arrives without a source file that looks like one. Every source-bearing top-level outside the recorded paths is likewise unclassified and material, which is a TIGHTENING of this row, not a loosening.  🟢 322: RE-READ AT SOURCE AT `ecc52c2` (1.0.1) AND EVERY CAPABILITY RULING HOLDS. The listing renamed `Godot MCP/CLI` 0.10.0 -> `Swallowtail - Godot Automation` 1.0.1 and the addon directory renamed with it, project/addons/godot_mcp/ -> project/addons/swallowtail/ (plugin.cfg `name=\"Swallowtail\"`, `author=\"bynine\"`, version 1.0.1); the repository slug did NOT move, so `name` and `repo` stand. 🔵 debugger HOLDS at `godot-internal-editor-debugger`, and the new description's `break and step in the debugger` is that plane ADVERTISED, not a new one: services/debugger_bridge.gd is 98% identical across c91fe78..ecc52c2 and the only change is `session.stopped` moving off a lambda onto `_on_session_stopped.bind(session_id)` to break a reference cycle. It still `extends EditorDebuggerPlugin`, still reaches the panels by walking the editor control tree for `ScriptEditorDebugger` (there is no public API and the file says so), still reads the stack from that panel's `breaked` / `stack_dump` signals, and still STEPS by `button.emit_signal(\"pressed\")` at :247 on a toolbar Button matched by THEME ICON — `ICONS` = DebugContinue / Pause / DebugNext / DebugStep / DebugOut — with breakpoints armed through the script gutter (debug_commands.gd:_toggle_breakpoint -> CodeEdit.set_line_as_breakpoint). That is the editor's own debugger driven through its user interface, not a debug-adapter client, and debug_commands.gd changed by one line across the whole range. 🔵 real_dap_client and real_lsp_client HOLD at false: repo-wide, ZERO case-insensitive hits for `dap`, `debug adapter`, `debugadapter`, `lsp`, `language server` or ports 6005/6006 across every .gd and .go outside website/ and samples/. csharp HOLDS at true (commands/csharp_commands.gd unchanged in kind). 🔵 THE OTHER THREE ADVERTISED CLAIMS ARE REAL, AND ALL THREE ARE IN-GAME RATHER THAN OVER A DEBUG PROTOCOL: `send input` is services/game_input.gd — `Input.parse_input_event` and `viewport.push_input` over synthesised InputEventKey / MouseButton / MouseMotion / Action; `read state back` and `capture frames` are services/game_inspector.gd — `get_viewport().get_texture().get_image()` then `save_png_to_buffer()` to base64 at :640, :676 and :739, with a documented wait because a capture taken in the same frame comes back all black; both are reached over a JSON-RPC WebSocket server hosted INSIDE the running game (services/game_server.gd, 127.0.0.1 only, ports 9200-9215, debug builds only, behind the `swallowtail/runtime/direct_server` setting). `validate scenes and scripts` is scene_commands.gd (+96) and script_commands.gd (+99), both reworked for the 1.0.0 “clean validate”. 🔴 protocol_revision HOLDS at 2025-06-18 AND ITS CAVEAT IS NARROWER THAN 321 RECORDED. cmd/swallowtail/serve.go:56 declares it and :161 echoes the client's value only when it is one of an allow-list of TWO (2025-06-18, 2025-03-26); at c91fe78 the same branch read `p.ProtocolVersion != \"\"` and agreed to whatever a client sent. The 321 note's “echoes the client's value when one is sent” was true then and is too loose now. 🔵 THE ADDON COMMAND SURFACE IS UNCHANGED AT 332 ACROSS THE RENAME AND THE MAJOR. 0.13 through 1.0.1 grew the Go CLI (migrate, automate, dashboard, completion, install) and the docs site; the addon gained no command. 🔵 capability_paths DECLARED HERE, AND THE MEASUREMENT IS THE ARGUMENT: of the NINE commits between c91fe78 and ecc52c2, FOUR touch nothing under project/addons/, cmd/ or internal/ — three are Astro and Dependabot bumps under website/ and one is the Asset Store media set. Under the strict default each of those four is a `moved` row owing a source-level pass on a project whose ruling could not have changed by them. 🔵 AND THE ROSTER DOES NOT GET A `former_title` FIELD (BP-0017 step 4, ruled here rather than carried). `former_repo` exists because `found` is keyed by repository SLUG, so a rename makes a surfaced row collide with the entry it already is; a listing title keys nothing, `identity_drift` compares exactly one recorded title against one live title, and a rename trail would be a field with no reader — 174 §5's shape. The former title is recorded in this note, which is where a person reads it. 🔴 THREE PUBLISHING IDENTITIES, AND ONE OF THEM NAMES A FORGE ORG THAT DOES NOT EXIST YET — READ THIS BEFORE THE NEXT SWEEP IS SURPRISED BY IT. The Asset Library card's author is `playlogic`, plugin.cfg's is `bynine`, the LICENSE copyright is “Regi Ellis”, and go.mod declares the module as `github.com/bynine/godot-mcp-go` — which `api.github.com` answers **404** for, while `regiellis/godot-mcp-go` answers 200 and is what the card's `browse_url` and this row's `repo` point at. A module path naming an org that is not there is a move being prepared, not a move that happened. When it lands, `forge_id` 1309425913 is what survives it and the slug is what will not: `identity_problems` keys `found` by SLUG, so the new name arrives as a stranger and the old one as a row nobody can reach. Record the old slug in `former_repo` at that point; that is what the field is for. MIT.",
       "capability_evidence": {
         "real_dap_client": "zero case-insensitive hits repo-wide for `dap`, `debug adapter`, `debugadapter` or port 6006 across every .gd and .go outside website/ and samples/ — read at ecc52c2",
         "real_lsp_client": "zero case-insensitive hits repo-wide for `lsp`, `language server` or port 6005 across every .gd and .go outside website/ and samples/ — read at ecc52c2",
@@ -103,7 +103,18 @@
       "forks": 5,
       "forge_pushed_at": "2026-09-18",
       "ranked_on": "2026-09-21",
-      "source_verifiable": true
+      "source_verifiable": true,
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "CHANGELOG.md",
+        "INSTALL.md",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "media/",
+        "skills/"
+      ]
     },
     {
       "name": "godot-ai",
@@ -279,7 +290,7 @@
       "csharp": true,
       "cadence": "weekly",
       "status": "active",
-      "note": "SOURCE PASS 306 — 947ee6b -> 57f3422 is ONE commit, v1.14.0 -> v1.15.0, 10 files, +333/-15, and the whole window is export hygiene. New core/export_filter.gd is an EditorExportPlugin that skip()s everything under res://addons/beckett/ except one stub, behind project setting beckett/strip_from_exports (default true); its own header (export_filter.gd:8-16) gives the reason — the plugin's autoload was baked into every export preset and Godot's default filter sweeps addons/, so ~480 KB of editor-only GDScript shipped into each game. New runtime/beckett_autoload.gd replaces the old direct autoload target: it names only Node/OS/String at parse time and load()s the real runtime behind OS.has_feature(\"editor\") (:35-38), with duplicate-autoload tie-break for projects upgrading from the godot_mcp rename (:39-49, :70-77). plugin.gd (+64/-2) gained _install_runtime_autoload() re-pointing a pre-existing autoload and persisting via ProjectSettings.save() (:126-146) and _autoload_target() normalising both the legacy *res:// singleton-marker form and Godot 4.4+ *uid:// (:150-160). A new test group _t_export_safety() (tests/unit_tests.gd, +109) asserts the stub names only Node/OS/ResourceLoader-class identifiers, contains no preload(, carries the literal OS.has_feature(\"editor\") gate, and that plugin.gd's RUNTIME_SCRIPT and export_filter.gd's KEEP name the same path, so the two halves cannot drift apart. 🟢 55 TOOLS, UNCHANGED, BY TWO AGREEING DERIVATIONS AT 57f3422: 55 registry.register({ name literals across addons/beckett/tools/*.gd and 55 entries in the generated glama/tools.json, identical sets; tests/ci-smoke.ps1 -ExpectedTools 55 (ci.yml:288) asserts the same and already did at 947ee6b. Zero tool names added or removed — no file under tools/ moved in this window at all. Capabilities re-verified rather than carried: no DAP and no LSP, zero hits for either repo-wide, and zero for breakpoint, step_over and stack_frame (the three 'scopes' hits are plain English). csharp stays TRUE on the same evidence — tools/csharp_tools.gd:29 registers build_csharp and :62 shells out to dotnet build — and that file is untouched here. core/effort.gd is byte-identical between the two commits: 91 tool names across six cumulative tiers (16/25/5/11/26/8), of which the L1-L4 union is 57 and 55 register in this MIT Lite edition; panel.gd:1640-1642 states that Lite trims modules whose tools are still named in _DELTA (list_skills and load_skill live in the Full-only skill_tools) and filters against registry.has() before display, so the 91/55 split predates this window rather than being part of it. The only README prose change is number catch-up — Lite '50 tools' -> '55 tools', Full '80 tools, 37 skill packs' -> '91 tools, 46 skill packs' — and both figures were already true of the tree at 947ee6b, so the document moved and the surface did not. 🔵 AND THE CARD IS THE HALF THAT HAS NOT MOVED THIS TIME: the Asset Library listing still reads 1.14.0 (2026-08-26) against a source at 1.15.0, which is the exact inverse of the 284 pass, where the source was read first and the card caught up hours later. assetlib_version stays at what the card says, because it is a reading of the card and not of the repository.",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `57f3422`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/`, `.mcp.json` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  SOURCE PASS 306 — 947ee6b -> 57f3422 is ONE commit, v1.14.0 -> v1.15.0, 10 files, +333/-15, and the whole window is export hygiene. New core/export_filter.gd is an EditorExportPlugin that skip()s everything under res://addons/beckett/ except one stub, behind project setting beckett/strip_from_exports (default true); its own header (export_filter.gd:8-16) gives the reason — the plugin's autoload was baked into every export preset and Godot's default filter sweeps addons/, so ~480 KB of editor-only GDScript shipped into each game. New runtime/beckett_autoload.gd replaces the old direct autoload target: it names only Node/OS/String at parse time and load()s the real runtime behind OS.has_feature(\"editor\") (:35-38), with duplicate-autoload tie-break for projects upgrading from the godot_mcp rename (:39-49, :70-77). plugin.gd (+64/-2) gained _install_runtime_autoload() re-pointing a pre-existing autoload and persisting via ProjectSettings.save() (:126-146) and _autoload_target() normalising both the legacy *res:// singleton-marker form and Godot 4.4+ *uid:// (:150-160). A new test group _t_export_safety() (tests/unit_tests.gd, +109) asserts the stub names only Node/OS/ResourceLoader-class identifiers, contains no preload(, carries the literal OS.has_feature(\"editor\") gate, and that plugin.gd's RUNTIME_SCRIPT and export_filter.gd's KEEP name the same path, so the two halves cannot drift apart. 🟢 55 TOOLS, UNCHANGED, BY TWO AGREEING DERIVATIONS AT 57f3422: 55 registry.register({ name literals across addons/beckett/tools/*.gd and 55 entries in the generated glama/tools.json, identical sets; tests/ci-smoke.ps1 -ExpectedTools 55 (ci.yml:288) asserts the same and already did at 947ee6b. Zero tool names added or removed — no file under tools/ moved in this window at all. Capabilities re-verified rather than carried: no DAP and no LSP, zero hits for either repo-wide, and zero for breakpoint, step_over and stack_frame (the three 'scopes' hits are plain English). csharp stays TRUE on the same evidence — tools/csharp_tools.gd:29 registers build_csharp and :62 shells out to dotnet build — and that file is untouched here. core/effort.gd is byte-identical between the two commits: 91 tool names across six cumulative tiers (16/25/5/11/26/8), of which the L1-L4 union is 57 and 55 register in this MIT Lite edition; panel.gd:1640-1642 states that Lite trims modules whose tools are still named in _DELTA (list_skills and load_skill live in the Full-only skill_tools) and filters against registry.has() before display, so the 91/55 split predates this window rather than being part of it. The only README prose change is number catch-up — Lite '50 tools' -> '55 tools', Full '80 tools, 37 skill packs' -> '91 tools, 46 skill packs' — and both figures were already true of the tree at 947ee6b, so the document moved and the surface did not. 🔵 AND THE CARD IS THE HALF THAT HAS NOT MOVED THIS TIME: the Asset Library listing still reads 1.14.0 (2026-08-26) against a source at 1.15.0, which is the exact inverse of the 284 pass, where the source was read first and the card caught up hours later. assetlib_version stays at what the card says, because it is a reading of the card and not of the repository.",
       "capability_evidence": {
         "real_dap_client": "no DAP and no LSP — zero hits for either, repo-wide at 57f3422; and zero for breakpoint, step_over and stack_frame",
         "real_lsp_client": "no DAP and no LSP — zero hits for either, repo-wide at 57f3422",
@@ -289,7 +300,24 @@
       "stars": 23,
       "forks": 1,
       "forge_pushed_at": "2026-09-19",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "addons/",
+        "glama/",
+        "tests/"
+      ],
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "INSTALL.md",
+        "LICENSE",
+        "README.md",
+        "glama.json",
+        "icon.png",
+        "project.godot",
+        "screenshots/",
+        "server.json"
+      ]
     },
     {
       "name": "Godot-MCP-Native",
@@ -409,7 +437,7 @@
       "csharp": true,
       "cadence": "monthly",
       "status": "active",
-      "note": "SOURCE PASS 284. bd1b8e4..b91650c is two commits, 24 files, +842/-39, and it is auth and UX only — no tool and no transport change. A 'D4 assisted ladder' (GodotAssistedSignIn.cs) auto-opens the browser at the device-auth verification URL once per editor session; GodotAccountAuth.cs re-hooks SignInRequired/AuthStateChanged across provider swaps; and a silent-failure fix in ConnectionPanelView.cs, where a dead machine-store credential previously rendered nothing for a signed-in user. 42 tools by two agreeing derivations ([AiTool] attributes; and the first positional argument of every [AiTool(] block with ToolId constants resolved) — of which 39 are advertised to MCP clients, the other three being System tools routed to a disjoint registry reachable only over HTTP /api/system-tools/. DEBUGGER STILL 'none', with a nuance worth recording: there IS structured runtime-error capture via the Godot 4.5+ OS.AddLogger hook plus AppDomain.UnhandledException, surfacing multi-frame ScriptBacktrace data through runtime-errors-get — richer than log scraping, but passive post-hoc diagnostics with no execution control, so not a debugger. No DAP and no LSP: zero repo-wide hits for Content-Length, setBreakpoints, :6005 or textDocument. C# is real and total — the addon IS C# and needs the .NET Godot build — but script-validate is GDScript-only by its own comment, since there is no in-editor C# compiler to reach cheaply. Cloud-first: the addon is a SignalR client dialling a hosted backend at ai-game.dev or a self-hosted URL. Effectively single-maintainer, 220 of 221 commits.",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `b91650c`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  SOURCE PASS 284. bd1b8e4..b91650c is two commits, 24 files, +842/-39, and it is auth and UX only — no tool and no transport change. A 'D4 assisted ladder' (GodotAssistedSignIn.cs) auto-opens the browser at the device-auth verification URL once per editor session; GodotAccountAuth.cs re-hooks SignInRequired/AuthStateChanged across provider swaps; and a silent-failure fix in ConnectionPanelView.cs, where a dead machine-store credential previously rendered nothing for a signed-in user. 42 tools by two agreeing derivations ([AiTool] attributes; and the first positional argument of every [AiTool(] block with ToolId constants resolved) — of which 39 are advertised to MCP clients, the other three being System tools routed to a disjoint registry reachable only over HTTP /api/system-tools/. DEBUGGER STILL 'none', with a nuance worth recording: there IS structured runtime-error capture via the Godot 4.5+ OS.AddLogger hook plus AppDomain.UnhandledException, surfacing multi-frame ScriptBacktrace data through runtime-errors-get — richer than log scraping, but passive post-hoc diagnostics with no execution control, so not a debugger. No DAP and no LSP: zero repo-wide hits for Content-Length, setBreakpoints, :6005 or textDocument. C# is real and total — the addon IS C# and needs the .NET Godot build — but script-validate is GDScript-only by its own comment, since there is no in-editor C# compiler to reach cheaply. Cloud-first: the addon is a SignalR client dialling a hosted backend at ai-game.dev or a self-hosted URL. Effectively single-maintainer, 220 of 221 commits.",
       "debugger": "none",
       "capability_evidence": {
         "real_dap_client": "zero repo-wide hits for Content-Length, setBreakpoints, :6005 or textDocument",
@@ -421,7 +449,24 @@
       "stars": 251,
       "forks": 23,
       "forge_pushed_at": "2026-09-17",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "Godot-MCP.Tests/",
+        "Godot-MCP.csproj",
+        "Godot-MCP.sln",
+        "Godot-Tests/",
+        "addons/",
+        "cli/",
+        "scripts/"
+      ],
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "docs/"
+      ]
     },
     {
       "name": "GameDev-MCP-Server",
@@ -488,7 +533,7 @@
       "protocol_revision": "2026-07-28",
       "cadence": "weekly",
       "status": "active",
-      "note": "Architecturally the closest project to Breakpoint: real DAP + LSP clients, newest spec revision, and a csharp-spike CI workflow.",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `8852c9c`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/`, `.mcp.json` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  Architecturally the closest project to Breakpoint: real DAP + LSP clients, newest spec revision, and a csharp-spike CI workflow.",
       "capability_evidence": {
         "real_dap_client": "recorded from the field survey as a real DAP client; no file or symbol was written down",
         "real_lsp_client": "recorded from the field survey as a real LSP client; no file or symbol was written down",
@@ -499,7 +544,31 @@
       "stars": 5,
       "forks": 0,
       "forge_pushed_at": "2026-09-04",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "addons/",
+        "examples/",
+        "mcp-server/",
+        "scripts/"
+      ],
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "GODOT_MCP_GUIDE.md",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "TESTING.md",
+        "claude_desktop_config.json",
+        "docs/",
+        "icon.png",
+        "llms.txt",
+        "release-notes/",
+        "screenshots/"
+      ]
     },
     {
       "name": "godot-mcp-toolkit",
@@ -581,7 +650,7 @@
       "protocol_revision": "2025-11-25",
       "cadence": "biweekly",
       "status": "active",
-      "note": "SOURCE PASS 284 — card said no change, head moved 2c6127b -> 3148cda, and this window is real behaviour: 13 commits, 26 files, +896/-71, with ~490 lines of new tests and no version bump (3.0.0 both ends). 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — verify_dotnet_project (inspect|restore|build|run) probes dotnet --version and runs restore/build against a versioned Godot.NET.Sdk. Unchanged in this window, so the roster value was already wrong at the previously recorded commit. The substantive change is child-environment sanitization: every spawned Godot process now gets a 22-key allowlist rather than inheriting process.env, on the stated reasoning that project GDScript runs with the user's OS permissions and can therefore read any inherited credential. Short-lived CLI runs additionally get GODOT_MCP_RUNTIME_DISABLED=true so validate/test/import/export never open a runtime listener. Startup failures now surface instead of hanging — a GameStartupError carrying exitCode/signal, thrown when the process exits during the connect delay. 56 tools by three agreeing routes (rawToolDefinitions; the toolManifest record keys; the handler dispatch keys), unchanged across the window. Only 16 core tools are advertised by default, the other 40 reached through godot_catalog progressive disclosure, against a pinned context budget. No DAP, and LSP is explicitly scoped OUT in docs/coverage/engine-scope.json: diagnostics come from validate_script via --check-only rather than from driving the language server. Node stdio sidecar plus an authenticated loopback TCP channel to an injected in-game interaction server. Card is at 1.0.0 against a source 3.0.0.",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `3148cda`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  SOURCE PASS 284 — card said no change, head moved 2c6127b -> 3148cda, and this window is real behaviour: 13 commits, 26 files, +896/-71, with ~490 lines of new tests and no version bump (3.0.0 both ends). 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — verify_dotnet_project (inspect|restore|build|run) probes dotnet --version and runs restore/build against a versioned Godot.NET.Sdk. Unchanged in this window, so the roster value was already wrong at the previously recorded commit. The substantive change is child-environment sanitization: every spawned Godot process now gets a 22-key allowlist rather than inheriting process.env, on the stated reasoning that project GDScript runs with the user's OS permissions and can therefore read any inherited credential. Short-lived CLI runs additionally get GODOT_MCP_RUNTIME_DISABLED=true so validate/test/import/export never open a runtime listener. Startup failures now surface instead of hanging — a GameStartupError carrying exitCode/signal, thrown when the process exits during the connect delay. 56 tools by three agreeing routes (rawToolDefinitions; the toolManifest record keys; the handler dispatch keys), unchanged across the window. Only 16 core tools are advertised by default, the other 40 reached through godot_catalog progressive disclosure, against a pinned context budget. No DAP, and LSP is explicitly scoped OUT in docs/coverage/engine-scope.json: diagnostics come from validate_script via --check-only rather than from driving the language server. Node stdio sidecar plus an authenticated loopback TCP channel to an injected in-game interaction server. Card is at 1.0.0 against a source 3.0.0.",
       "capability_evidence": {
         "real_dap_client": "recorded as no DAP; no search or path was written down",
         "real_lsp_client": "LSP is explicitly scoped OUT in docs/coverage/engine-scope.json — diagnostics come from validate_script via --check-only rather than from driving the language server",
@@ -591,7 +660,47 @@
       "stars": 6,
       "forks": 2,
       "forge_pushed_at": "2026-09-15",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "addons/",
+        "agent-plugin/",
+        "eslint.config.js",
+        "evals/",
+        "examples/",
+        "experiments/",
+        "package-lock.json",
+        "package.json",
+        "scripts/",
+        "src/",
+        "tests/",
+        "tsconfig.json",
+        "vitest.config.ts",
+        "vitest.e2e.config.ts"
+      ],
+      "capability_paths_excluded": [
+        ".agents/",
+        ".claude-plugin/",
+        ".gitignore",
+        ".husky/",
+        ".markdownlint-cli2.jsonc",
+        ".nvmrc",
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "IMPLEMENTATION_GOAL.md",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "TODO.md",
+        "assets/",
+        "distribution/",
+        "docs/",
+        "product.json",
+        "server.json",
+        "tsconfig.eslint.json"
+      ]
     },
     {
       "name": "Doyunha-Gopeak",
@@ -748,7 +857,7 @@
       "csharp": true,
       "cadence": "unknown",
       "status": "active",
-      "note": "SOURCE PASS 284, and this entry is why Rule 2 has a second clause: the Asset Library card has not moved since 2026-04-26 and the head moved 99806df -> 5540357. Reading it: FIVE commits, all 2026-08-13, 3 files, +10/-10 — Dependabot bumps (MessagePack, Roslyn, Microsoft.Extensions.*) and one CI action. No src/, tests/ or addons/ file touched; the tool surface, DAP, LSP and C# paths are byte-identical. 'Nothing that matters changed' is the finding, and it is a MEASURED one. 64 tools by two agreeing derivations ([McpServerTool] attributes across 12 [McpServerToolType] classes; and the declarative catalog in DefaultToolGroups.cs) — agreement is CI-enforced by DefaultToolGroupsTests.cs, not coincidence. Only 17 are advertised out of the box: tools are gated into five opt-in pillars via WICK_GROUPS, defaulting to core. Still the only tracked entry with BOTH a real DAP client and a real LSP client, and both are confirmed at source: GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake; GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and a second CSharpLspClient.cs spawns csharp-ls over stdio. SCOPE CAVEAT WORTH CARRYING: the DAP verbs are launch, configurationDone, stackTrace, evaluate and variables — there is no setBreakpoints and no continue/step, so it is a real DAP client with launch-and-inspect verbs rather than debug-session control. C# is the centre of gravity, not a bolt-on: MSBuildWorkspace, GetSemanticModel, SymbolFinder, with tests. VERSION DIVERGENCE: source has been 1.0.0 since tag v1.0.0 while the card still reads 0.1.0 — one major version and four months behind, which is the sharpest evidence in this roster that an Asset Library version is not a usable freshness signal. Cadence: last substantive source commit 2026-04-30; everything since is Dependabot or CI. Maintained rather than developed. 🆕 294 — `cadence` was the free text 'dependency-only since 2026-04-30' until this session made the column a field a gate reads; it described commit SHAPE rather than release frequency, and nobody has measured a frequency, so it is `unknown` — the STRICT bucket, which buys the shortest staleness window rather than the longest.",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `5540357`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/`, `Directory.Build.props`, `Directory.Packages.props`, `Wick.slnx`, `global.json`, `nuget.config` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  SOURCE PASS 284, and this entry is why Rule 2 has a second clause: the Asset Library card has not moved since 2026-04-26 and the head moved 99806df -> 5540357. Reading it: FIVE commits, all 2026-08-13, 3 files, +10/-10 — Dependabot bumps (MessagePack, Roslyn, Microsoft.Extensions.*) and one CI action. No src/, tests/ or addons/ file touched; the tool surface, DAP, LSP and C# paths are byte-identical. 'Nothing that matters changed' is the finding, and it is a MEASURED one. 64 tools by two agreeing derivations ([McpServerTool] attributes across 12 [McpServerToolType] classes; and the declarative catalog in DefaultToolGroups.cs) — agreement is CI-enforced by DefaultToolGroupsTests.cs, not coincidence. Only 17 are advertised out of the box: tools are gated into five opt-in pillars via WICK_GROUPS, defaulting to core. Still the only tracked entry with BOTH a real DAP client and a real LSP client, and both are confirmed at source: GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake; GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and a second CSharpLspClient.cs spawns csharp-ls over stdio. SCOPE CAVEAT WORTH CARRYING: the DAP verbs are launch, configurationDone, stackTrace, evaluate and variables — there is no setBreakpoints and no continue/step, so it is a real DAP client with launch-and-inspect verbs rather than debug-session control. C# is the centre of gravity, not a bolt-on: MSBuildWorkspace, GetSemanticModel, SymbolFinder, with tests. VERSION DIVERGENCE: source has been 1.0.0 since tag v1.0.0 while the card still reads 0.1.0 — one major version and four months behind, which is the sharpest evidence in this roster that an Asset Library version is not a usable freshness signal. Cadence: last substantive source commit 2026-04-30; everything since is Dependabot or CI. Maintained rather than developed. 🆕 294 — `cadence` was the free text 'dependency-only since 2026-04-30' until this session made the column a field a gate reads; it described commit SHAPE rather than release frequency, and nobody has measured a frequency, so it is `unknown` — the STRICT bucket, which buys the shortest staleness window rather than the longest.",
       "capability_evidence": {
         "real_dap_client": "GodotDapClient.cs opens a raw TcpClient to 127.0.0.1:6006 with hand-rolled Content-Length framing and an adapterID=godot initialize handshake",
         "real_lsp_client": "GodotLspClient.cs speaks LSP to 127.0.0.1:6005 and CSharpLspClient.cs spawns csharp-ls over stdio",
@@ -759,7 +868,29 @@
       "stars": 20,
       "forks": 3,
       "forge_pushed_at": "2026-08-17",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "addons/",
+        "docs/",
+        "src/",
+        "tests/"
+      ],
+      "capability_paths_excluded": [
+        ".editorconfig",
+        ".env.example",
+        ".gitattributes",
+        ".gitignore",
+        "ATTRIBUTION.md",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "STATUS.md",
+        "glama.json",
+        "server.json"
+      ]
     },
     {
       "name": "godot-mcp (tomyud)",
@@ -775,7 +906,7 @@
       "real_lsp_client": false,
       "cadence": "unknown",
       "status": "active",
-      "note": "SOURCE PASS 284. Resumed after a 125-day gap: one squashed release commit (3037a5b, 2026-08-24, +5369/-316) took it 0.5.0 -> 0.6.0, so the 'dormant' ruling recorded at 2026-08-10 no longer holds. The new work is transactional editing — a disk-backed snapshot store (snapshot_store.gd, undo_manager.gd) with a _MUTATING_TOOLS registry that auto-snapshots every mutating tool, plus batch_execute with atomic rollback as one undo entry. Deliberately NOT wired to EditorUndoRedoManager, so the editor's own Ctrl+Z does not reach AI edits. 75 tools registered by two independent derivations (allTools in mcp-server/src/tools/index.ts, executed; and the GDScript _tool_map union in tool_executor.gd), 77 advertised on the wire (index.ts:279 prepends get_godot_status and get_guide). Its own READMEs disagree with each other (75, 42 and 32) — counts here are from source. Debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP. GDScript only: create_script hard-rejects non-.gd. Node stdio server hosting a WebSocket on 127.0.0.1:6505 that the editor addon and an in-game autoload both dial into. 🆕 294 — `cadence` was the free text 'release-squashed' until this session made the column a field a gate reads; it described commit SHAPE rather than release frequency, and nobody has measured a frequency, so it is `unknown` — the STRICT bucket, which buys the shortest staleness window rather than the longest.",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `3037a5b`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file.   SOURCE PASS 284. Resumed after a 125-day gap: one squashed release commit (3037a5b, 2026-08-24, +5369/-316) took it 0.5.0 -> 0.6.0, so the 'dormant' ruling recorded at 2026-08-10 no longer holds. The new work is transactional editing — a disk-backed snapshot store (snapshot_store.gd, undo_manager.gd) with a _MUTATING_TOOLS registry that auto-snapshots every mutating tool, plus batch_execute with atomic rollback as one undo entry. Deliberately NOT wired to EditorUndoRedoManager, so the editor's own Ctrl+Z does not reach AI edits. 75 tools registered by two independent derivations (allTools in mcp-server/src/tools/index.ts, executed; and the GDScript _tool_map union in tool_executor.gd), 77 advertised on the wire (index.ts:279 prepends get_godot_status and get_guide). Its own READMEs disagree with each other (75, 42 and 32) — counts here are from source. Debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP. GDScript only: create_script hard-rejects non-.gd. Node stdio server hosting a WebSocket on 127.0.0.1:6505 that the editor addon and an in-game autoload both dial into. 🆕 294 — `cadence` was the free text 'release-squashed' until this session made the column a field a gate reads; it described commit SHAPE rather than release frequency, and nobody has measured a frequency, so it is `unknown` — the STRICT bucket, which buys the shortest staleness window rather than the longest.",
       "capability_evidence": {
         "real_dap_client": "debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP",
         "real_lsp_client": "debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP"
@@ -784,7 +915,22 @@
       "stars": 434,
       "forks": 48,
       "forge_pushed_at": "2026-08-24",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "addons/",
+        "mcp-server/"
+      ],
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "CHANGELOG.md",
+        "LICENSE",
+        "README.md",
+        "claude_desktop_config.json",
+        "icon.png",
+        "release-notes/",
+        "screenshots/"
+      ]
     },
     {
       "name": "godot-mcp (DaxianLee)",
@@ -800,7 +946,7 @@
       "cadence": "monthly",
       "status": "dormant",
       "last_analysed_commit": "1b03129",
-      "note": "BASELINED AT 284 — this entry had NO last_analysed_commit, so the sweep's Rule 2 second clause was blind to it and reported SRC ?. Head is 1b03129 (2026-01-14); source version 1.0.0 matches the card. 🔴 STATUS CORRECTION active -> dormant: the ENTIRE history is three commits, 2026-01-04 to 2026-01-14, and nothing in six months. Category confirmed — mcp_server.gd:122 listens on TCP and :443 handles tools/list. 74 tools, derived from the 22 executors registered at mcp_server.gd:200-231 against the flattened _tool_definitions. No DAP, no LSP, no C# (zero .cs in tree).",
+      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `1b03129`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file.   BASELINED AT 284 — this entry had NO last_analysed_commit, so the sweep's Rule 2 second clause was blind to it and reported SRC ?. Head is 1b03129 (2026-01-14); source version 1.0.0 matches the card. 🔴 STATUS CORRECTION active -> dormant: the ENTIRE history is three commits, 2026-01-04 to 2026-01-14, and nothing in six months. Category confirmed — mcp_server.gd:122 listens on TCP and :443 handles tools/list. 74 tools, derived from the 22 executors registered at mcp_server.gd:200-231 against the flattened _tool_definitions. No DAP, no LSP, no C# (zero .cs in tree).",
       "capability_evidence": {
         "real_dap_client": "no DAP, no LSP, no C# (zero .cs in tree) at 1b03129; mcp_server.gd:122 listens on TCP and :443 handles tools/list",
         "real_lsp_client": "no DAP, no LSP, no C# (zero .cs in tree) at 1b03129; mcp_server.gd:122 listens on TCP and :443 handles tools/list"
@@ -809,7 +955,15 @@
       "stars": 533,
       "forks": 66,
       "forge_pushed_at": "2026-01-14",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths": [
+        "addons/"
+      ],
+      "capability_paths_excluded": [
+        "LICENSE",
+        "README.md",
+        "README_EN.md"
+      ]
     },
     {
       "name": "Ziva",
@@ -1504,7 +1658,7 @@
       "protocol_revision": "2026-07-28",
       "cadence": "weekly",
       "status": "active",
-      "note": "🔴 THE DEEPEST EDITOR-DEBUGGER SURFACE ON THIS ROSTER, AND THE FIRST PASS IS ITS FIRST. Surfaced by the Asset Library leg at 292 as a never-tracked MCP-shaped entry (card 2026-08-27); the repository is three months old, 246 commits from one author, MIT. A Python FastMCP server (fastmcp==4.0.0b3) listening on ws://localhost:9080 (mcp_server/bridge.py:Bridge.serve) paired with a GDScript EditorPlugin that connects as the WebSocket client; mcp_server/tools/*.py delegate through _route.route to cmd_* handlers in godot/addons/godot_mcp/handlers/. 🟢 TOOL COUNT VERIFIED TWO WAYS AND THE CARD IS ACCURATE: 180, by grep over `@mcp.tool(` registrations and independently by enumerating Provider.list_tools(create_server()), across the 29 tags declared in mcp_server/categories.py. 🔴 THE DEBUGGING CATEGORY IS REAL AND IT IS COMPLETE ON THE EDITOR PLANE: godot/addons/godot_mcp/mcp_debugger.gd is an EditorDebuggerPlugin installed with add_debugger_plugin, and its eleven godot_debugger_* tools cover breakpoints (EditorDebuggerSession.set_breakpoint), stepping (send_message with step/next/out plus continue, each guarded by is_breaked()), stack frames (get_stack_dump), frame variables (get_stack_frame_vars, returning locals/members/globals) and expression evaluation (evaluate). Every earlier entry on this roster with the same `debugger` value stops short of one or more of those. 🔵 THE DEPTH CLAIM HAS A CEILING AND IT IS IN THE TRANSPORT: replies arrive asynchronously and are claimed back through _has_capture, so each read tool returns the PREVIOUSLY CACHED payload and then requests a refresh — poll-and-cache, one call behind (mcp_debugger.gd module docstring; _cmd_get_stack_frames). It also requires a live play session, and force_break additionally requires the game to carry the mcp_runtime_probe.gd autoload. No DAP client and no port 6006 anywhere (docs/debugger_feasibility.md:9 records the choice of EditorDebuggerSession.send_message explicitly); no LSP; C# appears only as a \".cs\": \"CSharpScript\" import lookup at mcp_server/tools/import_asset.py:51. Default surface is 18 of 180 — mcp_server/toolsets.py:DEFAULT_ENABLED is inspection plus always-on core, and the debugger toolset must be unlocked with enable_toolset; gating is server-global rather than per-session, justified in-source by the sessionless 2026-07-28 protocol. 611 test functions and four CI workflows gating ruff, mypy strict and a zero-skip scan. 🔵 The card is one release behind the repository (2026.08.26b1 against tag 2026.08.31b3) and the tool count is unchanged across both. 🔴 `last_analysed_commit` is the SHA READ, 037b00f, and not the tag: the first draft of this row recorded `2026.08.31b3` and `source_state` refused it on the spot, because Rule 2's second clause compares a commit and a tag name can never equal one. The tag points one commit earlier at 38196d7; the pass was taken at the branch head. 🟢 RE-READ AT 293, 037b00f -> 2400578, AND THE RULING HOLDS — a source pass and not a baseline bump (292 §6 forbade the latter). Twelve files changed and exactly one of them falls under the recorded `capability_paths`: mcp_server/tools/undo.py, which declares an explicit output_schema on the EXISTING `undo` tool because UndoResult's @model_serializer degenerates FastMCP's auto-derived schema (their issue #385) — no tool added and none removed. The registration count is 180 at BOTH commits by the same derivation; mcp_debugger.gd, toolsets.py and categories.py are byte-identical across the range, and godot/addons/godot_mcp/ moved only plugin.cfg's version string to 2026.08.31b4. The remainder is documentation and two new contract test files (test_output_schema.py, test_sessionless_invariants.py). 🔵 So the move was MATERIAL by the paths and IMMATERIAL in fact, which is the reader working: it turned `the head moved, pay a pass' into `read one file'.",
+      "note": "🟢 323 (BP-0019): `capability_paths_excluded` declared. The entries listed are the top-level names at the analysed commit `2400578` that carry ZERO executable source and zero dependency manifest, taken by extension census over `git ls-tree -r 2400578` rather than by a fresh source pass — which is why the recorded `capability_paths` were left exactly as the reading that took them wrote them, and why anything doubtful was put in NEITHER list. 🔴 THE OMISSIONS ARE THE POINT: `.github/`, `.pr_agent.toml` are remain unclassified and therefore MATERIAL, because a workflow gaining a `dotnet build` step or a manifest gaining a protocol library is the likeliest way a capability arrives without a source file that looks like one. Every source-bearing top-level outside the recorded paths is likewise unclassified and material, which is a TIGHTENING of this row, not a loosening.  🔴 THE DEEPEST EDITOR-DEBUGGER SURFACE ON THIS ROSTER, AND THE FIRST PASS IS ITS FIRST. Surfaced by the Asset Library leg at 292 as a never-tracked MCP-shaped entry (card 2026-08-27); the repository is three months old, 246 commits from one author, MIT. A Python FastMCP server (fastmcp==4.0.0b3) listening on ws://localhost:9080 (mcp_server/bridge.py:Bridge.serve) paired with a GDScript EditorPlugin that connects as the WebSocket client; mcp_server/tools/*.py delegate through _route.route to cmd_* handlers in godot/addons/godot_mcp/handlers/. 🟢 TOOL COUNT VERIFIED TWO WAYS AND THE CARD IS ACCURATE: 180, by grep over `@mcp.tool(` registrations and independently by enumerating Provider.list_tools(create_server()), across the 29 tags declared in mcp_server/categories.py. 🔴 THE DEBUGGING CATEGORY IS REAL AND IT IS COMPLETE ON THE EDITOR PLANE: godot/addons/godot_mcp/mcp_debugger.gd is an EditorDebuggerPlugin installed with add_debugger_plugin, and its eleven godot_debugger_* tools cover breakpoints (EditorDebuggerSession.set_breakpoint), stepping (send_message with step/next/out plus continue, each guarded by is_breaked()), stack frames (get_stack_dump), frame variables (get_stack_frame_vars, returning locals/members/globals) and expression evaluation (evaluate). Every earlier entry on this roster with the same `debugger` value stops short of one or more of those. 🔵 THE DEPTH CLAIM HAS A CEILING AND IT IS IN THE TRANSPORT: replies arrive asynchronously and are claimed back through _has_capture, so each read tool returns the PREVIOUSLY CACHED payload and then requests a refresh — poll-and-cache, one call behind (mcp_debugger.gd module docstring; _cmd_get_stack_frames). It also requires a live play session, and force_break additionally requires the game to carry the mcp_runtime_probe.gd autoload. No DAP client and no port 6006 anywhere (docs/debugger_feasibility.md:9 records the choice of EditorDebuggerSession.send_message explicitly); no LSP; C# appears only as a \".cs\": \"CSharpScript\" import lookup at mcp_server/tools/import_asset.py:51. Default surface is 18 of 180 — mcp_server/toolsets.py:DEFAULT_ENABLED is inspection plus always-on core, and the debugger toolset must be unlocked with enable_toolset; gating is server-global rather than per-session, justified in-source by the sessionless 2026-07-28 protocol. 611 test functions and four CI workflows gating ruff, mypy strict and a zero-skip scan. 🔵 The card is one release behind the repository (2026.08.26b1 against tag 2026.08.31b3) and the tool count is unchanged across both. 🔴 `last_analysed_commit` is the SHA READ, 037b00f, and not the tag: the first draft of this row recorded `2026.08.31b3` and `source_state` refused it on the spot, because Rule 2's second clause compares a commit and a tag name can never equal one. The tag points one commit earlier at 38196d7; the pass was taken at the branch head. 🟢 RE-READ AT 293, 037b00f -> 2400578, AND THE RULING HOLDS — a source pass and not a baseline bump (292 §6 forbade the latter). Twelve files changed and exactly one of them falls under the recorded `capability_paths`: mcp_server/tools/undo.py, which declares an explicit output_schema on the EXISTING `undo` tool because UndoResult's @model_serializer degenerates FastMCP's auto-derived schema (their issue #385) — no tool added and none removed. The registration count is 180 at BOTH commits by the same derivation; mcp_debugger.gd, toolsets.py and categories.py are byte-identical across the range, and godot/addons/godot_mcp/ moved only plugin.cfg's version string to 2026.08.31b4. The remainder is documentation and two new contract test files (test_output_schema.py, test_sessionless_invariants.py). 🔵 So the move was MATERIAL by the paths and IMMATERIAL in fact, which is the reader working: it turned `the head moved, pay a pass' into `read one file'.",
       "capability_evidence": {
         "real_dap_client": "no DAP client and no port 6006 anywhere; docs/debugger_feasibility.md:9 records the choice of EditorDebuggerSession.send_message explicitly",
         "real_lsp_client": "no LSP anywhere in the tree at 037b00f",
@@ -1523,7 +1677,20 @@
       "stars": 21,
       "forks": 4,
       "forge_pushed_at": "2026-09-21",
-      "ranked_on": "2026-09-21"
+      "ranked_on": "2026-09-21",
+      "capability_paths_excluded": [
+        ".env.dev.example",
+        ".env.example",
+        ".gitattributes",
+        ".gitignore",
+        ".graphifyignore",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "docs/",
+        "skills/"
+      ]
     },
     {
       "name": "godot-mcp-runtime",
@@ -1544,7 +1711,7 @@
       "protocol_revision": "2025-06-18",
       "cadence": "weekly",
       "status": "active",
-      "note": "🟢 THE TOP-RANKED PROJECT ON THE SURFACED LIST AND THE FIRST ONE THE RANKING ELECTED. Surfaced by the npm and MCP-registry legs at 291 and unread for twenty-three sessions; at 314 it reads 66 stars and 3,000 npm downloads in thirty days, which is the highest download count of any surfaced row and the second-highest star count. TypeScript, MIT, 36 tools in `allToolDefinitions` (src/index.ts:29) across six files, registered through the SDK's raw `ListToolsRequestSchema` handler rather than `registerTool`. It drives the engine two ways: headless `--headless --script` runs of a generated GDScript operation file (src/utils/godot-runner.ts, src/scripts/godot_operations.gd, 43 KB), and a live TCP bridge to a running game (src/scripts/mcp_bridge.gd, src/utils/bridge-protocol.ts) on 127.0.0.1 — the 'runtime' the name refers to. 🔴 IT DOCUMENTS ITS OWN ABSENCE OF A DEBUGGER, WHICH IS THE STRONGEST SOURCE A `false` CAN HAVE: src/index.ts:55 — *run_project spawns Godot without -d so runtime errors do not pause execution; the `breakpoint` keyword in user code is a no-op (no debugger is attached)*. No DAP, no LSP and no C# string anywhere under src/ or the shipped GDScript. 🔵 Its MCP revision is a real reading rather than an SDK default: src/utils/structured-response.ts:8 and docs/tool-authoring.md:61 both cite revision 2025-06-18 for the `structuredContent` requirement, and the project routes every success path through a helper that satisfies it — which is a client-compatibility concern Breakpoint answers the same way. SDK ^1.25.2.",
+      "note": "🟢 323 (BP-0019): `capability_paths_excluded` declared. The entries listed are the top-level names at the analysed commit `e56f052` that carry ZERO executable source and zero dependency manifest, taken by extension census over `git ls-tree -r e56f052` rather than by a fresh source pass — which is why the recorded `capability_paths` were left exactly as the reading that took them wrote them, and why anything doubtful was put in NEITHER list. 🔴 THE OMISSIONS ARE THE POINT: `.github/` is remain unclassified and therefore MATERIAL, because a workflow gaining a `dotnet build` step or a manifest gaining a protocol library is the likeliest way a capability arrives without a source file that looks like one. Every source-bearing top-level outside the recorded paths is likewise unclassified and material, which is a TIGHTENING of this row, not a loosening.  🟢 THE TOP-RANKED PROJECT ON THE SURFACED LIST AND THE FIRST ONE THE RANKING ELECTED. Surfaced by the npm and MCP-registry legs at 291 and unread for twenty-three sessions; at 314 it reads 66 stars and 3,000 npm downloads in thirty days, which is the highest download count of any surfaced row and the second-highest star count. TypeScript, MIT, 36 tools in `allToolDefinitions` (src/index.ts:29) across six files, registered through the SDK's raw `ListToolsRequestSchema` handler rather than `registerTool`. It drives the engine two ways: headless `--headless --script` runs of a generated GDScript operation file (src/utils/godot-runner.ts, src/scripts/godot_operations.gd, 43 KB), and a live TCP bridge to a running game (src/scripts/mcp_bridge.gd, src/utils/bridge-protocol.ts) on 127.0.0.1 — the 'runtime' the name refers to. 🔴 IT DOCUMENTS ITS OWN ABSENCE OF A DEBUGGER, WHICH IS THE STRONGEST SOURCE A `false` CAN HAVE: src/index.ts:55 — *run_project spawns Godot without -d so runtime errors do not pause execution; the `breakpoint` keyword in user code is a no-op (no debugger is attached)*. No DAP, no LSP and no C# string anywhere under src/ or the shipped GDScript. 🔵 Its MCP revision is a real reading rather than an SDK default: src/utils/structured-response.ts:8 and docs/tool-authoring.md:61 both cite revision 2025-06-18 for the `structuredContent` requirement, and the project routes every success path through a helper that satisfies it — which is a client-compatibility concern Breakpoint answers the same way. SDK ^1.25.2.",
       "capability_evidence": {
         "debugger": "src/index.ts:55 states the engine is spawned without `-d`, so no debugger is attached and the `breakpoint` keyword is a no-op — the project's own documentation of the absence, read at e56f052",
         "real_dap_client": "no DAP, debug-adapter or port-6006 string anywhere under src/ or src/scripts/ — repo-wide search at e56f052",
@@ -1568,7 +1735,20 @@
       "ranked_on": "2026-09-21",
       "first_seen": 291,
       "mcp_registry_name": "io.github.Erodenn/godot-mcp-runtime",
-      "stars": 74
+      "stars": 74,
+      "capability_paths_excluded": [
+        ".dockerignore",
+        ".gitattributes",
+        ".gitignore",
+        ".prettierignore",
+        ".prettierrc.json",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "docs/",
+        "glama.json",
+        "server.json"
+      ]
     },
     {
       "name": "better-godot-mcp",
@@ -1589,7 +1769,7 @@
       "protocol_revision": "2025-11-25",
       "cadence": "weekly",
       "status": "active",
-      "note": "🔵 THE ONE PROJECT ON THIS ROSTER WHOSE DESIGN CLAIM IS ABOUT TOOL COUNT GOING DOWN. 37 stars and 2,141 npm downloads in thirty days at 314; TypeScript, Apache-2.0, and SEVENTEEN tools, each a composite verb with an `action` parameter rather than one tool per operation — project, scenes, nodes, scripts, editor, config, help, resources, input_map, signals, animation, tilemap, shader, physics, audio, navigation, ui (src/tools/registry.ts, seventeen top-level `name:` keys). That is the opposite bet from `yanhuifair/Godot-MCP`'s 386 and worth watching as a position rather than as a capability: a small surface is a claim about client context budgets, which is the same argument `token-cost.mjs` measures on this side. It ships an EditorPlugin addon (addons/better_godot_mcp/, a 10 KB dock) beside a headless detector (src/godot/detector.ts, src/godot/headless.ts). 🔴 NO DEBUGGER, NO DAP, NO LSP AND NO C#: none of those strings appear anywhere under src/ or addons/ at dd88f0e. 🔵 Its revision reading is explicit and NEWER than most of this roster — src/tools/registry.ts:545 writes *Envelope-loose output schema (spec 2025-11-25)* — and src/init-server.ts:75 cites a 2026-05-01 stdio/http multiuser spec document by filename, so it is tracking the protocol actively. SDK ^1.30.0.",
+      "note": "🟢 323 (BP-0019): `capability_paths_excluded` declared. The entries listed are the top-level names at the analysed commit `dd88f0e` that carry ZERO executable source and zero dependency manifest, taken by extension census over `git ls-tree -r dd88f0e` rather than by a fresh source pass — which is why the recorded `capability_paths` were left exactly as the reading that took them wrote them, and why anything doubtful was put in NEITHER list. 🔴 THE OMISSIONS ARE THE POINT: `.coderabbit.yaml`, `.github/`, `.mise.toml`, `.pre-commit-config.yaml`, `semantic-release.toml`, `smithery.yaml` are remain unclassified and therefore MATERIAL, because a workflow gaining a `dotnet build` step or a manifest gaining a protocol library is the likeliest way a capability arrives without a source file that looks like one. Every source-bearing top-level outside the recorded paths is likewise unclassified and material, which is a TIGHTENING of this row, not a loosening.  🔵 THE ONE PROJECT ON THIS ROSTER WHOSE DESIGN CLAIM IS ABOUT TOOL COUNT GOING DOWN. 37 stars and 2,141 npm downloads in thirty days at 314; TypeScript, Apache-2.0, and SEVENTEEN tools, each a composite verb with an `action` parameter rather than one tool per operation — project, scenes, nodes, scripts, editor, config, help, resources, input_map, signals, animation, tilemap, shader, physics, audio, navigation, ui (src/tools/registry.ts, seventeen top-level `name:` keys). That is the opposite bet from `yanhuifair/Godot-MCP`'s 386 and worth watching as a position rather than as a capability: a small surface is a claim about client context budgets, which is the same argument `token-cost.mjs` measures on this side. It ships an EditorPlugin addon (addons/better_godot_mcp/, a 10 KB dock) beside a headless detector (src/godot/detector.ts, src/godot/headless.ts). 🔴 NO DEBUGGER, NO DAP, NO LSP AND NO C#: none of those strings appear anywhere under src/ or addons/ at dd88f0e. 🔵 Its revision reading is explicit and NEWER than most of this roster — src/tools/registry.ts:545 writes *Envelope-loose output schema (spec 2025-11-25)* — and src/init-server.ts:75 cites a 2026-05-01 stdio/http multiuser spec document by filename, so it is tracking the protocol actively. SDK ^1.30.0.",
       "capability_evidence": {
         "debugger": "no debugger, EngineDebugger or remote-debug string anywhere under src/ or addons/ — repo-wide search at dd88f0e",
         "real_dap_client": "no DAP, debug-adapter or port-6006 string anywhere under src/ or addons/ — repo-wide search at dd88f0e",
@@ -1612,7 +1792,40 @@
       "ranked_on": "2026-09-21",
       "first_seen": 291,
       "mcp_registry_name": "io.github.n24q02m/better-godot-mcp",
-      "stars": 37
+      "stars": 37,
+      "capability_paths_excluded": [
+        ".claude-plugin/",
+        ".dockerignore",
+        ".editorconfig",
+        ".gitattributes",
+        ".gitignore",
+        ".infisical.json",
+        ".jules/",
+        ".npmignore",
+        ".python-version",
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "LICENSE-MIT",
+        "NOTICE",
+        "README.md",
+        "SECURITY.md",
+        "biome.json",
+        "commit_message.txt",
+        "fix_ci_plan.md",
+        "fix_pr_title.md",
+        "glama.json",
+        "media/",
+        "renovate.json",
+        "server.json",
+        "shaders/",
+        "skills/",
+        "test-project-flags/",
+        "tilesets/"
+      ]
     },
     {
       "name": "yanhuifair-godot-mcp",
@@ -1632,7 +1845,7 @@
       "csharp": false,
       "cadence": "monthly",
       "status": "active",
-      "note": "🔴 THE LARGEST TOOL SURFACE ON THIS ROSTER, AND IT IS LARGER THAN ITS OWN PACKAGE SAYS. 386 registrations in src/tools/register.ts (`.register(` calls, one file, 94 KB) against the 358 its npm description advertises — the published claim is 28 behind the tree at cd5da3c. 23 stars and 2,528 npm downloads in thirty days; TypeScript, AGPL-3.0-or-later, which is the only copyleft licence on this roster and a real consideration for anyone embedding it. It pairs a 90 KB EditorPlugin (addons/godot-mcp/plugin.gd) with a TCP editor bridge on 127.0.0.1:9876 (addons/godot-mcp/runtime_bridge.gd, src/tools/runtime_bridge.ts) and a set of pure parsers for .tscn, .tres and project.godot (src/parsers/) that read the files without the engine. 🔵 ITS DEBUGGER IS THE ENGINE'S OWN AND NOTHING MORE: src/tools/godot.ts:39 exposes a `Run with debugger` boolean that adds `-d` to the launch, and src/tools/meta.ts:108 describes the bridge as *editor bridge (live scene/node/script/debugger control on :9876)* — the editor's debugger panel driven over a private socket, which is the `godot-internal-editor-debugger` ruling this roster already has a name for. No DAP client, no LSP client. 🔴 AND ITS C# IS A FILE EXTENSION, NOT A TOOLCHAIN: the only `.cs` in the tree is src/tools/project.ts:676, where it is one member of a list of extensions a file walk collects — no dotnet invocation, no csproj, no build. 🔵 `protocol_revision` is deliberately absent: the server pins no revision string anywhere and inherits whatever SDK ^1.29.0 negotiates, so recording a date here would be a reading of the dependency rather than of this project.",
+      "note": "🟢 323 (BP-0019): `capability_paths_excluded` declared. The entries listed are the top-level names at the analysed commit `cd5da3c` that carry ZERO executable source and zero dependency manifest, taken by extension census over `git ls-tree -r cd5da3c` rather than by a fresh source pass — which is why the recorded `capability_paths` were left exactly as the reading that took them wrote them, and why anything doubtful was put in NEITHER list. 🔴 THE OMISSIONS ARE THE POINT: `.github/`, `reasonix.toml` are remain unclassified and therefore MATERIAL, because a workflow gaining a `dotnet build` step or a manifest gaining a protocol library is the likeliest way a capability arrives without a source file that looks like one. Every source-bearing top-level outside the recorded paths is likewise unclassified and material, which is a TIGHTENING of this row, not a loosening.  🔴 THE LARGEST TOOL SURFACE ON THIS ROSTER, AND IT IS LARGER THAN ITS OWN PACKAGE SAYS. 386 registrations in src/tools/register.ts (`.register(` calls, one file, 94 KB) against the 358 its npm description advertises — the published claim is 28 behind the tree at cd5da3c. 23 stars and 2,528 npm downloads in thirty days; TypeScript, AGPL-3.0-or-later, which is the only copyleft licence on this roster and a real consideration for anyone embedding it. It pairs a 90 KB EditorPlugin (addons/godot-mcp/plugin.gd) with a TCP editor bridge on 127.0.0.1:9876 (addons/godot-mcp/runtime_bridge.gd, src/tools/runtime_bridge.ts) and a set of pure parsers for .tscn, .tres and project.godot (src/parsers/) that read the files without the engine. 🔵 ITS DEBUGGER IS THE ENGINE'S OWN AND NOTHING MORE: src/tools/godot.ts:39 exposes a `Run with debugger` boolean that adds `-d` to the launch, and src/tools/meta.ts:108 describes the bridge as *editor bridge (live scene/node/script/debugger control on :9876)* — the editor's debugger panel driven over a private socket, which is the `godot-internal-editor-debugger` ruling this roster already has a name for. No DAP client, no LSP client. 🔴 AND ITS C# IS A FILE EXTENSION, NOT A TOOLCHAIN: the only `.cs` in the tree is src/tools/project.ts:676, where it is one member of a list of extensions a file walk collects — no dotnet invocation, no csproj, no build. 🔵 `protocol_revision` is deliberately absent: the server pins no revision string anywhere and inherits whatever SDK ^1.29.0 negotiates, so recording a date here would be a reading of the dependency rather than of this project.",
       "capability_evidence": {
         "debugger": "src/tools/godot.ts:39 adds `-d` through a `Run with debugger` flag and src/tools/meta.ts:108 describes live debugger control over the editor bridge on 127.0.0.1:9876 — the engine's own debugger, read at cd5da3c",
         "real_dap_client": "no DAP, debug-adapter or port-6006 string anywhere under src/ or addons/ — repo-wide search at cd5da3c",
@@ -1656,7 +1869,18 @@
       "ranked_on": "2026-09-21",
       "first_seen": 291,
       "mcp_registry_name": null,
-      "stars": 34
+      "stars": 34,
+      "capability_paths_excluded": [
+        ".gitignore",
+        ".npmignore",
+        ".vscodeignore",
+        "CHANGELOG.md",
+        "LICENSE.md",
+        "README-zh.md",
+        "README.md",
+        "godot.png",
+        "tip.JPG"
+      ]
     },
     {
       "name": "benjiarml-godot-mcp",
@@ -1676,7 +1900,7 @@
       "csharp": false,
       "cadence": "daily",
       "status": "active",
-      "note": "🔴 1,820 ADVERTISED OPERATIONS, 179 COMMANDS THE ADDON ACTUALLY REGISTERS, AND THE GAP IS NOT A ROUNDING ERROR. The Asset Library card and README:43 both claim *59 Tool Families & 1,820+ Operations*. The tree at f2cfe59 assembles 1,788 (catalog.py:138 `populate_registry`, every `id` unique, 59 distinct `domain` values — the 59 is exact and the 1,820 is 32 over), and a THIRD number lives in the code: server.py:36, :69 and :77 all say *1,763*. 🔴 1,383 OF THE 1,788 ARE MACHINE-GENERATED — classdb_generator.generate_classdb_operations() 775 plus catalog.py:26 _generate_extended_classdb_operations() 608, whose own docstring reads *Generate extensive ClassDB methods to achieve 1,800+ total canonical operations*. The number is a target the code was written to hit. Only 274 rows are CURATED; 66 runtime, 54 UI automation, 11 reflection. 🔵 WHAT A CLIENT SEES IS 36 MCP TOOLS: 24 `@mcp.tool` across src/godot_ai/tools/ and 12 in src/godot_omni/server/server.py. src/godot_ai/tools/domains.py says why in its own module docstring — Antigravity rejects a server over 100 tools — and ships `--exclude-domains` to stay under; its DOMAINS tuple is 28, not 59. 🔴 AND ALMOST NONE OF THE CATALOG CAN DISPATCH. server.py:96 derives the wire command as `op.handler_info.get(\"handler\") or op.id.replace(\".\", \"_\")`, and handler_info is empty on all 1,788 — nothing in the tree ever sets it. The addon refuses anything not explicitly registered: dispatcher.gd:174 `dispatch_direct` returns UNKNOWN_COMMAND unless `has_command`, and addons/godot_ai/plugin.gd registers 179 command names through `register_lazy`, NONE of them `class_*`. 15 of the 1,788 op ids land on a registered command; counting `aliases` too (which server.py:96 does not consult) the ceiling is 101. The honest engine-facing surface is 179 commands, which is the number to set beside our 293. 🔵 THE REAL CAPABILITY IS THE ESCAPE HATCH AND IT IS A GOOD ONE: omni_handler.gd carries reflection_call / _get / _set / _inspect / _instantiate over ClassDB (ClassDB.instantiate at :248) plus omni_eval, arbitrary in-memory GDScript — 11 reflection operations that genuinely reach the engine, and a generic path that makes a catalog of names unnecessary rather than real. 🔵 AND ITS RUNTIME LEG IS THE CLOSEST THING ON THIS ROSTER TO OUR OWN: suspend, resume, next_frame and a game-side tick counter over an EditorDebuggerPlugin (plugin.gd:333 `add_debugger_plugin`, addons/godot_ai/debugger/mcp_debugger_plugin.gd) — frame-stepping a running game on the engine's own debugger channel, which is deterministic-playtesting territory and the one part of this project worth watching on capability rather than on numbers. 🔴 PROVENANCE IS ODD AND IS RECORDED, NOT RULED ON: the GitHub repository was created 2026-09-17 and already carries a CHANGELOG back to 4.0.0 (2026-09-07) at version 5.0.5 — history older than the repository holding it — 16 stars, 0 forks; the repo description calls it the *Official Plugin for the Godot Engine*, which it is not; the Asset Library author is `Benjiarml`, the GitHub owner `bebabinlarsson-blip`, the pyproject author `bebabin`; and its Python distribution name `godot-ai` collides with this roster's unrelated `hi-godot/godot-ai`. 🔵 `protocol_revision` IS DELIBERATELY ABSENT: the tree names no MCP spec revision anywhere and pins fastmcp==3.4.7 / mcp==1.29.1, so a date here would be a reading of the dependency; its own WS_PROTOCOL_VERSION (transport/websocket.py:23) is a private WebSocket handshake. MIT, Python 3.11–3.14, WebSocket bound to loopback with an origin guard (transport/origin_guard.py:61).",
+      "note": "🟢 323 (BP-0019): `capability_paths_excluded` declared. The entries listed are the top-level names at the analysed commit `f2cfe59` that carry ZERO executable source and zero dependency manifest, taken by extension census over `git ls-tree -r f2cfe59` rather than by a fresh source pass — which is why the recorded `capability_paths` were left exactly as the reading that took them wrote them, and why anything doubtful was put in NEITHER list. 🔴 THE OMISSIONS ARE THE POINT: `.github/` is remain unclassified and therefore MATERIAL, because a workflow gaining a `dotnet build` step or a manifest gaining a protocol library is the likeliest way a capability arrives without a source file that looks like one. Every source-bearing top-level outside the recorded paths is likewise unclassified and material, which is a TIGHTENING of this row, not a loosening.  🔴 1,820 ADVERTISED OPERATIONS, 179 COMMANDS THE ADDON ACTUALLY REGISTERS, AND THE GAP IS NOT A ROUNDING ERROR. The Asset Library card and README:43 both claim *59 Tool Families & 1,820+ Operations*. The tree at f2cfe59 assembles 1,788 (catalog.py:138 `populate_registry`, every `id` unique, 59 distinct `domain` values — the 59 is exact and the 1,820 is 32 over), and a THIRD number lives in the code: server.py:36, :69 and :77 all say *1,763*. 🔴 1,383 OF THE 1,788 ARE MACHINE-GENERATED — classdb_generator.generate_classdb_operations() 775 plus catalog.py:26 _generate_extended_classdb_operations() 608, whose own docstring reads *Generate extensive ClassDB methods to achieve 1,800+ total canonical operations*. The number is a target the code was written to hit. Only 274 rows are CURATED; 66 runtime, 54 UI automation, 11 reflection. 🔵 WHAT A CLIENT SEES IS 36 MCP TOOLS: 24 `@mcp.tool` across src/godot_ai/tools/ and 12 in src/godot_omni/server/server.py. src/godot_ai/tools/domains.py says why in its own module docstring — Antigravity rejects a server over 100 tools — and ships `--exclude-domains` to stay under; its DOMAINS tuple is 28, not 59. 🔴 AND ALMOST NONE OF THE CATALOG CAN DISPATCH. server.py:96 derives the wire command as `op.handler_info.get(\"handler\") or op.id.replace(\".\", \"_\")`, and handler_info is empty on all 1,788 — nothing in the tree ever sets it. The addon refuses anything not explicitly registered: dispatcher.gd:174 `dispatch_direct` returns UNKNOWN_COMMAND unless `has_command`, and addons/godot_ai/plugin.gd registers 179 command names through `register_lazy`, NONE of them `class_*`. 15 of the 1,788 op ids land on a registered command; counting `aliases` too (which server.py:96 does not consult) the ceiling is 101. The honest engine-facing surface is 179 commands, which is the number to set beside our 293. 🔵 THE REAL CAPABILITY IS THE ESCAPE HATCH AND IT IS A GOOD ONE: omni_handler.gd carries reflection_call / _get / _set / _inspect / _instantiate over ClassDB (ClassDB.instantiate at :248) plus omni_eval, arbitrary in-memory GDScript — 11 reflection operations that genuinely reach the engine, and a generic path that makes a catalog of names unnecessary rather than real. 🔵 AND ITS RUNTIME LEG IS THE CLOSEST THING ON THIS ROSTER TO OUR OWN: suspend, resume, next_frame and a game-side tick counter over an EditorDebuggerPlugin (plugin.gd:333 `add_debugger_plugin`, addons/godot_ai/debugger/mcp_debugger_plugin.gd) — frame-stepping a running game on the engine's own debugger channel, which is deterministic-playtesting territory and the one part of this project worth watching on capability rather than on numbers. 🔴 PROVENANCE IS ODD AND IS RECORDED, NOT RULED ON: the GitHub repository was created 2026-09-17 and already carries a CHANGELOG back to 4.0.0 (2026-09-07) at version 5.0.5 — history older than the repository holding it — 16 stars, 0 forks; the repo description calls it the *Official Plugin for the Godot Engine*, which it is not; the Asset Library author is `Benjiarml`, the GitHub owner `bebabinlarsson-blip`, the pyproject author `bebabin`; and its Python distribution name `godot-ai` collides with this roster's unrelated `hi-godot/godot-ai`. 🔵 `protocol_revision` IS DELIBERATELY ABSENT: the tree names no MCP spec revision anywhere and pins fastmcp==3.4.7 / mcp==1.29.1, so a date here would be a reading of the dependency; its own WS_PROTOCOL_VERSION (transport/websocket.py:23) is a private WebSocket handshake. MIT, Python 3.11–3.14, WebSocket bound to loopback with an origin guard (transport/origin_guard.py:61).",
       "capability_evidence": {
         "debugger": "addons/godot_ai/plugin.gd:333 `add_debugger_plugin(_debugger_plugin)` with addons/godot_ai/debugger/mcp_debugger_plugin.gd; src/godot_ai/tools/game.py:13 describes the runtime ops as targeting the game *through Godot's EngineDebugger bridge* and :28 suspends it *through Godot's native debugger path* — the engine's own debugger driven from an editor plugin, read at f2cfe59",
         "real_dap_client": "zero repo-wide hits for `debug-adapter`, `DAP` or port 6006 under src/, addons/ or script/ at f2cfe59",
@@ -1701,7 +1925,18 @@
       "forge_pushed_at": "2026-09-21",
       "ranked_on": "2026-09-21",
       "first_seen": 320,
-      "mcp_registry_name": null
+      "mcp_registry_name": null,
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "reports/"
+      ]
     }
   ],
   "surfaced": [
