@@ -68,6 +68,18 @@ jobs:
   landscape-drift:
     name: landscape + spec ledger still match upstream
     runs-on: ubuntu-latest
+    # 🆕 321 — 🔴 THE SWEEP HAS BEEN ASKING THE FORGE AS A STRANGER, AND ON A HOSTED
+    # RUNNER A STRANGER IS A BUILDING. An unauthenticated caller gets sixty requests an
+    # hour against its ADDRESS, and this runner's address is shared with every other
+    # build on it; dispatch 35655471843 asked 24 questions and four came back
+    # `403 rate limit exceeded`, which took the whole landscape report red saying
+    # *a discovery or source leg did not finish*. That is the correct behaviour on a
+    # WRONG INPUT: a red about the weather, on the one monitor whose entire purpose is
+    # to be read on a Monday. The job's own token moves the ceiling to 5,000 an hour
+    # and attaches it to an identity rather than to a building, and `contents: read` is
+    # the whole of what reading public repositories needs.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -83,6 +95,8 @@ jobs:
       # fact, `--gh-open`'s contract since 271, so the log of this job is a measured
       # directory a later session can spend rather than a report it has to re-take.
       - name: Emit the world-facing landscape readings
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/assetlib_sweep.py --emit
       # 🆕 308 — THE ONE RED LIGHT BECOMES THREE ANSWERS, AND ACTIONS NEEDS TELLING.
       # `--check` now returns 2 when a leg of the sweep did not finish, 1 when a project
@@ -92,6 +106,8 @@ jobs:
       # can see — the `case` below is the half that makes the colour mean something, and
       # the titles are what a notification carries without anybody opening the log.
       - name: The roster still covers every project every channel surfaces
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
           python3 scripts/assetlib_sweep.py --check

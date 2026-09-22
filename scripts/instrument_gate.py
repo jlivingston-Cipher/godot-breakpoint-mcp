@@ -1279,6 +1279,13 @@ INSTRUMENTS = [
             # printed beside a green — and the self-test drives BOTH directions, because
             # a reader that refused every checkout would refuse the fixtures too.
             "{SIG:hook_problems}": "return []",
+            # 🆕 321 §2 — the scaffold BP-0001 built, and its four readers. Each empty
+            # is the shape of a document the close already refuses: no header, no §7, a
+            # VERIFIED line that never opens, and the command doing nothing quietly.
+            "{SIG:blanked_header}": "return []",
+            "{SIG:carried_fence}": "return (\"\", [], \"\",)",
+            "{SIG:_wrap_counter}": "return []",
+            "{SIG:emit_handoff}": "return (\"\", [],)",
             # ── the block and its atoms — the parse every claim downstream rests on ──
             "{SIG:SINCE}": "return \"\"",
             "{SIG:needed}": "return \"\"",
@@ -1992,6 +1999,18 @@ NOT_A_TARGET: dict[tuple[str, str], str] = {
         "machines, not assumed: caught locally, STILL GREEN on all three CI legs (235 "
         "§6.3, and 275's `MEASURED_LEG_DISAGREEMENT` one layer down).",
     # ── III — the invocation (3), and the third is the one worth reading twice.
+    # 🆕 321 §2 — the scaffold's two members that cannot be targets, for the two
+    # reasons this table already has classes for.
+    ("handoff_gate.py", "rendered_six"):
+        "spawns `queue_gate.py --render` — a self-test claim over it is a claim about "
+        "whether that command is on THIS machine and parses THIS tree's `QUEUE.md`, which "
+        "is the `main_at_head` class one section up wearing a subprocess instead of a "
+        "socket. 🔴 AND ITS CONSUMER IS A TARGET: `emit_handoff` is swept above and its "
+        "claim covers the §6 this returns, including the branch where it fails.",
+    ("handoff_gate.py", "_today"):
+        "reads the clock. Its only caller passes `today=` explicitly wherever the answer "
+        "is asserted, which is the split this table asks for — the reading is excused, "
+        "never the verdict.",
     ("handoff_gate.py", "main"):
         "the invocation, not a reader — see verdict_gate.mjs::main. Every command it "
         "dispatches to is a target above, which is where the claim lives.",

@@ -50,7 +50,7 @@
       "repo": "regiellis/godot-mcp-go",
       "asset_id": 5367,
       "channel": "assetlib",
-      "assetlib_title": "Godot MCP/CLI",
+      "assetlib_title": "Swallowtail - Godot Automation",
       "category": "alternative-mcp-server",
       "assetlib_version": "0.10.0",
       "assetlib_modify_date": "2026-08-31",
@@ -63,7 +63,7 @@
       "protocol_revision": "2025-06-18",
       "cadence": "weekly",
       "status": "active",
-      "note": "Ruling changes on csharp only; the 0.9.0 -> 0.10.0 bump carried no MCP capability change. 🔴 csharp corrected false -> true: commands/csharp_commands.gd registers csharp.info / csharp.setup / csharp.build — run_build() shells `dotnet build <csproj> -nologo -v m` through OS.create_process and parse_build_log() regex-parses the MSBuild diagnostics, _setup() scaffolds <Name>.csproj (Godot.NET.Sdk, net8.0) and <Name>.sln and sets dotnet/project/assembly_name, and script_commands.gd routes script.validate on a .cs file through CSharpCommands.run_build; Go-side, doctor.go:checkDotnet and upgrade_preflight.go:scanCSharp read the toolchain and the csproj SDK version. The file dates to 028a45f (0.4.0) and was present at 9ff512b, so this corrects a standing error. The debugger ruling holds and services/debugger_bridge.gd is byte-identical across the range: still extends EditorDebuggerPlugin, still reads the stack from ScriptEditorDebugger panel signals, still steps by emitting `pressed` on the dock's toolbar Buttons matched by theme icon; breakpoints arm through the script gutter (debug_commands.gd:_toggle_breakpoint -> CodeEdit.set_line_as_breakpoint). No DAP and no LSP string anywhere in the tree. protocol_revision holds at 2025-06-18 (cmd/godot-mcp/serve.go:66) with the caveat that initializeResult() echoes the client's value when one is sent, so it is a default and not a floor. 0.10.0 shipped six Go CLI subcommands — upgrade (a five-phase 4.3+ port pipeline, ~4,000 lines), launch, import, check, export, run — which spawn the engine directly and never reach the addon; the addon command set is unchanged at 332. Go tests 52 -> 112; still one CI workflow, docs only. MIT.",
+      "note": "🔴 321: THE LISTING WAS REBRANDED AND THE SWEEP COULD NOT SEE IT. Asset 5367 now serves `Swallowtail - Godot Automation` 1.0.1 (2026-09-11) under author `playlogic`; its `browse_url` is still github.com/regiellis/godot-mcp-go, so this is one project renaming its shopfront and not a second product. It was invisible for two sweeps because godotengine.org staples a PHP notice onto this card's response and the sweep filed the parse failure under `unreachable`, which never refused. 🔴 THE RULING IS OWED A RE-READ AND THE DESCRIPTION IS WHY: the new listing advertises `break and step in the debugger`, `send input`, `read state back` and `capture frames` — the debugger plane, which is the one this roster's `debugger` field prices and the one Breakpoint is differentiated on. `assetlib_version` and `assetlib_modify_date` are deliberately LEFT at 0.10.0 / 2026-08-31 so the row keeps reporting MOVED and keeps owing that pass; only the identity is reconciled here. Ruling changes on csharp only; the 0.9.0 -> 0.10.0 bump carried no MCP capability change. 🔴 csharp corrected false -> true: commands/csharp_commands.gd registers csharp.info / csharp.setup / csharp.build — run_build() shells `dotnet build <csproj> -nologo -v m` through OS.create_process and parse_build_log() regex-parses the MSBuild diagnostics, _setup() scaffolds <Name>.csproj (Godot.NET.Sdk, net8.0) and <Name>.sln and sets dotnet/project/assembly_name, and script_commands.gd routes script.validate on a .cs file through CSharpCommands.run_build; Go-side, doctor.go:checkDotnet and upgrade_preflight.go:scanCSharp read the toolchain and the csproj SDK version. The file dates to 028a45f (0.4.0) and was present at 9ff512b, so this corrects a standing error. The debugger ruling holds and services/debugger_bridge.gd is byte-identical across the range: still extends EditorDebuggerPlugin, still reads the stack from ScriptEditorDebugger panel signals, still steps by emitting `pressed` on the dock's toolbar Buttons matched by theme icon; breakpoints arm through the script gutter (debug_commands.gd:_toggle_breakpoint -> CodeEdit.set_line_as_breakpoint). No DAP and no LSP string anywhere in the tree. protocol_revision holds at 2025-06-18 (cmd/godot-mcp/serve.go:66) with the caveat that initializeResult() echoes the client's value when one is sent, so it is a default and not a floor. 0.10.0 shipped six Go CLI subcommands — upgrade (a five-phase 4.3+ port pipeline, ~4,000 lines), launch, import, check, export, run — which spawn the engine directly and never reach the addon; the addon command set is unchanged at 332. Go tests 52 -> 112; still one CI workflow, docs only. MIT.",
       "capability_evidence": {
         "real_dap_client": "no DAP and no LSP string anywhere in the tree — repo-wide search at c91fe78",
         "real_lsp_client": "no DAP and no LSP string anywhere in the tree — repo-wide search at c91fe78",
@@ -71,10 +71,10 @@
         "debugger": "services/debugger_bridge.gd extends EditorDebuggerPlugin and reads the stack from ScriptEditorDebugger panel signals; debug_commands.gd:_toggle_breakpoint arms through CodeEdit.set_line_as_breakpoint"
       },
       "forge_id": 1309425913,
-      "stars": 55,
-      "forks": 4,
-      "forge_pushed_at": "2026-09-01",
-      "ranked_on": "2026-09-07"
+      "stars": 64,
+      "forks": 5,
+      "forge_pushed_at": "2026-09-18",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-ai",
@@ -92,10 +92,10 @@
       "status": "active",
       "note": "Largest operation in the category by test count and CI breadth. 🔵 `channel` IS NULL AND IT IS A MEASUREMENT, not a blank: 293 queried npm and the MCP Registry for this slug and neither returned it, and it has no Asset Library entry — so no enumerable channel surfaces it and no leg in `assetlib_sweep.py` will ever re-read it. It is here because a human named it, which is bradypp's standing one row over.",
       "forge_id": 1208239711,
-      "stars": 2187,
-      "forks": 132,
-      "forge_pushed_at": "2026-09-07",
-      "ranked_on": "2026-09-07"
+      "stars": 2537,
+      "forks": 154,
+      "forge_pushed_at": "2026-09-21",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp-enhanced",
@@ -121,10 +121,10 @@
         "debugger": "addons/godot_mcp_server/debug/debugger_bridge.gd is an EditorDebuggerPlugin subclass caching EditorDebuggerSession per id and capturing stack_dump / stack_frame_vars / evaluation_return"
       },
       "forge_id": 1187676313,
-      "stars": 92,
-      "forks": 9,
-      "forge_pushed_at": "2026-09-04",
-      "ranked_on": "2026-09-07"
+      "stars": 96,
+      "forks": 10,
+      "forge_pushed_at": "2026-09-13",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp-pro",
@@ -142,10 +142,10 @@
       "cadence": "monthly",
       "status": "active",
       "forge_id": 1165489591,
-      "stars": 590,
-      "forks": 74,
+      "stars": 602,
+      "forks": 76,
       "forge_pushed_at": "2026-08-01",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "beckett-godot-mcp",
@@ -169,10 +169,10 @@
         "csharp": "tools/csharp_tools.gd:29 registers build_csharp and :62 shells out to dotnet build, parsing CS-coded diagnostics; present since v1.5.0 and untouched at 57f3422"
       },
       "forge_id": 1273876922,
-      "stars": 16,
+      "stars": 23,
       "forks": 1,
-      "forge_pushed_at": "2026-09-01",
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-19",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Godot-MCP-Native",
@@ -192,10 +192,10 @@
       "status": "active",
       "note": "Zero-dependency in-engine packaging; strongest onboarding story in the roster.",
       "forge_id": 1228444255,
-      "stars": 763,
-      "forks": 69,
+      "stars": 797,
+      "forks": 72,
       "forge_pushed_at": "2026-08-03",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Open-Godot-MCP",
@@ -216,7 +216,7 @@
       "stars": 13,
       "forks": 3,
       "forge_pushed_at": "2026-07-23",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Godot-MCP (IvanMurzak)",
@@ -242,10 +242,10 @@
         "debugger": "runtime error capture only — the Godot 4.5+ OS.AddLogger hook plus AppDomain.UnhandledException surfacing ScriptBacktrace data through runtime-errors-get; passive post-hoc diagnostics with no execution control"
       },
       "forge_id": 1258985200,
-      "stars": 235,
-      "forks": 20,
-      "forge_pushed_at": "2026-09-03",
-      "ranked_on": "2026-09-07"
+      "stars": 251,
+      "forks": 23,
+      "forge_pushed_at": "2026-09-17",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "GameDev-MCP-Server",
@@ -262,10 +262,10 @@
       "status": "active",
       "note": "Same author as Godot-MCP; multi-engine successor shape, ships to Docker and NuGet. 🔵 `channel` IS NULL AND IT IS A MEASUREMENT: its own note says it ships to Docker and NuGet, and 293 confirmed that npm, the MCP Registry and the Asset Library return nothing for it. It ships through real channels this roster does not query, which is a different sentence from *it ships nowhere* and the same consequence — no leg here will re-read it.",
       "forge_id": 1266136525,
-      "stars": 10,
-      "forks": 5,
-      "forge_pushed_at": "2026-08-21",
-      "ranked_on": "2026-09-07"
+      "stars": 13,
+      "forks": 6,
+      "forge_pushed_at": "2026-09-17",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp-bridge",
@@ -295,7 +295,7 @@
       "stars": 5,
       "forks": 0,
       "forge_pushed_at": "2026-09-04",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp-toolkit",
@@ -312,10 +312,10 @@
       "cadence": "monthly",
       "status": "active",
       "forge_id": 1210259366,
-      "stars": 32,
-      "forks": 3,
-      "forge_pushed_at": "2026-07-26",
-      "ranked_on": "2026-09-07"
+      "stars": 39,
+      "forks": 4,
+      "forge_pushed_at": "2026-09-21",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-agent-loop",
@@ -340,10 +340,10 @@
         "csharp": "verify_dotnet_project (inspect|restore|build|run) probes dotnet --version and runs restore/build against a versioned Godot.NET.Sdk"
       },
       "forge_id": 1300333770,
-      "stars": 5,
-      "forks": 1,
-      "forge_pushed_at": "2026-09-06",
-      "ranked_on": "2026-09-07"
+      "stars": 6,
+      "forks": 2,
+      "forge_pushed_at": "2026-09-15",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Doyunha-Gopeak",
@@ -370,13 +370,14 @@
         "debugger": "follows from the recorded real DAP client; no debugger-specific reading was written down"
       },
       "forge_id": 1132073995,
-      "stars": 247,
-      "forks": 25,
-      "forge_pushed_at": "2026-07-13",
-      "ranked_on": "2026-09-07",
+      "stars": 259,
+      "forks": 26,
+      "forge_pushed_at": "2026-09-12",
+      "ranked_on": "2026-09-21",
       "npm": "gopeak",
       "npm_version": "2.3.8",
-      "npm_publish_date": "2026-06-17"
+      "npm_publish_date": "2026-06-17",
+      "downloads_30d": 799
     },
     {
       "name": "fennara-godot-mcp",
@@ -402,10 +403,10 @@
         "debugger": "tools/scrape_editor.cpp accepts target=\"debugger\" and calls runtime/runtime_debugger_snapshot.cpp:capture, which walks EditorInterface::get_base_control() for Tree nodes and reads TreeItem row text — a UI scrape of the Debugger dock, with zero hits for EditorDebuggerPlugin, EditorDebuggerSession or EngineDebugger outside vendored CEF headers"
       },
       "forge_id": 1255745759,
-      "stars": 283,
-      "forks": 12,
-      "forge_pushed_at": "2026-09-06",
-      "ranked_on": "2026-09-07"
+      "stars": 293,
+      "forks": 13,
+      "forge_pushed_at": "2026-09-21",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Wick",
@@ -433,9 +434,9 @@
       },
       "forge_id": 1209632135,
       "stars": 20,
-      "forks": 2,
+      "forks": 3,
       "forge_pushed_at": "2026-08-17",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp (tomyud)",
@@ -457,10 +458,10 @@
         "real_lsp_client": "debugger state is read by walking EditorInterface.get_base_control() for a ScriptEditorDebugger node and scraping its error Tree widget, so no DAP and no LSP"
       },
       "forge_id": 1144994561,
-      "stars": 424,
-      "forks": 47,
+      "stars": 434,
+      "forks": 48,
       "forge_pushed_at": "2026-08-24",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp (DaxianLee)",
@@ -482,10 +483,10 @@
         "real_lsp_client": "no DAP, no LSP, no C# (zero .cs in tree) at 1b03129; mcp_server.gd:122 listens on TCP and :443 handles tools/list"
       },
       "forge_id": 1126119456,
-      "stars": 522,
+      "stars": 533,
       "forks": 66,
       "forge_pushed_at": "2026-01-14",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Ziva",
@@ -501,10 +502,10 @@
       "note": "BASELINED AT 284, and the baselining overturned the classification. 🔴 THE TRACKED REPO IS AN INSTALLER SHELL, NOT AN MCP SERVER. ziva-via-godot-asset-library-installer contains a C++ GDExtension whose only network call fetches the latest release of ziva-sh/ziva-agent-plugin-godot (installer_download.gd:35); there are zero MCP or JSON-RPC references anywhere in it. The agent repo it installs was also read at 284 (head fae411b, 2026-02-15) and holds only README, assets and llms.txt — the agent ships as release BINARIES, so there is no source to take a pass over, and its own README says code is sent to Ziva's servers for processing. `alternative-mcp-server` is therefore UNVERIFIABLE from source rather than confirmed, and this note records that rather than a category change, because Rule 2's remedy for an unreadable entry is evidence and not a guess. Status active -> dormant: 35 commits 2026-03-08 to 2026-06-15, nothing since. Head 65fab39, source 0.2.5, matching the card.",
       "last_analysed_commit": "65fab39",
       "forge_id": 1176365877,
-      "stars": 5,
+      "stars": 6,
       "forks": 2,
       "forge_pushed_at": "2026-06-15",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp (tugcantopaloglu)",
@@ -517,10 +518,10 @@
       "status": "active",
       "note": " 🔵 `channel` IS `npm`, measured at 293: `@tugcantopaloglu/godot-mcp` on registry.npmjs.org, with `@iflow-mcp/tugcantopaloglu-godot-mcp` mirroring it. No Asset Library entry — the fork ships where its upstream does.",
       "forge_id": 1152766213,
-      "stars": 450,
-      "forks": 67,
+      "stars": 465,
+      "forks": 70,
       "forge_pushed_at": "2026-07-13",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-runtime-bridge",
@@ -538,7 +539,7 @@
       "stars": 11,
       "forks": 5,
       "forge_pushed_at": "2026-07-16",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-ai-workbench",
@@ -557,7 +558,7 @@
       "stars": 3,
       "forks": 0,
       "forge_pushed_at": "2026-07-09",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "Alpha-Ai-Plugin",
@@ -576,7 +577,7 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-07-30",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot_agent",
@@ -594,7 +595,7 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-07-09",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "gamedev_ai",
@@ -610,10 +611,10 @@
       "status": "dormant",
       "note": "No commits since 2026-05-04.",
       "forge_id": 1160056250,
-      "stars": 23,
-      "forks": 3,
-      "forge_pushed_at": "2026-05-04",
-      "ranked_on": "2026-09-07"
+      "stars": 29,
+      "forks": 4,
+      "forge_pushed_at": "2026-09-09",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "sloyd-godot-bridge",
@@ -632,7 +633,7 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-09-03",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "AI Assistant Hub",
@@ -709,10 +710,10 @@
       "note": "RULING UNCHANGED, COMMIT RECORDED AT 284. The entry had no last_analysed_commit, so the sweep reported it as unreadable every run; head is dc56e8b (2026-08-24). The out-of-category ruling was NOT re-litigated — only the one question that could overturn it was asked, and the answer is no: a full-tree scan for mcp, model context protocol, tools/list and jsonrpc returns no source match, and there is no socket server for AI clients. Very much alive as a behaviour-tree addon — 1409 commits, ~8/month recently — which is precisely why the ruling needs a recorded commit rather than an assumption.",
       "last_analysed_commit": "dc56e8b",
       "forge_id": 671076272,
-      "stars": 2999,
-      "forks": 141,
+      "stars": 3022,
+      "forks": 144,
       "forge_pushed_at": "2026-09-04",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "OpenAI Assistant",
@@ -960,11 +961,11 @@
       "status": "active",
       "note": "🔴 THE ENTRY THIS ROSTER'S POPULATION WAS BLIND TO, AND THE MOST-STARRED PROJECT IN THE CATEGORY. 5,399 stars at the 2026-08-27 reading against hi-godot/godot-ai's 1,954, which this roster and two published analyses both called the clear popularity leader; that claim was wrong for as long as it was made and no health in the Asset Library leg could have said so. Ships on npm only — verified by grepping every .md/.json/.gd/.ts/.yml in the repository for Asset Library install instructions, zero hits. 14 tools, MIT, last commit 2026-04-16. It is the UPSTREAM of tugcantopaloglu/godot-mcp, which this roster has tracked since it had 439 stars. 🟢 Credit where it is due (Rule 4): it has a visible security posture — external hardening pull requests for shell injection and arbitrary GDScript instantiation were merged promptly. `last_analysed_commit` is deliberately null: the 2026-08-27 pass recorded capabilities, not a SHA, and 284's rule is that a baseline nobody read is worse than an honest `unread`.",
       "forge_id": 939648665,
-      "stars": 5546,
-      "forks": 468,
+      "stars": 5772,
+      "forks": 476,
       "forge_pushed_at": "2026-04-16",
-      "downloads_30d": 12050,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 14125,
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "satelliteoflove-godot-mcp",
@@ -989,11 +990,11 @@
       "status": "active",
       "note": "🟢 THE MOST ACTIVE PROJECT IN THE CATEGORY AND THE ONE WITH THE BROADEST CI, AND SAYING SO IS RULE 4 WORKING. 21 tools / 88 actions, MIT, 309 commits with a release cut on the day it was read. MCP revision 2025-06-18, SDK 1.30.0. Roughly 458 TypeScript tests, 24 GDScript headless tests and 8 agent evals across 4 CI workflows, including a wire-level protocol smoke test against the BUILT artifact and tool-schema snapshot tests — a shape worth learning from. Deterministic game-time control: `freeze` / `step` / `step_until` / `thaw`. It is the first project found on all three enumerable channels at once (npm, the official MCP Registry, GitHub Releases), which is what makes it the fold's own positive control.",
       "forge_id": 1120332090,
-      "stars": 156,
+      "stars": 167,
       "forks": 22,
-      "forge_pushed_at": "2026-09-04",
-      "downloads_30d": 6370,
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-18",
+      "downloads_30d": 6411,
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "ryanmazzolini-minimal-godot-mcp",
@@ -1022,11 +1023,11 @@
         "debugger": "the DAP connection is used as a pipe for output events; the four tools are get_diagnostics, scan_workspace_diagnostics, get_console_output and clear_console_output"
       },
       "forge_id": 1073604800,
-      "stars": 45,
+      "stars": 47,
       "forks": 5,
       "forge_pushed_at": "2026-09-01",
-      "downloads_30d": 140,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 124,
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "bradypp-godot-mcp",
@@ -1047,9 +1048,9 @@
       "note": "16 tools, a clean decomposition of Coding-Solo's monolith with a genuine read-only mode. Dormant since 2025-05-31. 🔴 `channel` IS NULL AND THAT IS THE MEASUREMENT: it ships by `git clone` alone — no addon, no package, no registry entry — so no enumerable channel can surface it and no leg in this file will ever re-read it. It is here because a human named it, which is the same standing as the `commercial` rows and is why `channel: null` prints as `unclassified` rather than being defaulted into a channel that never saw it.",
       "forge_id": 989697553,
       "stars": 89,
-      "forks": 13,
+      "forks": 12,
       "forge_pushed_at": "2025-05-31",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "gdai-mcp-plugin-godot",
@@ -1070,10 +1071,10 @@
       "status": "active",
       "note": "Closed-source commercial product, sold from gdaimcp.com. The GitHub repository is a shopfront and a version-check endpoint — 11 files, and `main.gd` is one line; \"All rights reserved\", no LICENSE. 🔴 `source_verifiable: false` IS THE POINT OF THE ROW. Every capability field is `null` and not `false`: this roster's other rows carry rulings taken by reading source, and writing `false` here would be a ruling nobody is able to take. A later sweep that finds these nulls should leave them alone rather than treat them as a gap to close — the gap is the licence, not the analysis.",
       "forge_id": 971469260,
-      "stars": 98,
-      "forks": 4,
-      "forge_pushed_at": "2026-03-30",
-      "ranked_on": "2026-09-07"
+      "stars": 101,
+      "forks": 5,
+      "forge_pushed_at": "2026-09-11",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "summer-engine",
@@ -1129,10 +1130,10 @@
         "mcp_server/tools/"
       ],
       "forge_id": 1256191184,
-      "stars": 8,
-      "forks": 2,
-      "forge_pushed_at": "2026-09-06",
-      "ranked_on": "2026-09-07"
+      "stars": 21,
+      "forks": 4,
+      "forge_pushed_at": "2026-09-21",
+      "ranked_on": "2026-09-21"
     },
     {
       "name": "godot-mcp-runtime",
@@ -1171,12 +1172,13 @@
       ],
       "stars_at_analysis": 66,
       "forge_id": 1169414048,
-      "forks": 13,
-      "forge_pushed_at": "2026-09-06",
-      "downloads_30d": 3000,
-      "ranked_on": "2026-09-07",
+      "forks": 17,
+      "forge_pushed_at": "2026-09-20",
+      "downloads_30d": 4747,
+      "ranked_on": "2026-09-21",
       "first_seen": 291,
-      "mcp_registry_name": "io.github.Erodenn/godot-mcp-runtime"
+      "mcp_registry_name": "io.github.Erodenn/godot-mcp-runtime",
+      "stars": 74
     },
     {
       "name": "better-godot-mcp",
@@ -1214,12 +1216,13 @@
       ],
       "stars_at_analysis": 37,
       "forge_id": 1160742282,
-      "forks": 7,
-      "forge_pushed_at": "2026-09-06",
-      "downloads_30d": 2141,
-      "ranked_on": "2026-09-07",
+      "forks": 8,
+      "forge_pushed_at": "2026-09-13",
+      "downloads_30d": 3164,
+      "ranked_on": "2026-09-21",
       "first_seen": 291,
-      "mcp_registry_name": "io.github.n24q02m/better-godot-mcp"
+      "mcp_registry_name": "io.github.n24q02m/better-godot-mcp",
+      "stars": 37
     },
     {
       "name": "yanhuifair-godot-mcp",
@@ -1257,12 +1260,13 @@
       ],
       "stars_at_analysis": 23,
       "forge_id": 1277610497,
-      "forks": 2,
-      "forge_pushed_at": "2026-08-12",
-      "downloads_30d": 2528,
-      "ranked_on": "2026-09-07",
+      "forks": 3,
+      "forge_pushed_at": "2026-09-21",
+      "downloads_30d": 1316,
+      "ranked_on": "2026-09-21",
       "first_seen": 291,
-      "mcp_registry_name": null
+      "mcp_registry_name": null,
+      "stars": 34
     },
     {
       "name": "benjiarml-godot-mcp",
@@ -1324,11 +1328,11 @@
       "last_published": "2026-08-20",
       "description": "Thin proxy MCP server to the godot-playtest Bridge: tools 1:1 with the protocol's verbs (docs/protocol/DRAFT-v0.md), plus launch_game/attach.",
       "forge_id": 1324895103,
-      "stars": 0,
+      "stars": 1,
       "forks": 0,
-      "forge_pushed_at": "2026-09-03",
-      "downloads_30d": 324,
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-10",
+      "downloads_30d": 68,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "6ninelives/godot-mcp",
@@ -1346,8 +1350,8 @@
       "stars": 26,
       "forks": 5,
       "forge_pushed_at": "2026-03-18",
-      "downloads_30d": 112,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 66,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "advik-b/conduitmcp",
@@ -1365,8 +1369,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-08-25",
-      "downloads_30d": 1076,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 275,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "aureliolo/gdharness",
@@ -1379,7 +1383,13 @@
       "mcp_registry_name": null,
       "version": "1.0.2",
       "last_published": "2026-09-21",
-      "description": "A harness for driving a Godot 4 project from an agent: editor addons, a runtime bridge into the running game, an MCP server in front of them, and a CLI that installs and diagnoses the Godot side."
+      "description": "A harness for driving a Godot 4 project from an agent: editor addons, a runtime bridge into the running game, an MCP server in front of them, and a CLI that installs and diagnoses the Godot side.",
+      "forge_id": 1361899509,
+      "stars": 1,
+      "forks": 0,
+      "forge_pushed_at": "2026-09-21",
+      "downloads_30d": 13901,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "craigsteyn/godot-mcp",
@@ -1397,40 +1407,28 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2025-07-13",
-      "downloads_30d": 836,
-      "ranked_on": "2026-09-07"
-    },
-    {
-      "key": "cwchanap/godot-agent-plugin",
-      "channels": [
-        "npm"
-      ],
-      "first_seen": 291,
-      "repo": "cwchanap/godot-agent-plugin",
-      "npm": "@cwchanap/godot-plugin",
-      "mcp_registry_name": null,
-      "version": "0.1.4",
-      "last_published": "2026-08-23",
-      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output.",
-      "forge_id": 1055997436,
-      "stars": 2,
-      "forks": 0,
-      "forge_pushed_at": "2026-09-06",
-      "downloads_30d": 192,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 816,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "cwchanap/godot-mcp",
       "channels": [
         "npm"
       ],
-      "first_seen": 320,
+      "first_seen": 291,
       "repo": "cwchanap/godot-mcp",
       "npm": "@cwchanap/godot-plugin",
       "mcp_registry_name": null,
       "version": "0.1.5",
       "last_published": "2026-09-07",
-      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output.",
+      "forge_id": 1055997436,
+      "stars": 2,
+      "forks": 0,
+      "forge_pushed_at": "2026-09-07",
+      "downloads_30d": 231,
+      "ranked_on": "2026-09-21",
+      "former_repo": "cwchanap/godot-agent-plugin"
     },
     {
       "key": "diegobr4nd/godot-gut-mcp",
@@ -1448,7 +1446,7 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-07-01",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "elfensky/godot-mcp",
@@ -1466,8 +1464,8 @@
       "stars": 3,
       "forks": 0,
       "forge_pushed_at": "2026-03-31",
-      "downloads_30d": 44,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 43,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "fastmcp-me/kooix-godot-mcp",
@@ -1486,8 +1484,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2025-08-23",
-      "downloads_30d": 16,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 12,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "fernforestgames/mcp-server-godot",
@@ -1505,8 +1503,8 @@
       "stars": 3,
       "forks": 0,
       "forge_pushed_at": "2026-01-01",
-      "downloads_30d": 100,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 70,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "fernforestgames/mcp-server-godot-docs",
@@ -1524,8 +1522,8 @@
       "stars": 6,
       "forks": 1,
       "forge_pushed_at": "2026-01-02",
-      "downloads_30d": 96,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 77,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "funplayai/funplay-godot-mcp",
@@ -1541,11 +1539,11 @@
       "last_published": "2026-07-31",
       "description": "stdio bridge for the local Funplay MCP for Godot editor addon.",
       "forge_id": 1210319203,
-      "stars": 37,
-      "forks": 3,
+      "stars": 39,
+      "forks": 4,
       "forge_pushed_at": "2026-07-31",
-      "downloads_30d": 926,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 576,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "gregario/godot-forge",
@@ -1564,8 +1562,8 @@
       "stars": 8,
       "forks": 3,
       "forge_pushed_at": "2026-04-26",
-      "downloads_30d": 325,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 280,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "gurolayanlar/godot-mcp-flash",
@@ -1578,7 +1576,13 @@
       "mcp_registry_name": null,
       "version": "1.0.1",
       "last_published": "2026-09-12",
-      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output.",
+      "forge_id": 1358133479,
+      "stars": 14,
+      "forks": 2,
+      "forge_pushed_at": "2026-09-12",
+      "downloads_30d": 362,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "heichan2000/godot-mcp",
@@ -1595,9 +1599,9 @@
       "forge_id": 1285531162,
       "stars": 0,
       "forks": 0,
-      "forge_pushed_at": "2026-09-05",
-      "downloads_30d": 64,
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-19",
+      "downloads_30d": 45,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "ivanmurzak/ai-game-dev-cli-core",
@@ -1614,9 +1618,9 @@
       "forge_id": 1305038834,
       "stars": 1,
       "forks": 0,
-      "forge_pushed_at": "2026-08-24",
-      "downloads_30d": 7614,
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-16",
+      "downloads_30d": 6439,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "jmsansan/godot-assistant",
@@ -1633,9 +1637,9 @@
       "forge_id": 1324417619,
       "stars": 0,
       "forks": 0,
-      "forge_pushed_at": "2026-09-03",
-      "downloads_30d": 201,
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-10",
+      "downloads_30d": 68,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "k0nkupa/godot-mcp",
@@ -1653,8 +1657,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-07-22",
-      "downloads_30d": 74,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 29,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "keeveeg/godot-mcp",
@@ -1669,11 +1673,11 @@
       "last_published": "2026-07-12",
       "description": "MCP server for Godot Engine — 300+ AI-powered tools for game development",
       "forge_id": 1291080376,
-      "stars": 20,
+      "stars": 25,
       "forks": 0,
       "forge_pushed_at": "2026-07-12",
-      "downloads_30d": 520,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 423,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "letsagents/godot-mcp",
@@ -1688,11 +1692,11 @@
       "last_published": "2026-08-10",
       "description": "MCP server that gives AI clients runtime feedback from Godot (errors / scene tree / node props / screenshot) for an AI self-correction loop.",
       "forge_id": 1329249440,
-      "stars": 1,
+      "stars": 2,
       "forks": 0,
       "forge_pushed_at": "2026-08-24",
-      "downloads_30d": 256,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 713,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "mindsung/godot-mcp",
@@ -1710,8 +1714,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-03-24",
-      "downloads_30d": 14,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 12,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "miniruiii/godot-mcp",
@@ -1729,8 +1733,8 @@
       "stars": 8,
       "forks": 1,
       "forge_pushed_at": "2026-05-24",
-      "downloads_30d": 123,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 150,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "nghialxx/godot-mcp",
@@ -1748,8 +1752,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-07-12",
-      "downloads_30d": 27,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 17,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "nguyenchiencong/godot-mcp-cli",
@@ -1764,11 +1768,11 @@
       "last_published": "2026-08-27",
       "description": "CLI and MCP server for AI assistants to interact with Godot Engine",
       "forge_id": 1088012025,
-      "stars": 11,
+      "stars": 12,
       "forks": 4,
       "forge_pushed_at": "2026-09-04",
-      "downloads_30d": 1225,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 559,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npgamedev/godot-mcp-server",
@@ -1783,11 +1787,11 @@
       "last_published": "2026-07-26",
       "description": "MCP server that connects AI coding assistants to the Godot 4.2+ editor (scenes, nodes, scripts, ClassDB, playtests) via the companion godot-mcp-toolkit plugin.",
       "forge_id": 1210261155,
-      "stars": 3,
+      "stars": 4,
       "forks": 1,
-      "forge_pushed_at": "2026-07-26",
-      "downloads_30d": 1785,
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-21",
+      "downloads_30d": 2539,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@arhend/godot-mcp",
@@ -1801,8 +1805,8 @@
       "version": "1.0.1",
       "last_published": "2026-06-04",
       "description": "MCP server for Godot 4 — docs lookup and project file analysis",
-      "downloads_30d": 42,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 43,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@gikit/godot-mcp",
@@ -1815,7 +1819,9 @@
       "mcp_registry_name": null,
       "version": "1.1.1",
       "last_published": "2026-09-21",
-      "description": "Connect AI coding tools to the Godot Editor and running games through MCP."
+      "description": "Connect AI coding tools to the Godot Editor and running games through MCP.",
+      "downloads_30d": 591,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@iflow-mcp/ee0pdt-godot-mcp",
@@ -1830,8 +1836,8 @@
       "last_published": "2026-02-12",
       "description": "Godot MCP Server using FastMCP",
       "via": "republisher",
-      "downloads_30d": 22,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 24,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@iflow-mcp/leesinliang-godot-mcp",
@@ -1846,8 +1852,8 @@
       "last_published": "2026-04-20",
       "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output.",
       "via": "republisher",
-      "downloads_30d": 21,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 12,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@iflow-mcp/sharks820-godot-mcp-ultimate",
@@ -1862,8 +1868,8 @@
       "last_published": "2026-03-03",
       "description": "The ULTIMATE MCP server for Godot game development - semantic analysis, testing, quality, and sub-agents",
       "via": "republisher",
-      "downloads_30d": 22,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 20,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@lpenguin/godot-mcp",
@@ -1877,8 +1883,8 @@
       "version": "1.1.0",
       "last_published": "2025-11-26",
       "description": "MCP server for generating Godot ResourceUID strings via TCP connection to Godot Editor",
-      "downloads_30d": 40,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 37,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@snopek-games/godai",
@@ -1892,8 +1898,8 @@
       "version": "0.4.2",
       "last_published": "2026-08-22",
       "description": "Godot automation CLI, with an MCP server for AI agents",
-      "downloads_30d": 596,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 611,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:@srdarkx/godot-mcp",
@@ -1906,7 +1912,9 @@
       "mcp_registry_name": null,
       "version": "0.4.0",
       "last_published": "2026-09-12",
-      "description": "Hardened CLI launcher and companion bridge for Godot MCP"
+      "description": "Hardened CLI launcher and companion bridge for Godot MCP",
+      "downloads_30d": 296,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:ai-godot-mcp",
@@ -1920,8 +1928,8 @@
       "version": "1.0.4",
       "last_published": "2026-06-29",
       "description": "Production-grade Godot MCP service for AI-driven game development",
-      "downloads_30d": 86,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 80,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:arhend-godot-mcp",
@@ -1936,7 +1944,7 @@
       "last_published": "2026-06-04",
       "description": "MCP server for Godot 4 — docs lookup and project file analysis",
       "downloads_30d": 15,
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:g-mcp-server",
@@ -1950,8 +1958,8 @@
       "version": "0.1.0",
       "last_published": "2026-06-10",
       "description": "G-MCP: standalone MCP server for Godot 4.x game engine integration",
-      "downloads_30d": 49,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 36,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:gameforge-mcp-core",
@@ -1964,7 +1972,9 @@
       "mcp_registry_name": null,
       "version": "1.0.0",
       "last_published": "2026-08-23",
-      "description": "Production-Grade AI Game Development MCP Server for Godot, Unity, and Unreal Engine"
+      "description": "Production-Grade AI Game Development MCP Server for Godot, Unity, and Unreal Engine",
+      "downloads_30d": 201,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:godot-mcp-enhanced",
@@ -1978,8 +1988,8 @@
       "version": "0.32.11",
       "last_published": "2026-08-21",
       "description": "Enhanced MCP server for Godot game engine - closed-loop AI development with dynamic GDScript execution, scene tree query, node inspection, and more",
-      "downloads_30d": 1540,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 1086,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "npm:vberai-godot-mcp",
@@ -1993,8 +2003,8 @@
       "version": "1.0.5",
       "last_published": "2026-08-11",
       "description": "VberAI helper for Godot MCP: fetch DaxianLee/godot-mcp addon, install into projects, and configure Cursor HTTP MCP.",
-      "downloads_30d": 399,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 59,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "pushks18/godot-mcp-pilot",
@@ -2012,8 +2022,8 @@
       "stars": 4,
       "forks": 0,
       "forge_pushed_at": "2026-04-16",
-      "downloads_30d": 102,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 73,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "pzalutski-pixel/godotlens-mcp",
@@ -2030,10 +2040,10 @@
       "description": "MCP server giving AI agents Godot's own view of a GDScript project: navigation, diagnostics, engine API, and scene verification",
       "forge_id": 1203033574,
       "stars": 8,
-      "forks": 1,
+      "forks": 2,
       "forge_pushed_at": "2026-07-27",
-      "downloads_30d": 283,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 224,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "reza2kn/godot-mcp",
@@ -2049,10 +2059,10 @@
       "description": "MCP server for full Godot 4.x engine control — 1,969 tools for AI-driven game development",
       "forge_id": 1284625342,
       "stars": 2,
-      "forks": 0,
+      "forks": 1,
       "forge_pushed_at": "2026-07-21",
-      "downloads_30d": 67,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 54,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "salvo10f/godotiq",
@@ -2070,7 +2080,7 @@
       "stars": 54,
       "forks": 8,
       "forge_pushed_at": "2026-08-03",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "sandraschi/godot-mcp",
@@ -2087,8 +2097,8 @@
       "forge_id": 1242615072,
       "stars": 6,
       "forks": 1,
-      "forge_pushed_at": "2026-09-06",
-      "ranked_on": "2026-09-07"
+      "forge_pushed_at": "2026-09-21",
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "smalldy/godot-bridge",
@@ -2103,11 +2113,11 @@
       "last_published": "2026-08-19",
       "description": "DSH (DeepSeek Harness) plugin: launch and drive a running Godot 4.x game through its in-game TCP interaction server — replaces the godot-mcp MCP server with nat",
       "forge_id": 1334303936,
-      "stars": 21,
+      "stars": 27,
       "forks": 1,
-      "forge_pushed_at": "2026-09-01",
+      "forge_pushed_at": "2026-09-07",
       "downloads_30d": 178,
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "telagod/kooix-godot-mcp",
@@ -2123,10 +2133,10 @@
       "description": "A comprehensive Model Context Protocol server for Godot game engine development assistance with AI-powered debugging, code generation, and project analysis",
       "forge_id": 1042688926,
       "stars": 3,
-      "forks": 3,
+      "forks": 2,
       "forge_pushed_at": "2025-08-23",
-      "downloads_30d": 82,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 78,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "windseries83/godot-mcp",
@@ -2144,8 +2154,8 @@
       "stars": 1,
       "forks": 0,
       "forge_pushed_at": "2026-08-23",
-      "downloads_30d": 150,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 183,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "wushuangabao/godot-agent-runtime",
@@ -2163,8 +2173,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-09-06",
-      "downloads_30d": 145,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 343,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "wvfp/gear-godot-mcp",
@@ -2182,8 +2192,8 @@
       "stars": 2,
       "forks": 0,
       "forge_pushed_at": "2026-06-15",
-      "downloads_30d": 139,
-      "ranked_on": "2026-09-07"
+      "downloads_30d": 141,
+      "ranked_on": "2026-09-21"
     },
     {
       "key": "zbrkic/godot-mcp",
@@ -2201,7 +2211,8 @@
       "stars": 0,
       "forks": 0,
       "forge_pushed_at": "2026-08-24",
-      "ranked_on": "2026-09-07"
+      "ranked_on": "2026-09-21",
+      "downloads_30d": 669
     }
   ]
 }
