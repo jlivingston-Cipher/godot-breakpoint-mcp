@@ -6600,6 +6600,13 @@ def check(handoff: Path, log: str, run_cheap: bool, run_slow: bool,
     s6_problems, s6_notes = section_six_problems(text)
     problems.extend(s6_problems)
     r_notes.extend(s6_notes)
+    # 🆕 322 §2 — AND THE SCAFFOLD'S OWN MARKER, ANYWHERE IN THE DOCUMENT (BP-0001).
+    # It runs beside §6 rather than inside `check_header` on purpose: the header's
+    # unfilled rows are already `HEADER_FLOOR`'s, and the slots nothing has ever read
+    # are the ones in the PROSE.
+    uf_problems, uf_notes = unfilled_problems(text)
+    problems.extend(uf_problems)
+    r_notes.extend(uf_notes)
     # 🆕 243 — and the third direction: what the union of both rosters never reaches.
     un_problems, un_notes = unreached_problems(text, _ci)
     problems.extend(un_problems)
@@ -9752,6 +9759,36 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · identity 70 of 107 / 1 renamed / 0 collisions
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57
 >                 addon / 0 problems
+> ```
+"""),
+
+    (321, """> ```
+> main                 e1ab72b — session321 the monitor that was red about the weather, and the listing that changed its name where nobody could see (#423)  MOVED +1
+> branch 321           session321-the-monitor-that-was-red-about-the-weather · PR #423
+> host / addon         1.86.0 / 1.16.0  🟢 UNMOVED — no cut; neither host/src nor addons/ changed
+> npm                  🟢 registry 1.86.0 · untagged 3 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 sdk-drift IS GREEN ON `main` — run 35674224655: SOURCE 24/24 answered, card leg 43/43, unreachable 0, annotated 1, misidentified 0, `Roster green`
+> 🟢 VERIFIED AFTER THE CHANGE   1018/1018 · contract 32/32 · scope 75 · control 83
+>               · 26 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3449 · late not-loaded 0 · late constructed 362/160 · py gates 18/6/12
+>               · SIG 300/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared
+>               · floor_pin 116 · 56 governed · 2487 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 330 file(s) / 21 suffixes · seal 104
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 293 tools / 3885 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5261
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 660 claims · landscape 4 channel(s) / 56 analysed / 50 surfaced
+>               · capability 59 claimed / 35 unread / 10 uncited
+>               · cadence 22 within / 20 past / 14 never analysed
+>               · identity 72 of 106 / 1 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
 > ```
 """),
 ]
@@ -14287,6 +14324,94 @@ def selftest() -> int:
               "by the reading in the supplied log, position by position — a scaffold that "
               "copied the old numbers forward would be the stale claim this file refuses")
 
+    # ── 🆕 322 §1 — TWO ATOMS, ONE READER, AND NEITHER OF THEM SUBSTITUTED (BP-0018) ──
+    #
+    # 🔴 THE SHAPE THIS CLAIM PINS IS THE ONE THE SCAFFOLD SHIPPED ON ITS FIRST USE.
+    # `0 exempt` (the discover leg's) and `exempt 43` (the floor pin's) both answer
+    # `\bexempt\b`; the reader has ONE reading; giving it to whichever came first wrote
+    # `43 exempt` into `HANDOFF_SESSION321.md` — a true number in a false field, under a
+    # label plausible enough that only a hand correction found it. So the claim asserts
+    # the NEGATIVE — that the reading appears in neither atom — and asserts beside it
+    # that an UNSHARED reader in the same block still substitutes, because a fix that
+    # stopped substituting anything would pass a claim written only in the negative.
+    _shpop = [(321, "> ```\n> main    89c675d — x (#1)  MOVED +1\n"
+                    "> \U0001f7e2 VERIFIED AFTER THE CHANGE   0 exempt · exempt 43 · "
+                    "term 330 file(s) / 21 suffixes\n> ```\n")]
+    _shdoc, _shnotes = emit_handoff(
+        322, prev_text=_fence_doc, prev_session=321,
+        log="FLOOR_PIN_DISCOVERED unswept=2 exempt=43\n"
+            "TERMINOLOGY ok — 275 file(s) swept, 0 retired term(s), and every one of the "
+            "21 tracked suffix(es) is swept or excused with a reason\n",
+        run_cheap=False, run_locked=False, population=_shpop, today="2026-09-21",
+        root=Path("/nonexistent-322"))
+    claims += 1
+    if "0 exempt" not in _shdoc or "exempt 43" not in _shdoc or "43 exempt" in _shdoc:
+        failed += 1
+        print("  \U0001f534 EMIT_SHARED_READER two atoms bind `floor_pin.exempt` and the "
+              "reader has one reading — BOTH come out as the predecessor wrote them. A "
+              "scaffold that gave the reading to the first atom emits `43 exempt`, which "
+              "is a true number in the discover leg's field and is what 321 shipped")
+    claims += 1
+    if "term 275 file(s) / 21 suffixes" not in _shdoc:
+        failed += 1
+        print("  \U0001f534 EMIT_SHARED_NARROW the refusal is per READER, not per document "
+              "— `term.swept` is claimed by one atom and still takes its reading. A fix "
+              "that stopped substituting altogether would pass the claim above")
+    claims += 1
+    _shn = [n for n in _shnotes if n.startswith("floor_pin.exempt: 2 atoms")]
+    if len(_shn) != 2:
+        failed += 1
+        print(f"  \U0001f534 EMIT_SHARED_NOTES {len(_shn)} note(s), want 2 — an atom left "
+              f"unchanged in silence is the predecessor's number wearing this session's "
+              f"block. EACH of the two owes the session a reading by hand")
+
+    # ── 🆕 322 §2 — THE MARKER OUTSIDE THE HEADER, AND THE MENTION BESIDE IT ──────
+    #
+    # 🔴 THE FIXTURE IS THE SCAFFOLD'S OWN §2 WITH THE BANNER STILL ABOVE IT,
+    # because the two shapes only matter together: a reader that refuses every `<fill>`
+    # refuses the banner explaining the marker, and a reader that skips the banner's line
+    # by position skips a slot that happens to land on it. Backticks are the test.
+    _uftext = ("# HANDOFF — session 322\n"
+               "\n"
+               "> \U0001f534 EVERY `<fill>` BELOW IS A CLAIM ABOUT THIS SESSION'S MERGE.\n"
+               "\n"
+               "## §2 — WHAT SHIPPED\n"
+               "\n"
+               f"{EMIT_FILL} — the files, and what each one is.\n")
+    _ufp, _ufn = unfilled_problems(_uftext)
+    claims += 1
+    if len(_ufp) != 1 or "§2" not in _ufp[0] or "line 7" not in _ufp[0]:
+        failed += 1
+        print(f"  \U0001f534 UNFILLED_PROSE {_ufp!r} — a bare `{EMIT_FILL}` under §2 is a "
+              f"section that parses, grades green and says nothing, and `HEADER_FLOOR` "
+              f"has never reached it. The refusal names the line and the heading")
+    claims += 1
+    if len(_ufp) == 1 and "line 3" in _ufp[0]:
+        failed += 1
+        print("  \U0001f534 UNFILLED_MENTION the banner QUOTES the marker to explain it "
+              "and 321's §3 quotes it twice more — a reader that refused a backticked "
+              "mention would refuse every document that names its own scaffold")
+    claims += 1
+    _ufp2, _ufn2 = unfilled_problems(_uftext.replace(
+        f"\n{EMIT_FILL} — the files", "\nsix files, and what each one is"))
+    if _ufp2 or not _ufn2:
+        failed += 1
+        print(f"  \U0001f534 UNFILLED_ANSWERED {_ufp2!r} — a document whose slots are all "
+              f"answered is not refused, and says so in a note. A reader that refused "
+              f"the banner would make the marker unmentionable in the document that "
+              f"carries it")
+    # \U0001f534 AND THE SCAFFOLD'S OWN OUTPUT IS RUN THROUGH IT, which is the pairing that
+    # makes both readers honest: `emit_handoff` emits a DRAFT, and a draft is a document
+    # this gate refuses. A scaffold that emitted something the close accepted unchanged
+    # would be the stale-claim door 321 §2 wrote three paragraphs to keep shut.
+    claims += 1
+    _ufp3, _ = unfilled_problems(_doc)
+    if len(_ufp3) != 1 or "§2" not in _ufp3[0] or "§3" not in _ufp3[0]:
+        failed += 1
+        print(f"  \U0001f534 UNFILLED_SCAFFOLD {_ufp3!r} — the emitted draft carries bare "
+              f"slots in its header, its §2 and its §3, and this reader is what stops "
+              f"one reaching the next session as though it were inheritance")
+
     print(f"HANDOFF_SELFTEST {claims - failed}/{claims} claims, {failed} failed"
           + (f", {unread} unread on this checkout" if unread else ""))
     return 1 if failed else 0
@@ -14746,6 +14871,55 @@ def declared_tier(text: str) -> "str | None":
 EMIT_FILL = "<fill>"
 _EMIT_NUM = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)*(?![\w.])")
 
+# ── 🆕 322 §2 — `plan-close-leaves-no-block`'s RESIDUE (BP-0001) ────────────────
+#
+# 🔴 THE SCAFFOLD'S OWN BANNER NAMES THE GUARD, AND THE GUARD COVERS ONE ROW OF
+# FOUR. It says *"a header left unfilled is not a silent pass: the close refuses it by
+# `HEADER_FLOOR`"* — true, and true only of the header. `HEADER_FLOOR` counts header
+# ATOMS, so a header of bare `<fill>` rows has none and the close refuses by name. §2,
+# §3 and anything a later scaffold adds are PROSE: no reader counts them, nothing binds
+# them, and a `<fill>` left in one of them is a document that grades green while saying
+# *the files, and what each one is* about a session whose files it never names.
+#
+# 🔴 AND THAT IS THE WORSE HALF, NOT THE LESSER ONE. An unfilled header is caught
+# in the first second of the close; an unfilled §3 is a list of what this session did not
+# finish, left as a placeholder, in the one document the NEXT session opens to find out
+# what it inherited. 317 through 320 each paid for a block that was missing; this is the
+# same seam one layer out — a section that is present, parses, and says nothing.
+#
+# 🔵 A MENTION IS NOT A SLOT, AND BACKTICKS ARE WHERE THAT LINE IS ALREADY DRAWN.
+# The banner quotes the marker to explain it, and `HANDOFF_SESSION321.md` quotes it twice
+# more in §3 prose describing this very item. Both are written `` `<fill>` ``; every slot
+# the scaffold emits is bare — `> main                 <fill>`, `<fill> — the files`. So
+# the reader refuses a BARE marker and lets a quoted one through, which is the same
+# distinction `REPLAY_CONTINUATION_RE` draws between an invocation and a comment about
+# one, and it means a document may go on explaining the marker after it has answered it.
+UNFILLED_RE = re.compile(r"(?<!`)" + re.escape(EMIT_FILL) + r"(?!`)")
+
+
+def unfilled_problems(text: str) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — every bare `<fill>` the scaffold left and nobody answered,
+    with the heading it sits under. PURE."""
+    section = "(above the first heading)"
+    hits: "list[tuple[int, str, str]]" = []
+    for i, ln in enumerate(text.split("\n"), 1):
+        if ln.startswith("#"):
+            section = ln.lstrip("#").strip() or section
+        if UNFILLED_RE.search(ln):
+            hits.append((i, section, ln.strip()))
+    if not hits:
+        return ([], [f"UNFILLED none — no bare `{EMIT_FILL}` survives anywhere in the "
+                     f"document, header or prose"])
+    where = "\n".join(f"     line {i} · {sec} · {ln[:96]}" for i, sec, ln in hits)
+    return ([f"🔴 UNFILLED_SLOT — {len(hits)} line(s) still carry a bare "
+             f"`{EMIT_FILL}`. Every one is a claim the scaffold refused to guess and "
+             f"this session has not answered; a `{EMIT_FILL}` that reaches the next "
+             f"session is the placeholder it reads as inheritance.\n"
+             f"     `HEADER_FLOOR` covers the header rows and NOTHING ELSE — §2, §3 and "
+             f"any prose slot grade green with the marker still in them.\n"
+             f"{where}"], [])
+
+
 
 _EMIT_LABEL = re.compile(r"^(\S(?:[^\s]|\s(?!\s))*?)\s{2,}")
 
@@ -14884,20 +15058,35 @@ def emit_handoff(session: int, prev_text: str = "", prev_session: int = 0,
     # `0 exempt` (the discover leg's) and `exempt 43` (the floor pin's) both answer
     # `\bexempt\b`, so both resolve to `floor_pin.exempt`. Substituting one instrument's
     # reading into both would put a true number in a false field — `bind`'s own argument,
-    # in the direction it does not look. The FIRST takes the reading and the rest are
-    # emitted unchanged, loudly, because which of the two the reader meant is a question
-    # about the aliases and not one this scaffold may answer by position.
-    spent: "set[str]" = set()
+    # in the direction it does not look.
+    # \U0001f534 321 EMITTED `43 exempt` INTO THE DISCOVER LEG'S FIELD, WHOSE OWN READING IS
+    # `0`, AND IT DID SO ON THIS SCAFFOLD'S FIRST REAL USE. The first shape of this loop
+    # gave the reading to whichever atom came FIRST and left the rest unchanged — which
+    # is ambiguity resolved BY ORDER, the one move `bind` refuses by name one function
+    # up, arriving through the door this scaffold holds open for itself. And it fails in
+    # the worst available direction: not a blank and not a nonsense number, but a TRUE
+    # reading under a plausible label, which is the field a person re-reading a draft is
+    # least equipped to catch. The note beside it is loud, and a loud note is exactly
+    # what gets skipped when the number beside it looks right.
+    # \U0001f535 SO NEITHER IS SUBSTITUTED. Position cannot say which atom the reader
+    # meant, so both come out as the predecessor's numbers, each owing a reading by hand.
+    # An alias too wide costs two readings; it may not cost a wrong one. The remedy is a
+    # narrower alias in `COUNTER_READERS`, which is a roster edit a person makes — this
+    # reader's job is to refuse to guess, not to become the place the guess is made.
+    per_key: "dict[str, int]" = {}
+    for _a, _k in bound:
+        if _k:
+            per_key[_k] = per_key.get(_k, 0) + 1
     for atom, key in bound:
         got = measured.get(key)
-        if key and key in spent:
+        if key and per_key[key] > 1:
             filled.append(atom)
-            notes.append(f"{key}: a SECOND atom binds to it — `{atom}` is emitted "
-                         f"unchanged and this session owes it a reading by hand. Two "
-                         f"atoms on one reader is an alias too wide, not a counter twice")
+            notes.append(f"{key}: {per_key[key]} atoms bind to it and NOT ONE of them is "
+                         f"substituted — `{atom}` is emitted unchanged and this session "
+                         f"owes it a reading by hand. Two atoms on one reader is an alias "
+                         f"too wide, not a counter twice, and position may not say which "
+                         f"of them the reader meant")
             continue
-        if key:
-            spent.add(key)
         if got is None:
             filled.append(atom)
             if key:
