@@ -880,23 +880,85 @@ def entry_problems(state: "tuple[str, str]") -> "list[str]":
 # exactly as it was before this reader existed: any move is `moved`. Immateriality is a
 # claim a session makes by naming the paths, and a claim nobody made cannot be inherited
 # by silence — which is 292 §2.1's argument one file over.
-def material_change(changed: "list[str]", paths: "list[str]") -> "tuple[bool, str]":
+def _under_any(path: str, prefixes: "list[str]") -> bool:
+    """True when `path` is one of `prefixes` or sits under one of them — PURE.
+
+    Written out once because both halves of `material_change` need exactly the same
+    prefix rule, and two spellings of one rule is how the two halves drift apart.
+    """
+    return any(path == pre or path.startswith(pre.rstrip("/") + "/") for pre in prefixes)
+
+
+# ── 🆕 323 — AN ALLOW-LIST CANNOT HOLD AN ABSENCE CLAIM, AND TWELVE READINGS SAID SO ───
+#
+# 🔴 THE MEASUREMENT, AND IT IS UNANIMOUS. 323 read twelve competitors at source and asked
+# each reading the same closing question: *if this project later adds a brand-new TOP-LEVEL
+# source directory, does it fall outside the capability paths you just declared?* Twelve of
+# twelve answered YES. Six of the twelve volunteered the same remedy without being asked
+# for one.
+#
+# 🔴 WHY IT MATTERS HERE AND NOT ELSEWHERE. Three of the four capability fields are usually
+# spent as `false`, and a `false` is the claim *we looked at the whole tree and it is not
+# there*. `material_change` was written against the other kind of claim — a `debugger`
+# value rests on a debugger file, so watching that file is enough. An ABSENCE rests on the
+# whole tree, so a commit creating `dap/client.ts` at the root touches none of the declared
+# paths, is priced `moved-immaterial`, is never re-read, and the roster goes on publishing
+# `real_dap_client: false` about a project that now has one. The stricter the reading, the
+# larger the hole it digs.
+#
+# 🔵 TWO CONCRETE CASES IN THIS SESSION'S OWN CORPUS, not a hypothetical:
+#   • `youichi-uda/godot-mcp-pro` publishes only its free addon; the Node.js MCP server is
+#     paid and lives elsewhere. If it is ever open-sourced it arrives as a NEW top-level
+#     tree carrying whatever DAP/LSP/C# code exists, entirely outside `addons/`.
+#   • `IvanMurzak/GameDev-MCP-Server`'s csproj globs `**/*.cs` FROM THE REPOSITORY ROOT, so
+#     a new top-level directory is compiled into the shipped binary while matching no
+#     declared path at all.
+# 🔵 AND ONE CASE WHERE THE READER WORKED AS DESIGNED, which is why this is a correction
+# and not a retreat: `wgt19861219/godot-mcp-enhanced` shipped a real DAP client at
+# `src/tools/dap.ts` — inside a declared path, and the rule would have caught it.
+#
+# 🔵 THE FIX IS THE FILE'S OWN IDIOM AND NOT A NEW ANSWER: *unknown is not immaterial*,
+# which this function already says four lines down about an unreadable compare. A path
+# under a declared capability path is material. A path under a declared EXCLUSION is
+# immaterial. A path under NEITHER was classified by nobody, and an unclassified path is
+# unknown. Immateriality stops being *not on the watch list* and becomes *on the list of
+# things a session looked at and ruled harmless* — a claim somebody made, which is 292
+# §2.1's argument arriving a third time.
+#
+# 🔴 AND IT IS DELIBERATELY NON-REGRESSIVE, WHICH IS THE ONLY REASON IT COULD SHIP TODAY.
+# The new rule applies ONLY to an entry that declares `capability_paths_excluded`. An entry
+# carrying paths and no exclusions is priced exactly as it was before this edit, so the six
+# rows that declared paths before 323 lose nothing and no red appears that nobody asked
+# for. The new field therefore only ever buys STRICTNESS — an entry cannot become more
+# permissive by declaring one — and the five pre-323 rows owe an exclusion set whenever
+# they are next read at source.
+def material_change(changed: "list[str]", paths: "list[str]",
+                    excluded: "list[str]" = None) -> "tuple[bool, str]":
     """(is material, why) for a set of changed paths against an entry's capability paths.
 
     A `capability_paths` entry matches by PREFIX, so a directory covers its tree and a file
     covers itself. Matching is on the repository-relative path exactly as the forge spells
-    it.
+    it. `capability_paths_excluded` matches the same way and answers the other half: the
+    entries a session LOOKED AT and ruled incapable of carrying a capability.
     """
     if not paths:
         return (True, "no `capability_paths` recorded, so every move is material")
     if not changed:
         return (True, "the changed-file list could not be read, so materiality is unknown "
                       "and unknown is not immaterial")
-    hits = sorted({p for p in changed
-                   for pre in paths if p == pre or p.startswith(pre.rstrip("/") + "/")})
+    hits = sorted({p for p in changed if _under_any(p, paths)})
     if hits:
         return (True, f"{len(hits)} changed path(s) under the capability paths: "
                       + ", ".join(hits[:4]) + ("…" if len(hits) > 4 else ""))
+    excluded = list(excluded or [])
+    if excluded:
+        stray = sorted({p for p in changed if not _under_any(p, excluded)})
+        if stray:
+            return (True, f"{len(stray)} changed path(s) under neither the {len(paths)} "
+                          f"capability path(s) nor the {len(excluded)} declared "
+                          "exclusion(s), so nobody has classified them and "
+                          "unclassified is not immaterial: "
+                          + ", ".join(stray[:4]) + ("…" if len(stray) > 4 else ""))
     return (False, f"{len(changed)} changed path(s), none of them under the "
                    f"{len(paths)} recorded capability path(s)")
 
@@ -1565,7 +1627,8 @@ def source_state(entry: dict, head: "tuple[str, str]",
     if sha.startswith(was[:7]) or was.startswith(sha[:7]):
         return ("held", sha)
     material, why = material_change(list(changed or []),
-                                    list(entry.get("capability_paths") or []))
+                                    list(entry.get("capability_paths") or []),
+                                    list(entry.get("capability_paths_excluded") or []))
     if not material:
         return (SOURCE_IMMATERIAL, f"{was} -> {sha}; {why}")
     return ("moved", f"{was} -> {sha}")
@@ -2982,6 +3045,53 @@ def selftest() -> int:
           source_state(_hy, ("2400578", ""), ["README.md"])[1], True)
     claim("material: a held head never reaches the reader at all",
           source_state(_hy, ("037b00f", ""), ["README.md"])[0], "held")
+
+    # ── 🆕 323 — AND AN UNCLASSIFIED PATH IS NOT AN IMMATERIAL ONE ────────────────────
+    #
+    # 🔴 THE FIXTURE IS THE HOLE ITSELF. `_hy` names three capability paths and no
+    # exclusions; a commit creating `dap/client.ts` at the repository root touches none of
+    # them, and before this edit that read `moved-immaterial` — the roster would keep
+    # publishing `real_dap_client: false` about a project that had just shipped one.
+    _hyx = {**_hy, "capability_paths_excluded": ["README.md", "docs/"]}
+    claim("material: a NEW top-level source dir escapes an allow-list with no exclusions",
+          source_state(_hy, ("2400578", ""), ["dap/client.ts"])[0], SOURCE_IMMATERIAL)
+    claim("material: and is caught once the entry declares what it excluded",
+          source_state(_hyx, ("2400578", ""), ["dap/client.ts"])[0], "moved")
+    # 🔵 ASSERTED ON THE PURE READER AND NOT THROUGH `source_state`, WHICH IS A FINDING
+    # RATHER THAN A CONVENIENCE: `source_state` returns `f"{was} -> {sha}"` on the material
+    # branch and DISCARDS `why`, so a session reading a `moved` row cannot tell *touched
+    # the debugger plugin* from *created an unclassified top-level directory*. The action
+    # is the same either way — re-read at source — so the mechanism is intact and only the
+    # report is poorer. Left alone deliberately: carrying it through changes a string other
+    # readers may already be spelling, and that is a ruling to take, not to smuggle.
+    claim("material: the refusal says the path was classified by nobody",
+          "unclassified is not immaterial" in
+          material_change(["dap/client.ts"],
+                          ["mcp_server/tools/"], ["README.md", "docs/"])[1], True)
+    # 🔴 THE NEGATIVE CONTROL, AND IT IS THE HALF THAT COULD HAVE COST A RED EVERY WEEK:
+    # a declared exclusion must still buy silence, or the field is a way to turn the
+    # feature off.
+    claim("material: a declared exclusion is still immaterial",
+          source_state(_hyx, ("2400578", ""), ["README.md", "docs/roadmap.md"])[0],
+          SOURCE_IMMATERIAL)
+    claim("material: an exclusion prefix covers its tree",
+          source_state(_hyx, ("2400578", ""), ["docs/guide/install.md"])[0],
+          SOURCE_IMMATERIAL)
+    claim("material: one unclassified path among excluded ones is still material",
+          source_state(_hyx, ("2400578", ""), ["README.md", "lsp/client.ts"])[0], "moved")
+    # 🔴 NON-REGRESSION, STATED AS A CLAIM SO IT CANNOT BE LOST: the six rows that declared
+    # paths before 323 declared no exclusions, and none of them may change price.
+    claim("material: exclusions change nothing for an entry that declares none",
+          source_state(_hy, ("2400578", ""), ["README.md"])[0], SOURCE_IMMATERIAL)
+    claim("material: a capability path still wins over an exclusion that also matches",
+          source_state({**_hyx, "capability_paths_excluded": ["mcp_server/"]},
+                       ("2400578", ""), ["mcp_server/tools/x.py"])[0], "moved")
+    claim("material: an entry with exclusions and NO paths is still strict",
+          source_state({"last_analysed_commit": "037b00f",
+                        "capability_paths_excluded": ["README.md"]},
+                       ("2400578", ""), ["README.md"])[0], "moved")
+    claim("material: _under_any is a prefix rule and not a substring one",
+          _under_any("mcp_server_test/x.py", ["mcp_server/"]), False)
 
     # ── 🆕 293 — A `false` IS A CLAIM, AND A CLAIM OWES ITS READING ───────────────────
     #

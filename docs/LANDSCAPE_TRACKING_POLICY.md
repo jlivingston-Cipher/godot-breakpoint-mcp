@@ -149,6 +149,67 @@ read the column. Both moved to `unknown`, the strict bucket, with the reason rec
 their notes; `ROSTER_CADENCE_UNKNOWN_VALUE` and `ROSTER_CADENCE_UNDECLARED` are
 merge-blocking in `--census` so the vocabulary cannot drift back.
 
+### 🆕 323 — An allow-list cannot hold an absence claim
+
+🔴 **THE MEASUREMENT IS UNANIMOUS AND IT WAS TAKEN TWELVE TIMES.** 323 read twelve
+alternative servers at source and closed every reading with the same question: *if this
+project later adds a brand-new top-level source directory, does it fall outside the
+`capability_paths` you just declared?* **Twelve of twelve answered yes.** Six volunteered
+the same remedy without being asked for one.
+
+🔴 **WHY THE HOLE IS WHERE IT IS.** 293's reader was written against a claim resting on a
+FILE — a `debugger` value rests on a debugger plugin, so watching that plugin is enough.
+Three of the four capability fields are usually spent as `false`, and Rule 6 is explicit
+that a `false` is the claim *we looked at the whole tree and it is not there*. An absence
+rests on the tree. So a commit creating `dap/client.ts` at the repository root touches
+none of the declared paths, reads `moved-immaterial`, is never re-read, and the roster
+goes on publishing `real_dap_client: false` about a project that now has one. **The more
+rigorous the reading, the larger the hole it digs** — which is the shape Rule 5 keeps
+finding: a control that is strict about what it watches and silent about what it does not.
+
+🔵 **TWO CASES FROM 323's OWN CORPUS, not a hypothetical.** `youichi-uda/godot-mcp-pro`
+publishes only its free addon and states in its README that the Node.js MCP server is paid
+and lives elsewhere; if that is ever open-sourced it arrives as a new top-level tree
+carrying whatever DAP, LSP or C# code exists, entirely outside `addons/`. And
+`IvanMurzak/GameDev-MCP-Server`'s project file globs `**/*.cs` **from the repository root**,
+so a new top-level directory is compiled into the shipped binary while matching no declared
+path at all. 🔵 And one case where the reader worked as designed, which is why this is a
+correction and not a retreat: `wgt19861219/godot-mcp-enhanced` shipped a real DAP client at
+`src/tools/dap.ts` — inside a declared path, and the rule would have caught it.
+
+🔵 **THE ANSWER IS THIS FILE'S OWN, ARRIVING A THIRD TIME.** 293 already says a compare the
+forge would not serve is *unknown, which is not immaterial*. An entry now declares both
+halves:
+
+```json
+"capability_paths": ["src/", "addons/", "package.json"],
+"capability_paths_excluded": ["docs/", "README.md", "LICENSE", ".gitignore"]
+```
+
+A changed path under the first list is material. A changed path under the second is
+immaterial. A changed path under **neither** was classified by nobody, and `material_change`
+prices it as unknown. Immateriality stops being *absent from the watch list* and becomes
+*on the list of things a session looked at and ruled harmless* — a claim somebody made,
+which is 292 §2.1 one more time.
+
+🔴 **AND IT IS NON-REGRESSIVE BY CONSTRUCTION, WHICH IS THE ONLY REASON IT COULD SHIP IN
+THE SAME BEAT AS THE READINGS.** The unclassified rule applies **only** to an entry that
+declares `capability_paths_excluded`. An entry carrying paths and no exclusions is priced
+exactly as it was before this edit, so the six rows that declared paths before 323 lose
+nothing and no red appears that nobody asked for. The new field can therefore only ever buy
+**strictness** — no entry becomes more permissive by declaring one — and the five pre-323
+rows owe an exclusion set whenever they are next read at source. `selftest()` drives both
+directions, including the negative control that a declared exclusion still buys silence,
+because a field that could only redden would be a way to turn the feature off.
+
+🔵 **ONE THING LEFT ALONE AND RECORDED RATHER THAN FIXED.** `source_state` returns
+`"<was> -> <sha>"` on the material branch and discards `material_change`'s reason, so a
+session reading a `moved` row cannot tell *touched the debugger plugin* from *created an
+unclassified top-level directory*. The owed action is the same either way — re-read at
+source — so the mechanism is intact and only the report is poorer. Carrying it through
+changes a string other readers may already be spelling, and that is a ruling to take
+deliberately, not to smuggle in beside eleven others.
+
 ### 🆕 293 — And the source leg itself is a channel, whose silence is not an answer
 
 🔴 **A RUN THAT READ ZERO REPOSITORY HEADS USED TO EXIT 0.** `repo_head()` dials
