@@ -257,7 +257,7 @@ export function registerPhysicsTools(server: McpServer, call: EditorCall): void 
         magnitude: z.number().optional().describe("Gravity magnitude (default 2D 980, 3D 9.8)"),
         direction: z.array(z.number()).optional().describe("Gravity direction vector [x, y] (2D) or [x, y, z] (3D)"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ dim, magnitude, direction, save, confirm }) => {

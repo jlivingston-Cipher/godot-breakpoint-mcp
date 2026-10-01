@@ -42,7 +42,7 @@ export function registerFilesystemTools(server: McpServer, call: EditorCall, gua
       inputSchema: {
         from_path: z.string().describe("Source res:// path (file or directory)"),
         to_path: z.string().describe("Destination res:// path"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ from_path, to_path, confirm }) => {

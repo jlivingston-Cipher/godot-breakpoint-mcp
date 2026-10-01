@@ -2,7 +2,8 @@ extends Node
 ## Breakpoint Runtime Bridge — runs INSIDE the running game as an autoload.
 ##
 ## The editor plugin auto-registers this as an autoload singleton
-## ("BreakpointRuntimeBridge"), so it is present whenever the project runs. It opens
+## ("BreakpointRuntimeBridge"), so it is present whenever the project runs. In a
+## development run — a game started by an editor build — it opens
 ## a loopback TCP server on 127.0.0.1:9081 (override BREAKPOINT_RUNTIME_PORT) speaking
 ## the SAME newline-delimited JSON protocol as the editor bridge, and exposes the
 ## live SceneTree: read/write properties, call methods, emit signals, inject
@@ -10,6 +11,10 @@ extends Node
 ##
 ## NOTE: this script is intentionally NOT @tool — it must run in the game, not
 ## the editor. All handlers run on the main thread (socket polled from _process).
+##
+## An EXPORTED game carries this autoload too, and there it stays closed: no socket, no
+## secret written, no logger hooked (325, BP-0023 — see bridge_secret.gd's
+## runtime_listen_policy for the one opt-in, debug exports only).
 
 ## The addon version this GAME is running, answered on `ping`.
 ##
@@ -20,7 +25,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.16.0"
+const ADDON_VERSION := "1.17.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -88,9 +93,38 @@ var _tree_dirty: bool = false
 var _log_dirty: bool = false
 var _log_capture = null  # registered Logger (Godot 4.5+) or null
 var _in_capture: bool = false
+## 🔴 325 (BP-0023): the listen decision, taken first in _ready (bridge_secret.gd's
+## runtime_listen_policy). Read by _setup_auth for where the secret comes from.
+var _policy: Dictionary = {}
+
+
+## The four facts the listen policy is decided on. A method and not inline so the
+## headless smoke can stand an exported build up inside an editor binary — the only
+## binary CI has — by overriding this one function and nothing else.
+func _policy_facts() -> Dictionary:
+	return {
+		"editor_build": BridgeSecret.is_development_build(OS.has_feature("editor"), OS.has_feature("template")),
+		"debug_build": OS.is_debug_build(),
+		"exported_optin": OS.get_environment("BREAKPOINT_RUNTIME_EXPORTED"),
+		"env_secret": OS.get_environment("BREAKPOINT_RUNTIME_SECRET"),
+	}
 
 
 func _ready() -> void:
+	# 🔴 325 (BP-0023): an exported game must not open a control port. Decide before
+	# anything binds, mints, hooks the logger or connects to the tree; when the answer
+	# is no, this node stays in the tree inert — `push_log` still works for game code
+	# that calls it — and a shipped game prints nothing unless someone asked for the
+	# bridge and is being refused.
+	var f := _policy_facts()
+	_policy = BridgeSecret.runtime_listen_policy(bool(f["editor_build"]), bool(f["debug_build"]), String(f["exported_optin"]), String(f["env_secret"]))
+	if not bool(_policy["listen"]):
+		set_process(false)
+		if bool(_policy["warn"]):
+			push_warning("[breakpoint_runtime] not listening: %s" % _policy["reason"])
+		else:
+			print_verbose("[breakpoint_runtime] not listening: %s" % _policy["reason"])
+		return
 	# Keep servicing requests even while the game is paused (e.g. at a breakpoint).
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var env_port := OS.get_environment("BREAKPOINT_RUNTIME_PORT")
@@ -119,6 +153,18 @@ func _ready() -> void:
 ## hatch). If the secret can't be persisted, run WITHOUT auth rather than
 ## bricking the bridge (a broken mint must not lock out the host).
 func _setup_auth() -> void:
+	# An opted-in debug export (325): the secret comes from the environment or not at all.
+	# Never minted — that would write into the game's own install — and never insecure:
+	# BREAKPOINT_BRIDGE_INSECURE is a development-run escape hatch only.
+	if String(_policy.get("secret_source", "")) == "env":
+		_secret = String(_policy.get("secret", ""))
+		_auth_required = true
+		if _secret.length() < BridgeSecret.EXPORT_SECRET_MIN_LEN:
+			# Unreachable through runtime_listen_policy, which never says listen without a
+			# valid secret — but if it ever did, fail CLOSED: a random secret nobody holds,
+			# never the empty string const_time_eq would match an empty `auth` against.
+			_secret = Crypto.new().generate_random_bytes(32).hex_encode()
+		return
 	var insecure := OS.get_environment("BREAKPOINT_BRIDGE_INSECURE").to_lower()
 	if insecure == "1" or insecure == "true":
 		_auth_required = false

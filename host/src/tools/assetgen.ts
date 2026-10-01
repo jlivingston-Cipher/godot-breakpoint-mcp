@@ -351,7 +351,7 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         duration_ms: z.number().int().positive().optional().describe("Length in ms for audio_sfx (default 300)"),
         shape: z.enum(["box", "sphere", "cylinder", "prism"]).optional().describe("Primitive for model (default box)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ kind, to_path, prompt, width, height, duration_ms, shape, overwrite, confirm }) =>
@@ -367,7 +367,7 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
     height: z.number().int().positive().optional().describe("Image height (default matches width)"),
     placeholder: z.boolean().optional().describe("Force a deterministic in-engine stand-in even if a real backend is configured"),
     overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-    confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+    confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
   } as const;
 
   server.registerTool(
@@ -426,7 +426,7 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         duration_ms: z.number().int().positive().optional().describe("Length in milliseconds (default 300)"),
         placeholder: z.boolean().optional().describe("Force a deterministic in-engine stand-in even if a real backend is configured"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ prompt, to_path, duration_ms, placeholder, overwrite, confirm }) =>
@@ -447,7 +447,7 @@ export function registerAssetGenTools(server: McpServer, bridge: BridgeClient, c
         shape: z.enum(["box", "sphere", "cylinder", "prism"]).optional().describe("Primitive shape for the placeholder (default box)"),
         placeholder: z.boolean().optional().describe("Force a deterministic in-engine stand-in even if a real backend is configured"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ prompt, to_path, shape, placeholder, overwrite, confirm }) =>

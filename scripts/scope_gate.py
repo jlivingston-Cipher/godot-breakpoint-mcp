@@ -572,7 +572,11 @@ BLAST: dict[str, int] = {
     # declaration block into "declared but not privileged" at once. The row moved because
     # a reader started depending on this population — 251's rule, and the same cause the
     # 3 -> 4 note below records.
-    "privileged_tools": 9,                    # also: checks 11, 13 (the constant roster), 31
+    # 🆕 325: 9 -> 10. The README cost table now names its rows "(280 tools)" / "(293
+    # tools)", and the 280 is derivable only through this roster (full minus privileged),
+    # so blinding it now also reddens the prose-numeral check. Measured on a mutant of
+    # each tree: main 9 FAIL lines, this commit 10, the tenth being exactly that check.
+    "privileged_tools": 10,                   # also: checks 11, 13 (the constant roster), 31, prose numerals
     "recipe_names_constant": 2,               # also: check 12
     "registered_recipes": 4,                  # also: check 12
     "registered_resources": 3,                # also: check 10

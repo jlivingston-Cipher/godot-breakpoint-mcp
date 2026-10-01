@@ -45,7 +45,7 @@ export function registerAnimationTools(server: McpServer, call: EditorCall): voi
         player_path: z.string().describe("AnimationPlayer node path relative to the scene root"),
         name: z.string().describe("Animation name"),
         library: z.string().optional().describe("Animation library name (default \"\")"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ player_path, name, library, confirm }) => {

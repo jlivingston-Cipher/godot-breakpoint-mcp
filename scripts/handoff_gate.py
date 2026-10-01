@@ -9820,6 +9820,40 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
 > ```
 """),
+    # 🆕 325 — REGISTERED WITH `untagged 5`, NOT THE `6` HANDOFF_SESSION323.md PRINTS. The
+    # handoff was written after 323d (b571ccd) had also merged, so its npm row counted a commit
+    # its own `main 4c7ed16 MOVED +1` row does not reach; UNTAGGED_POPULATION refused the pair
+    # (322's 4 + MOVED +1 = 5, no cut between). Five is the count AT 4c7ed16, which is the
+    # state this block describes — 323d's own precedent of correcting a row at registration.
+    (323, """> ```
+> main                 4c7ed16 — session323 the thirty-five claims nobody could show a reading for, and the allow-list that cannot hold an absence (#425)  MOVED +1
+> branch 323           session323-capability-readback · PR #425
+> host / addon         1.86.0 / 1.16.0  🟢 UNMOVED — no cut; neither host/src nor addons/ changed
+> npm                  🟢 registry 1.86.0 · untagged 5 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.16.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at the merge (ci 7 + integration 19), post-merge run 35700286697 at 4c7ed16
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1018/1018 · contract 32/32 · scope 75 · control 83
+>               · 26 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3481 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2492 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 330 file(s) / 21 suffixes · seal 104
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 293 tools / 3885 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5261
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 668 claims · landscape 4 channel(s) / 56 analysed / 50 surfaced
+>               · capability 98 claimed / 0 unread / 10 uncited
+>               · cadence 32 within / 10 past / 14 never analysed
+>               · identity 72 of 106 / 1 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #

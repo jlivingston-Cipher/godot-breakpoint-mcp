@@ -16,7 +16,7 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
         to_path: z.string().describe("Destination res:// path, e.g. res://tiles/world.tres"),
         tile_size: z.array(z.number().int()).optional().describe("Base tile grid size [x, y] in pixels (default [16, 16])"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, tile_size, overwrite, confirm }) => {
@@ -41,7 +41,7 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
         source_id: z.number().int().optional().describe("Explicit source id, or -1 to auto-assign (default -1)"),
         margins: z.array(z.number().int()).optional().describe("Atlas margins [x, y] in pixels"),
         separation: z.array(z.number().int()).optional().describe("Atlas separation [x, y] in pixels"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ tileset_path, texture_path, texture_region_size, source_id, margins, separation, confirm }) => {
@@ -69,7 +69,7 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
         source_id: z.number().int().describe("Atlas source id within the TileSet"),
         atlas_coords: z.array(z.number().int()).describe("Tile atlas coordinates [x, y] (in cells)"),
         size: z.array(z.number().int()).optional().describe("Tile size in atlas cells [x, y] (default [1, 1])"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ tileset_path, source_id, atlas_coords, size, confirm }) => {
@@ -96,7 +96,7 @@ export function registerTileTools(server: McpServer, call: EditorCall, guard: Pa
         polygon: z.array(z.array(z.number())).describe("Collision polygon points [[x, y], ...] (>= 3), tile-local pixels"),
         physics_layer: z.number().int().optional().describe("TileSet physics layer index (default 0; created if missing)"),
         one_way: z.boolean().optional().describe("Mark the polygon as one-way collision"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ tileset_path, source_id, atlas_coords, polygon, physics_layer, one_way, confirm }) => {

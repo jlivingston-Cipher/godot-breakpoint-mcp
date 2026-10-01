@@ -89,7 +89,7 @@ export function registerSignalTools(server: McpServer, call: EditorCall): void {
         path: z.string().describe("Node path relative to the scene root"),
         signal: z.string().describe("Signal name"),
         args: z.array(z.any()).optional().describe("Signal arguments (JSON scalars or __type__-tagged Variants)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, signal, args, confirm }) => {

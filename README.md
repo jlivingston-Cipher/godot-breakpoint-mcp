@@ -6,7 +6,7 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.86.0 · addon 1.16.0 · full 293 / secure-default 280 tools · 6 MCP resources · MIT.** The host builds against
+> **npm 1.87.0 · addon 1.17.0 · full 293 / secure-default 280 tools · 6 MCP resources · MIT.** The host builds against
 > the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 1000-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
@@ -126,18 +126,28 @@ measurements of what a `tools/list` response weighs — produced by `host/script
 against the running server, not estimates, and not figures quoted from anyone's README.
 
 What an untouched install advertises is the secure-default surface of 280 tools; opting every
-higher-trust group in loads the full 293. Weighed:
+higher-trust group in loads the full 293. Two numbers per row, because they are different bills:
+what the client **downloads** (`tools/list` on the wire), and what the **model reads** — a client
+hands Claude each tool's name, description and input schema and nothing else.
 
-| | Bytes on the wire | ≈ tokens | Bytes per tool |
-|---|---|---|---|
-| **Breakpoint, as installed** | 343,463 | ~95,400 | ~1,231 |
-| **Breakpoint, every group opted in** | 362,021 | ~100,600 | ~1,240 |
-| An authoring-focused server we re-measured | 202,327 | ~56,200 | ~634 |
+| | Bytes on the wire | What the model reads |
+|---|---|---|
+| **Breakpoint, as installed** (280 tools) | 353,591 | 208,700 |
+| **Breakpoint, every group opted in** (293 tools) | 373,677 | 221,780 |
+| An authoring-focused server we re-measured (319 tools) | 202,327 | 196,585 |
 
-Two things are worth saying plainly. **Per tool we are close to the field**, and roughly half
-of our per-tool weight is something most servers do not send at all: a frozen `outputSchema`
-and a published risk annotation on every single tool, which is what lets a client validate a
-result and lets you audit the surface before you trust it.
+The second column is measured, not assumed: we captured the request Claude Code 2.1.201 actually
+builds with Breakpoint attached (pointed at a local capture server; nothing was sent anywhere).
+Every one of the 280 tools arrived as name, description and input schema — **no output schema, no
+risk annotation, no title.** So the weight that sets Breakpoint apart on the wire — a frozen
+`outputSchema` and a published risk annotation on every tool, which is what lets a client validate
+a result and lets you audit the surface before you trust it — costs the model's context nothing.
+Per tool, what Claude reads is about 1.2× the leanest alternative we have measured.
+
+**In Claude Code, the upfront bill is smaller still.** Its default MCP tool search sends only tool
+*names* until the model asks for a tool, so a session pays roughly 10 KB for the whole surface and
+about three-quarters of a kilobyte for each tool it actually loads. The full model-read column is what a client without tool
+search pays upfront.
 
 **And you almost never pay the full bill.** Toolsets load only the planes you asked for, so a
 session that just needs the debugger pays for the debugger — a measured **~86–98% upfront
@@ -148,9 +158,9 @@ BREAKPOINT_TOOLSETS=c        # the runtime plane alone
 BREAKPOINT_TOOLSETS=a,b      # editor + CLI
 ```
 
-The token figures are derived at ~3.6 bytes/token and are estimates; the byte counts are
-exact. Re-derive any row with `node host/scripts/token-cost.mjs --summary`, or point it at any
-other stdio MCP server with `--server <cmd>` and compare for yourself.
+The byte counts are exact (≈ tokens at ~3.6 bytes/token, an estimate). Re-derive any row with
+`node host/scripts/token-cost.mjs --summary` — it prints both columns — or point it at any other
+stdio MCP server with `--server <cmd>` and compare for yourself.
 
 ### Why a Node host?
 
@@ -294,7 +304,9 @@ Copy `addons/breakpoint_mcp/` into your project's `addons/` folder, then enable 
 
 Enabling the plugin also auto-registers the **runtime autoload**
 (`BreakpointRuntimeBridge`), so the `runtime_*` tools work as soon as the project runs
-(it listens on `127.0.0.1:9081` inside the game). No manual autoload setup needed.
+(it listens on `127.0.0.1:9081` inside the game). No manual autoload setup needed. The
+autoload ships in your exports too, and there it stays closed: only a game started by an
+editor build opens the port ([details](docs/USER_GUIDE.md#bridge-authentication-shared-secret)).
 
 Once enabled, a **Breakpoint MCP** dock appears on the right-hand side of the editor. It
 shows the live health of all four bridges (editor / runtime / GDScript LSP / DAP), the

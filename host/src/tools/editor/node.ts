@@ -27,7 +27,7 @@ export function registerNodeTools(server: McpServer, call: EditorCall, guard: Pa
       description: "Delete a node (undoable). DESTRUCTIVE — gated by confirmation. Refuses to delete the scene root.",
       inputSchema: {
         path: z.string().describe("Node path relative to the scene root"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, confirm }) => {
@@ -262,7 +262,7 @@ export function registerNodeTools(server: McpServer, call: EditorCall, guard: Pa
         path: z.string().describe("Node path relative to the scene root"),
         method: z.string().describe("Method name"),
         args: z.array(z.any()).optional().describe("Positional arguments (JSON scalars or __type__-tagged Variants)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, method, args, confirm }) => {

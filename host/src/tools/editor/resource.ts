@@ -23,7 +23,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         to_path: z.string().describe("Destination res:// path, e.g. res://styles/panel.tres"),
         properties: z.record(z.string(), z.any()).optional().describe("Initial property values (JSON scalars or __type__-tagged Variants)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ class_name, to_path, properties, overwrite, confirm }) => {
@@ -60,7 +60,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         to_path: z.string().optional().describe("Destination res:// path (default: overwrite from_path)"),
         flags: z.number().int().optional().describe("ResourceSaver.SaverFlags bitmask (e.g. 32 = FLAG_COMPRESS)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ from_path, to_path, flags, overwrite, confirm }) => {
@@ -91,7 +91,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         to_path: z.string().describe("Destination res:// path for the copy"),
         deep: z.boolean().optional().describe("Deep-duplicate subresources (default false)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, to_path, deep, overwrite, confirm }) => {
@@ -130,7 +130,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         path: z.string().describe("Resource res:// path"),
         property: z.string().describe("Property name"),
         value: requiredEncodedValue.describe("New value (JSON scalar or __type__-tagged Variant)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, property, value, confirm }) => {
@@ -170,7 +170,7 @@ export function registerResourceTools(server: McpServer, call: EditorCall, guard
         path: z.string().describe("Asset res:// path"),
         settings: z.record(z.string(), z.any()).describe("Import params to set (name -> JSON scalar or __type__-tagged Variant)"),
         reimport: z.boolean().optional().describe("Reimport after writing (default true)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, settings, reimport, confirm }) => {

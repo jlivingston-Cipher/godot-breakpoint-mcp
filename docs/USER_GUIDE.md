@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.86.0 · addon 1.16.0
+- **Version:** host 1.87.0 · addon 1.17.0
 - **License:** MIT
 - **What it exposes:** full 293 tools (secure-default 280 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -904,6 +904,17 @@ On enable, the addon mints a 64-char hex secret into the engine-managed, git-ign
 on a shared machine can neither drive a bridge nor bypass the confirmation gate. The secret is
 compared in constant time and a bad handshake is refused without echoing it. Opt out (not
 recommended) with `BREAKPOINT_BRIDGE_INSECURE=1`.
+
+**An exported game keeps the runtime bridge closed.** The `BreakpointRuntimeBridge` autoload
+ships inside every export, so it decides at startup whether it is in a development run — a
+game started by an editor build: the editor's Run buttons, Breakpoint's own launchers, CI. In
+an exported build it opens no port, writes no secret and hooks no logger; game code that calls
+`BreakpointRuntimeBridge.push_log()` keeps working. Before this change a shipped game opened
+`127.0.0.1:9081` on every launch, and where it could not write a secret into its own install
+it ran without authentication. To drive an exported **debug** build deliberately, launch it
+with `BREAKPOINT_RUNTIME_EXPORTED=1` and a `BREAKPOINT_RUNTIME_SECRET` of at least 32
+characters, and give the host the same secret; an export never mints its own, and
+`BREAKPOINT_BRIDGE_INSECURE` does not apply to it. A release export never listens.
 
 ### Pausing the agent
 

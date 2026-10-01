@@ -59,7 +59,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         to_path: z.string().describe("Destination res:// path, e.g. res://meshes/box.tres"),
         shape: z.string().optional().describe("box | sphere | cylinder | plane | capsule | prism | torus | quad (default box)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, shape, overwrite, confirm }) => {
@@ -195,7 +195,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
         background: z.string().optional().describe("clear_color | color | sky | canvas (default clear_color)"),
         ambient_color: z.array(z.number()).optional().describe("Ambient light color [r,g,b] or [r,g,b,a], 0..1"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, background, ambient_color, overwrite, confirm }) => {
@@ -220,7 +220,7 @@ export function registerSpatialTools(server: McpServer, call: EditorCall, guard:
       inputSchema: {
         path: z.string().describe("Environment res:// path"),
         sky_material: z.enum(["procedural", "physical", "panorama"]).optional().describe("Sky material kind (default procedural)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, sky_material, confirm }) => {

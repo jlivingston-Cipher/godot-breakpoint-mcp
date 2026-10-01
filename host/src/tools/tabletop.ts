@@ -1982,7 +1982,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         }).optional().describe("Inline theme built via theme_create + theme_set_*"),
         script_path: z.string().optional().describe("Generated card script path (default derives from `path`)"),
         overwrite: z.boolean().optional().describe("Replace an existing template at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async (raw) => {
@@ -2204,7 +2204,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
           size: z.object({ w: z.number().optional(), h: z.number().optional() }).optional().describe("Background size in px (ColorRect / TextureRect)"),
         }).optional().describe("Optional background drawn behind the cells"),
         overwrite: z.boolean().optional().describe("Replace an existing board at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async (raw) => {
@@ -2278,7 +2278,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         }).optional().describe("Fill the whole grid with one tile (needs an existing `tileset` that has the source); omitted → cells stay empty (a coordinate frame only)"),
         layer_name: z.string().optional().describe("TileMapLayer node name (default \"Cells\")"),
         overwrite: z.boolean().optional().describe("Replace an existing board at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async (raw) => {
@@ -2361,7 +2361,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         }).optional().describe("Optional back state; its presence makes the piece two-sided"),
         script_path: z.string().optional().describe("Generated piece script path (default derives from `path`)"),
         overwrite: z.boolean().optional().describe("Replace an existing template at `path` (default false). With overwrite omitted or false an existing `path` is REFUSED (`exists`) rather than written — before 1.39.0 this flag was declared and never read, and a repeat call APPENDED to the existing scene while reporting success. With overwrite:true the scene is replaced, which requires closing it first if it is open in the editor (Godot 4.4+; below that an open target is refused rather than appended to)."),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async (raw) => {
@@ -2482,7 +2482,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         button: z.number().int().nonnegative().optional().describe("node2d mode: mouse button index that begins the drag (default 1 = left)"),
         action: z.string().optional().describe("node2d mode: input action name registered for the drag button (default \"drag\")"),
         hit_area: z.string().optional().describe("node2d mode: sub-path to the Area2D whose input_event drives the drag (default the node itself)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async (raw) => {
@@ -2523,7 +2523,7 @@ export function registerTabletopTools(server: McpServer, bridge: BridgeClient, c
         }).optional().describe("Optionally connect on_drop to a handler in the same call"),
         size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).optional().describe("node2d mode: DropArea hit size in px (default 96×96)"),
         shape: z.enum(["rectangle", "circle"]).optional().describe("node2d mode: DropArea collision shape (default rectangle)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async (raw) => {
