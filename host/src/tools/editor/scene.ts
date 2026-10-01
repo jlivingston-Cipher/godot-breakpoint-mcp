@@ -46,7 +46,7 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
         path: z.string().describe("Where to save, e.g. res://scenes/new.tscn"),
         name: z.string().optional().describe("Root node name (defaults to the class name)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ root_type, path, name, overwrite, confirm }) => {
@@ -77,7 +77,7 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
         "Reload a scene from disk, discarding unsaved changes to it. DESTRUCTIVE — gated by confirmation. Defaults to the current scene.",
       inputSchema: {
         path: z.string().optional().describe("Scene res:// path; omitted = the current edited scene"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, confirm }) => {
@@ -100,7 +100,7 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
         "Close the current scene tab, discarding unsaved changes. DESTRUCTIVE — gated by confirmation. Only the current scene can be closed; pass its path to assert which one.",
       inputSchema: {
         path: z.string().optional().describe("Optional assertion: must equal the current edited scene's path"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, confirm }) => {
@@ -120,7 +120,7 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
         path: z.string().describe("Branch root node path relative to the scene root"),
         to_path: z.string().describe("Where to save the PackedScene, e.g. res://scenes/branch.tscn"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, to_path, overwrite, confirm }) => {
@@ -155,7 +155,7 @@ export function registerSceneTools(server: McpServer, call: EditorCall, guard: P
       description: "Save the current scene to a new res:// path (Save As). DESTRUCTIVE (writes a file) — gated by confirmation.",
       inputSchema: {
         path: z.string().describe("Destination path, e.g. res://scenes/copy.tscn"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, confirm }) => {

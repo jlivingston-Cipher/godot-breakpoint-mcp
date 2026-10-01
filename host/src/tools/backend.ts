@@ -540,7 +540,7 @@ export function registerBackendTools(server: McpServer, bridge: BridgeClient, co
         server_key: z.string().optional().describe("Nakama server key (default defaultkey)"),
         region: z.string().optional().describe("Photon region (default us)"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ sdk, to_path, api_key, game_id, title_id, app_id, host, port, server_key, region, overwrite, confirm }) => {
@@ -570,7 +570,7 @@ export function registerBackendTools(server: McpServer, bridge: BridgeClient, co
         to_path: z.string().optional().describe("Destination res:// .gd path (default res://backend/leaderboard.gd)"),
         leaderboard_name: z.string().optional().describe("Leaderboard id / statistic name baked into the script (default 'main')"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ sdk, to_path, leaderboard_name, overwrite, confirm }) => {
@@ -599,7 +599,7 @@ export function registerBackendTools(server: McpServer, bridge: BridgeClient, co
         sdk: z.enum(BACKEND_SDKS).describe("Which backend SDK to target"),
         to_path: z.string().optional().describe("Destination res:// .gd path (default res://backend/cloud_save.gd)"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ sdk, to_path, overwrite, confirm }) => {
@@ -628,7 +628,7 @@ export function registerBackendTools(server: McpServer, bridge: BridgeClient, co
         sdk: z.enum(BACKEND_SDKS).describe("Which backend SDK to target"),
         to_path: z.string().optional().describe("Destination res:// .gd path (default res://backend/auth.gd)"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ sdk, to_path, overwrite, confirm }) => {

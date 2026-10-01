@@ -34,6 +34,13 @@ All connections are **loopback-only (`127.0.0.1`)**. The host does not open any
 externally reachable port and does not phone home. Run the host on the **same machine** as
 Godot; it is not designed to be exposed to a network.
 
+The in-game runtime bridge listens only in a **development run** (a game started by an
+editor build). A game you export with the addon enabled opens no port and writes no file;
+an exported debug build can be opted in explicitly, and only with a secret you supply
+(`BREAKPOINT_RUNTIME_EXPORTED=1` + `BREAKPOINT_RUNTIME_SECRET`). Addon releases up to and
+including 1.16.0 opened `127.0.0.1:9081` in exported games, without authentication where
+the game could not write into its own install. Fixed in addon 1.17.0 — re-export with it.
+
 ### Controls that keep you in charge
 
 - **Undo/redo:** every edit-time mutation is wrapped in `EditorUndoRedoManager` — Ctrl-Z

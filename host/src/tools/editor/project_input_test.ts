@@ -15,7 +15,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
         name: z.string().describe("Action name (without the input/ prefix)"),
         deadzone: z.number().optional().describe("Analog deadzone 0..1 (default 0.5)"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, deadzone, save, confirm }) => {
@@ -47,7 +47,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
           })
           .describe("Input event descriptor"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, event, save, confirm }) => {
@@ -79,7 +79,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
       inputSchema: {
         name: z.string().describe("Action name (without the input/ prefix)"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, save, confirm }) => {
@@ -102,7 +102,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
         path: z.string().describe("res:// path to a .gd script or .tscn scene"),
         enabled: z.boolean().optional().describe("Enable as a global singleton (default true)"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, path, enabled, save, confirm }) => {
@@ -126,7 +126,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
       inputSchema: {
         name: z.string().describe("Autoload / singleton name"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, save, confirm }) => {
@@ -149,7 +149,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
         platform: z.string().describe("Export platform name as shown in the editor"),
         runnable: z.boolean().optional().describe("Mark the preset runnable (default true)"),
         export_path: z.string().optional().describe("Default export output path"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, platform, runnable, export_path, confirm }) => {
@@ -171,7 +171,7 @@ export function registerProjectInputTestTools(server: McpServer, call: EditorCal
       inputSchema: {
         path: z.string().describe("res:// path to the scene to run first"),
         save: z.boolean().optional().describe("Persist to project.godot (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, save, confirm }) => {

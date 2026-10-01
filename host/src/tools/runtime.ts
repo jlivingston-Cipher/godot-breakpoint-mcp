@@ -11,7 +11,7 @@ import { NAME_TAKEN_CLAUSE } from "../schemas.js";
 import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
 const confirmField = {
-  confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+  confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
 };
 
 /**
@@ -24,7 +24,7 @@ const peerField = {
   peer: z
     .string()
     .optional()
-    .describe("Target a headless peer by id (from runtime_spawn_peers). Omit to address the default running game."),
+    .describe("Headless peer id from runtime_spawn_peers; omit for the default running game."),
 };
 
 /**
@@ -861,23 +861,19 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     {
       title: "Runtime peer state digest / convergence",
       description:
-        "Read runtime_state_digest from two or more peers over the SAME root and field set and report whether they " +
-        "agree (read-only). Converged means every peer's digest is byte-equal; when they differ, diverged_at names the " +
-        "node paths that disagree. The sequence that actually converges, in this order: runtime_spawn_peers, then per " +
-        "peer runtime_time_scale{scale:0} to FREEZE FIRST, runtime_set_property{peer} to equalise the starting state, " +
-        "runtime_seed_rng{seed} with the same seed, runtime_step_frames{frames:K,kind:\"physics\"}, then this. " +
-        "FOUR PRECONDITIONS, every one measured on real Godot 4.3 (convergence re-measured on 4.7) — a run that " +
-        "skips any of them diverges, and (2) is " +
-        "the one that surprises people. (1) Step the FIXED physics timestep: state advanced on the variable idle-frame " +
-        "delta is real elapsed wall-clock time in each process and never converges, so pass kind:\"physics\". " +
-        "(2) The global RNG must be consumed ONLY on frames you are stepping. runtime_seed_rng seeds one stream shared " +
-        "by the whole project, and freezing does NOT stop it being drawn — time_scale 0 zeroes delta but callbacks " +
-        "still fire, so unconditional draws burn the stream at wall-clock rate while frozen, and idle-frame draws burn " +
-        "it during the step. Guard draws on delta > 0 and give idle-frame code its own RandomNumberGenerator; " +
-        "otherwise even fixed-timestep physics state diverges. (3) Peers free-run between spawn and freeze for " +
-        "different durations, so their state already differs before you begin: freeze first, then equalise with " +
-        "runtime_set_property{peer}. (4) Same machine only — peers share one OS and one engine build, and this claims " +
-        "nothing about convergence across machines.",
+        "Compare runtime_state_digest across two or more peers over the SAME root and field set (read-only): " +
+        "converged when every peer's digest is byte-equal, otherwise diverged_at names the node paths that disagree. " +
+        "The sequence that converges: runtime_spawn_peers, then per peer runtime_time_scale{scale:0} to FREEZE FIRST, " +
+        "runtime_set_property{peer} to equalise the starting state, runtime_seed_rng{seed} with one seed, " +
+        "runtime_step_frames{frames:K,kind:\"physics\"}, then this. FOUR PRECONDITIONS, measured on Godot 4.3 " +
+        "(convergence re-measured on 4.7); skip any one and the peers diverge. (1) Step the fixed physics timestep, " +
+        "kind:\"physics\": idle-frame delta is each process's own wall-clock time and never converges. (2) Draw from " +
+        "the global RNG only on frames you step: runtime_seed_rng seeds one stream shared by the whole project, and " +
+        "freezing does not stop it being drawn (time_scale 0 zeroes delta but callbacks still fire), so unguarded " +
+        "draws burn it while frozen and idle-frame draws burn it during the step. Guard draws on delta > 0 and give " +
+        "idle-frame code its own RandomNumberGenerator. (3) Peers free-run for different times before the freeze, so " +
+        "freeze first, then equalise with runtime_set_property{peer}. (4) Same machine only: nothing is claimed " +
+        "across machines.",
       inputSchema: {
         root: z.string().describe("Root node path to digest in each peer (same path on every peer)"),
         peers: z

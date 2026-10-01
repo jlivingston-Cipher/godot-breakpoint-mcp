@@ -345,7 +345,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         max_clients: z.number().int().positive().optional().describe("Server max clients (default 32)"),
         class_name: z.string().optional().describe("Optional class_name for the generated script"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, port, max_clients, class_name, overwrite, confirm }) => {
@@ -377,7 +377,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         to_path: z.string().describe("Destination res:// .gd path, e.g. res://net/webrtc_peer.gd"),
         class_name: z.string().optional().describe("Optional class_name for the generated script"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, class_name, overwrite, confirm }) => {
@@ -420,7 +420,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         transfer_mode: z.enum(RPC_TRANSFER).optional().describe("Transfer mode: 'unreliable' (default), 'unreliable_ordered', or 'reliable'"),
         call_local: z.boolean().optional().describe("Also invoke locally on the caller (default false → call_remote)"),
         channel: z.number().int().nonnegative().optional().describe("Transfer channel (default 0)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, function: fn, mode, transfer_mode, call_local, channel, confirm }) => {
@@ -476,7 +476,7 @@ export function registerNetcodeTools(server: McpServer, bridge: BridgeClient, co
         max_players: z.number().int().positive().optional().describe("Server max players (default 8)"),
         class_name: z.string().optional().describe("Optional class_name for the generated script"),
         overwrite: z.boolean().optional().describe("Overwrite if the file already exists (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, port, max_players, class_name, overwrite, confirm }) => {

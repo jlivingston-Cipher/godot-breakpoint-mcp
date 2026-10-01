@@ -64,7 +64,7 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
         name: z.string().optional().describe("Name for the new bus"),
         at_position: z.number().optional().describe("Insert index (default -1 = append at end)"),
         send: z.string().optional().describe("Name of the bus this bus sends its output to"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, at_position, send, confirm }) => {
@@ -88,7 +88,7 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
         bus: z.string().describe("Target bus name"),
         effect: z.string().describe("AudioEffect subclass name, e.g. \"AudioEffectReverb\", \"AudioEffectDelay\""),
         at_position: z.number().optional().describe("Insert index within the bus's effect chain (default -1 = append)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ bus, effect, at_position, confirm }) => {
@@ -109,7 +109,7 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
       inputSchema: {
         bus: z.string().describe("Bus name"),
         volume_db: z.number().describe("Volume in dB"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ bus, volume_db, confirm }) => {
@@ -128,7 +128,7 @@ export function registerAudioTools(server: McpServer, call: EditorCall, guard: P
       inputSchema: {
         to_path: z.string().optional().describe("Destination res:// path (default res://default_bus_layout.tres)"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, overwrite, confirm }) => {

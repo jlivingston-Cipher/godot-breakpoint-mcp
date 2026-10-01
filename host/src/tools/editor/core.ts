@@ -75,7 +75,7 @@ export function registerCoreTools(server: McpServer, call: EditorCall): void {
         name: z.string().describe("ProjectSettings key"),
         value: requiredEncodedValue.describe("New value; rich types use the {\"__type__\":...} tagging convention"),
         save: z.boolean().optional().describe("Persist to disk (default false)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ name, value, save, confirm }) => {

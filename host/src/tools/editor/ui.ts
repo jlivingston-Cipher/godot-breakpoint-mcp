@@ -139,7 +139,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
       inputSchema: {
         to_path: z.string().describe("Destination res:// path, e.g. res://ui/main.theme or res://ui/main.tres"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, overwrite, confirm }) => {
@@ -162,7 +162,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
         name: z.string().describe("Theme item name, e.g. font_color"),
         theme_type: z.string().describe("Theme type the item belongs to, e.g. Button, Label"),
         color: z.array(z.number()).describe("[r,g,b] or [r,g,b,a], components 0..1"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, name, theme_type, color, confirm }) => {
@@ -189,7 +189,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
         name: z.string().describe("Theme item name, e.g. font"),
         theme_type: z.string().describe("Theme type the item belongs to, e.g. Button, Label"),
         font_path: z.string().describe("Font resource res:// path (FontFile / SystemFont / …)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, name, theme_type, font_path, confirm }) => {
@@ -212,7 +212,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
         name: z.string().describe("Theme item name, e.g. normal, pressed, panel"),
         theme_type: z.string().describe("Theme type the item belongs to, e.g. Button, PanelContainer"),
         stylebox_path: z.string().describe("StyleBox resource res:// path (StyleBoxFlat / StyleBoxTexture / …)"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, name, theme_type, stylebox_path, confirm }) => {
@@ -235,7 +235,7 @@ export function registerUiTools(server: McpServer, call: EditorCall, guard: Path
         name: z.string().describe("Theme item name, e.g. h_separation, margin_left"),
         theme_type: z.string().describe("Theme type the item belongs to, e.g. HBoxContainer, MarginContainer"),
         value: z.number().int().describe("Integer constant value"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, name, theme_type, value, confirm }) => {

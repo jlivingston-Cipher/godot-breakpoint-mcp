@@ -220,7 +220,17 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // `outputSchema`, its annotation block and its (empty) input schema — the price every tool
 // on this surface pays, and 312's rule still holds: the ceiling sits ON the surface, with no
 // slack for the next description to spend without a vote.
-export const BYTES_CEILING = 377232;
+//
+// 🆕 325 — LOWERED 377,232 -> 373,677, AND WHAT PAID IT DOWN IS BP-0027's TRIM. Measured
+// first what the model actually receives (Claude Code 2.1.201, request captured locally,
+// nothing forwarded): name, description and input schema ONLY — no outputSchema, no
+// annotations, no title — and under Claude Code's default tool search only the NAMES
+// upfront. So the bytes worth cutting are the model-visible ones: the `confirm` wording
+// on 78 tools (67 -> 43 B), `peer` on 23 (98 -> 77 B), and the three longest descriptions
+// re-worded with every precondition kept (runtime_peers_digest 1,674 -> 1,272, dbg_launch
+// 1,233 -> 985, dbg_set_breakpoints 1,350 -> 1,013). -3,555 B on the full surface. The ceiling follows the surface down and sits on it, 312's
+// rule: slack is prose nobody voted for.
+export const BYTES_CEILING = 373677;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN
@@ -481,6 +491,15 @@ const report = (label, m) => {
   console.log(`    descriptions   ${m.descs.toLocaleString()}`);
   console.log(`    input schemas  ${m.schemas.toLocaleString()}   ${m.schemaPerTool.toLocaleString()} B/tool`);
   console.log(`  bytes/tool       ${m.perTool.toLocaleString()}`);
+  // 🆕 325 (BP-0027) — WHAT THE MODEL READS, PRINTED BESIDE WHAT THE WIRE CARRIES. A
+  // client hands Claude a tool's name, description and input schema and nothing else:
+  // measured by capturing the request Claude Code 2.1.201 builds (no outputSchema, no
+  // annotations, no title, no execution on any of 280 tools). The wire figure is what the
+  // client downloads; this one is what costs context — and under Claude Code's default
+  // tool search only the names are sent until a tool is loaded.
+  const reads = m.names + m.descs + m.schemas;
+  console.log(`  MODEL READS      ${reads.toLocaleString()}  (${Math.round(reads / Math.max(1, m.count))} B/tool · `
+    + `${((reads / Math.max(1, m.total)) * 100).toFixed(0)}% of the wire) — name + description + input schema`);
   console.log(`  DERIVED tokens   ${tok(m.total)}   🔴 estimate only — ${TOKENIZER_NOTE}`);
   // 🔴 EVERY KEY, NOT THE THREE ABOVE. The three named slices are a projection, and until
   // 207 the difference between them and the surface — 39.1% of it — was reported nowhere.

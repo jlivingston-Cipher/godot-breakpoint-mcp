@@ -474,6 +474,13 @@ def upstream_problems(pins: "dict[str, str]",
 # line rather than a taste: a PATCH adds no API, so it cannot give the missing symbols a
 # home and it does not move the argument. A MINOR can, and does move it.
 DEFER_SEEN, DEFER_WHY, DEFER_BLOCKED = "seen", "why", "blocked_by"
+# 🆕 325 — A PACKAGE THE ARGUMENT RESTS ON THAT THE REPOSITORY JOIN CANNOT SEE.
+# `siblings_of` joins on the repository, so a package upstream publishes from ANOTHER
+# repository is invisible to it however central it is to the deferral — and an entry in
+# `seen` it cannot place would read as GONE and refuse every Monday. `also` names such
+# packages; `upstream_reading` asks the registry for each one by name and holds its
+# version against `seen` exactly like a sibling's. Every `also` name must be in `seen`.
+DEFER_ALSO = "also"
 
 UPSTREAM_DEFERRED: "dict[str, dict]" = {
     "@modelcontextprotocol/sdk": {
@@ -497,11 +504,11 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
         # while meaning nothing, and that is the failure mode 205 §3 spent forty-two
         # sessions inside.
         DEFER_SEEN: {
-            "@modelcontextprotocol/sdk": "1.30",
-            "@modelcontextprotocol/core": "2.0",
-            "@modelcontextprotocol/server": "2.0",
-            "@modelcontextprotocol/client": "2.0",
-            "@modelcontextprotocol/node": "2.0",
+            "@modelcontextprotocol/sdk": "1.31",
+            "@modelcontextprotocol/core": "2.2",
+            "@modelcontextprotocol/server": "2.2",
+            "@modelcontextprotocol/client": "2.2",
+            "@modelcontextprotocol/node": "2.1",
             "@modelcontextprotocol/express": "2.0",
             "@modelcontextprotocol/hono": "2.0",
             # 🆕 284, SECOND READING — and the first one had the wrong family. Raising the
@@ -512,9 +519,26 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # returns nothing in either, exactly as in `hono`. The deferral is unchanged
             # for the third time today, and the value of writing that down is that the
             # NEXT sibling gets read rather than assumed.
-            "@modelcontextprotocol/codemod": "2.0",
+            "@modelcontextprotocol/codemod": "2.2",
             "@modelcontextprotocol/fastify": "2.0",
+            # 🆕 325 — READ, NOT BUMPED, a fourth time; the minor releases of 2026-09-28
+            # reddened this row and the argument was re-derived before `seen` moved.
+            # Packed and grepped for all four blocked symbols: sdk 1.31.0 still carries
+            # them (14/10/8/8 files — the positive control), core/server/client/codemod
+            # 2.2.0 and node 2.1.0 carry none. Both families still declare
+            # LATEST_PROTOCOL_VERSION 2025-11-25, so the wire half of the argument stands.
+            #
+            # 🔵 AND THE ONE PACKAGE THAT COULD HAVE GIVEN THEM A HOME LIVES ELSEWHERE.
+            # Tasks left the SDK repository for `modelcontextprotocol/ext-tasks`, which the
+            # join cannot see, so it is named below under `also`. Read at 0.2.2: a
+            # REQUESTER (`./client`, calling tools through tasks) and a RECEIVER whose
+            # methods are only `sampling/createMessage` and `elicitation/create` — the
+            # client side of tasks. No server-side `tools/call` task execution, no store,
+            # none of the four symbols. The deferral holds; when ext-tasks gains a
+            # server receiver, this row is the one that has to move.
+            "@modelcontextprotocol/ext-tasks": "0.2",
         },
+        DEFER_ALSO: ("@modelcontextprotocol/ext-tasks",),
         DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",
                         "assertToolsCallTaskCapability"),
         DEFER_WHY:
@@ -574,6 +598,12 @@ def deferral_problems(family: "dict[str, str]",
             return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} names no "
                      f"upstream it was argued against. A row with no `{DEFER_SEEN}` is a "
                      f"memory, and this table takes measurements."], [])
+        stray = sorted(set(row.get(DEFER_ALSO) or ()) - set(seen))
+        if stray:
+            return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} reads "
+                     f"{', '.join(stray)} by name under `{DEFER_ALSO}` and holds no "
+                     f"`{DEFER_SEEN}` coordinate for it, so the reading would fetch it "
+                     f"and never compare it."], [])
         if name not in live:
             return ([f"🔴 SDK_UPSTREAM REFUSED — {name} is deferred and the registry no "
                      f"longer serves it from that repository. The deferral is about a "
@@ -713,7 +743,8 @@ def upstream_reading(root: Path = ROOT) -> "tuple[list[str], list[str]]":
             return ([], [f"SDK_UPSTREAM UNREAD — {_name} is on a deferral's record, the "
                          f"search did not list it, and the registry could not be asked "
                          f"whether it is still there: {_why}"])
-        if repo_key(_url) == repo_key(repo):
+        _also = {p for row in UPSTREAM_DEFERRED.values() for p in (row.get(DEFER_ALSO) or ())}
+        if repo_key(_url) == repo_key(repo) or _name in _also:
             _ver, _vwhy = npm_version_of(_name)
             if _vwhy:
                 return ([], [f"SDK_UPSTREAM UNREAD — {_name} is published from that "
@@ -1010,6 +1041,11 @@ def selftest() -> int:
          {_SDK: "^1.29.0"}, _fam, _NONE,
          {_SDK: {DEFER_SEEN: {}, DEFER_BLOCKED: ("InMemoryTaskStore",), DEFER_WHY: "x"}},
          False, "memory"),
+        # 🆕 325 — a package read by NAME outside the join must carry its coordinate.
+        ("🔴 an `also` package with no `seen` coordinate is fetched and never compared",
+         {_SDK: "^1.29.0"}, _fam, _NONE,
+         {_SDK: dict(_held[_SDK], **{DEFER_ALSO: ("@modelcontextprotocol/ext-tasks",)})},
+         False, "never compare"),
         ("🔴 a deferral honoured by a run that never asked about deprecation",
          {_SDK: "^1.29.0"}, _fam, None, _held, False, "UNREAD IS NOT GREEN"),
         ("🔴 a deferral for a package the registry no longer serves from that repository",

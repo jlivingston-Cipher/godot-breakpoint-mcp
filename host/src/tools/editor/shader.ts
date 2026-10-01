@@ -16,7 +16,7 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
         to_path: z.string().describe("Destination res:// path, e.g. res://shaders/glow.gdshader"),
         code: z.string().optional().describe("Initial GDShader source (e.g. \"shader_type canvas_item; ...\")"),
         overwrite: z.boolean().optional().describe(OVERWRITE_DOC),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ to_path, code, overwrite, confirm }) => {
@@ -37,7 +37,7 @@ export function registerShaderTools(server: McpServer, call: EditorCall, guard: 
       inputSchema: {
         path: z.string().describe("Shader res:// path"),
         code: z.string().describe("New GDShader source"),
-        confirm: z.boolean().optional().describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+        confirm: z.boolean().optional().describe("Skip the confirmation prompt (auto-approve)"),
       },
     },
     async ({ path, code, confirm }) => {

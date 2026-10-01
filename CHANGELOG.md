@@ -4,6 +4,84 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.87.0] — 2026-09-30
+
+_Addon **1.16.0 → 1.17.0** — `runtime_bridge.gd` and `bridge_secret.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed._
+
+### Security
+
+**AN EXPORTED GAME NO LONGER OPENS BREAKPOINT'S CONTROL PORT.** The plugin registers the
+runtime bridge as an autoload, and an autoload ships inside every export — so a game built
+with the addon switched on opened `127.0.0.1:9081` every time a player launched it. Measured
+on macOS against the official Godot 4.7 release template before the fix:
+
+* from an app bundle the game **cannot** write to — a quarantined download that macOS runs
+  from a read-only translocated copy, an App Store install — the secret could not be minted, the bridge fell back to running **without authentication**, and an unauthenticated
+  `runtime.call_method` and `runtime.get_property` were answered;
+* from a bundle it **can** write to, it minted a secret into
+  `Contents/Resources/.godot/breakpoint_mcp.secret` — a file written inside the player's copy
+  of a shipped app.
+
+Loopback still kept the port off the network; any local program could reach it.
+
+The runtime bridge now decides before it binds, mints, hooks the logger or touches the tree:
+it listens only in a **development run** — a game started by an editor build (the editor's
+Run buttons, Breakpoint's own launchers, CI), recognised as feature tag `editor` **and not**
+`template`. Both halves are needed: custom features — an export preset's, or
+`_custom_features` in an `override.cfg` the official templates read from beside the game — can
+ADD `editor` to a template but can never remove `template`. A first draft that checked `editor`
+alone was caught by an independent review and re-measured: a release template with that one-line
+`override.cfg` opened the port again. In an exported build the autoload stays in the tree inert: no socket,
+no file, no output, and `push_log()` keeps working for game code that calls it. Re-measured
+after the fix against the same templates: release and debug templates, read-only and writable
+bundles, and a release template carrying the `override.cfg` spoof, open no port and write
+nothing; the editor-binary development run is unchanged.
+
+### Added
+
+* `BREAKPOINT_RUNTIME_EXPORTED=1` — opt an exported **debug** build into the runtime bridge on
+  purpose. It needs `BREAKPOINT_RUNTIME_SECRET` (at least 32 characters, the variable the host
+  already reads) and refuses with a warning without it; an export never mints a secret, and
+  `BREAKPOINT_BRIDGE_INSECURE` does not apply to it. A release export never listens, whatever
+  its environment says.
+* `bridge_auth_smoke.gd` runs the shipped `runtime_bridge.gd` as an exported build — the decision
+  table including the `editor`-on-a-template spoof, the REAL facts this editor binary reports,
+  then a live release build (no server, the port refuses), an opted-in debug build with no
+  secret (refused) and one with its secret (listens, demands it, and `BREAKPOINT_BRIDGE_INSECURE`
+  cannot switch it off). 37/37. A completion check counts the checks that ran, because a script
+  error ends only the function it happens in: against the 1.16.0 bridge the suite used to stop
+  early and still print a clean 25/25 — it now fails.
+
+### What the model reads, measured and published
+
+**CLAUDE NEVER RECEIVES THE HALF OF THE SURFACE THAT SETS BREAKPOINT APART.** Captured the
+request Claude Code 2.1.201 builds with Breakpoint attached (pointed at a local capture server,
+nothing sent anywhere): every one of the 280 default tools arrives as name, description and
+input schema — no `outputSchema`, no risk annotation, no title. Under Claude Code's default MCP
+tool search only the names go upfront and a tool's three fields load when it is asked for.
+
+* `token-cost.mjs` prints **MODEL READS** beside the wire total: 208,700 B on the default
+  surface (59% of 353,591 on the wire), 221,780 B on the full one.
+* The README's cost table carries both columns, refreshed from this tree.
+
+### Changed
+
+* Shorter wording where the model pays for it: `confirm` on 78 default tools ("Skip the
+  confirmation prompt (auto-approve)"), `peer` on the 23 runtime tools that take the id
+  `runtime_spawn_peers` returns, and the three longest descriptions — `runtime_peers_digest`,
+  `dbg_launch`, `dbg_set_breakpoints` — rewritten with every precondition and measured caveat
+  kept, including the convergence sequence through `runtime_time_scale`, `runtime_set_property`,
+  `runtime_seed_rng` and `runtime_step_frames`. −3,555 B on the full surface; `BYTES_CEILING`
+  follows it down to 373,677 and sits on the surface.
+
+### Why this is a minor and not a patch
+
+One addition a caller can use: `BREAKPOINT_RUNTIME_EXPORTED`, an opt-in that lets an exported
+debug build host the runtime bridge with a secret you supply. And one behaviour that changes on
+purpose: a game exported with the addon enabled stops answering on `127.0.0.1:9081`, so the
+runtime plane reaches development runs only — which is the fix, and the reason it is not a
+silent patch. No tool is added, removed or retyped; on the wire only description text moved.
+
 ## [1.86.0] — 2026-09-17
 
 _Addon **1.16.0** — unmoved; nothing under `addons/` changed in this window._

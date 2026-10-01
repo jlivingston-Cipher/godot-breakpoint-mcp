@@ -328,20 +328,16 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     {
       title: "Launch debug session",
       description:
-        "Start the game under the debugger. " +
-        "Refuses a scene outside the project root, one that does not exist, and an empty scene: measured on 4.7, " +
-        "the adapter ACCEPTS all of those and nothing runs — an out-of-project scene leaves a live sceneless game " +
-        "and a session that reports 'running' forever. A uid:// the project does not know is the one case still " +
-        "not caught: Godot silently runs the main scene instead, and resolving it needs the engine's UID map. " +
-        "Any breakpoints set beforehand are applied during the handshake. " +
-        "Refuses if the debug adapter rejects the launch (e.g. Godot answers 'wrong_path' when the configured " +
-        "project path is not the one the editor has open) rather than reporting a session that never started. " +
-        "With stop_on_entry the result carries stop_on_entry_honored: Godot's adapter does not implement " +
-        "stopOnEntry, so it reports false plus a warning instead of a bare 'running'. " +
-        "Refuses if the runtime bridge port is already bound — the new game could not host the bridge, so " +
-        "runtime_* would address the process already holding the port. Clear the holder (godot_stop, or quit " +
-        "it), or dbg_attach onto it if it is already under the debugger, or pass allow_port_conflict " +
-        "(dbg_* is unaffected either way; only runtime_* is).",
+        "Start the game under the debugger; breakpoints set beforehand are applied during the handshake. Refuses " +
+        "rather than report a session that never started: a scene outside the project root, a missing scene or an " +
+        "empty one (measured on 4.7, the adapter accepts all three and nothing runs; an out-of-project scene leaves a " +
+        "sceneless game reported 'running' forever); a launch the adapter rejects (e.g. 'wrong_path' when the " +
+        "configured project is not the one the editor has open); and a bound runtime bridge port, since runtime_* " +
+        "would address the process holding it. Clear the holder (godot_stop, or quit it), dbg_attach onto it if it is " +
+        "already under the debugger, or pass allow_port_conflict (dbg_* is unaffected either way; only runtime_* is). " +
+        "Not caught: a uid:// the project does not know, which Godot silently replaces with the main scene. With " +
+        "stop_on_entry the result carries stop_on_entry_honored: Godot's adapter does not implement stopOnEntry, so " +
+        "it reports false plus a warning.",
       inputSchema: {
         scene: z
           .string()
@@ -428,17 +424,16 @@ export function registerDapTools(server: McpServer, dap: DapClient, cfg: Config)
     {
       title: "Set breakpoints",
       description:
-        "Set (replace) the breakpoints for a source file. Applied immediately if a session is running, else buffered until launch. " +
-        "Refuses a source that can never bind: a missing file, a directory, an empty path (which resolves to the project root), " +
-        "or a path resolving outside the Godot project root — Godot binds breakpoints only to scripts in the project it runs, so " +
-        "unlike cs_dbg_set_breakpoints an absolute path outside the root is refused here too. " +
-        "Feature-detected: the per-line conditions / hit_conditions / log_messages modifiers are only sent when the connected adapter " +
-        "advertises support (supportsConditionalBreakpoints / supportsHitConditionalBreakpoints / supportsLogPoints). Measured: no Godot " +
-        "build this project tests advertises it — 4.3-stable and 4.7-stable advertise none of the three (the keys are ABSENT rather than " +
-        "false) and IGNORE the modifiers, so such a breakpoint would halt unconditionally; see docs/dap_capability_ledger.json. All three " +
-        "are therefore dropped on every build measured, and the result includes `unsupported_modifiers` plus a `warning`. Detection happens when the breakpoints are " +
-        "applied, so it covers buffered ones too: setting modifiers before a session exists returns `modifier_detection: \"deferred\"` with a " +
-        "warning, and dbg_launch then reports the `unsupported_modifiers` actually dropped during the handshake.",
+        "Set (replace) the breakpoints for a source file: applied now if a session is running, else buffered until " +
+        "launch. Refuses a source that can never bind: a missing file, a directory, an empty path (the project root), " +
+        "or a path outside the Godot project root, absolute ones included (unlike cs_dbg_set_breakpoints), since " +
+        "Godot binds breakpoints only to scripts in the project it runs. The per-line conditions / hit_conditions / " +
+        "log_messages modifiers are sent only when the adapter advertises supportsConditionalBreakpoints / " +
+        "supportsHitConditionalBreakpoints / supportsLogPoints. Measured: no Godot build this project tests " +
+        "advertises it; 4.3-stable and 4.7-stable advertise none of the three and IGNORE the modifiers, so such a " +
+        "breakpoint would halt unconditionally (docs/dap_capability_ledger.json). They are dropped and reported as " +
+        "`unsupported_modifiers` plus a `warning`; set before a session exists, the result says `modifier_detection: " +
+        "\"deferred\"` and dbg_launch reports what the handshake actually dropped.",
       inputSchema: {
         path: z.string().describe("Script path (res://..., absolute, or project-relative)"),
         lines: z.array(z.number().int().positive()).describe("1-based line numbers"),

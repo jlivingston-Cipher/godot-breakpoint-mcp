@@ -54,7 +54,7 @@ const CONFIRM_FIELD = {
   confirm: z
     .boolean()
     .optional()
-    .describe("Auto-approve this destructive action (skip the confirmation prompt)"),
+    .describe("Skip the confirmation prompt (auto-approve)"),
 };
 
 type RegisterFn = (name: string, config: unknown, handler: unknown) => unknown;
