@@ -504,10 +504,10 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
         # while meaning nothing, and that is the failure mode 205 §3 spent forty-two
         # sessions inside.
         DEFER_SEEN: {
-            "@modelcontextprotocol/sdk": "1.31",
-            "@modelcontextprotocol/core": "2.2",
-            "@modelcontextprotocol/server": "2.2",
-            "@modelcontextprotocol/client": "2.2",
+            "@modelcontextprotocol/sdk": "1.32",
+            "@modelcontextprotocol/core": "2.3",
+            "@modelcontextprotocol/server": "2.3",
+            "@modelcontextprotocol/client": "2.3",
             "@modelcontextprotocol/node": "2.1",
             "@modelcontextprotocol/express": "2.0",
             "@modelcontextprotocol/hono": "2.0",
@@ -519,7 +519,7 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # returns nothing in either, exactly as in `hono`. The deferral is unchanged
             # for the third time today, and the value of writing that down is that the
             # NEXT sibling gets read rather than assumed.
-            "@modelcontextprotocol/codemod": "2.2",
+            "@modelcontextprotocol/codemod": "2.3",
             "@modelcontextprotocol/fastify": "2.0",
             # 🆕 325 — READ, NOT BUMPED, a fourth time; the minor releases of 2026-09-28
             # reddened this row and the argument was re-derived before `seen` moved.
@@ -537,6 +537,26 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # none of the four symbols. The deferral holds; when ext-tasks gains a
             # server receiver, this row is the one that has to move.
             "@modelcontextprotocol/ext-tasks": "0.2",
+            # 🆕 326 — READ, NOT BUMPED, a fifth time, one week after the fourth. `sdk-drift`
+            # #29 refused on sdk 1.31 -> 1.32 and core/server/client/codemod 2.2 -> 2.3;
+            # by the reading they stood at 1.32.1 and 2.3.1. Packed and grepped for all
+            # four blocked symbols: sdk 1.32.1 and 1.32.0 carry them in 14/10/8/8 files,
+            # the counts 1.31.0 had (the positive control); core, server, client and
+            # codemod 2.3.1 carry none, and neither do node 2.1.1, express 2.0.2,
+            # hono 2.0.2, fastify 2.0.1 or ext-tasks 0.2.2, which is the version 325 read.
+            #
+            # 🔵 AND THE ZERO WAS GIVEN A CONTROL OF ITS OWN. The v2 trees are not minified
+            # past reading: `McpServer` is in 22 files of server 2.3.1, and the five
+            # `tasks/*` method strings are in server and client. What they do not hold is
+            # any identifier shaped like a task store or a task capability check, under
+            # these names or another. LATEST_PROTOCOL_VERSION is 2025-11-25 in sdk 1.32.1
+            # and in core 2.3.1. The deferral holds.
+            #
+            # 🔴 UPSTREAM NOW PUBLISHES TWICE A WEEK (09-23, 09-28, 10-02, 10-05), and
+            # `seen` is held at major.minor, so this row refuses on most Mondays and each
+            # refusal costs this reading by hand. That is a price, not a defect; whether
+            # the canary should take the reading itself is a ruling this commit leaves
+            # open (BP-0033).
         },
         DEFER_ALSO: ("@modelcontextprotocol/ext-tasks",),
         DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",

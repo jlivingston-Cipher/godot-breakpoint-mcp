@@ -290,6 +290,33 @@ that read everything and found nothing. `channel_state` now answers `read`, `par
 `unread`, and `--check` refuses on the last two **by name**. This is 271 §1 applied to a
 channel instead of to a reading: *a reader's silence is not an answer.*
 
+🔴 **AND `read` MEANT *ONE REQUEST ANSWERED*, WHICH IS NOT THE SAME AS *THE CHANNEL WAS
+READ* (326).** The MCP Registry serves one row per published **version**, in name order, a
+hundred to a page, with a cursor while there is more. The `mcp-registry` leg took the first
+page and never followed the cursor. That was the whole answer for as long as `godot` matched
+fewer than a hundred version rows, and the seven `sdk-drift` runs from 2026-09-07 to
+2026-09-28 each printed `rows 100` — the page size, reported as a count — beside `read —
+1 quer(ies), all answered`. Measured at 326: **141 rows across 18 servers**, one server holding 51 of them,
+so the page ended inside it and the **eight** servers after it in the alphabet were unread.
+Four were rows from the weeks the page had still reached them and three more were held
+through another channel; one, `sterion66/godot-mcp-server`, published in April, had never
+been recorded. Nothing went red
+when `relevant` fell from 11 to 8, because nothing compared a count to the cap it was
+taken under.
+
+`registry_pages` now follows the cursor to its end, and **every page is a query**: a page
+that fails makes the channel `partial`, and so does a cursor handed back twice or one still
+open after `REGISTRY_WALK_PAGES`. The rule this adds to the one above: **a result whose
+size equals the limit it was asked under has not been counted, it has been cut.**
+
+🔵 **THE `npm` LEG IS CUT TOO, AND THAT ONE IS A DEPTH RATHER THAN A DEFECT.** Its two
+searches are ranked full-text queries the registry reports 112,168 and 299,649 matches for;
+the leg reads the first 250 of each, which is the most one request may ask for. Measured at
+326 with `from=`: ranks 1–250 of `godot mcp` hold 74 relevant packages, ranks 251–500 hold
+4 and ranks 501–750 hold 6, and five of those ten are projects the roster does not name.
+There is no last page to walk to, so how deep to read is a ruling and not a repair. It is
+recorded here unruled (BP-0033) rather than left as a number nobody took.
+
 🔵 **A PROJECT SURFACED BY THREE CHANNELS IS ONE ROW.** The join key is the GitHub
 `owner/name` slug, normalised from every spelling the registries serve and from the bare
 form this roster has stored since 223. A package with no repository link is keyed by

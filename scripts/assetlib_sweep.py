@@ -64,7 +64,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import datetime
+import io
 import json
 import os
 import re
@@ -116,6 +118,12 @@ GODOT_VERSIONS = ["4.5", "4.4", "4.3", "4.2"]
 # source, which stops every later sweep re-litigating whether the leg is broken.
 NPM_SEARCH = "https://registry.npmjs.org/-/v1/search"
 MCP_REGISTRY = "https://registry.modelcontextprotocol.io/v0/servers"
+# 🆕 326 — THE REGISTRY ANSWERS IN PAGES, AND THE LEG READ ONE. `REGISTRY_PAGE_ROWS` is what
+# one request asks for; `REGISTRY_WALK_PAGES` is where `registry_pages` stops following
+# cursors and reports the channel as not fully read, so a walk that never ends refuses
+# out loud. At 326 the whole answer for `godot` is two pages.
+REGISTRY_PAGE_ROWS = 100
+REGISTRY_WALK_PAGES = 50
 
 # ── 🆕 292 §1 — WHAT A NEVER-TRACKED PROJECT COSTS IS A PROPERTY OF ITS CHANNEL ───────
 #
@@ -1234,18 +1242,71 @@ def discover_npm() -> "tuple[list[dict], int, int]":
     return (objs, attempted, failed)
 
 
-def discover_registry() -> "tuple[list[dict], int, int]":
-    """(server rows, attempted, failed) from the official MCP Registry."""
+def registry_pages(fetch, term: str) -> "tuple[list[dict], int, int]":
+    """(server rows, requests attempted, requests failed) for ONE search term, following
+    the registry's cursor to its end — PURE over `fetch`, which is `get` in production and
+    a fixture in `selftest()`.
+
+    🔴 326 — THIS LEG READ THE FIRST PAGE AND CALLED IT THE CHANNEL. `/v0/servers` serves one
+    row per published VERSION, in name order, a hundred at a time, and hands back
+    `metadata.nextCursor` while there is more. `discover_registry` took `servers` from the
+    first answer and never asked again. That was the whole channel while `godot` matched
+    fewer than a hundred version rows, and it stopped being the whole channel the week it
+    did not: the seven `sdk-drift` runs from 2026-09-07 to 2026-09-28 each printed
+    `rows 100`, the page size wearing the spelling of a count, and `channel_state` said
+    *read — 1 quer(ies), all answered* each time, because one query was attempted and
+    one answered.
+
+    🔴 AND WHAT FELL OFF WAS DECIDED BY THE ALPHABET AND BY OTHER PEOPLE'S RELEASE CADENCE.
+    Measured at 326: 141 version rows across 18 servers, one server holding 51 of them.
+    The first page ends inside that server, so the eight names after it were unread. Four
+    were roster rows from the weeks the page had still reached them and three more were
+    held through another channel; `relevant` fell from 11 to 8 between two runs and
+    nothing here could say why. One had never been recorded.
+    `registry_relevant` keeps `isLatest` only, so the rows cost nothing to read: the defect
+    was never the filter, it was that the filter was handed the first hundred rows.
+
+    🔵 EVERY PAGE IS A QUERY, so a page that fails is `partial` and not `read`, by the
+    arithmetic `channel_state` already does. A cursor handed back twice, and a cursor
+    still open after `REGISTRY_WALK_PAGES`, are each counted as a failed query for the
+    same reason: there is a page this run knows exists and did not read.
+    """
     rows, attempted, failed = [], 0, 0
-    for term in ("godot",):
+    cursor, walked = "", set()
+    while True:
         attempted += 1
+        url = (f"{MCP_REGISTRY}?search={urllib.parse.quote(term)}"
+               f"&limit={REGISTRY_PAGE_ROWS}")
+        if cursor:
+            url += f"&cursor={urllib.parse.quote(cursor, safe='')}"
         try:
-            page = get(f"{MCP_REGISTRY}?search={urllib.parse.quote(term)}&limit=100")
+            page = fetch(url)
         except Exception as e:                    # noqa: BLE001 — see the block above
             failed += 1
             print(f"  ! mcp-registry query {term!r} failed: {e}", file=sys.stderr)
-            continue
+            break
         rows.extend(page.get("servers") or [])
+        cursor = str((page.get("metadata") or {}).get("nextCursor") or "")
+        if not cursor:
+            break
+        if cursor in walked or attempted >= REGISTRY_WALK_PAGES:
+            failed += 1
+            why = ("was handed the same cursor twice" if cursor in walked
+                   else f"still had a cursor after {attempted} page(s)")
+            print(f"  ! mcp-registry query {term!r} {why}: {cursor!r}", file=sys.stderr)
+            break
+        walked.add(cursor)
+    return (rows, attempted, failed)
+
+
+def discover_registry() -> "tuple[list[dict], int, int]":
+    """(server rows, attempted, failed) from the official MCP Registry — every page of it."""
+    rows, attempted, failed = [], 0, 0
+    for term in ("godot",):
+        got, tried, lost = registry_pages(get, term)
+        rows.extend(got)
+        attempted += tried
+        failed += lost
     return (rows, attempted, failed)
 
 
@@ -2700,6 +2761,83 @@ def selftest() -> int:
     _rrows, _rdrop, _rself = registry_relevant(_reg_fx)
     claim("registry: one row per SERVER, not one per published version", len(_rrows), 1)
     claim("registry: a non-Godot server is dropped and counted", _rdrop, 1)
+
+    # ── 🆕 326 — `registry_pages`: THE CURSOR, WHICH NOTHING FOLLOWED UNTIL NOW ──────
+    #
+    # The fixture is the incident at its smallest: one server with enough published
+    # versions to fill the first page, and a second server that exists only on the page
+    # after it. `_walk` answers from a dict keyed by the cursor a request carries and
+    # records every url it is asked for, so the claims can read what was dialled.
+    def _walk(pages: dict):
+        asked: "list[str]" = []
+
+        def fetch(url: str) -> dict:
+            asked.append(url)
+            cur = urllib.parse.unquote(url.split("&cursor=")[1]) if "&cursor=" in url else ""
+            got = pages[cur]
+            if isinstance(got, Exception):
+                raise got
+            return got
+        return (fetch, asked)
+
+    _busy = "io.github.busy/godot-mcp"
+    _late = "io.github.zed/godot-mcp"
+    _p1 = {"servers": [_srv(_busy, "Godot MCP", "https://github.com/busy/godot-mcp",
+                            f"1.0.{n}", latest=(n == 2)) for n in range(3)],
+           "metadata": {"nextCursor": f"{_busy}:1.0.2", "count": 3}}
+    _p2 = {"servers": [_srv(_late, "Godot MCP", "https://github.com/zed/godot-mcp", "0.1.0")],
+           "metadata": {"count": 1}}
+    with contextlib.redirect_stderr(io.StringIO()):
+        _f, _asked = _walk({"": _p1, f"{_busy}:1.0.2": _p2})
+        _w_rows, _w_tried, _w_lost = registry_pages(_f, "godot")
+        claim("registry walk: both pages are read", (len(_w_rows), _w_tried, _w_lost),
+              (4, 2, 0))
+        claim("registry walk: the second request carries the cursor the first was handed",
+              [("&cursor=" in u) for u in _asked], [False, True])
+        claim("registry walk: and the cursor is quoted, because it holds a `/` and a `:`",
+              (_asked[1:] or [""])[0].endswith(
+                  "&cursor=io.github.busy%2Fgodot-mcp%3A1.0.2"), True)
+        claim("🔴 THE INCIDENT: the first page alone names one server",
+              [r["registry_name"] for r in registry_relevant(_p1["servers"])[0]], [_busy])
+        claim("registry walk: the walk names the one the alphabet had hidden",
+              [r["registry_name"] for r in registry_relevant(_w_rows)[0]], [_busy, _late])
+        claim("registry walk: two pages answered is `read`",
+              channel_state(_w_tried, _w_lost)[0], CHANNEL_READ)
+
+        _f, _asked = _walk({"": _p2})
+        claim("registry walk: an answer with no cursor is one query and the end",
+              registry_pages(_f, "godot")[1:], (1, 0))
+
+        _f, _asked = _walk({"": _p1, f"{_busy}:1.0.2": TimeoutError("timed out")})
+        _w_rows, _w_tried, _w_lost = registry_pages(_f, "godot")
+        claim("🔴 registry walk: a second page that fails is a failed query, and the first "
+              "page's rows are kept", (len(_w_rows), _w_tried, _w_lost), (3, 2, 1))
+        claim("🔴 registry walk: so the channel is `partial`, not `read`",
+              channel_state(_w_tried, _w_lost)[0], CHANNEL_PARTIAL)
+
+        _f, _asked = _walk({"": TimeoutError("timed out")})
+        _w_rows, _w_tried, _w_lost = registry_pages(_f, "godot")
+        claim("registry walk: a first page that fails is the channel `unread`, as before",
+              (len(_w_rows), channel_state(_w_tried, _w_lost)[0]), (0, CHANNEL_UNREAD))
+
+        _loop = {"servers": _p1["servers"], "metadata": {"nextCursor": "again"}}
+        _f, _asked = _walk({"": _loop, "again": _loop})
+        _w_rows, _w_tried, _w_lost = registry_pages(_f, "godot")
+        claim("🔴 registry walk: a cursor handed back twice ends the walk as a failed query",
+              (_w_tried, _w_lost, channel_state(_w_tried, _w_lost)[0]),
+              (2, 1, CHANNEL_PARTIAL))
+
+        _n = 0
+
+        def _endless(_url: str) -> dict:
+            nonlocal _n
+            _n += 1
+            return {"servers": [], "metadata": {"nextCursor": f"c{_n}"}}
+        _w_rows, _w_tried, _w_lost = registry_pages(_endless, "godot")
+        claim("🔴 registry walk: a cursor that never closes stops at REGISTRY_WALK_PAGES "
+              "and is not `read`",
+              (_w_tried, _w_lost, channel_state(_w_tried, _w_lost)[0]),
+              (REGISTRY_WALK_PAGES, 1, CHANNEL_PARTIAL))
 
     # ── `fold` — one project surfaced by two channels is ONE row ─────────────────────
     _folded = fold(_rows + _rrows)
