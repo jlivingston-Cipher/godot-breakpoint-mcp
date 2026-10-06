@@ -1941,6 +1941,13 @@ BLOCK_ABSENT: "dict[int, str]" = {
          "had not moved. What 288 produced is in the shared folder — the landscape "
          "refresh and the screened unified plan — and 289's Rank 1 is the first of it to "
          "ship.",
+    324: "🔴 A BRAINSTORM AND AN INSTALL, AND NEITHER TOUCHED THIS REPOSITORY. 324 read the "
+         "SynthGround integration question, took James's rulings on the next phase, "
+         "opened BP-0023 through BP-0030 in the portfolio ledger, and installed the "
+         "published 1.86.0 into a bench copy of the engine demo outside this tree. It "
+         "made no commit, opened no PR and ran no gate, so main stayed at b571ccd from "
+         "323d until 325's cut, and a block for it would be 323's counters under "
+         "324's name. 325's block measures its MOVED from 323's endpoint across it.",
 }
 
 
@@ -9850,6 +9857,54 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · handoff 668 claims · landscape 4 channel(s) / 56 analysed / 50 surfaced
 >               · capability 98 claimed / 0 unread / 10 uncited
 >               · cadence 32 within / 10 past / 14 never analysed
+>               · identity 72 of 106 / 1 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
+> ```
+"""),
+    # 🆕 326 — REGISTERED FROM A DOCUMENT 325 DID NOT WRITE. 325 closed under the portfolio
+    # plan, which leaves a card and a close note; `HANDOFF_SESSION325.md` was drafted at 326
+    # by `--emit-handoff 325 HANDOFF_SESSION323.md --measured ci325/` with the tree at b13fac1
+    # and the artifacts of #427's post-merge run 36817612967. MOVED +2 is measured from 323's
+    # own endpoint 4c7ed16 and counts 323d (b571ccd) as well as the cut. `untagged 0` because
+    # b13fac1 is v1.87.0. The assetlib row is the reading at registration, 2026-10-05: asset
+    # 5335 serves 1.17.0 at b13fac1, accepted 2026-10-02, after 325 closed with it owed.
+    #
+    # 🔴 THE CLOSE GATE DID NOT PASS OVER THIS BLOCK AND COULD NOT. Its world reading refuses
+    # while `sdk-drift` is red on main, which is the defect this commit repairs, and once the
+    # repair merges HEAD is no longer the commit the block describes. The counters are the
+    # scaffold's, read from that run's artifacts; three were read by hand from the same
+    # artifacts (26 CI jobs = ci 7 + integration 19, `0 exempt`, `exempt 43`). 324 changed
+    # nothing in the repository and `QUEUE_HEAD` has not moved since 322, so no reader
+    # demands a block for it.
+    (325, """> ```
+> main                 b13fac1 — session325 + release 1.87.0 — the port an exported game opened, what the model reads, and the deferral read a fourth time (#427)  MOVED +2
+> branch 325           session325-the-port-an-exported-game-opened · PR #427
+> host / addon         1.87.0 / 1.17.0  🔴 BOTH MOVED — a release cut, addons/ and host/src both touched
+> npm                  🟢 registry 1.87.0 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.17.0 live
+> release              🔴 1.86.0 -> 1.87.0 MINOR · wire PATCH · toolchain PATCH —
+>                      ABOVE the wire, which is legal: no schema moved, and the MINOR is
+>                      the addon's new opt-in and the exported-game behaviour. Cut, merged,
+>                      tagged v1.87.0 and published
+> 🟢 CI GREEN — 26 of 26 required checks at the merge (ci 7 + integration 19), post-merge run 36817612967 at b13fac1
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1018/1018 · contract 32/32 · scope 75 · control 83
+>               · 26 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3492 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2493 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 330 file(s) / 21 suffixes · seal 104
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 293 tools / 3885 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5261
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 670 claims · landscape 4 channel(s) / 56 analysed / 50 surfaced
+>               · capability 98 claimed / 0 unread / 10 uncited
+>               · cadence 19 within / 23 past / 14 never analysed
 >               · identity 72 of 106 / 1 renamed / 0 collisions
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
 > ```
