@@ -637,7 +637,7 @@
     },
     {
       "name": "godot-agent-loop",
-      "repo": "beremaran/godot-agent-loop",
+      "repo": null,
       "asset_id": 5348,
       "channel": "assetlib",
       "category": "alternative-mcp-server",
@@ -650,8 +650,8 @@
       "csharp": true,
       "protocol_revision": "2025-11-25",
       "cadence": "biweekly",
-      "status": "active",
-      "note": "🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `3148cda`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  SOURCE PASS 284 — card said no change, head moved 2c6127b -> 3148cda, and this window is real behaviour: 13 commits, 26 files, +896/-71, with ~490 lines of new tests and no version bump (3.0.0 both ends). 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — verify_dotnet_project (inspect|restore|build|run) probes dotnet --version and runs restore/build against a versioned Godot.NET.Sdk. Unchanged in this window, so the roster value was already wrong at the previously recorded commit. The substantive change is child-environment sanitization: every spawned Godot process now gets a 22-key allowlist rather than inheriting process.env, on the stated reasoning that project GDScript runs with the user's OS permissions and can therefore read any inherited credential. Short-lived CLI runs additionally get GODOT_MCP_RUNTIME_DISABLED=true so validate/test/import/export never open a runtime listener. Startup failures now surface instead of hanging — a GameStartupError carrying exitCode/signal, thrown when the process exits during the connect delay. 56 tools by three agreeing routes (rawToolDefinitions; the toolManifest record keys; the handler dispatch keys), unchanged across the window. Only 16 core tools are advertised by default, the other 40 reached through godot_catalog progressive disclosure, against a pinned context budget. No DAP, and LSP is explicitly scoped OUT in docs/coverage/engine-scope.json: diagnostics come from validate_script via --check-only rather than from driving the language server. Node stdio sidecar plus an authenticated loopback TCP channel to an injected in-game interaction server. Card is at 1.0.0 against a source 3.0.0.",
+      "status": "dormant",
+      "note": "🔴 327 (BP-0038): THE REPOSITORY IS GONE, AND THAT IS THE WORLD, NOT A DEFECT IN THE SWEEP. `beremaran/godot-agent-loop` has answered 404 to the forge since sdk-drift #33 (2026-10-26), which made the source leg read `partial` on #33 and #34. Read 2026-11-02: the repository answers 404 and the owner's public repositories no longer list it; the Asset Library card is unchanged (1.0.0, modified 2026-07-16) and still names it as browse_url, and its download archive (commit dc57694) answers 404 too, so the card can no longer install anything. `repo` is now null because there is no source left to read, the old slug is kept in `former_repo` (so the name stays known if it ever surfaces again), and `status` is `dormant`. The ruling and `last_analysed_commit` 3148cda are UNMOVED: they describe the last tree anyone could read, and nothing here re-reads them. The card leg still reads asset 5348 every run, so a new card is still seen.  🟢 323 (BP-0019): `capability_paths` and `capability_paths_excluded` declared for the first time, from the tree at the already-recorded analysed commit `3148cda`. 🔴 THIS IS NOT A SOURCE PASS AND `last_analysed` IS DELIBERATELY UNMOVED. The paths are every top-level name carrying executable source or a dependency manifest; the exclusions are every top-level name carrying neither. That is the honest shape for THIS row because its ruling contains `false`s, and a `false` is the claim *we looked at the whole tree and it is not there* — so the ruling rests on the whole source tree and not on a named file. 🔵 `.github/` held back from BOTH lists and therefore material, for the same reason: CI and build configuration cannot be shown inert by a file-extension census.  SOURCE PASS 284 — card said no change, head moved 2c6127b -> 3148cda, and this window is real behaviour: 13 commits, 26 files, +896/-71, with ~490 lines of new tests and no version bump (3.0.0 both ends). 🔴 ROSTER CORRECTION: csharp was recorded false and is TRUE — verify_dotnet_project (inspect|restore|build|run) probes dotnet --version and runs restore/build against a versioned Godot.NET.Sdk. Unchanged in this window, so the roster value was already wrong at the previously recorded commit. The substantive change is child-environment sanitization: every spawned Godot process now gets a 22-key allowlist rather than inheriting process.env, on the stated reasoning that project GDScript runs with the user's OS permissions and can therefore read any inherited credential. Short-lived CLI runs additionally get GODOT_MCP_RUNTIME_DISABLED=true so validate/test/import/export never open a runtime listener. Startup failures now surface instead of hanging — a GameStartupError carrying exitCode/signal, thrown when the process exits during the connect delay. 56 tools by three agreeing routes (rawToolDefinitions; the toolManifest record keys; the handler dispatch keys), unchanged across the window. Only 16 core tools are advertised by default, the other 40 reached through godot_catalog progressive disclosure, against a pinned context budget. No DAP, and LSP is explicitly scoped OUT in docs/coverage/engine-scope.json: diagnostics come from validate_script via --check-only rather than from driving the language server. Node stdio sidecar plus an authenticated loopback TCP channel to an injected in-game interaction server. Card is at 1.0.0 against a source 3.0.0.",
       "capability_evidence": {
         "real_dap_client": "recorded as no DAP; no search or path was written down",
         "real_lsp_client": "LSP is explicitly scoped OUT in docs/coverage/engine-scope.json — diagnostics come from validate_script via --check-only rather than from driving the language server",
@@ -701,6 +701,9 @@
         "product.json",
         "server.json",
         "tsconfig.eslint.json"
+      ],
+      "former_repo": [
+        "beremaran/godot-agent-loop"
       ]
     },
     {
@@ -1938,6 +1941,52 @@
         "SECURITY.md",
         "reports/"
       ]
+    },
+    {
+      "name": "godot-mcp-community-edition",
+      "repo": "Unsigned-Exe/Godot-MCP-Community-Edition",
+      "asset_id": 5544,
+      "channel": "assetlib",
+      "assetlib_title": "Godot-MCP Community Edition",
+      "assetlib_author": "unsignedexe",
+      "category": "alternative-mcp-server",
+      "assetlib_version": "1.0.0.1",
+      "assetlib_modify_date": "2026-10-25",
+      "last_analysed": "2026-11-02",
+      "last_analysed_commit": "c69d3db",
+      "source_verifiable": true,
+      "debugger": "godot-internal-editor-debugger",
+      "real_dap_client": false,
+      "real_lsp_client": false,
+      "csharp": false,
+      "protocol_revision": "2024-11-05",
+      "cadence": "unknown",
+      "status": "active",
+      "first_seen": 327,
+      "mcp_registry_name": null,
+      "note": "🟢 SOURCE PASS 327 (BP-0038), at c69d3db (2026-10-28, v1.0.3; the card serves e96ed71, v1.0.0.1). First surfaced as NEW/MCP on sdk-drift #33. SHAPE: a Godot editor addon (addons/godot_mcp) that connects OUT as a WebSocket client to a Windows-only C# hub (src/GodotMCP.csproj: WinExe, net8.0-windows, WPF), which listens on 127.0.0.1:6505 (src/GodotBridge.cs:45) and speaks MCP over stdio (src/GodotMcpServer.cs:12, :33), declaring protocolVersion 2024-11-05 (src/GodotMcpServer.cs:95). 25 tools by the hub's own list (src/GodotMcpBridge.cs:246-270), but the last, godot_call_editor_command, *calls an arbitrary godot_mcp plugin command*, so the reachable surface is the addon's command router, not the 25. Optional shared-token auth (addons/godot_mcp/websocket_server.gd:27-30, setting godot_mcp/require_connection_token). Three runtime autoloads (plugin.gd:5-7) talk to the editor through user:// request/response FILES, not a port, and disable themselves unless OS.has_feature(\"editor\") (mcp_game_inspector_service.gd:59). 🔵 LINEAGE, MEASURED: all 36 .gd paths in addons/godot_mcp match godot-mcp-pro's addon (youichi-uda/godot-mcp-pro at 0f0274e, asset 4961) path for path; websocket_server.gd 0.982 and mcp_game_inspector_service.gd 0.969 line-similarity, base_command.gd 0.64; websocket_server.gd:29 keeps the setting name godot_mcp_pro/require_connection_token as a legacy key. Both repositories are MIT. The debugger ruling therefore matches 4961's, by the same code.",
+      "capability_evidence": {
+        "debugger": "addons/godot_mcp/commands/base_command.gd:453 _find_script_editor_debugger() walks from the editor base control for get_class()=='ScriptEditorDebugger' (:460); :480 _find_debugger_continue_button matches the 'DebugContinue' editor icon (:484); :541 try_debugger_continue() presses it (:544 emit_signal(\"pressed\")); :509 collect_debugger_errors reads the Errors tab - the editor's own debugger UI driven from the plugin, read at c69d3db",
+        "real_dap_client": "zero hits at c69d3db across addons/ and src/ for 6006, DebugAdapter, setBreakpoints, stackTrace or \"dap\"; the only transports are the addon's WebSocket to the hub (127.0.0.1:6505, src/GodotBridge.cs:45) and the hub's stdio",
+        "real_lsp_client": "zero hits at c69d3db across addons/ and src/ for 6005, textDocument/ or languageserver",
+        "csharp": "zero hits in addons/ at c69d3db for dotnet, Godot.NET, CSharpScript or .csproj; the C# in src/ is the hub itself (src/GodotMCP.csproj:4-5 WinExe, net8.0-windows; :10 UseWPF), not support for C# game projects"
+      },
+      "capability_paths": [
+        "addons/",
+        "src/",
+        "GodotMCP.sln"
+      ],
+      "capability_paths_excluded": [
+        ".gitattributes",
+        ".gitignore",
+        "DISCLAIMER.md",
+        "Godot_MCP_Manual.html",
+        "Godot_MCP_Manual.pdf",
+        "LICENSE",
+        "README.md",
+        "SHA256SUMS.txt",
+        "app.ico"
+      ]
     }
   ],
   "surfaced": [
@@ -1997,6 +2046,20 @@
       "forge_pushed_at": "2026-08-25",
       "downloads_30d": 275,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "ai-osho/godot-mcp-loop",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 327,
+      "repo": "AI-osho/godot-mcp-loop",
+      "npm": "godot-mcp-loop",
+      "mcp_registry_name": "io.github.AI-osho/godot-mcp-loop",
+      "version": "0.10.0",
+      "last_published": "2026-11-02",
+      "description": "MCP server that lets AI agents safely edit, run, observe and test Godot 4 projects."
     },
     {
       "key": "aureliolo/gdharness",
@@ -2172,6 +2235,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "godot-pty/gpty",
+      "channels": [
+        "mcp-registry"
+      ],
+      "first_seen": 327,
+      "repo": "godot-pty/gpty",
+      "npm": null,
+      "mcp_registry_name": "io.github.godot-pty/gpty",
+      "version": "0.7.1",
+      "last_published": "2026-11-01",
+      "description": "Spawn panes, inject input and read output in a tiling terminal workspace"
+    },
+    {
       "key": "gregario/godot-forge",
       "channels": [
         "npm",
@@ -2190,6 +2266,19 @@
       "forge_pushed_at": "2026-04-26",
       "downloads_30d": 280,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "grinry/godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 327,
+      "repo": "grinry/godot-mcp",
+      "npm": "@grinry/godot-mcp",
+      "mcp_registry_name": null,
+      "version": "0.6.1",
+      "last_published": "2026-10-25",
+      "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output."
     },
     {
       "key": "gripforgeai/mcp",
@@ -2281,6 +2370,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "jsungmin/rider-mcp-enforcer",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 327,
+      "repo": "JSungMin/rider-mcp-enforcer",
+      "npm": "gamedev-log-analyzer",
+      "mcp_registry_name": null,
+      "version": "0.10.7",
+      "last_published": "2026-06-15",
+      "description": "Token-efficient game-engine & build log analysis (Unreal/Unity/Godot/MSVC-UBT-MSBuild) for the CLI and MCP — parse, dedup, classify by severity/category, diff r"
+    },
+    {
       "key": "jxlee007/godot_mcp",
       "channels": [
         "mcp-registry"
@@ -2332,6 +2434,33 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "laaielichter/godotwright",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 327,
+      "repo": "laaielichter/Godotwright",
+      "npm": "godotwright",
+      "mcp_registry_name": "io.github.laaielichter/godotwright",
+      "version": "0.5.0",
+      "last_published": "2026-11-02",
+      "description": "MCP server and CLI that makes Claude Code, Codex and any coding agent better at Godot 4: offline Godot 4.7 API, project map, headless checks, an AAA GDScript re"
+    },
+    {
+      "key": "laaielichter/reverseport",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 327,
+      "repo": "laaielichter/reverseport",
+      "npm": "reverseport",
+      "mcp_registry_name": null,
+      "version": "1.14.0",
+      "last_published": "2026-11-02",
+      "description": "Reverse engineer anything. Port it anywhere. MCP server, CLI and skills for AI coding agents: read Godot .pck, Unity IL2CPP, .NET and native binaries (through y"
+    },
+    {
       "key": "letsagents/godot-mcp",
       "channels": [
         "npm"
@@ -2362,6 +2491,19 @@
       "version": "1.3.0",
       "last_published": "2026-10-05",
       "description": "An MCP server for reviewable and verifiable Godot project changes"
+    },
+    {
+      "key": "meya-ashuripehya/dsh-work-components",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 326,
+      "repo": "meya-ashuripehya/dsh-work-components",
+      "npm": "dsh-work-components",
+      "mcp_registry_name": null,
+      "version": "0.2.2",
+      "last_published": "2026-10-05",
+      "description": "DSH 工作组件插件：统一挂载并管理控制其他工作软件的 MCP 服务器（Office / Blender / Unity / Figma / Photoshop / Chrome / Godot / Windows / Notion / Cloudflare / GitHub / ComfyUI / FFmpeg / "
     },
     {
       "key": "mindsung/godot-mcp",
@@ -2626,19 +2768,6 @@
       "ranked_on": "2026-09-21"
     },
     {
-      "key": "npm:dsh-work-components",
-      "channels": [
-        "npm"
-      ],
-      "first_seen": 326,
-      "repo": null,
-      "npm": "dsh-work-components",
-      "mcp_registry_name": null,
-      "version": "0.2.2",
-      "last_published": "2026-10-05",
-      "description": "DSH 工作组件插件：统一挂载并管理控制其他工作软件的 MCP 服务器（Office / Blender / Unity / Figma / Photoshop / Chrome / Godot / Windows / Notion / Cloudflare / GitHub / ComfyUI / FFmpeg / "
-    },
-    {
       "key": "npm:g-mcp-server",
       "channels": [
         "npm"
@@ -2791,6 +2920,20 @@
       "forks": 1,
       "forge_pushed_at": "2026-09-21",
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "shin2344234/godot-mcp",
+      "channels": [
+        "npm",
+        "mcp-registry"
+      ],
+      "first_seen": 327,
+      "repo": "shin2344234/godot-mcp",
+      "npm": "@shin2344234/godot-mcp",
+      "mcp_registry_name": "io.github.shin2344234/godot-mcp",
+      "version": "0.1.2",
+      "last_published": "2026-10-16",
+      "description": "MCP server for the Godot 4 engine: edit scenes, nodes and scripts, run the game and read errors, through a live editor bridge or headless Godot."
     },
     {
       "key": "smalldy/godot-bridge",
