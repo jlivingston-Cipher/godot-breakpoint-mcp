@@ -1458,6 +1458,17 @@ HEADER_EXEMPT: "list[tuple[str, str]]" = [
                    "comparison reads as claims about this one. No counter this half "
                    "reads is ever possessive."),
     (r"\bbranch \d+\b", "the session number — this file's own name, not a measurement"),
+    # 🆕 327 — 🔴 A BRANCH NAME IS A NAME, AND THE FIRST ONE TO END IN A NUMBER WAS REFUSED AS
+    # A CLAIM. 326's branch was `session326-sdk-drift-29`, after the canary run it answered.
+    # Every branch in the table before it began `session<N>` with no boundary between the
+    # word and the number, so `COUNTER_RE` never saw a numeral inside one; the hyphen before
+    # `29` made one, and HEADER_ALIAS_POPULATION refused the row for a counter no reader
+    # could bind. The session chooses the name, git stores it, no instrument prints it, and
+    # a numeral inside it counts nothing: exempted as a whole token, the way a SHA is.
+    (r"\bsession\d+[a-z]?(?:-[a-z0-9]+)+\b",
+     "🔴 A GIT BRANCH NAME — `session<N>-<words>`. The session chooses it and no instrument "
+     "prints it, so a number inside it (`session326-sdk-drift-29`, named after the run it "
+     "answered) is part of a name and not a count."),
     # 🆕 292 §5 — 🔴 A COMMIT SHA WHOSE SEVEN CHARACTERS HAPPEN TO BE ALL DIGITS. Every
     # block since 227 prints two or three abbreviated SHAs above `VERIFIED` — the `main`
     # row's, the pre-squash tip on the branch row's continuation, and the one in `CI GREEN
@@ -9906,6 +9917,47 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · capability 98 claimed / 0 unread / 10 uncited
 >               · cadence 19 within / 23 past / 14 never analysed
 >               · identity 72 of 106 / 1 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
+> ```
+"""),
+    # 🆕 327 — REGISTERED FROM A DOCUMENT 326 DID NOT WRITE, IN THE FIRST PR AS THE RULE SAYS.
+    # `HANDOFF_SESSION326.md` was drafted at 327 by `--emit-handoff 326 HANDOFF_SESSION325.md
+    # --measured ci326/` with the tree at 37aa4c5 (327's edits stashed for the run) and the
+    # artifacts of #428's post-merge run 37418877643, which were 27 days old and would have
+    # expired on 2027-01-04. MOVED +1 is b13fac1..37aa4c5. `untagged 1` because 37aa4c5 is
+    # v1.87.0 + 1, no cut. Three counters read by hand from those artifacts, as at 323 and 326:
+    # 26 CI jobs (ci 7 + integration 19, every job success), `0 exempt`, `exempt 43`.
+    #
+    # 🔴 THE CLOSE GATE DID NOT PASS OVER THIS BLOCK, FOR THE REASON IT COULD NOT AT 326:
+    # `sdk-drift` was red on main at pickup (runs 31-34, BP-0038) and this commit is the one
+    # that repairs it, so HEAD is not the commit the block describes. `QUEUE_HEAD` moves
+    # 326 -> 327, the session that registers it; 327 commits, so no `BLOCK_ABSENT` row.
+    (326, """> ```
+> main                 37aa4c5 — session326 the page that was reported as a count, and the deferral read a fifth time (#428)  MOVED +1
+> branch 326           session326-sdk-drift-29 · PR #428
+> host / addon         1.87.0 / 1.17.0  🟢 UNMOVED — no cut; neither host/src nor addons/ changed
+> npm                  🟢 registry 1.87.0 · untagged 1 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.17.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at the merge (ci 7 + integration 19), post-merge run 37418877643 at 37aa4c5
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1018/1018 · contract 32/32 · scope 75 · control 83
+>               · 26 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3496 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2513 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 330 file(s) / 21 suffixes · seal 104
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 293 tools / 3885 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5261
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 672 claims · landscape 4 channel(s) / 56 analysed / 58 surfaced
+>               · capability 98 claimed / 0 unread / 10 uncited
+>               · cadence 17 within / 25 past / 14 never analysed
+>               · identity 72 of 114 / 1 renamed / 0 collisions
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
 > ```
 """),
