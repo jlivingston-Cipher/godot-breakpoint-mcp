@@ -4,8 +4,8 @@ import { buildToolsReport } from "../src/cli/tools.js";
 import { annotationsFor, ANNOTATED_TOOLS } from "../src/annotations.js";
 import { TOOL_CAPABILITIES } from "../src/capabilities.js";
 
-const FULL = 293;
-const SECURE_DEFAULT = 280;
+const FULL = 294;
+const SECURE_DEFAULT = 281;
 
 test("the full surface report covers every registered tool exactly once", () => {
   const r = buildToolsReport("full");

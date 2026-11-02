@@ -103,6 +103,17 @@ export function isSpawnFailure(err: unknown): boolean {
 }
 
 /**
+ * 🆕 BP-0037 — THE DEVELOPER SWITCH a strict-mode game needs before its runtime bridge
+ * listens. A project that sets `breakpoint_mcp/runtime/strict=true` (opt-in through 1.x)
+ * gets no autoload; the game attaches the bridge itself, and it listens only with
+ * `BREAKPOINT_RUNTIME=1` or `--breakpoint-runtime` (`bridge_secret.gd`
+ * `runtime_listen_policy`). Breakpoint's three game launchers — `godot_run_project`,
+ * `godot_run_managed`, `runtime_spawn_peers` — put this in the child's environment. A
+ * project not in strict mode never reads it, so for one nothing changes.
+ */
+export const RUNTIME_SWITCH_ENV: Readonly<Record<string, string>> = Object.freeze({ BREAKPOINT_RUNTIME: "1" });
+
+/**
  * Spawn `bin` and RESOLVE ONLY ONCE THE OUTCOME IS KNOWN.
  *
  * 🔴 THE `'error'` LISTENER IS ATTACHED BEFORE THE FIRST `await`, WHICH IS THE

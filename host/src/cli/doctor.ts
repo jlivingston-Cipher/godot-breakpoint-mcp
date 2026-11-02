@@ -465,7 +465,7 @@ export function checkCapabilities(config: Config): Check[] {
       severity: "info",
       detail:
         dropped.length === 0
-          ? `${state} — full 293-tool surface`
+          ? `${state} — full 294-tool surface`
           : `${state} (secure default) — ${dropped.length} higher-trust tool(s) dropped from the surface`,
       // The token list is DERIVED — `code-execution,network` was printed here
       // for as long as the `network` group has been deleted, so the remedy

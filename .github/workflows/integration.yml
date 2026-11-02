@@ -18,8 +18,10 @@ name: integration
 #                     editable_instance_smoke.gd (Finding-A) — proves a sealed sub-scene reverts overrides on reload
 #                     while an editable-instance persists them (the card_instance persist:true mechanism). Also runs
 #                     bridge_auth_smoke.gd — the default-on loopback shared-secret handshake (pre-auth denied, wrong
-#                     secret denied, correct secret authenticates; constant-time compare).
-#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD / PIECE_BUILD / INTERACT_BUILD / CARD_SETFACE / BOARD_TILE / EDITABLE_INSTANCE / BRIDGE_REENTRANCY / BRIDGE_AUTH _SUMMARY / _FAIL markers.
+#                     secret denied, correct secret authenticates; constant-time compare). Also runs
+#                     runtime_state_smoke.gd (BP-0037 D) — runtime.read_state over the game's own
+#                     Engine metadata "breakpoint_state" registry, driven through the shipped _dispatch.
+#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD / PIECE_BUILD / INTERACT_BUILD / CARD_SETFACE / BOARD_TILE / EDITABLE_INSTANCE / BRIDGE_REENTRANCY / BRIDGE_AUTH / RUNTIME_STATE _SUMMARY / _FAIL markers.
 #   * cli-plane     — headless, deterministic, expected to pass. This is the gate.
 #   * runtime-plane — boots the example GAME headless (no editor, no GUI) and drives Plane C
 #                     against its in-game BreakpointRuntimeBridge autoload (:9081). Asserts D6
@@ -164,6 +166,15 @@ name: integration
 #                     divergence. A REQUIRED gate as of session 42 (promoted the runtime-plane /
 #                     csharp-plane way once green across a few runs); disk-backed resource_* / filesystem_* /
 #                     TileSet .tres writers assert forward-only (not scene-undoable).
+#   * strict-export — BP-0037 part A. scripts/strict_export_proof.sh on a COPY of example/ switched to
+#                     strict mode (breakpoint_mcp/runtime/strict=true, no autoload, the bridge attached
+#                     by path from the game's own debug-only code): two --export-pack zips (no export
+#                     templates), one holding addons/breakpoint_mcp/ and one leaving it out; the plugin
+#                     writes no autoload under strict (read mid-session, beside a non-strict control
+#                     that does); the holding pack's bridge answers on 127.0.0.1 with the switch
+#                     (BREAKPOINT_RUNTIME=1) and authenticates; the leaving pack boots with no error and
+#                     opens no port; without the switch nothing listens. Headless, 4.7. Markers
+#                     STRICT_EXPORT_*, STRICT_EXPORT_SUMMARY pass=20/20.
 #
 # Kept separate from ci.yml so a flaky live-engine step can never gate the fast,
 # deterministic build/test/contract checks.
@@ -332,6 +343,20 @@ jobs:
           grep -q "BRIDGE_AUTH_SUMMARY" /tmp/bridge-auth.log || { echo "::error::bridge_auth_smoke.gd produced no BRIDGE_AUTH_SUMMARY (script error?)"; exit 1; }
           if grep -q "BRIDGE_AUTH_FAIL" /tmp/bridge-auth.log; then echo "::error::a bridge-auth handshake assertion failed"; exit 1; fi
           echo "Bridge-auth handshake smoke passed: $(grep -o 'BRIDGE_AUTH_SUMMARY.*' /tmp/bridge-auth.log)"
+
+      - name: Run the runtime read-state smoke (BP-0037 D — state the game registers)
+        run: |
+          set -eu
+          "$GODOT_BIN" --headless --path "${{ github.workspace }}/example" \
+            --script res://tests/runtime_state_smoke.gd > /tmp/runtime-state.log 2>&1 || true
+          echo "=== runtime_state_smoke.gd output ==="
+          cat /tmp/runtime-state.log
+          echo "====================================="
+          # RUNTIME_STATE_* markers are the source of truth (headless --script exit
+          # codes can be unreliable): require the summary, and fail on any FAIL.
+          grep -q "RUNTIME_STATE_SUMMARY" /tmp/runtime-state.log || { echo "::error::runtime_state_smoke.gd produced no RUNTIME_STATE_SUMMARY (script error?)"; exit 1; }
+          if grep -q "RUNTIME_STATE_FAIL" /tmp/runtime-state.log; then echo "::error::a runtime read-state assertion failed"; exit 1; fi
+          echo "Runtime read-state smoke passed: $(grep -o 'RUNTIME_STATE_SUMMARY.*' /tmp/runtime-state.log)"
 
       - name: Run the Pause Agent latch smoke (addon control surface)
         run: |
@@ -1757,3 +1782,30 @@ jobs:
       - name: Game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-render.log || true
+
+  strict-export:
+    name: strict mode export proof (4.7, headless)
+    runs-on: ubuntu-latest
+    # BP-0037 part A — see the header. No host build and no Xvfb: the editor binary exports
+    # the packs (--export-pack needs no templates) and boots them with --main-pack.
+    env:
+      GODOT_VERSION: "4.7-stable"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Godot (standard linux build)
+        run: |
+          set -eux
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          GODOT_BIN="$PWD/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: A strict copy of example/ exports with and without the folder, and listens only with the switch
+        run: |
+          set -euo pipefail
+          scripts/strict_export_proof.sh 59188 | tee /tmp/strict-export.log
+          # The script exits non-zero on any failure, and pipefail carries that. This pass
+          # is on the job's reason for existing: a run that reported success without the
+          # full count proved fewer things than it claims.
+          grep -q "STRICT_EXPORT_SUMMARY pass=20/20" /tmp/strict-export.log || { echo "::error::strict export proof did not read 20/20"; exit 1; }

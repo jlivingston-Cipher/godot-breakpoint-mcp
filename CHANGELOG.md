@@ -4,6 +4,44 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.88.0] — 2026-11-02
+
+_Addon **1.17.0 → 1.18.0** — `runtime_bridge.gd`, `bridge_secret.gd`, `plugin.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **293 → 294** (secure default **280 → 281**): one read-only tool._
+
+### Added
+
+**STRICT MODE — A RUNTIME BRIDGE THAT EXISTS ONLY WHERE YOU PUT IT (opt-in, BP-0037 part A).**
+Set `breakpoint_mcp/runtime/strict=true` and the plugin registers no autoload, and neither adds
+nor removes one while strict is on (it warns if `project.godot` still lists one). The game
+attaches `runtime_bridge.gd` itself, by path, from its own debug-only code, and the bridge
+listens only with the developer switch — `BREAKPOINT_RUNTIME=1` or `--breakpoint-runtime` after
+`--` — which `godot_run_project`, `godot_run_managed` and `runtime_spawn_peers` now set. A
+project that does not set strict sees no change: the switch is ignored, the autoload is managed
+as before. Why it exists, measured at 327 on Godot 4.7: an export preset that leaves
+`addons/breakpoint_mcp/*` out empties the folder from the pack (19 entries to 0) but keeps the
+plugin's autoload entry in `project.binary`, and the game boots with three errors before it
+runs. In strict mode there is no entry to keep. The new CI job `strict-export`
+(`scripts/strict_export_proof.sh`) proves it on a strict copy of `example/` on every push: two
+`--export-pack` zips, the plugin writing no autoload mid-session beside a non-strict control
+that does, the holding pack's bridge answering and authenticating on 127.0.0.1 with the switch,
+the leaving pack booting with no error and opening no port, and nothing listening without the
+switch — 20 checks.
+
+**`runtime_read_state` — STATE THE GAME CHOOSES TO EXPOSE, AS JSON (BP-0037 part D).** The game
+writes a Dictionary of name -> Callable to Engine metadata `breakpoint_state` from its own
+debug-only code — no reference to the addon folder, so it runs unchanged in an export that
+leaves the folder out — and `runtime_read_state {name?, args?, peer?}` lists the names or calls
+one, answering `{names, name, value}` with Godot types tagged. Read-only and unconfirmed: unlike
+`runtime_call_method`, it calls only what the game registered. Refusals `no_state_registry`,
+`unknown_state` (lists the names) and `state_reader_gone` each carry a next action. The sample's
+`player.gd` registers `player`; `runtime_state_smoke.gd` (16 checks) runs in `gdscript-unit`.
+
+### Changed
+
+* **The runtime bridge refuses whenever `OS.is_debug_build()` is false, ahead of every other
+  test**, in either mode. The only build that reaches that branch is a release export, which
+  already never listened, so nothing a user can observe changes; the order now says so.
+
 ## [1.87.0] — 2026-09-30
 
 _Addon **1.16.0 → 1.17.0** — `runtime_bridge.gd` and `bridge_secret.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed._
