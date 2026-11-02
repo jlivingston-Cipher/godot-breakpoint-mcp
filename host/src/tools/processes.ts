@@ -9,7 +9,7 @@ import { portFree, portConflictMessage } from "../ports.js";
 import { noteOwned, whoHolds, type Owner } from "../port-holder.js";
 import { describeExit } from "../exit-cause.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
-import { spawnGuarded } from "../spawn-guard.js";
+import { RUNTIME_SWITCH_ENV, spawnGuarded } from "../spawn-guard.js";
 import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
 interface LogLine {
@@ -68,7 +68,8 @@ export class ProcessRegistry {
   /**
    * Spawn a managed Godot child. `env` is an OVERLAY on the inherited
    * environment, not a replacement: omitted (the `godot_run_managed` path) the
-   * child inherits exactly as before, byte-identical to pre-F6 behaviour.
+   * child inherits the host's environment plus `RUNTIME_SWITCH_ENV` (BP-0037), the
+   * switch a strict-mode game needs and every other game ignores.
    *
    * The overlay is what makes multi-peer work at all — the runtime autoload
    * reads `BREAKPOINT_RUNTIME_PORT` from its environment
@@ -89,7 +90,8 @@ export class ProcessRegistry {
     const started = await spawnGuarded(cfg.godotBin, ["--path", cfg.projectPath, ...extraArgs], {
       cwd: cfg.projectPath,
       stdio: ["ignore", "pipe", "pipe"],
-      ...(env ? { env: { ...process.env, ...env } } : {}),
+      // 🆕 BP-0037 — every managed child carries the strict-mode switch, overlay or not.
+      env: { ...process.env, ...RUNTIME_SWITCH_ENV, ...(env ?? {}) },
     });
     if (!started.ok) {
       const m: Managed = {

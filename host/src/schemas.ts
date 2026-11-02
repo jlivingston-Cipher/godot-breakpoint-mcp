@@ -825,6 +825,9 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     speed_scale: z.number(),
     animations: z.array(z.string()),
   },
+  // 🆕 BP-0037 D — `names` always (what the game registered, sorted); `name` and `value`
+  // only when a reader was called.
+  runtime_read_state: { ...engineLog, names: z.array(z.string()), name: z.string().optional(), value: encodedValue.optional() },
   runtime_node_add: { ...engineLog, ...addedNode, added: z.boolean(), type: z.string() },
   runtime_node_remove: { ...engineLog, removed: z.boolean(), path: z.string() },
   // F4 additions: deterministic playtesting (time control / frame stepping / state digest / RNG seed).

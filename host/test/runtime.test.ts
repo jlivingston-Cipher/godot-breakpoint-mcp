@@ -98,6 +98,7 @@ const PEER_AWARE = [
   "runtime_inject_input",
   "runtime_node_add",
   "runtime_node_remove",
+  "runtime_read_state",
   "runtime_screenshot",
   "runtime_screenshot_diff",
   "runtime_seed_rng",
@@ -502,6 +503,23 @@ test("runtime_node_add forwards type/scene/name once confirmed", async () => {
   assert.notEqual(r.isError, true);
   assert.equal(h.calls[0].method, "runtime.node_add");
   assert.deepEqual(h.calls[0].params, { parent: "/root", type: "Node2D", name: "Spawned" });
+});
+
+// ------------------------------------------------ BP-0037 D: state the game exposes ----
+
+test("runtime_read_state lists with no name and calls a named reader, with no confirmation", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { names: ["mixer"] });
+  const listed = await h.handler("runtime_read_state")({});
+  assert.notEqual(listed.isError, true);
+  assert.equal(h.calls[0].method, "runtime.read_state");
+  assert.deepEqual(h.calls[0].params, {}, "no name sends no name and no args");
+  h.setBridge("resolve", { names: ["mixer"], name: "mixer", value: { level: 0.5 } });
+  const read = await h.handler("runtime_read_state")({ name: "mixer", args: [1] });
+  assert.notEqual(read.isError, true, "read-only: no confirm and no elicitation, yet it ran");
+  assert.deepEqual(h.calls[1].params, { name: "mixer", args: [1] });
+  assert.deepEqual((read.structuredContent as { value: unknown }).value, { level: 0.5 });
+  assert.equal(h.elicitReqs.length, 0, "a read-only tool never asks the person first");
 });
 
 test("runtime_node_remove forwards the node path once confirmed", async () => {

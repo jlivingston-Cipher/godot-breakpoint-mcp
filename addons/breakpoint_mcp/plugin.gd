@@ -14,6 +14,7 @@ extends EditorPlugin
 const BridgeServer := preload("res://addons/breakpoint_mcp/bridge_server.gd")
 const StatusDock := preload("res://addons/breakpoint_mcp/status_dock.gd")
 const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
+const BridgeSecret := preload("res://addons/breakpoint_mcp/bridge_secret.gd")
 const RUNTIME_AUTOLOAD := "BreakpointRuntimeBridge"
 const RUNTIME_SCRIPT := "res://addons/breakpoint_mcp/runtime_bridge.gd"
 
@@ -36,7 +37,15 @@ func _enter_tree() -> void:
 	_dock = dock
 	# Inject the runtime bridge into every run of the project so the runtime_*
 	# tools work as soon as the game starts. Removed cleanly on disable.
-	add_autoload_singleton(RUNTIME_AUTOLOAD, RUNTIME_SCRIPT)
+	# 🆕 BP-0037 — STRICT MODE (`breakpoint_mcp/runtime/strict=true`, opt-in through 1.x):
+	# the plugin neither adds nor removes the autoload. The game attaches the bridge itself,
+	# by path, from its own debug-only code (runtime_bridge.gd's header), so an export that
+	# leaves this folder out keeps no autoload entry pointing into it.
+	if _strict():
+		if ProjectSettings.has_setting("autoload/" + RUNTIME_AUTOLOAD):
+			push_warning("[breakpoint_mcp] strict mode is on but project.godot still registers the %s autoload; remove it (Project Settings > Globals > Autoload) and attach the bridge by path — strict mode never edits it" % RUNTIME_AUTOLOAD)
+	else:
+		add_autoload_singleton(RUNTIME_AUTOLOAD, RUNTIME_SCRIPT)
 	# D3: emit resources/updated triggers. Selection + edited scene are reflected
 	# in godot://editor-state; the edited tree in godot://scene-tree.
 	_selection = EditorInterface.get_selection()
@@ -60,7 +69,8 @@ func _exit_tree() -> void:
 	_selection = null
 	if scene_changed.is_connected(_on_scene_changed):
 		scene_changed.disconnect(_on_scene_changed)
-	remove_autoload_singleton(RUNTIME_AUTOLOAD)
+	if not _strict():
+		remove_autoload_singleton(RUNTIME_AUTOLOAD)
 	if _server:
 		_server.shutdown()
 		_server.queue_free()
@@ -68,6 +78,11 @@ func _exit_tree() -> void:
 	# Don't leave the agent latched paused once the plugin (and its dock) are gone.
 	PauseLatch.set_paused(false)
 	print("[breakpoint_mcp] plugin disabled")
+
+
+## 🆕 BP-0037 — whether this project opted into strict mode (bridge_secret.gd).
+func _strict() -> bool:
+	return BridgeSecret.runtime_strict(ProjectSettings.get_setting(BridgeSecret.STRICT_SETTING, false))
 
 
 ## D3: the editor selection changed — godot://editor-state reflects the selection.

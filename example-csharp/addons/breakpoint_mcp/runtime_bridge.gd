@@ -15,6 +15,17 @@ extends Node
 ## An EXPORTED game carries this autoload too, and there it stays closed: no socket, no
 ## secret written, no logger hooked (325, BP-0023 — see bridge_secret.gd's
 ## runtime_listen_policy for the one opt-in, debug exports only).
+##
+## STRICT MODE (BP-0037, opt-in through 1.x): a project that sets
+## `breakpoint_mcp/runtime/strict=true` gets no autoload from the plugin. The game attaches
+## this script itself, from its own debug-only code, by path — so an export preset that
+## leaves `addons/breakpoint_mcp/` out leaves no reference behind:
+##     const BP := "res://addons/breakpoint_mcp/runtime_bridge.gd"
+##     if OS.is_debug_build() and ResourceLoader.exists(BP):
+##         var bridge: Node = load(BP).new()
+##         bridge.name = "BreakpointRuntimeBridge"
+##         get_tree().root.add_child.call_deferred(bridge)
+## and the bridge then listens only with BREAKPOINT_RUNTIME=1 or `--breakpoint-runtime`.
 
 ## The addon version this GAME is running, answered on `ping`.
 ##
@@ -25,7 +36,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.17.0"
+const ADDON_VERSION := "1.18.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -98,7 +109,7 @@ var _in_capture: bool = false
 var _policy: Dictionary = {}
 
 
-## The four facts the listen policy is decided on. A method and not inline so the
+## The facts the listen policy is decided on. A method and not inline so the
 ## headless smoke can stand an exported build up inside an editor binary — the only
 ## binary CI has — by overriding this one function and nothing else.
 func _policy_facts() -> Dictionary:
@@ -107,6 +118,9 @@ func _policy_facts() -> Dictionary:
 		"debug_build": OS.is_debug_build(),
 		"exported_optin": OS.get_environment("BREAKPOINT_RUNTIME_EXPORTED"),
 		"env_secret": OS.get_environment("BREAKPOINT_RUNTIME_SECRET"),
+		# 🆕 BP-0037 — strict mode and its developer switch (bridge_secret.gd).
+		"strict": BridgeSecret.runtime_strict(ProjectSettings.get_setting(BridgeSecret.STRICT_SETTING, false)),
+		"switch": BridgeSecret.runtime_switch_on(OS.get_environment(BridgeSecret.SWITCH_ENV), OS.get_cmdline_user_args()),
 	}
 
 
@@ -117,7 +131,7 @@ func _ready() -> void:
 	# that calls it — and a shipped game prints nothing unless someone asked for the
 	# bridge and is being refused.
 	var f := _policy_facts()
-	_policy = BridgeSecret.runtime_listen_policy(bool(f["editor_build"]), bool(f["debug_build"]), String(f["exported_optin"]), String(f["env_secret"]))
+	_policy = BridgeSecret.runtime_listen_policy(bool(f["editor_build"]), bool(f["debug_build"]), String(f["exported_optin"]), String(f["env_secret"]), bool(f.get("strict", false)), bool(f.get("switch", false)))
 	if not bool(_policy["listen"]):
 		set_process(false)
 		if bool(_policy["warn"]):
@@ -471,6 +485,8 @@ func _dispatch(method: String, params: Dictionary) -> Dictionary:
 			return _state_digest(params)
 		"runtime.seed_rng":
 			return _seed_rng(params)
+		"runtime.read_state":
+			return _read_state(params)
 		"runtime.step_frames":
 			# Dispatched on the async lane (see _handle_line / _dispatch_async); this placeholder
 			# keeps the static contract check (which scans _dispatch case labels) aware of the
@@ -1170,6 +1186,46 @@ func _anim_get_state(params: Dictionary) -> Dictionary:
 		return res
 	var ap: AnimationPlayer = res
 	return _ok(_anim_state(ap))
+
+
+# ------------------------------------------- BP-0037 D: state the game exposes ----
+
+## The Engine metadata key a game registers its state readers under. The game needs no
+## reference to this folder or any class in it — it writes a Dictionary of
+## name -> Callable to Engine metadata from its own debug-only code:
+##     if OS.is_debug_build():
+##         var reg: Dictionary = Engine.get_meta(&"breakpoint_state", {})
+##         reg["mixer"] = _debug_mixer_state
+##         Engine.set_meta(&"breakpoint_state", reg)
+## so it compiles and runs unchanged in an export that leaves addons/breakpoint_mcp/ out.
+const STATE_META := &"breakpoint_state"
+
+
+## runtime.read_state — read-only by construction: it reads the registry and calls only
+## what the game chose to register there. No `name` lists the registered names.
+func _read_state(params: Dictionary) -> Dictionary:
+	if not Engine.has_meta(STATE_META) or typeof(Engine.get_meta(STATE_META)) != TYPE_DICTIONARY:
+		return _err("no_state_registry", "The game registered no state readers: Engine metadata \"breakpoint_state\" is not a Dictionary of name -> Callable.")
+	var reg: Dictionary = Engine.get_meta(STATE_META)
+	var names: Array = []
+	var by_name := {}
+	for k in reg.keys():
+		names.append(String(k))
+		by_name[String(k)] = reg[k]
+	names.sort()
+	var state_name := String(params.get("name", ""))
+	if state_name == "":
+		return _ok({"names": names})
+	if not by_name.has(state_name):
+		return _err("unknown_state", "No state reader named \"%s\". Registered: %s" % [state_name, ", ".join(PackedStringArray(names)) if not names.is_empty() else "(none)"])
+	var reader: Variant = by_name[state_name]
+	if typeof(reader) != TYPE_CALLABLE or not (reader as Callable).is_valid():
+		return _err("state_reader_gone", "The reader registered as \"%s\" is no longer callable — the object behind it was freed." % state_name)
+	var args: Array = []
+	for a in params.get("args", []):
+		args.append(Codec.decode(a))
+	var value: Variant = (reader as Callable).callv(args)
+	return _ok({"names": names, "name": state_name, "value": Codec.encode(value)})
 
 
 # ----------------------------------------------------- F8: node lifecycle ----

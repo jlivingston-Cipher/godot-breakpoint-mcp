@@ -5,9 +5,9 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.87.0 · addon 1.17.0
+- **Version:** host 1.88.0 · addon 1.18.0
 - **License:** MIT
-- **What it exposes:** full 293 tools (secure-default 280 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 294 tools (secure-default 281 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -399,8 +399,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 280 tools**. Opt in
-to load the **full 293**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 281 tools**. Opt in
+to load the **full 294**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -426,7 +426,7 @@ whole debugging surface), and `b,c,d` → **93** (that plus the headless CLI and
 runtime family). Every start also prints the count actually registered, on stderr:
 
 ```
-[breakpoint-mcp] tool surface: 280 tool(s) registered · groups assetgen,backend,cli,…
+[breakpoint-mcp] tool surface: 281 tool(s) registered · groups assetgen,backend,cli,…
 ```
 
 See [Tool limits](../README.md#tool-limits--if-your-client-refuses-to-load-breakpoint) for the
@@ -522,7 +522,7 @@ on the formal **MCP task model**: a task-aware client creates the job and then p
 or cancels it while it runs. A plain
 client still gets the blocking result, exactly as before.
 
-### Plane C — Runtime Bridge (`runtime_*`, 27 tools)
+### Plane C — Runtime Bridge (`runtime_*`, 28 tools)
 
 An autoload (`BreakpointRuntimeBridge`) that lives inside the **running game** and listens
 on `127.0.0.1:9081`. Through it, the assistant can read the live SceneTree, get and set runtime
@@ -643,6 +643,8 @@ addon enabled and the host registered (Sections 3–4).
 - `runtime_call_method` **(higher-trust)** `{ path: ".", method: "take_damage", args: [10] }` → invoke a
   method (asks you to confirm first).
 - `runtime_get_monitors`, `runtime_screenshot` → observe performance and grab a frame.
+- `runtime_read_state` `{ name: "player" }` → read state the game chose to expose, as JSON, with no
+  confirmation (the sample registers `player` from its own debug-only code in `player.gd`).
 
 **8. Run tests headlessly.**
 
@@ -677,7 +679,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **293 tools** in total (the secure-default surface is **280** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **294 tools** in total (the secure-default surface is **281** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -765,12 +767,13 @@ Works without the editor open.
 - **`godot_run_managed`** / **`godot_output`** / **`godot_stop`** — run the game as a
   managed child process with captured stdout/stderr, read that console output, and stop it.
 
-### Plane C — Runtime bridge (`runtime_*`, 27 tools)
+### Plane C — Runtime bridge (`runtime_*`, 28 tools)
 
 Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_set_property` *(destructive)*, `runtime_call_method` *(destructive)*,
 `runtime_emit_signal` *(destructive)*, `runtime_inject_input` *(destructive)*,
-`runtime_get_monitors`, `runtime_screenshot`, and `runtime_get_log`. Plus a read-only
+`runtime_get_monitors`, `runtime_screenshot`, `runtime_get_log`, and `runtime_read_state` (state the
+game registered in Engine metadata `breakpoint_state` — see *Strict mode* below). Plus a read-only
 verification family: `runtime_assert_node_state`, `runtime_assert_scene_structure`,
 `runtime_assert_perf`, `runtime_assert_screen_text`, and `runtime_screenshot_diff` (all
 non-destructive — they check the running game without changing it), node editing
@@ -915,6 +918,36 @@ it ran without authentication. To drive an exported **debug** build deliberately
 with `BREAKPOINT_RUNTIME_EXPORTED=1` and a `BREAKPOINT_RUNTIME_SECRET` of at least 32
 characters, and give the host the same secret; an export never mints its own, and
 `BREAKPOINT_BRIDGE_INSECURE` does not apply to it. A release export never listens.
+
+**Strict mode: a debug-only bridge you attach yourself (opt-in, addon 1.18.0).** Set
+`breakpoint_mcp/runtime/strict=true` in `project.godot` (or Project Settings, with Advanced
+Settings on) and three things change; a project that does not set it sees none of them:
+
+- **The plugin registers no autoload**, and neither adds nor removes one while strict is on. If
+  `project.godot` still lists `BreakpointRuntimeBridge`, the plugin warns at startup and leaves it
+  for you to remove.
+- **Your game attaches the bridge itself**, from its own debug-only code, by path — so nothing in
+  your project refers to `addons/breakpoint_mcp/` by autoload, preload or class name:
+
+  ```gdscript
+  const BP := "res://addons/breakpoint_mcp/runtime_bridge.gd"
+  if OS.is_debug_build() and ResourceLoader.exists(BP):
+      var bridge: Node = load(BP).new()
+      bridge.name = "BreakpointRuntimeBridge"
+      get_tree().root.add_child.call_deferred(bridge)
+  ```
+- **The bridge listens only with the developer switch**: `BREAKPOINT_RUNTIME=1` in the game's
+  environment, or `--breakpoint-runtime` after `--` on its command line. Breakpoint's own game
+  launchers (`godot_run_project`, `godot_run_managed`, `runtime_spawn_peers`) set it. The
+  editor's Play button and `dbg_launch` start the game from the editor, so they inherit the
+  editor's environment: start the editor with `BREAKPOINT_RUNTIME=1` to have those runs listen.
+
+The bridge also refuses on its own whenever `OS.is_debug_build()` is false, ahead of every other
+test, in either mode. With strict on, an export preset whose exclude filter is
+`addons/breakpoint_mcp/*` leaves the whole folder out **and** boots clean; without strict, the
+export keeps the plugin's autoload entry and the game reports three errors at startup (a missing
+UID, a missing resource, an autoload that could not be instantiated) before it runs. CI proves
+the strict path on every push (`scripts/strict_export_proof.sh`, job `strict-export`).
 
 ### Pausing the agent
 
@@ -1197,7 +1230,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-293 tools (secure-default 280) and 6 resources. The exhaustive per-tool schemas are in
+294 tools (secure-default 281) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**
