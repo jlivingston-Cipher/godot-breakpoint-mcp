@@ -9961,6 +9961,48 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
 > ```
 """),
+    # 🆕 328 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 327 DID NOT WRITE, AS AT 327.
+    # `HANDOFF_SESSION327.md` was drafted at 328 by `--emit-handoff 327 HANDOFF_SESSION326.md
+    # --measured ci327/` with the tree at fe31d69 (328's edits stashed for the run) and the
+    # artifacts of #429's post-merge run 41518591286, downloaded the hour it finished. MOVED +1
+    # is 37aa4c5..fe31d69. `untagged 2` because fe31d69 is v1.87.0 + 2, no cut. Three counters
+    # read by hand from those artifacts, as at 323, 326 and 327: 26 CI jobs (ci 7 + integration
+    # 19, every job success), `0 exempt`, `exempt 43`. `addon 1.17.0 live` is the Asset Library
+    # API's answer for asset 5335 the same afternoon.
+    #
+    # 🟢 AND THE WORLD WAS GREEN THIS TIME. `sdk-drift` ran on main at fe31d69 (41519156292,
+    # dispatched at 328's pickup) and passed, which closes BP-0038; the close gate could pass
+    # over this block at 328's close. `QUEUE_HEAD` moves 327 -> 328, the session that registers
+    # it; 328 commits, so no `BLOCK_ABSENT` row.
+    (327, """> ```
+> main                 fe31d69 — session327 the canary nobody read for four weeks, and 326's status block (#429)  MOVED +1
+> branch 327           session327-sdk-drift-34 · PR #429
+> host / addon         1.87.0 / 1.17.0  🟢 UNMOVED — no cut; neither host/src nor addons/ changed
+> npm                  🟢 registry 1.87.0 · untagged 2 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.17.0 live
+> 🟢 CI GREEN — 26 of 26 required checks at the merge (ci 7 + integration 19), post-merge run 41518591286 at fe31d69
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1018/1018 · contract 32/32 · scope 75 · control 83
+>               · 26 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3505 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2513 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 330 file(s) / 21 suffixes · seal 104
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 293 tools / 3885 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5261
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 674 claims · landscape 4 channel(s) / 57 analysed / 65 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 9 within / 34 past / 14 never analysed
+>               · identity 72 of 122 / 2 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
