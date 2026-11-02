@@ -505,9 +505,9 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
         # sessions inside.
         DEFER_SEEN: {
             "@modelcontextprotocol/sdk": "1.32",
-            "@modelcontextprotocol/core": "2.3",
-            "@modelcontextprotocol/server": "2.3",
-            "@modelcontextprotocol/client": "2.3",
+            "@modelcontextprotocol/core": "2.4",
+            "@modelcontextprotocol/server": "2.4",
+            "@modelcontextprotocol/client": "2.4",
             "@modelcontextprotocol/node": "2.1",
             "@modelcontextprotocol/express": "2.0",
             "@modelcontextprotocol/hono": "2.0",
@@ -519,7 +519,7 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # returns nothing in either, exactly as in `hono`. The deferral is unchanged
             # for the third time today, and the value of writing that down is that the
             # NEXT sibling gets read rather than assumed.
-            "@modelcontextprotocol/codemod": "2.3",
+            "@modelcontextprotocol/codemod": "2.4",
             "@modelcontextprotocol/fastify": "2.0",
             # 🆕 325 — READ, NOT BUMPED, a fourth time; the minor releases of 2026-09-28
             # reddened this row and the argument was re-derived before `seen` moved.
@@ -557,6 +557,18 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # refusal costs this reading by hand. That is a price, not a defect; whether
             # the canary should take the reading itself is a ruling this commit leaves
             # open (BP-0033).
+            #
+            # 🆕 327 (BP-0038) — READ, NOT BUMPED, a sixth time, and this time late. `sdk-drift`
+            # #33 (10-26) and #34 (11-02) refused on core/server/client/codemod 2.3 -> 2.4
+            # (all published 10-23) and nobody read either run, which is the price the line
+            # above named, paid twice. Packed and grepped for all four blocked symbols: sdk
+            # 1.32.2 and 1.32.1 carry them in 14/10/8/8 files (the positive control, the
+            # counts every v1 reading has had); core, server, client and codemod 2.4.0 carry
+            # none, and neither do node 2.1.2, express 2.0.2, hono 2.0.2, fastify 2.0.1 or
+            # ext-tasks 0.2.2. The zero's own control: `McpServer` is in 28 files of server
+            # 2.4.0, and the five `tasks/*` method strings are in core, server and client.
+            # LATEST_PROTOCOL_VERSION is 2025-11-25 in sdk 1.32.2 and in core 2.4.0. The
+            # deferral holds.
         },
         DEFER_ALSO: ("@modelcontextprotocol/ext-tasks",),
         DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",
