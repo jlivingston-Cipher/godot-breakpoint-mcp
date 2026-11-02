@@ -41,3 +41,18 @@ func take_damage(amount: int) -> int:
 	if bridge:
 		bridge.push_log("warning", "took %d damage" % amount)
 	return counter
+
+
+## BP-0037 D: the state this game exposes to `runtime_read_state`, registered from its own
+## debug-only code in Engine metadata — no reference to the addon folder, so it runs
+## unchanged in an export that leaves addons/breakpoint_mcp/ out. Kept at the END of the
+## file so the line numbers the LSP/DAP probes target above do not move.
+func _enter_tree() -> void:
+	if OS.is_debug_build():
+		var reg: Dictionary = Engine.get_meta(&"breakpoint_state", {})
+		reg["player"] = _debug_state
+		Engine.set_meta(&"breakpoint_state", reg)
+
+
+func _debug_state() -> Dictionary:
+	return {"counter": counter, "position": position}

@@ -1075,7 +1075,14 @@ BLAST: dict[str, int] = {
     # radius change independently, which is the only reason to keep both numbers.
     "13.exemptgone": 3,                   # also: 20, 25
     "roster.unlisted": 1,
-    "15.unexpected": 2,                   # also: 20
+    # 🆕 BP-0037 (1.88.0) — 15.unexpected and 15.noshebang: 2 -> 1, ON PURPOSE. Both used to
+    # redden check 20 as well, through SCOPE COLLAPSE `modes.shebangs_confirmed` (floor 3): the
+    # roster held three interpreter lines, so losing validate.sh's took it to 2. The roster now
+    # holds four (scripts/strict_export_proof.sh joined EXEC_ROSTER), so one loss leaves 3 and
+    # check 20 stays quiet. Check 15 still fires on both, which is what each row exists for.
+    # Raising that floor to 4 instead would move a pinned floor inside a release cut; left as
+    # it is, and said here.
+    "15.unexpected": 1,
     "15.notexec": 2,
     "14.norel": 1,
     "14.notone": 1,
@@ -1090,7 +1097,7 @@ BLAST: dict[str, int] = {
     "12.dupe": 4,
     "12.partial": 2,
     "12.silentcount": 1,
-    "15.noshebang": 2,                    # also: 20
+    "15.noshebang": 1,                    # see the BP-0037 note at 15.unexpected
     # 🆕 278 — check 33's three. PLACEHOLDERS; measured on the run below (259's rule).
     "33.silent": 1,
     "33.alive": 1,

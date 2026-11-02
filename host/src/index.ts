@@ -131,7 +131,7 @@ async function main(): Promise<void> {
   // below makes itself the OUTERMOST registerTool wrapper, so the earliest one
   // installed is the LAST in the call chain and counts only what reached the SDK —
   // after `applyCapabilities` dropped a privileged tool and after the toolset
-  // filter declined a whole group. Installed later it would count 293 attempts on
+  // filter declined a whole group. Installed later it would count 294 attempts on
   // every configuration and be wrong exactly on the default one. `applyWireDefaults`
   // keeps its FIRST claim above: it wraps setRequestHandler, not registerTool.
   const toolCensus = installToolCensus(server);
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
   // Capability groups — a risk-based axis over the toolsets. `code-execution` is
   // OFF by default; a disabled group's tools are DROPPED at
   // registration (omitted from tools/list), so the secure-default surface is
-  // 293 − 13 = 280 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
+  // 294 − 13 = 281 tools. Enable via BREAKPOINT_PRIVILEGED_GROUPS. Wraps
   // server.registerTool AFTER applyOutputSchemas (schema wrapper stays innermost).
   const privilegedGroups = selectPrivilegedGroups(config.privilegedGroups, (unknown) =>
     log(`ignoring unknown BREAKPOINT_PRIVILEGED_GROUPS token(s): ${unknown.join(", ")}`),
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
   // The A/B/C/D planes ARE the grouping. Build the ordered toolset registry
   // (the single source of truth, shared with the registration tests) and
   // register only the selected groups. Default (BREAKPOINT_TOOLSETS unset) =
-  // every group → the full 293-tool surface, byte-identical to before. A filter
+  // every group → the full 294-tool surface, byte-identical to before. A filter
   // lets a client that can't defer tools, or a user who wants a smaller default
   // menu, load only the planes a project needs (GitHub-MCP `--toolsets` style).
   let processes: { killAll: () => void } | undefined;
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
   }
 
   // Recipes: a free, curated task-recipe layer exposed as MCP prompts (discoverable
-  // via prompts/list). Adds NO tools — the 293-tool count is unchanged — and drives
+  // via prompts/list). Adds NO tools — the 294-tool count is unchanged — and drives
   // the enforced tools above, so it's a skill-pack layer over typed/undoable tools.
   registerRecipes(server);
 
@@ -242,7 +242,7 @@ async function main(): Promise<void> {
   // the SDK's `Tool <name> not found` — grammatical, accurate about the lookup,
   // and wrong about the world. Must run AFTER every ts.run() above: the CallTool
   // dispatcher does not exist until the first registerTool, and this wraps it.
-  // Advertises nothing new — tools/list is untouched at 280.
+  // Advertises nothing new — tools/list is untouched at 281.
   applyDroppedToolRefusal(server, privilegedGroups);
 
   // 257 — the result-cost meter, off unless BREAKPOINT_RESULT_COST names a file.

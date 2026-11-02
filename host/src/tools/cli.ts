@@ -11,7 +11,7 @@ import { portFree, portConflictMessage, readPorts } from "../ports.js";
 import { noteOwned, whoHolds } from "../port-holder.js";
 import { runDoctorChecks } from "../cli/doctor.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
-import { spawnGuarded, godotSpawnFailure, isSpawnFailure } from "../spawn-guard.js";
+import { RUNTIME_SWITCH_ENV, spawnGuarded, godotSpawnFailure, isSpawnFailure } from "../spawn-guard.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -187,6 +187,8 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         cwd: cfg.projectPath,
         detached: true,
         stdio: "ignore",
+        // 🆕 BP-0037 — the strict-mode switch; a game not in strict mode ignores it.
+        env: { ...process.env, ...RUNTIME_SWITCH_ENV },
       });
       if (!s.ok) return refuseSpawn(s.message);
       // 318 — recorded so a later refusal over this port can say the holder is this detached

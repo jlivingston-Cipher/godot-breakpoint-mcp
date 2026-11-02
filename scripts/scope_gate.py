@@ -392,7 +392,10 @@ BLAST: dict[str, int] = {
     # the mode reader reports one FAIL per roster member it can no longer see — so a third
     # member is a fifth line. The radius moved because the ROSTER grew, which is the one
     # cause this number is supposed to make visible.
-    "_tracked_modes": 5,                      # also: check 15
+    # 🆕 BP-0037 (1.88.0): 5 -> 6. scripts/strict_export_proof.sh joined EXEC_ROSTER, so the
+    # tracked-mode population has one more confirmed shebang and blinding it fails one more
+    # line. The roster grew; no check was added.
+    "_tracked_modes": 6,                      # also: check 15
     # 🆕 254 — check 28's two blinds. `remedy_tables` is the wider one BY CONSTRUCTION:
     # empty it and both directions of the join go quiet together, so what reddens is not
     # the missing rows but the sixty remedies that now read as dead — one FAIL line each,
@@ -407,7 +410,10 @@ BLAST: dict[str, int] = {
     # emptying the tables leaves two more codes with no next action. That is the tables
     # growing rather than a check reading them differently, which is the benign half of
     # what this number distinguishes.
-    "remedy_tables": 72,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 BP-0037 (1.88.0): 72 -> 75. THREE new runtime codes, one row each —
+    # no_state_registry, unknown_state, state_reader_gone (runtime_read_state) — so emptying
+    # the tables leaves three more codes with no next action. The tables grew.
+    "remedy_tables": 75,                      # 🆕 259: 64 -> 65, the CLI span join
     # 🆕 284 — 71 -> 70. The addon tables are no longer the ONLY source of a CLI span, so
     # blinding them leaves check 28's join able to answer and one refusal stops firing.
     # 🔵 AND THE OBSERVED COLLAPSE STILL INCLUDES `xlang.remedy_tool_refs` WHILE THE
@@ -627,7 +633,10 @@ BLAST: dict[str, int] = {
     # CANNOT help — so check 28's tool-reference arm has two more remedies to resolve
     # against this registry, and blinding the registry fails on both. No check was added
     # here; the population a standing check reads got two members bigger.
-    "registered_tools": 92,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
+    # 🆕 BP-0037 (1.88.0): 92 -> 93. unknown_state's remedy names `runtime_read_state` in
+    # backticks, so check 28's tool-reference arm has one more remedy to resolve against this
+    # registry, and blinding the registry fails on it. No check was added.
+    "registered_tools": 93,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
