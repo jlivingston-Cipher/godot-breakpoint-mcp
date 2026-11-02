@@ -422,7 +422,7 @@ if Breakpoint never appears in a client that caps, check this before anything el
 
 Two presets are published as fitting under both caps, and both are measured by the suite rather
 than typed: `BREAKPOINT_TOOLSETS=d` → **58** (both language servers and both debuggers — the
-whole debugging surface), and `b,c,d` → **93** (that plus the headless CLI and the running-game
+whole debugging surface), and `b,c,d` → **94** (that plus the headless CLI and the running-game
 runtime family). Every start also prints the count actually registered, on stderr:
 
 ```

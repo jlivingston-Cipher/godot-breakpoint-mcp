@@ -7,7 +7,7 @@
 > connect too (see [Compatibility](#compatibility)).
 >
 > **npm 1.88.0 · addon 1.18.0 · full 294 / secure-default 281 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 1000-test suite plus
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 1003-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -138,7 +138,7 @@ hands Claude each tool's name, description and input schema and nothing else.
 
 The second column is measured, not assumed: we captured the request Claude Code 2.1.201 actually
 builds with Breakpoint attached (pointed at a local capture server; nothing was sent anywhere).
-Every one of the 280 tools in that capture (1.87.0) arrived as name, description and input schema — **no output schema, no
+Every tool in that capture (1.87.0) arrived as name, description and input schema — **no output schema, no
 risk annotation, no title.** So the weight that sets Breakpoint apart on the wire — a frozen
 `outputSchema` and a published risk annotation on every tool, which is what lets a client validate
 a result and lets you audit the surface before you trust it — costs the model's context nothing.

@@ -518,7 +518,7 @@ test("runtime_read_state lists with no name and calls a named reader, with no co
   const read = await h.handler("runtime_read_state")({ name: "mixer", args: [1] });
   assert.notEqual(read.isError, true, "read-only: no confirm and no elicitation, yet it ran");
   assert.deepEqual(h.calls[1].params, { name: "mixer", args: [1] });
-  assert.deepEqual((read.structuredContent as { value: unknown }).value, { level: 0.5 });
+  assert.deepEqual(structured<{ value: unknown }>(read).value, { level: 0.5 });
   assert.equal(h.elicitReqs.length, 0, "a read-only tool never asks the person first");
 });
 
