@@ -145,6 +145,24 @@ test("ProcessRegistry captures stdout and stderr separately and records the exit
   reg.killAll();
 });
 
+test("BP-0037: a managed child carries the strict-mode runtime switch, with and without an overlay", { skip: !POSIX }, async () => {
+  const envGodot = path.join(dir, "envgodot.sh");
+  fs.writeFileSync(
+    envGodot,
+    ["#!/bin/sh", 'echo "switch=${BREAKPOINT_RUNTIME:-unset}"', 'echo "overlay=${GCB_TEST_OVERLAY:-unset}"', ""].join("\n"),
+    { mode: 0o755 },
+  );
+  const reg = new ProcessRegistry();
+  const c = { ...cfg(), godotBin: envGodot } as Config;
+  const bare = await reg.run(c, []);
+  await waitFor(() => bare.exited);
+  assert.deepEqual(bare.lines.filter((l) => l.stream === "stdout").map((l) => l.text), ["switch=1", "overlay=unset"]);
+  const overlaid = await reg.run(c, [], { GCB_TEST_OVERLAY: "peer" });
+  await waitFor(() => overlaid.exited);
+  assert.deepEqual(overlaid.lines.filter((l) => l.stream === "stdout").map((l) => l.text), ["switch=1", "overlay=peer"]);
+  reg.killAll();
+});
+
 test("the capture ring buffer caps at 5000 lines, dropping the oldest", { skip: !POSIX }, async () => {
   const reg = new ProcessRegistry();
   const m = await reg.run(cfg(), ["5100"]); // 5100 stdout + 1 stderr = 5101 emitted

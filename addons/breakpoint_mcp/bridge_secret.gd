@@ -21,6 +21,14 @@ const SECRET_PATH := "res://.godot/breakpoint_mcp.secret"
 ## The shortest BREAKPOINT_RUNTIME_SECRET an opted-in debug export accepts (see
 ## runtime_listen_policy). The minted secret is 64 hex characters.
 const EXPORT_SECRET_MIN_LEN := 32
+## 🆕 BP-0037 — the project setting that turns strict mode on (default false, opt-in through
+## 1.x). Under it the plugin registers no autoload, the game attaches runtime_bridge.gd
+## itself from its own debug-only code, and the bridge listens only with the switch.
+const STRICT_SETTING := "breakpoint_mcp/runtime/strict"
+## 🆕 BP-0037 — the developer switch: this environment variable set to 1/true, or this user
+## argument after `--` on the game's command line.
+const SWITCH_ENV := "BREAKPOINT_RUNTIME"
+const SWITCH_ARG := "--breakpoint-runtime"
 
 
 ## Return the shared secret, minting + persisting a fresh one if none exists.
@@ -69,19 +77,44 @@ static func load_or_mint() -> String:
 ## Pure — no OS calls, no files — so the decision is unit-tested headless; the caller
 ## passes the four facts in. `warn` is true only when someone ASKED for an exported
 ## bridge and is being refused; a plain shipped game stays silent.
-static func runtime_listen_policy(editor_build: bool, debug_build: bool, exported_optin: String, env_secret: String) -> Dictionary:
+##
+## 🆕 BP-0037 — TWO MORE FACTS, AND ONE TEST MOVED TO THE FRONT. `debug_build` is now read
+## FIRST, ahead of every other test: a build where OS.is_debug_build() is false never
+## listens, whatever else is true of it (the only such build that reaches here is a release
+## export, which already never listened, so nothing changes for a project that does not
+## opt in). `strict` is the project setting `breakpoint_mcp/runtime/strict` (STRICT_SETTING,
+## default false); when it is true the bridge listens only with the developer switch —
+## BREAKPOINT_RUNTIME=1 in the environment or `--breakpoint-runtime` after `--` — which
+## Breakpoint's own game launchers set (runtime_switch_on). Strict is opt-in through 1.x.
+static func runtime_listen_policy(editor_build: bool, debug_build: bool, exported_optin: String, env_secret: String, strict: bool = false, switch_on: bool = false) -> Dictionary:
+	var optin := exported_optin.strip_edges().to_lower()
+	var asked := optin == "1" or optin == "true" or (strict and switch_on)
+	if not debug_build:
+		return {"listen": false, "secret_source": "", "warn": asked, "reason": "not a debug build (OS.is_debug_build() is false): the runtime bridge never listens in a release build, whatever its environment says"}
+	if strict and not switch_on:
+		return {"listen": false, "secret_source": "", "warn": optin == "1" or optin == "true", "reason": "strict mode (%s=true): the runtime bridge listens only with BREAKPOINT_RUNTIME=1 or --breakpoint-runtime" % STRICT_SETTING}
 	if editor_build:
 		return {"listen": true, "secret_source": "project", "warn": false, "reason": "development run (editor build)"}
-	var optin := exported_optin.strip_edges().to_lower()
 	if not (optin == "1" or optin == "true"):
 		return {"listen": false, "secret_source": "", "warn": false, "reason": "exported build: the runtime bridge listens only in development runs"}
-	if not debug_build:
-		return {"listen": false, "secret_source": "", "warn": true, "reason": "BREAKPOINT_RUNTIME_EXPORTED is honoured only in a debug export; a release export never listens"}
 	if env_secret.strip_edges().length() < EXPORT_SECRET_MIN_LEN:
 		return {"listen": false, "secret_source": "", "warn": true, "reason": "BREAKPOINT_RUNTIME_EXPORTED=1 needs BREAKPOINT_RUNTIME_SECRET of at least %d characters; an exported build never mints its own" % EXPORT_SECRET_MIN_LEN}
 	# The validated secret travels IN the decision, so nothing downstream re-reads the
 	# environment and could see a different value from the one checked here.
 	return {"listen": true, "secret_source": "env", "secret": env_secret.strip_edges(), "warn": false, "reason": "debug export, opted in with BREAKPOINT_RUNTIME_EXPORTED"}
+
+
+## 🆕 BP-0037 — whether the developer switch is set. Pure, like the policy: the caller passes
+## OS.get_environment(SWITCH_ENV) and OS.get_cmdline_user_args().
+static func runtime_switch_on(env_value: String, user_args: PackedStringArray) -> bool:
+	var v := env_value.strip_edges().to_lower()
+	return v == "1" or v == "true" or user_args.has(SWITCH_ARG)
+
+
+## 🆕 BP-0037 — whether this project is in strict mode. Strict only on a real `true`: a
+## missing setting, or any other value, is the 1.x default (not strict).
+static func runtime_strict(setting_value: Variant) -> bool:
+	return typeof(setting_value) == TYPE_BOOL and bool(setting_value)
 
 
 ## A development run is an EDITOR build that is NOT an export TEMPLATE. Both are compiled-in

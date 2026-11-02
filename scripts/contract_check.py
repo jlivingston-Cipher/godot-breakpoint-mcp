@@ -4098,6 +4098,9 @@ EXEC_ROSTER = {
     # run happened BEFORE `git add` and the population is the INDEX. Same shape as the
     # comment two blocks down, now on the executable side as well.
     Path(".githooks/pre-commit"),
+    # 🆕 BP-0037 (1.88.0) — the strict-mode export proof. CI's `strict-export` job runs it
+    # directly (`scripts/strict_export_proof.sh 59188`), so 100755 is how it runs at all.
+    Path("scripts/strict_export_proof.sh"),
 }
 
 # The "twelve" above was PROSE — the one number in this file that nothing
@@ -5339,7 +5342,10 @@ for _tool in sorted(required_any):
 # two that `runtime_assert_node_state` has carried since `255`, plus the two `270` added
 # for `requested` on both `set_property` outputs. See check `29`'s evidence arm for why a
 # non-emptiness test could not survive the population growing.
-OPTIONAL_ANY_SPELLINGS = 4
+# 🆕 BP-0037 (1.88.0) — 4 -> 5, ON PURPOSE: `runtime_read_state`'s `value` is present only
+# when a reader was called (no `name` lists the names and carries no value), so its absence
+# is an answer and the field is spelled optional rather than inherited.
+OPTIONAL_ANY_SPELLINGS = 5
 
 # The other direction. `.optional()` is the ONLY thing that keeps an `any` key out of this
 # population, so a spelling nobody notices is the whole risk: `encodedValue .optional()`,

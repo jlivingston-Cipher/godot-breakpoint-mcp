@@ -170,6 +170,20 @@ test("godot_run_project launches detached and returns a numeric pid", { skip: !P
   assert.equal(typeof sc(r).pid, "number");
 });
 
+test("BP-0037: godot_run_project hands the game the strict-mode runtime switch", { skip: !POSIX }, async () => {
+  // Detached with stdio ignored, so the fixture writes what it saw to a file.
+  const seen = path.join(dir, "switch-seen.txt");
+  const envGodot = path.join(dir, "envgodot.sh");
+  fs.writeFileSync(envGodot, ["#!/bin/sh", `echo "\${BREAKPOINT_RUNTIME:-unset}" > "${seen}"`, ""].join("\n"), { mode: 0o755 });
+  const tools = setup(envGodot, dir);
+  const r = await tools.get("godot_run_project")!({ wait_timeout_ms: 0 });
+  assert.equal(sc(r).running, true);
+  const start = Date.now();
+  const written = () => fs.existsSync(seen) && fs.readFileSync(seen, "utf8").endsWith("\n");
+  while (!written() && Date.now() - start < 5000) await new Promise((res) => setTimeout(res, 20));
+  assert.equal(fs.readFileSync(seen, "utf8").trim(), "1");
+});
+
 /**
  * 🔴 `running: true` WAS TRUE AT A FALSE TIME (249, closed 257). The tool reported the
  * spawn and callers read it as "runtime_* is reachable" — measured 566–3213 ms early.

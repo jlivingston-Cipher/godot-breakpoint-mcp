@@ -30,7 +30,7 @@ const RUNTIME_TEST_PORT := 59094
 ## summary over FEWER checks and the CI step (which greps for FAIL) passes it. Measured at
 ## 325: this suite against the 1.16.0 runtime bridge stopped at `_policy_facts()` and
 ## printed pass=25/25. Raise this when a check is added; never lower it to make a run pass.
-const EXPECTED_CHECKS := 36
+const EXPECTED_CHECKS := 50
 
 var _pass := 0
 var _fail := 0
@@ -204,7 +204,26 @@ func _run_runtime_policy() -> void:
 	# The decision table — pure, no socket.
 	var dev := _policy(true, true, "", "")
 	_check("policy.dev_run_listens", bool(dev["listen"]) and dev["secret_source"] == "project")
-	_check("policy.dev_run_ignores_optin_vars", bool(_policy(true, false, "1", good)["listen"]) and _policy(true, false, "1", good)["secret_source"] == "project")
+	# BP-0037: this row passed debug_build=false, a combination no editor binary produces
+	# (an editor build is a debug build). The debug test now runs first and refuses it, so the
+	# row asks its own question — do the opt-in variables change a dev run? — on a debug build.
+	_check("policy.dev_run_ignores_optin_vars", bool(_policy(true, true, "1", good)["listen"]) and _policy(true, true, "1", good)["secret_source"] == "project")
+	# BP-0037 — the debug test first, then strict mode and its switch.
+	var nodebug := _policy(true, false, "", "")
+	_check("policy.not_debug_refused_ahead_of_every_other_test", not bool(nodebug["listen"]) and not bool(nodebug["warn"]))
+	var nodebug_asked := BridgeSecret.runtime_listen_policy(true, false, "", "", true, true)
+	_check("policy.not_debug_refused_even_strict_with_switch_and_warns", not bool(nodebug_asked["listen"]) and bool(nodebug_asked["warn"]))
+	var strict_off := BridgeSecret.runtime_listen_policy(true, true, "", "", true, false)
+	_check("policy.strict_without_switch_silent_and_closed", not bool(strict_off["listen"]) and not bool(strict_off["warn"]))
+	var strict_on := BridgeSecret.runtime_listen_policy(true, true, "", "", true, true)
+	_check("policy.strict_with_switch_listens", bool(strict_on["listen"]) and strict_on["secret_source"] == "project")
+	_check("policy.not_strict_needs_no_switch", bool(BridgeSecret.runtime_listen_policy(true, true, "", "", false, false)["listen"]))
+	_check("policy.strict_debug_export_still_needs_its_secret", not bool(BridgeSecret.runtime_listen_policy(false, true, "1", "", true, true)["listen"]))
+	_check("switch.env_one", BridgeSecret.runtime_switch_on("1", PackedStringArray()))
+	_check("switch.env_true_any_case", BridgeSecret.runtime_switch_on(" True ", PackedStringArray()))
+	_check("switch.user_arg", BridgeSecret.runtime_switch_on("", PackedStringArray(["--level", "2", "--breakpoint-runtime"])))
+	_check("switch.absent_or_zero_is_off", not BridgeSecret.runtime_switch_on("", PackedStringArray()) and not BridgeSecret.runtime_switch_on("0", PackedStringArray(["--breakpoint"])))
+	_check("strict.only_a_real_true", BridgeSecret.runtime_strict(true) and not BridgeSecret.runtime_strict("true") and not BridgeSecret.runtime_strict(null) and not BridgeSecret.runtime_strict(false))
 	var rel := _policy(false, false, "", "")
 	_check("policy.release_export_silent", not bool(rel["listen"]) and not bool(rel["warn"]))
 	_check("policy.debug_export_silent", not bool(_policy(false, true, "", "")["listen"]) and not bool(_policy(false, true, "", "")["warn"]))
@@ -226,6 +245,7 @@ func _run_runtime_policy() -> void:
 	var real := RuntimeBridge.new()
 	var real_facts: Dictionary = real._policy_facts()
 	_check("real_facts.this_editor_binary_is_a_development_run", bool(real_facts["editor_build"]))
+	_check("real_facts.example_project_is_not_strict", real_facts.has("strict") and not bool(real_facts["strict"]))
 	real.free()
 	_check("policy.optin_zero_is_not_optin", not bool(_policy(false, true, "0", good)["listen"]))
 
@@ -244,6 +264,17 @@ func _run_runtime_policy() -> void:
 	rb1.push_log("info", "still callable")
 	_check("release_export.push_log_still_works", rb1._log.size() >= 1)
 	_drop_bridge(rb1)
+
+	# Live 1b (BP-0037): a development run in strict mode with no switch. No server, no
+	# processing, the port refuses — the shipped _ready() takes the strict branch.
+	var rb1b := _exported_bridge({"editor_build": true, "debug_build": true, "exported_optin": "", "env_secret": "", "strict": true, "switch": false})
+	_check("strict_no_switch.no_server", rb1b._server == null and not rb1b.is_processing())
+	var c1b := StreamPeerTCP.new()
+	c1b.connect_to_host("127.0.0.1", RUNTIME_TEST_PORT)
+	_pump_rt(rb1b, c1b)
+	_check("strict_no_switch.port_refuses", c1b.get_status() == StreamPeerTCP.STATUS_ERROR)
+	c1b.disconnect_from_host()
+	_drop_bridge(rb1b)
 
 	# Live 2: a debug export that asked for the bridge but supplied no secret: refused.
 	var rb2 := _exported_bridge({"editor_build": false, "debug_build": true, "exported_optin": "1", "env_secret": ""})

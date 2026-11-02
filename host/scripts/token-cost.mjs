@@ -230,7 +230,16 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // re-worded with every precondition kept (runtime_peers_digest 1,674 -> 1,272, dbg_launch
 // 1,233 -> 985, dbg_set_breakpoints 1,350 -> 1,013). -3,555 B on the full surface. The ceiling follows the surface down and sits on it, 312's
 // rule: slack is prose nobody voted for.
-export const BYTES_CEILING = 373677;
+//
+// 🆕 BP-0037 (1.88.0) — RAISED 373,677 -> 374,962, AND WHAT BOUGHT IT IS ONE TOOL THE OWNER
+// GRANTED BY NAME. `runtime_read_state` was ruled "build it now, ahead of the ruled order"
+// (2026-11-02, part D of the TG-1026 harness). Measured before and after on the same build:
+// +1,314 B as first drafted; 29 B of that was the description restating what the `name`
+// parameter's own description says, and came off before this line moved. The rest is the
+// tool's frozen `outputSchema` (the shared `engine_log` block included), its annotation
+// block and a two-field input schema — the price every runtime tool pays. 312's rule holds:
+// the ceiling sits ON the surface.
+export const BYTES_CEILING = 374962;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

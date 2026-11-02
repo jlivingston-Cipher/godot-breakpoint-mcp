@@ -108,6 +108,9 @@ const RUNTIME_REMEDIES := {
 	"set_ignored": "Check the property exists on this node with `runtime_get_property`, and that its setter accepts the value — nothing changed.",
 	"bad_event_field": "Send the field tagged — `{\"__type__\": \"Vector2\", \"x\": .., \"y\": ..}` — or omit it and let the event land at its default position.",
 	"bad_params": "Fix the parameter named above and call again — the message carries the accepted shape.",
+	"no_state_registry": "Set Engine metadata \"breakpoint_state\" to a Dictionary of name -> Callable from the game's own debug code, then call again.",
+	"unknown_state": "Call `runtime_read_state` without a name for the names the game registered, then pass one of them.",
+	"state_reader_gone": "Set the reader again from an object that is still alive, then call again.",
 }
 
 
