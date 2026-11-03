@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { registerRuntimeTools } from "../src/tools/runtime.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { BridgeError } from "../src/bridge.js";
 import { structured } from "./helpers/structured.js";
 import {
@@ -40,6 +43,8 @@ const ARGS: Record<string, Record<string, unknown>> = {
   runtime_call_method: { path: "/root/Player", method: "take_damage", args: [1] },
   runtime_emit_signal: { path: "/root/Player", signal: "died", args: [] },
   runtime_inject_input: { event: { kind: "action", action: "jump", pressed: true } },
+  // BP-0042: a path that does not exist under the stub project root, so the guard passes.
+  runtime_screenshot_save: { path: "res://shots/frame.png" },
   // F8: read-only await + animation state, gated animation + node lifecycle.
   runtime_await_condition: { path: "/root/Player", property: "hp", value: 0, timeout_ms: 30, poll_interval_ms: 5 },
   runtime_anim_play: { path: "/root/Anim", animation: "walk" },
@@ -101,6 +106,7 @@ const PEER_AWARE = [
   "runtime_read_state",
   "runtime_screenshot",
   "runtime_screenshot_diff",
+  "runtime_screenshot_save",
   "runtime_seed_rng",
   "runtime_set_property",
   "runtime_state_digest",
@@ -113,7 +119,7 @@ interface BridgeCall {
   params: Record<string, unknown>;
 }
 
-function makeHarness() {
+function makeHarness(projectPath = "/proj") {
   const calls: BridgeCall[] = [];
   const elicitReqs: unknown[] = [];
   let bridgeMode: "resolve" | "reject" = "resolve";
@@ -165,7 +171,7 @@ function makeHarness() {
     rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
     bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
     peers as unknown as Parameters<typeof registerRuntimeTools>[2],
-    { projectPath: "/proj" } as unknown as Parameters<typeof registerRuntimeTools>[3],
+    { projectPath } as unknown as Parameters<typeof registerRuntimeTools>[3],
   );
 
   return {
@@ -440,6 +446,77 @@ test("runtime_screenshot_diff omits unset optionals", async () => {
   assert.deepEqual(h.calls[0].params, { reference: "res://ref.png" });
 });
 
+// ------------------------------------------------- BP-0042: runtime_screenshot_save ----
+
+/** A real temp project root, so the host-side write lands on disk and can be read back. */
+function saveHarness() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "bp-shot-"));
+  const calls: BridgeCall[] = [];
+  const elicitReqs: unknown[] = [];
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const bridge = {
+    async request(method: string, params: Record<string, unknown> = {}) {
+      calls.push({ method, params });
+      return { mime: "image/png", base64: png.toString("base64"), width: 64, height: 36 };
+    },
+  };
+  const rec = makeRecordingServer(async (req) => {
+    elicitReqs.push(req);
+    return { action: "decline" };
+  });
+  registerRuntimeTools(
+    rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
+    bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+    { clientFor: () => bridge } as unknown as Parameters<typeof registerRuntimeTools>[2],
+    { projectPath: root } as unknown as Parameters<typeof registerRuntimeTools>[3],
+  );
+  return { root, png, calls, elicitReqs, save: rec.handler("runtime_screenshot_save") };
+}
+
+test("runtime_screenshot_save writes the frame host-side, unconfirmed, and returns no image", async () => {
+  const h = saveHarness();
+  const r = await h.save({ path: "res://shots/golden.png" });
+  assert.notEqual(r.isError, true, text(r));
+  assert.equal(h.elicitReqs.length, 0, "creating a new file is additive: no confirmation");
+  assert.equal(h.calls[0].method, "runtime.screenshot", "reuses the existing bridge method");
+  assert.deepEqual(fs.readFileSync(path.join(h.root, "shots", "golden.png")), h.png);
+  assert.ok(!(r.content ?? []).some((c) => (c as { type?: string }).type === "image"), "no image in the reply");
+  const out = structured<{ saved: boolean; path: string; width: number; height: number; bytes: number }>(r);
+  assert.deepEqual(out, { saved: true, path: "res://shots/golden.png", width: 64, height: 36, bytes: h.png.length });
+});
+
+test("runtime_screenshot_save refuses an existing file and leaves it untouched (never overwrites)", async () => {
+  const h = saveHarness();
+  const target = path.join(h.root, "ref.png");
+  fs.writeFileSync(target, "keep me");
+  const r = await h.save({ path: "res://ref.png" });
+  assert.equal(r.isError, true);
+  assert.match(text(r), /Path error \[exists\]/);
+  assert.match(text(r), /never overwrites/);
+  assert.doesNotMatch(text(r), /overwrite:true/, "the tool has no overwrite argument to offer");
+  assert.equal(h.calls.length, 0, "refused before the game is asked for a frame");
+  assert.equal(fs.readFileSync(target, "utf8"), "keep me");
+});
+
+test("runtime_screenshot_save refuses a path outside the project root", async () => {
+  const h = saveHarness();
+  const r = await h.save({ path: "res://../escape.png" });
+  assert.equal(r.isError, true);
+  assert.match(text(r), /Path error \[path_outside_project\]/);
+  assert.equal(h.calls.length, 0);
+  assert.equal(fs.existsSync(path.join(path.dirname(h.root), "escape.png")), false);
+});
+
+test("runtime_inject_input forwards a pointer gesture to the bridge unchanged", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { injected: true, kind: "pointer", window_points: [[10, 20], [10, 20]], frames: 1 });
+  const event = { kind: "pointer", action: "tap", x: 10, y: 20 };
+  const r = await h.handler("runtime_inject_input")({ event, confirm: true });
+  assert.notEqual(r.isError, true);
+  assert.equal(h.calls[0].method, "runtime.inject_input");
+  assert.deepEqual(h.calls[0].params, { event });
+});
+
 // ----------------------------------------------------------- F8: await/anim/node ----
 
 test("runtime_await_condition resolves met:true on the first matching poll (read-only, not gated)", async () => {
@@ -587,7 +664,8 @@ test("runtime_seed_rng forwards the seed once confirmed", async () => {
 // ------------------------------------------------------------- F6: peers ----
 
 test("every peer-aware tool routes to the peer's bridge and never leaks `peer` into the payload", async () => {
-  const h = makeHarness();
+  // A real root, because runtime_screenshot_save (BP-0042) writes what the peer answered.
+  const h = makeHarness(fs.mkdtempSync(path.join(os.tmpdir(), "bp-peer-")));
   h.setBridge("resolve", { ok: true, value: 1, digest: {}, node_count: 0, base64: "", mime: "image/png", width: 1, height: 1 });
 
   const seen: string[] = [];

@@ -138,16 +138,19 @@ export function resolveExistingFile(p: string, projectPath: string, label = "pat
 export function resolveWriteTarget(
   p: string,
   projectPath: string,
-  opts: { overwrite?: boolean; label?: string } = {},
+  opts: { overwrite?: boolean; label?: string; existsHint?: string } = {},
 ): { fsPath: string; exists: boolean } {
   const label = opts.label ?? "path";
   const fsPath = resolveInsideProject(p, projectPath, label);
   const exists = fs.existsSync(fsPath);
   if (exists && !opts.overwrite) {
+    // 🆕 BP-0042 (1.89.0) — the closing sentence is a PARAMETER for a writer with no
+    // `overwrite` to offer: `runtime_screenshot_save` never replaces a file, so telling
+    // its caller to pass overwrite:true would name an argument the tool does not take.
     refuse(
       "exists",
       `Refusing to write ${label} ${JSON.stringify(p)}: ${fsPath} already exists. ` +
-      `Pass overwrite:true to replace it, or choose another path.`,
+      (opts.existsHint ?? `Pass overwrite:true to replace it, or choose another path.`),
     );
   }
   return { fsPath, exists };

@@ -239,7 +239,18 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // tool's frozen `outputSchema` (the shared `engine_log` block included), its annotation
 // block and a two-field input schema — the price every runtime tool pays. 312's rule holds:
 // the ceiling sits ON the surface.
-export const BYTES_CEILING = 374962;
+//
+// 🆕 BP-0041 + BP-0042 (1.89.0) — RAISED 374,962 -> 377,604, AND WHAT BOUGHT IT IS TWO PARTS
+// OF THE TG-1026 HARNESS THE OWNER GRANTED BY NAME (2026-11-02). Measured before and after on
+// the same build: +2,785 B as first drafted; 80 B of that was prose the schemas already say
+// (the save tool restating "inside the project"; inject_input's description naming the
+// `window_points` its output schema declares) and came off before this line moved. The rest:
+// `runtime_screenshot_save` — a new tool's frozen outputSchema, annotation block and two-field
+// input — and `runtime_inject_input`'s 22 new optional event fields (physical keys, gamepad, the
+// pointer) plus `window_points` / `frames` on its output. The pointer's `button` stayed an integer
+// (MouseButton, like mouse_button's): a union there was a type change, MAJOR on the wire, and
+// 63 B. 312's rule holds: the ceiling sits ON the surface.
+export const BYTES_CEILING = 377604;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

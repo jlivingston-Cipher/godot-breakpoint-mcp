@@ -21,7 +21,9 @@ name: integration
 #                     secret denied, correct secret authenticates; constant-time compare). Also runs
 #                     runtime_state_smoke.gd (BP-0037 D) — runtime.read_state over the game's own
 #                     Engine metadata "breakpoint_state" registry, driven through the shipped _dispatch.
-#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD / PIECE_BUILD / INTERACT_BUILD / CARD_SETFACE / BOARD_TILE / EDITABLE_INSTANCE / BRIDGE_REENTRANCY / BRIDGE_AUTH / RUNTIME_STATE _SUMMARY / _FAIL markers.
+#                     Also runs input_kinds_smoke.gd (BP-0041) — runtime_inject_input's key / gamepad
+#                     kinds and fields and the pointer's validation and button bookkeeping, headless.
+#                     Gates on the OPS_UNIT / CARD_BUILD / BOARD_BUILD / PIECE_BUILD / INTERACT_BUILD / CARD_SETFACE / BOARD_TILE / EDITABLE_INSTANCE / BRIDGE_REENTRANCY / BRIDGE_AUTH / RUNTIME_STATE / INPUT_KINDS _SUMMARY / _FAIL markers.
 #   * cli-plane     — headless, deterministic, expected to pass. This is the gate.
 #   * runtime-plane — boots the example GAME headless (no editor, no GUI) and drives Plane C
 #                     against its in-game BreakpointRuntimeBridge autoload (:9081). Asserts D6
@@ -357,6 +359,20 @@ jobs:
           grep -q "RUNTIME_STATE_SUMMARY" /tmp/runtime-state.log || { echo "::error::runtime_state_smoke.gd produced no RUNTIME_STATE_SUMMARY (script error?)"; exit 1; }
           if grep -q "RUNTIME_STATE_FAIL" /tmp/runtime-state.log; then echo "::error::a runtime read-state assertion failed"; exit 1; fi
           echo "Runtime read-state smoke passed: $(grep -o 'RUNTIME_STATE_SUMMARY.*' /tmp/runtime-state.log)"
+
+      - name: Run the input-kinds smoke (BP-0041 — keys, gamepad, the pointer's bookkeeping)
+        run: |
+          set -eu
+          "$GODOT_BIN" --headless --path "${{ github.workspace }}/example" \
+            --script res://tests/input_kinds_smoke.gd > /tmp/input-kinds.log 2>&1 || true
+          echo "=== input_kinds_smoke.gd output ==="
+          cat /tmp/input-kinds.log
+          echo "====================================="
+          # INPUT_KINDS_* markers are the source of truth (headless --script exit codes can be
+          # unreliable): require the summary, and fail on any FAIL.
+          grep -q "INPUT_KINDS_SUMMARY" /tmp/input-kinds.log || { echo "::error::input_kinds_smoke.gd produced no INPUT_KINDS_SUMMARY (script error?)"; exit 1; }
+          if grep -q "INPUT_KINDS_FAIL" /tmp/input-kinds.log; then echo "::error::an input-kinds assertion failed"; exit 1; fi
+          echo "Input-kinds smoke passed: $(grep -o 'INPUT_KINDS_SUMMARY.*' /tmp/input-kinds.log)"
 
       - name: Run the Pause Agent latch smoke (addon control surface)
         run: |

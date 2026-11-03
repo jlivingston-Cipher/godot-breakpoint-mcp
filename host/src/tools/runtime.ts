@@ -6,7 +6,9 @@ import { MAX_PEERS, type PeerRegistry } from "../peers.js";
 import { gate } from "../confirm.js";
 import { ok, failPath } from "./lsp-common.js";
 import type { Config } from "../config.js";
-import { resolveInsideProject } from "../paths.js";
+import fs from "node:fs";
+import nodePath from "node:path";
+import { resolveInsideProject, resolveWriteTarget } from "../paths.js";
 import { NAME_TAKEN_CLAUSE } from "../schemas.js";
 import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
@@ -25,6 +27,15 @@ const peerField = {
     .string()
     .optional()
     .describe("Headless peer id from runtime_spawn_peers; omit for the default running game."),
+};
+
+/** What `runtime.screenshot` answers. `viewport` arrives from addon 1.19.0 (BP-0041). */
+type ScreenshotReply = {
+  base64: string;
+  mime: string;
+  width: number;
+  height: number;
+  viewport?: Record<string, unknown>;
 };
 
 /**
@@ -122,6 +133,9 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       return failPath(err);
     }
   };
+  /** 🆕 BP-0041 (addon 1.19.0) — the geometry that relates frame pixels to window pixels,
+   *  said in the text reply beside the image. An older addon sends none; nothing is said. */
+  const viewportClause = (r: ScreenshotReply) => (r.viewport ? ` Viewport: ${JSON.stringify(r.viewport)}.` : "");
   /** The bridge addressing `peer`, or the default running game when omitted. */
   const clientFor = (peer?: string): BridgeClient => (peer ? peers.clientFor(peer) : runtime);
   /** Human label for confirmation prompts, so a gated op names its target process. */
@@ -209,18 +223,46 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       title: "Runtime inject input",
       description:
         "Inject a synthetic input event for automated play-testing. DESTRUCTIVE. " +
-        "event.kind is 'action' | 'key' | 'mouse_button' | 'mouse_motion'. " +
+        "event.kind is 'action' | 'key' | 'mouse_button' | 'mouse_motion' | 'joypad_button' | 'joypad_motion' | 'pointer'. " +
+        "pointer: action press|move|release|tap|drag at x,y (to_x,to_y) in runtime_screenshot frame pixels. " +
         "Example: {\"kind\":\"action\",\"action\":\"jump\",\"pressed\":true}.",
       inputSchema: {
         event: z.object({
-          kind: z.enum(["action", "key", "mouse_button", "mouse_motion"]),
+          kind: z.enum(["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer"]),
           action: z.string().optional(),
           strength: z.number().optional(),
           keycode: z.number().int().optional(),
+          // 🆕 BP-0041 (addon 1.19.0) — keys bound in the editor's Input Map are stored by
+          // PHYSICAL key, and an event carrying only `keycode` never matches one.
+          physical_keycode: z.number().int().optional(),
+          key_label: z.number().int().optional(),
+          unicode: z.number().int().optional(),
+          echo: z.boolean().optional(),
+          shift: z.boolean().optional(),
+          ctrl: z.boolean().optional(),
+          alt: z.boolean().optional(),
+          meta: z.boolean().optional(),
+          // MouseButton index for mouse_button and pointer (1 left, 2 right, 3 middle); JoyButton for
+          // joypad_button. Kept an integer: a type change here is MAJOR on the wire (wire_diff.mjs).
           button: z.number().int().optional(),
           pressed: z.boolean().optional(),
           position: z.any().optional(),
           relative: z.any().optional(),
+          double_click: z.boolean().optional(),
+          button_mask: z.number().int().optional(),
+          space: z.enum(["window", "frame"]).optional(),
+          device: z.number().int().optional(),
+          pressure: z.number().optional(),
+          axis: z.number().int().min(0).max(5).optional(),
+          value: z.number().min(-1).max(1).optional(),
+          x: z.number().optional(),
+          y: z.number().optional(),
+          to_x: z.number().optional(),
+          to_y: z.number().optional(),
+          // steps x frames_per_step stays inside the 15 s runtime deadline at 60 fps.
+          steps: z.number().int().min(1).max(60).optional(),
+          frames_per_step: z.number().int().min(1).max(10).optional(),
+          warp: z.boolean().optional(),
         }),
         ...confirmField,
         ...peerField,
@@ -283,16 +325,79 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     },
     async ({ peer }) => {
       try {
-        const r = (await clientFor(peer).request("runtime.screenshot", {})) as { base64: string; mime: string; width: number; height: number };
+        const r = (await clientFor(peer).request("runtime.screenshot", {})) as ScreenshotReply;
         return {
           content: [
             { type: "image" as const, data: r.base64, mimeType: r.mime },
-            { type: "text" as const, text: `Captured game frame (${r.width}x${r.height}).` },
+            { type: "text" as const, text: `Captured game frame (${r.width}x${r.height}).${viewportClause(r)}` },
           ],
         };
       } catch (err) {
         return fail(err);
       }
+    },
+  );
+
+  // 🆕 BP-0042 (1.89.0) — ruled 2026-11-02, "C per rec": `runtime_screenshot` stays read-only
+  // and gains no `path`; THIS tool writes. It reuses `runtime.screenshot` (no new bridge
+  // method) and writes HOST-side through the writer path guard (`resolveWriteTarget`: inside
+  // the project root, refused when the file exists). It never overwrites — and the write
+  // itself is exclusive (`wx`), so a file that appears between the check and the write is
+  // refused too rather than replaced. Creating a new file is additive, so it is not
+  // destructive and adds no confirmation call site (era-neutral until 2.0, BP-0029). It
+  // returns no image: the frame goes to disk, not into the context.
+  server.registerTool(
+    "runtime_screenshot_save",
+    {
+      title: "Runtime screenshot save",
+      description:
+        "Save the current game frame as a PNG at a new project path; returns no image, never overwrites. " +
+        "Makes runtime_screenshot_diff's reference.",
+      inputSchema: {
+        path: z
+          .string()
+          .regex(/\.[Pp][Nn][Gg]$/)
+          .describe("res:// path of the .png to create; refused if it exists"),
+        ...peerField,
+      },
+    },
+    async ({ path: p, peer }) => {
+      const opts = { label: "path", existsHint: "Choose another path: this tool never overwrites a file." };
+      let fsPath: string;
+      try {
+        fsPath = resolveWriteTarget(p, config.projectPath, opts).fsPath;
+      } catch (err) {
+        return failPath(err);
+      }
+      let r: ScreenshotReply;
+      try {
+        r = (await clientFor(peer).request("runtime.screenshot", {})) as ScreenshotReply;
+      } catch (err) {
+        return fail(err);
+      }
+      const png = Buffer.from(r.base64, "base64");
+      try {
+        fs.mkdirSync(nodePath.dirname(fsPath), { recursive: true });
+        fs.writeFileSync(fsPath, png, { flag: "wx" });
+      } catch (err) {
+        // `wx` lost a race: the file appeared after the guard looked. Same refusal, same words.
+        if ((err as NodeJS.ErrnoException)?.code === "EEXIST") {
+          try {
+            resolveWriteTarget(p, config.projectPath, opts);
+          } catch (refusal) {
+            return failPath(refusal);
+          }
+        }
+        return failPath(err);
+      }
+      return ok({
+        saved: true,
+        path: p,
+        width: r.width,
+        height: r.height,
+        bytes: png.length,
+        ...(r.viewport ? { viewport: r.viewport } : {}),
+      });
     },
   );
 
@@ -458,7 +563,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       description:
         "Capture the current frame and compare it to a reference PNG at a project path, returning diff stats and a " +
         "pass/fail vs tolerance (read-only; the diff is computed engine-side so the host stays dependency-free). " +
-        "Establish the reference first by saving a runtime_screenshot as a project asset.",
+        "Establish the reference first with runtime_screenshot_save.",
       inputSchema: {
         reference: z.string().describe("res:// or user:// path to the reference PNG"),
         tolerance: z
