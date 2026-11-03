@@ -638,11 +638,13 @@ BLAST: dict[str, int] = {
     # 🆕 BP-0037 (1.88.0): 92 -> 93. unknown_state's remedy names `runtime_read_state` in
     # backticks, so check 28's tool-reference arm has one more remedy to resolve against this
     # registry, and blinding the registry fails on it. No check was added.
-    # 🆕 BP-0041 (1.89.0): 93 -> 94. bad_event's remedy names `runtime_inject_input` and
-    # `runtime_screenshot` in backticks: one more remedy for check 28's tool-reference arm to
-    # resolve. (bad_reference now names `runtime_screenshot_save` instead of
-    # `runtime_screenshot`: the same one remedy, so no move.) No check was added.
-    "registered_tools": 94,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
+    # 🆕 BP-0041 (1.89.0): 93 -> 95. bad_event's remedy names `runtime_inject_input` and
+    # `runtime_screenshot` in backticks, and blinding the registry fails ONE LINE PER TOOL
+    # REFERENCE, not per remedy — so two more. (Declared 94 at first, reasoning per remedy as
+    # 328's note read; CI 41560132408 observed 95.) bad_reference now names
+    # `runtime_screenshot_save` instead of `runtime_screenshot`: one reference either way, no
+    # move. No check was added.
+    "registered_tools": 95,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
