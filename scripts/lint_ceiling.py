@@ -219,7 +219,15 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
         # more for the cleanup assertion that catches a cleanup which removed nothing —
         # the loop is derived from `MADE` now, and a derived loop over an empty list is
         # exactly the silent pass this tree refuses everywhere else.
-        446,
+        # 🆕 329 (BP-0041 / BP-0042): raised by ELEVEN, same idiom, one file.
+        # `runtime-screenshot.integration.mjs` gained two families: RENDER_LIVE_VIEWPORT (the
+        # geometry block beside the image must agree with the frame under the default stretch)
+        # and RENDER_LIVE_SAVE (the reference is now written by `runtime_screenshot_save`, a
+        # second save is refused, and the first file is untouched). Every one of those claims
+        # goes through the file's existing `const assert = population.assert`, the binding
+        # TypeScript cannot narrow through, so each pays the tax this row records. Measured on
+        # CI (ci 41565945902): 457 against 446.
+        457,
         "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "
