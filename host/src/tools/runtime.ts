@@ -245,6 +245,25 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     async ({ keys, peer }) => call("runtime.get_monitors", keys ? { keys } : {}, peer),
   );
 
+  // 🆕 BP-0037 D — read-only, so no confirmation: unlike runtime_call_method, which can call
+  // anything, this calls only what the GAME registered in Engine metadata "breakpoint_state"
+  // (a Dictionary of name -> Callable, written from the game's own debug-only code).
+  server.registerTool(
+    "runtime_read_state",
+    {
+      title: "Runtime read state",
+      description:
+        "Read state the game exposes as JSON: call a function it registered in Engine metadata \"breakpoint_state\" " +
+        "(name -> Callable, set in its own debug code). Read-only, no confirmation.",
+      inputSchema: {
+        name: z.string().optional().describe("Registered reader to call; omit to list the names"),
+        args: z.array(z.any()).optional().describe("Reader arguments (tagged-Variant convention)"),
+        ...peerField,
+      },
+    },
+    async ({ name, args, peer }) => call("runtime.read_state", name === undefined ? {} : { name, args: args ?? [] }, peer),
+  );
+
   server.registerTool(
     "runtime_screenshot",
     {

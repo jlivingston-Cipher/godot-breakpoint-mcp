@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **293 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **294 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2783,6 +2783,19 @@ between belongs to this call and nothing else does.
 ```
 - Allow-listed keys: `time/fps`, `time/process`, `time/physics_process`, `memory/static`, `object/count`, `object/node_count`, `object/resource_count`, `render/total_objects_drawn`, `render/total_draw_calls`, `render/video_mem_used`, `physics_3d/active_objects`, `physics_2d/active_objects`, `audio/output_latency`. Anything else is **skipped, not invented** — `runtime_assert_perf` reports it as `checked: 0` rather than as a passing comparison. `object/count` is the total live ObjectDB population, and the only one of the three object counters that can see a leaked non-Node.
 
+### `runtime_read_state` ✅ (read-only, no confirmation — 1.88.0, BP-0037)
+- **Input**
+```json
+{ "type": "object", "properties": { "name": { "type": "string", "description": "registered reader to call; omit to list the names" }, "args": { "type": "array", "description": "reader arguments (tagged-Variant convention)" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["names"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "names": { "type": "array", "items": { "type": "string" }, "description": "every reader the game registered, sorted" }, "name": { "type": "string" }, "value": { "description": "the reader's return value: JSON-native values unchanged, Godot types tagged" } } }
+```
+- Reads only what the GAME registered in Engine metadata `breakpoint_state` — a Dictionary of name -> Callable written from its own debug-only code, with no reference to `addons/breakpoint_mcp/`, so the game compiles and runs unchanged in an export that leaves the folder out:
+  `if OS.is_debug_build(): var reg: Dictionary = Engine.get_meta(&"breakpoint_state", {}); reg["mixer"] = _debug_mixer_state; Engine.set_meta(&"breakpoint_state", reg)`.
+- Errors: `no_state_registry` (nothing registered, or not a Dictionary), `unknown_state` (the message lists the registered names), `state_reader_gone` (the object behind the Callable was freed). Unlike `runtime_call_method`, which can call anything and asks each time, this calls only what the game chose to expose.
+
 ### `runtime_screenshot` ✅ (returns MCP image content)
 - **Input**
 ```json
@@ -4622,6 +4635,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_emit_signal` | `runtime` · C / Runtime | ✅ | ✔ |
 | `runtime_inject_input` | `runtime` · C / Runtime | ✅ | ✔ |
 | `runtime_get_monitors` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_read_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_screenshot` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_get_log` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_node_state` | `runtime` · C / Runtime | ✅ | – |
@@ -4702,4 +4716,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
-**293 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**294 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
