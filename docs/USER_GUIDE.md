@@ -5,9 +5,9 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.88.0 · addon 1.18.0
+- **Version:** host 1.89.0 · addon 1.19.0
 - **License:** MIT
-- **What it exposes:** full 294 tools (secure-default 281 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 295 tools (secure-default 282 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -399,8 +399,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 281 tools**. Opt in
-to load the **full 294**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 282 tools**. Opt in
+to load the **full 295**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -422,11 +422,11 @@ if Breakpoint never appears in a client that caps, check this before anything el
 
 Two presets are published as fitting under both caps, and both are measured by the suite rather
 than typed: `BREAKPOINT_TOOLSETS=d` → **58** (both language servers and both debuggers — the
-whole debugging surface), and `b,c,d` → **94** (that plus the headless CLI and the running-game
+whole debugging surface), and `b,c,d` → **95** (that plus the headless CLI and the running-game
 runtime family). Every start also prints the count actually registered, on stderr:
 
 ```
-[breakpoint-mcp] tool surface: 281 tool(s) registered · groups assetgen,backend,cli,…
+[breakpoint-mcp] tool surface: 282 tool(s) registered · groups assetgen,backend,cli,…
 ```
 
 See [Tool limits](../README.md#tool-limits--if-your-client-refuses-to-load-breakpoint) for the
@@ -522,7 +522,7 @@ on the formal **MCP task model**: a task-aware client creates the job and then p
 or cancels it while it runs. A plain
 client still gets the blocking result, exactly as before.
 
-### Plane C — Runtime Bridge (`runtime_*`, 28 tools)
+### Plane C — Runtime Bridge (`runtime_*`, 29 tools)
 
 An autoload (`BreakpointRuntimeBridge`) that lives inside the **running game** and listens
 on `127.0.0.1:9081`. Through it, the assistant can read the live SceneTree, get and set runtime
@@ -642,7 +642,12 @@ addon enabled and the host registered (Sections 3–4).
 - `runtime_get_property` `{ path: ".", property: "counter" }` → read live state.
 - `runtime_call_method` **(higher-trust)** `{ path: ".", method: "take_damage", args: [10] }` → invoke a
   method (asks you to confirm first).
-- `runtime_get_monitors`, `runtime_screenshot` → observe performance and grab a frame.
+- `runtime_get_monitors`, `runtime_screenshot` → observe performance and grab a frame (its text adds the
+  viewport geometry from addon 1.19.0).
+- `runtime_screenshot_save` `{ path: "res://golden/title.png" }` → write the frame to a new project file
+  and return no image — never overwrites; the reference `runtime_screenshot_diff` compares against.
+- `runtime_inject_input` `{ event: { kind: "pointer", action: "tap", x: 642, y: 262 } }` → click where the
+  frame shows something, in the frame's own pixels, under any stretch mode (addon 1.19.0; asks to confirm).
 - `runtime_read_state` `{ name: "player" }` → read state the game chose to expose, as JSON, with no
   confirmation (the sample registers `player` from its own debug-only code in `player.gd`).
 
@@ -679,7 +684,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **294 tools** in total (the secure-default surface is **281** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **295 tools** in total (the secure-default surface is **282** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -767,12 +772,13 @@ Works without the editor open.
 - **`godot_run_managed`** / **`godot_output`** / **`godot_stop`** — run the game as a
   managed child process with captured stdout/stderr, read that console output, and stop it.
 
-### Plane C — Runtime bridge (`runtime_*`, 28 tools)
+### Plane C — Runtime bridge (`runtime_*`, 29 tools)
 
 Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_set_property` *(destructive)*, `runtime_call_method` *(destructive)*,
 `runtime_emit_signal` *(destructive)*, `runtime_inject_input` *(destructive)*,
-`runtime_get_monitors`, `runtime_screenshot`, `runtime_get_log`, and `runtime_read_state` (state the
+`runtime_get_monitors`, `runtime_screenshot`, `runtime_screenshot_save` (writes the frame to a new
+project file, never overwrites), `runtime_get_log`, and `runtime_read_state` (state the
 game registered in Engine metadata `breakpoint_state` — see *Strict mode* below). Plus a read-only
 verification family: `runtime_assert_node_state`, `runtime_assert_scene_structure`,
 `runtime_assert_perf`, `runtime_assert_screen_text`, and `runtime_screenshot_diff` (all
@@ -1069,7 +1075,9 @@ underlying steps.
    **every later call about that process takes it**: `godot_output {id}` to read the console,
    `godot_stop {id}` to end it. Both fail validation without one.
 2. `runtime_get_tree` to see the live scene.
-3. `runtime_inject_input` to simulate button presses and movement (one `event` per call).
+3. `runtime_inject_input` to simulate button presses and movement (one `event` per call): actions,
+   keys (pass `physical_keycode` for keys bound in the Input Map), mouse, gamepad, and the `pointer`
+   kind — a tap or drag at pixels of the frame `runtime_screenshot` returns.
 4. `runtime_get_property` / `runtime_set_property` and `runtime_call_method` **(higher-trust)**
    to probe and nudge state (mutators ask to confirm).
 5. `runtime_get_monitors` for FPS and other performance counters; `runtime_screenshot`
@@ -1100,7 +1108,7 @@ plane you are using.
 - The client capped the tool list and refused the whole server: Google Antigravity stops at 100 and VS Code blocks agent mode at 128.
   Nothing here ran, so there is no Breakpoint log to check — the message came from the client.
 - Set `BREAKPOINT_TOOLSETS` to a preset that fits: `d` (**58** — both language servers and both
-  debuggers) or `b,c,d` (**93** — that plus the CLI and runtime planes). Both are measured
+  debuggers) or `b,c,d` (**95** — that plus the CLI and runtime planes). Both are measured
   against the smallest cap by the test suite, not typed into a document.
 - Once it loads, the startup line on stderr reports the count that was actually registered, so
   the next configuration can be judged from output instead of guessed.
@@ -1230,7 +1238,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-294 tools (secure-default 281) and 6 resources. The exhaustive per-tool schemas are in
+295 tools (secure-default 282) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

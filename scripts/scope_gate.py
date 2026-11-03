@@ -413,7 +413,9 @@ BLAST: dict[str, int] = {
     # 🆕 BP-0037 (1.88.0): 72 -> 75. THREE new runtime codes, one row each —
     # no_state_registry, unknown_state, state_reader_gone (runtime_read_state) — so emptying
     # the tables leaves three more codes with no next action. The tables grew.
-    "remedy_tables": 75,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 BP-0041 (1.89.0): 75 -> 76. ONE new runtime code, `bad_event` (runtime_inject_input's
+    # key / gamepad / pointer field refusals), one row — the tables grew by one.
+    "remedy_tables": 76,                      # 🆕 259: 64 -> 65, the CLI span join
     # 🆕 284 — 71 -> 70. The addon tables are no longer the ONLY source of a CLI span, so
     # blinding them leaves check 28's join able to answer and one refusal stops firing.
     # 🔵 AND THE OBSERVED COLLAPSE STILL INCLUDES `xlang.remedy_tool_refs` WHILE THE
@@ -636,7 +638,11 @@ BLAST: dict[str, int] = {
     # 🆕 BP-0037 (1.88.0): 92 -> 93. unknown_state's remedy names `runtime_read_state` in
     # backticks, so check 28's tool-reference arm has one more remedy to resolve against this
     # registry, and blinding the registry fails on it. No check was added.
-    "registered_tools": 93,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
+    # 🆕 BP-0041 (1.89.0): 93 -> 94. bad_event's remedy names `runtime_inject_input` and
+    # `runtime_screenshot` in backticks: one more remedy for check 28's tool-reference arm to
+    # resolve. (bad_reference now names `runtime_screenshot_save` instead of
+    # `runtime_screenshot`: the same one remedy, so no move.) No check was added.
+    "registered_tools": 94,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the

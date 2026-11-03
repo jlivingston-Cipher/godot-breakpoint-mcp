@@ -1,0 +1,33 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for BP-0041 — the `pointer` kind of runtime_inject_input, and the
+; frame-to-window mapping it depends on. Observer only: see pointer_probe.gd.
+;
+; Two flat, saturated targets on the default clear colour so a driver can find each one
+; BY COLOUR in the captured frame, independently of the addon's own geometry:
+;   Target  magenta, 120x80 at (700, 300) — taps land here; it records what the GUI routed
+;   Drop    cyan,    120x80 at (200, 150) — a drag from Target is released here
+; Both sit inside 1000x500, the smallest window the measurement uses, so they stay on
+; screen in every stretch mode, letterboxed or not.
+;
+; Measured windowed on the Mac, never headless: a headless display draws nothing.
+
+[ext_resource type="Script" path="res://tests/pointer_probe.gd" id="1_pointer"]
+
+[node name="PointerProbe" type="Node2D"]
+script = ExtResource("1_pointer")
+
+[node name="Target" type="ColorRect" parent="."]
+offset_left = 700.0
+offset_top = 300.0
+offset_right = 820.0
+offset_bottom = 380.0
+color = Color(1, 0, 1, 1)
+
+[node name="Drop" type="ColorRect" parent="."]
+offset_left = 200.0
+offset_top = 150.0
+offset_right = 320.0
+offset_bottom = 230.0
+mouse_filter = 2
+color = Color(0, 1, 1, 1)

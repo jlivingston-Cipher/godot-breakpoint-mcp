@@ -26,8 +26,8 @@
  * DROP them at registration when their group isn't enabled — so a default
  * session's advertised surface omits the high-blast tools entirely
  * (least-privilege by construction, mirroring `godot-agent-loop`). The full
- * 294-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
- * group back in; the secure-default surface is 294 − 13 = 281 tools.
+ * 295-tool surface loads only when `BREAKPOINT_PRIVILEGED_GROUPS` opts the
+ * group back in; the secure-default surface is 295 − 13 = 282 tools.
  *
  * A tool with NO capability tag is always registered. Semantics are a UNION: a
  * tool tagged with more than one group is registered when ANY of its groups is
@@ -329,7 +329,7 @@ export function droppedToolMessage(name: string): string {
  * earlier would wrap nothing.
  *
  * 🔴 THIS DELIBERATELY DOES NOT REGISTER THE TOOL. Least-privilege by
- * construction is the point of the drop: `tools/list` stays at 281 and no
+ * construction is the point of the drop: `tools/list` stays at 282 and no
  * withheld schema crosses the wire, so `wire_diff`, `token-cost` and every floor
  * over the advertised surface are unmoved. The ONLY thing that changes is the
  * sentence a caller gets back when it asks for one by name — which is the whole

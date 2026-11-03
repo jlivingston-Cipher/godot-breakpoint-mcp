@@ -57,8 +57,11 @@ const population = new Population("RENDER_LIVE", {
   families: [
     "RENDER_LIVE_CAPTURE", "RENDER_LIVE_SELF", "RENDER_LIVE_CHANGE", "RENDER_LIVE_REGION_IN",
     "RENDER_LIVE_REGION_OUT", "RENDER_LIVE_RESTORE", "RENDER_LIVE_MISMATCH", "RENDER_LIVE_BADREF",
+    // 🆕 BP-0041 / BP-0042 (1.89.0 / addon 1.19.0): the viewport block, and the reference
+    // written by runtime_screenshot_save rather than by this probe.
+    "RENDER_LIVE_VIEWPORT", "RENDER_LIVE_SAVE",
   ],
-  scope: 8,
+  scope: 10,
   claims: 29,         // measured 31 in CI (this PR). Never runnable locally — needs a real rasterizer
 });
 const assert = population.assert;
@@ -258,10 +261,39 @@ const reported = (shotRes.content ?? []).find((c) => c.type === "text")?.text ??
 assert.ok(reported.includes(`${W}x${H}`), `the tool reported "${reported}" but the PNG header says ${W}x${H}`);
 population.seal("RENDER_LIVE_CAPTURE", `ok ${W}x${H} png_bytes=${bytes.length}`);
 
-// Establish the reference from the frame just captured. res:// maps to the
-// project directory in a run-from-source project, so the addon's Image.load()
-// reads exactly these bytes back.
-fs.writeFileSync(REF, bytes);
+// The reference is written below by runtime_screenshot_save (1.89.0). res:// maps to the
+// project directory in a run-from-source project, so the addon's Image.load() reads
+// exactly the bytes the host wrote.
+
+// 🆕 BP-0041 — the geometry beside the image. The render probe runs with the default
+// stretch (disabled), so the frame IS the window: texture, visible rect and window agree.
+const vpAt = reported.indexOf("Viewport: ");
+assert.ok(vpAt >= 0, `runtime_screenshot's text should carry the viewport block, got "${reported}"`);
+const viewport = JSON.parse(reported.slice(vpAt + "Viewport: ".length).replace(/\.$/, ""));
+assert.deepEqual(viewport.texture, [W, H], `viewport.texture should be the frame's own size ${W}x${H}`);
+assert.equal(viewport.stretch_mode, "disabled", "the render probe runs with the default stretch");
+assert.deepEqual(viewport.visible_rect, [0, 0, W, H], "with stretch disabled the visible rect is the frame");
+assert.deepEqual(viewport.window, [W, H], "with stretch disabled the window is the frame");
+population.seal("RENDER_LIVE_VIEWPORT", `ok ${JSON.stringify(viewport)}`);
+
+// 🆕 BP-0042 — the reference is written by the tool the shipped sentences now name, and
+// RENDER_LIVE_SELF below diffs against THAT file, so "runtime_screenshot_save writes one
+// you can diff against" is measured rather than said. A second save to the same path is
+// refused and leaves the first file as it was.
+cleanup();
+const saved = await raw("runtime_screenshot_save", { path: REF_RES });
+if (saved.isError) die(`runtime_screenshot_save failed: ${saved.content?.[0]?.text}`);
+assert.equal((saved.content ?? []).some((c) => c.type === "image"), false, "runtime_screenshot_save returns no image");
+const savedOut = saved.structuredContent ?? {};
+const onDisk = fs.readFileSync(REF);
+assert.deepEqual(pngHeader(onDisk), { width: W, height: H }, "the saved PNG's own header should match the frame");
+assert.equal(savedOut.bytes, onDisk.length, "the reply's byte count should be the file's");
+assert.deepEqual(savedOut.viewport?.texture, [W, H], "the save's viewport block matches the capture's");
+const again = await raw("runtime_screenshot_save", { path: REF_RES });
+assert.equal(again.isError, true, "a second save to the same path must be refused");
+assert.match(again.content?.[0]?.text ?? "", /\[exists\]/, "the refusal is the writer guard's `exists`");
+assert.ok(fs.readFileSync(REF).equals(onDisk), "the refused save left the first file untouched");
+population.seal("RENDER_LIVE_SAVE", `ok ${savedOut.width}x${savedOut.height} bytes=${savedOut.bytes} second=refused`);
 fs.writeFileSync(REF_SMALL, makePng(2, 2, [255, 0, 0, 255]));
 
 try {
