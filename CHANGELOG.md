@@ -4,6 +4,57 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.89.0] — 2026-11-03
+
+_Addon **1.18.0 → 1.19.0** — `runtime_bridge.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **294 → 295** (secure default **281 → 282**): one tool that writes a file and never overwrites one._
+
+### Added
+
+**`runtime_screenshot_save` — THE FRAME TO A FILE, NOT INTO THE CONTEXT (BP-0042, part C of the
+TG-1026 harness).** `{path, peer?}`: the host asks the running game for the current frame (the
+same capture as `runtime_screenshot`, at the viewport's own size) and writes it as a PNG at a
+`res://` path inside the project, through the writer path guard. It refuses a path outside the
+project (`path_outside_project`) and **refuses an existing file** (`exists`): there is no
+`overwrite`, and the write is exclusive, so a file that appears between the check and the write
+is refused too. It returns no image. Creating a new file is additive, so the tool is annotated
+neither read-only nor destructive and asks for no confirmation. `runtime_screenshot` stays
+read-only and keeps its arguments. Two shipped sentences told the model to make a diff
+reference with `runtime_screenshot`, which cannot write one; `runtime_screenshot_diff`'s
+description and the `bad_reference` next action now name `runtime_screenshot_save`, as do the
+two golden-image recipes. The render-plane CI probe writes its reference with this tool and diffs
+against that file (`RENDER_LIVE_SAVE`).
+
+**`runtime_inject_input` drives keys by physical code, gamepads, and a pointer in frame pixels
+(BP-0041, part B).** Additions, all optional, nothing existing changes meaning:
+- `key`: `physical_keycode`, `key_label`, `unicode`, `echo`, and `shift` / `ctrl` / `alt` / `meta`.
+  Keys bound in the editor's Input Map are stored by physical key, and an event carrying only
+  `keycode` never matched one; with `physical_keycode` it does.
+- `mouse_button`: `double_click`, `space` (`"window"` default, or `"frame"`); `mouse_motion`:
+  `button_mask`, `space`. `global_position` is now set equal to `position`.
+- `joypad_button {device?, button, pressed?, pressure?}` and `joypad_motion {device?, axis, value}`.
+- `pointer {action: press | move | release | tap | drag, x, y, to_x?, to_y?, button? (MouseButton, default 1),
+  steps?, frames_per_step?, space?, warp?}` — `x, y` are pixels **of the frame `runtime_screenshot`
+  returns**, carried to window pixels through the root viewport's visible rect and
+  `Viewport.get_final_transform()`, the transform the engine inverts for every event. A drag holds
+  the button in `button_mask` across its motion events. The reply adds `window_points` (every
+  point sent) and `frames`. It rides the tool's existing confirmation. Measured windowed on the
+  Mac (Godot 4.7, a 1000x500 window over a 1152x648 base, aspect keep, the new fixture
+  `example/tests/pointer_probe.tscn`, targets found by colour in the captured frame): under
+  `disabled`, `canvas_items` and `viewport` alike, a tap at a target's frame centroid reached it
+  through the GUI within half a pixel of its centre, and a six-step drag carried the left button
+  in every motion and released on the drop target — 12 of 12. `input_kinds_smoke.gd` (22 checks,
+  headless) runs in `gdscript-unit`.
+
+**The viewport block (BP-0041).** `runtime_screenshot`'s text and `runtime_screenshot_save`'s
+reply carry `viewport: {texture, visible_rect, window, stretch_mode, stretch_aspect,
+content_scale_factor}`, so frame pixels can be related to window pixels and game coordinates.
+
+### Changed
+
+* **A `key` event with none of `keycode`, `physical_keycode` or `key_label` is refused** with
+  `bad_event` instead of being injected as KEY_NONE, which matched no key and no action.
+  `bad_kind` now lists the kinds.
+
 ## [1.88.0] — 2026-11-02
 
 _Addon **1.17.0 → 1.18.0** — `runtime_bridge.gd`, `bridge_secret.gd`, `plugin.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **293 → 294** (secure default **280 → 281**): one read-only tool._

@@ -219,6 +219,7 @@ runtime_node_add	scene	guarded	refuses res://.. naming the parameter
 runtime_node_remove	path	node-path	measured against a LIVE game: answers 'Node not found' — resolved through the scene tree, not the filesystem
 runtime_peers_digest	root	node-path	the tool's own reply vocabulary resolves it as a node, not a file
 runtime_screenshot_diff	reference	guarded	refuses res://.. naming the parameter
+runtime_screenshot_save	path	guarded	refuses res://.. naming the parameter (BP-0042: the host writes; the guard answers before the game is asked for a frame)
 runtime_set_property	path	node-path	runtime plane addresses live scene-tree nodes (same family measured live, 167 §2)
 runtime_spawn_peers	scene	guarded	refuses res://.. naming the parameter
 scene_close	path	node-path	the tool's own reply vocabulary resolves it as a node, not a file

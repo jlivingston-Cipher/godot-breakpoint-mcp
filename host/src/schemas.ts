@@ -738,7 +738,10 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_set_property: { ...engineLog, path: z.string(), property: z.string(), value: encodedValue, coerced: z.boolean().optional(), requested: encodedValue.optional() },
   runtime_call_method: { ...engineLog, return: encodedValue },
   runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
-  runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string() },
+  // 🆕 BP-0041 (addon 1.19.0) — the `pointer` kind answers the window points it actually
+  // sent and how many frames the gesture spanned, so a miss is visible in the reply.
+  runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string(),
+    window_points: z.array(z.array(z.number())).optional(), frames: z.number().optional() },
   // `monitors` values are `Performance.get_monitor()` readings, so they are engine floats
   // and can be non-finite. 🔴 226 §2: a reading that is not a number is ABSENT from
   // `monitors` and named in `non_finite` — it is NOT `null`. The value type does not move,
@@ -812,6 +815,26 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     height: z.number(),
     reference: z.string(),
     reason: z.string().optional(),
+  },
+  // 🆕 BP-0042 (1.89.0) — the host wrote the frame; it answers where, the size, and the bytes
+  // written. `viewport` (BP-0041) is present when the addon is 1.19.0 or newer. No
+  // `engine_log`: the tool BUILDS its reply, like runtime_screenshot (engine_log_echo.test.ts).
+  runtime_screenshot_save: {
+    saved: z.boolean(),
+    path: z.string(),
+    width: z.number(),
+    height: z.number(),
+    bytes: z.number(),
+    viewport: z
+      .object({
+        texture: z.array(z.number()),
+        visible_rect: z.array(z.number()),
+        window: z.array(z.number()),
+        stretch_mode: z.string(),
+        stretch_aspect: z.string(),
+        content_scale_factor: z.number(),
+      })
+      .optional(),
   },
   // F8 additions: await/animation/node-lifecycle over the runtime bridge.
   runtime_await_condition: { met: z.boolean(), polls: z.number(), elapsed_ms: z.number(), value: encodedValue },

@@ -7,7 +7,7 @@
  * it's **free** (MIT, shipped in the server), and it sits **over typed,
  * schema-validated, undoable tools** — so the contract is executed by the
  * server, not merely described in prose the model might misapply. Recipes are
- * discoverable via MCP `prompts/list`; they add **no tools** (the 294-tool
+ * discoverable via MCP `prompts/list`; they add **no tools** (the 295-tool
  * count is unchanged) and cost nothing until a client pulls one.
  */
 import { z } from "zod";
@@ -157,7 +157,7 @@ export function registerRecipes(server: RecipeServer): void {
         [
           `Goal: lock a scene's look to a golden image at ${ref} and catch visual drift.`,
           "",
-          `1. Establish the golden (first run only): godot_run_managed, drive the game to the state under test (runtime_inject_input / runtime_call_method), then runtime_screenshot and save the frame to ${ref}. Commit it (vcs_add) so it's the reference, then godot_stop — this recipe runs the game more than once, and a game left running holds the runtime bridge port, so the next run is refused.`,
+          `1. Establish the golden (first run only): godot_run_managed, drive the game to the state under test (runtime_inject_input / runtime_call_method), then call runtime_screenshot_save {path: ${ref}} to write the frame. Commit it (vcs_add) so it's the reference, then godot_stop — this recipe runs the game more than once, and a game left running holds the runtime bridge port, so the next run is refused.`,
           `2. Regression run (every time after): godot_run_managed, reproduce the same state, then runtime_screenshot_diff against ${ref} with tolerance ${tol} (pass a region to ignore volatile HUD areas). ok:true means no meaningful drift. godot_stop when the diff is in hand.`,
           "3. On failure: the diff returns diff_ratio + differing_pixels — don't just eyeball it. runtime_get_tree / runtime_assert_node_state to find the node that changed, or dbg_* to break where the offending value is set. Update the golden deliberately (re-do step 1) only once you've confirmed the change is intended.",
           "",
@@ -256,7 +256,7 @@ export function registerRecipes(server: RecipeServer): void {
           `1. Boot + freeze: godot_run_project. runtime_time_scale{scale:0} to FREEZE the game (this pauses the SceneTree, so nothing advances on its own). If the run uses randomness, runtime_seed_rng{seed:...} first so the whole playtest is reproducible.`,
           `2. Baseline: runtime_state_digest{root:"${root}"} to snapshot the frozen state (positions / visibility / modulate, stable-ordered) — this is your deterministic "before".`,
           `3. Step: runtime_step_frames{frames:${frames}, kind:"physics"} to advance EXACTLY ${frames} frames while frozen (use kind:"both" to also tick _process each step). The game stays frozen afterwards, so your reads are stable.`,
-          `4. Assert: runtime_state_digest{root:"${root}"} (or runtime_assert_node_state) that the node reached the expected, frame-exact state, then runtime_screenshot_diff against ${ref} with tolerance ${tol} — because you stepped a fixed number of frames the frame is reproducible, so the diff is stable (establish ${ref} once with runtime_screenshot on the first green run, then vcs_add it).`,
+          `4. Assert: runtime_state_digest{root:"${root}"} (or runtime_assert_node_state) that the node reached the expected, frame-exact state, then runtime_screenshot_diff against ${ref} with tolerance ${tol} — because you stepped a fixed number of frames the frame is reproducible, so the diff is stable (establish ${ref} once with runtime_screenshot_save on the first green run, then vcs_add it).`,
           `5. Iterate or thaw: repeat 3–4 to walk frame-by-frame (every step is deterministic), or runtime_time_scale{scale:1} to thaw and resume normal play. godot_stop when done. On a failed assert you are one dbg_set_breakpoints + dbg_launch away from the exact value that diverged.`,
           "",
           "Why this beats run-screenshot-guess: freezing plus fixed-frame stepping converts a timing-dependent check into a frame-exact, reproducible one the runtime_assert_* family can verify — the R tier of the W/R/E model, made deterministic.",

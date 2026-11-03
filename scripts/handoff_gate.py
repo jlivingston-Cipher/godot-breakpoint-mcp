@@ -10003,6 +10003,55 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 57 addon / 0 problems
 > ```
 """),
+    # 🆕 329 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 328 DID NOT WRITE, AS AT 327 AND 328.
+    # `HANDOFF_SESSION328.md` was drafted at 329 by `--emit-handoff 328 ../HANDOFF_SESSION327.md
+    # --measured ci328/` with the tree AT 05a3c20 (clean, nothing stashed) and the artifacts of
+    # #433's post-merge `ci` run 41552140236, downloaded the minute it finished. MOVED +2 is
+    # fe31d69..05a3c20 (#430's 6529f98, then #433's 05a3c20). `untagged 0` because `v1.88.0`
+    # names 05a3c20 itself; `unshipped 0` because `git diff v1.88.0 05a3c20 -- host/src
+    # host/package.json addons` is empty. Three counters read by hand from those artifacts, as at
+    # 323, 326, 327 and 328: 27 CI jobs (ci 7 + integration 20, every job success; integration
+    # 41552140205 — `strict-export` is the twentieth), `0 exempt`, `exempt 43`. The branch row
+    # names #430's branch; the commit subject on the `main` row drops its `(BP-0037 A + D)`,
+    # because MOVED_POPULATION reads every numeral in that atom and a ledger ID is not a
+    # count (git holds the full subject). The cut's branch `session328-cut-1.88.0-main` is named here instead,
+    # because a dotted version inside a branch name is a spelling `HEADER_EXEMPT` has never been
+    # asked to read — and it stays on origin, since npm's `gitHead` for 1.88.0 is its tip acd43bc.
+    #
+    # 🟡 THE ASSET LIBRARY ROW SAYS WHAT THE API SAYS, NOT WHAT WAS SUBMITTED. Asset 5335 still
+    # serves 1.17.0 at b13fac1; the 1.18.0 edit (24841, submitted 2026-11-03 00:30Z) answers
+    # `status new`. So the row claims `addon 1.17.0 live`, which `assetlib.live` can compare, and
+    # carries the submission as prose. `QUEUE_HEAD` moves 328 -> 329, the session that registers
+    # it; 329 commits, so no `BLOCK_ABSENT` row.
+    (328, """> ```
+> main                 05a3c20 — session328 release 1.88.0 / addon 1.18.0 — strict mode, the switch, and runtime_read_state (#433)  MOVED +2
+> branch 328           session328-block-327 · PR #430 · then the cut, PR #433
+> host / addon         1.88.0 / 1.18.0  🟢 MOVED — the cut; host/src and addons/ changed, addon re-stamped
+> npm                  🟢 registry 1.88.0 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.17.0 live · 1.18.0 submitted, pending moderation
+> 🟢 CI GREEN — 27 of 27 required checks at the merge (ci 7 + integration 20), post-merge run 41552140236 at 05a3c20
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1021/1021 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3511 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2513 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 332 file(s) / 21 suffixes · seal 104
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 294 tools / 3903 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5272
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 675 claims · landscape 4 channel(s) / 57 analysed / 65 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 9 within / 34 past / 14 never analysed
+>               · identity 72 of 122 / 2 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 60 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #

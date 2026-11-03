@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **294 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **295 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2715,8 +2715,8 @@ between belongs to this call and nothing else does.
   `Logger` via `OS.add_logger`, which does not exist before 4.5. On 4.3/4.4 the ring — and
   therefore the echo — carries only what game code routes through `push_log` itself, so a
   4.3 caller sees the field absent rather than wrong.
-- The five runtime tools that do **not** carry it — `runtime_screenshot`,
-  `runtime_await_condition`, `runtime_spawn_peers`, `runtime_peer_stop`,
+- The six runtime tools that do **not** carry it — `runtime_screenshot`,
+  `runtime_screenshot_save`, `runtime_await_condition`, `runtime_spawn_peers`, `runtime_peer_stop`,
   `runtime_peers_digest` — build their reply rather than forwarding one, so there is no
   single dispatch to attribute a log line to.
 
@@ -2757,20 +2757,37 @@ between belongs to this call and nothing else does.
 { "type": "object", "additionalProperties": false, "required": ["event"],
   "properties": { "event": { "type": "object", "description": "InputEvent descriptor", "required": ["kind"],
     "properties": {
-      "kind": { "enum": ["action", "key", "mouse_button", "mouse_motion"] },
-      "action": { "type": "string", "description": "action name (kind=action)" },
+      "kind": { "enum": ["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer"] },
+      "action": { "type": "string", "description": "InputMap action name (kind=action); press | move | release | tap | drag (kind=pointer)" },
       "strength": { "type": "number", "description": "action strength 0..1 (kind=action)" },
       "keycode": { "type": "integer", "description": "key code (kind=key)" },
-      "button": { "type": "integer", "description": "mouse button index (kind=mouse_button)" },
+      "physical_keycode": { "type": "integer", "description": "physical key code (kind=key) — what an editor Input Map binding stores by default" },
+      "key_label": { "type": "integer", "description": "key label (kind=key)" },
+      "unicode": { "type": "integer", "description": "the character typed (kind=key)" },
+      "echo": { "type": "boolean", "description": "a key-repeat event (kind=key)" },
+      "shift": { "type": "boolean" }, "ctrl": { "type": "boolean" }, "alt": { "type": "boolean" }, "meta": { "type": "boolean" },
+      "button": { "type": "integer", "description": "MouseButton index (kind=mouse_button or pointer: 1 left, 2 right, 3 middle; pointer default 1) or JoyButton index (kind=joypad_button)" },
       "pressed": { "type": "boolean" },
       "position": { "$ref": "#/$defs/Variant" },
-      "relative": { "$ref": "#/$defs/Variant", "description": "relative motion (kind=mouse_motion)" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
+      "relative": { "$ref": "#/$defs/Variant", "description": "relative motion (kind=mouse_motion)" },
+      "double_click": { "type": "boolean", "description": "kind=mouse_button" },
+      "button_mask": { "type": "integer", "description": "buttons held during the motion: 1 left, 2 right, 4 middle (kind=mouse_motion)" },
+      "space": { "enum": ["window", "frame"], "description": "what position / x, y are measured in: window pixels (default for mouse kinds) or pixels of the frame runtime_screenshot returns (default for pointer)" },
+      "device": { "type": "integer", "description": "joypad device, default 0" },
+      "pressure": { "type": "number", "description": "kind=joypad_button" },
+      "axis": { "type": "integer", "minimum": 0, "maximum": 5, "description": "JoyAxis (kind=joypad_motion)" },
+      "value": { "type": "number", "minimum": -1, "maximum": 1, "description": "axis value (kind=joypad_motion)" },
+      "x": { "type": "number" }, "y": { "type": "number" }, "to_x": { "type": "number" }, "to_y": { "type": "number" },
+      "steps": { "type": "integer", "minimum": 1, "maximum": 60, "default": 8, "description": "motion events in a drag" },
+      "frames_per_step": { "type": "integer", "minimum": 1, "maximum": 10, "default": 1 },
+      "warp": { "type": "boolean", "default": false, "description": "also move the real OS cursor (kind=pointer)" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["injected", "kind"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "injected": { "type": "boolean" }, "kind": { "type": "string" } } }
+{ "type": "object", "required": ["injected", "kind"], "properties": { "engine_log": { "type": "object", "description": "D1a: error/warning ring entries appended during THIS call" }, "injected": { "type": "boolean" }, "kind": { "type": "string" }, "window_points": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "kind=pointer: every point sent, in window pixels" }, "frames": { "type": "integer", "description": "kind=pointer: frames the gesture spanned" } } }
 ```
-- Errors: `bad_action` (kind=action naming an action the project's InputMap does not define — including an omitted `action`) / `bad_kind` (an unrecognised or absent `kind`; unreachable through this tool, whose schema is an enum, but reachable by any client writing to the runtime socket directly). `kind=action` sets **InputMap state** and produces no `InputEvent`; the other three kinds go through `Input.parse_input_event` and are delivered as real events, so an action bound to the injected key **will** fire.
+- Errors: `bad_action` (kind=action naming an action the project's InputMap does not define — including an omitted `action`) / `bad_kind` (an unrecognised or absent `kind`, the message listing the kinds; unreachable through this tool, whose schema is an enum, but reachable by any client writing to the runtime socket directly) / `bad_event` (1.19.0: a key with none of `keycode`, `physical_keycode`, `key_label`; a joypad event without its `button` or `axis`; a pointer without a valid `action`, `x`/`y`, a drag's `to_x`/`to_y`, or with a `button` other than 1, 2 or 3) / `bad_event_field` (a `position` or `relative` that is not a tagged Vector2). `kind=action` sets **InputMap state** and produces no `InputEvent`; every other kind goes through `Input.parse_input_event` and is delivered as a real event. **Keys bound in the editor's Input Map are stored by physical key**, so an action bound that way fires for a `key` event carrying `physical_keycode`, not for one carrying only `keycode`.
+- **`pointer` (addon 1.19.0, BP-0041).** `x, y` (and a drag's `to_x, to_y`) are pixels **of the frame `runtime_screenshot` returns**; the addon carries them to window pixels through the root viewport's visible rect and `Viewport.get_final_transform()` — the transform the engine inverts for every event — so a point lands where the frame shows it under each stretch mode (measured windowed on the Mac under `disabled`, `canvas_items` and `viewport`). `tap` is a press, `frames_per_step` frames, a release; `drag` is a press, `steps` motion events with the button held in `button_mask`, `frames_per_step` frames apart, and a release at `to_x, to_y`. The reply's `window_points` are the coordinates actually sent. The pointer rides this tool's existing confirmation. Code that **polls** `get_viewport().get_mouse_position()` reads the real OS cursor, not injected events; `warp: true` moves that too (off by default: it moves the developer's pointer).
 
 ### `runtime_get_monitors` ✅
 - **Input**
@@ -2801,7 +2818,18 @@ between belongs to this call and nothing else does.
 ```json
 { "type": "object", "properties": { "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** same PNG bridge payload as `screenshot_editor`.
+- **Output** same PNG bridge payload as `screenshot_editor`. From addon 1.19.0 (BP-0041) the text beside the image adds `Viewport: { texture: [w, h], visible_rect: [x, y, w, h], window: [w, h], stretch_mode, stretch_aspect, content_scale_factor }` — the geometry that relates the frame's pixels to the window's and to game coordinates; `runtime_inject_input`'s `pointer` kind takes points in this frame.
+
+### `runtime_screenshot_save` ✅ (writes a file, never overwrites — 1.89.0, BP-0042)
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string", "pattern": "\\.[Pp][Nn][Gg]$", "description": "res:// path of the .png to create; refused if it exists" }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["saved", "path", "width", "height", "bytes"], "properties": { "saved": { "type": "boolean" }, "path": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" }, "bytes": { "type": "integer", "description": "bytes written" }, "viewport": { "type": "object", "description": "addon 1.19.0+: the same geometry block as runtime_screenshot" } } }
+```
+- The host asks the game for the frame (`runtime.screenshot`, the same capture as `runtime_screenshot`, at the viewport's own size) and writes the PNG itself, through the writer path guard: the path must resolve **inside the project root** (`path_outside_project` otherwise) and must **not exist** (`exists` otherwise — this tool has no `overwrite` and never replaces a file; the write is exclusive, so a file that appears between the check and the write is refused too). Missing parent folders are created. Both refusals answer before the game is asked for a frame. **No image is returned**, so a frame kept for later costs nothing in context. `runtime_screenshot` itself stays read-only. A saved PNG is a reference `runtime_screenshot_diff` loads straight away (`Image.load` reads the file, no import needed). The same `window_not_drawing` refusal as `runtime_screenshot` applies.
 
 ### `runtime_get_log` ✅ (also a subscribable `godot://runtime/log` resource)
 - **Input**
@@ -2847,7 +2875,7 @@ between belongs to this call and nothing else does.
 ```json
 { "type": "object", "additionalProperties": false, "required": ["reference"], "properties": { "reference": { "type": "string", "description": "res:// or user:// path to the reference PNG" }, "tolerance": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 }, "per_channel_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }, "region": { "type": "object", "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "w": { "type": "integer" }, "h": { "type": "integer" } } }, "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
 ```
-- **Output** `{ ok, diff_ratio, differing_pixels, total_pixels, width, height, reference, reason?, engine_log? }` — read-only, **stats only**. Captures the current frame, loads `reference`, normalizes both to RGBA8, optionally crops both to `region`, then counts pixels whose per-channel delta exceeds `per_channel_threshold`. `diff_ratio` = differing / total; `ok` is true when `diff_ratio <= tolerance`. If the (post-crop) dimensions differ, returns `ok:false` with `reason:"dimension_mismatch"`. The diff is computed **engine-side** (`Image`), so the host stays dependency-free. Establish a reference by capturing `runtime_screenshot` and saving it as a project asset. **Future (gated):** an optional `write_diff` to save a highlighted diff image would be a file write — kept out of v1 to stay read-only.
+- **Output** `{ ok, diff_ratio, differing_pixels, total_pixels, width, height, reference, reason?, engine_log? }` — read-only, **stats only**. Captures the current frame, loads `reference`, normalizes both to RGBA8, optionally crops both to `region`, then counts pixels whose per-channel delta exceeds `per_channel_threshold`. `diff_ratio` = differing / total; `ok` is true when `diff_ratio <= tolerance`. If the (post-crop) dimensions differ, returns `ok:false` with `reason:"dimension_mismatch"`. The diff is computed **engine-side** (`Image`), so the host stays dependency-free. Establish a reference with `runtime_screenshot_save` (1.89.0), which writes the frame to a new project path. **Future (gated):** an optional `write_diff` to save a highlighted diff image would be a file write — kept out of v1 to stay read-only.
 
 ### `runtime_await_condition` ✅
 - **Input**
@@ -4637,6 +4665,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_get_monitors` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_read_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_screenshot` | `runtime` · C / Runtime | ✅ | – |
+| `runtime_screenshot_save` | `runtime` · C / Runtime | ✅ | writes a file (never overwrites) |
 | `runtime_get_log` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_node_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_scene_structure` | `runtime` · C / Runtime | ✅ | – |
@@ -4716,4 +4745,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
-**294 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**295 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

@@ -36,7 +36,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.18.0"
+const ADDON_VERSION := "1.19.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -87,6 +87,14 @@ const BridgeSecret := preload("res://addons/breakpoint_mcp/bridge_secret.gd")
 const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 # F4: methods dispatched on the async lane (they await frames); see _handle_line / _dispatch_async.
 const ASYNC_METHODS := ["runtime.step_frames"]
+# 🆕 BP-0041 (1.19.0): the input kinds runtime.inject_input answers, in the order the
+# refusal lists them. `pointer` alone rides the async lane (a tap or drag spans frames).
+const INPUT_KINDS := ["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer"]
+const POINTER_ACTIONS := ["press", "move", "release", "tap", "drag"]
+# The pointer's `button` is a MouseButton index, as on mouse_button: 1 left, 2 right, 3 middle.
+const POINTER_MASKS := {MOUSE_BUTTON_LEFT: MOUSE_BUTTON_MASK_LEFT, MOUSE_BUTTON_RIGHT: MOUSE_BUTTON_MASK_RIGHT, MOUSE_BUTTON_MIDDLE: MOUSE_BUTTON_MASK_MIDDLE}
+const STRETCH_MODES := ["disabled", "canvas_items", "viewport"]
+const STRETCH_ASPECTS := ["ignore", "keep", "keep_width", "keep_height", "expand"]
 # F4: default salient fields captured by runtime.state_digest when no explicit list is given.
 const _DIGEST_DEFAULT_FIELDS := ["position", "global_position", "rotation", "scale", "visible", "modulate"]
 
@@ -107,6 +115,11 @@ var _in_capture: bool = false
 ## 🔴 325 (BP-0023): the listen decision, taken first in _ready (bridge_secret.gd's
 ## runtime_listen_policy). Read by _setup_auth for where the secret comes from.
 var _policy: Dictionary = {}
+## 🆕 BP-0041: where the injected pointer last was and which buttons it holds, so a
+## `press`, `move` and `release` sent as three calls carry the relative motion and the
+## button_mask one real gesture would.
+var _pointer_at := Vector2.ZERO
+var _pointer_mask: int = 0
 
 
 ## The facts the listen policy is decided on. A method and not inline so the
@@ -308,7 +321,7 @@ func _handle_line(c: Dictionary, line: String) -> void:
 	# F4: async lane — methods that await frames can't use the synchronous dispatch (which sends
 	# its response immediately). Start a coroutine that sends the id'd response when done; the host
 	# correlates responses by id, so an out-of-order async response is fine.
-	if method in ASYNC_METHODS:
+	if method in ASYNC_METHODS or _is_pointer(method, params):
 		_dispatch_async(c, id, method, params)
 		return
 	# D1a: the engine-error echo. The ring already receives every push_error /
@@ -730,32 +743,242 @@ func _inject_input(params: Dictionary) -> Dictionary:
 				Input.action_release(action)
 			return _ok({"injected": true, "kind": kind})
 		"key":
+			# 🆕 BP-0041: keys bound in the editor's Input Map are stored by PHYSICAL key (the
+			# dialog's default), and an event carrying only `keycode` never matches one — so
+			# today's key kind reached `_input` but not the actions. A key with none of the
+			# three codes is KEY_NONE, which matches nothing, so it is refused, not injected.
+			if not (ev.has("keycode") or ev.has("physical_keycode") or ev.has("key_label")):
+				return _err("bad_event", "A key event needs at least one of event.keycode, event.physical_keycode or event.key_label; with none it is KEY_NONE and matches no key and no action.")
 			var k := InputEventKey.new()
 			k.keycode = int(ev.get("keycode", 0))
+			k.physical_keycode = int(ev.get("physical_keycode", 0))
+			k.key_label = int(ev.get("key_label", 0))
+			k.unicode = int(ev.get("unicode", 0))
+			k.echo = bool(ev.get("echo", false))
 			k.pressed = bool(ev.get("pressed", true))
+			_apply_modifiers(k, ev)
 			Input.parse_input_event(k)
 			return _ok({"injected": true, "kind": kind})
 		"mouse_button":
 			var mb := InputEventMouseButton.new()
 			mb.button_index = int(ev.get("button", 1))
 			mb.pressed = bool(ev.get("pressed", true))
-			var pos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mb.position = v)
+			mb.double_click = bool(ev.get("double_click", false))
+			var in_frame := String(ev.get("space", "window")) == "frame"
+			var pos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mb.position = _frame_to_window(v) if in_frame else v)
 			if not pos_err.is_empty():
 				return pos_err
+			mb.global_position = mb.position
+			_apply_modifiers(mb, ev)
 			Input.parse_input_event(mb)
 			return _ok({"injected": true, "kind": kind})
 		"mouse_motion":
 			var mm := InputEventMouseMotion.new()
-			var mpos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mm.position = v)
+			var m_in_frame := String(ev.get("space", "window")) == "frame"
+			var mpos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mm.position = _frame_to_window(v) if m_in_frame else v)
 			if not mpos_err.is_empty():
 				return mpos_err
 			var rel_err := _apply_vector2(ev, "relative", func(v: Vector2) -> void: mm.relative = v)
 			if not rel_err.is_empty():
 				return rel_err
+			mm.global_position = mm.position
+			mm.button_mask = int(ev.get("button_mask", 0))
+			_apply_modifiers(mm, ev)
 			Input.parse_input_event(mm)
 			return _ok({"injected": true, "kind": kind})
+		"joypad_button":
+			if not ev.has("button"):
+				return _err("bad_event", "A joypad_button event needs event.button, Godot's JoyButton index (0 is the bottom face button).")
+			var jb := InputEventJoypadButton.new()
+			jb.device = int(ev.get("device", 0))
+			jb.button_index = int(ev.get("button"))
+			jb.pressed = bool(ev.get("pressed", true))
+			jb.pressure = float(ev.get("pressure", 1.0 if jb.pressed else 0.0))
+			Input.parse_input_event(jb)
+			return _ok({"injected": true, "kind": kind})
+		"joypad_motion":
+			if not ev.has("axis"):
+				return _err("bad_event", "A joypad_motion event needs event.axis, Godot's JoyAxis index (0 to 5), and event.value from -1 to 1.")
+			var jm := InputEventJoypadMotion.new()
+			jm.device = int(ev.get("device", 0))
+			jm.axis = int(ev.get("axis"))
+			jm.axis_value = clampf(float(ev.get("value", 0.0)), -1.0, 1.0)
+			Input.parse_input_event(jm)
+			return _ok({"injected": true, "kind": kind})
+		"pointer":
+			# Reached only from a caller that bypassed _handle_line's routing; the lane is async.
+			return _err("async_only", "runtime.inject_input with kind pointer is dispatched on the async lane")
 		_:
-			return _err("bad_kind", "Unknown input kind: %s" % kind)
+			return _err("bad_kind", "Unknown input kind: %s. The kinds are %s." % [kind, ", ".join(INPUT_KINDS)])
+
+
+## 🆕 BP-0041 — the four modifier flags, on any event that carries them.
+func _apply_modifiers(e: InputEventWithModifiers, ev: Dictionary) -> void:
+	e.shift_pressed = bool(ev.get("shift", false))
+	e.ctrl_pressed = bool(ev.get("ctrl", false))
+	e.alt_pressed = bool(ev.get("alt", false))
+	e.meta_pressed = bool(ev.get("meta", false))
+
+
+## 🆕 BP-0041 — true when this call is a `pointer` gesture, which awaits frames and so
+## rides the async lane like runtime.step_frames.
+static func _is_pointer(method: String, params: Dictionary) -> bool:
+	if method != "runtime.inject_input":
+		return false
+	var ev: Variant = params.get("event")
+	return typeof(ev) == TYPE_DICTIONARY and String((ev as Dictionary).get("kind", "")) == "pointer"
+
+
+## 🆕 BP-0041 — the geometry that relates `runtime.screenshot`'s frame to the window.
+## `texture` is the frame's own pixel size (the image's, NOT `ViewportTexture.get_size()`:
+## measured windowed on 4.7 under canvas_items, that answered 685x386 for an 888x500 frame); `visible_rect` is the viewport's coordinate
+## space (what input events and Controls use); `window` is the OS window's client size;
+## the stretch fields are the root window's content scale settings.
+func _viewport_block(vp: Viewport, frame_size: Vector2) -> Dictionary:
+	var tex_size := frame_size
+	var vis := vp.get_visible_rect()
+	var win: Window = vp as Window if vp is Window else vp.get_window()
+	var block := {
+		"texture": [tex_size.x, tex_size.y],
+		"visible_rect": [vis.position.x, vis.position.y, vis.size.x, vis.size.y],
+		"window": [vis.size.x, vis.size.y],
+		"stretch_mode": "disabled",
+		"stretch_aspect": "ignore",
+		"content_scale_factor": 1.0,
+	}
+	if win != null:
+		block["window"] = [float(win.size.x), float(win.size.y)]
+		block["stretch_mode"] = STRETCH_MODES[clampi(int(win.content_scale_mode), 0, STRETCH_MODES.size() - 1)]
+		block["stretch_aspect"] = STRETCH_ASPECTS[clampi(int(win.content_scale_aspect), 0, STRETCH_ASPECTS.size() - 1)]
+		block["content_scale_factor"] = win.content_scale_factor
+	return block
+
+
+## 🆕 BP-0041 — the transform that carries a pixel of the frame `runtime.screenshot`
+## returns to a window pixel, in all three stretch modes.
+##
+## Godot's root window maps viewport coordinates to the window with
+## `get_final_transform()` = window_transform * stretch_transform * global_canvas_transform
+## (window.cpp, 4.3-4.7), and `Viewport._make_input_local` INVERTS exactly that for every
+## event. The frame is the viewport's render target, whose pixels are viewport coordinates
+## times the stretch scale — so frame -> window is `window_transform` alone: the letterbox
+## offset under canvas_items, offset and upscale under viewport, identity when disabled.
+## Measured windowed on the Mac (4.7, 1000x500 window, 1152x648 base, aspect keep): taps and
+## drags at frame pixels landed on their targets under all three modes.
+func _frame_transform() -> Transform2D:
+	var vp := get_viewport()
+	if vp == null:
+		return Transform2D.IDENTITY
+	if vp.has_method("get_stretch_transform"):  # bound from Godot 4.4
+		var inner: Transform2D = vp.call("get_stretch_transform") * vp.global_canvas_transform
+		return vp.get_final_transform() * inner.affine_inverse()
+	# 4.2 / 4.3 bind no stretch accessor, so the frame's own size says the stretch scale.
+	var tex := vp.get_texture()
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
+		return Transform2D.IDENTITY
+	var vis := vp.get_visible_rect()
+	var to_local := Transform2D(0.0, vis.size / Vector2(img.get_width(), img.get_height()), 0.0, vis.position)
+	return vp.get_final_transform() * to_local
+
+
+func _frame_to_window(f: Vector2) -> Vector2:
+	return _frame_transform() * f
+
+
+## 🆕 BP-0041 — the pointer kind: press / move / release / tap / drag, at points given in
+## the frame's pixels (`space` "frame", the default) or the window's (`space` "window").
+## The reply carries the window points actually sent, so a miss is visible in the reply.
+func _inject_pointer(ev_in: Variant) -> Dictionary:
+	if typeof(ev_in) != TYPE_DICTIONARY:
+		return _err("bad_event", "event must be an object.")
+	var ev: Dictionary = ev_in
+	var action := String(ev.get("action", ""))
+	if not action in POINTER_ACTIONS:
+		return _err("bad_event", "A pointer event needs event.action, one of %s; got %s." % [", ".join(POINTER_ACTIONS), JSON.stringify(action)])
+	if not (ev.has("x") and ev.has("y")):
+		return _err("bad_event", "A pointer event needs event.x and event.y, pixels of the frame runtime_screenshot returns.")
+	if action == "drag" and not (ev.has("to_x") and ev.has("to_y")):
+		return _err("bad_event", "A pointer drag needs event.to_x and event.to_y, where the button is released.")
+	var bname := int(ev.get("button", MOUSE_BUTTON_LEFT))
+	if not POINTER_MASKS.has(bname):
+		return _err("bad_event", "A pointer's event.button is a MouseButton index: 1 left, 2 right or 3 middle; got %s." % JSON.stringify(ev.get("button")))
+	var in_frame := String(ev.get("space", "frame")) != "window"
+	var warp := bool(ev.get("warp", false))
+	var per_step := clampi(int(ev.get("frames_per_step", 1)), 1, 10)
+	var xf := _frame_transform() if in_frame else Transform2D.IDENTITY
+	var start := xf * Vector2(float(ev.get("x")), float(ev.get("y")))
+	var points: Array = []
+	var frames := 0
+	match action:
+		"press":
+			_pointer_button(start, bname, true, warp)
+			points.append(start)
+		"release":
+			_pointer_button(start, bname, false, warp)
+			points.append(start)
+		"move":
+			_pointer_motion(start, warp)
+			points.append(start)
+		"tap":
+			_pointer_button(start, bname, true, warp)
+			points.append(start)
+			frames += await _pointer_wait(per_step)
+			_pointer_button(start, bname, false, warp)
+			points.append(start)
+		"drag":
+			var end := xf * Vector2(float(ev.get("to_x")), float(ev.get("to_y")))
+			var steps := clampi(int(ev.get("steps", 8)), 1, 60)
+			_pointer_button(start, bname, true, warp)
+			points.append(start)
+			for i in range(1, steps + 1):
+				frames += await _pointer_wait(per_step)
+				var p := start.lerp(end, float(i) / float(steps))
+				_pointer_motion(p, warp)
+				points.append(p)
+			frames += await _pointer_wait(per_step)
+			_pointer_button(end, bname, false, warp)
+			points.append(end)
+	var sent: Array = []
+	for p in points:
+		sent.append([(p as Vector2).x, (p as Vector2).y])
+	return _ok({"injected": true, "kind": "pointer", "window_points": sent, "frames": frames})
+
+
+func _pointer_wait(n: int) -> int:
+	var tree := get_tree()
+	for _i in n:
+		await tree.process_frame
+	return n
+
+
+func _pointer_button(at: Vector2, bname: int, pressed: bool, warp: bool) -> void:
+	if warp:
+		Input.warp_mouse(at)
+	if pressed:
+		_pointer_mask |= int(POINTER_MASKS[bname])
+	else:
+		_pointer_mask &= ~int(POINTER_MASKS[bname])
+	var mb := InputEventMouseButton.new()
+	mb.button_index = bname
+	mb.pressed = pressed
+	mb.position = at
+	mb.global_position = at
+	mb.button_mask = _pointer_mask
+	Input.parse_input_event(mb)
+	_pointer_at = at
+
+
+func _pointer_motion(at: Vector2, warp: bool) -> void:
+	if warp:
+		Input.warp_mouse(at)
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	mm.relative = at - _pointer_at
+	mm.button_mask = _pointer_mask
+	Input.parse_input_event(mm)
+	_pointer_at = at
 
 
 ## Apply an OPTIONAL Vector2 field of a synthetic input event, or say why not.
@@ -841,6 +1064,7 @@ func _screenshot() -> Dictionary:
 		"base64": Marshalls.raw_to_base64(buf),
 		"width": img.get_width(),
 		"height": img.get_height(),
+		"viewport": _viewport_block(vp, Vector2(img.get_width(), img.get_height())),
 	})
 
 
@@ -1314,6 +1538,8 @@ func _dispatch_async(c: Dictionary, id: Variant, method: String, params: Diction
 	match method:
 		"runtime.step_frames":
 			result = await _step_frames(params)
+		"runtime.inject_input":
+			result = await _inject_pointer(params.get("event", {}))
 		_:
 			result = _err("async_only", "not an async method: %s" % method)
 	var peer: StreamPeerTCP = c.get("peer")
