@@ -10052,6 +10052,52 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 60 addon / 0 problems
 > ```
 """),
+    # 🆕 330 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 329 DID NOT WRITE, AS AT 327, 328 AND 329.
+    # `HANDOFF_SESSION329.md` was drafted at 330 by `--emit-handoff 329 ../HANDOFF_SESSION328.md
+    # --measured ci329/` with the tree AT be9c655 (clean, nothing stashed) and the artifacts of
+    # #434's post-merge `ci` run 41586101593 (7/7 success). MOVED +1 is 05a3c20..be9c655 (#434's
+    # squash, which carried 328's block and the cut in one tree). `untagged 0` because `v1.89.0`
+    # names be9c655 itself; `unshipped 0` because `git diff v1.89.0 be9c655 -- host/src
+    # host/package.json addons` is empty. Three counters read by hand from those artifacts, as at
+    # 323 and 326 through 329: 27 CI jobs (ci 7 + integration 20, every job success; integration
+    # 41586101607), `0 exempt` (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER), `exempt 43`
+    # (FLOOR_PIN_REASON). The commit subject on the `main` row drops its `(BP-0042 + BP-0041)` and
+    # its "and 328's block": MOVED_POPULATION reads every numeral in that atom, and neither a ledger
+    # ID nor a session number is a count (git holds the full subject).
+    #
+    # 🟢 THE ASSET LIBRARY ROW IS LIVE THIS TIME. Asset 5335 answers 1.19.0 at be9c655 (modified
+    # 2026-11-03 20:08Z), and edit 24841 answers `accepted`. 1.18.0 never went live there; 1.19.0
+    # contains it. `QUEUE_HEAD` moves 329 -> 330, the session that registers it; 330 commits, so no
+    # `BLOCK_ABSENT` row.
+    (329, """> ```
+> main                 be9c655 — session329 release 1.89.0 / addon 1.19.0 — runtime_screenshot_save, the pointer, physical keys and gamepads (#434)  MOVED +1
+> branch 329           session329-harness-cut · PR #434
+> host / addon         1.89.0 / 1.19.0  🟢 MOVED — the cut; host/src and addons/ changed, addon re-stamped
+> npm                  🟢 registry 1.89.0 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.19.0 live
+> 🟢 CI GREEN — 27 of 27 required checks at the merge (ci 7 + integration 20), post-merge run 41586101593 at be9c655
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1025/1025 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3516 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2513 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 334 file(s) / 21 suffixes · seal 106
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 295 tools / 3948 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5303
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 677 claims · landscape 4 channel(s) / 57 analysed / 65 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 9 within / 34 past / 14 never analysed
+>               · identity 72 of 122 / 2 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 61 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
