@@ -250,7 +250,17 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // pointer) plus `window_points` / `frames` on its output. The pointer's `button` stayed an integer
 // (MouseButton, like mouse_button's): a union there was a type change, MAJOR on the wire, and
 // 63 B. 312's rule holds: the ceiling sits ON the surface.
-export const BYTES_CEILING = 377604;
+//
+// 🆕 BP-0047 (1.90.0) — RAISED 377,604 -> 377,908, AND WHAT BOUGHT IT IS A FIX THE OWNER
+// GRANTED (2026-11-04): a `key` sent by `runtime_inject_input` now carries all three codes, filled
+// from the one given, because most game code reads `event.keycode` and a physical-only key never
+// reached it. Measured before and after on the same build: +304 B. 85 B is the one sentence of
+// `runtime_inject_input`'s description that tells the model the codes are filled (model reads
+// 223,971 -> 224,056); 219 B is `codes` on its output schema, the three codes actually sent, so a
+// miss is visible in the reply as the pointer's `window_points` already is. No input field was
+// added: a code passed explicitly, 0 included, is the opt-out. 312's rule holds: the ceiling sits
+// ON the surface.
+export const BYTES_CEILING = 377908;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

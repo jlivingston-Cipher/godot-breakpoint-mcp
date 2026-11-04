@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.89.0 · addon 1.19.0
+- **Version:** host 1.90.0 · addon 1.20.0
 - **License:** MIT
 - **What it exposes:** full 295 tools (secure-default 282 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -1076,7 +1076,8 @@ underlying steps.
    `godot_stop {id}` to end it. Both fail validation without one.
 2. `runtime_get_tree` to see the live scene.
 3. `runtime_inject_input` to simulate button presses and movement (one `event` per call): actions,
-   keys (pass `physical_keycode` for keys bound in the Input Map), mouse, gamepad, and the `pointer`
+   keys (one code is enough: from addon 1.20.0 the others are filled, so a key reaches both
+   `event.keycode` and the Input Map), mouse, gamepad, and the `pointer`
    kind — a tap or drag at pixels of the frame `runtime_screenshot` returns.
 4. `runtime_get_property` / `runtime_set_property` and `runtime_call_method` **(higher-trust)**
    to probe and nudge state (mutators ask to confirm).

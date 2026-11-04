@@ -224,6 +224,7 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       description:
         "Inject a synthetic input event for automated play-testing. DESTRUCTIVE. " +
         "event.kind is 'action' | 'key' | 'mouse_button' | 'mouse_motion' | 'joypad_button' | 'joypad_motion' | 'pointer'. " +
+        "key: keycode, physical_keycode and key_label left out are filled from the one given. " +
         "pointer: action press|move|release|tap|drag at x,y (to_x,to_y) in runtime_screenshot frame pixels. " +
         "Example: {\"kind\":\"action\",\"action\":\"jump\",\"pressed\":true}.",
       inputSchema: {
@@ -234,6 +235,10 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
           keycode: z.number().int().optional(),
           // 🆕 BP-0041 (addon 1.19.0) — keys bound in the editor's Input Map are stored by
           // PHYSICAL key, and an event carrying only `keycode` never matches one.
+          // 🆕 BP-0047 (addon 1.20.0) — and most game code reads `event.keycode`, so the addon
+          // fills each code left out from the first non-zero one given (keycode,
+          // physical_keycode, key_label), as a US layout reports them; a code passed, 0
+          // included, is sent as given. The reply's `codes` names the three sent.
           physical_keycode: z.number().int().optional(),
           key_label: z.number().int().optional(),
           unicode: z.number().int().optional(),
