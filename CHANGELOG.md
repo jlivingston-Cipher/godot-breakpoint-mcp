@@ -19,16 +19,20 @@ reached a handler testing `event.keycode`, and a key sent by `keycode` never fir
 by physical key. Now each code left out is filled from the first non-zero one given, in the order
 `keycode`, `physical_keycode`, `key_label` — the identity a US layout reports, the same on every
 machine, because the developer's own layout is never consulted. One call reaches `_input`
-handlers and Input Map bindings alike.
+handlers that test `event.keycode` and actions read with `is_action_pressed`, however they are
+bound.
 - A code passed explicitly, `0` included, is sent as given — that is how to send a key with a
   code deliberately absent. No input field was added.
 - `unicode`, the text a key types, is never filled; it depends on shift and layout, so a caller
   that wants text passes it.
 - The reply adds `codes: {keycode, physical_keycode, key_label}`, the three sent, so a miss is
-  visible in the reply.
+  visible in the reply, as the pointer's `window_points` already is.
 - Measured headless on Godot 4.7: `example/tests/input_kinds_smoke.gd` grows 22 → 30 checks,
-  among them a physical-only key matching an action bound by `keycode`, and a keycode-only key
-  matching one bound by physical code. With the fill disabled, the eight new checks fail.
+  among them `event_is_action` matching a physical-only key to an action bound by `keycode`, and
+  a keycode-only key to one bound by physical code. With the fill disabled, the eight new checks
+  fail. Live over the wire on the Mac, against `example/tests/input_probe.tscn`: a physical-only
+  key reached `_input` with its `keycode` set, and pressed and released `bp_probe_bound`, which
+  is bound by keycode alone.
 - Tool surface bytes 377,604 → 377,908 (+304: one sentence of the tool's description, and
   `codes` on its output schema).
 
