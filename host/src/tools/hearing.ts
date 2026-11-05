@@ -35,8 +35,8 @@ import {
 } from "../hearing.js";
 
 /** Where recordings go, project-relative: under `.godot/`, which Godot's own .gitignore keeps out of VCS. */
-export const RECORDINGS_DIR = ".godot/breakpoint/recordings";
-export const MAX_RECORD_SECONDS = 120;
+const RECORDINGS_DIR = ".godot/breakpoint/recordings";
+const MAX_RECORD_SECONDS = 120;
 /** A WAV larger than this is refused rather than read into memory (120 s of 8-channel 32-bit is ~184 MB). */
 const MAX_WAV_BYTES = 256 * 1024 * 1024;
 

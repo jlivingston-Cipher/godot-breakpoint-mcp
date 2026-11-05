@@ -169,7 +169,7 @@ const OPEN_WORLD: readonly string[] = [];
 /**
  * The complete annotated roster — every registered tool, listed explicitly.
  *
- * This CANNOT be derived as the union of the four lists above: 51 tools are
+ * This CANNOT be derived as the union of the four lists above: 52 tools are
  * all-false (mutating, non-destructive, non-idempotent, local — e.g. `node_add`,
  * `dbg_step`, `vcs_commit`), so a derived union would silently omit them and the
  * totality check below would pass while they shipped unannotated. Listing the

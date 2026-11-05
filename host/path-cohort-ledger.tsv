@@ -43,6 +43,8 @@ asset_gen_model	to_path	guarded	refuses res://.. naming the parameter
 asset_gen_placeholder	to_path	guarded	refuses res://.. naming the parameter
 asset_gen_sprite	to_path	guarded	refuses res://.. naming the parameter
 asset_gen_texture	to_path	guarded	refuses res://.. naming the parameter
+audio_analyze	compare_to	guarded	refuses res://.. naming the parameter (BP-0026: the earlier WAV, read only)
+audio_analyze	path	guarded	refuses res://.. naming the parameter (BP-0026: read only)
 audio_player_create	parent_path	node-path	the tool's own reply vocabulary resolves it as a node, not a file
 audio_player_create	stream_path	guarded	refuses res://.. naming the parameter
 audio_set_bus_layout	to_path	guarded	refuses res://.. naming the parameter
@@ -124,6 +126,8 @@ gd_semantic_tokens	path	capability-gated	the capability check answers before the
 gd_signature_help	path	guarded	refuses res://.. naming the parameter
 gd_type_definition	path	capability-gated	the capability check answers before the guard; the call never proceeds (162 §5 D3)
 godot_export	output_path	guarded	refuses res://.. naming the parameter
+godot_record	compare_to	guarded	refuses res://.. naming the parameter (BP-0026: the earlier WAV, read only)
+godot_record	scene	guarded	refuses res://.. naming the parameter (BP-0026: and refuses a value spelled like a command-line option before Godot's argv)
 godot_run_headless_script	script_path	guarded	refuses res://.. naming the parameter
 godot_run_managed	scene	guarded	refuses res://.. naming the parameter
 godot_run_project	scene	guarded	refuses res://.. naming the parameter

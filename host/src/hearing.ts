@@ -33,7 +33,7 @@ export interface Pcm {
 }
 
 /** Below this a WAV is refused: K-weighting's shelf sits at 1.7 kHz and is not stable under ~3.4 kHz. */
-export const MIN_RATE = 8000;
+const MIN_RATE = 8000;
 
 /** A WAV this module cannot read; the message says why, the tool says what to do instead. */
 export class WavError extends Error {}
@@ -115,7 +115,7 @@ const ampDb = (a: number): number | null => (a > 0 ? round(20 * Math.log10(a), 2
 const powDb = (p: number): number | null => (p > 0 ? round(10 * Math.log10(p), 2) : null);
 
 /** In-place iterative radix-2 FFT. `re`/`im` length must be a power of two. */
-export function fft(re: Float64Array, im: Float64Array): void {
+function fft(re: Float64Array, im: Float64Array): void {
   const n = re.length;
   for (let i = 1, j = 0; i < n; i++) {
     let bit = n >> 1;
@@ -315,14 +315,14 @@ function truePeak(x: Float32Array, samplePeak: number): number {
 export const OCTAVES = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const EXACT_CENTRE = (i: number): number => 1000 * 2 ** (i - 5);
 /** A float or 16/24/32-bit sample at or beyond this magnitude is at full scale. */
-export const CLIP_LEVEL = 0.9999;
+const CLIP_LEVEL = 0.9999;
 /** Full scale for this file: an 8-bit file's largest positive code is 127/128, under CLIP_LEVEL. */
 const clipLevel = (pcm: Pcm): number => (pcm.float ? CLIP_LEVEL : Math.min(CLIP_LEVEL, (2 ** (pcm.bits - 1) - 1) / 2 ** (pcm.bits - 1)));
 const SILENCE = 0.001; // −60 dBFS
 const WELCH_N = 8192;
 
-export interface ChannelReading { peak_dbfs: number | null; rms_dbfs: number | null; dc_offset: number }
-export interface Analysis {
+interface ChannelReading { peak_dbfs: number | null; rms_dbfs: number | null; dc_offset: number }
+interface Analysis {
   duration_s: number;
   sample_rate: number;
   channels: number;
@@ -466,7 +466,7 @@ export function analyze(pcm: Pcm): Analysis {
 
 // ---- comparison -------------------------------------------------------------------------------
 
-export interface Comparison {
+interface Comparison {
   delta: Record<string, number | null>;
   band_delta_db: Array<{ hz: number; db: number | null }>;
   band_mean_abs_diff_db: number | null;
