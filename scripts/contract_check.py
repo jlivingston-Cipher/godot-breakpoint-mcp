@@ -4637,7 +4637,10 @@ _ran("18/19")
 
 _VJ = (ADDON / "variant_json.gd").read_text()
 _vj_enc, _vj_dec = _VJ.split("static func decode", 1)
-_vj_dec = _vj_dec[_vj_dec.index('match String(j["__type__"])'):]
+# 🆕 BP-0025 (1.92.0): the strict-typing pass made decode() read the tag through a typed local
+# (`var jd: Dictionary = j`) and `str()` — Godot 4's String() constructor of a Variant is what a
+# strict project's analyzer refuses — so the anchor and the field reader accept both spellings.
+_vj_dec = _vj_dec[re.search(r'match (?:String|str)\(jd?\["__type__"\]\)', _vj_dec).start():]
 
 codec_emitted = set(re.findall(r'"__type__":\s*"(\w+)"', _vj_enc))
 codec_accepted = set(re.findall(r'^\t+"(\w+)":\s*$', _vj_dec, re.M))
@@ -4666,7 +4669,7 @@ for _ln in _vj_dec.split("\n"):
     elif _arm is not None and _stripped and _indent <= _arm_indent:
         _arm = None                                   # dedent — the arm ended
     elif _arm is not None:
-        codec_fields[_arm] |= set(re.findall(r'j\.get\("(\w+)"', _ln))
+        codec_fields[_arm] |= set(re.findall(r'\bjd?\.get\("(\w+)"', _ln))
 
 # 🔴 THE ONE-WAY PAIR, NAMED RATHER THAN TOLERATED. `Object` and `Unsupported` are
 # emitted by encode() and have no decode arm ON PURPOSE: neither can be reconstructed
