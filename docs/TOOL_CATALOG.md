@@ -197,7 +197,7 @@ Open the Godot editor for the project (detached). Prerequisite for every `editor
 ```
 
 ### `godot_run_project` ✅
-Run the project (detached), optionally from a specific scene. **It mints no handle** — the output carries an OS `pid` and the readiness fields, and there is no `id`, because `godot_stop` and `godot_output` address only the registry id `godot_run_managed` returns. A detached game is quit in its own window, which is what this tool's own port-conflict refusal has always said; the tool's description used to claim it *returns the process id* and that sentence is gone. **Waits until the game's runtime bridge answers `ping`** and reports `bridge_ready` — the game needs roughly half a second to three seconds to bind it, and no `runtime_*` tool is reachable before it does. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
+Run the project (detached), optionally from a specific scene. **Its `id` is the one `godot_stop` takes** (from 1.91.0) — the output carries it beside the OS `pid` and the readiness fields, so a session on the secure default can stop the game it started. `godot_output` cannot read it: a detached game's console is not captured, which is what `godot_run_managed` is for. Before 1.91.0 this tool minted no handle and a detached game could only be quit in its own window. **Waits until the game's runtime bridge answers `ping`** and reports `bridge_ready` — the game needs roughly half a second to three seconds to bind it, and no `runtime_*` tool is reachable before it does. **Refuses when the runtime bridge port is already bound** — the new game's autoload could not `listen()`, and the host's runtime client would go on addressing whichever process already holds the port. Override with `allow_port_conflict`; use `runtime_spawn_peers` to drive more than one game at once.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false,
@@ -208,8 +208,9 @@ Run the project (detached), optionally from a specific scene. **It mints no hand
 ```
 - **Output**
 ```json
-{ "type": "object", "required": ["running", "pid", "bridge_ready"],
+{ "type": "object", "required": ["id", "running", "pid", "bridge_ready"],
   "properties": {
+    "id": { "type": "string", "description": "the id godot_stop takes for this game" },
     "running": { "type": "boolean" },
     "pid": { "type": ["integer", "null"] },
     "scene": { "type": ["string", "null"] },
@@ -2370,7 +2371,7 @@ List the code actions (quick fixes / refactors) OmniSharp offers for a range —
 
 🔴 **`stop_on_entry` says which it is.** Godot's adapter does not implement `stopOnEntry` — the game runs to completion — so the result carries `stop_on_entry_honored: false` plus a `warning` naming the remedy (set a breakpoint before launching), instead of a bare `running` that reads exactly like a stop that has not landed *yet*. An adapter that does honour it reports `true` and no warning.
 
-**Refuses when the runtime bridge port is already bound** — the launched game's autoload could not `listen()`, so `runtime_*` would keep addressing whichever process already holds the port. The refusal lists every remedy with the condition it applies under (`godot_stop` for a managed child, `dbg_attach` if the holder is already under the debugger, otherwise quit it) because the probe learns only *that* the port is held, never by what. Or override with `allow_port_conflict`: a DAP session is addressed by session rather than by port, so breakpoints and stepping are unaffected either way — only `runtime_*` is. `dbg_attach` and `dbg_restart` are deliberately **not** gated (attach is the remedy; restart's own game still holds the port at check time, so a probe there would false-positive every time).
+**Refuses when the runtime bridge port is already bound** — the launched game's autoload could not `listen()`, so `runtime_*` would keep addressing whichever process already holds the port. The refusal lists every remedy with the condition it applies under (`godot_stop` for a game `godot_run_managed` or `godot_run_project` started, `dbg_attach` if the holder is already under the debugger, otherwise quit it) because the probe learns only *that* the port is held, never by what. Or override with `allow_port_conflict`: a DAP session is addressed by session rather than by port, so breakpoints and stepping are unaffected either way — only `runtime_*` is. `dbg_attach` and `dbg_restart` are deliberately **not** gated (attach is the remedy; restart's own game still holds the port at check time, so a probe there would false-positive every time).
 - **Input**
 ```json
 { "type": "object", "properties": { "scene": { "type": "string", "description": "'main' (default), 'current', a res:// or absolute scene inside the project, or a uid:// reference" }, "stop_on_entry": { "type": "boolean", "default": false }, "allow_port_conflict": { "type": "boolean", "default": false, "description": "launch even though the runtime bridge port is bound; dbg_* still works, runtime_* would address the other process" } } }
@@ -4391,7 +4392,7 @@ Read captured console output for a managed process. **The `id` comes only from `
 ```
 
 ### `godot_stop` ✔ ✅
-Terminate a managed process. Same producer as `godot_output` and the same consequence on a secure default: the only tool that mints the `id` is withheld, the refusal says which group holds it, and `orphaned_consumers` in `godot://capabilities` lists it. It does **not** accept an OS pid, and a `godot_run_project` game is not stoppable by any tool.
+Terminate a game this server started: the `id` comes from `godot_run_project` or `godot_run_managed`. From 1.91.0 `godot_run_project` mints one too, and that tool is on every surface, so `godot_stop` is no longer an orphaned consumer on the secure default and its refusal of an unknown `id` carries no policy clause. It signals only a process this server started and still holds under that `id`; it does **not** accept an OS pid. Stopping a game that already exited answers `stopped: true`.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "required": ["id"], "properties": { "id": { "type": "string" } } }

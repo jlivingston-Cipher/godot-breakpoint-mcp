@@ -260,7 +260,15 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // miss is visible in the reply as the pointer's `window_points` already is. No input field was
 // added: a code passed explicitly, 0 included, is the opt-out. 312's rule holds: the ceiling sits
 // ON the surface.
-export const BYTES_CEILING = 377908;
+//
+// 🆕 BP-0032 (1.91.0) — RAISED 377,908 -> 377,959, AND WHAT BOUGHT IT IS A FIX THE OWNER
+// GRANTED (2026-11-05): a game `godot_run_project` starts can now be stopped, by the `id` its reply
+// carries. Measured before and after on the same build: +51 B. 23 B is `godot_stop`'s description
+// and its `id` field naming `godot_run_project` as a source (model reads 224,056 -> 224,079);
+// 28 B is `id` on `godot_run_project`'s output schema. No tool and no input field was added, and
+// `godot_run_project`'s own description did not grow. 312's rule holds: the ceiling sits ON the
+// surface.
+export const BYTES_CEILING = 377959;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

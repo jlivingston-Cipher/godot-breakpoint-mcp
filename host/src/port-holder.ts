@@ -171,7 +171,7 @@ export async function readHolder(host: string, port: number, opts: ReadOptions =
 export type Owner =
   | { tool: "godot_run_managed"; id: string }
   | { tool: "runtime_spawn_peers"; id: string; port: number }
-  | { tool: "godot_run_project" };
+  | { tool: "godot_run_project"; id: string };
 
 interface ExitEmitter {
   pid?: number;
@@ -190,6 +190,46 @@ export function noteOwned(child: ExitEmitter | null | undefined, owner: Owner): 
   });
 }
 
+// 🆕 BP-0032 (331) — THE DETACHED GAME GETS A NAME, SO THE STOP TOOL CAN TAKE IT.
+//
+// Until 331 a game `godot_run_project` started sat in this ledger by pid and nowhere a caller
+// could name it. `godot_stop` took only `godot_run_managed`'s ids, and that tool is
+// `code-execution`, so on the secure default a session could start a game and never stop it:
+// measured at 325, the game ran until it was killed by hand. The id is minted here, beside the
+// ledger row it addresses. `runs` keeps every id this server minted, after its game exits too,
+// so stopping a game that already ended answers like stopping a managed one that already
+// ended, instead of claiming the id never existed.
+const runs = new Map<string, number>();
+let runCounter = 0;
+
+/** Record a game `godot_run_project` started, and mint the id `godot_stop` takes for it. */
+export function noteRun(child: ExitEmitter): string {
+  const id = `project-${++runCounter}`;
+  noteOwned(child, { tool: "godot_run_project", id });
+  if (typeof child.pid === "number") runs.set(id, child.pid);
+  return id;
+}
+
+/**
+ * Stop the game `godot_run_project` started as `id`; `false` when this server minted no such id.
+ *
+ * 🔴 THE SIGNAL GOES ONLY TO A PID THE LEDGER STILL HOLDS UNDER THIS ID. The row is deleted on
+ * the child's `exit`, so a pid the OS has since handed to another program is never signalled.
+ */
+export function stopRun(id: string): boolean {
+  const pid = runs.get(id);
+  if (pid === undefined) return false;
+  const o = owned.get(pid);
+  if (o?.tool === "godot_run_project" && o.id === id) {
+    try {
+      process.kill(pid);
+    } catch {
+      /* it exited between the read and the signal */
+    }
+  }
+  return true;
+}
+
 /** The live peers this server spawned, with the port each was given. */
 export function ownedPeers(): Array<{ id: string; port: number; pid: number }> {
   const out: Array<{ id: string; port: number; pid: number }> = [];
@@ -202,7 +242,7 @@ export function ownedPeers(): Array<{ id: string; port: number; pid: number }> {
 type Attribution =
   | { kind: "godot_run_managed"; id: string }
   | { kind: "runtime_spawn_peers"; id: string }
-  | { kind: "godot_run_project" }
+  | { kind: "godot_run_project"; id: string }
   | { kind: "this_server" }
   | { kind: "godot" }
   | { kind: "other" };
@@ -222,7 +262,7 @@ export function attribute(l: Listener, godotBin: string, selfPid: number = proce
   const o = owned.get(l.pid);
   if (o?.tool === "godot_run_managed") return { kind: "godot_run_managed", id: o.id };
   if (o?.tool === "runtime_spawn_peers") return { kind: "runtime_spawn_peers", id: o.id };
-  if (o?.tool === "godot_run_project") return { kind: "godot_run_project" };
+  if (o?.tool === "godot_run_project") return { kind: "godot_run_project", id: o.id };
   if (l.pid === selfPid) return { kind: "this_server" };
   return looksLikeGodot(l.command, godotBin) ? { kind: "godot" } : { kind: "other" };
 }
@@ -272,7 +312,7 @@ export function holderPhrase(h: Holder): string {
     case "runtime_spawn_peers":
       return `peer "${h.owner.id}", which runtime_spawn_peers started ${facts}`;
     case "godot_run_project":
-      return `a detached game godot_run_project started ${facts}`;
+      return `the game godot_run_project started as "${h.owner.id}" ${facts}`;
     case "this_server":
       return `this Breakpoint server's own process ${facts}`;
     case "godot":
@@ -296,6 +336,7 @@ export function holdersPhrase(holders: readonly Holder[]): string {
 export function certainStop(h: Holder): string | undefined {
   switch (h.owner.kind) {
     case "godot_run_managed":
+    case "godot_run_project":
       return `stop it with godot_stop, id "${h.owner.id}"`;
     case "runtime_spawn_peers":
       return `stop it with runtime_peer_stop, id "${h.owner.id}"`;
@@ -347,6 +388,7 @@ export function silentHolderRemedy(
 function stopCall(h: Holder): string | undefined {
   switch (h.owner.kind) {
     case "godot_run_managed":
+    case "godot_run_project":
       return `godot_stop with id "${h.owner.id}"`;
     case "runtime_spawn_peers":
       return `runtime_peer_stop with id "${h.owner.id}"`;

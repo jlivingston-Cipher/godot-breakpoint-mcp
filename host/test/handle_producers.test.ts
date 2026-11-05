@@ -171,10 +171,12 @@ test("every HANDLE_PRODUCERS row names a real tool, a real field, and a real pro
 
 // ── the orphaned set, both arms ────────────────────────────────────────────────────
 
-test("on the secure default the four cross-boundary consumers are orphaned", () => {
+// 🆕 BP-0032 (331) — THREE, AND THE ONE THAT LEFT IS THE POINT. `godot_stop` takes the id
+// `godot_run_project` mints, and that tool is on every surface, so a default session can stop
+// the game it started. `godot_output` stays orphaned: a detached game's output is not captured.
+test("on the secure default the three cross-boundary consumers are orphaned", () => {
   assert.deepEqual(orphanedConsumers(selectPrivilegedGroups(null)), [
     "godot_output",
-    "godot_stop",
     "runtime_peer_stop",
     "runtime_peers_digest",
   ]);
@@ -196,8 +198,10 @@ test("every orphaned consumer is itself UNPRIVILEGED — an orphan is a tool you
 // ── the clause itself, both arms ───────────────────────────────────────────────────
 
 test("the clause fires only when the producer is actually withheld", () => {
-  assert.match(producerWithheldClause("godot_stop", selectPrivilegedGroups(null)), CLAUSE);
-  assert.equal(producerWithheldClause("godot_stop", selectPrivilegedGroups(["code-execution"])), "");
+  assert.match(producerWithheldClause("godot_output", selectPrivilegedGroups(null)), CLAUSE);
+  assert.equal(producerWithheldClause("godot_output", selectPrivilegedGroups(["code-execution"])), "");
+  // …and a consumer whose producer is on every surface never carries it (BP-0032).
+  assert.equal(producerWithheldClause("godot_stop", selectPrivilegedGroups(null)), "");
 });
 
 test("a tool with no row, and a producer that is unprivileged, get no clause", () => {
@@ -246,16 +250,22 @@ function runtimeHandlers(tokens: string[] | null) {
   return handlers;
 }
 
-test("godot_stop and godot_output say WHY no id can exist on the default surface", async () => {
+test("godot_output says WHY no id can exist on the default surface", async () => {
   const h = processHandlers(null);
-  for (const name of ["godot_stop", "godot_output"]) {
-    const r = await h.get(name)!({ id: "nope" }, {});
-    assert.equal(r.isError, true);
-    // The caller's own mistake stays FIRST — the clause explains, it does not replace.
-    assert.match(textOf(r), /^No managed process with id "nope"/);
-    assert.match(textOf(r), CLAUSE);
-    assert.match(textOf(r), /godot_run_managed/);
-  }
+  const r = await h.get("godot_output")!({ id: "nope" }, {});
+  assert.equal(r.isError, true);
+  // The caller's own mistake stays FIRST — the clause explains, it does not replace.
+  assert.match(textOf(r), /^No managed process with id "nope"/);
+  assert.match(textOf(r), CLAUSE);
+  assert.match(textOf(r), /godot_run_managed/);
+});
+
+test("BP-0032: godot_stop on the default surface refuses a bad id as a bad id, with no policy clause", async () => {
+  // Its ids come from godot_run_project too, which every surface carries, so a refusal here is
+  // the caller's typo or a game this server never started — not a configuration.
+  const r = await processHandlers(null).get("godot_stop")!({ id: "nope" }, {});
+  assert.equal(r.isError, true);
+  assert.equal(textOf(r), 'No managed process with id "nope"');
 });
 
 test("with the group enabled the same refusal says exactly what it always said", async () => {
@@ -328,7 +338,7 @@ test("godot://capabilities prints the orphaned consumers beside the dropped tool
   };
   assert.deepEqual(
     payload.orphaned_consumers.map((o) => o.tool),
-    ["godot_output", "godot_stop", "runtime_peer_stop", "runtime_peers_digest"],
+    ["godot_output", "runtime_peer_stop", "runtime_peers_digest"],
   );
   for (const o of payload.orphaned_consumers) {
     assert.ok(payload.dropped_tools.includes(o.produced_only_by), `${o.produced_only_by} must be in the dropped set`);
@@ -357,11 +367,17 @@ test("godot_run_project no longer claims to return a process id", () => {
   const { calls } = surfaceFor(["all"]);
   const run = calls.find((c) => c.name === "godot_run_project")!;
   const description = (run.config as unknown as { description: string }).description;
+  // 🆕 BP-0032 (331) — it returns an `id` now, which `godot_stop` takes; still not a "process
+  // id" in `godot_output`'s sense, because nothing captures a detached game's output.
   assert.ok(
     !/process id/i.test(description),
-    "godot_run_project returns an OS pid and no handle; `godot_stop` takes only the registry id " +
-      "`godot_run_managed` mints, and this tool's own port-conflict remedy says a detached game is not " +
-      "stoppable by any tool",
+    "godot_run_project's `id` is the one godot_stop takes; godot_output cannot read a detached game, " +
+      "so the phrase godot_run_managed uses for its captured process does not belong here",
+  );
+  const stop = calls.find((c) => c.name === "godot_stop")!;
+  assert.match(
+    String((stop.config.inputSchema as Record<string, { description?: string }>).id?.description),
+    /godot_run_project/,
   );
   // The tool that DOES mint one still says so — the claim is a correction, not a purge.
   const managed = calls.find((c) => c.name === "godot_run_managed")!;

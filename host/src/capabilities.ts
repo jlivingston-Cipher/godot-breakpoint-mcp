@@ -187,7 +187,11 @@ export function droppedTools(enabled: ReadonlySet<CapabilityGroup>): string[] {
 export const HANDLE_PRODUCERS: Readonly<Record<string, { readonly field: string; readonly producer: string }>> = {
   // Cross-boundary — the producer is `code-execution` and the consumer is not.
   godot_output: { field: "id", producer: "godot_run_managed" },
-  godot_stop: { field: "id", producer: "godot_run_managed" },
+  // 🆕 BP-0032 (331) — THE ONE CONSUMER WITH TWO PRODUCERS, and the row names the one every
+  // surface carries. `godot_run_managed` still mints ids `godot_stop` takes; `godot_run_project`
+  // mints them too, and it is unprivileged, so the question this table answers — can a caller
+  // on this surface obtain one? — is yes everywhere, and `godot_stop` is no longer an orphan.
+  godot_stop: { field: "id", producer: "godot_run_project" },
   runtime_peer_stop: { field: "id", producer: "runtime_spawn_peers" },
   runtime_peers_digest: { field: "peers", producer: "runtime_spawn_peers" },
   // 🔵 AND THE SIX THAT SPAN NOTHING, WHICH ARE THE HALF THAT MAKES THIS A TABLE.
