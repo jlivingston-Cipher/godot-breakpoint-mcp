@@ -309,13 +309,32 @@ that fails makes the channel `partial`, and so does a cursor handed back twice o
 open after `REGISTRY_WALK_PAGES`. The rule this adds to the one above: **a result whose
 size equals the limit it was asked under has not been counted, it has been cut.**
 
-🔵 **THE `npm` LEG IS CUT TOO, AND THAT ONE IS A DEPTH RATHER THAN A DEFECT.** Its two
-searches are ranked full-text queries the registry reports 112,168 and 299,649 matches for;
-the leg reads the first 250 of each, which is the most one request may ask for. Measured at
-326 with `from=`: ranks 1–250 of `godot mcp` hold 74 relevant packages, ranks 251–500 hold
-4 and ranks 501–750 hold 6, and five of those ten are projects the roster does not name.
-There is no last page to walk to, so how deep to read is a ruling and not a repair. It is
-recorded here unruled (BP-0033) rather than left as a number nobody took.
+🔴 **THE `npm` LEG WAS CUT TOO, AND THE CUT WAS IN THE QUESTION RATHER THAN THE DEPTH
+(326, ruled 332).** Until 332 the leg sent `godot mcp` and `godot model context protocol` and
+read the first 250 of each, the most one request may ask for. npm matches a package that
+names *either* word, so those searches matched 112,168 and 299,649 packages, ranked, with no
+last page, and `read — 2 quer(ies), all answered` meant the top 250. 326 measured ten more
+relevant packages in ranks 251–750 and put the depth to a ruling (BP-0035) with three
+answers: keep 250 and say so, read to a fixed depth, or read until a page turns up nothing.
+
+332 measured the third before taking it, and **it would have been wrong**. Walking both
+searches to rank 5,000 (forty requests) found 94 relevant packages, still turning them up at
+rank ~4,750, with empty pages *between* relevant ones: "stop at the first empty page" stops
+`godot mcp` at rank 2,000 with two unnamed projects below it. Past an offset between 5,000
+and 7,500 npm answers with **page one again** instead of nothing, so a walk waiting for an
+empty page never ends, and one that trusts the answer counts the top twice.
+
+**Ruled (d): one search, `godot`, read to its end.** It matches 655 packages, which is three
+requests. Every package the relevance filter could ever keep names Godot, so all of them are
+among those 655. Read to the end, it holds **107** relevant packages: all 94 of the
+forty-request walk and 13 that walk never reached, against 69 for the old leg.
+`npm_pages` reads to the `total` npm reports, and **every page is a query**. The channel is
+`partial`, never `read`, when a request fails, a page comes back empty before the total, a
+page opens with the package page one opened with (npm restarting), or the total passes `NPM_WINDOW` (5,000), the
+deepest offset measured to be served as asked. The last of those is the day the question
+needs narrowing again, and it refuses by name rather than quietly reading the top.
+A package the ranking moves across a page boundary between two requests is kept once and
+is not a refusal: that is the ranking moving, not the registry restarting.
 
 🔵 **A PROJECT SURFACED BY THREE CHANNELS IS ONE ROW.** The join key is the GitHub
 `owner/name` slug, normalised from every spelling the registries serve and from the bare

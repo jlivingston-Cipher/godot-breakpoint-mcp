@@ -1991,6 +1991,19 @@
   ],
   "surfaced": [
     {
+      "key": "3dassets-dev/3dassets",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "3dassets-dev/3dassets",
+      "npm": "3dassets-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-09-07",
+      "description": "MCP server for 3dassets.dev: search and download free CC0 GLB 3D models and game asset packs for three.js, Blender, Godot and Unity, and submit new ones on a us"
+    },
+    {
       "key": "64ix/godot-playtest",
       "channels": [
         "npm"
@@ -2081,6 +2094,32 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "ayutaz/godot-loop-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "ayutaz/godot-loop-mcp",
+      "npm": "@godot-loop-mcp/server",
+      "mcp_registry_name": null,
+      "version": "0.3.1",
+      "last_published": "2026-04-06",
+      "description": "MCP bridge server for godot-loop-mcp."
+    },
+    {
+      "key": "blakebukowsky/godottools",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "BlakeBukowsky/GodotTools",
+      "npm": "godot-agent-tools-mcp",
+      "mcp_registry_name": null,
+      "version": "0.3.1",
+      "last_published": "2026-06-07",
+      "description": "MCP server that bridges coding agents to the Godot Agent Tools editor plugin."
+    },
+    {
       "key": "craigsteyn/godot-mcp",
       "channels": [
         "npm"
@@ -2155,6 +2194,19 @@
       "forge_pushed_at": "2026-03-31",
       "downloads_30d": 43,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "event-horizon-studio/godot-ai-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "event-horizon-studio/godot-ai-mcp",
+      "npm": "godot-ai-mcp",
+      "mcp_registry_name": null,
+      "version": "1.1.0",
+      "last_published": "2026-09-19",
+      "description": "MCP server that gives AI agents full control over the Godot 4.7+ editor — scene tree, node manipulation, GDScript execution, viewport capture, and ClassDB refle"
     },
     {
       "key": "fastmcp-me/kooix-godot-mcp",
@@ -2235,6 +2287,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "glitchless-gg/glitchless-dsh",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "glitchless-gg/glitchless-dsh",
+      "npm": "glitchless-dsh",
+      "mcp_registry_name": null,
+      "version": "0.1.3",
+      "last_published": "2026-11-03",
+      "description": "Let your agent understand your players. Glitchless for DeepSeek Harness: game observability tools over MCP (ranked findings, frame times, errors, where players "
+    },
+    {
       "key": "godot-pty/gpty",
       "channels": [
         "mcp-registry"
@@ -2246,6 +2311,19 @@
       "version": "0.7.1",
       "last_published": "2026-11-01",
       "description": "Spawn panes, inject input and read output in a tiling terminal workspace"
+    },
+    {
+      "key": "green2995/gopeak-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "green2995/Gopeak-godot-mcp",
+      "npm": "@green2995/gopeak",
+      "mcp_registry_name": null,
+      "version": "2.3.5",
+      "last_published": "2026-04-03",
+      "description": "GoPeak — MCP server for Godot Engine with 110+ tools, compact/dynamic profiles, GDScript LSP, DAP debugger, screenshots, input injection, and CC0 asset search."
     },
     {
       "key": "gregario/godot-forge",
@@ -2349,6 +2427,19 @@
       "forge_pushed_at": "2026-09-16",
       "downloads_30d": 6439,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "jdsalasca/aseprite-asset-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "jdsalasca/aseprite-asset-mcp",
+      "npm": "aseprite-asset-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.0",
+      "last_published": "2026-10-02",
+      "description": "Token-efficient TypeScript MCP asset factory for Aseprite, pixel art, animation, and Godot exports."
     },
     {
       "key": "jmsansan/godot-assistant",
@@ -2558,6 +2649,19 @@
       "description": "Godot Asset Library: search, metadata, download URLs. Keyless."
     },
     {
+      "key": "mystico53/gdcli",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "mystico53/gdcli",
+      "npm": "gdcli-godot",
+      "mcp_registry_name": null,
+      "version": "0.2.3",
+      "last_published": "2026-03-09",
+      "description": "Agent-friendly CLI toolkit for Godot 4 — scene editing, linting, MCP server"
+    },
+    {
       "key": "nghialxx/godot-mcp",
       "channels": [
         "npm"
@@ -2630,6 +2734,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "npm:@forgekitstudio/core-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "@forgekitstudio/core-mcp",
+      "mcp_registry_name": null,
+      "version": "0.11.5",
+      "last_published": "2026-05-21",
+      "description": "Phase 1 transport active. Bridges LLM clients to the Godot 4.x editor plugin and runtime bridge over stdio MCP, WebSocket, UDP, with 271 tools across 34 categor"
+    },
+    {
       "key": "npm:@gikit/godot-mcp",
       "channels": [
         "npm"
@@ -2659,6 +2776,19 @@
       "via": "republisher",
       "downloads_30d": 24,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "npm:@iflow-mcp/godot-docs-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "@iflow-mcp/godot-docs-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.2",
+      "last_published": "2025-11-28",
+      "description": ""
     },
     {
       "key": "npm:@iflow-mcp/leesinliang-godot-mcp",
@@ -2693,6 +2823,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "npm:@iflow-mcp/tkmct-godot-doc-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "@iflow-mcp/tkmct-godot-doc-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-02-11",
+      "description": "Offline Model Context Protocol (MCP) server that serves Godot Engine API documentation from a local `doc/` folder. It provides fast search and retrieval of clas"
+    },
+    {
       "key": "npm:@lpenguin/godot-mcp",
       "channels": [
         "npm"
@@ -2706,6 +2849,32 @@
       "description": "MCP server for generating Godot ResourceUID strings via TCP connection to Godot Editor",
       "downloads_30d": 37,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "npm:@melite/engine-contract",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "@melite/engine-contract",
+      "mcp_registry_name": null,
+      "version": "0.1.4-alpha",
+      "last_published": "2026-10-07",
+      "description": "The engine Service Definition (stroke 53, the engine-generics seam): one registry seat every engine provider registers into and every run-path consumer resolves"
+    },
+    {
+      "key": "npm:@nuskey8/godot-docs-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "@nuskey8/godot-docs-mcp",
+      "mcp_registry_name": null,
+      "version": "1.0.2",
+      "last_published": "2025-10-02",
+      "description": ""
     },
     {
       "key": "npm:@snopek-games/godai",
@@ -2798,6 +2967,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "npm:godot-catalyst",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "godot-catalyst",
+      "mcp_registry_name": null,
+      "version": "1.2.0",
+      "last_published": "2026-04-20",
+      "description": "Comprehensive MCP server for AI-powered Godot 4.x game development — 240+ tools, LSP/DAP, offline docs, asset search, input simulation, and more"
+    },
+    {
       "key": "npm:godot-mcp-enhanced",
       "channels": [
         "npm"
@@ -2813,6 +2995,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "npm:gopeak-cli",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": null,
+      "npm": "gopeak-cli",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-03-08",
+      "description": "GoPeak CLI for Godot automation, shipping the godot-flow MCP architecture via 4 meta-tools"
+    },
+    {
       "key": "npm:vberai-godot-mcp",
       "channels": [
         "npm"
@@ -2826,6 +3021,19 @@
       "description": "VberAI helper for Godot MCP: fetch DaxianLee/godot-mcp addon, install into projects, and configure Cursor HTTP MCP.",
       "downloads_30d": 59,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "projectmakersde/horizon-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "ProjectMakersDE/horizOn-mcp",
+      "npm": "horizon-mcp",
+      "mcp_registry_name": null,
+      "version": "1.9.1",
+      "last_published": "2026-10-23",
+      "description": "MCP server for horizOn Backend-as-a-Service: documentation, live API tools, and workflow prompts for Godot, Unity, and Unreal Engine integration."
     },
     {
       "key": "pushks18/godot-mcp-pilot",
@@ -2936,6 +3144,19 @@
       "description": "MCP server for the Godot 4 engine: edit scenes, nodes and scripts, run the game and read errors, through a live editor bridge or headless Godot."
     },
     {
+      "key": "skillcap-studio/godot-harness",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "Skillcap-Studio/godot-harness",
+      "npm": "@godot-harness/mcp-server",
+      "mcp_registry_name": null,
+      "version": "0.1.37",
+      "last_published": "2026-04-08",
+      "description": "MCP server exposing Godot Harness tools for AI agent consumption"
+    },
+    {
       "key": "smalldy/godot-bridge",
       "channels": [
         "npm"
@@ -3000,6 +3221,58 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "tmhsdigital/godot-correctness-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "TMHSDigital/godot-correctness-mcp",
+      "npm": "@tmhs/godot-correctness-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.2",
+      "last_published": "2026-11-03",
+      "description": "Offline static correctness MCP server for Godot 4.x GDScript projects"
+    },
+    {
+      "key": "vino3dx/vino-godot-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "vino3dx/vino-godot-mcp",
+      "npm": "vino-godot-mcp",
+      "mcp_registry_name": null,
+      "version": "1.2.1",
+      "last_published": "2026-11-02",
+      "description": "Vino Godot MCP — semantic operation MCP server for the Godot engine (Vino Studios)"
+    },
+    {
+      "key": "volts-app/mcp-server",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "volts-app/mcp-server",
+      "npm": "volts-mcp-server",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-04-21",
+      "description": "Generate game assets from your IDE — sprites, tilesets, characters, audio, lore, full Godot MVPs. MCP server for Claude Code, Cursor, Antigravity, and any MCP c"
+    },
+    {
+      "key": "wangdiandao/godot-devtool",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "wangdiandao/godot-devtool",
+      "npm": "@mseep/godot-devtool",
+      "mcp_registry_name": null,
+      "version": "3.2.0",
+      "last_published": "2026-06-22",
+      "description": "MCP plugin package for AI-assisted Godot Engine development workflows."
+    },
+    {
       "key": "windseries83/godot-mcp",
       "channels": [
         "npm"
@@ -3055,6 +3328,19 @@
       "forge_pushed_at": "2026-06-15",
       "downloads_30d": 141,
       "ranked_on": "2026-09-21"
+    },
+    {
+      "key": "wvfp/gear-mcp-server",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 332,
+      "repo": "wvfp/gear-mcp-server",
+      "npm": "gear-mcp-proxy",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-06-14",
+      "description": "stdio-to-TCP proxy for Gear MCP Server (Godot GDExtension). Lets any MCP client talk to the in-editor server over a localhost TCP socket."
     },
     {
       "key": "yasirurf/godot-mcp",
