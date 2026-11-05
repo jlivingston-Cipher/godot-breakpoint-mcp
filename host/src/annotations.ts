@@ -61,7 +61,7 @@ export interface ToolAnnotations {
 
 /** Tools that mutate nothing. */
 const READ_ONLY: readonly string[] = [
-  "anim_get_track_keys", "anim_list", "backend_detect", "breakpoint_doctor", "breakpoint_ports", "class_reference", "classdb_get_class", "cs_code_action",
+  "anim_get_track_keys", "anim_list", "audio_analyze", "backend_detect", "breakpoint_doctor", "breakpoint_ports", "class_reference", "classdb_get_class", "cs_code_action",
   "cs_completion", "cs_dbg_scopes", "cs_dbg_stack_trace", "cs_dbg_variables", "cs_definition", "cs_diagnostics",
   "cs_document_symbols", "cs_hover", "cs_references", "cs_signature_help", "cs_workspace_symbols", "dbg_scopes",
   "dbg_stack_trace", "dbg_variables", "docs_search", "editor_get_state", "editor_ping", "example_snippet",
@@ -116,7 +116,7 @@ const DESTRUCTIVE: readonly string[] = [
 const IDEMPOTENT: readonly string[] = [
   "anim_create", "anim_delete", "anim_get_track_keys", "anim_insert_key", "anim_list", "anim_set_length",
   "anim_set_loop", "anim_statemachine_add_state", "anim_statemachine_add_transition", "anim_tree_add_node",
-  "area_set_gravity", "area_set_monitoring", "asset_gen_configure", "asset_gen_placeholder",
+  "area_set_gravity", "area_set_monitoring", "asset_gen_configure", "asset_gen_placeholder", "audio_analyze",
   "audio_bus_set_volume", "audio_set_bus_layout", "audio_set_stream", "auth_scaffold", "backend_configure",
   "backend_detect", "board_create", "board_place", "board_tile_create", "board_tile_place",
   "body_set_collision_layer", "body_set_collision_mask", "body_set_physics_material", "breakpoint_doctor", "breakpoint_ports", "card_template_create",
@@ -181,7 +181,7 @@ export const ALL_ANNOTATED: readonly string[] = [
   "anim_player_create", "anim_remove_key", "anim_set_length", "anim_set_loop", "anim_statemachine_add_state",
   "anim_statemachine_add_transition", "anim_tree_add_node", "anim_tree_create", "area_set_gravity",
   "area_set_monitoring", "asset_gen_audio_sfx", "asset_gen_configure", "asset_gen_icon", "asset_gen_model",
-  "asset_gen_placeholder", "asset_gen_sprite", "asset_gen_texture", "audio_bus_add", "audio_bus_add_effect",
+  "asset_gen_placeholder", "asset_gen_sprite", "asset_gen_texture", "audio_analyze", "audio_bus_add", "audio_bus_add_effect",
   "audio_bus_set_volume", "audio_player_create", "audio_set_bus_layout", "audio_set_stream", "auth_scaffold",
   "backend_configure", "backend_detect", "board_create", "board_place", "board_tile_create", "board_tile_place",
   "body_create", "body_set_collision_layer", "body_set_collision_mask", "body_set_physics_material",
@@ -202,7 +202,7 @@ export const ALL_ANNOTATED: readonly string[] = [
   "gd_document_color", "gd_document_highlight", "gd_document_link", "gd_document_symbols", "gd_folding_ranges",
   "gd_formatting", "gd_hover", "gd_implementation", "gd_references", "gd_rename", "gd_semantic_tokens",
   "gd_signature_help", "gd_type_definition", "gd_workspace_symbols", "godot_export", "godot_import",
-  "godot_launch_editor", "godot_output", "godot_run_headless_script", "godot_run_managed", "godot_run_project",
+  "godot_launch_editor", "godot_output", "godot_record", "godot_run_headless_script", "godot_run_managed", "godot_run_project",
   "godot_stop", "godot_version", "inputmap_add_action", "inputmap_add_event", "inputmap_erase_action",
   "inputmap_list", "interact_add_drop_zone", "interact_make_draggable", "joint_create", "joint_set_bodies",
   "leaderboard_scaffold", "light_create", "main_screen_get", "main_screen_set", "mesh_set_surface_material", "meshinstance_create", "mp_add_spawner",

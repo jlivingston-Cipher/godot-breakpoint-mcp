@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **295 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **297 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -4415,6 +4415,50 @@ Terminate a game this server started: the `id` comes from `godot_run_project` or
 
 ---
 
+# The Hearing Plane  (✅ implemented — 1.93.0, BP-0026; host-side, reads Godot's Movie Maker output)
+
+An assistant cannot listen, so these two tools turn a game's sound into numbers it can read and a picture it can look at. Every level is measured, never described. **Conventions** (stated once, every number below follows them): dBFS is 20·log10 of an amplitude where 1.0 is full scale; `rms_dbfs` is the RMS of the samples in that scale, so a full-scale square wave reads 0 and a full-scale sine −3.01. Octave band levels are mean-square power in the same scale, so the bands of a signal inside 22 Hz–22.6 kHz sum to `rms_dbfs`. Loudness is ITU-R BS.1770-4 / EBU R128 (K-weighting, 400 ms blocks every 100 ms, the −70 LUFS absolute and −10 LU relative gates; a full-scale 1 kHz sine in one channel reads −3.01 LUFS). True peak is 4× oversampled. A sample at or beyond 0.9999 of full scale is **clipped**; three in a row are a clipped **run**. **Silence is `null`, never −Infinity.** Each reply also carries a **spectrogram** as image content: time left to right, log frequency 20 Hz (bottom) to 20 kHz (top) with faint lines at 100 Hz, 1 kHz and 10 kHz, colour from −100 dBFS (black) to 0 dBFS (pale yellow), and a red strip along the top where samples hit full scale. With `compare_to` the two pictures are stacked, the earlier one on top, and `comparison` reports **this minus that** for every scalar and every band.
+
+### `godot_record` ✅ · writes a new file
+Run the project (or one `scene`) under **Godot's Movie Maker** for `seconds` of game time at a fixed `fps`, then measure the recorded sound. Movie Maker advances frames and mixes audio in exact lockstep, never in real time, so a recording is the same on a fast or a slow machine and two recordings of one scene compare sample for sample. **Opens a game window:** Movie Maker needs a real renderer (`--headless --write-movie` crashes Godot 4.7, measured). The WAV is written to `res://.godot/breakpoint/recordings/<time>/sound.wav` (inside `.godot/`, which Godot's own `.gitignore` keeps out of version control) and named in the reply, so `audio_analyze` or a later `compare_to` can read it. The PNG frames are deleted unless `keep_frames` — but Movie Maker writes one per frame during the run, so budget disk for `seconds × fps` frames at the game's window size. `user_args` reach the game after `--` (`OS.get_cmdline_user_args()`), for a game's own switches. `seconds` is at most 120. The run has a deadline (one minute plus twenty seconds per recorded second); at it Godot's process group is stopped, then killed. `notes` says in words when the WAV is shorter than asked for, the run hit its deadline, or Godot exited non-zero — a recording cut short never reads as a quiet success. Refuses a `scene` spelled like a command-line option, and refuses when Godot wrote no sound, naming the exit code and the last lines Godot printed.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "properties": {
+  "scene": { "type": "string", "description": "res:// scene to record (default: the main scene)" },
+  "seconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 120, "default": 5 },
+  "fps": { "type": "integer", "minimum": 1, "maximum": 240, "default": 60 },
+  "keep_frames": { "type": "boolean", "default": false },
+  "compare_to": { "type": "string", "description": "an earlier WAV inside the project" },
+  "user_args": { "type": "array", "items": { "type": "string" } } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["wav", "frames_dir", "frames", "fps", "exit_code", "timed_out", "analysis", "compare_to", "comparison"],
+  "properties": {
+    "wav": { "type": "string", "description": "res:// path of the recorded WAV" },
+    "frames_dir": { "type": ["string", "null"], "description": "where the PNG frames are, when keep_frames" },
+    "frames": { "type": "integer", "description": "PNG frames Godot wrote" },
+    "fps": { "type": "integer" }, "exit_code": { "type": ["integer", "null"] }, "timed_out": { "type": "boolean" },
+    "analysis": { "$ref": "#/hearing/analysis" },
+    "compare_to": { "type": ["string", "null"] }, "comparison": { "oneOf": [{ "$ref": "#/hearing/comparison" }, { "type": "null" }] },
+    "notes": { "type": "array", "items": { "type": "string" } } } }
+```
+
+### `audio_analyze` ✅
+Measure a WAV file inside the project (PCM 8/16/24/32-bit or float 32/64-bit, plain or EXTENSIBLE, at 8 kHz or above; a `data` chunk whose header was never finalised is read to the end of the file), or compare two with `compare_to`. Read-only. Refuses a file that is not a WAV it can read, and one over 256 MB.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "required": ["path"], "properties": {
+  "path": { "type": "string" }, "compare_to": { "type": "string", "description": "the 'before' of the comparison" } } }
+```
+- **Output** — `{ path, analysis, compare_to, comparison }`, the shapes below.
+
+**`analysis`** — `duration_s`, `sample_rate`, `channels`, `bits`; `peak_dbfs`, `true_peak_dbtp`, `rms_dbfs`; `loudness_lufs` (integrated), `loudness_momentary_max_lufs`, `loudness_short_term_max_lufs`, `loudness_weighting` (which channel weights were used, in words: from the file's speaker mask, or 3.1 / 5.1 / 7.1 by channel count as Movie Maker writes them, or 1.0 throughout); `clipped_samples`, `clipped_runs`, `first_clip_s` (full scale is the format's own: 127/128 for 8-bit); `nonfinite_samples` (NaN or infinite samples in a float file, counted and read as 0); `onset_s` (first sample above −60 dBFS), `silent_fraction` (100 ms blocks under −60 dBFS); `dominant_hz`, `centroid_hz`; `bands` (ten octaves, `{hz, db}`, 31.5 Hz–16 kHz; `null` when silent, or when the file is too short to resolve that octave); `per_channel` (`{peak_dbfs, rms_dbfs, dc_offset}`). Every level is a number or `null`.
+
+**`comparison`** — `delta` (this minus that, per scalar: `duration_s`, `peak_dbfs`, `true_peak_dbtp`, `rms_dbfs`, the three loudness readings, `clipped_samples`, `onset_s`, `silent_fraction`, `dominant_hz`, `centroid_hz`; `null` where either side is silent), `band_delta_db` (`{hz, db}` per octave), `band_mean_abs_diff_db` (mean |Δ| over the octaves where either side is above −90 dB), and `notes` (a differing sample rate, channel count or duration, in words).
+
+---
+
 # MCP Resources  (✅ implemented — Phase 4)
 
 Read-mostly context Claude can pull on demand (clients may subscribe). Each degrades to `{ "available": false, "note": "..." }` when the editor/game isn't reachable.
@@ -4757,4 +4801,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
-**295 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**297 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

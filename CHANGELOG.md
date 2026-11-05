@@ -4,6 +4,71 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.93.0] — 2026-11-05
+
+_Addon **1.21.0 → 1.22.0** — `operations.gd`, `bridge_server.gd`, `plugin.gd` and `status_dock.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **295 → 297** (secure default **282 → 284**): `godot_record` and `audio_analyze`, in a new `hearing` toolset._
+
+The hearing release (BP-0026, with the sound recording BP-0037 priced apart): a game's sound,
+measured as numbers and shown as a picture, because an assistant cannot listen. And the editor
+side of the addon made clean for projects that turn typing warnings into errors (BP-0055).
+
+### Added
+
+**`godot_record` records a scene under Godot's Movie Maker and measures the sound.** Movie Maker
+advances frames and mixes audio in exact lockstep at a fixed frame rate, never in real time, so a
+recording is the same on a fast machine or a slow one and two recordings of one scene compare
+sample for sample. Pass `scene`, `seconds` of game time (two minutes at most) and `fps`; the WAV is
+written under `res://.godot/breakpoint/recordings/` (inside `.godot/`, which Godot's own ignore
+file keeps out of version control) and named in the reply. The PNG frames are deleted unless
+`keep_frames`; `user_args` reach the game after `--`, for a game's own switches; `compare_to` names
+an earlier recording to compare against. **A game window opens for the run:** Movie Maker needs a
+real renderer, and `--headless --write-movie` crashes Godot 4.7 (measured). Movie Maker also writes one
+PNG per frame while it runs, so a long recording at a high frame rate needs the disk for them.
+
+**`audio_analyze` measures any WAV in the project, or compares two.** PCM 8 to 32-bit or float,
+plain or EXTENSIBLE; a recording whose header was never finalised is read to the end of the file.
+
+**What both report.** `loudness_lufs` (ITU-R BS.1770-4 / EBU R128 integrated loudness, with the
+momentary and short-term maxima), `peak_dbfs` and `true_peak_dbtp` (4× oversampled), `rms_dbfs`,
+`clipped_samples`, `clipped_runs` and `first_clip_s`, `onset_s`, `silent_fraction`, `dominant_hz`,
+`centroid_hz`, ten octave bands from 31.5 Hz to 16 kHz, and each channel's peak, RMS and DC
+offset, the `loudness_weighting` used (from the file's speaker mask, or Movie Maker's 3.1, 5.1 and 7.1
+layouts by channel count), and `nonfinite_samples` in a float file. Silence reads `null`, never minus
+infinity; a recording cut short says so in `notes` rather than reading as a quiet success. Each reply carries a spectrogram as an image —
+time across, log frequency up, level as colour, a red strip where samples hit full scale — and the
+text says how to read it. With `compare_to`, `comparison` reports this recording minus that one for
+every reading and every band, and the two pictures come back stacked.
+
+Measured against arithmetic, not against an earlier run: the K-weighting filters reproduce the
+standard's published 48 kHz coefficients, a full-scale 1 kHz sine in one channel reads −3.01 LUFS
+(the standard's own calibration), and a sine whose samples sit 3 dB under its crest reads its true
+peak. A new fixture, `example/tests/hearing_probe.tscn`, plays a 1 kHz sine at −12.04 dBFS; recorded
+on Godot 4.7 it reads −12.04 dBFS peak, −15.05 dBFS RMS and −12.04 LUFS, and recorded again 18 dB
+hotter it clips, the comparison showing the peak capped at +12.04 dB and the clipping's harmonics
+lifting the 4 kHz octave by more than 90 dB.
+
+### Changed
+
+**The editor side of the addon loads in strict-typing projects (BP-0055).** 1.92.0 made the scripts
+a running game loads clean in a project that raises `untyped_declaration` and the four `unsafe_*`
+warnings to errors and does not exempt `res://addons`; this release does the same for the four the
+editor loads. Before it, the editor plugin failed to compile in such a project, so none of the
+editor tools worked there. Now all nine addon scripts parse with no errors on Godot 4.3, 4.5 and
+4.7, each against a control script the same settings fail, and the authoring probe CI runs passed in
+full when run on a Mac against a live Godot 4.7 editor in such a project. The method is 1.92.0's: an untyped declaration
+gets the type it already had (`Variant`, or `Dictionary` for the bridge's client list, which only
+ever holds dictionaries); a conversion stays where it was with `@warning_ignore` on its own
+statement, so a value that cannot convert still stops its handler; and an `if` whose condition
+converts has its whole condition moved into a local first, so the order of evaluation and the
+short-circuiting are exactly as they were. No behaviour changes.
+
+### Known
+
+**The editor plugin does not load on Godot 4.2** (BP-0058), in any project. `operations.gd` names
+`TileMapLayer` and calls `Dictionary.merged()`, which arrived in Godot 4.3. The README's "Godot 4.2+"
+holds for the game side only; the editor side needs 4.3. Found by this release's measurement, not
+changed by it.
+
 ## [1.92.0] — 2026-11-05
 
 _Addon **1.20.0 → 1.21.0** — `runtime_bridge.gd`, `variant_json.gd`, `bridge_secret.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged (**295**, secure default **282**)._

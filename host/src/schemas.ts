@@ -217,6 +217,38 @@ const engineLog = {
     .optional(),
 };
 
+// 🆕 BP-0026 — one sound's measurement (hearing.ts `Analysis`). Silence is null, never -Infinity.
+const dbOrNull = z.number().nullable();
+const hearingAnalysis = z.object({
+  duration_s: z.number(),
+  sample_rate: z.number(),
+  channels: z.number(),
+  bits: z.number(),
+  peak_dbfs: dbOrNull,
+  true_peak_dbtp: dbOrNull,
+  rms_dbfs: dbOrNull,
+  loudness_lufs: dbOrNull,
+  loudness_momentary_max_lufs: dbOrNull,
+  loudness_short_term_max_lufs: dbOrNull,
+  loudness_weighting: z.string(),
+  clipped_samples: z.number(),
+  clipped_runs: z.number(),
+  first_clip_s: dbOrNull,
+  nonfinite_samples: z.number(),
+  onset_s: dbOrNull,
+  silent_fraction: z.number(),
+  dominant_hz: dbOrNull,
+  centroid_hz: dbOrNull,
+  bands: z.array(z.object({ hz: z.number(), db: dbOrNull })),
+  per_channel: z.array(z.object({ peak_dbfs: dbOrNull, rms_dbfs: dbOrNull, dc_offset: z.number() })),
+});
+const hearingComparison = z.object({
+  delta: z.record(z.string(), dbOrNull),
+  band_delta_db: z.array(z.object({ hz: z.number(), db: dbOrNull })),
+  band_mean_abs_diff_db: dbOrNull,
+  notes: z.array(z.string()),
+});
+
 /** name -> ZodRawShape describing that tool's structuredContent. */
 export const outputSchemas: Record<string, z.ZodRawShape> = {
   // ---- Plane B: headless CLI (tools/cli.ts) ----
@@ -296,6 +328,26 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     lines: z.array(z.object({ seq: z.number(), stream: z.enum(["stdout", "stderr"]), text: z.string() })),
   },
   godot_stop: { id: z.string(), stopped: z.boolean() },
+
+  // ---- BP-0026 hearing plane (tools/hearing.ts -> hearing.ts) ----
+  godot_record: {
+    wav: z.string(),
+    frames_dir: z.string().nullable(),
+    frames: z.number(),
+    fps: z.number(),
+    exit_code: z.number().nullable(),
+    timed_out: z.boolean(),
+    analysis: hearingAnalysis,
+    compare_to: z.string().nullable(),
+    comparison: hearingComparison.nullable(),
+    notes: z.array(z.string()),
+  },
+  audio_analyze: {
+    path: z.string(),
+    analysis: hearingAnalysis,
+    compare_to: z.string().nullable(),
+    comparison: hearingComparison.nullable(),
+  },
 
   // ---- Plane A: editor bridge (tools/editor.ts -> operations.gd) ----
   editor_ping: { pong: z.boolean(), addon_version: z.string(), godot: z.string() },

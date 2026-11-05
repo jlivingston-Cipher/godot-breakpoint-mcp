@@ -101,9 +101,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	for key in _probes:
+	for key: Variant in _probes:
 		var pr: Dictionary = _probes[key]
 		if pr["peer"] != null:
+			@warning_ignore("unsafe_method_access")
 			pr["peer"].disconnect_from_host()
 	_probes.clear()
 
@@ -151,11 +152,12 @@ func _build_ui() -> void:
 	bridges_hdr.modulate = Color(1, 1, 1, 0.75)
 	_body.add_child(bridges_hdr)
 
-	for p in PLANES:
+	for p: Variant in PLANES:
 		var row := Label.new()
 		row.add_theme_font_size_override("font_size", 13)
 		_rows[p["key"]] = row
 		_body.add_child(row)
+		@warning_ignore("unsafe_call_argument")
 		_set_plane(p["key"], "pending", "…")
 	_body.add_child(HSeparator.new())
 
@@ -228,8 +230,9 @@ func _build_ui() -> void:
 
 
 func _display_name(key: String) -> String:
-	for p in PLANES:
+	for p: Variant in PLANES:
 		if p["key"] == key:
+			@warning_ignore("unsafe_call_argument")
 			return String(p["name"])
 	return key
 
@@ -261,11 +264,17 @@ func _refresh() -> void:
 
 func _update_editor_plane() -> void:
 	if _server != null and _server.has_method("get_status"):
+		@warning_ignore("unsafe_method_access")
 		var s: Dictionary = _server.get_status()
-		if bool(s.get("listening", false)):
+		@warning_ignore("unsafe_call_argument")
+		var listening: bool = bool(s.get("listening", false))
+		if listening:
+			@warning_ignore("unsafe_call_argument")
 			var n := int(s.get("clients", 0))
+			@warning_ignore("unsafe_call_argument")
 			var host := String(s.get("host", "127.0.0.1"))
 			var suffix := "client" if n == 1 else "clients"
+			@warning_ignore("unsafe_call_argument")
 			_set_plane("editor", "ok", "%s:%d · %d %s" % [host, int(s.get("port", DEFAULT_BRIDGE_PORT)), n, suffix])
 		else:
 			_set_plane("editor", "fail", "not listening")
@@ -316,7 +325,9 @@ func _project_path() -> String:
 
 func _bridge_port() -> int:
 	if _server != null and _server.has_method("get_status"):
+		@warning_ignore("unsafe_method_access")
 		var s: Dictionary = _server.get_status()
+		@warning_ignore("unsafe_call_argument")
 		return int(s.get("port", DEFAULT_BRIDGE_PORT))
 	return _env_port("BREAKPOINT_BRIDGE_PORT", DEFAULT_BRIDGE_PORT)
 
@@ -337,6 +348,7 @@ func _editor_setting_int(key: String, fallback: int) -> int:
 	if es != null and es.has_setting(key):
 		var v: Variant = es.get_setting(key)
 		if typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT:
+			@warning_ignore("unsafe_call_argument")
 			return int(v)
 	return fallback
 
@@ -358,6 +370,7 @@ func _start_probe(key: String, port: int) -> void:
 	if _probes.has(key):
 		var old: Dictionary = _probes[key]
 		if old["peer"] != null:
+			@warning_ignore("unsafe_method_access")
 			old["peer"].disconnect_from_host()
 		_probes.erase(key)
 	var peer := StreamPeerTCP.new()
@@ -373,21 +386,27 @@ func _process(_delta: float) -> void:
 	if _probes.is_empty():
 		return
 	var done: Array = []
-	for key in _probes:
+	for key: Variant in _probes:
 		var pr: Dictionary = _probes[key]
 		var peer: StreamPeerTCP = pr["peer"]
 		peer.poll()
 		var st := peer.get_status()
 		if st == StreamPeerTCP.STATUS_CONNECTED:
+			@warning_ignore("unsafe_call_argument")
 			_set_plane(key, "ok", "127.0.0.1:%d reachable" % int(pr["port"]))
 			peer.disconnect_from_host()
 			done.append(key)
 		elif st == StreamPeerTCP.STATUS_ERROR:
+			@warning_ignore("unsafe_call_argument")
 			_set_plane(key, "fail", "127.0.0.1:%d unreachable" % int(pr["port"]))
 			done.append(key)
-		elif Time.get_ticks_msec() > int(pr["deadline"]):
-			_set_plane(key, "fail", "127.0.0.1:%d no response" % int(pr["port"]))
-			peer.disconnect_from_host()
-			done.append(key)
-	for key in done:
+		else:
+			@warning_ignore("unsafe_call_argument")
+			var expired := Time.get_ticks_msec() > int(pr["deadline"])
+			if expired:
+				@warning_ignore("unsafe_call_argument")
+				_set_plane(key, "fail", "127.0.0.1:%d no response" % int(pr["port"]))
+				peer.disconnect_from_host()
+				done.append(key)
+	for key: Variant in done:
 		_probes.erase(key)

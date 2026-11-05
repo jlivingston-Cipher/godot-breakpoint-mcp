@@ -24,6 +24,7 @@ import { registerRuntimeTools } from "./tools/runtime.js";
 import { registerProcessTools } from "./tools/processes.js";
 import { PeerRegistry } from "./peers.js";
 import { registerKnowledgeTools } from "./tools/knowledge.js";
+import { registerHearingTools } from "./tools/hearing.js";
 import { registerVcsTools } from "./tools/vcs.js";
 import { registerAssetGenTools } from "./tools/assetgen.js";
 import { registerNetcodeTools } from "./tools/netcode.js";
@@ -84,6 +85,7 @@ export function buildToolsets(d: ToolsetDeps): Toolset[] {
     { id: "runtime", describe: "Plane C — running-game runtime + verification family (incl. F6 multi-peer)", run: () => registerRuntimeTools(s, stub<AnyClient>(d.runtime), peers, c) },
     { id: "processes", describe: "Managed run + captured console output", run: () => { const h = registerProcessTools(s, c); d.onProcesses?.(h); } },
     { id: "knowledge", describe: "Group K — host-side project grep / symbol & idiom lookup", run: () => registerKnowledgeTools(s, c) },
+    { id: "hearing", describe: "BP-0026 — Movie Maker record + sound measured as numbers and a picture", run: () => registerHearingTools(s, c) },
     { id: "vcs", describe: "Group L — read-only version control (git) over the project", run: () => registerVcsTools(s, c) },
     { id: "assetgen", describe: "Group J — AI asset generation (degrades to a spec when off)", run: () => registerAssetGenTools(s, stub<AnyClient>(d.bridge), c) },
     { id: "netcode", describe: "Group M — multiplayer scaffolding (mp_*)", run: () => registerNetcodeTools(s, stub<AnyClient>(d.bridge), c) },

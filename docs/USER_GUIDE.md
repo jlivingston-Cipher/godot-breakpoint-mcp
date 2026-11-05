@@ -5,9 +5,9 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.92.0 · addon 1.21.0
+- **Version:** host 1.93.0 · addon 1.22.0
 - **License:** MIT
-- **What it exposes:** full 295 tools (secure-default 282 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 297 tools (secure-default 284 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -399,8 +399,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 282 tools**. Opt in
-to load the **full 295**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 284 tools**. Opt in
+to load the **full 297**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -426,7 +426,7 @@ whole debugging surface), and `b,c,d` → **95** (that plus the headless CLI and
 runtime family). Every start also prints the count actually registered, on stderr:
 
 ```
-[breakpoint-mcp] tool surface: 282 tool(s) registered · groups assetgen,backend,cli,…
+[breakpoint-mcp] tool surface: 284 tool(s) registered · groups assetgen,backend,cli,…
 ```
 
 See [Tool limits](../README.md#tool-limits--if-your-client-refuses-to-load-breakpoint) for the
@@ -688,7 +688,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **295 tools** in total (the secure-default surface is **282** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **297 tools** in total (the secure-default surface is **284** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -1091,6 +1091,14 @@ underlying steps.
    for a frame.
 6. `godot_stop {id}` when done.
 
+**Checking the sound** (host 1.93.0). An assistant cannot listen, so it measures. `godot_record`
+runs a scene under Godot's Movie Maker for a few seconds of game time (a window opens for the run;
+frames and sound advance in exact lockstep, so the result does not depend on the machine's speed)
+and returns loudness, peaks, clipping and octave bands as numbers, with a spectrogram picture. Pass
+the earlier recording's `wav` as `compare_to` after a change, and the reply reports the difference
+metric by metric and band by band — "the 4 kHz octave rose 30 dB and 2,000 samples now clip" rather
+than "it sounds harsher". `audio_analyze` does the same for any WAV already in the project.
+
 ### D. Running headless tests
 
 1. Point `godot_run_headless_script` **(higher-trust)** at your test-runner script (GdUnit4,
@@ -1245,7 +1253,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-295 tools (secure-default 282) and 6 resources. The exhaustive per-tool schemas are in
+297 tools (secure-default 284) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**
