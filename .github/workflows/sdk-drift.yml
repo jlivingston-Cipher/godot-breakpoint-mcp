@@ -45,6 +45,15 @@ jobs:
   # as the dependency host/package.json actually pins. It is its own job because a red
   # here means UPSTREAM moved, which is a different fact from the landscape job below and
   # from anything this repository owes its own registry.
+  #
+  # 🆕 331 — AND IT TAKES THE READING ITSELF. Upstream publishes about twice a week, and
+  # every MINOR used to redden this job until somebody packed the family by hand and found
+  # the same answer (326, 327). Now, when a MINOR moves inside its major line, the step
+  # below packs every package the deferral names, at the version the registry serves, and
+  # counts the files carrying each blocked symbol. It goes red only when one of them turns
+  # up outside the sdk, when the sdk itself stops carrying them, when a package cannot be
+  # read, when a new major ships, or when a package joins or leaves the family. Its log
+  # prints one SDK_READ line per package, so a red comes with its evidence attached.
   upstream-major:
     name: no newer major upstream than this tree pins
     runs-on: ubuntu-latest
