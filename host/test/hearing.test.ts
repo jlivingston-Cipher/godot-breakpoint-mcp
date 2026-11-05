@@ -47,30 +47,29 @@ const pieces = (x: number[], rate = 48000): { fmt: Buffer; data: Buffer } => {
   const b = wav([x], rate, "i16");
   return { fmt: b.subarray(20, 36), data: b.subarray(44) };
 };
-const near = (a: number | null, b: number, tol: number, what: string): void => {
-  assert.ok(a !== null && Math.abs(a - b) <= tol, `${what}: ${a} not within ${tol} of ${b}`);
-};
+/** `a` is a number within `tol` of `b`. Asserted at each call site, inside its test, so every claim has a unit. */
+const within = (a: number | null, b: number, tol: number): boolean => a !== null && Math.abs(a - b) <= tol;
 
 test("K-weighting at 48 kHz reproduces BS.1770-4's published coefficients", () => {
   const [shelf, hp] = kWeighting(48000);
-  [1.53512485958697, -2.69169618940638, 1.19839281085285].forEach((v, i) => near(shelf.b[i], v, 1e-9, `shelf b${i}`));
-  [-1.69065929318241, 0.73248077421585].forEach((v, i) => near(shelf.a[i + 1], v, 1e-9, `shelf a${i + 1}`));
-  [-1.99004745483398, 0.99007225036621].forEach((v, i) => near(hp.a[i + 1], v, 1e-9, `highpass a${i + 1}`));
+  [1.53512485958697, -2.69169618940638, 1.19839281085285].forEach((v, i) => assert.ok(within(shelf.b[i], v, 1e-9), `${`shelf b${i}`}: ${shelf.b[i]} not within 1e-9 of ${v}`));
+  [-1.69065929318241, 0.73248077421585].forEach((v, i) => assert.ok(within(shelf.a[i + 1], v, 1e-9), `${`shelf a${i + 1}`}: ${shelf.a[i + 1]} not within 1e-9 of ${v}`));
+  [-1.99004745483398, 0.99007225036621].forEach((v, i) => assert.ok(within(hp.a[i + 1], v, 1e-9), `${`highpass a${i + 1}`}: ${hp.a[i + 1]} not within 1e-9 of ${v}`));
 });
 
 test("the standard's calibration: a full-scale 1 kHz sine in one channel reads -3.01 LUFS", () => {
   const a = analyze(parseWav(wav([sine(1000, 1, 3)], 48000, "f32")));
-  near(a.loudness_lufs, -3.01, 0.05, "loudness");
+  assert.ok(within(a.loudness_lufs, -3.01, 0.05), `${"loudness"}: ${a.loudness_lufs} not within 0.05 of ${-3.01}`);
 });
 
 test("the fixture's sine (1 kHz at 0.25, stereo, 32-bit PCM as Movie Maker writes it) reads its arithmetic", () => {
   const s = sine(1000, 0.25, 2);
   const a = analyze(parseWav(wav([s, s], 48000, "i32")));
-  assert.equal(a.sample_rate, 48000); assert.equal(a.channels, 2); assert.equal(a.bits, 32); near(a.duration_s, 2, 1e-9, "duration");
-  near(a.peak_dbfs, -12.04, 0.01, "sample peak"); near(a.rms_dbfs, -15.05, 0.01, "rms");
-  near(a.loudness_lufs, -12.04, 0.05, "loudness"); near(a.dominant_hz, 1000, 1, "dominant");
+  assert.equal(a.sample_rate, 48000); assert.equal(a.channels, 2); assert.equal(a.bits, 32); assert.ok(within(a.duration_s, 2, 1e-9), `${"duration"}: ${a.duration_s} not within 1e-9 of ${2}`);
+  assert.ok(within(a.peak_dbfs, -12.04, 0.01), `${"sample peak"}: ${a.peak_dbfs} not within 0.01 of ${-12.04}`); assert.ok(within(a.rms_dbfs, -15.05, 0.01), `${"rms"}: ${a.rms_dbfs} not within 0.01 of ${-15.05}`);
+  assert.ok(within(a.loudness_lufs, -12.04, 0.05), `${"loudness"}: ${a.loudness_lufs} not within 0.05 of ${-12.04}`); assert.ok(within(a.dominant_hz, 1000, 1), `${"dominant"}: ${a.dominant_hz} not within 1 of ${1000}`);
   const k = a.bands.find((b) => b.hz === 1000)!;
-  near(k.db, -15.05, 0.3, "the 1 kHz octave");
+  assert.ok(within(k.db, -15.05, 0.3), `${"the 1 kHz octave"}: ${k.db} not within 0.3 of ${-15.05}`);
   for (const b of a.bands) if (b.hz !== 1000 && b.db !== null) assert.ok(b.db < (k.db as number) - 40, `${b.hz} Hz band ${b.db}`);
   assert.equal(a.clipped_samples, 0); assert.equal(a.first_clip_s, null); assert.equal(a.silent_fraction, 0);
   // sample 0 of sin() is 0, sample 1 is 0.033: the onset is the second sample, 1/48000 s
@@ -83,8 +82,8 @@ test("the fixture's sine (1 kHz at 0.25, stereo, 32-bit PCM as Movie Maker write
 test("true peak finds the over that sits between the samples", () => {
   // fs/4 at a 45-degree phase: every sample lands at +-0.707 of the amplitude, 3 dB under the wave.
   const a = analyze(parseWav(wav([sine(12000, 0.5, 1, 48000, Math.PI / 4)], 48000, "f32")));
-  near(a.peak_dbfs, 20 * Math.log10(0.5 * Math.SQRT1_2), 0.01, "sample peak");
-  near(a.true_peak_dbtp, 20 * Math.log10(0.5), 0.25, "true peak");
+  assert.ok(within(a.peak_dbfs, 20 * Math.log10(0.5 * Math.SQRT1_2), 0.01), `${"sample peak"}: ${a.peak_dbfs} not within 0.01 of ${20 * Math.log10(0.5 * Math.SQRT1_2)}`);
+  assert.ok(within(a.true_peak_dbtp, 20 * Math.log10(0.5), 0.25), `${"true peak"}: ${a.true_peak_dbtp} not within 0.25 of ${20 * Math.log10(0.5)}`);
 });
 
 test("clipping is counted, located and run-counted, exactly", () => {
@@ -95,7 +94,7 @@ test("clipping is counted, located and run-counted, exactly", () => {
   // counted independently on the source signal (about 2/3 of 48000; each of the 880 runs straddles
   // sample boundaries, so the closed form is only approximate)
   assert.equal(a.clipped_samples, s.filter((v) => Math.abs(v) >= 0.9999).length);
-  near(a.clipped_samples, 32000, 120, "about two thirds of the samples");
+  assert.ok(within(a.clipped_samples, 32000, 120), `${"about two thirds of the samples"}: ${a.clipped_samples} not within 120 of ${32000}`);
   assert.equal(a.clipped_runs, 880);
   assert.equal(a.first_clip_s, 0.0002);
 });
@@ -104,8 +103,8 @@ test("8-bit full scale is 127/128: a square wave at both rails clips on both sid
   const sq = Array.from({ length: 4800 }, (_, i) => (Math.floor(i / 24) % 2 ? -1 : 1));
   const a = analyze(parseWav(wav([sq], 48000, "u8")));
   assert.equal(a.clipped_samples, 4800);
-  near(analyze(parseWav(wav([sine(1000, 0.25, 0.5)], 48000, "u8"))).peak_dbfs, -12.04, 0.1, "8-bit peak");
-  near(analyze(parseWav(wav([sine(1000, 0.25, 0.5)], 48000, "i24"))).peak_dbfs, -12.04, 0.01, "24-bit peak");
+  assert.ok(within(analyze(parseWav(wav([sine(1000, 0.25, 0.5)], 48000, "u8"))).peak_dbfs, -12.04, 0.1), `${"8-bit peak"}: ${analyze(parseWav(wav([sine(1000, 0.25, 0.5)], 48000, "u8"))).peak_dbfs} not within 0.1 of ${-12.04}`);
+  assert.ok(within(analyze(parseWav(wav([sine(1000, 0.25, 0.5)], 48000, "i24"))).peak_dbfs, -12.04, 0.01), `${"24-bit peak"}: ${analyze(parseWav(wav([sine(1000, 0.25, 0.5)], 48000, "i24"))).peak_dbfs} not within 0.01 of ${-12.04}`);
 });
 
 test("silence reads null, never -Infinity, and the reply survives JSON", () => {
@@ -121,7 +120,7 @@ test("NaN and Infinity samples in a float file are counted and read as 0, and ev
   x[1000] = NaN; x[2000] = Infinity; x[3000] = -Infinity;
   const a = analyze(parseWav(wav([x], 48000, "f32")));
   assert.equal(a.nonfinite_samples, 3);
-  assert.ok(allFinite(a)); near(a.peak_dbfs, -12.04, 0.01, "peak"); assert.notEqual(a.loudness_lufs, null);
+  assert.ok(allFinite(a)); assert.ok(within(a.peak_dbfs, -12.04, 0.01), `${"peak"}: ${a.peak_dbfs} not within 0.01 of ${-12.04}`); assert.notEqual(a.loudness_lufs, null);
 });
 
 test("a sample rate under 8 kHz is refused, not measured (a 4 Hz header used to loop forever)", () => {
@@ -129,13 +128,13 @@ test("a sample rate under 8 kHz is refused, not measured (a 4 Hz header used to 
 });
 
 test("44.1 kHz: the K-weighting re-derived for the rate still gives the standard's -3.01 LUFS", () => {
-  near(analyze(parseWav(wav([sine(1000, 1, 3, 44100)], 44100, "f32"))).loudness_lufs, -3.01, 0.05, "loudness at 44.1k");
+  assert.ok(within(analyze(parseWav(wav([sine(1000, 1, 3, 44100)], 44100, "f32"))).loudness_lufs, -3.01, 0.05), `${"loudness at 44.1k"}: ${analyze(parseWav(wav([sine(1000, 1, 3, 44100)], 44100, "f32"))).loudness_lufs} not within 0.05 of ${-3.01}`);
 });
 
 test("a sound shorter than one analysis window reads true in its octave (a click or a footstep)", () => {
   for (const n of [4097, 6000]) {
     const a = analyze(parseWav(wav([sine(1000, 0.25, n / 48000)], 48000, "f32")));
-    near(a.bands.find((b) => b.hz === 1000)!.db, a.rms_dbfs as number, 0.35, `${n}-frame 1 kHz octave vs RMS`);
+    assert.ok(within(a.bands.find((b) => b.hz === 1000)!.db, a.rms_dbfs as number, 0.35), `${`${n}-frame 1 kHz octave vs RMS`}: ${a.bands.find((b) => b.hz === 1000)!.db} not within 0.35 of ${a.rms_dbfs as number}`);
   }
 });
 
@@ -146,7 +145,7 @@ test("a long file is read end to end: a 50 ms burst reads the same wherever it f
     return analyze(parseWav(wav([x], 48000, "f32"))).bands.find((b) => b.hz === 4000)!.db;
   };
   const a = burstAt(48000 * 20), b = burstAt(48000 * 20 + 2048 - 1200), c = burstAt(48000 * 37 + 3333);
-  near(b, a as number, 0.5, "burst on a window boundary vs mid-window"); near(c, a as number, 0.5, "burst late in the file");
+  assert.ok(within(b, a as number, 0.5), `${"burst on a window boundary vs mid-window"}: ${b} not within 0.5 of ${a as number}`); assert.ok(within(c, a as number, 0.5), `${"burst late in the file"}: ${c} not within 0.5 of ${a as number}`);
 });
 
 test("channel weights: the mask names the speakers; without one only Movie Maker's layouts are assumed", () => {
@@ -158,14 +157,14 @@ test("channel weights: the mask names the speakers; without one only Movie Maker
   assert.deepEqual(channelWeights(8, 0x63f).weights, [1, 1, 1, 0, 1, 1, 1.41, 1.41]);           // 7.1
   const s = sine(1000, 0.25, 1), z = new Array(s.length).fill(0);
   const back71 = analyze(parseWav(wav([z, z, z, z, s, z, z, z], 48000, "f32", true, 0x63f)));
-  near(back71.loudness_lufs, analyze(parseWav(wav([s], 48000, "f32"))).loudness_lufs as number, 0.01, "a back channel beyond 120 degrees weighs 1.0");
+  assert.ok(within(back71.loudness_lufs, analyze(parseWav(wav([s], 48000, "f32"))).loudness_lufs as number, 0.01), `${"a back channel beyond 120 degrees weighs 1.0"}: ${back71.loudness_lufs} not within 0.01 of ${analyze(parseWav(wav([s], 48000, "f32"))).loudness_lufs as number}`);
   assert.equal(back71.loudness_weighting, "from the file's speaker mask");
 });
 
 test("chunk order: a LIST before fmt (odd length, padded), data before fmt, an empty data chunk, a truncated file", () => {
   const x = sine(1000, 0.25, 0.25), { fmt, data } = pieces(x), ref = analyze(parseWav(wav([x], 48000, "i16")));
-  near(analyze(parseWav(riff([["LIST", Buffer.from("abc")], ["fmt ", fmt], ["data", data]]))).peak_dbfs, ref.peak_dbfs as number, 0.001, "LIST first");
-  near(analyze(parseWav(riff([["data", data], ["fmt ", fmt]]))).peak_dbfs, ref.peak_dbfs as number, 0.001, "data before fmt");
+  assert.ok(within(analyze(parseWav(riff([["LIST", Buffer.from("abc")], ["fmt ", fmt], ["data", data]]))).peak_dbfs, ref.peak_dbfs as number, 0.001), `${"LIST first"}: ${analyze(parseWav(riff([["LIST", Buffer.from("abc")], ["fmt ", fmt], ["data", data]]))).peak_dbfs} not within 0.001 of ${ref.peak_dbfs as number}`);
+  assert.ok(within(analyze(parseWav(riff([["data", data], ["fmt ", fmt]]))).peak_dbfs, ref.peak_dbfs as number, 0.001), `${"data before fmt"}: ${analyze(parseWav(riff([["data", data], ["fmt ", fmt]]))).peak_dbfs} not within 0.001 of ${ref.peak_dbfs as number}`);
   assert.equal(parseWav(riff([["fmt ", fmt], ["data", Buffer.alloc(0)], ["LIST", Buffer.from("abcd")]])).frames, 0);
   const full = riff([["fmt ", fmt], ["data", data]]);
   const cut = parseWav(full.subarray(0, full.length - 2000));
@@ -176,16 +175,16 @@ test("compare: the same tone 6 dB up is +6.02 everywhere it should be, and the b
   const A = analyze(parseWav(wav([sine(1000, 0.25, 2)], 48000, "f32")));
   const B = analyze(parseWav(wav([sine(1000, 0.5, 2)], 48000, "f32")));
   const c = compare(A, B);
-  near(c.delta.peak_dbfs, 6.02, 0.01, "peak"); near(c.delta.rms_dbfs, 6.02, 0.01, "rms"); near(c.delta.loudness_lufs, 6.02, 0.05, "loudness");
-  near(c.band_delta_db.find((b) => b.hz === 1000)!.db, 6.02, 0.05, "1 kHz band");
-  near(c.band_mean_abs_diff_db, 6.02, 0.5, "mean band difference");
+  assert.ok(within(c.delta.peak_dbfs, 6.02, 0.01), `${"peak"}: ${c.delta.peak_dbfs} not within 0.01 of ${6.02}`); assert.ok(within(c.delta.rms_dbfs, 6.02, 0.01), `${"rms"}: ${c.delta.rms_dbfs} not within 0.01 of ${6.02}`); assert.ok(within(c.delta.loudness_lufs, 6.02, 0.05), `${"loudness"}: ${c.delta.loudness_lufs} not within 0.05 of ${6.02}`);
+  assert.ok(within(c.band_delta_db.find((b) => b.hz === 1000)!.db, 6.02, 0.05), `${"1 kHz band"}: ${c.band_delta_db.find((b) => b.hz === 1000)!.db} not within 0.05 of ${6.02}`);
+  assert.ok(within(c.band_mean_abs_diff_db, 6.02, 0.5), `${"mean band difference"}: ${c.band_mean_abs_diff_db} not within 0.5 of ${6.02}`);
   assert.equal(c.delta.dominant_hz, 0); assert.deepEqual(c.notes, []);
 });
 
 test("WAV encodings: 16-bit, float, EXTENSIBLE read alike; what is not a WAV is refused", () => {
   const s = sine(1000, 0.25, 0.5);
   const ref = analyze(parseWav(wav([s], 48000, "f32")));
-  for (const b of [wav([s], 48000, "i16"), wav([s], 48000, "i32", true), wav([s], 48000, "f32", true)]) near(analyze(parseWav(b)).peak_dbfs, ref.peak_dbfs as number, 0.01, "peak");
+  for (const b of [wav([s], 48000, "i16"), wav([s], 48000, "i32", true), wav([s], 48000, "f32", true)]) assert.ok(within(analyze(parseWav(b)).peak_dbfs, ref.peak_dbfs as number, 0.01), `${"peak"}: ${analyze(parseWav(b)).peak_dbfs} not within 0.01 of ${ref.peak_dbfs as number}`);
   for (const bad of [Buffer.from("not a wav at all"), (() => { const b = wav([s], 48000, "i16"); b.writeUInt16LE(2, 20); return b; })()]) {
     assert.throws(() => parseWav(bad), (e: unknown) => e instanceof WavError);
   }
