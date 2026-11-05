@@ -646,7 +646,10 @@ BLAST: dict[str, int] = {
     # 328's note read; CI 41560132408 observed 95.) bad_reference now names
     # `runtime_screenshot_save` instead of `runtime_screenshot`: one reference either way, no
     # move. No check was added.
-    "registered_tools": 95,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
+    # 🆕 BP-0025 (1.92.0): 95 -> 96. bad_held_path's remedy names `runtime_get_property` in
+    # backticks — one more tool reference for check 28's arm to resolve against this registry,
+    # so blinding it fails one more line (CI 42113240068 observed 96). No check was added.
+    "registered_tools": 96,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
