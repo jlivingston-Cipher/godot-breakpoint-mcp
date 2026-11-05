@@ -111,7 +111,7 @@ export function portConflictMessage(
     return (
       why +
       `Deal with whatever is already holding it — which remedy applies depends on what it is: ` +
-      `godot_stop if godot_run_managed started it, dbg_attach / cs_dbg_attach to debug the running ` +
+      `godot_stop if godot_run_managed or godot_run_project started it, dbg_attach / cs_dbg_attach to debug the running ` +
       `game instead of launching a second one (that works only if it is already under the ` +
       `debugger — a plain godot_run_project or godot_run_managed game is not), or quit it in the ` +
       `game window or the editor. You can also point this server at a free port with ` +
@@ -125,9 +125,9 @@ export function portConflictMessage(
 
   return (
     why +
-    `Stop the running game first — godot_stop if godot_run_managed started it, otherwise quit it in ` +
-    `the game window or end the debug session that launched it (a detached godot_run_project game is ` +
-    `not stoppable by any tool) — or point this server at a free port with ` +
+    `Stop the running game first — godot_stop with the id godot_run_managed or godot_run_project ` +
+    `returned, otherwise quit it in the game window or end the debug session that launched it — or ` +
+    `point this server at a free port with ` +
     `BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to start it anyway — reasonable only if ` +
     `you want the process for its console output or its side effects and will not use any runtime_* ` +
     `tool against it. To drive more than one game at once, use runtime_spawn_peers, which allocates ` +
@@ -162,8 +162,6 @@ function holderClause(holder: PortHolder, launcher: Launcher): string | undefine
   const stop = certainStop(h);
   if (stop) return `${held}: ${stop}, or ${move}. `;
   switch (h.owner.kind) {
-    case "godot_run_project":
-      return `${held}. No tool can stop a detached game, so quit it in its game window, or ${move}. `;
     case "this_server":
       return `${held}; no tool here can release it, so ${move}. `;
     case "godot":

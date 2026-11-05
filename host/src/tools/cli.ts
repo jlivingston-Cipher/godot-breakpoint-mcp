@@ -8,7 +8,7 @@ import { registerTaskTool } from "../tasks.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage, readPorts } from "../ports.js";
-import { noteOwned, whoHolds } from "../port-holder.js";
+import { noteRun, whoHolds } from "../port-holder.js";
 import { runDoctorChecks } from "../cli/doctor.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 import { RUNTIME_SWITCH_ENV, spawnGuarded, godotSpawnFailure, isSpawnFailure } from "../spawn-guard.js";
@@ -191,12 +191,14 @@ export function registerCliTools(server: McpServer, cfg: Config): void {
         env: { ...process.env, ...RUNTIME_SWITCH_ENV },
       });
       if (!s.ok) return refuseSpawn(s.message);
-      // 318 — recorded so a later refusal over this port can say the holder is this detached
-      // game, and that no tool can stop it, instead of listing every holder it might be.
-      noteOwned(s.child, { tool: "godot_run_project" });
+      // 318 — recorded so a later refusal over this port can name the holder instead of listing
+      // every holder it might be. 🆕 BP-0032 (331) — and named, so `godot_stop` can take it: the
+      // id below is the one way a session on the secure default can stop the game it started.
+      const id = noteRun(s.child);
       s.child.unref();
       const readiness = await waitForRuntimeBridge(cfg, wait_timeout_ms ?? cfg.runtimeTimeoutMs);
       return ok({
+        id,
         running: true,
         pid: s.pid,
         scene: scene ?? null,

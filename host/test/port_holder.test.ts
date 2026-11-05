@@ -2,15 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
 import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
 import {
   attribute,
   foldHolders,
   lsofArgs,
   noteOwned,
+  noteRun,
   ownedPeers,
   parseLsof,
   readHolder,
   silentHolderRemedy,
+  stopRun,
   whoHolds,
   type ExecFn,
   type ExecOutcome,
@@ -129,8 +132,33 @@ test("318: the ledger names this server's own children, and forgets a pid the mo
   peer.emit("exit");
   assert.deepEqual(ownedPeers(), []);
 
-  noteOwned(Object.assign(new EventEmitter(), { pid: undefined }), { tool: "godot_run_project" });
+  noteOwned(Object.assign(new EventEmitter(), { pid: undefined }), { tool: "godot_run_project", id: "project-0" });
   assert.deepEqual(ownedPeers(), [], "a child that never got a pid records nothing");
+});
+
+/**
+ * 🆕 BP-0032 (331) — THE GAME `godot_run_project` STARTED, STOPPED BY THE ID ITS REPLY CARRIED.
+ * Measured at 325 on a real default surface: the game ran until it was killed by hand, because
+ * the only stop tool took ids from a launcher that surface does not have. Driven here against a
+ * real child process, not a fake emitter, because the claim is that a SIGNAL arrives.
+ */
+test("BP-0032: noteRun mints the id, and stopRun ends that game and nothing else", async () => {
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+  const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+  const id = noteRun(child);
+  assert.match(id, /^project-\d+$/);
+  const l = { pid: child.pid!, command: "node", address: "127.0.0.1:9081" };
+  assert.deepEqual(attribute(l, "godot", 1), { kind: "godot_run_project", id });
+  assert.equal(stopRun("project-999999"), false, "an id this server never minted is refused, not guessed at");
+  assert.equal(stopRun(id), true);
+  await exited;
+  assert.ok(child.exitCode !== null || child.signalCode !== null, "the game ended");
+  assert.deepEqual(attribute(l, "godot", 1).kind, "other", "and its pid left the ledger with it");
+  // A second stop of a finished game answers like a second stop of a finished managed one —
+  // and signals nothing, because the ledger no longer holds that pid under this id.
+  assert.equal(stopRun(id), true);
+  const second = noteRun(spawn(process.execPath, ["-e", "0"], { stdio: "ignore" }));
+  assert.notEqual(second, id, "every launch gets its own id");
 });
 
 test("318: attribution — a renamed Godot is recognised through GODOT_BIN, anything else is not Godot", () => {
@@ -148,10 +176,14 @@ const found = (...holders: Holder[]): PortHolder => ({ kind: "found", holders })
 
 // 🔴 BYTE-FOR-BYTE WHAT 1.85.1 RETURNED, captured from its built `dist/ports.js` before this
 // change. The promise is that a lookup that cannot answer leaves the refusal exactly as it was.
+// 🆕 BP-0032 (331) — CHANGED ON PURPOSE, IN ONE CLAUSE EACH. The run sentence said "a detached
+// godot_run_project game is not stoppable by any tool", and since `godot_stop` takes that tool's
+// id the sentence is false; the debugger sentence offered `godot_stop` for one launcher of two.
+// Every other byte is still 1.85.1's.
 const SHIPPED_RUN =
-  "127.0.0.1:9081 is already bound, so a game started now could not host the runtime bridge. Its autoload would fail to listen and keep running anyway, and every runtime_* call would silently address the process that already holds the port instead of the one you just started. Stop the running game first — godot_stop if godot_run_managed started it, otherwise quit it in the game window or end the debug session that launched it (a detached godot_run_project game is not stoppable by any tool) — or point this server at a free port with BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to start it anyway — reasonable only if you want the process for its console output or its side effects and will not use any runtime_* tool against it. To drive more than one game at once, use runtime_spawn_peers, which allocates a distinct port per peer.";
+  "127.0.0.1:9081 is already bound, so a game started now could not host the runtime bridge. Its autoload would fail to listen and keep running anyway, and every runtime_* call would silently address the process that already holds the port instead of the one you just started. Stop the running game first — godot_stop with the id godot_run_managed or godot_run_project returned, otherwise quit it in the game window or end the debug session that launched it — or point this server at a free port with BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to start it anyway — reasonable only if you want the process for its console output or its side effects and will not use any runtime_* tool against it. To drive more than one game at once, use runtime_spawn_peers, which allocates a distinct port per peer.";
 const SHIPPED_DEBUGGER =
-  "127.0.0.1:9081 is already bound, so a game started now could not host the runtime bridge. Its autoload would fail to listen and keep running anyway, and every runtime_* call would silently address the process that already holds the port instead of the one you just started. Deal with whatever is already holding it — which remedy applies depends on what it is: godot_stop if godot_run_managed started it, dbg_attach / cs_dbg_attach to debug the running game instead of launching a second one (that works only if it is already under the debugger — a plain godot_run_project or godot_run_managed game is not), or quit it in the game window or the editor. You can also point this server at a free port with BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to launch anyway: breakpoints, stepping and variable inspection will all work normally, because a DAP session is addressed by session rather than by port — but every runtime_* call would go to the process holding the port, not to the game you just launched. To drive more than one game at once, use runtime_spawn_peers, which allocates a distinct port per peer.";
+  "127.0.0.1:9081 is already bound, so a game started now could not host the runtime bridge. Its autoload would fail to listen and keep running anyway, and every runtime_* call would silently address the process that already holds the port instead of the one you just started. Deal with whatever is already holding it — which remedy applies depends on what it is: godot_stop if godot_run_managed or godot_run_project started it, dbg_attach / cs_dbg_attach to debug the running game instead of launching a second one (that works only if it is already under the debugger — a plain godot_run_project or godot_run_managed game is not), or quit it in the game window or the editor. You can also point this server at a free port with BREAKPOINT_RUNTIME_PORT. Pass allow_port_conflict:true to launch anyway: breakpoints, stepping and variable inspection will all work normally, because a DAP session is addressed by session rather than by port — but every runtime_* call would go to the process holding the port, not to the game you just launched. To drive more than one game at once, use runtime_spawn_peers, which allocates a distinct port per peer.";
 
 test("318: a refusal whose holder could not be read is the refusal that shipped, byte for byte", () => {
   const unavailable: PortHolder = { kind: "unavailable", reason: "lsof is not installed" };
@@ -172,9 +204,11 @@ test("318: a refusal whose holder IS known names it and gives only the remedy th
   assert.match(stranger, /a program that is not Godot \(pid 77, python3/);
   assert.doesNotMatch(stranger, /godot_stop/, "no stop tool is named for a process no tool can stop");
 
-  const detached = portConflictMessage("127.0.0.1", 9081, "run", found(h({ kind: "godot_run_project" })));
-  assert.match(detached, /No tool can stop a detached game/);
-  assert.doesNotMatch(detached, /godot_stop/);
+  // 🆕 BP-0032 (331) — the detached game has an id now, and the refusal hands it over.
+  const detached = portConflictMessage("127.0.0.1", 9081, "run", found(h({ kind: "godot_run_project", id: "project-2" })));
+  assert.match(detached, /held by the game godot_run_project started as "project-2" \(pid 4312/);
+  assert.match(detached, /stop it with godot_stop, id "project-2"/);
+  assert.doesNotMatch(detached, /No tool can stop/);
 
   const underDebugger = portConflictMessage("127.0.0.1", 9081, "debugger", found(h({ kind: "godot" })));
   assert.match(underDebugger, /a Godot process this server did not start/);

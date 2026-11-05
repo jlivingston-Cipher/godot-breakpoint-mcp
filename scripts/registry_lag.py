@@ -45,9 +45,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -400,7 +403,8 @@ def repo_key(url: str) -> str:
 def upstream_problems(pins: "dict[str, str]",
                       family: "dict[str, str]",
                       deprecated: "dict[str, str] | None" = None,
-                      deferred: "dict[str, dict] | None" = None
+                      deferred: "dict[str, dict] | None" = None,
+                      reading: "dict[str, dict] | None" = None
                       ) -> "tuple[list[str], list[str]]":
     """(problems, notes) — is a MAJOR newer than what this tree pins on the registry?
 
@@ -430,7 +434,7 @@ def upstream_problems(pins: "dict[str, str]",
     if not ahead:
         return ([], [f"SDK_UPSTREAM 🟢 major {ours} — {len(family)} package(s) from that "
                      f"repository and none is ahead of what this tree pins"])
-    held, why_held = deferral_problems(family, deprecated, deferred)
+    held, why_held = deferral_problems(family, deprecated, deferred, reading)
     if held:
         return (held, [])
     if why_held:
@@ -556,7 +560,7 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # `seen` is held at major.minor, so this row refuses on most Mondays and each
             # refusal costs this reading by hand. That is a price, not a defect; whether
             # the canary should take the reading itself is a ruling this commit leaves
-            # open (BP-0033).
+            # open (BP-0033). 🆕 331 — ruled (b) on 11-04 and built: `reading_problems`.
             #
             # 🆕 327 (BP-0038) — READ, NOT BUMPED, a sixth time, and this time late. `sdk-drift`
             # #33 (10-26) and #34 (11-02) refused on core/server/client/codemod 2.3 -> 2.4
@@ -569,6 +573,15 @@ UPSTREAM_DEFERRED: "dict[str, dict]" = {
             # 2.4.0, and the five `tasks/*` method strings are in core, server and client.
             # LATEST_PROTOCOL_VERSION is 2025-11-25 in sdk 1.32.2 and in core 2.4.0. The
             # deferral holds.
+            #
+            # 🆕 331 (BP-0050) — AND THE SEVENTH READING IS THE JOB'S. A MINOR moving
+            # inside its major line no longer refuses here: `--upstream` packs every
+            # package below at the version the registry serves and `reading_problems`
+            # decides. It goes red when a blocked symbol appears outside the sdk, when the
+            # sdk itself stops carrying them, when a package cannot be read, when a major
+            # line moves (for `ext-tasks`, `0.2 -> 0.3`: `major_line`), or when a package
+            # joins or leaves. These coordinates stay what they were: the ones the
+            # argument was MADE against by a person. Move them when a person re-argues it.
         },
         DEFER_ALSO: ("@modelcontextprotocol/ext-tasks",),
         DEFER_BLOCKED: ("InMemoryTaskStore", "isTerminal", "ExperimentalMcpServerTasks",
@@ -601,9 +614,101 @@ def api_coord(version: str) -> str:
     return f"{m.group(1)}.{m.group(2)}" if m else ""
 
 
+def major_line(version: str) -> str:
+    """The line a release may break its API across — PURE. `2.4.0` -> `2`, `2.4` -> `2`,
+    `0.2.2` -> `0.2`, anything unparseable -> "".
+
+    🆕 331 — npm's caret line, not a taste: `^0.2.2` admits nothing past `0.2.x`, because
+    below 1.0 the MINOR is where a package breaks. That matters for exactly one package
+    here, and it is the one that matters most: `ext-tasks` is where a server-side task
+    receiver would arrive, and `0.2 -> 0.3` is the release that could rename everything.
+    A rename defeats a grep for four names, so that move stays a red a person reads.
+    """
+    m = re.match(r"v?(\d+)\.(\d+)", str(version or "").strip())
+    if not m:
+        return ""
+    return m.group(1) if m.group(1) != "0" else f"0.{m.group(2)}"
+
+
+def reading_problems(name: str, row: "dict", family: "dict[str, str]",
+                     reading: "dict[str, dict]", moved: "list[str]"
+                     ) -> "tuple[list[str], list[str]]":
+    """(problems, notes) — does THIS RUN's reading of the family still hold the deferral?
+    PURE over the reading, so every direction is a fixture.
+
+    🆕 331 (BP-0034, ruled (b) on 11-04) — THE READING FIVE SESSIONS TOOK BY HAND, TAKEN
+    BY THE JOB. `npm pack` every package the deferral names, at the version the registry
+    serves, and count the files that carry each blocked symbol. Three outcomes:
+
+      * a blocked symbol in ANY package other than `name` -> RED. This is the red the job
+        exists for: version 2 may now be able to carry this server.
+      * the control — `name`, the package this tree pins — missing any blocked symbol ->
+        RED. A zero in the family means nothing until the same reading finds the symbols
+        where they are known to be; and if the pinned package dropped them, that is news.
+      * any package unread, read at another version, or empty -> RED. UNREAD IS NOT GREEN.
+
+    Otherwise the deferral holds and the note says what was read. The protocol version
+    each package declares is compared too, and a difference is a 🟡 note, not a red: the
+    ruling named three reds, and a wire change is a reason to re-read `why`, not news
+    that the four symbols have a home.
+    """
+    seen = row.get(DEFER_SEEN) or {}
+    blocked = tuple(row.get(DEFER_BLOCKED) or ())
+    wanted = sorted(set(seen) & set(family))
+    unread = []
+    for p in wanted:
+        r = reading.get(p)
+        if not r:
+            unread.append(f"{p}: not in the reading")
+        elif r.get("problem"):
+            unread.append(f"{p}: {r['problem']}")
+        elif str(r.get("version")) != str(family[p]):
+            unread.append(f"{p}: read at {r.get('version')}, not the version the registry "
+                          f"serves ({family[p]})")
+        elif int(r.get("files") or 0) < 1:
+            unread.append(f"{p}: the tarball held no file to read")
+    if unread:
+        return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} needed a reading "
+                 f"and this run could not take all of it, so nothing here knows whether "
+                 f"it still holds. UNREAD IS NOT GREEN.\n  " + "\n  ".join(unread)], [])
+    ctl = reading[name].get("symbols") or {}
+    missing = [s for s in blocked if int(ctl.get(s) or 0) < 1]
+    if missing:
+        return ([f"🔴 SDK_UPSTREAM REFUSED — the control did not find {', '.join(missing)} "
+                 f"in {name} {family[name]}, the package this tree pins and the one place "
+                 f"they are known to be. A zero in the rest of the family means nothing "
+                 f"until the reading finds them there; and if {name} has dropped them, "
+                 f"that is news this row exists to carry."], [])
+    found = sorted(f"{s} in {p} {family[p]} ({int((reading[p].get('symbols') or {}).get(s) or 0)} file(s))"
+                   for p in wanted if p != name for s in blocked
+                   if int((reading[p].get("symbols") or {}).get(s) or 0) > 0)
+    if found:
+        return ([f"🔴 SDK_UPSTREAM — A BLOCKED SYMBOL NOW APPEARS OUTSIDE {name}. The "
+                 f"deferral rests on {', '.join(blocked)} having no home in the rest of "
+                 f"the family, and this run's reading found: {'; '.join(found)}.\n"
+                 f"  Read that package to see whether it is the server-side implementation "
+                 f"the deferral was waiting for, then re-argue the row or migrate."], [])
+    counts = "/".join(str(int(ctl.get(s) or 0)) for s in blocked)
+    notes = [f"SDK_UPSTREAM 🟢 READ BY THIS RUN — {name}: "
+             f"{'moved ' + '; '.join(moved) if moved else 'nothing moved, read on request'}"
+             f". {len(wanted)} package(s) packed at the versions the registry serves; none "
+             f"outside {name} carries {', '.join(blocked)}. The control, {name} "
+             f"{family[name]}, carries them in {counts} file(s)."]
+    lpv = reading[name].get("lpv") or ""
+    drift = sorted(f"{p} {reading[p].get('lpv')}" for p in wanted
+                   if p != name and reading[p].get("lpv") and reading[p].get("lpv") != lpv)
+    if drift:
+        notes.append(f"SDK_UPSTREAM 🟡 THE WIRE HALF HAS MOVED — {name} declares "
+                     f"LATEST_PROTOCOL_VERSION {lpv or 'nothing'}, and {'; '.join(drift)}. "
+                     f"The deferral's `{DEFER_WHY}` says version 2 buys nothing on the wire; "
+                     f"re-read that sentence. The blocked symbols still have no home.")
+    return ([], notes)
+
+
 def deferral_problems(family: "dict[str, str]",
                       deprecated: "dict[str, str] | None",
-                      deferred: "dict[str, dict] | None"
+                      deferred: "dict[str, dict] | None",
+                      reading: "dict[str, dict] | None" = None
                       ) -> "tuple[list[str], list[str]]":
     """(problems, notes) — does a written deferral still hold against the live registry?
 
@@ -614,6 +719,13 @@ def deferral_problems(family: "dict[str, str]",
 
     Empty `deferred` is not a problem here: it means nothing is deferred, and the caller's
     own refusal is what should speak.
+
+    🆕 331 — `reading` is THIS RUN's reading of the family (`npm_pack_reading`, one entry
+    per package), and **None means NOT READ**. A MINOR moving inside its major line is
+    the one change a reading can settle, so with a reading it goes to `reading_problems`
+    instead of refusing; without one it refuses exactly as it did before 331. A new
+    major line, a package joining and a package leaving still refuse with or without a
+    reading: no grep for four names answers for a package nobody argued against.
     """
     if not deferred:
         return ([], [])
@@ -642,18 +754,30 @@ def deferral_problems(family: "dict[str, str]",
                      f"package nobody is offered; re-argue it against what is there."], [])
         gone = sorted(set(seen) - set(live))
         joined = sorted(set(live) - set(seen))
-        moved = sorted(f"{n} {seen[n]} -> {live[n]}" for n in set(seen) & set(live)
-                       if seen[n] != live[n])
-        if gone or joined or moved:
+        both = set(seen) & set(live)
+        crossed = sorted(f"{n} {seen[n]} -> {live[n]}" for n in both
+                         if major_line(seen[n]) != major_line(live[n]))
+        moved = sorted(f"{n} {seen[n]} -> {live[n]}" for n in both
+                       if seen[n] != live[n] and major_line(seen[n]) == major_line(live[n]))
+        if gone or joined or crossed or (moved and reading is None):
             return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} was argued "
                      f"against an upstream that has since moved, so nothing here knows "
                      f"whether it still holds.\n"
                      + (f"  joined: {', '.join(joined)}\n" if joined else "")
                      + (f"  gone: {', '.join(gone)}\n" if gone else "")
+                     + (f"  new major: {'; '.join(crossed)}\n" if crossed else "")
                      + (f"  moved: {'; '.join(moved)}\n" if moved else "")
                      + f"  The deferral rests on {', '.join(row.get(DEFER_BLOCKED) or ())}"
                        f" having no home in that family. Re-read it, then update "
-                       f"`{DEFER_SEEN}` — or migrate."], [])
+                       f"`{DEFER_SEEN}` — or migrate."
+                     + ("" if (gone or joined or crossed) else
+                        "\n  `--upstream` takes this reading itself when a MINOR moves; "
+                        "this caller passed none.")], [])
+        if moved or reading is not None:
+            held, read_notes = reading_problems(name, row, family, reading or {}, moved)
+            if held:
+                return (held, [])
+            notes.extend(read_notes)
         bad = sorted(p for p in seen if deprecated.get(p))
         if bad:
             return ([f"🔴 SDK_UPSTREAM REFUSED — the deferral for {name} holds and the "
@@ -736,9 +860,74 @@ def npm_repo_of(name: str) -> "tuple[str, str]":
     return (r.stdout.strip(), "")
 
 
-def upstream_reading(root: Path = ROOT) -> "tuple[list[str], list[str]]":
+_LPV_RE = re.compile(r"LATEST_PROTOCOL_VERSION\s*=\s*['\"]([0-9-]+)['\"]")
+
+
+def npm_pack_reading(name: str, version: str, symbols: "tuple[str, ...]") -> "dict":
+    """{version, files, symbols: {symbol: files}, lpv, problem} for one package — NETWORK.
+    Never raises.
+
+    🆕 331 — `ci326/bp0033-sdk-read.sh`, the by-hand reading of 326 and 327, as a function
+    the job calls. Same population (every file in the tarball), same count (files that
+    contain the symbol, `grep -rl`'s count). The tarball is read IN MEMORY and never
+    extracted, so no path inside somebody else's package is ever written to disk.
+    """
+    out = {"version": version, "files": 0, "symbols": {s: 0 for s in symbols},
+           "lpv": "", "problem": ""}
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            r = subprocess.run(["npm", "pack", f"{name}@{version}", "--silent",
+                                "--pack-destination", d],
+                               capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            out["problem"] = f"`npm pack {name}@{version}` could not run: {e}"
+            return out
+        if r.returncode != 0:
+            out["problem"] = f"`npm pack {name}@{version}` exited {r.returncode}"
+            return out
+        tgz = [f for f in os.listdir(d) if f.endswith(".tgz")]
+        if len(tgz) != 1:
+            out["problem"] = f"`npm pack {name}@{version}` left {len(tgz)} tarball(s), not one"
+            return out
+        lpv: "set[str]" = set()
+        try:
+            with tarfile.open(os.path.join(d, tgz[0]), "r:gz") as t:
+                for m in t.getmembers():
+                    if not m.isfile():
+                        continue
+                    f = t.extractfile(m)
+                    if f is None:
+                        continue
+                    text = f.read().decode("utf-8", "replace")
+                    out["files"] += 1
+                    for s in symbols:
+                        if s in text:
+                            out["symbols"][s] += 1
+                    lpv.update(_LPV_RE.findall(text))
+        except (tarfile.TarError, OSError, EOFError) as e:
+            out["problem"] = f"the tarball of {name}@{version} could not be read: {e}"
+            return out
+        out["lpv"] = ";".join(sorted(lpv))
+    return out
+
+
+def reading_line(name: str, r: "dict", symbols: "tuple[str, ...]") -> str:
+    """One line per package read, for the job's log — PURE."""
+    if r.get("problem"):
+        return f"SDK_READ {name}@{r.get('version')} UNREAD — {r['problem']}"
+    counts = " ".join(f"{s}={(r.get('symbols') or {}).get(s, 0)}" for s in symbols)
+    return (f"SDK_READ {name}@{r.get('version')} files={r.get('files')} | {counts} | "
+            f"LPV {r.get('lpv') or 'none'}")
+
+
+def upstream_reading(root: Path = ROOT, force_read: bool = False
+                     ) -> "tuple[list[str], list[str]]":
     """(problems, notes) — the dialled half. Everything it decides, it decides in
-    `upstream_problems`; this function only fetches."""
+    `upstream_problems`; this function only fetches.
+
+    🆕 331 — including the family reading, taken when any coordinate a deferral was argued
+    against has moved (or when `--read` asks), so a MINOR upstream no longer needs a person
+    to pack eleven tarballs before the Monday job can go green."""
     pins = pinned_upstream(root)
     if not pins:
         return upstream_problems(pins, {})
@@ -798,7 +987,21 @@ def upstream_reading(root: Path = ROOT) -> "tuple[list[str], list[str]]":
                 return ([], [f"SDK_UPSTREAM UNREAD — {why}"])
             got[name] = msg
         deprecated = got
-    return upstream_problems(pins, family, deprecated, UPSTREAM_DEFERRED)
+    reading: "dict[str, dict] | None" = None
+    lines: "list[str]" = []
+    live = {n: api_coord(v) for n, v in family.items()}
+    for _row in (UPSTREAM_DEFERRED[k] for k in sorted(UPSTREAM_DEFERRED)):
+        _seen = _row.get(DEFER_SEEN) or {}
+        if not (force_read or any(_seen[n] != live[n] for n in set(_seen) & set(live))):
+            continue
+        reading = reading if reading is not None else {}
+        _blocked = tuple(_row.get(DEFER_BLOCKED) or ())
+        for _p in sorted(set(_seen) & set(family)):
+            if _p not in reading:
+                reading[_p] = npm_pack_reading(_p, family[_p], _blocked)
+                lines.append(reading_line(_p, reading[_p], _blocked))
+    probs, notes = upstream_problems(pins, family, deprecated, UPSTREAM_DEFERRED, reading)
+    return (probs, lines + notes)
 
 
 def git_tags() -> list[str]:
@@ -1041,7 +1244,26 @@ def selftest() -> int:
     _patched = dict(_fam, **{"@modelcontextprotocol/core": "2.0.9"})
     _minor = dict(_fam, **{"@modelcontextprotocol/core": "2.1.0"})
     _joined = dict(_fam, **{"@modelcontextprotocol/tasks": "2.0.0"})
-    # (name, pins, family, deprecated, deferred, want_ok, want_msg)
+    _major = dict(_fam, **{"@modelcontextprotocol/core": "3.0.0"})
+
+    # 🆕 331 — a reading as `npm_pack_reading` returns one, built over a family.
+    def _rd(fam, hits=None, control=1, broken=None, lpv=None, at=None):
+        out = {}
+        for n, v in fam.items():
+            k = control if n == _SDK else (hits or {}).get(n, 0)
+            out[n] = {"version": (at or {}).get(n, v), "files": 3,
+                      "symbols": {"InMemoryTaskStore": k},
+                      "lpv": (lpv or {}).get(n, "2025-11-25"), "problem": ""}
+        if broken:
+            out[broken]["problem"] = "`npm pack` exited 1"
+        return out
+    _T = "@modelcontextprotocol/ext-tasks"
+    _held_t = {_SDK: dict(_held[_SDK], **{DEFER_SEEN: dict(_held[_SDK][DEFER_SEEN],
+                                                           **{_T: "0.2"}),
+                                          DEFER_ALSO: (_T,)})}
+    _fam_t = dict(_fam, **{_T: "0.2.2"})
+    _caret = dict(_fam, **{_T: "0.3.0"})
+    # (name, pins, family, deprecated, deferred, want_ok, want_msg[, reading])
     UPSTREAM_SELFTEST = [
         ("the reading five sessions could not make", {_SDK: "^1.29.0"}, _fam, None, None,
          False, "serves major 2"),
@@ -1085,10 +1307,43 @@ def selftest() -> int:
          {"@modelcontextprotocol/gone": {DEFER_SEEN: {"a": "1.0"},
                                          DEFER_BLOCKED: ("X",), DEFER_WHY: "x"}},
          False, "no longer serves"),
+        # 🆕 331 (BP-0050) — THE JOB TAKES THE READING, and every way the reading can fail.
+        ("🟢 a MINOR moved and THIS RUN read the family: nothing outside the sdk, the "
+         "control carries it", {_SDK: "^1.29.0"}, _minor, _NONE, _held, True,
+         "READ BY THIS RUN", _rd(_minor)),
+        ("🔴 a MINOR moved and the reading FOUND a blocked symbol outside the sdk",
+         {_SDK: "^1.29.0"}, _minor, _NONE, _held, False, "now appears",
+         _rd(_minor, hits={"@modelcontextprotocol/core": 2})),
+        ("🔴 the control did not find the symbol in the package this tree pins",
+         {_SDK: "^1.29.0"}, _minor, _NONE, _held, False, "control did not find",
+         _rd(_minor, control=0)),
+        ("🔴 a package the run could not pack is not a package that holds",
+         {_SDK: "^1.29.0"}, _minor, _NONE, _held, False, "UNREAD IS NOT GREEN",
+         _rd(_minor, broken="@modelcontextprotocol/server")),
+        ("🔴 a reading of a version the registry does not serve is a reading of nothing",
+         {_SDK: "^1.29.0"}, _minor, _NONE, _held, False, "not the version",
+         _rd(_minor, at={"@modelcontextprotocol/core": "2.0.0"})),
+        ("🔴 A NEW MAJOR is not a MINOR, and a clean reading does not answer for it",
+         {_SDK: "^1.29.0"}, _major, _NONE, _held, False, "new major", _rd(_major)),
+        ("🔴 a 0.x package moving its MINOR crosses npm's caret line",
+         {_SDK: "^1.29.0"}, _caret, _NONE, _held_t, False, "new major", _rd(_caret)),
+        ("🟢 ... and a 0.x PATCH does not", {_SDK: "^1.29.0"},
+         dict(_fam_t, **{_T: "0.2.9"}), _NONE, _held_t, True, "DEFERRED", None),
+        ("🔴 a sibling JOINED, and a reading cannot answer for a package nobody argued "
+         "against", {_SDK: "^1.29.0"}, _joined, _NONE, _held, False, "joined",
+         _rd(_joined)),
+        ("🔴 a clean reading does not lift a DEPRECATION",
+         {_SDK: "^1.29.0"}, _minor, {_SDK: "use @modelcontextprotocol/core"}, _held,
+         False, "DEPRECATED", _rd(_minor)),
+        ("🟡 the wire half moved: said, and not a red — the ruling named three reds",
+         {_SDK: "^1.29.0"}, _minor, _NONE, _held, True, "WIRE HALF HAS MOVED",
+         _rd(_minor, lpv={"@modelcontextprotocol/core": "2026-06-30"})),
     ]
     u2_bad = 0
-    for name, pins, fam, dep, defer, want_ok, want_msg in UPSTREAM_SELFTEST:
-        probs, notes = upstream_problems(pins, fam, dep, defer)
+    for row in UPSTREAM_SELFTEST:
+        name, pins, fam, dep, defer, want_ok, want_msg = row[:7]
+        probs, notes = upstream_problems(pins, fam, dep, defer,
+                                         row[7] if len(row) > 7 else None)
         ok = not probs
         said = " ".join(probs + notes).lower()
         agree = (ok == want_ok) and (want_msg.lower() in said)
@@ -1110,6 +1365,11 @@ def selftest() -> int:
     if api_coord("2.0.0") != "2.0" or api_coord("v1.30.7") != "1.30" or api_coord("") != "":
         u2_bad += 1
         print("  🔴 api_coord did not read MAJOR.MINOR off a version, a v-prefix or a blank")
+    if (major_line("2.4.0"), major_line("2.4"), major_line("0.2.2"), major_line("")) \
+            != ("2", "2", "0.2", ""):
+        u2_bad += 1
+        print("  🔴 major_line did not read the caret line off a version, a coordinate, a "
+              "0.x version or a blank")
     # 🔴 AND THE SHIPPED ROW IS DRIVEN, IN BOTH DIRECTIONS, over a family derived from its
     # own `seen`. The PASS alone would be close to `X == X` — 280 §5's tautology, one file
     # over — so it is the REFUSAL beside it that makes the pair evidence: the same row,
@@ -1133,6 +1393,24 @@ def selftest() -> int:
             u2_bad += 1
             print(f"  🔴 the SHIPPED deferral for {_live_name} survived a MINOR moving "
                   f"under it — a deferral nothing can refuse is not an argument")
+        # 🆕 331 — and the shipped row against the job's own reading, in both directions:
+        # held when the control carries every blocked symbol and nothing else does,
+        # refused the moment one of them turns up in the package that moved.
+        _bl = tuple(_live_row.get(DEFER_BLOCKED) or ())
+        _clean = {n: {"version": v, "files": 1, "lpv": "", "problem": "",
+                      "symbols": {s: (1 if n == _live_name else 0) for s in _bl}}
+                  for n, v in _one_minor.items()}
+        _dirty = {n: dict(r, symbols=dict(r["symbols"])) for n, r in _clean.items()}
+        _dirty[_first]["symbols"][_bl[0]] = 1
+        _p_clean, _ = upstream_problems({_SDK: "^1.29.0"}, _one_minor, _NONE,
+                                        {_live_name: _live_row}, _clean)
+        _p_dirty, _ = upstream_problems({_SDK: "^1.29.0"}, _one_minor, _NONE,
+                                        {_live_name: _live_row}, _dirty)
+        if _p_clean or not _p_dirty:
+            u2_bad += 1
+            print(f"  🔴 the SHIPPED deferral for {_live_name} did not read the job's "
+                  f"reading both ways: clean refused={bool(_p_clean)}, a blocked symbol "
+                  f"in {_first} refused={bool(_p_dirty)}")
         if not (_live_row.get(DEFER_BLOCKED) and _live_row.get(DEFER_WHY)):
             u2_bad += 1
             print(f"  🔴 the deferral for {_live_name} names no blocking symbol or no "
@@ -1154,6 +1432,8 @@ def main() -> int:
     ap.add_argument("--upstream", action="store_true",
                     help="the upstream-major reading ALONE, for a workflow whose subject "
                          "is upstream and not this repository's own release state")
+    ap.add_argument("--read", action="store_true",
+                    help="pack and read the deferral's family even when nothing has moved")
     ap.add_argument("--offline-declared", action="store_true",
                     help="record on the record that the registry was unreachable "
                          "and the cut proceeded anyway")
@@ -1169,7 +1449,7 @@ def main() -> int:
     # eleven commits past its newest tag, which returns 1 before the last line of this
     # function. 199 §9.2 and 277 §1.2 are the same finding twice: a gate that dies partway
     # reports only the failures it reached. This one reports before it can die.
-    up_bad, up_notes = upstream_reading()
+    up_bad, up_notes = upstream_reading(force_read=a.read)
     for line in up_notes:
         print(f"              {line}")
     for line in up_bad:

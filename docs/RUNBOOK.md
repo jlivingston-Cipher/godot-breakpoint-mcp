@@ -105,7 +105,7 @@ Ask Claude to run each; mark pass/fail.
 ### Plane C — Runtime bridge (game running)
 | # | Tool call | Expected |
 |---|---|---|
-| C1 | `godot_run_managed` **(higher-trust)** | returns a process `id`; game window opens. On a default install use `godot_run_project` instead — it opens the same window and reports `bridge_ready`, but it is **detached**: it returns an OS `pid` and no `id`, so C2 and C9 have nothing to address and the game is quit in its own window |
+| C1 | `godot_run_managed` **(higher-trust)** | returns a process `id`; game window opens. On a default install use `godot_run_project` instead — it opens the same window and reports `bridge_ready`, but it is **detached**: its output is not captured, so C2 has nothing to address; it does return an `id` (from 1.91.0), and C9 takes it |
 | C2 | `godot_output` `{id}` **(needs C1's `godot_run_managed`)** | includes `[example] player ready`. On a default install this can only answer `No managed process with id …`, and it says why: the one tool that mints an `id` is withheld. **That refusal is the pass** |
 | C3 | `runtime_get_tree` | live tree with `Main` |
 | C4 | `runtime_get_property` `{path:".", property:"counter"}` | `100` |
@@ -113,7 +113,7 @@ Ask Claude to run each; mark pass/fail.
 | C6 | `runtime_get_monitors` `{keys:["time/fps","audio/output_latency"]}` | numeric values |
 | C7 | `runtime_screenshot` | game frame image |
 | C8 | `runtime_get_log` | includes the `push_log` entries |
-| C9 | `godot_stop` `{id}` **(needs C1's `godot_run_managed`)** | process terminates. Same as C2 on a default install — a detached `godot_run_project` game is not stoppable by any tool, which the port-conflict refusal and this tool's own refusal both say |
+| C9 | `godot_stop` `{id}` (the `id` from C1, either launcher) | process terminates. On a default install pass the `id` `godot_run_project` returned (from 1.91.0); before that a detached game was not stoppable by any tool |
 
 ### Resources
 | # | Read resource | Expected |

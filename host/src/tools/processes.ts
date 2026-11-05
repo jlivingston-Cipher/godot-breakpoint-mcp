@@ -6,7 +6,7 @@ import { log } from "../logger.js";
 import { ok, failPath } from "./lsp-common.js";
 import { resolveInsideProject } from "../paths.js";
 import { portFree, portConflictMessage } from "../ports.js";
-import { noteOwned, whoHolds, type Owner } from "../port-holder.js";
+import { noteOwned, stopRun, whoHolds, type Owner } from "../port-holder.js";
 import { describeExit } from "../exit-cause.js";
 import { waitForRuntimeBridge, notReadyRemedy } from "../readiness.js";
 import { RUNTIME_SWITCH_ENV, spawnGuarded } from "../spawn-guard.js";
@@ -265,11 +265,14 @@ export function registerProcessTools(server: McpServer, cfg: Config): ProcessReg
     "godot_stop",
     {
       title: "Stop managed process",
-      description: "Terminate a managed process started by godot_run_managed.",
-      inputSchema: { id: z.string().describe("Process id from godot_run_managed") },
+      description: "Terminate a game started by godot_run_managed or godot_run_project.",
+      inputSchema: { id: z.string().describe("Id from godot_run_project or godot_run_managed") },
     },
     async ({ id }) => {
       const m = registry.get(id);
+      // 🆕 BP-0032 (331) — a game `godot_run_project` started, by the id its reply carried.
+      // That tool is on every surface, so this is the stop a secure-default session has.
+      if (!m && stopRun(id)) return ok({ id, stopped: true });
       if (!m) {
         return {
           isError: true,

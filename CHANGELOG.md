@@ -4,6 +4,50 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.91.0] — 2026-11-05
+
+_Addon **1.20.0** — unmoved; nothing under `addons/` changed in this window. Tool surface unchanged (**295**, secure default **282**)._
+
+### Fixed
+
+**A game `godot_run_project` starts can now be stopped, by the `id` its reply carries (BP-0032).**
+On the secure default, `godot_run_project` is how a session starts the game, and until now nothing
+could stop it: `godot_stop` took only the ids `godot_run_managed` mints, and that tool belongs to the
+`code-execution` group, which is off unless you turn it on. Measured on a default install, the game
+ran until somebody killed it by hand, holding the runtime bridge port, so the next launch was refused.
+- `godot_run_project`'s reply adds `id` (`project-1`, `project-2`, …), declared on its output
+  schema. `godot_stop {id}` ends that game.
+- `godot_stop` signals only a process this server started and still holds under that `id`. The
+  record is dropped when the game exits, so a pid the operating system has since given to another
+  program is never signalled. It still does not accept an OS pid. Stopping a game that already
+  exited answers `stopped: true`, as it does for a managed one.
+- `godot_stop` is no longer an orphaned consumer on the secure default: `orphaned_consumers` in
+  `godot://capabilities` lists three tools, not four, and its refusal of an unknown `id` carries no
+  policy clause. `godot_output` still needs `godot_run_managed`, because a detached game's console
+  is not captured.
+- When a launch is refused because the runtime port is held by a game `godot_run_project` started,
+  the refusal names it by its `id` and offers `godot_stop` with it, as it already did for
+  `godot_run_managed`; `breakpoint_ports` reports the same `id`. The refusal used when the holder
+  cannot be read no longer says a detached game cannot be stopped.
+- Measured live on the Mac with Godot 4.7 on the secure-default surface: `godot_run_project`
+  returned `project-1`, `breakpoint_ports` showed the runtime port held with
+  `owner: godot_run_project` and that `id`, `godot_stop` ended the process 55 ms later, and the
+  port read free. A second stop of the same `id` answered `stopped: true`; an `id` never minted was
+  refused.
+- Tool surface bytes 377,908 → 377,959 (+51: `godot_stop`'s description and `id` field naming
+  `godot_run_project` as a source, and `id` on `godot_run_project`'s output schema).
+
+### Repository
+
+**The weekly `sdk-drift` job reads the MCP SDK itself (BP-0050).** Breakpoint stays on version 1 of
+the SDK because four pieces it uses (`InMemoryTaskStore`, `isTerminal`,
+`ExperimentalMcpServerTasks`, `assertToolsCallTaskCapability`) have no home in version 2. The job
+used to go red whenever upstream published a new minor version, which is most weeks, until someone
+downloaded the family by hand and confirmed the four were still missing. It now packs every package
+of the family itself and goes red only when one of the four appears outside the version 1 package,
+when the version 1 package stops carrying them, when a package cannot be read, when a new major
+ships, or when a package joins or leaves the family. Its log prints one `SDK_READ` line per package.
+
 ## [1.90.0] — 2026-11-04
 
 _Addon **1.19.0 → 1.20.0** — `runtime_bridge.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged (**295**, secure default **282**)._

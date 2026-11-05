@@ -262,6 +262,7 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // was not, for 566–3213 ms. `running` still means what it always meant; the
   // three readiness fields are the question that was actually being asked.
   godot_run_project: {
+    id: z.string(),
     running: z.boolean(),
     pid: z.number().nullable(),
     scene: z.string().nullable(),

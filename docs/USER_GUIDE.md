@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.90.0 · addon 1.20.0
+- **Version:** host 1.91.0 · addon 1.20.0
 - **License:** MIT
 - **What it exposes:** full 295 tools (secure-default 282 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -667,11 +667,13 @@ addon enabled and the host registered (Sections 3–4).
 > what is withheld and why.
 
 
-**And four tools you KEEP are worth knowing about — the other half of what that group costs.**
-`godot_output` and `godot_stop` take a process `id` that only `godot_run_managed` returns;
+**And three tools you KEEP are worth knowing about — the other half of what that group costs.**
+`godot_output` takes a process `id` that only `godot_run_managed` returns;
 `runtime_peers_digest` and `runtime_peer_stop` need a peer that only `runtime_spawn_peers` **(higher-trust)** can
-start. Those four are not withheld and never leave your surface, but with their producers withheld
-there is no input any of them can be given that succeeds. Each one now says so when you call it —
+start. Those three are not withheld and never leave your surface, but with their producers withheld
+there is no input any of them can be given that succeeds. (`godot_stop` used to be the fourth; from
+1.91.0 it also takes the `id` `godot_run_project` returns, so the game you started is the game you
+can stop.) Each one now says so when you call it —
 naming the group, the env var and the resource — rather than reading like your mistake, and
 `godot://capabilities` lists them under `orphaned_consumers` so you can see it without calling.
 The twenty-five runtime tools that take an *optional* `peer` are unaffected: omit `peer` and they
@@ -765,6 +767,7 @@ Works without the editor open.
 - **`godot_launch_editor`** — open the editor for the project (prerequisite for `editor_*`).
 - **`godot_run_project`** — run the project (detached), optionally from a chosen scene. Waits
   for the game's runtime bridge and reports `bridge_ready`; `wait_timeout_ms: 0` opts out.
+  Returns an `id`: `godot_stop {id}` ends the game.
 - **`godot_export`** *(task, destructive)* — headless export via a preset.
 - **`godot_import`** *(task)* — headless (re)import of project assets.
 - **`godot_run_headless_script`** *(task, higher-trust — runs GDScript)* — run a script
@@ -1160,7 +1163,7 @@ plane you are using.
   already held** — `godot_run_managed` **(higher-trust)**, `godot_run_project`, `dbg_launch` and
   `cs_dbg_launch` — each
   with `allow_port_conflict: true` to proceed anyway. Which remedy clears it depends on what the
-  holder is — `godot_stop` for a `godot_run_managed` child, **`dbg_attach`** if it is already
+  holder is — `godot_stop` for a game `godot_run_managed` or `godot_run_project` started, **`dbg_attach`** if it is already
   running under the debugger, otherwise quit the window yourself; the refusal lists all of them,
   because the probe only learns *that* the port is held. Note that with the override, `dbg_*` works
   perfectly (a DAP session is addressed by session, not by port) while `runtime_*` would talk to the
