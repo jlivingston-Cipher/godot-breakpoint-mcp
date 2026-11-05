@@ -124,6 +124,22 @@ MCP_REGISTRY = "https://registry.modelcontextprotocol.io/v0/servers"
 # out loud. At 326 the whole answer for `godot` is two pages.
 REGISTRY_PAGE_ROWS = 100
 REGISTRY_WALK_PAGES = 50
+# 🆕 332 — BP-0035, RULED (d): THE npm LEG IS ONE SEARCH READ TO ITS LAST PAGE. Until 332
+# the leg sent `godot mcp` and `godot model context protocol` and read the first 250 of
+# each. npm matches EITHER word, so those two searches matched 112,168 and 299,649
+# packages, ranked, with no last page, and "read" meant the top 250. Measured at 332:
+# the top 250 held 69 relevant packages; walking both searches to rank 5,000 (40
+# requests) found 94, still turning them up at rank ~4,750, with empty pages BETWEEN
+# relevant ones. `godot` alone matches 655 packages, every one of which the relevance
+# filter could ever keep is among them, and read to its end in THREE requests it holds
+# 107 relevant packages: all 94, and 13 that 5,000 ranks of the old searches never
+# reached. `NPM_PAGE_ROWS` is the most one request may ask for; `NPM_WINDOW` is the
+# deepest offset measured to be served as asked — past an offset between 5,000 and 7,500
+# npm answers with PAGE ONE AGAIN rather than with nothing, so a walk that waited for an
+# empty page would never end, and one that trusted the answer would count the top twice.
+NPM_QUERY = "godot"
+NPM_PAGE_ROWS = 250
+NPM_WINDOW = 5000
 
 # ── 🆕 292 §1 — WHAT A NEVER-TRACKED PROJECT COSTS IS A PROPERTY OF ITS CHANNEL ───────
 #
@@ -1227,19 +1243,79 @@ def discover() -> tuple[dict[int, dict], int, int, int, int]:
 # `registry_relevant` and `fold`, which are PURE and driven from fixtures in `selftest()`.
 # 174 §8's rule: a judgement inside a function that dials is a judgement nothing offline can
 # reach, and the offline half is the half that runs in the merge path.
-def discover_npm() -> "tuple[list[dict], int, int]":
-    """(search objects, attempted, failed) from registry.npmjs.org's search endpoint."""
-    objs, attempted, failed = [], 0, 0
-    for text in ("godot mcp", "godot model context protocol"):
+def npm_pages(fetch, text: str) -> "tuple[list[dict], int, int]":
+    """(search objects, requests attempted, requests failed) for ONE npm search, read to
+    the `total` the registry reports — PURE over `fetch`, which is `get` in production and
+    a fixture in `selftest()`.
+
+    🔴 332 — THIS LEG READ THE TOP OF A RANKING AND CALLED IT THE CHANNEL. The page size
+    was the most one request may ask for, and `channel_state` said *read — 2 quer(ies), all
+    answered* about two searches with no last page. `registry_pages`' rule, one channel
+    over: a result whose size equals the limit it was asked under has not been counted, it
+    has been cut. The repair is not a deeper cut (BP-0035's options (b) and (c)); it is a
+    search that HAS an end, read to it.
+
+    🔵 EVERY PAGE IS A QUERY, and four things make one a failed query, each because there
+    is a part of the answer this run knows exists and did not read:
+      - the request fails;
+      - the registry reports more matches than `NPM_WINDOW`, so the end cannot be asked
+        for faithfully — the walk stops after the first page, and the rest of the search
+        is counted as one more query, attempted and failed, because the first page's rows
+        are real evidence and the channel is `partial` rather than `unread`;
+      - a page comes back empty before `total` is reached;
+      - a page OPENS with the package the first page opened with, which is npm restarting
+        at page one, and that page is not kept.
+    A package that moves across a page boundary between two requests (a publish mid-walk)
+    is served twice and kept once; that is the ranking moving, not the registry restarting,
+    and it is not a refusal.
+    """
+    objs: "list[dict]" = []
+    attempted = failed = frm = 0
+    seen: "set[str]" = set()
+    first, total = "", None
+    while total is None or frm < total:
         attempted += 1
+        url = (f"{NPM_SEARCH}?text={urllib.parse.quote(text)}"
+               f"&size={NPM_PAGE_ROWS}&from={frm}")
         try:
-            page = get(f"{NPM_SEARCH}?text={urllib.parse.quote(text)}&size=250")
+            page = fetch(url)
         except Exception as e:                    # noqa: BLE001 — see the block above
             failed += 1
-            print(f"  ! npm query {text!r} failed: {e}", file=sys.stderr)
-            continue
-        objs.extend(page.get("objects") or [])
+            print(f"  ! npm query {text!r} from {frm} failed: {e}", file=sys.stderr)
+            break
+        got = page.get("objects") or []
+        total = max(total or 0, int(page.get("total") or 0))
+        names = [str((o.get("package") or o).get("name") or "") for o in got]
+        if frm and names and names[0] == first:
+            failed += 1
+            print(f"  ! npm query {text!r} from {frm} opened with the package page one "
+                  f"opened with: the registry restarted its ranking, and {total - frm} of "
+                  f"{total} match(es) are unread", file=sys.stderr)
+            break
+        if not frm:
+            first = names[0] if names else ""
+        frm += len(got)
+        objs.extend(o for o, n in zip(got, names) if n not in seen)
+        seen.update(names)
+        if total > NPM_WINDOW:
+            attempted += 1
+            failed += 1
+            print(f"  ! npm query {text!r} matches {total} package(s), past the "
+                  f"{NPM_WINDOW} the registry serves as asked, so its end cannot be read",
+                  file=sys.stderr)
+            break
+        if not got and frm < total:
+            failed += 1
+            print(f"  ! npm query {text!r} ended at {frm} of the {total} it reported",
+                  file=sys.stderr)
+            break
     return (objs, attempted, failed)
+
+
+def discover_npm() -> "tuple[list[dict], int, int]":
+    """(search objects, attempted, failed) from registry.npmjs.org — `NPM_QUERY`, read to
+    its last page."""
+    return npm_pages(get, NPM_QUERY)
 
 
 def registry_pages(fetch, term: str) -> "tuple[list[dict], int, int]":
@@ -2838,6 +2914,88 @@ def selftest() -> int:
               "and is not `read`",
               (_w_tried, _w_lost, channel_state(_w_tried, _w_lost)[0]),
               (REGISTRY_WALK_PAGES, 1, CHANNEL_PARTIAL))
+
+    # ── 🆕 332 — `npm_pages`: ONE SEARCH, READ TO THE TOTAL IT REPORTS ──────────────
+    #
+    # The fixture is the 332 measurement at its smallest: a search whose relevant packages
+    # are spread down the ranking, so the one that matters sits on the LAST page. `_npm`
+    # answers from a dict keyed by the `from=` a request carries and records every url.
+    def _npm(pages: dict):
+        asked: "list[str]" = []
+
+        def fetch(url: str) -> dict:
+            asked.append(url)
+            got = pages[int(url.split("&from=")[1])]
+            if isinstance(got, Exception):
+                raise got
+            return got
+        return (fetch, asked)
+
+    def _pkgs(lo: int, hi: int) -> "list[dict]":
+        return [{"package": {"name": f"godot-thing-{n}", "description": "a Godot tool"}}
+                for n in range(lo, hi)]
+    _deep = {"package": {"name": "deep-godot-mcp", "description": "Godot MCP server",
+                         "links": {"repository": "https://github.com/deep/godot-mcp"}}}
+    _n1 = {"total": 600, "objects": _pkgs(0, 250)}
+    _n2 = {"total": 600, "objects": _pkgs(250, 500)}
+    _n3 = {"total": 600, "objects": _pkgs(500, 599) + [_deep]}
+    with contextlib.redirect_stderr(io.StringIO()):
+        _f, _asked = _npm({0: _n1, 250: _n2, 500: _n3})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("npm walk: the search is read to the total it reports",
+              (len(_o), _tried, _lost), (600, 3, 0))
+        claim("npm walk: each request asks from where the last one ended",
+              [u.split("&from=")[1] for u in _asked], ["0", "250", "500"])
+        claim("npm walk: and asks for the most one request may hold",
+              all(f"&size={NPM_PAGE_ROWS}&" in u for u in _asked), True)
+        claim("🔴 THE CUT: the first page alone holds no relevant package",
+              len(npm_relevant(_n1["objects"])[0]), 0)
+        claim("npm walk: the walk keeps the one the last page held",
+              [r["npm"] for r in npm_relevant(_o)[0]], ["deep-godot-mcp"])
+        claim("npm walk: three pages answered is `read`",
+              channel_state(_tried, _lost)[0], CHANNEL_READ)
+
+        _f, _asked = _npm({0: {"total": 0, "objects": []}})
+        claim("npm walk: a search that matches nothing is one query and the end",
+              npm_pages(_f, NPM_QUERY), ([], 1, 0))
+
+        _f, _asked = _npm({0: {"total": NPM_WINDOW + 1, "objects": _pkgs(0, 250)}})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("🔴 npm walk: more matches than NPM_WINDOW stops after one page, and the rest "
+              "is a failed query", (len(_o), _tried, _lost), (250, 2, 1))
+        claim("🔴 npm walk: so the channel is `partial`, not `read`",
+              channel_state(_tried, _lost)[0], CHANNEL_PARTIAL)
+
+        _f, _asked = _npm({0: _n1, 250: _n1})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("🔴 npm walk: a page repeating an earlier one is the registry restarting, a "
+              "failed query, and is not kept", (len(_o), _tried, _lost), (250, 2, 1))
+
+        _f, _asked = _npm({0: {"total": 500, "objects": _pkgs(0, 250)},
+                           250: {"total": 500, "objects": _pkgs(249, 499)}})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("npm walk: a package the ranking moved across a page boundary is kept once, "
+              "and is not a restart", (len(_o), _tried, _lost, channel_state(_tried, _lost)[0]),
+              (499, 2, 0, CHANNEL_READ))
+        claim("npm walk: and the next request still asks from where the registry's last "
+              "page ended", [u.split("&from=")[1] for u in _asked], ["0", "250"])
+
+        _f, _asked = _npm({0: _n1, 250: {"total": 600, "objects": []}})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("🔴 npm walk: an empty page before the total is a failed query",
+              (len(_o), _tried, _lost, channel_state(_tried, _lost)[0]),
+              (250, 2, 1, CHANNEL_PARTIAL))
+
+        _f, _asked = _npm({0: _n1, 250: TimeoutError("timed out")})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("npm walk: a later page that fails is `partial`, and the pages before it "
+              "are kept", (len(_o), channel_state(_tried, _lost)[0]),
+              (250, CHANNEL_PARTIAL))
+
+        _f, _asked = _npm({0: TimeoutError("timed out")})
+        _o, _tried, _lost = npm_pages(_f, NPM_QUERY)
+        claim("npm walk: a first page that fails is the channel `unread`",
+              (len(_o), channel_state(_tried, _lost)[0]), (0, CHANNEL_UNREAD))
 
     # ── `fold` — one project surfaced by two channels is ONE row ─────────────────────
     _folded = fold(_rows + _rrows)
