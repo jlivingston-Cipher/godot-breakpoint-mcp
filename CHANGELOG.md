@@ -4,6 +4,93 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.92.0] — 2026-11-05
+
+_Addon **1.20.0 → 1.21.0** — `runtime_bridge.gd`, `variant_json.gd`, `bridge_secret.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged (**295**, secure default **282**)._
+
+The "ears" release (BP-0025): three things a music or rhythm game needs from a test agent, each
+through Godot's own interfaces and none of them specific to any one game, and the scripts a
+running game loads made clean for projects that turn typing warnings into errors.
+
+### Added
+
+**`runtime_inject_input` injects MIDI.** A new `midi` kind builds an `InputEventMIDI` and delivers
+it through `Input.parse_input_event` — the call Godot's own MIDI driver makes for a message from a
+real device — so it reaches `_input` and `_unhandled_input` as one would.
+- Messages: `note_on`, `note_off`, `control_change`, `program_change`, `pitch_bend`, `aftertouch`,
+  `channel_pressure`, and the transport messages `timing_clock`, `start`, `continue` and `stop`.
+- Each field is set where the driver sets it: `pitch` and `velocity` on notes, `controller_number`
+  and `controller_value` on a controller, `instrument` on a program change, `pressure` on the two
+  pressures, and a bend's 14-bit value in `pitch` (8192 at rest). `channel` is 0 to 15, as
+  `InputEventMIDI.channel` numbers them; `device` and `pressure` are the fields the joypad kinds
+  already had.
+- A note's velocity defaults to 100 on and 0 off; every other data field the message carries must be
+  passed. A value outside its MIDI range, or a fraction, is **refused, not clamped** — a clamped note
+  is a different note.
+
+**`runtime_get_monitors` and `runtime_assert_perf` read the game's own monitors.** A monitor the
+game registered with `Performance.add_custom_monitor` is read by the id it was registered under,
+through `Performance.get_custom_monitor` — the reading Godot's own debugger shows — and a call with
+no `keys` returns the built-ins and then every registered monitor. A built-in key wins over a game
+monitor registered under the same string. A game monitor that answers with something other than a
+number is dropped from `monitors` and named in `non_finite`, as a reading that is not finite is;
+`runtime_assert_perf` does not compare it or count it in `checked`.
+
+**`runtime_call_method` calls a method on what a node holds.** Past a colon, `path` names
+properties, in NodePath's own subname form: `Synth:patch` is the object in Synth's `patch` property,
+`Synth:patch:lfo` is that object's `lfo`. Each step is `Object.get`, so a `RefCounted` kept in a
+script variable is reachable as well as a `Resource`. A step that is not a property, or holds `null`,
+a value, or a freed object, is refused with the new code `bad_held_path`, which names the step.
+
+### Changed
+
+- **`runtime_get_monitors` and `runtime_assert_perf` name a key they could not read.** A key that is
+  neither a built-in nor a registered monitor is still skipped, and is now listed in the new
+  optional `unknown`. Before, it vanished without a word — on `runtime_assert_perf` a misspelt id
+  left `ok: true, checked: 0` — which hardly mattered while every name was one of thirteen fixed
+  ones. A call to `runtime_get_monitors` with no `keys` now also runs every monitor the game
+  registered.
+- **Every runtime tool but `runtime_call_method` refuses a path with a colon** (`bad_path`, saying
+  what the colon means). Each used to drop the colon's part and act on the node in front of it:
+  `runtime_node_remove {"path": "Synth:patch"}` removed Synth.
+
+### Fixed
+
+- **`runtime_call_method` called a colon path's method on the wrong object.** The addon read the
+  node part of `Synth:patch` and dropped the rest, so the method ran on Synth itself, and nothing in
+  the reply said so.
+- **Encoding a `Dictionary` keyed by anything but a string aborted the reply.** Godot 4's `String()`
+  constructor takes only String, StringName and NodePath, so `{1: "a"}` stopped the encode with
+  "Nonexistent 'String' constructor" (measured on 4.7). Keys are now converted with `str()`.
+- **The scripts a running game loads parse in a project that raises Godot's five typing warnings
+  to errors** — `untyped_declaration`, `unsafe_property_access`, `unsafe_method_access`,
+  `unsafe_cast`, `unsafe_call_argument` — without exempting `res://addons`: `runtime_bridge.gd` and
+  the four it preloads, 0 errors on Godot 4.2.2, 4.3, 4.5 and 4.7, each run against a control script
+  that the same settings fail. Each explicit conversion stays where it was, with the analyzer's
+  ignore on its own statement, so a value converts, or fails to, exactly as before. A helper would
+  not have kept that: a failed conversion inside one hands its caller 0 and the caller carries on
+  (measured on 4.3 and 4.7; caught in review before release). The
+  editor-side scripts are not clean yet (BP-0055); until they are, a strict project keeps Godot's
+  default exemption for `res://addons`.
+
+### Measured
+
+- Headless, Godot 4.7 and 4.3: `example/tests/input_kinds_smoke.gd` 29 → 47 checks (the `midi`
+  fields, defaults and refusals) and `example/tests/runtime_state_smoke.gd` 15 → 39 (custom monitors
+  read, asserted and named; methods on a held `RefCounted`, two steps deep, every refusal, and a
+  colon path refused by the tools that take a node). Three
+  controls — MIDI fields not set, the colon dropped, custom monitors unseen — each turn the smokes red.
+- Live over the wire, Godot 4.7 and 4.3: `inject-input.integration.mjs` gains `INPUT_LIVE_MIDI` —
+  `note_on`, `control_change` and `pitch_bend` arrive in `_input` with every field as sent, pitch 128
+  is refused with nothing delivered, and the exact count becomes 13 injected = 13 delivered. A
+  one-off probe (kept out of the tree) read `ears/voices` and saw a String-valued monitor rostered
+  in `non_finite`, a misspelt id named in `unknown` by `runtime_assert_perf`, `set_cutoff` called
+  on a held `RefCounted` through `:patch`, and `runtime_node_remove` refusing `:patch`.
+- Tool surface bytes 377,959 → 378,852 (+893): the `midi` kind's eleven message names
+  and six integer fields with their ranges, one sentence each on three tool descriptions, `midi` in
+  the kinds the description lists, and `unknown` on the two monitor tools' output. Host suite
+  1010 → 1014.
+
 ## [1.91.0] — 2026-11-05
 
 _Addon **1.20.0** — unmoved; nothing under `addons/` changed in this window. Tool surface unchanged (**295**, secure default **282**)._

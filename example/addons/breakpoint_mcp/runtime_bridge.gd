@@ -36,7 +36,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.20.0"
+const ADDON_VERSION := "1.21.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -89,7 +89,37 @@ const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 const ASYNC_METHODS := ["runtime.step_frames"]
 # 🆕 BP-0041 (1.19.0): the input kinds runtime.inject_input answers, in the order the
 # refusal lists them. `pointer` alone rides the async lane (a tap or drag spans frames).
-const INPUT_KINDS := ["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer"]
+const INPUT_KINDS := ["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer", "midi"]
+## 🆕 BP-0025 (addon 1.21.0): the MIDI messages `midi` answers, by the name a caller passes. The
+## seven channel messages, and the four transport messages a game synced to an outside clock
+## listens for. The rest of Godot's MIDIMessage enum carries no field its driver fills.
+const MIDI_MESSAGES := {
+	"note_off": MIDI_MESSAGE_NOTE_OFF,
+	"note_on": MIDI_MESSAGE_NOTE_ON,
+	"aftertouch": MIDI_MESSAGE_AFTERTOUCH,
+	"control_change": MIDI_MESSAGE_CONTROL_CHANGE,
+	"program_change": MIDI_MESSAGE_PROGRAM_CHANGE,
+	"channel_pressure": MIDI_MESSAGE_CHANNEL_PRESSURE,
+	"pitch_bend": MIDI_MESSAGE_PITCH_BEND,
+	"timing_clock": MIDI_MESSAGE_TIMING_CLOCK,
+	"start": MIDI_MESSAGE_START,
+	"continue": MIDI_MESSAGE_CONTINUE,
+	"stop": MIDI_MESSAGE_STOP,
+}
+## The data each channel message carries, set where Godot's own driver sets it
+## (core/os/midi_driver.cpp): [field, highest value, the default, or null when the caller must
+## pass it]. A note's velocity is the one default — 100 on, 0 off. A bend lives in `pitch` as
+## the 14-bit value, 0 to 16383 with 8192 at rest, because that is where the driver puts it.
+## A message absent here is a transport message: no data and no channel.
+const MIDI_DATA := {
+	"note_off": [["pitch", 127, null], ["velocity", 127, 0]],
+	"note_on": [["pitch", 127, null], ["velocity", 127, 100]],
+	"aftertouch": [["pitch", 127, null], ["pressure", 127, null]],
+	"control_change": [["controller_number", 127, null], ["controller_value", 127, null]],
+	"program_change": [["instrument", 127, null]],
+	"channel_pressure": [["pressure", 127, null]],
+	"pitch_bend": [["pitch", 16383, null]],
+}
 const POINTER_ACTIONS := ["press", "move", "release", "tap", "drag"]
 # The pointer's `button` is a MouseButton index, as on mouse_button: 1 left, 2 right, 3 middle.
 const POINTER_MASKS := {MOUSE_BUTTON_LEFT: MOUSE_BUTTON_MASK_LEFT, MOUSE_BUTTON_RIGHT: MOUSE_BUTTON_MASK_RIGHT, MOUSE_BUTTON_MIDDLE: MOUSE_BUTTON_MASK_MIDDLE}
@@ -110,7 +140,7 @@ var _log: Array = []     # ring buffer of {seq, level, message}
 var _log_seq: int = 0
 var _tree_dirty: bool = false
 var _log_dirty: bool = false
-var _log_capture = null  # registered Logger (Godot 4.5+) or null
+var _log_capture: Object = null  # registered Logger (Godot 4.5+) or null
 var _in_capture: bool = false
 ## 🔴 325 (BP-0023): the listen decision, taken first in _ready (bridge_secret.gd's
 ## runtime_listen_policy). Read by _setup_auth for where the secret comes from.
@@ -144,10 +174,15 @@ func _ready() -> void:
 	# that calls it — and a shipped game prints nothing unless someone asked for the
 	# bridge and is being refused.
 	var f := _policy_facts()
-	_policy = BridgeSecret.runtime_listen_policy(bool(f["editor_build"]), bool(f["debug_build"]), String(f["exported_optin"]), String(f["env_secret"]), bool(f.get("strict", false)), bool(f.get("switch", false)))
-	if not bool(_policy["listen"]):
+	@warning_ignore("unsafe_call_argument")
+	_policy = BridgeSecret.runtime_listen_policy(bool(f["editor_build"]), bool(f["debug_build"]), str(f["exported_optin"]), str(f["env_secret"]), bool(f.get("strict", false)), bool(f.get("switch", false)))
+	@warning_ignore("unsafe_call_argument")
+	var listen := bool(_policy["listen"])
+	if not listen:
 		set_process(false)
-		if bool(_policy["warn"]):
+		@warning_ignore("unsafe_call_argument")
+		var warn := bool(_policy["warn"])
+		if warn:
 			push_warning("[breakpoint_runtime] not listening: %s" % _policy["reason"])
 		else:
 			print_verbose("[breakpoint_runtime] not listening: %s" % _policy["reason"])
@@ -183,8 +218,8 @@ func _setup_auth() -> void:
 	# An opted-in debug export (325): the secret comes from the environment or not at all.
 	# Never minted — that would write into the game's own install — and never insecure:
 	# BREAKPOINT_BRIDGE_INSECURE is a development-run escape hatch only.
-	if String(_policy.get("secret_source", "")) == "env":
-		_secret = String(_policy.get("secret", ""))
+	if str(_policy.get("secret_source", "")) == "env":
+		_secret = str(_policy.get("secret", ""))
 		_auth_required = true
 		if _secret.length() < BridgeSecret.EXPORT_SECRET_MIN_LEN:
 			# Unreachable through runtime_listen_policy, which never says listen without a
@@ -228,7 +263,7 @@ func _exit_tree() -> void:
 		# to runtime, past the class_has_method guard above.
 		OS.call("remove_logger", _log_capture)
 	_log_capture = null
-	for c in _clients:
+	for c: Dictionary in _clients:
 		var peer: StreamPeerTCP = c["peer"]
 		if peer:
 			peer.disconnect_from_host()
@@ -245,7 +280,7 @@ func _process(_delta: float) -> void:
 		if peer:
 			_clients.append({"peer": peer, "buf": "", "authed": not _auth_required})
 	var alive: Array = []
-	for c in _clients:
+	for c: Dictionary in _clients:
 		var peer: StreamPeerTCP = c["peer"]
 		peer.poll()
 		var status := peer.get_status()
@@ -299,11 +334,11 @@ func _handle_line(c: Dictionary, line: String) -> void:
 		return
 	var req: Dictionary = parsed
 	var id: Variant = req.get("id", null)
-	var method := String(req.get("method", ""))
+	var method := str(req.get("method", ""))
 	var params: Dictionary = req.get("params", {}) if typeof(req.get("params")) == TYPE_DICTIONARY else {}
 	# Handshake gate: an unauthenticated peer may ONLY authenticate.
 	if not c.get("authed", false):
-		if method == "auth" and BridgeSecret.const_time_eq(String(params.get("secret", "")), _secret):
+		if method == "auth" and BridgeSecret.const_time_eq(str(params.get("secret", "")), _secret):
 			c["authed"] = true
 			_send(peer, {"id": id, "ok": true})
 		else:
@@ -341,7 +376,8 @@ func _handle_line(c: Dictionary, line: String) -> void:
 ## Generic, no-echo denial for an unauthenticated peer; marks the connection for
 ## closing. Never reveals the expected secret, the received value, or any detail.
 func _deny_unauth(c: Dictionary) -> void:
-	_send(c["peer"], {"id": null, "ok": false, "error": {"code": "unauthorized"}})
+	var peer: StreamPeerTCP = c["peer"]
+	_send(peer, {"id": null, "ok": false, "error": {"code": "unauthorized"}})
 	c["close"] = true
 
 
@@ -354,7 +390,7 @@ func _send(peer: StreamPeerTCP, obj: Dictionary) -> void:
 ## editor bridge_server; events carry no "id" (they are not responses), so the
 ## host routes them by the "event" field without colliding with request/response.
 func broadcast_event(uri: String) -> void:
-	for c in _clients:
+	for c: Dictionary in _clients:
 		var peer: StreamPeerTCP = c["peer"]
 		if peer and c.get("authed", false) and peer.get_status() == StreamPeerTCP.STATUS_CONNECTED:
 			_send(peer, {"event": "resource.changed", "uri": uri})
@@ -381,7 +417,7 @@ func _install_log_capture() -> void:
 	src.source_code = _LOG_CAPTURE_SRC
 	if src.reload() != OK:
 		return  # runtime script compilation unavailable — degrade quietly.
-	var inst = src.new()
+	var inst: Object = src.new()
 	inst.set("sink", Callable(self, "_on_captured_log"))
 	# Call dynamically (see _exit_tree): OS.add_logger() is 4.5+, and a literal call is resolved
 	# at PARSE time — a bare OS.add_logger(...) fails to compile the script on Godot 4.3/4.4,
@@ -389,7 +425,7 @@ func _install_log_capture() -> void:
 	# class_has_method guard above.
 	OS.call("add_logger", inst)
 	_log_capture = inst
-	push_log("info", "log capture active (Godot %s)" % Engine.get_version_info().get("string", ""))
+	push_log("info", "log capture active (Godot %s)" % [Engine.get_version_info().get("string", "")])
 
 
 ## Sink for the runtime-compiled Logger. Writes to the ring buffer only (never
@@ -426,12 +462,14 @@ func _attach_engine_log(response: Dictionary, seq_before: int) -> void:
 	if typeof(result) != TYPE_DICTIONARY:
 		return
 	var entries: Array = []
-	for e in _log:
+	for e: Dictionary in _log:
 		if entries.size() >= ENGINE_LOG_CAP:
 			break
-		if int(e.get("seq", 0)) <= seq_before:
+		@warning_ignore("unsafe_call_argument")
+		var seq := int(e.get("seq", 0))
+		if seq <= seq_before:
 			continue
-		var lvl := String(e.get("level", ""))
+		var lvl := str(e.get("level", ""))
 		if lvl == "error" or lvl == "warning":
 			entries.append(e)
 	if entries.is_empty():
@@ -440,9 +478,11 @@ func _attach_engine_log(response: Dictionary, seq_before: int) -> void:
 	# reading twenty entries cannot tell "twenty happened" from "hundreds happened
 	# and you are seeing the first twenty", and the second is the case that matters.
 	var total := 0
-	for e in _log:
-		if int(e.get("seq", 0)) > seq_before:
-			var lvl2 := String(e.get("level", ""))
+	for e: Dictionary in _log:
+		@warning_ignore("unsafe_call_argument")
+		var seq2 := int(e.get("seq", 0))
+		if seq2 > seq_before:
+			var lvl2 := str(e.get("level", ""))
 			if lvl2 == "error" or lvl2 == "warning":
 				total += 1
 	result["engine_log"] = {"entries": entries, "total": total, "since_seq": seq_before}
@@ -528,7 +568,14 @@ func _base() -> Node:
 	return get_tree().current_scene
 
 
+## 🆕 BP-0025 (addon 1.21.0): a path with a colon names no node. The colon's part is a property
+## of a node — `get_indexed`'s form — and only runtime_call_method reaches into it (it resolves
+## the node part itself, then walks the rest). Before 1.21.0 every tool here quietly dropped the
+## colon's part and acted on the node in front of it: runtime_node_remove {"path": "Synth:patch"}
+## removed Synth, and runtime_get_property read Synth's own property under the held object's name.
 func _resolve(path: String) -> Node:
+	if path.contains(":"):
+		return null
 	if path == "" or path == ".":
 		return _base()
 	if path.begins_with("/"):
@@ -537,6 +584,15 @@ func _resolve(path: String) -> Node:
 	if b == null:
 		return null
 	return b.get_node_or_null(NodePath(path))
+
+
+## 🆕 BP-0025 — why a path resolved to no node. For a path with a colon the plain "not found"
+## would send a caller looking for a node that exists, so it says what the colon means instead.
+## `label` keeps the old wording ("Node", "Parent") for every other path.
+func _no_node(label: String, path: String) -> Dictionary:
+	if path.contains(":"):
+		return _err("bad_path", "%s names a property of a node (the part after the colon), not a node. Only runtime_call_method reaches past the colon; pass the node's own path." % path)
+	return _err("bad_path", "%s not found: %s" % [label, path])
 
 
 func _path_of(node: Node) -> String:
@@ -569,14 +625,15 @@ func _get_tree(params: Dictionary) -> Dictionary:
 	var base := _base()
 	if base == null:
 		return _err("no_scene", "No current scene is running")
+	@warning_ignore("unsafe_call_argument")
 	return _ok(_serialize(base, 0, int(params.get("max_depth", 64))))
 
 
 func _get_property(params: Dictionary) -> Dictionary:
-	var node := _resolve(String(params.get("path", "")))
+	var node := _resolve(str(params.get("path", "")))
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
-	var prop := String(params.get("property", ""))
+		return _no_node("Node", str(params.get("path", "")))
+	var prop := str(params.get("property", ""))
 	if prop == "":
 		return _err("bad_params", "Missing 'property'")
 	return _ok({"path": _path_of(node), "property": prop, "value": Codec.encode(Codec.read_property(node, prop))})
@@ -609,10 +666,10 @@ static func _set_outcome(asked: Variant, before: Variant, after: Variant) -> Str
 
 
 func _set_property(params: Dictionary) -> Dictionary:
-	var node := _resolve(String(params.get("path", "")))
+	var node := _resolve(str(params.get("path", "")))
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
-	var prop := String(params.get("property", ""))
+		return _no_node("Node", str(params.get("path", "")))
+	var prop := str(params.get("property", ""))
 	if prop == "":
 		return _err("bad_params", "Missing 'property'")
 	# 🔴 A MISSING `value` IS NOT A NULL VALUE, and conflating them WIPED PROPERTIES.
@@ -667,28 +724,63 @@ static func _describe(v: Variant) -> String:
 
 
 func _call_method(params: Dictionary) -> Dictionary:
-	var node := _resolve(String(params.get("path", "")))
+	var path := str(params.get("path", ""))
+	var node_part := path.get_slice(":", 0)
+	var node := _resolve(node_part)
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
-	var method := String(params.get("method", ""))
-	if not node.has_method(method):
-		return _err("no_method", "%s has no method %s" % [node.get_class(), method])
+		return _no_node("Node", node_part)
+	# 🆕 BP-0025 (addon 1.21.0): past a colon, the path names what the node HOLDS. Before this,
+	# `_resolve` read the node part and dropped the rest, so `Synth:patch` called the method on
+	# Synth itself — the wrong object, and nothing in the reply said so.
+	var held := _held_object(node, path)
+	if held.has("error"):
+		return held["error"]
+	var target: Object = held["object"]
+	var method := str(params.get("method", ""))
+	if not target.has_method(method):
+		return _err("no_method", "%s has no method %s" % [target.get_class(), method])
 	var args: Array = []
-	for a in params.get("args", []):
+	for a: Variant in params.get("args", []):
 		args.append(Codec.decode(a))
-	var result: Variant = node.callv(method, args)
+	var result: Variant = target.callv(method, args)
 	return _ok({"return": Codec.encode(result)})
 
 
+## 🆕 BP-0025 (addon 1.21.0) — the object a path names: the node, or what it holds. `Synth:patch`
+## is the object in Synth's `patch` property, `Synth:patch:lfo` is that object's `lfo`: NodePath's
+## own subname syntax, the colon form `get_indexed` reads. Each step is Object.get, so a
+## RefCounted or a plain Object kept in a script variable is reachable too —
+## Node.get_node_and_resource stops at the first thing that is not a Resource.
+## Answers {"object": <Object>} or {"error": <the refusal envelope>}.
+func _held_object(node: Node, path: String) -> Dictionary:
+	var np := NodePath(path)
+	var obj: Object = node
+	var walked := _path_of(node)
+	for i in np.get_subname_count():
+		var prop := str(np.get_subname(i))
+		if not (prop in obj):
+			return {"error": _err("bad_held_path", "%s (%s) has no property \"%s\"." % [walked, obj.get_class(), prop])}
+		var v: Variant = obj.get(prop)
+		walked += ":" + prop
+		if typeof(v) != TYPE_OBJECT and typeof(v) != TYPE_NIL:
+			return {"error": _err("bad_held_path", "%s holds a %s, which is a value, not an object; a method is called on an object." % [walked, type_string(typeof(v))])}
+		# One message for null and freed: an unset engine property (a Sprite2D's texture) can come
+		# back typed as an object and empty, and the two cases are one fact to the caller.
+		if not is_instance_valid(v):
+			return {"error": _err("bad_held_path", "%s holds no live object (null, or one that has been freed), so there is nothing to call a method on." % walked)}
+		obj = v
+	return {"object": obj}
+
+
 func _emit_signal(params: Dictionary) -> Dictionary:
-	var node := _resolve(String(params.get("path", "")))
+	var node := _resolve(str(params.get("path", "")))
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
-	var sig := String(params.get("signal", ""))
+		return _no_node("Node", str(params.get("path", "")))
+	var sig := str(params.get("signal", ""))
 	if not node.has_signal(sig):
 		return _err("no_signal", "%s has no signal %s" % [node.get_class(), sig])
 	var call_args: Array = [sig]
-	for a in params.get("args", []):
+	for a: Variant in params.get("args", []):
 		call_args.append(Codec.decode(a))
 	# emit_signal RETURNS an Error, and discarding it made this tool answer
 	# {"emitted": true} for an emission the engine refused. The cause is an `args` count
@@ -725,10 +817,10 @@ func _emit_signal(params: Dictionary) -> Dictionary:
 
 func _inject_input(params: Dictionary) -> Dictionary:
 	var ev: Dictionary = params.get("event", {})
-	var kind := String(ev.get("kind", ""))
+	var kind := str(ev.get("kind", ""))
 	match kind:
 		"action":
-			var action := String(ev.get("action", ""))
+			var action := str(ev.get("action", ""))
 			# An action the InputMap does not know is NOT injectable. Input.action_press
 			# pushes its own engine error and returns, so without this guard the reply is
 			# {"injected": true} for a typo'd action name and the caller's NEXT assertion is
@@ -737,7 +829,10 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			# InputMap. Covers both operands: an absent "action" key arrives here as "".
 			if not InputMap.has_action(action):
 				return _err("bad_action", "No such InputMap action: %s" % action)
-			if bool(ev.get("pressed", true)):
+			@warning_ignore("unsafe_call_argument")
+			var pressed := bool(ev.get("pressed", true))
+			if pressed:
+				@warning_ignore("unsafe_call_argument")
 				Input.action_press(action, float(ev.get("strength", 1.0)))
 			else:
 				Input.action_release(action)
@@ -758,10 +853,13 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			return _ok({"injected": true, "kind": kind, "codes": {"keycode": int(k.keycode), "physical_keycode": int(k.physical_keycode), "key_label": int(k.key_label)}})
 		"mouse_button":
 			var mb := InputEventMouseButton.new()
+			@warning_ignore("unsafe_call_argument")
 			mb.button_index = int(ev.get("button", 1))
+			@warning_ignore("unsafe_call_argument")
 			mb.pressed = bool(ev.get("pressed", true))
+			@warning_ignore("unsafe_call_argument")
 			mb.double_click = bool(ev.get("double_click", false))
-			var in_frame := String(ev.get("space", "window")) == "frame"
+			var in_frame := str(ev.get("space", "window")) == "frame"
 			var pos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mb.position = _frame_to_window(v) if in_frame else v)
 			if not pos_err.is_empty():
 				return pos_err
@@ -771,7 +869,7 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			return _ok({"injected": true, "kind": kind})
 		"mouse_motion":
 			var mm := InputEventMouseMotion.new()
-			var m_in_frame := String(ev.get("space", "window")) == "frame"
+			var m_in_frame := str(ev.get("space", "window")) == "frame"
 			var mpos_err := _apply_vector2(ev, "position", func(v: Vector2) -> void: mm.position = _frame_to_window(v) if m_in_frame else v)
 			if not mpos_err.is_empty():
 				return mpos_err
@@ -779,6 +877,7 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			if not rel_err.is_empty():
 				return rel_err
 			mm.global_position = mm.position
+			@warning_ignore("unsafe_call_argument")
 			mm.button_mask = int(ev.get("button_mask", 0))
 			_apply_modifiers(mm, ev)
 			Input.parse_input_event(mm)
@@ -787,9 +886,13 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			if not ev.has("button"):
 				return _err("bad_event", "A joypad_button event needs event.button, Godot's JoyButton index (0 is the bottom face button).")
 			var jb := InputEventJoypadButton.new()
+			@warning_ignore("unsafe_call_argument")
 			jb.device = int(ev.get("device", 0))
+			@warning_ignore("unsafe_call_argument")
 			jb.button_index = int(ev.get("button"))
+			@warning_ignore("unsafe_call_argument")
 			jb.pressed = bool(ev.get("pressed", true))
+			@warning_ignore("unsafe_call_argument")
 			jb.pressure = float(ev.get("pressure", 1.0 if jb.pressed else 0.0))
 			Input.parse_input_event(jb)
 			return _ok({"injected": true, "kind": kind})
@@ -797,23 +900,89 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			if not ev.has("axis"):
 				return _err("bad_event", "A joypad_motion event needs event.axis, Godot's JoyAxis index (0 to 5), and event.value from -1 to 1.")
 			var jm := InputEventJoypadMotion.new()
+			@warning_ignore("unsafe_call_argument")
 			jm.device = int(ev.get("device", 0))
+			@warning_ignore("unsafe_call_argument")
 			jm.axis = int(ev.get("axis"))
+			@warning_ignore("unsafe_call_argument")
 			jm.axis_value = clampf(float(ev.get("value", 0.0)), -1.0, 1.0)
 			Input.parse_input_event(jm)
 			return _ok({"injected": true, "kind": kind})
 		"pointer":
 			# Reached only from a caller that bypassed _handle_line's routing; the lane is async.
 			return _err("async_only", "runtime.inject_input with kind pointer is dispatched on the async lane")
+		"midi":
+			return _inject_midi(ev)
 		_:
 			return _err("bad_kind", "Unknown input kind: %s. The kinds are %s." % [kind, ", ".join(INPUT_KINDS)])
 
 
+## 🆕 BP-0025 (addon 1.21.0) — a MIDI message, delivered as an InputEventMIDI through
+## Input.parse_input_event: the call Godot's own MIDI driver makes for a message from a real
+## device, so it reaches `_input` and `_unhandled_input` exactly as one would.
+func _inject_midi(ev: Dictionary) -> Dictionary:
+	var built: Variant = _midi_event(ev)
+	if built is Dictionary:
+		return built
+	var m: InputEventMIDI = built
+	Input.parse_input_event(m)
+	return _ok({"injected": true, "kind": "midi"})
+
+
+## The InputEventMIDI a `midi` event describes, or the refusal envelope. Each data field is an
+## integer in its MIDI range; a value outside it is refused, not clamped, because a clamped
+## note is a different note.
+func _midi_event(ev: Dictionary) -> Variant:
+	var msg := str(ev.get("message", ""))
+	if not MIDI_MESSAGES.has(msg):
+		return _err("bad_event", "A midi event needs event.message, one of %s; got %s." % [", ".join(PackedStringArray(MIDI_MESSAGES.keys())), JSON.stringify(ev.get("message"))])
+	var m := InputEventMIDI.new()
+	m.message = MIDI_MESSAGES[msg]
+	@warning_ignore("unsafe_call_argument")
+	m.device = int(ev.get("device", 0))
+	if not MIDI_DATA.has(msg):
+		if ev.has("channel"):
+			return _err("bad_event", "A midi %s message is a transport message and carries no channel; leave event.channel out." % msg)
+		return m
+	var data: Array = MIDI_DATA[msg]
+	var fields: Array = [["channel", 15, 0]]
+	fields.append_array(data)
+	for spec: Array in fields:
+		var field: String = spec[0]
+		var top: int = spec[1]
+		var v: Variant = _midi_field(ev, msg, field, top, spec[2])
+		if v is Dictionary:
+			return v
+		m.set(field, v)
+	return m
+
+
+## One MIDI data field: the integer the caller passed, 0 to `top`, or `fallback` when it passed
+## none and there is one. Anything else answers the refusal envelope instead of a number.
+func _midi_field(ev: Dictionary, msg: String, field: String, top: int, fallback: Variant) -> Variant:
+	if not ev.has(field):
+		if fallback == null:
+			return _err("bad_event", "A midi %s message needs event.%s, an integer from 0 to %d." % [msg, field, top])
+		return fallback
+	var v: Variant = ev[field]
+	var numeric := typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
+	if not numeric:
+		return _err("bad_event", "event.%s is %s; a midi %s message takes an integer from 0 to %d." % [field, JSON.stringify(v), msg, top])
+	var f: float = v  # an int or a float, so this assignment cannot fail
+	if f != floorf(f) or f < 0.0 or f > float(top):
+		return _err("bad_event", "event.%s is %s; a midi %s message takes an integer from 0 to %d." % [field, JSON.stringify(v), msg, top])
+	return int(f)
+
+
 ## 🆕 BP-0041 — the four modifier flags, on any event that carries them.
 static func _apply_modifiers(e: InputEventWithModifiers, ev: Dictionary) -> void:
+	@warning_ignore("unsafe_call_argument")
 	e.shift_pressed = bool(ev.get("shift", false))
+	@warning_ignore("unsafe_call_argument")
 	e.ctrl_pressed = bool(ev.get("ctrl", false))
+	@warning_ignore("unsafe_call_argument")
 	e.alt_pressed = bool(ev.get("alt", false))
+	@warning_ignore("unsafe_call_argument")
 	e.meta_pressed = bool(ev.get("meta", false))
 
 
@@ -827,15 +996,25 @@ static func _apply_modifiers(e: InputEventWithModifiers, ev: Dictionary) -> void
 static func _key_event(ev: Dictionary) -> InputEventKey:
 	var k := InputEventKey.new()
 	var fill := 0
-	for code in ["keycode", "physical_keycode", "key_label"]:
-		if ev.has(code) and int(ev.get(code)) != 0:
-			fill = int(ev.get(code))
+	for code: String in ["keycode", "physical_keycode", "key_label"]:
+		if not ev.has(code):
+			continue
+		@warning_ignore("unsafe_call_argument")
+		var given := int(ev.get(code))
+		if given != 0:
+			fill = given
 			break
+	@warning_ignore("unsafe_call_argument")
 	k.keycode = int(ev.get("keycode", fill))
+	@warning_ignore("unsafe_call_argument")
 	k.physical_keycode = int(ev.get("physical_keycode", fill))
+	@warning_ignore("unsafe_call_argument")
 	k.key_label = int(ev.get("key_label", fill))
+	@warning_ignore("unsafe_call_argument")
 	k.unicode = int(ev.get("unicode", 0))
+	@warning_ignore("unsafe_call_argument")
 	k.echo = bool(ev.get("echo", false))
+	@warning_ignore("unsafe_call_argument")
 	k.pressed = bool(ev.get("pressed", true))
 	_apply_modifiers(k, ev)
 	return k
@@ -847,7 +1026,10 @@ static func _is_pointer(method: String, params: Dictionary) -> bool:
 	if method != "runtime.inject_input":
 		return false
 	var ev: Variant = params.get("event")
-	return typeof(ev) == TYPE_DICTIONARY and String((ev as Dictionary).get("kind", "")) == "pointer"
+	if typeof(ev) != TYPE_DICTIONARY:
+		return false
+	var evd: Dictionary = ev
+	return str(evd.get("kind", "")) == "pointer"
 
 
 ## 🆕 BP-0041 — the geometry that relates `runtime.screenshot`'s frame to the window.
@@ -914,20 +1096,24 @@ func _inject_pointer(ev_in: Variant) -> Dictionary:
 	if typeof(ev_in) != TYPE_DICTIONARY:
 		return _err("bad_event", "event must be an object.")
 	var ev: Dictionary = ev_in
-	var action := String(ev.get("action", ""))
+	var action := str(ev.get("action", ""))
 	if not action in POINTER_ACTIONS:
 		return _err("bad_event", "A pointer event needs event.action, one of %s; got %s." % [", ".join(POINTER_ACTIONS), JSON.stringify(action)])
 	if not (ev.has("x") and ev.has("y")):
 		return _err("bad_event", "A pointer event needs event.x and event.y, pixels of the frame runtime_screenshot returns.")
 	if action == "drag" and not (ev.has("to_x") and ev.has("to_y")):
 		return _err("bad_event", "A pointer drag needs event.to_x and event.to_y, where the button is released.")
+	@warning_ignore("unsafe_call_argument")
 	var bname := int(ev.get("button", MOUSE_BUTTON_LEFT))
 	if not POINTER_MASKS.has(bname):
 		return _err("bad_event", "A pointer's event.button is a MouseButton index: 1 left, 2 right or 3 middle; got %s." % JSON.stringify(ev.get("button")))
-	var in_frame := String(ev.get("space", "frame")) != "window"
+	var in_frame := str(ev.get("space", "frame")) != "window"
+	@warning_ignore("unsafe_call_argument")
 	var warp := bool(ev.get("warp", false))
+	@warning_ignore("unsafe_call_argument")
 	var per_step := clampi(int(ev.get("frames_per_step", 1)), 1, 10)
 	var xf := _frame_transform() if in_frame else Transform2D.IDENTITY
+	@warning_ignore("unsafe_call_argument")
 	var start := xf * Vector2(float(ev.get("x")), float(ev.get("y")))
 	var points: Array = []
 	var frames := 0
@@ -948,7 +1134,9 @@ func _inject_pointer(ev_in: Variant) -> Dictionary:
 			_pointer_button(start, bname, false, warp)
 			points.append(start)
 		"drag":
+			@warning_ignore("unsafe_call_argument")
 			var end := xf * Vector2(float(ev.get("to_x")), float(ev.get("to_y")))
+			@warning_ignore("unsafe_call_argument")
 			var steps := clampi(int(ev.get("steps", 8)), 1, 60)
 			_pointer_button(start, bname, true, warp)
 			points.append(start)
@@ -961,8 +1149,8 @@ func _inject_pointer(ev_in: Variant) -> Dictionary:
 			_pointer_button(end, bname, false, warp)
 			points.append(end)
 	var sent: Array = []
-	for p in points:
-		sent.append([(p as Vector2).x, (p as Vector2).y])
+	for p: Vector2 in points:
+		sent.append([p.x, p.y])
 	return _ok({"injected": true, "kind": "pointer", "window_points": sent, "frames": frames})
 
 
@@ -977,8 +1165,10 @@ func _pointer_button(at: Vector2, bname: int, pressed: bool, warp: bool) -> void
 	if warp:
 		Input.warp_mouse(at)
 	if pressed:
+		@warning_ignore("unsafe_call_argument")
 		_pointer_mask |= int(POINTER_MASKS[bname])
 	else:
+		@warning_ignore("unsafe_call_argument")
 		_pointer_mask &= ~int(POINTER_MASKS[bname])
 	var mb := InputEventMouseButton.new()
 	mb.button_index = bname
@@ -1020,7 +1210,8 @@ func _apply_vector2(ev: Dictionary, field: String, apply: Callable) -> Dictionar
 		return {}
 	var decoded: Variant = Codec.decode(ev[field])
 	if decoded is Vector2:
-		apply.call(decoded as Vector2)
+		var vec: Vector2 = decoded
+		apply.call(vec)
 		return {}
 	return _err(
 		"bad_event_field",
@@ -1029,15 +1220,52 @@ func _apply_vector2(ev: Dictionary, field: String, apply: Callable) -> Dictionar
 	)
 
 
+## 🆕 BP-0025 (addon 1.21.0) — a key is a monitor when it is one of the built-ins above, or the
+## id a game registered with Performance.add_custom_monitor ("SynthGround/voices"), read with
+## Performance.get_custom_monitor — the reading Godot's own debugger shows. A built-in name
+## wins, so a game monitor registered under the very string of a built-in key is unreachable
+## by that key.
+static func _monitor_known(key: String) -> bool:
+	return MONITORS.has(key) or Performance.has_custom_monitor(StringName(key))
+
+
+static func _monitor_read(key: String) -> Variant:
+	if MONITORS.has(key):
+		var id: Performance.Monitor = MONITORS[key]
+		return Performance.get_monitor(id)
+	return Performance.get_custom_monitor(StringName(key))
+
+
+## Every key a call with no `keys` reads: the built-ins, then the game's own, as registered.
+static func _monitor_keys() -> Array:
+	var all: Array = MONITORS.keys()
+	for id: StringName in Performance.get_custom_monitor_names():
+		if not MONITORS.has(str(id)):
+			all.append(str(id))
+	return all
+
+
 func _get_monitors(params: Dictionary) -> Dictionary:
 	var out := {}
+	var unknown: Array = []
 	var keys: Array = params.get("keys", [])
-	var wanted: Array = keys if keys.size() > 0 else MONITORS.keys()
-	for key in wanted:
-		var k := String(key)
-		if MONITORS.has(k):
-			out[k] = Performance.get_monitor(MONITORS[k])
-	return _ok({"monitors": out})
+	var wanted: Array = keys if keys.size() > 0 else _monitor_keys()
+	for key: Variant in wanted:
+		var k := str(key)
+		if _monitor_known(k):
+			# A game's monitor can answer with something that is not a number. It is passed on
+			# as read; the host drops it from `monitors` and names it in `non_finite`, as it
+			# does any reading that is not a finite number.
+			out[k] = _monitor_read(k)
+		else:
+			unknown.append(k)
+	var reply := {"monitors": out}
+	# 🆕 BP-0025: a key naming no monitor used to vanish without a word, which hardly mattered
+	# while every name was one of thirteen fixed ones. A game's own names are free-form, so a
+	# misspelt one now says so rather than reading as a monitor with nothing to report.
+	if not unknown.is_empty():
+		reply["unknown"] = unknown
+	return _ok(reply)
 
 
 ## 🔴 311 — THE SAME QUESTION `operations.gd` ASKS ON THE EDITOR PLANE, ASKED HERE.
@@ -1090,25 +1318,29 @@ func _screenshot() -> Dictionary:
 
 
 func _get_log(params: Dictionary) -> Dictionary:
+	@warning_ignore("unsafe_call_argument")
 	var since := int(params.get("since_seq", 0))
 	var levels: Array = params.get("levels", [])
 	var entries: Array = []
-	for e in _log:
-		if int(e["seq"]) > since and (levels.is_empty() or levels.has(e["level"])):
+	for e: Dictionary in _log:
+		@warning_ignore("unsafe_call_argument")
+		var seq := int(e["seq"])
+		if seq > since and (levels.is_empty() or levels.has(e["level"])):
 			entries.append(e)
 	return _ok({"entries": entries, "latest_seq": _log_seq, "capture": _log_capture != null})
 
 
 func _assert_node_state(params: Dictionary) -> Dictionary:
-	var node := _resolve(String(params.get("path", "")))
+	var node := _resolve(str(params.get("path", "")))
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+		return _no_node("Node", str(params.get("path", "")))
 	var raw_expect: Variant = params.get("expect", {})
 	var expect: Dictionary = raw_expect if typeof(raw_expect) == TYPE_DICTIONARY else {}
+	@warning_ignore("unsafe_call_argument")
 	var tol := float(params.get("tolerance", 0.0))
 	var mismatches: Array = []
-	for prop in expect.keys():
-		var key := String(prop)
+	for prop: Variant in expect.keys():
+		var key := str(prop)
 		var expected: Variant = expect[key]
 		var actual_encoded: Variant = Codec.encode(node.get(key))
 		if not _values_match(expected, actual_encoded, tol):
@@ -1125,11 +1357,12 @@ func _assert_scene_structure(params: Dictionary) -> Dictionary:
 	var raw: Variant = params.get("expect", [])
 	var expect: Array = raw if typeof(raw) == TYPE_ARRAY else []
 	var failures: Array = []
-	for entry_v in expect:
+	for entry_v: Variant in expect:
 		if typeof(entry_v) != TYPE_DICTIONARY:
 			continue
 		var entry: Dictionary = entry_v
-		var path := String(entry.get("path", ""))
+		var path := str(entry.get("path", ""))
+		@warning_ignore("unsafe_call_argument")
 		var absent := bool(entry.get("absent", false))
 		var node := _resolve(path)
 		if absent:
@@ -1140,7 +1373,7 @@ func _assert_scene_structure(params: Dictionary) -> Dictionary:
 			failures.append({"path": path, "reason": "missing"})
 			continue
 		if entry.has("type"):
-			var want_type := String(entry["type"])
+			var want_type := str(entry["type"])
 			if not node.is_class(want_type) and node.get_class() != want_type:
 				failures.append({"path": path, "reason": "type_mismatch", "expected": want_type, "actual": node.get_class()})
 	return _ok({
@@ -1156,6 +1389,7 @@ func _values_match(expected: Variant, actual: Variant, tol: float) -> bool:
 	var expected_num := te == TYPE_INT or te == TYPE_FLOAT
 	var actual_num := ta == TYPE_INT or ta == TYPE_FLOAT
 	if expected_num and actual_num:
+		@warning_ignore("unsafe_call_argument")
 		return absf(float(actual) - float(expected)) <= tol
 	return _deep_equal(expected, actual)
 
@@ -1167,6 +1401,7 @@ func _deep_equal(a: Variant, b: Variant) -> bool:
 		var an := ta == TYPE_INT or ta == TYPE_FLOAT
 		var bn := tb == TYPE_INT or tb == TYPE_FLOAT
 		if an and bn:
+			@warning_ignore("unsafe_call_argument")
 			return float(a) == float(b)
 		return false
 	if ta == TYPE_DICTIONARY:
@@ -1174,7 +1409,7 @@ func _deep_equal(a: Variant, b: Variant) -> bool:
 		var db: Dictionary = b
 		if da.size() != db.size():
 			return false
-		for k in da.keys():
+		for k: Variant in da.keys():
 			if not db.has(k):
 				return false
 			if not _deep_equal(da[k], db[k]):
@@ -1195,23 +1430,37 @@ func _deep_equal(a: Variant, b: Variant) -> bool:
 func _assert_perf(params: Dictionary) -> Dictionary:
 	var raw_baseline: Variant = params.get("baseline", {})
 	var baseline: Dictionary = raw_baseline if typeof(raw_baseline) == TYPE_DICTIONARY else {}
+	@warning_ignore("unsafe_call_argument")
 	var tol := float(params.get("tolerance", 0.0))
 	var raw_dir: Variant = params.get("direction", {})
 	var dir_overrides: Dictionary = raw_dir if typeof(raw_dir) == TYPE_DICTIONARY else {}
 	var regressions: Array = []
 	var monitors := {}
 	var checked := 0
-	for key_v in baseline.keys():
-		var key := String(key_v)
-		if not MONITORS.has(key):
+	var unknown: Array = []
+	for key_v: Variant in baseline.keys():
+		var key := str(key_v)
+		if not _monitor_known(key):
+			# 🆕 BP-0025: skipped as before, and now NAMED. A game monitor's id is free-form, so a
+			# misspelt one used to leave `ok: true, checked: 0` and nothing else to read.
+			unknown.append(key)
+			continue
+		var reading: Variant = _monitor_read(key)
+		# 🆕 BP-0025: a game monitor that answers with something other than a number can neither
+		# pass nor fail honestly, so it is not compared and not counted in `checked`. It goes back
+		# in `monitors` as read, and the host names it in `non_finite`.
+		if typeof(reading) != TYPE_INT and typeof(reading) != TYPE_FLOAT:
+			monitors[key] = reading
 			continue
 		checked += 1
-		var current := float(Performance.get_monitor(MONITORS[key]))
+		@warning_ignore("unsafe_call_argument")
+		var current := float(reading)
+		@warning_ignore("unsafe_call_argument")
 		var base_val := float(baseline[key])
 		monitors[key] = current
 		var direction := "higher_better" if key == "time/fps" else "lower_better"
 		if dir_overrides.has(key):
-			direction = String(dir_overrides[key])
+			direction = str(dir_overrides[key])
 		var passed := true
 		if direction == "higher_better":
 			passed = current >= base_val * (1.0 - tol)
@@ -1219,12 +1468,15 @@ func _assert_perf(params: Dictionary) -> Dictionary:
 			passed = current <= base_val * (1.0 + tol)
 		if not passed:
 			regressions.append({"key": key, "baseline": base_val, "current": current, "direction": direction})
-	return _ok({
+	var reply := {
 		"ok": regressions.is_empty(),
 		"checked": checked,
 		"regressions": regressions,
 		"monitors": monitors,
-	})
+	}
+	if not unknown.is_empty():
+		reply["unknown"] = unknown
+	return _ok(reply)
 
 
 func _text_of(node: Node) -> String:
@@ -1233,16 +1485,20 @@ func _text_of(node: Node) -> String:
 	# return null from get() and are skipped.
 	var v: Variant = node.get("text")
 	if v is String:
-		return String(v)
+		return str(v)
 	return ""
 
 
 func _assert_screen_text(params: Dictionary) -> Dictionary:
-	var needle := String(params.get("text", ""))
+	var needle := str(params.get("text", ""))
+	@warning_ignore("unsafe_call_argument")
 	var present := bool(params.get("present", true))
+	@warning_ignore("unsafe_call_argument")
 	var use_regex := bool(params.get("regex", false))
+	@warning_ignore("unsafe_call_argument")
 	var case_sensitive := bool(params.get("case_sensitive", false))
 	var has_min := params.has("min_count")
+	@warning_ignore("unsafe_call_argument")
 	var min_count := int(params.get("min_count", 0))
 	var re: RegEx = null
 	if use_regex:
@@ -1289,7 +1545,7 @@ func _assert_screen_text(params: Dictionary) -> Dictionary:
 
 
 func _screenshot_diff(params: Dictionary) -> Dictionary:
-	var reference := String(params.get("reference", ""))
+	var reference := str(params.get("reference", ""))
 	var vp := get_viewport()
 	if vp == null:
 		return _err("no_viewport", "No viewport")
@@ -1311,7 +1567,9 @@ func _screenshot_diff(params: Dictionary) -> Dictionary:
 
 
 func _compare_images(frame: Image, reference_img: Image, params: Dictionary, reference: String) -> Dictionary:
+	@warning_ignore("unsafe_call_argument")
 	var tolerance := float(params.get("tolerance", 0.0))
+	@warning_ignore("unsafe_call_argument")
 	var per_channel := int(params.get("per_channel_threshold", 0))
 	# Work on copies normalized to RGBA8 so get_data() is a byte-aligned comparison.
 	var a := Image.new()
@@ -1323,6 +1581,7 @@ func _compare_images(frame: Image, reference_img: Image, params: Dictionary, ref
 	var region_v: Variant = params.get("region")
 	if region_v is Dictionary:
 		var rg: Dictionary = region_v
+		@warning_ignore("unsafe_call_argument")
 		var rect := Rect2i(int(rg.get("x", 0)), int(rg.get("y", 0)), int(rg.get("w", 0)), int(rg.get("h", 0)))
 		a = a.get_region(rect)
 		b = b.get_region(rect)
@@ -1366,10 +1625,10 @@ func _compare_images(frame: Image, reference_img: Image, params: Dictionary, ref
 # ----------------------------------------------------- F8: animation ---------
 
 ## Resolve a node and require it to be an AnimationPlayer.
-func _resolve_anim_player(path: String):
+func _resolve_anim_player(path: String) -> Variant:
 	var node := _resolve(path)
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % path)
+		return _no_node("Node", path)
 	if not (node is AnimationPlayer):
 		return _err("not_animation_player", "%s is not an AnimationPlayer" % node.get_class())
 	return node as AnimationPlayer
@@ -1390,14 +1649,16 @@ func _anim_state(ap: AnimationPlayer) -> Dictionary:
 
 
 func _anim_play(params: Dictionary) -> Dictionary:
-	var res = _resolve_anim_player(String(params.get("path", "")))
+	var res: Variant = _resolve_anim_player(str(params.get("path", "")))
 	if res is Dictionary:
 		return res
 	var ap: AnimationPlayer = res
-	var anim := String(params.get("animation", ""))
+	var anim := str(params.get("animation", ""))
 	if anim != "" and not ap.has_animation(anim):
 		return _err("no_animation", "AnimationPlayer has no animation '%s'" % anim)
+	@warning_ignore("unsafe_call_argument")
 	var speed := float(params.get("custom_speed", 1.0))
+	@warning_ignore("unsafe_call_argument")
 	var from_end := bool(params.get("from_end", false))
 	ap.play(anim, -1.0, speed, from_end)
 	return _ok({
@@ -1408,13 +1669,15 @@ func _anim_play(params: Dictionary) -> Dictionary:
 
 
 func _anim_stop(params: Dictionary) -> Dictionary:
-	var res = _resolve_anim_player(String(params.get("path", "")))
+	var res: Variant = _resolve_anim_player(str(params.get("path", "")))
 	if res is Dictionary:
 		return res
 	var ap: AnimationPlayer = res
 	# keep_state:true pauses in place; default stops. pause()/stop() with no args are
 	# stable across Godot 4.2–4.5 (unlike stop()'s changing keep_state parameter).
-	if bool(params.get("keep_state", false)):
+	@warning_ignore("unsafe_call_argument")
+	var keep_state := bool(params.get("keep_state", false))
+	if keep_state:
 		ap.pause()
 	else:
 		ap.stop()
@@ -1426,7 +1689,7 @@ func _anim_stop(params: Dictionary) -> Dictionary:
 
 
 func _anim_get_state(params: Dictionary) -> Dictionary:
-	var res = _resolve_anim_player(String(params.get("path", "")))
+	var res: Variant = _resolve_anim_player(str(params.get("path", "")))
 	if res is Dictionary:
 		return res
 	var ap: AnimationPlayer = res
@@ -1454,40 +1717,44 @@ func _read_state(params: Dictionary) -> Dictionary:
 	var reg: Dictionary = Engine.get_meta(STATE_META)
 	var names: Array = []
 	var by_name := {}
-	for k in reg.keys():
-		names.append(String(k))
-		by_name[String(k)] = reg[k]
+	for k: Variant in reg.keys():
+		names.append(str(k))
+		by_name[str(k)] = reg[k]
 	names.sort()
-	var state_name := String(params.get("name", ""))
+	var state_name := str(params.get("name", ""))
 	if state_name == "":
 		return _ok({"names": names})
 	if not by_name.has(state_name):
 		return _err("unknown_state", "No state reader named \"%s\". Registered: %s" % [state_name, ", ".join(PackedStringArray(names)) if not names.is_empty() else "(none)"])
 	var reader: Variant = by_name[state_name]
-	if typeof(reader) != TYPE_CALLABLE or not (reader as Callable).is_valid():
+	if typeof(reader) != TYPE_CALLABLE:
+		return _err("state_reader_gone", "The reader registered as \"%s\" is no longer callable — the object behind it was freed." % state_name)
+	var cb: Callable = reader
+	if not cb.is_valid():
 		return _err("state_reader_gone", "The reader registered as \"%s\" is no longer callable — the object behind it was freed." % state_name)
 	var args: Array = []
-	for a in params.get("args", []):
+	for a: Variant in params.get("args", []):
 		args.append(Codec.decode(a))
-	var value: Variant = (reader as Callable).callv(args)
+	var value: Variant = cb.callv(args)
 	return _ok({"names": names, "name": state_name, "value": Codec.encode(value)})
 
 
 # ----------------------------------------------------- F8: node lifecycle ----
 
 func _node_add(params: Dictionary) -> Dictionary:
-	var parent := _resolve(String(params.get("parent", "")))
+	var parent := _resolve(str(params.get("parent", "")))
 	if parent == null:
-		return _err("bad_path", "Parent not found: %s" % params.get("parent", ""))
+		return _no_node("Parent", str(params.get("parent", "")))
 	var child: Node = null
-	var scene_path := String(params.get("scene", ""))
+	var scene_path := str(params.get("scene", ""))
 	if scene_path != "":
 		var ps: Variant = load(scene_path)
 		if ps == null or not (ps is PackedScene):
 			return _err("bad_scene", "Could not load PackedScene: %s" % scene_path)
-		child = (ps as PackedScene).instantiate()
+		var packed: PackedScene = ps
+		child = packed.instantiate()
 	else:
-		var type_name := String(params.get("type", ""))
+		var type_name := str(params.get("type", ""))
 		if type_name == "":
 			return _err("bad_args", "Provide either 'scene' or 'type'")
 		if not ClassDB.class_exists(type_name) or not ClassDB.can_instantiate(type_name):
@@ -1503,12 +1770,13 @@ func _node_add(params: Dictionary) -> Dictionary:
 			# The RefCounted arm MUST be excluded: free() on a RefCounted is itself an error,
 			# which is why the safe-looking `Resource` case hid this for so long.
 			if obj is Object and not (obj is RefCounted):
-				(obj as Object).free()
+				var bare: Object = obj
+				bare.free()
 			return _err("not_a_node", "%s is not a Node" % type_name)
 		child = obj
 	if child == null:
 		return _err("instantiate_failed", "Failed to instantiate node")
-	var nm := String(params.get("name", ""))
+	var nm := str(params.get("name", ""))
 	if nm != "":
 		child.name = nm
 	# 🔴 283 §1's DEFECT ON THE OTHER PLANE, AND THIS ONE COULD NOT EVEN BE SEEN.
@@ -1533,9 +1801,9 @@ func _node_add(params: Dictionary) -> Dictionary:
 
 
 func _node_remove(params: Dictionary) -> Dictionary:
-	var node := _resolve(String(params.get("path", "")))
+	var node := _resolve(str(params.get("path", "")))
 	if node == null:
-		return _err("bad_path", "Node not found: %s" % params.get("path", ""))
+		return _no_node("Node", str(params.get("path", "")))
 	if node == _base():
 		return _err("cannot_remove_root", "Refusing to remove the current scene root")
 	var p := _path_of(node)
@@ -1579,8 +1847,9 @@ func _step_frames(params: Dictionary) -> Dictionary:
 	var tree := get_tree()
 	if tree == null:
 		return _err("no_tree", "No scene tree")
+	@warning_ignore("unsafe_call_argument")
 	var frames := clampi(int(params.get("frames", 1)), 1, 100000)
-	var kind := String(params.get("kind", "idle"))
+	var kind := str(params.get("kind", "idle"))
 	var prev_scale := Engine.time_scale
 	# Advance by exactly `frames`: restore a normal time scale for the step (the caller froze via
 	# runtime_time_scale{scale:0}, which zeroes delta), and count real frames off the ENGINE frame
@@ -1603,6 +1872,7 @@ func _step_frames(params: Dictionary) -> Dictionary:
 
 func _time_scale(params: Dictionary) -> Dictionary:
 	var previous := Engine.time_scale
+	@warning_ignore("unsafe_call_argument")
 	var scale := maxf(0.0, float(params.get("scale", 1.0)))
 	Engine.time_scale = scale
 	# scale 0 freezes the game clock (delta -> 0): delta-based motion, tweens, timers and
@@ -1613,6 +1883,7 @@ func _time_scale(params: Dictionary) -> Dictionary:
 
 
 func _seed_rng(params: Dictionary) -> Dictionary:
+	@warning_ignore("unsafe_call_argument")
 	var s := int(params.get("seed", 0))
 	seed(s)
 	return _ok({"seed": s})
@@ -1621,11 +1892,12 @@ func _seed_rng(params: Dictionary) -> Dictionary:
 ## Read a compact, stable-ordered snapshot of a subtree's salient state (read-only). Default
 ## fields are the common transform/visibility properties; a caller may pass an explicit list.
 func _state_digest(params: Dictionary) -> Dictionary:
-	var root := _resolve(String(params.get("root", "")))
+	var root := _resolve(str(params.get("root", "")))
 	if root == null:
-		return _err("bad_path", "Node not found: %s" % params.get("root", ""))
+		return _no_node("Node", str(params.get("root", "")))
 	var raw_fields: Variant = params.get("fields", [])
 	var fields: Array = raw_fields if typeof(raw_fields) == TYPE_ARRAY else []
+	@warning_ignore("unsafe_call_argument")
 	var max_depth := int(params.get("max_depth", 8))
 	var digest := {}
 	var count := _digest_walk(root, 0, max_depth, fields, digest)
@@ -1635,13 +1907,13 @@ func _state_digest(params: Dictionary) -> Dictionary:
 func _digest_walk(node: Node, depth: int, max_depth: int, fields: Array, digest: Dictionary) -> int:
 	var entry := {}
 	if fields.is_empty():
-		for f in _DIGEST_DEFAULT_FIELDS:
+		for f: String in _DIGEST_DEFAULT_FIELDS:
 			var dv: Variant = node.get(f)
 			if dv != null:
 				entry[f] = Codec.encode(dv)
 	else:
-		for f in fields:
-			var fn := String(f)
+		for f: Variant in fields:
+			var fn := str(f)
 			entry[fn] = Codec.encode(node.get(fn))
 	digest[_path_of(node)] = entry
 	var count := 1

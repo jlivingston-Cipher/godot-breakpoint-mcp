@@ -415,7 +415,9 @@ BLAST: dict[str, int] = {
     # the tables leaves three more codes with no next action. The tables grew.
     # 🆕 BP-0041 (1.89.0): 75 -> 76. ONE new runtime code, `bad_event` (runtime_inject_input's
     # key / gamepad / pointer field refusals), one row — the tables grew by one.
-    "remedy_tables": 76,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 BP-0025 (1.92.0): 76 -> 77. ONE new runtime code, `bad_held_path` (runtime_call_method's
+    # walk past a colon into what a node holds), one row — the tables grew by one.
+    "remedy_tables": 77,                      # 🆕 259: 64 -> 65, the CLI span join
     # 🆕 284 — 71 -> 70. The addon tables are no longer the ONLY source of a CLI span, so
     # blinding them leaves check 28's join able to answer and one refusal stops firing.
     # 🔵 AND THE OBSERVED COLLAPSE STILL INCLUDES `xlang.remedy_tool_refs` WHILE THE

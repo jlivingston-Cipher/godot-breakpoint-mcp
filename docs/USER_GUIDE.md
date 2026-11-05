@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.91.0 · addon 1.20.0
+- **Version:** host 1.92.0 · addon 1.21.0
 - **License:** MIT
 - **What it exposes:** full 295 tools (secure-default 282 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -641,9 +641,11 @@ addon enabled and the host registered (Sections 3–4).
 - `runtime_get_tree` → the live SceneTree.
 - `runtime_get_property` `{ path: ".", property: "counter" }` → read live state.
 - `runtime_call_method` **(higher-trust)** `{ path: ".", method: "take_damage", args: [10] }` → invoke a
-  method (asks you to confirm first).
+  method (asks you to confirm first). From addon 1.21.0 the path can reach past a colon into what a
+  node holds — `{ path: "Synth:patch", ... }` calls a method on the object in Synth's `patch`.
 - `runtime_get_monitors`, `runtime_screenshot` → observe performance and grab a frame (its text adds the
-  viewport geometry from addon 1.19.0).
+  viewport geometry from addon 1.19.0). From addon 1.21.0 the monitors include the game's own,
+  registered with `Performance.add_custom_monitor`, by the id it gave them.
 - `runtime_screenshot_save` `{ path: "res://golden/title.png" }` → write the frame to a new project file
   and return no image — never overwrites; the reference `runtime_screenshot_diff` compares against.
 - `runtime_inject_input` `{ event: { kind: "pointer", action: "tap", x, y } }` → click where the frame shows
@@ -1080,8 +1082,9 @@ underlying steps.
 2. `runtime_get_tree` to see the live scene.
 3. `runtime_inject_input` to simulate button presses and movement (one `event` per call): actions,
    keys (one code is enough: from addon 1.20.0 the others are filled, so a key reaches both
-   `event.keycode` and the Input Map), mouse, gamepad, and the `pointer`
-   kind — a tap or drag at pixels of the frame `runtime_screenshot` returns.
+   `event.keycode` and the Input Map), mouse, gamepad, the `pointer`
+   kind — a tap or drag at pixels of the frame `runtime_screenshot` returns — and, from addon
+   1.21.0, `midi`: notes, controllers, pitch bend and transport, delivered as a MIDI device's are.
 4. `runtime_get_property` / `runtime_set_property` and `runtime_call_method` **(higher-trust)**
    to probe and nudge state (mutators ask to confirm).
 5. `runtime_get_monitors` for FPS and other performance counters; `runtime_screenshot`

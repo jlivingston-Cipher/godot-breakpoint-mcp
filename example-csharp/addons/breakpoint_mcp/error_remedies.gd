@@ -112,6 +112,7 @@ const RUNTIME_REMEDIES := {
 	"no_state_registry": "Set Engine metadata \"breakpoint_state\" to a Dictionary of name -> Callable from the game's own debug code, then call again.",
 	"unknown_state": "Call `runtime_read_state` without a name for the names the game registered, then pass one of them.",
 	"state_reader_gone": "Set the reader again from an object that is still alive, then call again.",
+	"bad_held_path": "Call `runtime_get_property` on the node for what the property after the colon holds — a method runs only on an object.",
 }
 
 

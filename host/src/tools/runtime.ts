@@ -190,7 +190,13 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     "runtime_call_method",
     {
       title: "Runtime call method",
-      description: "Invoke a method on a live node. DESTRUCTIVE (arbitrary invocation) — gated by confirmation. Args use the tagged-Variant convention.",
+      // 🆕 BP-0025 (addon 1.21.0) — past a colon, `path` names what the node holds: NodePath's own
+      // subname form, walked one property at a time, so a RefCounted kept in a script variable is
+      // reachable as well as a Resource. Before 1.21.0 the addon dropped everything after the colon
+      // and called the method on the node itself.
+      description:
+        "Invoke a method on a live node, or past a colon on an object it holds ('Synth:patch' is Synth's patch). " +
+        "DESTRUCTIVE (arbitrary invocation) — gated by confirmation. Args use the tagged-Variant convention.",
       inputSchema: { path: z.string(), method: z.string(), args: z.array(z.any()).optional(), ...confirmField, ...peerField },
     },
     async ({ path, method, args, confirm, peer }) => {
@@ -223,13 +229,14 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       title: "Runtime inject input",
       description:
         "Inject a synthetic input event for automated play-testing. DESTRUCTIVE. " +
-        "event.kind is 'action' | 'key' | 'mouse_button' | 'mouse_motion' | 'joypad_button' | 'joypad_motion' | 'pointer'. " +
+        "event.kind is 'action' | 'key' | 'mouse_button' | 'mouse_motion' | 'joypad_button' | 'joypad_motion' | 'pointer' | 'midi'. " +
         "key: keycode, physical_keycode and key_label left out are filled from the one given. " +
         "pointer: action press|move|release|tap|drag at x,y (to_x,to_y) in runtime_screenshot frame pixels. " +
+        "midi: an InputEventMIDI; a pitch_bend's 14-bit value goes in pitch, where Godot stores it. " +
         "Example: {\"kind\":\"action\",\"action\":\"jump\",\"pressed\":true}.",
       inputSchema: {
         event: z.object({
-          kind: z.enum(["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer"]),
+          kind: z.enum(["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer", "midi"]),
           action: z.string().optional(),
           strength: z.number().optional(),
           keycode: z.number().int().optional(),
@@ -268,6 +275,17 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
           steps: z.number().int().min(1).max(60).optional(),
           frames_per_step: z.number().int().min(1).max(10).optional(),
           warp: z.boolean().optional(),
+          // 🆕 BP-0025 (addon 1.21.0) — midi: InputEventMIDI's own fields, set where Godot's MIDI
+          // driver sets them. `device` and `pressure` are shared with the joypad kinds (same types);
+          // the addon refuses a value outside its MIDI range rather than clamping it.
+          message: z.enum(["note_on", "note_off", "control_change", "program_change", "pitch_bend", "aftertouch",
+            "channel_pressure", "timing_clock", "start", "continue", "stop"]).optional(),
+          channel: z.number().int().min(0).max(15).optional(),
+          pitch: z.number().int().min(0).max(16383).optional(),
+          velocity: z.number().int().min(0).max(127).optional(),
+          controller_number: z.number().int().min(0).max(127).optional(),
+          controller_value: z.number().int().min(0).max(127).optional(),
+          instrument: z.number().int().min(0).max(127).optional(),
         }),
         ...confirmField,
         ...peerField,
@@ -285,7 +303,8 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
     {
       title: "Runtime performance monitors",
       description:
-        "Read live Performance monitors (FPS, draw calls, node count, physics, audio output latency, ...). " +
+        "Read live Performance monitors (FPS, draw calls, node count, physics, audio output latency, ...), " +
+        "and the game's own, by the id it registered (Performance.add_custom_monitor). " +
         "Pass specific keys or omit for all. Keys include time/fps, render/total_draw_calls, audio/output_latency.",
       inputSchema: { keys: z.array(z.string()).optional(), ...peerField },
     },

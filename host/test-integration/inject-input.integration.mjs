@@ -43,12 +43,16 @@
 //     both directions. A motion event with only `relative` must leave position at (0,0)
 //     and vice versa — an implementation that decoded one field into both, or that
 //     applied a default when the caller sent nothing, fails exactly one of those.
-//   * The event count is EXACT, not monotonic. Ten injections must produce ten events and
-//     the three per-kind counters must sum to the total, so a duplicate delivery and a
+//   * The event count is EXACT, not monotonic. Thirteen injections must produce thirteen events and
+//     the four per-kind counters must sum to the total, so a duplicate delivery and a
 //     stray engine-generated event are both failures rather than noise.
 //
 // Markers (grep-able): INPUT_LIVE_PING / _FIXTURE / _REJECT / _ACTION / _KEY / _BUTTON /
-// _MOTION / _EXACT / _PRISTINE / _RESULT.
+// _MOTION / _MIDI / _EXACT / _PRISTINE / _RESULT.
+//
+// 🆕 BP-0025 (addon 1.21.0) — `midi` joins the kinds proved here: three messages sent through
+// the TOOL, each arriving in `_input` with every field where Godot keeps it, and a value out of
+// its MIDI range refused with nothing delivered.
 //
 // Requires res://tests/input_probe.tscn running with GODOT_PROJECT set and
 // BREAKPOINT_RUNTIME_PORT pointing at its bridge. Fully headless — nothing here reads a
@@ -70,10 +74,10 @@ import { Population } from "./_population.mjs";
 const population = new Population("INPUT_LIVE", {
   families: [
     "INPUT_LIVE_FIXTURE", "INPUT_LIVE_REJECT", "INPUT_LIVE_ACTION", "INPUT_LIVE_KEY",
-    "INPUT_LIVE_BUTTON", "INPUT_LIVE_MOTION", "INPUT_LIVE_EXACT", "INPUT_LIVE_PRISTINE",
+    "INPUT_LIVE_BUTTON", "INPUT_LIVE_MOTION", "INPUT_LIVE_MIDI", "INPUT_LIVE_EXACT", "INPUT_LIVE_PRISTINE",
   ],
-  scope: 8,
-  claims: 66,         // 🔴 EXACT — 66 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number
+  scope: 9,
+  claims: 72,         // 🔴 EXACT — 66 on local 4.7 and CI 4.3 / 4.5 / 4.7, four environments, one number; BP-0025 adds the MIDI section's
 });
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
@@ -470,12 +474,50 @@ try {
   );
   population.seal("INPUT_LIVE_MOTION", "ok position+relative decoded independently, each proved with the other absent");
 
+  // ========================================== 5b. midi (BP-0025, addon 1.21.0) ===
+  // An InputEventMIDI through Input.parse_input_event — the call Godot's own MIDI driver makes
+  // for a real device — must arrive in `_input` with every field as sent, where Godot keeps it:
+  // MIDIMessage note_on 9, control_change 11, pitch_bend 14, a bend's 14-bit value in `pitch`.
+  await inject({ kind: "midi", message: "note_on", channel: 9, pitch: 60, velocity: 90, device: 2 });
+  injectedEvents++;
+  await waitFor("midi_count", (v) => v === 1, "a midi note_on must arrive as an InputEventMIDI");
+  assert.deepEqual(
+    await snap("last_midi_message", "last_midi_channel", "last_midi_pitch", "last_midi_velocity", "last_midi_device"),
+    { last_midi_message: 9, last_midi_channel: 9, last_midi_pitch: 60, last_midi_velocity: 90, last_midi_device: 2 },
+    "note_on must arrive with its message, channel, pitch, velocity and device as sent",
+  );
+  await inject({ kind: "midi", message: "control_change", controller_number: 74, controller_value: 127 });
+  injectedEvents++;
+  await waitFor("midi_count", (v) => v === 2, "a control_change must arrive as its own event");
+  assert.deepEqual(
+    await snap("last_midi_message", "last_midi_controller_number", "last_midi_controller_value", "last_midi_channel"),
+    { last_midi_message: 11, last_midi_controller_number: 74, last_midi_controller_value: 127, last_midi_channel: 0 },
+    "control_change must carry its controller number and value, on channel 0 when none is given",
+  );
+  await inject({ kind: "midi", message: "pitch_bend", pitch: 12000 });
+  injectedEvents++;
+  await waitFor("midi_count", (v) => v === 3, "a pitch_bend must arrive as its own event");
+  assert.deepEqual(
+    await snap("last_midi_message", "last_midi_pitch"),
+    { last_midi_message: 14, last_midi_pitch: 12000 },
+    "a bend's 14-bit value must arrive in pitch, where Godot's driver puts it",
+  );
+  // 🔴 Refused, never clamped — a clamped note is a different note — and a refusal delivers
+  // nothing. Through the TOOL: the host schema admits pitch up to 16383 (a bend's range), so this
+  // is the addon's own refusal travelling back, not zod's.
+  const outOfRange = await raw("runtime_inject_input", { event: { kind: "midi", message: "note_on", pitch: 128 }, confirm: true });
+  assert.equal(outOfRange.isError, true, "a note_on at pitch 128 must be refused, not clamped to 127");
+  assert.match(errText(outOfRange), /bad_event/, `the refusal must carry its code: ${errText(outOfRange)}`);
+  await sleep(150);
+  assert.equal(await read("midi_count"), 3, "a refused midi event must deliver nothing");
+  population.seal("INPUT_LIVE_MIDI", "ok note_on / control_change / pitch_bend arrived with every field as sent; pitch 128 refused, nothing delivered");
+
   // ================================ 6. the count is EXACT, not monotonic ===
-  // 🔴 Ten injections, ten events, and the three per-kind counters must account for all of
+  // 🔴 Thirteen injections, thirteen events, and the four per-kind counters must account for all of
   // them. This is what turns every "count went up" above into "exactly this happened":
   // a duplicated delivery, a stray event from somewhere else in the engine, and an
   // `action` injection that quietly synthesised a key event are all failures here.
-  const totals = await snap("total_events", "key_count", "button_count", "motion_count");
+  const totals = await snap("total_events", "key_count", "button_count", "motion_count", "midi_count");
   assert.equal(
     totals.total_events,
     injectedEvents,
@@ -483,16 +525,16 @@ try {
       `either duplicated a delivery or produced an event this probe did not send`,
   );
   assert.equal(
-    totals.key_count + totals.button_count + totals.motion_count,
+    totals.key_count + totals.button_count + totals.motion_count + totals.midi_count,
     totals.total_events,
     `the per-kind counters must account for every event: ${JSON.stringify(totals)}`,
   );
   assert.deepEqual(
-    { key: totals.key_count, button: totals.button_count, motion: totals.motion_count },
-    { key: 4, button: 3, motion: 3 },
+    { key: totals.key_count, button: totals.button_count, motion: totals.motion_count, midi: totals.midi_count },
+    { key: 4, button: 3, motion: 3, midi: 3 },
     `each kind must have been delivered as ITS OWN class of event: ${JSON.stringify(totals)}`,
   );
-  population.seal("INPUT_LIVE_EXACT", `ok ${injectedEvents} injected = ${totals.total_events} delivered (key 4 / button 3 / motion 3)`);
+  population.seal("INPUT_LIVE_EXACT", `ok ${injectedEvents} injected = ${totals.total_events} delivered (key 4 / button 3 / motion 3 / midi 3)`);
 
   // ================================================ 7. leave it pristine ===
   // #146's rule: state left behind by a probe is a defect even when nothing is currently
@@ -518,7 +560,7 @@ try {
   population.seal("INPUT_LIVE_PRISTINE", `ok ${BOUND} and ${UNBOUND} both released at zero strength, fixture intact`);
 
   console.log(
-    `INPUT_LIVE_RESULT kinds=action+key+mouse_button+mouse_motion rejects=bad_kind x3+bad_action x2 ` +
+    `INPUT_LIVE_RESULT kinds=action+key+mouse_button+mouse_motion+midi rejects=bad_kind x3+bad_action x2 ` +
       `guards=position/relative independent routing=key->InputMap events=${injectedEvents}/${injectedEvents}`,
   );
   console.log("✔ input injection verified against a real running game");
