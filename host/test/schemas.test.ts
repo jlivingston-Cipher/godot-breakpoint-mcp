@@ -77,6 +77,14 @@ test("schemas are non-strict: EXTRA runtime fields still validate (catalog is a 
   });
 });
 
+test("🆕 BP-0047 — runtime_inject_input declares a key's `codes`: a parse keeps them, and a wrong type is refused", () => {
+  // z.object STRIPS an undeclared key on parse, so the first claim fails if `codes` is not in
+  // the frozen shape — and a conforming client throws on an undeclared field, so it must be.
+  const reply = { injected: true, kind: "key", codes: { keycode: 75, physical_keycode: 75, key_label: 75 } };
+  assert.deepEqual(schemaOf("runtime_inject_input").parse(reply).codes, reply.codes);
+  assert.throws(() => schemaOf("runtime_inject_input").parse({ ...reply, codes: { ...reply.codes, keycode: "K" } }));
+});
+
 test("a deliberately WRONG shape is rejected (B1 enforcement)", () => {
   // pong must be boolean.
   assert.throws(() => schemaOf("editor_ping").parse({ pong: "yes", addon_version: "0.4.9", godot: "4.4.1" }), z.ZodError);

@@ -740,8 +740,10 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   runtime_emit_signal: { ...engineLog, emitted: z.boolean() },
   // 🆕 BP-0041 (addon 1.19.0) — the `pointer` kind answers the window points it actually
   // sent and how many frames the gesture spanned, so a miss is visible in the reply.
+  // 🆕 BP-0047 (addon 1.20.0) — a `key` answers the three codes it sent, filled or given.
   runtime_inject_input: { ...engineLog, injected: z.boolean(), kind: z.string(),
-    window_points: z.array(z.array(z.number())).optional(), frames: z.number().optional() },
+    window_points: z.array(z.array(z.number())).optional(), frames: z.number().optional(),
+    codes: z.object({ keycode: z.number(), physical_keycode: z.number(), key_label: z.number() }).optional() },
   // `monitors` values are `Performance.get_monitor()` readings, so they are engine floats
   // and can be non-finite. 🔴 226 §2: a reading that is not a number is ABSENT from
   // `monitors` and named in `non_finite` — it is NOT `null`. The value type does not move,

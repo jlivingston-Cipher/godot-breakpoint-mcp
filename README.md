@@ -6,8 +6,8 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.89.0 · addon 1.19.0 · full 295 / secure-default 282 tools · 6 MCP resources · MIT.** The host builds against
-> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 1007-test suite plus
+> **npm 1.90.0 · addon 1.20.0 · full 295 / secure-default 282 tools · 6 MCP resources · MIT.** The host builds against
+> the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 1008-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
 Breakpoint MCP connects an MCP-compatible AI assistant to a running Godot editor and
@@ -132,8 +132,8 @@ hands Claude each tool's name, description and input schema and nothing else.
 
 | | Bytes on the wire | What the model reads |
 |---|---|---|
-| **Breakpoint, as installed** (282 tools) | 357,518 | 210,891 |
-| **Breakpoint, every group opted in** (295 tools) | 377,604 | 223,971 |
+| **Breakpoint, as installed** (282 tools) | 357,822 | 210,976 |
+| **Breakpoint, every group opted in** (295 tools) | 377,908 | 224,056 |
 | An authoring-focused server we re-measured (319 tools) | 202,327 | 196,585 |
 
 The second column is measured, not assumed: we captured the request Claude Code 2.1.201 actually

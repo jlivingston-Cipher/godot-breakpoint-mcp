@@ -4,6 +4,38 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.90.0] — 2026-11-04
+
+_Addon **1.19.0 → 1.20.0** — `runtime_bridge.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged (**295**, secure default **282**)._
+
+### Changed
+
+**`runtime_inject_input`'s `key` carries all three codes, as a real key does (BP-0047).** A key
+from a keyboard arrives with `keycode`, `physical_keycode` and `key_label` all set, and game code
+reads whichever one it was written against: most of it `event.keycode`, while keys bound in the
+editor's Input Map are stored by physical code. Until now the addon sent `0` for every code the
+call left out, so a key sent by `physical_keycode` (the advice for Input Map bindings) never
+reached a handler testing `event.keycode`, and a key sent by `keycode` never fired an action bound
+by physical key. Now each code left out is filled from the first non-zero one given, in the order
+`keycode`, `physical_keycode`, `key_label` — the identity a US layout reports, the same on every
+machine, because the developer's own layout is never consulted. One call reaches `_input`
+handlers that test `event.keycode` and actions read with `is_action_pressed`, however they are
+bound.
+- A code passed explicitly, `0` included, is sent as given — that is how to send a key with a
+  code deliberately absent. No input field was added.
+- `unicode`, the text a key types, is never filled; it depends on shift and layout, so a caller
+  that wants text passes it.
+- The reply adds `codes: {keycode, physical_keycode, key_label}`, the three sent, so a miss is
+  visible in the reply, as the pointer's `window_points` already is.
+- Measured headless on Godot 4.7: `example/tests/input_kinds_smoke.gd` grows 22 → 30 checks,
+  among them `event_is_action` matching a physical-only key to an action bound by `keycode`, and
+  a keycode-only key to one bound by physical code. With the fill disabled, the eight new checks
+  fail. Live over the wire on the Mac, against `example/tests/input_probe.tscn`: a physical-only
+  key reached `_input` with its `keycode` set, and pressed and released `bp_probe_bound`, which
+  is bound by keycode alone.
+- Tool surface bytes 377,604 → 377,908 (+304: one sentence of the tool's description, and
+  `codes` on its output schema).
+
 ## [1.89.0] — 2026-11-03
 
 _Addon **1.18.0 → 1.19.0** — `runtime_bridge.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **294 → 295** (secure default **281 → 282**): one tool that writes a file and never overwrites one._

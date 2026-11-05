@@ -36,7 +36,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.19.0"
+const ADDON_VERSION := "1.20.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -747,18 +747,15 @@ func _inject_input(params: Dictionary) -> Dictionary:
 			# dialog's default), and an event carrying only `keycode` never matches one — so
 			# today's key kind reached `_input` but not the actions. A key with none of the
 			# three codes is KEY_NONE, which matches nothing, so it is refused, not injected.
+			# 🆕 BP-0047 (1.20.0): a key from a real keyboard carries all three codes, and game
+			# code reads whichever one it was written against — most of it `event.keycode`, the
+			# Input Map's bindings the physical code. So _key_event fills each code the caller
+			# left out, and the reply names the three that were sent.
 			if not (ev.has("keycode") or ev.has("physical_keycode") or ev.has("key_label")):
 				return _err("bad_event", "A key event needs at least one of event.keycode, event.physical_keycode or event.key_label; with none it is KEY_NONE and matches no key and no action.")
-			var k := InputEventKey.new()
-			k.keycode = int(ev.get("keycode", 0))
-			k.physical_keycode = int(ev.get("physical_keycode", 0))
-			k.key_label = int(ev.get("key_label", 0))
-			k.unicode = int(ev.get("unicode", 0))
-			k.echo = bool(ev.get("echo", false))
-			k.pressed = bool(ev.get("pressed", true))
-			_apply_modifiers(k, ev)
+			var k := _key_event(ev)
 			Input.parse_input_event(k)
-			return _ok({"injected": true, "kind": kind})
+			return _ok({"injected": true, "kind": kind, "codes": {"keycode": int(k.keycode), "physical_keycode": int(k.physical_keycode), "key_label": int(k.key_label)}})
 		"mouse_button":
 			var mb := InputEventMouseButton.new()
 			mb.button_index = int(ev.get("button", 1))
@@ -813,11 +810,35 @@ func _inject_input(params: Dictionary) -> Dictionary:
 
 
 ## 🆕 BP-0041 — the four modifier flags, on any event that carries them.
-func _apply_modifiers(e: InputEventWithModifiers, ev: Dictionary) -> void:
+static func _apply_modifiers(e: InputEventWithModifiers, ev: Dictionary) -> void:
 	e.shift_pressed = bool(ev.get("shift", false))
 	e.ctrl_pressed = bool(ev.get("ctrl", false))
 	e.alt_pressed = bool(ev.get("alt", false))
 	e.meta_pressed = bool(ev.get("meta", false))
+
+
+## 🆕 BP-0047 (1.20.0): the key event a real keyboard would send. Each of the three codes the
+## caller leaves out is filled from the first non-zero one it gave, in the order keycode,
+## physical_keycode, key_label — the identity a US layout reports — so a key reaches code that
+## reads `event.keycode` and Input Map bindings stored by physical key alike, and means the same
+## on every machine (the developer's own layout is never consulted). A code the caller passes,
+## 0 included, is sent exactly as given. `unicode` is never filled: it is the text a key types,
+## which depends on shift and layout, so a caller that wants text passes it.
+static func _key_event(ev: Dictionary) -> InputEventKey:
+	var k := InputEventKey.new()
+	var fill := 0
+	for code in ["keycode", "physical_keycode", "key_label"]:
+		if ev.has(code) and int(ev.get(code)) != 0:
+			fill = int(ev.get(code))
+			break
+	k.keycode = int(ev.get("keycode", fill))
+	k.physical_keycode = int(ev.get("physical_keycode", fill))
+	k.key_label = int(ev.get("key_label", fill))
+	k.unicode = int(ev.get("unicode", 0))
+	k.echo = bool(ev.get("echo", false))
+	k.pressed = bool(ev.get("pressed", true))
+	_apply_modifiers(k, ev)
+	return k
 
 
 ## 🆕 BP-0041 — true when this call is a `pointer` gesture, which awaits frames and so

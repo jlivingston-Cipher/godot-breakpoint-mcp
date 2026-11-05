@@ -1,7 +1,8 @@
 extends SceneTree
 ## Headless regression for BP-0041 (addon 1.19.0): the runtime_inject_input kinds and fields
 ## added for TG-1026, the pointer's validation and button bookkeeping, and the viewport block's
-## shape. Drives the SHIPPED runtime_bridge.gd directly; the bridge is never added to the tree,
+## shape. BP-0047 (addon 1.20.0): a key carries all three codes, filled from the one given, and
+## so matches an Input Map binding stored either way. Drives the SHIPPED runtime_bridge.gd directly; the bridge is never added to the tree,
 ## so it never listens, and with no viewport the frame-to-window mapping is the identity — the
 ## mapping itself is measured windowed (see pointer_probe.tscn), because a headless display
 ## draws nothing.
@@ -12,7 +13,7 @@ extends SceneTree
 
 const RuntimeBridge := preload("res://addons/breakpoint_mcp/runtime_bridge.gd")
 ## Every check above the completion check (a runtime error aborts only its function).
-const EXPECTED_CHECKS := 21
+const EXPECTED_CHECKS := 29
 
 var _pass := 0
 var _fail := 0
@@ -44,6 +45,33 @@ func _initialize() -> void:
 	_check("key.physical_keycode_only", bool(_inject(rb, {"kind": "key", "physical_keycode": KEY_K}).get("ok", false)))
 	_check("key.with_modifiers", bool(_inject(rb, {"kind": "key", "keycode": KEY_A, "key_label": KEY_A, "unicode": 97, "echo": true, "shift": true, "ctrl": true, "alt": true, "meta": true}).get("ok", false)))
 	_check("key.keycode_only_unchanged", bool(_inject(rb, {"kind": "key", "keycode": KEY_K}).get("ok", false)))
+
+	# 1b. BP-0047: the codes a real key carries. A code left out is filled from the first non-zero
+	# one given (keycode, physical_keycode, key_label); a code passed, 0 included, is sent as given.
+	var from_physical: InputEventKey = RuntimeBridge._key_event({"physical_keycode": KEY_K})
+	_check("key.physical_only_fills_keycode_and_label", from_physical.keycode == KEY_K and from_physical.physical_keycode == KEY_K and from_physical.key_label == KEY_K)
+	var from_keycode: InputEventKey = RuntimeBridge._key_event({"keycode": KEY_J})
+	_check("key.keycode_only_fills_physical_and_label", from_keycode.keycode == KEY_J and from_keycode.physical_keycode == KEY_J and from_keycode.key_label == KEY_J)
+	var from_label: InputEventKey = RuntimeBridge._key_event({"key_label": KEY_L})
+	_check("key.label_only_fills_both_codes", from_label.keycode == KEY_L and from_label.physical_keycode == KEY_L and from_label.key_label == KEY_L)
+	var both: InputEventKey = RuntimeBridge._key_event({"keycode": KEY_A, "physical_keycode": KEY_Q})
+	_check("key.given_codes_sent_as_given", both.keycode == KEY_A and both.physical_keycode == KEY_Q and both.key_label == KEY_A)
+	var zero_kept: InputEventKey = RuntimeBridge._key_event({"keycode": 0, "physical_keycode": KEY_K})
+	_check("key.explicit_zero_kept", zero_kept.keycode == KEY_NONE and zero_kept.physical_keycode == KEY_K and zero_kept.key_label == KEY_K)
+	var codes: Dictionary = _inject(rb, {"kind": "key", "physical_keycode": KEY_K}).get("result", {}).get("codes", {})
+	_check("key.reply_names_the_codes_sent", int(codes.get("keycode", -1)) == KEY_K and int(codes.get("physical_keycode", -1)) == KEY_K and int(codes.get("key_label", -1)) == KEY_K)
+	var by_keycode := InputEventKey.new()
+	by_keycode.keycode = KEY_K
+	var by_physical := InputEventKey.new()
+	by_physical.physical_keycode = KEY_K
+	InputMap.add_action(&"bp_smoke_by_keycode")
+	InputMap.action_add_event(&"bp_smoke_by_keycode", by_keycode)
+	InputMap.add_action(&"bp_smoke_by_physical")
+	InputMap.action_add_event(&"bp_smoke_by_physical", by_physical)
+	_check("key.physical_only_matches_a_keycode_binding", InputMap.event_is_action(from_physical, &"bp_smoke_by_keycode"))
+	_check("key.keycode_only_matches_a_physical_binding", InputMap.event_is_action(RuntimeBridge._key_event({"keycode": KEY_K}), &"bp_smoke_by_physical"))
+	InputMap.erase_action(&"bp_smoke_by_keycode")
+	InputMap.erase_action(&"bp_smoke_by_physical")
 
 	# 2. mouse: double_click, button_mask, frame space (identity with no viewport).
 	_check("mouse_button.double_click", bool(_inject(rb, {"kind": "mouse_button", "button": 1, "double_click": true, "space": "frame", "position": {"__type__": "Vector2", "x": 4, "y": 5}}).get("ok", false)))
