@@ -10195,6 +10195,55 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 61 addon / 0 problems
 > ```
 """),
+    # 🆕 333 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 332 DID NOT WRITE, AS AT 327 THROUGH 332.
+    # `HANDOFF_SESSION332.md` was drafted at 333 by `--emit-handoff 332 ../HANDOFF_SESSION331.md
+    # --measured ci332/` in a worktree AT f176f36 (333's edits never in it, nothing stashed) and the
+    # artifacts of #437's post-merge `ci` run 42104542044 (7/7 success). MOVED +1 is edcd7b1..f176f36
+    # (#437's squash, which carried 331's block and the BP-0035 build in one tree). `untagged 1`
+    # because #437 is not a cut and nothing was tagged after `v1.91.0` (edcd7b1); `unshipped 0`
+    # because `git diff v1.91.0 f176f36 -- host/src host/package.json addons` is empty. Three counters
+    # read by hand from those artifacts, as at 323 and 326 through 332: 27 CI jobs (ci 7 + integration
+    # 20, every job success; integration 42104541793), `0 exempt` (BOUNDARY_GATE_DISCOVER,
+    # INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three agree with the draft. The
+    # commit subject on the `main` row drops its two ledger IDs and "and 331's block":
+    # MOVED_POPULATION reads every numeral in that atom (git holds the full subject).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `UNMOVED`, BECAUSE NOTHING MOVED: #437 touched scripts/ and
+    # QUEUE.md only, so the pair stays 1.91.0 / 1.20.0, which is `SENSE_ASKS["CODE"]` with no source
+    # touched. Precedent: 285.
+    #
+    # 🟡 THE ASSET LIBRARY ROW IS PENDING, AS AT 328, 331 AND 332. Asset 5335 answers 1.19.0 at be9c655
+    # (modified 2026-11-03 20:08Z, read at 333); edit 24857 (1.20.0) is still waiting on a moderator.
+    # `QUEUE_HEAD` moves 332 -> 333, the session that registers it; 333 commits, so no `BLOCK_ABSENT`.
+    (332, """> ```
+> main                 f176f36 — session332 the npm leg reads one search to its end (#437)  MOVED +1
+> branch 332           session332-npm-read-to-its-end · PR #437
+> host / addon         1.91.0 / 1.20.0  🟢 UNMOVED — no cut; nothing users install changed
+> npm                  🟢 registry 1.91.0 · untagged 1 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.19.0 live · 1.20.0 submitted, pending moderation
+> 🟢 CI GREEN — 27 of 27 required checks at the merge (ci 7 + integration 20), post-merge run 42104542044 at f176f36
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1028/1028 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3530 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2571 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 334 file(s) / 21 suffixes · seal 106
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 295 tools / 3953 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5318
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 683 claims · landscape 4 channel(s) / 57 analysed / 87 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 35 past / 14 never analysed
+>               · identity 72 of 144 / 2 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 61 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #

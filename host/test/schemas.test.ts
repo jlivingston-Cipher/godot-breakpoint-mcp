@@ -85,6 +85,14 @@ test("🆕 BP-0047 — runtime_inject_input declares a key's `codes`: a parse ke
   assert.throws(() => schemaOf("runtime_inject_input").parse({ ...reply, codes: { ...reply.codes, keycode: "K" } }));
 });
 
+test("🆕 BP-0025 — runtime_get_monitors declares `unknown`: a parse keeps it, and a wrong type is refused", () => {
+  // The addon names every key asked for that is neither a built-in nor a monitor the game
+  // registered; z.object strips an undeclared key, so the first claim fails without it.
+  const reply = { monitors: { "time/fps": 60, "SynthGround/voices": 7 }, unknown: ["SynthGround/voice"] };
+  assert.deepEqual(schemaOf("runtime_get_monitors").parse(reply).unknown, reply.unknown);
+  assert.throws(() => schemaOf("runtime_get_monitors").parse({ ...reply, unknown: "SynthGround/voice" }));
+});
+
 test("a deliberately WRONG shape is rejected (B1 enforcement)", () => {
   // pong must be boolean.
   assert.throws(() => schemaOf("editor_ping").parse({ pong: "yes", addon_version: "0.4.9", godot: "4.4.1" }), z.ZodError);

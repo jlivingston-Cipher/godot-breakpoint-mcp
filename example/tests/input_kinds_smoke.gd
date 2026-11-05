@@ -2,7 +2,9 @@ extends SceneTree
 ## Headless regression for BP-0041 (addon 1.19.0): the runtime_inject_input kinds and fields
 ## added for TG-1026, the pointer's validation and button bookkeeping, and the viewport block's
 ## shape. BP-0047 (addon 1.20.0): a key carries all three codes, filled from the one given, and
-## so matches an Input Map binding stored either way. Drives the SHIPPED runtime_bridge.gd directly; the bridge is never added to the tree,
+## so matches an Input Map binding stored either way. BP-0025 (addon 1.21.0): the `midi` kind —
+## each message's fields where Godot's driver puts them, the two defaults, and every range
+## refused rather than clamped. Drives the SHIPPED runtime_bridge.gd directly; the bridge is never added to the tree,
 ## so it never listens, and with no viewport the frame-to-window mapping is the identity — the
 ## mapping itself is measured windowed (see pointer_probe.tscn), because a headless display
 ## draws nothing.
@@ -13,7 +15,7 @@ extends SceneTree
 
 const RuntimeBridge := preload("res://addons/breakpoint_mcp/runtime_bridge.gd")
 ## Every check above the completion check (a runtime error aborts only its function).
-const EXPECTED_CHECKS := 29
+const EXPECTED_CHECKS := 47
 
 var _pass := 0
 var _fail := 0
@@ -99,6 +101,35 @@ func _initialize() -> void:
 	_check("pointer.move_tracks_position", rb._pointer_at == Vector2(15, 20))
 	await rb._inject_pointer({"kind": "pointer", "action": "release", "x": 15, "y": 20, "button": MOUSE_BUTTON_RIGHT})
 	_check("pointer.release_clears_mask", int(rb._pointer_mask) == 0)
+
+	# 6. BP-0025: midi. Each message's data lands where Godot's own driver puts it.
+	var on: Variant = rb._midi_event({"kind": "midi", "message": "note_on", "pitch": 60, "velocity": 90, "channel": 9, "device": 2})
+	_check("midi.note_on_fields", on is InputEventMIDI and (on as InputEventMIDI).message == MIDI_MESSAGE_NOTE_ON and (on as InputEventMIDI).pitch == 60 and (on as InputEventMIDI).velocity == 90 and (on as InputEventMIDI).channel == 9 and (on as InputEventMIDI).device == 2)
+	var on_default: Variant = rb._midi_event({"message": "note_on", "pitch": 60})
+	_check("midi.note_on_defaults_velocity_100_channel_0", on_default is InputEventMIDI and (on_default as InputEventMIDI).velocity == 100 and (on_default as InputEventMIDI).channel == 0)
+	var off_default: Variant = rb._midi_event({"message": "note_off", "pitch": 60})
+	_check("midi.note_off_defaults_velocity_0", off_default is InputEventMIDI and (off_default as InputEventMIDI).message == MIDI_MESSAGE_NOTE_OFF and (off_default as InputEventMIDI).velocity == 0)
+	var cc: Variant = rb._midi_event({"message": "control_change", "controller_number": 74, "controller_value": 127})
+	_check("midi.control_change_fields", cc is InputEventMIDI and (cc as InputEventMIDI).controller_number == 74 and (cc as InputEventMIDI).controller_value == 127)
+	var bend: Variant = rb._midi_event({"message": "pitch_bend", "pitch": 16383})
+	_check("midi.pitch_bend_14_bits_in_pitch", bend is InputEventMIDI and (bend as InputEventMIDI).message == MIDI_MESSAGE_PITCH_BEND and (bend as InputEventMIDI).pitch == 16383)
+	var touch: Variant = rb._midi_event({"message": "aftertouch", "pitch": 64, "pressure": 33})
+	_check("midi.aftertouch_pitch_and_pressure", touch is InputEventMIDI and (touch as InputEventMIDI).pitch == 64 and (touch as InputEventMIDI).pressure == 33)
+	var prog: Variant = rb._midi_event({"message": "program_change", "instrument": 5})
+	_check("midi.program_change_instrument", prog is InputEventMIDI and (prog as InputEventMIDI).instrument == 5)
+	var clock: Variant = rb._midi_event({"message": "timing_clock"})
+	_check("midi.transport_needs_no_data", clock is InputEventMIDI and (clock as InputEventMIDI).message == MIDI_MESSAGE_TIMING_CLOCK)
+	_check("midi.injected_reply", bool(_inject(rb, {"kind": "midi", "message": "note_on", "pitch": 60}).get("ok", false)))
+	# Refused, never clamped: a clamped note is a different note.
+	_check("midi.pitch_128_refused", _code(_inject(rb, {"kind": "midi", "message": "note_on", "pitch": 128})) == "bad_event")
+	_check("midi.bend_16384_refused", _code(_inject(rb, {"kind": "midi", "message": "pitch_bend", "pitch": 16384})) == "bad_event")
+	_check("midi.channel_16_refused", _code(_inject(rb, {"kind": "midi", "message": "note_on", "pitch": 60, "channel": 16})) == "bad_event")
+	_check("midi.fraction_refused", _code(_inject(rb, {"kind": "midi", "message": "note_on", "pitch": 60.5})) == "bad_event")
+	_check("midi.string_refused", _code(_inject(rb, {"kind": "midi", "message": "note_on", "pitch": "60"})) == "bad_event")
+	_check("midi.missing_pitch_refused", _code(_inject(rb, {"kind": "midi", "message": "note_on"})) == "bad_event")
+	_check("midi.unknown_message_lists_them", String(_inject(rb, {"kind": "midi", "message": "sysex"}).get("error", {}).get("message", "")).contains("pitch_bend"))
+	_check("midi.transport_with_channel_refused", _code(_inject(rb, {"kind": "midi", "message": "start", "channel": 1})) == "bad_event")
+	_check("midi.bad_kind_lists_midi", String(_inject(rb, {"kind": "nope"}).get("error", {}).get("message", "")).contains("midi"))
 
 	_check("completion.every_check_ran", _pass + _fail == EXPECTED_CHECKS)
 	print("INPUT_KINDS_SUMMARY pass=%d/%d" % [_pass, _pass + _fail])

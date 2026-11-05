@@ -209,6 +209,25 @@ test("tolerate prunes monitors and rosters the key — ABSENT, not null", () => 
   assert.equal(z.object(outputSchemas.runtime_get_monitors).safeParse(out).success, true);
 });
 
+test("🆕 BP-0025 — a game monitor that answers a String is pruned and rostered, and `unknown` survives, on both tolerant tools", () => {
+  // Addon 1.21.0 reads a game's own monitors (Performance.add_custom_monitor), and a game's callable
+  // can return anything. The addon passes a non-number on as read; THIS is the place it must leave.
+  const monitors = tolerate(JSON.parse(
+    '{"monitors":{"ears/voices":3,"ears/label":"not a number","time/fps":60.0},"unknown":["ears/typo"]}',
+  )) as any;
+  assert.deepEqual(monitors.monitors, { "ears/voices": 3, "time/fps": 60 });
+  assert.deepEqual(monitors[NON_FINITE_KEY], ["ears/label"]);
+  assert.deepEqual(z.object(outputSchemas.runtime_get_monitors).parse(monitors).unknown, ["ears/typo"]);
+
+  // assert_perf: the addon neither compares nor counts a String reading; it rides in `monitors`.
+  const perf = tolerate(JSON.parse(
+    '{"ok":true,"checked":1,"regressions":[],"monitors":{"ears/voices":3.0,"ears/label":"not a number"},"unknown":["ears/typo"]}',
+  )) as any;
+  assert.deepEqual(perf.monitors, { "ears/voices": 3 });
+  assert.deepEqual(perf[NON_FINITE_KEY], ["ears/label"]);
+  assert.deepEqual(z.object(outputSchemas.runtime_assert_perf).parse(perf).unknown, ["ears/typo"]);
+});
+
 test("the roster is attached only when there is one", () => {
   const clean = tolerate({ monitors: { "time/fps": 60 } }) as Record<string, unknown>;
   assert.equal(NON_FINITE_KEY in clean, false, "an always-present empty array would be a new required field");

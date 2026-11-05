@@ -268,7 +268,19 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // 28 B is `id` on `godot_run_project`'s output schema. No tool and no input field was added, and
 // `godot_run_project`'s own description did not grow. 312's rule holds: the ceiling sits ON the
 // surface.
-export const BYTES_CEILING = 377959;
+//
+// 🆕 BP-0025 (1.92.0) — RAISED 377,959 -> 378,852, AND WHAT BOUGHT IT IS THE "EARS" RELEASE THE
+// OWNER GRANTED (2026-11-05, ruling B(2) of the 2026-09-30 plan): three general additions a music
+// or rhythm game needs, each through Godot's own interfaces. Measured before and after on the same
+// build: +893 B, model reads 224,079 -> 224,866 (+787). By tool: `runtime_inject_input`'s `midi`
+// kind — `message` (eleven names) and six integer fields with their MIDI ranges, `midi` in the kinds
+// its description lists, and one sentence saying where a bend's 14-bit value goes;
+// `runtime_get_monitors` — one clause naming the game's own monitors; `unknown` on the output
+// schemas of it and `runtime_assert_perf` (a key naming no monitor used to vanish, and a misspelt
+// id left assert_perf at `ok: true, checked: 0`); `runtime_call_method` — one clause saying the path
+// reaches past a colon into what a node holds. No tool was added. `device` and `pressure` were reused rather than duplicated (same types).
+// 312's rule holds: the ceiling sits ON the surface.
+export const BYTES_CEILING = 378852;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

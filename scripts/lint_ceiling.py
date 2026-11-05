@@ -227,7 +227,12 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
         # goes through the file's existing `const assert = population.assert`, the binding
         # TypeScript cannot narrow through, so each pays the tax this row records. Measured on
         # CI (ci 41565945902): 457 against 446.
-        457,
+        # 🆕 333 (BP-0025): raised by FIVE, same idiom, one file. `inject-input.integration.mjs`
+        # gained INPUT_LIVE_MIDI — three MIDI messages must arrive in `_input` with every field as
+        # sent, and an out-of-range pitch must be refused with nothing delivered — through the
+        # file's existing `const assert = population.assert`. Measured on CI (ci 42113958554):
+        # 462 against 457.
+        462,
         "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "

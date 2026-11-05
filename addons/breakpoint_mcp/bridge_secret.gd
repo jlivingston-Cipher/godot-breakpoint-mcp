@@ -114,7 +114,10 @@ static func runtime_switch_on(env_value: String, user_args: PackedStringArray) -
 ## 🆕 BP-0037 — whether this project is in strict mode. Strict only on a real `true`: a
 ## missing setting, or any other value, is the 1.x default (not strict).
 static func runtime_strict(setting_value: Variant) -> bool:
-	return typeof(setting_value) == TYPE_BOOL and bool(setting_value)
+	if typeof(setting_value) != TYPE_BOOL:
+		return false
+	var on: bool = setting_value  # a bool already: BP-0025's strict-typing form of bool(setting_value)
+	return on
 
 
 ## A development run is an EDITOR build that is NOT an export TEMPLATE. Both are compiled-in

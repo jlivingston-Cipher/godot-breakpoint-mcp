@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import { registerRuntimeTools } from "../src/tools/runtime.js";
 import fs from "node:fs";
 import os from "node:os";
@@ -515,6 +516,33 @@ test("runtime_inject_input forwards a pointer gesture to the bridge unchanged", 
   assert.notEqual(r.isError, true);
   assert.equal(h.calls[0].method, "runtime.inject_input");
   assert.deepEqual(h.calls[0].params, { event });
+});
+
+test("🆕 BP-0025 — runtime_inject_input takes a midi event, and its schema refuses a value outside the MIDI range", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { injected: true, kind: "midi" });
+  const event = { kind: "midi", message: "note_on", channel: 9, pitch: 60, velocity: 90 };
+  const r = await h.handler("runtime_inject_input")({ event, confirm: true });
+  assert.notEqual(r.isError, true);
+  assert.deepEqual(h.calls[0].params, { event });
+  const shape = z.object(h.tools.get("runtime_inject_input")!.config.inputSchema as Record<string, z.ZodTypeAny>);
+  const ok = (e: Record<string, unknown>) => shape.safeParse({ event: e }).success;
+  assert.equal(ok(event), true);
+  assert.equal(ok({ kind: "midi", message: "pitch_bend", pitch: 16383 }), true, "a bend's 14-bit value rides in pitch");
+  assert.equal(ok({ kind: "midi", message: "control_change", controller_number: 74, controller_value: 127 }), true);
+  assert.equal(ok({ kind: "midi", message: "start" }), true);
+  assert.equal(ok({ kind: "midi", message: "note_on", pitch: 60, velocity: 128 }), false, "velocity tops out at 127");
+  assert.equal(ok({ kind: "midi", message: "note_on", pitch: 60, channel: 16 }), false, "channels are 0 to 15");
+  assert.equal(ok({ kind: "midi", message: "pitch_bend", pitch: 16384 }), false);
+  assert.equal(ok({ kind: "midi", message: "sysex" }), false, "an unknown message is refused at the door");
+});
+
+test("🆕 BP-0025 — runtime_call_method forwards a path into what a node holds unchanged", async () => {
+  const h = makeHarness();
+  h.setBridge("resolve", { return: 0.25 });
+  const r = await h.handler("runtime_call_method")({ path: "Synth:patch", method: "set_cutoff", args: [0.25], confirm: true });
+  assert.notEqual(r.isError, true);
+  assert.deepEqual(h.calls[0].params, { path: "Synth:patch", method: "set_cutoff", args: [0.25] });
 });
 
 // ----------------------------------------------------------- F8: await/anim/node ----

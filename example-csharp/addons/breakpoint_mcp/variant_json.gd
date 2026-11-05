@@ -6,6 +6,21 @@ extends RefCounted
 ## types (Vector*, Color, Rect2, NodePath, Quaternion, ...) are encoded as tagged
 ## objects: {"__type__": "Vector3", "x": .., "y": .., "z": ..}. `decode()` turns
 ## those tags back into real Variants so property set/get round-trips correctly.
+##
+## 🆕 BP-0025 (addon 1.21.0): this file, and every script a running game loads, parse
+## cleanly in a project that raises Godot's five typing warnings to errors
+## (`untyped_declaration` and the four `unsafe_*`) and does not exempt res://addons —
+## measured on 4.2.2, 4.3, 4.5 and 4.7. The editor-side scripts do not yet (BP-0055).
+##
+## 🔴 HOW: AN IGNORE ON EACH CONVERSION'S OWN STATEMENT, NOT A HELPER. `int(x)` of a Variant the
+## analyzer cannot type is the warning, and the conversions stay exactly where they were so that
+## a value that cannot convert still stops the handler it is in. A helper would not: a failed
+## constructor aborts only the function it runs in, so `to_int(null)` hands its caller 0 and the
+## caller carries on — a silent default where there used to be a stop (measured on 4.3 and 4.7;
+## caught by session 333's review before it shipped). The ignore sits on the statement, not the
+## function: 4.5 and 4.7 do not carry a function-level ignore into the body, and 4.2 does not
+## carry one on an `if` into its condition, so a conversion an `if` tests is hoisted into a
+## local first (all measured).
 
 
 static func encode(v: Variant) -> Variant:
@@ -16,9 +31,9 @@ static func encode(v: Variant) -> Variant:
 		TYPE_STRING:
 			return v
 		TYPE_STRING_NAME:
-			return String(v)
+			return str(v)
 		TYPE_NODE_PATH:
-			return {"__type__": "NodePath", "path": String(v)}
+			return {"__type__": "NodePath", "path": str(v)}
 		TYPE_VECTOR2:
 			return {"__type__": "Vector2", "x": v.x, "y": v.y}
 		TYPE_VECTOR2I:
@@ -40,69 +55,88 @@ static func encode(v: Variant) -> Variant:
 		TYPE_QUATERNION:
 			return {"__type__": "Quaternion", "x": v.x, "y": v.y, "z": v.z, "w": v.w}
 		TYPE_DICTIONARY:
+			# 🆕 BP-0025: `str(k)`, not `String(k)`. Godot 4's String() constructor takes only
+			# String, StringName and NodePath, so a Dictionary keyed by int — {1: "a"} — used to
+			# abort the encode with "Nonexistent 'String' constructor" (measured on 4.7).
+			var d: Dictionary = v
 			var out := {}
-			for k in v:
-				out[String(k)] = encode(v[k])
+			for k: Variant in d:
+				out[str(k)] = encode(d[k])
 			return out
 		TYPE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY, \
 		TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY, \
 		TYPE_PACKED_STRING_ARRAY, TYPE_PACKED_VECTOR2_ARRAY, \
 		TYPE_PACKED_VECTOR3_ARRAY, TYPE_PACKED_COLOR_ARRAY:
 			var arr := []
-			for item in v:
+			for item: Variant in v:
 				arr.append(encode(item))
 			return arr
 		TYPE_OBJECT:
 			if v == null:
 				return null
 			if v is Resource:
+				var res: Resource = v
 				return {
 					"__type__": "Resource",
-					"class": v.get_class(),
-					"path": v.resource_path,
+					"class": res.get_class(),
+					"path": res.resource_path,
 				}
-			return {"__type__": "Object", "class": v.get_class()}
+			var obj: Object = v
+			return {"__type__": "Object", "class": obj.get_class()}
 		_:
 			# Fallback: best-effort string representation for unhandled types.
 			return {"__type__": "Unsupported", "repr": str(v), "type_id": t}
 
 
+## 🆕 BP-0025: the constructors below take the tag's Variant fields exactly as they always
+## did — each statement carries the analyzer's ignore rather than a conversion, because a
+## conversion would change what a malformed field does (`float("abc")` is 0.0; a String
+## handed to `Vector2()` is an error, and stays one).
 static func decode(j: Variant) -> Variant:
 	if typeof(j) == TYPE_DICTIONARY:
-		if j.has("__type__"):
-			match String(j["__type__"]):
+		var jd: Dictionary = j
+		if jd.has("__type__"):
+			match str(jd["__type__"]):
 				"NodePath":
-					return NodePath(String(j.get("path", "")))
+					return NodePath(str(jd.get("path", "")))
 				"Vector2":
-					return Vector2(j.get("x", 0.0), j.get("y", 0.0))
+					@warning_ignore("unsafe_call_argument")
+					return Vector2(jd.get("x", 0.0), jd.get("y", 0.0))
 				"Vector2i":
-					return Vector2i(int(j.get("x", 0)), int(j.get("y", 0)))
+					@warning_ignore("unsafe_call_argument")
+					return Vector2i(int(jd.get("x", 0)), int(jd.get("y", 0)))
 				"Vector3":
-					return Vector3(j.get("x", 0.0), j.get("y", 0.0), j.get("z", 0.0))
+					@warning_ignore("unsafe_call_argument")
+					return Vector3(jd.get("x", 0.0), jd.get("y", 0.0), jd.get("z", 0.0))
 				"Vector3i":
-					return Vector3i(int(j.get("x", 0)), int(j.get("y", 0)), int(j.get("z", 0)))
+					@warning_ignore("unsafe_call_argument")
+					return Vector3i(int(jd.get("x", 0)), int(jd.get("y", 0)), int(jd.get("z", 0)))
 				"Vector4":
-					return Vector4(j.get("x", 0.0), j.get("y", 0.0), j.get("z", 0.0), j.get("w", 0.0))
+					@warning_ignore("unsafe_call_argument")
+					return Vector4(jd.get("x", 0.0), jd.get("y", 0.0), jd.get("z", 0.0), jd.get("w", 0.0))
 				"Color":
-					return Color(j.get("r", 0.0), j.get("g", 0.0), j.get("b", 0.0), j.get("a", 1.0))
+					@warning_ignore("unsafe_call_argument")
+					return Color(jd.get("r", 0.0), jd.get("g", 0.0), jd.get("b", 0.0), jd.get("a", 1.0))
 				"Rect2":
-					return Rect2(j.get("x", 0.0), j.get("y", 0.0), j.get("w", 0.0), j.get("h", 0.0))
+					@warning_ignore("unsafe_call_argument")
+					return Rect2(jd.get("x", 0.0), jd.get("y", 0.0), jd.get("w", 0.0), jd.get("h", 0.0))
 				"Quaternion":
-					return Quaternion(j.get("x", 0.0), j.get("y", 0.0), j.get("z", 0.0), j.get("w", 1.0))
+					@warning_ignore("unsafe_call_argument")
+					return Quaternion(jd.get("x", 0.0), jd.get("y", 0.0), jd.get("z", 0.0), jd.get("w", 1.0))
 				"Resource":
-					var path := String(j.get("path", ""))
+					var path := str(jd.get("path", ""))
 					if path != "" and ResourceLoader.exists(path):
 						return ResourceLoader.load(path)
 					return null
 				_:
 					return null
 		var out := {}
-		for k in j:
-			out[k] = decode(j[k])
+		for k: Variant in jd:
+			out[k] = decode(jd[k])
 		return out
 	elif typeof(j) == TYPE_ARRAY:
 		var arr := []
-		for item in j:
+		for item: Variant in j:
 			arr.append(decode(item))
 		return arr
 	return j
@@ -194,5 +228,6 @@ static func _is_packed_array(t: int) -> bool:
 ## are the same answer.
 static func values_equal(asked: Variant, got: Variant) -> bool:
 	if _is_numeric(typeof(asked)) and _is_numeric(typeof(got)):
+		@warning_ignore("unsafe_call_argument")
 		return is_equal_approx(float(asked), float(got))
 	return asked == got

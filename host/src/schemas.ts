@@ -750,9 +750,13 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
   // `monitors` and named in `non_finite` — it is NOT `null`. The value type does not move,
   // so this schema is byte-identical to v1.73.4 apart from the optional roster, and
   // arithmetic over `Object.values(monitors)` keeps working on every key it can see.
+  // 🆕 BP-0025 (addon 1.21.0) — `monitors` also carries the game's own custom monitors, by the id
+  // they were registered under, and `unknown` names every key asked for that is neither a
+  // built-in nor registered. Before 1.21.0 such a key vanished without a word.
   runtime_get_monitors: { ...engineLog,
     monitors: z.record(z.string(), z.number()),
     non_finite: z.array(z.string()).optional(),
+    unknown: z.array(z.string()).optional(),
   },
   runtime_get_log: { ...engineLog,
     entries: z.array(z.object({ seq: z.number(), level: z.string(), message: z.string() })),
@@ -802,6 +806,9 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     ),
     monitors: z.record(z.string(), z.number()),
     non_finite: z.array(z.string()).optional(),
+    // 🆕 BP-0025 (addon 1.21.0) — baseline keys that name no monitor, built-in or registered:
+    // skipped as before, and named, so `ok: true, checked: 0` over a misspelt id is visible.
+    unknown: z.array(z.string()).optional(),
   },
   runtime_assert_screen_text: { ...engineLog,
     ok: z.boolean(),

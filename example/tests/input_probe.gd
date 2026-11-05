@@ -21,7 +21,8 @@ extends Node2D
 ## Two instruments, because the branches are observable in two different ways:
 ##
 ##   * key / mouse_button / mouse_motion arrive as real InputEvents, so _input records
-##     them and the probe reads the counters back with runtime_get_property.
+##     them and the probe reads the counters back with runtime_get_property. So does
+##     midi (BP-0025, addon 1.21.0): an InputEventMIDI through the same pipeline.
 ##   * `action` does NOT. Input.action_press writes InputMap state directly and
 ##     generates no InputEvent at all (measured: 0 events across a press/release pair),
 ##     so the action lane is polled in _process instead. total_events is what makes
@@ -39,6 +40,16 @@ var last_button_position := Vector2.ZERO
 var motion_count := 0
 var last_motion_position := Vector2.ZERO
 var last_motion_relative := Vector2.ZERO
+# BP-0025: every field a MIDI message can carry, as it ARRIVED — the probe compares each one
+# with what it sent, so a field the bridge left at its default is a visible miss.
+var midi_count := 0
+var last_midi_message := 0
+var last_midi_channel := 0
+var last_midi_pitch := 0
+var last_midi_velocity := 0
+var last_midi_controller_number := 0
+var last_midi_controller_value := 0
+var last_midi_device := 0
 
 # --- InputMap lane: action state, sampled every frame -------------------------
 # Both actions are declared in project.godot with no events; _bind_probe_action() below
@@ -104,6 +115,16 @@ func _input(event: InputEvent) -> void:
 		motion_count += 1
 		last_motion_position = mm.position
 		last_motion_relative = mm.relative
+	elif event is InputEventMIDI:
+		var md := event as InputEventMIDI
+		midi_count += 1
+		last_midi_message = md.message
+		last_midi_channel = md.channel
+		last_midi_pitch = md.pitch
+		last_midi_velocity = md.velocity
+		last_midi_controller_number = md.controller_number
+		last_midi_controller_value = md.controller_value
+		last_midi_device = md.device
 
 
 func _process(_delta: float) -> void:
