@@ -10144,6 +10144,57 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 61 addon / 0 problems
 > ```
 """),
+    # 🆕 332 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 331 DID NOT WRITE, AS AT 327 THROUGH 331.
+    # `HANDOFF_SESSION331.md` was drafted at 332 by `--emit-handoff 331 ../HANDOFF_SESSION330.md
+    # --measured ci331/` with the tree AT edcd7b1 (332's edits set aside and restored after, nothing
+    # stashed) and the artifacts of #436's post-merge `ci` run 42079412026 (7/7 success). MOVED +1 is
+    # 31e2040..edcd7b1 (#436's squash, which carried 330's block, BP-0050 and the cut in one tree).
+    # `untagged 0` because `v1.91.0` names edcd7b1 itself; `unshipped 0` because `git diff v1.91.0
+    # edcd7b1 -- host/src host/package.json addons` is empty. Three counters read by hand from those
+    # artifacts, as at 323 and 326 through 331: 27 CI jobs (ci 7 + integration 20, every job success;
+    # integration 42079412130), `0 exempt` (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER), `exempt
+    # 43` (FLOOR_PIN_REASON); all three agree with the draft. The commit subject on the `main` row drops
+    # its three ledger IDs and "and 330's block": MOVED_POPULATION reads every numeral in that atom, and
+    # neither a ledger ID nor a session number is a count (git holds the full subject).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `HOST MOVED`, NOT `MOVED`, AND NOT A WORD OF `unmoved`. The cut
+    # moved the host and left the addon at 1.20.0, which is `SENSE_ASKS["HOST"]`; `host_row_claim`
+    # reads `\bUNMOVED\b` case-blind before anything else, so "addons/ unmoved" would have made the
+    # row claim UNMOVED against a 1.90.0 -> 1.91.0 pair. Precedent: 1.85.1 and 1.86.0.
+    #
+    # 🟡 THE ASSET LIBRARY ROW IS PENDING, AS AT 328 AND 331. Asset 5335 answers 1.19.0 at be9c655
+    # (modified 2026-11-03 20:08Z); edit 24857 (1.20.0, submitted 2026-11-05 07:03Z) is `new`, waiting
+    # on a moderator. The 1.91.0 cut owes no edit of its own. `QUEUE_HEAD` moves 331 -> 332, the
+    # session that registers it; 332 commits, so no `BLOCK_ABSENT` row.
+    (331, """> ```
+> main                 edcd7b1 — session331 release 1.91.0 — godot_stop stops the game godot_run_project started, the SDK read by the job (#436)  MOVED +1
+> branch 331           session331-sdk-read-and-stop · PR #436
+> host / addon         1.91.0 / 1.20.0  🟢 HOST MOVED — the 1.91.0 cut; addons/ untouched
+> npm                  🟢 registry 1.91.0 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.19.0 live · 1.20.0 submitted, pending moderation
+> 🟢 CI GREEN — 27 of 27 required checks at the merge (ci 7 + integration 20), post-merge run 42079412026 at edcd7b1
+> 🟢 registry_lag PASSES ON THE NUMBER THAT MATTERS — unshipped 0 against a ceiling of 6
+> 🟢 VERIFIED AFTER THE CHANGE   1028/1028 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3526 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2533 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 334 file(s) / 21 suffixes · seal 106
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 295 tools / 3953 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5318
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 681 claims · landscape 4 channel(s) / 57 analysed / 65 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 35 past / 14 never analysed
+>               · identity 72 of 122 / 2 renamed / 0 collisions
+>               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 61 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
