@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import zlib from "node:zlib";
-import { parseWav, analyze, compare, kWeighting, spectrogram, stack, encodePng, WavError, OCTAVES, channelWeights } from "../src/hearing.js";
+import { parseWav, analyze, compare, kWeighting, spectrogram, stack, encodePng, WavError, OCTAVES, channelWeights, demuxAviSound, AviError } from "../src/hearing.js";
 
 type Kind = "u8" | "i16" | "i24" | "i32" | "f32";
 /** A WAV in memory; `ext` writes WAVE_FORMAT_EXTENSIBLE (with `mask` as its speaker mask). */
@@ -209,4 +209,89 @@ test("the picture: a well-formed PNG whose 1 kHz row is the brightest, and a sta
   assert.ok(Math.abs(best - want) <= 3, `brightest row ${best}, 1 kHz row ${want}`);
   const st = stack(r, r);
   assert.equal(st.height, 206 * 2 + 4); assert.equal(st.width, 375);
+});
+
+// ---- 🆕 BP-0063 (336): the sound inside a Movie Maker AVI ---------------------------------------
+
+/** A chunk: id, little-endian size, body, and the pad byte RIFF puts after an odd body. */
+const chunk = (id: string, body: Buffer, size = body.length): Buffer => {
+  const h = Buffer.alloc(8); h.write(id, 0, "latin1"); h.writeUInt32LE(size, 4);
+  return Buffer.concat([h, body, Buffer.alloc(body.length & 1)]);
+};
+const list = (kind: string, parts: Buffer[], size?: number): Buffer => {
+  const b = Buffer.concat([Buffer.from(kind, "latin1"), ...parts]);
+  return chunk("LIST", b, size ?? b.length);
+};
+/**
+ * An AVI laid out the way Godot's MJPEG writer lays one out (measured on 4.3's and 4.7.1's at 336):
+ * hdrl with a `vids` then an `auds` stream, then `movi` holding one picture chunk `00db` and one
+ * sound chunk `01wb` per frame, then `idx1`. `pcm16` is interleaved 16-bit sound, split evenly.
+ */
+function avi(pcm16: Buffer, frames: number, channels: number, opts: { picture?: number; zeroSizes?: boolean; noSound?: boolean } = {}): Buffer {
+  const pic = opts.picture ?? 5, align = channels * 2, per = Math.floor(pcm16.length / align / frames) * align;
+  const strh = (kind: string): Buffer => { const b = Buffer.alloc(48); b.write(kind, 0, "latin1"); return chunk("strh", b); };
+  const fmt = Buffer.alloc(16);
+  fmt.writeUInt16LE(1, 0); fmt.writeUInt16LE(channels, 2); fmt.writeUInt32LE(48000, 4);
+  fmt.writeUInt32LE(48000 * align, 8); fmt.writeUInt16LE(align, 12); fmt.writeUInt16LE(16, 14);
+  const streams = [list("strl", [strh("vids"), chunk("strf", Buffer.alloc(40))])];
+  if (!opts.noSound) streams.push(list("strl", [strh("auds"), chunk("strf", fmt)]));
+  const hdrl = list("hdrl", [chunk("avih", Buffer.alloc(56)), ...streams]);
+  const movi: Buffer[] = [];
+  for (let f = 0; f < frames; f++) {
+    movi.push(chunk("00db", Buffer.alloc(pic, 0xd8)));
+    if (!opts.noSound) movi.push(chunk("01wb", pcm16.subarray(f * per, (f + 1) * per)));
+  }
+  const z = opts.zeroSizes ? 0 : undefined;
+  const body = Buffer.concat([Buffer.from("AVI ", "latin1"), hdrl, list("movi", movi, z), ...(opts.zeroSizes ? [] : [chunk("idx1", Buffer.alloc(16 * frames))])]);
+  // Godot leaves bytes past the index (the 336 capture had 70); the walk must stop at idx1, not read them.
+  return Buffer.concat([chunk("RIFF", body, z ?? body.length), ...(opts.zeroSizes ? [] : [Buffer.from([0x8e, 0x00, 0x80, 0x0c, 1, 2, 3])])]);
+}
+/** A reader over `b` that records every range it was asked for. */
+const reader = (b: Buffer) => {
+  const asked: Array<[number, number]> = [];
+  return { asked, read: (pos: number, len: number): Buffer => { asked.push([pos, len]); return b.subarray(pos, pos + len); } };
+};
+/** The 16-bit interleaved samples Movie Maker's AVI carries for `chans`. */
+const int16 = (chans: number[][]): Buffer => wav(chans, 48000, "i16").subarray(44);
+
+test("an AVI's sound is re-wrapped byte for byte, and its pictures are counted without being read", () => {
+  const l = sine(1000, 0.25, 0.5), r = sine(1000, 0.25, 0.5, 48000, 1), samples = int16([l, r]);
+  const file = avi(samples, 30, 2, { picture: 4001 });
+  const { asked, read } = reader(file);
+  const got = demuxAviSound(read, file.length);
+  assert.equal(got.videoFrames, 30, "one picture chunk per frame is counted");
+  assert.equal(got.truncated, false, "a closed movie is not reported cut short");
+  assert.deepEqual(got.wav.subarray(44), samples, "the WAV's data is the movie's sound chunks, concatenated, unchanged");
+  const pcm = parseWav(got.wav), ref = analyze(parseWav(wav([l, r], 48000, "i16")));
+  assert.equal(pcm.bits, 16); assert.equal(pcm.channels, 2); assert.equal(pcm.frames, l.length);
+  assert.equal(analyze(pcm).peak_dbfs, ref.peak_dbfs, "the tone measures as the same tone written as a plain WAV");
+  const biggest = Math.max(...asked.map(([, n]) => n));
+  assert.ok(biggest < 4001, `no read reached into a 4001-byte picture (largest read ${biggest} bytes)`);
+});
+
+test("an AVI's sizes are not trusted: zeroed RIFF and LIST sizes, no index, a file cut inside a sound chunk", () => {
+  const x = sine(440, 0.5, 0.25), samples = int16([x, x]);
+  const whole = avi(samples, 10, 2, { zeroSizes: true });
+  assert.deepEqual(demuxAviSound(reader(whole).read, whole.length).wav.subarray(44), samples, "sizes of 0 (a run stopped before Movie Maker closed the movie) read to the end");
+  const cut = whole.subarray(0, whole.length - 1001);
+  const got = demuxAviSound(reader(cut).read, cut.length);
+  assert.equal(got.truncated, true, "a movie that ends inside a chunk says so");
+  assert.equal(parseWav(got.wav).frames, (samples.length - 1001 - ((samples.length - 1001) % 4)) / 4, "the sound stops at its last whole sample");
+});
+
+test("an AVI with an odd-length picture still demuxes; no sound stream, or not an AVI, is refused", () => {
+  const x = sine(1000, 0.25, 0.1), samples = int16([x]);
+  const odd = avi(samples, 6, 1, { picture: 7 });
+  assert.deepEqual(demuxAviSound(reader(odd).read, odd.length).wav.subarray(44), samples, "the pad byte after a 7-byte picture is stepped over");
+  const silent = avi(samples, 6, 1, { noSound: true });
+  assert.throws(() => demuxAviSound(reader(silent).read, silent.length), (e: unknown) => e instanceof AviError && /no sound stream/.test(e.message));
+  const notAvi = wav([x], 48000, "i16");
+  assert.throws(() => demuxAviSound(reader(notAvi).read, notAvi.length), (e: unknown) => e instanceof AviError && /not a RIFF\/AVI/.test(e.message));
+});
+
+test("compare says when the two files differ in bit depth (on 4.7, godot_record's 16-bit default against a 32-bit keep_frames take)", () => {
+  const s = sine(1000, 0.25, 1);
+  const c = compare(analyze(parseWav(wav([s, s], 48000, "i32"))), analyze(parseWav(wav([s, s], 48000, "i16"))));
+  assert.deepEqual(c.notes, ["bit depths differ: 32 vs 16"]);
+  assert.ok(within(c.delta.peak_dbfs, 0, 0.001), `requantising alone moves the peak by ${c.delta.peak_dbfs} dB, not more than 0.001`);
 });

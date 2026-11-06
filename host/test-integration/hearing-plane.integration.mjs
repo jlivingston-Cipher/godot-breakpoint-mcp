@@ -36,7 +36,7 @@ const population = new Population("HEARING_LIVE", {
     "HEARING_LIVE_REVERSE", "HEARING_LIVE_REFUSALS",
   ],
   scope: 10,
-  claims: 34,
+  claims: 41,
 });
 // 🔴 ANNOTATED, SO THIS FILE PAYS NO `TS2775`. `checkJs` will not narrow through an assertion
 // function reached by an un-annotated binding, which is the tax `scripts/lint_ceiling.py`'s TS2775
@@ -93,12 +93,25 @@ near(a1.dominant_hz, 1000, 2, "dominant");
 assert.equal(a1.clipped_samples, 0);
 population.seal("HEARING_LIVE_TONE", `ok ${a1.dominant_hz} Hz, 0 clipped`);
 
-// 6. The PNG frames Movie Maker wrote are deleted unless `keep_frames`: only the WAV remains.
+// 6. 🆕 BP-0063 (336): by default Movie Maker writes one AVI, the host keeps its sound and deletes
+// it, and no picture is ever written as a file. One picture per frame, exactly: 2 s at 60 fps.
+// The AVI's sound is the engine's depth — 32-bit on 4.2 to 4.5, 16-bit on 4.7 (measured at 336) —
+// and the level above was read from it. With `keep_frames` it is the PNG route instead: the frames
+// stay and the WAV is the 32-bit mix on every version.
+const recDir = (wav) => path.join(cfg.projectPath, path.dirname(wav.slice("res://".length)));
 assert.equal(s1.frames_dir, null);
-assert.ok(s1.frames > 0, `no frames were reported written (${s1.frames})`);
-const recDir = path.join(cfg.projectPath, path.dirname(s1.wav.slice("res://".length)));
-assert.equal(fs.readdirSync(recDir).filter((f) => f.endsWith(".png")).length, 0);
-population.seal("HEARING_LIVE_FRAMES", `ok ${s1.frames} frames written, none kept`);
+assert.equal(s1.frames, 120, `the AVI held ${s1.frames} pictures, not one per frame of 2 s at 60 fps`);
+assert.ok(a1.bits === 16 || a1.bits === 32, `the default route's sound is ${a1.bits}-bit, neither of the AVI writer's two depths`);
+assert.deepEqual(fs.readdirSync(recDir(s1.wav)), ["sound.wav"], "only the WAV is left: no movie, no picture");
+const rk = await raw("godot_record", { scene: SCENE, seconds: 1, keep_frames: true });
+assert.equal(rk.isError, undefined, `godot_record (keep_frames) failed: ${rk.content?.[0]?.text}`);
+const sk = rk.structuredContent;
+assert.equal(sk.frames_dir, `res://${path.dirname(sk.wav.slice("res://".length))}`);
+assert.equal(fs.readdirSync(recDir(sk.wav)).filter((f) => /^frame\d+\.png$/.test(f)).length, sk.frames);
+assert.equal(sk.frames, 60, `keep_frames kept ${sk.frames} frames, not one per frame of 1 s at 60 fps`);
+assert.equal(sk.analysis.bits, 32, `the PNG route's sound is ${sk.analysis.bits}-bit, not the engine's 32`);
+near(sk.analysis.peak_dbfs, -12.04, 0.02, "peak (keep_frames)");
+population.seal("HEARING_LIVE_FRAMES", `ok ${s1.frames} pictures in one AVI, none kept, ${a1.bits}-bit; keep_frames kept ${sk.frames} PNGs, 32-bit`);
 
 // 7. The same scene at +18 dB: the engine's mixer clips, and the analysis has to say so.
 const r2 = await raw("godot_record", { scene: SCENE, seconds: 2, user_args: ["--hearing-gain-db=18"], compare_to: s1.wav });
@@ -142,7 +155,7 @@ for (const [tool, args, param] of [
 }
 population.seal("HEARING_LIVE_REFUSALS", "ok not-a-WAV, outside, option-shaped scene, three res://..");
 
-for (const w of [s1.wav, r2.structuredContent.wav]) {
+for (const w of [s1.wav, sk.wav, r2.structuredContent.wav]) {
   fs.rmSync(path.join(cfg.projectPath, path.dirname(w.slice("res://".length))), { recursive: true, force: true });
 }
 console.log(`HEARING_LIVE_RESULT peak=${a1.peak_dbfs} rms=${a1.rms_dbfs} lufs=${a1.loudness_lufs} clipped=${a2.clipped_samples}`);

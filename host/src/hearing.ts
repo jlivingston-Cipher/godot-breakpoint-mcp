@@ -106,6 +106,83 @@ export function parseWav(buf: Buffer): Pcm {
   return { rate, channels, frames, bits, float, data: out, nonfinite, mask };
 }
 
+// ---- the sound inside a Movie Maker AVI -------------------------------------------------------
+
+/** An AVI this module cannot take the sound out of; the message says why, the tool says what to do. */
+export class AviError extends Error {}
+
+/** What `demuxAviSound` takes out of an AVI: the sound as a WAV, and how many pictures it skipped. */
+export interface AviSound {
+  /** A RIFF/WAVE file: the audio stream's own `strf` as its `fmt `, its sample chunks as `data`. */
+  wav: Buffer;
+  /** Picture chunks of the video stream, one per frame Movie Maker wrote. */
+  videoFrames: number;
+  /** The file ended inside a chunk (a run stopped before Movie Maker closed it). */
+  truncated: boolean;
+}
+
+const CHUNK_ID = /^[\x20-\x7e]{4}$/;
+
+/**
+ * 🆕 BP-0063 (336) — THE SOUND OF A MOVIE MAKER AVI, READ WITHOUT READING ITS PICTURES.
+ * Godot's MJPEG writer interleaves one picture chunk (`00db`) and one sound chunk (`01wb`) per
+ * frame, and the audio stream's `strf` is a WAVEFORMATEX — the body of a WAV `fmt ` chunk — so
+ * the sound is re-wrapped as a WAV with no conversion, at whatever depth the engine wrote. Measured
+ * at 336: 4.2.2, 4.3 and 4.5 write the 32-bit mix the PNG writer saves (4.3: byte for byte); 4.7.1
+ * writes that mix shifted right by 16, so 16-bit (960,000 of 960,000 samples equal). Nothing is
+ * resampled, converted or dithered here.
+ *
+ * `read(pos, len)` returns up to `len` bytes at `pos`, so a 3 GB movie is walked a chunk header
+ * at a time and only the sound is ever held. No RIFF or LIST size is trusted: Movie Maker writes
+ * them when the movie ends (a run stopped at the time limit leaves them unwritten) and they are
+ * 32-bit (a movie over 4 GB wraps them). Every LIST is descended into instead, in file order,
+ * and the walk ends at the index, at the end of the file, or at bytes that are not a chunk.
+ */
+export function demuxAviSound(read: (pos: number, len: number) => Buffer, size: number): AviSound {
+  const head = read(0, 12);
+  if (head.length < 12 || head.toString("latin1", 0, 4) !== "RIFF" || head.toString("latin1", 8, 12) !== "AVI ") {
+    throw new AviError("not a RIFF/AVI file");
+  }
+  let off = 12, stream = -1, audio = -1, video = -1, videoFrames = 0, bytes = 0, truncated = false;
+  let fmt: Buffer | null = null;
+  const parts: Buffer[] = [];
+  const tag = (n: number): string => String(n).padStart(2, "0");
+  while (off + 8 <= size) {
+    const h = read(off, 8);
+    if (h.length < 8) break;
+    const id = h.toString("latin1", 0, 4), len = h.readUInt32LE(4), body = off + 8;
+    if (!CHUNK_ID.test(id) || id === "idx1") break;
+    if (id === "RIFF" || id === "LIST") { off = body + 4; continue; }
+    const take = Math.max(0, Math.min(len, size - body));
+    if (take < len) truncated = true;
+    if (id === "strh") {
+      stream++;
+      const kind = read(body, 4).toString("latin1");
+      if (kind === "auds" && audio < 0) audio = stream;
+      else if (kind === "vids" && video < 0) video = stream;
+    } else if (id === "strf" && stream === audio && fmt === null) fmt = read(body, take);
+    else if (audio >= 0 && id === `${tag(audio)}wb`) { const b = read(body, take); parts.push(b); bytes += b.length; }
+    else if (video >= 0 && (id === `${tag(video)}db` || id === `${tag(video)}dc`)) videoFrames++;
+    off = body + len + (len & 1);
+  }
+  if (audio < 0) throw new AviError("it has no sound stream");
+  if (!fmt || fmt.length < 16) throw new AviError("its sound stream has no format to read the samples by");
+  const align = fmt.readUInt16LE(12);
+  const data = Buffer.concat(parts, bytes);
+  const whole = align > 0 ? data.subarray(0, data.length - (data.length % align)) : data;
+  const pad = fmt.length & 1;
+  const out = Buffer.alloc(12 + 8 + fmt.length + pad + 8);
+  out.write("RIFF", 0, "latin1");
+  out.writeUInt32LE(4 + 8 + fmt.length + pad + 8 + whole.length, 4);
+  out.write("WAVE", 8, "latin1");
+  out.write("fmt ", 12, "latin1");
+  out.writeUInt32LE(fmt.length, 16);
+  fmt.copy(out, 20);
+  out.write("data", 20 + fmt.length + pad, "latin1");
+  out.writeUInt32LE(whole.length, 24 + fmt.length + pad);
+  return { wav: Buffer.concat([out, whole]), videoFrames, truncated };
+}
+
 // ---- small numerics ---------------------------------------------------------------------------
 
 const round = (v: number, d: number): number => Math.round(v * 10 ** d) / 10 ** d;
@@ -495,6 +572,10 @@ export function compare(a: Analysis, b: Analysis): Comparison {
   const notes: string[] = [];
   if (a.sample_rate !== b.sample_rate) notes.push(`sample rates differ: ${a.sample_rate} vs ${b.sample_rate}`);
   if (a.channels !== b.channels) notes.push(`channel counts differ: ${a.channels} vs ${b.channels}`);
+  // 🆕 BP-0063 (336): on Godot 4.7 godot_record's sound is 16-bit by default and 32-bit with
+  // keep_frames, so a comparison across the two says so; the requantisation alone moves a level by
+  // about 0.001 dB.
+  if (a.bits !== b.bits) notes.push(`bit depths differ: ${a.bits} vs ${b.bits}`);
   if (Math.abs(a.duration_s - b.duration_s) > 0.05) notes.push(`durations differ by ${round(b.duration_s - a.duration_s, 3)} s`);
   return {
     delta,

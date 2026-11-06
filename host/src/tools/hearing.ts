@@ -13,11 +13,24 @@
 // ci327/moviemaker_headless_crash.log). Movie Maker needs a real renderer, so the run is windowed.
 // A GDScript MovieWriter cannot be registered in time either (main.cpp picks the writer before
 // autoloads), and AudioServer binds no method that reads the master output from script, so the
-// engine's own PNG+WAV writer is the one clean source of a running game's mixed sound.
+// engine's own movie writers are the one clean source of a running game's mixed sound.
 //
 // 334 measured the fixture (example/tests/hearing_probe.tscn, a 1 kHz sine at 0.25) on 4.7: 120
 // frames at 60 fps -> a 32-bit stereo 48 kHz WAV of exactly 96000 frames, peak -12.041 dBFS, RMS
 // -15.052 dBFS, sound from sample 67, in 4.5 s of wall time.
+//
+// 🆕 BP-0063 (336) — AND BY DEFAULT IT NO LONGER WRITES A PICTURE FOR EVERY FRAME. The PNG writer
+// saves one full-size image per frame to keep only the WAV beside them. Measured at 336 on an M2
+// (4.7.1, 1152x648): 120 s of the fixture took 151.8 s and 7,202 files; five seconds of a frame no
+// codec compresses took 34.7 s and 725 MB in 302 files. Movie Maker's other writer, the MJPEG AVI
+// (chosen by the `.avi` extension), interleaves the same mix as one sound chunk per frame; the
+// host reads only those chunks and deletes the movie: 60.7 s, and 4.45 s / 131 MB, one file each.
+// The sound is the engine's: on 4.2.2, 4.3 and 4.5 the AVI carries the 32-bit mix the PNG route
+// saves (4.3: byte for byte), and 4.7.1 carries that mix shifted right by 16 (16-bit, 960,000 of
+// 960,000 samples equal). So the default route is the AVI, and `keep_frames` — the caller who
+// wants the pictures — takes the PNG route, whose WAV is 32-bit on every version. Shrinking the
+// window would also have been quicker, and was refused: a 2D sound's pan follows its position in
+// the viewport, so it would change the sound being measured.
 //
 // Era-neutral (card §4, until 2.0): ordinary tools — no confirmation, no task, no subscription.
 
@@ -30,8 +43,8 @@ import { failPath } from "./lsp-common.js";
 import { resolveInsideProject, resolveExistingFile } from "../paths.js";
 import { spawnGuarded } from "../spawn-guard.js";
 import {
-  parseWav, analyze, compare, spectrogram, stack, encodePng, WavError, SPECTROGRAM_LEGEND,
-  type Pcm, type Raster,
+  parseWav, analyze, compare, spectrogram, stack, encodePng, demuxAviSound, WavError, AviError, SPECTROGRAM_LEGEND,
+  type Pcm, type Raster, type AviSound,
 } from "../hearing.js";
 
 /** Where recordings go, project-relative: under `.godot/`, which Godot's own .gitignore keeps out of VCS. */
@@ -46,6 +59,21 @@ function readPcm(abs: string): Pcm {
   const size = fs.statSync(abs).size;
   if (size > MAX_WAV_BYTES) throw new WavError(`it is ${Math.round(size / 1048576)} MB, over the ${MAX_WAV_BYTES / 1048576} MB this tool reads`);
   return parseWav(fs.readFileSync(abs));
+}
+
+/** The sound of a Movie Maker AVI, read a chunk at a time from disk (a long movie is gigabytes of pictures). */
+function readAviSound(abs: string): AviSound {
+  const fd = fs.openSync(abs, "r");
+  try {
+    const size = fs.fstatSync(fd).size;
+    return demuxAviSound((pos, len) => {
+      const b = Buffer.alloc(len);
+      const n = fs.readSync(fd, b, 0, len, pos);
+      return n < len ? b.subarray(0, n) : b;
+    }, size);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 /** Numbers as structured content and text, the picture as an image block, the legend beside it. */
@@ -119,7 +147,7 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         scene: z.string().optional().describe("Scene to record, e.g. res://levels/boss.tscn (default: the main scene)"),
         seconds: z.number().positive().max(MAX_RECORD_SECONDS).optional().describe("Length of game time to record (default 5)"),
         fps: z.number().int().min(1).max(240).optional().describe("Fixed frame rate (default 60)"),
-        keep_frames: z.boolean().optional().describe("Keep the PNG frames beside the WAV (default false)"),
+        keep_frames: z.boolean().optional().describe("Keep PNG frames; WAV then 32-bit (default false)"),
         compare_to: z.string().optional().describe("An earlier WAV to compare this recording against"),
         user_args: z.array(z.string()).optional().describe("Arguments passed to the game after --"),
       },
@@ -140,24 +168,44 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
       fs.mkdirSync(base, { recursive: true });
       const dir = fs.mkdtempSync(path.join(base, `${new Date().toISOString().replace(/[:.]/g, "-")}-`));
       const rel = `${RECORDINGS_DIR}/${path.basename(dir)}`;
-      const args = ["--path", cfg.projectPath, "--write-movie", path.join(dir, "frame.png"), "--fixed-fps", String(rate), "--quit-after", String(frames)];
+      // BP-0063: the AVI unless the caller wants the pictures. Movie Maker picks its writer by extension.
+      const viaFrames = keep_frames === true;
+      const movie = path.join(dir, viaFrames ? "frame.png" : "movie.avi");
+      const args = ["--path", cfg.projectPath, "--write-movie", movie, "--fixed-fps", String(rate), "--quit-after", String(frames)];
       if (scene) args.push(scene);
       if (user_args?.length) args.push("--", ...user_args);
       const run = await runGodot(cfg, args, 60_000 + secs * 20_000);
       const drop = (): void => fs.rmSync(dir, { recursive: true, force: true });
       if (run.spawnFailed) { drop(); return refuse(run.spawnFailed); }
-      const pngs = fs.readdirSync(dir).filter((n) => /^frame\d+\.png$/.test(n));
-      if (!keep_frames) for (const n of pngs) fs.rmSync(path.join(dir, n), { force: true });
       const movieWav = path.join(dir, "frame.wav"), wavAbs = path.join(dir, "sound.wav");
-      if (!fs.existsSync(movieWav)) {
+      const wroteNoSound = (why = ""): ReturnType<typeof refuse> => {
         drop();
         return refuse(
-          `godot_record: Godot wrote no sound (exit code ${run.code}${run.timedOut ? ", stopped at the time limit" : ""}). ` +
+          `godot_record: Godot wrote no sound${why} (exit code ${run.code}${run.timedOut ? ", stopped at the time limit" : ""}). ` +
           `Run the same scene with godot_run_managed and read godot_output for the error it prints, then record again.` +
           (run.log ? `\nLast lines Godot printed:\n${tailLines(run.log)}` : ""),
         );
+      };
+      let written = 0, cutShort = false;
+      if (viaFrames) {
+        written = fs.readdirSync(dir).filter((n) => /^frame\d+\.png$/.test(n)).length;
+        if (!fs.existsSync(movieWav)) return wroteNoSound();
+        fs.renameSync(movieWav, wavAbs);
+      } else {
+        if (!fs.existsSync(movie)) return wroteNoSound();
+        let s: AviSound;
+        try {
+          s = readAviSound(movie);
+        } catch (err) {
+          if (err instanceof AviError) return wroteNoSound(` that could be read (the movie: ${err.message})`);
+          throw err;
+        } finally {
+          fs.rmSync(movie, { force: true });
+        }
+        fs.writeFileSync(wavAbs, s.wav);
+        written = s.videoFrames;
+        cutShort = s.truncated;
       }
-      fs.renameSync(movieWav, wavAbs);
       try {
         const before = beforeAbs ? readPcm(beforeAbs) : null;
         const m = measure(readPcm(wavAbs), before);
@@ -167,10 +215,11 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         if (run.timedOut) notes.push(`stopped at the time limit: the WAV holds ${got} s of the ${round3(expected)} s asked for`);
         else if (got < expected - 1 / rate - 0.01) notes.push(`the WAV holds ${got} s of the ${round3(expected)} s asked for: Godot stopped early (exit code ${run.code})`);
         if (run.code !== 0 && !run.timedOut) notes.push(`Godot exited with code ${run.code}`);
+        if (cutShort) notes.push("the movie ended inside a chunk: the sound is read up to its last whole sample");
         return reply({
           wav: `res://${rel}/sound.wav`,
           frames_dir: keep_frames ? `res://${rel}` : null,
-          frames: pngs.length,
+          frames: written,
           fps: rate,
           exit_code: run.code,
           timed_out: run.timedOut,
