@@ -6,7 +6,7 @@
 > Developed and tested with **Claude**; MCP is an open protocol, so other clients can
 > connect too (see [Compatibility](#compatibility)).
 >
-> **npm 1.93.0 · addon 1.22.0 · full 297 / secure-default 284 tools · 6 MCP resources · MIT.** The host builds against
+> **npm 1.93.1 · addon 1.22.1 · full 297 / secure-default 284 tools · 6 MCP resources · MIT.** The host builds against
 > the stable `@modelcontextprotocol/sdk` 1.x API and is exercised by a 1031-test suite plus
 > real-Godot integration jobs on Node 18/20/22.
 
@@ -259,9 +259,9 @@ pushed updates when the editor selection, edited scene, or the live SceneTree ch
 ## Requirements
 
 - **Node ≥ 18** (for the host).
-- **Godot 4.2+** for the editor addon (4.4+ recommended). A few runtime features use
-  Godot 4.5+, and some language-server / debug-adapter capabilities light up on newer
-  builds as the engine implements them.
+- **Godot 4.2+** for the editor addon (4.4+ recommended). The `TileMapLayer` tools need
+  Godot 4.3+, a few runtime features use Godot 4.5+, and some language-server /
+  debug-adapter capabilities light up on newer builds as the engine implements them.
 
 ## Installation
 
