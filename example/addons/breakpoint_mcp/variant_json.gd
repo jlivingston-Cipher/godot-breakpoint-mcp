@@ -11,7 +11,7 @@ extends RefCounted
 ## cleanly in a project that raises Godot's five typing warnings to errors
 ## (`untyped_declaration` and the four `unsafe_*`) and does not exempt res://addons —
 ## measured on 4.2.2, 4.3, 4.5 and 4.7. From addon 1.22.0 the four editor-side scripts do too
-## (BP-0055), by the same method, on 4.3, 4.5 and 4.7; on 4.2 they do not load at all (BP-0058).
+## (BP-0055), by the same method, on 4.3, 4.5 and 4.7, and from 1.22.1 on 4.2.2 too (BP-0058).
 ##
 ## 🔴 HOW: AN IGNORE ON EACH CONVERSION'S OWN STATEMENT, NOT A HELPER. `int(x)` of a Variant the
 ## analyzer cannot type is the warning, and the conversions stay exactly where they were so that

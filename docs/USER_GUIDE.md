@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.93.0 · addon 1.22.0
+- **Version:** host 1.93.1 · addon 1.22.1
 - **License:** MIT
 - **What it exposes:** full 297 tools (secure-default 284 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -91,6 +91,9 @@ A few capabilities are **version-gated** and light up only on newer Godot builds
 degrade gracefully — if your Godot build does not support one, the tool returns a clear
 "unsupported" message rather than erroring. Notable examples:
 
+- **Godot 4.3+** — authoring and painting a `TileMapLayer` node (`tilemaplayer_create`,
+  `tilemap_*`). Godot 4.2 has only the older `TileMap` node, so there these five tools
+  answer `unsupported`.
 - **Godot 4.4+** — enumerating unsaved scenes (`scene_list_open`), closing a scene
   (`scene_close`).
 - **Godot 4.5+** — zero-configuration capture of the *running game's* console
@@ -1240,7 +1243,7 @@ never change anything.
 No. All sockets bind to loopback (`127.0.0.1`) only.
 
 **Which Godot versions work?**
-4.2+ is the minimum; 4.4+ is recommended. A few features need 4.4+, 4.5+, or newer. Where
+4.2+ is the minimum; 4.4+ is recommended. A few features need 4.3+, 4.4+, 4.5+, or newer. Where
 your build lacks a capability, the tool says so clearly rather than failing.
 
 **Do I need C# tooling?**

@@ -4,6 +4,30 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.93.1] — 2026-11-05
+
+_Addon **1.22.0 → 1.22.1** — `operations.gd` changed (and a comment in `variant_json.gd`), so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged (**297**, secure default **284**)._
+
+### Fixed
+
+**The editor plugin works on Godot 4.2** (BP-0058). Through 1.93.0 it did not, in any project:
+`operations.gd` named the `TileMapLayer` class and called `Dictionary.merged()`, and Godot 4.2 has
+neither (both arrived in 4.3), so the script failed to compile. The plugin still enabled and its
+bridge still listened, but every request then failed inside it, `ping` included, which looks like a
+connection problem rather than a version one. Replies are now merged into their own dictionary with
+`merge()`, which every Godot 4 has, and `TileMapLayer` is looked up by name when a tool runs.
+
+On Godot 4.2, which has only the older `TileMap` node, the five tools that author a
+`TileMapLayer` answer `unsupported` and name Godot 4.3: `tilemaplayer_create`, `tilemap_set_cell`,
+`tilemap_set_cells_rect`, `tilemap_get_cell` and `tilemap_clear`. Every other tool works. The
+README, the guide and the catalogue now say so.
+
+Measured on Godot 4.2.2 with the plugin enabled in a project left at Godot's default settings:
+`ping`, `editor.get_state` and the five refusals 7 of 7, where 1.22.0 answered none of the seven.
+All nine addon scripts compile with no errors on 4.2.2 and 4.3, and in a project that raises the
+typing warnings to errors they compile clean on 4.2.2, 4.3, 4.5 and 4.7, so 1.93.0's strict-typing
+claim for the editor side (BP-0055) now holds on 4.2 too.
+
 ## [1.93.0] — 2026-11-05
 
 _Addon **1.21.0 → 1.22.0** — `operations.gd`, `bridge_server.gd`, `plugin.gd` and `status_dock.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **295 → 297** (secure default **282 → 284**): `godot_record` and `audio_analyze`, in a new `hearing` toolset._
