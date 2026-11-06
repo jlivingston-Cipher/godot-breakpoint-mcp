@@ -111,6 +111,7 @@ test("silence reads null, never -Infinity, and the reply survives JSON", () => {
   const a = analyze(parseWav(wav([new Array(48000).fill(0)], 48000, "i16")));
   assert.equal(a.peak_dbfs, null); assert.equal(a.rms_dbfs, null); assert.equal(a.loudness_lufs, null);
   assert.equal(a.onset_s, null); assert.equal(a.silent_fraction, 1); assert.equal(a.dominant_hz, null);
+  assert.equal(a.bands.length, 10, "ten octaves, so the every() below has a population");
   assert.ok(a.bands.every((b) => b.db === null));
   assert.ok(allFinite(a)); assert.deepEqual(JSON.parse(JSON.stringify(a)), a);
 });
