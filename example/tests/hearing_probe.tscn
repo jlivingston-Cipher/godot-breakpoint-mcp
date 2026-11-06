@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for BP-0026 (the hearing plane): a known 1 kHz sine at -12 dBFS on
+; the Master bus. See hearing_probe.gd.
+
+[ext_resource type="Script" path="res://tests/hearing_probe.gd" id="1"]
+
+[node name="HearingProbe" type="Node"]
+script = ExtResource("1")

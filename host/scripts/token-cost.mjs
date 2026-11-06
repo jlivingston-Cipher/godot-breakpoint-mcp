@@ -280,7 +280,18 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // id left assert_perf at `ok: true, checked: 0`); `runtime_call_method` — one clause saying the path
 // reaches past a colon into what a node holds. No tool was added. `device` and `pressure` were reused rather than duplicated (same types).
 // 312's rule holds: the ceiling sits ON the surface.
-export const BYTES_CEILING = 378852;
+//
+// 🆕 BP-0026 (1.93.0) — RAISED 378,852 -> 386,414, AND WHAT BOUGHT IT IS THE HEARING PLANE THE OWNER
+// GRANTED (2026-11-05, session 334): two new tools, `godot_record` and `audio_analyze`, the first
+// tools any Godot server offers that measure a game's sound. Measured before and after on the same
+// build: +7,562 B, but model reads only 224,866 -> 226,409 (+1,543: two names, two descriptions,
+// eight input fields). The other 6,019 B are the two OUTPUT schemas — the measurement's published
+// shape (twenty-one fields, ten octave bands, per-channel readings, the comparison, the record's
+// notes — the last three added by the cut's own adversarial review), which the SDK
+// validates every reply against and which the model does not read. Kept whole rather than pinned
+// to an envelope because a reply that silently dropped a field is exactly the regression a sound
+// measurement cannot afford. 312's rule holds: the ceiling sits ON the surface.
+export const BYTES_CEILING = 386414;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

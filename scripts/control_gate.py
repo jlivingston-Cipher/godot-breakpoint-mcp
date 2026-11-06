@@ -655,9 +655,11 @@ CONTROLS: list[tuple[str, str, str, str, str, str, str]] = [
      '"description": "A plain JSON scalar/array/object, OR a tagged Godot value.",',
      '"description": "A plain JSON scalar/array/object, OR a tagged Godot value.",,',
      "Invalid JSON block #"),
+    # 🆕 BP-0026 (334) — `audio_analyze` sorts into this line of ALL_ANNOTATED, so the anchor
+    # carries it; the mutation still drops `asset_gen_placeholder`, the same tool as before.
     ("9.unannotated", "9", "sub", "host/src/annotations.ts",
-     '"asset_gen_placeholder", "asset_gen_sprite", "asset_gen_texture", "audio_bus_add",',
-     '"asset_gen_sprite", "asset_gen_texture", "audio_bus_add",',
+     '"asset_gen_placeholder", "asset_gen_sprite", "asset_gen_texture", "audio_analyze", "audio_bus_add",',
+     '"asset_gen_sprite", "asset_gen_texture", "audio_analyze", "audio_bus_add",',
      "they would ship with no MCP risk hints"),
     ("12.order", "12", "sub", "host/src/recipes.ts",
      '\n  "recipe_2d_player_controller",\n  "recipe_wire_signal_and_assert",',

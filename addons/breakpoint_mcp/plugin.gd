@@ -26,6 +26,7 @@ var _selection: EditorSelection = null
 func _enter_tree() -> void:
 	_server = BridgeServer.new()
 	_server.name = "BreakpointBridgeServer"
+	@warning_ignore("unsafe_method_access")
 	_server.setup(self)
 	add_child(_server)
 	# Phase-4 status/config dock: a thin panel that reports bridge health across
@@ -72,6 +73,7 @@ func _exit_tree() -> void:
 	if not _strict():
 		remove_autoload_singleton(RUNTIME_AUTOLOAD)
 	if _server:
+		@warning_ignore("unsafe_method_access")
 		_server.shutdown()
 		_server.queue_free()
 		_server = null
@@ -88,11 +90,14 @@ func _strict() -> bool:
 ## D3: the editor selection changed — godot://editor-state reflects the selection.
 func _on_selection_changed() -> void:
 	if _server:
+		@warning_ignore("unsafe_method_access")
 		_server.broadcast_event("godot://editor-state")
 
 
 ## D3: a different scene is being edited — both the tree and editor state change.
 func _on_scene_changed(_scene_root: Node) -> void:
 	if _server:
+		@warning_ignore("unsafe_method_access")
 		_server.broadcast_event("godot://scene-tree")
+		@warning_ignore("unsafe_method_access")
 		_server.broadcast_event("godot://editor-state")
