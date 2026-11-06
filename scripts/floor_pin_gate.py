@@ -3120,7 +3120,7 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
     ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (71, (
         "🆕 `335` RAISED IT BY ONE: `host/test-integration/hearing-plane.integration.mjs`, "
-        "the hearing probe (BP-0064), adds no finding of its own. "
+        "the hearing probe, adds no finding of its own. "
         "🆕 `315` RAISED IT BY TWO, FOR THE SAME PREDICTED REASON ONE FAMILY OVER: the "
         "dead-export reader and its self-test are two new tracked `.mjs`, and because "
         "this is an EQUALITY the session that added them had to say so here. 🔵 IT IS THE "
