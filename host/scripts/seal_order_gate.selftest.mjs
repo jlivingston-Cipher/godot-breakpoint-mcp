@@ -763,7 +763,7 @@ population.seal("C", "ok");
 // twice in one session on `POPULATION_LINES_FLOOR`.
 claim(FILES_FLOOR === 10, `the shipped file floor is 10, not ${FILES_FLOOR}`);
 claim(SEAL_FLOOR === 95, `the shipped seal floor is 95, not ${SEAL_FLOOR}`);
-claim(Object.keys(CLAIM_SITE_FLOORS).length === 11, `eleven per-file floors ship, not ${Object.keys(CLAIM_SITE_FLOORS).length}`);
+claim(Object.keys(CLAIM_SITE_FLOORS).length === 12, `twelve per-file floors ship, not ${Object.keys(CLAIM_SITE_FLOORS).length}`);
 // 🔴 199 §9.4 — AND THE VALUES, WHICH THE LINE ABOVE DOES NOT PIN AND SAYS SO TWO LINES
 // UP. `CLAIM_SITE_FLOORS` was invisible to floor_pin_gate.py until this session: its
 // discovery half read `.mjs` under a SINGULAR name shape and a `\d+` value, and every
@@ -778,8 +778,8 @@ claim(CLAIM_SITE_FLOORS["_caller_shape.harness.mjs"] === 45,
   `the harness's per-file floor is 45 — 191's revert-by-predicate guard — not ${CLAIM_SITE_FLOORS["_caller_shape.harness.mjs"]}`);
 claim(Object.values(CLAIM_SITE_FLOORS).every((v) => v > 0),
   `every per-file floor is positive; a floor at zero is a key that ships without a value (184 §7)`);
-claim(Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0) === 475,
-  `the eleven floors sum to 475, not ${Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0)} — the TOTAL is what notices one entry being lowered while another grows`);
+claim(Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0) === 503,
+  `the twelve floors sum to 503, not ${Object.values(CLAIM_SITE_FLOORS).reduce((a, b) => a + b, 0)} — the TOTAL is what notices one entry being lowered while another grows`);
 
 // 🆕 200 §12.3 — AND THE OTHER TEN, EACH BY ITS OWN VALUE.
 //
@@ -804,6 +804,7 @@ const SHIPPED_CLAIM_SITE_FLOORS = {
   "_population.selftest.mjs": 30,
   "animation-lane.integration.mjs": 45,
   "cs-dap-plane.integration.mjs": 30,
+  "hearing-plane.integration.mjs": 28,
   "inject-input.integration.mjs": 45,
   "node-lifecycle.integration.mjs": 45,
   "runtime-peers.integration.mjs": 20,
@@ -828,7 +829,7 @@ for (const [file, want] of Object.entries(SHIPPED_CLAIM_SITE_FLOORS)) {
 claim(ANNOUNCED_REGIONS_FLOOR === 73, `the shipped coverage floor is 73, not ${ANNOUNCED_REGIONS_FLOOR}`);
 claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor is 9, not ${MARKER_HEADER_FILES_FLOOR}`);
 claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);
-claim(REGION_FILES_FLOOR === 9, `the shipped region-scope floor is 9, not ${REGION_FILES_FLOOR}`);
+claim(REGION_FILES_FLOOR === 10, `the shipped region-scope floor is 10, not ${REGION_FILES_FLOOR}`);
 claim(SILENT_REGIONS_CEILING === 5, `the shipped silent-region CEILING is 5, not ${SILENT_REGIONS_CEILING}`);
 claim(CLAIM_FLOOR === 141, `the shipped claim floor is 141, not ${CLAIM_FLOOR}`);
 

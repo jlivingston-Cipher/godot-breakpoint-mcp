@@ -443,7 +443,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # pinned literal is read in — it moves it and demands a red — so a ceiling costs the
     # same one row a floor does, and 180 §11.4's seven-session complaint about a number
     # floored from one side only cost nothing at all to answer here.
-    ("REGION_FILES_FLOOR",       f"{S}/seal_order_gate.mjs",         r"(export const REGION_FILES_FLOOR = )9;",                   [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("REGION_FILES_FLOOR",       f"{S}/seal_order_gate.mjs",         r"(export const REGION_FILES_FLOOR = )10;",                   [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SILENT_REGIONS_CEILING",   f"{S}/seal_order_gate.mjs",         r"(export const SILENT_REGIONS_CEILING = )5;",               [f"{S}/seal_order_gate.selftest.mjs"]),
     # 🆕 190 — THE FIFTH RULE'S CEILING, and the SECOND one held from above. 189 §9.2's
     # instruction was to measure before widening the claim finder's regex; the measurement
