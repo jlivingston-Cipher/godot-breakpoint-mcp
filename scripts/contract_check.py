@@ -6707,7 +6707,12 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     # at eight, and the host rule below would start firing on a healthy tree — a gate that
     # cries wolf gets disabled, which is how the `typeof` false positive nearly shipped in
     # 192 §7. One number per population, 171 §10.22's rule, applied to a classifier.
-    ("xlang.unsupported_capability", len(unsupported_kinds["capability"]), 4,
+    # 🆕 335 (BP-0058) — 4 -> 9, the five TileMapLayer refusals 1.93.1 added, all capability
+    # (`class_exists` on the guard). These floors were set AT the count, so losing ONE site
+    # reddened check 20 — and three control_gate rows (23.err_binding, 24.unclassified,
+    # 24c.msg_unreadable) declare that line in their BLAST. Left at 4, five sites could vanish in
+    # silence and those rows' radius shrank (CI's read of d4b196a). Raised to the count again.
+    ("xlang.unsupported_capability", len(unsupported_kinds["capability"]), 9,
      "🔴 the classifier stopped recognising an engine-capability probe, so a site that "
      "means 'this Godot build cannot' is filed as 'you named the wrong node' — and the "
      "host rule that reads the kind starts refusing a message that is correct"),
@@ -6727,7 +6732,8 @@ SCOPE_LEDGER: "list[tuple[str, int, int, str]]" = [
     # die when the MESSAGE READER breaks while the classifier stays healthy — a raise site
     # that wraps onto two lines (193 §7.2's `emit_failed`, exactly) reads as zero messages
     # while all eight sites still classify, and every message arm passes on nothing.
-    ("xlang.unsup_messages_read", unsup_messages_read, 8,
+    # 🆕 335 (BP-0058) — 8 -> 13, the same five sites, for the same reason as the floor of 9 above.
+    ("xlang.unsup_messages_read", unsup_messages_read, 13,
      "🔴 the message reader saw fewer 'unsupported' messages than the classifier saw "
      "sites, so 24c's four arms are being asked of a subset. A raise site whose literal "
      "moved off the raise line is invisible to a per-line scan and passes silently"),

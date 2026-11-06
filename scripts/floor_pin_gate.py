@@ -192,7 +192,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # `.py` population is eighteen gates; the `.mjs` population is gates, probes and demo
     # scripts and grows whenever a plane gets one. `--selftest` asserts it from both sides
     # — at or under the live count, refusing one below, quiet one above.
-    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )70",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
+    ("lint.MJS_FILE_FLOOR",     "../scripts/lint_ceiling.py",       r"(MJS_FILE_FLOOR = )71",                                    ["../scripts/lint_ceiling.py", "--selftest"]),
     # 🆕 242 — the handoff reader's floor over its READ OF THE WORKFLOW FILES. A regex
     # that stopped matching reports an empty CI roster, and an empty CI roster agrees
     # with every replay list ever written. Pinned from both sides by `--selftest`.
@@ -443,7 +443,7 @@ TARGETS: list[tuple[str, str, str, list[str]]] = [
     # pinned literal is read in — it moves it and demands a red — so a ceiling costs the
     # same one row a floor does, and 180 §11.4's seven-session complaint about a number
     # floored from one side only cost nothing at all to answer here.
-    ("REGION_FILES_FLOOR",       f"{S}/seal_order_gate.mjs",         r"(export const REGION_FILES_FLOOR = )9;",                   [f"{S}/seal_order_gate.selftest.mjs"]),
+    ("REGION_FILES_FLOOR",       f"{S}/seal_order_gate.mjs",         r"(export const REGION_FILES_FLOOR = )10;",                   [f"{S}/seal_order_gate.selftest.mjs"]),
     ("SILENT_REGIONS_CEILING",   f"{S}/seal_order_gate.mjs",         r"(export const SILENT_REGIONS_CEILING = )5;",               [f"{S}/seal_order_gate.selftest.mjs"]),
     # 🆕 190 — THE FIFTH RULE'S CEILING, and the SECOND one held from above. 189 §9.2's
     # instruction was to measure before widening the claim finder's regex; the measurement
@@ -3118,7 +3118,9 @@ SIZE_LEDGER: dict[tuple[str, str], tuple[int, str]] = {
         "`git ls-files` failing to answer — which yields an empty population, no "
         "findings, and a green run that opened no files. Same argument as "
         "`CI_SCRIPT_FLOOR` two rows up, over the other input to the same comparison.")),
-    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (70, (
+    ("../scripts/lint_ceiling.py", "MJS_FILE_FLOOR"): (71, (
+        "🆕 `335` RAISED IT BY ONE: `host/test-integration/hearing-plane.integration.mjs`, "
+        "the hearing probe, adds no finding of its own. "
         "🆕 `315` RAISED IT BY TWO, FOR THE SAME PREDICTED REASON ONE FAMILY OVER: the "
         "dead-export reader and its self-test are two new tracked `.mjs`, and because "
         "this is an EQUALITY the session that added them had to say so here. 🔵 IT IS THE "

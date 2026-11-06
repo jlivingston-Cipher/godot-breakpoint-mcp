@@ -80,6 +80,11 @@ name: integration
 #                     is what separates this from a job that is green without comparing anything.
 #                     Markers RENDER_LIVE_*. Like render-plane, a degraded capture (no_image /
 #                     no_texture) is an ERROR here, not the graceful skip it is everywhere else.
+#                     🆕 335 (BP-0064): the same rasterizer then carries the hearing plane's record
+#                     half. godot_record runs res://tests/hearing_probe.tscn (a 1 kHz sine at 0.25)
+#                     under Movie Maker twice, clean and at +18 dB, and the readings are checked
+#                     against the fixture's arithmetic: -12.04 dBFS peak, -12.04 LUFS, the clip, the
+#                     comparison, and the refusals. Markers HEARING_LIVE_*.
 #   * peers-plane   — F6 multi-peer determinism, headless. The ONLY job here that boots no game for
 #                     itself and needs no editor: runtime_spawn_peers spawns its own headless children
 #                     through the shipped PeerRegistry, each on an allocated loopback port. Freezes,
@@ -1795,6 +1800,34 @@ jobs:
             fi
           done
           echo "live render verified: $(grep -o 'RENDER_LIVE_RESULT.*' /tmp/render-live.log)"
+      - name: Record the fixture tone under Movie Maker and measure it (BP-0064)
+        # 🆕 335 — BP-0064. Until this step the hearing plane's RECORD half was proven on one Mac by a
+        # script outside the repository: a change to Godot's argv, the Movie Maker output path, the
+        # frame cleanup or the WAV the engine writes would have turned nothing red. Movie Maker needs
+        # a real renderer (`--headless --write-movie` crashes Godot 4.7, measured at 334), and this
+        # job is the one that already has one, so the probe rides here rather than paying for a
+        # second Xvfb install. The host launches Godot itself, so the display and the software GL
+        # reach the game through the environment xvfb-run gives node. Measured on the Mac against
+        # this job's Godot (4.3) before it was pushed: 34/34 claims, 10/10 families.
+        working-directory: host
+        timeout-minutes: 10
+        env:
+          GODOT_PROJECT: ${{ github.workspace }}/example
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -eux
+          # pipefail: the probe is piped through `tee`, and tee always exits 0.
+          set -o pipefail
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            node test-integration/hearing-plane.integration.mjs | tee /tmp/hearing-live.log
+          # Belt and braces, as above: a run that reported success without these markers would
+          # be a job that proves nothing while looking like coverage.
+          for marker in HEARING_LIVE_PICTURE HEARING_LIVE_LENGTH HEARING_LIVE_LEVEL HEARING_LIVE_LOUDNESS HEARING_LIVE_TONE HEARING_LIVE_FRAMES HEARING_LIVE_CLIP HEARING_LIVE_COMPARE HEARING_LIVE_REVERSE HEARING_LIVE_REFUSALS HEARING_LIVE_RESULT; do
+            if ! grep -q "$marker" /tmp/hearing-live.log; then
+              echo "::error::$marker missing — the record path did not execute"; exit 1
+            fi
+          done
+          echo "live hearing verified: $(grep -o 'HEARING_LIVE_RESULT.*' /tmp/hearing-live.log)"
       - name: Game log tail (on failure)
         if: always()
         run: tail -n 50 /tmp/godot-render.log || true

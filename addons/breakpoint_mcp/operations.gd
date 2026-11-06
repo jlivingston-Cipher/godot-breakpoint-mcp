@@ -8,7 +8,7 @@ extends RefCounted
 
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
-const ADDON_VERSION := "1.22.0"
+const ADDON_VERSION := "1.22.1"
 
 var _plugin: EditorPlugin
 
@@ -657,8 +657,10 @@ func _scene_new(params: Dictionary) -> Dictionary:
 	if saved.has("error"):
 		return saved["error"]
 	EditorInterface.open_scene_from_path(path)
+	var reply := {"created": path, "root_type": root_type}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": path, "root_type": root_type}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _node_add(params: Dictionary) -> Dictionary:
@@ -1836,8 +1838,10 @@ func _scene_pack(params: Dictionary) -> Dictionary:
 	dup.free()
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"packed": to_path, "branch": _path_of(root, branch)}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"packed": to_path, "branch": _path_of(root, branch)}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _scene_save_as(params: Dictionary) -> Dictionary:
@@ -2084,8 +2088,10 @@ func _resource_create(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(res, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"created": to_path, "type": cls}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": to_path, "type": cls}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _resource_load(params: Dictionary) -> Dictionary:
@@ -2128,8 +2134,10 @@ func _resource_save(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(res, to_path, params, kind, flags)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"saved": to_path, "from": from_path}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"saved": to_path, "from": from_path}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _resource_duplicate(params: Dictionary) -> Dictionary:
@@ -2152,8 +2160,10 @@ func _resource_duplicate(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(dup, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"duplicated": to_path, "from": from_path, "deep": deep}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"duplicated": to_path, "from": from_path, "deep": deep}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _resource_get_property(params: Dictionary) -> Dictionary:
@@ -3225,8 +3235,10 @@ func _tileset_create(params: Dictionary) -> Dictionary:
 	if saved.has("error"):
 		return saved["error"]
 	var tsz: Vector2i = ts.get("tile_size")
+	var reply := {"created": to_path, "tile_size": [tsz.x, tsz.y]}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": to_path, "tile_size": [tsz.x, tsz.y]}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _tileset_add_source(params: Dictionary) -> Dictionary:
@@ -3365,14 +3377,29 @@ func _tileset_set_tile_collision(params: Dictionary) -> Dictionary:
 # source_id -1 / atlas_coords (-1, -1) / alternative 0, which is exactly what
 # the undo path restores.
 
-func _as_tilemap_layer(root: Node, path: String) -> TileMapLayer:
+# 🆕 BP-0058 (addon 1.22.1): the `TileMapLayer` node arrived in Godot 4.3, and a class name the
+# engine does not have fails the WHOLE script at parse time, so on 4.2 this file, and the two scripts
+# that load it, never compiled and the editor plugin answered nothing. The class is named only as a
+# string from here down and looked up at run time; on 4.2 the five tools below answer `unsupported`.
+#
+# 🔴 THE TEST IS "IS IT A NODE", NOT "DOES THE NAME EXIST". Godot 4.2 has an INTERNAL class of the
+# same name (`class TileMapLayer : public RefCounted` in tile_map.h), registered the first time a
+# `TileMap` is built, so after any TileMap has existed `class_exists("TileMapLayer")` is true on 4.2
+# and `instantiate` returns null. Measured on 4.2.2: class_exists false -> true across one
+# `TileMap.new()`, is_parent_class(.., "Node") false both times; on 4.3 and 4.7 both true.
+const TILEMAP_LAYER_CLASS := "TileMapLayer"
+
+
+func _as_tilemap_layer(root: Node, path: String) -> Node:
 	var n := _resolve(root, path)
-	if n is TileMapLayer:
+	if n != null and n.is_class(TILEMAP_LAYER_CLASS):
 		return n
 	return null
 
 
 func _tilemaplayer_create(params: Dictionary) -> Dictionary:
+	if not (ClassDB.class_exists(TILEMAP_LAYER_CLASS) and ClassDB.is_parent_class(TILEMAP_LAYER_CLASS, "Node")):
+		return _err("unsupported", "tilemaplayer_create requires Godot 4.3+ (TileMapLayer is unavailable on this Godot version)")
 	var root := _edited_root()
 	if root == null:
 		return _err("no_scene", "No scene is open")
@@ -3381,16 +3408,19 @@ func _tilemaplayer_create(params: Dictionary) -> Dictionary:
 	if parent == null:
 		@warning_ignore("unsafe_call_argument")
 		return _err("bad_path", "Parent not found: %s" % params.get("parent_path", ""))
-	@warning_ignore("unsafe_method_access")
-	var layer := TileMapLayer.new()
-	@warning_ignore("unsafe_call_argument")
-	layer.name = String(params.get("name", "TileMapLayer"))
 	@warning_ignore("unsafe_call_argument")
 	var tileset_path := String(params.get("tileset_path", ""))
+	var ts: Variant = null
 	if tileset_path != "":
-		var ts: Variant = _load_tileset(tileset_path)
+		ts = _load_tileset(tileset_path)
 		if ts == null:
 			return _err("not_found", "TileSet not found: %s" % tileset_path)
+	# Built after the TileSet is found, so that refusal no longer leaves an orphan node behind.
+	var layer: Node = ClassDB.instantiate(TILEMAP_LAYER_CLASS)
+	@warning_ignore("unsafe_call_argument")
+	layer.name = String(params.get("name", "TileMapLayer"))
+	if ts != null:
+		@warning_ignore("unsafe_property_access")
 		layer.tile_set = ts
 	@warning_ignore("unsafe_call_argument")
 	var added := _commit_add(layer, parent, root, "Breakpoint: add TileMapLayer %s" % layer.name)
@@ -3400,6 +3430,8 @@ func _tilemaplayer_create(params: Dictionary) -> Dictionary:
 
 
 func _tilemap_set_cell(params: Dictionary) -> Dictionary:
+	if not (ClassDB.class_exists(TILEMAP_LAYER_CLASS) and ClassDB.is_parent_class(TILEMAP_LAYER_CLASS, "Node")):
+		return _err("unsupported", "tilemap_set_cell requires Godot 4.3+ (TileMapLayer is unavailable on this Godot version)")
 	var root := _edited_root()
 	if root == null:
 		return _err("no_scene", "No scene is open")
@@ -3418,9 +3450,12 @@ func _tilemap_set_cell(params: Dictionary) -> Dictionary:
 		atlas = _to_vec2i(params.get("atlas_coords"))
 	@warning_ignore("unsafe_call_argument")
 	var alternative := int(params.get("alternative", 0))
-	var old_src := layer.get_cell_source_id(coords)
-	var old_atlas := layer.get_cell_atlas_coords(coords)
-	var old_alt := layer.get_cell_alternative_tile(coords)
+	@warning_ignore("unsafe_method_access")
+	var old_src: int = layer.get_cell_source_id(coords)
+	@warning_ignore("unsafe_method_access")
+	var old_atlas: Vector2i = layer.get_cell_atlas_coords(coords)
+	@warning_ignore("unsafe_method_access")
+	var old_alt: int = layer.get_cell_alternative_tile(coords)
 	var ur := _plugin.get_undo_redo()
 	ur.create_action("Breakpoint: set cell %s" % str(coords))
 	ur.add_do_method(layer, "set_cell", coords, source_id, atlas, alternative)
@@ -3430,6 +3465,8 @@ func _tilemap_set_cell(params: Dictionary) -> Dictionary:
 
 
 func _tilemap_set_cells_rect(params: Dictionary) -> Dictionary:
+	if not (ClassDB.class_exists(TILEMAP_LAYER_CLASS) and ClassDB.is_parent_class(TILEMAP_LAYER_CLASS, "Node")):
+		return _err("unsupported", "tilemap_set_cells_rect requires Godot 4.3+ (TileMapLayer is unavailable on this Godot version)")
 	var root := _edited_root()
 	if root == null:
 		return _err("no_scene", "No scene is open")
@@ -3469,9 +3506,12 @@ func _tilemap_set_cells_rect(params: Dictionary) -> Dictionary:
 	for dy in range(rh):
 		for dx in range(rw):
 			var c := Vector2i(rx + dx, ry + dy)
-			var os := layer.get_cell_source_id(c)
-			var oa := layer.get_cell_atlas_coords(c)
-			var oal := layer.get_cell_alternative_tile(c)
+			@warning_ignore("unsafe_method_access")
+			var os: int = layer.get_cell_source_id(c)
+			@warning_ignore("unsafe_method_access")
+			var oa: Vector2i = layer.get_cell_atlas_coords(c)
+			@warning_ignore("unsafe_method_access")
+			var oal: int = layer.get_cell_alternative_tile(c)
 			ur.add_do_method(layer, "set_cell", c, source_id, atlas, alternative)
 			ur.add_undo_method(layer, "set_cell", c, os, oa, oal)
 	ur.commit_action()
@@ -3479,6 +3519,8 @@ func _tilemap_set_cells_rect(params: Dictionary) -> Dictionary:
 
 
 func _tilemap_get_cell(params: Dictionary) -> Dictionary:
+	if not (ClassDB.class_exists(TILEMAP_LAYER_CLASS) and ClassDB.is_parent_class(TILEMAP_LAYER_CLASS, "Node")):
+		return _err("unsupported", "tilemap_get_cell requires Godot 4.3+ (TileMapLayer is unavailable on this Godot version)")
 	var root := _edited_root()
 	if root == null:
 		return _err("no_scene", "No scene is open")
@@ -3489,13 +3531,18 @@ func _tilemap_get_cell(params: Dictionary) -> Dictionary:
 		return _err("bad_path", "TileMapLayer not found: %s" % params.get("path", ""))
 	@warning_ignore("unsafe_call_argument")
 	var coords := _to_vec2i(params.get("coords"))
-	var src := layer.get_cell_source_id(coords)
-	var atlas := layer.get_cell_atlas_coords(coords)
-	var alt := layer.get_cell_alternative_tile(coords)
+	@warning_ignore("unsafe_method_access")
+	var src: int = layer.get_cell_source_id(coords)
+	@warning_ignore("unsafe_method_access")
+	var atlas: Vector2i = layer.get_cell_atlas_coords(coords)
+	@warning_ignore("unsafe_method_access")
+	var alt: int = layer.get_cell_alternative_tile(coords)
 	return _ok({"path": _path_of(root, layer), "coords": [coords.x, coords.y], "source_id": src, "atlas_coords": [atlas.x, atlas.y], "alternative": alt, "empty": src < 0})
 
 
 func _tilemap_clear(params: Dictionary) -> Dictionary:
+	if not (ClassDB.class_exists(TILEMAP_LAYER_CLASS) and ClassDB.is_parent_class(TILEMAP_LAYER_CLASS, "Node")):
+		return _err("unsupported", "tilemap_clear requires Godot 4.3+ (TileMapLayer is unavailable on this Godot version)")
 	var root := _edited_root()
 	if root == null:
 		return _err("no_scene", "No scene is open")
@@ -3504,15 +3551,19 @@ func _tilemap_clear(params: Dictionary) -> Dictionary:
 	if layer == null:
 		@warning_ignore("unsafe_call_argument")
 		return _err("bad_path", "TileMapLayer not found: %s" % params.get("path", ""))
-	var used := layer.get_used_cells()
+	@warning_ignore("unsafe_method_access")
+	var used: Array[Vector2i] = layer.get_used_cells()
 	var ur := _plugin.get_undo_redo()
 	@warning_ignore("unsafe_call_argument")
 	ur.create_action("Breakpoint: clear TileMapLayer %s" % layer.name)
 	ur.add_do_method(layer, "clear")
 	for c: Vector2i in used:
-		var os := layer.get_cell_source_id(c)
-		var oa := layer.get_cell_atlas_coords(c)
-		var oal := layer.get_cell_alternative_tile(c)
+		@warning_ignore("unsafe_method_access")
+		var os: int = layer.get_cell_source_id(c)
+		@warning_ignore("unsafe_method_access")
+		var oa: Vector2i = layer.get_cell_atlas_coords(c)
+		@warning_ignore("unsafe_method_access")
+		var oal: int = layer.get_cell_alternative_tile(c)
 		ur.add_undo_method(layer, "set_cell", c, os, oa, oal)
 	ur.commit_action()
 	@warning_ignore("unsafe_method_access")
@@ -4274,8 +4325,10 @@ func _shader_create(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(sh, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"created": to_path, "type": "Shader", "code_length": sh.code.length()}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": to_path, "type": "Shader", "code_length": sh.code.length()}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _shader_set_code(params: Dictionary) -> Dictionary:
@@ -4544,8 +4597,10 @@ func _audio_set_bus_layout(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(layout, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"saved": to_path, "bus_count": AudioServer.get_bus_count()}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"saved": to_path, "bus_count": AudioServer.get_bus_count()}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 # ---------------------------------------------------------------- Group G: UI / control / theming ----
@@ -4763,8 +4818,10 @@ func _theme_create(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(theme, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"created": to_path, "type": "Theme"}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": to_path, "type": "Theme"}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _theme_set_color(params: Dictionary) -> Dictionary:
@@ -5038,8 +5095,10 @@ func _primitive_mesh_create(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(mesh, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"created": to_path, "type": cls, "shape": shape}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": to_path, "type": cls, "shape": shape}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _light_create(params: Dictionary) -> Dictionary:
@@ -5108,8 +5167,10 @@ func _environment_create(params: Dictionary) -> Dictionary:
 	var saved := _commit_save(env, to_path, params, SAVE_NEW)
 	if saved.has("error"):
 		return saved["error"]
+	var reply := {"created": to_path, "type": "Environment", "background_mode": bg}
 	@warning_ignore("unsafe_call_argument")
-	return _ok({"created": to_path, "type": "Environment", "background_mode": bg}.merged(saved["fields"]))
+	reply.merge(saved["fields"])
+	return _ok(reply)
 
 
 func _environment_set_sky(params: Dictionary) -> Dictionary:

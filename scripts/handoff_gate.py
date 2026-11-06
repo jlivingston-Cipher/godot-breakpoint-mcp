@@ -10290,6 +10290,52 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 60 reads / 31 raise sites / 12 host-origin vs 62 addon / 0 problems
 > ```
 """),
+    # 🆕 335 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 334 DID NOT WRITE, AS AT 327 THROUGH 334.
+    # `HANDOFF_SESSION334.md` was drafted at 335 by `--emit-handoff 334 ../HANDOFF_SESSION333.md
+    # --measured ci334/` in a worktree AT c07298d (335's edits never in it, nothing stashed) and the
+    # artifacts of #439's post-merge `ci` run 42150854902 (7/7 success). MOVED +1 is 4d7ce99..c07298d
+    # (#439's squash, which carried 333's block and the 1.93.0 cut in one tree). `untagged 0` because
+    # `v1.93.0` names c07298d itself; `unshipped 0` because the registry's `latest` is 1.93.0, read at
+    # 335. Three counters read by hand from those artifacts, as at 323 and 326 through 334: 27 CI jobs
+    # (ci 7 + integration 20, every job success; integration 42150855027, whose 4.3 LSP job lost its
+    # Godot download to a connection reset and was re-run green), `0 exempt` (BOUNDARY_GATE_DISCOVER,
+    # INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three agree with the draft. The
+    # commit subject on the `main` row is #439's whole squash subject: it carries no ledger ID.
+    #
+    # 🔵 THE `host / addon` ROW SAYS `MOVED`, BECAUSE BOTH MOVED: #439 was the 1.93.0 cut, host/src and
+    # addons/ changed and the addon was re-stamped 1.21.0 -> 1.22.0. Precedent: 328, 329, 330, 333.
+    #
+    # 🟡 THE ASSET LIBRARY ROW IS PENDING, AS AT 328 AND 331 THROUGH 334, ONE VERSION ON. Asset 5335
+    # answers 1.21.0 (modified 2026-11-06 01:55Z, read at 335: the 1.20.0 and 1.21.0 edits were
+    # accepted); edit 24865 (1.22.0) is waiting on a moderator. `QUEUE_HEAD` moves 334 -> 335, the
+    # session that registers it; 335 commits, so no `BLOCK_ABSENT`.
+    (334, """> ```
+> main                 c07298d — session334 release 1.93.0 / addon 1.22.0 — the hearing release: godot_record and audio_analyze, and the editor side clean under strict typing (#439)  MOVED +1
+> branch 334           session334-hearing · PR #439
+> host / addon         1.93.0 / 1.22.0  🟢 MOVED — the cut; host/src and addons/ changed, addon re-stamped
+> npm                  🟢 registry 1.93.0 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.21.0 live · 1.22.0 submitted, pending moderation
+> 🟢 VERIFIED AFTER THE CHANGE   1049/1049 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3541 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 58/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2572 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 338 file(s) / 21 suffixes · seal 107
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 297 tools / 4144 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5425
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 686 claims · landscape 4 channel(s) / 57 analysed / 87 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 35 past / 14 never analysed
+>               · identity 72 of 144 / 2 renamed / 0 collisions
+>               · error-code discipline 63 reads / 31 raise sites / 12 host-origin vs 62 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
