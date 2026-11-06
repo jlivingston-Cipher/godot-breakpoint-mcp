@@ -804,6 +804,7 @@ const SHIPPED_CLAIM_SITE_FLOORS = {
   "_population.selftest.mjs": 30,
   "animation-lane.integration.mjs": 45,
   "cs-dap-plane.integration.mjs": 30,
+  "hearing-plane.integration.mjs": 28,
   "inject-input.integration.mjs": 45,
   "node-lifecycle.integration.mjs": 45,
   "runtime-peers.integration.mjs": 20,
@@ -828,7 +829,7 @@ for (const [file, want] of Object.entries(SHIPPED_CLAIM_SITE_FLOORS)) {
 claim(ANNOUNCED_REGIONS_FLOOR === 73, `the shipped coverage floor is 73, not ${ANNOUNCED_REGIONS_FLOOR}`);
 claim(MARKER_HEADER_FILES_FLOOR === 9, `the shipped marker-header coverage floor is 9, not ${MARKER_HEADER_FILES_FLOOR}`);
 claim(HEADER_FAMILY_FLOOR === 85, `the shipped header-family floor is 85, not ${HEADER_FAMILY_FLOOR}`);
-claim(REGION_FILES_FLOOR === 9, `the shipped region-scope floor is 9, not ${REGION_FILES_FLOOR}`);
+claim(REGION_FILES_FLOOR === 10, `the shipped region-scope floor is 10, not ${REGION_FILES_FLOOR}`);
 claim(SILENT_REGIONS_CEILING === 5, `the shipped silent-region CEILING is 5, not ${SILENT_REGIONS_CEILING}`);
 claim(CLAIM_FLOOR === 141, `the shipped claim floor is 141, not ${CLAIM_FLOOR}`);
 

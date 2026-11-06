@@ -203,7 +203,10 @@ export const HEADER_FAMILY_FLOOR = 85;
 // judged sites — a ratio over a population the gate chose for itself (188 §4's phrase).
 // `NOT_A_PROBE` keeps its entry and stays live: the TRAILING rule still runs over every
 // file and still trips three times in the self-test, so this narrows one rule, not three.
-export const REGION_FILES_FLOOR = 9;
+// 🆕 335 (BP-0064): 9 -> 10. `hearing-plane.integration.mjs` is a tenth probe that seals, and the
+// self-test pins this floor to the live probe count exactly, so a probe joining the directory moves
+// it in the same commit.
+export const REGION_FILES_FLOOR = 10;
 
 // 🔴 AND THE COUNT IS NOW FLOORED FROM BOTH SIDES, WHICH IS 180 §11.4's COMPLAINT ABOUT
 // ORPHANS ANSWERED SOMEWHERE ELSE — a number floored from one side only is a number
@@ -555,6 +558,9 @@ export const CLAIM_SITE_FLOORS = {
   "_population.selftest.mjs": 30,
   "animation-lane.integration.mjs": 45,
   "cs-dap-plane.integration.mjs": 30,
+  // 🆕 335 (BP-0064): the hearing probe, 31 sites measured (23 `assert.*` calls and 8 through its
+  // `near` helper), set three below.
+  "hearing-plane.integration.mjs": 28,
   "inject-input.integration.mjs": 45,
   "node-lifecycle.integration.mjs": 45,
   "runtime-peers.integration.mjs": 20,
