@@ -45,15 +45,22 @@ headless and on 4.7.1 with a window; a second capture compared against the first
 full-size image per frame, and the tool kept only the sound. By default it now records through
 Movie Maker's AVI writer instead, reads the sound out of the movie a chunk at a time without
 reading the pictures, and deletes the movie. Measured on an M2: two minutes of a still scene in
-61 s rather than 152 s, as one file rather than 7,202; five seconds of a frame no codec compresses
-in 4.5 s rather than 35 s, at under a fifth of the disk. The sound is the engine's own mix: 32-bit
-on Godot 4.2 to 4.5 (on 4.3, byte for byte what the PNG route writes), and on 4.7 the same mix at
-16 bits, as `analysis.bits` reports. `keep_frames` now takes the PNG route and keeps the frames, and
-its WAV is 32-bit on every version. `frames` counts the frames written either way.
+61 s rather than 152 s, as one movie rather than 7,200 pictures; five seconds of a frame no codec
+compresses in 4.5 s rather than 35 s, at under a fifth of the disk. The sound is the engine's own
+mix: through Godot 4.5 the 32-bit mix, byte for byte what the PNG route writes (measured on 4.2.2,
+4.3 and 4.5). **From 4.6 its depth is the project setting `editor/movie_writer/audio_bit_depth`,
+which defaults to 16**, and 16 is the mix truncated: measured on 4.7.1, a tone at −72 dBFS reads
+0.83 dB high and one at −102 dBFS 12 dB high, and the DC offset moves by half a step. A 16-bit take
+says so in `notes`; set the setting to 32 (then the AVI is byte for byte the PNG route again) or
+pass `keep_frames` for the full mix. `keep_frames` now takes the PNG route and keeps the frames, and
+its WAV is 32-bit on every version. `frames` counts the frames written either way. A `compare_to`
+that is not a WAV is now refused before Godot runs, and a recording that ran 144 fps (or any rate
+that does not divide the mix rate) for long no longer reads as stopping early.
 
 **A comparison names a difference in bit depth** in `notes`, beside the sample rate, channel
-count and duration it already named, because on 4.7 a default recording and a `keep_frames` one
-differ there by about a thousandth of a decibel.
+count and duration it already named, because a default recording on 4.6 or later and a
+`keep_frames` one differ there: by about a thousandth of a decibel on a loud tone, and by much more
+on a quiet one.
 
 ## [1.93.1] — 2026-11-05
 

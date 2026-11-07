@@ -242,9 +242,12 @@ function avi(pcm16: Buffer, frames: number, channels: number, opts: { picture?: 
     if (!opts.noSound) movi.push(chunk("01wb", pcm16.subarray(f * per, (f + 1) * per)));
   }
   const z = opts.zeroSizes ? 0 : undefined;
-  const body = Buffer.concat([Buffer.from("AVI ", "latin1"), hdrl, list("movi", movi, z), ...(opts.zeroSizes ? [] : [chunk("idx1", Buffer.alloc(16 * frames))])]);
-  // Godot leaves bytes past the index (the 336 capture had 70); the walk must stop at idx1, not read them.
-  return Buffer.concat([chunk("RIFF", body, z ?? body.length), ...(opts.zeroSizes ? [] : [Buffer.from([0x8e, 0x00, 0x80, 0x0c, 1, 2, 3])])]);
+  // Past the index, a sound chunk that is NOT the movie's: the walk must stop at idx1, so none of
+  // these bytes may reach the WAV. (Godot itself ends the file at idx1; 336's review found the 70
+  // bytes the first capture seemed to carry past it were its RIFF size written 70 short.)
+  const tail = opts.zeroSizes ? [] : [chunk("idx1", Buffer.alloc(16 * frames)), chunk("01wb", Buffer.alloc(per, 0x7f))];
+  const body = Buffer.concat([Buffer.from("AVI ", "latin1"), hdrl, list("movi", movi, z), ...tail]);
+  return chunk("RIFF", body, z ?? body.length - 70);
 }
 /** A reader over `b` that records every range it was asked for. */
 const reader = (b: Buffer) => {
@@ -279,6 +282,21 @@ test("an AVI's sizes are not trusted: zeroed RIFF and LIST sizes, no index, a fi
   assert.equal(parseWav(got.wav).frames, (samples.length - 1001 - ((samples.length - 1001) % 4)) / 4, "the sound stops at its last whole sample");
 });
 
+test("an AVI cut inside a chunk header is reported cut short, a cut picture is not counted, and a corrupt format or an oversized sound is refused", () => {
+  const x = sine(1000, 0.25, 0.1), samples = int16([x, x]);
+  const whole = avi(samples, 6, 2, { zeroSizes: true, picture: 9 });
+  const inHeader = whole.subarray(0, whole.length - 3203);
+  const a = demuxAviSound(reader(inHeader).read, inHeader.length);
+  assert.equal(a.truncated, true, "a movie that ends three bytes into a chunk header says so");
+  const inPicture = whole.subarray(0, whole.length - 3200 - 8 - 4);
+  assert.equal(demuxAviSound(reader(inPicture).read, inPicture.length).videoFrames, 5, "the sixth picture was cut off, so it is not counted as written");
+  const bad = Buffer.from(whole);
+  const at = bad.indexOf("strf", bad.indexOf("auds"), "latin1");
+  bad.writeUInt32LE(5_000_000, at + 4);
+  assert.throws(() => demuxAviSound(reader(bad).read, bad.length), (e: unknown) => e instanceof AviError && /format chunk claims 5000000 bytes/.test(e.message));
+  assert.throws(() => demuxAviSound(reader(whole).read, whole.length, 4000), (e: unknown) => e instanceof AviError && /over the/.test(e.message));
+});
+
 test("an AVI with an odd-length picture still demuxes; no sound stream, or not an AVI, is refused", () => {
   const x = sine(1000, 0.25, 0.1), samples = int16([x]);
   const odd = avi(samples, 6, 1, { picture: 7 });
@@ -289,7 +307,7 @@ test("an AVI with an odd-length picture still demuxes; no sound stream, or not a
   assert.throws(() => demuxAviSound(reader(notAvi).read, notAvi.length), (e: unknown) => e instanceof AviError && /not a RIFF\/AVI/.test(e.message));
 });
 
-test("compare says when the two files differ in bit depth (on 4.7, godot_record's 16-bit default against a 32-bit keep_frames take)", () => {
+test("compare says when the two files differ in bit depth (a 16-bit AVI take against a 32-bit keep_frames one); a loud tone moves by under a thousandth of a dB", () => {
   const s = sine(1000, 0.25, 1);
   const c = compare(analyze(parseWav(wav([s, s], 48000, "i32"))), analyze(parseWav(wav([s, s], 48000, "i16"))));
   assert.deepEqual(c.notes, ["bit depths differ: 32 vs 16"]);

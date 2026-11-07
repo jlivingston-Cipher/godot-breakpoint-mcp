@@ -127,10 +127,12 @@ const CHUNK_ID = /^[\x20-\x7e]{4}$/;
  * 🆕 BP-0063 (336) — THE SOUND OF A MOVIE MAKER AVI, READ WITHOUT READING ITS PICTURES.
  * Godot's MJPEG writer interleaves one picture chunk (`00db`) and one sound chunk (`01wb`) per
  * frame, and the audio stream's `strf` is a WAVEFORMATEX — the body of a WAV `fmt ` chunk — so
- * the sound is re-wrapped as a WAV with no conversion, at whatever depth the engine wrote. Measured
- * at 336: 4.2.2, 4.3 and 4.5 write the 32-bit mix the PNG writer saves (4.3: byte for byte); 4.7.1
- * writes that mix shifted right by 16, so 16-bit (960,000 of 960,000 samples equal). Nothing is
- * resampled, converted or dithered here.
+ * the sound is re-wrapped as a WAV with no conversion, at whatever depth the engine wrote. Through
+ * 4.5 that is the 32-bit mix the PNG writer saves (measured byte for byte on 4.2.2, 4.3 and 4.5).
+ * From 4.6 the depth is the project setting `editor/movie_writer/audio_bit_depth`, default 16, and
+ * 16 is the 32-bit mix shifted right by 16 — truncated, not dithered (measured on 4.7.1: 960,000 of
+ * 960,000 samples; with the setting at 32, byte for byte the PNG route again). Nothing is resampled,
+ * converted or dithered here.
  *
  * `read(pos, len)` returns up to `len` bytes at `pos`, so a 3 GB movie is walked a chunk header
  * at a time and only the sound is ever held. No RIFF or LIST size is trusted: Movie Maker writes
@@ -138,7 +140,7 @@ const CHUNK_ID = /^[\x20-\x7e]{4}$/;
  * 32-bit (a movie over 4 GB wraps them). Every LIST is descended into instead, in file order,
  * and the walk ends at the index, at the end of the file, or at bytes that are not a chunk.
  */
-export function demuxAviSound(read: (pos: number, len: number) => Buffer, size: number): AviSound {
+export function demuxAviSound(read: (pos: number, len: number) => Buffer, size: number, maxSoundBytes = Infinity): AviSound {
   const head = read(0, 12);
   if (head.length < 12 || head.toString("latin1", 0, 4) !== "RIFF" || head.toString("latin1", 8, 12) !== "AVI ") {
     throw new AviError("not a RIFF/AVI file");
@@ -147,9 +149,10 @@ export function demuxAviSound(read: (pos: number, len: number) => Buffer, size: 
   let fmt: Buffer | null = null;
   const parts: Buffer[] = [];
   const tag = (n: number): string => String(n).padStart(2, "0");
-  while (off + 8 <= size) {
+  while (off < size) {
     const h = read(off, 8);
-    if (h.length < 8) break;
+    // A movie stopped mid-write can end inside a chunk header as well as inside a body.
+    if (h.length < 8) { truncated = true; break; }
     const id = h.toString("latin1", 0, 4), len = h.readUInt32LE(4), body = off + 8;
     if (!CHUNK_ID.test(id) || id === "idx1") break;
     if (id === "RIFF" || id === "LIST") { off = body + 4; continue; }
@@ -160,9 +163,14 @@ export function demuxAviSound(read: (pos: number, len: number) => Buffer, size: 
       const kind = read(body, 4).toString("latin1");
       if (kind === "auds" && audio < 0) audio = stream;
       else if (kind === "vids" && video < 0) video = stream;
-    } else if (id === "strf" && stream === audio && fmt === null) fmt = read(body, take);
-    else if (audio >= 0 && id === `${tag(audio)}wb`) { const b = read(body, take); parts.push(b); bytes += b.length; }
-    else if (video >= 0 && (id === `${tag(video)}db` || id === `${tag(video)}dc`)) videoFrames++;
+    } else if (id === "strf" && stream === audio && fmt === null) {
+      // A WAVEFORMATEX is 16 to 40 bytes; a corrupted size must not read the movie as a format.
+      if (len > 256) throw new AviError(`its sound stream's format chunk claims ${len} bytes`);
+      fmt = read(body, take);
+    } else if (audio >= 0 && id === `${tag(audio)}wb`) {
+      if (bytes + take > maxSoundBytes) throw new AviError(`its sound is over the ${Math.round(maxSoundBytes / 1048576)} MB this tool reads`);
+      const b = read(body, take); parts.push(b); bytes += b.length;
+    } else if (video >= 0 && (id === `${tag(video)}db` || id === `${tag(video)}dc`) && take === len) videoFrames++;
     off = body + len + (len & 1);
   }
   if (audio < 0) throw new AviError("it has no sound stream");
@@ -572,9 +580,10 @@ export function compare(a: Analysis, b: Analysis): Comparison {
   const notes: string[] = [];
   if (a.sample_rate !== b.sample_rate) notes.push(`sample rates differ: ${a.sample_rate} vs ${b.sample_rate}`);
   if (a.channels !== b.channels) notes.push(`channel counts differ: ${a.channels} vs ${b.channels}`);
-  // 🆕 BP-0063 (336): on Godot 4.7 godot_record's sound is 16-bit by default and 32-bit with
-  // keep_frames, so a comparison across the two says so; the requantisation alone moves a level by
-  // about 0.001 dB.
+  // 🆕 BP-0063 (336): from Godot 4.6 godot_record's sound is 16-bit by default and 32-bit with
+  // keep_frames, so a comparison across the two says so. The truncation moves a loud tone by about
+  // 0.001 dB and a quiet one by far more (measured on 4.7.1 by 336's review arm: +0.83 dB at
+  // -72 dBFS, +12.04 dB at -102 dBFS).
   if (a.bits !== b.bits) notes.push(`bit depths differ: ${a.bits} vs ${b.bits}`);
   if (Math.abs(a.duration_s - b.duration_s) > 0.05) notes.push(`durations differ by ${round(b.duration_s - a.duration_s, 3)} s`);
   return {

@@ -21,14 +21,16 @@
 //
 // 🆕 BP-0063 (336) — AND BY DEFAULT IT NO LONGER WRITES A PICTURE FOR EVERY FRAME. The PNG writer
 // saves one full-size image per frame to keep only the WAV beside them. Measured at 336 on an M2
-// (4.7.1, 1152x648): 120 s of the fixture took 151.8 s and 7,202 files; five seconds of a frame no
-// codec compresses took 34.7 s and 725 MB in 302 files. Movie Maker's other writer, the MJPEG AVI
-// (chosen by the `.avi` extension), interleaves the same mix as one sound chunk per frame; the
-// host reads only those chunks and deletes the movie: 60.7 s, and 4.45 s / 131 MB, one file each.
-// The sound is the engine's: on 4.2.2, 4.3 and 4.5 the AVI carries the 32-bit mix the PNG route
-// saves (4.3: byte for byte), and 4.7.1 carries that mix shifted right by 16 (16-bit, 960,000 of
-// 960,000 samples equal). So the default route is the AVI, and `keep_frames` — the caller who
-// wants the pictures — takes the PNG route, whose WAV is 32-bit on every version. Shrinking the
+// (4.7.1, 1152x648): 120 s of the fixture took 151.8 s and 7,200 pictures; five seconds of a
+// frame no codec compresses took 34.7 s and 742 MB in 300. Movie Maker's other writer, the MJPEG
+// AVI (chosen by the `.avi` extension), interleaves the same mix as one sound chunk per frame; the
+// host reads only those chunks and deletes the movie: 60.7 s, and 4.45 s / 134 MB, one file each.
+// The sound is the engine's: through 4.5 the AVI carries the 32-bit mix the PNG route saves (byte
+// for byte on 4.2.2, 4.3 and 4.5). From 4.6 its depth is `editor/movie_writer/audio_bit_depth`,
+// default 16: the mix shifted right by 16, truncated (4.7.1: 960,000 of 960,000 samples), which
+// reads quiet sound high — so a 16-bit take says so in `notes`, and with the setting at 32 the AVI
+// is byte for byte the PNG route again. So the default route is the AVI, and `keep_frames` — the
+// caller who wants the pictures — takes the PNG route, whose WAV is 32-bit on every version. Shrinking the
 // window would also have been quicker, and was refused: a 2D sound's pan follows its position in
 // the viewport, so it would change the sound being measured.
 //
@@ -70,7 +72,7 @@ function readAviSound(abs: string): AviSound {
       const b = Buffer.alloc(len);
       const n = fs.readSync(fd, b, 0, len, pos);
       return n < len ? b.subarray(0, n) : b;
-    }, size);
+    }, size, MAX_WAV_BYTES);
   } finally {
     fs.closeSync(fd);
   }
@@ -217,7 +219,7 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
       },
     },
     async ({ scene, seconds, fps, keep_frames, compare_to, user_args }) => {
-      let beforeAbs: string | null = null;
+      let beforeAbs: string | null = null, before: Pcm | null = null;
       // A scene is a path, and it reaches Godot's argv: one spelled like an option would be read as one.
       if (scene?.startsWith("-")) return refuse(`godot_record: scene ${JSON.stringify(scene)} reads as a command-line option. Pass a res:// path to a scene.`);
       try {
@@ -225,6 +227,15 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         if (compare_to !== undefined) beforeAbs = resolveExistingFile(compare_to, cfg.projectPath, "compare_to");
       } catch (err) {
         return failPath(err);
+      }
+      // 🆕 336's review: read compare_to before Godot runs, so a bad one costs no recording.
+      try {
+        if (beforeAbs) before = readPcm(beforeAbs);
+      } catch (err) {
+        if (err instanceof WavError) {
+          return refuse(`godot_record: compare_to could not be read as a WAV (${err.message}). Pass a PCM or float WAV, such as an earlier recording's sound.wav.`);
+        }
+        throw err;
       }
       const rate = fps ?? 60, secs = seconds ?? 5, frames = Math.max(1, Math.round(secs * rate));
       // The time names the folder for a reader; mkdtemp's suffix keeps two recordings in one millisecond apart.
@@ -246,7 +257,8 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         drop();
         return refuse(
           `godot_record: Godot wrote no sound${why} (exit code ${run.code}${run.timedOut ? ", stopped at the time limit" : ""}). ` +
-          `Run the same scene with godot_run_managed and read godot_output for the error it prints, then record again.` +
+          `Run the same scene with godot_run_managed and read godot_output for the error it prints, then record again` +
+          (viaFrames ? "." : ", or pass keep_frames to record through PNG frames (a Godot built without its JPEG module has no AVI writer).") +
           (run.log ? `\nLast lines Godot printed:\n${tailLines(run.log)}` : ""),
         );
       };
@@ -262,6 +274,7 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
           s = readAviSound(movie);
         } catch (err) {
           if (err instanceof AviError) return wroteNoSound(` that could be read (the movie: ${err.message})`);
+          drop();
           throw err;
         } finally {
           fs.rmSync(movie, { force: true });
@@ -271,15 +284,27 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         cutShort = s.truncated;
       }
       try {
-        const before = beforeAbs ? readPcm(beforeAbs) : null;
         const m = measure(readPcm(wavAbs), before);
         // A recording that stopped early must not read as a short success (334's review).
         const notes: string[] = [];
-        const expected = frames / rate, got = m.analysis.duration_s;
+        const expected = frames / rate, got = m.analysis.duration_s, sr = m.analysis.sample_rate;
+        // Movie Maker mixes floor(rate / fps) samples a frame (336's review: 144 fps at 48 kHz is 333,
+        // so two minutes hold 119.88 s and the plain frames/fps reading called that stopping early).
+        const mixed = (frames * Math.floor(sr / rate)) / sr;
         if (run.timedOut) notes.push(`stopped at the time limit: the WAV holds ${got} s of the ${round3(expected)} s asked for`);
-        else if (got < expected - 1 / rate - 0.01) notes.push(`the WAV holds ${got} s of the ${round3(expected)} s asked for: Godot stopped early (exit code ${run.code})`);
+        else if (got < mixed - 1 / rate - 0.01) notes.push(`the WAV holds ${got} s of the ${round3(expected)} s asked for: Godot stopped early (exit code ${run.code})`);
         if (run.code !== 0 && !run.timedOut) notes.push(`Godot exited with code ${run.code}`);
         if (cutShort) notes.push("the movie ended inside a chunk: the sound is read up to its last whole sample");
+        // 🆕 336's review: from Godot 4.6 the AVI's sound is 16-bit by default, TRUNCATED from the
+        // 32-bit mix — measured on 4.7.1, a tone at -72 dBFS read 0.83 dB high and one at -102 dBFS
+        // 12 dB high, and every take's DC offset moves by half a step.
+        if (!viaFrames && m.analysis.bits === 16) {
+          notes.push(
+            "this Godot wrote the movie's sound at 16 bits (editor/movie_writer/audio_bit_depth, 16 by default from 4.6), " +
+            "truncated from the 32-bit mix: levels under about -70 dBFS and the bands they fill read high, and dc_offset moves by half a step. " +
+            "Set that project setting to 32, or pass keep_frames, for the full mix",
+          );
+        }
         return reply({
           wav: `res://${rel}/sound.wav`,
           frames_dir: keep_frames ? `res://${rel}` : null,
@@ -294,7 +319,9 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         }, m.picture);
       } catch (err) {
         if (err instanceof WavError) {
-          return refuse(`godot_record: a WAV could not be read (${err.message}). Pass compare_to a PCM or float WAV, such as an earlier recording's sound.wav.`);
+          // compare_to was read before Godot ran, so this is the recording itself.
+          drop();
+          return refuse(`godot_record: the recording could not be measured (${err.message}). Record again with keep_frames to take Movie Maker's own WAV.`);
         }
         throw err;
       }
