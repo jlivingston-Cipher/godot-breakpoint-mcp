@@ -9,6 +9,7 @@ import { ProcessRegistry, registerProcessTools } from "../src/tools/processes.js
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
 import type { Config } from "../src/config.js";
 import { structured } from "./helpers/structured.js";
+import { quietPort } from "./helpers/tcp.js";
 import { whoHolds } from "../src/port-holder.js";
 
 /**
@@ -25,7 +26,10 @@ let dir: string;
 let fakeGodot: string;
 /** A fixture that does not exit on its own — see `before` for why a kill needs one. */
 let sleepyGodot: string;
-/** A runtime-bridge port that nothing holds, so the no-conflict path is the default. */
+/**
+ * A runtime-bridge port that nothing holds, so the no-conflict path is the default. From
+ * below the range the kernel hands out (337, BP-0069): see `quietPort()` in helpers/tcp.ts.
+ */
 let freeRuntimePort: number;
 
 /**
@@ -40,12 +44,6 @@ function squat(): Promise<{ srv: net.Server; port: number }> {
     const srv = net.createServer();
     srv.listen(0, "127.0.0.1", () => resolve({ srv, port: (srv.address() as net.AddressInfo).port }));
   });
-}
-
-async function freePort(): Promise<number> {
-  const { srv, port } = await squat();
-  await new Promise<void>((r) => srv.close(() => r()));
-  return port;
 }
 
 before(async () => {
@@ -71,7 +69,7 @@ before(async () => {
   // The default fixture above exits 0 in milliseconds; signalling it is a coin toss.
   sleepyGodot = path.join(dir, "sleepygodot.sh");
   fs.writeFileSync(sleepyGodot, ["#!/bin/sh", 'echo "up"', "sleep 30", ""].join("\n"), { mode: 0o755 });
-  freeRuntimePort = await freePort();
+  freeRuntimePort = await quietPort();
 });
 
 after(() => {

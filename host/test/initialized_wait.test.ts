@@ -17,7 +17,7 @@ import { registerDapTools } from "../src/tools/dap.js";
 import { registerCsDapTools } from "../src/tools/csdap.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
-import { startTcpServer, makeFrameParser, writeFrame, TIMER_SLACK_MS, type TcpServer } from "./helpers/tcp.js";
+import { startTcpServer, quietPort, makeFrameParser, writeFrame, TIMER_SLACK_MS, type TcpServer } from "./helpers/tcp.js";
 import { FramedConnection } from "../src/framing.js";
 import { structured } from "./helpers/structured.js";
 
@@ -117,18 +117,16 @@ let cfgDir: string;
  * `processes.test.ts` already solved this: bind an ephemeral port, release it, use the
  * number. Taking what the kernel hands out makes the free port a FACT of the test rather
  * than an assumption about the host — and `dbg_attach` and the C# pair, which are not
- * port-gated, passed on both machines and so proved nothing about the gate.
+ * port-gated, passed on both machines and so proved nothing about the gate. *
+ * 🔴 337 (BP-0069): A RELEASED EPHEMERAL PORT IS NOT A FACT FOR LONG. The kernel goes on
+ * handing it out to every bind to port 0 while the suite runs, which is how #441's
+ * post-merge run lost a launch to a port conflict. `quietPort()` in helpers/tcp.ts takes
+ * one from below that range instead; the measurement is written there.
  */
 let freeRuntimePort: number;
 
 before(async () => {
-  freeRuntimePort = await new Promise<number>((resolve) => {
-    const srv = net.createServer();
-    srv.listen(0, "127.0.0.1", () => {
-      const { port } = srv.address() as net.AddressInfo;
-      srv.close(() => resolve(port));
-    });
-  });
+  freeRuntimePort = await quietPort();
 });
 
 /**

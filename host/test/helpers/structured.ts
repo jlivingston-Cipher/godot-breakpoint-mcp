@@ -38,3 +38,23 @@ export function structured<T>(r: HasStructuredContent, where = ""): T {
   }
   return r.structuredContent as T;
 }
+
+/**
+ * A `dbg_launch`, `cs_dbg_launch` or `cs_dbg_attach` that has to have started a session
+ * before the test reads anything else. Throws, naming the reply, when it did not.
+ *
+ * 🔴 BP-0069 (337) — FORTY-ONE TESTS LAUNCHED A SESSION AND THREW THE REPLY AWAY, so a
+ * refused launch surfaced as whatever the NEXT line happened to read. On #441's
+ * post-merge run that was `true !== false` on `buffered`, a sentence about breakpoints
+ * from a test whose launch had been refused as a port conflict and which said nothing of
+ * it. Worse, a test that expects the next tool to REFUSE (a declined confirmation, a
+ * running program) passes on a refused launch for the wrong reason. A throw, not an
+ * assertion, for 285's reason: this is a precondition, not a claim.
+ */
+export function started(r: unknown, where: string): void {
+  const res = r as (HasStructuredContent & { isError?: boolean }) | undefined;
+  if (!res || res.isError === true) {
+    throw new Error(`${where} did not start a session — ${JSON.stringify(r).slice(0, 400)}`);
+  }
+  structured(res, where);
+}
