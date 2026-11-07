@@ -18,7 +18,8 @@ import { BridgeError, BRIDGE_TIMEOUT_CODE, bridgeErrorLabel } from "../src/bridg
 import { fail as bridgeFail } from "../src/tools/editor/common.js";
 import { appendCaveat, CAVEAT_NON_IDEMPOTENT } from "../src/timeout-caveat.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
-import { startTcpServer, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
+import { startTcpServer, quietPort, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
+import { started } from "./helpers/structured.js";
 import { FramedConnection } from "../src/framing.js";
 
 /**
@@ -70,18 +71,16 @@ let cfgDir: string;
  *
  * `processes.test.ts` solved this before either of them: bind an ephemeral port, release
  * it, use the number. What the kernel hands out is a FACT of the test rather than an
- * assumption about the host.
+ * assumption about the host. *
+ * 🔴 337 (BP-0069): A RELEASED EPHEMERAL PORT IS NOT A FACT FOR LONG. The kernel goes on
+ * handing it out to every bind to port 0 while the suite runs, which is how #441's
+ * post-merge run lost a launch to a port conflict. `quietPort()` in helpers/tcp.ts takes
+ * one from below that range instead; the measurement is written there.
  */
 let freeRuntimePort: number;
 
 before(async () => {
-  freeRuntimePort = await new Promise<number>((resolve) => {
-    const srv = net.createServer();
-    srv.listen(0, "127.0.0.1", () => {
-      const { port } = srv.address() as net.AddressInfo;
-      srv.close(() => resolve(port));
-    });
-  });
+  freeRuntimePort = await quietPort();
 });
 
 function cfg(over: Partial<Config> = {}): Config {
@@ -198,7 +197,7 @@ test("268: dbg_set_variable still speaks for the adapter when the ADAPTER's own 
   registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg());
 
   await withTeardown([() => dap.close(), () => srv.close()], async () => {
-    await rec.handler("dbg_launch")({ scene: "main" });
+    started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
     const landed = new Promise<void>((resolve) => dap.once("stopped", () => resolve()));
     stop();
     await landed;
@@ -226,7 +225,7 @@ test("268: dbg_evaluate likewise — an adapter failure mentioning a deadline is
   registerDapTools(rec.server as unknown as Parameters<typeof registerDapTools>[0], dap, cfg());
 
   await withTeardown([() => dap.close(), () => srv.close()], async () => {
-    await rec.handler("dbg_launch")({ scene: "main" });
+    started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
     const landed = new Promise<void>((resolve) => dap.once("stopped", () => resolve()));
     stop();
     await landed;
@@ -250,7 +249,7 @@ test("268: cs_dbg_set_variable makes the same distinction — the row named two 
   registerCsDapTools(rec.server as unknown as Parameters<typeof registerCsDapTools>[0], cs, cfg());
 
   await withTeardown([() => conn.close(), () => srv.close()], async () => {
-    await rec.handler("cs_dbg_attach")({ process_id: process.pid });
+    started(await rec.handler("cs_dbg_attach")({ process_id: process.pid }), "cs_dbg_attach");
     const landed = new Promise<void>((resolve) => cs.once("stopped", () => resolve()));
     stop();
     await landed;

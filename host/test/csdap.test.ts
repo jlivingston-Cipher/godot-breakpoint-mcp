@@ -11,8 +11,8 @@ import { StdioChannel } from "../src/stdio.js";
 import { registerCsDapTools } from "../src/tools/csdap.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike, type ElicitFn } from "./helpers/recording-server.js";
-import { startTcpServer, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
-import { structured } from "./helpers/structured.js";
+import { startTcpServer, quietPort, makeFrameParser, writeFrame, type TcpServer } from "./helpers/tcp.js";
+import { structured, started } from "./helpers/structured.js";
 import { whoHolds } from "../src/port-holder.js";
 
 interface DapMsg { seq: number; type: string; command?: string; arguments?: Record<string, unknown>; request_seq?: number; success?: boolean; event?: string; body?: unknown }
@@ -75,7 +75,7 @@ async function launchAndStop(
   stop: () => void,
   args: Record<string, unknown> = {},
 ): Promise<void> {
-  await rec.handler("cs_dbg_launch")(args);
+  started(await rec.handler("cs_dbg_launch")(args), "cs_dbg_launch");
   const landed = new Promise<void>((resolve) => dap.once("stopped", () => resolve()));
   stop();
   await landed;
@@ -110,8 +110,10 @@ function tmpDir(): string {
  * It must be a port nothing holds: `dbg_launch` now probes it, so leaving the
  * real 9081 in place would make every launch test depend on whether a game
  * happens to be running on the machine — flaky in exactly the direction that
- * teaches people to ignore the suite. Taking one the kernel hands out and
- * releasing it beats guessing a number.
+ * teaches people to ignore the suite. 337 (BP-0069): and not one the kernel hands
+ * out either, because it goes on handing that one out to every bind to port 0 while
+ * the suite runs. `quietPort()` in helpers/tcp.ts takes one below that range, and the
+ * measurement is written there.
  */
 let freeRuntimePort: number;
 
@@ -123,9 +125,7 @@ function squat(): Promise<{ srv: net.Server; port: number }> {
 }
 
 before(async () => {
-  const held = await squat();
-  freeRuntimePort = held.port;
-  await new Promise<void>((r) => held.srv.close(() => r()));
+  freeRuntimePort = await quietPort();
 });
 
 function csDapHarness(port: number, elicit?: ElicitFn, runtimePort?: number) {
@@ -192,7 +192,7 @@ test("cs_dbg_set_breakpoints applies immediately once the session is configured 
     if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 30, verified: true }] });
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30] })) as ToolResultLike;
   const sc = structured<{ buffered: boolean; breakpoints: Array<{ line: number; verified: boolean }> }>(res);
   assert.equal(sc.buffered, false);
@@ -209,7 +209,7 @@ test("cs_dbg_set_breakpoints forwards a condition when the adapter advertises su
     if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 30, verified: true }] }); }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30], conditions: ["Counter < 50"] })) as ToolResultLike;
   const sc = structured<{ unsupported_modifiers?: string[] }>(res);
   assert.equal(sc.unsupported_modifiers, undefined);
@@ -228,7 +228,7 @@ test("cs_dbg_set_breakpoints drops the condition and warns when the adapter does
     if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 30, verified: true }] }); }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_set_breakpoints")({ path: "Player.cs", lines: [30], conditions: ["Counter < 50"] })) as ToolResultLike;
   const sc = structured<{ unsupported_modifiers?: string[]; warning?: string }>(res);
   assert.deepEqual(sc.unsupported_modifiers, ["condition"]);
@@ -341,7 +341,7 @@ test("cs_dbg_evaluate is blocked (and sends no evaluate) when the user declines 
     if (m.command === "evaluate") dapResponse(s, m, { result: "should-not-happen" });
   });
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_evaluate")({ expression: "DeleteEverything()" })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.ok(!received.some((m) => m.command === "evaluate"), "a declined evaluate must never reach the adapter");
@@ -389,7 +389,7 @@ test("cs_dbg_set_variable is blocked (and sends no setVariable) when the user de
     if (m.command === "setVariable") dapResponse(s, m, { value: "should-not-happen" });
   });
   const { dap, rec } = csDapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_set_variable")({ variables_ref: 1001, name: "Counter", value: "0" })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.ok(!received.some((m) => m.command === "setVariable"), "a declined setVariable must never reach the adapter");
@@ -497,7 +497,7 @@ test("cs_dbg_set_exception_breakpoints enables filters when the adapter advertis
     if (m.command === "setExceptionBreakpoints") { sebReq = m; dapResponse(s, m, { breakpoints: [{ verified: true }] }); }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
   const sc = structured<{ filters: string[]; available_filters: Array<{ filter: string; label: string }>; breakpoints: Array<{ verified: boolean }> }>(res);
   assert.deepEqual(sc.filters, ["all"]);
@@ -514,7 +514,7 @@ test("cs_dbg_set_exception_breakpoints returns 'unsupported' WITHOUT sending whe
     if (m.command === "setExceptionBreakpoints") dapResponse(s, m, {});
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /unsupported/i);
@@ -531,7 +531,7 @@ test("cs_dbg_restart falls back to terminate + relaunch when supportsRestartRequ
     if (m.command === "terminate") { order.push("terminate"); dapResponse(s, m, {}); return; }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_restart")({})) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { session_id: "csharp", method: "relaunch", state: "running" });
   // relaunch = a terminate followed by a FRESH initialize/launch handshake.
@@ -549,7 +549,7 @@ test("cs_dbg_restart uses the native DAP restart when the adapter advertises sup
     if (m.command === "restart") { restartReq = m; dapResponse(s, m, {}); dapEvent(s, "stopped", { reason: "entry", threadId: 1 }); }
   });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({ stop_on_entry: true });
+  started(await rec.handler("cs_dbg_launch")({ stop_on_entry: true }), "cs_dbg_launch");
   const res = (await rec.handler("cs_dbg_restart")({ stop_on_entry: true })) as ToolResultLike;
   const sc = structured<{ session_id: string; method: string; state: string }>(res);
   assert.equal(sc.method, "restart");
@@ -1012,7 +1012,7 @@ test("cs_dbg_set_exception_breakpoints refuses a filter the adapter never advert
   });
   const { dap, rec } = csDapHarness(srv.port);
   try {
-    await rec.handler("cs_dbg_launch")({ program: "/opt/app" });
+    started(await rec.handler("cs_dbg_launch")({ program: "/opt/app" }), "cs_dbg_launch");
     const bad = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["nonsense-filter"] })) as ToolResultLike;
     assert.equal(bad.isError, true);
     assert.match(bad.content?.[0]?.text ?? "", /does not advertise them/);
@@ -1091,7 +1091,7 @@ test("263: every cs_dbg_* reader refuses with NO session, and none reaches the a
 test("263: every cs_dbg_* reader refuses while the program RUNS, above the round trip", async () => {
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const handshakeCommands = received.length;
   for (const [name, args] of CS_READER_CALLS) {
     const started = Date.now();
@@ -1136,7 +1136,7 @@ test("263: cs_dbg_watch still manages the set while the program runs, and says w
   // 0x80004005"` on every entry: a hex code offered as the reason a watch has no value.
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port);
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const before = received.length;
   const res = (await rec.handler("cs_dbg_watch")({ add: ["Counter", "i"] })) as ToolResultLike;
   assert.equal(res.isError, undefined, "managing the set is not an error");
@@ -1159,7 +1159,7 @@ test("263: the stopped guard runs BEFORE the confirmation prompt on the gated C#
   let prompts = 0;
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = csDapHarness(srv.port, async () => { prompts++; return { action: "accept" as const, content: { proceed: true } }; });
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   await rec.handler("cs_dbg_evaluate")({ expression: "1+1" });
   await rec.handler("cs_dbg_set_variable")({ variables_ref: 1, name: "x", value: "1" });
   assert.equal(prompts, 0, "no confirmation may be raised for a program that is not stopped");
@@ -1186,7 +1186,7 @@ test("263: cs_dbg_set_exception_breakpoints requires a session but NOT a stop", 
   assert.doesNotMatch(coldText, /advertises no exceptionBreakpointFilters/, "…and never blaming the adapter for it");
   // NOT stop-guarded: filters are armed for the future, so a live running session is a
   // legitimate caller — the asymmetry dbg_data_breakpoints has one plane over.
-  await rec.handler("cs_dbg_launch")({});
+  started(await rec.handler("cs_dbg_launch")({}), "cs_dbg_launch");
   const warm = (await rec.handler("cs_dbg_set_exception_breakpoints")({ filters: ["all"] })) as ToolResultLike;
   assert.equal(warm.isError, undefined, "a running session may still arm exception filters");
   assert.ok(warm.structuredContent, `the warm call returned no structuredContent — ${JSON.stringify(warm).slice(0, 400)}`);

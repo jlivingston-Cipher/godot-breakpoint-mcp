@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { registerCliTools } from "../src/tools/cli.js";
 import type { Config } from "../src/config.js";
+import { quietPort } from "./helpers/tcp.js";
 
 /**
  * Behavior tests for the headless-CLI plane (tools/cli.ts). The value here is
@@ -57,7 +58,10 @@ function setup(godotBin: string, projectPath: string, runtimePort?: number) {
 
 let dir: string;
 let fakeGodot: string;
-/** A runtime-bridge port nothing holds, so the no-conflict path stays the default. */
+/**
+ * A runtime-bridge port nothing holds, so the no-conflict path stays the default. From
+ * below the range the kernel hands out (337, BP-0069): see `quietPort()` in helpers/tcp.ts.
+ */
 let freeRuntimePort: number;
 
 /** Hold an ephemeral loopback port — stands in for a game already running. */
@@ -78,9 +82,7 @@ before(async () => {
     ['#!/bin/sh', 'if [ "$1" = "--version" ]; then echo "4.7.stable.custom"; fi', "exit 0", ""].join("\n"),
     { mode: 0o755 },
   );
-  const held = await squat();
-  freeRuntimePort = held.port;
-  await new Promise<void>((r) => held.srv.close(() => r()));
+  freeRuntimePort = await quietPort();
 });
 
 after(() => {

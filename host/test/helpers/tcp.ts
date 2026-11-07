@@ -1,4 +1,7 @@
 import net from "node:net";
+import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+import { after } from "node:test";
 
 /**
  * How far short of its own window a `setTimeout` is allowed to come back, for a test that
@@ -55,9 +58,31 @@ export interface TcpServer {
 }
 
 /**
+ * Every server `startTcpServer` opened that its test has not closed, closed once the
+ * file's tests are done.
+ *
+ * 🔴 BP-0069 (337) — A FAILED ASSERTION SKIPS THE CLOSE ON A TEST'S LAST LINE, AND AN
+ * OPEN SERVER HOLDS THE EVENT LOOP, SO THE FILE'S PROCESS NEVER EXITS AND `node --test`
+ * WAITS ON IT. #441's post-merge `ci` (run 42187077817, node 18) is the measurement:
+ * `csdap.test.ts`'s fourth test failed at 08:22:05Z, its fiftieth and last passed at
+ * 08:22:06Z, and nothing else printed until GitHub cancelled the job at 14:22Z. 268 found
+ * this class in `initialized_wait.test.ts` and wrote `withTeardown` into that file and
+ * one sibling; sixteen files open servers through this helper, so the teardown lives
+ * HERE, where one edit covers all of them.
+ *
+ * It closes leftovers AFTER the file rather than after each test, because a file may
+ * share one server across several tests; a server its test did close is not in the set.
+ */
+const unclosed = new Set<() => Promise<void>>();
+after(async () => {
+  for (const close of [...unclosed]) await close();
+});
+
+/**
  * Start a TCP server on 127.0.0.1:<ephemeral>. `onConnection` runs for each
- * accepted socket. close() destroys any live sockets and stops listening, so a
- * test never leaks a handle that keeps the runner alive.
+ * accepted socket. close() destroys any live sockets and stops listening, and is
+ * safe to call twice; a server a failed test never closed is closed after the file
+ * (see `unclosed`), so a red test is reported instead of hanging the runner.
  */
 export function startTcpServer(onConnection: (socket: net.Socket) => void): Promise<TcpServer> {
   return new Promise((resolve, reject) => {
@@ -71,17 +96,72 @@ export function startTcpServer(onConnection: (socket: net.Socket) => void): Prom
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
-      resolve({
-        port,
-        sockets,
-        close: () =>
-          new Promise<void>((res) => {
-            for (const s of sockets) s.destroy();
-            server.close(() => res());
-          }),
-      });
+      let closing: Promise<void> | null = null;
+      const close = (): Promise<void> =>
+        (closing ??= new Promise<void>((res) => {
+          unclosed.delete(close);
+          for (const s of sockets) s.destroy();
+          server.close(() => res());
+        }));
+      unclosed.add(close);
+      resolve({ port, sockets, close });
     });
   });
+}
+
+/**
+ * The lowest port this machine's kernel hands out on its own (to a bind to port 0, or
+ * as an outbound connection's source port). Linux says so in /proc; macOS in a sysctl;
+ * elsewhere the IANA dynamic range's floor, which is also Windows' default.
+ */
+function ephemeralFloor(): number {
+  try {
+    if (process.platform === "linux") {
+      const first = Number(fs.readFileSync("/proc/sys/net/ipv4/ip_local_port_range", "utf8").trim().split(/\s+/)[0]);
+      if (Number.isInteger(first) && first > 0) return first;
+    } else if (process.platform === "darwin") {
+      const first = Number(execFileSync("sysctl", ["-n", "net.inet.ip.portrange.first"], { encoding: "utf8" }).trim());
+      if (Number.isInteger(first) && first > 0) return first;
+    }
+  } catch { /* fall through to the IANA floor */ }
+  return 49152;
+}
+
+/**
+ * A loopback port that nothing holds now and that nothing on this machine will be
+ * handed later: for a config field a tool only CHECKS, such as the runtime bridge port
+ * `dbg_launch` and `cs_dbg_launch` probe before they start a game.
+ *
+ * 🔴 BP-0069 (337) — "BIND PORT 0, RELEASE IT, USE THE NUMBER" PICKS FROM THE ONE RANGE
+ * THE KERNEL GOES ON HANDING OUT. Six files took their "free" runtime port that way, and
+ * every later bind to port 0 on the machine, the suite's own mock servers included, draws
+ * from the same pool. Measured on a Linux 6.8 kernel: a released port came back to 8 of
+ * 60,000 binds to port 0, about one in 7,500. When one of them is holding it at the
+ * moment a test's launch checks it, the launch is refused as a port conflict before it
+ * dials the adapter. That is #441's post-merge failure
+ * exactly: the fourth test in `csdap.test.ts` read `buffered: true`, in 32 ms, with no
+ * `CS-DAP connected` line where every launching test prints one, and 284's sibling read
+ * `undefined` where a session object belonged, which is the refusal's empty envelope.
+ *
+ * A port below the floor is one no bind to port 0 and no outbound connection can be
+ * given, so only a test that binds that exact number could take it, and none does.
+ * Checked free before it is returned; never held, because the tools must find it free.
+ */
+export async function quietPort(host = "127.0.0.1"): Promise<number> {
+  const floor = ephemeralFloor();
+  const lo = Math.max(1024, floor - 12000);
+  const hi = floor - 2000;
+  if (hi <= lo) throw new Error(`no room below this machine's ephemeral ports (they start at ${floor})`);
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const port = lo + Math.floor(Math.random() * (hi - lo));
+    const free = await new Promise<boolean>((resolve) => {
+      const srv = net.createServer();
+      srv.once("error", () => resolve(false));
+      srv.listen(port, host, () => srv.close(() => resolve(true)));
+    });
+    if (free) return port;
+  }
+  throw new Error(`no free port in ${lo}..${hi - 1} on ${host} after 32 tries`);
 }
 
 // ---- Content-Length (LSP/DAP) framing -------------------------------------

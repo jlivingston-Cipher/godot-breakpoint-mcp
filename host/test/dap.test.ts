@@ -8,8 +8,8 @@ import { DapClient } from "../src/dap.js";
 import { registerDapTools } from "../src/tools/dap.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { makeRecordingServer, type ToolResultLike } from "./helpers/recording-server.js";
-import { startTcpServer, makeFrameParser, writeFrame, encodeFrame, type TcpServer } from "./helpers/tcp.js";
-import { structured } from "./helpers/structured.js";
+import { startTcpServer, quietPort, makeFrameParser, writeFrame, encodeFrame, type TcpServer } from "./helpers/tcp.js";
+import { structured, started } from "./helpers/structured.js";
 import { whoHolds } from "../src/port-holder.js";
 
 interface DapMsg { seq: number; type: string; command?: string; arguments?: Record<string, unknown>; request_seq?: number; success?: boolean; event?: string; body?: unknown }
@@ -67,7 +67,7 @@ async function launchAndStop(
   stop: () => void,
   args: Record<string, unknown> = { scene: "main" },
 ): Promise<void> {
-  await rec.handler("dbg_launch")(args);
+  started(await rec.handler("dbg_launch")(args), "dbg_launch");
   const landed = new Promise<void>((resolve) => dap.once("stopped", () => resolve()));
   stop();
   await landed;
@@ -101,8 +101,10 @@ function tmpDir(): string {
  * It must be a port nothing holds: `dbg_launch` now probes it, so leaving the
  * real 9081 in place would make every launch test depend on whether a game
  * happens to be running on the machine — flaky in exactly the direction that
- * teaches people to ignore the suite. Taking one the kernel hands out and
- * releasing it beats guessing a number.
+ * teaches people to ignore the suite. 337 (BP-0069): and not one the kernel hands
+ * out either, because it goes on handing that one out to every bind to port 0 while
+ * the suite runs. `quietPort()` in helpers/tcp.ts takes one below that range, and the
+ * measurement is written there.
  */
 let freeRuntimePort: number;
 
@@ -114,9 +116,7 @@ function squat(): Promise<{ srv: net.Server; port: number }> {
 }
 
 before(async () => {
-  const held = await squat();
-  freeRuntimePort = held.port;
-  await new Promise<void>((r) => held.srv.close(() => r()));
+  freeRuntimePort = await quietPort();
 });
 
 function dapHarness(port: number, elicit?: Parameters<typeof makeRecordingServer>[0], runtimePort?: number) {
@@ -199,7 +199,7 @@ test("dbg_set_breakpoints applies immediately once the session is configured", a
     if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }, { line: 20, verified: false }] });
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10, 20] })) as ToolResultLike;
   const sc = structured<{ buffered: boolean; breakpoints: Array<{ line: number; verified: boolean }> }>(res);
   assert.equal(sc.buffered, false);
@@ -228,7 +228,7 @@ test("dbg_evaluate is blocked (and sends no evaluate) when the user declines con
     if (m.command === "evaluate") dapResponse(s, m, { result: "should-not-happen" });
   });
   const { dap, rec } = dapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_evaluate")({ expression: "delete_everything()" })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.ok(!received.some((m) => m.command === "evaluate"), "a declined evaluate must never reach the adapter");
@@ -295,7 +295,7 @@ test("dbg_watch persists the set and re-evaluates on a bare call (after a step/c
     if (m.command === "evaluate") dapResponse(s, m, { result: "v", type: "int" });
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   await rec.handler("dbg_watch")({ add: ["a", "b"] });
   const res = (await rec.handler("dbg_watch")({})) as ToolResultLike; // no mutation → re-read
   const sc = structured<{ watches: Array<{ expression: string }> }>(res);
@@ -310,7 +310,7 @@ test("dbg_watch remove and clear mutate the persistent set", async () => {
     if (m.command === "evaluate") dapResponse(s, m, { result: "v", type: "T" });
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   await rec.handler("dbg_watch")({ add: ["a", "b", "c"] });
   let sc = structured<{ watches: Array<{ expression: string }> }>(((await rec.handler("dbg_watch")({ remove: ["b"] })) as ToolResultLike));
   assert.deepEqual(sc.watches.map((w) => w.expression), ["a", "c"]);
@@ -332,7 +332,7 @@ test("dbg_set_breakpoints forwards conditions, hit conditions, and log messages 
     if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }, { line: 20, verified: true }] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   await rec.handler("dbg_set_breakpoints")({
     path: "player.gd",
     lines: [10, 20],
@@ -363,7 +363,7 @@ test("dbg_set_breakpoints drops condition/hitCondition/logMessage and warns when
     if (m.command === "setBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }, { line: 20, verified: true }] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_set_breakpoints")({
     path: "player.gd",
     lines: [10, 20],
@@ -509,7 +509,7 @@ test("a later dbg_set_breakpoints does not re-report a drop an earlier call alre
     if (m.command === "setBreakpoints") dapResponse(s, m, { breakpoints: [{ line: 10, verified: true }] });
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const first = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [10], conditions: ["hp < 0"] })) as ToolResultLike;
   assert.deepEqual((structured<{ unsupported_modifiers?: string[] }>(first)).unsupported_modifiers, ["condition"]);
   const second = (await rec.handler("dbg_set_breakpoints")({ path: "player.gd", lines: [20] })) as ToolResultLike;
@@ -637,7 +637,7 @@ test("dbg_set_exception_breakpoints forwards filters and reports the adapter's a
     if (m.command === "setExceptionBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [{ verified: true }] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_set_exception_breakpoints")({ filters: ["raise"] })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, {
     filters: ["raise"],
@@ -658,7 +658,7 @@ test("dbg_set_exception_breakpoints returns 'unsupported' without sending the re
     if (m.command === "setExceptionBreakpoints") dapResponse(s, m, {});
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_set_exception_breakpoints")({ filters: ["raise"] })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /unsupported/i);
@@ -681,7 +681,7 @@ test("dbg_set_exception_breakpoints clears filters (filters: []) when the adapte
     if (m.command === "setExceptionBreakpoints") { bpReq = m; dapResponse(s, m, { breakpoints: [] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_set_exception_breakpoints")({})) as ToolResultLike;
   assert.deepEqual(res.structuredContent, {
     filters: [],
@@ -716,7 +716,7 @@ test("dbg_set_variable is blocked (and sends no setVariable) when the user decli
     if (m.command === "setVariable") dapResponse(s, m, { value: "should-not-happen" });
   });
   const { dap, rec } = dapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_set_variable")({ variables_ref: 1001, name: "hp", value: "0" })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.ok(!received.some((m) => m.command === "setVariable"), "a declined setVariable must never reach the adapter");
@@ -817,7 +817,7 @@ test("dbg_restart uses the DAP restart request when the adapter advertises suppo
     if (m.command === "restart") { restarted = true; dapResponse(s, m, {}); dapEvent(s, "stopped", { reason: "entry", threadId: 1 }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_restart")({})) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { session_id: "godot", method: "restart", state: "stopped", scene: "main" });
   assert.ok(restarted, "must issue the DAP 'restart' command");
@@ -834,7 +834,7 @@ test("dbg_restart falls back to terminate + relaunch when the adapter does not s
     if (m.command === "terminate") { terminated = true; dapResponse(s, m, {}); return; }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_restart")({ scene: "current" })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { session_id: "godot", method: "relaunch", state: "running", scene: "current" });
   assert.ok(terminated, "the fallback must terminate the old session");
@@ -899,7 +899,7 @@ test("dbg_goto is blocked (and issues no goto) when the user declines confirmati
     if (m.command === "goto") { dapResponse(s, m, {}); }
   });
   const { dap, rec } = dapHarness(srv.port, async () => ({ action: "decline" }));
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_goto")({ path: "player.gd", line: 20 })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.ok(!received.some((m) => m.command === "goto"), "a declined goto must never reach the adapter");
@@ -936,7 +936,7 @@ test("dbg_data_breakpoints resolves dataIds and arms them, reporting verified + 
     if (m.command === "setDataBreakpoints") { setArgs = m.arguments; dapResponse(s, m, { breakpoints: [{ verified: true }] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_data_breakpoints")({ watch: [{ name: "hp", variables_ref: 1001, access_type: "write" }, { name: "nope" }] })) as ToolResultLike;
   assert.deepEqual(res.structuredContent, {
     breakpoints: [{ name: "hp", data_id: "hp@1", verified: true }],
@@ -955,7 +955,7 @@ test("dbg_data_breakpoints with no watches clears all data breakpoints", async (
     if (m.command === "setDataBreakpoints") { setArgs = m.arguments; dapResponse(s, m, { breakpoints: [] }); }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_data_breakpoints")({})) as ToolResultLike;
   assert.deepEqual(res.structuredContent, { breakpoints: [], unresolved: [] });
   assert.deepEqual(setArgs, { breakpoints: [] });
@@ -967,7 +967,7 @@ test("dbg_data_breakpoints with no watches clears all data breakpoints", async (
 test("dbg_data_breakpoints returns 'unsupported' without sending requests when the adapter lacks supportsDataBreakpoints", async () => {
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_data_breakpoints")({ watch: [{ name: "hp" }] })) as ToolResultLike;
   assert.equal(res.isError, true);
   assert.match(res.content![0].text!, /unsupported/i);
@@ -1239,7 +1239,7 @@ test("262: the tools that need a STOP refuse a live session whose program is RUN
   // answer and the only one the host did not have to ask the adapter for.
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   assert.equal(dap.hasSession, true, "the premise: a session IS live");
   assert.equal(dap.isStopped, false, "…and the program is NOT stopped");
   const handshakeCommands = received.length;
@@ -1278,7 +1278,7 @@ test("262: dbg_watch still manages the set while the program runs, and says why 
   // a request the adapter was never going to answer.
   const { srv, received } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const before = received.length;
   const res = (await rec.handler("dbg_watch")({ add: ["total", "i"] })) as ToolResultLike;
   assert.equal(res.isError, undefined, "managing the set is not an error");
@@ -1301,7 +1301,7 @@ test("262: the stopped guard runs BEFORE the confirmation prompt on the gated to
   let prompts = 0;
   const { srv } = await startDap((m, s) => { handshake(m, s); });
   const { dap, rec } = dapHarness(srv.port, async () => { prompts++; return { action: "accept" as const, content: {} }; });
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   await rec.handler("dbg_evaluate")({ expression: "1+1" });
   await rec.handler("dbg_set_variable")({ variables_ref: 1, name: "x", value: "1" });
   await rec.handler("dbg_goto")({ path: "player.gd", line: 12 });
@@ -1324,7 +1324,7 @@ test("262: dbg_data_breakpoints requires a session but NOT a stop — the asymme
   const noSession = (await rec.handler("dbg_data_breakpoints")({ watch: [{ name: "counter" }] })) as ToolResultLike;
   assert.equal(noSession.isError, true);
   assert.match(String(noSession.content?.[0]?.text), /needs a debug session/);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const running = (await rec.handler("dbg_data_breakpoints")({ watch: [{ name: "counter" }] })) as ToolResultLike;
   assert.equal(running.isError, undefined, "a running program may still arm a data breakpoint");
   dap.close();
@@ -1426,7 +1426,7 @@ test("an adapter failure with an EMPTY message is not rendered as a bare label a
     if (m.command === "stackTrace") { writeFrame(s, { seq: 0, type: "response", request_seq: m.seq, success: false, command: "stackTrace", message: "" }); return; }
   });
   const { dap, rec } = dapHarness(srv.port);
-  await rec.handler("dbg_launch")({ scene: "main" });
+  started(await rec.handler("dbg_launch")({ scene: "main" }), "dbg_launch");
   const res = (await rec.handler("dbg_stack_trace")({})) as ToolResultLike;
   assert.equal(res.isError, true);
   const text = String(res.content?.[0]?.text);
