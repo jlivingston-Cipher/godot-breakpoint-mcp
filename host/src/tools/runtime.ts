@@ -8,7 +8,9 @@ import { ok, failPath } from "./lsp-common.js";
 import type { Config } from "../config.js";
 import fs from "node:fs";
 import nodePath from "node:path";
-import { resolveInsideProject, resolveWriteTarget } from "../paths.js";
+import { resolveInsideProject, resolveWriteTarget, resolveExistingFile } from "../paths.js";
+import { measureCapture, readPcm, type CapturedSound } from "./hearing.js";
+import { WavError, type Pcm } from "../hearing.js";
 import { NAME_TAKEN_CLAUSE } from "../schemas.js";
 import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
@@ -36,6 +38,18 @@ type ScreenshotReply = {
   width: number;
   height: number;
   viewport?: Record<string, unknown>;
+};
+
+/** What `runtime.audio_capture` answers (addon 1.23.0, BP-0059): the sound, and the bus it was heard on. */
+type CaptureReply = CapturedSound & {
+  bus: string;
+  /** null when the bus's volume is minus infinity (a slider at zero): JSON cannot carry it. */
+  bus_volume_db: number | null;
+  bus_muted: boolean;
+  soloed?: string[];
+  discarded_frames: number;
+  /** D1a: what the game logged during the capture, attached by the async lane. */
+  engine_log?: { total?: number; entries?: Array<{ message: string }> };
 };
 
 /**
@@ -422,6 +436,71 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
         bytes: png.length,
         ...(r.viewport ? { viewport: r.viewport } : {}),
       });
+    },
+  );
+
+  // 🆕 BP-0059 (1.94.0 / addon 1.23.0) — THE HEARING PLANE'S LIVE HALF. `godot_record` measures a
+  // scene it starts itself, from the first frame; some sounds only happen after a player has driven
+  // the game somewhere (a boss, a menu, a combo). This one listens to the game already running: the
+  // addon puts a capture effect at the end of a bus's effect chain for `seconds` of real time and
+  // sends the samples back, and the host measures them exactly as it measures a recording. Real
+  // time, so not repeatable sample for sample the way a Movie Maker recording is — the reply's
+  // `notes` says what the capture point cannot hear (the bus's own volume, mute and solo), samples
+  // lost to a long frame, and anything the game logged meanwhile. 🔴 336's review arm: adding or
+  // removing ANY bus effect makes Godot rebuild every effect on that bus (a recording stopped, a
+  // spectrum instance the game held froze), so the addon refuses a bus that already has effects, a
+  // bus already being captured, and surround output. On what it accepts it adds and removes one
+  // effect on an effect-free bus and writes a new WAV under `.godot/`: not destructive, and no
+  // confirmation (era-neutral until 2.0, BP-0029).
+  server.registerTool(
+    "runtime_audio_capture",
+    {
+      title: "Capture and measure the running game's sound",
+      description:
+        "Listen to the running game for a few seconds of real time: a capture effect on an audio bus with no effects " +
+        "collects what it plays, then it is measured like godot_record's recording (LUFS, peaks, clipping, octave bands, spectrogram).",
+      inputSchema: {
+        seconds: z.number().min(0.1).max(10).optional().describe("Seconds to listen (default 3)"),
+        bus: z.string().optional().describe("Audio bus to capture (default Master)"),
+        compare_to: z.string().optional().describe("An earlier WAV to compare this capture against"),
+        ...peerField,
+      },
+    },
+    async ({ seconds, bus, compare_to, peer }) => {
+      let before: Pcm | null = null;
+      try {
+        if (compare_to !== undefined) before = readPcm(resolveExistingFile(compare_to, config.projectPath, "compare_to"));
+      } catch (err) {
+        // Read before the game is asked to listen: a bad compare_to costs nothing (336's review).
+        if (err instanceof WavError) {
+          return { isError: true as const, content: [{ type: "text" as const, text: `runtime_audio_capture: compare_to could not be read as a WAV (${err.message}). Pass a PCM or float WAV, such as an earlier recording's sound.wav.` }] };
+        }
+        return failPath(err);
+      }
+      const secs = seconds ?? 3;
+      let r: CaptureReply;
+      try {
+        // The game answers after `secs` of real time plus up to five seconds of grace of its own.
+        r = (await clientFor(peer).request("runtime.audio_capture", { seconds: secs, bus: bus ?? "Master" }, secs * 1000 + 15_000)) as CaptureReply;
+      } catch (err) {
+        return fail(err);
+      }
+      const notes: string[] = [];
+      const got = r.frames / r.rate;
+      const db = r.bus_volume_db === null ? null : Math.round(r.bus_volume_db * 100) / 100;
+      if (got < secs - 0.01) notes.push(`captured ${Math.round(got * 1000) / 1000} s of the ${secs} s asked for before the deadline`);
+      if (got < 0.4) notes.push("shorter than one 400 ms loudness block, so the loudness readings are null");
+      if (r.discarded_frames > 0) notes.push(`${r.discarded_frames} sample frames were lost: the game went longer than the capture's buffer holds (about 2.7 s at 48 kHz) without a frame`);
+      if (r.bus_muted) notes.push(`the ${r.bus} bus is muted: none of this reaches the speakers`);
+      else if (db === null) notes.push(`the ${r.bus} bus's volume is at minus infinity (a slider at zero): none of this reaches the speakers`);
+      else if (db !== 0) notes.push(`the ${r.bus} bus's own volume (${db} dB) applies after this capture point, so it plays ${Math.abs(db)} dB ${db < 0 ? "quieter" : "louder"} than measured here`);
+      const soloed = r.soloed ?? [];
+      if (soloed.length && !soloed.includes(r.bus)) notes.push(`${soloed.join(", ")} ${soloed.length > 1 ? "are" : "is"} soloed, so a bus that is not soloed, this one included, does not reach the speakers`);
+      const logged = r.engine_log?.entries ?? [];
+      if (logged.length) notes.push(`the game logged ${r.engine_log?.total ?? logged.length} warning(s) or error(s) while it listened; the first: ${logged[0].message}`);
+      return measureCapture(config, r, before, compare_to ?? null, {
+        bus: r.bus, bus_volume_db: db, bus_muted: r.bus_muted, discarded_frames: r.discarded_frames,
+      }, notes);
     },
   );
 

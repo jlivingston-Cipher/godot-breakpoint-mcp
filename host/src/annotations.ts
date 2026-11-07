@@ -169,7 +169,7 @@ const OPEN_WORLD: readonly string[] = [];
 /**
  * The complete annotated roster — every registered tool, listed explicitly.
  *
- * This CANNOT be derived as the union of the four lists above: 52 tools are
+ * This CANNOT be derived as the union of the four lists above: 53 tools are
  * all-false (mutating, non-destructive, non-idempotent, local — e.g. `node_add`,
  * `dbg_step`, `vcs_commit`), so a derived union would silently omit them and the
  * totality check below would pass while they shipped unannotated. Listing the
@@ -219,7 +219,7 @@ export const ALL_ANNOTATED: readonly string[] = [
   "resource_duplicate", "resource_get_import_settings", "resource_get_property", "resource_load", "resource_save",
   "resource_set_import_settings", "resource_set_property", "rigidbody_set_properties", "runtime_anim_get_state",
   "runtime_anim_play", "runtime_anim_stop", "runtime_assert_node_state", "runtime_assert_perf",
-  "runtime_assert_scene_structure", "runtime_assert_screen_text", "runtime_await_condition", "runtime_call_method",
+  "runtime_assert_scene_structure", "runtime_assert_screen_text", "runtime_audio_capture", "runtime_await_condition", "runtime_call_method",
   "runtime_emit_signal", "runtime_get_log", "runtime_get_monitors", "runtime_get_property", "runtime_get_tree",
   "runtime_inject_input", "runtime_node_add", "runtime_node_remove", "runtime_peer_stop", "runtime_peers_digest", "runtime_read_state",
   "runtime_screenshot", "runtime_screenshot_diff", "runtime_screenshot_save", "runtime_seed_rng", "runtime_set_property",

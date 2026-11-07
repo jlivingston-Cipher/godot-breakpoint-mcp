@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **297 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **298 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2716,10 +2716,11 @@ between belongs to this call and nothing else does.
   `Logger` via `OS.add_logger`, which does not exist before 4.5. On 4.3/4.4 the ring — and
   therefore the echo — carries only what game code routes through `push_log` itself, so a
   4.3 caller sees the field absent rather than wrong.
-- The six runtime tools that do **not** carry it — `runtime_screenshot`,
-  `runtime_screenshot_save`, `runtime_await_condition`, `runtime_spawn_peers`, `runtime_peer_stop`,
-  `runtime_peers_digest` — build their reply rather than forwarding one, so there is no
-  single dispatch to attribute a log line to.
+- The seven runtime tools that do **not** carry it — `runtime_screenshot`,
+  `runtime_screenshot_save`, `runtime_audio_capture`, `runtime_await_condition`, `runtime_spawn_peers`,
+  `runtime_peer_stop`, `runtime_peers_digest` — build their reply rather than forwarding one, so there
+  is no single dispatch to attribute a log line to. (`runtime_audio_capture` says in `notes` what the game
+  logged while it listened.)
 
 ### `runtime_get_property` / `runtime_set_property` ✔ ✅
 - **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
@@ -2842,6 +2843,30 @@ between belongs to this call and nothing else does.
 { "type": "object", "required": ["saved", "path", "width", "height", "bytes"], "properties": { "saved": { "type": "boolean" }, "path": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" }, "bytes": { "type": "integer", "description": "bytes written" }, "viewport": { "type": "object", "description": "addon 1.19.0+: the same geometry block as runtime_screenshot" } } }
 ```
 - The host asks the game for the frame (`runtime.screenshot`, the same capture as `runtime_screenshot`, at the viewport's own size) and writes the PNG itself, through the writer path guard: the path must resolve **inside the project root** (`path_outside_project` otherwise) and must **not exist** (`exists` otherwise — this tool has no `overwrite` and never replaces a file; the write is exclusive, so a file that appears between the check and the write is refused too). Missing parent folders are created. Both refusals answer before the game is asked for a frame. **No image is returned**, so a frame kept for later costs nothing in context. `runtime_screenshot` itself stays read-only. A saved PNG is a reference `runtime_screenshot_diff` loads straight away (`Image.load` reads the file, no import needed). The same `window_not_drawing` refusal as `runtime_screenshot` applies.
+
+### `runtime_audio_capture` ✅ · writes a new file (1.94.0, BP-0059; addon 1.23.0)
+Listen to the **running game** for `seconds` of real time and measure what it played, the same way `godot_record` measures a recording: the same numbers, the same spectrogram picture, the same `compare_to`. `godot_record` starts a scene itself and records it from the first frame; this hears the game where you have already driven it — a boss fight, a menu, a combo — which a fresh recording cannot reach. Godot binds no method that reads the mixed output from script, so the addon puts an `AudioEffectCapture` on the bus for the length of the capture and takes it off again. It hears the bus's input, but **not the bus's own volume, mute or solo**, which Godot applies afterwards: `bus_volume_db` (`null` when the volume is minus infinity, a slider at zero) and `bus_muted` say what was skipped, and `notes` says it in words when any of them, or a solo on another bus, would change what reaches the speakers. `notes` also carries samples lost to a frame longer than the capture's buffer (about 2.7 s at 48 kHz), a capture shorter than one loudness block of four tenths of a second (its loudness readings are `null`), and the first of any warnings or errors the game logged while it listened. The samples are the mix's own floats (32-bit, or 64-bit in a double-precision build), so a sound over full scale reads above 0 dBFS here rather than clipped. The WAV is written to `res://.godot/breakpoint/recordings/<time>-live-…/sound.wav` and named in the reply. Real time, so two captures of one moment are not the same sample for sample the way two Movie Maker recordings are; and sending a long capture back costs the game one long frame (about 86 ms for ten seconds, measured).
+
+🔴 **It captures only a bus with no effects of its own**, because adding or removing any effect makes Godot rebuild every effect on that bus: measured on 4.2.2 and 4.7.1, a recording `AudioEffectRecord` stopped and lost its take, a `SpectrumAnalyzer` instance the game held froze, and reverb and delay tails restarted. So it refuses a bus that carries effects (`bus_has_effects`, naming them: capture a bus with none that sends to it, or record the whole mix with `godot_record`), a bus already being captured (`bus_busy`), surround output (`not_stereo`: every speaker pair writes into the capture's one buffer), a bus that bypasses its effects (`bus_bypassed`), a bus the game does not have (`no_bus`, listing the game's buses), and a capture that receives no samples at all (`no_audio`). A `compare_to` that is outside the project or not a WAV is refused before the game is asked to listen. Needs the game running with the runtime bridge, like every `runtime_*` tool.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "properties": {
+  "seconds": { "type": "number", "minimum": 0.1, "maximum": 10, "default": 3 },
+  "bus": { "type": "string", "default": "Master" },
+  "compare_to": { "type": "string", "description": "an earlier WAV inside the project" },
+  "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["wav", "bus", "bus_volume_db", "bus_muted", "discarded_frames", "analysis", "compare_to", "comparison", "notes"],
+  "properties": {
+    "wav": { "type": "string", "description": "res:// path of the captured WAV" },
+    "bus": { "type": "string" }, "bus_volume_db": { "type": ["number", "null"], "description": "applied after the capture point; null at minus infinity" },
+    "bus_muted": { "type": "boolean" }, "discarded_frames": { "type": "integer", "description": "sample frames lost to a frame longer than the capture's buffer" },
+    "analysis": { "$ref": "#/hearing/analysis" },
+    "compare_to": { "type": ["string", "null"] }, "comparison": { "oneOf": [{ "$ref": "#/hearing/comparison" }, { "type": "null" }] },
+    "notes": { "type": "array", "items": { "type": "string" } } } }
+```
 
 ### `runtime_get_log` ✅ (also a subscribable `godot://runtime/log` resource)
 - **Input**
@@ -4420,7 +4445,7 @@ Terminate a game this server started: the `id` comes from `godot_run_project` or
 An assistant cannot listen, so these two tools turn a game's sound into numbers it can read and a picture it can look at. Every level is measured, never described. **Conventions** (stated once, every number below follows them): dBFS is 20·log10 of an amplitude where 1.0 is full scale; `rms_dbfs` is the RMS of the samples in that scale, so a full-scale square wave reads 0 and a full-scale sine −3.01. Octave band levels are mean-square power in the same scale, so the bands of a signal inside 22 Hz–22.6 kHz sum to `rms_dbfs`. Loudness is ITU-R BS.1770-4 / EBU R128 (K-weighting, blocks of 0.4 s every 0.1 s, the −70 LUFS absolute and −10 LU relative gates; a full-scale 1 kHz sine in one channel reads −3.01 LUFS). True peak is 4× oversampled. A sample at or beyond 0.9999 of full scale is **clipped**; three in a row are a clipped **run**. **Silence is `null`, never −Infinity.** Each reply also carries a **spectrogram** as image content: time left to right, log frequency 20 Hz (bottom) to 20 kHz (top) with faint lines at 0.1, 1 and 10 kHz, colour across the top hundred decibels from black to pale yellow at full scale, and a red strip along the top where samples hit full scale. With `compare_to` the two pictures are stacked, the earlier one on top, and `comparison` reports **this minus that** for every scalar and every band.
 
 ### `godot_record` ✅ · writes a new file
-Run the project (or one `scene`) under **Godot's Movie Maker** for `seconds` of game time at a fixed `fps`, then measure the recorded sound. Movie Maker advances frames and mixes audio in exact lockstep, never in real time, so a recording is the same on a fast or a slow machine and two recordings of one scene compare sample for sample. **Opens a game window:** Movie Maker needs a real renderer (`--headless --write-movie` crashes Godot 4.7, measured). The WAV is written to `res://.godot/breakpoint/recordings/<time>/sound.wav` (inside `.godot/`, which Godot's own `.gitignore` keeps out of version control) and named in the reply, so `audio_analyze` or a later `compare_to` can read it. The PNG frames are deleted unless `keep_frames` — but Movie Maker writes one per frame during the run, so budget disk for `seconds × fps` frames at the game's window size. `user_args` reach the game after `--` (`OS.get_cmdline_user_args()`), for a game's own switches. `seconds` is at most two minutes. The run has a deadline (one minute plus twenty seconds per recorded second); at it Godot's process group is stopped, then killed. `notes` says in words when the WAV is shorter than asked for, the run hit its deadline, or Godot exited non-zero — a recording cut short never reads as a quiet success. Refuses a `scene` spelled like a command-line option, and refuses when Godot wrote no sound, naming the exit code and the last lines Godot printed.
+Run the project (or one `scene`) under **Godot's Movie Maker** for `seconds` of game time at a fixed `fps`, then measure the recorded sound. Movie Maker advances frames and mixes audio in exact lockstep, never in real time, so a recording is the same on a fast or a slow machine and two recordings of one scene compare sample for sample. **Opens a game window:** Movie Maker needs a real renderer (`--headless --write-movie` crashes Godot 4.7, measured). The WAV is written to `res://.godot/breakpoint/recordings/<time>/sound.wav` (inside `.godot/`, which Godot's own `.gitignore` keeps out of version control) and named in the reply, so `audio_analyze` or a later `compare_to` can read it. By default Movie Maker writes one AVI (its MJPEG writer), the host takes the sound out of it chunk by chunk without reading the pictures, and deletes it: no picture is written as its own file, and only the movie's size is ever on disk (measured on an M2: two minutes of a still scene recorded 2.5 times faster, in one movie instead of 7,200 pictures; five seconds of a frame no codec compresses, 7.8 times faster and in under a fifth of the disk). The AVI's sound is the engine's own depth: the 32-bit mix through Godot 4.5; from 4.6 the project setting `editor/movie_writer/audio_bit_depth`, **16 by default — the mix truncated, which reads sound under about −70 dBFS high** (measured on 4.7.1: a tone at −72 dBFS reads 0.83 dB high, and one thirty decibels quieter reads 12 dB high) and moves `dc_offset` by half a step. `analysis.bits` says which, and a 16-bit take says so in `notes`; set the setting to 32 for the full mix through the AVI. With `keep_frames` the run writes one PNG per frame and a WAV instead, keeps the frames in `frames_dir`, and the WAV is 32-bit on every version. `user_args` reach the game after `--` (`OS.get_cmdline_user_args()`), for a game's own switches. `seconds` is at most two minutes. The run has a deadline (one minute plus twenty seconds per recorded second); at it Godot's process group is stopped, then killed. `notes` says in words when the WAV is shorter than asked for, the run hit its deadline, or Godot exited non-zero — a recording cut short never reads as a quiet success. Refuses a `scene` spelled like a command-line option, and refuses when Godot wrote no sound, naming the exit code and the last lines Godot printed.
 - **Input**
 ```json
 { "type": "object", "additionalProperties": false, "properties": {
@@ -4437,7 +4462,7 @@ Run the project (or one `scene`) under **Godot's Movie Maker** for `seconds` of 
   "properties": {
     "wav": { "type": "string", "description": "res:// path of the recorded WAV" },
     "frames_dir": { "type": ["string", "null"], "description": "where the PNG frames are, when keep_frames" },
-    "frames": { "type": "integer", "description": "PNG frames Godot wrote" },
+    "frames": { "type": "integer", "description": "frames Godot wrote (the AVI's pictures, or the PNGs with keep_frames)" },
     "fps": { "type": "integer" }, "exit_code": { "type": ["integer", "null"] }, "timed_out": { "type": "boolean" },
     "analysis": { "$ref": "#/hearing/analysis" },
     "compare_to": { "type": ["string", "null"] }, "comparison": { "oneOf": [{ "$ref": "#/hearing/comparison" }, { "type": "null" }] },
@@ -4455,7 +4480,7 @@ Measure a WAV file inside the project (PCM 8/16/24/32-bit or float 32/64-bit, pl
 
 **`analysis`** — `duration_s`, `sample_rate`, `channels`, `bits`; `peak_dbfs`, `true_peak_dbtp`, `rms_dbfs`; `loudness_lufs` (integrated), `loudness_momentary_max_lufs`, `loudness_short_term_max_lufs`, `loudness_weighting` (which channel weights were used, in words: from the file's speaker mask, or 3.1 / 5.1 / 7.1 by channel count as Movie Maker writes them, or 1.0 throughout); `clipped_samples`, `clipped_runs`, `first_clip_s` (full scale is the format's own: one step under 1.0 for 8-bit); `nonfinite_samples` (NaN or infinite samples in a float file, counted and read as 0); `onset_s` (first sample above −60 dBFS), `silent_fraction` (0.1 s blocks under −60 dBFS); `dominant_hz`, `centroid_hz`; `bands` (ten octaves, `{hz, db}`, 31.5 Hz–16 kHz; `null` when silent, or when the file is too short to resolve that octave); `per_channel` (`{peak_dbfs, rms_dbfs, dc_offset}`). Every level is a number or `null`.
 
-**`comparison`** — `delta` (this minus that, per scalar: `duration_s`, `peak_dbfs`, `true_peak_dbtp`, `rms_dbfs`, the three loudness readings, `clipped_samples`, `onset_s`, `silent_fraction`, `dominant_hz`, `centroid_hz`; `null` where either side is silent), `band_delta_db` (`{hz, db}` per octave), `band_mean_abs_diff_db` (mean |Δ| over the octaves where either side is above −90 dB), and `notes` (a differing sample rate, channel count or duration, in words).
+**`comparison`** — `delta` (this minus that, per scalar: `duration_s`, `peak_dbfs`, `true_peak_dbtp`, `rms_dbfs`, the three loudness readings, `clipped_samples`, `onset_s`, `silent_fraction`, `dominant_hz`, `centroid_hz`; `null` where either side is silent), `band_delta_db` (`{hz, db}` per octave), `band_mean_abs_diff_db` (mean |Δ| over the octaves where either side is above −90 dB), and `notes` (a differing sample rate, channel count, bit depth or duration, in words).
 
 ---
 
@@ -4722,6 +4747,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_read_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_screenshot` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_screenshot_save` | `runtime` · C / Runtime | ✅ | writes a file (never overwrites) |
+| `runtime_audio_capture` | `runtime` · C / Runtime | ✅ | writes a new file |
 | `runtime_get_log` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_node_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_scene_structure` | `runtime` · C / Runtime | ✅ | – |
@@ -4804,4 +4830,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
-**297 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**298 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

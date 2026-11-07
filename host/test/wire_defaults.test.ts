@@ -14,7 +14,7 @@ import { buildToolsets } from "../src/toolsets.js";
 import { TASK_CAPABILITIES, taskStore } from "../src/tasks.js";
 import { loadConfig } from "../src/config.js";
 
-const EXPECTED_TOOL_COUNT = 297;
+const EXPECTED_TOOL_COUNT = 298;
 const require = createRequire(import.meta.url);
 
 // ── 1. THE FAIL-SAFE, WHICH IS THE ONLY REASON THE STRIP IS SAFE AT ALL ──────────────

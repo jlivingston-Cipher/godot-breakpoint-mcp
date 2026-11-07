@@ -232,7 +232,11 @@ TS_CLASS_CEILING: dict[str, tuple[int, str]] = {
         # sent, and an out-of-range pitch must be refused with nothing delivered — through the
         # file's existing `const assert = population.assert`. Measured on CI (ci 42113958554):
         # 462 against 457.
-        462,
+        # 🆕 336 (BP-0059): LOWERED by THIRTEEN, and paid down rather than raised. The capture
+        # probe gained AUDIO_CAP_RESULT (seven claims), and instead of paying the tax on them its
+        # binding got the one JSDoc line the hearing probe carries (335), which also takes the
+        # thirteen calls it already made off the count. Measured on the Mac: 449 against 462.
+        449,
         "One idiom, not {FLOOR} defects. TypeScript refuses to narrow through an assertion "
         "function reached by an un-annotated binding, and this tree's probes call "
         "`assert.ok`-shaped helpers through exactly that shape. It is a property of "

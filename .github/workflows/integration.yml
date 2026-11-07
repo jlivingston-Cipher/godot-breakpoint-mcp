@@ -1808,7 +1808,8 @@ jobs:
         # job is the one that already has one, so the probe rides here rather than paying for a
         # second Xvfb install. The host launches Godot itself, so the display and the software GL
         # reach the game through the environment xvfb-run gives node. Measured on the Mac against
-        # this job's Godot (4.3) before it was pushed: 34/34 claims, 10/10 families.
+        # this job's Godot (4.3) before it was pushed: 34/34 claims, 10/10 families. 🆕 336 (BP-0063): the
+        # default route is Movie Maker's AVI and a keep_frames take rides beside it, 41/41 on 4.3 and 4.7.1.
         working-directory: host
         timeout-minutes: 10
         env:

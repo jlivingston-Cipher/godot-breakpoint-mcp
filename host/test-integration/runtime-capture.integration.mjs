@@ -13,7 +13,7 @@
 //   * Godot <  4.5 (log_capture false) — capture is a documented no-op: the print()
 //     must NOT appear, but push_log() entries still must (runtime_get_log works).
 //
-// Markers (grep-able): D6_CAP_PING / D6_CAP_LOG / D6_CAP_CALL / D6_CAP_RESULT.
+// Markers (grep-able): D6_CAP_PING / D6_CAP_LOG / D6_CAP_CALL / D6_CAP_RESULT / AUDIO_CAP_RESULT.
 // The reachability check is the gate (exit 1 if the runtime bridge is unreachable).
 //
 // Requires the game running (booted by the workflow) with GODOT_PROJECT set. Not
@@ -31,15 +31,22 @@ import { Population } from "./_population.mjs";
 // the SAME probe able to assert the feature on new engines and its DELIBERATE
 // silence on old ones. Both arms make five claims, so one floor covers both, and
 // an arm that quietly stopped asserting is what that floor catches.
+// 🆕 336 — AUDIO_CAP joins it (BP-0059): runtime_audio_capture against the same live game, on
+// every engine in the matrix. No arm: the capture effect and the async lane exist on every 4.x.
 const population = new Population("D6_CAP", {
-  families: ["D6_CAP_RESULT", "D1A_ECHO_RESULT"],
+  families: ["D6_CAP_RESULT", "D1A_ECHO_RESULT", "AUDIO_CAP_RESULT"],
   scope: 1,
-  claims: 8,
+  claims: 15,
 });
+// 🆕 336 — ANNOTATED, SO THIS FILE PAYS NO `TS2775` (the hearing probe's fix, 335): `checkJs` will
+// not narrow through an assertion function reached by an un-annotated binding.
+/** @type {typeof import("node:assert/strict")} */
 const assert = population.assert;
 import { BridgeClient } from "../dist/bridge.js";
 import { loadConfig } from "../dist/config.js";
 import { registerRuntimeTools } from "../dist/tools/runtime.js";
+import fs from "node:fs";
+import path from "node:path";
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const cfg = loadConfig();
@@ -169,6 +176,29 @@ if (capture) {
   console.log(`D1A_ECHO_RESULT engine=no-capture provoked=${JSON.stringify(provoked.return ?? provoked)}`);
   console.log("✔ the echo degrades to silence on <4.5 rather than to something wrong");
 }
+
+// ── 🆕 336 (BP-0059) — THE RUNNING GAME'S SOUND, HEARD WHERE IT IS ─────────────────────
+// `runtime_audio_capture` puts an AudioEffectCapture at the end of Master for half a second of
+// real time, the game sends the floats back, and the host measures them. Headless, Godot mixes
+// through its dummy driver at its own rate, so the claims are the ones that hold at ANY rate: the
+// capture is trimmed to exactly the length asked for, it is the mix's own 32-bit floats, it was
+// written inside the project, and a bus the game does not have is refused naming the ones it has.
+// (The level of a known tone was measured on the Mac against the hearing fixture: -12.04 dBFS at
+// 1 kHz on 4.2.2, 4.3 and 4.7.1.) The main scene plays nothing, so its levels read `null`, never
+// minus infinity: the reply survived the server's finiteness pass to arrive here at all.
+const heard = await call("runtime_audio_capture", { seconds: 0.5 });
+const noBus = await tools.get("runtime_audio_capture")({ seconds: 0.2, bus: "NoSuchBus" }, {});
+population.open("AUDIO_CAP_RESULT");
+assert.equal(heard.analysis.duration_s, 0.5, `the capture holds ${heard.analysis.duration_s} s, not the 0.5 s asked for`);
+assert.ok(heard.analysis.sample_rate >= 8000, `a mix rate of ${heard.analysis.sample_rate} Hz`);
+assert.equal(heard.analysis.channels, 2, "the capture effect hears the bus in stereo");
+assert.equal(heard.analysis.bits, 32, "the samples are the mix's own floats");
+assert.equal(heard.bus, "Master");
+assert.ok(fs.existsSync(path.join(cfg.projectPath, heard.wav.slice("res://".length))), `no WAV at ${heard.wav}`);
+assert.ok(noBus.isError === true && /no_bus/.test(noBus.content?.[0]?.text ?? "") && /Master/.test(noBus.content?.[0]?.text ?? ""),
+  `an unknown bus is refused naming the game's buses: ${noBus.content?.[0]?.text}`);
+fs.rmSync(path.dirname(path.join(cfg.projectPath, heard.wav.slice("res://".length))), { recursive: true, force: true });
+console.log(`AUDIO_CAP_RESULT ${heard.analysis.duration_s} s at ${heard.analysis.sample_rate} Hz x${heard.analysis.channels}, ${heard.analysis.bits}-bit, peak ${heard.analysis.peak_dbfs}`);
 
 runtime.close();
 population.reportOrDie();

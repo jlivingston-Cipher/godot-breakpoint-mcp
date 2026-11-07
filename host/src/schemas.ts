@@ -348,6 +348,18 @@ export const outputSchemas: Record<string, z.ZodRawShape> = {
     compare_to: z.string().nullable(),
     comparison: hearingComparison.nullable(),
   },
+  // 🆕 BP-0059 (1.94.0) — the live half: registered with the runtime tools (it needs the game), measured here.
+  runtime_audio_capture: {
+    wav: z.string(),
+    bus: z.string(),
+    bus_volume_db: z.number().nullable(),
+    bus_muted: z.boolean(),
+    discarded_frames: z.number(),
+    analysis: hearingAnalysis,
+    compare_to: z.string().nullable(),
+    comparison: hearingComparison.nullable(),
+    notes: z.array(z.string()),
+  },
 
   // ---- Plane A: editor bridge (tools/editor.ts -> operations.gd) ----
   editor_ping: { pong: z.boolean(), addon_version: z.string(), godot: z.string() },

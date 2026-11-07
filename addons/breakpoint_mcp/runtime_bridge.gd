@@ -36,7 +36,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.22.1"
+const ADDON_VERSION := "1.23.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -86,7 +86,8 @@ const MONITORS := {
 const BridgeSecret := preload("res://addons/breakpoint_mcp/bridge_secret.gd")
 const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 # F4: methods dispatched on the async lane (they await frames); see _handle_line / _dispatch_async.
-const ASYNC_METHODS := ["runtime.step_frames"]
+# 🆕 BP-0059 (1.23.0): runtime.audio_capture listens for seconds of real time, a frame at a time.
+const ASYNC_METHODS := ["runtime.step_frames", "runtime.audio_capture"]
 # 🆕 BP-0041 (1.19.0): the input kinds runtime.inject_input answers, in the order the
 # refusal lists them. `pointer` alone rides the async lane (a tap or drag spans frames).
 const INPUT_KINDS := ["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer", "midi"]
@@ -545,6 +546,9 @@ func _dispatch(method: String, params: Dictionary) -> Dictionary:
 			# keeps the static contract check (which scans _dispatch case labels) aware of the
 			# method. It is not reached in normal operation.
 			return _err("async_only", "runtime.step_frames is dispatched on the async lane")
+		"runtime.audio_capture":
+			# 🆕 BP-0059: async too (it listens for seconds); the same placeholder, for the same reader.
+			return _err("async_only", "runtime.audio_capture is dispatched on the async lane")
 		_:
 			return _err("unknown_method", "No such method: %s" % method)
 
@@ -1829,6 +1833,8 @@ func _dispatch_async(c: Dictionary, id: Variant, method: String, params: Diction
 			result = await _step_frames(params)
 		"runtime.inject_input":
 			result = await _inject_pointer(params.get("event", {}))
+		"runtime.audio_capture":
+			result = await _audio_capture(params)
 		_:
 			result = _err("async_only", "not an async method: %s" % method)
 	var peer: StreamPeerTCP = c.get("peer")
@@ -1868,6 +1874,113 @@ func _step_frames(params: Dictionary) -> Dictionary:
 			await tree.process_frame
 	Engine.time_scale = prev_scale
 	return _ok({"frames_advanced": frames, "frame_index": Engine.get_process_frames()})
+
+
+## Buses with a capture in flight, by name (BP-0059): one capture per bus at a time.
+var _capturing := {}
+
+
+## 🆕 BP-0059 (addon 1.23.0) — what the running game is playing, for a few seconds: the hearing
+## plane's live half. `godot_record` measures a scene it starts itself under Movie Maker; this hears
+## the game you are already in, after you have driven it somewhere a fresh recording cannot reach.
+## Godot binds no method that reads the mixed output from script (327's reading), so an
+## AudioEffectCapture goes on the END of the named bus's effect chain, collects what reaches it in
+## real time, and is taken off again. It hears every effect on that bus but not the bus's own volume,
+## mute or solo, which Godot applies after the effects, so those ride back for the host to say.
+##
+## 🔴 WHAT IT REFUSES, AND WHY, MEASURED BY 336's REVIEW ARM ON 4.2.2 AND 4.7.1:
+##   * a bus that already carries effects — `add_bus_effect` and `remove_bus_effect` make Godot
+##     rebuild EVERY effect instance on the bus: a recording AudioEffectRecord stopped and lost its
+##     take, a SpectrumAnalyzer instance the game held froze, reverb and delay tails restarted. A tool
+##     that listens may not do that to a game, so it names the effects and refuses.
+##   * a second capture on the same bus — it would be that rebuild, and would splice the first one's
+##     buffer (three of four overlapping captures came back with discontinuities).
+##   * surround output — every speaker pair writes into the capture's one buffer, so a 5.1 capture
+##     held a third of the time asked for, in 512-frame blocks.
+##   * a bus that bypasses its effects — it runs none, this one included.
+## The samples go back raw — `PackedVector2Array.to_byte_array()` is interleaved L/R floats (8 bytes
+## a frame, 16 in a double-precision build) — and the host measures them.
+func _audio_capture(params: Dictionary) -> Dictionary:
+	var bus_name := str(params.get("bus", "Master"))
+	var bus := AudioServer.get_bus_index(bus_name)
+	if bus < 0:
+		var names := PackedStringArray()
+		for i: int in AudioServer.bus_count:
+			names.append(AudioServer.get_bus_name(i))
+		return _err("no_bus", "No audio bus is named %s. This game's buses: %s." % [bus_name, ", ".join(names)])
+	if _capturing.has(bus_name):
+		return _err("bus_busy", "A capture is already listening on the %s bus." % bus_name)
+	if AudioServer.get_speaker_mode() != AudioServer.SPEAKER_MODE_STEREO:
+		return _err("not_stereo", "The game mixes in surround (speaker mode %d), and a capture effect writes every speaker pair into one buffer, so what it collects is not one signal." % AudioServer.get_speaker_mode())
+	if AudioServer.is_bus_bypassing_effects(bus):
+		return _err("bus_bypassed", "The %s bus bypasses its effects, so a capture effect on it would hear nothing." % bus_name)
+	var held := PackedStringArray()
+	for i: int in AudioServer.get_bus_effect_count(bus):
+		var fx := AudioServer.get_bus_effect(bus, i)
+		held.append(fx.get_class() if fx != null else "an empty slot")
+	if not held.is_empty():
+		return _err("bus_has_effects", "The %s bus carries %d effect(s): %s. Adding a capture effect makes Godot rebuild every effect on the bus, which restarts reverb and delay tails, stops an AudioEffectRecord that is recording, and detaches any effect instance the game holds." % [bus_name, held.size(), ", ".join(held)])
+	@warning_ignore("unsafe_call_argument")
+	var seconds := clampf(float(params.get("seconds", 3.0)), 0.1, 10.0)
+	var rate := AudioServer.get_mix_rate()
+	var want := roundi(seconds * rate)
+	var cap := AudioEffectCapture.new()
+	# Drained every frame; two seconds (rounded up to a power of two of frames) rides out a hitch.
+	cap.buffer_length = 2.0
+	_capturing[bus_name] = true
+	AudioServer.add_bus_effect(bus, cap)
+	var started := Time.get_ticks_msec()
+	var deadline := started + int(seconds * 1000.0) + 5000
+	var got := PackedVector2Array()
+	var tree := get_tree()
+	while got.size() < want and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+		var n := cap.get_frames_available()
+		if n > 0:
+			got.append_array(cap.get_buffer(n))
+	var discarded := cap.get_discarded_frames()
+	# Found again by identity on every bus: the game may have renamed or reordered them meanwhile.
+	var at := -1
+	for b: int in AudioServer.bus_count:
+		for i: int in range(AudioServer.get_bus_effect_count(b) - 1, -1, -1):
+			if AudioServer.get_bus_effect(b, i) == cap:
+				AudioServer.remove_bus_effect(b, i)
+				at = b
+	_capturing.erase(bus_name)
+	if got.is_empty():
+		return _err("no_audio", "The %s bus delivered no samples in %.1f s: the game's audio is not being mixed." % [bus_name, (Time.get_ticks_msec() - started) / 1000.0])
+	if got.size() > want:
+		got.resize(want)
+	if at < 0:
+		at = AudioServer.get_bus_index(bus_name)
+	var volume: Variant = null
+	var muted := false
+	if at >= 0:
+		muted = AudioServer.is_bus_mute(at)
+		var db := AudioServer.get_bus_volume_db(at)
+		# A slider at zero is linear 0, which is minus infinity in dB: JSON cannot carry it.
+		if is_finite(db):
+			volume = db
+	var soloed := PackedStringArray()
+	for b: int in AudioServer.bus_count:
+		if AudioServer.is_bus_solo(b):
+			soloed.append(AudioServer.get_bus_name(b))
+	var bytes := got.to_byte_array()
+	@warning_ignore("integer_division")
+	var per_sample := bytes.size() / (got.size() * 2)
+	return _ok({
+		"rate": int(rate),
+		"channels": 2,
+		"frames": got.size(),
+		"sample_bytes": per_sample,
+		"base64": Marshalls.raw_to_base64(bytes),
+		"bus": bus_name,
+		"bus_volume_db": volume,
+		"bus_muted": muted,
+		"soloed": soloed,
+		"discarded_frames": discarded,
+		"wall_ms": Time.get_ticks_msec() - started,
+	})
 
 
 func _time_scale(params: Dictionary) -> Dictionary:

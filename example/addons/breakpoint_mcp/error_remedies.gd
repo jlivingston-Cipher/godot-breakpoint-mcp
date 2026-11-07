@@ -113,6 +113,12 @@ const RUNTIME_REMEDIES := {
 	"unknown_state": "Call `runtime_read_state` without a name for the names the game registered, then pass one of them.",
 	"state_reader_gone": "Set the reader again from an object that is still alive, then call again.",
 	"bad_held_path": "Call `runtime_get_property` on the node for what the property after the colon holds — a method runs only on an object.",
+	"no_bus": "Pass one of the bus names the message lists to `runtime_audio_capture` — they are the running game's buses, which its code may have changed from the project's layout.",
+	"bus_busy": "Retry once the capture already listening on that bus has returned, or pass `runtime_audio_capture` another bus.",
+	"not_stereo": "Run `godot_record` instead, which records every channel through Movie Maker, or start the game with stereo output.",
+	"bus_bypassed": "Pass `runtime_audio_capture` the bus this one sends to, or switch the bypass off in the game — a bypassed bus runs no effect, the capture included.",
+	"bus_has_effects": "Pass `runtime_audio_capture` a bus with no effects that sends to this one, or run `godot_record` for the whole mix, which touches no bus.",
+	"no_audio": "Read `runtime_get_log` for an audio driver error — no samples reached the bus, so the engine is not mixing — then call again once the game's audio runs.",
 }
 
 
