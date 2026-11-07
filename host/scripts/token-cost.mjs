@@ -291,7 +291,16 @@ const HOST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 // validates every reply against and which the model does not read. Kept whole rather than pinned
 // to an envelope because a reply that silently dropped a field is exactly the regression a sound
 // measurement cannot afford. 312's rule holds: the ceiling sits ON the surface.
-export const BYTES_CEILING = 386414;
+//
+// 🆕 BP-0059 (1.94.0) — RAISED 386,414 -> 390,229, AND WHAT BOUGHT IT IS THE HEARING PLANE'S LIVE HALF,
+// GRANTED 2026-11-06 (session 336): one new tool, `runtime_audio_capture`, which listens to the game
+// already running and measures it as `godot_record` measures a recording. Measured on the same build
+// before and after: +3,817 B, of which the model reads 685 (226,407 -> 227,092: one name, one
+// description, four input fields including `peer`). The rest is the tool's OUTPUT schema, which
+// reuses the hearing plane's analysis and comparison shapes whole, its annotations and its title.
+// BP-0063 in the same cut moved both numbers by -2 B (a shorter `keep_frames` description that says
+// more), so the ceiling moves by 3,815. 312's rule holds: the ceiling sits ON the surface.
+export const BYTES_CEILING = 390229;
 export const TOOL_FLOOR = 250;
 
 // 🆕 207 §7.1 — THE ONLY COMPONENT TWO SERVERS CAN BE COMPARED ON, SO IT GETS ITS OWN

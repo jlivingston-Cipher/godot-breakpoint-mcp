@@ -27,10 +27,10 @@ test("read-only tools get NO caveat", () => {
 
 test("mutating tools get a caveat, and non-idempotent ones get the firmer one", () => {
   const mutating = ANNOTATED_TOOLS.filter((n) => !annotationsFor(n).readOnlyHint);
-  assert.equal(mutating.length, 200);
+  assert.equal(mutating.length, 201);
   const firm = mutating.filter((n) => caveatFor(n) === CAVEAT_NON_IDEMPOTENT);
   const soft = mutating.filter((n) => caveatFor(n) === CAVEAT_IDEMPOTENT);
-  assert.equal(firm.length, 73, "this many duplicate on a blind retry — the blast radius");
+  assert.equal(firm.length, 74, "this many duplicate on a blind retry — the blast radius");
   assert.equal(soft.length, 127);
   assert.equal(firm.length + soft.length, mutating.length, "every mutating tool resolves to exactly one caveat");
   // Spot-check the tool the whole finding was reproduced with.

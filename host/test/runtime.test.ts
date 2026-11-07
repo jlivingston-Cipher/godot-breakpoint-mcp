@@ -94,6 +94,7 @@ const PEER_AWARE = [
   "runtime_assert_perf",
   "runtime_assert_scene_structure",
   "runtime_assert_screen_text",
+  "runtime_audio_capture",
   "runtime_await_condition",
   "runtime_call_method",
   "runtime_emit_signal",
@@ -693,8 +694,12 @@ test("runtime_seed_rng forwards the seed once confirmed", async () => {
 
 test("every peer-aware tool routes to the peer's bridge and never leaks `peer` into the payload", async () => {
   // A real root, because runtime_screenshot_save (BP-0042) writes what the peer answered.
+  // BP-0059: one silent stereo float frame (8 bytes) is also a capture runtime_audio_capture can measure.
   const h = makeHarness(fs.mkdtempSync(path.join(os.tmpdir(), "bp-peer-")));
-  h.setBridge("resolve", { ok: true, value: 1, digest: {}, node_count: 0, base64: "", mime: "image/png", width: 1, height: 1 });
+  h.setBridge("resolve", {
+    ok: true, value: 1, digest: {}, node_count: 0, base64: Buffer.alloc(8).toString("base64"), mime: "image/png", width: 1, height: 1,
+    rate: 48000, channels: 2, frames: 1, sample_bytes: 4, bus: "Master", bus_volume_db: 0, bus_muted: false, discarded_frames: 0,
+  });
 
   const seen: string[] = [];
   for (const [name, t] of h.tools) {
@@ -873,4 +878,83 @@ test("runtime_seed_rng warns that its stream is shared across both lanes", async
   const d = (h.tools.get("runtime_seed_rng")!.config.description as string).toLowerCase();
   assert.match(d, /one stream shared/, "must say the global RNG is one shared stream");
   assert.match(d, /idle/, "must name the lane that silently consumes it");
+});
+
+// ------------------------------------------------- BP-0059: runtime_audio_capture ----
+
+/** What the game's `runtime.audio_capture` sends: interleaved float32 stereo, base64. */
+function captureHarness(reply: Record<string, unknown>) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "bp-cap-"));
+  const calls: Array<BridgeCall & { timeoutMs?: number }> = [];
+  const bridge = {
+    async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number) {
+      calls.push({ method, params, timeoutMs });
+      return reply;
+    },
+  };
+  const rec = makeRecordingServer(async () => ({ action: "decline" }));
+  registerRuntimeTools(
+    rec.server as unknown as Parameters<typeof registerRuntimeTools>[0],
+    bridge as unknown as Parameters<typeof registerRuntimeTools>[1],
+    { clientFor: () => bridge } as unknown as Parameters<typeof registerRuntimeTools>[2],
+    { projectPath: root } as unknown as Parameters<typeof registerRuntimeTools>[3],
+  );
+  return { root, calls, capture: rec.handler("runtime_audio_capture") };
+}
+/** `secs` of a 1 kHz sine at `amp` in both channels, as the game sends it. */
+function floats(secs: number, amp: number, rate = 48000): { base64: string; frames: number } {
+  const frames = Math.round(secs * rate), b = Buffer.alloc(frames * 8);
+  for (let i = 0; i < frames; i++) { const v = amp * Math.sin((2 * Math.PI * 1000 * i) / rate); b.writeFloatLE(v, i * 8); b.writeFloatLE(v, i * 8 + 4); }
+  return { base64: b.toString("base64"), frames };
+}
+
+test("runtime_audio_capture measures the game's floats host-side, writes the WAV, and says what the capture point skipped", async () => {
+  const f = floats(0.5, 0.25);
+  const h = captureHarness({
+    rate: 48000, channels: 2, frames: f.frames, sample_bytes: 4, base64: f.base64, bus: "Music", bus_volume_db: -6.000000238, bus_muted: false,
+    discarded_frames: 3, soloed: ["Voice"], engine_log: { total: 2, since_seq: 4, entries: [{ seq: 5, level: "error", message: "recording_data.size() == 0" }] },
+  });
+  const r = await h.capture({ seconds: 0.5, bus: "Music" });
+  assert.notEqual(r.isError, true, text(r));
+  assert.deepEqual(h.calls.map((c) => [c.method, c.params]), [["runtime.audio_capture", { seconds: 0.5, bus: "Music" }]]);
+  assert.ok((h.calls[0].timeoutMs ?? 0) > 500, `the bridge waits longer than the capture itself (${h.calls[0].timeoutMs} ms)`);
+  const out = structured<{ wav: string; bus: string; bus_volume_db: number; discarded_frames: number; analysis: { duration_s: number; peak_dbfs: number; bits: number }; notes: string[] }>(r);
+  assert.equal(out.analysis.duration_s, 0.5);
+  assert.equal(out.analysis.bits, 32);
+  assert.ok(Math.abs(out.analysis.peak_dbfs - -12.04) < 0.01, `peak ${out.analysis.peak_dbfs} is the 0.25 sine's -12.04 dBFS`);
+  assert.ok(fs.existsSync(path.join(h.root, out.wav.slice("res://".length))), "the WAV is written inside the project");
+  assert.match(out.wav, /^res:\/\/\.godot\/breakpoint\/recordings\/.*-live-.*\/sound\.wav$/);
+  assert.ok(out.notes.some((n) => /Music bus's own volume \(-6 dB\).*6 dB quieter/.test(n)), `the bus volume is said in words: ${JSON.stringify(out.notes)}`);
+  assert.ok(out.notes.some((n) => /^3 sample frames were lost/.test(n)), `lost samples are said in words: ${JSON.stringify(out.notes)}`);
+  assert.equal(out.bus_volume_db, -6, "the float noise of a dB reading is rounded away");
+  assert.ok(out.notes.some((n) => /^Voice is soloed, so a bus that is not soloed, this one included/.test(n)), `a solo elsewhere is said: ${JSON.stringify(out.notes)}`);
+  assert.ok(out.notes.some((n) => /logged 2 warning\(s\) or error\(s\).*recording_data/.test(n)), `what the game logged reaches the caller: ${JSON.stringify(out.notes)}`);
+  assert.equal((r.content ?? [])[1]?.type, "image", "the spectrogram rides beside the numbers");
+});
+
+test("runtime_audio_capture refuses a reply whose bytes do not match its frames, and compare_to outside the project before asking the game", async () => {
+  const f = floats(0.1, 0.25);
+  const h = captureHarness({ rate: 48000, channels: 2, frames: f.frames + 10, sample_bytes: 4, base64: f.base64, bus: "Master", bus_volume_db: 0, bus_muted: false, discarded_frames: 0 });
+  const short = await h.capture({ seconds: 0.1 });
+  assert.equal(short.isError, true);
+  assert.match(text(short), /init --force/);
+  assert.equal(fs.existsSync(path.join(h.root, ".godot")), false, "nothing is written for a reply that does not add up");
+  const outside = await h.capture({ compare_to: "res://../before.wav" });
+  assert.equal(outside.isError, true);
+  assert.match(text(outside), /compare_to/);
+  fs.writeFileSync(path.join(h.root, "notes.txt"), "not a wav");
+  const notWav = await h.capture({ compare_to: "res://notes.txt" });
+  assert.equal(notWav.isError, true);
+  assert.match(text(notWav), /compare_to could not be read as a WAV/);
+  assert.equal(h.calls.length, 1, "an outside compare_to and one that is not a WAV were refused before the game was asked");
+});
+
+test("runtime_audio_capture says a minus-infinity bus volume in words instead of failing the reply", async () => {
+  const f = floats(0.5, 0.25);
+  const h = captureHarness({ rate: 48000, channels: 2, frames: f.frames, sample_bytes: 4, base64: f.base64, bus: "Master", bus_volume_db: null, bus_muted: false, discarded_frames: 0, soloed: [] });
+  const r = await h.capture({ seconds: 0.5 });
+  assert.notEqual(r.isError, true, text(r));
+  const out = structured<{ bus_volume_db: number | null; notes: string[] }>(r);
+  assert.equal(out.bus_volume_db, null);
+  assert.ok(out.notes.some((n) => /volume is at minus infinity/.test(n)), JSON.stringify(out.notes));
 });

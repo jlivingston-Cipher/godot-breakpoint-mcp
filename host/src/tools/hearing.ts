@@ -55,7 +55,7 @@ const MAX_WAV_BYTES = 256 * 1024 * 1024;
 
 const refuse = (text: string) => ({ isError: true as const, content: [{ type: "text" as const, text }] });
 
-function readPcm(abs: string): Pcm {
+export function readPcm(abs: string): Pcm {
   const size = fs.statSync(abs).size;
   if (size > MAX_WAV_BYTES) throw new WavError(`it is ${Math.round(size / 1048576)} MB, over the ${MAX_WAV_BYTES / 1048576} MB this tool reads`);
   return parseWav(fs.readFileSync(abs));
@@ -128,6 +128,70 @@ async function runGodot(cfg: Config, args: string[], timeoutMs: number): Promise
     child.on("error", (err) => done({ code: null, timedOut, log: `${log}\n${String(err)}`, spawnFailed: null }));
     child.on("close", (code) => done({ code, timedOut, log: log.trim(), spawnFailed: null }));
   });
+}
+
+/** A float WAV header (format 3) for interleaved samples of `bits` bits. */
+function floatWav(samples: Buffer, rate: number, channels: number, bits: number): Buffer {
+  const h = Buffer.alloc(44), align = channels * (bits / 8);
+  h.write("RIFF", 0, "latin1"); h.writeUInt32LE(36 + samples.length, 4); h.write("WAVE", 8, "latin1");
+  h.write("fmt ", 12, "latin1"); h.writeUInt32LE(16, 16); h.writeUInt16LE(3, 20); h.writeUInt16LE(channels, 22);
+  h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * align, 28); h.writeUInt16LE(align, 32); h.writeUInt16LE(bits, 34);
+  h.write("data", 36, "latin1"); h.writeUInt32LE(samples.length, 40);
+  return Buffer.concat([h, samples]);
+}
+
+/** What the running game sent back for `runtime.audio_capture` (addon 1.23.0, BP-0059). */
+export interface CapturedSound {
+  rate: number;
+  channels: number;
+  frames: number;
+  /** 4, or 8 from a double-precision build: `PackedVector2Array.to_byte_array()` is raw `real_t`. */
+  sample_bytes: number;
+  base64: string;
+}
+
+/**
+ * 🆕 BP-0059 (336) — `runtime_audio_capture`'s second half: the floats a running game sent back,
+ * written as a WAV beside `godot_record`'s recordings (a `-live-` folder) and measured the same
+ * way, so a capture and a recording compare with `compare_to` in either direction. A reply whose
+ * byte count does not match the frames it claims is refused rather than measured short.
+ */
+export function measureCapture(
+  cfg: Config, sound: CapturedSound, before: Pcm | null, compareTo: string | null,
+  fields: Record<string, unknown>, notes: string[],
+) {
+  const samples = Buffer.from(sound.base64, "base64");
+  const want = sound.frames * sound.channels * sound.sample_bytes;
+  if ((sound.sample_bytes !== 4 && sound.sample_bytes !== 8) || sound.channels < 1 || sound.frames < 1 || samples.length !== want) {
+    return refuse(
+      `runtime_audio_capture: the game sent ${samples.length} bytes for ${sound.frames} frames of ${sound.channels} channels at ` +
+      `${sound.sample_bytes} bytes a sample. Re-run \`breakpoint-mcp init --force\` so the game's addon matches this host, then capture again.`,
+    );
+  }
+  const base = path.join(cfg.projectPath, RECORDINGS_DIR);
+  fs.mkdirSync(base, { recursive: true });
+  const dir = fs.mkdtempSync(path.join(base, `${new Date().toISOString().replace(/[:.]/g, "-")}-live-`));
+  const wavAbs = path.join(dir, "sound.wav");
+  fs.writeFileSync(wavAbs, floatWav(samples, sound.rate, sound.channels, sound.sample_bytes * 8));
+  try {
+    const m = measure(readPcm(wavAbs), before);
+    return reply({
+      wav: `res://${RECORDINGS_DIR}/${path.basename(dir)}/sound.wav`,
+      ...fields,
+      analysis: m.analysis,
+      compare_to: compareTo,
+      comparison: m.comparison,
+      notes,
+    }, m.picture);
+  } catch (err) {
+    if (err instanceof WavError) {
+      // compare_to was read before the game was asked, so this is the capture itself (a mix rate
+      // under 8 kHz, say); nothing worth keeping was written.
+      fs.rmSync(dir, { recursive: true, force: true });
+      return refuse(`runtime_audio_capture: the game's capture could not be measured (${err.message}). Run the game at Godot's default mix rate, then capture again.`);
+    }
+    throw err;
+  }
 }
 
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;

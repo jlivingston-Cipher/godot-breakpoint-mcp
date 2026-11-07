@@ -31,8 +31,8 @@
  *                               `node_instantiate_scene`, `card_instance`, …
  *
  * Class sizes, derived from `annotations.ts` and checked by the gate rather than
- * asserted here: `read-only` 97 tools · `mutating` 200 tools ·
- * `mutating+idempotent` 127 tools · `mutating+non-idempotent` 73 tools.
+ * asserted here: `read-only` 97 tools · `mutating` 201 tools ·
+ * `mutating+idempotent` 127 tools · `mutating+non-idempotent` 74 tools.
  *
  * This is the only layer that CAN target it. `bridge.ts` sees a GDScript method
  * string and never a tool name, and `makeCall` (`tools/editor/common.ts:24`) does

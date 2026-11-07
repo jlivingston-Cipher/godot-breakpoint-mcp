@@ -4,6 +4,57 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.94.0] — 2026-11-06
+
+_Addon **1.22.1 → 1.23.0** — `runtime_bridge.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **297 → 298** (secure default **284 → 285**): `runtime_audio_capture`, in the `runtime` toolset._
+
+The hearing plane's second half: the sound of the game you are already playing (BP-0059), and
+recordings that no longer write a picture for every frame (BP-0063).
+
+### Added
+
+**`runtime_audio_capture` listens to the running game and measures what it plays.** `godot_record`
+starts a scene itself and records it from the first frame, and some sounds only happen after a
+player has driven the game somewhere: a boss fight, a menu, a combo. With the game running, this
+puts a capture effect on an audio bus (`Master` unless `bus` names another) for `seconds` of real
+time (three by default, ten at most), takes it off again, and measures the samples exactly as
+`godot_record` measures a recording: `loudness_lufs`, `peak_dbfs` and `true_peak_dbtp`,
+`clipped_samples`, the octave bands and the spectrogram, with `compare_to` in either direction
+between a capture and a recording. The WAV is written under `res://.godot/breakpoint/recordings/`
+beside the recordings. The capture hears the bus before its own volume, mute and solo, which Godot
+applies afterwards: `bus_volume_db` and `bus_muted` come back, and `notes` says in words when any of
+them would change what reaches the speakers, when samples were lost to a long frame, and what the
+game logged while it listened. The samples are the mix's own floats, so a sound over full scale on
+the way through reads above 0 dBFS rather than clipped.
+
+It captures only a bus with no effects of its own. Adding or removing any effect makes Godot
+rebuild every effect on that bus, and the release review measured what that does on 4.2.2 and
+4.7.1: a recording `AudioEffectRecord` stopped and lost its take, a spectrum analyser the game held
+froze, and reverb tails restarted. So a bus with effects is refused, naming them (`bus_has_effects`:
+capture a bus with none that sends to it, or record the whole mix with `godot_record`), as are a bus
+already being captured (`bus_busy`), surround output (`not_stereo`), a bus that bypasses its effects
+(`bus_bypassed`), an unknown bus (`no_bus`, listing the game's), and a capture that receives no
+samples (`no_audio`), each with its next action. Measured on the Mac against the hearing fixture (a
+1 kHz sine at 0.25): two seconds exactly, −12.04 dBFS, 999.9 Hz, on Godot 4.2.2, 4.3 and 4.7.1
+headless and on 4.7.1 with a window; a second capture compared against the first moves the peak by
+0 dB.
+
+### Changed
+
+**`godot_record` no longer writes a picture for every frame.** Movie Maker's PNG writer saves one
+full-size image per frame, and the tool kept only the sound. By default it now records through
+Movie Maker's AVI writer instead, reads the sound out of the movie a chunk at a time without
+reading the pictures, and deletes the movie. Measured on an M2: two minutes of a still scene in
+61 s rather than 152 s, as one file rather than 7,202; five seconds of a frame no codec compresses
+in 4.5 s rather than 35 s, at under a fifth of the disk. The sound is the engine's own mix: 32-bit
+on Godot 4.2 to 4.5 (on 4.3, byte for byte what the PNG route writes), and on 4.7 the same mix at
+16 bits, as `analysis.bits` reports. `keep_frames` now takes the PNG route and keeps the frames, and
+its WAV is 32-bit on every version. `frames` counts the frames written either way.
+
+**A comparison names a difference in bit depth** in `notes`, beside the sample rate, channel
+count and duration it already named, because on 4.7 a default recording and a `keep_frames` one
+differ there by about a thousandth of a decibel.
+
 ## [1.93.1] — 2026-11-05
 
 _Addon **1.22.0 → 1.22.1** — `operations.gd` changed (and a comment in `variant_json.gd`), so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged (**297**, secure default **284**)._

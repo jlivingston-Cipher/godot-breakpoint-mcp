@@ -5,9 +5,9 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.93.1 · addon 1.22.1
+- **Version:** host 1.94.0 · addon 1.23.0
 - **License:** MIT
-- **What it exposes:** full 297 tools (secure-default 284 with the privileged group off) + 6 MCP resources
+- **What it exposes:** full 298 tools (secure-default 285 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
 
 ---
@@ -402,8 +402,8 @@ Both launch lazily on first use.
 ### Capability groups (least-privilege, opt-in)
 
 Two **default-OFF** capability groups gate the higher-blast tools; with both off, those tools are
-**dropped at registration** (never listed), giving a **secure-default surface of 284 tools**. Opt in
-to load the **full 297**. `breakpoint-mcp init --trust full` sets this for you, and
+**dropped at registration** (never listed), giving a **secure-default surface of 285 tools**. Opt in
+to load the **full 298**. `breakpoint-mcp init --trust full` sets this for you, and
 `breakpoint-mcp doctor` reports each group's state. See
 [The safety and trust model](#9-the-safety-and-trust-model).
 
@@ -425,7 +425,7 @@ if Breakpoint never appears in a client that caps, check this before anything el
 
 Two presets are published as fitting under both caps, and both are measured by the suite rather
 than typed: `BREAKPOINT_TOOLSETS=d` → **58** (both language servers and both debuggers — the
-whole debugging surface), and `b,c,d` → **95** (that plus the headless CLI and the running-game
+whole debugging surface), and `b,c,d` → **96** (that plus the headless CLI and the running-game
 runtime family). Every start also prints the count actually registered, on stderr:
 
 ```
@@ -525,7 +525,7 @@ on the formal **MCP task model**: a task-aware client creates the job and then p
 or cancels it while it runs. A plain
 client still gets the blocking result, exactly as before.
 
-### Plane C — Runtime Bridge (`runtime_*`, 29 tools)
+### Plane C — Runtime Bridge (`runtime_*`, 30 tools)
 
 An autoload (`BreakpointRuntimeBridge`) that lives inside the **running game** and listens
 on `127.0.0.1:9081`. Through it, the assistant can read the live SceneTree, get and set runtime
@@ -691,7 +691,7 @@ drive the live game → test.
 
 ## 8. Tool reference by family
 
-There are **297 tools** in total (the secure-default surface is **284** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
+There are **298 tools** in total (the secure-default surface is **285** with the privileged capability group off — see [The safety and trust model](#9-the-safety-and-trust-model)). This section summarizes them by family so you know what
 exists and where to look; for the exhaustive per-tool input/output JSON Schemas, see
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md). Tools marked **destructive** are
 confirmation-gated (Section 9).
@@ -780,7 +780,7 @@ Works without the editor open.
 - **`godot_run_managed`** / **`godot_output`** / **`godot_stop`** — run the game as a
   managed child process with captured stdout/stderr, read that console output, and stop it.
 
-### Plane C — Runtime bridge (`runtime_*`, 29 tools)
+### Plane C — Runtime bridge (`runtime_*`, 30 tools)
 
 Requires the game running. `runtime_get_tree`, `runtime_get_property`,
 `runtime_set_property` *(destructive)*, `runtime_call_method` *(destructive)*,
@@ -1102,6 +1102,18 @@ the earlier recording's `wav` as `compare_to` after a change, and the reply repo
 metric by metric and band by band — "the 4 kHz octave rose 30 dB and 2,000 samples now clip" rather
 than "it sounds harsher". `audio_analyze` does the same for any WAV already in the project.
 
+**Listening to the game you are playing** (host 1.94.0, addon 1.23.0). Some sounds only happen
+after you have driven the game somewhere — a boss fight, a menu, a combo — which a recording from
+the start of a scene cannot reach. With the game running, `runtime_audio_capture` listens for a few
+seconds of real time (three by default, ten at most) on an audio bus (`Master` unless you name
+another) and returns the same numbers and picture, and takes `compare_to` the same way. It hears
+the bus before its own volume, mute and solo; when any of them would change what you hear, the
+reply says so in words. It only listens on a bus with no effects of its own: adding a capture to a
+bus makes Godot rebuild every effect on it, which would cut a reverb tail or stop a recording in
+your game, so a bus with effects is refused and named — capture a bus that sends to it, or record
+the whole mix with `godot_record`. Because it is real time, two captures of one moment are close
+rather than identical — for a sample-for-sample before and after, record with `godot_record`.
+
 ### D. Running headless tests
 
 1. Point `godot_run_headless_script` **(higher-trust)** at your test-runner script (GdUnit4,
@@ -1256,7 +1268,7 @@ deterministic in-engine stand-ins with no external model; the `command` backend 
 command you configure and should only point at trusted code.
 
 **How many tools are there, and where's the full list?**
-297 tools (secure-default 284) and 6 resources. The exhaustive per-tool schemas are in
+298 tools (secure-default 285) and 6 resources. The exhaustive per-tool schemas are in
 [`docs/TOOL_CATALOG.md`](TOOL_CATALOG.md).
 
 **What are those `{ "__type__": ... }` values I see in tool arguments?**

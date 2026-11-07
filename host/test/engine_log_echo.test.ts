@@ -13,7 +13,8 @@
 // clients, which THROW on a mismatch (208 §4). So a tool that receives the field
 // and does not declare it breaks every conforming caller, and a tool that
 // declares it and can never receive it lies in its own catalog entry. The split
-// is 22 and 5, and it is derived from the handlers rather than typed twice.
+// is 22 and 6 (336 added `runtime_audio_capture`, which builds its reply), and it is derived from
+// the handlers rather than typed twice.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";

@@ -1,6 +1,6 @@
 # Godot–Breakpoint MCP — MCP Tool-Schema Catalog
 
-Complete tool contract for the bridge — **297 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
+Complete tool contract for the bridge — **298 tools + 6 MCP resources, all implemented (Phases 0–4)**. Each tool lists its **plane**, **status** (`✅ implemented`), a **destructive** flag (destructive tools are elicitation-gated and accept a `confirm` argument — see "Destructive-action gating" below), and its **input** and **output** JSON Schemas (draft 2020-12).
 
 > Design note: as of **v0.4.3 (track B1)** these output schemas are **enforced at runtime**. `host/src/schemas.ts` freezes the `structuredContent` shape of every data tool and `applyOutputSchemas()` injects it as that tool's `outputSchema`, which the MCP SDK validates on every success result (`isError` results are exempt). The shapes were frozen from the v0.4.2 live-validation run, so the documented contract below **is** the enforced contract. `z.object` is non-strict, so a tool may still return *extra* fields without failing validation (the schema pins the required envelope, not an exhaustive field list).
 
@@ -2716,10 +2716,11 @@ between belongs to this call and nothing else does.
   `Logger` via `OS.add_logger`, which does not exist before 4.5. On 4.3/4.4 the ring — and
   therefore the echo — carries only what game code routes through `push_log` itself, so a
   4.3 caller sees the field absent rather than wrong.
-- The six runtime tools that do **not** carry it — `runtime_screenshot`,
-  `runtime_screenshot_save`, `runtime_await_condition`, `runtime_spawn_peers`, `runtime_peer_stop`,
-  `runtime_peers_digest` — build their reply rather than forwarding one, so there is no
-  single dispatch to attribute a log line to.
+- The seven runtime tools that do **not** carry it — `runtime_screenshot`,
+  `runtime_screenshot_save`, `runtime_audio_capture`, `runtime_await_condition`, `runtime_spawn_peers`,
+  `runtime_peer_stop`, `runtime_peers_digest` — build their reply rather than forwarding one, so there
+  is no single dispatch to attribute a log line to. (`runtime_audio_capture` says in `notes` what the game
+  logged while it listened.)
 
 ### `runtime_get_property` / `runtime_set_property` ✔ ✅
 - **Input** identical to `node_get_property` / `node_set_property` (paths resolved against the live `SceneTree`), plus an optional `peer` string on `runtime_get_property` (a peer id from `runtime_spawn_peers`; omit for the default running game).
@@ -2842,6 +2843,30 @@ between belongs to this call and nothing else does.
 { "type": "object", "required": ["saved", "path", "width", "height", "bytes"], "properties": { "saved": { "type": "boolean" }, "path": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" }, "bytes": { "type": "integer", "description": "bytes written" }, "viewport": { "type": "object", "description": "addon 1.19.0+: the same geometry block as runtime_screenshot" } } }
 ```
 - The host asks the game for the frame (`runtime.screenshot`, the same capture as `runtime_screenshot`, at the viewport's own size) and writes the PNG itself, through the writer path guard: the path must resolve **inside the project root** (`path_outside_project` otherwise) and must **not exist** (`exists` otherwise — this tool has no `overwrite` and never replaces a file; the write is exclusive, so a file that appears between the check and the write is refused too). Missing parent folders are created. Both refusals answer before the game is asked for a frame. **No image is returned**, so a frame kept for later costs nothing in context. `runtime_screenshot` itself stays read-only. A saved PNG is a reference `runtime_screenshot_diff` loads straight away (`Image.load` reads the file, no import needed). The same `window_not_drawing` refusal as `runtime_screenshot` applies.
+
+### `runtime_audio_capture` ✅ · writes a new file (1.94.0, BP-0059; addon 1.23.0)
+Listen to the **running game** for `seconds` of real time and measure what it played, the same way `godot_record` measures a recording: the same numbers, the same spectrogram picture, the same `compare_to`. `godot_record` starts a scene itself and records it from the first frame; this hears the game where you have already driven it — a boss fight, a menu, a combo — which a fresh recording cannot reach. Godot binds no method that reads the mixed output from script, so the addon puts an `AudioEffectCapture` on the bus for the length of the capture and takes it off again. It hears the bus's input, but **not the bus's own volume, mute or solo**, which Godot applies afterwards: `bus_volume_db` (`null` when the volume is minus infinity, a slider at zero) and `bus_muted` say what was skipped, and `notes` says it in words when any of them, or a solo on another bus, would change what reaches the speakers. `notes` also carries samples lost to a frame longer than the capture's buffer (about 2.7 s at 48 kHz), a capture shorter than one loudness block of four tenths of a second (its loudness readings are `null`), and the first of any warnings or errors the game logged while it listened. The samples are the mix's own floats (32-bit, or 64-bit in a double-precision build), so a sound over full scale reads above 0 dBFS here rather than clipped. The WAV is written to `res://.godot/breakpoint/recordings/<time>-live-…/sound.wav` and named in the reply. Real time, so two captures of one moment are not the same sample for sample the way two Movie Maker recordings are; and sending a long capture back costs the game one long frame (about 86 ms for ten seconds, measured).
+
+🔴 **It captures only a bus with no effects of its own**, because adding or removing any effect makes Godot rebuild every effect on that bus: measured on 4.2.2 and 4.7.1, a recording `AudioEffectRecord` stopped and lost its take, a `SpectrumAnalyzer` instance the game held froze, and reverb and delay tails restarted. So it refuses a bus that carries effects (`bus_has_effects`, naming them: capture a bus with none that sends to it, or record the whole mix with `godot_record`), a bus already being captured (`bus_busy`), surround output (`not_stereo`: every speaker pair writes into the capture's one buffer), a bus that bypasses its effects (`bus_bypassed`), a bus the game does not have (`no_bus`, listing the game's buses), and a capture that receives no samples at all (`no_audio`). A `compare_to` that is outside the project or not a WAV is refused before the game is asked to listen. Needs the game running with the runtime bridge, like every `runtime_*` tool.
+- **Input**
+```json
+{ "type": "object", "additionalProperties": false, "properties": {
+  "seconds": { "type": "number", "minimum": 0.1, "maximum": 10, "default": 3 },
+  "bus": { "type": "string", "default": "Master" },
+  "compare_to": { "type": "string", "description": "an earlier WAV inside the project" },
+  "peer": { "type": "string", "description": "peer id from runtime_spawn_peers; omit for the default running game" } } }
+```
+- **Output**
+```json
+{ "type": "object", "required": ["wav", "bus", "bus_volume_db", "bus_muted", "discarded_frames", "analysis", "compare_to", "comparison", "notes"],
+  "properties": {
+    "wav": { "type": "string", "description": "res:// path of the captured WAV" },
+    "bus": { "type": "string" }, "bus_volume_db": { "type": ["number", "null"], "description": "applied after the capture point; null at minus infinity" },
+    "bus_muted": { "type": "boolean" }, "discarded_frames": { "type": "integer", "description": "sample frames lost to a frame longer than the capture's buffer" },
+    "analysis": { "$ref": "#/hearing/analysis" },
+    "compare_to": { "type": ["string", "null"] }, "comparison": { "oneOf": [{ "$ref": "#/hearing/comparison" }, { "type": "null" }] },
+    "notes": { "type": "array", "items": { "type": "string" } } } }
+```
 
 ### `runtime_get_log` ✅ (also a subscribable `godot://runtime/log` resource)
 - **Input**
@@ -4722,6 +4747,7 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `runtime_read_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_screenshot` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_screenshot_save` | `runtime` · C / Runtime | ✅ | writes a file (never overwrites) |
+| `runtime_audio_capture` | `runtime` · C / Runtime | ✅ | writes a new file |
 | `runtime_get_log` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_node_state` | `runtime` · C / Runtime | ✅ | – |
 | `runtime_assert_scene_structure` | `runtime` · C / Runtime | ✅ | – |
@@ -4804,4 +4830,4 @@ via `BREAKPOINT_RESOURCE_COALESCE_MS`; `0` disables it) collapse into at most on
 | `interact_make_draggable` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 | `interact_add_drop_zone` | `tabletop` · N / Editor | ✅ | ✔ writes files |
 
-**297 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**
+**298 tools + 6 MCP resources implemented across Phases 0–4, spanning all four planes — headless CLI + host-side tools (`godot_*`, knowledge/search, and version control `vcs_*`), the live editor bridge (Groups A–N), semantic (LSP) + debugging (DAP) for both GDScript and C#, and the runtime bridge. Destructive tools are elicitation-gated; long jobs run on the MCP task model. All four planes live.**

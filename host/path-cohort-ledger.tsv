@@ -214,6 +214,7 @@ runtime_anim_play	path	node-path	measured against a LIVE game: answers 'Node not
 runtime_anim_stop	path	node-path	runtime plane addresses live scene-tree nodes (same family measured live, 167 §2)
 runtime_assert_node_state	path	node-path	measured against a LIVE game: answers 'Node not found' — resolved through the scene tree, not the filesystem
 runtime_assert_scene_structure	expect.path	node-path	runtime plane addresses live scene-tree nodes (same family measured live, 167 §2)
+runtime_audio_capture	compare_to	guarded	refuses res://.. naming the parameter (BP-0059: the earlier WAV, read only; the guard answers before the game is asked to listen)
 runtime_await_condition	path	node-path	runtime plane addresses live scene-tree nodes (same family measured live, 167 §2)
 runtime_call_method	path	node-path	measured against a LIVE game: answers 'Node not found' — resolved through the scene tree, not the filesystem
 runtime_emit_signal	path	node-path	runtime plane addresses live scene-tree nodes (same family measured live, 167 §2)
