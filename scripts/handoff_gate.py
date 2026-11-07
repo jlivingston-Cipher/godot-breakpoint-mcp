@@ -10388,6 +10388,56 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 63 reads / 31 raise sites / 12 host-origin vs 62 addon / 0 problems
 > ```
 """),
+    # 🆕 337 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 336 DID NOT WRITE, AS AT 327 THROUGH 336.
+    # `HANDOFF_SESSION336.md` was drafted at 337 by `--emit-handoff 336 ../HANDOFF_SESSION335.md
+    # --measured ci336/` in a worktree AT 61495e4 (337's edits never in it, nothing stashed) and the
+    # artifacts of #442's post-merge `ci` run 42326945216, whose first attempt finished green on every
+    # leg (`attempt=1` in all four headers). MOVED +1 is a129a34..61495e4 (#442's squash, which carried
+    # 335's block, godot_record's AVI route and the 1.94.0 cut in one tree). `untagged 0` because
+    # `v1.94.0` names 61495e4 itself; `unshipped 0` because the registry's `latest` is 1.94.0, read at
+    # 337. Three counters read by hand from those artifacts, as at 323 and 326 through 336: 27 CI jobs
+    # (ci 7 + integration 20, every job success; integration 42326945218), `0 exempt`
+    # (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three
+    # agree with the draft on every leg. The commit subject on the `main` row drops its two ledger IDs
+    # and "335's block": MOVED_POPULATION reads every numeral in that atom (git holds the full subject).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `MOVED`, BECAUSE BOTH VERSIONS MOVED: #442 was the 1.94.0 cut,
+    # host/src changed (the capture tool and the AVI route), addons/ changed and the addon was
+    # re-stamped 1.22.1 -> 1.23.0. `SENSE_ASKS["BARE-MOVED"]` asks host or addon, and both are true.
+    # Precedent: 328, 329, 330, 333, 334, 336.
+    #
+    # 🟡 THE ASSET LIBRARY ROW IS PENDING, AS AT 328 AND 331 THROUGH 336, NOW TWO VERSIONS DEEP. Asset
+    # 5335 answers 1.22.0 (modified 2026-11-06 20:31Z, read at 337); edit 24871 (1.22.1) and edit
+    # 24873 (1.23.0, submitted 02:08Z) are both waiting on a moderator. The one open PR is #443, 337's
+    # own. `QUEUE_HEAD` moves 336 -> 337, the session that registers it; 337 commits, so no
+    # `BLOCK_ABSENT`.
+    (336, """> ```
+> main                 61495e4 — session336 godot_record without a picture per frame, release 1.94.0 / addon 1.23.0 — runtime_audio_capture (#442)  MOVED +1
+> branch 336           session336 · PR #442
+> host / addon         1.94.0 / 1.23.0  🟢 MOVED — the cut; host/src and addons/ changed, and the addon re-stamped
+> npm                  🟢 registry 1.94.0 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 1 open PRs
+> assetlib             🟡 addon 1.22.0 live · 1.22.1 and 1.23.0 submitted, pending moderation
+> 🟢 VERIFIED AFTER THE CHANGE   1057/1057 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3554 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 59/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2572 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 339 file(s) / 21 suffixes · seal 117
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 298 tools / 4236 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5506
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 690 claims · landscape 4 channel(s) / 57 analysed / 87 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 35 past / 14 never analysed
+>               · identity 72 of 144 / 2 renamed / 0 collisions
+>               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
