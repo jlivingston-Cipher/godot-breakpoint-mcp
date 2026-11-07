@@ -417,7 +417,10 @@ BLAST: dict[str, int] = {
     # key / gamepad / pointer field refusals), one row — the tables grew by one.
     # 🆕 BP-0025 (1.92.0): 76 -> 77. ONE new runtime code, `bad_held_path` (runtime_call_method's
     # walk past a colon into what a node holds), one row — the tables grew by one.
-    "remedy_tables": 77,                      # 🆕 259: 64 -> 65, the CLI span join
+    # 🆕 BP-0059 (1.94.0): 77 -> 83. SIX new runtime codes, all `runtime_audio_capture`'s refusals
+    # (`no_bus`, `bus_busy`, `not_stereo`, `bus_bypassed`, `bus_has_effects`, `no_audio`), one row
+    # each — the tables grew by six (CI 42317660493 observed 83). No check was added.
+    "remedy_tables": 83,                      # 🆕 259: 64 -> 65, the CLI span join
     # 🆕 284 — 71 -> 70. The addon tables are no longer the ONLY source of a CLI span, so
     # blinding them leaves check 28's join able to answer and one refusal stops firing.
     # 🔵 AND THE OBSERVED COLLAPSE STILL INCLUDES `xlang.remedy_tool_refs` WHILE THE
@@ -649,7 +652,11 @@ BLAST: dict[str, int] = {
     # 🆕 BP-0025 (1.92.0): 95 -> 96. bad_held_path's remedy names `runtime_get_property` in
     # backticks — one more tool reference for check 28's arm to resolve against this registry,
     # so blinding it fails one more line (CI 42113240068 observed 96). No check was added.
-    "registered_tools": 96,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
+    # 🆕 BP-0059 (1.94.0): 96 -> 103. The six new remedy rows name seven tools in backticks
+    # (`runtime_audio_capture` four times, `godot_record` twice, `runtime_get_log` once) — seven
+    # more references for check 28's arm to resolve against this registry, so blinding it fails
+    # seven more lines (CI 42317660493 observed 103). No check was added.
+    "registered_tools": 103,       # 🆕 272: 85 -> 86, xlang.emit_regions arrived beside it                   # also: checks 6 8 9 11 13 25 28 29 31, 4c, 4d, 4e
     "test_count_constants": 1,
     "tool_count_claims": 1,
     # 🆕 222 — BOTH MOVED, AND BOTH MOVED BECAUSE A CHECK WAS ADDED. This is exactly the
