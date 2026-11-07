@@ -10336,6 +10336,58 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 63 reads / 31 raise sites / 12 host-origin vs 62 addon / 0 problems
 > ```
 """),
+    # 🆕 336 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 335 DID NOT WRITE, AS AT 327 THROUGH 335.
+    # `HANDOFF_SESSION335.md` was drafted at 336 by `--emit-handoff 335 ../HANDOFF_SESSION334.md
+    # --measured ci335/` in a worktree AT a129a34 (336's edits never in it, nothing stashed) and the
+    # artifacts of #441's post-merge `ci` run 42187077817. That run's first attempt was cancelled at
+    # GitHub's six-hour limit: its `host tests (node 18)` leg failed `csdap.test.ts`'s *applies
+    # immediately once the session is configured* and then hung after test 312. Its second attempt
+    # (the cancelled leg only, re-run) is 7/7 success, and the node-18 artifact read here is that
+    # attempt's (`attempt=2` in its header). MOVED +1 is c07298d..a129a34 (#441's squash, which carried
+    # 334's block and the 1.93.1 cut in one tree). `untagged 0` because `v1.93.1` names a129a34 itself;
+    # `unshipped 0` because the registry's `latest` is 1.93.1, read at 336. Three counters read by
+    # hand from those artifacts, as at 323 and 326 through 335: 27 CI jobs (ci 7 + integration 20,
+    # every job success; integration 42187077832), `0 exempt` (BOUNDARY_GATE_DISCOVER,
+    # INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three agree with the draft. The
+    # commit subject on the `main` row drops its three ledger IDs and "334's block": MOVED_POPULATION
+    # reads every numeral in that atom (git holds the full subject).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `MOVED`, BECAUSE BOTH VERSIONS MOVED: #441 was the 1.93.1 cut,
+    # addons/ changed and the addon was re-stamped 1.22.0 -> 1.22.1, while host/src did not change
+    # and only the host's version moved with the cut. `SENSE_ASKS["BARE-MOVED"]` asks host or addon,
+    # and both are true. Precedent: 328, 329, 330, 333, 334.
+    #
+    # 🟡 THE ASSET LIBRARY ROW IS PENDING, AS AT 328 AND 331 THROUGH 335, ONE VERSION ON. Asset 5335
+    # answers 1.22.0 (modified 2026-11-06 20:31Z, read at 336: edit 24865 was accepted); edit 24871
+    # (1.22.1) is waiting on a moderator. `QUEUE_HEAD` moves 335 -> 336, the session that registers
+    # it; 336 commits, so no `BLOCK_ABSENT`.
+    (335, """> ```
+> main                 a129a34 — session335 release 1.93.1 / addon 1.22.1 — the editor plugin works on Godot 4.2, and the hearing probe in CI (#441)  MOVED +1
+> branch 335           session335-cut · PR #441
+> host / addon         1.93.1 / 1.22.1  🟢 MOVED — the cut; addons/ changed and the addon re-stamped, host/src unchanged but the host's version
+> npm                  🟢 registry 1.93.1 · untagged 0 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.22.0 live · 1.22.1 submitted, pending moderation
+> 🟢 VERIFIED AFTER THE CHANGE   1049/1049 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3549 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 59/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2572 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 339 file(s) / 21 suffixes · seal 117
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 297 tools / 4144 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5448
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 688 claims · landscape 4 channel(s) / 57 analysed / 87 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 35 past / 14 never analysed
+>               · identity 72 of 144 / 2 renamed / 0 collisions
+>               · error-code discipline 63 reads / 31 raise sites / 12 host-origin vs 62 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
