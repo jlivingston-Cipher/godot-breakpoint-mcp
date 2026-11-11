@@ -176,11 +176,25 @@ claim(safe(() => stripCheck(twice, "greater_than")._def.checks.length, -1) === 1
 // and every one of them reads INVISIBLE. That is a gate reporting five undeclared classes
 // and hundreds of dropped rules on a tree where nothing changed, and no case above would
 // have caught it: they all read the def, which the broken strip edited correctly.
-claim(safe(() => stripCheck(z.number().positive(), "greater_than")._zod.bag.exclusiveMinimum, 0)
-  === undefined,
-  "🔴 the strip reaches the BAG the emitter actually reads, not just the def it was written from");
-claim(safe(() => z.number().positive()._zod.bag.exclusiveMinimum, undefined) === 0,
-  "and the live node it was handed keeps its own bag — the clone is a clone");
+// 🆕 339 — AND THE BAG WAS AN INSTALLED ZOD'S INTERNAL, NOT THE PROPERTY. zod 4.6 no longer
+// folds checks into `_zod.bag` at construction: measured at 339, `z.number().positive()`,
+// `.min(0)`, `.multipleOf(2)`, `.int()` and `z.string().min(1)` all carry `bag {}` under 4.6.7
+// where 4.4.3 carried `exclusiveMinimum`, `minimum`, `multipleOf`, `format`, `minimum`, while
+// `toJSONSchema` emits every one of those rules unchanged. Read through the bag, the first row
+// below passed VACUOUSLY under 4.6 (the bag is empty whether or not the strip worked) and the
+// second failed for a reason no client can see. 255's property was always "the strip changes
+// what the EMITTER emits", so the rows now read the emitted schema, which is also the only
+// thing a client ever receives: the live node emits the rule, the stripped clone does not, and
+// the live node still emits it after being stripped.
+const _emit = (n) => safe(() => z.toJSONSchema(n), {});
+claim(_emit(z.number().positive()).exclusiveMinimum === 0,
+  "the emitter emits the rule to begin with — without this the next row could pass vacuously");
+claim(_emit(stripCheck(z.number().positive(), "greater_than")).exclusiveMinimum === undefined,
+  "🔴 the strip reaches what the EMITTER emits, not just the def it was written from");
+const _livePos = z.number().positive();
+safe(() => stripCheck(_livePos, "greater_than"));
+claim(_emit(_livePos).exclusiveMinimum === 0,
+  "and the live node it was handed still emits its own rule after the strip — the clone is a clone");
 
 // ── 5. the walk names the leaf, not the parameter it hides under ─────────────────────
 const found = (schema, key = "p") => safe(() => walkNode(schema, "t", "inputSchema", key, []), []);
