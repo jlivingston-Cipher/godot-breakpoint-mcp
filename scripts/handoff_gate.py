@@ -10438,6 +10438,55 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
 > ```
 """),
+    # 🆕 338 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 337 DID NOT WRITE, AS AT 327 THROUGH 337.
+    # `HANDOFF_SESSION337.md` was drafted at 338 by `--emit-handoff 337 ../HANDOFF_SESSION336.md
+    # --measured ci337/` in a worktree AT d6914aa (338's edits never in it, nothing stashed) and the
+    # artifacts of #443's post-merge `ci` run 42349258960, whose first attempt finished green on every
+    # leg (`attempt=1` in all four headers). MOVED +1 is 61495e4..d6914aa (#443's squash, which carried
+    # 336's block and the test-port fix in one tree). `untagged 1` because #443 is not a cut and
+    # nothing was tagged after `v1.94.0` (61495e4); `unshipped 0` because `git diff v1.94.0 d6914aa --
+    # host/src host/package.json addons` is empty and the registry's `latest` is 1.94.0, read at 338.
+    # Three counters read by hand from those artifacts, as at 323 and 326 through 337: 27 CI jobs
+    # (ci 7 + integration 20, every job success; integration 42349258938), `0 exempt`
+    # (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three
+    # agree with the draft on every leg. The commit subject on the `main` row drops its two ledger IDs
+    # and "336's block": MOVED_POPULATION reads every numeral in that atom (git holds the full subject).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `UNMOVED`, BECAUSE NOTHING USERS INSTALL MOVED: #443 touched
+    # host/test, ci.yml, scripts/ and QUEUE.md, and nothing under host/src or addons/, so the pair
+    # stays 1.94.0 / 1.23.0, which is `SENSE_ASKS["UNMOVED"]`. Precedent: 285, 332.
+    #
+    # 🟢 THE ASSET LIBRARY ROW IS LIVE, FOR THE FIRST TIME SINCE 329. Asset 5335 answers 1.23.0 at
+    # 61495e4 (modified 2026-11-07 20:47Z, read at 338); edits 24871 (1.22.1) and 24873 (1.23.0) were
+    # both accepted. No PR was open when the npm row was read. `QUEUE_HEAD` moves 337 -> 338, the
+    # session that registers it; 338 commits, so no `BLOCK_ABSENT`.
+    (337, """> ```
+> main                 d6914aa — session337 a hung test file costs ten minutes of CI, not six hours (#443)  MOVED +1
+> branch 337           session337 · PR #443
+> host / addon         1.94.0 / 1.23.0  🟢 UNMOVED — no cut; nothing users install changed
+> npm                  🟢 registry 1.94.0 · untagged 1 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.23.0 live
+> 🟢 VERIFIED AFTER THE CHANGE   1057/1057 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3558 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 59/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2572 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 339 file(s) / 21 suffixes · seal 117
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 298 tools / 4236 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5506
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 692 claims · landscape 4 channel(s) / 57 analysed / 87 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 35 past / 14 never analysed
+>               · identity 72 of 144 / 2 renamed / 0 collisions
+>               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
