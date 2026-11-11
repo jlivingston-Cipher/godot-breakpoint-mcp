@@ -2209,6 +2209,19 @@
       "description": "MCP server that gives AI agents full control over the Godot 4.7+ editor — scene tree, node manipulation, GDScript execution, viewport capture, and ClassDB refle"
     },
     {
+      "key": "facelessdiplomat/godot-mcp-tool",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 338,
+      "repo": "facelessdiplomat/godot-mcp-tool",
+      "npm": "godot-mcp-tool",
+      "mcp_registry_name": null,
+      "version": "0.1.2",
+      "last_published": "2026-11-08",
+      "description": "MCP server that connects Claude Code to the Godot editor"
+    },
+    {
       "key": "fastmcp-me/kooix-godot-mcp",
       "channels": [
         "npm"
