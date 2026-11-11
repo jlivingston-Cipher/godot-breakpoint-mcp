@@ -10487,6 +10487,60 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
 > ```
 """),
+    # 🆕 339 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 338 DID NOT WRITE, AS AT 327 THROUGH 338.
+    # `HANDOFF_SESSION338.md` was drafted at 339 by `--emit-handoff 338 ../HANDOFF_SESSION337.md
+    # --measured ci338/` in a worktree AT fc580d3 (339's edits never in it, nothing stashed) and the
+    # artifacts of #444's post-merge `ci` run 43092156273. 🔴 ITS FIRST ATTEMPT
+    # PASSED EVERY TEST STEP AND STILL FINISHED RED: node 18 and node 22 failed only at "Upload the
+    # captured log", during a GitHub artifact outage (every log and artifact answered 502 at
+    # api.github.com from about 20:15Z to 21:25Z), so their logs never landed. The two legs were
+    # re-run alone and green, which is why their headers read `attempt=2` and node 20's and the
+    # contract check's read `attempt=1`. Precedent: 336, whose node-18 leg was re-run alone.
+    # MOVED +1 is d6914aa..fc580d3 (#444's squash, which carried 337's block and five roster rows in
+    # one tree). `untagged 2` because neither #443 nor #444 is a cut and nothing was tagged after
+    # `v1.94.0` (61495e4); `unshipped 0` because `git diff v1.94.0 fc580d3 -- host/src
+    # host/package.json addons` is empty and the registry's `latest` is 1.94.0, read at 339. Three
+    # counters read by hand from those artifacts, as at 323 and 326 through 338: 27 CI jobs (ci 7 +
+    # integration 20, every job success; integration 43092156363 on its first attempt), `0 exempt`
+    # (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three
+    # agree with the draft on every leg. The commit subject on the `main` row drops its ledger ID and
+    # "337's status block in the first PR": MOVED_POPULATION reads every numeral in that atom (git
+    # holds the full subject, whose "the roster row" is singular though the tree carries five).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `UNMOVED`, BECAUSE NOTHING USERS INSTALL MOVED: #444 touched
+    # scripts/, QUEUE.md and docs/alternative_mcp_roster.json only, so the pair stays 1.94.0 /
+    # 1.23.0, which is `SENSE_ASKS["UNMOVED"]`. Precedent: 285, 332, 337.
+    #
+    # 🟢 THE ASSET LIBRARY ROW IS LIVE, AS AT 337. Asset 5335 answers 1.23.0 at 61495e4 (modified
+    # 2026-11-07 20:47Z, read at 339). The one open PR is #445, 339's own. `QUEUE_HEAD` moves 338 ->
+    # 339, the session that registers it; 339 commits, so no `BLOCK_ABSENT`.
+    (338, """> ```
+> main                 fc580d3 — session338 the roster row the weekly sweep asked for (#444)  MOVED +1
+> branch 338           session338 · PR #444
+> host / addon         1.94.0 / 1.23.0  🟢 UNMOVED — no cut; nothing users install changed
+> npm                  🟢 registry 1.94.0 · untagged 2 · unshipped 0 ·
+>                      0 open issues / 1 open PRs
+> assetlib             🟢 addon 1.23.0 live
+> 🟢 VERIFIED AFTER THE CHANGE   1057/1057 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3563 · late not-loaded 0 · late constructed 364/160 · py gates 18/6/12
+>               · SIG 301/105 · discover 59/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2572 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 339 file(s) / 21 suffixes · seal 117
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 298 tools / 4236 nodes / 20 keys / 0 problems
+>               · wire_invisible 34 cases · lint_ceiling 18 py · taut 5506
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 693 claims · landscape 4 channel(s) / 57 analysed / 92 surfaced
+>               · capability 102 claimed / 0 unread / 10 uncited
+>               · cadence 7 within / 36 past / 14 never analysed
+>               · identity 72 of 149 / 2 renamed / 0 collisions
+>               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
