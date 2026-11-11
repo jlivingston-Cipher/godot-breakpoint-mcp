@@ -8,7 +8,7 @@
 //
 // 🔴 AND THE THING THIS TABLE IS REALLY FOR. A release classifier that answers PATCH is
 // indistinguishable, from the outside, from a release classifier that answers PATCH to
-// everything. Fifteen of the nineteen rows are cases where PATCH is the WRONG answer, and
+// everything. Seventeen of the twenty-three rows are cases where PATCH is the WRONG answer, and
 // they are the only reason the PATCH this file prints on most releases means anything.
 //
 // 🔴 NOTHING HERE THROWS, AND THAT IS THE INSTRUMENT GATE'S REQUIREMENT RATHER THAN A
@@ -18,6 +18,8 @@
 // call through `safe()`, and the run reaches WIRE_DIFF_SELFTEST either way.
 import {
   classify, normalise, shapeOf, typeName, effectiveTaskSupport, SURFACE_FLOOR, SHAPE_FLOOR,
+  // 🆕 339 — one schema, two spellings
+  canonical, bareTypeUnion,
   // 🆕 233 — the discover half
   schemaKeys, keyProblems, NOT_A_CONSTRAINT, STRUCTURAL, KEY_FLOOR, NODE_FLOOR,
   // 🆕 276 — the toolchain half
@@ -161,6 +163,20 @@ const ROWS = [
     head({ inputSchema: { type: "object", properties: { keep: { type: "string" }, $schema: { type: "string" } }, required: ["keep"] } }),
     head({ inputSchema: { type: "object", properties: { keep: { type: "string" } }, required: ["keep"] } }),
     "MAJOR", "inputSchema.$schema REMOVED"],
+
+  // 🆕 339 — ONE SCHEMA, TWO SPELLINGS. zod 4.5.0 writes a union of bare JSON types as a
+  // `type` list where 4.4.3 wrote `anyOf`; the two accept the same values, so the converter
+  // moving between them is not a wire event. The last two rows are why that sentence is
+  // narrow: retyping a union is still MAJOR in either spelling, and a member that carries
+  // anything beside its `type` is not a bare type.
+  ["🔴 a nullable output written as anyOf and as a type list is ONE schema",
+    head({ outputSchema: { type: "object", properties: { r: { type: "string" }, n: { anyOf: [{ type: "number" }, { type: "null" }] } } } }), head({ outputSchema: { type: "object", properties: { r: { type: "string" }, n: { type: ["number", "null"] } } } }), "PATCH", ""],
+  ["🔴 …and so is a record whose values are a bare-type union, in either spelling and order",
+    head(IN({ properties: { data: { type: "object", propertyNames: { type: "string" }, additionalProperties: { anyOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }] } } } })), head(IN({ properties: { data: { type: "object", propertyNames: { type: "string" }, additionalProperties: { type: ["string", "number", "boolean"] } } } })), "PATCH", ""],
+  ["🔴 …but RETYPING the union across the two spellings is still MAJOR",
+    head({ outputSchema: { type: "object", properties: { r: { type: "string" }, n: { anyOf: [{ type: "number" }, { type: "null" }] } } } }), head({ outputSchema: { type: "object", properties: { r: { type: "string" }, n: { type: ["string", "null"] } } } }), "MAJOR", "outputSchema.n type null|number -> null|string"],
+  ["🔴 …and a member that carries a constraint is NOT a bare type, so the union stays a union",
+    head({ outputSchema: { type: "object", properties: { r: { type: "string" }, n: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] } } } }), head({ outputSchema: { type: "object", properties: { r: { type: "string" }, n: { type: ["string", "null"] } } } }), "MAJOR", "outputSchema.n type anyOf(2"],
 ];
 
 // ── 1. THE TABLE ─────────────────────────────────────────────────────────────────────
@@ -273,6 +289,27 @@ claim(typeName({ type: "string" }) === typeName({ type: "string", description: "
 claim(typeName({ anyOf: [{ type: "string" }, { type: "number" }] })
   !== typeName({ anyOf: [{ type: "string" }, { type: "null" }] }),
   "🔴 anyOf branches that were RETYPED at equal arity are a change");
+// 🆕 339 — the equivalence, and each of the four places it must NOT reach.
+claim(typeName({ anyOf: [{ type: "number" }, { type: "null" }] }) === typeName({ type: ["number", "null"] }),
+  "a bare-type anyOf and the type list it equals are one name");
+claim(typeName({ anyOf: [{ type: "null" }, { type: "number" }] }) === typeName({ type: ["null", "number"] }),
+  "…in any member order");
+claim(typeName({ type: "object", additionalProperties: { anyOf: [{ type: "string" }, { type: "number" }] } })
+  === typeName({ type: "object", additionalProperties: { type: ["string", "number"] } }),
+  "…and inside a constraint's digest, where the converter writes the list in the author's order");
+claim(typeName({ oneOf: [{ type: "integer" }, { type: "number" }] }) !== typeName({ type: ["integer", "number"] }),
+  "🔴 oneOf is never collapsed — integer is inside number, so that oneOf refuses every integer");
+claim(typeName({ anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] }) !== typeName({ type: ["string", "null"] }),
+  "🔴 a member carrying a constraint is not a bare type");
+claim(typeName({ anyOf: [{ type: "string", description: "d" }, { type: "null" }] }).startsWith("anyOf(2"),
+  "🔴 …nor is one carrying prose; the rule is about members that are ONLY a type");
+claim(typeName({ const: { anyOf: [{ type: "a" }] } }) !== typeName({ const: { type: "a" } }),
+  "🔴 a value is never rewritten — const, enum, default and examples hold the author's data");
+claim(safe(() => JSON.stringify(canonical({ properties: { anyOf: { type: "string" }, type: { type: "number" } } })), "")
+  === JSON.stringify({ properties: { anyOf: { type: "string" }, type: { type: "number" } } }),
+  "🔴 properties NAMED anyOf and type are the author's vocabulary and pass through untouched");
+claim(safe(() => bareTypeUnion({ anyOf: [] }), 0) === null,
+  "an empty anyOf is not a bare-type union (it accepts nothing, a type list cannot say that)");
 // 🔴 THE BOUND, ASSERTED. A digest that grew with the value would put a whole enum into
 // every diff line and make the reader's output unreadable — which is the argument the
 // original `enum(n)` was making, and it was right about that much.

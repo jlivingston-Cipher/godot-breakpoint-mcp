@@ -795,6 +795,13 @@ INSTRUMENTS = [
             # window produces, which makes it the sharper of the two.
             "{SIG:depResolution}": "return {};",
             "{SIG:resolutionDrift}": "return [];",
+            # 🆕 339 — ONE SCHEMA, TWO SPELLINGS, ADDED IN THE COMMIT THAT SHIPPED THEM. Both
+            # blinds are the answer the file gave before 339, which is the healthy-looking
+            # one: `canonical` blinded hands every schema back unchanged and `bareTypeUnion`
+            # blinded finds no union to collapse, so either one puts the 252 converter
+            # paths back in `major`. The self-test's equivalence rows and claims redden.
+            "{SIG:canonical}": "return v;",
+            "{SIG:bareTypeUnion}": "return null;",
         },
     },
     {
