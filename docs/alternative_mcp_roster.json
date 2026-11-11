@@ -2280,6 +2280,19 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "franciscuarto/orbitkit",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 338,
+      "repo": "FrancisCuarto/OrbitKit",
+      "npm": "@francisiv/orbitkit",
+      "mcp_registry_name": null,
+      "version": "0.7.0",
+      "last_published": "2026-11-11",
+      "description": "OrbitKit CLI — Interactive Web GUI Dashboard, TUI, Blackbox Flight Telemetry & Crash Diagnostics, Godot 4 & Blender 3D AI Skills, Model Context Protocol (MCP) S"
+    },
+    {
       "key": "funplayai/funplay-godot-mcp",
       "channels": [
         "npm",
@@ -2324,6 +2337,19 @@
       "version": "0.7.1",
       "last_published": "2026-11-01",
       "description": "Spawn panes, inject input and read output in a tiling terminal workspace"
+    },
+    {
+      "key": "godotbridge/addon",
+      "channels": [
+        "mcp-registry"
+      ],
+      "first_seen": 338,
+      "repo": "godotbridge/addon",
+      "npm": null,
+      "mcp_registry_name": "io.github.godotbridge/godotbridge",
+      "version": "1.0.4",
+      "last_published": "2026-11-10",
+      "description": "Lets AI agents build, run and test Godot 4 projects in the real editor. Free Lite tier."
     },
     {
       "key": "green2995/gopeak-godot-mcp",
@@ -2485,6 +2511,19 @@
       "version": "0.10.7",
       "last_published": "2026-06-15",
       "description": "Token-efficient game-engine & build log analysis (Unreal/Unity/Godot/MSVC-UBT-MSBuild) for the CLI and MCP — parse, dedup, classify by severity/category, diff r"
+    },
+    {
+      "key": "justin-sky/ai-art-engine",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 338,
+      "repo": "Justin-sky/ai-art-engine",
+      "npm": "ai-art-engine-mcp",
+      "mcp_registry_name": null,
+      "version": "8.9.4",
+      "last_published": "2026-11-11",
+      "description": "Zero-dependency MCP stdio bridge for AI Art Engine — 102 local tools for editable Photoshop PSD (TySh), Unity/Godot UI, Spine 2D rigging, Machinations game econ"
     },
     {
       "key": "jxlee007/godot_mcp",
@@ -3019,6 +3058,19 @@
       "version": "0.1.0",
       "last_published": "2026-03-08",
       "description": "GoPeak CLI for Godot automation, shipping the godot-flow MCP architecture via 4 meta-tools"
+    },
+    {
+      "key": "npm:hydrilla-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 338,
+      "repo": null,
+      "npm": "hydrilla-mcp",
+      "mcp_registry_name": null,
+      "version": "2.0.2",
+      "last_published": "2026-11-10",
+      "description": "MCP server for Hydrilla: generate 3D models and send them into Blender, Unity, Unreal, Godot, Maya or 3ds Max."
     },
     {
       "key": "npm:vberai-godot-mcp",
