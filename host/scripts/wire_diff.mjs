@@ -591,8 +591,9 @@ async function main() {
     // both of its own collapse floors — and a `classify`, `shapeOf` or `normalise` that
     // went quiet cannot do all three. That is what makes this step a live axis for the
     // classifier and not only for the key roster (232 §5.6's argument, paid rather than
-    // declared). `effectiveTaskSupport` is the one member a SYMMETRIC comparison cannot
-    // reach — both sides forbid identically — and it carries the declared-green row.
+    // declared). `effectiveTaskSupport` is a member a SYMMETRIC comparison cannot
+    // reach — both sides forbid identically — and it carries a declared-green row; so,
+    // since 339, do `canonical` and `bareTypeUnion`, which rewrite both sides alike.
     let self;
     try {
       self = classify(tools, tools);
